@@ -21,6 +21,7 @@ import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { getMxIdLocalPart } from '../matrix/matrix';
 import { ArchivedRooms } from '../rooms/archive/ArchivedRoomsPage';
 import { LocalMindroom } from '../local-mindroom/LocalMindroom';
+import { ServerAccounts } from '../server-admin/ServerAccounts';
 import { ComputersSettingsPage, ConnectionsSettingsPage } from './pages/AgentSettingsPages';
 import {
   getSettingsMenuItems,
@@ -97,6 +98,8 @@ function SettingsPageContent({ page, requestClose, closeDialog }: PageContentPro
       return <LocalMindroom requestClose={requestClose} onNavigate={closeDialog} />;
     case 'archived-rooms':
       return <ArchivedRooms requestClose={requestClose} onNavigate={closeDialog} />;
+    case 'server-accounts':
+      return <ServerAccounts requestClose={requestClose} />;
     case 'storage':
       return <StorageOffline requestClose={requestClose} />;
     case 'developer-tools':
@@ -241,7 +244,13 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
   const viewport = useScreenSizeContext();
   const context = useSettingsContext();
   const [activePage, setActivePage] = useState<SettingsPageId | undefined>(() =>
-    resolveSettingsInitialPage(initialPage, viewport, context.localMindroom, context.native)
+    resolveSettingsInitialPage(
+      initialPage,
+      viewport,
+      context.localMindroom,
+      context.native,
+      context.serverAdmin
+    )
   );
   const [query, setQuery] = useState('');
   const [target, setTarget] = useState<SettingsTarget>();
@@ -266,8 +275,8 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
   useEffect(() => (target ? revealSetting(pageRef.current, target.id) : undefined), [target]);
 
   const menuItems = useMemo(
-    () => getSettingsMenuItems(context.localMindroom, t, context.native),
-    [context.localMindroom, context.native, t]
+    () => getSettingsMenuItems(context.localMindroom, t, context.native, context.serverAdmin),
+    [context.localMindroom, context.native, context.serverAdmin, t]
   );
   const isMobile = viewport === ScreenSize.Mobile;
 

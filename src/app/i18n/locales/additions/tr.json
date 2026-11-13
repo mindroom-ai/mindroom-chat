@@ -907,5 +907,49 @@
     "pickDescriptionPhone": "Seçmek için menüyü açın.",
     "needsYouLabel_one": "Konular, {{count}} tanesi sizi bekliyor",
     "needsYouLabel_other": "Konular, {{count}} tanesi sizi bekliyor"
+  },
+  "serverAccounts": {
+    "group": "Yönetim",
+    "title": "Sunucu hesapları",
+    "description": "Bu sunucudaki tüm hesaplar. Bu sayfayı yalnızca sunucu yöneticileri görür.",
+    "search": "Ada veya Matrix kimliğine göre ara",
+    "filters": {
+      "all": "Tümü",
+      "internal": "Dahili",
+      "external": "Harici",
+      "deactivated": "Devre dışı"
+    },
+    "count": "Hesaplar: {{shown}} / {{total}}",
+    "noMatches": "Eşleşen hesap yok",
+    "loadFailed": "Hesaplar yüklenemedi.",
+    "status": {
+      "active": "Etkin",
+      "locked": "Kilitli",
+      "suspended": "Askıda"
+    },
+    "lastSeen": "Son görülme: {{date}}",
+    "externalNote": "Harici bir hesap yalnızca davet edildiği odalara katılır. Oda oluşturamaz ve kimseyi davet edemez.",
+    "roomsFailed": "Bu hesabın odaları yüklenemedi.",
+    "noRooms": "Hiçbir odada değil",
+    "actions": {
+      "lock": "Hesabı kilitle",
+      "unlock": "Hesabın kilidini aç",
+      "suspend": "Hesabı askıya al",
+      "unsuspend": "Askıyı kaldır",
+      "deactivate": "Hesabı devre dışı bırak"
+    },
+    "hints": {
+      "lock": "Kilitli bir hesap hiç kullanılamaz. Odaları ve mesajları kalır.",
+      "suspend": "Askıya alınmış bir hesap oturum açıp okuyabilir, ancak mesaj gönderemez ve odalara katılamaz.",
+      "deactivate": "Hesap odalarından ayrılır ve bir daha asla oturum açamaz. Bu işlem geri alınamaz."
+    },
+    "confirm": {
+      "lock": "{{user}} kilitlensin mi? Siz kilidini açana kadar hesap kullanılamaz. Odaları ve mesajları kalır.",
+      "unlock": "{{user}} hesabının kilidi açılsın mı? Hesap yeniden kullanılabilir.",
+      "suspend": "{{user}} askıya alınsın mı? Hesap oturum açıp okuyabilir, ancak siz askıyı kaldırana kadar mesaj gönderemez ve odalara katılamaz.",
+      "unsuspend": "{{user}} hesabının askısı kaldırılsın mı? Hesap yeniden mesaj gönderebilir ve odalara katılabilir.",
+      "deactivate": "{{user}} devre dışı bırakılsın mı? Hesap odalarından ayrılır ve bir daha asla oturum açamaz. Bu işlem geri alınamaz."
+    },
+    "protected": "Yöneticiler ve kendi hesabınız burada değiştirilemez."
   }
 }

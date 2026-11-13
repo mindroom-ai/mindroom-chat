@@ -930,5 +930,49 @@
     "needsYouLabel_one": "Tópicos, {{count}} à sua espera",
     "needsYouLabel_many": "Tópicos, {{count}} à sua espera",
     "needsYouLabel_other": "Tópicos, {{count}} à sua espera"
+  },
+  "serverAccounts": {
+    "group": "Administração",
+    "title": "Contas do servidor",
+    "description": "Todas as contas deste servidor. Só os administradores do servidor veem esta página.",
+    "search": "Pesquisar por nome ou ID Matrix",
+    "filters": {
+      "all": "Todas",
+      "internal": "Internas",
+      "external": "Externas",
+      "deactivated": "Desativadas"
+    },
+    "count": "Contas: {{shown}} de {{total}}",
+    "noMatches": "Nenhuma conta corresponde",
+    "loadFailed": "Não foi possível carregar as contas.",
+    "status": {
+      "active": "Ativa",
+      "locked": "Bloqueada",
+      "suspended": "Suspensa"
+    },
+    "lastSeen": "Vista pela última vez: {{date}}",
+    "externalNote": "Uma conta externa só entra nas salas para as quais é convidada. Não pode criar salas nem convidar pessoas.",
+    "roomsFailed": "Não foi possível carregar as salas desta conta.",
+    "noRooms": "Em nenhuma sala",
+    "actions": {
+      "lock": "Bloquear conta",
+      "unlock": "Desbloquear conta",
+      "suspend": "Suspender conta",
+      "unsuspend": "Remover suspensão",
+      "deactivate": "Desativar conta"
+    },
+    "hints": {
+      "lock": "Uma conta bloqueada não pode ser usada de forma alguma. As salas e mensagens dela permanecem.",
+      "suspend": "Uma conta suspensa ainda pode entrar e ler, mas não pode enviar mensagens nem entrar em salas.",
+      "deactivate": "A conta sai das salas e nunca mais poderá entrar. Isto não pode ser desfeito."
+    },
+    "confirm": {
+      "lock": "Bloquear {{user}}? A conta não pode ser usada até que você a desbloqueie. As salas e mensagens dela permanecem.",
+      "unlock": "Desbloquear {{user}}? A conta pode ser usada novamente.",
+      "suspend": "Suspender {{user}}? A conta ainda pode entrar e ler, mas não pode enviar mensagens nem entrar em salas até que você remova a suspensão.",
+      "unsuspend": "Remover a suspensão de {{user}}? A conta pode voltar a enviar mensagens e a entrar em salas.",
+      "deactivate": "Desativar {{user}}? A conta sai das salas e nunca mais poderá entrar. Isto não pode ser desfeito."
+    },
+    "protected": "Os administradores e a sua própria conta não podem ser alterados aqui."
   }
 }

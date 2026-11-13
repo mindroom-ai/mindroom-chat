@@ -61,6 +61,8 @@ src/
     ui-actions/          agent-driven UI actions (button, provider, controller)
     plugins/             client plugins the build lists: the registry, their config.json sections, message
                          renderers, side panels, pages (see "Client plugins" below)
+    server-admin/        the homeserver's local accounts, for its administrators: the list, an account's state and
+                         rooms, lock, suspend and deactivate (Settings, Server accounts)
     computer/            the worker computer panel, screen, touchpad, clipboard, API, settings, agent servers
     emoji/               emoji data, recent emoji, skin tone; board/, custom/ packs, packs/ editor, server/, settings/
     editor/              the Slate editor of the composer and of message editing; autocomplete/
@@ -154,7 +156,7 @@ A domain imports only domains in a strictly lower layer. Runtime, type-only and 
 | 1 | `config`, `i18n`, `preferences`, `routes`, `shortcuts`, `src/sw` |
 | 2 | `diagnostics`, `native`, `ui` |
 | 3 | `matrix`, `theme` |
-| 4 | `avatars`, `models`, `navigation`, `plugins`, `rich-text`, `ui-actions` |
+| 4 | `avatars`, `models`, `navigation`, `plugins`, `rich-text`, `server-admin`, `ui-actions` |
 | 5 | `computer`, `emoji`, `event-store` |
 | 6 | `approvals`, `bug-reports`, `calls`, `connections`, `editor` |
 | 7 | `background-jobs`, `members`, `messages` |

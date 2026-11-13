@@ -18,6 +18,7 @@ const WEB: SettingsContext = {
   native: false,
   nativeIOS: false,
   localMindroom: true,
+  serverAdmin: false,
   useSystemTheme: true,
   developerTools: false,
   errorReporting: false,

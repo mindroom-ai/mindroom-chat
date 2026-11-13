@@ -17,6 +17,7 @@ const WEB: SettingsContext = {
   native: false,
   nativeIOS: false,
   localMindroom: true,
+  serverAdmin: false,
   useSystemTheme: true,
   developerTools: false,
   errorReporting: false,
@@ -87,6 +88,11 @@ describe('settings registry', () => {
     expect(webPages).toContain('mindroom.local-mindroom');
     expect(appPages).not.toContain('connections');
     expect(appPages).not.toContain('mindroom.local-mindroom');
+    // The server's accounts only for its administrators.
+    expect(webPages).not.toContain('server-accounts');
+    expect(getShownSettingsPages({ ...WEB, serverAdmin: true }).map((page) => page.id)).toContain(
+      'server-accounts'
+    );
 
     const webSettings = getShownSettings(WEB).map((setting) => setting.id);
     const appSettings = getShownSettings(app).map((setting) => setting.id);

@@ -51,6 +51,7 @@ const PAGE_FILES: Record<Exclude<SettingsPageId, 'sidebar'>, string[]> = {
   ],
   'mindroom.local-mindroom': ['local-mindroom/LocalMindroom.tsx'],
   'archived-rooms': ['rooms/archive/ArchivedRoomsPage.tsx'],
+  'server-accounts': ['server-admin/ServerAccounts.tsx', 'server-admin/ServerAccountDetail.tsx'],
   storage: [
     'settings/pages/StorageOffline.tsx',
     'settings/pages/PrefetchSettings.tsx',

@@ -46,6 +46,16 @@ describe('getSettingsMenuItems', () => {
     ]);
   });
 
+  it('shows Server accounts to server administrators only', () => {
+    const shown = (serverAdmin: boolean) =>
+      getSettingsMenuItems(false, t, false, serverAdmin).find(
+        (item) => item.page === 'server-accounts'
+      );
+
+    expect(shown(false)).toBeUndefined();
+    expect(shown(true)).toMatchObject({ name: 'Server accounts', group: 'server' });
+  });
+
   it('leaves Connections out of the apps, which cannot open its window', () => {
     const items = getSettingsMenuItems(false, t, true);
 
@@ -73,6 +83,14 @@ describe('resolveSettingsInitialPage', () => {
     expect(
       resolveSettingsInitialPage(LOCAL_MINDROOM_SETTINGS_PAGE, ScreenSize.Desktop, false)
     ).toBe(SettingsPages.AppearancePage);
+  });
+
+  it('opens Server accounts for a server administrator, and the default page for anyone else', () => {
+    const open = (serverAdmin: boolean) =>
+      resolveSettingsInitialPage('server-accounts', ScreenSize.Desktop, false, false, serverAdmin);
+
+    expect(open(true)).toBe('server-accounts');
+    expect(open(false)).toBe(SettingsPages.AppearancePage);
   });
 
   it('keeps mobile settings closed when no initial page is requested', () => {
