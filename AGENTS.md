@@ -45,7 +45,7 @@ Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, 
 | `just typecheck-all` | `scripts/typecheck-all.mjs`: syntax and semantic errors together over `tsconfig.json` |
 | `just strict` | `scripts/strict-check.mjs`: `tsc` with the stricter flags of `tsconfig.strict.json`; fails on Lane C errors only and prints the count of Lane P errors it ignores |
 | `just test [args]` | `vitest run`; DOM tests opt in with `// @vitest-environment jsdom` |
-| `just lint` | ESLint over `src`, `e2e`, `scripts` and the config files, with type-aware rules for Lane C TypeScript; every file takes `PopOut` and `TooltipProvider` from `src/app/ui/directional.tsx` and writes styles with logical sides (the rules and their exceptions: the `justfile` comment) |
+| `just lint` | ESLint over `src`, `e2e`, `scripts` and the config files, with type-aware rules for Lane C TypeScript, `PopOut` and `TooltipProvider` from `src/app/ui/directional.tsx`, and logical sides in styles (the files each rule covers and its exceptions: the `justfile` comment) |
 | `just format <paths>` | Prettier (2.8.8, matches the Lane P style) on the files you changed |
 | `just dev` | Vite on `http://127.0.0.1:4200`; also serves `/runtime-config.js`, `/authentication-recovery.js` and a development `/sw.js` |
 | `just build` | production build into `dist/`; `docs/deployment.md` "Build" and the `justfile` comment list what it holds |
