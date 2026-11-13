@@ -1,6 +1,6 @@
 import { Badge, Box, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-import type { ServerAccount } from './serverAccounts';
+import type { ServerAccount } from './accounts';
 
 type AccountBadgesProps = {
   account: ServerAccount;

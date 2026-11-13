@@ -10,7 +10,7 @@ import {
   parseServerAccount,
   runAccountAction,
   type ServerAccount,
-} from './serverAccounts';
+} from './accounts';
 
 type Answer = (path: string, query: Record<string, unknown> | undefined) => unknown;
 

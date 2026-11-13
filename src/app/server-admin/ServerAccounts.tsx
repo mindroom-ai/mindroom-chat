@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, Button, Chip, Icon, Icons, Input, Spinner, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -18,7 +18,7 @@ import {
   listServerAccounts,
   type AccountFilter,
   type ServerAccount,
-} from './serverAccounts';
+} from './accounts';
 
 /** How many more accounts each "Show more" adds. */
 const STEP = 100;
@@ -67,11 +67,16 @@ export function ServerAccounts({ requestClose }: SettingsPageProps) {
   const [limit, setLimit] = useState(STEP);
   const [openId, setOpenId] = useState<string>();
 
+  const latestLoad = useRef(0);
   const load = useCallback(() => {
+    latestLoad.current += 1;
+    const request = latestLoad.current;
+    // Only the latest load counts: an earlier one may answer last, with older accounts.
+    const current = () => alive() && request === latestLoad.current;
     setError(undefined);
     listServerAccounts(mx).then(
-      (loaded) => alive() && setAccounts(loaded),
-      (reason: unknown) => alive() && setError(reason ?? new Error('unknown'))
+      (loaded) => current() && setAccounts(loaded),
+      (reason: unknown) => current() && setError(reason ?? new Error('unknown'))
     );
   }, [mx, alive]);
   useEffect(load, [load]);

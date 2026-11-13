@@ -5,7 +5,7 @@ import { isNativeIOS } from '../native/nativeSso';
 import { useOfferedRailButtons } from './railButtons';
 import { useClientConfig } from '../config/useClientConfig';
 import { useCapabilities } from '../matrix/hooks/useCapabilities';
-import { isServerAdmin } from '../server-admin/serverAccounts';
+import { isServerAdmin } from '../server-admin/accounts';
 import { parseDsn } from '../bug-reports/error-reporting/errorReporting';
 import { settingsAtom } from '../preferences/settings';
 import { themeSettingsAtom } from '../theme/useTheme';

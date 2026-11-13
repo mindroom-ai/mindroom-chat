@@ -2,7 +2,7 @@
 import React, { type ReactNode } from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ServerAccount } from './serverAccounts';
+import type { ServerAccount } from './accounts';
 import { ServerAccounts } from './ServerAccounts';
 
 const mocks = vi.hoisted(() => ({
@@ -57,8 +57,8 @@ vi.mock('../ui/ActionDialog', () => ({
     React.createElement('dialog', { 'aria-label': label }, children),
 }));
 vi.mock('../ui/ErrorDetail', () => ({ ErrorDetail: () => null }));
-vi.mock('./serverAccounts', async (original) => ({
-  ...(await original<typeof import('./serverAccounts')>()),
+vi.mock('./accounts', async (original) => ({
+  ...(await original<typeof import('./accounts')>()),
   listServerAccounts: mocks.list,
   getServerAccount: mocks.get,
   listAccountRooms: mocks.rooms,
@@ -229,6 +229,40 @@ describe('ServerAccounts', () => {
 
     expect(root.findByType('dialog').findAllByProps({ role: 'alert' }).length).toBeGreaterThan(0);
     expect(mocks.list).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers no action on what an action made stale when the account does not load again', async () => {
+    const root = await render([ALICE, BOB]);
+    await click(rows(root)[1]!);
+    mocks.get.mockRejectedValue(new Error('offline'));
+
+    await click(button(root, 'Lock account'));
+    await click(button(root.findByType('dialog'), 'Lock account'));
+
+    expect(buttons(root).map(text)).toEqual(['Back']);
+    expect(root.findAllByProps({ role: 'alert' }).length).toBeGreaterThan(0);
+  });
+
+  it('keeps the latest list when an earlier load answers last', async () => {
+    const root = await render([ALICE, BOB]);
+    await click(rows(root)[1]!);
+    let answerLocked: (accounts: ServerAccount[]) => void = () => undefined;
+    mocks.list.mockReturnValueOnce(
+      new Promise<ServerAccount[]>((resolve) => {
+        answerLocked = resolve;
+      })
+    );
+    mocks.get.mockResolvedValue({ ...BOB, locked: true, suspended: false });
+    await click(button(root, 'Lock account'));
+    await click(button(root.findByType('dialog'), 'Lock account'));
+
+    mocks.get.mockResolvedValue({ ...BOB, suspended: false });
+    await click(button(root, 'Unlock account'));
+    await click(button(root.findByType('dialog'), 'Unlock account'));
+    await act(async () => answerLocked([ALICE, { ...BOB, locked: true }]));
+
+    await click(button(root, 'Back'));
+    expect(text(rows(root)[1]!)).not.toContain('Locked');
   });
 
   it('offers no action on the own account, an administrator or a deactivated account', async () => {

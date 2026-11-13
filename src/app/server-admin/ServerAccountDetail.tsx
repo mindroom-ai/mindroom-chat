@@ -19,7 +19,7 @@ import {
   type AccountAction,
   type AccountRoom,
   type ServerAccount,
-} from './serverAccounts';
+} from './accounts';
 
 /** The line that says what an action's state means, shown beside its button. */
 const ACTION_HINT = {
@@ -232,6 +232,8 @@ export function ServerAccountDetail({ account, onBack, onChanged }: ServerAccoun
           onClose={() => setConfirming(undefined)}
           onDone={() => {
             setConfirming(undefined);
+            // What the action made stale goes at once, so nothing acts on it while it loads again.
+            setLoaded({});
             setVersion((previous) => previous + 1);
             onChanged();
           }}

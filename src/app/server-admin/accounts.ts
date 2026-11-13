@@ -142,8 +142,10 @@ export const listAccountRooms = async (
 export type AccountAction = 'lock' | 'unlock' | 'suspend' | 'unsuspend' | 'deactivate';
 
 /**
- * What an administrator may do to an account here: nothing to their own account, to another
- * administrator (the server refuses both) or to a deactivated account, which stays deactivated.
+ * What an administrator may do to an account here: nothing to their own account or to another
+ * administrator, nor to a deactivated account, which stays deactivated. The server refuses to
+ * lock or suspend an administrator or the caller, but would deactivate either, so this is what
+ * keeps that from happening here.
  */
 export const accountActions = (
   account: ServerAccount,
