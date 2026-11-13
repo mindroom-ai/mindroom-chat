@@ -30,7 +30,8 @@ export type CaptureAction =
   | { kind: 'reply'; roomId: string; threadId: string; text: string }
   | { kind: 'resolve'; roomId: string; threadId: string; resolved: boolean }
   | { kind: 'selectRoom'; roomId: string }
-  | { kind: 'open'; roomId: string; threadId?: string };
+  | { kind: 'open'; roomId: string; threadId?: string }
+  | { kind: 'read'; roomId: string; threadId: string };
 export type CaptureResult =
   | { ok: true; threadId?: string }
   | { ok: false; error: CaptureErrorCode };
@@ -105,6 +106,8 @@ const isAction = (value: unknown): boolean => {
       return true;
     case 'open':
       return isOptional(value.threadId, isString);
+    case 'read':
+      return isString(value.threadId);
     default:
       return false;
   }

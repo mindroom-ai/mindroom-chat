@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useId,
   useLayoutEffect,
   useRef,
@@ -12,6 +13,7 @@ import type { ParseKeys } from 'i18next';
 import { Icon, Icons } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { copyToClipboard } from '../lib/dom';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { isComposingKey, keyCapsOf } from '../shortcuts/shortcuts';
 import { ownDirectionBlock, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import type { CaptureClient } from './captureChannel';
@@ -83,6 +85,9 @@ export function CaptureList({
   const selected = items.find((item) => item.threadId === selectedId);
   // The row Tab reaches: the selected one, else the first, as when the selected thread is gone.
   const tabStopId = (selected ?? items[0])?.threadId;
+  /** The thread whose peek shows. */
+  const peekedId = peekOpen ? selected?.threadId : undefined;
+  const latest = useLatestRef({ items, roomId, request });
 
   // A row or field the list moves, or takes away, loses the focus to the page: it gets it back,
   // or the selected row takes it.
@@ -99,6 +104,22 @@ export function CaptureList({
     focusReply.current = false;
     replyRef.current?.focus();
   });
+
+  // The peek opens under its row, below the list's fold for a row far down: the list shows it.
+  useLayoutEffect(() => {
+    if (peekedId === undefined) return;
+    rows.current.get(peekedId)?.closest('[role="listitem"]')?.scrollIntoView({ block: 'nearest' });
+  }, [peekedId]);
+
+  // A peek that opens on a new answer reads it, once for each opening: a new state that still says
+  // `new` asks nothing more. A read that fails leaves the chip, and nothing to say.
+  useEffect(() => {
+    if (peekedId === undefined) return;
+    const { items: listed, roomId: peekedRoomId, request: ask } = latest.current;
+    const item = listed.find((candidate) => candidate.threadId === peekedId);
+    if (item?.chip !== 'new' || isPending(item)) return;
+    void ask({ kind: 'read', roomId: peekedRoomId, threadId: peekedId });
+  }, [latest, peekedId]);
 
   const focusRow = (threadId: string) => rows.current.get(threadId)?.focus();
 

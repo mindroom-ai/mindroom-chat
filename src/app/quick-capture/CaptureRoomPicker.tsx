@@ -47,11 +47,15 @@ export function CaptureRoomPicker({
   const { t } = useTranslation();
   const baseId = useId();
   const [query, setQuery] = useState('');
-  const [active, setActive] = useState(0);
+  /** The highlighted room; none for the first row. */
+  const [activeId, setActiveId] = useState<string>();
   const [error, setError] = useState<CaptureErrorCode>();
   const picking = useRef(false);
   const shown = useMemo(() => filterCaptureRooms(rooms, query.trim()), [rooms, query]);
-  const activeIndex = Math.min(active, shown.length - 1);
+  // The highlight stays on its room while a new state sorts the rooms again by activity; a room
+  // that leaves the rows gives it to the first.
+  const found = shown.findIndex((room) => room.id === activeId);
+  const activeIndex = found >= 0 || shown.length === 0 ? found : 0;
   const optionId = (index: number) => `${baseId}-${index}`;
 
   // The field keeps the focus, so the browser scrolls nothing: the highlighted room is brought
@@ -78,7 +82,8 @@ export function CaptureRoomPicker({
     if (!action || action.kind === 'escape') return;
     event.preventDefault();
     if (action.kind === 'move') {
-      setActive(Math.max(0, Math.min(shown.length - 1, activeIndex + action.by)));
+      const next = Math.max(0, Math.min(shown.length - 1, activeIndex + action.by));
+      setActiveId(shown[next]?.id);
     } else if (action.kind === 'pick') void pick(shown[activeIndex]);
   };
 
@@ -100,7 +105,7 @@ export function CaptureRoomPicker({
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
-            setActive(0);
+            setActiveId(undefined);
           }}
           onKeyDown={onKeyDown}
           onFocus={onFocus}

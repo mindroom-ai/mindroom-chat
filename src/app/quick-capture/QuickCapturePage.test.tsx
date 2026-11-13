@@ -285,6 +285,30 @@ describe('QuickCapturePage room picker', () => {
     expect(screen.getByText('No rooms match')).toBeTruthy();
   });
 
+  it('keeps the highlighted room when a new state moves it, and Enter picks that room', () => {
+    const rig = setup({ ...roomState([]), roomId: null });
+    const field = screen.getByLabelText('Search rooms');
+    press(field, 'ArrowDown');
+    expect(screen.getByRole('option', { name: /Code/ }).getAttribute('aria-selected')).toBe('true');
+    // A message in Mind makes it the most recently active room.
+    rig.pushState({
+      ...roomState([]),
+      roomId: null,
+      rooms: [
+        { id: '!mind', name: 'Mind', direct: true },
+        { id: '!inbox', name: 'Inbox', direct: false },
+        { id: '!code', name: 'Code', direct: false },
+      ],
+    });
+    expect(screen.getAllByRole('option')[0]?.textContent).toContain('Mind');
+    expect(screen.getByRole('option', { name: /Code/ }).getAttribute('aria-selected')).toBe('true');
+    expect(field.getAttribute('aria-activedescendant')).toBe(
+      screen.getByRole('option', { name: /Code/ }).id
+    );
+    press(field, 'Enter');
+    expect(rig.actions()).toEqual([{ kind: 'selectRoom', roomId: '!code' }]);
+  });
+
   it('scrolls the highlighted room into view as the arrows move it', () => {
     setup({ ...roomState([]), roomId: null });
     const field = screen.getByLabelText('Search rooms');
@@ -704,6 +728,64 @@ describe('QuickCapturePage list', () => {
     expect((input() as HTMLTextAreaElement).value).toBe('Buy');
     await rig.respond({ ok: false, error: 'send-failed' });
     expect((input() as HTMLTextAreaElement).value).toBe('Buy');
+  });
+
+  it('scrolls the peek into view as it opens and as it moves, not on a new state', () => {
+    const rig = setup();
+    press(input(), 'ArrowDown');
+    for (let step = 0; step < 3; step += 1) press(document.activeElement as Element, 'j');
+    expect(document.activeElement).toBe(row('Cheapest speech-to-text'));
+    scrollIntoView.mockClear();
+    press(row('Cheapest speech-to-text'), ' ');
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: 'nearest' });
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(item('Cheapest speech-to-text'));
+    press(row('Cheapest speech-to-text'), 'j');
+    expect(scrollIntoView).toHaveBeenCalledTimes(2);
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(item('Which Node version'));
+    rig.pushState(roomState());
+    expect(scrollIntoView).toHaveBeenCalledTimes(2);
+  });
+
+  it('reads a new answer once each time its peek opens, and says nothing when that fails', async () => {
+    const rig = setup();
+    press(input(), 'ArrowDown');
+    for (let step = 0; step < 3; step += 1) press(document.activeElement as Element, 'j');
+    const read: CaptureAction = { kind: 'read', roomId: '!inbox', threadId: '$news' };
+    press(row('Cheapest speech-to-text'), ' ');
+    expect(rig.actions()).toEqual([read]);
+    await rig.respond({ ok: false, error: 'timeout' });
+    expect(within(item('Cheapest speech-to-text')).queryByRole('alert')).toBeNull();
+    // The answer is still new in the next state, which reads nothing more.
+    rig.pushState(roomState());
+    expect(rig.actions()).toEqual([read]);
+    press(row('Cheapest speech-to-text'), ' ');
+    press(row('Cheapest speech-to-text'), ' ');
+    expect(rig.actions()).toEqual([read, read]);
+  });
+
+  it('reads nothing for a row without a new answer, nor for an entry still being sent', () => {
+    const rig = setup(
+      roomState([
+        ...ITEMS,
+        {
+          threadId: '~pending',
+          title: 'On its way',
+          line: '',
+          chip: 'new',
+          resolved: false,
+          ts: 1,
+        },
+      ])
+    );
+    press(input(), 'ArrowDown');
+    press(row('Why does slot 27 flake'), ' ');
+    expect(row('Why does slot 27 flake').getAttribute('aria-expanded')).toBe('true');
+    expect(rig.actions()).toEqual([]);
+    // The open peek moves to the row that takes the focus.
+    act(() => row('On its way').focus());
+    expect(row('On its way').getAttribute('aria-expanded')).toBe('true');
+    expect(rig.actions()).toEqual([]);
   });
 
   it('keeps the selected thread selected when a new state moves it', () => {

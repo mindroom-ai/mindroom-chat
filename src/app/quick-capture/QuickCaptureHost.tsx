@@ -12,6 +12,7 @@ import { mDirectAtom } from '../matrix/state/mDirectList';
 import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
 import { hasStoredRoomViewMode, roomViewModeAtomFamily } from '../navigation/roomViewMode';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
+import { markThreadAsRead } from '../notifications/readReceipts';
 import { getQuickCaptureRoomAtom } from '../preferences/quickCaptureRoom';
 import { settingsAtom } from '../preferences/settings';
 import { useSetting } from '../preferences/useSetting';
@@ -53,6 +54,8 @@ type HostContext = {
   roomAtom: ReturnType<typeof getQuickCaptureRoomAtom>;
   t: TFunction;
   options: CaptureSendOptions;
+  /** Read receipts go out private (the `hideActivity` setting). */
+  hideActivity: boolean;
   navigation: ReturnType<typeof useRoomNavigate>;
 };
 
@@ -106,11 +109,14 @@ const showsClassic = ({ mx, store }: HostContext, roomId: string): boolean => {
   );
 };
 
-/** Runs one of the widget's requests on the client; a failure throws. */
+/**
+ * Runs one of the widget's requests on the client; a failure throws. A room the widget does not
+ * list (left, archived, replaced) is no room, even while the client still has it.
+ */
 const runAction = async (context: HostContext, action: CaptureAction): Promise<CaptureResult> => {
-  const { mx, store, roomAtom, options, navigation } = context;
+  const { mx, store, roomAtom, options, hideActivity, navigation } = context;
   const room = mx.getRoom(action.roomId);
-  if (!room) return NO_ROOM;
+  if (!room || !isListed(readCaptureRooms(context), room.roomId)) return NO_ROOM;
   switch (action.kind) {
     case 'send': {
       const entry = { text: action.text, images: action.images };
@@ -132,7 +138,6 @@ const runAction = async (context: HostContext, action: CaptureAction): Promise<C
       await setCaptureResolved(mx, room, action.threadId, action.resolved);
       return OK;
     case 'selectRoom':
-      if (!isListed(readCaptureRooms(context), room.roomId)) return NO_ROOM;
       store.set(roomAtom, room.roomId);
       return OK;
     case 'open':
@@ -141,6 +146,9 @@ const runAction = async (context: HostContext, action: CaptureAction): Promise<C
       else if (showsClassic(context, room.roomId)) {
         navigation.navigateRoom(room.roomId, action.threadId);
       } else navigation.navigateRoomThreadDirect(room.roomId, action.threadId);
+      return OK;
+    case 'read':
+      await markThreadAsRead(mx, room.roomId, action.threadId, hideActivity);
       return OK;
   }
 };
@@ -162,6 +170,7 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
   const store = useStore();
   const { t } = useTranslation();
   const [markdown] = useSetting(settingsAtom, 'isMarkdown');
+  const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
   const linkSchemes = useOptionalClientConfig()?.messageRendering?.additionalAllowedUriSchemes;
   const navigation = useRoomNavigate();
   const userId = mx.getSafeUserId();
@@ -172,6 +181,7 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
     roomAtom,
     t,
     options: { markdown, linkSchemes },
+    hideActivity,
     navigation,
   });
 

@@ -132,7 +132,7 @@ describe('readCaptureThreads', () => {
   });
 
   it("takes the newest reply's whole body when it is a text message", () => {
-    const body = 'A long answer. '.repeat(30);
+    const body = 'A long answer. '.repeat(30).trim();
     const room = makeRoom({ loaded: [message('$reply', { msgtype: 'm.text', body })] });
     mocks.read.mockReturnValue({
       ...QUIET,
@@ -149,6 +149,26 @@ describe('readCaptureThreads', () => {
     expect(thread?.replyText).toBe(body);
     expect(thread?.replySender).toBe(threadActorName(mx, room, '@alice:x'));
     expect(thread?.replySender).toBe('alice');
+  });
+
+  it("cleans the newest reply's body as the previews do: tool calls counted, lines kept", () => {
+    const body = '🔧 `shell` [1]\n🔧 `read_file` [2]\nAll **green**.\n\nNext: `deploy`.';
+    const room = makeRoom({ loaded: [message('$reply', { msgtype: 'm.text', body })] });
+    mocks.read.mockReturnValue({
+      ...QUIET,
+      lastReply: {
+        eventId: '$reply',
+        senderId: '@bot:x',
+        ts: 90,
+        preview: { kind: 'text', text: 'unused' },
+      },
+    });
+
+    const [thread] = readCaptureThreads(mx, room, [makeEntry('$t')], t, NOW);
+
+    expect(thread?.replyText).toBe(
+      '🔧 t:sharedUi.threadPreviews.tools · All green.\n\nNext: deploy.'
+    );
   });
 
   it("takes the preview's text for a reply that is no text message or is not loaded", () => {
@@ -195,11 +215,13 @@ describe('readCaptureThreads', () => {
     expect(thread?.replySender).toBe('carol');
   });
 
-  it('adds the roots nobody answered from the live timeline, once each', () => {
+  it("adds the user's own roots nobody answered from the live timeline, once each", () => {
     const room = makeRoom({
       timeline: [
-        message('$indexed', { msgtype: 'm.text', body: 'Already a thread' }, 400),
-        message('$fresh', { msgtype: 'm.text', body: 'Buy milk' }, 600),
+        message('$indexed', { msgtype: 'm.text', body: 'Already a thread' }, 400, '@me:x'),
+        message('$fresh', { msgtype: 'm.text', body: 'Buy milk' }, 600, '@me:x'),
+        // Someone else's message nobody answered is no entry of the user's.
+        message('$theirs', { msgtype: 'm.text', body: 'Lunch?' }, 700),
         message('$reply', {
           msgtype: 'm.text',
           body: 'In a thread',

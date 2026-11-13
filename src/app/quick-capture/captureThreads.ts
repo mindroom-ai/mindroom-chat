@@ -4,6 +4,10 @@ import {
   getCompactThreadRootPreviewInfo,
   isZeroReplyStandaloneThreadRootEvent,
 } from '../event-store/threads/compactThreadRootData';
+import {
+  getThreadMessageBodyPreview,
+  localizeThreadPreview,
+} from '../event-store/threads/threadMessagePreview';
 import { getEditedEvent, getLatestMessageContent } from '../matrix/room';
 import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
@@ -19,8 +23,16 @@ import type { CaptureThread } from './captureItems';
 
 type CaptureReply = Pick<CaptureThread, 'replyText' | 'replySender'>;
 
-/** The reply's whole text, as its newest edit shows it, when it is a text message and loaded. */
-const replyBody = (room: Room, rootId: string, eventId: string): string | undefined => {
+/**
+ * The reply's whole text, as its newest edit shows it, when it is a text message and loaded:
+ * cleaned as the app's previews clean it (tool calls counted, Markdown dropped), its lines kept.
+ */
+const replyBody = (
+  room: Room,
+  rootId: string,
+  eventId: string,
+  t: TFunction
+): string | undefined => {
   const thread = room.getThread(rootId);
   const latest = thread?.replyToEvent;
   const event: MatrixEvent | undefined =
@@ -30,9 +42,9 @@ const replyBody = (room: Room, rootId: string, eventId: string): string | undefi
     event,
     getEditedEvent(eventId, event, thread?.timelineSet)
   );
-  return content.msgtype === MsgType.Text && typeof content.body === 'string'
-    ? content.body
-    : undefined;
+  if (content.msgtype !== MsgType.Text || typeof content.body !== 'string') return undefined;
+  const { text, localization } = getThreadMessageBodyPreview(content.body);
+  return localizeThreadPreview(text, localization, t);
 };
 
 /** The thread's newest reply and its sender: from the signals, else from the index's preview. */
@@ -49,7 +61,8 @@ const readReply = (
   if (reply) {
     return {
       replyText:
-        replyBody(room, entry.threadRootId, reply.eventId) ?? threadPreviewText(t, reply.preview),
+        replyBody(room, entry.threadRootId, reply.eventId, t) ??
+        threadPreviewText(t, reply.preview),
       ...sender(reply.senderId),
     };
   }
@@ -57,14 +70,27 @@ const readReply = (
   return indexed ? { replyText: indexed.text, ...sender(indexed.senderId) } : {};
 };
 
-/** The roots in the room's live timeline that nobody answered and `known` does not hold. */
-const unansweredRoots = (room: Room, known: Set<string>, now: number): CaptureThread[] =>
+/**
+ * The user's own roots in the room's live timeline that nobody answered and `known` does not
+ * hold: the entries posted there. In a chat room every other message would be one too.
+ */
+const unansweredRoots = (
+  room: Room,
+  userId: string,
+  known: Set<string>,
+  now: number
+): CaptureThread[] =>
   room
     .getLiveTimeline()
     .getEvents()
     .flatMap((event) => {
       const eventId = event.getId();
-      if (!eventId || known.has(eventId) || !isZeroReplyStandaloneThreadRootEvent(event, now)) {
+      if (
+        !eventId ||
+        known.has(eventId) ||
+        event.getSender() !== userId ||
+        !isZeroReplyStandaloneThreadRootEvent(event, now)
+      ) {
         return [];
       }
       known.add(eventId);
@@ -84,7 +110,7 @@ const unansweredRoots = (room: Room, known: Set<string>, now: number): CaptureTh
 
 /**
  * The room's threads for the widget: the index's entries of the room and, from the room's live
- * timeline, the roots nobody answered that the index does not hold.
+ * timeline, the user's roots nobody answered that the index does not hold.
  */
 export const readCaptureThreads = (
   mx: MatrixClient,
@@ -114,5 +140,5 @@ export const readCaptureThreads = (
       });
     }
   }
-  return [...threads, ...unansweredRoots(room, known, now)];
+  return [...threads, ...unansweredRoots(room, userId, known, now)];
 };

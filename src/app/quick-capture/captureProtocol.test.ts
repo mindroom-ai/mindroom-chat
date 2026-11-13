@@ -31,6 +31,7 @@ const actions: CaptureAction[] = [
   { kind: 'selectRoom', roomId: '!a' },
   { kind: 'open', roomId: '!a' },
   { kind: 'open', roomId: '!a', threadId: '$t' },
+  { kind: 'read', roomId: '!a', threadId: '$t' },
 ];
 
 describe('isCaptureMessage', () => {
@@ -104,6 +105,15 @@ describe('isCaptureMessage', () => {
         id: 'i',
         hostId: 'a',
         result: { ok: false, error: 'bad' },
+      })
+    ).toBe(false);
+    expect(
+      isCaptureMessage({
+        v: 1,
+        type: 'request',
+        id: 'i',
+        hostId: 'a',
+        action: { kind: 'read', roomId: '!a' },
       })
     ).toBe(false);
     expect(isCaptureMessage(null)).toBe(false);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  getThreadMessageBodyPreview,
   getThreadMessagePreviewText,
   getThreadPreviewLocalization,
   stripPreviewMarkdown,
@@ -10,6 +11,35 @@ import { cpuNow } from '../../../test/utils/cpuNow';
 const textContent = (body: string): Record<string, unknown> => ({
   msgtype: 'm.text',
   body,
+});
+
+describe('getThreadMessageBodyPreview', () => {
+  it('counts tool calls and drops Markdown as the preview does, keeping the lines', () => {
+    const body = '🔧 `shell` [1]\n🔧 `read_file` [2] ⏳\nAll **green**.\nNext: `deploy`.';
+    const prose = 'All green.\nNext: deploy.';
+    expect(getThreadMessageBodyPreview(body)).toEqual({
+      text: `🔧 2 tools · ${prose}`,
+      localization: { kind: 'tools', count: 2, prose },
+    });
+    expect(getThreadMessagePreviewText(textContent(body))).toBe(
+      '🔧 2 tools · All green. Next: deploy.'
+    );
+  });
+
+  it('keeps one blank line between paragraphs, and drops the reply quote', () => {
+    expect(getThreadMessageBodyPreview('> <@a:x> Asked\n\nOne\n\n\n\n  Two  ')).toEqual({
+      text: 'One\n\nTwo',
+      localization: undefined,
+    });
+  });
+
+  it('gives the badge alone for a body of tool calls, and nothing for an empty body', () => {
+    expect(getThreadMessageBodyPreview('🔧 `shell` [1]')).toEqual({
+      text: '🔧 1 tool',
+      localization: { kind: 'tools', count: 1, prose: '' },
+    });
+    expect(getThreadMessageBodyPreview(' \n ').text).toBeUndefined();
+  });
 });
 
 describe('stripPreviewMarkdown', () => {

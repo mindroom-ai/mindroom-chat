@@ -9,10 +9,12 @@ import { createSessionId } from '../matrix/session/sessions';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import { allRoomsAtom } from '../matrix/state/roomList';
 import { getRoomViewModeStorageKey } from '../navigation/roomViewMode';
+import { markThreadAsRead } from '../notifications/readReceipts';
 import {
   clearQuickCaptureRoomStore,
   getQuickCaptureRoomAtom,
 } from '../preferences/quickCaptureRoom';
+import { settingsAtom } from '../preferences/settings';
 import {
   crossRoomThreadIndexAtom,
   emptyCrossRoomThreadIndexSnapshot,
@@ -36,6 +38,7 @@ vi.mock('../threads/cross-room/threadSignalsReader', () => ({
   }),
 }));
 vi.mock('./captureChannel', () => ({ openCaptureChannel: mocks.openCaptureChannel }));
+vi.mock('../notifications/readReceipts', () => ({ markThreadAsRead: vi.fn() }));
 vi.mock('./sendCapture', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./sendCapture')>()),
   sendCapture: vi.fn(),
@@ -65,7 +68,9 @@ const roomA = makeRoom('!a', 'Alpha', 300);
 const roomB = makeRoom('!b', 'Bob', 200);
 const roomC = makeRoom('!c', 'Classic', 100);
 const space = makeRoom('!space', 'Space', 400, true);
-const ROOMS = [roomA, roomB, roomC, space];
+/** A room the client still has but the room list leaves out (left, archived or replaced). */
+const unlisted = makeRoom('!unlisted', 'Unlisted', 500);
+const ROOMS = [roomA, roomB, roomC, space, unlisted];
 
 const makeClient = () =>
   Object.assign(new EventEmitter(), {
@@ -265,6 +270,31 @@ describe('QuickCaptureHost', () => {
     expect(store.get(getQuickCaptureRoomAtom(USER_ID))).toBe('!a');
   });
 
+  it('answers no-room to every action for a room the client has but does not list', async () => {
+    const { hello, request, store } = setup();
+    hello();
+    const roomId = '!unlisted';
+    const actions: CaptureAction[] = [
+      { kind: 'send', roomId, text: 'x', images: [], open: true },
+      { kind: 'reply', roomId, threadId: '$t', text: 'x' },
+      { kind: 'resolve', roomId, threadId: '$t', resolved: true },
+      { kind: 'selectRoom', roomId },
+      { kind: 'open', roomId, threadId: '$t' },
+      { kind: 'read', roomId, threadId: '$t' },
+    ];
+
+    for (const action of actions) {
+      expect(await request(action)).toEqual({ ok: false, error: 'no-room' });
+    }
+    expect(sendCapture).not.toHaveBeenCalled();
+    expect(sendCaptureReply).not.toHaveBeenCalled();
+    expect(setCaptureResolved).not.toHaveBeenCalled();
+    expect(markThreadAsRead).not.toHaveBeenCalled();
+    expect(mocks.navigation.navigateRoom).not.toHaveBeenCalled();
+    expect(mocks.navigation.navigateRoomThreadDirect).not.toHaveBeenCalled();
+    expect(store.get(getQuickCaptureRoomAtom(USER_ID))).toBe('!a');
+  });
+
   it('answers a picked room even when the state cannot be read', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { hello, request, posted, store } = setup();
@@ -354,6 +384,22 @@ describe('QuickCaptureHost', () => {
     expect(
       await request({ kind: 'resolve', roomId: '!a', threadId: '$t1', resolved: false })
     ).toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  it('marks a thread read as the hideActivity setting says, and answers a failure', async () => {
+    const { hello, request, mx, store } = setup();
+    act(() => store.set(settingsAtom, { ...store.get(settingsAtom), hideActivity: true }));
+    vi.mocked(markThreadAsRead).mockResolvedValue(undefined);
+    hello();
+
+    expect(await request({ kind: 'read', roomId: '!a', threadId: '$t1' })).toEqual({ ok: true });
+    expect(markThreadAsRead).toHaveBeenCalledWith(mx, '!a', '$t1', true);
+
+    vi.mocked(markThreadAsRead).mockRejectedValueOnce(new Error('network'));
+    expect(await request({ kind: 'read', roomId: '!a', threadId: '$t1' })).toEqual({
+      ok: false,
+      error: 'send-failed',
+    });
   });
 
   it('opens a room or a thread, in the room itself when the room shows Classic', async () => {
