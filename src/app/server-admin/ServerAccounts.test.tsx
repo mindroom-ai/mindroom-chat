@@ -29,6 +29,8 @@ vi.mock('folds', () => {
     Box: tag('div'),
     Button: tag('button'),
     Chip: tag('button'),
+    Icon: tag('i'),
+    Icons: {},
     Input: ({ value, onChange }: { value: string; onChange: () => void }) =>
       React.createElement('input', { value, onChange }),
     Spinner: () => React.createElement('progress'),
@@ -36,6 +38,7 @@ vi.mock('folds', () => {
     color: { Critical: { Main: 'red' } },
   };
 });
+vi.mock('./ServerAccounts.css', () => ({ AccountRow: 'AccountRow' }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mocks.client }));
 vi.mock('../ui/SettingTile', () => ({
   SettingTile: ({ title, description, after, children }: Record<string, ReactNode>) =>
@@ -132,18 +135,20 @@ describe('ServerAccounts', () => {
     expect(root.findAllByProps({ role: 'alert' })).toEqual([]);
     expect(text(rows(root)[0]!)).toContain('Admin');
     expect(text(rows(root)[2]!)).toContain('Deactivated');
+    // Each row shows that it opens.
+    rows(root).forEach((row) => expect(row.findAllByType('i')).toHaveLength(1));
   });
 
   it('marks external accounts and filters by them when the server says which they are', async () => {
     const root = await render([ALICE, BOB, CAROL, DAVE]);
 
-    expect(filterLabels(root)).toEqual(['All', 'Staff', 'External', 'Deactivated']);
+    expect(filterLabels(root)).toEqual(['All', 'Internal', 'External', 'Deactivated']);
     expect(text(rows(root)[2]!)).toContain('External');
 
     await click(button(root, 'External'));
     expect(rowIds(root)).toEqual(['@carol:example.com']);
-    await click(button(root, 'Staff'));
-    expect(rowIds(root)).toEqual(['@alice:example.com', '@bob:example.com']);
+    await click(button(root, 'Internal'));
+    expect(rowIds(root)).toEqual(['@alice:example.com', '@bob:example.com', '@dave:example.com']);
     await click(button(root, 'Deactivated'));
     expect(rowIds(root)).toEqual(['@dave:example.com']);
   });
@@ -186,6 +191,10 @@ describe('ServerAccounts', () => {
       'Suspend account',
       'Deactivate account',
     ]);
+    // Each action says what it does before it is chosen.
+    expect(text(root)).toContain('A locked account cannot be used at all.');
+    expect(text(root)).toContain('A suspended account can still sign in and read');
+    expect(text(root)).toContain('can never sign in again. This cannot be undone.');
 
     await click(button(root, 'Deactivate account'));
     const dialog = root.findByType('dialog');

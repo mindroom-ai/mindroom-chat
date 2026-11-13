@@ -938,7 +938,7 @@
     "search": "Rechercher par nom ou identifiant Matrix",
     "filters": {
       "all": "Tous",
-      "staff": "Internes",
+      "internal": "Internes",
       "external": "Externes",
       "deactivated": "Désactivés"
     },
@@ -960,6 +960,11 @@
       "suspend": "Suspendre le compte",
       "unsuspend": "Lever la suspension",
       "deactivate": "Désactiver le compte"
+    },
+    "hints": {
+      "lock": "Un compte verrouillé ne peut plus du tout être utilisé. Ses salons et ses messages sont conservés.",
+      "suspend": "Un compte suspendu peut encore se connecter et lire, mais ne peut ni envoyer de messages ni rejoindre de salons.",
+      "deactivate": "Le compte quitte ses salons et ne pourra plus jamais se connecter. Cette action est irréversible."
     },
     "confirm": {
       "lock": "Verrouiller {{user}} ? Le compte ne peut plus être utilisé tant que vous ne le déverrouillez pas. Ses salons et ses messages sont conservés.",

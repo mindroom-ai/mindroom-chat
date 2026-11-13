@@ -892,7 +892,7 @@
     "search": "Cari berdasarkan nama atau ID Matrix",
     "filters": {
       "all": "Semua",
-      "staff": "Internal",
+      "internal": "Internal",
       "external": "Eksternal",
       "deactivated": "Dinonaktifkan"
     },
@@ -914,6 +914,11 @@
       "suspend": "Tangguhkan akun",
       "unsuspend": "Cabut penangguhan",
       "deactivate": "Nonaktifkan akun"
+    },
+    "hints": {
+      "lock": "Akun yang dikunci tidak dapat digunakan sama sekali. Ruang dan pesannya tetap ada.",
+      "suspend": "Akun yang ditangguhkan masih dapat masuk dan membaca, tetapi tidak dapat mengirim pesan atau bergabung ke ruang.",
+      "deactivate": "Akun keluar dari ruang-ruangnya dan tidak akan pernah bisa masuk lagi. Tindakan ini tidak dapat dibatalkan."
     },
     "confirm": {
       "lock": "Kunci {{user}}? Akun tidak dapat digunakan sampai Anda membuka kuncinya. Ruang dan pesannya tetap ada.",

@@ -915,7 +915,7 @@
     "search": "Search by name or Matrix ID",
     "filters": {
       "all": "All",
-      "staff": "Staff",
+      "internal": "Internal",
       "external": "External",
       "deactivated": "Deactivated"
     },
@@ -937,6 +937,11 @@
       "suspend": "Suspend account",
       "unsuspend": "Unsuspend account",
       "deactivate": "Deactivate account"
+    },
+    "hints": {
+      "lock": "A locked account cannot be used at all. Its rooms and messages stay.",
+      "suspend": "A suspended account can still sign in and read, but cannot send messages or join rooms.",
+      "deactivate": "The account leaves its rooms and can never sign in again. This cannot be undone."
     },
     "confirm": {
       "lock": "Lock {{user}}? The account cannot be used until you unlock it. Its rooms and messages stay.",

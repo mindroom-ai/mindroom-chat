@@ -938,7 +938,7 @@
     "search": "Cerca per nome o ID Matrix",
     "filters": {
       "all": "Tutti",
-      "staff": "Interni",
+      "internal": "Interni",
       "external": "Esterni",
       "deactivated": "Disattivati"
     },
@@ -960,6 +960,11 @@
       "suspend": "Sospendi account",
       "unsuspend": "Revoca sospensione",
       "deactivate": "Disattiva account"
+    },
+    "hints": {
+      "lock": "Un account bloccato non può essere usato in alcun modo. Le sue stanze e i suoi messaggi restano.",
+      "suspend": "Un account sospeso può ancora accedere e leggere, ma non può inviare messaggi né entrare nelle stanze.",
+      "deactivate": "L'account lascia le sue stanze e non potrà mai più accedere. L'operazione non può essere annullata."
     },
     "confirm": {
       "lock": "Bloccare {{user}}? L'account non può essere usato finché non lo sblocchi. Le sue stanze e i suoi messaggi restano.",

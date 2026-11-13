@@ -938,7 +938,7 @@
     "search": "Buscar por nombre o ID de Matrix",
     "filters": {
       "all": "Todas",
-      "staff": "Internas",
+      "internal": "Internas",
       "external": "Externas",
       "deactivated": "Desactivadas"
     },
@@ -960,6 +960,11 @@
       "suspend": "Suspender cuenta",
       "unsuspend": "Quitar suspensión",
       "deactivate": "Desactivar cuenta"
+    },
+    "hints": {
+      "lock": "Una cuenta bloqueada no se puede usar en absoluto. Sus salas y mensajes se conservan.",
+      "suspend": "Una cuenta suspendida puede seguir iniciando sesión y leyendo, pero no puede enviar mensajes ni unirse a salas.",
+      "deactivate": "La cuenta sale de sus salas y no podrá volver a iniciar sesión nunca. Esto no se puede deshacer."
     },
     "confirm": {
       "lock": "¿Bloquear {{user}}? La cuenta no se puede usar hasta que la desbloquees. Sus salas y mensajes se conservan.",

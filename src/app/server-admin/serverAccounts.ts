@@ -184,17 +184,18 @@ export const runAccountAction = async (
   }
 };
 
-export const ACCOUNT_FILTERS = ['all', 'staff', 'external', 'deactivated'] as const;
+export const ACCOUNT_FILTERS = ['all', 'internal', 'external', 'deactivated'] as const;
 export type AccountFilter = (typeof ACCOUNT_FILTERS)[number];
 
+// Each filter is one plain rule: a deactivated account stays internal or external.
 const inFilter = (account: ServerAccount, filter: AccountFilter): boolean => {
   switch (filter) {
     case 'all':
       return true;
-    case 'staff':
-      return !account.deactivated && !account.external;
+    case 'internal':
+      return !account.external;
     case 'external':
-      return !account.deactivated && account.external;
+      return account.external;
     case 'deactivated':
       return account.deactivated;
   }

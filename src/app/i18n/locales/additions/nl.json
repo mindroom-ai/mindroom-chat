@@ -915,7 +915,7 @@
     "search": "Zoeken op naam of Matrix-ID",
     "filters": {
       "all": "Alle",
-      "staff": "Intern",
+      "internal": "Intern",
       "external": "Extern",
       "deactivated": "Gedeactiveerd"
     },
@@ -937,6 +937,11 @@
       "suspend": "Account schorsen",
       "unsuspend": "Schorsing opheffen",
       "deactivate": "Account deactiveren"
+    },
+    "hints": {
+      "lock": "Een vergrendeld account kan helemaal niet worden gebruikt. De kamers en berichten blijven bewaard.",
+      "suspend": "Een geschorst account kan nog inloggen en lezen, maar geen berichten sturen of aan kamers deelnemen.",
+      "deactivate": "Het account verlaat zijn kamers en kan nooit meer inloggen. Dit kan niet ongedaan worden gemaakt."
     },
     "confirm": {
       "lock": "{{user}} vergrendelen? Het account kan niet worden gebruikt totdat je het ontgrendelt. De kamers en berichten blijven bewaard.",

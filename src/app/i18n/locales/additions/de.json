@@ -915,7 +915,7 @@
     "search": "Nach Name oder Matrix-ID suchen",
     "filters": {
       "all": "Alle",
-      "staff": "Intern",
+      "internal": "Intern",
       "external": "Extern",
       "deactivated": "Deaktiviert"
     },
@@ -937,6 +937,11 @@
       "suspend": "Konto suspendieren",
       "unsuspend": "Suspendierung aufheben",
       "deactivate": "Konto deaktivieren"
+    },
+    "hints": {
+      "lock": "Ein gesperrtes Konto kann gar nicht benutzt werden. Seine Räume und Nachrichten bleiben erhalten.",
+      "suspend": "Ein suspendiertes Konto kann sich weiter anmelden und lesen, aber keine Nachrichten senden und keinen Räumen beitreten.",
+      "deactivate": "Das Konto verlässt seine Räume und kann sich nie wieder anmelden. Das lässt sich nicht rückgängig machen."
     },
     "confirm": {
       "lock": "{{user}} sperren? Das Konto kann nicht benutzt werden, bis du es entsperrst. Seine Räume und Nachrichten bleiben erhalten.",

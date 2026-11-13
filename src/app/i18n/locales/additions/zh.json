@@ -892,7 +892,7 @@
     "search": "按名称或 Matrix ID 搜索",
     "filters": {
       "all": "全部",
-      "staff": "内部",
+      "internal": "内部",
       "external": "外部",
       "deactivated": "已停用"
     },
@@ -914,6 +914,11 @@
       "suspend": "暂停账户",
       "unsuspend": "取消暂停",
       "deactivate": "停用账户"
+    },
+    "hints": {
+      "lock": "已锁定的账户完全无法使用。其房间和消息会保留。",
+      "suspend": "已暂停的账户仍可登录和阅读，但无法发送消息或加入房间。",
+      "deactivate": "该账户将退出其房间，并且永远无法再登录。此操作无法撤销。"
     },
     "confirm": {
       "lock": "锁定 {{user}}？在你解锁之前，该账户无法使用。其房间和消息会保留。",

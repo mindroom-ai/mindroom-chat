@@ -892,7 +892,7 @@
     "search": "依名稱或 Matrix ID 搜尋",
     "filters": {
       "all": "全部",
-      "staff": "內部",
+      "internal": "內部",
       "external": "外部",
       "deactivated": "已停用"
     },
@@ -914,6 +914,11 @@
       "suspend": "將帳號停權",
       "unsuspend": "解除停權",
       "deactivate": "停用帳號"
+    },
+    "hints": {
+      "lock": "已鎖定的帳號完全無法使用。其聊天室和訊息會保留。",
+      "suspend": "已停權的帳號仍可登入和閱讀，但無法傳送訊息或加入聊天室。",
+      "deactivate": "該帳號將退出其聊天室，並且永遠無法再登入。此操作無法復原。"
     },
     "confirm": {
       "lock": "鎖定 {{user}}？在你解鎖之前，該帳號無法使用。其聊天室和訊息會保留。",

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Box, Button, Chip, Input, Spinner, Text, color } from 'folds';
+import { Box, Button, Chip, Icon, Icons, Input, Spinner, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useAlive } from '../lib/hooks/useAlive';
@@ -10,6 +10,7 @@ import { SettingTile } from '../ui/SettingTile';
 import { SettingsCard } from '../ui/settings/SettingsCard';
 import { SettingsPageFrame, type SettingsPageProps } from '../ui/settings/SettingsPageFrame';
 import { AccountBadges } from './AccountBadges';
+import * as css from './ServerAccounts.css';
 import { ServerAccountDetail } from './ServerAccountDetail';
 import {
   ACCOUNT_FILTERS,
@@ -21,18 +22,6 @@ import {
 
 /** How many more accounts each "Show more" adds. */
 const STEP = 100;
-
-// A plain button around a whole row; it keeps the browser's focus ring, and the padding the
-// settings pages give every row of a card.
-const ROW_BUTTON_STYLE = {
-  width: '100%',
-  border: 'none',
-  background: 'none',
-  color: 'inherit',
-  font: 'inherit',
-  textAlign: 'start',
-  cursor: 'pointer',
-} as const;
 
 type AccountRowProps = {
   account: ServerAccount;
@@ -48,11 +37,16 @@ function AccountRow({ account, onOpen }: AccountRowProps) {
     t('serverAccounts.lastSeen', { date: timeDayMonthYear(lastSeenTs, language) });
 
   return (
-    <button type="button" style={ROW_BUTTON_STYLE} data-account={userId} onClick={onOpen}>
+    <button type="button" className={css.AccountRow} data-account={userId} onClick={onOpen}>
       <SettingTile
         title={displayName ?? userId}
         description={[displayName !== undefined && userId, lastSeen].filter(Boolean).join(' · ')}
-        after={<AccountBadges account={account} />}
+        after={
+          <Box alignItems="Center" gap="200">
+            <AccountBadges account={account} />
+            <Icon size="100" src={Icons.ChevronRight} data-directional aria-hidden />
+          </Box>
+        }
       />
     </button>
   );
@@ -94,7 +88,7 @@ export function ServerAccounts({ requestClose }: SettingsPageProps) {
   // Without an external account the server does not mark them, or has none: nothing to tell apart.
   const marksExternal = accounts?.some((account) => account.external) ?? false;
   const filters = ACCOUNT_FILTERS.filter(
-    (entry) => marksExternal || (entry !== 'staff' && entry !== 'external')
+    (entry) => marksExternal || (entry !== 'internal' && entry !== 'external')
   );
   const matches = filterAccounts(accounts ?? [], filter, query);
 

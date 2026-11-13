@@ -915,7 +915,7 @@
     "search": "Ada veya Matrix kimliğine göre ara",
     "filters": {
       "all": "Tümü",
-      "staff": "Dahili",
+      "internal": "Dahili",
       "external": "Harici",
       "deactivated": "Devre dışı"
     },
@@ -937,6 +937,11 @@
       "suspend": "Hesabı askıya al",
       "unsuspend": "Askıyı kaldır",
       "deactivate": "Hesabı devre dışı bırak"
+    },
+    "hints": {
+      "lock": "Kilitli bir hesap hiç kullanılamaz. Odaları ve mesajları kalır.",
+      "suspend": "Askıya alınmış bir hesap oturum açıp okuyabilir, ancak mesaj gönderemez ve odalara katılamaz.",
+      "deactivate": "Hesap odalarından ayrılır ve bir daha asla oturum açamaz. Bu işlem geri alınamaz."
     },
     "confirm": {
       "lock": "{{user}} kilitlensin mi? Siz kilidini açana kadar hesap kullanılamaz. Odaları ve mesajları kalır.",

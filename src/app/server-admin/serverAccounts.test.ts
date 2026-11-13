@@ -213,7 +213,7 @@ describe('filterAccounts', () => {
   ];
   const ids = (list: ServerAccount[]) => list.map((entry) => entry.userId.slice(1, -12));
 
-  it('sorts accounts into staff, external and deactivated', () => {
+  it('sorts accounts into internal, external and deactivated, each a plain rule', () => {
     expect(ids(filterAccounts(accounts, 'all', ''))).toEqual([
       'alice',
       'bob',
@@ -221,14 +221,15 @@ describe('filterAccounts', () => {
       'dave',
       'erin',
     ]);
-    expect(ids(filterAccounts(accounts, 'staff', ''))).toEqual(['alice', 'bob']);
-    expect(ids(filterAccounts(accounts, 'external', ''))).toEqual(['carol']);
+    // A deactivated account stays internal or external, under its badge.
+    expect(ids(filterAccounts(accounts, 'internal', ''))).toEqual(['alice', 'bob', 'dave']);
+    expect(ids(filterAccounts(accounts, 'external', ''))).toEqual(['carol', 'erin']);
     expect(ids(filterAccounts(accounts, 'deactivated', ''))).toEqual(['dave', 'erin']);
   });
 
   it('searches the Matrix ID and the display name, whatever the case', () => {
     expect(ids(filterAccounts(accounts, 'all', ' GUEST '))).toEqual(['carol']);
     expect(ids(filterAccounts(accounts, 'all', '@da'))).toEqual(['dave']);
-    expect(ids(filterAccounts(accounts, 'staff', 'carol'))).toEqual([]);
+    expect(ids(filterAccounts(accounts, 'internal', 'carol'))).toEqual([]);
   });
 });

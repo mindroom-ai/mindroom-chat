@@ -21,6 +21,15 @@ import {
   type ServerAccount,
 } from './serverAccounts';
 
+/** The line that says what an action's state means, shown beside its button. */
+const ACTION_HINT = {
+  lock: 'lock',
+  unlock: 'lock',
+  suspend: 'suspend',
+  unsuspend: 'suspend',
+  deactivate: 'deactivate',
+} as const satisfies Record<AccountAction, string>;
+
 type ConfirmActionProps = {
   userId: string;
   action: AccountAction;
@@ -195,21 +204,24 @@ export function ServerAccountDetail({ account, onBack, onChanged }: ServerAccoun
           </Text>
           <SettingsCard>
             {isProtected && <SettingTile title={t('serverAccounts.protected')} />}
-            <Box gap="200" wrap="Wrap">
-              {actions.map((action) => (
-                <Button
-                  key={action}
-                  size="300"
-                  variant={action === 'deactivate' ? 'Critical' : 'Secondary'}
-                  fill="Soft"
-                  radii="300"
-                  data-account-action={action}
-                  onClick={() => setConfirming(action)}
-                >
-                  <Text size="B300">{t(`serverAccounts.actions.${action}`)}</Text>
-                </Button>
-              ))}
-            </Box>
+            {actions.map((action) => (
+              <SettingTile
+                key={action}
+                description={t(`serverAccounts.hints.${ACTION_HINT[action]}`)}
+                after={
+                  <Button
+                    size="300"
+                    variant={action === 'deactivate' ? 'Critical' : 'Secondary'}
+                    fill="Soft"
+                    radii="300"
+                    data-account-action={action}
+                    onClick={() => setConfirming(action)}
+                  >
+                    <Text size="B300">{t(`serverAccounts.actions.${action}`)}</Text>
+                  </Button>
+                }
+              />
+            ))}
           </SettingsCard>
         </Box>
       )}
