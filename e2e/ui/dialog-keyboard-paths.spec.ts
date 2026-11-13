@@ -134,7 +134,9 @@ const longLatinNameKeepsItsStart = async (page: Page) => {
   const { viewer, member, roomId } = await seed();
   await openRoom(page, viewer, roomId, 'ar');
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-  const name = page.locator(`button[data-user-id="${member.userId}"] > span`).last();
+  const name = page
+    .locator(`button[data-user-id="${member.userId}"]`)
+    .getByText(LONG_NAME, { exact: true });
   await expect(name).toHaveText(LONG_NAME, { timeout: 30_000 });
 
   // Where the name's first letters sit, against the box that clips the name.
