@@ -16,7 +16,7 @@ import { ThreadTagPill } from './tags/ThreadTagPill';
 import { useThreadPinning } from '../event-store/threads/useThreadPinning';
 import { useMutateThreadTags } from './tags/useMutateThreadTags';
 import { useThreadTags } from './tags/useThreadTags';
-import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
+import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import { getViaServers } from '../matrix/via-servers';
 import { getMatrixToRoomEvent } from '../matrix/matrix-to';
 import { copyToClipboard } from '../lib/dom';
@@ -430,8 +430,9 @@ export function ThreadActionsMenu({
     icon: Icons.Link,
     onSelect: handleCopyLink,
   });
-  // Agents' replies list the tools they ran; this thread's choice, over its room's.
-  if (agents.length > 0) {
+  // Agents' replies list the tools they ran; this thread's choice, over its room's. Invited agents
+  // count, as in the room menu.
+  if (hasActiveMindroomAgent(members)) {
     items.push({
       action: 'toolCalls',
       label: t('mindroomUi.messages.showToolCalls'),

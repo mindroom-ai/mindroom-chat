@@ -234,4 +234,10 @@ describe("ThreadActionsMenu's tool calls switch", () => {
     renderMenu();
     expect(entry()).toBeNull();
   });
+
+  it('is there while an agent is still invited, as in the room menu', () => {
+    state.members = [{ userId: '@mindroom_research:example.org', membership: 'invite' }];
+    renderMenu();
+    expect(entry()?.textContent).toBe('Show tool calls');
+  });
 });
