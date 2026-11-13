@@ -22,7 +22,7 @@ vi.mock('jotai', async (importOriginal) => {
 /**
  * Modules whose atoms all outlive an account (device-wide settings, a count the mounted pages
  * keep), and why. A module that holds anything else lists its kept atoms one by one in `keptAtoms`
- * below. Lane C makes its module-level atoms with jotai's `atom` alone (the lint rule bans the
+ * below. Every file makes its module-level atoms with jotai's `atom` alone (the lint rule bans the
  * factories this recording would miss); atoms made later by families and per-account factories
  * are keyed and not followed.
  */
