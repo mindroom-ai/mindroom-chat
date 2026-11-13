@@ -62,7 +62,8 @@ src/
     plugins/             client plugins the build lists: the registry, their config.json sections, message
                          renderers, side panels, pages (see "Client plugins" below)
     server-admin/        the homeserver's local accounts, for its administrators: the list, an account's state and
-                         rooms, lock, suspend and deactivate (Settings, Server accounts)
+                         rooms, lock, suspend and deactivate, and the invites that let an email address create
+                         an account (Settings, Server accounts)
     computer/            the worker computer panel, screen, touchpad, clipboard, API, settings, agent servers
     emoji/               emoji data, recent emoji, skin tone; board/, custom/ packs, packs/ editor, server/, settings/
     editor/              the Slate editor of the composer and of message editing; autocomplete/

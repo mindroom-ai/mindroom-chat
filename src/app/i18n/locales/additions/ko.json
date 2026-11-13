@@ -943,6 +943,7 @@
       "rooms": "새 계정이 참가할 방",
       "external": "외부 계정",
       "invited": "초대됨",
+      "replaces": "이전 초대를 대체합니다",
       "copy": "초대 문구 복사",
       "message": "{{url}}에 초대되었습니다. {{providers}}(으)로 로그인하고, 정확히 이 이메일 주소를 사용하세요: {{email}}",
       "messagePlain": "{{url}}에 초대되었습니다. 정확히 이 이메일 주소로 로그인하세요: {{email}}",

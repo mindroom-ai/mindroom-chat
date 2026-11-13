@@ -966,6 +966,7 @@
       "rooms": "Rooms the new account joins",
       "external": "External account",
       "invited": "Invited",
+      "replaces": "Replaces the earlier invite",
       "copy": "Copy invitation",
       "message": "You are invited to {{url}}. Sign in with {{providers}}, using exactly this email address: {{email}}",
       "messagePlain": "You are invited to {{url}}. Sign in using exactly this email address: {{email}}",

@@ -1,16 +1,26 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Badge, Box, Button, Icon, IconButton, Icons, Spinner, Text, color } from 'folds';
+import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { describeError } from '../lib/describeError';
 import { useAlive } from '../lib/hooks/useAlive';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { mDirectAtom } from '../matrix/state/mDirectList';
 import { ActionDialog } from '../ui/ActionDialog';
 import { ErrorDetail } from '../ui/ErrorDetail';
 import { SettingTile } from '../ui/SettingTile';
 import { SettingsCard } from '../ui/settings/SettingsCard';
 import { CopyInvitation } from './CopyInvitation';
 import { InviteDialog } from './InviteDialog';
-import { deleteInvite, listInvites, ssoProviderNames, type RegistrationInvite } from './invites';
+import {
+  deleteInvite,
+  describeRoom,
+  invitableRooms,
+  listInvites,
+  roomLabel,
+  ssoProviderNames,
+  type RegistrationInvite,
+} from './invites';
 
 type ConfirmDeleteProps = {
   email: string;
@@ -92,6 +102,23 @@ export function RegistrationInvites() {
   const [providers, setProviders] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState<string>();
+  const directs = useAtomValue(mDirectAtom);
+  // The rooms the form offers: a room is told from another of them by its address.
+  const offered = useMemo(() => invitableRooms(mx, directs), [mx, directs]);
+  const pending = useMemo(() => new Set(invites?.map(({ email }) => email)), [invites]);
+
+  // A room this client knows by its name, with its address to hover; any other as the invite has it.
+  const roomName = (room: string) => {
+    const known = mx.getRoom(room);
+    if (!known) return room;
+    const described = describeRoom(known);
+    return (
+      // A room ID is long and has no place to break of its own.
+      <span title={described.address} style={{ overflowWrap: 'anywhere' }}>
+        {roomLabel(described, offered)}
+      </span>
+    );
+  };
 
   const latestLoad = useRef(0);
   const load = useCallback(() => {
@@ -153,7 +180,15 @@ export function RegistrationInvites() {
           <SettingTile
             key={email}
             title={<bdi>{email}</bdi>}
-            description={rooms.map((room) => mx.getRoom(room)?.name ?? room).join(' · ')}
+            description={
+              rooms.length > 0 &&
+              rooms.map((room, index) => (
+                <Fragment key={room}>
+                  {index > 0 && ' · '}
+                  {roomName(room)}
+                </Fragment>
+              ))
+            }
             after={
               <IconButton
                 type="button"
@@ -161,7 +196,8 @@ export function RegistrationInvites() {
                 variant="Critical"
                 fill="Soft"
                 radii="300"
-                aria-label={t('serverAccounts.invites.delete')}
+                // One of these stands beside every address, so its name says which.
+                aria-label={`${t('serverAccounts.invites.delete')}: ${email}`}
                 data-invite-delete={email}
                 onClick={() => setDeleting(email)}
               >
@@ -184,7 +220,12 @@ export function RegistrationInvites() {
         ))}
       </SettingsCard>
       {adding && (
-        <InviteDialog providers={providers} onClose={() => setAdding(false)} onInvited={load} />
+        <InviteDialog
+          providers={providers}
+          pending={pending}
+          onClose={() => setAdding(false)}
+          onInvited={load}
+        />
       )}
       {deleting !== undefined && (
         <ConfirmDelete

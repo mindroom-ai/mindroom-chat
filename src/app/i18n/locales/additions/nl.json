@@ -966,6 +966,7 @@
       "rooms": "Kamers waaraan het nieuwe account deelneemt",
       "external": "Extern account",
       "invited": "Uitgenodigd",
+      "replaces": "Vervangt de eerdere uitnodiging",
       "copy": "Uitnodiging kopiëren",
       "message": "Je bent uitgenodigd voor {{url}}. Log in met {{providers}} en gebruik precies dit e-mailadres: {{email}}",
       "messagePlain": "Je bent uitgenodigd voor {{url}}. Log in met precies dit e-mailadres: {{email}}",

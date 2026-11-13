@@ -11,6 +11,7 @@ import {
   listInvites,
   parseAddresses,
   parseInvite,
+  roomLabel,
   ssoProviderNames,
   supportsRegistrationInvites,
 } from './invites';
@@ -129,6 +130,25 @@ describe('parseAddresses', () => {
       'bob@example.com',
     ]);
   });
+
+  it('takes the address out of the forms a mail program writes it in', () => {
+    expect(parseAddresses('"Alice Smith" <alice@example.com>')).toEqual(['alice@example.com']);
+    expect(parseAddresses('mailto:alice@example.com')).toEqual(['alice@example.com']);
+    expect(parseAddresses('alice@example.com.')).toEqual(['alice@example.com']);
+    expect(
+      parseAddresses(
+        '"Smith, Alice" <alice@example.com>; Bob Jones <bob@example.com>,\n(carol@example.com), <mailto:dave@example.com>'
+      )
+    ).toEqual(['alice@example.com', 'bob@example.com', 'carol@example.com', 'dave@example.com']);
+  });
+
+  it('keeps what is no address, so that the form can say so', () => {
+    expect(parseAddresses('alice.example.com bob@example.com Carol')).toEqual([
+      'alice.example.com',
+      'bob@example.com',
+      'Carol',
+    ]);
+  });
 });
 
 describe('inviteAddresses', () => {
@@ -172,6 +192,33 @@ describe('inviteAddresses', () => {
         PREFIX,
       ],
     ]);
+  });
+});
+
+describe('inviteAddresses, given what is no address', () => {
+  it('says so itself, and sends nothing for it', async () => {
+    const { client, authedRequest } = clientWith((_method, _path, body) => ({
+      email: 'alice@example.com',
+      ...(body as object),
+    }));
+
+    const results = await inviteAddresses(
+      client,
+      ['Carol', 'alice@example.com', '@example.com', 'alice@'],
+      [],
+      false
+    );
+
+    expect(results.map(({ address, invite }) => [address, invite?.email])).toEqual([
+      ['Carol', undefined],
+      ['alice@example.com', 'alice@example.com'],
+      ['@example.com', undefined],
+      ['alice@', undefined],
+    ]);
+    expect(inviteErrorText(t, results[0]?.error)).toBe(
+      'serverAccounts.invites.errors.invalidAddress'
+    );
+    expect(authedRequest).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -253,6 +300,26 @@ describe('ssoProviderNames', () => {
     ]);
   });
 
+  it('names a provider once', async () => {
+    const loginFlows = vi.fn(async () => ({
+      flows: [
+        {
+          type: 'm.login.sso',
+          identity_providers: [
+            { id: 'a', name: 'google' },
+            { id: 'b', name: 'Google' },
+            { id: 'c', name: 'Example ID' },
+          ],
+        },
+      ],
+    }));
+
+    expect(await ssoProviderNames({ loginFlows } as unknown as MatrixClient)).toEqual([
+      'Google',
+      'Example ID',
+    ]);
+  });
+
   it('names none when the server lists none or cannot be asked', async () => {
     const none = vi.fn(async () => ({ flows: [{ type: 'm.login.password' }] }));
     const failing = vi.fn(async () => {
@@ -297,20 +364,27 @@ describe('invitationText', () => {
 });
 
 describe('invitableRooms', () => {
+  type RoomOptions = { membership?: string; alias?: string; tombstone?: boolean; space?: boolean };
+  const room = (roomId: string, name: string, options: RoomOptions = {}) => ({
+    roomId,
+    name,
+    getMyMembership: () => options.membership ?? 'join',
+    getCanonicalAlias: () => options.alias ?? null,
+    isSpaceRoom: () => options.space === true,
+    currentState: {
+      getStateEvents: (type: string, key: string) =>
+        options.tombstone === true && type === 'm.room.tombstone' && key === '' ? {} : null,
+    },
+  });
+  const getDomain = () => 'example.com';
+
   it("lists the joined rooms by name, without direct chats and the server's admin room", () => {
-    const room = (roomId: string, name: string, membership: string, alias?: string) => ({
-      roomId,
-      name,
-      getMyMembership: () => membership,
-      getCanonicalAlias: () => alias ?? null,
-    });
-    const getDomain = () => 'example.com';
     const getRooms = () => [
-      room('!lobby:example.com', 'Lobby', 'join', '#lobby:example.com'),
-      room('!admins:example.com', 'Admin Room', 'join', '#admins:example.com'),
-      room('!dm:example.com', 'Bob', 'join'),
-      room('!invited:example.com', 'Invited', 'invite'),
-      room('!class:example.com', 'class', 'join'),
+      room('!lobby:example.com', 'Lobby', { alias: '#lobby:example.com' }),
+      room('!admins:example.com', 'Admin Room', { alias: '#admins:example.com' }),
+      room('!dm:example.com', 'Bob'),
+      room('!invited:example.com', 'Invited', { membership: 'invite' }),
+      room('!class:example.com', 'class'),
     ];
 
     expect(
@@ -319,8 +393,47 @@ describe('invitableRooms', () => {
         new Set(['!dm:example.com'])
       )
     ).toEqual([
-      { roomId: '!class:example.com', name: 'class' },
-      { roomId: '!lobby:example.com', name: 'Lobby' },
+      { roomId: '!class:example.com', name: 'class', address: '!class:example.com' },
+      { roomId: '!lobby:example.com', name: 'Lobby', address: '#lobby:example.com' },
     ]);
+  });
+
+  it('leaves out a room an upgrade replaced, which the server lets no registration join', () => {
+    const getRooms = () => [
+      room('!old:example.com', 'Lobby', { tombstone: true }),
+      room('!new:example.com', 'Lobby', { alias: '#lobby:example.com' }),
+    ];
+
+    expect(invitableRooms({ getRooms, getDomain } as unknown as MatrixClient, new Set())).toEqual([
+      { roomId: '!new:example.com', name: 'Lobby', address: '#lobby:example.com' },
+    ]);
+  });
+
+  it('leaves out spaces, whose rooms an account does not join with them', () => {
+    const getRooms = () => [
+      room('!space:example.com', 'Team', { space: true }),
+      room('!lobby:example.com', 'Lobby'),
+    ];
+
+    expect(invitableRooms({ getRooms, getDomain } as unknown as MatrixClient, new Set())).toEqual([
+      { roomId: '!lobby:example.com', name: 'Lobby', address: '!lobby:example.com' },
+    ]);
+  });
+});
+
+describe('roomLabel', () => {
+  it('adds the address only when another room has the same name', () => {
+    const general = { roomId: '!a:example.com', name: 'General', address: '#general:example.com' };
+    const twin = { roomId: '!b:example.com', name: 'General', address: '!b:example.com' };
+    const lobby = { roomId: '!lobby:example.com', name: 'Lobby', address: '#lobby:example.com' };
+    const offered = [general, twin, lobby];
+
+    expect(roomLabel(general, offered)).toBe('General (\u2068#general:example.com\u2069)');
+    expect(roomLabel(twin, offered)).toBe('General (\u2068!b:example.com\u2069)');
+    expect(roomLabel(lobby, offered)).toBe('Lobby');
+    // A room that is not on offer itself, such as one an upgrade replaced.
+    expect(
+      roomLabel({ roomId: '!old:example.com', name: 'Lobby', address: '!old:example.com' }, offered)
+    ).toBe('Lobby (\u2068!old:example.com\u2069)');
   });
 });

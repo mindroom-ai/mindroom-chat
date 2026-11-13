@@ -943,6 +943,7 @@
       "rooms": "新账户将加入的房间",
       "external": "外部账户",
       "invited": "已邀请",
+      "replaces": "替换之前的邀请",
       "copy": "复制邀请内容",
       "message": "你已受邀使用 {{url}}。请通过 {{providers}} 登录，并务必使用此电子邮件地址：{{email}}",
       "messagePlain": "你已受邀使用 {{url}}。请务必使用此电子邮件地址登录：{{email}}",

@@ -989,6 +989,7 @@
       "rooms": "Salons que le nouveau compte rejoint",
       "external": "Compte externe",
       "invited": "Invitée",
+      "replaces": "Remplace l'invitation précédente",
       "copy": "Copier l'invitation",
       "message": "Vous êtes invité sur {{url}}. Connectez-vous avec {{providers}}, en utilisant exactement cette adresse e-mail : {{email}}",
       "messagePlain": "Vous êtes invité sur {{url}}. Connectez-vous en utilisant exactement cette adresse e-mail : {{email}}",

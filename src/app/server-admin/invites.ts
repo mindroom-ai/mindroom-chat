@@ -1,10 +1,11 @@
 import { Capacitor } from '@capacitor/core';
-import { Method, type MatrixClient } from 'matrix-js-sdk';
+import { Method, type MatrixClient, type Room } from 'matrix-js-sdk';
 import type { TFunction } from 'i18next';
 import { appUrl } from '../lib/basePath';
 import { describeError } from '../lib/describeError';
 import { isRecord } from '../lib/isRecord';
-import { specVersions } from '../matrix/cs-api';
+import { freshFetch, specVersions } from '../matrix/cs-api';
+import { StateEvent } from '../matrix/types/room';
 
 /**
  * Registration invites, for the homeserver's administrators: single email addresses that may
@@ -25,8 +26,6 @@ export type RegistrationInvite = {
   rooms: string[];
   external: boolean;
 };
-
-const freshFetch: typeof fetch = (input, init) => fetch(input, { ...init, cache: 'no-store' });
 
 /**
  * Whether the homeserver has registration invites, asked now: a server that was just upgraded
@@ -66,16 +65,34 @@ export const listInvites = async (mx: MatrixClient): Promise<RegistrationInvite[
     .filter((invite): invite is RegistrationInvite => invite !== undefined);
 };
 
-/** The addresses of a pasted text, each once whatever its case. The server says which are malformed. */
+// A recipient as a mail program writes it: a name, quoted or not, before the address in angle brackets.
+const NAMED_ADDRESS = /(^|[,;\n])\s*(?:"[^"]*"\s*|[^,;\n<>"@]*)<([^<>]*)>/g;
+// What a pasted address is wrapped in: brackets, quotes, `mailto:`, the full stop that ends a sentence.
+const ADDRESS_WRAPPING = /^[<("']*(?:mailto:)?|[>)"'.]+$/gi;
+
+/**
+ * The addresses of a pasted text, each once whatever its case, taken out of the forms a mail
+ * program writes them in: `"Alice Smith" <alice@example.com>`, `mailto:alice@example.com`. What is
+ * left and is no address stays in, for {@link inviteAddresses} to say so.
+ */
 export const parseAddresses = (text: string): string[] => {
   const seen = new Set<string>();
-  return text.split(/[\s,;]+/).filter((address) => {
-    const key = address.toLowerCase();
-    if (address === '' || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  return text
+    .replace(NAMED_ADDRESS, '$1 $2 ')
+    .split(/[\s,;]+/)
+    .map((pasted) => pasted.replace(ADDRESS_WRAPPING, ''))
+    .filter((address) => {
+      const key = address.toLowerCase();
+      if (address === '' || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 };
+
+// As loose as the server, which wants one `@` with something on both sides; it reads no more of it.
+const isAddress = (text: string): boolean => /^[^\s@]+@[^\s@]+$/.test(text);
+/** What the server answers a malformed address with, for one that is refused here. */
+const NOT_AN_ADDRESS = { errcode: 'M_INVALID_PARAM' };
 
 /** What became of one address: the invite the server stored for it, or why it refused. */
 export type InviteResult = { address: string; invite?: RegistrationInvite; error?: unknown };
@@ -83,6 +100,7 @@ export type InviteResult = { address: string; invite?: RegistrationInvite; error
 /**
  * Invites each address with the same rooms and external mark, one request per address. A
  * refused address does not stop the others; an address that had an invite gets the new one.
+ * What is no address is refused here, and nothing is sent for it.
  */
 export const inviteAddresses = (
   mx: MatrixClient,
@@ -91,8 +109,9 @@ export const inviteAddresses = (
   external: boolean
 ): Promise<InviteResult[]> =>
   Promise.all(
-    addresses.map((address) =>
-      mx.http
+    addresses.map((address) => {
+      if (!isAddress(address)) return { address, error: NOT_AN_ADDRESS };
+      return mx.http
         .authedRequest<unknown>(
           Method.Put,
           `${ROUTE}/${encodeURIComponent(address)}`,
@@ -106,8 +125,8 @@ export const inviteAddresses = (
             invite: parseInvite(stored) ?? { email: address, rooms: [...rooms], external },
           }),
           (error: unknown): InviteResult => ({ address, error: error ?? new Error('unknown') })
-        )
-    )
+        );
+    })
   );
 
 const errcodeOf = (error: unknown): unknown => (isRecord(error) ? error.errcode : undefined);
@@ -149,15 +168,21 @@ const KNOWN_PROVIDERS: Readonly<Record<string, string>> = {
   google: 'Google',
 };
 
-/** The names of the providers the homeserver signs people in with; none when it cannot be asked. */
+/**
+ * The names of the providers the homeserver signs people in with, each once; none when it cannot
+ * be asked.
+ */
 export const ssoProviderNames = (mx: MatrixClient): Promise<string[]> =>
   mx.loginFlows().then(
-    ({ flows }) =>
-      flows
-        .flatMap((flow) => ('identity_providers' in flow ? flow.identity_providers ?? [] : []))
-        .map(({ name }): unknown => name)
-        .filter((name): name is string => typeof name === 'string' && name !== '')
-        .map((name) => KNOWN_PROVIDERS[name.toLowerCase()] ?? name),
+    ({ flows }) => [
+      ...new Set(
+        flows
+          .flatMap((flow) => ('identity_providers' in flow ? flow.identity_providers ?? [] : []))
+          .map(({ name }): unknown => name)
+          .filter((name): name is string => typeof name === 'string' && name !== '')
+          .map((name) => KNOWN_PROVIDERS[name.toLowerCase()] ?? name)
+      ),
+    ],
     () => []
   );
 
@@ -186,11 +211,25 @@ export const invitationText = (
         email,
       });
 
-export type InvitableRoom = { roomId: string; name: string };
+/** A room as an administrator picks or reads it. */
+export type InvitableRoom = {
+  roomId: string;
+  name: string;
+  /** Its canonical alias, else its ID: what tells it from a room of the same name. */
+  address: string;
+};
+
+export const describeRoom = (room: Room): InvitableRoom => ({
+  roomId: room.roomId,
+  name: room.name,
+  address: room.getCanonicalAlias() ?? room.roomId,
+});
 
 /**
- * The rooms an invite can name here: those the administrator has joined, without direct chats
- * and without the homeserver's admin room (`#admins`), which it lets no registration join.
+ * The rooms an invite can name here: those the administrator has joined, without direct chats.
+ * Spaces are left out, since an account that joins one joins none of its rooms, and so are the
+ * rooms the homeserver lets no registration join: its admin room (`#admins`) and a room that an
+ * upgrade replaced.
  */
 export const invitableRooms = (mx: MatrixClient, directs: ReadonlySet<string>): InvitableRoom[] => {
   const adminRoom = `#admins:${mx.getDomain()}`;
@@ -200,8 +239,22 @@ export const invitableRooms = (mx: MatrixClient, directs: ReadonlySet<string>): 
       (room) =>
         room.getMyMembership() === 'join' &&
         !directs.has(room.roomId) &&
-        room.getCanonicalAlias() !== adminRoom
+        !room.isSpaceRoom() &&
+        room.getCanonicalAlias() !== adminRoom &&
+        room.currentState.getStateEvents(StateEvent.RoomTombstone, '') === null
     )
-    .map(({ roomId, name }) => ({ roomId, name }))
+    .map(describeRoom)
     .sort((a, b) => a.name.localeCompare(b.name));
 };
+
+/**
+ * A room's name, followed by its address where one of the rooms on offer has the same name. The
+ * address reads left to right in any language, so it is isolated from the text around it.
+ */
+export const roomLabel = (
+  { roomId, name, address }: InvitableRoom,
+  offered: readonly InvitableRoom[]
+): string =>
+  offered.some((other) => other.name === name && other.roomId !== roomId)
+    ? `${name} (\u2068${address}\u2069)`
+    : name;

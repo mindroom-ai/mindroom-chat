@@ -989,6 +989,7 @@
       "rooms": "Salas en las que entra la cuenta nueva",
       "external": "Cuenta externa",
       "invited": "Invitada",
+      "replaces": "Sustituye a la invitación anterior",
       "copy": "Copiar invitación",
       "message": "Tienes una invitación a {{url}}. Inicia sesión con {{providers}}, usando exactamente esta dirección de correo: {{email}}",
       "messagePlain": "Tienes una invitación a {{url}}. Inicia sesión usando exactamente esta dirección de correo: {{email}}",

@@ -989,6 +989,7 @@
       "rooms": "Stanze in cui entra il nuovo account",
       "external": "Account esterno",
       "invited": "Invitato",
+      "replaces": "Sostituisce l'invito precedente",
       "copy": "Copia invito",
       "message": "Hai ricevuto un invito a {{url}}. Accedi con {{providers}}, usando esattamente questo indirizzo email: {{email}}",
       "messagePlain": "Hai ricevuto un invito a {{url}}. Accedi usando esattamente questo indirizzo email: {{email}}",

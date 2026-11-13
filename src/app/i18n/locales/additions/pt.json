@@ -989,6 +989,7 @@
       "rooms": "Salas em que a nova conta entra",
       "external": "Conta externa",
       "invited": "Convidado",
+      "replaces": "Substitui o convite anterior",
       "copy": "Copiar convite",
       "message": "Você recebeu um convite para {{url}}. Entre com {{providers}}, usando exatamente este endereço de e-mail: {{email}}",
       "messagePlain": "Você recebeu um convite para {{url}}. Entre usando exatamente este endereço de e-mail: {{email}}",

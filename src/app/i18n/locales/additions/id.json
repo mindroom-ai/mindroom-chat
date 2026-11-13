@@ -943,6 +943,7 @@
       "rooms": "Ruang yang diikuti akun baru",
       "external": "Akun eksternal",
       "invited": "Diundang",
+      "replaces": "Menggantikan undangan sebelumnya",
       "copy": "Salin undangan",
       "message": "Anda diundang ke {{url}}. Masuk dengan {{providers}}, memakai persis alamat email ini: {{email}}",
       "messagePlain": "Anda diundang ke {{url}}. Masuk memakai persis alamat email ini: {{email}}",

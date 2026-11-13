@@ -943,6 +943,7 @@
       "rooms": "新帳號將加入的聊天室",
       "external": "外部帳號",
       "invited": "已邀請",
+      "replaces": "取代先前的邀請",
       "copy": "複製邀請內容",
       "message": "你已受邀使用 {{url}}。請透過 {{providers}} 登入，並務必使用此電子郵件地址：{{email}}",
       "messagePlain": "你已受邀使用 {{url}}。請務必使用此電子郵件地址登入：{{email}}",

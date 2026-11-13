@@ -16,15 +16,18 @@ type CopyInvitationProps = {
 
 /**
  * Copies the line an administrator sends to an invited person, which the homeserver does not
- * send: where to sign in, with which provider, and with exactly which address.
+ * send: where to sign in, with which provider, and with exactly which address. Where it cannot
+ * be copied, the line is shown to select by hand.
  */
 export function CopyInvitation({ email, providers, showText = false }: CopyInvitationProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-  const [copied, setCopied] = useState(false);
+  // Undefined until a copy was tried; copyToClipboard resolves false when every clipboard failed.
+  const [copied, setCopied] = useState<boolean>();
   const url = chatUrl();
   if (url === undefined) return null;
   const line = invitationText(t, language, { url, providers, email });
+  const label = copied ? t('messageCodeBlock.copied') : t('serverAccounts.invites.copy');
 
   return (
     <>
@@ -32,16 +35,15 @@ export function CopyInvitation({ email, providers, showText = false }: CopyInvit
         type="button"
         radii="Pill"
         variant="Secondary"
+        // One of these stands beside every address, so its name says which.
+        aria-label={`${label}: ${email}`}
         data-copy-invitation={email}
-        // copyToClipboard resolves false when every clipboard path failed.
         onClick={() => void copyToClipboard(line).then(setCopied)}
       >
-        <Text size="T200">
-          {copied ? t('messageCodeBlock.copied') : t('serverAccounts.invites.copy')}
-        </Text>
+        <Text size="T200">{label}</Text>
       </Chip>
-      {showText && (
-        <Text size="T200" priority="300" style={{ flexBasis: '100%' }}>
+      {(showText || copied === false) && (
+        <Text className="selectable" size="T200" priority="300" style={{ flexBasis: '100%' }}>
           {line}
         </Text>
       )}

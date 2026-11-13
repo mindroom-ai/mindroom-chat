@@ -966,6 +966,7 @@
       "rooms": "Yeni hesabın katılacağı odalar",
       "external": "Harici hesap",
       "invited": "Davet edildi",
+      "replaces": "Önceki davetin yerini alır",
       "copy": "Daveti kopyala",
       "message": "{{url}} adresine davet edildiniz. {{providers}} ile oturum açın ve tam olarak şu e-posta adresini kullanın: {{email}}",
       "messagePlain": "{{url}} adresine davet edildiniz. Tam olarak şu e-posta adresiyle oturum açın: {{email}}",
