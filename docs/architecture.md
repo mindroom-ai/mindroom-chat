@@ -179,7 +179,7 @@ Limits:
 ## Client plugins
 
 A build can add code from outside this repository: `MINDROOM_CLIENT_PLUGINS` names plugin directories, each with its own installed `node_modules` and a `package.json` that declares the plugin ([`configuration.md`](configuration.md#build-time-variables)).
-A plugin imports the app only through the client SDK (`src/client-sdk/`, `@mindroom/client-sdk/<subpath>`), and its entry's default export, a `ClientPlugin`, lists what it adds: message renderers, side panels, the room header slot, header actions, pages, conversation covers, slash commands, room menu entries and message links (`src/app/plugins/`).
+A plugin imports the app only through the client SDK (`src/client-sdk/`, `@mindroom/client-sdk/<subpath>`), and its entry's default export, a `ClientPlugin`, lists what it adds to the app (`src/app/plugins/`).
 [`client-plugins.md`](client-plugins.md) describes the plugin API.
 
 ## Two lanes of code

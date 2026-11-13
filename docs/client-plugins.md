@@ -234,7 +234,7 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 
 ## Pinches
 
-Pinches: the app turns a pinch into its page zoom (`src/app/theme/usePinchToZoom.ts`), except over an element that has the attribute `ui`'s `PINCH_SURFACE_ATTRIBUTE` names (`data-pinch-surface`, with any value), such as a board or slides that zoom themselves, or the image viewer.
+The app turns a pinch into its page zoom (`src/app/theme/usePinchToZoom.ts`), except over an element that has the attribute `ui`'s `PINCH_SURFACE_ATTRIBUTE` names (`data-pinch-surface`, with any value), such as a board or slides that zoom themselves, or the image viewer.
 A touch pinch is the element's when every finger down as it starts landed inside it (each finger's `Touch.target`, which stays where it landed), and stays its own until fewer than two fingers are down, also when another finger lands outside it or the element under a finger is removed; a pinch that starts with a finger outside it stays the app's.
 Safari's `gesturestart`, `gesturechange` and `gestureend` go with the touch pinch they come with; a trackpad's, and ctrl with the wheel, are the element's when their `event.target` is inside it.
 Chrome inside such an element, such as its toolbar or a field on it, has the attribute `ui`'s `PINCH_CHROME_ATTRIBUTE` names (`data-pinch-chrome`, with any value): a pinch with a finger, or a trackpad's or ctrl with the wheel with its `event.target`, on chrome is the app's, as if no marked element were around it, also when that element is nested in another, while an element marked inside chrome keeps the pinches whose fingers all land on it (one with a finger outside it is the app's, since that chrome is between it and the element around).
