@@ -401,6 +401,14 @@ const toRawEventInternal = (
   };
 };
 
+/**
+ * Whether `raw` names a room other than `roomId`. A thread is its root's room's: a thread saved
+ * under a room its root does not name (an earlier version could do that) is not that room's, and
+ * its rows read as absent. Rows saved without a room ID read as the room's they were saved under.
+ */
+const isOtherRoomEvent = (raw: Partial<IEvent> | undefined, roomId: string): boolean =>
+  typeof raw?.room_id === 'string' && raw.room_id !== roomId;
+
 type ScopedCursorOptions = {
   sessionId: string;
   roomId: string;
@@ -1013,7 +1021,7 @@ export const loadCachedThreadRootsForRoom = async (
           (copies.result as CachedEventRecord[]).forEach((row) => {
             root = mergeRawEventRevisions(root, row.rawEvent);
           });
-          if (root?.event_id !== meta.scope) return;
+          if (root?.event_id !== meta.scope || isOtherRoomEvent(root, roomId)) return;
           const rootEvent = root;
           const entry: CachedThreadRoot = { rootEvent };
           roots.push(entry);
@@ -1072,17 +1080,21 @@ export const loadCachedThreadRootsForRoom = async (
 const buildThreadEventPage = (
   meta: CachedMetaRecord | undefined,
   orderedEvents: CachedThreadEvent[],
-  hasMoreBefore: boolean
-): CachedThreadEventPage => ({
-  rootEvent: meta?.rootEvent,
-  events: orderedEvents,
-  hasMoreBefore,
-  beforeToken: getCachedPaginationToken(meta?.beforeTokens, orderedEvents[0]?.event_id),
-  expectedReplyCount: normalizeExpectedReplyCount(meta?.expectedReplyCount),
-  snapshotComplete: meta?.snapshotComplete === true,
-  relationSnapshotComplete: meta?.relationSnapshotComplete === true,
-  tailLoaded: meta?.tailLoaded === true,
-});
+  hasMoreBefore: boolean,
+  roomId: string
+): CachedThreadEventPage =>
+  isOtherRoomEvent(meta?.rootEvent, roomId)
+    ? buildThreadEventPage(undefined, [], false, roomId)
+    : {
+        rootEvent: meta?.rootEvent,
+        events: orderedEvents,
+        hasMoreBefore,
+        beforeToken: getCachedPaginationToken(meta?.beforeTokens, orderedEvents[0]?.event_id),
+        expectedReplyCount: normalizeExpectedReplyCount(meta?.expectedReplyCount),
+        snapshotComplete: meta?.snapshotComplete === true,
+        relationSnapshotComplete: meta?.relationSnapshotComplete === true,
+        tailLoaded: meta?.tailLoaded === true,
+      };
 
 export const loadLatestCachedThreadEvents = async (
   sessionId: string,
@@ -1097,7 +1109,7 @@ export const loadLatestCachedThreadEvents = async (
     limit,
     shouldSkip: (record) => record.eventId === threadId,
   });
-  return buildThreadEventPage(meta, events.reverse() as CachedThreadEvent[], hasMoreBefore);
+  return buildThreadEventPage(meta, events.reverse() as CachedThreadEvent[], hasMoreBefore, roomId);
 };
 
 /** Read several thread tails in one IndexedDB transaction. */
@@ -1113,7 +1125,7 @@ export const loadLatestCachedThreadEventsBatch = async (
   const db = await openCacheStore(sessionId);
   if (!db || limit <= 0) {
     uniqueThreadIds.forEach((threadId) => {
-      empty.set(threadId, buildThreadEventPage(undefined, [], false));
+      empty.set(threadId, buildThreadEventPage(undefined, [], false, roomId));
     });
     return empty;
   }
@@ -1161,7 +1173,7 @@ export const loadLatestCachedThreadEventsBatch = async (
       const pages = new Map<string, CachedThreadEventPage>();
       states.forEach(({ threadId, events, hasMoreBefore, metaRequest }) => {
         const meta = metaRequest.result as CachedMetaRecord | undefined;
-        pages.set(threadId, buildThreadEventPage(meta, events.reverse(), hasMoreBefore));
+        pages.set(threadId, buildThreadEventPage(meta, events.reverse(), hasMoreBefore, roomId));
       });
       resolve(pages);
     };
@@ -1177,7 +1189,7 @@ export const loadCachedThreadEventsBefore = async (
   before: CursorAnchor | undefined,
   limit: number
 ): Promise<CachedThreadEventPage> => {
-  if (!before) return buildThreadEventPage(undefined, [], false);
+  if (!before) return buildThreadEventPage(undefined, [], false, roomId);
   const { events, hasMoreBefore, meta } = await runScopedCursor({
     sessionId,
     roomId,
@@ -1186,7 +1198,7 @@ export const loadCachedThreadEventsBefore = async (
     upperBound: before,
     shouldSkip: (record) => record.eventId === threadId,
   });
-  return buildThreadEventPage(meta, events.reverse() as CachedThreadEvent[], hasMoreBefore);
+  return buildThreadEventPage(meta, events.reverse() as CachedThreadEvent[], hasMoreBefore, roomId);
 };
 
 export const loadCachedThreadEvent = async (
@@ -1208,19 +1220,12 @@ export const loadCachedThreadEvent = async (
 
     transaction.oncomplete = () => {
       const record = eventRequest.result as CachedEventRecord | undefined;
-      if (record) {
-        resolve(toRawEventInternal(record.rawEvent) as CachedThreadEvent | undefined);
-        return;
-      }
-      if (!metaRequest) {
-        resolve(undefined);
-        return;
-      }
-      const meta = metaRequest.result as CachedMetaRecord | undefined;
+      const meta = metaRequest?.result as CachedMetaRecord | undefined;
+      const raw = record ? record.rawEvent : meta?.rootEvent;
       resolve(
-        meta?.rootEvent
-          ? (toRawEventInternal(meta.rootEvent) as CachedThreadEvent | undefined)
-          : undefined
+        isOtherRoomEvent(raw, roomId)
+          ? undefined
+          : (toRawEventInternal(raw) as CachedThreadEvent | undefined)
       );
     };
     transaction.onerror = () => reject(transaction.error);
