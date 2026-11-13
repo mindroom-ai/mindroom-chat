@@ -7,11 +7,13 @@ import {
   loadLatestCachedThreadEvents,
   loadLatestCachedThreadEventsBatch,
   loadLatestCachedRoomEvents,
+  loadCachedRoomEvent,
   saveRoomEventsToCache,
   deleteCacheStoreDb,
   resetCacheStoreForTesting,
   saveThreadEventsToCache,
 } from '..';
+import { loadCachedEventAcrossRoomScopes, loadRoomOfflineEventBatch } from '../cacheStoreEvents';
 
 // A root's thread summary is the server's word at the moment the page read it. A thread list read
 // while an agent streams keeps the reply's placeholder in it; the page then saves the reply's
@@ -186,6 +188,13 @@ describe('a cached thread whose root is another room’s', () => {
 
     const roomPage = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10);
     expect(roomPage.events.map((event) => event.room_id)).toEqual([ROOM_ID]);
+    expect(await loadCachedRoomEvent(SESSION_ID, ROOM_ID, '$other-root')).toBeUndefined();
+    expect(
+      await loadCachedEventAcrossRoomScopes(SESSION_ID, ROOM_ID, '$other-root')
+    ).toBeUndefined();
+    const offline = await loadRoomOfflineEventBatch(SESSION_ID, ROOM_ID);
+    expect(offline.events.map((event) => event.room_id)).not.toContain(OTHER_ROOM_ID);
+    expect(offline.events.length).toBeGreaterThan(0);
     expect((await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, ROOT_ID, 10)).events).toEqual(
       []
     );

@@ -574,7 +574,7 @@ export const loadCachedRoomEvent = async (
         resolve(undefined);
         return;
       }
-      if (isRawLocalEchoEventId(normalized.event_id)) {
+      if (isRawLocalEchoEventId(normalized.event_id) || isOtherRoomEvent(normalized, roomId)) {
         resolve(undefined);
         return;
       }
@@ -608,7 +608,7 @@ export const loadCachedEventAcrossRoomScopes = async (
       (request.result as CachedEventRecord[]).forEach((row) => {
         merged = mergeRawEventRevisions(merged, row.rawEvent);
       });
-      resolve(merged);
+      resolve(isOtherRoomEvent(merged, roomId) ? undefined : merged);
     };
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
@@ -640,6 +640,10 @@ export const loadRoomOfflineEventBatch = async (
         return;
       }
       const row = cursor.value as CachedEventRecord;
+      if (isOtherRoomEvent(row.rawEvent, roomId)) {
+        cursor.continue();
+        return;
+      }
       if (!events.has(row.eventId) && events.size >= limit) {
         resolve({ events: [...events.values()], nextEventId: [...events.keys()].at(-1) });
         return;
