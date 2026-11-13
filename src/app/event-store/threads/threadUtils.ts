@@ -260,41 +260,6 @@ export const buildVisibleThreadReplyCountMap = (
   return counts;
 };
 
-export const buildThreadParticipantMap = (
-  events: ThreadEventLike[],
-  maxParticipants = 3
-): Map<string, string[]> => {
-  const seenEventIds = new Set<string>();
-  const participants = new Map<string, string[]>();
-  const participantSets = new Map<string, Set<string>>();
-
-  [...events].reverse().forEach((event) => {
-    const eventId = event.getId();
-    const { threadRootId } = event;
-    if (!eventId || !threadRootId || eventId === threadRootId || seenEventIds.has(eventId)) {
-      return;
-    }
-    seenEventIds.add(eventId);
-
-    if (!isThreadRelation(event)) return;
-
-    const senderId = event.getSender?.();
-    if (!senderId) return;
-
-    const threadParticipants = participants.get(threadRootId) ?? [];
-    if (threadParticipants.length >= maxParticipants) return;
-
-    const threadParticipantSet = participantSets.get(threadRootId) ?? new Set<string>();
-    if (threadParticipantSet.has(senderId)) return;
-
-    threadParticipantSet.add(senderId);
-    participantSets.set(threadRootId, threadParticipantSet);
-    participants.set(threadRootId, [...threadParticipants, senderId]);
-  });
-
-  return participants;
-};
-
 export const buildVisibleThreadParticipantMap = (
   events: VisibleThreadEventLike[],
   maxParticipants = 3

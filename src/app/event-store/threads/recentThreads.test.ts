@@ -4,12 +4,16 @@ import {
   bumpRecentThread,
   clearRecentThreadsStore,
   makeRecentThreadsAtom,
-  registerRecentThreadsAtom,
   rekeyRecentThread,
 } from './recentThreads';
 import { setImperativeJotaiStore } from '../../lib/state/jotaiStore';
 
 const USER_ID = '@alice:example.org';
+
+vi.mock('../../matrix/session/sessions', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../matrix/session/sessions')>()),
+  getActiveSession: () => ({ userId: '@alice:example.org' }),
+}));
 
 const createStorage = (): Storage => {
   const state = new Map<string, string>();
@@ -199,7 +203,6 @@ describe('recentThreads', () => {
     const providerStore = createStore();
     const recentThreadsAtom = makeRecentThreadsAtom(USER_ID);
     const unregisterStore = setImperativeJotaiStore(providerStore);
-    const unregisterAtom = registerRecentThreadsAtom(USER_ID, recentThreadsAtom);
 
     providerStore.set(recentThreadsAtom, {
       type: 'BUMP',
@@ -218,7 +221,6 @@ describe('recentThreads', () => {
       },
     ]);
 
-    unregisterAtom();
     unregisterStore();
   });
 
@@ -226,7 +228,6 @@ describe('recentThreads', () => {
     const providerStore = createStore();
     const recentThreadsAtom = makeRecentThreadsAtom(USER_ID);
     const unregisterStore = setImperativeJotaiStore(providerStore);
-    const unregisterAtom = registerRecentThreadsAtom(USER_ID, recentThreadsAtom);
 
     bumpRecentThread('!room:example.org', '$thread', 200, 'Preview text');
 
@@ -240,7 +241,6 @@ describe('recentThreads', () => {
     ]);
     expect(getDefaultStore().get(recentThreadsAtom)).toEqual([]);
 
-    unregisterAtom();
     unregisterStore();
   });
 
@@ -248,7 +248,6 @@ describe('recentThreads', () => {
     const providerStore = createStore();
     const recentThreadsAtom = makeRecentThreadsAtom(USER_ID);
     const unregisterStore = setImperativeJotaiStore(providerStore);
-    const unregisterAtom = registerRecentThreadsAtom(USER_ID, recentThreadsAtom);
 
     providerStore.set(recentThreadsAtom, {
       type: 'BUMP',
@@ -279,7 +278,6 @@ describe('recentThreads', () => {
       },
     ]);
 
-    unregisterAtom();
     unregisterStore();
   });
 });
