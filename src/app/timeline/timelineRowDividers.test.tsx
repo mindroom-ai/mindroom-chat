@@ -5,10 +5,6 @@ import type { VirtualItem } from '@tanstack/react-virtual';
 import { describe, expect, it } from 'vitest';
 import { renderTimelineTiles } from './roomTimelineRows';
 import type { TimelineMessageData, TimelineMessageRow } from './message-rendering/types';
-import {
-  NOTICE_STATE_EVENT_TYPES,
-  getTimelineMessageKind,
-} from '../event-store/timeline/timelineRowTypes';
 
 // A row whose render gives nothing (an event of a type the timeline draws no row for, kept in the
 // list by the developer setting `showHiddenEvents`, or one that decrypted to such a type) takes no
@@ -25,19 +21,12 @@ const event = (id: string, type: string, ts: number, stateKey?: string) =>
     sender: '@maya:x',
     type,
     origin_server_ts: ts,
-    content: { body: id, msgtype: 'm.text', custom: true },
+    content: { body: id, msgtype: 'm.text' },
     ...(stateKey === undefined ? {} : { state_key: stateKey }),
   });
 
-/** The room timeline's renderer gives a row only to these, as `useTimelineMessageFeature` does. */
-const renderEvent = ({ event: row, eventId }: TimelineMessageRow) => {
-  const type = row.getType();
-  const hasRow =
-    row.getStateKey() !== undefined
-      ? NOTICE_STATE_EVENT_TYPES.has(type)
-      : !!getTimelineMessageKind(type);
-  return hasRow ? <p>{eventId}</p> : null;
-};
+/** Draws every event it is given: the tiles ask it only about events with a row. */
+const renderEvent = ({ eventId }: TimelineMessageRow) => <p>{eventId}</p>;
 
 const messageData = {
   approvalTimeline: { hiddenEventIds: new Set<string>() },

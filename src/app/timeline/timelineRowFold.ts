@@ -69,11 +69,17 @@ const continuesGroup = (above: MatrixEvent, event: MatrixEvent): boolean =>
   minuteDifference(above.getTs(), event.getTs()) < GROUP_MINUTES;
 
 /**
- * Whether a message right after `above` shows its own author line. An edit or reaction above
- * ends the group, as it does in the fold below.
+ * Whether a message right after `above` shows its own author line. An event without a row above
+ * ends the group. The fold below decides grouping with it too.
  */
 export const startsAuthorGroup = (above: MatrixEvent | undefined, event: MatrixEvent): boolean =>
   !above || isRowlessTimelineEvent(above) || !continuesGroup(above, event);
+
+/** Whether `event` is a row with output: not skipped, and with a row of its own. */
+const showsRow = (
+  event: MatrixEvent | undefined,
+  isSkipped: (event: MatrixEvent) => boolean
+): event is MatrixEvent => !!event?.getId() && !isSkipped(event) && !isRowlessTimelineEvent(event);
 
 /**
  * The reply quote state after a row. `targetId` is set while the rows down to `rowId` all reply
@@ -108,7 +114,7 @@ const primeReplyRun = (
   let targetId: string | undefined;
   for (let above = index - 1; above >= 0; above -= 1) {
     const event = getEvent(above);
-    if (event?.getId() && !isSkipped(event) && !isRowlessTimelineEvent(event)) {
+    if (showsRow(event, isSkipped)) {
       if (rowId === undefined) {
         rowId = event.getId();
         targetId = genuineReplyEventId(event);
@@ -137,8 +143,8 @@ type FoldOptions = {
 /**
  * Walks the rows of a virtual window in order and decides, for each, whether it groups with the
  * row above it, whether a date or unread divider goes above it, and which reply needs no quote
- * there. A window that starts after the first row is primed from the rows before it, so a row
- * looks the same whether or not the rows above it are mounted. An event without a row (an edit,
+ * there. The walk starts at the last row with output above the window, so a row looks the same
+ * whether or not the rows above it are mounted. An event without a row (an edit,
  * a reaction, or an event of a type the timeline draws nothing for) counts as the row above (it
  * ends a group) but renders nothing, so a day change or the read marker at it shows above the
  * next row with output instead, and a reply quote looks past it.
@@ -154,31 +160,22 @@ export const foldTimelineRowContexts = ({
   const firstIndex = indexes[0];
   const lastIndex = indexes.at(-1);
   if (firstIndex === undefined || lastIndex === undefined) return contexts;
-  // The walk starts at the last row with output above the window, past the events it skips and
-  // those without a row, so the window's first rows get the same group, day change and unread
-  // divider as when the rows above them are mounted.
-  // Without such a row, the walk starts at the first row with the row before the room's rows
-  // (index -1) as the last one with output: a read marker above them puts no unread divider here.
-  let start = firstIndex - 1;
-  for (; start >= 0; start -= 1) {
-    const event = getEvent(start);
-    if (event?.getId() && !isSkipped(event) && !isRowlessTimelineEvent(event)) break;
-  }
-  let lastRowAbsoluteIndex = getAbsoluteIndex?.(start);
-  start = Math.max(start, 0);
+  // The last row with output above the window. Without one (-1), the row before these rows stands
+  // for it: a read marker above that row puts no unread divider over the first row here.
+  let before = firstIndex - 1;
+  while (before >= 0 && !showsRow(getEvent(before), isSkipped)) before -= 1;
+  let lastRowAbsoluteIndex = getAbsoluteIndex?.(before);
   let above: MatrixEvent | undefined;
-  let aboveHasRow = false;
   let dayChanged = false;
-  let replyRun = primeReplyRun(getEvent, start, isSkipped);
+  let replyRun = primeReplyRun(getEvent, before, isSkipped);
 
-  for (let index = start; index <= lastIndex; index += 1) {
+  for (let index = Math.max(before, 0); index <= lastIndex; index += 1) {
     const event = getEvent(index);
     if (event?.getId() && !isSkipped(event)) {
       if (above && !inSameDay(above.getTs(), event.getTs())) dayChanged = true;
       const hasRow = !isRowlessTimelineEvent(event);
       const absoluteIndex = getAbsoluteIndex?.(index);
-      const groupsWithAbove =
-        hasRow && aboveHasRow && !dayChanged && !!above && continuesGroup(above, event);
+      const groupsWithAbove = hasRow && !startsAuthorGroup(above, event);
       const unreadDivider =
         hasRow &&
         shouldRenderUnreadDividerAt({
@@ -198,7 +195,6 @@ export const foldTimelineRowContexts = ({
         replyRun = continueReplyRun(replyRun, event);
       }
       above = event;
-      aboveHasRow = hasRow;
     }
   }
   return contexts;

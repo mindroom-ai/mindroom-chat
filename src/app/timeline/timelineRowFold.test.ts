@@ -169,10 +169,12 @@ describe('foldTimelineRowContexts', () => {
         indexes: Array.from({ length: events.length - firstIndex }, (_, n) => firstIndex + n),
         getEvent: (index) => events[index],
         isSkipped: () => false,
-        getAbsoluteIndex: (index) => (index < 0 ? undefined : index),
+        getAbsoluteIndex: (index) => index,
         readUptoAbsoluteIndex,
       });
-      return rows.slice(firstIndex).map((row, n) => [row.id, contexts.get(firstIndex + n)]);
+      return rows
+        .slice(firstIndex)
+        .map((row, n) => [row.id, contexts.get(firstIndex + n)] as const);
     };
     for (let readUpto = 0; readUpto < rows.length; readUpto += 1) {
       const whole = contextsFrom(0, readUpto);
@@ -182,9 +184,7 @@ describe('foldTimelineRowContexts', () => {
     }
     // The dividers skip the events that render nothing.
     const withDivider = (divider: 'dayDivider' | 'unreadDivider', readUpto: number) =>
-      contextsFrom(0, readUpto).flatMap(([id, context]) =>
-        typeof context === 'object' && context[divider] ? [id] : []
-      );
+      contextsFrom(0, readUpto).flatMap(([id, context]) => (context?.[divider] ? [id] : []));
     expect(withDivider('dayDivider', 0)).toEqual(['$b', '$c', '$e']);
     expect(withDivider('unreadDivider', 3)).toEqual(['$c']);
     expect(withDivider('unreadDivider', 6)).toEqual(['$e']);
