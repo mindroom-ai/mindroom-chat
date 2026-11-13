@@ -30,15 +30,15 @@ import { LoneTouchTarget } from '../../ui/styles/TouchTarget.css';
 
 type SpaceItemCardProps = {
   item: HierarchyItem;
+  /** The hierarchy entry; a join rule the client does not know arrives as a plain string. */
+  summary: (Omit<IHierarchyRoom, 'join_rule'> & { join_rule?: string }) | undefined;
   /** Whether the user is in the space, from the joined list (the client's own state may be ahead). */
   joined: boolean;
   closed: boolean;
-  /** Collapses or expands the space's rooms in the lobby, by the space's room id. */
-  handleClose?: (roomId: string) => void;
   /** Offers the menu that adds a room or subspace. */
   canEditChild: boolean;
-  /** The hierarchy entry; a join rule the client does not know arrives as a plain string. */
-  summary: (Omit<IHierarchyRoom, 'join_rule'> & { join_rule?: string }) | undefined;
+  /** Collapses or expands the space's rooms in the lobby, by the space's room id. */
+  handleClose?: (roomId: string) => void;
   /** The summary is still being fetched. */
   loading?: boolean;
   getRoom: (roomId: string) => Room | undefined;

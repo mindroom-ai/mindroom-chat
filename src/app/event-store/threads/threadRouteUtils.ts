@@ -1,5 +1,7 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
+import { KnownMembership } from 'matrix-js-sdk';
+import { matchesEnum } from '../../lib/matchesEnum';
 import { buildResolveConfirmedEventId } from './threadRenderUtils';
 
 export const isLocalEchoEventId = (eventId: string | undefined): boolean =>
@@ -13,6 +15,17 @@ export const isThreadRouteReady = (
   room: Pick<Room, 'getThread' | 'findEventById'>,
   threadId: string | undefined
 ): boolean => !threadId || !!room.getThread(threadId)?.rootEvent || !!room.findEventById(threadId);
+
+/**
+ * The joined room among `rooms` whose loaded events hold `threadId` (its root, or the event the
+ * address names): event IDs are unique, so the thread is that room's.
+ */
+export const findThreadRoom = (rooms: Room[], threadId: string): Room | undefined =>
+  rooms.find(
+    (room) =>
+      matchesEnum(room.getMyMembership(), KnownMembership.Join) &&
+      isThreadRouteReady(room, threadId)
+  );
 
 const getEventTxnId = (
   event: Pick<MatrixEvent, 'getTxnId' | 'getUnsigned'>

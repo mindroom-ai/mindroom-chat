@@ -781,7 +781,8 @@
     "back": "Kembali",
     "resize": "Ubah ukuran utas",
     "showFull": "Tampilkan utas penuh",
-    "showBeside": "Tampilkan utas di samping pesan"
+    "showBeside": "Tampilkan utas di samping pesan",
+    "notFound": "Utas tidak ditemukan"
   },
   "activity": {
     "title": "Aktivitas",

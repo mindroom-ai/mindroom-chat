@@ -2,11 +2,18 @@ import 'fake-indexeddb/auto';
 import type { IEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  loadCachedThreadEvent,
   loadCachedThreadRootsForRoom,
+  loadLatestCachedThreadEvents,
+  loadLatestCachedThreadEventsBatch,
+  loadLatestCachedRoomEvents,
+  loadCachedRoomEvent,
+  saveRoomEventsToCache,
   deleteCacheStoreDb,
   resetCacheStoreForTesting,
   saveThreadEventsToCache,
 } from '..';
+import { loadCachedEventAcrossRoomScopes, loadRoomOfflineEventBatch } from '../cacheStoreEvents';
 
 // A root's thread summary is the server's word at the moment the page read it. A thread list read
 // while an agent streams keeps the reply's placeholder in it; the page then saves the reply's
@@ -138,5 +145,70 @@ describe('cached thread roots', () => {
     const summary = await summaryOf();
     expect(summary?.latest_event.event_id).toBe('$title');
     expect(summary?.count).toBe(2);
+  });
+});
+
+// A thread is its root's room's. An earlier version could save another room's thread under a room
+// (a render that paired a room with the timeline of the room shown before it): that room listed
+// the thread again after every reload, and opened it with the root and none of its replies.
+describe('a cached thread whose root is another room’s', () => {
+  const OTHER_ROOM_ID = '!other:example.org';
+  const otherRoot = (): Partial<IEvent> => ({
+    ...root(reply('completed'), 1),
+    room_id: OTHER_ROOM_ID,
+  });
+
+  beforeEach(async () => {
+    resetCacheStoreForTesting();
+    await deleteCacheStoreDb(SESSION_ID);
+  });
+  afterEach(async () => {
+    await deleteCacheStoreDb(SESSION_ID);
+    resetCacheStoreForTesting();
+  });
+
+  it('is not a thread of the room it was saved under', async () => {
+    await save([], otherRoot());
+
+    expect(await loadCachedThreadRootsForRoom(SESSION_ID, ROOM_ID)).toEqual([]);
+    expect(await loadCachedThreadEvent(SESSION_ID, ROOM_ID, ROOT_ID, ROOT_ID)).toBeUndefined();
+    expect((await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, ROOT_ID, 10)).rootEvent).toBe(
+      undefined
+    );
+    const batch = await loadLatestCachedThreadEventsBatch(SESSION_ID, ROOM_ID, [ROOT_ID], 10);
+    expect(batch.get(ROOT_ID)?.rootEvent).toBeUndefined();
+  });
+
+  it('leaves out events saved under a room they do not name', async () => {
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [
+      { ...otherRoot(), event_id: '$other-root' },
+      root(reply('completed'), 1),
+    ]);
+    await save([{ ...reply('completed'), room_id: OTHER_ROOM_ID }]);
+
+    const roomPage = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10);
+    expect(roomPage.events.map((event) => event.room_id)).toEqual([ROOM_ID]);
+    expect(await loadCachedRoomEvent(SESSION_ID, ROOM_ID, '$other-root')).toBeUndefined();
+    expect(
+      await loadCachedEventAcrossRoomScopes(SESSION_ID, ROOM_ID, '$other-root')
+    ).toBeUndefined();
+    const offline = await loadRoomOfflineEventBatch(SESSION_ID, ROOM_ID);
+    expect(offline.events.map((event) => event.room_id)).not.toContain(OTHER_ROOM_ID);
+    expect(offline.events.length).toBeGreaterThan(0);
+    expect((await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, ROOT_ID, 10)).events).toEqual(
+      []
+    );
+    const batch = await loadLatestCachedThreadEventsBatch(SESSION_ID, ROOM_ID, [ROOT_ID], 10);
+    expect(batch.get(ROOT_ID)?.events).toEqual([]);
+  });
+
+  it('keeps a root saved without its room, as older rows were', async () => {
+    const { room_id: _roomId, ...withoutRoom } = root(reply('completed'), 1);
+    await save([], withoutRoom);
+
+    expect(await loadCachedThreadRootsForRoom(SESSION_ID, ROOM_ID)).toHaveLength(1);
+    expect((await loadCachedThreadEvent(SESSION_ID, ROOM_ID, ROOT_ID, ROOT_ID))?.event_id).toBe(
+      ROOT_ID
+    );
   });
 });
