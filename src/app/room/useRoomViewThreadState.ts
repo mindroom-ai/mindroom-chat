@@ -32,6 +32,7 @@ import { getCanonicalAliasOrRoomId } from '../matrix/matrix';
 import {
   addTagFilter,
   applyPreset,
+  createDefaultThreadFilterState,
   cycleSortMode,
   type FilterPreset,
   normalizeThreadSearchText,
@@ -112,7 +113,16 @@ export const useRoomViewThreadState = ({
     () => roomThreadFilterAtomFamily(userId, roomId),
     [roomId, userId]
   );
-  const [threadFilterState, setThreadFilterState] = useAtom(threadFilterAtom);
+  const [storedThreadFilterState, setThreadFilterState] = useAtom(threadFilterAtom);
+  // Until the reader sets a filter in the room, Compact hides resolved threads.
+  const threadFilterState = useMemo<ThreadFilterState>(
+    () =>
+      storedThreadFilterState ?? {
+        ...createDefaultThreadFilterState(),
+        resolved: effectiveViewMode === 'compact' ? 'exclude' : 'any',
+      },
+    [effectiveViewMode, storedThreadFilterState]
+  );
   // Project stored filters onto the controls that are currently visible.
   // Persisted advanced filters must not keep hiding threads with no visible
   // cause, but remain stored so they can be restored when those controls

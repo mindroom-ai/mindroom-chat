@@ -783,7 +783,8 @@ export function RoomThreadOverview({
     </TooltipProvider>
   );
 
-  const emptyFilteredState = threadCount === 0 && filtersActive && (
+  // Only when a filter hides threads: a Compact room with none yet has its Unresolved filter on.
+  const emptyFilteredState = threadCount === 0 && totalThreadCount > 0 && filtersActive && (
     <div className={css.EmptyState}>
       <Text size="T200">
         {t('mindroomUi.threads.roomThreadOverview.noThreadsMatchCurrentFilters')}
