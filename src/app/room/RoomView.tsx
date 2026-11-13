@@ -341,23 +341,34 @@ export function RoomView({
         >
           <div ref={columnRef} style={COLUMN_STYLE}>
             {threadState.threadNotFound ? (
-              // A thread that is not this room's, nor of any joined room the client knows.
-              <PageHeroSection>
-                <PageHero
-                  icon={<Icon size="600" src={Icons.Thread} />}
-                  title={t('thread.notFound')}
-                >
-                  <Button
-                    size="300"
-                    radii="300"
-                    variant="Secondary"
-                    fill="Soft"
-                    onClick={threadState.handleThreadRootDeleted ?? ignore}
+              // A thread that is not this room's, nor of any joined room the client knows. Filling
+              // the page, the column has the room's header the room area hides.
+              <>
+                {columnFills && (
+                  <RoomViewHeader
+                    hasMindroomAgents={hasMindroomAgents}
+                    threadId={openThreadId}
+                    threadFilterState={threadState.threadFilterState}
+                    {...headerProps}
+                  />
+                )}
+                <PageHeroSection>
+                  <PageHero
+                    icon={<Icon size="600" src={Icons.Thread} />}
+                    title={t('thread.notFound')}
                   >
-                    <Text size="B300">{t('thread.back')}</Text>
-                  </Button>
-                </PageHero>
-              </PageHeroSection>
+                    <Button
+                      size="300"
+                      radii="300"
+                      variant="Secondary"
+                      fill="Soft"
+                      onClick={threadState.handleThreadRootDeleted ?? ignore}
+                    >
+                      <Text size="B300">{t('thread.back')}</Text>
+                    </Button>
+                  </PageHero>
+                </PageHeroSection>
+              </>
             ) : (
               <ThreadView
                 room={room}

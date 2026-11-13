@@ -530,6 +530,14 @@ it('shows a thread that is not found as such, with the way back, instead of its 
   expect(back).toHaveBeenCalledOnce();
 });
 
+it("keeps the room's header over a thread that is not found as the column fills the page", () => {
+  state.threadNotFound = true;
+  renderView({}, ScreenSize.Mobile);
+  const filled = within(screen.getByTestId('thread-column'));
+  expect(filled.getByTestId('room-header')).toBeDefined();
+  expect(filled.getByRole('heading', { name: 'Thread not found' })).toBeDefined();
+});
+
 it('passes a thread that does not load to the page', () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   const onLoadError = vi.fn();
