@@ -210,6 +210,10 @@ describe('parseToolApprovalContent', () => {
     const parse = (extra: Record<string, unknown>) =>
       parseToolApprovalContent(MINDROOM_TOOL_APPROVAL_EVENT, { ...content, ...extra });
 
+    expect(
+      parse({ auto_approval: { ...autoApproval, revoked_at: '2026-04-10T12:05:00Z' } })
+        ?.autoApproval
+    ).toMatchObject({ revokedAt: '2026-04-10T12:05:00Z' });
     expect(parse({ auto_approval: { ...autoApproval, revoked_at: 'later' } })?.autoApproval).toBe(
       null
     );

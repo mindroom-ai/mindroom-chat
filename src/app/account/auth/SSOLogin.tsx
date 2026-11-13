@@ -46,7 +46,6 @@ type SSOLoginProps = SSOButtonOptions & {
   redirectUrl: string;
 };
 
-
 type Brand = NonNullable<KnownIdentityProvider>;
 
 /** The mark this client ships for each provider it recognizes, whatever icon the server sends. */
