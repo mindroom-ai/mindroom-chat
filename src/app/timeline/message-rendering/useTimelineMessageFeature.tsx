@@ -431,7 +431,7 @@ export const useTimelineMessageFeature = ({
     [navigateRoomThread, room.roomId]
   );
 
-  /** The row of a message, approval, sticker or undecryptable event; read at render time. */
+  /** The row of a message, approval, sticker or undecryptable event. */
   const renderMessageRow = useCallback(
     (row: TimelineMessageRow, data: TimelineMessageData): ReactNode | null => {
       const { event, eventId, collapse, highlighted } = row;

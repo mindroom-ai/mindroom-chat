@@ -1,4 +1,4 @@
-import React, { createRef } from 'react';
+import React from 'react';
 import { Editor } from 'slate';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -777,7 +777,6 @@ const makeEvent = (
     sender?: string;
     threadRootId?: string;
     ts?: number;
-    type?: string;
   } = {}
 ): MockEvent => ({
   __editedEvent: opts.editedContent
@@ -801,7 +800,7 @@ const makeEvent = (
   getSender: () => opts.sender ?? '@alice:example.org',
   getStateKey: () => undefined,
   getTs: () => opts.ts ?? 1,
-  getType: () => opts.type ?? MessageEvent.RoomMessage,
+  getType: () => MessageEvent.RoomMessage,
   isEncrypted: () => opts.encrypted ?? false,
   getUnsigned: () => ({}),
   isRedacted: () => false,
@@ -898,7 +897,6 @@ const flushAsyncWork = async (cycles = 5) => {
 const createControlledRoomTimelineHarness = (
   RoomTimelineComponent: (props: Record<string, unknown>) => React.ReactElement | null
 ) => {
-  const roomInputRef = createRef<HTMLElement>();
   const editor = {} as Editor;
   const defaultThreadFilterState = {
     ...createDefaultThreadFilterState(),
@@ -938,7 +936,6 @@ const createControlledRoomTimelineHarness = (
         onApplyPreset: vi.fn(),
         onSearchQueryChange: vi.fn(),
         viewMode: 'threaded',
-        roomInputRef,
         editor,
       }),
     });

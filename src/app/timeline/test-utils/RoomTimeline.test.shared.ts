@@ -1,5 +1,5 @@
 /* eslint-disable react/prop-types */
-import React, { createRef } from 'react';
+import React from 'react';
 import { Direction, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
 import { Editor } from 'slate';
 import { act, create as baseCreate } from 'react-test-renderer';
@@ -1690,10 +1690,14 @@ const wrapWithSyncEngine = (element: React.ReactElement): React.ReactElement => 
   return React.createElement(SyncEngineProvider, props);
 };
 
+/** Receives the harness's view mode setter, which stands in for the header's view switch. */
+export type ViewModeControl = {
+  setViewMode?: (viewMode: 'threaded' | 'compact' | 'classic') => void;
+};
+
 const createControlledRoomTimelineHarness = (
   RoomTimelineComponent: (props: Record<string, unknown>) => React.ReactElement | null
 ) => {
-  const roomInputRef = createRef<HTMLElement>();
   const compactRoomScrollStateRef: { current: ScrollAnchorMemory } = { current: new Map() };
   const editor = {} as Editor;
   const defaultSummaryMap = new Map();
@@ -1722,8 +1726,7 @@ const createControlledRoomTimelineHarness = (
     initialThreadFilterState?: import('../../event-store/threads/roomThreadOverviewModel').ThreadFilterState;
     initialViewMode?: 'threaded' | 'compact' | 'classic';
     initialThreadSortFrozen?: boolean;
-    /** Receives the harness's view mode setter, which stands in for the header's view switch. */
-    viewModeControl?: { setViewMode?: (viewMode: 'threaded' | 'compact' | 'classic') => void };
+    viewModeControl?: ViewModeControl;
   }) {
     const [threadFilterState, setThreadFilterState] = React.useState<
       import('../../event-store/threads/roomThreadOverviewModel').ThreadFilterState
@@ -1796,7 +1799,6 @@ const createControlledRoomTimelineHarness = (
         onRemoveTag: vi.fn(),
         onReset,
         viewMode,
-        roomInputRef,
         compactRoomScrollStateRef,
         editor,
       }),

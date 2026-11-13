@@ -108,7 +108,6 @@ const setup = async () => {
             applyParsedThreadFilterQuery(prev, parseThreadFilterQuery(searchQuery))
           ),
         viewMode: 'threaded',
-        roomInputRef: React.createRef<HTMLElement>(),
         editor: {} as never,
       })
     );

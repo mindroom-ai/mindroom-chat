@@ -10,7 +10,6 @@ import {
   type MouseEvent,
   type MutableRefObject,
   type ReactNode,
-  type RefObject,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
@@ -203,7 +202,6 @@ export type RoomTimelineProps = {
   onApplyPreset?: (preset: FilterPreset) => void;
   onSearchQueryChange?: (query: string) => void;
   viewMode: RoomViewMode;
-  roomInputRef?: RefObject<HTMLElement>;
   compactRoomScrollStateRef?: MutableRefObject<ScrollAnchorMemory>;
   /** Where the room's rows were when a thread opened over them (`useThreadReturnPlace`). */
   threadReturnPlaceRef?: MutableRefObject<RoomRowsPlace | undefined>;

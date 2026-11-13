@@ -25,7 +25,7 @@ describe('resolveRoomTimelineViewState', () => {
     });
   });
 
-  it('preserves requested overview state for non-direct room overview routes', () => {
+  it('requests room overview focus for a linked event in threaded mode', () => {
     const requested = createDefaultThreadFilterState();
 
     expect(

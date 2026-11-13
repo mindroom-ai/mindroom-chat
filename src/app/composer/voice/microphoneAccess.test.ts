@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { getMicrophoneAccessErrorMessage } from './microphoneAccess';
 
 vi.mock('@capacitor/core', () => ({
@@ -10,12 +10,6 @@ vi.mock('@capacitor/core', () => ({
 }));
 
 describe('getMicrophoneAccessErrorMessage', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
-    vi.mocked(Capacitor.getPlatform).mockReturnValue('web');
-  });
-
   it('gives iOS users actionable recovery instructions when access is denied', () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
     vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');

@@ -12,6 +12,7 @@ import {
   roomTimelineVirtualizerState,
   scrollType,
   virtualPaginatorState,
+  type ViewModeControl,
 } from '../test-utils/RoomTimeline.test.shared';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
@@ -40,9 +41,6 @@ const makeScroll = () => {
     fire: (type: string) => listeners.get(type)?.forEach((listener) => listener({ type } as Event)),
   };
 };
-
-/** Holds the harness's view mode setter, which stands in for the header's view switch. */
-type ViewModeControl = { setViewMode?: (viewMode: 'threaded' | 'compact' | 'classic') => void };
 
 const setup = async (initialViewMode: 'classic' | 'threaded', extra: Record<string, unknown>) => {
   const { RoomTimeline } = await import('../RoomTimeline');
@@ -76,9 +74,14 @@ const setup = async (initialViewMode: 'classic' | 'threaded', extra: Record<stri
     );
     await flushAsyncWork();
   });
-  const setViewMode = (viewMode: 'threaded' | 'compact' | 'classic') =>
-    viewModeControl.setViewMode!(viewMode);
-  return { renderer: renderer!, scroll, room, ControlledRoomTimeline, root, setViewMode };
+  return {
+    renderer: renderer!,
+    scroll,
+    room,
+    ControlledRoomTimeline,
+    root,
+    setViewMode: viewModeControl.setViewMode!,
+  };
 };
 
 importBeforeTests(() => import('../RoomTimeline'));
