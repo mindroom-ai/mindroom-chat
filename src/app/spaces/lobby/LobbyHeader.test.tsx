@@ -102,8 +102,8 @@ vi.mock('../../lib/common', () => ({
   nameInitials: () => 'ES',
 }));
 
-vi.mock('../LeaveSpacePrompt', () => ({
-  LeaveSpacePrompt: () => React.createElement('div'),
+vi.mock('../../rooms/LeaveRoomPrompt', () => ({
+  LeaveRoomPrompt: () => React.createElement('div'),
 }));
 
 vi.mock('../../lib/keyboard', () => ({
@@ -127,8 +127,8 @@ vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));
 
-vi.mock('../../navigation/useSpaceSettingsState', () => ({
-  useOpenSpaceSettings: () => vi.fn(),
+vi.mock('../../navigation/useRoomSettingsState', () => ({
+  useOpenRoomSettings: () => vi.fn(),
 }));
 
 vi.mock('../../matrix/hooks/useRoomCreators', () => ({
