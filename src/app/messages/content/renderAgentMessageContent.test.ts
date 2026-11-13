@@ -616,7 +616,7 @@ describe('renderAgentMessageContent', () => {
     renderer.unmount();
   });
 
-  it('renders the event extras after a downloaded long text that carries none', async () => {
+  it('takes the extras of a long text from the event when the downloaded content has none', async () => {
     const { LongTextText } = await import('./LongTextText');
     const renderer = await renderNode({
       msgType: 'm.text',

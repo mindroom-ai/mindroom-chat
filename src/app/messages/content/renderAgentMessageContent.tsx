@@ -1,4 +1,4 @@
-import React, { type ComponentProps, type ReactNode } from 'react';
+import { type ComponentProps, type ReactNode } from 'react';
 import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { Box, Icon, Icons } from 'folds';
 import type { HTMLReactParserOptions } from 'html-react-parser';
