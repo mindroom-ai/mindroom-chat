@@ -11,16 +11,18 @@ import {
   SyncEngineProvider,
 } from '../../event-store/engine';
 import type { SyncEngine } from '../../event-store/engine';
-import {
-  resetCacheStoreForTesting,
-  saveThreadEventsToCache,
-  loadLatestCachedThreadEvents,
-} from '../../event-store/cache/db';
+import { resetCacheStoreForTesting, saveThreadEventsToCache } from '../../event-store/cache/db';
 import {
   clearThreadOpenSeedSnapshotsForTests,
   getThreadOpenSeedSnapshot,
 } from '../../event-store/cache/threadOpenSeedCache';
+import { loadThreadCachedSnapshot } from '../../event-store/cache/eventRepository';
 import { useThreadSeedPrewarmController } from './threadSeedPrewarmController';
+
+vi.mock('../../event-store/cache/eventRepository', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../event-store/cache/eventRepository')>();
+  return { ...original, loadThreadCachedSnapshot: vi.fn(original.loadThreadCachedSnapshot) };
+});
 
 const SESSION_ID = 'session-prewarm-test';
 const ROOM_ID = '!room:example.org';
@@ -60,9 +62,6 @@ function Harness({ mx, room }: { mx: MatrixClient; room: Room }) {
     prefetchDepthRef: { current: 10_000 },
     activeThreadId: undefined,
     priorityTargets: [{ threadId: THREAD_ID }],
-    // Keep the IDB seed pass inert so the tests exercise ONLY the
-    // network content-prefetch phase.
-    loadThreadOpenSeedSnapshotFromCache: async () => [],
     debugTraceId: 'prewarm-test',
   });
   return null;
@@ -203,10 +202,15 @@ it('does not publish a held seed read after room clear', async () => {
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
-  const load = vi.fn(async () => {
-    const page = await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, THREAD_ID, 10);
+  // The seed read finds the cached reply, then waits until the room is cleared.
+  const load = vi.mocked(loadThreadCachedSnapshot);
+  const readCache = load.getMockImplementation()!;
+  load.mockClear();
+  load.mockImplementationOnce(async (options) => {
+    const snapshot = await readCache(options);
+    expect(snapshot?.events.map((event) => event.getId())).toEqual(['$held-seed']);
     await held;
-    return page.events.map((raw) => new MatrixEvent(raw));
+    return snapshot;
   });
   let controller!: ReturnType<typeof useThreadSeedPrewarmController>;
   function HeldHarness() {
@@ -217,7 +221,6 @@ it('does not publish a held seed read after room clear', async () => {
       prefetchDepthRef: { current: 200 },
       activeThreadId: undefined,
       priorityTargets: [{ threadId: THREAD_ID }],
-      loadThreadOpenSeedSnapshotFromCache: load,
       debugTraceId: 'clear-held-seed',
     });
     return null;

@@ -3,6 +3,14 @@ import { RelationType } from 'matrix-js-sdk';
 import { makeEvent, makeRoom } from '../../timeline/test-utils/RoomTimeline.test.shared';
 import { createThreadOpenSeedSession } from './threadOpenSeedController';
 import { saveThreadOpenSeedSnapshot } from '../../event-store/cache/threadOpenSeedCache';
+import { hydrateCachedEvents } from '../../event-store/cache/eventCacheEditUtils';
+
+vi.mock('../../event-store/cache/eventCacheEditUtils', async (importOriginal) => {
+  const original = await importOriginal<
+    typeof import('../../event-store/cache/eventCacheEditUtils')
+  >();
+  return { ...original, hydrateCachedEvents: vi.fn(original.hydrateCachedEvents) };
+});
 
 const makeRefs = (threadId = '$root') => ({
   seed: { waitForExistingOrQueued: vi.fn<() => Promise<void> | undefined>(() => undefined) },
@@ -34,6 +42,10 @@ describe('createThreadOpenSeedSession', () => {
 
     expect(session.applyInitialRoomThreadSeed()).toBe(true);
     expect(supplemental).toHaveBeenCalledWith('$root', [root, reply]);
+    // The edit is hydrated into the room's timeline set with the visible events.
+    expect(vi.mocked(hydrateCachedEvents)).toHaveBeenCalledWith(
+      expect.objectContaining({ events: [root, reply, edit] })
+    );
     expect(session.initialRoomThreadSeedEvents.map((event) => event.getId())).toEqual([
       '$root',
       '$reply',

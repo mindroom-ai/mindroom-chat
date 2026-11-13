@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultThreadFilterState, type ThreadFilterState } from '../../event-store/threads/roomThreadOverviewModel';
+import {
+  createDefaultThreadFilterState,
+  type ThreadFilterState,
+} from '../../event-store/threads/roomThreadOverviewModel';
 import type { ThreadRecord } from '../../event-store/threads/types';
 import { resolveThreadIndexSnapshot } from './useThreadIndex';
 
@@ -91,7 +94,7 @@ describe('resolveThreadIndexSnapshot', () => {
 
   it('bypasses filtered overview state for a focused room route that is filtered out', () => {
     const fallbackThreadFilterState = makeFilterState();
-    const filteredState = makeFilterState({ resolved: 'include' });
+    const filteredState = makeFilterState({ resolved: 'include', freeText: 'root' });
 
     const snapshot = resolveThreadIndexSnapshot({
       threadId: undefined,
@@ -103,7 +106,7 @@ describe('resolveThreadIndexSnapshot', () => {
       threadFilterState: filteredState,
       liveThreadFilterState: filteredState,
       fallbackThreadFilterState,
-      searchQuery: '',
+      searchQuery: 'root',
       threadSortFreezeState: null,
       threadSortControlSignature: 'filtered',
       focusedRoomOverviewRequested: true,
@@ -116,5 +119,6 @@ describe('resolveThreadIndexSnapshot', () => {
     expect(snapshot.roomThreadFilterRequested).toBe(true);
     expect(snapshot.roomThreadFilterActive).toBe(false);
     expect(snapshot.overviewThreadRootIds).toEqual([]);
+    expect(snapshot.searchQuery).toBe('root');
   });
 });
