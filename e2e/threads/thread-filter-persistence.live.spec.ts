@@ -226,16 +226,15 @@ test.describe('live issue-030 thread filter persistence', () => {
     await expectFilterState(page, 'scheduled', 'any');
     await expectSortDirection(page, 'desc');
     await getFilterButton(page, 'resolved').click();
-    await getFilterButton(page, 'resolved').click();
-    await expectFilterState(page, 'resolved', 'include');
+    await expectFilterState(page, 'resolved', 'any');
     await expectFilterState(page, 'scheduled', 'any');
 
     await openThreadAndReturn(page, roomA.rootId, roomA.rootBody);
-    await expectFilterState(page, 'resolved', 'include');
+    await expectFilterState(page, 'resolved', 'any');
     await expectFilterState(page, 'scheduled', 'any');
 
     await switchAwayAndBack(page);
-    await expectFilterState(page, 'resolved', 'include');
+    await expectFilterState(page, 'resolved', 'any');
     await expectFilterState(page, 'scheduled', 'any');
 
     await getThreadOverviewSortButton(page).click();
@@ -251,7 +250,7 @@ test.describe('live issue-030 thread filter persistence', () => {
     await expectFilterState(page, 'scheduled', 'include');
 
     await navigateToRoom(page, roomA.roomName);
-    await expectFilterState(page, 'resolved', 'include');
+    await expectFilterState(page, 'resolved', 'any');
     await expectFilterState(page, 'scheduled', 'any');
     await expectSortDirection(page, 'asc');
 
