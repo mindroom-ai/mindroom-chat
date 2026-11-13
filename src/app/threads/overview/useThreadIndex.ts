@@ -81,11 +81,8 @@ export type ThreadIndexSnapshot = {
   threadRecordMap: Map<string, ThreadRecord>;
   normalOverviewOrdering: ThreadIndexOrdering;
   compactOverviewOrdering: ThreadIndexOrdering;
-  focusedRoomOverviewRootId: string | undefined;
   focusedRoomOverviewBypass: boolean;
-  liveThreadFilterState: ThreadFilterState;
   effectiveThreadFilterState: ThreadFilterState;
-  roomThreadFilterRequested: boolean;
   roomThreadFilterActive: boolean;
   filteredThreadRootIds: string[];
   compactFilteredThreadRootIds: string[];
@@ -122,9 +119,7 @@ export type ResolveThreadIndexSnapshotOptions = {
   normalThreadRecordMap: Map<string, ThreadRecord>;
   compactThreadRecordMap: Map<string, ThreadRecord>;
   threadFilterState: ThreadFilterState;
-  liveThreadFilterState: ThreadFilterState;
   fallbackThreadFilterState: ThreadFilterState;
-  searchQuery: string;
   threadSortFreezeState: ThreadSortFreezeState | null;
   threadSortControlSignature: string;
   focusedRoomOverviewRequested: boolean;
@@ -206,14 +201,13 @@ export const resolveThreadIndexSnapshot = ({
   normalThreadRecordMap,
   compactThreadRecordMap,
   threadFilterState,
-  liveThreadFilterState,
   fallbackThreadFilterState,
-  searchQuery,
   threadSortFreezeState,
   threadSortControlSignature,
   focusedRoomOverviewRequested,
   focusedRoomOverviewRootId,
 }: ResolveThreadIndexSnapshotOptions): ThreadIndexSnapshot => {
+  const searchQuery = threadFilterState.freeText;
   const showCompactRoomView = compactViewRequested && compactThreadRootIds.length > 0;
   const threadRecordMap = showCompactRoomView ? compactThreadRecordMap : normalThreadRecordMap;
   const normalOverviewOrdering = threadId
@@ -235,7 +229,7 @@ export const resolveThreadIndexSnapshot = ({
     ? fallbackThreadFilterState
     : threadFilterState;
   const roomThreadFilterRequested =
-    isRoomThreadOverviewActive(threadId, liveThreadFilterState) || focusedRoomOverviewRequested;
+    isRoomThreadOverviewActive(threadId, threadFilterState) || focusedRoomOverviewRequested;
   const roomThreadFilterActive = roomThreadFilterRequested && !focusedRoomOverviewBypass;
   const compactOverviewOrdering =
     threadId || !compactViewRequested
@@ -273,11 +267,8 @@ export const resolveThreadIndexSnapshot = ({
     threadRecordMap,
     normalOverviewOrdering,
     compactOverviewOrdering,
-    focusedRoomOverviewRootId,
     focusedRoomOverviewBypass,
-    liveThreadFilterState,
     effectiveThreadFilterState,
-    roomThreadFilterRequested,
     roomThreadFilterActive,
     filteredThreadRootIds,
     compactFilteredThreadRootIds,
@@ -627,9 +618,7 @@ export const useThreadIndex = ({
         normalThreadRecordMap,
         compactThreadRecordMap,
         threadFilterState: requestedThreadFilterState,
-        liveThreadFilterState: requestedThreadFilterState,
         fallbackThreadFilterState: DIRECT_ROOM_TIMELINE_FILTER_STATE,
-        searchQuery: requestedThreadFilterState.freeText,
         threadSortFreezeState,
         threadSortControlSignature,
         focusedRoomOverviewRequested,

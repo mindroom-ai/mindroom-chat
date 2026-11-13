@@ -2890,9 +2890,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "Отметить прочитанным"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "Отметить прочитанным"
       },

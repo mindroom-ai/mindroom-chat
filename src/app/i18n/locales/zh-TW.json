@@ -2761,9 +2761,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "標記為已讀"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "標記為已讀"
       },

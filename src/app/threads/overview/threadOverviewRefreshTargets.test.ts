@@ -49,7 +49,6 @@ describe('resolveThreadOverviewRefreshTargets', () => {
       threadResolutionMap: new Map(),
     });
 
-    expect(targets.visibleThreadSummaryRefreshIds).toEqual(['$visible']);
     expect(targets.overviewResumeRefreshIds).toEqual(['$visible', '$older', '$newer']);
   });
 
@@ -88,9 +87,6 @@ describe('resolveThreadOverviewRefreshTargets', () => {
       threadResolutionMap: new Map(),
     });
 
-    expect(targets).toEqual({
-      visibleThreadSummaryRefreshIds: [],
-      overviewResumeRefreshIds: [],
-    });
+    expect(targets).toEqual({ overviewResumeRefreshIds: [] });
   });
 });
