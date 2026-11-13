@@ -1,15 +1,11 @@
 import { Direction, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';
 import { persistRoomChunkWithPreferLive } from '../cache/eventRepository';
 import {
-  captureCacheStoreWriteLease,
   isCacheStoreWriteLeaseCurrent,
   loadRoomTailDiscontinuity,
   type CacheStoreWriteLease,
 } from '../cache/db';
-import {
-  readRoomOfflineProgress,
-  updateRoomOfflineProgress,
-} from '../cache/db/cacheStoreMeta';
+import { readRoomOfflineProgress, updateRoomOfflineProgress } from '../cache/db/cacheStoreMeta';
 import type { BackfillScheduler } from './backfillScheduler';
 
 export type ReserveHistoryPage = (
@@ -25,19 +21,17 @@ export const enqueueRoomDeepHistoryJob = ({
   sessionId,
   scheduler,
   roomId,
-  limit = 200,
-  writeLease = captureCacheStoreWriteLease(sessionId, roomId),
-  canRun = () => true,
+  writeLease,
+  canRun,
   reservePage,
 }: {
   mx: MatrixClient;
   sessionId: string;
   scheduler: BackfillScheduler;
   roomId: string;
-  limit?: number;
-  writeLease?: CacheStoreWriteLease;
-  canRun?: () => boolean;
-  reservePage?: ReserveHistoryPage;
+  writeLease: CacheStoreWriteLease;
+  canRun: () => boolean;
+  reservePage: ReserveHistoryPage;
 }): Promise<HistoryPage | undefined> =>
   scheduler.enqueue({
     roomId,
@@ -51,8 +45,8 @@ export const enqueueRoomDeepHistoryJob = ({
       const progress = await readRoomOfflineProgress(sessionId, roomId);
       if (progress.exhausted || !current())
         return { events: [], count: 0, exhausted: !!progress.exhausted };
-      const reservation = reservePage?.(roomId);
-      if (reservePage && !reservation) return undefined;
+      const reservation = reservePage(roomId);
+      if (!reservation) return undefined;
       let committedCount = 0;
       try {
         // SDK room pagination can advance without retaining thread replies.
@@ -61,7 +55,7 @@ export const enqueueRoomDeepHistoryJob = ({
         const response = await mx.createMessagesRequest(
           roomId,
           from,
-          Math.min(200, reservation?.limit ?? limit),
+          Math.min(200, reservation.limit),
           Direction.Backward
         );
         if (!current()) return undefined;
@@ -98,7 +92,7 @@ export const enqueueRoomDeepHistoryJob = ({
         committedCount = response.chunk?.length ?? 0;
         return { events, count: committedCount, exhausted: !next };
       } finally {
-        reservation?.settle(committedCount);
+        reservation.settle(committedCount);
       }
     },
   });

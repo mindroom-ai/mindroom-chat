@@ -39,12 +39,3 @@ export const useSyncEngine = (): SyncEngine => {
   }
   return engine;
 };
-
-/**
- * Test/tolerant variant: returns undefined when no provider is
- * present. Useful for legacy tests during the P3 migration window
- * where the tree isn't wrapped yet.
- */
-export const useSyncEngineOptional = (): SyncEngine | undefined => {
-  return useContext(SyncEngineContext);
-};

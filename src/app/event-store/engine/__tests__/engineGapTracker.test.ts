@@ -1,30 +1,19 @@
 /**
- * ISSUE-207 P3.2: engineGapTracker + inMemoryGapFillScheduler.
+ * ISSUE-207 P3.2: engineGapTracker.
  *
  * Covers: TimelineReset on the room's UNFILTERED timelineSet →
  * mark + dispatch limited-sync job; TimelineReset on a thread
  * timelineSet → ignored (not a gap event); Sync→PREPARED → startup
  * jobs only for rooms with durable markers; left rooms excluded;
- * probe counter increments. The scheduler is a dispatch seam — jobs
- * never queue in it; per-room coalescing lives in the executor.
+ * probe counter increments. Jobs go straight to the executor's
+ * `enqueue`; per-room coalescing lives in the executor.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Direction, type EventTimelineSet, type MatrixClient, type Room } from 'matrix-js-sdk';
-import {
-  createEngineGapTracker,
-  createInMemoryGapFillScheduler,
-  type GapFillJob,
-  type GapFillScheduler,
-} from '../engineGapTracker';
+import { createEngineGapTracker, type GapFillJob } from '../engineGapTracker';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../cache/cacheProbe';
 import { loadRoomCacheGap, revokeCacheStoreWrites } from '../../cache/db';
-
-const captureEnqueues = (scheduler: GapFillScheduler): GapFillJob[] => {
-  const jobs: GapFillJob[] = [];
-  scheduler.onEnqueue((job) => jobs.push(job));
-  return jobs;
-};
 
 const makeRoom = ({
   roomId,
@@ -51,30 +40,6 @@ const makeRoom = ({
   } as unknown as Room;
 };
 
-describe('createInMemoryGapFillScheduler (ISSUE-207 P3.2)', () => {
-  beforeEach(() => resetCacheProbe());
-  afterEach(() => resetCacheProbe());
-
-  it('dispatches every enqueued job to subscribers and counts the probe', () => {
-    const scheduler = createInMemoryGapFillScheduler();
-    const jobs = captureEnqueues(scheduler);
-    scheduler.enqueueGapFill({ roomId: '!a', reason: 'startup', markedAt: 1 });
-    scheduler.enqueueGapFill({ roomId: '!a', reason: 'limited-sync', markedAt: 2 });
-    expect(jobs.map((job) => job.reason)).toEqual(['startup', 'limited-sync']);
-    expect(getCacheProbeSnapshot().gapFillsEnqueued).toBe(2);
-  });
-
-  it('a throwing subscriber does not break other subscribers', () => {
-    const scheduler = createInMemoryGapFillScheduler();
-    scheduler.onEnqueue(() => {
-      throw new Error('bad subscriber');
-    });
-    const jobs = captureEnqueues(scheduler);
-    scheduler.enqueueGapFill({ roomId: '!a', reason: 'startup', markedAt: 1 });
-    expect(jobs).toHaveLength(1);
-  });
-});
-
 describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
   const defaultMarkDiscontinuity = async (
     _sessionId: string,
@@ -98,8 +63,7 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
   });
 
   it('marks the room and enqueues a limited-sync job on TimelineReset for the unfiltered timelineSet', async () => {
-    const scheduler = createInMemoryGapFillScheduler();
-    const enqueued = captureEnqueues(scheduler);
+    const enqueued: GapFillJob[] = [];
     const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
     loadCachedTail.mockResolvedValueOnce({
       events: [{ event_id: '$pre-gap-tail', origin_server_ts: 1 }],
@@ -108,7 +72,7 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
     const tracker = createEngineGapTracker({
       mx: {} as unknown as MatrixClient,
       sessionId: 'session',
-      scheduler,
+      enqueueGapFill: (job) => enqueued.push(job),
       markDiscontinuity,
       loadCachedTail,
       now: () => 1000,
@@ -139,13 +103,12 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
   });
 
   it('does not commit a failed pre-gap tail read as an empty boundary', async () => {
-    const scheduler = createInMemoryGapFillScheduler();
     const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
     loadCachedTail.mockRejectedValueOnce(new Error('read failed'));
     const tracker = createEngineGapTracker({
       mx: {} as unknown as MatrixClient,
       sessionId: 'session',
-      scheduler,
+      enqueueGapFill: () => undefined,
       markDiscontinuity,
       loadCachedTail,
       now: () => 1000,
@@ -166,13 +129,12 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
   });
 
   it('ignores TimelineReset on non-unfiltered timelineSets (thread resets are not gap events)', () => {
-    const scheduler = createInMemoryGapFillScheduler();
-    const enqueued = captureEnqueues(scheduler);
+    const enqueued: GapFillJob[] = [];
     const room = makeRoom({ roomId: '!a' });
     const tracker = createEngineGapTracker({
       mx: {} as unknown as MatrixClient,
       sessionId: 'session',
-      scheduler,
+      enqueueGapFill: (job) => enqueued.push(job),
       markDiscontinuity,
       onPersistenceError: vi.fn(),
     });
@@ -185,12 +147,11 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
   });
 
   it('ignores TimelineReset with a missing room or timelineSet (defensive)', () => {
-    const scheduler = createInMemoryGapFillScheduler();
-    const enqueued = captureEnqueues(scheduler);
+    const enqueued: GapFillJob[] = [];
     const tracker = createEngineGapTracker({
       mx: {} as unknown as MatrixClient,
       sessionId: 'session',
-      scheduler,
+      enqueueGapFill: (job) => enqueued.push(job),
       markDiscontinuity,
     });
 
@@ -206,8 +167,7 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
   });
 
   it('enqueues startup jobs only for joined rooms with durable markers', async () => {
-    const scheduler = createInMemoryGapFillScheduler();
-    const enqueued = captureEnqueues(scheduler);
+    const enqueued: GapFillJob[] = [];
     const joinedA = makeRoom({ roomId: '!join-a', paginationToken: 'ta' });
     const joinedB = makeRoom({ roomId: '!join-b', paginationToken: null });
     const leftC = makeRoom({ roomId: '!left-c', membership: 'leave', paginationToken: 'tc' });
@@ -220,7 +180,7 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
     const tracker = createEngineGapTracker({
       mx,
       sessionId: 'session',
-      scheduler,
+      enqueueGapFill: (job) => enqueued.push(job),
       markDiscontinuity,
       loadDiscontinuity: async (_sessionId, roomId) => {
         if (roomId === '!join-a') {
@@ -250,14 +210,13 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
   });
 
   it('a limited-sync reset after a startup resume dispatches a newer job for the executor to coalesce', async () => {
-    const scheduler = createInMemoryGapFillScheduler();
-    const enqueued = captureEnqueues(scheduler);
+    const enqueued: GapFillJob[] = [];
     const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
     const mx = { getRooms: () => [room] } as unknown as MatrixClient;
     const tracker = createEngineGapTracker({
       mx,
       sessionId: 'session',
-      scheduler,
+      enqueueGapFill: (job) => enqueued.push(job),
       markDiscontinuity,
       loadCachedTail,
       loadDiscontinuity: async () => ({
@@ -281,13 +240,12 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
   });
 
   it('handleSyncPrepared is a no-op when no MatrixClient is present (safety valve)', async () => {
-    const scheduler = createInMemoryGapFillScheduler();
-    const enqueued = captureEnqueues(scheduler);
+    const enqueued: GapFillJob[] = [];
     const tracker = createEngineGapTracker({
       // @ts-expect-error deliberately omit for the safety test
       mx: undefined,
       sessionId: 'session',
-      scheduler,
+      enqueueGapFill: (job) => enqueued.push(job),
       markDiscontinuity,
     });
     await tracker.handleSyncPrepared();
@@ -296,8 +254,7 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
 
   it('retains and retries a limited-sync job until its marker is durable', async () => {
     vi.useFakeTimers();
-    const scheduler = createInMemoryGapFillScheduler();
-    const enqueued = captureEnqueues(scheduler);
+    const enqueued: GapFillJob[] = [];
     const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
     const onPersistenceError = vi.fn();
     markDiscontinuity
@@ -306,7 +263,7 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
     const tracker = createEngineGapTracker({
       mx: {} as MatrixClient,
       sessionId: 'session',
-      scheduler,
+      enqueueGapFill: (job) => enqueued.push(job),
       markDiscontinuity,
       loadCachedTail,
       onPersistenceError,
@@ -342,7 +299,7 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
     const tracker = createEngineGapTracker({
       mx: {} as MatrixClient,
       sessionId: 'held-session',
-      scheduler: createInMemoryGapFillScheduler(),
+      enqueueGapFill: () => undefined,
       markDiscontinuity,
       loadCachedTail,
       now: () => 1000,
@@ -367,7 +324,7 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
     const tracker = createEngineGapTracker({
       mx: {} as MatrixClient,
       sessionId: 'stopped-session',
-      scheduler: createInMemoryGapFillScheduler(),
+      enqueueGapFill: () => undefined,
       markDiscontinuity,
       loadCachedTail,
     });
@@ -392,7 +349,7 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
     const tracker = createEngineGapTracker({
       mx: {} as MatrixClient,
       sessionId: 'cleared-session',
-      scheduler: createInMemoryGapFillScheduler(),
+      enqueueGapFill: () => undefined,
       markDiscontinuity,
       loadCachedTail,
     });
@@ -412,15 +369,14 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
 
   it('cancels an undurable marker retry when the tracker stops', async () => {
     vi.useFakeTimers();
-    const scheduler = createInMemoryGapFillScheduler();
-    const enqueued = captureEnqueues(scheduler);
+    const enqueued: GapFillJob[] = [];
     const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
     const onPersistenceError = vi.fn();
     markDiscontinuity.mockRejectedValue(new Error('blocked cache'));
     const tracker = createEngineGapTracker({
       mx: {} as MatrixClient,
       sessionId: 'session',
-      scheduler,
+      enqueueGapFill: (job) => enqueued.push(job),
       markDiscontinuity,
       loadCachedTail,
       onPersistenceError,
@@ -436,8 +392,7 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
   });
 
   it('does not enqueue a stale marker after a newer reset supersedes it', async () => {
-    const scheduler = createInMemoryGapFillScheduler();
-    const enqueued = captureEnqueues(scheduler);
+    const enqueued: GapFillJob[] = [];
     const firstRoom = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
     const secondRoom = makeRoom({ roomId: '!a', paginationToken: 'batch-2' });
     let resolveFirst:
@@ -455,7 +410,7 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
     const tracker = createEngineGapTracker({
       mx: {} as MatrixClient,
       sessionId: 'session',
-      scheduler,
+      enqueueGapFill: (job) => enqueued.push(job),
       markDiscontinuity,
       loadCachedTail,
       now,
@@ -480,8 +435,7 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
   });
 
   it('shares the pre-gap boundary when a newer reset supersedes a pending mark', async () => {
-    const scheduler = createInMemoryGapFillScheduler();
-    const enqueued = captureEnqueues(scheduler);
+    const enqueued: GapFillJob[] = [];
     const firstRoom = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
     const secondRoom = makeRoom({ roomId: '!a', paginationToken: 'batch-2' });
     let resolveBoundary:
@@ -500,7 +454,7 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
     const tracker = createEngineGapTracker({
       mx: {} as MatrixClient,
       sessionId: 'session',
-      scheduler,
+      enqueueGapFill: (job) => enqueued.push(job),
       markDiscontinuity,
       loadCachedTail,
       now,

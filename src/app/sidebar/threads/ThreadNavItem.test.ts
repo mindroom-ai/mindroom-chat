@@ -207,16 +207,15 @@ describe('ThreadNavItem', () => {
   const renderItem = (pinned = false, onTogglePin = vi.fn()) => {
     act(() => {
       renderer = create(
-        React.createElement(
-          SyncEngineProvider,
-          { engine },
-          React.createElement(ThreadNavItem, {
+        React.createElement(SyncEngineProvider, {
+          engine,
+          children: React.createElement(ThreadNavItem, {
             entry,
             onTogglePin,
             pinned,
             selected: false,
-          })
-        )
+          }),
+        })
       );
     });
     return onTogglePin;

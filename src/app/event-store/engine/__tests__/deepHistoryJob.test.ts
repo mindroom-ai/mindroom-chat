@@ -8,6 +8,7 @@ import { createBackfillScheduler } from '../backfillScheduler';
 import { enqueueRoomDeepHistoryJob } from '../deepHistoryJob';
 import { StateEvent } from '../../../matrix/types/room';
 import {
+  captureCacheStoreWriteLease,
   loadCachedRoomEvent,
   loadLatestCachedThreadEvents,
   resetCacheStoreForTesting,
@@ -20,6 +21,20 @@ import {
 } from '../../cache/threadOpenSeedCache';
 
 const SESSION_ID = 'session-p43';
+
+// A job with the lease, run check and page reservation the offline controller passes.
+const deepHistory = (
+  args: Omit<
+    Parameters<typeof enqueueRoomDeepHistoryJob>[0],
+    'writeLease' | 'canRun' | 'reservePage'
+  >
+) =>
+  enqueueRoomDeepHistoryJob({
+    writeLease: captureCacheStoreWriteLease(args.sessionId, args.roomId),
+    canRun: () => true,
+    reservePage: () => ({ limit: 200, settle: () => undefined }),
+    ...args,
+  });
 
 // ISSUE-207 P7.2 audit finding #3: deep-history now maps each raw
 // chunk event through `createPreferLiveEventMapper` before persisting.
@@ -124,13 +139,13 @@ describe('enqueueRoomDeepHistoryJob (ISSUE-207 P4.3)', () => {
     mx.__rooms.set('!room:mindroom.chat', makeRoom('!room:mindroom.chat', '@alice:mindroom.chat'));
 
     const scheduler = createBackfillScheduler({ mx });
-    await enqueueRoomDeepHistoryJob({
+    await deepHistory({
       mx,
       sessionId: SESSION_ID,
       scheduler,
       roomId: '!room:mindroom.chat',
     });
-    await enqueueRoomDeepHistoryJob({
+    await deepHistory({
       mx,
       sessionId: SESSION_ID,
       scheduler,
@@ -165,7 +180,7 @@ describe('enqueueRoomDeepHistoryJob (ISSUE-207 P4.3)', () => {
     mx.__rooms.set('!room:mindroom.chat', room);
 
     const scheduler = createBackfillScheduler({ mx });
-    await enqueueRoomDeepHistoryJob({
+    await deepHistory({
       mx,
       sessionId: SESSION_ID,
       scheduler,
@@ -206,7 +221,7 @@ describe('enqueueRoomDeepHistoryJob (ISSUE-207 P4.3)', () => {
     );
     const scheduler = createBackfillScheduler({ mx });
 
-    await enqueueRoomDeepHistoryJob({
+    await deepHistory({
       mx,
       sessionId: SESSION_ID,
       scheduler,
@@ -221,7 +236,7 @@ describe('enqueueRoomDeepHistoryJob (ISSUE-207 P4.3)', () => {
     mx.__rooms.set('!fed:example.org', makeRoom('!fed:example.org', '@carol:example.org'));
     const scheduler = createBackfillScheduler({ mx });
 
-    await enqueueRoomDeepHistoryJob({
+    await deepHistory({
       mx,
       sessionId: SESSION_ID,
       scheduler,
@@ -229,37 +244,6 @@ describe('enqueueRoomDeepHistoryJob (ISSUE-207 P4.3)', () => {
     });
 
     expect(mx.__calls.length).toBe(1);
-  });
-
-  it('sweeps a federated focused room under all-rooms scope (PR #72 greptile: deep history skipped scope)', async () => {
-    const mx = createMockClient(() => ({ chunk: [] }));
-    mx.__rooms.set('!fed:example.org', makeRoom('!fed:example.org', '@carol:example.org'));
-    const scheduler = createBackfillScheduler({ mx });
-
-    await enqueueRoomDeepHistoryJob({
-      mx,
-      sessionId: SESSION_ID,
-      scheduler,
-      roomId: '!fed:example.org',
-    });
-
-    // Gate passes -> at least one backward /messages request fires.
-    expect(mx.__calls.length).toBeGreaterThan(0);
-  });
-
-  it('sweeps a federated focused room under current-room-only scope (deep history always targets the focused room)', async () => {
-    const mx = createMockClient(() => ({ chunk: [] }));
-    mx.__rooms.set('!fed:example.org', makeRoom('!fed:example.org', '@carol:example.org'));
-    const scheduler = createBackfillScheduler({ mx });
-
-    await enqueueRoomDeepHistoryJob({
-      mx,
-      sessionId: SESSION_ID,
-      scheduler,
-      roomId: '!fed:example.org',
-    });
-
-    expect(mx.__calls.length).toBeGreaterThan(0);
   });
 
   it('deduplicates concurrent deep-history requests (AC8)', async () => {
@@ -279,13 +263,13 @@ describe('enqueueRoomDeepHistoryJob (ISSUE-207 P4.3)', () => {
     } as unknown as MatrixClient;
     const scheduler = createBackfillScheduler({ mx });
 
-    const first = enqueueRoomDeepHistoryJob({
+    const first = deepHistory({
       mx,
       sessionId: SESSION_ID,
       scheduler,
       roomId: '!room:mindroom.chat',
     });
-    const second = enqueueRoomDeepHistoryJob({
+    const second = deepHistory({
       mx,
       sessionId: SESSION_ID,
       scheduler,
@@ -309,7 +293,7 @@ describe('enqueueRoomDeepHistoryJob (ISSUE-207 P4.3)', () => {
     );
     const scheduler = createBackfillScheduler({ mx });
 
-    await enqueueRoomDeepHistoryJob({
+    await deepHistory({
       mx,
       sessionId: SESSION_ID,
       scheduler,
@@ -334,13 +318,13 @@ describe('enqueueRoomDeepHistoryJob (ISSUE-207 P4.3)', () => {
     });
     mx.__rooms.set('!room:mindroom.chat', makeRoom('!room:mindroom.chat', '@alice:mindroom.chat'));
     const args = { mx, sessionId: SESSION_ID, roomId: '!room:mindroom.chat' };
-    await enqueueRoomDeepHistoryJob({ ...args, scheduler: createBackfillScheduler({ mx }) });
+    await deepHistory({ ...args, scheduler: createBackfillScheduler({ mx }) });
     await expect(
-      enqueueRoomDeepHistoryJob({ ...args, scheduler: createBackfillScheduler({ mx }) })
+      deepHistory({ ...args, scheduler: createBackfillScheduler({ mx }) })
     ).rejects.toThrow('offline');
     expect(await loadCachedRoomEvent(SESSION_ID, args.roomId, '$saved')).toBeDefined();
     resetCacheStoreForTesting();
-    await enqueueRoomDeepHistoryJob({ ...args, scheduler: createBackfillScheduler({ mx }) });
+    await deepHistory({ ...args, scheduler: createBackfillScheduler({ mx }) });
     expect(mx.__calls.map((call) => call.fromToken)).toEqual([null, 'older-1', 'older-1']);
   });
 
@@ -355,15 +339,13 @@ describe('enqueueRoomDeepHistoryJob (ISSUE-207 P4.3)', () => {
     const args = { mx, sessionId: SESSION_ID, scheduler: createBackfillScheduler({ mx }), roomId };
     for (let i = 0; i < 20; i += 1) {
       // eslint-disable-next-line no-await-in-loop
-      await enqueueRoomDeepHistoryJob(args);
+      await deepHistory(args);
     }
     const progress = await readRoomOfflineProgress(SESSION_ID, roomId);
     expect(progress.savedEvents).toBe(20);
     expect(progress.recentTokens!.length).toBeLessThanOrEqual(8);
     expect(progress.nextToken).toBe('token-20');
-    await expect(enqueueRoomDeepHistoryJob(args)).rejects.toThrow(
-      'History pagination did not advance'
-    );
+    await expect(deepHistory(args)).rejects.toThrow('History pagination did not advance');
     expect((await readRoomOfflineProgress(SESSION_ID, roomId)).nextToken).toBe('token-20');
   });
 
@@ -388,8 +370,8 @@ describe('enqueueRoomDeepHistoryJob (ISSUE-207 P4.3)', () => {
       scheduler: createBackfillScheduler({ mx }),
       roomId: '!room:mindroom.chat',
     };
-    await enqueueRoomDeepHistoryJob(args);
-    await enqueueRoomDeepHistoryJob(args);
+    await deepHistory(args);
+    await deepHistory(args);
     const page = await loadLatestCachedThreadEvents(SESSION_ID, args.roomId, '$root', 20);
     expect(
       page.events.find((event) => event.event_id === '$reply')?.unsigned?.['m.relations']?.[
@@ -436,7 +418,7 @@ describe('enqueueRoomDeepHistoryJob (ISSUE-207 P4.3)', () => {
       scheduler: createBackfillScheduler({ mx }),
       roomId: room.roomId,
     };
-    await enqueueRoomDeepHistoryJob(args);
+    await deepHistory(args);
     await saveAttachmentOwner(
       SESSION_ID,
       room.roomId,
@@ -446,7 +428,7 @@ describe('enqueueRoomDeepHistoryJob (ISSUE-207 P4.3)', () => {
       undefined,
       { revisionId: '$edit' }
     );
-    await enqueueRoomDeepHistoryJob(args);
+    await deepHistory(args);
     expect(
       await saveAttachmentOwner(SESSION_ID, room.roomId, '$original', 10, [
         { mxcUri: 'mxc://test/original', essential: true },

@@ -14,10 +14,7 @@ import {
   clearAttachmentRepositoryMemory,
 } from './attachmentRepository';
 import { getEventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
-import {
-  getLongTextSource,
-  clearLongTextHydrationCache,
-} from '../../matrix/protocol/longText';
+import { getLongTextSource, clearLongTextHydrationCache } from '../../matrix/protocol/longText';
 import {
   resetCacheStoreForTesting,
   saveRoomEventsToCacheCommitted,
@@ -95,9 +92,9 @@ it.each(['room', 'thread', 'grouped'] as const)(
       )
     );
     const facade = createEnginePersistFacade({ sessionId: ctx.sessionId });
-    if (scope === 'room') facade.persistRoomEventCache(ctx.room, [target]);
-    else if (scope === 'thread') facade.persistThreadEventCache(ctx.room, '$thread', [target]);
-    else facade.persistThreadCacheFromRoomEvents(ctx.room, [target]);
+    // A room write also writes the thread replies it carries ('grouped').
+    if (scope === 'thread') facade.persistThreadEventCache(ctx.room, '$thread', [target]);
+    else facade.persistRoomEventCache(ctx.room, [target]);
     await vi.waitFor(async () =>
       expect(
         (

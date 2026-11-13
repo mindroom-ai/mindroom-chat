@@ -43,22 +43,6 @@ export type PersistRoomEventCache = (
   beforeTokenForEarliest?: string | null
 ) => void;
 
-/**
- * Room-derived thread persistence: given room events, groups them by
- * thread attribution and writes each group. Matches the pre-strip
- * `persistThreadCacheFromRoomEvents` signature.
- */
-export type PersistThreadCacheFromRoomEvents = (
-  events: MatrixEvent[],
-  opts?: {
-    beforeTokenForEarliest?: string | null;
-    roomStartKnown?: boolean;
-    roomTailLoaded?: boolean;
-    snapshotComplete?: boolean;
-    tailLoaded?: boolean;
-  }
-) => void;
-
 export type EnginePersistFacade = {
   persistRoomEventCache(
     room: Room,
@@ -76,29 +60,16 @@ export type EnginePersistFacade = {
     expectedReplyCount?: number,
     relationSnapshotComplete?: boolean
   ): void;
-  persistThreadCacheFromRoomEvents(
-    room: Room,
-    events: MatrixEvent[],
-    opts?: {
-      beforeTokenForEarliest?: string | null;
-      roomStartKnown?: boolean;
-      roomTailLoaded?: boolean;
-      snapshotComplete?: boolean;
-      tailLoaded?: boolean;
-    }
-  ): void;
   /**
    * Bind the facade to a specific room, returning fn shapes the fetch
    * controllers already consume (`PersistRoomEventCache`,
-   * `PersistThreadEventCache`, `PersistThreadCacheFromRoomEvents`,
-   * grouped thread persistence). Convenience for the
+   * `PersistThreadEventCache`). Convenience for the
    * MindroomRoomTimeline wiring which knows the mounted room.
    */
   forRoom(room: Room): {
     isCurrent(): boolean;
     persistRoomEventCache: PersistRoomEventCache;
     persistThreadEventCache: PersistThreadEventCache;
-    persistThreadCacheFromRoomEvents: PersistThreadCacheFromRoomEvents;
   };
 };
 
@@ -155,16 +126,6 @@ export const createEnginePersistFacade = (
     });
   };
 
-  const persistThreadCacheFromRoomEvents: EnginePersistFacade['persistThreadCacheFromRoomEvents'] =
-    (room, events, opts) => {
-      persistThreadCacheFromRoomEventsSnapshot({
-        sessionId,
-        room,
-        events,
-        opts,
-      });
-    };
-
   const forRoom: EnginePersistFacade['forRoom'] = (room) => {
     const lease = captureCacheStoreWriteLease(sessionId, room.roomId);
     return {
@@ -194,16 +155,12 @@ export const createEnginePersistFacade = (
           expectedReplyCount,
           relationSnapshotComplete
         ),
-      persistThreadCacheFromRoomEvents: (events, opts) =>
-        isCacheStoreWriteLeaseCurrent(lease) &&
-        persistThreadCacheFromRoomEvents(room, events, opts),
     };
   };
 
   return {
     persistRoomEventCache,
     persistThreadEventCache,
-    persistThreadCacheFromRoomEvents,
     forRoom,
   };
 };

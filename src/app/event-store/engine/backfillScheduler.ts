@@ -14,9 +14,9 @@
  *        second `/relations` or `/messages` request.
  *
  *   Priority + cap: bands 0-4 (0 = current-room / current-thread
- *        opened; 1 = my-server gap-fills on other rooms; 2 = recently-
- *        active my-server tails; 3 = thread inventory prewarm; 4 =
- *        current-room deep history sweep). Within a band, sort by
+ *        opened; 1 = gap fills; 2 = thread overview resume; 3 = thread
+ *        prewarm and writer backfill; 4 = room deep history sweep and
+ *        attachments). Within a band, sort by
  *        `room.getLastActiveTimestamp()` descending so the most
  *        recently active work runs first. At most
  *        `MAX_CONCURRENT_BACKFILL_JOBS` (2) jobs run concurrently.
@@ -140,11 +140,6 @@ export type BackfillScheduler = {
    * not guaranteed except that queued jobs come before running jobs.
    */
   pendingJobs(): readonly BackfillJob[];
-  /**
-   * Test-only reset — clears jobs without dispatching aborts. Use
-   * `abortAll()` in production teardown.
-   */
-  reset(): void;
 };
 
 /**
@@ -432,17 +427,10 @@ export const createBackfillScheduler = (
     return [...queue.map(toJob), ...Array.from(running.values()).map(toJob)];
   };
 
-  const reset = (): void => {
-    byKey.clear();
-    queue.length = 0;
-    running.clear();
-  };
-
   return {
     enqueue,
     abort,
     abortAll,
     pendingJobs,
-    reset,
   };
 };

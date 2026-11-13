@@ -138,7 +138,6 @@ export const createSyncEngine = ({
   const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
 
   const effectiveScheduler = scheduler ?? createBackfillScheduler({ mx });
-  const effectiveGapTracker = gapTracker ?? createEngineGapTracker({ mx, sessionId });
   const effectivePersist = persist ?? createEnginePersistFacade({ sessionId });
   const recoveryListeners = new Map<string, Set<() => void>>();
   const subscribeRoomRecovery = (roomId: string, listener: () => void): (() => void) => {
@@ -183,35 +182,38 @@ export const createSyncEngine = ({
       },
     });
 
-  // ISSUE-207 P4.2: wire the executor over the gap tracker's queue so
-  // limited-sync / startup jobs actually drain. Test overrides can pass
-  // a stub `gapTracker` — in that case skip the executor (the stub
-  // controls its own queue).
+  // ISSUE-207 P4.2: the executor runs every limited-sync / startup job the
+  // gap tracker enqueues. Test overrides can pass a stub `gapTracker`; in
+  // that case skip the executor (the stub controls its own jobs).
   const gapFillExecutor = gapTracker
     ? undefined
-    : createGapFillExecutor(
-        {
-          mx,
-          sessionId,
-          scheduler: effectiveScheduler,
-          // One controller owns automatic and explicit-download eligibility.
-          pageAllowance: offline.allowance,
-          reservePage: offline.reservePage,
-          canSavePage: offline.canSavePage,
-          onRoomRecovered: (roomId) => {
-            offline.recheck();
-            Array.from(recoveryListeners.get(roomId) ?? []).forEach((notify) => {
-              try {
-                notify();
-              } catch {
-                // A reader must not prevent another reader's refresh or undo
-                // the executor's successful cache commit and cursor advance.
-              }
-            });
-          },
+    : createGapFillExecutor({
+        mx,
+        sessionId,
+        scheduler: effectiveScheduler,
+        // One controller owns automatic and explicit-download eligibility.
+        pageAllowance: offline.allowance,
+        reservePage: offline.reservePage,
+        canSavePage: offline.canSavePage,
+        onRoomRecovered: (roomId) => {
+          offline.recheck();
+          Array.from(recoveryListeners.get(roomId) ?? []).forEach((notify) => {
+            try {
+              notify();
+            } catch {
+              // A reader must not prevent another reader's refresh or undo
+              // the executor's successful cache commit and cursor advance.
+            }
+          });
         },
-        effectiveGapTracker.scheduler
-      );
+      });
+  const effectiveGapTracker =
+    gapTracker ??
+    createEngineGapTracker({
+      mx,
+      sessionId,
+      enqueueGapFill: (job) => gapFillExecutor?.enqueue(job),
+    });
 
   let started = false;
   let liveMode = false;
