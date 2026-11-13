@@ -144,6 +144,52 @@ describe('foldTimelineRowContexts', () => {
     }
   });
 
+  it('gives each row the same context wherever the window starts', () => {
+    const day = 24 * 60;
+    const rows: Row[] = [
+      { id: '$a', sender: '@maya:x', type: 'm.room.message', minute: 0 },
+      { id: '$a-edit', sender: '@maya:x', type: 'm.room.message', minute: day, edits: '$a' },
+      { id: '$b', sender: '@maya:x', type: 'm.room.message', minute: day, replyTo: '$a' },
+      {
+        id: '$levels',
+        sender: '@maya:x',
+        type: 'm.room.power_levels',
+        minute: 2 * day,
+        stateKey: '',
+      },
+      { id: '$poll', sender: '@maya:x', type: 'org.example.poll', minute: 2 * day },
+      { id: '$c', sender: '@maya:x', type: 'm.room.message', minute: 2 * day, replyTo: '$b' },
+      { id: '$d', sender: '@maya:x', type: 'm.room.message', minute: 2 * day + 1 },
+      { id: '$poll2', sender: '@code:x', type: 'org.example.poll', minute: 3 * day },
+      { id: '$e', sender: '@code:x', type: 'm.room.message', minute: 3 * day },
+    ];
+    const events = rows.map(toEvent);
+    const contextsFrom = (firstIndex: number, readUptoAbsoluteIndex: number) => {
+      const contexts = foldTimelineRowContexts({
+        indexes: Array.from({ length: events.length - firstIndex }, (_, n) => firstIndex + n),
+        getEvent: (index) => events[index],
+        isSkipped: () => false,
+        getAbsoluteIndex: (index) => (index < 0 ? undefined : index),
+        readUptoAbsoluteIndex,
+      });
+      return rows.slice(firstIndex).map((row, n) => [row.id, contexts.get(firstIndex + n)]);
+    };
+    for (let readUpto = 0; readUpto < rows.length; readUpto += 1) {
+      const whole = contextsFrom(0, readUpto);
+      for (let firstIndex = 1; firstIndex < rows.length; firstIndex += 1) {
+        expect(contextsFrom(firstIndex, readUpto)).toEqual(whole.slice(firstIndex));
+      }
+    }
+    // The dividers skip the events that render nothing.
+    const withDivider = (divider: 'dayDivider' | 'unreadDivider', readUpto: number) =>
+      contextsFrom(0, readUpto).flatMap(([id, context]) =>
+        typeof context === 'object' && context[divider] ? [id] : []
+      );
+    expect(withDivider('dayDivider', 0)).toEqual(['$b', '$c', '$e']);
+    expect(withDivider('unreadDivider', 3)).toEqual(['$c']);
+    expect(withDivider('unreadDivider', 6)).toEqual(['$e']);
+  });
+
   describe('reply quotes', () => {
     const message = (id: string, sender: string, minute: number, more: Partial<Row> = {}): Row => ({
       id,
