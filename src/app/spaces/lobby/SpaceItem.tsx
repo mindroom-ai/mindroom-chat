@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Avatar, Box, Chip, Icon, Icons, Text, config, toRem } from 'folds';
 import { PopOut, ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
@@ -24,41 +24,27 @@ import { LobbyAccessButton } from './LobbyAccessButton';
 import { JoinFailure } from '../../rooms/JoinFailure';
 import { pressCardAction } from '../../lib/cardAction';
 import { AddExistingModal } from '../AddExistingModal';
-import { useDraggableItem } from './DnD';
 import * as css from './SpaceItem.css';
 import * as styleCss from './style.css';
 import { LoneTouchTarget } from '../../ui/styles/TouchTarget.css';
 
-/** How the heading is shown and what it offers: joined or not, collapsing, adding children. */
-type SpaceItemHeadingProps = {
+type SpaceItemCardProps = {
+  item: HierarchyItem;
   /** Whether the user is in the space, from the joined list (the client's own state may be ahead). */
   joined: boolean;
-  /** The id `handleClose` receives; the lobby uses the space's room id. */
-  categoryId: string;
   closed: boolean;
-  /** Collapses or expands the space's rooms in the lobby. */
-  handleClose?: (categoryId: string) => void;
+  /** Collapses or expands the space's rooms in the lobby, by the space's room id. */
+  handleClose?: (roomId: string) => void;
   /** Offers the menu that adds a room or subspace. */
   canEditChild: boolean;
+  /** The hierarchy entry; a join rule the client does not know arrives as a plain string. */
+  summary: (Omit<IHierarchyRoom, 'join_rule'> & { join_rule?: string }) | undefined;
+  /** The summary is still being fetched. */
+  loading?: boolean;
+  getRoom: (roomId: string) => Room | undefined;
+  /** Extra controls at the end of the heading. */
+  options?: React.ReactNode;
 };
-
-/** Reordering the heading among its siblings by drag and drop. */
-type SpaceItemDragProps = {
-  canReorder: boolean;
-  onDragging: (item?: HierarchyItem) => void;
-};
-
-type SpaceItemCardProps = SpaceItemHeadingProps &
-  SpaceItemDragProps & {
-    item: HierarchyItem;
-    /** The hierarchy entry; a join rule the client does not know arrives as a plain string. */
-    summary: (Omit<IHierarchyRoom, 'join_rule'> & { join_rule?: string }) | undefined;
-    /** The summary is still being fetched. */
-    loading?: boolean;
-    getRoom: (roomId: string) => Room | undefined;
-    /** Extra controls at the end of the heading. */
-    options?: React.ReactNode;
-  };
 
 type AddChoice = { label: string; pick: () => void };
 
@@ -179,20 +165,15 @@ export function SpaceItemCard({
   summary,
   loading = false,
   joined,
-  categoryId,
   closed,
   handleClose,
   canEditChild,
-  canReorder,
-  onDragging,
   getRoom,
   options,
 }: SpaceItemCardProps) {
-  const cardRef = useRef<HTMLDivElement>(null);
   const authenticated = useMediaAuthentication();
   const client = useMatrixClient();
   const [joinFailure, setJoinFailure] = useState<unknown>();
-  useDraggableItem(item, cardRef, canReorder ? onDragging : undefined);
 
   const { roomId } = item;
   const localSpace = getRoom(roomId) ?? client.getRoom(roomId) ?? undefined;
@@ -202,19 +183,14 @@ export function SpaceItemCard({
 
   if (isJoined && localSpace) {
     return (
-      <Box
-        ref={cardRef}
-        className={css.SpaceItemCard({ outlined: closed })}
-        alignItems="Center"
-        gap="200"
-      >
+      <Box className={css.SpaceItemCard({ outlined: closed })} alignItems="Center" gap="200">
         <LocalRoomSummaryLoader room={localSpace}>
           {(localSummary: LocalRoomSummary) => (
             <Chip
               className={css.HeaderChip}
               variant="Background"
               radii="Pill"
-              onClick={() => handleClose?.(categoryId)}
+              onClick={() => handleClose?.(roomId)}
               after={
                 <Icon
                   size="50"
@@ -246,7 +222,6 @@ export function SpaceItemCard({
   // join the server refused says why on a line of its own under the heading.
   return (
     <Box
-      ref={cardRef}
       className={css.SpaceItemCard({ outlined: true })}
       alignItems="Center"
       gap="200"

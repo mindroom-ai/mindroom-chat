@@ -72,7 +72,7 @@ function ServerPackSection({ room, onViewPack }: ServerPackSectionProps) {
   const sectionTitle = t(`${SERVER_PACK_KEY}.title`);
   const viewLabel = t('featureUi.settings.emojisStickers.globalPacks.view');
   const openPermissions = () =>
-    openRoomSettings(room.roomId, undefined, RoomSettingsPage.PermissionsPage);
+    openRoomSettings(room.roomId, RoomSettingsPage.PermissionsPage);
 
   const permissionsButton = canChangePermissions ? (
     <Button {...tileButton} outlined onClick={openPermissions}>

@@ -1494,9 +1494,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "পঠিত হিসেবে চিহ্নিত করুন"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "পঠিত হিসেবে চিহ্নিত করুন"
       },

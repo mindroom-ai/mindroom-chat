@@ -166,10 +166,8 @@ export type RoomOfflineProgress = {
 // user-opened signal read by the eviction "never evict recently opened
 // threads" guard.
 //
-// `federated` is optional and populated by the Phase 3/4 sync engine via
-// D3 homeserver detection. Left absent today; the eviction policy treats
-// `undefined` as "not federated" so nothing gets an artificial boost
-// before the engine lands.
+// `federated` is optional: rows older builds wrote may carry it. Nothing
+// writes or reads it now.
 export type CachedRoomLedgerRecord = {
   roomId: string;
   approxBytes: number;

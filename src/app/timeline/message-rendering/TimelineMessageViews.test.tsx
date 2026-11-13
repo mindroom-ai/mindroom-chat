@@ -99,9 +99,6 @@ const mountTwoViews = async () => {
       messageLayout: MessageLayout.Compact,
       messageSpacing: '400' as MessageSpacing,
       hideActivity: false,
-      hideMembershipEvents: false,
-      hideNickAvatarEvents: false,
-      showHiddenEvents: false,
     });
     features[name] = feature;
     return <div data-timeline={name}>{feature.renderEvent(rowFor(root), emptyData)}</div>;

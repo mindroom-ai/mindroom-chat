@@ -1,7 +1,6 @@
 import React from 'react';
 import { act, create, ReactTestInstance, ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MESSAGE_AVATAR_SIZE } from '../layout/config';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
 type HostNodeMock = {
@@ -48,7 +47,6 @@ vi.mock('../MessageCopyActions.css', () => ({
 vi.mock('../MessageControls.css', () => ({
   AiRunInfoButton: 'AiRunInfoButton',
   ReplyDetailsScroll: 'ReplyDetailsScroll',
-  MenuItemText: 'MenuItemText',
 }));
 
 vi.mock('../../ui/page/PageScroll', async () => {
@@ -339,10 +337,6 @@ vi.mock('../../matrix/types/room', () => ({
   StateEvent: {
     RoomPinnedEvents: 'm.room.pinned_events',
   },
-}));
-
-vi.mock('../../members/useMemberPowerTag', () => ({
-  getPowerTagIconSrc: () => undefined,
 }));
 
 // The bug-report flow pulls in thread and Matrix plumbing this message-menu test does not exercise.
@@ -646,7 +640,7 @@ describe('Message reply details menu item', () => {
     );
 
     expect(aiRunAvatars).toHaveLength(1);
-    expect(aiRunAvatars[0]?.props.size).toBe(MESSAGE_AVATAR_SIZE);
+    expect(aiRunAvatars[0]?.props.size).toBe('300');
     expect(aiRunAvatarStacks).toHaveLength(1);
     expect(aiRunAvatarStacks[0]?.findAll((node) => node === aiRunAvatars[0])).toHaveLength(1);
     expect(hasSpanText(renderer, 'Fast')).toBe(true);

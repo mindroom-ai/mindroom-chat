@@ -124,7 +124,6 @@ vi.mock('../../rich-text/CustomHtml.css', () => ({
   Paragraph: 'Paragraph',
   MarginSpaced: 'MarginSpaced',
   CodeBlock: 'CodeBlock',
-  MessageCodeBlock: 'MessageCodeBlock',
   CodeBlockHeader: 'CodeBlockHeader',
   CodeBlockLabel: 'CodeBlockLabel',
   CodeBlockLabelText: 'CodeBlockLabelText',

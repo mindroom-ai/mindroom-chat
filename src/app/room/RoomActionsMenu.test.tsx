@@ -244,7 +244,7 @@ describe('the shared room actions', () => {
     expect(rows()).toEqual(['Show Members', ...SHARED]);
   });
 
-  it('closes the menu, then searches the room within the space it is listed in', () => {
+  it('closes the menu, then searches the room within the space it is listed in, or opens its settings', () => {
     const close = vi.fn();
     render(<Harness spaceId="!space:example.org" close={close} />);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Message Search' }));
@@ -253,7 +253,7 @@ describe('the shared room actions', () => {
       withSearchParam(getSpaceSearchPath('!space:example.org'), { rooms: '!room:example.org' })
     );
     fireEvent.click(screen.getByRole('menuitem', { name: 'Room Settings' }));
-    expect(state.openSettings).toHaveBeenCalledWith('!room:example.org', '!space:example.org');
+    expect(state.openSettings).toHaveBeenCalledWith('!room:example.org');
   });
 
   it('opens its dialogs beside the menu: Jump to Time stays in the open thread', async () => {

@@ -27,7 +27,7 @@ import { PageHeader } from '../../ui/page/Page';
 import { PhoneBackButton } from '../../ui/page/PhoneBackButton';
 import { RoomAvatar } from '../../avatars/RoomAvatar';
 import { InviteUserPrompt } from '../../members/invite/InviteUserPrompt';
-import { LeaveSpacePrompt } from '../LeaveSpacePrompt';
+import { LeaveRoomPrompt } from '../../rooms/LeaveRoomPrompt';
 import { useNavigate } from 'react-router-dom';
 import { getHomePath } from '../../routes/pathUtils';
 import { useMembersDrawer } from '../../members/useMembersDrawer';
@@ -39,7 +39,7 @@ import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize'
 import type { IPowerLevels } from '../../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../../matrix/hooks/useRoomPermissions';
-import { useOpenSpaceSettings } from '../../navigation/useSpaceSettingsState';
+import { useOpenRoomSettings } from '../../navigation/useRoomSettingsState';
 import { mxcUrlToHttp } from '../../matrix/matrix';
 import { nameInitials } from '../../lib/common';
 import { MenuEntry } from '../../ui/MenuEntry';
@@ -84,7 +84,7 @@ export function SpaceAvatar({ roomId, name, src, large = false }: SpaceAvatarPro
 function LeaveSpaceDialog({ spaceId, onClose }: { spaceId: string; onClose: () => void }) {
   const navigate = useNavigate();
   return (
-    <LeaveSpacePrompt
+    <LeaveRoomPrompt
       roomId={spaceId}
       requestClose={onClose}
       onLeft={() => {
@@ -109,7 +109,7 @@ export function LobbyHeader({
   const screenSize = useScreenSizeContext();
   const { t } = useTranslation();
   const [membersOpen, setMembersOpen] = useMembersDrawer();
-  const openSpaceSettings = useOpenSpaceSettings();
+  const openSpaceSettings = useOpenRoomSettings();
 
   // Reviewing join requests takes the power to let people in (invite) or to keep them out (kick).
   const myUserId = client.getSafeUserId();
