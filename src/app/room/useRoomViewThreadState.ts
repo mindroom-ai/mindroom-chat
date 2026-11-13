@@ -59,7 +59,7 @@ import {
   isConfirmedMatrixEventId,
   isLocalEchoEventId,
 } from '../event-store/threads/threadRouteUtils';
-import { loadLatestCachedThreadEvents } from '../event-store/cache/db';
+import { loadLatestCachedThreadEvents } from '../event-store/cache/eventRepository';
 import { useViewScopedState } from '../timeline/roomTimelineViewScope';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
 
