@@ -275,13 +275,22 @@ const listedCounts = (panel: Locator) =>
 const checkFilters = async (page: Page, room: SeededRoom, engine: string) => {
   const cards = page.locator('[data-compact-room-view] [data-thread-root-id]');
   const overview = page.locator('[data-room-thread-overview]');
-  await expect(cards).toHaveCount(THREAD_COUNT, { timeout: 180_000 });
+  await expect(overview).toBeVisible({ timeout: 180_000 });
   // The advanced filters, whichever mode the account's setting starts in.
   const modeSwitch = overview.locator('[data-thread-filter-mode-switch]');
   await expect(async () => {
     if ((await modeSwitch.getAttribute('aria-pressed')) !== 'true') await modeSwitch.click();
     await expect(overview.locator('[data-preset-button]')).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 30_000 });
+  // Compact opens with resolved threads hidden; every thread shows once the filter is off.
+  const resolvedFilter = overview.locator('[data-filter-key="resolved"]');
+  await expect(async () => {
+    if ((await resolvedFilter.getAttribute('data-filter-state')) !== 'any') {
+      await resolvedFilter.click();
+    }
+    await expect(resolvedFilter).toHaveAttribute('data-filter-state', 'any', { timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  await expect(cards).toHaveCount(THREAD_COUNT, { timeout: 180_000 });
 
   // Presets: the pinned threads follow the same rules as the others. A pinned thread stays open
   // (THR-18), so its resolved tag does not count while it is pinned.

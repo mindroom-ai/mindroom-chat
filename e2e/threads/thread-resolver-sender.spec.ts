@@ -103,6 +103,14 @@ test('a resolved thread names the member who resolved it, or the person an agent
     filterState: createDefaultThreadFilterState(),
   });
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
+  // Compact opens with resolved threads hidden; the seeded advanced bar shows them again.
+  const resolvedFilter = page.locator('[data-room-thread-overview] [data-filter-key="resolved"]');
+  await expect(async () => {
+    if ((await resolvedFilter.getAttribute('data-filter-state')) !== 'any') {
+      await resolvedFilter.click();
+    }
+    await expect(resolvedFilter).toHaveAttribute('data-filter-state', 'any', { timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
   const byline = (rootId: string) =>
     page
       .locator(`[data-thread-root-id="${rootId}"]`)
