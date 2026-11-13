@@ -214,6 +214,7 @@ vi.mock('../../matrix/hooks/usePowerLevels', () => {
 
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
+    getRooms: () => [],
     getHomeserverUrl: () => 'https://mindroom.chat',
     getSafeUserId: () => '@alice:example.org',
     getRoom: () => null,

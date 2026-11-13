@@ -49,7 +49,8 @@ const fetchEventContext = async (
  * or `onError` when the request fails, returns nothing, or returns a timeline without the event.
  * An event the server sends alone comes with a page of history on each side (`loadRowsAround`),
  * so the jump has rows to land among.
- * The handlers of the newest render answer. Loads are neither merged nor cancelled, and the loader
+ * The handlers of the newest render answer, while it shows the load's room: a load for a room the
+ * view has left ends without an answer. Loads are neither merged nor cancelled, and the loader
  * does not check that its component is still mounted: the handlers do.
  */
 export const useEventTimelineLoader = (
@@ -60,18 +61,22 @@ export const useEventTimelineLoader = (
   filterOptsRef: RefObject<RecalibrateFilterOpts | undefined>
 ): ((eventId: string) => Promise<void>) => {
   const handlersRef = useLatestRef({ onLoad, onError });
+  // The handlers answer for the room on screen: a load for a room the view has left is dropped.
+  const roomRef = useLatestRef(room);
 
   return useCallback(
     async (eventId: string): Promise<void> => {
       const holder = await fetchEventContext(mx, room, eventId);
+      // The caller counts rows in what it gets, so the returned timeline is decrypted first.
+      if (holder && room.hasEncryptionStateEvent()) await decryptQuietly(mx, holder);
+      if (roomRef.current !== room) return;
       if (!holder) {
         handlersRef.current.onError();
         return;
       }
-      // The caller counts rows in what it gets, so the returned timeline is decrypted first.
-      if (room.hasEncryptionStateEvent()) await decryptQuietly(mx, holder);
       const filterOpts = filterOptsRef.current;
       if (filterOpts) await loadRowsAround(mx, room, holder, filterOpts);
+      if (roomRef.current !== room) return;
       const chain = getLinkedTimelines(holder);
       const absoluteIndex = getEventIdAbsoluteIndex(chain, holder, eventId);
       if (absoluteIndex === undefined) {
@@ -80,7 +85,7 @@ export const useEventTimelineLoader = (
       }
       handlersRef.current.onLoad(eventId, chain, absoluteIndex);
     },
-    [filterOptsRef, handlersRef, mx, room]
+    [filterOptsRef, handlersRef, mx, room, roomRef]
   );
 };
 
