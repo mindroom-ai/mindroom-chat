@@ -1,7 +1,7 @@
 # The container image: the web client behind nginx (Dockerfile, docs/deployment.md "Container
 # image"). Every release publishes it to ghcr.io/mindroom-ai/mindroom-chat for linux/amd64 and
-# linux/arm64, tagged YYYY.M.N, vYYYY.M.N and sha-<commit>, built as that release, and moves `latest`
-# to it when it is the newest release:
+# linux/arm64, tagged YYYY.M.N, vYYYY.M.N and sha-<commit>, built as that release, and points `latest`
+# at it while it is the newest release:
 # - release.yml calls this workflow after it cuts an automatic release;
 # - the release event covers a release cut by hand (`just release`). A release that a workflow's
 #   GITHUB_TOKEN creates sends no release event, so the two never both run for one release.
@@ -63,20 +63,15 @@ jobs:
             exit 1
           fi
           sha=$(git rev-parse HEAD)
-          tags="$IMAGE:${tag#v},$IMAGE:$tag,$IMAGE:sha-${sha:0:7}"
-          # Only the newest release takes `latest`, so rerunning an older release's job leaves it.
-          if [ "$tag" = "$(git tag --list 'v*' --sort=-v:refname | head -1)" ]; then
-            tags="$tags,$IMAGE:latest"
-          fi
           {
             echo "tag=$tag"
             echo "sha=$sha"
-            echo "tags=$tags"
+            echo "tags=$IMAGE:${tag#v},$IMAGE:$tag,$IMAGE:sha-${sha:0:7}"
           } >> "$GITHUB_OUTPUT"
           {
             echo "### $run: $tag at ${sha:0:7}"
             echo
-            echo "${tags//,/, }"
+            echo "$IMAGE:${tag#v}, $IMAGE:$tag, $IMAGE:sha-${sha:0:7}"
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: docker/setup-qemu-action@v4
         with:
@@ -131,3 +126,16 @@ jobs:
             org.opencontainers.image.version=${{ steps.names.outputs.tag }}
             org.opencontainers.image.revision=${{ steps.names.outputs.sha }}
           push: true
+      # Decided after the push from the tags on GitHub then, so neither a rerun of an older release's
+      # job nor a release cut while this one built takes `latest` back to an older release.
+      - name: Point latest at this release if it is the newest
+        if: env.RELEASE_TAG
+        run: |
+          git fetch --quiet --force --tags origin
+          newest=$(node scripts/calver.mjs latest)
+          if [ "$newest" = "$RELEASE_TAG" ]; then
+            docker buildx imagetools create --tag "$IMAGE:latest" "$IMAGE:${RELEASE_TAG#v}"
+            echo "$IMAGE:latest is now ${RELEASE_TAG#v}." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "$IMAGE:latest stays: $newest is newer." >> "$GITHUB_STEP_SUMMARY"
+          fi
