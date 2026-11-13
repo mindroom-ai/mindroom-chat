@@ -88,14 +88,6 @@ import * as css from './styles.css';
 import * as copyCss from './MessageCopyActions.css';
 import * as stateCss from './roomStateChange.css';
 
-export type { ReactionHandler };
-export {
-  MessageAllReactionItem,
-  MessageQuickReactions,
-  MessageReadReceiptItem,
-  MessageSourceCodeItem,
-};
-
 type ToolbarActionProps = {
   label: string;
   icon: IconSrc;
@@ -342,7 +334,7 @@ function MessageCopyLinkItem({
   );
 }
 
-export function MessagePinItem({
+function MessagePinItem({
   room,
   mEvent,
   onClose,
@@ -387,7 +379,7 @@ type EventActionItemProps = {
 };
 
 /** "Delete": redacts the message after a confirmation, with an optional reason. */
-export function MessageDeleteItem({ room, mEvent, onClose }: EventActionItemProps) {
+function MessageDeleteItem({ room, mEvent, onClose }: EventActionItemProps) {
   const mx = useMatrixClient();
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -443,7 +435,7 @@ export function MessageDeleteItem({ room, mEvent, onClose }: EventActionItemProp
 }
 
 /** "Report Message": reports the message to the homeserver with a reason. */
-export function MessageReportItem({ room, mEvent, onClose }: EventActionItemProps) {
+function MessageReportItem({ room, mEvent, onClose }: EventActionItemProps) {
   const mx = useMatrixClient();
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
