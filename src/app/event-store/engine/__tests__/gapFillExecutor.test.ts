@@ -1060,7 +1060,7 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
       overlapEventIds: ['$original-tail'],
     });
 
-    // Focus and scope changes recheck every deferred room.
+    // A prefetch scope change rechecks every deferred room.
     budget.grant(50);
     executor.recheckDeferred();
     await waitForCompleted(2);
@@ -1092,8 +1092,8 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
           scheduler,
           // The allowance can run out while the controller makes space for the page.
           canSavePage: async () => !(short && shortage === 'no space to save'),
-          reservePage: (id) =>
-            short && shortage === 'no page to reserve' ? undefined : reservePage(id),
+          reservePage: () =>
+            short && shortage === 'no page to reserve' ? undefined : reservePage(),
         },
         gapFillScheduler
       );
