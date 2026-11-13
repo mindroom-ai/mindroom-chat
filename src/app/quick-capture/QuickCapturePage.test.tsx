@@ -38,6 +38,9 @@ vi.mock('../lib/dom', async (importOriginal) => ({
 
 const HOST = 'host-1';
 
+// jsdom lays nothing out and has no scrollIntoView.
+const scrollIntoView = vi.fn();
+
 const ROOMS = [
   { id: '!inbox', name: 'Inbox', direct: false },
   { id: '!code', name: 'Code', direct: false },
@@ -151,10 +154,12 @@ beforeEach(() => {
   vi.mocked(showMainWindow).mockResolvedValue(undefined);
   vi.mocked(openScreenRecordingSettings).mockResolvedValue(undefined);
   vi.mocked(copyToClipboard).mockResolvedValue(true);
+  Element.prototype.scrollIntoView = scrollIntoView;
 });
 
 afterEach(() => {
   cleanup();
+  Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
   vi.clearAllMocks();
   vi.useRealTimers();
 });
@@ -218,6 +223,18 @@ describe('QuickCapturePage room picker', () => {
     expect(rig.actions()).toEqual([{ kind: 'selectRoom', roomId: '!code' }]);
     type(field, 'zzz');
     expect(screen.getByText('No rooms match')).toBeTruthy();
+  });
+
+  it('scrolls the highlighted room into view as the arrows move it', () => {
+    setup({ ...roomState([]), roomId: null });
+    const field = screen.getByLabelText('Search rooms');
+    scrollIntoView.mockClear();
+    press(field, 'ArrowDown');
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: 'nearest' });
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(screen.getByRole('option', { name: /Code/ }));
+    press(field, 'ArrowDown');
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(screen.getByRole('option', { name: /Mind/ }));
   });
 
   it('closes on a picked room and gives the input the focus', async () => {
@@ -370,6 +387,61 @@ describe('QuickCapturePage attachments', () => {
     expect(screen.getByRole('button', { name: 'Remove a.png' })).toBeTruthy();
   });
 
+  it('attaches nothing pasted while an entry sends, and leaves it out of the send', async () => {
+    const rig = setup();
+    type(input(), 'First');
+    press(input(), 'Enter');
+    expect(paste([png('late.png')])).toBe(false);
+    // Text pasted into the sending entry goes nowhere either.
+    expect(fireEvent.paste(input(), { clipboardData: { files: [], types: ['text/plain'] } })).toBe(
+      false
+    );
+    expect(screen.queryByRole('button', { name: 'Remove late.png' })).toBeNull();
+    await rig.respond({ ok: true });
+    expect(screen.queryAllByRole('button', { name: /^Remove / })).toEqual([]);
+    expect(rig.actions()).toEqual([
+      { kind: 'send', roomId: '!inbox', text: 'First', images: [], open: false },
+    ]);
+  });
+
+  it('takes no screenshot while an entry sends', async () => {
+    vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
+    vi.mocked(captureScreenshot).mockResolvedValue(png('Screen.png'));
+    const rig = setup();
+    type(input(), 'First');
+    press(input(), 'Enter');
+    press(input(), 'S', { ctrlKey: true, shiftKey: true });
+    press(input(), 'A', { ctrlKey: true, shiftKey: true });
+    const screenButton = screen.getByRole('button', { name: 'Screenshot of the whole screen' });
+    expect((screenButton as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => undefined);
+    expect(captureScreenshot).not.toHaveBeenCalled();
+    expect(screen.queryAllByRole('button', { name: /^Remove / })).toEqual([]);
+    await rig.respond({ ok: true });
+    expect(screen.queryAllByRole('button', { name: /^Remove / })).toEqual([]);
+    expect(rig.actions()).toHaveLength(1);
+  });
+
+  it('keeps a screenshot started before a send that comes in while it sends', async () => {
+    vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
+    let finish: (file: File) => void = () => undefined;
+    vi.mocked(captureScreenshot).mockReturnValue(
+      new Promise<File>((resolve) => {
+        finish = resolve;
+      })
+    );
+    const rig = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Screenshot of the front window' }));
+    type(input(), 'First');
+    press(input(), 'Enter');
+    await act(async () => finish(png('Late.png')));
+    await rig.respond({ ok: true });
+    expect(rig.actions()).toEqual([
+      { kind: 'send', roomId: '!inbox', text: 'First', images: [], open: false },
+    ]);
+    expect(screen.getByRole('button', { name: 'Remove Late.png' })).toBeTruthy();
+  });
+
   it('offers no screenshot buttons without the native plugin', () => {
     setup();
     expect(screen.queryByRole('button', { name: 'Screenshot of the front window' })).toBeNull();
@@ -513,6 +585,18 @@ describe('QuickCapturePage list', () => {
     press(row('Why does slot 27 flake'), 'B');
     expect(document.activeElement).toBe(input());
     expect((input() as HTMLTextAreaElement).value).toBe('B');
+  });
+
+  it('keeps a character typed in the list out of an entry that sends', async () => {
+    const rig = setup();
+    type(input(), 'Buy');
+    press(input(), 'Enter');
+    press(input(), 'ArrowDown');
+    press(row('Why does slot 27 flake'), 'B');
+    expect(document.activeElement).toBe(input());
+    expect((input() as HTMLTextAreaElement).value).toBe('Buy');
+    await rig.respond({ ok: false, error: 'send-failed' });
+    expect((input() as HTMLTextAreaElement).value).toBe('Buy');
   });
 
   it('keeps the selected thread selected when a new state moves it', () => {

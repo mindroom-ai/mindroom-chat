@@ -136,7 +136,8 @@ function CaptureWidget({ state, request, text, onText }: CaptureWidgetProps) {
     searchRef.current?.focus();
   };
   const toInput = (typed?: string) => {
-    if (typed) {
+    // A field that is read-only holds an entry being sent, which takes no typing.
+    if (typed && !inputRef.current?.readOnly) {
       caretToEnd.current = true;
       onText(text + typed);
     }

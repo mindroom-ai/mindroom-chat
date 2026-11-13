@@ -1,4 +1,12 @@
-import { useId, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
+import {
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type RefObject,
+} from 'react';
 import { Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { isComposingKey } from '../shortcuts/shortcuts';
@@ -45,6 +53,12 @@ export function CaptureRoomPicker({
   const shown = useMemo(() => filterCaptureRooms(rooms, query.trim()), [rooms, query]);
   const activeIndex = Math.min(active, shown.length - 1);
   const optionId = (index: number) => `${baseId}-${index}`;
+
+  // The field keeps the focus, so the browser scrolls nothing: the highlighted room is brought
+  // into view here, or Enter could pick a room scrolled out of sight.
+  useLayoutEffect(() => {
+    document.getElementById(`${baseId}-${activeIndex}`)?.scrollIntoView({ block: 'nearest' });
+  }, [baseId, activeIndex]);
 
   const pick = async (room: CaptureRoom | undefined) => {
     if (!room || picking.current) return;

@@ -109,13 +109,15 @@ export function CaptureInput({
       return;
     }
     onText('');
-    setImages([]);
+    // Only what went out: a screenshot started before the send may have come in since.
+    setImages((current) => current.filter((image) => !images.includes(image)));
     inputRef.current?.focus();
     if (open) await onOpened();
   };
 
   const screenshot = async (target: ScreenshotTarget) => {
-    if (full) return;
+    // The entry is frozen while it sends.
+    if (full || sendingRef.current) return;
     setShotError(undefined);
     try {
       attach([await captureScreenshot(target)]);
@@ -145,6 +147,11 @@ export function CaptureInput({
   };
 
   const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    // While the entry sends, a paste neither attaches nor inserts anything.
+    if (sendingRef.current) {
+      event.preventDefault();
+      return;
+    }
     const pasted = pastedImages(event);
     if (pasted.length === 0) return;
     event.preventDefault();
