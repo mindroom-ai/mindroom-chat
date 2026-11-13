@@ -60,6 +60,7 @@ const {
   virtualPaginatorState,
   roomTimelineVirtualizerState,
   settingsState,
+  pluginRowHiddenMock,
 } = vi.hoisted(() => ({
   passthrough: 'div',
   scrollType: 'room-timeline-scroll',
@@ -120,6 +121,13 @@ const {
   isTimelineAtLiveEndMock: vi.fn(() => true),
   settingsState: {
     prefetchDepth: 300,
+    showHiddenEvents: false,
+  },
+  // The plugins' test of a row they hide (useMessageRowHidden); none by default.
+  pluginRowHiddenMock: {
+    test: undefined as
+      | ((event: { eventId?: string; content: Record<string, unknown> }) => boolean)
+      | undefined,
   },
   virtualPaginatorState: {
     lastOptions: undefined as
@@ -246,6 +254,8 @@ vi.mock('../../preferences/useSetting', () => ({
         return [settingsState.prefetchDepth];
       case 'prefetchScope':
         return ['my-server'];
+      case 'showHiddenEvents':
+        return [settingsState.showHiddenEvents];
       default:
         return [false];
     }
@@ -369,13 +379,23 @@ vi.mock('../../ui/VirtualTile', () => ({
       style?: React.CSSProperties;
       virtualItem?: {
         index: number;
+        size?: number;
       };
     }
   >(({ children, style, virtualItem }, ref) =>
     // `style` passes through: the tile's inline `top` is the paint half
     // of the ledger contract (top = start + ledger px) and dropping it
     // left that term unpinnable (mutant audit 2026-07-07, survivor 14).
-    React.createElement('div', { ref, 'data-virtual-index': virtualItem?.index, style }, children)
+    React.createElement(
+      'div',
+      {
+        ref,
+        'data-virtual-index': virtualItem?.index,
+        'data-virtual-size': virtualItem?.size,
+        style,
+      },
+      children
+    )
   ),
 }));
 
@@ -671,6 +691,12 @@ vi.mock('../../messages/Message', () => ({
 
 vi.mock('../RoomIntro', () => ({
   RoomIntro: roomIntroType,
+}));
+
+// Which rows the plugins hide (MessageRenderer.hidden) is `pluginRowHiddenMock`'s, none unless a
+// test sets one; the real module would load the plugins' translations, and the app's i18n setup.
+vi.mock('../../plugins/messageRenderers', () => ({
+  useMessageRowHidden: () => pluginRowHiddenMock.test,
 }));
 
 vi.mock('../../messages/content/RenderMessageContent', () => ({
@@ -1243,6 +1269,8 @@ const makeEvent = (
     isThreadRoot?: boolean;
     threadRootId?: string;
     relation?: { rel_type?: string; event_id?: string };
+    /** The event it genuinely replies to (`m.in_reply_to`). */
+    replyTo?: string;
     renderInsideEncryptedContentAs?: string;
     associatedId?: string;
     stateKey?: string;
@@ -1264,6 +1292,7 @@ const makeEvent = (
     getOriginalContent: () => opts.content ?? { body: eventId },
     getId: () => eventId,
     getRelation: () => opts.relation,
+    replyEventId: opts.replyTo,
     getRedactionEvent: () => undefined,
     getRoomId: () => '!room:example.org',
     getSender: () => opts.sender ?? '@alice:example.org',
@@ -1483,6 +1512,8 @@ beforeEach(() => {
   threadRenderStateMock.threadEventIndexMapRef.current = new Map();
   threadRenderStateMock.threadEvents = [];
   threadRenderStateMock.threadInitialRenderMode = 'live';
+  pluginRowHiddenMock.test = undefined;
+  settingsState.showHiddenEvents = false;
   threadLastActivityTsMapMock.clear();
   threadStreamingStateMock.clear();
   threadResolutionMapMock.clear();
@@ -1845,6 +1876,7 @@ export {
   scrollType,
   setThreadAwareTimelineRefreshHook,
   settingsState,
+  pluginRowHiddenMock,
   stateEventsByTypeMock,
   TEST_DEFAULT_THREAD_FILTER_STATE,
   threadLastActivityTsMapMock,

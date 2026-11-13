@@ -148,9 +148,15 @@ export const foldTimelineRowContexts = ({
   let above: MatrixEvent | undefined = primed?.prevEvent;
   let aboveHasRow = primed?.isPrevRendered ?? false;
   let dayChanged = primed?.pendingDayDivider ?? false;
-  // The row before the window's first one may be outside the window (index -1): without it, a
-  // read marker above the window would put the unread divider over the window's first row.
-  let lastRowAbsoluteIndex = getAbsoluteIndex?.(firstIndex - 1);
+  // The last row with output before the window, past the events it skips, as the walk below
+  // keeps it; that row may be outside the window (index -1): without it, a read marker above the
+  // window would put the unread divider over the window's first row.
+  let before = firstIndex - 1;
+  for (; before >= 0; before -= 1) {
+    const event = getEvent(before);
+    if (!event?.getId() || (!isSkipped(event) && !isRowlessTimelineEvent(event))) break;
+  }
+  let lastRowAbsoluteIndex = getAbsoluteIndex?.(before);
   let replyRun = primeReplyRun(getEvent, firstIndex, isSkipped);
 
   for (let index = firstIndex; index <= lastIndex; index += 1) {
