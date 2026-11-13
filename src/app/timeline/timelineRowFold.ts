@@ -70,7 +70,7 @@ const continuesGroup = (above: MatrixEvent, event: MatrixEvent): boolean =>
 
 /**
  * Whether a message right after `above` shows its own author line. An event without a row above
- * ends the group. The fold below decides grouping with it too.
+ * ends the group, as it does in the fold below.
  */
 export const startsAuthorGroup = (above: MatrixEvent | undefined, event: MatrixEvent): boolean =>
   !above || isRowlessTimelineEvent(above) || !continuesGroup(above, event);
@@ -166,6 +166,7 @@ export const foldTimelineRowContexts = ({
   while (before >= 0 && !showsRow(getEvent(before), isSkipped)) before -= 1;
   let lastRowAbsoluteIndex = getAbsoluteIndex?.(before);
   let above: MatrixEvent | undefined;
+  let aboveHasRow = false;
   let dayChanged = false;
   let replyRun = primeReplyRun(getEvent, before, isSkipped);
 
@@ -175,7 +176,8 @@ export const foldTimelineRowContexts = ({
       if (above && !inSameDay(above.getTs(), event.getTs())) dayChanged = true;
       const hasRow = !isRowlessTimelineEvent(event);
       const absoluteIndex = getAbsoluteIndex?.(index);
-      const groupsWithAbove = hasRow && !startsAuthorGroup(above, event);
+      const groupsWithAbove =
+        hasRow && aboveHasRow && !dayChanged && !!above && continuesGroup(above, event);
       const unreadDivider =
         hasRow &&
         shouldRenderUnreadDividerAt({
@@ -195,6 +197,7 @@ export const foldTimelineRowContexts = ({
         replyRun = continueReplyRun(replyRun, event);
       }
       above = event;
+      aboveHasRow = hasRow;
     }
   }
   return contexts;
