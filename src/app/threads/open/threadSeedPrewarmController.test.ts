@@ -52,8 +52,9 @@ const makeRootEvent = () =>
 
 // The controller only reads the cache: the spies on the fake engine below check that it neither
 // fetches relations nor persists thread events.
+let harnessController: ReturnType<typeof useThreadSeedPrewarmController>;
 function Harness({ mx, room }: { mx: MatrixClient; room: Room }) {
-  useThreadSeedPrewarmController({
+  harnessController = useThreadSeedPrewarmController({
     room,
     mx,
     sessionId: SESSION_ID,
@@ -75,12 +76,20 @@ const renderPrewarm = async (mx: MatrixClient, room: Room, engine: SyncEngine) =
       )
     );
   });
+  // The spies are checked once the seed's cache read has finished.
+  const seeded = harnessController.waitForExistingOrQueued(THREAD_ID, {});
+  expect(seeded).toBeDefined();
+  await act(async () => {
+    await seeded;
+  });
+  expect(vi.mocked(loadThreadCachedSnapshot)).toHaveBeenCalled();
 };
 
 describe('threadSeedPrewarmController cache-only seeds', () => {
   beforeEach(() => {
     resetCacheStoreForTesting();
     clearThreadOpenSeedSnapshotsForTests();
+    vi.mocked(loadThreadCachedSnapshot).mockClear();
   });
   afterEach(() => {
     resetCacheStoreForTesting();
