@@ -74,10 +74,6 @@ vi.mock('../../matrix/room', async () => {
   };
 });
 
-vi.mock('./DnD', () => ({
-  useDraggableItem: () => undefined,
-}));
-
 vi.mock('../AddExistingModal', () => ({
   AddExistingModal: () => null,
 }));
@@ -149,11 +145,8 @@ describe('SpaceItemCard room access', () => {
             item={item}
             summary={summary}
             joined={false}
-            categoryId={roomId}
             closed={false}
             canEditChild={false}
-            canReorder={false}
-            onDragging={vi.fn()}
             getRoom={() => undefined}
           />
         </MatrixClientProvider>
@@ -181,11 +174,8 @@ describe('SpaceItemCard room access', () => {
             item={item}
             summary={summary}
             joined={false}
-            categoryId={roomId}
             closed={false}
             canEditChild={false}
-            canReorder={false}
-            onDragging={vi.fn()}
             getRoom={() => knockedSpace}
           />
         </MatrixClientProvider>
@@ -213,11 +203,8 @@ describe('SpaceItemCard room access', () => {
             item={item}
             summary={summary}
             joined={false}
-            categoryId={roomId}
             closed={false}
             canEditChild={false}
-            canReorder={false}
-            onDragging={vi.fn()}
             getRoom={() => undefined}
           />
         </MatrixClientProvider>
@@ -242,11 +229,8 @@ describe('SpaceItemCard room access', () => {
           item={nextItem}
           summary={nextSummary}
           joined={false}
-          categoryId={nextItem.roomId}
           closed={false}
           canEditChild={false}
-          canReorder={false}
-          onDragging={vi.fn()}
           getRoom={() => undefined}
         />
       </MatrixClientProvider>
@@ -291,11 +275,8 @@ describe('SpaceItemCard room access', () => {
             item={item}
             summary={{ ...summary, join_rule: undefined }}
             joined={false}
-            categoryId={roomId}
             closed={false}
             canEditChild={false}
-            canReorder={false}
-            onDragging={vi.fn()}
             getRoom={() => undefined}
           />
         </MatrixClientProvider>
@@ -321,11 +302,8 @@ describe('SpaceItemCard room access', () => {
             item={item}
             summary={{ ...summary, join_rule: 'custom_access' as JoinRule }}
             joined={false}
-            categoryId={roomId}
             closed={false}
             canEditChild={false}
-            canReorder={false}
-            onDragging={vi.fn()}
             getRoom={() => undefined}
           />
         </MatrixClientProvider>
@@ -352,11 +330,8 @@ describe('SpaceItemCard room access', () => {
             loading={false}
             summary={undefined}
             joined={false}
-            categoryId={roomId}
             closed={false}
             canEditChild={false}
-            canReorder={false}
-            onDragging={vi.fn()}
             getRoom={() => undefined}
           />
         </MatrixClientProvider>
@@ -392,11 +367,8 @@ describe('SpaceItemCard room access', () => {
             item={item}
             summary={{ ...summary, join_rule: JoinRule.Public }}
             joined={false}
-            categoryId={roomId}
             closed={false}
             canEditChild={false}
-            canReorder={false}
-            onDragging={vi.fn()}
             getRoom={() => undefined}
           />
         </MatrixClientProvider>

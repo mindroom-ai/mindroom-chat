@@ -5,8 +5,6 @@ import { AvatarFallbackTone, AvatarPicture } from './UserAvatar';
 import { getRoomIconSrc } from './roomIconSrc';
 import * as css from './RoomAvatar.css';
 
-export { getRoomIconSrc };
-
 type RoomAvatarProps = Pick<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'alt' | 'className'> & {
   roomId: string;
   /** Rendered while there is no image or it failed to load. */

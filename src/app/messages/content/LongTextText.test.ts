@@ -172,8 +172,6 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => hookMocks.mx,
 }));
 
-const getDownloadLongTextSidecarText = async () =>
-  (await import('./longTextDownload')).downloadLongTextSidecarText;
 const getDownloadLongTextSidecarBlob = async () =>
   (await import('./longTextDownload')).downloadLongTextSidecarBlob;
 const getLongTextTextModule = async () => import('./LongTextText');
@@ -383,7 +381,7 @@ importBeforeTests(async () => {
   await import('./renderAgentMessageContent');
 });
 
-describe('downloadLongTextSidecarText', () => {
+describe('downloadLongTextSidecarBlob', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     reportVersions(['v1.11']);
@@ -397,7 +395,7 @@ describe('downloadLongTextSidecarText', () => {
   });
 
   it('downloads unencrypted sidecar content through shared transport', async () => {
-    const downloadLongTextSidecarText = await getDownloadLongTextSidecarText();
+    const downloadLongTextSidecarBlob = await getDownloadLongTextSidecarBlob();
     // A homeserver without authenticated media gets the legacy URL.
     reportVersions([]);
     matrixMocks.networkBody.mockResolvedValue(
@@ -406,7 +404,7 @@ describe('downloadLongTextSidecarText', () => {
       })
     );
 
-    const text = await downloadLongTextSidecarText(mockMx, createLongTextSource());
+    const text = await (await downloadLongTextSidecarBlob(mockMx, createLongTextSource())).text();
 
     expect(matrixMocks.mxcUrlToHttp).toHaveBeenCalledWith(mockMx, 'mxc://server/content', false);
     expect(matrixMocks.networkBody).toHaveBeenCalledWith(
@@ -417,7 +415,7 @@ describe('downloadLongTextSidecarText', () => {
   });
 
   it('authenticates unencrypted sidecar downloads without relying on the service worker', async () => {
-    const downloadLongTextSidecarText = await getDownloadLongTextSidecarText();
+    const downloadLongTextSidecarBlob = await getDownloadLongTextSidecarBlob();
     const mediaUrl = 'https://example.org/_matrix/client/v1/media/download/server/content';
     matrixMocks.mxcUrlToHttp.mockReturnValue(mediaUrl);
     Object.assign(hookMocks.mx, {
@@ -430,7 +428,7 @@ describe('downloadLongTextSidecarText', () => {
       })
     );
 
-    await downloadLongTextSidecarText(mockMx, createLongTextSource());
+    await downloadLongTextSidecarBlob(mockMx, createLongTextSource());
 
     expect(matrixMocks.mxcUrlToHttp).toHaveBeenCalledWith(mockMx, 'mxc://server/content', true);
     expect(matrixMocks.networkBody).toHaveBeenCalledWith(mediaUrl, {
@@ -439,7 +437,7 @@ describe('downloadLongTextSidecarText', () => {
   });
 
   it('does not send the access token to a media URL outside the homeserver', async () => {
-    const downloadLongTextSidecarText = await getDownloadLongTextSidecarText();
+    const downloadLongTextSidecarBlob = await getDownloadLongTextSidecarBlob();
     const mediaUrl = 'https://media.example.net/_matrix/client/v1/media/download/server/content';
     matrixMocks.mxcUrlToHttp.mockReturnValue(mediaUrl);
     Object.assign(hookMocks.mx, {
@@ -450,7 +448,7 @@ describe('downloadLongTextSidecarText', () => {
       new Blob(['{"msgtype":"m.text","body":"body"}'], { type: 'application/json' })
     );
 
-    await downloadLongTextSidecarText(mockMx, createLongTextSource());
+    await downloadLongTextSidecarBlob(mockMx, createLongTextSource());
 
     expect(matrixMocks.networkBody).toHaveBeenCalledWith(mediaUrl);
   });
@@ -476,7 +474,7 @@ describe('downloadLongTextSidecarText', () => {
   });
 
   it('downloads encrypted sidecar cipher bytes and decrypts only the consumer blob', async () => {
-    const downloadLongTextSidecarText = await getDownloadLongTextSidecarText();
+    const downloadLongTextSidecarBlob = await getDownloadLongTextSidecarBlob();
     const encryptedFile: IEncryptedFile = {
       url: 'mxc://server/encrypted',
       key: { kty: 'oct', k: 'abc', alg: 'A256CTR', key_ops: ['encrypt', 'decrypt'] },
@@ -500,7 +498,7 @@ describe('downloadLongTextSidecarText', () => {
       new Blob([new Uint8Array(32)], { type: 'application/octet-stream' })
     );
 
-    const text = await downloadLongTextSidecarText(
+    const blob = await downloadLongTextSidecarBlob(
       mockMx,
       createLongTextSource({
         previewContent: {
@@ -522,7 +520,7 @@ describe('downloadLongTextSidecarText', () => {
       encryptedFile
     );
     expect(matrixMocks.downloadEncryptedMedia).not.toHaveBeenCalled();
-    expect(text).toContain('"body":"decrypted response"');
+    expect(await blob.text()).toContain('"body":"decrypted response"');
   });
 });
 
