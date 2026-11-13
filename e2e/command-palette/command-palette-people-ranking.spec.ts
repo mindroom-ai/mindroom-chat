@@ -14,7 +14,7 @@ import {
   CHROMIUM_WITH_SCROLLBARS,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
-import { joinRoom, matrixFetch, type MatrixSession } from '../helpers/matrix';
+import { joinRoom, matrixFetch, type MatrixSession, setDirectAccountData } from '../helpers/matrix';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
@@ -55,11 +55,7 @@ const createDirectChat = async (owner: MatrixSession, other: MatrixSession) => {
     }),
   });
   await joinRoom(HOMESERVER, other.accessToken, roomId);
-  await matrixFetch(HOMESERVER, `/user/${encodeURIComponent(owner.userId)}/account_data/m.direct`, {
-    method: 'PUT',
-    accessToken: owner.accessToken,
-    body: JSON.stringify({ [other.userId]: [roomId] }),
-  });
+  await setDirectAccountData(HOMESERVER, owner.accessToken, owner.userId, other.userId, roomId);
   return roomId;
 };
 

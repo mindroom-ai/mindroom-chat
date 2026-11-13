@@ -6,8 +6,9 @@ import {
   disposableHomeserverIsUp,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
-import { joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import { joinRoom, sendRoomMessage } from '../helpers/matrix';
 import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { createRoom } from '../helpers/createRoom';
 
 // A room joined on another device while this one was closed, in which more than a timeline's
 // worth of messages came after the join, among them a late edit of an older message: the first
@@ -33,20 +34,10 @@ const joinedRoomShowsAfterResume = async (page: Page, browserName: string) => {
   const sharedName = `Shared group ${browserName} ${RUN}`;
   // Encrypted, as the group's rooms are: the client then sets the room up in its crypto store
   // while the first sync is processed.
-  const { room_id: shared } = await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
-    method: 'POST',
-    accessToken: writer.accessToken,
-    body: JSON.stringify({
-      name: sharedName,
-      preset: 'public_chat',
-      initial_state: [
-        {
-          type: 'm.room.encryption',
-          state_key: '',
-          content: { algorithm: 'm.megolm.v1.aes-sha2' },
-        },
-      ],
-    }),
+  const shared = await createRoom(HOMESERVER, writer.accessToken, {
+    name: sharedName,
+    preset: 'public_chat',
+    encrypted: true,
   });
   // An account without rooms yet.
   await loginWithPassword(page, { homeserver: HOMESERVER, ...reader });
