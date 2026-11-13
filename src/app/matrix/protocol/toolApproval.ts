@@ -567,21 +567,6 @@ export const buildToolApprovalRevocationContent = (
   'm.relates_to': buildToolApprovalRelation(threadId, eventId),
 });
 
-export function parseToolApproval(event: MatrixEvent): ToolApprovalData | null {
-  if (event.isRedacted()) return null;
-  const original = event.getOriginalContent();
-  const replacement = event.replacingEvent();
-  return parseToolApprovalContent(
-    event.getType(),
-    getToolApprovalRenderContent(
-      original,
-      replacement?.getSender() === event.getSender() && !replacement?.isRedacted()
-        ? replacement?.getContent()
-        : undefined
-    )
-  );
-}
-
 // Failed SDK decryption presents as m.room.message / m.bad.encrypted until keys arrive.
 // A streamed reply or its edit keeps its stream status in the clear; no approval has one, so an
 // unreadable reply is no unreadable approval history (P2-e2ee-F003).

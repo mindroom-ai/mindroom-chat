@@ -50,13 +50,6 @@ export const isSpace = (room: Room | null | undefined): boolean =>
 export const isEmojiRoom = (room: Room | null | undefined): boolean =>
   !!room && getRoomType(room) === RoomType.MindroomEmoji;
 
-/** A room people chat in: not a space and not the server emoji room. Call rooms count. */
-export const isRoom = (room: Room | null | undefined): boolean => {
-  if (!room) return false;
-  const type = getRoomType(room);
-  return type !== RoomType.Space && type !== RoomType.MindroomEmoji;
-};
-
 /**
  * Characters that change how a name reads without showing themselves: soft hyphens, zero-width
  * spaces, word joiners and invisible operators, byte order marks, fillers, and direction controls

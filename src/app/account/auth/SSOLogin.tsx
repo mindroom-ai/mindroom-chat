@@ -11,7 +11,7 @@ import {
   isNativeIOS,
   openNativeSsoBrowser,
   signInWithNativeApple,
-} from './authUi';
+} from '../../native/nativeSso';
 import { useAutoDiscoveryInfo } from '../../matrix/hooks/useAutoDiscoveryInfo';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import appleMark from '../../../../public/res/svg/sso-apple-white.svg';

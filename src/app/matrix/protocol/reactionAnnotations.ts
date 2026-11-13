@@ -20,11 +20,3 @@ export const getActiveAnnotationsByKey = (
     return entries;
   }, []);
 };
-
-export const getActiveEventsForAnnotationKey = (
-  relations: Relations | undefined,
-  key: string
-): MatrixEvent[] => {
-  const [, events] = getActiveAnnotationsByKey(relations).find(([annotationKey]) => annotationKey === key) ?? [];
-  return events ? Array.from(events) : [];
-};

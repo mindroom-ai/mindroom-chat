@@ -1,12 +1,7 @@
 import { Room } from 'matrix-js-sdk';
 import { Membership } from '../matrix/types/room';
 
-type RoutedRoom = Pick<Room, 'roomId' | 'getMyMembership' | 'isSpaceRoom'>;
-
-type SpaceRouteRoomAccess = {
-  canRender: boolean;
-  shouldBackfillParent: boolean;
-};
+type RoutedRoom = Pick<Room, 'roomId' | 'getMyMembership'>;
 
 type StartupFallbackState = {
   hasCompletedInitialSync: boolean;
@@ -31,53 +26,3 @@ export const shouldDeferRoomRouteFallback = ({
   routedRoomIds: string[];
 }): boolean =>
   isResolvingAlias || (!hasCompletedInitialSync && !canRenderRoutedRoom(room, routedRoomIds));
-
-export const shouldDeferSpaceRoomRouteFallback = ({
-  hasCompletedInitialSync,
-  isResolvingAlias,
-  access,
-}: StartupFallbackState & {
-  access: SpaceRouteRoomAccess;
-}): boolean => isResolvingAlias || (!hasCompletedInitialSync && !access.canRender);
-
-export const resolveSpaceRouteRoomAccess = ({
-  room,
-  routedRoomIds,
-  developerTools,
-  selectedSpaceId,
-  hasMappedParent,
-  isListedChild,
-}: {
-  room: RoutedRoom | null | undefined;
-  routedRoomIds: string[];
-  developerTools: boolean;
-  selectedSpaceId: string;
-  hasMappedParent: boolean;
-  isListedChild: boolean;
-}): SpaceRouteRoomAccess => {
-  if (!canRenderRoutedRoom(room, routedRoomIds)) {
-    return {
-      canRender: false,
-      shouldBackfillParent: false,
-    };
-  }
-
-  if (developerTools && room?.isSpaceRoom() && room.roomId === selectedSpaceId) {
-    return {
-      canRender: true,
-      shouldBackfillParent: false,
-    };
-  }
-
-  if (hasMappedParent || isListedChild) {
-    return {
-      canRender: true,
-      shouldBackfillParent: isListedChild && !hasMappedParent,
-    };
-  }
-
-  return {
-    canRender: false,
-    shouldBackfillParent: false,
-  };
-};

@@ -6,11 +6,8 @@ import { SSOAction, type IIdentityProvider, type ILoginFlowsResponse } from 'mat
 import { AuthFlowsLoader } from '../AuthFlowsLoader';
 import { useAutoDiscoveryInfo } from '../../../matrix/hooks/useAutoDiscoveryInfo';
 import { useClientConfig } from '../../../config/useClientConfig';
-import {
-  getAuthSsoRedirectUrl,
-  shouldDisablePasswordLogin,
-  shouldRequireAppleProvider,
-} from '../authUi';
+import { getAuthSsoRedirectUrl } from '../authUi';
+import { shouldDisablePasswordLogin, shouldRequireAppleProvider } from '../authPolicy';
 import { getLoginPath, getOriginBaseUrl, getRegisterPath } from '../../../routes/pathUtils';
 import { isAddAccountSearch, withAddAccountSearchIf } from '../../../navigation/addAccount';
 import { SSOLogin } from '../SSOLogin';

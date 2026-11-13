@@ -63,18 +63,6 @@ import {
   MissingCryptoStoreError,
 } from '../matrix/client/cryptoStoreContinuity';
 
-type ClientBootstrapSession = Parameters<typeof initClient>[0];
-
-const toBootstrapSession = ({
-  sessionId,
-  accessToken,
-  baseUrl,
-  deviceId,
-  userId,
-  refreshToken,
-}: StoredSession): ClientBootstrapSession =>
-  ({ sessionId, accessToken, baseUrl, deviceId, userId, refreshToken } as ClientBootstrapSession);
-
 /**
  * Whether the client restored rooms from its store, so the shell can render
  * before the first sync. A saved sync token alone does not count: without
@@ -156,9 +144,7 @@ function useRecoveryActions(session: StoredSession, mx: MatrixClient | undefined
     clearCache: () => run('clear-cache', () => clearAllCacheAndReload(mx)),
     removeAccount: () => run('remove-account', () => removeSessionAndReload(session, mx)),
     signInAgain: (loginHref: string) =>
-      run('sign-in-again', () =>
-        logoutSessionWithoutStores(toBootstrapSession(session), loginHref)
-      ),
+      run('sign-in-again', () => logoutSessionWithoutStores(session, loginHref)),
   };
 }
 
@@ -470,7 +456,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
     let opened: MatrixClient | undefined;
     setStartup({ status: 'loading' });
     setSync(NO_SYNC_YET);
-    initClient(toBootstrapSession(latestSession.current)).then(
+    initClient(latestSession.current).then(
       (client) => {
         if (abandoned) {
           closeClient(client);

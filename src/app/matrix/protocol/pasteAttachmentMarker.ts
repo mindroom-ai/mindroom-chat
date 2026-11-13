@@ -14,12 +14,6 @@ export type PasteAttachmentMetadata = {
   file: string;
 };
 
-export type PasteAttachment = {
-  id: string;
-  marker: string;
-  file: File;
-};
-
 export type PasteAttachmentFile = {
   id: string;
   chars?: number;
@@ -34,10 +28,6 @@ export type PasteMarkerMatch = {
   marker: PasteMarker;
   index: number;
   length: number;
-};
-
-type CreatePasteAttachmentOptions = {
-  id?: string;
 };
 
 const PASTE_ID_BYTE_LENGTH = 3;
@@ -315,25 +305,6 @@ export const formatPasteMarkerAsHtml = (marker: PasteMarker): string =>
     escapeHtmlText(marker.raw),
     '</span>',
   ].join('');
-
-export const createPasteAttachment = (
-  pastedText: string,
-  options: CreatePasteAttachmentOptions = {}
-): PasteAttachment => {
-  const id = options.id ?? createPasteId();
-  const fileName = getPasteFileName(id);
-  const marker = createPasteMarker({
-    id,
-    chars: pastedText.length,
-    fileName,
-  });
-
-  return {
-    id,
-    marker,
-    file: new File([pastedText], fileName, { type: MINDROOM_PASTE_TEXT_MIME_TYPE }),
-  };
-};
 
 export const formatPasteMarkerTextAsHtml = (text: string): string | undefined => {
   let hasPasteMarker = false;

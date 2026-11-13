@@ -5,7 +5,6 @@ import {
   getEffectiveToolApprovalStatus,
   getToolApprovalRenderContent,
   MINDROOM_TOOL_APPROVAL_EVENT,
-  parseToolApproval,
   parseToolApprovalContent,
   parseToolApprovalExpiryTimestamp,
 } from './toolApproval';
@@ -77,7 +76,7 @@ describe('getEffectiveToolApprovalStatus', () => {
   });
 });
 
-describe('parseToolApproval', () => {
+describe('parseToolApprovalContent', () => {
   it('parses a pending approval event', () => {
     const event = makeApprovalEvent({
       approval_id: 'approval-1',
@@ -95,7 +94,7 @@ describe('parseToolApproval', () => {
       resolution_reason: null,
     });
 
-    expect(parseToolApproval(event)).toEqual({
+    expect(parseToolApprovalContent(event.getType(), event.getContent())).toEqual({
       approvalId: 'approval-1',
       toolName: 'web_search',
       toolCallId: 'approval-1',
@@ -269,7 +268,7 @@ describe('parseToolApproval', () => {
       },
     });
 
-    expect(parseToolApproval(event)).toEqual({
+    expect(parseToolApprovalContent(event.getType(), event.getContent())).toEqual({
       approvalId: 'approval-1',
       toolName: 'web_search',
       toolCallId: 'approval-1',
@@ -441,7 +440,7 @@ describe('parseToolApproval', () => {
       },
     });
 
-    expect(parseToolApproval(event)).toEqual({
+    expect(parseToolApprovalContent(event.getType(), event.getContent())).toEqual({
       approvalId: '55f1497940554e32bb0aa7e4362180c2',
       toolName: 'web_search',
       toolCallId: '55f1497940554e32bb0aa7e4362180c2',
@@ -551,14 +550,9 @@ describe('parseToolApproval', () => {
 
   it('returns null for invalid event types and malformed content', () => {
     expect(
-      parseToolApproval(
-        makeApprovalEvent(
-          {
-            approval_id: 'approval-1',
-          },
-          'm.room.message'
-        )
-      )
+      parseToolApprovalContent('m.room.message', {
+        approval_id: 'approval-1',
+      })
     ).toBeNull();
 
     expect(
