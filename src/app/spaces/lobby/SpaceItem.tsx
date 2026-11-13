@@ -28,8 +28,8 @@ import * as css from './SpaceItem.css';
 import * as styleCss from './style.css';
 import { LoneTouchTarget } from '../../ui/styles/TouchTarget.css';
 
-/** How the heading is shown and what it offers: joined or not, collapsing, adding children. */
-type SpaceItemHeadingProps = {
+type SpaceItemCardProps = {
+  item: HierarchyItem;
   /** Whether the user is in the space, from the joined list (the client's own state may be ahead). */
   joined: boolean;
   closed: boolean;
@@ -37,10 +37,6 @@ type SpaceItemHeadingProps = {
   handleClose?: (roomId: string) => void;
   /** Offers the menu that adds a room or subspace. */
   canEditChild: boolean;
-};
-
-type SpaceItemCardProps = SpaceItemHeadingProps & {
-  item: HierarchyItem;
   /** The hierarchy entry; a join rule the client does not know arrives as a plain string. */
   summary: (Omit<IHierarchyRoom, 'join_rule'> & { join_rule?: string }) | undefined;
   /** The summary is still being fetched. */

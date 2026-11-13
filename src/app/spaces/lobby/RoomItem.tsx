@@ -20,18 +20,14 @@ import { JoinFailure } from '../../rooms/JoinFailure';
 import * as css from './RoomItem.css';
 import * as styleCss from './style.css';
 
-/** What the lobby knows about the room: its summary, or that it is still being fetched. */
-type RoomSummaryState = {
+type RoomItemCardProps = {
+  item: HierarchyItem;
   /** The summary is still being fetched; the card shows placeholders. */
   loading: boolean;
   /** The hierarchy entry; a join rule the client does not know arrives as a plain string. */
   summary: (Omit<IHierarchyRoom, 'join_rule'> & { join_rule?: string }) | undefined;
   /** The client's copy of a room, for rooms the summary does not describe yet. */
   getRoom: (roomId: string) => Room | undefined;
-};
-
-type RoomItemCardProps = RoomSummaryState & {
-  item: HierarchyItem;
   onOpen: (roomId: string) => void;
   /** Extra controls after the open or join button. */
   options?: React.ReactNode;

@@ -146,6 +146,17 @@ const messageExtras = {
   ],
 };
 
+const longTextWithExtras = {
+  msgtype: 'm.text',
+  body: 'Long text preview',
+  url: 'mxc://example.org/long-text',
+  'io.mindroom.long_text': {
+    version: 2,
+    encoding: 'matrix_event_content_json',
+  },
+  [MINDROOM_MESSAGE_EXTRAS_KEY]: messageExtras,
+};
+
 const renderNode = async (
   options: Partial<
     Parameters<typeof import('./renderAgentMessageContent').renderAgentMessageContent>[0]
@@ -590,16 +601,7 @@ describe('renderAgentMessageContent', () => {
     const renderer = await renderNode({
       msgType: 'm.text',
       showMessageExtras: true,
-      content: {
-        msgtype: 'm.text',
-        body: 'Long text preview',
-        url: 'mxc://example.org/long-text',
-        'io.mindroom.long_text': {
-          version: 2,
-          encoding: 'matrix_event_content_json',
-        },
-        [MINDROOM_MESSAGE_EXTRAS_KEY]: messageExtras,
-      },
+      content: longTextWithExtras,
     });
 
     const rendered = JSON.stringify(renderer.toJSON());
@@ -616,28 +618,19 @@ describe('renderAgentMessageContent', () => {
     renderer.unmount();
   });
 
-  it('takes the extras of a long text from the event when the downloaded content has none', async () => {
+  it('takes the extras of a long text from the event when its preview and download have none', async () => {
     const { LongTextText } = await import('./LongTextText');
     const renderer = await renderNode({
       msgType: 'm.text',
       showMessageExtras: true,
-      content: {
-        msgtype: 'm.text',
-        body: 'Long text preview',
-        url: 'mxc://example.org/long-text',
-        'io.mindroom.long_text': {
-          version: 2,
-          encoding: 'matrix_event_content_json',
-        },
-        [MINDROOM_MESSAGE_EXTRAS_KEY]: messageExtras,
-      },
+      content: longTextWithExtras,
     });
     const { renderAfterBody } = renderer.root.findByType(LongTextText).props;
     const extras = create(
       React.createElement(
         React.Fragment,
         null,
-        renderAfterBody({ body: 'Downloaded text' }, { body: 'Long text preview' })
+        renderAfterBody({ body: 'Long text preview' }, { body: 'Downloaded text' })
       )
     );
 

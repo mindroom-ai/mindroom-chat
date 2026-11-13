@@ -16,9 +16,6 @@ vi.mock('../../matrix/state/archivedRooms', () => ({ setRoomArchived }));
 
 const createRoom = vi.fn();
 const addPushRule = vi.fn();
-const kick = vi.fn();
-const leave = vi.fn();
-const forget = vi.fn();
 const sendStateEvent = vi.fn();
 const invite = vi.fn();
 const getStateEvent = vi.fn();
@@ -30,15 +27,17 @@ const mx = {
   getRooms: () => rooms,
   getSafeUserId: () => ALICE,
   getUserId: () => ALICE,
-  kick,
-  leave,
-  forget,
   sendStateEvent,
   invite,
   getStateEvent,
 } as any;
 
 const origin = { room_id: '!room:mindroom.test', thread_id: '$root' };
+
+const settle = () =>
+  new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
 
 describe('MindRoom agent calls', () => {
   beforeEach(() => {
@@ -48,9 +47,6 @@ describe('MindRoom agent calls', () => {
     addPushRule.mockResolvedValue({});
     // Archiving waits for its sync echo, which never arrives here; the room must not wait for it.
     setRoomArchived.mockReturnValue(new Promise(() => {}));
-    kick.mockResolvedValue({});
-    leave.mockResolvedValue({});
-    forget.mockResolvedValue({});
     sendStateEvent.mockResolvedValue({});
   });
 
@@ -183,18 +179,16 @@ describe('MindRoom agent calls', () => {
   });
 
   it.each([
-    ['created by someone else', { call: agentCallState({ creator_user_id: '@bob:mindroom.test' }) }],
+    [
+      'created by someone else',
+      { call: agentCallState({ creator_user_id: '@bob:mindroom.test' }) },
+    ],
     ['stamped by another sender', { call: agentCallState(), callSender: '@mallory:mindroom.test' }],
   ])('leaves a call room %s alone on hang-up', async (_case, options) => {
     await cleanupMindroomAgentCall(mx, fakeRoom(options));
-    await new Promise((resolve) => {
-      setTimeout(resolve, 0);
-    });
+    await settle();
 
     expect(sendStateEvent).not.toHaveBeenCalled();
-    expect(kick).not.toHaveBeenCalled();
-    expect(leave).not.toHaveBeenCalled();
-    expect(forget).not.toHaveBeenCalled();
   });
 
   it('lets the agent publish its background jobs in a call room made before it could', async () => {
@@ -299,15 +293,12 @@ describe('MindRoom agent calls', () => {
     );
   });
 
-  it('keeps a permanent call room on hang-up and drops its origin before the stamp synced back', async () => {
+  it('drops the origin of my call room on hang-up before the stamp synced back', async () => {
     // The stamp landed on the server, but the room's cached state does not show its origin yet.
     const room = fakeRoom({ call: agentCallState(), agentMembership: 'join' });
     await prepareAgentCallRoom(mx, room, HELPER, origin);
     await cleanupMindroomAgentCall(mx, room);
 
-    expect(kick).not.toHaveBeenCalled();
-    expect(leave).not.toHaveBeenCalled();
-    expect(forget).not.toHaveBeenCalled();
     await vi.waitFor(() =>
       expect(sendStateEvent).toHaveBeenLastCalledWith(
         '!call:mindroom.test',
@@ -319,10 +310,6 @@ describe('MindRoom agent calls', () => {
   });
 
   describe('ordering state writes', () => {
-    const settle = () =>
-      new Promise((resolve) => {
-        setTimeout(resolve, 0);
-      });
     let serverState: unknown;
     let pending: { content: unknown; land: () => void; fail: (error: Error) => void }[];
 

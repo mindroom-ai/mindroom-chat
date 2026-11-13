@@ -374,7 +374,7 @@ export const renderAgentMessageContent = ({
           )}
           content={renderableContent}
           renderBody={renderBody(renderableContent)}
-          renderAfterBody={renderMessageExtras(renderableContent, [content])}
+          renderAfterBody={renderMessageExtras(renderableContent)}
           renderUrlsPreview={renderUrlsPreview}
         />
       );
@@ -415,7 +415,7 @@ export const renderAgentMessageContent = ({
         )}
         content={renderableContent}
         renderBody={renderBody(renderableContent)}
-        renderAfterBody={renderMessageExtras(renderableContent, [content])}
+        renderAfterBody={renderMessageExtras(renderableContent)}
         renderUrlsPreview={renderUrlsPreview}
       />
     );
@@ -479,7 +479,7 @@ export const renderAgentMessageContent = ({
         )}
         content={renderableContent}
         renderBody={renderBody(renderableContent)}
-        renderAfterBody={renderMessageExtras(renderableContent, [content])}
+        renderAfterBody={renderMessageExtras(renderableContent)}
         renderUrlsPreview={renderUrlsPreview}
       />
     );
