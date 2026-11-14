@@ -1,5 +1,5 @@
 import {
-  forceCloseDatabase,
+  forceCloseDatabase as forceCloseFakeDatabase,
   IDBFactory,
   IDBIndex,
   IDBKeyRange,
@@ -8,6 +8,9 @@ import {
 import { createClient, type MatrixClient } from 'matrix-js-sdk';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// fake-indexeddb declares the parameter as the database class; it takes an open connection.
+const forceCloseDatabase = forceCloseFakeDatabase as unknown as (db: IDBDatabase) => void;
 
 /**
  * WebKit closes every IndexedDB connection when its networking process
@@ -44,8 +47,8 @@ describe('Matrix sync store after an IndexedDB connection loss', () => {
     return store;
   };
 
-  const backendDatabase = (store: IndexedDBStore) =>
-    (store as unknown as { backend: { db: Parameters<typeof forceCloseDatabase>[0] } }).backend.db;
+  const backendDatabase = (store: IndexedDBStore): IDBDatabase =>
+    (store as unknown as { backend: { db: IDBDatabase } }).backend.db;
 
   const accumulate = (store: IndexedDBStore, nextBatch: string) =>
     store.setSyncData({ next_batch: nextBatch } as Parameters<IndexedDBStore['setSyncData']>[0]);
