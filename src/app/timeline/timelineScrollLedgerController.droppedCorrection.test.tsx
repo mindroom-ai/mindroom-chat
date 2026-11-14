@@ -26,11 +26,11 @@ vi.mock('./scrollQuiescence', () => ({
 }));
 
 /**
- * The end clamp's reading of the list after a row above the reader grew by 62 px while the reader
- * scrolled up, so the ledger took the correction into its margin, and the list rendered the row's
- * new height: the list ends at its newest row.
+ * The ledger after a row above the reader grew by 62 px while the reader scrolled up, so it took
+ * the correction into its margin, and the end clamp's reading of the list once it rendered the
+ * row's new height: the list ends at its newest row. The render after the drop shows `nextThreadId`.
  */
-const shrinkAfterDroppedCorrection = (threadId: string | undefined): number => {
+const afterDroppedCorrection = (threadId: string | undefined, nextThreadId = threadId) => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false;
   const scrollElement = document.createElement('div');
   scrollElement.scrollTop = 400;
@@ -41,7 +41,7 @@ const shrinkAfterDroppedCorrection = (threadId: string | undefined): number => {
       return { top: this.hasAttribute('data-list') ? -400 : 0 } as DOMRect;
     });
   let readRowFoldPx = () => 0;
-  function Harness() {
+  function Harness({ shown }: { shown: string | undefined }) {
     const controller = useTimelineScrollLedgerController({
       alive: () => true,
       estimateSize: () => 100,
@@ -53,7 +53,7 @@ const shrinkAfterDroppedCorrection = (threadId: string | undefined): number => {
       roomId: '!room:example.org',
       threadEventIndexMap: new Map(),
       threadEvents: [],
-      threadId,
+      threadId: shown,
       threadInitialRenderMode: 'live',
     });
     readRowFoldPx = controller.readRowFoldPx;
@@ -67,7 +67,7 @@ const shrinkAfterDroppedCorrection = (threadId: string | undefined): number => {
   const container = document.createElement('div');
   const root = createRoot(container);
   try {
-    flushSync(() => root.render(<Harness />));
+    flushSync(() => root.render(<Harness shown={threadId} />));
     const inner = container.firstElementChild as HTMLElement;
 
     const hook = virtualizer.shouldAdjustScrollPositionOnItemSizeChange as CorrectionHook;
@@ -81,8 +81,9 @@ const shrinkAfterDroppedCorrection = (threadId: string | undefined): number => {
     // The margin and the part of it the rows bring change in the same render.
     expect(inner.style.marginTop).toBe('');
     expect(readRowFoldPx()).toBe(0);
-    flushSync(() => root.render(<Harness />));
-    expect(inner.style.marginTop).toBe('-62px');
+    flushSync(() => root.render(<Harness shown={nextThreadId} />));
+    flushSync(() => root.render(<Harness shown={nextThreadId} />));
+    const { marginTop } = inner.style;
 
     // The newest row ends where the list ends.
     const box = (bottom: number, height: number) => () => ({ bottom, height } as DOMRect);
@@ -95,7 +96,11 @@ const shrinkAfterDroppedCorrection = (threadId: string | undefined): number => {
       { index: 0, size: 200 },
       { index: 1, size: 200 },
     ];
-    return listShrinkNotRendered(inner, rows, readRowFoldPx());
+    return {
+      marginTop,
+      rowFoldPx: readRowFoldPx(),
+      shrink: listShrinkNotRendered(inner, rows, readRowFoldPx()),
+    };
   } finally {
     flushSync(() => root.unmount());
     rect.mockRestore();
@@ -105,9 +110,17 @@ const shrinkAfterDroppedCorrection = (threadId: string | undefined): number => {
 it('reads no shrink in a thread whose row above the reader grew and moved into the ledger', () => {
   // The thread's list holds all its rows: it rendered the grown row, so the margin lifts it
   // without the list giving up any room, and the end clamp must not pull the reader up.
-  expect(shrinkAfterDroppedCorrection('$thread')).toBe(0);
+  expect(afterDroppedCorrection('$thread')).toMatchObject({ marginTop: '-62px', shrink: 0 });
 });
 
 it('still reads the correction as shrink in the room view', () => {
-  expect(shrinkAfterDroppedCorrection(undefined)).toBe(62);
+  expect(afterDroppedCorrection(undefined)).toMatchObject({ marginTop: '-62px', shrink: 62 });
+});
+
+it('drops a waiting correction with the thread it was taken for', () => {
+  // Another thread opened before the render that paints the correction's margin.
+  expect(afterDroppedCorrection('$thread', '$other')).toMatchObject({
+    marginTop: '',
+    rowFoldPx: 0,
+  });
 });
