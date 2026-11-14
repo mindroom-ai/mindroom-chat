@@ -178,8 +178,8 @@ test('reply details show what a reply and the conversation so far cost', async (
     const box = list.getBoundingClientRect();
     const bars = [...list.children].map((bar) => bar.getBoundingClientRect());
     return {
-      start: bars[0].left - box.left,
-      end: box.right - bars[bars.length - 1].right,
+      start: bars[0]!.left - box.left,
+      end: box.right - bars[bars.length - 1]!.right,
       widest: Math.max(...bars.map((bar) => bar.width)),
     };
   });
@@ -245,7 +245,7 @@ test('reply details show what a reply and the conversation so far cost', async (
   const es = JSON.parse(
     readFileSync(new URL('../../src/app/i18n/locales/es.json', import.meta.url), 'utf8')
   ) as { mindroomUi: { messages: Record<string, Record<string, string>> } };
-  const esReplyDetails = es.mindroomUi.messages.mindroomMessageControls.replyDetails;
+  const esReplyDetails = es.mindroomUi.messages.mindroomMessageControls!.replyDetails;
   await page.keyboard.press('Escape');
   await page.setViewportSize({ width: 360, height: 780 });
   await page.evaluate(() => localStorage.setItem('i18nextLng', 'es'));
@@ -259,7 +259,7 @@ test('reply details show what a reply and the conversation so far cost', async (
   await page.keyboard.press('Enter');
   const esCostCard = page
     .getByRole('dialog', { name: esReplyDetails })
-    .getByRole('region', { name: es.mindroomUi.messages.mindroomReplyDetails.cost, exact: true });
+    .getByRole('region', { name: es.mindroomUi.messages.mindroomReplyDetails!.cost, exact: true });
   await expect(esCostCard).toContainText('US$');
   // Every element stays inside its parent, so no figure spills into its neighbour or past the card.
   const outside = await esCostCard.evaluate((card) =>

@@ -146,7 +146,7 @@ for (const viewport of [
             (child) => child.getAttribute('role') !== 'tooltip'
           ),
         }),
-        [box.x + box.width / 2, box.y + box.height / 2]
+        [box.x + box.width / 2, box.y + box.height / 2] as const
       );
       expect(hit).toEqual({ marker: true, blocking: false });
 

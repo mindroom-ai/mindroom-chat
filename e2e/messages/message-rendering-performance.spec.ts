@@ -24,7 +24,9 @@ test('mounting code blocks does not synchronously measure scrollbar geometry', a
   await page.goto('/e2e/fixtures/message-rendering.html');
   await expect(page.getByRole('button', { name: 'Copy code', exact: true })).toHaveCount(12);
   const reads = await page.evaluate(
-    () => (window as Window & { codeBlockGeometry: { reads: number } }).codeBlockGeometry.reads
+    () =>
+      (window as unknown as Window & { codeBlockGeometry: { reads: number } }).codeBlockGeometry
+        .reads
   );
   expect(reads).toBe(0);
 });

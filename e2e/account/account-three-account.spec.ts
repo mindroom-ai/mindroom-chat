@@ -44,12 +44,12 @@ test('supports three stored accounts with route restore across switches', async 
   await chooseFromAccountMenu(page, 'Add Account');
   await loginWithPassword(page, {
     homeserver,
-    username: secondaryCredentials.username,
-    password: secondaryCredentials.password,
+    username: secondaryCredentials!.username,
+    password: secondaryCredentials!.password,
     addAccount: true,
   });
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
-  await expectActiveStoredUsername(page, secondaryCredentials.username);
+  await expectActiveStoredUsername(page, secondaryCredentials!.username);
 
   await page.goto('/home/join/');
   await expect(page).toHaveURL(/\/home\/join\/?$/);
@@ -57,12 +57,12 @@ test('supports three stored accounts with route restore across switches', async 
   await chooseFromAccountMenu(page, 'Add Account');
   await loginWithPassword(page, {
     homeserver,
-    username: thirdCredentials.username,
-    password: thirdCredentials.password,
+    username: thirdCredentials!.username,
+    password: thirdCredentials!.password,
     addAccount: true,
   });
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
-  await expectActiveStoredUsername(page, thirdCredentials.username);
+  await expectActiveStoredUsername(page, thirdCredentials!.username);
 
   await page.goto('/home/search/');
   await expect(page).toHaveURL(/\/home\/search\/?$/);
@@ -71,15 +71,15 @@ test('supports three stored accounts with route restore across switches', async 
   await switchToStoredUsername(page, primaryCredentials.username);
   await expect(page).toHaveURL(/\/home\/create\/?$/);
 
-  await switchToStoredUsername(page, secondaryCredentials.username);
+  await switchToStoredUsername(page, secondaryCredentials!.username);
   await expect(page).toHaveURL(/\/home\/join\/?$/);
 
-  await switchToStoredUsername(page, thirdCredentials.username);
+  await switchToStoredUsername(page, thirdCredentials!.username);
   await expect(page).toHaveURL(/\/home\/search\/?$/);
 
   await page.reload();
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
-  await expectActiveStoredUsername(page, thirdCredentials.username);
+  await expectActiveStoredUsername(page, thirdCredentials!.username);
   await expect(page).toHaveURL(/\/home\/search\/?$/);
   await expectAccountRailCount(page, 4);
 

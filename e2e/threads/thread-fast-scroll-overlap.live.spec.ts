@@ -167,8 +167,8 @@ const installSeamSampler = (page: Page) =>
       state.pairChecks += Math.max(0, tiles.length - 1);
       let worst: SeamSample | undefined;
       for (let k = 1; k < tiles.length; k += 1) {
-        const upper = tiles[k - 1];
-        const lower = tiles[k];
+        const upper = tiles[k - 1]!;
+        const lower = tiles[k]!;
         // Only the part of a seam inside the viewport is visible.
         const seamTop = Math.max(Math.min(upper.rect.bottom, lower.rect.top), view.top);
         const seamBottom = Math.min(Math.max(upper.rect.bottom, lower.rect.top), view.bottom);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Box, Icon, IconButton, Icons } from 'folds';
 import 'folds/dist/style.css';

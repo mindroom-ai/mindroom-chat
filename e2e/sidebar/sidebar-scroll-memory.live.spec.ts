@@ -79,7 +79,7 @@ test('the navigation panel keeps its scroll position across thread and room open
   });
   await addRoomToSpace(homeserver, session.accessToken, spaceId, spaceRoomId);
   const threads: ThreadSeed[] = [];
-  for (const [index, roomId] of [roomIds[0], roomIds[1]].entries()) {
+  for (const [index, roomId] of [roomIds[0]!, roomIds[1]!].entries()) {
     const body = `Zz nav scroll ${runTag} thread ${index}`;
     const rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
       msgtype: 'm.text',
@@ -122,7 +122,7 @@ test('the navigation panel keeps its scroll position across thread and room open
 
   await test.step('desktop thread opens keep the shared navigation panel in place', async () => {
     await page.setViewportSize({ width: 1280, height: 720 });
-    await page.goto(`/home/${encodeURIComponent(roomIds[0])}`);
+    await page.goto(`/home/${encodeURIComponent(roomIds[0]!)}`);
     for (const thread of threads) {
       const before = await openThreadFromNav(thread);
       await expectNavScrollRestored(page, before);
@@ -136,7 +136,7 @@ test('the navigation panel keeps its scroll position across thread and room open
       panel.getByRole('link', { name: `Zz nav scroll ${runTag} space room`, exact: true })
     ).toBeVisible();
     await page.getByRole('button', { name: 'Home', exact: true }).click();
-    await expect(threadButton(threads[0])).toBeAttached();
+    await expect(threadButton(threads[0]!)).toBeAttached();
     await expectNavScrollRestored(page, before);
   });
 
@@ -157,7 +157,7 @@ test('the navigation panel keeps its scroll position across thread and room open
     const before = await settledNavScrollTop(page);
     expect(before).toBeGreaterThan(100);
     await link.click();
-    await expect(page).toHaveURL(new RegExp(encodeURIComponent(roomIds[FILLER_ROOM_COUNT - 5])));
+    await expect(page).toHaveURL(new RegExp(encodeURIComponent(roomIds[FILLER_ROOM_COUNT - 5]!)));
     await page.goBack();
     await expect(link).toBeAttached();
     await expectNavScrollRestored(page, before);
@@ -265,7 +265,7 @@ test('Recently Opened keeps its rows in place across thread opens', async ({ pag
     const inView = Object.keys(before);
     const below = inView.slice(2);
     expect(below.length).toBeGreaterThan(2);
-    const opened = threads.find((thread) => inView[1].endsWith(thread.body))!;
+    const opened = threads.find((thread) => inView[1]!.endsWith(thread.body))!;
     await rows.filter({ hasText: opened.body }).click();
     await expect(page).toHaveURL(new RegExp(`threadId=${encodeURIComponent(opened.rootId)}`));
     await expect(page.getByText(opened.body).last()).toBeVisible();
@@ -275,7 +275,7 @@ test('Recently Opened keeps its rows in place across thread opens', async ({ pag
     const after = await settledRecentRowOffsets(page);
     for (const title of below) {
       expect(
-        Math.abs(after[title] - before[title]),
+        Math.abs(after[title]! - before[title]!),
         `${title} moved from ${before[title]} to ${after[title]}`
       ).toBeLessThanOrEqual(1);
     }

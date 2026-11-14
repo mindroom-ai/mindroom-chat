@@ -56,9 +56,9 @@ const expectChevronsAfterLabels = async (
   await page.evaluate((value) => document.documentElement.setAttribute('dir', value), dir);
   const rows = await Promise.all(headers.map(([, header]) => chevronGeometry(header)));
   rows.forEach(({ gap, ownGap, spansRow }, index) => {
-    const name = `${headers[index][0]} (${dir})`;
+    const name = `${headers[index]![0]} (${dir})`;
     expect.soft(gap, `${name}: chevron right after its label`).toBeCloseTo(ownGap, 0);
-    expect.soft(gap, `${name}: the same gap as the first row`).toBeCloseTo(rows[0].gap, 0);
+    expect.soft(gap, `${name}: the same gap as the first row`).toBeCloseTo(rows[0]!.gap, 0);
     expect.soft(spansRow, `${name}: hover surface spans the row`).toBe(true);
   });
 };
@@ -260,7 +260,7 @@ for (const viewport of [
         const context = canvas.getContext('2d')!;
         context.fillStyle = getComputedStyle(element).backgroundColor;
         context.fillRect(0, 0, 1, 1);
-        return context.getImageData(0, 0, 1, 1).data[3] / 255;
+        return context.getImageData(0, 0, 1, 1).data[3]! / 255;
       });
       expect
         .soft(tintAlpha, 'dark approval review uses the shared 90% dense tint')

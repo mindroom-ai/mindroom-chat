@@ -46,9 +46,9 @@ for (const theme of ['silver', 'dark']) {
       { x: viewport.x + viewport.width - 20, y: text.y + 8 },
       { x: viewport.x + viewport.width / 2, y: viewport.y + viewport.height - 24 },
     ]);
-    expect(pixelDifference(canvas, right), 'Canvas fills scrollbar gutter').toBeLessThan(3);
+    expect(pixelDifference(canvas!, right!), 'Canvas fills scrollbar gutter').toBeLessThan(3);
     expect(
-      pixelDifference(canvas, bottom),
+      pixelDifference(canvas!, bottom!),
       'Canvas fills empty area below short text'
     ).toBeLessThan(3);
   });
@@ -69,7 +69,7 @@ for (const theme of ['silver', 'dark']) {
       { x: bounds.x + bounds.width - 68, y: bounds.y + bounds.height / 2 },
       { x: bounds.x + bounds.width - 68, y: bounds.y + bounds.height + 22 },
     ]);
-    expect(pixelDifference(header, body), 'Header matches its enclosing panel').toBeLessThan(9);
+    expect(pixelDifference(header!, body!), 'Header matches its enclosing panel').toBeLessThan(9);
     if (browserName === 'chromium') {
       // A new backdrop root can match the colors by disabling nested blur entirely.
       // Verify painted blur over real scrolling text, not just its computed CSS.
@@ -90,7 +90,7 @@ for (const theme of ['silver', 'dark']) {
       await title.evaluate((element) => element.style.removeProperty('backdrop-filter'));
       await title.evaluate((element) => element.style.removeProperty('background-color'));
       expect(
-        blurred.reduce((sum, pixel, index) => sum + pixelDifference(pixel, unblurred[index]), 0),
+        blurred.reduce((sum, pixel, index) => sum + pixelDifference(pixel, unblurred[index]!), 0),
         'Scrolling text is visibly blurred beneath the title'
       ).toBeGreaterThan(500);
     }
@@ -123,8 +123,10 @@ for (const theme of ['silver', 'dark']) {
       { x: bounds.x + 3, y },
       { x: bounds.x + 24, y },
     ]);
-    expect(pixelDifference(rim, inner), 'Rim is drawn crisply over the title').toBeGreaterThan(60);
-    expect(pixelDifference(edge, inner), 'Title edge matches its interior').toBeLessThan(9);
+    expect(pixelDifference(rim!, inner!), 'Rim is drawn crisply over the title').toBeGreaterThan(
+      60
+    );
+    expect(pixelDifference(edge!, inner!), 'Title edge matches its interior').toBeLessThan(9);
   });
 
   test(`custom menus keep flat scrolling titles and keyboard selection in ${theme}`, async ({

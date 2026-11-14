@@ -93,8 +93,8 @@ test('clears thread unread indicators through room mark-read and opening a threa
   await expect(firstCard).toBeVisible();
   await expect(secondCard).toBeVisible();
 
-  await sendReply(rootIds[0], 'First new unread reply');
-  await sendReply(rootIds[1], 'Second new unread reply');
+  await sendReply(rootIds[0]!, 'First new unread reply');
+  await sendReply(rootIds[1]!, 'Second new unread reply');
   await expectUnread(firstCard, true);
   await expectUnread(secondCard, true);
   await expect(roomLink.locator('..')).toHaveAttribute('data-highlight', 'false');
@@ -109,7 +109,7 @@ test('clears thread unread indicators through room mark-read and opening a threa
   await expectUnread(firstCard, false);
   await expectUnread(secondCard, false);
 
-  const latestReply = await sendReply(rootIds[0], 'Reply to read by opening');
+  const latestReply = await sendReply(rootIds[0]!, 'Reply to read by opening');
   await expectUnread(firstCard, true);
   const threadReceipt = page.waitForRequest(
     (request) =>

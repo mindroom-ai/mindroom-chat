@@ -1,4 +1,3 @@
-import React from 'react';
 import { Button, Text, color } from 'folds';
 import parse from 'html-react-parser';
 import { CustomEditor, useEditor } from '../../src/app/editor/Editor';
@@ -14,7 +13,7 @@ import { resolveHtmlReactParserOptions } from '../../src/app/rich-text/htmlReact
 import type { ToolApprovalData } from '../../src/app/matrix/protocol/toolApproval';
 import * as approvals from '../../src/app/approvals/ThreadApprovals.css';
 
-const approval: ToolApprovalData = {
+const approval = {
   approvalId: 'glass-review',
   toolName: 'web_search',
   toolCallId: 'glass-review',
@@ -38,7 +37,7 @@ const approval: ToolApprovalData = {
   argumentsTruncated: false,
   fullArguments: null,
   argumentSource: null,
-};
+} as unknown as ToolApprovalData;
 const toolHtml = '<p>🔧 <code>web_search</code> [1]</p><p>🔧 <code>read_file</code> [2]</p>';
 
 const toolBaseOptions = {};
