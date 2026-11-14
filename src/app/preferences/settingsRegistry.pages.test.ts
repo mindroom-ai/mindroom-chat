@@ -29,8 +29,8 @@ const PAGE_FILES: Record<Exclude<SettingsPageId, 'sidebar'>, string[]> = {
     'account/devices/RecoveryPasswordTile.tsx',
     'account/devices/KeyBackupTile.tsx',
     'account/devices/LocalKeyBackup.tsx',
-    'account/watch/WatchSettings.tsx',
   ],
+  'apple-watch': ['account/watch/WatchSettings.tsx'],
   appearance: ['settings/pages/Appearance.tsx'],
   chats: [
     'settings/pages/Chats.tsx',

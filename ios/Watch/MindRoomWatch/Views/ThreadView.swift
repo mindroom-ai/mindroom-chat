@@ -58,16 +58,17 @@ struct ThreadView: View {
                 if let error = model.error {
                     Text(error).font(.footnote).foregroundStyle(.red)
                 }
-                HStack {
-                    Button { recording = true } label: { Image(systemName: "mic.fill") }
-                        .accessibilityLabel(Text("Reply"))
-                        .tint(.accentColor)
-                    Button {
-                        Task { await roomModel.resolve(rootId); dismiss() }
-                    } label: { Image(systemName: "checkmark") }
-                        .accessibilityLabel(Text("Done"))
+                Button { recording = true } label: {
+                    Label("Reply", systemImage: "mic.fill").frame(maxWidth: .infinity)
                 }
+                .tint(.accentColor)
                 .padding(.top, 4)
+                // Marks the thread done (resolved) and goes back to the room.
+                Button {
+                    Task { await roomModel.resolve(rootId); dismiss() }
+                } label: {
+                    Label("Done", systemImage: "checkmark").frame(maxWidth: .infinity)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

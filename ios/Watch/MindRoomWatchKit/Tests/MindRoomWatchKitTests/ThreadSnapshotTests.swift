@@ -51,6 +51,14 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertNil(snapshot.reply)
     }
 
+    func testRouterRelayIsNotTheReply() {
+        let answer = event("$answer", 2, inThread(["msgtype": "m.text", "body": "Booked the table."]))
+        let relay = event("$relay", 3, sender: "@mindroom_router:x", inThread(["msgtype": "m.text",
+            "body": "@Helper could you help with this?", "com.mindroom.original_sender": me]))
+        XCTAssertEqual(ThreadSnapshot.build(root: voiceRoot, related: [answer, relay], ownUserId: me, now: now).reply?.eventId, "$answer")
+        XCTAssertNil(ThreadSnapshot.build(root: voiceRoot, related: [relay], ownUserId: me, now: now).reply)
+    }
+
     func testTextRootIsItsOwnTitleWithoutAnswer() {
         let root = event("$root", 1, sender: me, ["msgtype": "m.text", "body": "Book a table for **four**"])
         let snapshot = ThreadSnapshot.build(root: root, related: [], ownUserId: me, now: now)

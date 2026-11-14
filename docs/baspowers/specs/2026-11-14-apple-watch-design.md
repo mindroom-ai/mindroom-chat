@@ -28,7 +28,7 @@ In (v1):
 6. **Rooms:** joined rooms that are not spaces, most recently active first; a check on the default. Encrypted and unencrypted rooms alike.
 7. **Complication and widget:** a circular complication that opens straight into recording, and a rectangular one and a Smart Stack widget with "2 need you · 1 running".
 8. **App Shortcut:** "Record in MindRoom" opens the app recording.
-9. **Connect:** a watch that is not signed in says "Open MindRoom on your iPhone: Settings, Privacy, Apple Watch" and waits; the iPhone's Settings > Privacy has an "Apple Watch" section (iOS app only) with Connect, the connected device, and Disconnect.
+9. **Connect:** a watch that is not signed in says "Open MindRoom on your iPhone: Settings, Apple Watch" and waits; the iPhone's Settings has an "Apple Watch" page (iOS app only) with Connect, the connected device, and Disconnect.
 
 In (v2):
 

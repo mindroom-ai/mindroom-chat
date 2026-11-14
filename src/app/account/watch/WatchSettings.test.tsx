@@ -3,7 +3,7 @@ import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { WatchDevice, WatchStatus } from '../../native/nativeWatch';
-import { WatchSettings } from './WatchSettings';
+import { AppleWatch } from './WatchSettings';
 
 const native = vi.hoisted(() => ({
   available: true,
@@ -46,6 +46,9 @@ vi.mock('../uia/useAuthenticatedAction', () => ({
     prompt: null,
   }),
 }));
+vi.mock('../../ui/settings/SettingsPageFrame', () => ({
+  SettingsPageFrame: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+}));
 vi.mock('../../ui/SettingTile', () => ({
   SettingTile: ({
     title,
@@ -65,7 +68,7 @@ vi.mock('../../ui/SettingTile', () => ({
 }));
 
 const renderSettings = async () => {
-  render(<WatchSettings />);
+  render(<AppleWatch requestClose={() => undefined} />);
   await act(async () => undefined);
 };
 
@@ -78,7 +81,7 @@ const connectThenSignIn = async (device = { userId: '@bas:mindroom.chat', device
   });
 };
 
-describe('WatchSettings', () => {
+describe('AppleWatch', () => {
   beforeEach(() => {
     native.available = true;
     native.status = { paired: true, installed: true, reachable: true };
@@ -92,7 +95,7 @@ describe('WatchSettings', () => {
 
   it('renders nothing outside the iOS app', async () => {
     native.available = false;
-    const { container } = render(<WatchSettings />);
+    const { container } = render(<AppleWatch requestClose={() => undefined} />);
     await act(async () => undefined);
     expect(container.textContent).toBe('');
   });
@@ -142,8 +145,8 @@ describe('WatchSettings', () => {
   it('ignores a sign-in it did not start', async () => {
     // A fresh module: the connects other tests started do not count here.
     vi.resetModules();
-    const { WatchSettings: FreshSettings } = await import('./WatchSettings');
-    render(<FreshSettings />);
+    const { AppleWatch: FreshSettings } = await import('./WatchSettings');
+    render(<FreshSettings requestClose={() => undefined} />);
     await act(async () => undefined);
     await act(async () => {
       native.signedIn?.({ userId: '@bas:mindroom.chat', deviceId: 'WATCH' });

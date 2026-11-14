@@ -2407,102 +2407,102 @@
         }
       }
     },
-    "Open MindRoom on your iPhone: Settings, Privacy, Apple Watch.": {
+    "Open MindRoom on your iPhone: Settings, Apple Watch.": {
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "افتح MindRoom على الـ iPhone: الإعدادات، الخصوصية، Apple Watch."
+            "value": "افتح MindRoom على الـ iPhone: الإعدادات، Apple Watch."
           }
         },
         "bn": {
           "stringUnit": {
             "state": "translated",
-            "value": "আপনার iPhone-এ MindRoom খুলুন: সেটিংস, গোপনীয়তা, Apple Watch।"
+            "value": "আপনার iPhone-এ MindRoom খুলুন: সেটিংস, Apple Watch।"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Öffne MindRoom auf deinem iPhone: Einstellungen, Datenschutz, Apple Watch."
+            "value": "Öffne MindRoom auf deinem iPhone: Einstellungen, Apple Watch."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abre MindRoom en tu iPhone: Ajustes, Privacidad, Apple Watch."
+            "value": "Abre MindRoom en tu iPhone: Ajustes, Apple Watch."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ouvrez MindRoom sur votre iPhone : Réglages, Confidentialité, Apple Watch."
+            "value": "Ouvrez MindRoom sur votre iPhone : Réglages, Apple Watch."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "अपने iPhone पर MindRoom खोलें: सेटिंग्स, गोपनीयता, Apple Watch।"
+            "value": "अपने iPhone पर MindRoom खोलें: सेटिंग्स, Apple Watch।"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Buka MindRoom di iPhone Anda: Pengaturan, Privasi, Apple Watch."
+            "value": "Buka MindRoom di iPhone Anda: Pengaturan, Apple Watch."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apri MindRoom sull’iPhone: Impostazioni, Privacy, Apple Watch."
+            "value": "Apri MindRoom sull’iPhone: Impostazioni, Apple Watch."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "iPhoneでMindRoomを開いてください: 設定、プライバシー、Apple Watch。"
+            "value": "iPhoneでMindRoomを開いてください: 設定、Apple Watch。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "iPhone에서 MindRoom을 여세요: 설정, 개인정보, Apple Watch."
+            "value": "iPhone에서 MindRoom을 여세요: 설정, Apple Watch."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Open MindRoom op je iPhone: Instellingen, Privacy, Apple Watch."
+            "value": "Open MindRoom op je iPhone: Instellingen, Apple Watch."
           }
         },
         "pt": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abra o MindRoom no iPhone: Ajustes, Privacidade, Apple Watch."
+            "value": "Abra o MindRoom no iPhone: Ajustes, Apple Watch."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Откройте MindRoom на iPhone: Настройки, Конфиденциальность, Apple Watch."
+            "value": "Откройте MindRoom на iPhone: Настройки, Apple Watch."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "iPhone’unuzda MindRoom’u açın: Ayarlar, Gizlilik, Apple Watch."
+            "value": "iPhone’unuzda MindRoom’u açın: Ayarlar, Apple Watch."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在 iPhone 上打开 MindRoom：设置，隐私，Apple Watch。"
+            "value": "在 iPhone 上打开 MindRoom：设置，Apple Watch。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "在 iPhone 上開啟 MindRoom：設定，隱私權，Apple Watch。"
+            "value": "在 iPhone 上開啟 MindRoom：設定，Apple Watch。"
           }
         }
       }

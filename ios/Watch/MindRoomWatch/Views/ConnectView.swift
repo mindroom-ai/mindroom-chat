@@ -17,7 +17,7 @@ struct ConnectView: View {
                 case .expired:
                     Text("Connect again from your iPhone")
                         .font(.headline)
-                    Text("Open MindRoom on your iPhone: Settings, Privacy, Apple Watch.")
+                    Text("Open MindRoom on your iPhone: Settings, Apple Watch.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 case let .failed(reason):
@@ -27,7 +27,7 @@ struct ConnectView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 default:
-                    Text("Open MindRoom on your iPhone: Settings, Privacy, Apple Watch.")
+                    Text("Open MindRoom on your iPhone: Settings, Apple Watch.")
                         .font(.headline)
                 }
             }

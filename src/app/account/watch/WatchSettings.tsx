@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Spinner, Text } from 'folds';
 import { SettingTile } from '../../ui/SettingTile';
 import { SettingsSection } from '../../ui/settings/SettingsSection';
+import { SettingsPageFrame, type SettingsPageProps } from '../../ui/settings/SettingsPageFrame';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import {
   getWatchStatus,
@@ -155,7 +156,7 @@ function WatchSettingsSection() {
   }
 
   return (
-    <SettingsSection title={t(`${W}.title`)}>
+    <SettingsSection>
       <SettingTile
         focusId="appleWatch"
         title={t(`${W}.description`)}
@@ -167,8 +168,12 @@ function WatchSettingsSection() {
   );
 }
 
-/** Settings → Privacy on the iOS app: connect an Apple Watch as a device of this account. */
-export function WatchSettings() {
-  if (!isNativeWatchAvailable()) return null;
-  return <WatchSettingsSection />;
+/** Settings → Apple Watch on the iOS app: connect an Apple Watch as a device of this account. */
+export function AppleWatch({ requestClose }: SettingsPageProps) {
+  const { t } = useTranslation();
+  return (
+    <SettingsPageFrame title={t(`${W}.title`)} requestClose={requestClose}>
+      {isNativeWatchAvailable() && <WatchSettingsSection />}
+    </SettingsPageFrame>
+  );
 }

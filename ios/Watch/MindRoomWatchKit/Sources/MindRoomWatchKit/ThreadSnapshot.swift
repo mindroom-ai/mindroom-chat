@@ -16,7 +16,7 @@ public struct ThreadSnapshot: Equatable, Sendable {
     public let rootTs: Int
     public let title: String
     public let isVoiceRoot: Bool
-    /// The newest agent (anyone else's) reply.
+    /// The newest reply from anyone else, not a relay.
     public let reply: Reply?
     public let approvals: [ApprovalCard]
     /// The newest card from an agent that waits for this person's decision.
@@ -78,7 +78,11 @@ public struct ThreadSnapshot: Equatable, Sendable {
         let conversation = messages.filter { message in
             VoiceEcho.transcript(message, latestEdit: nil) == nil && message.content["io.mindroom.thread_summary"] == nil
         }
-        let reply = conversation.last { ($0["sender"] as? String) != ownUserId && $0["type"] as? String == "m.room.message" }
+        // The router's relay of a message hands it to an agent; it is not an answer.
+        let reply = conversation.last {
+            ($0["sender"] as? String) != ownUserId && $0["type"] as? String == "m.room.message"
+                && $0.content["com.mindroom.original_sender"] == nil
+        }
             .map { message -> Reply in
                 let body = effectiveContent(message, latestEdit: edit(message))["body"] as? String ?? ""
                 let plain = PlainText.withToolCount(body)

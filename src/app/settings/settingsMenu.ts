@@ -22,6 +22,7 @@ const PAGE_ICONS: Record<SettingsPageId, IconSrc> = {
   account: Icons.User,
   notifications: Icons.Bell,
   privacy: Icons.ShieldLock,
+  'apple-watch': Icons.Clock,
   appearance: Icons.Sun,
   chats: Icons.Message,
   sidebar: Icons.Category,
@@ -37,21 +38,24 @@ const PAGE_ICONS: Record<SettingsPageId, IconSrc> = {
 };
 
 /**
- * The menu entries in display order, grouped by `group`; `native` is the iOS or Android app and
- * `serverAdmin` an administrator of the homeserver.
+ * The menu entries in display order, grouped by `group`; `native` is the iOS or Android app,
+ * `serverAdmin` an administrator of the homeserver and `nativeIOS` the iOS app.
  */
 export const getSettingsMenuItems = (
   showLocalMindroom: boolean,
   t: TFunction,
   native = false,
-  serverAdmin = false
+  serverAdmin = false,
+  nativeIOS = false
 ): SettingsMenuItem[] =>
-  getShownSettingsPages({ native, localMindroom: showLocalMindroom, serverAdmin }).map((page) => ({
-    page: page.id,
-    group: page.group,
-    name: t(page.labelKey),
-    icon: PAGE_ICONS[page.id],
-  }));
+  getShownSettingsPages({ native, nativeIOS, localMindroom: showLocalMindroom, serverAdmin }).map(
+    (page) => ({
+      page: page.id,
+      group: page.group,
+      name: t(page.labelKey),
+      icon: PAGE_ICONS[page.id],
+    })
+  );
 
 /**
  * The page the dialog opens on. A request names a page by its id or an earlier one; one for a
@@ -63,7 +67,8 @@ export const resolveSettingsInitialPage = (
   screenSize: ScreenSize,
   showLocalMindroom: boolean,
   native = false,
-  serverAdmin = false
+  serverAdmin = false,
+  nativeIOS = false
 ): SettingsPageId | undefined => {
   if (initialPage === undefined) {
     return screenSize === ScreenSize.Mobile ? undefined : DEFAULT_SETTINGS_PAGE;
@@ -71,6 +76,6 @@ export const resolveSettingsInitialPage = (
   const page = resolveSettingsPageId(initialPage);
   const shown =
     page !== undefined &&
-    isSettingsPageShown(page, { native, localMindroom: showLocalMindroom, serverAdmin });
+    isSettingsPageShown(page, { native, nativeIOS, localMindroom: showLocalMindroom, serverAdmin });
   return shown ? page : DEFAULT_SETTINGS_PAGE;
 };

@@ -108,10 +108,23 @@ private struct RoomHome: View {
     @ObservedObject private var request = RecordRequest.shared
     @State private var recording = false
     @State private var sendError: String?
+    /// The threads there were when a voice message went out: the first new one is its thread, opened once it has an id.
+    @State private var following: Set<String>?
 
     var body: some View {
         List {
             Section {
+                // The room's name switches rooms.
+                Button(action: pick) {
+                    HStack(spacing: 4) {
+                        Text(model.roomName).font(.headline).lineLimit(1)
+                        Image(systemName: "chevron.down").font(.caption2.bold()).foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint(Text("Rooms"))
+                .listRowBackground(Color.clear)
                 Button { recording = true } label: {
                     Image(systemName: "mic.fill")
                         .font(.system(size: 40, weight: .semibold))
@@ -155,19 +168,24 @@ private struct RoomHome: View {
                 }
             }
         }
-        .navigationTitle(model.roomName)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button(action: pick) { Image(systemName: "list.bullet") }
-                    .accessibilityLabel(Text("Rooms"))
-            }
-        }
         .fullScreenCover(isPresented: $recording) {
             RecordingView { take in
+                following = Set(model.rows.compactMap(\.rootId))
                 Task {
-                    do { sendError = nil; try await model.sendVoice(take) } catch { sendError = String(localized: "Not sent") }
+                    do { sendError = nil; try await model.sendVoice(take) } catch {
+                        following = nil
+                        sendError = String(localized: "Not sent")
+                    }
                 }
             }
+        }
+        .onChange(of: model.rows) { _, rows in openSent(rows) }
+        .onChange(of: path) { _, _ in following = nil }
+        .task(id: following) {
+            // Offline the message waits in the queue: stay on the room, where its row says so.
+            guard following != nil else { return }
+            try? await Task.sleep(for: .seconds(30))
+            if !Task.isCancelled { following = nil }
         }
         .onAppear { takeRequest() }
         .onChange(of: request.pending) { _, _ in takeRequest() }
@@ -190,6 +208,15 @@ private struct RoomHome: View {
     private var summary: String {
         let counts = WidgetSnapshot(roomName: model.roomName, states: model.rows.map(\.state), at: Date())
         return counts.needsYou + counts.running == 0 ? String(localized: "Tap to talk") : counts.summary
+    }
+
+    /// After Send: opens the message's thread once it has an id, if it is the room's newest.
+    private func openSent(_ rows: [ThreadRow]) {
+        guard let known = following, path.isEmpty,
+              let newest = rows.filter({ $0.rootId != nil }).max(by: { $0.rootTs < $1.rootTs }),
+              let rootId = newest.rootId, !known.contains(rootId) else { return }
+        following = nil
+        path = [ThreadTarget(roomId: model.room.id(), rootId: rootId)]
     }
 
     private func takeRequest() {

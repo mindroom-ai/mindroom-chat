@@ -49,7 +49,10 @@ export const SETTINGS_GROUPS = [
 export type SettingsGroupId = (typeof SETTINGS_GROUPS)[number]['id'];
 
 /** What decides whether a page is offered: the platform and the account. */
-export type SettingsPageContext = Pick<SettingsContext, 'native' | 'localMindroom' | 'serverAdmin'>;
+export type SettingsPageContext = Pick<
+  SettingsContext,
+  'native' | 'nativeIOS' | 'localMindroom' | 'serverAdmin'
+>;
 
 type PageDefinition = {
   id: string;
@@ -68,6 +71,12 @@ export const SETTINGS_PAGES = [
     group: 'you',
     labelKey: 'featureUi.settings.menu.pages.privacy',
     aliases: ['devices'],
+  },
+  {
+    id: 'apple-watch',
+    group: 'you',
+    labelKey: 'featureUi.watch.title',
+    hidden: (context) => !context.nativeIOS,
   },
   {
     id: 'appearance',
@@ -397,12 +406,10 @@ export const SETTINGS = [
   },
   {
     id: 'appleWatch',
-    page: 'privacy',
-    group: 'featureUi.watch.title',
+    page: 'apple-watch',
     labelKey: 'featureUi.watch.description',
     keywordsKey: `${KEYWORDS}.sessions`,
     scope: 'account',
-    hidden: (context) => !context.nativeIOS,
   },
   {
     id: 'exportKeys',
