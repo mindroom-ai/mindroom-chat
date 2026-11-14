@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { resetCacheStoreForTesting } from '.';
 import { resetCacheHealthForTesting } from '../cacheHealth';
 import {
+  findEarliestLoadedRoomEventByCacheOrder,
   loadCachedThreadSnapshot,
   loadRoomCachedBackStateSnapshot,
   loadRoomCachedPaginationSnapshot,
@@ -320,11 +321,11 @@ it("anchors the thread pager on the store's earliest reply when IDs of one milli
   expect(earliest?.getId()).toBe('$B');
 });
 
-describe('a pair of one millisecond the client holds in server order', () => {
-  // The server sent $a, then $B; cache order puts $B first. The cached page comes back in cache
-  // order; merging it with the events the client holds keeps theirs, in their order, once each.
+describe('a pair of one millisecond the client holds', () => {
+  // Cache order puts $B before $a. Merging a cached page, which comes back in cache order, with
+  // events the client holds leaves each event once, where the view puts it.
 
-  it('stays in place when the room prepends a cached page that holds it', async () => {
+  it('stays in server order when the room prepends a cached page that holds it', async () => {
     await saveRoomEventsToCache('session', ROOM, [
       message('$older', 900),
       message('$a', 1000),
@@ -332,14 +333,17 @@ describe('a pair of one millisecond the client holds in server order', () => {
     ]);
     const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: '@alice:test' });
     const room = new Room(ROOM, mx, '@alice:test', { timelineSupport: true });
+    // The server sent $a, then $B.
     const held = [new MatrixEvent(message('$a', 1000)), new MatrixEvent(message('$B', 1000))];
     await room.addLiveEvents(held, { addToState: false });
     const timeline = room.getLiveTimeline();
+    // The room pager anchors on the earliest loaded event in cache order (getEarliestLoadedRoomEvent).
+    const earliestLoadedEvent = findEarliestLoadedRoomEventByCacheOrder(held);
 
     const snapshot = await loadRoomCachedPaginationSnapshot({
       sessionId: 'session',
       roomId: ROOM,
-      earliestLoadedEvent: held[0],
+      earliestLoadedEvent,
       limit: 10,
       mapEvent: (raw) => new MatrixEvent(raw),
     });
@@ -352,28 +356,40 @@ describe('a pair of one millisecond the client holds in server order', () => {
       showThreadRepliesInRoom: false,
     });
 
-    expect(snapshot.events.map((event) => event.getId())).toEqual(['$B', '$older']);
+    expect(earliestLoadedEvent?.getId()).toBe('$B');
+    expect(snapshot.events.map((event) => event.getId())).toEqual(['$a', '$older']);
     expect(timeline.getEvents().map((event) => event.getId())).toEqual(['$older', '$a', '$B']);
+    expect(timeline.getEvents().slice(1)).toEqual(held);
   });
 
-  it('stays in place when the thread merges a cached page that holds it', async () => {
-    await saveThreadEventsToCache('session', ROOM, '$root', [
-      message('$a', 1000, '$root'),
-      message('$B', 1000, '$root'),
-    ]);
-    const held = [
-      new MatrixEvent(message('$a', 1000, '$root')),
-      new MatrixEvent(message('$B', 1000, '$root')),
-    ];
+  // The thread view orders its rows itself (compareThreadRenderOrder), whatever order the cache
+  // or the server gave: a cached page changes neither the order nor the count.
+  it.each([
+    ['$a', '$B'],
+    ['$B', '$a'],
+  ])(
+    'merges into the thread view once each when the server sent %s, then %s',
+    async (first, second) => {
+      await saveThreadEventsToCache('session', ROOM, '$root', [
+        message('$a', 1000, '$root'),
+        message('$B', 1000, '$root'),
+      ]);
+      const held = [
+        new MatrixEvent(message(first, 1000, '$root')),
+        new MatrixEvent(message(second, 1000, '$root')),
+      ];
+      const cached = await loadLatestCachedThreadEvents('session', ROOM, '$root', 10);
 
-    const cached = await loadLatestCachedThreadEvents('session', ROOM, '$root', 10);
-    const merged = mergeThreadRenderEvents(
-      held,
-      cached.events.map((raw) => new MatrixEvent(raw))
-    );
+      const merged = mergeThreadRenderEvents(
+        held,
+        cached.events.map((raw) => new MatrixEvent(raw))
+      );
 
-    expect(ids(cached.events)).toEqual(['$B', '$a']);
-    expect(merged.map((event) => event.getId())).toEqual(['$a', '$B']);
-    expect(merged).toEqual(held);
-  });
+      expect(ids(cached.events)).toEqual(['$B', '$a']);
+      expect(merged).toHaveLength(2);
+      expect(merged.map((event) => event.getId())).toEqual(
+        mergeThreadRenderEvents(held, []).map((event) => event.getId())
+      );
+    }
+  );
 });
