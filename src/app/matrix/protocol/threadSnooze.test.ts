@@ -44,6 +44,20 @@ describe('getSnoozeEndedNote', () => {
     ).toBe('check CI');
   });
 
+  it('ignores a quoted earlier wake message', () => {
+    const quoted = '> <@mindroom_router:x> ⏰ Snooze ended: old note\n\n';
+    expect(
+      getSnoozeEndedNote(
+        message({ body: `${quoted}⏰ Snooze ended: new note`, [THREAD_SNOOZE_CONTENT_KEY]: ended })
+      )
+    ).toBe('new note');
+    expect(
+      getSnoozeEndedNote(
+        message({ body: `${quoted}⏰ Snooze ended`, [THREAD_SNOOZE_CONTENT_KEY]: ended })
+      )
+    ).toBeUndefined();
+  });
+
   it('gives undefined for one without a note', () => {
     expect(
       getSnoozeEndedNote(message({ body: '⏰ Snooze ended', [THREAD_SNOOZE_CONTENT_KEY]: ended }))

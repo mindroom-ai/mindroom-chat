@@ -3,7 +3,7 @@ import type { TagMetadata } from './threadTags';
 export type ThreadSnooze = { untilTs: number; setAtTs: number; setBy: string; note?: string };
 
 const HAS_ZONE = /(?:Z|[+-]\d{2}:?\d{2})$/i;
-const DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/i;
+const DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/i;
 
 /**
  * Whether the date and time are real ones. `Date.parse` rolls February 30 over into March and
@@ -19,7 +19,8 @@ const isCalendarDateTime = (text: string): boolean => {
 
 const parseUntil = (value: unknown): number | undefined => {
   if (typeof value !== 'string') return undefined;
-  const text = value.trim();
+  // The backend's ISO reader also takes a space for the T.
+  const text = value.trim().replace(' ', 'T');
   if (!isCalendarDateTime(text)) return undefined;
   const ts = Date.parse(HAS_ZONE.test(text) ? text : `${text}Z`);
   return Number.isFinite(ts) ? ts : undefined;

@@ -30,6 +30,11 @@ describe('parseThreadSnooze', () => {
     expect(parseThreadSnooze(meta(until))).toBeUndefined()
   );
 
+  it('reads until with a space for the T, as the backend does', () =>
+    expect(parseThreadSnooze(meta('2026-11-14 08:00:00+00:00'))?.untilTs).toBe(
+      Date.UTC(2026, 10, 14, 8)
+    ));
+
   it('has no snooze without metadata', () => expect(parseThreadSnooze(undefined)).toBeUndefined());
 
   it('carries who, when and the note', () =>
