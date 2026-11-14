@@ -193,8 +193,12 @@ export const runAccountAction = async (
   }
 };
 
-export const ACCOUNT_FILTERS = ['all', 'internal', 'external', 'deactivated'] as const;
+/** The kinds of account the list tells apart; whether deactivated ones show is asked apart. */
+export const ACCOUNT_FILTERS = ['all', 'internal', 'external'] as const;
 export type AccountFilter = (typeof ACCOUNT_FILTERS)[number];
+
+/** What the list shows: a kind of account, the search text, and deactivated accounts or not. */
+export type AccountQuery = { type: AccountFilter; query: string; deactivated: boolean };
 
 // Each filter is one plain rule: a deactivated account stays internal or external.
 const inFilter = (account: ServerAccount, filter: AccountFilter): boolean => {
@@ -205,21 +209,19 @@ const inFilter = (account: ServerAccount, filter: AccountFilter): boolean => {
       return !account.external;
     case 'external':
       return account.external;
-    case 'deactivated':
-      return account.deactivated;
   }
 };
 
-/** The accounts of a filter whose Matrix ID or display name holds the search text. */
+/** The accounts of a kind whose Matrix ID or display name holds the search text. */
 export const filterAccounts = (
   accounts: readonly ServerAccount[],
-  filter: AccountFilter,
-  query: string
+  { type, query, deactivated }: AccountQuery
 ): ServerAccount[] => {
   const needle = query.trim().toLowerCase();
   return accounts.filter(
     (account) =>
-      inFilter(account, filter) &&
+      (deactivated || !account.deactivated) &&
+      inFilter(account, type) &&
       (account.userId.toLowerCase().includes(needle) ||
         (account.displayName?.toLowerCase().includes(needle) ?? false))
   );

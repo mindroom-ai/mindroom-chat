@@ -51,19 +51,31 @@ export const parseInvite = (raw: unknown): RegistrationInvite | undefined => {
   };
 };
 
-/** Every pending invite, by address. */
-export const listInvites = async (mx: MatrixClient): Promise<RegistrationInvite[]> => {
-  const { invites } = await mx.http.authedRequest<{ invites?: unknown }>(
-    Method.Get,
-    ROUTE,
-    undefined,
-    undefined,
-    INVITES
+/** The pending invites, and the rooms the server lets no external account join. */
+export type InviteList = {
+  invites: RegistrationInvite[];
+  /** Room IDs; none from a server older than this list. */
+  externalForbiddenRooms: string[];
+};
+
+const strings = (value: unknown): string[] =>
+  (Array.isArray(value) ? (value as unknown[]) : []).filter(
+    (entry): entry is string => typeof entry === 'string'
   );
-  const listed: unknown[] = Array.isArray(invites) ? invites : [];
-  return listed
-    .map(parseInvite)
-    .filter((invite): invite is RegistrationInvite => invite !== undefined);
+
+/** Every pending invite, by address, and the rooms an external account may never join. */
+export const listInvites = async (mx: MatrixClient): Promise<InviteList> => {
+  const answer = await mx.http.authedRequest<{
+    invites?: unknown;
+    external_forbidden_rooms?: unknown;
+  }>(Method.Get, ROUTE, undefined, undefined, INVITES);
+  const listed: unknown[] = Array.isArray(answer.invites) ? answer.invites : [];
+  return {
+    invites: listed
+      .map(parseInvite)
+      .filter((invite): invite is RegistrationInvite => invite !== undefined),
+    externalForbiddenRooms: strings(answer.external_forbidden_rooms),
+  };
 };
 
 // A recipient as a mail program writes it: a name, quoted or not, before the address in angle brackets.
@@ -154,8 +166,13 @@ export const deleteInvite = async (mx: MatrixClient, email: string): Promise<voi
 export const inviteErrorText = (t: TFunction, error: unknown): string => {
   const errcode = errcodeOf(error);
   if (errcode === 'M_INVALID_PARAM') return t('serverAccounts.invites.errors.invalidAddress');
-  if (errcode === 'M_THREEPID_IN_USE' && isRecord(error) && isRecord(error.data)) {
-    const explanation = typeof error.data.error === 'string' ? error.data.error : '';
+  // A refused invite: the server names the room an external account may not join.
+  const explanation =
+    isRecord(error) && isRecord(error.data) && typeof error.data.error === 'string'
+      ? error.data.error.trim()
+      : '';
+  if (errcode === 'M_FORBIDDEN' && explanation !== '') return explanation;
+  if (errcode === 'M_THREEPID_IN_USE') {
     const user = /@\S+:\S+/.exec(explanation)?.[0].replace(/\.$/, '');
     if (user !== undefined) return t('serverAccounts.invites.errors.inUse', { user });
   }

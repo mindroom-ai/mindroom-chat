@@ -1039,6 +1039,8 @@
       "deactivated": "Desactivadas"
     },
     "count": "Cuentas: {{shown}} de {{total}}",
+    "showDeactivated": "Mostrar desactivadas ({{count}})",
+    "hiddenDeactivated": "Ocultas: {{count}} desactivadas",
     "noMatches": "Ninguna cuenta coincide",
     "loadFailed": "No se pudieron cargar las cuentas.",
     "status": {
@@ -1075,6 +1077,7 @@
       "title": "Invitaciones",
       "description": "Una dirección de correo invitada puede crear una cuenta aquí al iniciar sesión con ella.",
       "sendYourself": "No se envía ningún correo: copia la invitación y envíala tú.",
+      "noEmail": "No se envía ningún correo. Después de invitar, la invitación aparece aquí: cópiala y envíasela tú a cada persona.",
       "add": "Invitar por correo",
       "none": "No hay invitaciones pendientes",
       "loadFailed": "No se pudieron cargar las invitaciones.",
@@ -1082,6 +1085,8 @@
       "addressesHint": "Separa varias direcciones con comas o saltos de línea.",
       "rooms": "Salas en las que entra la cuenta nueva",
       "external": "Cuenta externa",
+      "externalHint": "Para alguien de fuera de tu organización: la cuenta solo se une a las salas elegidas aquí y a las salas a las que se la invite después, y no puede crear salas ni invitar a nadie.",
+      "externalForbidden": "Las cuentas externas no pueden unirse a las salas marcadas con un candado.",
       "invited": "Invitada",
       "replaces": "Sustituye a la invitación anterior",
       "copy": "Copiar invitación",

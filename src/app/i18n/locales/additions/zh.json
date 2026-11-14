@@ -993,6 +993,8 @@
       "deactivated": "已停用"
     },
     "count": "账户：{{shown}} / {{total}}",
+    "showDeactivated": "显示已停用的账号（{{count}}）",
+    "hiddenDeactivated": "已隐藏：{{count}} 个已停用",
     "noMatches": "没有匹配的账户",
     "loadFailed": "无法加载账户。",
     "status": {
@@ -1029,6 +1031,7 @@
       "title": "邀请",
       "description": "受邀的电子邮件地址使用该地址登录后，可在此创建一个账户。",
       "sendYourself": "不会发送任何邮件：请复制邀请内容并自行发送。",
+      "noEmail": "不会发送任何邮件。邀请后，要发送的邀请会显示在这里：请复制并自行发送给每个人。",
       "add": "通过电子邮件邀请",
       "none": "没有待处理的邀请",
       "loadFailed": "无法加载邀请。",
@@ -1036,6 +1039,8 @@
       "addressesHint": "多个地址请用逗号或换行分隔。",
       "rooms": "新账户将加入的房间",
       "external": "外部账户",
+      "externalHint": "适用于组织外部的人：该账号只加入这里选择的房间以及之后受邀的房间，不能创建房间或邀请他人。",
+      "externalForbidden": "外部账号无法加入带锁标记的房间。",
       "invited": "已邀请",
       "replaces": "替换之前的邀请",
       "copy": "复制邀请内容",

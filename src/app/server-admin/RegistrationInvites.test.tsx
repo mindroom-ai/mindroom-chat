@@ -54,6 +54,7 @@ vi.mock('folds', () => {
     color: { Critical: { Main: 'red' }, Success: { Main: 'green' }, Warning: { Main: 'orange' } },
   };
 });
+vi.mock('./Invites.css', () => ({ Notice: 'Notice', Invitation: 'Invitation' }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mocks.client }));
 vi.mock('../lib/dom', () => ({ copyToClipboard: mocks.copy }));
 vi.mock('../ui/SettingTile', () => ({
@@ -97,8 +98,13 @@ const inUse = Object.assign(new Error('refused'), {
 
 let renderer: ReactTestRenderer | undefined;
 
-const render = async (invites: RegistrationInvite[]) => {
-  mocks.list.mockResolvedValue(invites);
+const listed = (invites: RegistrationInvite[], externalForbiddenRooms: string[] = []) => ({
+  invites,
+  externalForbiddenRooms,
+});
+
+const render = async (invites: RegistrationInvite[], externalForbiddenRooms: string[] = []) => {
+  mocks.list.mockResolvedValue(listed(invites, externalForbiddenRooms));
   await act(async () => {
     renderer = create(<RegistrationInvites />);
   });
@@ -199,7 +205,7 @@ describe('RegistrationInvites', () => {
     const { root } = renderer!;
 
     expect(text(root)).toContain("Couldn't load the invites.");
-    mocks.list.mockResolvedValue([BOB]);
+    mocks.list.mockResolvedValue(listed([BOB]));
     await click(root.findAllByType('button').find((entry) => text(entry) === 'Retry')!);
     expect(text(root)).toContain('bob@example.com');
     expect(root.findAllByProps({ role: 'alert' })).toEqual([]);
@@ -213,7 +219,7 @@ describe('RegistrationInvites', () => {
     const { root } = renderer!;
 
     expect(withProp(root, 'data-invite-add').props.disabled).toBe(true);
-    mocks.list.mockResolvedValue([BOB]);
+    mocks.list.mockResolvedValue(listed([BOB]));
     await click(root.findAllByType('button').find((entry) => text(entry) === 'Retry')!);
     expect(withProp(root, 'data-invite-add').props.disabled).toBe(false);
   });
@@ -245,7 +251,7 @@ describe('RegistrationInvites', () => {
     expect(text(dialogs(root)[0]!)).toContain('Delete the invite for alice@example.com?');
     expect(mocks.remove).not.toHaveBeenCalled();
 
-    mocks.list.mockResolvedValue([BOB]);
+    mocks.list.mockResolvedValue(listed([BOB]));
     await click(withProp(root, 'data-confirm-delete'));
 
     expect(mocks.remove).toHaveBeenCalledWith(mocks.client, 'alice@example.com');
@@ -357,6 +363,92 @@ describe('RegistrationInvites', () => {
     expect(mocks.invite).toHaveBeenCalledWith(mocks.client, ['bob@example.com'], [], false);
   });
 
+  it('says on the form, before anything is sent, that nothing is emailed', async () => {
+    const root = await render([]);
+
+    await click(withProp(root, 'data-invite-add'));
+    const dialog = dialogs(root)[0]!;
+
+    expect(text(withProp(dialog, 'data-invite-no-email'))).toContain('Nothing is emailed');
+    expect(text(dialog)).toContain('someone outside your organization');
+    expect(mocks.invite).not.toHaveBeenCalled();
+  });
+
+  it('shows each invitation with its Copy button as soon as it is made', async () => {
+    mocks.invite.mockResolvedValue([{ address: 'alice@example.com', invite: ALICE }]);
+    const root = await render([]);
+
+    await click(withProp(root, 'data-invite-add'));
+    const dialog = dialogs(root)[0]!;
+    await type(dialog, 'alice@example.com');
+    await click(withProp(dialog, 'data-invite-send'));
+
+    const invitation = withProp(dialog, 'data-invitation', 'alice@example.com');
+    expect(text(invitation)).toContain(INVITATION);
+    await click(withProp(invitation, 'data-copy-invitation', 'alice@example.com'));
+    expect(mocks.copy).toHaveBeenCalledWith(INVITATION);
+    // The reminder comes before the invitations, not under a long list of them.
+    expect(text(dialog).indexOf('Nothing is emailed')).toBeLessThan(
+      text(dialog).indexOf(INVITATION)
+    );
+  });
+
+  it("gives the server's reason when every address is refused, without a reminder to copy", async () => {
+    const refused = Object.assign(new Error('refused'), {
+      errcode: 'M_FORBIDDEN',
+      httpStatus: 403,
+      data: {
+        errcode: 'M_FORBIDDEN',
+        error: 'An external account may not join !staff:example.com.',
+      },
+    });
+    mocks.invite.mockResolvedValue([{ address: 'bob@example.com', error: refused }]);
+    const root = await render([]);
+
+    await click(withProp(root, 'data-invite-add'));
+    const dialog = dialogs(root)[0]!;
+    await type(dialog, 'bob@example.com');
+    await click(withProp(dialog, 'data-invite-send'));
+
+    expect(text(withProp(dialog, 'data-invite-result', 'bob@example.com'))).toContain(
+      'An external account may not join !staff:example.com.'
+    );
+    expect(text(dialog)).not.toContain('Nothing is emailed');
+  });
+
+  it('closes the rooms an external account may never join while External is on', async () => {
+    mocks.invite.mockResolvedValue([{ address: 'bob@example.com', invite: BOB }]);
+    const root = await render([], ['!lobby:example.com']);
+
+    await click(withProp(root, 'data-invite-add'));
+    const dialog = dialogs(root)[0]!;
+    const lobby = () => withProp(dialog, 'data-invite-room', '!lobby:example.com');
+    const external = (on: boolean) =>
+      act(async () => {
+        (dialog.findByType('input').props.onChange as (value: boolean) => void)(on);
+      });
+
+    expect(lobby().props.disabled).toBe(true);
+    // A screen reader hears why, where a sighted person sees the lock.
+    expect(lobby().props['aria-label']).toContain("External accounts can't join");
+    expect(withProp(dialog, 'data-invite-room', '!class:example.com').props.disabled).toBe(false);
+    expect(text(dialog)).toContain("External accounts can't join the rooms marked with a lock.");
+
+    await external(false);
+    expect(lobby().props.disabled).toBe(false);
+    expect(text(dialog)).not.toContain("can't join the rooms marked");
+    await click(lobby());
+    expect(lobby().props['aria-pressed']).toBe(true);
+
+    // Turning External on again lets go of the room.
+    await external(true);
+    expect(lobby().props.disabled).toBe(true);
+    expect(lobby().props['aria-pressed']).toBe(false);
+    await type(dialog, 'bob@example.com');
+    await click(withProp(dialog, 'data-invite-send'));
+    expect(mocks.invite).toHaveBeenCalledWith(mocks.client, ['bob@example.com'], [], true);
+  });
+
   it('sends the room that was picked, of two with the same name', async () => {
     mocks.rooms.mockReturnValue([GENERAL, GENERAL_TWIN, LOBBY]);
     mocks.invite.mockResolvedValue([{ address: 'bob@example.com', invite: BOB }]);
@@ -402,7 +494,7 @@ describe('RegistrationInvites', () => {
     );
 
     // The list reads the invites again, and now has both; only one of them was there before.
-    mocks.list.mockResolvedValue([ALICE, { ...BOB, email: 'carol@example.com' }]);
+    mocks.list.mockResolvedValue(listed([ALICE, { ...BOB, email: 'carol@example.com' }]));
     await click(withProp(dialog, 'data-invite-send'));
 
     expect(text(withProp(dialog, 'data-invite-result', 'Alice@example.com'))).toContain(

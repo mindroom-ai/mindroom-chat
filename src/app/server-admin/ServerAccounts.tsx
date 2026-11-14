@@ -67,6 +67,8 @@ export function ServerAccounts({ requestClose }: SettingsPageProps) {
   const [error, setError] = useState<unknown>();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<AccountFilter>('all');
+  // Deactivated accounts outnumber the others on an old server; they show when asked for.
+  const [showDeactivated, setShowDeactivated] = useState(false);
   const [limit, setLimit] = useState(STEP);
   const [openId, setOpenId] = useState<string>();
 
@@ -99,12 +101,17 @@ export function ServerAccounts({ requestClose }: SettingsPageProps) {
     );
   }
 
-  // Without an external account the server does not mark them, or has none: nothing to tell apart.
-  const marksExternal = accounts?.some((account) => account.external) ?? false;
-  const filters = ACCOUNT_FILTERS.filter(
-    (entry) => marksExternal || (entry !== 'internal' && entry !== 'external')
-  );
-  const matches = filterAccounts(accounts ?? [], filter, query);
+  // A server that invites people can make external accounts, before it has any; a server that
+  // neither invites nor marks one has nothing to tell apart.
+  const marksExternal = hasInvites || (accounts?.some((account) => account.external) ?? false);
+  const filters = marksExternal ? ACCOUNT_FILTERS : [];
+  const type = marksExternal ? filter : 'all';
+  const matches = filterAccounts(accounts ?? [], { type, query, deactivated: showDeactivated });
+  // The deactivated accounts of this kind and search, whether they show or not.
+  const deactivated = filterAccounts(accounts ?? [], { type, query, deactivated: true }).filter(
+    (account) => account.deactivated
+  ).length;
+  const hidden = showDeactivated ? 0 : deactivated;
 
   return (
     <SettingsPageFrame title={t('serverAccounts.title')} requestClose={requestClose}>
@@ -148,9 +155,28 @@ export function ServerAccounts({ requestClose }: SettingsPageProps) {
               <Text size="T200">{t(`serverAccounts.filters.${entry}`)}</Text>
             </Chip>
           ))}
+          {/* Only where it would add or take away accounts. */}
+          {(deactivated > 0 || showDeactivated) && (
+            <Chip
+              type="button"
+              variant={showDeactivated ? 'Primary' : 'SurfaceVariant'}
+              radii="Pill"
+              aria-pressed={showDeactivated}
+              // A switch among the kinds of account, which are one choice: a check says it is on.
+              before={showDeactivated && <Icon size="50" src={Icons.Check} aria-hidden />}
+              data-show-deactivated=""
+              onClick={() => {
+                setShowDeactivated(!showDeactivated);
+                setLimit(STEP);
+              }}
+            >
+              <Text size="T200">{t('serverAccounts.showDeactivated', { count: deactivated })}</Text>
+            </Chip>
+          )}
           {accounts && (
             <Text size="T200" priority="300" aria-live="polite">
               {t('serverAccounts.count', { shown: matches.length, total: accounts.length })}
+              {hidden > 0 && ` · ${t('serverAccounts.hiddenDeactivated', { count: hidden })}`}
             </Text>
           )}
         </Box>
@@ -168,7 +194,26 @@ export function ServerAccounts({ requestClose }: SettingsPageProps) {
         {accounts && (
           <SettingsCard>
             {matches.length === 0 ? (
-              <SettingTile title={t('serverAccounts.noMatches')} />
+              <SettingTile
+                title={t('serverAccounts.noMatches')}
+                description={hidden > 0 && t('serverAccounts.hiddenDeactivated', { count: hidden })}
+                after={
+                  hidden > 0 && (
+                    <Button
+                      size="300"
+                      variant="Secondary"
+                      fill="Soft"
+                      radii="300"
+                      data-show-hidden=""
+                      onClick={() => setShowDeactivated(true)}
+                    >
+                      <Text size="B300">
+                        {t('serverAccounts.showDeactivated', { count: hidden })}
+                      </Text>
+                    </Button>
+                  )
+                }
+              />
             ) : (
               matches
                 .slice(0, limit)

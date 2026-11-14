@@ -1039,6 +1039,8 @@
       "deactivated": "Disattivati"
     },
     "count": "Account: {{shown}} di {{total}}",
+    "showDeactivated": "Mostra disattivati ({{count}})",
+    "hiddenDeactivated": "Nascosti: {{count}} disattivati",
     "noMatches": "Nessun account corrisponde",
     "loadFailed": "Impossibile caricare gli account.",
     "status": {
@@ -1075,6 +1077,7 @@
       "title": "Inviti",
       "description": "Un indirizzo email invitato può creare un account qui accedendo con quell'indirizzo.",
       "sendYourself": "Non viene inviata alcuna email: copia l'invito e invialo tu.",
+      "noEmail": "Non viene inviata nessuna email. Dopo l’invito, l’invito da mandare compare qui: copialo e mandalo tu a ogni persona.",
       "add": "Invita via email",
       "none": "Nessun invito in sospeso",
       "loadFailed": "Impossibile caricare gli inviti.",
@@ -1082,6 +1085,8 @@
       "addressesHint": "Separa più indirizzi con virgole o a capo.",
       "rooms": "Stanze in cui entra il nuovo account",
       "external": "Account esterno",
+      "externalHint": "Per qualcuno esterno alla tua organizzazione: l’account entra solo nelle stanze scelte qui e in quelle a cui verrà invitato in seguito, e non può creare stanze né invitare persone.",
+      "externalForbidden": "Gli account esterni non possono entrare nelle stanze con il lucchetto.",
       "invited": "Invitato",
       "replaces": "Sostituisce l'invito precedente",
       "copy": "Copia invito",
