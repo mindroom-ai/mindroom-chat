@@ -1,1 +1,1 @@
-export const LOCAL_MINDROOM_SETTINGS_PAGE = 'mindroom.local-mindroom' as const;
+export const LOCAL_MINDROOM_SETTINGS_PAGE = 'mindroom.local-mindroom';

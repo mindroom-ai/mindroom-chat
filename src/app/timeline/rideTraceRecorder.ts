@@ -115,10 +115,7 @@ export const installRideTraceRecorder = (
   let stopped = false;
 
   const readThreadCount = () =>
-    Number(
-      (scroller.querySelector('[data-thread-count]') as HTMLElement | null)?.dataset.threadCount ??
-        -1
-    );
+    Number(scroller.querySelector<HTMLElement>('[data-thread-count]')?.dataset.threadCount ?? -1);
   const readGap = (): number => {
     const rect = scroller.getBoundingClientRect();
     const top = rect.top + rect.height * 0.1;

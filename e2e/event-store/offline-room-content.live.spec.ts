@@ -648,7 +648,7 @@ test.describe('persisted historical room content', () => {
         const reopened = await context.newPage();
         await reopened.goto(threadUrl);
         // A new page starts with the edited long text folded again.
-        if (change === 'edit') await expandFullBody(reopened, fixture!);
+        if (change === 'edit') await expandFullBody(reopened, fixture);
         await expectCurrent(reopened);
         await expect
           .poll(() =>

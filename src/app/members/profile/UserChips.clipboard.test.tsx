@@ -83,9 +83,7 @@ vi.mock('../../lib/dom', () => ({
 }));
 
 const getText = (node: ReactTestInstance | string): string =>
-  typeof node === 'string'
-    ? node
-    : node.children.map((child) => getText(child as ReactTestInstance | string)).join('');
+  typeof node === 'string' ? node : node.children.map((child) => getText(child)).join('');
 
 const getMenuButton = (renderer: ReactTestRenderer, label: string): ReactTestInstance =>
   renderer.root

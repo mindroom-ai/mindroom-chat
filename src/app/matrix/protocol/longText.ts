@@ -79,9 +79,7 @@ const looksLikeMessageContent = (value: Record<string, unknown>): boolean => {
     return true;
   }
 
-  const newContent = isRecord(value['m.new_content'])
-    ? (value['m.new_content'] as Record<string, unknown>)
-    : undefined;
+  const newContent = isRecord(value['m.new_content']) ? value['m.new_content'] : undefined;
   if (!newContent) return false;
 
   return (
@@ -143,9 +141,7 @@ const extractMessageContentFromSidecarPayload = (
 };
 
 const getLongTextCandidates = (content: Record<string, unknown>): Record<string, unknown>[] => {
-  const newContent = isRecord(content['m.new_content'])
-    ? (content['m.new_content'] as Record<string, unknown>)
-    : undefined;
+  const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
   return newContent ? [newContent, content] : [content];
 };
 
@@ -232,7 +228,7 @@ const normalizeHydratedContent = (
 ): Record<string, unknown> => {
   if (!isRecord(hydratedContent['m.new_content'])) return hydratedContent;
 
-  const newContent = hydratedContent['m.new_content'] as Record<string, unknown>;
+  const newContent = hydratedContent['m.new_content'];
   const newContentHasMessageShape =
     typeof newContent.msgtype === 'string' ||
     typeof newContent.body === 'string' ||

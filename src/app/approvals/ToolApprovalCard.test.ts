@@ -183,7 +183,7 @@ const renderCard = (
 
 const getNodeText = (value: ReactTestInstance | string): string => {
   if (typeof value === 'string') return value;
-  return value.children.map((child) => getNodeText(child as ReactTestInstance | string)).join('');
+  return value.children.map((child) => getNodeText(child)).join('');
 };
 
 // Matches a button by its visible text or its accessible name, as a screen reader would.

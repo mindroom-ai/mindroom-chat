@@ -159,7 +159,7 @@ test.describe('ISSUE-207 gap-fill after restart', () => {
     // failure output so the next gate iteration doesn't require log
     // spelunking. `schedulerFailed` was added in the P4 gate fix
     // exactly to make this case visible.
-    const probeCounters = probe as Record<string, number>;
+    const probeCounters = probe;
     expect(
       probeCounters.schedulerFailed ?? 0,
       `schedulerFailed=${probeCounters.schedulerFailed ?? 0}; a non-zero value indicates the executor rejected without an abort — inspect createMessagesRequest / saveRoomEventsToCache for the underlying error.`

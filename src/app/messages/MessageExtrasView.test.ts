@@ -67,7 +67,7 @@ const section = (
 
 const getNodeText = (value: ReactTestInstance | string | number): string => {
   if (typeof value === 'string' || typeof value === 'number') return `${value}`;
-  return value.children.map((child) => getNodeText(child as ReactTestInstance | string)).join('');
+  return value.children.map((child) => getNodeText(child)).join('');
 };
 
 describe('MessageExtras', () => {

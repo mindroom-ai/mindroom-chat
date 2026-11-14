@@ -78,7 +78,7 @@ const mapRawCachedEvent = (rawEvent: IEvent): MatrixEvent => {
     sender: raw.sender,
     threadRootId: raw.threadRootId,
     ts: raw.origin_server_ts,
-  }) as MatrixEvent;
+  });
 };
 
 const makeRecord = (overrides: Partial<ThreadRecord> = {}): ThreadRecord => ({

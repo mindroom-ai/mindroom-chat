@@ -196,9 +196,7 @@ export const getEffectiveToolApprovalStatus = (
 };
 
 const getApprovalCandidates = (content: Record<string, unknown>): Record<string, unknown>[] => {
-  const newContent = isRecord(content['m.new_content'])
-    ? (content['m.new_content'] as Record<string, unknown>)
-    : undefined;
+  const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
 
   return newContent ? [newContent, content] : [content];
 };
@@ -512,7 +510,7 @@ export const getToolApprovalRenderContent = (
   if (!editedContent) return content;
 
   const newContent = isRecord(editedContent['m.new_content'])
-    ? (editedContent['m.new_content'] as Record<string, unknown>)
+    ? editedContent['m.new_content']
     : editedContent;
 
   return {
