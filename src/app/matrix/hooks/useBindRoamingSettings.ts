@@ -39,14 +39,14 @@ const writes = new WeakMap<MatrixClient, Promise<Write | null | undefined>>();
 
 /**
  * Stores the patch `makePatch` computes from the account's content right before the write, over
- * that content, after any earlier write of this client. `getAccountDataFromServer` asks the
- * homeserver only until the first sync completes; while sync is live (Prepared or Syncing) the
- * SDK answers from the client's copy, the content sync last delivered, so a change another device
- * stored that sync has not brought yet is missing and gets patched over. The stored content gets
- * a new `rev` and names the one it patched in `base_rev`. Resolves the write once the SDK's
- * `setAccountData` does: when sync delivers the next roaming settings, whoever wrote them (at
- * once when the client already holds this content). Resolves `null` for an empty patch (nothing
- * written), and `undefined` without writing when the stored content has a later version.
+ * that content, after any earlier write of this client. While sync is Prepared or Syncing,
+ * `getAccountDataFromServer` answers from the client's copy, the content sync last delivered, and
+ * asks the homeserver only in other sync states; so a change another device stored that sync has
+ * not brought yet is missing and gets patched over. The stored content gets a new `rev` and names
+ * the one it patched in `base_rev`. Resolves the write once the SDK's `setAccountData` does: its
+ * request succeeded and sync delivered roaming settings since the call, whoever wrote them.
+ * Resolves `null` for an empty patch (nothing written), and `undefined` without writing when the
+ * stored content has a later version.
  */
 const writeRoamingSettings = (
   mx: MatrixClient,
