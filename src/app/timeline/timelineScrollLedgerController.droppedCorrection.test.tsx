@@ -28,10 +28,13 @@ vi.mock('./scrollQuiescence', () => ({
 /**
  * The ledger after a row above the reader grew by 62 px while the reader scrolled up, so it took
  * the correction into its margin, and the end clamp's reading of the list once it rendered the
- * row's new height: the list ends at its newest row. The render after the drop shows `nextThreadId`.
+ * row's new height: the list ends at its newest row. The two renders after the drop show
+ * `nextThreadId`: the first paints the margin, and the second moves a correction still waiting.
  */
 const afterDroppedCorrection = (threadId: string | undefined, nextThreadId = threadId) => {
-  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false;
+  const reactGlobal = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+  const actEnvironment = reactGlobal.IS_REACT_ACT_ENVIRONMENT;
+  reactGlobal.IS_REACT_ACT_ENVIRONMENT = false;
   const scrollElement = document.createElement('div');
   scrollElement.scrollTop = 400;
   // The list is scrolled 400 px up out of the scroller, whose top is at 0.
@@ -82,6 +85,8 @@ const afterDroppedCorrection = (threadId: string | undefined, nextThreadId = thr
     expect(inner.style.marginTop).toBe('');
     expect(readRowFoldPx()).toBe(0);
     flushSync(() => root.render(<Harness shown={nextThreadId} />));
+    // The render that paints the margin also counts its part.
+    const painted = { marginTop: inner.style.marginTop, rowFoldPx: readRowFoldPx() };
     flushSync(() => root.render(<Harness shown={nextThreadId} />));
     const { marginTop } = inner.style;
 
@@ -97,6 +102,7 @@ const afterDroppedCorrection = (threadId: string | undefined, nextThreadId = thr
       { index: 1, size: 200 },
     ];
     return {
+      painted,
       marginTop,
       rowFoldPx: readRowFoldPx(),
       shrink: listShrinkNotRendered(inner, rows, readRowFoldPx()),
@@ -104,17 +110,26 @@ const afterDroppedCorrection = (threadId: string | undefined, nextThreadId = thr
   } finally {
     flushSync(() => root.unmount());
     rect.mockRestore();
+    reactGlobal.IS_REACT_ACT_ENVIRONMENT = actEnvironment;
   }
 };
 
 it('reads no shrink in a thread whose row above the reader grew and moved into the ledger', () => {
   // The thread's list holds all its rows: it rendered the grown row, so the margin lifts it
   // without the list giving up any room, and the end clamp must not pull the reader up.
-  expect(afterDroppedCorrection('$thread')).toMatchObject({ marginTop: '-62px', shrink: 0 });
+  expect(afterDroppedCorrection('$thread')).toMatchObject({
+    painted: { marginTop: '-62px', rowFoldPx: 62 },
+    marginTop: '-62px',
+    shrink: 0,
+  });
 });
 
 it('still reads the correction as shrink in the room view', () => {
-  expect(afterDroppedCorrection(undefined)).toMatchObject({ marginTop: '-62px', shrink: 62 });
+  expect(afterDroppedCorrection(undefined)).toMatchObject({
+    painted: { marginTop: '-62px', rowFoldPx: 0 },
+    marginTop: '-62px',
+    shrink: 62,
+  });
 });
 
 it('drops a waiting correction with the thread it was taken for', () => {
