@@ -44,7 +44,7 @@ const makeThreadReplyEvent = (eventId: string, ts = 1) =>
 const makeRoom = (events: MatrixEvent[]) => ({
   roomId: ROOM_ID,
   findEventById: vi.fn(),
-  getEventReadUpTo: vi.fn(() => null),
+  getEventReadUpTo: vi.fn((): string | null | undefined => null),
   getLiveTimeline: vi.fn(() => ({
     getEvents: () => events,
   })),
@@ -317,7 +317,7 @@ describe('markRoomAndThreadsAsRead', () => {
     const olderThreadReply = makeThreadReplyEvent('$thread-reply', 1);
     const newestMainEvent = makeMessageEvent('$main', 2);
     const room = makeRoom([olderThreadReply, newestMainEvent]);
-    room.getEventReadUpTo.mockReturnValue(newestMainEvent.getId() as never);
+    room.getEventReadUpTo.mockReturnValue(newestMainEvent.getId());
     const mx = makeClient(room);
 
     await markRoomAndThreadsAsRead(mx as never, ROOM_ID, true);
