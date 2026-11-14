@@ -138,6 +138,34 @@ describe('roomThreadOverviewModel', () => {
   });
 
   describe('filter state helpers', () => {
+    it('does not count the default snoozed exclusion of an old stored state as a filter', async () => {
+      const {
+        deserializeThreadFilterState,
+        hasActiveThreadFilters,
+        hasChosenThreadFilters,
+        isRoomThreadOverviewActive,
+      } = await import('./roomThreadOverviewModel');
+      // Stored before snoozing existed: every status any, natural sort, no snoozed key.
+      const stored = deserializeThreadFilterState({
+        v: 2,
+        resolved: 'any',
+        streaming: 'any',
+        scheduled: 'any',
+        unread: 'any',
+        idle: 'any',
+        sortBy: 'natural',
+        sortDirection: 'desc',
+        tags: {},
+      });
+
+      expect(stored.snoozed).toBe('exclude');
+      expect(hasActiveThreadFilters(stored)).toBe(true);
+      expect(hasChosenThreadFilters(stored)).toBe(false);
+      expect(isRoomThreadOverviewActive(undefined, stored)).toBe(false);
+      expect(isRoomThreadOverviewActive(undefined, { ...stored, snoozed: 'include' })).toBe(true);
+      expect(isRoomThreadOverviewActive(undefined, { ...stored, resolved: 'exclude' })).toBe(true);
+    });
+
     it('cycles status filters and resets status mode to AND', async () => {
       const { updateThreadFilterKey } = await import('./roomThreadOverviewModel');
 
@@ -332,6 +360,29 @@ describe('roomThreadOverviewModel', () => {
       expect(state.freeText).toBe('');
       expect(state.unsupportedQuery).toBe('');
       expect(state.resolved).toBe('any');
+    });
+  });
+
+  describe('simplifyAgentlessSimpleThreadFilterState', () => {
+    it('keeps only the sort, leaving the resolved and snoozed filters inactive', async () => {
+      const { simplifyAgentlessSimpleThreadFilterState } = await import(
+        './roomThreadOverviewModel'
+      );
+
+      expect(
+        simplifyAgentlessSimpleThreadFilterState(
+          makeDefaultState({
+            resolved: 'exclude',
+            snoozed: 'exclude',
+            sortBy: 'lastReply',
+            sortDirection: 'asc',
+          })
+        )
+      ).toEqual({
+        ...makeDefaultState(),
+        sortBy: 'lastReply',
+        sortDirection: 'asc',
+      });
     });
   });
 

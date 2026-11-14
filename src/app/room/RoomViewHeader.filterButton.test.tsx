@@ -192,6 +192,13 @@ describe('the room header filter button', () => {
     renderHeader({ hidden: true, threadFilterState: filtered });
     expect(byData('data-hidden-filters-dot')).toHaveLength(1);
     expect(filterButton().props['aria-label']).toBe('Thread filters (active)');
+
+    // Hiding snoozed threads is the default, not a filter the reader chose.
+    renderHeader({
+      hidden: true,
+      threadFilterState: { ...createDefaultThreadFilterState(), snoozed: 'exclude' },
+    });
+    expect(byData('data-hidden-filters-dot')).toHaveLength(0);
   });
 });
 

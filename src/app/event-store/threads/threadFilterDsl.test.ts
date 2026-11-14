@@ -20,15 +20,7 @@ const makeState = (overrides: Partial<ThreadFilterState> = {}): ThreadFilterStat
 const expectParsed = (
   text: string,
   expected: {
-    status?: Partial<
-      Record<
-        keyof Pick<
-          ThreadFilterState,
-          'resolved' | 'snoozed' | 'streaming' | 'scheduled' | 'unread' | 'idle'
-        >,
-        ThreadFilterState['resolved']
-      >
-    >;
+    status?: Partial<Record<keyof Pick<ThreadFilterState, 'resolved' | 'snoozed' | 'streaming' | 'scheduled' | 'unread' | 'idle'>, ThreadFilterState['resolved']>>;
     tags?: [string, ThreadFilterState['resolved']][];
     statusMode?: 'and' | 'or';
     freeText?: string;
@@ -46,37 +38,17 @@ describe('threadFilterDsl', () => {
   it.each([
     ['', {}],
     ['is:streaming', { status: { streaming: 'include' } }],
-    [
-      'is:streaming OR is:scheduled',
-      { status: { streaming: 'include', scheduled: 'include' }, statusMode: 'or' },
-    ],
+    ['is:streaming OR is:scheduled', { status: { streaming: 'include', scheduled: 'include' }, statusMode: 'or' }],
     ['-is:resolved', { status: { resolved: 'exclude' } }],
     ['tag:bug', { tags: [['bug', 'include']] }],
     ['-tag:bug', { tags: [['bug', 'exclude']] }],
     ['is:streaming foo bar', { status: { streaming: 'include' }, freeText: 'foo bar' }],
-    [
-      'IS:STREAMING or IS:SCHEDULED',
-      { status: { streaming: 'include', scheduled: 'include' }, statusMode: 'or' },
-    ],
+    ['IS:STREAMING or IS:SCHEDULED', { status: { streaming: 'include', scheduled: 'include' }, statusMode: 'or' }],
     ['is:bogus', { unsupportedTail: 'is:bogus' }],
     ['tag:a OR tag:b', { unsupportedTail: 'tag:a OR tag:b' }],
-    [
-      'is:streaming OR is:scheduled tag:bug',
-      {
-        status: { streaming: 'include', scheduled: 'include' },
-        statusMode: 'or',
-        tags: [['bug', 'include']],
-      },
-    ],
+    ['is:streaming OR is:scheduled tag:bug', { status: { streaming: 'include', scheduled: 'include' }, statusMode: 'or', tags: [['bug', 'include']] }],
     ['is:streaming OR tag:bug', { unsupportedTail: 'is:streaming OR tag:bug' }],
-    [
-      'is:streaming OR is:scheduled is:unread OR is:idle',
-      {
-        status: { streaming: 'include', scheduled: 'include' },
-        statusMode: 'or',
-        unsupportedTail: 'is:unread OR is:idle',
-      },
-    ],
+    ['is:streaming OR is:scheduled is:unread OR is:idle', { status: { streaming: 'include', scheduled: 'include' }, statusMode: 'or', unsupportedTail: 'is:unread OR is:idle' }],
   ])('parses %s', (text, expected) => expectParsed(text, expected));
 
   it('parses and writes is:snoozed and -is:snoozed', () => {

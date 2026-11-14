@@ -10,10 +10,7 @@ import type { ThreadRecord } from '../../event-store/threads/types';
 // (thread-open, thread-pagination, etc.) still need a small settle
 // window for their post-await microtasks to drain; the following
 // helper is now just that.
-import {
-  getThreadOpenSeedSnapshot,
-  saveThreadOpenSeedSnapshot,
-} from '../../event-store/cache/threadOpenSeedCache';
+import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from '../../event-store/cache/threadOpenSeedCache';
 import {
   compactPlaceholderType,
   create,
@@ -130,9 +127,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
     });
 
     it('only hydrates the latest room cache slice when it is newer than the loaded room tail', async () => {
-      const { shouldHydrateLatestRoomCache } = await import(
-        '../../event-store/cache/eventRepository'
-      );
+      const { shouldHydrateLatestRoomCache } = await import('../../event-store/cache/eventRepository');
       const { MatrixEvent } = await import('matrix-js-sdk');
       const loadedEvent = (eventId: string, ts: number) =>
         new MatrixEvent(makeCachedRoomEvent(eventId, ts) as never);
@@ -158,9 +153,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
     });
 
     it('deduplicates cached room hydration events against already loaded SDK events', async () => {
-      const { filterLatestRoomCacheHydrationEvents } = await import(
-        '../../event-store/cache/eventRepository'
-      );
+      const { filterLatestRoomCacheHydrationEvents } = await import('../../event-store/cache/eventRepository');
 
       expect(
         filterLatestRoomCacheHydrationEvents(
@@ -2914,9 +2907,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
     // itself lives in `eventRepository.test.ts`.
 
     it('prioritizes large thread seeds from the room thread list even when they are outside the viewport', async () => {
-      const { collectPriorityThreadSeedPrewarmRoots } = await import(
-        '../../threads/open/threadBootstrap'
-      );
+      const { collectPriorityThreadSeedPrewarmRoots } = await import('../../threads/open/threadBootstrap');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, {
         isThreadRoot: true,
@@ -2975,9 +2966,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
     });
 
     it('prioritizes threads from the active overview range over larger off-screen room threads', async () => {
-      const { collectPriorityThreadSeedPrewarmRoots } = await import(
-        '../../threads/open/threadBootstrap'
-      );
+      const { collectPriorityThreadSeedPrewarmRoots } = await import('../../threads/open/threadBootstrap');
       const visibleRoots = Array.from({ length: 12 }, (_, index) =>
         makeEvent(`$thread-root-${index + 1}`, {
           isThreadRoot: true,
@@ -3041,9 +3030,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
     });
 
     it('ignores room thread-list entries without a root event or known reply count', async () => {
-      const { collectPriorityThreadSeedPrewarmRoots } = await import(
-        '../../threads/open/threadBootstrap'
-      );
+      const { collectPriorityThreadSeedPrewarmRoots } = await import('../../threads/open/threadBootstrap');
       const visibleRoot = makeEvent('$visible-thread-root', {
         isThreadRoot: true,
         ts: 1,
@@ -5208,6 +5195,18 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
           threadRecordMap
         ).map((event) => event.getId())
       ).toEqual(['$thread-resolved']);
+      // Hiding snoozed threads alone is the default, not a filter: every event stays.
+      expect(
+        getThreadFilteredEvents(
+          renderableEvents as never,
+          room as never,
+          resolutionMap,
+          undefined,
+          { ...DEFAULT_THREAD_FILTER_STATE, snoozed: 'exclude' as const, tags: new Map() },
+          undefined,
+          threadRecordMap
+        ).map((event) => event.getId())
+      ).toEqual(['$message', '$thread-unresolved', '$thread-resolved']);
     });
 
     it('treats fallback reply counts as visible thread roots for filtering', async () => {

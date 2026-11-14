@@ -239,10 +239,17 @@ export const hasActiveThreadFilters = (state: ThreadFilterState): boolean =>
   (state.unsupportedQuery ?? '').length > 0 ||
   (state.people?.length ?? 0) > 0;
 
+/**
+ * Whether the reader chose a filter. Hiding snoozed threads is what Compact's default and every
+ * state stored before snoozing existed read as, so it alone does not count.
+ */
+export const hasChosenThreadFilters = (state: ThreadFilterState): boolean =>
+  hasActiveThreadFilters(state.snoozed === 'exclude' ? { ...state, snoozed: 'any' } : state);
+
 export const isRoomThreadOverviewActive = (
   threadId: string | undefined,
   state: ThreadFilterState
-): boolean => !threadId && (hasActiveThreadFilters(state) || state.sortBy !== 'natural');
+): boolean => !threadId && (hasChosenThreadFilters(state) || state.sortBy !== 'natural');
 
 export const updateThreadFilterKey = (
   state: ThreadFilterState,
@@ -342,6 +349,7 @@ export const simplifyAgentlessSimpleThreadFilterState = (
 ): ThreadFilterState => ({
   ...simplifyThreadFilterState(state),
   resolved: 'any',
+  snoozed: 'any',
 });
 
 /**
