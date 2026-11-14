@@ -865,7 +865,7 @@ describe('buildCompactThreadRootData', () => {
           'm.new_content': { body: 'Edited root', msgtype: 'm.text' },
           'm.relates_to': { event_id: '$thread-a', rel_type: 'm.replace' },
         },
-      } as IEvent;
+      } as unknown as IEvent;
       const root = {
         event_id: '$thread-a',
         origin_server_ts: 1,

@@ -177,8 +177,8 @@ describe('filterPageableCachedThreadEvents', () => {
     const allEvents = [{ event_id: '$root', origin_server_ts: 0 }, ...replies];
     const result = filterPageableCachedThreadEvents(allEvents, '$root');
     expect(result).toHaveLength(85);
-    expect(result[0].event_id).toBe('$reply-0');
-    expect(result[84].event_id).toBe('$reply-84');
+    expect(result[0]!.event_id).toBe('$reply-0');
+    expect(result[84]!.event_id).toBe('$reply-84');
   });
 
   it('returns empty array when thread has only the root event', () => {
