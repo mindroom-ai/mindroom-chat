@@ -47,7 +47,7 @@ describe('avatars that need the access token', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
-    clearFetchedAvatars();
+    void clearFetchedAvatars();
     setServiceWorker(undefined);
     vi.unstubAllGlobals();
   });
