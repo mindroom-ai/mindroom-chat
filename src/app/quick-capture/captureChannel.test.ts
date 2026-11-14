@@ -256,27 +256,42 @@ describe('createCaptureClient', () => {
       expect(client.getSnapshot()).toBe(before);
     });
 
-    it('says hello at once when shown, and counts the hellos and the silence from then', () => {
-      const { client, posted } = connected();
+    it('says hello at once when shown, and counts the hellos and the silence from its answer', () => {
+      const { client, deliver, posted } = connected();
       client.setVisible(false);
       vi.advanceTimersByTime(25_000);
       client.setVisible(true);
       expect(hellos(posted)).toBe(2);
-      vi.advanceTimersByTime(9_999);
+      vi.advanceTimersByTime(1_000);
+      deliver({ v: 1, type: 'state', hostId: 'a', state: makeState('!a') });
+      vi.advanceTimersByTime(8_999);
       expect(hellos(posted)).toBe(2);
       vi.advanceTimersByTime(1);
       expect(hellos(posted)).toBe(3);
-      vi.advanceTimersByTime(19_999);
+      vi.advanceTimersByTime(20_999);
       expect(client.getSnapshot().status).toBe('connected');
       vi.advanceTimersByTime(1);
       expect(client.getSnapshot().status).toBe('absent');
     });
 
-    it('says hello again when shown while it shows already, as when the window gets the focus', () => {
+    it('becomes absent 1.5 s after showing when no state answers, as when the host went while hidden', () => {
       const { client, posted } = connected();
+      client.setVisible(false);
+      vi.advanceTimersByTime(60_000);
+      client.setVisible(true);
+      vi.advanceTimersByTime(1_499);
+      expect(client.getSnapshot().status).toBe('connected');
+      vi.advanceTimersByTime(1);
+      expect(client.getSnapshot().status).toBe('absent');
+      expect(hellos(posted)).toBe(3);
+    });
+
+    it('says hello again when shown while it shows already, as when the window gets the focus', () => {
+      const { client, deliver, posted } = connected();
       vi.advanceTimersByTime(5_000);
       client.setVisible(true);
       expect(hellos(posted)).toBe(2);
+      deliver({ v: 1, type: 'state', hostId: 'a', state: makeState('!a') });
       // The pace starts again from this hello.
       vi.advanceTimersByTime(9_999);
       expect(hellos(posted)).toBe(2);

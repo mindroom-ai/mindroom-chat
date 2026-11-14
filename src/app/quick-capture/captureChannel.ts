@@ -43,7 +43,8 @@ export type CaptureClient = {
   /**
    * Whether the page shows. Hidden, the client says no hello and counts no silence: the snapshot
    * stays as it is. Shown, it says hello at once and counts both again from there, also when it
-   * showed already (the window got the focus).
+   * showed already (the window got the focus). A host that is there answers that hello at once, so
+   * without a state in 1.5 s the host is gone, as one that went while the widget was hidden.
    */
   setVisible(visible: boolean): void;
   subscribe(listener: () => void): () => void;
@@ -68,6 +69,8 @@ export const createCaptureClient = (channel: CaptureChannel): CaptureClient => {
   let visible = true;
   let helloTimer: ReturnType<typeof setInterval> | undefined;
   let silenceTimer: ReturnType<typeof setTimeout> | undefined;
+  /** A hello said as the page showed has no answer yet. */
+  let awaitingAnswer = false;
   const listeners = new Set<() => void>();
   const pending = new Map<string, (result: CaptureResult) => void>();
 
@@ -100,7 +103,8 @@ export const createCaptureClient = (channel: CaptureChannel): CaptureClient => {
     clearTimeout(silenceTimer);
     silenceTimer = undefined;
     if (!running() || snapshot.status === 'absent') return;
-    const wait = snapshot.status === 'connecting' ? FIRST_STATE_WAIT_MS : HOST_SILENCE_MS;
+    const wait =
+      snapshot.status === 'connecting' || awaitingAnswer ? FIRST_STATE_WAIT_MS : HOST_SILENCE_MS;
     silenceTimer = setTimeout(goAbsent, wait);
   };
 
@@ -117,6 +121,7 @@ export const createCaptureClient = (channel: CaptureChannel): CaptureClient => {
       if (hostId !== undefined && hostId !== message.hostId) return;
       const wasAbsent = snapshot.status === 'absent';
       hostId = message.hostId;
+      awaitingAnswer = false;
       setSnapshot({ status: 'connected', state: message.state });
       countSilence();
       if (wasAbsent) paceHello();
@@ -144,6 +149,7 @@ export const createCaptureClient = (channel: CaptureChannel): CaptureClient => {
     },
     setVisible(next) {
       visible = next;
+      awaitingAnswer = next;
       if (next) greet();
       else paceHello();
       countSilence();
