@@ -41,8 +41,10 @@ export const loadCachedThreadEventsInSpan = async (
         IDBKeyRange.bound(buildMetaKey(roomId, ROOM_SCOPE), buildMetaKey(roomId, MAX_EVENT_ID))
       );
     metas.onsuccess = () => {
-      (metas.result as CachedMetaRecord[]).forEach(({ roomId: metaRoomId, scope }) => {
-        if (metaRoomId !== roomId || !scope.startsWith('$')) return;
+      (metas.result as CachedMetaRecord[]).forEach(({ roomId: metaRoomId, scope, rootEvent }) => {
+        // A thread whose root names another room is that room's, as the other thread readers hold.
+        if (metaRoomId !== roomId || !scope.startsWith('$') || isOtherRoomEvent(rootEvent, roomId))
+          return;
         const span = IDBKeyRange.bound(
           [roomId, scope, from.ts, from.eventId],
           before

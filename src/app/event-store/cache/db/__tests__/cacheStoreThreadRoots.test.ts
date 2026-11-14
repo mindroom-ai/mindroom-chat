@@ -202,6 +202,32 @@ describe('a cached thread whose root is another room’s', () => {
     expect(batch.get(ROOT_ID)?.events).toEqual([]);
   });
 
+  it('keeps another room’s reply out of a thread’s latest reply and summary', async () => {
+    const own = { ...notice('$own', 3_000) };
+    const foreign = { ...notice('$foreign', 4_000), room_id: OTHER_ROOM_ID };
+    // A plain root takes the newest reply it holds; a summarized one, the newer replies.
+    await save([own, foreign], { ...root(reply('pending'), 1), unsigned: {} });
+    const [plain] = await loadCachedThreadRootsForRoom(SESSION_ID, ROOM_ID);
+    expect(plain?.latestReply?.event_id).toBe('$own');
+
+    await save([], root(reply('pending'), 1));
+    const summary = await summaryOf();
+    expect(summary?.latest_event.event_id).toBe('$own');
+    expect(summary?.count).toBe(2);
+  });
+
+  it('keeps the events of a thread whose root names another room out, also those without a room', async () => {
+    const { room_id: _roomId, ...replyWithoutRoom } = reply('completed');
+    const { room_id: _rootRoomId, ...rootWithoutRoom } = root(reply('completed'), 1);
+    // The root's own copy and a reply were saved without a room; the thread's root names another.
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [rootWithoutRoom]);
+    await save([replyWithoutRoom], otherRoot());
+
+    expect(await loadCachedThreadRootsForRoom(SESSION_ID, ROOM_ID)).toEqual([]);
+    expect(await loadCachedThreadEvent(SESSION_ID, ROOM_ID, ROOT_ID, REPLY_ID)).toBeUndefined();
+    expect(await loadCachedEventAcrossRoomScopes(SESSION_ID, ROOM_ID, ROOT_ID)).toBeUndefined();
+  });
+
   it('keeps a root saved without its room, as older rows were', async () => {
     const { room_id: _roomId, ...withoutRoom } = root(reply('completed'), 1);
     await save([], withoutRoom);

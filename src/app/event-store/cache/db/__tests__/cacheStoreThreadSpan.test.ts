@@ -71,4 +71,20 @@ describe('loadCachedThreadEventsInSpan', () => {
       ids(await loadCachedThreadEventsInSpan(SESSION_ID, ROOM_ID, { eventId: '$a1', ts: 10 }))
     ).toEqual(['$a1', '$no-room']);
   });
+
+  it('leaves out a thread whose root names another room, and keeps one saved without a root', async () => {
+    const withoutRoom = (eventId: string, ts: number) => {
+      const { room_id: _roomId, ...event } = rawEvent(eventId, ts);
+      return event;
+    };
+    await saveThreadEventsToCache(SESSION_ID, ROOM_ID, '$x', [withoutRoom('$x1', 10)], {
+      ...rawEvent('$x', 1),
+      room_id: '!other:example.org',
+    });
+    await saveThreadEventsToCache(SESSION_ID, ROOM_ID, '$y', [withoutRoom('$y1', 12)]);
+
+    expect(
+      ids(await loadCachedThreadEventsInSpan(SESSION_ID, ROOM_ID, { eventId: '$x1', ts: 10 }))
+    ).toEqual(['$y1']);
+  });
 });
