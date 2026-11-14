@@ -12,9 +12,16 @@ import './app/i18n/i18n';
 import './app/plugins/registry';
 import { deletePluginStorageOfRemovedAccounts } from './app/plugins/pluginStorage';
 import App from './app/shell/App';
-import { isNativeApp, isNativeIOS, registerNativeAppUrlCallbacks } from './app/native/nativeSso';
+import {
+  isNativeApp,
+  isNativeIOS,
+  registerNativeAppUrlCallbacks,
+} from './app/native/nativeSso';
 import { installFlightRecorder } from './app/diagnostics/flightRecorder';
-import { initializeDeepTraceRecorder, recordDeepTraceEvent } from './app/diagnostics/deepTrace';
+import {
+  initializeDeepTraceRecorder,
+  recordDeepTraceEvent,
+} from './app/diagnostics/deepTrace';
 import {
   installIndexedDbLossRecovery,
   readRecoveryReloadAge,
