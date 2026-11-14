@@ -130,5 +130,12 @@ test('a snooze set by the person ends on time: the backend clears it and Chat sh
   await expect(popover).toBeHidden();
   await showThread(page, stack, rootId);
   await expect(page.locator('[data-thread-snooze-ended]')).toHaveText('Snooze ended');
+  // A marker row of its own, not an agent message: no avatar, sender name or toolbar.
+  const wakeRow = page.locator('[data-message-id]', {
+    has: page.locator('[data-thread-snooze-ended]'),
+  });
+  await expect(wakeRow).toHaveCount(1);
+  await expect(wakeRow.locator('[data-message-sender-line], [data-user-id]')).toHaveCount(0);
+  await expect(wakeRow).toHaveText('Snooze ended');
   await expect(page.locator('[data-thread-context-banner] [data-thread-snoozed]')).toHaveCount(0);
 });
