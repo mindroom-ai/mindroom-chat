@@ -13,7 +13,7 @@ describe('liquid glass rendering lifecycle', () => {
 
   const show = (isIntersecting: boolean) => {
     notifyVisibility(
-      [{ target: element, isIntersecting } as IntersectionObserverEntry],
+      [{ target: element, isIntersecting } as unknown as IntersectionObserverEntry],
       {} as IntersectionObserver
     );
     vi.runAllTimers();
@@ -230,9 +230,9 @@ describe('liquid glass rendering lifecycle', () => {
     const displacements = [...document.querySelectorAll('feDisplacementMap')];
     expect(displacements).toHaveLength(3);
     const scales = displacements.map((node) => Number(node.getAttribute('scale')));
-    expect(scales[0]).toBeLessThan(scales[1]);
-    expect(scales[2]).toBeGreaterThan(scales[1]);
-    expect(scales[2] / scales[0]).toBeLessThan(1.05);
+    expect(scales[0]).toBeLessThan(scales[1]!);
+    expect(scales[2]).toBeGreaterThan(scales[1]!);
+    expect(scales[2]! / scales[0]!).toBeLessThan(1.05);
     expect(document.querySelectorAll('feImage')).toHaveLength(1);
     expect(document.querySelectorAll('feBlend')).toHaveLength(2);
   });

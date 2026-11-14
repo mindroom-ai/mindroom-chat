@@ -549,13 +549,12 @@ describe('RoomViewHeader', () => {
       ).toHaveLength(1);
       // An encrypted room keeps the entry in its place, disabled, with the reason.
       expect(findMessageSearch()).toHaveLength(1);
-      expect(textOf(findMessageSearch()[0]).includes('Not available in encrypted rooms')).toBe(
-        !offered
-      );
-      expect(findMessageSearch()[0].props.onClick === undefined).toBe(!offered);
+      const search = findMessageSearch()[0]!;
+      expect(textOf(search).includes('Not available in encrypted rooms')).toBe(!offered);
+      expect(search.props.onClick === undefined).toBe(!offered);
       if (offered) {
         navigateSpy.mockClear();
-        await act(async () => findMessageSearch()[0].props.onClick());
+        await act(async () => search.props.onClick());
         expect(navigateSpy).toHaveBeenCalledWith(
           `/home/search/?${new URLSearchParams({ rooms: '!room:example.org' })}`
         );
@@ -642,7 +641,7 @@ describe('RoomViewHeader', () => {
 
       const buttons = findCanvasButtons(renderer);
       expect(buttons).toHaveLength(1);
-      expect(buttons[0].props).toEqual({
+      expect(buttons[0]!.props).toEqual({
         canvases: listed,
         openCanvasId: '$canvas',
         onOpen: onCanvasOpen,
@@ -789,7 +788,7 @@ describe('RoomViewHeader', () => {
         renderer.root.findAll((node) => node.type === 'button' && textOf(node) === 'Leave Room');
       expect(leaveRoom()).toHaveLength(1);
 
-      await act(async () => findMenuItem(renderer)[0].props.onClick());
+      await act(async () => findMenuItem(renderer)[0]!.props.onClick());
 
       expect(onComputerToggle).toHaveBeenCalledOnce();
       expect(leaveRoom()).toHaveLength(0);

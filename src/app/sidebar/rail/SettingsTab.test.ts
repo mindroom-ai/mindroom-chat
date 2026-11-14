@@ -82,7 +82,7 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
 }));
 
 vi.mock('../../matrix/matrix', () => ({
-  getMxIdLocalPart: (userId: string) => userId.split(':')[0].replace('@', ''),
+  getMxIdLocalPart: (userId: string) => userId.split(':')[0]!.replace('@', ''),
   mxcUrlToHttp: (
     _mx: unknown,
     mxcUrl: string,
@@ -95,8 +95,8 @@ vi.mock('../../matrix/matrix', () => ({
     if (!match || match[1] === '.' || match[1] === '..') return null;
     const endpoint = useAuthentication ? '_matrix/client/v1/media' : '_matrix/media/v3';
     return `https://mindroom.chat/${endpoint}/thumbnail/${encodeURIComponent(
-      match[1]
-    )}/${encodeURIComponent(match[2])}?width=${width}&height=${height}&method=${method}`;
+      match[1]!
+    )}/${encodeURIComponent(match[2]!)}?width=${width}&height=${height}&method=${method}`;
   },
 }));
 
@@ -198,7 +198,7 @@ vi.mock('../../account/switcher/AccountSwitcher', () => ({
         'button',
         {
           'data-testid': 'remove-account',
-          onClick: () => onRemoveAccount(accounts[1].session),
+          onClick: () => onRemoveAccount(accounts[1]!.session),
         },
         'remove-account'
       )
@@ -226,7 +226,7 @@ const inactiveSession = {
 };
 
 const findButtonByAriaLabel = (renderer: ReturnType<typeof create>, label: string) =>
-  renderer.root.findAll((node) => node.type === 'button' && node.props['aria-label'] === label)[0];
+  renderer.root.findAll((node) => node.type === 'button' && node.props['aria-label'] === label)[0]!;
 
 // The rail's account button opens the account menu, which holds Settings and the accounts.
 const openAccountMenu = (renderer: ReturnType<typeof create>, name = 'Alice') => {
@@ -238,7 +238,7 @@ const openAccountMenu = (renderer: ReturnType<typeof create>, name = 'Alice') =>
   });
 };
 
-const renderSettingsTab = (sessions = [activeSession, inactiveSession]) => {
+const renderSettingsTab = (sessions: StoredSession[] = [activeSession, inactiveSession]) => {
   vi.mocked(useActiveSession).mockReturnValue(activeSession);
   vi.mocked(useStoredSessions).mockReturnValue(sessions);
 
@@ -465,7 +465,7 @@ describe('SettingsTab', () => {
     );
     const activeAvatar = renderer.root.findAll(
       (node) => node.props['data-user-id'] === '@alice:mindroom.chat'
-    )[0];
+    )[0]!;
 
     expect(activeAvatar.props['data-src']).toBe('data:image/png;base64,cached');
   });
@@ -499,7 +499,7 @@ describe('SettingsTab', () => {
 
     const activeAvatar = renderer.root.findAll(
       (node) => node.props['data-user-id'] === '@alice:mindroom.chat'
-    )[0];
+    )[0]!;
     expect(activeAvatar.props['data-src']).toBe('data:image/png;base64,cached');
     expect(findButtonByAriaLabel(renderer, 'Open account menu for Stored Alice')).toBeDefined();
     vi.mocked(updateSessionProfile).mock.calls.forEach(([, update]) => {
@@ -524,7 +524,7 @@ describe('SettingsTab', () => {
     }
 
     vi.stubGlobal('FileReader', FileReaderMock);
-    const fetchSpy = vi.fn(() =>
+    const fetchSpy = vi.fn((_url: string, _init: RequestInit) =>
       Promise.resolve({
         ok: true,
         blob: () => Promise.resolve(new Blob(['avatar'], { type: 'image/png' })),
@@ -555,10 +555,10 @@ describe('SettingsTab', () => {
       await Promise.resolve();
     });
 
-    expect(fetchSpy.mock.calls[0][0]).toBe(
+    expect(fetchSpy.mock.calls[0]![0]).toBe(
       'https://mindroom.chat/_matrix/media/v3/thumbnail/mindroom.chat/avatar?width=96&height=96&method=crop'
     );
-    expect(fetchSpy.mock.calls[0][1]).not.toHaveProperty('headers');
+    expect(fetchSpy.mock.calls[0]![1]).not.toHaveProperty('headers');
   });
 
   it('uses the authenticated media endpoint and a bearer header when supported', async () => {
@@ -624,7 +624,7 @@ describe('SettingsTab', () => {
     );
     const activeAvatar = renderer.root.findAll(
       (node) => node.props['data-user-id'] === '@alice:mindroom.chat'
-    )[0];
+    )[0]!;
 
     expect(activeAvatar.props['data-src']).toBeUndefined();
   });
@@ -656,7 +656,7 @@ describe('SettingsTab', () => {
     );
     const activeAvatar = renderer.root.findAll(
       (node) => node.props['data-user-id'] === '@alice:mindroom.chat'
-    )[0];
+    )[0]!;
 
     expect(activeAvatar.props['data-src']).toBeUndefined();
   });

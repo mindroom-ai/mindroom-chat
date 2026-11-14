@@ -7,11 +7,11 @@ describe('liquid glass displacement', () => {
     map: NonNullable<ReturnType<typeof createDisplacementMap>>,
     x: number,
     y: number
-  ) => {
+  ): [number, number] => {
     const offset = (y * map.width + x) * 4;
     return [
-      map.scale * (map.data[offset] / 255 - 0.5),
-      map.scale * (map.data[offset + 1] / 255 - 0.5),
+      map.scale * (map.data[offset]! / 255 - 0.5),
+      map.scale * (map.data[offset + 1]! / 255 - 0.5),
     ];
   };
 

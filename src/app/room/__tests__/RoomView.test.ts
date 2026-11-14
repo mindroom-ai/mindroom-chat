@@ -76,7 +76,7 @@ const {
     props: undefined as MockThreadContextBannerProps | undefined,
   },
   useKeyDownMock: vi.fn(),
-  useThreadRootEventMock: vi.fn(() => undefined),
+  useThreadRootEventMock: vi.fn((): string | undefined => undefined),
 }));
 
 const storageState = new Map<string, string>();
@@ -113,14 +113,15 @@ vi.stubGlobal('sessionStorage', {
     storageState.delete(key);
   },
 });
+const historyStub = {
+  back: historyBackMock,
+  forward: historyForwardMock,
+  go: historyGoMock,
+  state: null as unknown,
+};
 vi.stubGlobal('window', {
   addEventListener: () => undefined,
-  history: {
-    back: historyBackMock,
-    forward: historyForwardMock,
-    go: historyGoMock,
-    state: null,
-  },
+  history: historyStub,
   localStorage,
   removeEventListener: () => undefined,
   sessionStorage,
@@ -538,7 +539,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
     useKeyDownMock.mockClear();
     useThreadRootEventMock.mockReset();
     useThreadRootEventMock.mockReturnValue(undefined);
-    window.history.state = null;
+    historyStub.state = null;
     vi.resetModules();
   });
 
@@ -673,7 +674,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       renderer?.update(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
     });
 
-    window.history.state = {
+    historyStub.state = {
       usr: {
         [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
           exitPath: `/home/${encodeURIComponent(room.roomId)}`,
@@ -723,7 +724,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       renderer?.update(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
     });
 
-    window.history.state = {
+    historyStub.state = {
       usr: {
         [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
           exitPath,
@@ -1032,7 +1033,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
 
   it('exits a thread with history back when it was opened from the room timeline', async () => {
     const room = makeRoom(nextRoomId('room-a'));
-    window.history.state = {
+    historyStub.state = {
       usr: {
         [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
           exitPath: `/home/${encodeURIComponent(room.roomId)}/`,
@@ -1075,7 +1076,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       exitPath: `/home/${encodeURIComponent(room.roomId)}/`,
       useHistoryBack: true,
     };
-    window.history.state = {
+    historyStub.state = {
       usr: {
         [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
           ...target,
@@ -1100,7 +1101,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
 
     // The same target recorded by this account still leads back.
     navigateRoomFocusEventMock.mockClear();
-    window.history.state = {
+    historyStub.state = {
       usr: {
         [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
           ...target,
@@ -1117,7 +1118,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
 
   it('exits a thread with history back when the exit target is stored by history entry key', async () => {
     const room = makeRoom(nextRoomId('room-a'));
-    window.history.state = {
+    historyStub.state = {
       key: `thread-entry-key:${room.roomId}`,
     };
     setRoomThreadExitTargetForHistoryState(window.history.state, {
@@ -1150,7 +1151,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
     const room = makeRoom(nextRoomId('room-a'));
     let renderer: ReturnType<typeof create> | undefined;
     let threadState: import('../useRoomViewThreadState').RoomViewThreadState | undefined;
-    window.history.state = {
+    historyStub.state = {
       key: `thread-entry-key:${room.roomId}`,
     };
     setRoomThreadExitTargetForHistoryState(window.history.state, {
@@ -1202,7 +1203,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   it('exits a thread with replace navigation instead of history back in standalone iOS web apps', async () => {
     isIOSStandaloneWebAppMock.mockReturnValue(true);
     const room = makeRoom(nextRoomId('room-a'));
-    window.history.state = {
+    historyStub.state = {
       key: `thread-entry-key:${room.roomId}`,
     };
     setRoomThreadExitTargetForHistoryState(window.history.state, {
@@ -1240,7 +1241,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
     const exitPath = `/home/${encodeURIComponent(room.roomId)}`;
     let renderer: ReturnType<typeof create> | undefined;
     let threadState: import('../useRoomViewThreadState').RoomViewThreadState | undefined;
-    window.history.state = {
+    historyStub.state = {
       key: `thread-entry-key:${room.roomId}`,
     };
     setRoomThreadExitTargetForHistoryState(window.history.state, {
@@ -1292,7 +1293,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   it('exits a thread by navigating to the stored exit path on native iOS', async () => {
     isNativeIOSMock.mockReturnValue(true);
     const room = makeRoom(nextRoomId('room-a'));
-    window.history.state = {
+    historyStub.state = {
       key: `thread-entry-key:${room.roomId}`,
     };
     setRoomThreadExitTargetForHistoryState(window.history.state, {
@@ -1351,7 +1352,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
     const exitPath = path.startsWith('?')
       ? `/home/${encodeURIComponent(room.roomId)}/${path}`
       : path;
-    window.history.state = {
+    historyStub.state = {
       usr: {
         [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
           exitPath,
@@ -1380,7 +1381,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   it('leaves a thread for its room on native iOS when it was opened from another page', async () => {
     isNativeIOSMock.mockReturnValue(true);
     const room = makeRoom(nextRoomId('room-a'));
-    window.history.state = {
+    historyStub.state = {
       usr: {
         [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
           exitPath: '/activity/',
@@ -1467,7 +1468,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       const room = makeRoom(nextRoomId('room-a'));
       const roomPath = `/home/${encodeURIComponent(room.roomId)}/`;
       const recorder = await showPages(['/activity/', `${roomPath}?threadId=%24thread`]);
-      window.history.state = {
+      historyStub.state = {
         usr: {
           [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
             exitPath: roomPath,
@@ -1567,7 +1568,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
     navigateRoomThreadMock.mockImplementation((navigatedRoomId, navigatedThreadId) => {
       if (store.get(lastExitedThreadAtom)?.threadId !== navigatedThreadId) return;
 
-      window.history.state = {
+      historyStub.state = {
         usr: {
           [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
             exitPath: `/home/${encodeURIComponent(navigatedRoomId)}/`,
@@ -1862,7 +1863,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
     const localThreadId = `~${room.roomId}:txn-local`;
     const exitPath = `/home/${encodeURIComponent(room.roomId)}`;
     useThreadRootEventMock.mockReturnValue('$confirmed-thread');
-    window.history.state = {
+    historyStub.state = {
       idx: 4,
       key: `thread-entry-key:${room.roomId}`,
       usr: {
@@ -1906,7 +1907,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
     expect(navigateOptions?.state).not.toHaveProperty('usr');
     expect(navigateOptions?.state).not.toHaveProperty('idx');
 
-    window.history.state = {
+    historyStub.state = {
       idx: 4,
       key: `thread-entry-key:${room.roomId}`,
       usr: navigateOptions?.state,

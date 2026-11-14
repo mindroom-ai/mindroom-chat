@@ -7,7 +7,7 @@ const consumerPath = 'src/app/ui/glass/SurfaceConsumer.tsx';
 const adapterPath = 'src/app/ui/glass/GlassPrimitives.tsx';
 
 async function lint(source: string, filePath = consumerPath) {
-  const [result] = await eslint.lintText(source, { filePath });
+  const result = (await eslint.lintText(source, { filePath }))[0]!;
   expect(result.fatalErrorCount).toBe(0);
   return result;
 }

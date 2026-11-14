@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
-import React from 'react';
 import { IDBFactory } from 'fake-indexeddb';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';

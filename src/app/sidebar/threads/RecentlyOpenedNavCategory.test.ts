@@ -229,7 +229,7 @@ describe('RecentlyOpenedNavCategory', () => {
   it('filters archives before applying the recent limit and keeps history for restore', () => {
     seedJoinedThreads(3);
     renderCategory(2);
-    const lastRoomId = [...rooms.keys()][2];
+    const lastRoomId = [...rooms.keys()][2]!;
     act(() => store.set(archivedRoomsAtom, new Set([lastRoomId])));
     expect(renderedThreadIds()).toEqual(['$thread-1', '$thread-0']);
     act(() => store.set(archivedRoomsAtom, new Set<string>()));

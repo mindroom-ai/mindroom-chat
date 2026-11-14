@@ -276,7 +276,7 @@ describe('nativeSso', () => {
       getLaunchUrl: vi.fn().mockResolvedValue({
         url: 'mindroom://auth/login/mindroom.chat?loginToken=launch-token',
       }),
-      addListener: vi.fn((eventName: string, listener: (event: { url?: string }) => void) => {
+      addListener: vi.fn((_eventName: string, listener: (event: { url?: string }) => void) => {
         appUrlOpenListener = listener;
         return Promise.resolve();
       }),
@@ -322,7 +322,7 @@ describe('nativeSso', () => {
       getLaunchUrl: vi.fn().mockResolvedValue({
         url: 'https://chat.mindroom.chat/connect?code=ABCD',
       }),
-      addListener: vi.fn((eventName: string, listener: (event: { url?: string }) => void) => {
+      addListener: vi.fn((_eventName: string, listener: (event: { url?: string }) => void) => {
         appUrlOpenListener = listener;
         return Promise.resolve();
       }),
