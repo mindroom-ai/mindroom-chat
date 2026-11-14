@@ -478,6 +478,8 @@ export function QuickCapturePage(props: { channel?: CaptureChannel }): JSX.Eleme
 
 ---
 
+**Done on 2026-11-13**, on the MacBook M2 driven over Screen Sharing from a Linux machine. The spike was folded into Task 11 rather than thrown away; the spec's "Settled on the Mac" holds its answers. Changed from the steps below: the shortcut is Control+Option+Space (Raycast and Alfred take Option+Space), the widget does not show over another app's full-screen window, the page scales its rem by the window's point scale instead of a page zoom, and the main window's closing closes the widget. Not done: Task 13 Step 1 against a real account with agents (the checks ran against a local homeserver with agent-named users).
+
 Tasks 10 to 13 run on the MacBook M2 (Xcode, a checkout of this branch). Build and run the Debug Mac app with: `npm ci`, `npm run build:ios`, `npx cap sync ios`, then `xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -destination 'platform=macOS,variant=Mac Catalyst' build` (signed with the machine's development identity, or `CODE_SIGNING_ALLOWED=NO` if the entitlements allow the app to start unsigned), and open the built `MindRoom.chat.app`.
 
 ### Task 10: Spike (throwaway, not committed)

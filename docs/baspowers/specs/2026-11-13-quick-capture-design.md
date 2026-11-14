@@ -12,7 +12,7 @@ Assumptions (not said, chosen here):
 
 - Whether an agent answers an entry is the room's business (the backend's `!reply_mode`): the client cannot post a note that agents are sure to ignore, so there is one send key, not a "note" key and an "ask" key as in the mockup. A typed `@Name` reaches an agent as it does in the composer's plain text.
 - Picking a room changes the default. There is no "use once".
-- The global shortcut is fixed at Option+Space in this version.
+- The global shortcut is fixed at Control+Option+Space in this version. (Option+Space, the first choice, is the default of Raycast and Alfred; on the MacBook M2 both opened on it.)
 - The widget is one fixed size, 360 by 460 points.
 
 ## Scope
@@ -54,11 +54,12 @@ Out:
 
 ### Mac shell
 
-- `Option+Space` anywhere: shows the widget above the app in front with the caret in the input. Pressed while the widget has the keyboard, it hides it. The main window stays where it is.
-- The widget's window: 360 by 460 points, no title bar, movable by its background, above other apps' windows, on every Space and over full-screen apps. Its place is remembered. It has a panel's rounded corners and shadow, and the system's material behind it: the web view is transparent and the page paints no background there, so what is under the window shows through, blurred. The page does not bounce as a whole, cannot be zoomed, and a right click shows no web menu (Reload, Inspect) outside a text field.
+- `Control+Option+Space` anywhere: shows the widget above the app in front with the caret in the input. Pressed while the widget has the keyboard, it hides it and gives the keyboard back to the app that had it; so does Escape. The main window stays where it is.
+- The widget's window: 360 by 460 points, no title bar, movable by its header, above other apps' windows, on the Space in front as it shows. Over another app's full-screen window it opens on a desktop Space instead: only a non-activating panel can show over a full-screen app, and a UIKit scene's window cannot be one. Its place is remembered. It has a panel's rounded corners and shadow, and the system's material behind it: the web view is transparent and the page paints no background there, so what is under the window shows through, blurred. The page does not bounce as a whole, cannot be zoomed, and a right click shows no web menu (Reload, Inspect) outside a text field.
 - The app's Window menu has "Quick Capture" with the same shortcut shown.
+- Closing the main window closes the widget too, so that the Dock opens the main window again; an activation of the app with no main window (the Dock, or a launch that restored only the widget) opens one. A widget restored at launch starts hidden.
 - Opening a thread from the widget brings the main window forward and hides the widget.
-- The first screenshot makes macOS ask for Screen Recording permission for MindRoom.chat. Refused, the widget says so with a button that opens that pane of System Settings.
+- The first screenshot makes macOS ask for Screen Recording permission for MindRoom.chat, and then whether the app may capture without the system's window picker; the permission applies after a relaunch. Refused, the widget says so with a button that opens that pane of System Settings.
 - The widget's web view loads once and stays loaded while hidden.
 - A second main window cannot be opened: the "New Window" command is removed and a second main scene is closed as it connects.
 
@@ -92,17 +93,18 @@ The widget is a page of the same web app with no Matrix client. The signed-in ap
 
 **Screenshot.** The widget calls `captureScreenshot({ target: 'window' | 'screen' })`. Native writes a PNG into the app's temporary folder and resolves `{ path, name }`; the widget fetches `Capacitor.convertFileSrc(path)` into a `File`, and the temporary file is deleted on the next capture and at launch.
 
-**Mac windowing.** `UIApplicationSupportsMultipleScenes` becomes true on the Mac only: the plist value is the build setting `MINDROOM_SUPPORTS_MULTIPLE_SCENES` (`YES` for `sdk=macosx*`, else `NO`). `AppDelegate` gives the "Quick Capture" configuration to a scene requested with the activity type `chat.mindroom.quick-capture` and `Default Configuration` to any other. The widget's `NSWindow` is found by its scene's title and set up through key-value coding; the Carbon functions (`RegisterEventHotKey`, `InstallEventHandler`, `GetEventDispatcherTarget`) are looked up with `dlsym`. Everything Mac-specific is inside `#if targetEnvironment(macCatalyst)`, since the iOS routing test host compiles every file of `ios/App/App/`.
+**Mac windowing.** `UIApplicationSupportsMultipleScenes` becomes true on the Mac only: the plist value is the build setting `MINDROOM_SUPPORTS_MULTIPLE_SCENES` (`YES` for `sdk=macosx*`, else `NO`), and UIKit honors the string. `AppDelegate` gives the "Quick Capture" configuration to a scene requested with the activity type `chat.mindroom.quick-capture` and `Default Configuration` to any other. The widget's `NSWindow` is the one of `NSApp.windows` whose `uiWindows` holds the scene's `UIWindow`, set up through key-value coding: titled with a transparent, empty title bar and hidden buttons (so it keeps a window's corners, shadow and keyboard), the floating level, an `NSVisualEffectView` (popover material, behind the window) below the scene's content, and a frame autosave name. UIKit sets its own title bar again as the scene comes forward, so the widget's goes back on in `sceneDidBecomeActive`. The Carbon functions (`RegisterEventHotKey`, `InstallEventHandler`, `GetEventDispatcherTarget`) are looked up with `dlsym`. Everything Mac-specific is inside `#if targetEnvironment(macCatalyst)`, since the iOS routing test host compiles every file of `ios/App/App/`.
 
-**Layers:** `quick-capture` is a new domain at layer 10 (it imports `threads`, `composer`, `navigation`, `matrix`, `native`, `preferences`, `ui`, `i18n`); `shell` (14) mounts the host and routes the page. `nativeQuickCapture.ts` sits in `native` (2).
+**The page in the window.** The bridge starts at the app's root, which `loadWebView` insists exists as a file, and the widget's controller loads `/quick-capture/` in its place before the root answers. Its web view is made transparent before that first load (Capacitor restores the opacity it finds). The app is scaled to match iPad, so a UIKit point is 0.77 of the Mac's: the window is sized in the Mac's points, and the native side sets `--mac-point-scale` on the document (a user script, so a reload keeps it), which the page's stylesheet scales its rem by; `WKWebView.pageZoom` left the page's viewport units at the unzoomed size. The page marks itself `data-native` when the plugin is there: no background on the page or the document, no safe area under the hidden title bar, no web menu on a right click outside a field or a selection.
 
-### To settle on the Mac first
+### Settled on the Mac
 
-Three facts decide details above and are checked in a throwaway spike before the native code is written:
+Checked on the MacBook M2 (macOS 26.5.2, Xcode 26.6), driving its screen over Screen Sharing:
 
-1. A `BroadcastChannel` message crosses between two `CAPBridgeViewController` web views of one process. If not: the plugin relays (`postToHost`, and a `message` event), behind the same `openCaptureChannel()`.
-2. A scene's window can be raised to the floating level, shown over another app and given the keyboard without the main window coming forward, with AppKit reached through the runtime. If not: an AppKit bundle target embedded in the Mac app does the windowing.
-3. ScreenCaptureKit builds and captures from a Mac Catalyst target, and the string build setting is honored for `UIApplicationSupportsMultipleScenes`. If not: `CGWindowListCreateImage` looked up with `dlsym`, and a Mac-only Info.plist (`INFOPLIST_FILE[sdk=macosx*]`).
+1. A `BroadcastChannel` message crosses between the two `CAPBridgeViewController` web views of the process; an 8 MB `File` arrives in 4 ms as a `File`. No relay.
+2. The scene's window is raised to the floating level, shown over Safari and given the keyboard through AppKit reached at run time, with the main window left behind it; the Carbon hot key fires while another app is in front. Over another app's full-screen Space it does not show (see the Mac shell above). Dragging by the header works through the hidden title bar, whose clicks still reach the room button.
+3. ScreenCaptureKit builds for Mac Catalyst 18.2 and captures the front window of another app and the display without the app's own windows, at the display's pixel scale.
+4. Ordered out, the widget's page reports `document.visibilityState` `hidden`; it gets `focus` when shown. With the main window closed, the main web view lives on and its host still answers, so a widget shown then keeps working; the widget closes with the main window anyway (see the Mac shell above).
 
 ## Error handling
 
@@ -111,7 +113,7 @@ Three facts decide details above and are checked in a throwaway spike before the
 - An image that fails to upload fails the whole send before any event is sent, so no thread is left without its picture.
 - A message that is not a valid protocol message, or names another `hostId`, is ignored.
 - Native rejections: `PERMISSION_DENIED`, `NO_WINDOW` (the front app has no window), `UNSUPPORTED` (not a Mac, or macOS older than ScreenCaptureKit on Catalyst), `CAPTURE_FAILED`.
-- A widget whose host goes away (`gone`, or no state for 30 s while it shows) says hello again at once and falls back to "MindRoom is not open".
+- A widget whose host goes away (`gone`, or no state for 30 s while it shows, or for 1.5 s after the hello it says as it shows again) says hello again at once and falls back to "MindRoom is not open".
 
 ## Testing
 
