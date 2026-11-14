@@ -555,9 +555,11 @@ describe('useMutateThreadTags', () => {
     const room = makeRoom();
     const { renderer, current } = renderHarness(room);
 
+    let written: boolean | undefined;
     await act(async () => {
-      await current().snooze('$root', new Date('2026-11-14T09:00:00+01:00'), 'check CI');
+      written = await current().snooze('$root', new Date('2026-11-14T09:00:00+01:00'), 'check CI');
     });
+    expect(written).toBe(true);
 
     const content = {
       set_by: '@alice:example.org',
@@ -624,9 +626,11 @@ describe('useMutateThreadTags', () => {
     const room = makeRoom();
     const { renderer, current } = renderHarness(room);
 
+    let written: boolean | undefined;
     await act(async () => {
-      await current().snooze('$root', new Date(ISO_2));
+      written = await current().snooze('$root', new Date(ISO_2));
     });
+    expect(written).toBe(false);
     expect(current().error?.message).toBe('Snooze time must be in the future.');
     await act(async () => {
       await current().snooze('$root', new Date(Number.NaN));
@@ -650,8 +654,9 @@ describe('useMutateThreadTags', () => {
       } as never);
     const pinned = renderHarness(room);
     await act(async () => {
-      await pinned.current().snooze('$root', new Date('2026-11-14T08:00:00Z'));
+      written = await pinned.current().snooze('$root', new Date('2026-11-14T08:00:00Z'));
     });
+    expect(written).toBe(false);
     expect(pinned.current().error?.message).toBe('Pinned threads cannot be snoozed.');
     expect(sendStateEvent).not.toHaveBeenCalled();
     expect(pendingTags(room, '$root')).toBeUndefined();

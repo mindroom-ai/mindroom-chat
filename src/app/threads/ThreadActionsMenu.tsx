@@ -183,10 +183,15 @@ export function ThreadActionsMenu({
     return (
       <SnoozePicker
         anchor={anchor}
-        onPick={(until) => {
-          void mutations.snooze(rootId, until);
-          setDialog(undefined);
-          onClose();
+        // The picker stays until the snooze is saved, so a failure shows in it instead of the
+        // thread coming back without a word.
+        onPick={async (until) => {
+          const written = await mutations.snooze(rootId, until);
+          if (written) {
+            setDialog(undefined);
+            onClose();
+          }
+          return written;
         }}
         onClose={closeDialog}
       />

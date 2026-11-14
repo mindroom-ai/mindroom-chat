@@ -18,8 +18,11 @@ import {
 type SnoozePickerProps = {
   /** Where the desktop menu opens: the thread menu's own anchor. */
   anchor: RectCords;
-  /** A time in the future was picked; the caller closes the picker. */
-  onPick: (until: Date) => void;
+  /**
+   * A time in the future was picked: resolves whether the snooze was written, after which the
+   * caller closes the picker. Until then the picker stays; a failed write shows in it.
+   */
+  onPick: (until: Date) => Promise<boolean>;
   /** Dismissed without a pick. */
   onClose: () => void;
 };
@@ -115,15 +118,27 @@ export function SnoozePicker({ anchor, onPick, onClose }: SnoozePickerProps) {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const presets = usePresetChoices();
   const [custom, setCustom] = useState(false);
+  const [failed, setFailed] = useState(false);
   // The menu's focus trap reports a dismissal when it unmounts, also after a pick or on its way
-  // to the custom time dialog; only a real dismissal closes the picker, and only once.
+  // to the custom time dialog; only a real dismissal closes the picker, and only once. A pick
+  // that failed to save opens it again for another try.
   const settledRef = useRef(false);
   const leftMenuRef = useRef(false);
   const pick = (until: Date) => {
     if (settledRef.current) return;
     settledRef.current = true;
-    onPick(until);
+    setFailed(false);
+    void onPick(until).then((written) => {
+      if (written) return;
+      settledRef.current = false;
+      setFailed(true);
+    });
   };
+  const failure = failed ? (
+    <Text role="alert" size="T200" style={{ padding: `0 ${config.space.S200}` }}>
+      {t('threadActions.failed')}
+    </Text>
+  ) : undefined;
   const dismiss = () => {
     if (settledRef.current) return;
     settledRef.current = true;
@@ -168,6 +183,7 @@ export function SnoozePicker({ anchor, onPick, onClose }: SnoozePickerProps) {
             <Text size="L400">{t('threadSnooze.pickDateTime')}</Text>
             <CustomTime onPick={pick} />
           </Box>
+          {failure}
         </Box>
       </BottomSheet>
     );
@@ -176,7 +192,10 @@ export function SnoozePicker({ anchor, onPick, onClose }: SnoozePickerProps) {
   if (custom) {
     return (
       <ActionDialog label={t('threadSnooze.title')} onClose={dismiss} busy={false}>
-        <CustomTime onPick={pick} onCancel={dismiss} />
+        <Box direction="Column" gap="300">
+          <CustomTime onPick={pick} onCancel={dismiss} />
+          {failure}
+        </Box>
       </ActionDialog>
     );
   }
@@ -211,6 +230,7 @@ export function SnoozePicker({ anchor, onPick, onClose }: SnoozePickerProps) {
           onChoose={choose}
           onDismiss={dismissMenu}
           focusFirst
+          footer={failure}
         />
       }
     />

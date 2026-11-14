@@ -218,7 +218,8 @@ describe('ThreadActionsMenu rows', () => {
 });
 
 describe("ThreadActionsMenu's snooze", () => {
-  it('offers Snooze on an open thread and Unsnooze on a snoozed one', () => {
+  it('offers Snooze on an open thread and Unsnooze on a snoozed one', async () => {
+    mutations.snooze.mockResolvedValue(true);
     const onClose = vi.fn();
     const items = renderMenu({ onClose });
     expect(rowOf(items, 'snooze')?.textContent).toBe('Snooze');
@@ -229,7 +230,7 @@ describe("ThreadActionsMenu's snooze", () => {
       node.textContent?.startsWith('In 1 hour')
     );
     expect(host.querySelector('[role="menu"]')?.getAttribute('aria-label')).toBe('Snooze until');
-    act(() => preset?.click());
+    await act(async () => preset?.click());
     expect(mutations.snooze).toHaveBeenCalledOnce();
     const [rootId, until] = mutations.snooze.mock.calls[0] as [string, Date];
     expect(rootId).toBe('$root');
@@ -244,6 +245,23 @@ describe("ThreadActionsMenu's snooze", () => {
     expect(rowOf(snoozed, 'snooze')?.textContent).toBe('Unsnooze');
     act(() => rowOf(snoozed, 'snooze')?.click());
     expect(mutations.unsnooze).toHaveBeenCalledWith('$root');
+  });
+
+  it('keeps the picker open with the error when the snooze fails to save', async () => {
+    mutations.snooze.mockResolvedValue(false);
+    const onClose = vi.fn();
+    const items = renderMenu({ onClose });
+    act(() => rowOf(items, 'snooze')?.click());
+    const preset = [...host.querySelectorAll<HTMLElement>('[role="menuitemradio"]')][0];
+
+    await act(async () => preset?.click());
+
+    expect(mutations.snooze).toHaveBeenCalledOnce();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(host.querySelector('[role="menu"]')?.getAttribute('aria-label')).toBe('Snooze until');
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(
+      'Could not complete this action. Please try again.'
+    );
   });
 
   it('reads a snooze whose time has passed as no snooze', () => {

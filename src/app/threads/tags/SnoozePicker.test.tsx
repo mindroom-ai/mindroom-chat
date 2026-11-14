@@ -47,8 +47,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const renderPicker = (screenSize: ScreenSize = ScreenSize.Desktop) => {
-  const onPick = vi.fn();
+const renderPicker = (screenSize: ScreenSize = ScreenSize.Desktop, written = true) => {
+  const onPick = vi.fn(async (_until: Date) => written);
   const onClose = vi.fn();
   act(() =>
     root.render(
@@ -158,6 +158,27 @@ describe('SnoozePicker', () => {
     act(() => option('In 3 hours')?.click());
     expect(onPick).toHaveBeenCalledWith(new Date(2026, 10, 13, 18, 30));
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('stays open with the error when the snooze fails to save, and picks again', async () => {
+    const { onPick, onClose } = renderPicker(ScreenSize.Desktop, false);
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+
+    await act(async () => option('In 1 hour')?.click());
+    expect(onPick).toHaveBeenCalledOnce();
+    expect(document.querySelector('[role="menu"] [role="alert"]')?.textContent).toBe(
+      'Could not complete this action. Please try again.'
+    );
+    expect(onClose).not.toHaveBeenCalled();
+
+    await act(async () => option('In 3 hours')?.click());
+    expect(onPick).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows a failed save in the sheet on phones', async () => {
+    renderPicker(ScreenSize.Mobile, false);
+    await act(async () => option('In 3 hours')?.click());
+    expect(document.querySelector('[role="dialog"] [role="alert"]')).not.toBeNull();
   });
 
   it('closes the sheet from its close button', () => {
