@@ -21,6 +21,7 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
 // A room's thread list is read page by page, 30 threads a page, newest activity first. A busy room
 // in a live test stopped reading its list with a page token left and never went on, so the cached
@@ -50,12 +51,7 @@ const PHONE: BrowserContextOptions = {
 
 test.use({
   serviceWorkers: 'block',
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts; classic scrollbars stay shown.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 test.describe.configure({ mode: 'serial' });
 

@@ -45,10 +45,6 @@ vi.mock('../../avatars/RoomAvatar', () => ({
   RoomIcon: () => React.createElement('i'),
 }));
 
-vi.mock('../../room/RoomTopicViewer', () => ({
-  RoomTopicViewer: () => null,
-}));
-
 vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));
@@ -61,15 +57,10 @@ vi.mock('../../matrix/room', async () => {
   };
 });
 
-vi.mock('./DnD', () => ({
-  ItemDraggableTarget: () => null,
-  useDraggableItem: () => undefined,
-}));
-
 vi.mock('./RoomItem.css', () => ({
   CardOpener: 'CardOpener',
-  ErrorNameContainer: 'ErrorNameContainer',
   RoomName: 'RoomName',
+  RoomNameRow: 'RoomNameRow',
   RoomItemCard: 'RoomItemCard',
   RoomProfileTopic: 'RoomProfileTopic',
 }));
@@ -138,11 +129,8 @@ describe('RoomItemCard room access', () => {
           <RoomItemCard
             item={item}
             loading={false}
-            error={null}
             summary={summary}
             onOpen={vi.fn()}
-            onDragging={vi.fn()}
-            canReorder={false}
             getRoom={() => undefined}
           />
         </MatrixClientProvider>
@@ -155,32 +143,6 @@ describe('RoomItemCard room access', () => {
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
   });
 
-  it('does not assume public access when child-room discovery fails', () => {
-    const renderer = create(<></>);
-    act(() => {
-      renderer.update(
-        <MatrixClientProvider value={mx}>
-          <RoomItemCard
-            item={item}
-            loading={false}
-            error={new Error('Summary unavailable')}
-            summary={undefined}
-            onOpen={vi.fn()}
-            onDragging={vi.fn()}
-            canReorder={false}
-            getRoom={() => undefined}
-          />
-        </MatrixClientProvider>
-      );
-    });
-
-    expect(
-      renderer.root.findAll((node) => node.children.includes('Access unavailable'))
-    ).toHaveLength(1);
-    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
-    expect(mx.joinRoom).not.toHaveBeenCalled();
-  });
-
   it('treats an omitted child-room hierarchy rule as public', () => {
     const renderer = create(<></>);
     act(() => {
@@ -189,11 +151,8 @@ describe('RoomItemCard room access', () => {
           <RoomItemCard
             item={item}
             loading={false}
-            error={null}
             summary={{ ...summary, join_rule: undefined }}
             onOpen={vi.fn()}
-            onDragging={vi.fn()}
-            canReorder={false}
             getRoom={() => undefined}
           />
         </MatrixClientProvider>
@@ -218,11 +177,8 @@ describe('RoomItemCard room access', () => {
           <RoomItemCard
             item={item}
             loading={false}
-            error={null}
             summary={{ ...summary, join_rule: 'custom_access' as JoinRule }}
             onOpen={vi.fn()}
-            onDragging={vi.fn()}
-            canReorder={false}
             getRoom={() => undefined}
           />
         </MatrixClientProvider>
@@ -235,32 +191,6 @@ describe('RoomItemCard room access', () => {
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
   });
 
-  it('keeps a cached invitation joinable when child-room discovery fails', () => {
-    vi.mocked(mx.getRoom).mockReturnValue(cachedRoom('invite', JoinRule.Invite));
-    const renderer = create(<></>);
-    act(() => {
-      renderer.update(
-        <MatrixClientProvider value={mx}>
-          <RoomItemCard
-            item={item}
-            loading={false}
-            error={new Error('Summary unavailable')}
-            summary={undefined}
-            onOpen={vi.fn()}
-            onDragging={vi.fn()}
-            canReorder={false}
-            getRoom={() => undefined}
-          />
-        </MatrixClientProvider>
-      );
-    });
-
-    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(1);
-    expect(
-      renderer.root.findAll((node) => node.children.includes('Access unavailable'))
-    ).toHaveLength(0);
-  });
-
   it('offers no Join for a public room the person is banned from', () => {
     vi.mocked(mx.getRoom).mockReturnValue(cachedRoom('ban', JoinRule.Public));
     const renderer = create(<></>);
@@ -270,11 +200,8 @@ describe('RoomItemCard room access', () => {
           <RoomItemCard
             item={item}
             loading={false}
-            error={null}
             summary={{ ...summary, join_rule: JoinRule.Public }}
             onOpen={vi.fn()}
-            onDragging={vi.fn()}
-            canReorder={false}
             getRoom={() => undefined}
           />
         </MatrixClientProvider>
@@ -296,11 +223,8 @@ describe('RoomItemCard room access', () => {
           <RoomItemCard
             item={item}
             loading={false}
-            error={null}
             summary={{ ...summary, join_rule: JoinRule.Public }}
             onOpen={vi.fn()}
-            onDragging={vi.fn()}
-            canReorder={false}
             getRoom={() => undefined}
           />
         </MatrixClientProvider>
@@ -323,11 +247,8 @@ describe('RoomItemCard opening a joined room', () => {
             <RoomItemCard
               item={item}
               loading={false}
-              error={null}
               summary={summary}
               onOpen={onOpen}
-              onDragging={vi.fn()}
-              canReorder={false}
               getRoom={() => undefined}
             />
           </MatrixClientProvider>

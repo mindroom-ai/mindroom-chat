@@ -796,7 +796,8 @@
     "back": "Back",
     "resize": "Resize the thread",
     "showFull": "Show the thread in full",
-    "showBeside": "Show the thread beside the messages"
+    "showBeside": "Show the thread beside the messages",
+    "notFound": "Thread not found"
   },
   "activity": {
     "title": "Activity",

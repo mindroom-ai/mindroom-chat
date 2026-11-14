@@ -13,6 +13,7 @@ import {
 } from '../helpers/matrix';
 import { expectRoomCompact, toggleRoomView } from '../helpers/roomViewSwitch';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
+import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
 /**
  * A room with 245 threads, each with a few replies whose agent answers streamed in as edits, and
@@ -622,13 +623,7 @@ const openIn = async (
 };
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    // Classic scrollbars, as desktop readers without overlay scrollbars have them.
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const withContext = async (

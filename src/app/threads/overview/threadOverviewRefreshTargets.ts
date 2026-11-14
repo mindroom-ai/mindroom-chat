@@ -1,14 +1,9 @@
 import type { Room } from 'matrix-js-sdk';
 import { isVisibleThreadRootEvent, type TimelineEventEntry } from '../../event-store/timeline/roomTimelineEvents';
 
-export type TimelineRangeLike = {
+type TimelineRangeLike = {
   start: number;
   end: number;
-};
-
-export type ThreadOverviewRefreshTargets = {
-  visibleThreadSummaryRefreshIds: string[];
-  overviewResumeRefreshIds: string[];
 };
 
 export const resolveThreadOverviewRefreshTargets = ({
@@ -33,15 +28,12 @@ export const resolveThreadOverviewRefreshTargets = ({
   threadId: string | undefined;
   threadReplyCountMap: Map<string, number>;
   threadResolutionMap: Map<string, { isResolved: boolean }>;
-}): ThreadOverviewRefreshTargets => {
+}): string[] => {
   if (threadId) {
-    return {
-      visibleThreadSummaryRefreshIds: [],
-      overviewResumeRefreshIds: [],
-    };
+    return [];
   }
 
-  const visibleThreadSummaryRefreshIds = threadFilteredEventEntries
+  const visibleThreadRootIds = threadFilteredEventEntries
     .slice(activeTimelineRange.start, activeTimelineRange.end)
     .map((entry) => entry.event)
     .filter((event) =>
@@ -50,18 +42,12 @@ export const resolveThreadOverviewRefreshTargets = ({
     .map((event) => event.getId())
     .filter((eventId): eventId is string => !!eventId);
 
-  const overviewResumeRefreshIdSet = new Set<string>();
-  visibleThreadSummaryRefreshIds.forEach((threadRootId) => {
-    overviewResumeRefreshIdSet.add(threadRootId);
-  });
+  const overviewResumeRefreshIdSet = new Set(visibleThreadRootIds);
   (showCompactRoomView ? compactFilteredThreadRootIds : filteredThreadRootIds)
     .slice(0, limit)
     .forEach((threadRootId) => {
       overviewResumeRefreshIdSet.add(threadRootId);
     });
 
-  return {
-    visibleThreadSummaryRefreshIds,
-    overviewResumeRefreshIds: [...overviewResumeRefreshIdSet].slice(0, limit),
-  };
+  return [...overviewResumeRefreshIdSet].slice(0, limit);
 };

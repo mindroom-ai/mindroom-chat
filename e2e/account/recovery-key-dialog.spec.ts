@@ -8,7 +8,7 @@ import {
   accountSessionShot,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
-import { onWebKitPage } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // The setup asks for a recovery password and keeps the recovery key behind a toggle. Neither
 // Escape nor a click outside closes the dialog while the setup runs or until the password is
@@ -18,7 +18,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // the disposable homeserver.
 const PASSWORD = 'recovery-key-dialog-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const RECOVERY_PASSWORD = 'e2e recovery password 1';
 const KEY_PATTERN = /^E\w{3}( \w{4}){11}$/;
 
@@ -108,7 +107,7 @@ test('the setup dialog stays until Done (Chromium)', async ({ page, browserName 
 });
 
 test('the setup dialog stays until Done (WebKit phone)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
   // Requests a service worker makes are not routed, so the page goes without one.
   const phone = {

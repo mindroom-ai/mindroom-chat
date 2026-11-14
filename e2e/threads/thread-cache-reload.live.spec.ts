@@ -13,6 +13,11 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // A reader of a busy room reloads. The room has 340 threads; the newest 40 are agent replies that
 // the room's thread list was read for while they were placeholders, so the page saved their roots
@@ -27,7 +32,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 //   the cache answers for the 30, the thread list for the 10.
 // Against the disposable homeserver of a slot, desktop 1280 by 800, Chromium and (with
 // PLAYWRIGHT_WEBKIT_EXECUTABLE) WebKit. Set THREAD_CACHE_SHOTS=<directory> to save screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'thread-cache-reload-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.THREAD_CACHE_SHOTS;
@@ -61,17 +65,6 @@ type World = {
   agents: MatrixSession[];
   roomId: string;
   busyRootId: string;
-};
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
 };
 
 const registerAndLogin = async (name: string): Promise<Account> => {
@@ -507,16 +500,11 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
 };
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts; classic scrollbars stay shown.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('a reload of a busy room restores finished threads without asking for each (Chromium)', async ({

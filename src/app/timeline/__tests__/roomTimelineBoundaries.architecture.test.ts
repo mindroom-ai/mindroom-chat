@@ -7,7 +7,6 @@ const FORBIDDEN_LOW_LEVEL_DEPENDENCIES = [
   'event-store/cache/db/index.ts',
   'event-store/cache/eventRepository.ts',
   'routes/roomDeepLink.ts',
-  'timeline/roomPreloadTarget.ts',
   'event-store/cache/threadCacheCoverage.ts',
   'event-store/threads/threadFilterDsl.ts',
   'threads/open/threadOpenSdkBootstrap.ts',

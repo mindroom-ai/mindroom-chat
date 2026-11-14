@@ -1,48 +1,22 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
-import {
-  joinRoom,
-  loginToMatrix,
-  matrixFetch,
-  sendRoomMessage,
-  type MatrixSession,
-} from '../helpers/matrix';
+import { joinRoom, matrixFetch, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+} from '../helpers/disposableAccounts';
 
 // Activity's Mark all read against the disposable homeserver of `just hs-up` (or a slot of
 // scripts/e2e-slot.sh): another account's thread replies mention the reader, and Mark all read
 // clears them in Activity, on the server and in the sidebar. Each run registers its own two
 // accounts.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'activity-mark-read-spec-password';
 const RUN = Date.now().toString(36);
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `amr_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`amr_${name}_${RUN}`, PASSWORD);
 
 const mentionInThread = (rootId: string, userId: string, text: string) => ({
   msgtype: 'm.text',
@@ -78,7 +52,7 @@ const openPath = (page: Page, path: string) =>
   }, path);
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('Mark all read in Activity clears the threads it lists, on the server too', async ({

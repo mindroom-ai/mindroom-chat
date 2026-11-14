@@ -1,5 +1,5 @@
 // `@mindroom/client-sdk/server`, the client SDK's subpath for plugins whose MindRoom plugin serves
-// routes (docs/architecture.md "Client plugins"): the room's MindRoom server, which takes the
+// routes (docs/client-plugins.md "server"): the room's MindRoom server, which takes the
 // plugin's requests and opens its websockets as the signed-in user, and the computers of the room's
 // agents. Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION in
 // scripts/client-plugins.mjs.

@@ -1,16 +1,20 @@
 import { useCallback } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
-import { type RoomSettingsPage, type RoomSettingsState, roomSettingsAtom } from './roomSettingsState';
+import {
+  type RoomSettingsPage,
+  type RoomSettingsState,
+  roomSettingsAtom,
+} from './roomSettingsState';
 
 export const useRoomSettingsState = (): RoomSettingsState | undefined =>
   useAtomValue(roomSettingsAtom);
 
-/** Opens the room settings dialog for a room, optionally on a given page. */
+/** Opens the settings dialog of a room or space, optionally on a given page. */
 export const useOpenRoomSettings = () => {
   const setState = useSetAtom(roomSettingsAtom);
   return useCallback(
-    (roomId: string, spaceId?: string, page?: RoomSettingsPage) =>
-      setState({ roomId, spaceId, page }),
+    (roomId: string, page?: RoomSettingsPage) =>
+      setState((open) => ({ roomId, page, request: (open?.request ?? 0) + 1 })),
     [setState]
   );
 };

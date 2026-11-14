@@ -13,7 +13,6 @@ import { createRoom } from '../helpers/createRoom';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   registerAgentAccount,
   seedRoomOverviewState,
@@ -21,6 +20,11 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+} from '../helpers/disposableAccounts';
 
 // An agent streams its reply as one message that `m.replace` edits keep growing; the edit whose
 // `io.mindroom.stream_status` is terminal finishes it. The server counts the finished reply as a
@@ -37,7 +41,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // - read half-way, then finished while the reader is on the thread list: the card is unread
 //   until the reader opens the thread again.
 // Set STREAM_RECEIPT_SHOTS=<directory> to save the thread after each finished reply.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'stream-finish-receipt-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.STREAM_RECEIPT_SHOTS;
@@ -65,34 +68,7 @@ const STREAM_STEPS = [
 const finished = (label: string) =>
   `Ready for ${label}: I added the export fix and the keyboard shortcuts to the release notes and moved the migration note to the top, since every operator must act on it before the upgrade.`;
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 type Account = MatrixSession & { username: string };
-
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `sfr_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
 
 const inThread = (rootId: string) => ({
   'm.relates_to': {
@@ -113,7 +89,7 @@ type World = {
 };
 
 const seed = async (engine: string): Promise<World> => {
-  const reader = await registerAndLogin(engine);
+  const reader = await registerDisposableUser(`sfr_${engine}_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `release_${engine}`);
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(agent.userId)}/displayname`, {
     method: 'PUT',
@@ -517,7 +493,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('a streamed reply the reader watches finish gets a receipt (Chromium)', async ({

@@ -1,15 +1,19 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { loginToMatrix } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // A message the homeserver refuses stays in the room as Not sent; the Compact view opens its
 // thread right away, under the message's local ID. That thread has no approvals to load: the
 // client must not ask the server for relations of the local ID, and must not say "Some approval
 // history could not be loaded." under it. Runs in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE
 // names Playwright's WebKit, in WebKit, against the homeserver of `just hs-up` or of an e2e slot.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'approval-history-unsent-spec-password';
 const RUN = Date.now().toString(36);
 const VIEWPORT = { width: 1280, height: 800 };
@@ -23,43 +27,11 @@ const shot = async (page: Page, name: string) => {
 
 test.use({
   viewport: VIEWPORT,
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
-const register = async (name: string) => {
-  const username = `ahu_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
-
 const unsentThreadHasNoApprovalError = async (page: Page, name: string) => {
-  const person = await register(name);
+  const person = await registerDisposableUser(`ahu_${name}_${RUN}`, PASSWORD);
   const roomId = await createRoom(HOMESERVER, person.accessToken, {
     name: `Crane desk ${name} ${RUN}`,
   });
@@ -105,7 +77,7 @@ const unsentThreadHasNoApprovalError = async (page: Page, name: string) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 const TITLE = 'the thread of a message the server refused shows no approval history error';

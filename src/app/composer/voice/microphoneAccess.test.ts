@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getMicrophoneAccessErrorMessage, requestMicrophoneAccess } from './microphoneAccess';
+import { describe, expect, it, vi } from 'vitest';
+import { getMicrophoneAccessErrorMessage } from './microphoneAccess';
 
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
@@ -9,51 +9,14 @@ vi.mock('@capacitor/core', () => ({
   },
 }));
 
-describe('requestMicrophoneAccess', () => {
-  const getUserMedia = vi.fn();
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
-    vi.mocked(Capacitor.getPlatform).mockReturnValue('web');
-    Object.defineProperty(navigator, 'mediaDevices', {
-      configurable: true,
-      value: { getUserMedia },
-    });
-  });
-
-  it('opens and immediately stops a short-lived audio stream', async () => {
-    const stop = vi.fn();
-    getUserMedia.mockResolvedValueOnce({ getTracks: () => [{ stop }] });
-
-    await requestMicrophoneAccess();
-
-    expect(getUserMedia).toHaveBeenCalledWith({ audio: true });
-    expect(stop).toHaveBeenCalledOnce();
-  });
-
-  it('fails clearly when media capture is unsupported', async () => {
-    Object.defineProperty(navigator, 'mediaDevices', {
-      configurable: true,
-      value: undefined,
-    });
-
-    await expect(requestMicrophoneAccess()).rejects.toThrow(
-      'Microphone access is not supported on this device.'
-    );
-    expect(getUserMedia).not.toHaveBeenCalled();
-  });
-
-  it('gives iOS users actionable recovery instructions when access is denied', async () => {
+describe('getMicrophoneAccessErrorMessage', () => {
+  it('gives iOS users actionable recovery instructions when access is denied', () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
     vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
-    const denial = new DOMException('denied', 'NotAllowedError');
-    getUserMedia.mockRejectedValueOnce(denial);
 
-    await expect(requestMicrophoneAccess()).rejects.toMatchObject({
-      message: expect.stringContaining('Allow microphone access for MindRoom in iPhone settings'),
-      cause: denial,
-    });
+    expect(
+      getMicrophoneAccessErrorMessage(new DOMException('denied', 'NotAllowedError'))
+    ).toContain('Allow microphone access for MindRoom in iPhone settings');
   });
 
   it('maps standard media errors from another realm without relying on DOMException', () => {

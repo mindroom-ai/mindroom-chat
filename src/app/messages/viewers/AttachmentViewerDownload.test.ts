@@ -68,7 +68,6 @@ vi.mock('./ImageViewer.css', () => ({
 vi.mock('./PdfViewer.css', () => ({
   PdfViewer: 'PdfViewer',
   PdfViewerContent: 'PdfViewerContent',
-  PdfViewerFooter: 'PdfViewerFooter',
   PdfViewerHeader: 'PdfViewerHeader',
 }));
 
@@ -81,7 +80,6 @@ vi.mock('../../ui/page/PageScroll', async () => {
 });
 
 vi.mock('../MessageControls.css', () => ({
-  MenuItemText: 'MenuItemText',
   ReplyDetailsScroll: 'ReplyDetailsScroll',
 }));
 

@@ -11,7 +11,6 @@ import { createRoom } from '../helpers/createRoom';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   registerAgentAccount,
   seedRoomOverviewState,
@@ -19,6 +18,11 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+} from '../helpers/disposableAccounts';
 
 // Every event from the network is untrusted input. A member of a room sends events whose content
 // has the wrong shape (an edit whose `m.new_content` is not an object, a relation whose event ID
@@ -30,7 +34,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // homeserver of a slot (scripts/e2e-slot.sh), on a phone (390 by 844, touch) and a desktop (1280
 // by 800), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
 // Set HOSTILE_EVENTS_SHOTS=<directory> to save each view.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'hostile-events-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.HOSTILE_EVENTS_SHOTS;
@@ -69,34 +72,10 @@ const TOOL_TRACE = {
   events: [{ type: 'tool_call_completed', tool_name: 'read_sensor', args_preview: 'north gate' }],
 };
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 type Account = MatrixSession & { username: string };
 
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `hostile_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<Account> =>
+  registerDisposableUser(`hostile_${name}_${RUN}`, PASSWORD);
 
 const setDisplayName = (session: MatrixSession, name: string) =>
   matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(session.userId)}/displayname`, {
@@ -409,7 +388,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('events of any shape from a member render safely (Chromium)', async ({ browser, baseURL }) => {

@@ -18,6 +18,10 @@ import {
 } from '../helpers/matrix';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A space's lobby on a phone (390 by 844, touch): a tap anywhere on a room's card opens the room,
 // with no separate Open Room button; a room the person is not in keeps its Join button, which a
@@ -25,7 +29,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // person came from, while rooms opened from the list, the command palette or a link still go back
 // to the list. Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit;
 // English and Arabic. Set LOBBY_PHONE_SHOTS=<directory> for screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'lobby-phone-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SHOTS = process.env.LOBBY_PHONE_SHOTS;
@@ -39,17 +42,6 @@ const PHONE: BrowserContextOptions = {
   isMobile: true,
 };
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (name: string) => {
   const username = `lbp_${name}_${RUN}`;
@@ -276,7 +268,10 @@ const inWebKit = async (check: (browser: Browser, engine: string) => Promise<voi
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(180_000);
 });
 

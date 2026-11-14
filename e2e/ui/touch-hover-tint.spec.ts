@@ -10,15 +10,15 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import {
-  joinRoom,
-  loginToMatrix,
-  registerAgentAccount,
-  sendRoomMessage,
-  type MatrixSession,
-} from '../helpers/matrix';
+import { joinRoom, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
 import { setRoomCompact } from '../helpers/roomViewSwitch';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // P2-macos-safari-F010: a touch screen keeps :hover on the element tapped last, so a sidebar room
 // row or a Compact thread card that took a tap (or the start of a scroll) kept its hover tint
@@ -28,7 +28,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // card's "..." button that opened and closed its menu with two taps keeps its neighbours' fill
 // too, and so does its card.
 // Set HOVER_TINT_SHOTS=<directory> to save the row and the card under the pointer.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'touch-hover-tint-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.HOVER_TINT_SHOTS;
@@ -46,44 +45,12 @@ const QUESTIONS = [
 ];
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `tht_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
 
 /** 25 rooms, and a room where a helper answered four threads. */
 const seed = async (name: string) => {
-  const reader = await registerAndLogin(name);
+  const reader = await registerDisposableUser(`tht_${name}_${RUN}`, PASSWORD);
   const helper = await registerAgentAccount(HOMESERVER, `tint_${name}`);
   await Promise.all(
     Array.from({ length: 25 }, (_, index) =>
@@ -235,7 +202,7 @@ const check = async (
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 for (const device of ['phone', 'tablet', 'desktop']) {

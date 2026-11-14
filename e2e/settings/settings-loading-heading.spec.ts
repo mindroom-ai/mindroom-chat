@@ -1,37 +1,25 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // Privacy & security while its session list loads: the list is a card with a spinner, right after
 // the section in front of it. That section is no heading and keeps its own type and edges; the
 // headings keep the 15 px semibold section heading style before and after the list arrives.
 // Checked in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
 // Set SETTINGS_HEADING_SHOTS=<directory> to also save the loading page and a room's General page.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'settings-loading-heading-spec-password';
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.SETTINGS_HEADING_SHOTS;
 const DESKTOP = { width: 1280, height: 800 };
 
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 type Look = { text: string; fontSize: string; fontWeight: string; paddingInlineStart: string };
 
@@ -142,13 +130,13 @@ const exercise = async (page: Page) => {
 };
 
 test('a section in front of a loading card keeps its own style', async ({ page }) => {
-  test.skip(!(await homeserverIsUp()), `homeserver ${HOMESERVER} is not running`);
+  test.skip(!(await disposableHomeserverIsUp()), `homeserver ${HOMESERVER} is not running`);
   await exercise(page);
 });
 
 test('a section in front of a loading card keeps its own style (WebKit)', async () => {
-  test.skip(!(await homeserverIsUp()), `homeserver ${HOMESERVER} is not running`);
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!(await disposableHomeserverIsUp()), `homeserver ${HOMESERVER} is not running`);
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   const browser = await launchWebKit();
   try {
     const page = await browser.newPage({ baseURL: test.info().project.use.baseURL });
@@ -159,7 +147,7 @@ test('a section in front of a loading card keeps its own style (WebKit)', async 
 });
 
 test("a room's General page keeps its addresses section on the page's edges", async ({ page }) => {
-  test.skip(!(await homeserverIsUp()), `homeserver ${HOMESERVER} is not running`);
+  test.skip(!(await disposableHomeserverIsUp()), `homeserver ${HOMESERVER} is not running`);
   // The addresses section stands right before the offline card, a card with no heading of its own.
   const roomId = await signIn(page, 'Project room 1');
   await page.goto(`/home/${encodeURIComponent(roomId)}`);

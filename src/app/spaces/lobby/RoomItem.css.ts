@@ -40,8 +40,8 @@ globalStyle(`${RoomItemCard}:has(${CardOpener}:focus-visible)`, {
   outlineOffset: 2,
 });
 
-// The name wraps rather than truncating: on a phone the open button leaves it little room, and
-// rooms named alike ("Engineering room 1", "Engineering room 2") differ only at their end.
+// The name wraps rather than truncating: on a phone a join button beside it leaves it little room,
+// and rooms named alike ("Engineering room 1", "Engineering room 2") differ only at their end.
 export const RoomName = style({
   minWidth: 0,
   overflowWrap: 'anywhere',
@@ -53,6 +53,7 @@ export const RoomProfileTopic = style({
   minWidth: 0,
 });
 
-export const ErrorNameContainer = style({
+// The row that holds the name, or for a joined room on a phone the button around it.
+export const RoomNameRow = style({
   minWidth: 0,
 });

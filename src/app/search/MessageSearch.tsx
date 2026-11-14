@@ -39,11 +39,7 @@ import { getDirectPartnerId, getDirectRoomAvatarUrl, getRoomAvatarUrl } from '..
 import { flattenMessageSearchRows, MESSAGE_SEARCH_FALLBACK_ROW_LIMIT } from './messageSearchRows';
 import { shouldFetchNextMessageSearchPage } from './messageSearchPagination';
 import { getMessageSearchRenderState } from './messageSearchRenderState';
-import {
-  areMessageSearchRoomsEqual,
-  normalizeMessageSearchRooms,
-  shouldDeferImplicitMessageSearch,
-} from './messageSearchScope';
+import { areMessageSearchRoomsEqual, normalizeMessageSearchRooms } from './messageSearchScope';
 import { SearchResultItem } from './SearchResultItem';
 import { SearchRoomPicker } from './MessageSearchFilters';
 import { useMessageSearch } from './useMessageSearch';
@@ -53,8 +49,6 @@ import * as css from './MessageSearch.css';
 export type MessageSearchProps = {
   /** The rooms searched when the address names none: the rooms of Home or of a space. */
   defaultRooms: string[];
-  /** False while `defaultRooms` is still being worked out, which would narrow the search. */
-  defaultRoomsReady?: boolean;
   /** The default scope's name, such as "Home" or the space's name. */
   scopeName: string;
   /** Whether the search can reach every room the user is in. */
@@ -111,7 +105,6 @@ function ResultRoomAvatar({ room }: { room: Room }) {
  */
 export function MessageSearch({
   defaultRooms,
-  defaultRoomsReady = true,
   scopeName,
   allowGlobal = true,
   scrollRef,
@@ -136,13 +129,7 @@ export function MessageSearch({
   let rooms: string[] | undefined = explicitRooms ?? stableRooms;
   if (global) rooms = undefined;
 
-  const deferred = shouldDeferImplicitMessageSearch({
-    hasTerm: term.length > 0,
-    global,
-    hasExplicitRooms: !!explicitRooms,
-    implicitRoomsReady: defaultRoomsReady,
-  });
-  const search = useMessageSearch({ term: deferred ? undefined : term, rooms, order });
+  const search = useMessageSearch({ term, rooms, order });
   const pages = search.data?.pages;
   // Every loaded page contributes its room groups and the terms the server matched.
   const { groups, rows, highlights, highlightRegex, shownCount, hiddenCount } = useMemo(() => {

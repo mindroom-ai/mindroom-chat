@@ -10,14 +10,19 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import {
   createDefaultThreadFilterState,
-  loginToMatrix,
   matrixFetch,
   seedRoomOverviewState,
   sendRoomMessage,
   type MatrixSession,
+  joinRoom,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { leaveCompactView } from '../helpers/roomViewSwitch';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+} from '../helpers/disposableAccounts';
 
 // Links in messages against the slot's homeserver, in Chromium (desktop) and WebKit (phone):
 // - Site icons. By default no link sends anything to a third party. A deployment that sets
@@ -27,7 +32,6 @@ import { leaveCompactView } from '../helpers/roomViewSwitch';
 //   names its real address on hover (title), and a link whose text reads as an address on another
 //   host asks before it opens.
 // Set LINK_PRIVACY_SHOTS=<directory> to save the confirmation on each engine.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'link-privacy-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.LINK_PRIVACY_SHOTS;
@@ -41,32 +45,8 @@ const PHONE: BrowserContextOptions = {
   isMobile: true,
 };
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
-const register = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `lp_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`lp_${name}_${RUN}`, PASSWORD);
 
 const createRoom = async (
   owner: MatrixSession,
@@ -183,11 +163,7 @@ const checkIcons = async (
     encrypted: false,
     invite: reader.userId,
   });
-  await matrixFetch(HOMESERVER, `/join/${encodeURIComponent(plainRoom)}`, {
-    method: 'POST',
-    accessToken: reader.accessToken,
-    body: '{}',
-  });
+  await joinRoom(HOMESERVER, reader.accessToken, plainRoom);
   await sendLink(writer, plainRoom, 'Plain', '<a href="https://example.org/plain">plain-link</a>');
   const secretRoom = await createRoom(reader, 'Harbor Survey', { encrypted: true });
 
@@ -270,11 +246,7 @@ const checkDestinations = async (
     encrypted: false,
     invite: reader.userId,
   });
-  await matrixFetch(HOMESERVER, `/join/${encodeURIComponent(roomId)}`, {
-    method: 'POST',
-    accessToken: reader.accessToken,
-    body: '{}',
-  });
+  await joinRoom(HOMESERVER, reader.accessToken, roomId);
   await sendLink(
     writer,
     roomId,
@@ -414,7 +386,10 @@ const checkDestinations = async (
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(240_000);
 });
 

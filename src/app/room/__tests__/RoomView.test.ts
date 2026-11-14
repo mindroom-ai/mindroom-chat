@@ -214,6 +214,7 @@ vi.mock('../../matrix/hooks/usePowerLevels', () => {
 
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
+    getRooms: () => [],
     getHomeserverUrl: () => 'https://mindroom.chat',
     getSafeUserId: () => '@alice:example.org',
     getRoom: () => null,
@@ -615,7 +616,10 @@ describe('RoomView', { timeout: 30_000 }, () => {
       renderer = create(React.createElement(RoomView, { room: room as never }));
     });
 
-    // Toggle resolved: any -> include
+    // Compact hides resolved threads until the reader chooses: exclude -> any -> include
+    await act(async () => {
+      getTimeline(renderer!).props.onToggle('resolved');
+    });
     await act(async () => {
       getTimeline(renderer!).props.onToggle('resolved');
     });
@@ -787,43 +791,44 @@ describe('RoomView', { timeout: 30_000 }, () => {
       renderer = create(React.createElement(RoomView, { room: roomA as never }));
     });
 
+    // Compact hides resolved threads until the reader chooses: exclude -> any.
     await act(async () => {
       getTimeline(renderer!).props.onToggle('resolved');
     });
 
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
+    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('any');
 
     // Switch rooms; room B starts with its own default state.
     await act(async () => {
       renderer?.update(React.createElement(RoomView, { room: roomB as never }));
     });
 
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('any');
-
-    // Give room B a different persisted value.
-    await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
-    });
-
-    await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
-    });
-
     expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('exclude');
+
+    // Give room B a different persisted value: exclude -> any -> include.
+    await act(async () => {
+      getTimeline(renderer!).props.onToggle('resolved');
+    });
+
+    await act(async () => {
+      getTimeline(renderer!).props.onToggle('resolved');
+    });
+
+    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
 
     // Switch back; room A should keep its own persisted value.
     await act(async () => {
       renderer?.update(React.createElement(RoomView, { room: roomA as never }));
     });
 
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
+    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('any');
 
     // Room B should also keep its own persisted value when revisited.
     await act(async () => {
       renderer?.update(React.createElement(RoomView, { room: roomB as never }));
     });
 
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('exclude');
+    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
   });
 
   it('persists the freeze state across thread enter/exit in the same room', async () => {
@@ -865,6 +870,10 @@ describe('RoomView', { timeout: 30_000 }, () => {
       );
     });
 
+    // Compact hides resolved threads until the reader chooses: exclude -> any -> include
+    await act(async () => {
+      getTimeline(renderer!).props.onToggle('resolved');
+    });
     await act(async () => {
       getTimeline(renderer!).props.onToggle('resolved');
       getTimeline(renderer!).props.onToggleThreadSortFreeze();
@@ -902,6 +911,10 @@ describe('RoomView', { timeout: 30_000 }, () => {
       );
     });
 
+    // Compact hides resolved threads until the reader chooses: exclude -> any -> include
+    await act(async () => {
+      getTimeline(renderer!).props.onToggle('resolved');
+    });
     await act(async () => {
       getTimeline(renderer!).props.onToggle('resolved');
     });
@@ -2075,8 +2088,18 @@ describe('RoomView', { timeout: 30_000 }, () => {
 
   it('does not open successful sends as new threads in classic mode', async () => {
     const { useRoomViewThreadState } = await import('../useRoomViewThreadState');
+    const { getRoomViewModeStorageKey } = await import('../../navigation/roomViewMode');
+    const { createSessionId } = await import('../../matrix/session/sessions');
     const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
     const room = makeRoom(nextRoomId('room-a'));
+    // The reader chose Classic for the room.
+    localStorage.setItem(
+      getRoomViewModeStorageKey(
+        createSessionId('https://mindroom.chat', '@alice:example.org'),
+        room.roomId
+      ),
+      JSON.stringify('classic')
+    );
     let threadState: import('../useRoomViewThreadState').RoomViewThreadState | undefined;
 
     await act(async () => {
@@ -2090,9 +2113,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       );
     });
 
-    await act(async () => {
-      threadState?.handleViewModeChange('classic');
-    });
+    expect(threadState?.viewMode).toBe('classic');
     await act(async () => {
       threadState?.handleRoomMessageSent('$sent');
     });

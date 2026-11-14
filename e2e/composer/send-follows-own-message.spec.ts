@@ -4,15 +4,20 @@ import { createRoom } from '../helpers/createRoom';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   registerAgentAccount,
   seedRoomOverviewState,
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { expectRoomCompact, toggleRoomView } from '../helpers/roomViewSwitch';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // A reader who scrolled away from the newest messages and sends one sees it land: the view
 // follows to it, and once the server has it, the room is read up to it, the messages that came
@@ -24,10 +29,8 @@ import { expectRoomCompact, toggleRoomView } from '../helpers/roomViewSwitch';
 // expects.) Among 25 rooms, with classic scrollbars, on a desktop (1280 by 800) and a phone (390 by 844,
 // touch), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in
 // WebKit. Set SEND_FOLLOWS_SHOTS to a directory to save each landing.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'send-follows-own-message-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.SEND_FOLLOWS_SHOTS;
 
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
@@ -65,40 +68,11 @@ const OTHER_ROOMS = [
 ];
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `sfo_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`sfo_${name}_${RUN}`, PASSWORD);
 
 const note = (index: number) =>
   `Backlog item ${index}: the import job retried twice overnight, the dashboard shows the gap, and the owner will look at it after standup.`;
@@ -309,7 +283,7 @@ const checkSends = async (page: Page, seeded: Seeded, label: string, phone: bool
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 for (const [form, options] of [
@@ -330,7 +304,7 @@ for (const [form, options] of [
     test(`a message sent while scrolled away lands in view and reads the room (WebKit, ${form})`, async ({
       baseURL,
     }) => {
-      test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+      test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
       test.setTimeout(300_000);
       const seeded = await seed(`w${form[0]}`);
       // The runner adds the file's launch options, whose Chromium flag WebKit refuses.

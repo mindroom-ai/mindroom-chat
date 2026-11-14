@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { DISPOSABLE_HOMESERVER, disposableHomeserverIsUp } from './helpers/disposableAccounts';
 
 /**
  * Playwright global setup: gives the specs the environment variables they read.
@@ -13,7 +14,6 @@ import { spawnSync } from 'node:child_process';
  * | `E2E_THIRD_USERNAME`, `E2E_THIRD_PASSWORD` | Third account (three-account spec) |
  * | `E2E_DEACTIVATE_USERNAME`, `E2E_DEACTIVATE_PASSWORD` | Account that the deactivation spec destroys |
  * | `E2E_AGENT_USERNAME`, `E2E_AGENT_PASSWORD`, `E2E_AGENT_USER_ID` | An agent account (a `mindroom_` user) |
- * | `E2E_UI_ACTIONS_HOMESERVER` | Disposable homeserver with open registration; those specs register their own users |
  * | `E2E_FIXTURE_ROOM_ALIAS`, `E2E_FIXTURE_ROOM_ID` | Fixture room made by `e2e/fixtures/live/seed-fixture-room.mjs` |
  * | `E2E_ROOM_ID`, `E2E_EXPECT_RAW_MATRIX_ID` | Room and display-name checks in single `*.live.spec.ts` specs; locally a room shared with the agent account |
  * | `E2E_DEPLOYED_BASE_URL`, `E2E_DEPLOYED_HOMESERVER`, `E2E_DEPLOYED_USERNAME`, `E2E_DEPLOYED_PASSWORD` | Specs against a deployed client |
@@ -31,24 +31,12 @@ import { spawnSync } from 'node:child_process';
  * Variables that are already set win.
  */
 
-export const LOCAL_HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const LOCAL_SERVER_NAME = 'matrix.localhost';
 const LOCAL_PASSWORD = 'e2e-local-password';
 const FIXTURE_ROOM_ALIAS = `#mindroom-e2e-fixture:${LOCAL_SERVER_NAME}`;
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${LOCAL_HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 const register = async (username: string): Promise<void> => {
-  const response = await fetch(`${LOCAL_HOMESERVER}/_matrix/client/v3/register`, {
+  const response = await fetch(`${DISPOSABLE_HOMESERVER}/_matrix/client/v3/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -88,7 +76,7 @@ const AGENT_ROOM_ALIAS_NAME = 'mindroom-e2e-agent-room';
  * controls (the thread filter bar's status toggles). Specs that take `E2E_ROOM_ID` open it.
  */
 const seedAgentRoom = async (username: string, agentUserId: string): Promise<void> => {
-  const api = `${LOCAL_HOMESERVER}/_matrix/client/v3`;
+  const api = `${DISPOSABLE_HOMESERVER}/_matrix/client/v3`;
   const json = { 'Content-Type': 'application/json' };
   const login = await fetch(`${api}/login`, {
     method: 'POST',
@@ -186,10 +174,10 @@ const seedAppStoreRoom = async (): Promise<void> => {
 const globalSetup = async (): Promise<void> => {
   // Credentials from the caller mean a homeserver of the caller's choosing.
   if (process.env.E2E_USERNAME) return;
-  if ((process.env.E2E_HOMESERVER ?? LOCAL_HOMESERVER) !== LOCAL_HOMESERVER) return;
-  if (!(await homeserverIsUp())) {
+  if ((process.env.E2E_HOMESERVER ?? DISPOSABLE_HOMESERVER) !== DISPOSABLE_HOMESERVER) return;
+  if (!(await disposableHomeserverIsUp())) {
     console.warn(
-      `No homeserver at ${LOCAL_HOMESERVER}; run \`just hs-up\` for the specs that need one.`
+      `No homeserver at ${DISPOSABLE_HOMESERVER}; run \`just hs-up\` for the specs that need one.`
     );
     return;
   }
@@ -205,8 +193,7 @@ const globalSetup = async (): Promise<void> => {
   };
   await Promise.all(Object.values(accounts).map(register));
 
-  process.env.E2E_HOMESERVER = LOCAL_HOMESERVER;
-  process.env.E2E_UI_ACTIONS_HOMESERVER ??= LOCAL_HOMESERVER;
+  process.env.E2E_HOMESERVER = DISPOSABLE_HOMESERVER;
   process.env.E2E_USERNAME = accounts.primary;
   process.env.E2E_PASSWORD = LOCAL_PASSWORD;
   process.env.E2E_SECOND_USERNAME ??= accounts.second;

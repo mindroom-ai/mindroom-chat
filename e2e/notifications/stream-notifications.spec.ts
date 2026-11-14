@@ -9,13 +9,17 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   registerAgentAccount,
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+} from '../helpers/disposableAccounts';
 
 // A MindRoom agent streams a reply as one message: a placeholder sent as an `m.text` marked
 // `io.mindroom.stream_status: pending`, `m.replace` edits marked `streaming`, and a last edit
@@ -25,7 +29,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // checked. Against the disposable homeserver of a slot (scripts/e2e-slot.sh), on a desktop
 // (1280 by 800), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in
 // WebKit. Set STREAM_NOTIFICATION_SHOTS=<directory> to save the screen once the replies finished.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'stream-notifications-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.STREAM_NOTIFICATION_SHOTS;
@@ -44,35 +47,8 @@ type ShownNotification = { title: string; body?: string; tag?: string };
 type Account = MatrixSession & { username: string };
 type World = { reader: Account; agent: MatrixSession; roomId: string; quietId: string };
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `sn_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
-
 const seed = async (engine: string): Promise<World> => {
-  const reader = await registerAndLogin(engine);
+  const reader = await registerDisposableUser(`sn_${engine}_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `notes_${engine}`);
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(agent.userId)}/displayname`, {
     method: 'PUT',
@@ -271,7 +247,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('a streamed agent reply notifies once, with its finished text (Chromium)', async ({

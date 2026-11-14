@@ -208,22 +208,6 @@ const flushEffects = async () => {
   await Promise.resolve();
 };
 
-const toBootstrapSession = (session: {
-  sessionId: string;
-  baseUrl: string;
-  userId: string;
-  deviceId: string;
-  accessToken: string;
-  refreshToken?: string;
-}) => ({
-  sessionId: session.sessionId,
-  accessToken: session.accessToken,
-  baseUrl: session.baseUrl,
-  deviceId: session.deviceId, // restoring a login needs the device it was issued to
-  userId: session.userId,
-  refreshToken: session.refreshToken,
-});
-
 const renderClientRoot = (children: React.ReactNode = React.createElement('div', null, 'child')) =>
   React.createElement(
     MemoryRouter,
@@ -284,7 +268,7 @@ describe('ClientRoot', () => {
       await flushEffects();
     });
 
-    expect(vi.mocked(initClient)).toHaveBeenCalledWith(toBootstrapSession(currentSession));
+    expect(vi.mocked(initClient)).toHaveBeenCalledWith(currentSession);
     expect(vi.mocked(startClient)).toHaveBeenCalledTimes(1);
 
     currentSession = {
@@ -301,7 +285,7 @@ describe('ClientRoot', () => {
       await flushEffects();
     });
 
-    expect(vi.mocked(initClient)).toHaveBeenLastCalledWith(toBootstrapSession(currentSession));
+    expect(vi.mocked(initClient)).toHaveBeenLastCalledWith(currentSession);
     expect(vi.mocked(startClient)).toHaveBeenCalledTimes(2);
     expect(clientA.stopClient).toHaveBeenCalledTimes(1);
     expect(clientB.stopClient).not.toHaveBeenCalled();
@@ -560,7 +544,7 @@ describe('ClientRoot', () => {
     });
 
     expect(vi.mocked(initClient)).toHaveBeenCalledTimes(2);
-    expect(vi.mocked(initClient)).toHaveBeenLastCalledWith(toBootstrapSession(currentSession));
+    expect(vi.mocked(initClient)).toHaveBeenLastCalledWith(currentSession);
   });
 
   it('uses the session-aware cleanup helper when the server logs the client out', async () => {
@@ -847,36 +831,6 @@ describe('ClientRoot', () => {
 
     expect(hasRenderedText(renderer, 'child')).toBe(false);
     expect(hasRenderedText(renderer, 'Catching up...')).toBe(false);
-
-    await act(async () => {
-      client.emitSync();
-      await flushEffects();
-    });
-
-    expect(hasRenderedText(renderer, 'child')).toBe(true);
-    expect(hasRenderedText(renderer, 'sync')).toBe(true);
-  });
-
-  it('keeps cached UI rendered after startClient resolves once the client has synced', async () => {
-    const client = createMockClient();
-
-    currentSession = {
-      sessionId: 'session-a',
-      baseUrl: 'https://example.com',
-      userId: '@alice:example.com',
-      deviceId: 'DEVICE_A',
-      accessToken: 'token-a',
-      lastUsedAt: 1,
-    };
-
-    vi.mocked(useActiveSession).mockImplementation(() => currentSession);
-    vi.mocked(initClient).mockResolvedValue(client as never);
-    vi.mocked(startClient).mockResolvedValue(undefined);
-
-    await act(async () => {
-      renderer = create(renderClientRoot());
-      await flushEffects();
-    });
 
     await act(async () => {
       client.emitSync();

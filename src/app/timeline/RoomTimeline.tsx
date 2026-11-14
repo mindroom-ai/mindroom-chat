@@ -10,7 +10,6 @@ import {
   type MouseEvent,
   type MutableRefObject,
   type ReactNode,
-  type RefObject,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
@@ -126,7 +125,7 @@ import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from '../event-store/cache/prelo
 import type { ThreadSummaryWriter } from '../event-store/threads/threadSummaryState';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { useThreadOpeningReveal } from './useThreadOpeningReveal';
-import { useViewScopedFlag } from './roomTimelineViewScope';
+import { useViewScopedFlag, useViewScopedState } from './roomTimelineViewScope';
 import {
   heldListHeight,
   isNearLatestEnd,
@@ -203,9 +202,6 @@ export type RoomTimelineProps = {
   onApplyPreset?: (preset: FilterPreset) => void;
   onSearchQueryChange?: (query: string) => void;
   viewMode: RoomViewMode;
-  /** Accepted from the room view; the switch itself lives in the room header. */
-  onViewModeChange?: (viewMode: RoomViewMode) => void;
-  roomInputRef?: RefObject<HTMLElement>;
   compactRoomScrollStateRef?: MutableRefObject<ScrollAnchorMemory>;
   /** Where the room's rows were when a thread opened over them (`useThreadReturnPlace`). */
   threadReturnPlaceRef?: MutableRefObject<RoomRowsPlace | undefined>;
@@ -298,7 +294,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // cards keep the bar (search and sort) in every room.
   const plainConversation = viewMode === 'threaded' && !hasMindroomAgents;
   const {
-    effectiveViewMode,
     focusedRoomOverviewRequested,
     requestedThreadFilterState,
     showRoomThreadOverviewControls,
@@ -310,7 +305,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     viewMode,
   });
   const [filterBarHeight, setFilterBarHeight] = useState<number | null>(null);
-  const showThreadRepliesInRoom = effectiveViewMode === 'classic';
+  const showThreadRepliesInRoom = viewMode === 'classic';
   const viewKey = `${room.roomId}|${threadId ?? ''}`;
 
   // References the controllers share.
@@ -379,7 +374,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
     const { room: filterRoom, ...filters } = filterOptsRef.current;
     return countsRoomRows(getInitialTimeline(filterRoom, windowLimitRef.current, filters));
   }, [filterOptsRef, windowLimitRef]);
-  const [timeline, setTimeline] = useState<Timeline>(buildInitialTimeline);
+  // The room's own rows: the render that shows another room starts from that room's timeline, so
+  // no render pairs the room on screen with the rows of the room left (whose effects would page
+  // one room's history into the other's timeline), and an update for the room left is dropped.
+  const [timeline, setTimeline] = useViewScopedState<Timeline>(room.roomId, buildInitialTimeline);
   const [roomHasMoreCachedBack, setRoomHasMoreCachedBack] = useState(false);
   const [roomInitialCacheHydratedKey, setRoomInitialCacheHydratedKey] = useState<string>();
   const [atBottom, setAtBottom] = useState(true);
@@ -395,7 +393,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
   );
   // The room's rows come from its timeline once more, so a deleted thread's root leaves the
   // overview, a frozen sort order included.
-  const rederiveRoomRows = useCallback(() => setTimeline((current) => ({ ...current })), []);
+  const rederiveRoomRows = useCallback(
+    () => setTimeline((current) => ({ ...current })),
+    [setTimeline]
+  );
   useRoomThreadDeleted(room, threadId, rederiveRoomRows);
 
   // Thread rows.
@@ -435,7 +436,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     eventId,
     focusedRoomOverviewRequested,
     compactViewRequested,
-    effectiveViewMode,
+    effectiveViewMode: viewMode,
     linkedTimelines: timeline.linkedTimelines,
     renderableEventEntries,
     ignoredUsersSet,
@@ -489,7 +490,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
 
   const windowState = useRoomTimelineWindowController({
     canPaginateThreadBack: threadState.canPaginateThreadBack,
-    effectiveViewMode,
     filteredRoomThreadActive: threadIndex.roomThreadFilterActive,
     filteredRoomOverviewOrderActive: threadIndex.roomOverviewOrderActive,
     lastThreadBackwardPaginationToken: threadState.threadBackwardPaginationToken,
@@ -563,7 +563,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
         threadStateRef.current.setSupplementalThreadEvents(targetThreadId, events),
       invalidateTimeline: () => setTimeline((current) => ({ ...current })),
     }),
-    [threadStateRef]
+    [setTimeline, threadStateRef]
   );
   const viewportPort = useMemo<ThreadOpenViewportPort>(
     () => ({
@@ -672,9 +672,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
     messageLayout,
     messageSpacing,
     hideActivity,
-    hideMembershipEvents,
-    hideNickAvatarEvents,
-    showHiddenEvents,
   });
 
   // Rows the thread's plans hide: repeated summaries and settled approvals.
@@ -976,7 +973,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const { handleOpenEvent, openRoomEventRoute } = useRoomEventOpenController({
     alive,
     cancelThreadBottomSettle,
-    effectiveViewMode,
+    effectiveViewMode: viewMode,
     focusEventInRoom,
     hideMembershipEvents,
     hideNickAvatarEvents,
@@ -1015,7 +1012,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadSummaryInfoMap: threadIndex.threadSummaryInfoMap,
   });
   useRoomEventRouteOpenController({
-    effectiveViewMode,
+    effectiveViewMode: viewMode,
     eventId,
     focusEventInRoom,
     openRoomEventRoute,
@@ -1200,7 +1197,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   );
   const handleRoomRefresh = useCallback(
     () => setTimeline(buildInitialTimeline()),
-    [buildInitialTimeline]
+    [buildInitialTimeline, setTimeline]
   );
   useThreadAwareTimelineRefresh({
     room,
@@ -1218,7 +1215,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
     getLoadedEvents: getLoadedThreadEvents,
     debugTraceId: threadDebugTraceId,
   });
-  const forceTimelineUpdate = useCallback(() => setTimeline((current) => ({ ...current })), []);
+  const forceTimelineUpdate = useCallback(
+    () => setTimeline((current) => ({ ...current })),
+    [setTimeline]
+  );
   useThreadEditBackfillController({
     atLiveEndRef,
     eventId,
@@ -1445,7 +1445,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     roomId: room.roomId,
     scrollElement,
     scrollToBottomRef,
-    committedView: `${viewKey}|${effectiveViewMode}`,
+    committedView: `${viewKey}|${viewMode}`,
     focusItem,
     onReaderGesture: gesturePins.onRoomGesture,
     pendingListShrinkPx,

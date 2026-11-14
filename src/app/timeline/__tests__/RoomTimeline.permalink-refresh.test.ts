@@ -615,26 +615,6 @@ describe('RoomTimeline', () => {
         }
       });
 
-      it('cancels a pending room focus retry when the focused event changes', async () => {
-        const { isContinuingRoomFocusRetry } = await import('../../event-store/timeline/timelineScrollUtils');
-
-        expect(
-          isContinuingRoomFocusRetry('$first', {
-            eventId: '$first',
-            attempts: 1,
-          })
-        ).toBe(true);
-        expect(
-          isContinuingRoomFocusRetry('$second', {
-            eventId: '$first',
-            attempts: 1,
-          })
-        ).toBe(false);
-        expect(isContinuingRoomFocusRetry(undefined, { eventId: '$first', attempts: 1 })).toBe(
-          false
-        );
-      });
-
       it('does not focus room events hidden by the active filter', async () => {
         const { getRoomEventFocusTarget } = await import('../../threads/threadRoomFocus');
         const unresolvedThread = makeEvent('$thread-unresolved', { isThreadRoot: true });
@@ -896,22 +876,6 @@ describe('RoomTimeline', () => {
             await flushAsyncWork(1);
           });
         }
-      });
-
-      it('isAnchorVisibleInScroll returns true when anchor is within scroll bounds plus margin', async () => {
-        const { isAnchorVisibleInScroll } = await import('../../event-store/timeline/timelineScrollUtils');
-
-        const anchor = { getBoundingClientRect: () => ({ top: 500 }) } as Element;
-        const scroll = { getBoundingClientRect: () => ({ bottom: 450 }) } as Element;
-        expect(isAnchorVisibleInScroll(anchor, scroll, 100)).toBe(true);
-      });
-
-      it('isAnchorVisibleInScroll returns false when anchor is below scroll bounds plus margin', async () => {
-        const { isAnchorVisibleInScroll } = await import('../../event-store/timeline/timelineScrollUtils');
-
-        const anchor = { getBoundingClientRect: () => ({ top: 600 }) } as Element;
-        const scroll = { getBoundingClientRect: () => ({ bottom: 450 }) } as Element;
-        expect(isAnchorVisibleInScroll(anchor, scroll, 100)).toBe(false);
       });
     });
   });

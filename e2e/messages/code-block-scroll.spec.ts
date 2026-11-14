@@ -9,6 +9,10 @@ import {
   sendRoomMessage,
 } from '../helpers/matrix';
 import { roomViewSwitch } from '../helpers/roomViewSwitch';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A long code block starts collapsed to its first lines. It scrolls inside itself with the wheel,
 // sideways when its lines do not wrap, and with the arrow keys once focused; the timeline around
@@ -16,7 +20,6 @@ import { roomViewSwitch } from '../helpers/roomViewSwitch';
 // block in place. An agent sends the block the way the MindRoom backend renders a fence.
 // Set E2E_SCREENSHOT_DIR to save the collapsed block at its top and scrolled.
 
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'code-block-scroll-password';
 const SCREENSHOT = process.env.E2E_SCREENSHOT_DIR;
 
@@ -37,17 +40,6 @@ const codeMessage = {
   formatted_body: `<p>Here is the module:</p>\n<pre><code class="language-ts">${escapeHtml(
     code
   )}\n</code></pre>\n`,
-};
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
 };
 
 /** Signs in through the login page; a loaded machine can take a minute to show the shell. */
@@ -172,7 +164,10 @@ test('a long code block scrolls inside itself in the room timeline and in a thre
   context,
 }) => {
   test.setTimeout(300_000);
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 
   const username = `codescroll_${Date.now().toString(36)}`;

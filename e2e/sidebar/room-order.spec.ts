@@ -1,46 +1,26 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
-import { addRoomToSpace, loginToMatrix, matrixFetch, type MatrixSession } from '../helpers/matrix';
+import { addRoomToSpace, matrixFetch, type MatrixSession } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+} from '../helpers/disposableAccounts';
 
 // Rooms move up and down in their section by drag and drop or from the keyboard, against the
 // disposable homeserver of `just hs-up` (or a slot of scripts/e2e-slot.sh). The order is saved in
 // the `io.mindroom.room_order` account data, so it holds after a reload and shows on a second
 // session. Set ROOM_ORDER_SHOTS=<directory> to also save the L19 screenshots during and after a
 // drag.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'room-order-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.ROOM_ORDER_SHOTS;
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 type Account = MatrixSession & { username: string };
 
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `l19_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<Account> =>
+  registerDisposableUser(`l19_${name}_${RUN}`, PASSWORD);
 
 const signIn = (page: Page, account: Account) =>
   loginWithPassword(page, {
@@ -104,7 +84,7 @@ const shot = async (page: Page, nav: string, name: string) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('a room dragged above another keeps its place after a reload and on a second session', async ({

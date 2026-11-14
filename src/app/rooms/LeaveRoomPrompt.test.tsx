@@ -8,9 +8,13 @@ import { createStore, Provider } from 'jotai';
 import { LeaveRoomPrompt } from './LeaveRoomPrompt';
 import { activeCallAtom, type ActiveCall } from '../calls/callStore';
 
+const SPACE = '!s:test';
 const leave = vi.fn();
 const forget = vi.fn();
-vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => ({ leave, forget }) }));
+const getRoom = (roomId: string) => ({ roomId, isSpaceRoom: () => roomId === SPACE });
+vi.mock('../matrix/hooks/useMatrixClient', () => ({
+  useMatrixClient: () => ({ leave, forget, getRoom }),
+}));
 // jsdom has no layout, so focus-trap finds nothing tabbable; the trap itself is not under test.
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
@@ -34,13 +38,13 @@ describe('LeaveRoomPrompt', () => {
     forget.mockReset();
   });
 
-  const show = (store = createStore()) => {
+  const show = (store = createStore(), roomId = '!r:test') => {
     const onLeft = vi.fn();
     const requestClose = vi.fn();
     act(() =>
       root.render(
         <Provider store={store}>
-          <LeaveRoomPrompt roomId="!r:test" onLeft={onLeft} requestClose={requestClose} />
+          <LeaveRoomPrompt roomId={roomId} onLeft={onLeft} requestClose={requestClose} />
         </Provider>
       )
     );
@@ -119,9 +123,7 @@ describe('LeaveRoomPrompt', () => {
     expect(alert?.firstChild?.textContent).toBe(
       "Failed to leave room! You don't have permission to do this."
     );
-    expect(alert?.querySelector('bdi')?.textContent).toBe(
-      'M_FORBIDDEN: You are not in this room.'
-    );
+    expect(alert?.querySelector('bdi')?.textContent).toBe('M_FORBIDDEN: You are not in this room.');
     expect(leaveButton.disabled).toBe(false);
   });
 
@@ -141,5 +143,32 @@ describe('LeaveRoomPrompt', () => {
     act(() => document.querySelector<HTMLButtonElement>('button[aria-label="Close"]')?.click());
     expect(requestClose).toHaveBeenCalledOnce();
     expect(leave).not.toHaveBeenCalled();
+  });
+
+  it("asks in a space's words, offers no forgetting, and leaves", async () => {
+    leave.mockResolvedValue({});
+    const { onLeft, leaveButton } = show(undefined, SPACE);
+    const dialog = document.querySelector('[role="alertdialog"]');
+    expect(dialog?.textContent).toContain('Leave Space');
+    expect(dialog?.textContent).toContain('Are you sure you want to leave this space?');
+    expect(document.querySelector('[aria-label="Forget this room"]')).toBeNull();
+
+    await act(async () => leaveButton.click());
+
+    expect(leave).toHaveBeenCalledWith(SPACE);
+    expect(forget).not.toHaveBeenCalled();
+    expect(onLeft).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the prompt open with the space's failure line", async () => {
+    leave.mockRejectedValue(new Error('nope'));
+    const { onLeft, leaveButton } = show(undefined, SPACE);
+
+    await act(async () => leaveButton.click());
+
+    expect(onLeft).not.toHaveBeenCalled();
+    const alert = document.querySelector('[role="alert"]');
+    expect(alert?.firstChild?.textContent?.trim()).toBe('Failed to leave space!');
+    expect(leaveButton.disabled).toBe(false);
   });
 });

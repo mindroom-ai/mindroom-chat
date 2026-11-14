@@ -12,13 +12,18 @@ import { createRoom } from '../helpers/createRoom';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   registerAgentAccount,
   seedRoomOverviewState,
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // In the Compact view a new message opens its own thread at once, under the local ID of a message
 // the server has not confirmed yet. That ID names nothing on the server, so the page must not ask
@@ -29,7 +34,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // touch) and a desktop (1280 by 800), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
 // Playwright's WebKit, in WebKit. Set PENDING_ROOT_APPROVAL_SHOTS=<directory> for screenshots of
 // the thread while its message waits and after it is confirmed.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'pending-root-approvals-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.PENDING_ROOT_APPROVAL_SHOTS;
@@ -48,39 +52,12 @@ const PHONE: BrowserContextOptions = {
 };
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 type Account = MatrixSession & { username: string };
-
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `pra_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
 
 type World = { reader: Account; roomId: string };
 
 const seed = async (engine: string): Promise<World> => {
-  const reader = await registerAndLogin(engine);
+  const reader = await registerDisposableUser(`pra_${engine}_${RUN}`, PASSWORD);
   const helper = await registerAgentAccount(HOMESERVER, `release_${engine}`);
   const roomId = await createRoom(HOMESERVER, reader.accessToken, {
     name: ROOM_NAME,
@@ -276,15 +253,11 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test('a thread whose message waits for the server asks nothing about its local ID (Chromium)', async ({

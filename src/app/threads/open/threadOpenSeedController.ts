@@ -31,9 +31,6 @@ export type ThreadOpenSeedSession = {
     source?: ThreadOpenSeedSource
   ) => boolean;
   cleanup: () => void;
-  initialRoomThreadEvents: MatrixEvent[];
-  initialRoomThreadSeedEvents: MatrixEvent[];
-  initialThreadMemorySeedEvents: MatrixEvent[];
   startUntargetedSeedPrewarmWait: (isCurrentThreadOpen: () => boolean) => void;
 };
 
@@ -193,9 +190,6 @@ export const createThreadOpenSeedSession = ({
         untargetedThreadSeedFallbackTimeout = undefined;
       }
     },
-    initialRoomThreadEvents,
-    initialRoomThreadSeedEvents,
-    initialThreadMemorySeedEvents,
     startUntargetedSeedPrewarmWait,
   };
 };

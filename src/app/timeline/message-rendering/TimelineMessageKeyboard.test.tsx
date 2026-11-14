@@ -62,9 +62,6 @@ const mountKeyboard = async (
       messageLayout: MessageLayout.Compact,
       messageSpacing: '400' as MessageSpacing,
       hideActivity: false,
-      hideMembershipEvents: false,
-      hideNickAvatarEvents: false,
-      showHiddenEvents: false,
     });
     return null;
   };

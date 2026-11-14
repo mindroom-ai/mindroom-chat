@@ -2285,7 +2285,6 @@
         "noMicrophone": "No se encontró ningún micrófono en este dispositivo.",
         "microphoneUnavailable": "El micrófono no está disponible ahora mismo; puede que lo esté usando otra aplicación.",
         "microphoneFailed": "No se pudo acceder al micrófono.",
-        "microphoneUnsupported": "Este dispositivo no admite el acceso al micrófono.",
         "recordingStopped": "La grabación de voz se detuvo de forma inesperada. Vuelve a grabarla.",
         "noAudio": "No se capturaron datos de audio.",
         "recordingUnsupported": "Este navegador no admite la grabación de voz.",
@@ -2832,9 +2831,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "Marcar como leído"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "Marcar como leído"
       },

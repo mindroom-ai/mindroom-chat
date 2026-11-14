@@ -48,12 +48,3 @@ export const getToolTraceV2Events = (
   const toolTrace = asToolTrace(trace);
   return toolTrace?.version === 2 ? getToolTraceEvents(toolTrace) : undefined;
 };
-
-export const getToolTraceEventByIndex = (
-  content: Record<string, unknown>,
-  oneBasedIndex: number
-): ToolTraceEvent | undefined => {
-  if (!Number.isInteger(oneBasedIndex) || oneBasedIndex < 1) return undefined;
-  const events = getContentToolTraceEvents(content);
-  return events?.[oneBasedIndex - 1];
-};

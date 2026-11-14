@@ -8,8 +8,13 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
-import { loginToMatrix, matrixFetch, type MatrixSession } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
+  registerDisposableUser,
+} from '../helpers/disposableAccounts';
+import { matrixFetch, type MatrixSession } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A paste too large for a message becomes a "Pasted text" chip that sends as a file. The draft is
@@ -19,7 +24,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit, on a desktop and a phone,
 // against the disposable homeserver of `just hs-up` or of a slot of scripts/e2e-slot.sh. Set
 // BIG_PASTE_SHOTS=<directory> to save screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'big-paste-reload-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.BIG_PASTE_SHOTS;
@@ -31,36 +35,9 @@ const LOST_NOTICE = 'Pasted text was not kept with this draft. Paste it again be
 
 test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
-
-const register = async (name: string) => {
-  const username = `bpr_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
 
 /** A build log of 2,500 lines, about 150,000 characters. */
 const buildLog = (): string =>
@@ -86,7 +63,7 @@ const latestEvents = async (session: MatrixSession, roomId: string): Promise<Roo
 };
 
 const openRoom = async (page: Page, tag: string) => {
-  const writer = await register(tag);
+  const writer = await registerDisposableUser(`bpr_${tag}_${RUN}`, PASSWORD);
   await Promise.all(
     Array.from({ length: FILLER_ROOMS }, (_, index) =>
       createRoom(HOMESERVER, writer.accessToken, { name: `Project room ${index + 1} ${RUN}` })

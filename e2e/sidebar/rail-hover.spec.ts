@@ -2,6 +2,11 @@ import { generateKeyPairSync, sign, type KeyObject } from 'node:crypto';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateSpace, matrixFetch, setAccountData } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // Hovering any rail entry slides its button 2 px toward the inline end and grows the indicator
 // on the rail's outer edge to 18 px; a selected entry reacts the same way: it slides too and
@@ -10,7 +15,6 @@ import { createPrivateSpace, matrixFetch, setAccountData } from '../helpers/matr
 // Keyboard focus looks like hover, pressing keeps the slide and shrinks the button a little, and
 // reduced motion keeps the indicator only. Set RAIL_HOVER_SHOTS=<directory> to also save the
 // screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'rail-hover-spec-password';
 const SHOTS = process.env.RAIL_HOVER_SHOTS;
 
@@ -20,17 +24,6 @@ const PRESS_SCALE = 0.95;
 const HOVER_HEIGHT = 18;
 const SELECTED_HEIGHT = 24;
 const SELECTED_HOVER_HEIGHT = 32;
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 type Account = { username: string; userId: string; accessToken: string };
 
@@ -329,18 +322,16 @@ const expectHover = (name: string, measured: Awaited<ReturnType<typeof hoverAndM
 };
 
 // Headless Chromium hides scrollbars (`--hide-scrollbars`); desktop browsers with classic
-// scrollbars show them, and a scrollbar takes width from the rail. The other launch options
-// repeat playwright.config.ts.
+// scrollbars show them, and a scrollbar takes width from the rail.
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 test('every rail entry slides toward the inline end and grows its indicator on hover', async ({

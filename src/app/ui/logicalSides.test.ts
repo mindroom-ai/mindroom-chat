@@ -2,8 +2,8 @@ import { fileURLToPath } from 'node:url';
 import { ESLint } from 'eslint';
 import { describe, expect, it } from 'vitest';
 
-// The ESLint rule of .eslintrc.cjs that keeps physical sides (left, right) out of Lane C styles,
-// so the interface mirrors in right-to-left languages. Made-up paths get the rule by pattern.
+// The ESLint rule of .eslintrc.cjs that keeps physical sides (left, right) out of the styles of
+// src, so the interface mirrors in right-to-left languages. Made-up paths get the rule by pattern.
 const eslint = new ESLint({ cwd: fileURLToPath(new URL('../../../', import.meta.url)) });
 const STYLE_FILE = 'src/app/ui/Example.css.ts';
 const COMPONENT = 'src/app/ui/Example.tsx';
@@ -17,7 +17,7 @@ const physicalSides = async (source: string, filePath: string) => {
 const styleFile = (body: string) =>
   `import { globalStyle, style } from '@vanilla-extract/css';\n\nconst a = '1px';\nconst b = '2px';\nconst c = '3px';\nconst d = '4px';\nconst withMargin = (inset: string) => \`calc(\${inset} + 4px)\`;\n${body}\n`;
 
-describe('logical sides in Lane C styles', () => {
+describe('logical sides in styles', () => {
   it.each([
     'export const x = style({ marginLeft: a });',
     'export const x = style({ paddingRight: a });',
@@ -119,14 +119,22 @@ describe('logical sides in Lane C styles', () => {
     expect(await physicalSides(source, COMPONENT)).toEqual([]);
   });
 
-  it.each([
-    // Lane P keeps its ported styles.
-    'src/app/ui/glass/Surface.css.ts',
-    'src/app/ui/Example.test.ts',
-    'src/app/ui/__tests__/Example.css.ts',
-  ])('leaves ported styles and tests alone: %s', async (filePath) => {
+  it('holds ported styles to the rule too', async () => {
+    // A Lane P file (docs/provenance/portable.tsv).
     expect(
-      await physicalSides(styleFile('export const x = style({ left: 0 });'), filePath)
-    ).toEqual([]);
+      await physicalSides(
+        styleFile('export const x = style({ left: 0 });'),
+        'src/app/ui/glass/Surface.css.ts'
+      )
+    ).toEqual([expect.objectContaining({ ruleId: 'no-restricted-syntax', severity: 2 })]);
   });
+
+  it.each(['src/app/ui/Example.test.ts', 'src/app/ui/__tests__/Example.css.ts'])(
+    'leaves tests alone: %s',
+    async (filePath) => {
+      expect(
+        await physicalSides(styleFile('export const x = style({ left: 0 });'), filePath)
+      ).toEqual([]);
+    }
+  );
 });

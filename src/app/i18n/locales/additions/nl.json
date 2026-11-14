@@ -796,7 +796,8 @@
     "back": "Terug",
     "resize": "Breedte van de thread wijzigen",
     "showFull": "Thread volledig tonen",
-    "showBeside": "Thread naast de berichten tonen"
+    "showBeside": "Thread naast de berichten tonen",
+    "notFound": "Thread niet gevonden"
   },
   "activity": {
     "title": "Activiteit",

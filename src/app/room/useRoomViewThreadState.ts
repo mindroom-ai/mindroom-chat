@@ -32,6 +32,7 @@ import { getCanonicalAliasOrRoomId } from '../matrix/matrix';
 import {
   addTagFilter,
   applyPreset,
+  createDefaultThreadFilterState,
   cycleSortMode,
   type FilterPreset,
   normalizeThreadSearchText,
@@ -55,9 +56,12 @@ import { useRoomThreadSummaryState } from '../event-store/threads/useRoomThreadS
 import { toggleThreadPerson } from '../event-store/threads/threadPeopleFilter';
 import { useThreadRootEvent } from '../threads/useThreadRootEvent';
 import {
+  findThreadRoom,
   isConfirmedMatrixEventId,
   isLocalEchoEventId,
 } from '../event-store/threads/threadRouteUtils';
+import { loadLatestCachedThreadEvents } from '../event-store/cache/eventRepository';
+import { useViewScopedState } from '../timeline/roomTimelineViewScope';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
 
 type UseRoomViewThreadStateOptions = {
@@ -75,6 +79,8 @@ export type RoomViewThreadState = {
   handleClearTags: () => void;
   handleExitThread: () => void;
   handleThreadRootDeleted: () => void;
+  /** The open thread failed to load in this room (`ThreadView`'s `onThreadLoadError`). */
+  handleThreadLoadError: (threadId: string) => void;
   handleRemoveTag: (tag: string) => void;
   handleReset: () => void;
   handleSearchQueryChange: (query: string) => void;
@@ -84,13 +90,14 @@ export type RoomViewThreadState = {
   handleToggleUnresolvedOnly: () => void;
   handleTogglePerson: (userId: string) => void;
   handleRoomMessageSent: (eventId: string) => boolean;
-  handleViewModeChange: (mode: RoomViewMode) => void;
   setThreadSortFreezeState: Dispatch<SetStateAction<ThreadSortFreezeState | null>>;
   storeThreadSummary: ReturnType<typeof useRoomThreadSummaryState>['storeThreadSummary'];
   summaryMap: Map<string, ThreadSummaryInfo>;
   threadFilterState: ThreadFilterState;
   threadSortFreezeState: ThreadSortFreezeState | null;
   threadSummaryInfo?: ThreadSummaryInfo;
+  /** The open thread is not in this room, and no joined room the client knows holds it. */
+  threadNotFound: boolean;
   viewMode: RoomViewMode;
 };
 
@@ -105,15 +112,29 @@ export const useRoomViewThreadState = ({
   const mx = useMatrixClient();
   const userId = mx.getSafeUserId();
   const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), userId), [mx, userId]);
-  const { navigatePath, navigateRoom, navigateRoomFocusEvent, navigateRoomThread } =
-    useRoomNavigate();
+  const {
+    navigatePath,
+    navigateRoom,
+    navigateRoomFocusEvent,
+    navigateRoomThread,
+    navigateRoomThreadDirect,
+  } = useRoomNavigate();
 
-  const { setViewMode, viewMode: effectiveViewMode } = useRoomViewMode(roomId, hasMindroomAgents);
+  const { viewMode: effectiveViewMode } = useRoomViewMode(roomId, hasMindroomAgents);
   const threadFilterAtom = useMemo(
     () => roomThreadFilterAtomFamily(userId, roomId),
     [roomId, userId]
   );
-  const [threadFilterState, setThreadFilterState] = useAtom(threadFilterAtom);
+  const [storedThreadFilterState, setThreadFilterState] = useAtom(threadFilterAtom);
+  // Until the reader sets a filter in the room, Compact hides resolved threads.
+  const threadFilterState = useMemo<ThreadFilterState>(
+    () =>
+      storedThreadFilterState ?? {
+        ...createDefaultThreadFilterState(),
+        resolved: effectiveViewMode === 'compact' ? 'exclude' : 'any',
+      },
+    [effectiveViewMode, storedThreadFilterState]
+  );
   // Project stored filters onto the controls that are currently visible.
   // Persisted advanced filters must not keep hiding threads with no visible
   // cause, but remain stored so they can be restored when those controls
@@ -214,6 +235,31 @@ export const useRoomViewThreadState = ({
   const handleThreadRootDeleted = useCallback(
     () => leaveThread(() => navigateRoom(roomId, undefined, { replace: true })),
     [leaveThread, navigateRoom, roomId]
+  );
+
+  // An event is its room's, so a thread whose event another joined room holds is that room's:
+  // a thread that does not load here opens there, in place of this address. A thread no joined
+  // room holds and of which this room's event cache holds nothing either shows as not found until
+  // it is left; one the cache holds rows of stays, as its rows still show.
+  const [missingThreadId, setMissingThreadId] = useViewScopedState<string | undefined>(
+    `${roomId}|${effectiveThreadId ?? ''}`,
+    () => undefined
+  );
+  const threadNotFound = !!effectiveThreadId && missingThreadId === effectiveThreadId;
+  const handleThreadLoadError = useCallback(
+    (failedThreadId: string) => {
+      const threadRoom = findThreadRoom(mx.getRooms(), failedThreadId);
+      if (threadRoom) {
+        navigateRoomThreadDirect(threadRoom.roomId, failedThreadId, eventId, { replace: true });
+        return;
+      }
+      loadLatestCachedThreadEvents(sessionId, roomId, failedThreadId, 1)
+        .then((page) => {
+          if (!page.rootEvent && page.events.length === 0) setMissingThreadId(failedThreadId);
+        })
+        .catch(() => setMissingThreadId(failedThreadId));
+    },
+    [eventId, mx, navigateRoomThreadDirect, roomId, sessionId, setMissingThreadId]
   );
 
   const handleSwipeForwardToThread = useCallback(() => {
@@ -382,11 +428,6 @@ export const useRoomViewThreadState = ({
     [flushPendingSearchQuery, setThreadFilterState]
   );
 
-  const handleViewModeChange = useCallback(
-    (mode: RoomViewMode) => setViewMode(mode),
-    [setViewMode]
-  );
-
   const handleRoomMessageSent = useCallback(
     (sentEventId: string): boolean => {
       if (effectiveViewMode !== 'compact' || threadId || effectiveThreadId) return false;
@@ -452,9 +493,12 @@ export const useRoomViewThreadState = ({
 
   useEffect(() => {
     if (effectiveViewMode === 'classic' || !isConfirmedMatrixEventId(effectiveThreadId)) return;
+    // An address that pairs the room with another room's thread leaves no entry.
+    const threadRoom = findThreadRoom(mx.getRooms(), effectiveThreadId);
+    if (threadRoom && threadRoom.roomId !== roomId) return;
 
     bumpRecentThread(roomId, effectiveThreadId, undefined, recentThreadSummaryText);
-  }, [effectiveThreadId, effectiveViewMode, recentThreadSummaryText, roomId]);
+  }, [effectiveThreadId, effectiveViewMode, mx, recentThreadSummaryText, roomId]);
 
   return {
     effectiveThreadId,
@@ -464,6 +508,7 @@ export const useRoomViewThreadState = ({
     handleClearTags,
     handleExitThread,
     handleThreadRootDeleted,
+    handleThreadLoadError,
     handleRemoveTag,
     handleReset,
     handleSearchQueryChange,
@@ -473,13 +518,13 @@ export const useRoomViewThreadState = ({
     handleToggleUnresolvedOnly,
     handleTogglePerson,
     handleRoomMessageSent,
-    handleViewModeChange,
     setThreadSortFreezeState,
     storeThreadSummary,
     summaryMap,
     threadFilterState: effectiveThreadFilterState,
     threadSortFreezeState: effectiveThreadSortFreezeState,
     threadSummaryInfo,
+    threadNotFound,
     viewMode: effectiveViewMode,
   };
 };

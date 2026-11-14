@@ -276,6 +276,18 @@ describe('calver.mjs in a repository', () => {
     expect(result.status).toBe(0);
   });
 
+  it('prints the newest release tag of the checkout, and no tag of another form', () => {
+    const { git, run } = setup(false);
+    git('tag', 'v2026.11.9');
+    git('tag', 'v2026.11.10');
+    git('tag', 'v2026.11.10-hotfix');
+    git('tag', 'vnext');
+
+    const result = run('latest');
+    expect(result.stdout).toBe('v2026.11.10\n');
+    expect(result.status).toBe(0);
+  });
+
   it('does nothing but say so while automatic releases are off', () => {
     const { commit, run, ghCalls, githubOutput } = setup(false);
     const sha = commit('feat: a change');

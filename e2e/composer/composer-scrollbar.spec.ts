@@ -2,12 +2,12 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, loginToMatrix } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
 // The composer's text box with classic scrollbars, as Linux and Windows show them: no scrollbar
 // while the text fits, and a thin one without arrow buttons once it overflows, in dark and light,
 // in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const DESKTOP = { viewport: { width: 1280, height: 800 } };
 /** Rows at each end of the scrollbar's strip where an arrow button would draw. */
 const END_ROWS = 14;
@@ -16,12 +16,7 @@ const RIM_ROWS = 3;
 
 test.use({
   ...DESKTOP,
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 /** A new room without messages, so the composer floats over the plain room background. */
@@ -199,7 +194,7 @@ test('the composer shows no scrollbar while its text fits, and a thin one after 
 test('the composer shows no scrollbar while its text fits, and a thin one after (WebKit)', async ({
   baseURL,
 }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
   const { homeserver, credentials, roomId } = await seedRoom();
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
@@ -285,7 +280,7 @@ for (const form of ['desktop', 'phone'] as const) {
   test(`a long draft shows its scrollbar with no pointer over it (WebKit, ${form})`, async ({
     baseURL,
   }) => {
-    test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
     test.setTimeout(180_000);
     const { homeserver, credentials, roomId } = await seedRoom();
     const browser = await launchWebKit();

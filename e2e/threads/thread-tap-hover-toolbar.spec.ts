@@ -12,7 +12,7 @@ import {
   seedRoomOverviewState,
   sendRoomMessage,
 } from '../helpers/matrix';
-import { onWebKitPage } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A message's hover toolbar belongs to a pointer that hovers. On a touch screen a tap on a Compact
 // card opens the thread, whose root row then lies under the finger; WebKit hovers that row with
@@ -23,7 +23,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // TAP_TOOLBAR_SHOTS=<directory> to save the thread after each step.
 const PASSWORD = 'thread-tap-hover-toolbar-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.TAP_TOOLBAR_SHOTS;
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
 
@@ -112,7 +111,7 @@ test('a navigating tap leaves no message toolbar on a phone (Chromium)', async (
 });
 
 test('a navigating tap leaves no message toolbar on a phone (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
   await onWebKitPage({ ...PHONE, baseURL }, (page) => tapLeavesNoToolbar(page, 'webkit'));
 });

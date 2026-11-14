@@ -4,7 +4,6 @@ import { createRoom } from '../helpers/createRoom';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   registerAgentAccount,
   seedRoomOverviewState,
@@ -12,6 +11,11 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+} from '../helpers/disposableAccounts';
 
 // Replies that finished streaming while the reader was away, read half-way on another device. A
 // fresh client learns of a finished reply from the server with its newest edit bundled, and a
@@ -21,7 +25,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // Mark as Read for the room reads its newest event, each on the room's path and accepted. The
 // room's Mark as Read on a bundled edit, which needs that edit to be the room's newest event, has
 // a unit test (readReceipts.streamFinish.test.ts).
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'stream-finish-bundled-receipt-spec-password';
 const RUN = Date.now().toString(36);
 const ROOM_NAME = 'Ops Review';
@@ -29,34 +32,7 @@ const ROOM_NAME = 'Ops Review';
 const LATER_MESSAGES = 40;
 const FINISHED = 'The migration note is at the top and both missing entries are in the release notes.';
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 type Account = MatrixSession & { username: string };
-
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `sfb_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
 
 type Streamed = { rootId: string; finishId: string };
 
@@ -128,7 +104,7 @@ const describeReceipts = (receipts: SentReceipt[]) =>
   });
 
 const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {
-  const reader = await registerAndLogin(engine);
+  const reader = await registerDisposableUser(`sfb_${engine}_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `ops_${engine}`);
   const roomId = await createRoom(HOMESERVER, reader.accessToken, {
     name: ROOM_NAME,
@@ -197,7 +173,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('receipts on bundled finishing edits go to the room (Chromium)', async ({ browser, baseURL }) => {

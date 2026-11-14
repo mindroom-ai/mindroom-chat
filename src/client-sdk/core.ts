@@ -1,5 +1,5 @@
-// `@mindroom/client-sdk/core`, the client SDK's subpath for every plugin (docs/architecture.md
-// "Client plugins"): the plugin types, the hook that reads a plugin's config.json section, the one
+// `@mindroom/client-sdk/core`, the client SDK's subpath for every plugin (docs/client-plugins.md
+// "core"): the plugin types, the hook that reads a plugin's config.json section, the one
 // that keeps its values for the signed-in account, the one that translates its strings and its
 // counterpart for code outside React, the one that opens its side panels in the open room, the one
 // that gives a side panel its layout, the URL of its public/ files, a reload into a newly deployed

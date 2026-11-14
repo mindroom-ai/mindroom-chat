@@ -8,11 +8,15 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
+  registerDisposableUser,
+} from '../helpers/disposableAccounts';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   seedRoomOverviewState,
   sendRoomMessage,
@@ -30,7 +34,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // room the reader has not opened. Runs in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
 // Playwright's WebKit, in WebKit, against the disposable homeserver of `just hs-up` or of a slot
 // of scripts/e2e-slot.sh. Set SENDER_LAZY_SHOTS=<directory> to save screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'sender-lazy-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.SENDER_LAZY_SHOTS;
@@ -44,17 +47,6 @@ const COPY_BODY =
 
 test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 const setDisplayName = (session: MatrixSession, displayName: string) =>
   matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(session.userId)}/displayname`, {
     method: 'PUT',
@@ -64,20 +56,9 @@ const setDisplayName = (session: MatrixSession, displayName: string) =>
 
 const registerPerson = async (localpart: string, displayName: string) => {
   const username = `${localpart}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  const session = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const session = await registerDisposableUser(username, PASSWORD);
   await setDisplayName(session, displayName);
-  return { ...session, username };
+  return session;
 };
 
 const FILLER_TOPICS = [
@@ -130,7 +111,7 @@ let seeded: Awaited<ReturnType<typeof seed>> | undefined;
 
 test.beforeAll(async () => {
   test.setTimeout(180_000);
-  if (!(await homeserverIsUp())) return;
+  if (!(await disposableHomeserverIsUp())) return;
   seeded = await seed();
 });
 

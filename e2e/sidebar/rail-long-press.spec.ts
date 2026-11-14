@@ -6,20 +6,22 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { addRoomToSpace } from '../helpers/matrix';
 import {
-  HOMESERVER,
-  LAUNCH,
   PASSWORD,
   PHONE,
   RUN,
   SCHEMES,
   createOtherRooms,
-  homeserverIsUp,
   register,
   setLook,
   withRetry,
 } from '../helpers/designChoices';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { touch, type Step } from '../helpers/touch';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  CHROMIUM_WITH_SCROLLBARS,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // On a phone (390 by 844, touch) the space rail works as the sidebar's room rows do: a finger
 // resting on a space, or on Home or Direct Messages, opens that button's menu beside it (iOS
@@ -29,14 +31,13 @@ import { touch, type Step } from '../helpers/touch';
 // dark; Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. The
 // spec sends the touch events itself (`e2e/helpers/touch.ts`). Set RAIL_LONG_PRESS_SHOTS to save
 // the screenshots.
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.RAIL_LONG_PRESS_SHOTS;
 /** Longer than the 500 ms long press. */
 const HOLD_MS = 700;
 /** The entries of a space's menu for its creator, who may invite. */
 const ENTRIES = ['Mark as Read', 'Invite', 'Copy Link', 'Space Settings'];
 
-test.use({ launchOptions: LAUNCH });
+test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
 const seed = async (engine: string) => {
   const id = `${engine}_${RUN}_${randomUUID().slice(0, 6)}`;
@@ -278,7 +279,7 @@ const run = async (browser: Browser, engine: 'chromium' | 'webkit') => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('a long press opens a space menu in the rail on a phone (Chromium)', async ({ browser }) => {
@@ -287,7 +288,7 @@ test('a long press opens a space menu in the rail on a phone (Chromium)', async 
 });
 
 test('a long press opens a space menu in the rail on a phone (WebKit)', async ({ browser }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
   await run(browser, 'webkit');
 });

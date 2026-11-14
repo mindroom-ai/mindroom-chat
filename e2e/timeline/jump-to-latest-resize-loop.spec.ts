@@ -1,8 +1,14 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { joinRoom, loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
+import { joinRoom, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // Jump to Latest from the top of a room's history raises no "ResizeObserver loop completed with
 // undelivered notifications." page error. Rows that settle after they mount (link previews that
@@ -13,7 +19,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // had been reported, and WebKit reported the loop on every jump. Runs in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit on a desktop and a phone,
 // against the disposable homeserver of `just hs-up` or of a slot of scripts/e2e-slot.sh.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'resize-loop-spec-password';
 const RUN = Date.now().toString(36);
 const DESKTOP = { width: 1280, height: 800 };
@@ -21,24 +26,8 @@ const PHONE = { width: 390, height: 844 };
 const LOOP_ERROR = /ResizeObserver loop/;
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 type Account = MatrixSession & { username: string };
 
@@ -47,18 +36,7 @@ let accounts = 0;
 const register = async (name: string): Promise<Account> => {
   accounts += 1;
   const username = `rol_${name}_${RUN}_${accounts}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
+  return registerDisposableUser(username, PASSWORD);
 };
 
 const REPORT = 'The tide report lists water levels, wind and the berth plan for the day. ';
@@ -146,7 +124,7 @@ const jumpFromTheTop = async (page: Page, name: string) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 const TITLE = 'Jump to Latest from the top of the history raises no ResizeObserver loop error';

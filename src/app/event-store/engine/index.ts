@@ -7,21 +7,16 @@
 
 export { createSyncEngine } from './syncEngine';
 export type { CreateSyncEngineOptions } from './syncEngine';
-export {
-  SyncEngineProvider,
-  useSyncEngine,
-  useSyncEngineOptional,
-} from './engineContext';
+export { SyncEngineProvider, useSyncEngine } from './engineContext';
 export type { SyncEngineProviderProps } from './engineContext';
 export { createEngineWriteThrough } from './engineWriteThrough';
 export type { EngineWriteThrough, EngineWriteThroughOptions } from './engineWriteThrough';
-export { createEngineGapTracker, createInMemoryGapFillScheduler } from './engineGapTracker';
+export { createEngineGapTracker } from './engineGapTracker';
 export type {
   EngineGapTracker,
   EngineGapTrackerOptions,
   GapFillJob,
   GapFillReason,
-  GapFillScheduler,
 } from './engineGapTracker';
 export type {
   EngineLifecycle,
@@ -34,7 +29,6 @@ export type {
   EnginePersistFacade,
   PersistRoomEventCache,
   PersistThreadEventCache,
-  PersistThreadCacheFromRoomEvents,
 } from './enginePersistFacade';
 export {
   MAX_CONCURRENT_BACKFILL_JOBS,
@@ -53,16 +47,12 @@ export type {
 export {
   CURRENT_ROOM_DEEP_HISTORY_TARGET,
   DEFAULT_PREFETCH_SCOPE,
-  PREFETCH_SCOPE,
   ROOM_TAIL_PREFETCH_DEPTH,
-  isRoomEligibleForBackgroundPrefetch,
-  isRoomEligibleForRawFetch,
   resolvePrefetchConfig,
-  resolveRoomPrefetchTier,
   sanitizePrefetchDepth,
   sanitizePrefetchScope,
 } from './prefetchPolicy';
-export type { PrefetchConfig, PrefetchScope, RoomPrefetchTier } from './prefetchPolicy';
+export type { PrefetchConfig, PrefetchScope } from './prefetchPolicy';
 export { createGapFillExecutor } from './gapFillExecutor';
 export type { GapFillExecutor, GapFillExecutorOptions } from './gapFillExecutor';
 export { enqueueRoomDeepHistoryJob } from './deepHistoryJob';

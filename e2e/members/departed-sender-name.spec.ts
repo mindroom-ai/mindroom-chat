@@ -9,7 +9,7 @@ import {
 } from '../helpers/disposableAccounts';
 import { joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { setRoomCompact } from '../helpers/roomViewSwitch';
-import { onWebKitPage } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A member who was kicked, banned and unbanned (P2-lane5-F005): the kick, the ban and the leave
 // that lifts it carry no name, and the member is no longer in the room. Their earlier messages
@@ -19,7 +19,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // DEPARTED_NAME_SHOTS=<directory> saves the card and the thread.
 const PASSWORD = 'departed-sender-name-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.DEPARTED_NAME_SHOTS;
 const DEPARTED_NAME = 'Dana Member';
 
@@ -107,7 +106,7 @@ test('a kicked, banned and unbanned member keeps their name on earlier messages 
 test('a kicked, banned and unbanned member keeps their name on earlier messages (WebKit)', async ({
   baseURL,
 }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
   await onWebKitPage({ viewport: { width: 1280, height: 800 }, baseURL }, (page) =>
     departedKeepsName(page, 'webkit')

@@ -4,6 +4,9 @@ import type { ParseKeys } from 'i18next';
 // Each name reads in its own direction, whatever the sentence's.
 const NAME = <b dir="auto" />;
 const NAMES = { name: NAME, first: NAME, second: NAME, third: NAME, others: NAME };
+// Escaped, a name's `<` stays text instead of reading as a tag, such as one that adds attributes
+// to the bold name it fills.
+const ESCAPED = { interpolation: { escapeValue: true } };
 
 /**
  * A sentence that names up to three people in bold and counts the rest ("Avery, Blake and 2
@@ -23,5 +26,7 @@ export function NamesSentence<K extends ParseKeys>({
     names.length === 1
       ? { name: first }
       : { first, second, third, count: Math.max(0, names.length - 3) };
-  return <Trans i18nKey={key} values={values} components={NAMES} />;
+  return (
+    <Trans i18nKey={key} values={values} components={NAMES} tOptions={ESCAPED} shouldUnescape />
+  );
 }

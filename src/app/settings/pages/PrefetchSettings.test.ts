@@ -3,16 +3,14 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // ISSUE-207 P6.1 / D4: mocks folds, sequence-card, setting-tile, and
-// useSetting so we can assert the tile shape + input semantics without
+// useSetting so we can assert the tile shape and the scope menu without
 // booting the settings tree. The scope selector uses a folds PopOut +
 // FocusTrap; both are mocked so the selector click simply drives the
 // setter through the MenuItem children.
 
 const state = vi.hoisted(() => ({
-  prefetchScope: 'my-server' as 'my-server' | 'all-rooms' | 'current-room-only',
+  prefetchScope: 'current-room-only' as 'all-rooms' | 'current-room-only',
   setPrefetchScope: vi.fn(),
-  prefetchDepth: 10000,
-  setPrefetchDepth: vi.fn(),
 }));
 
 vi.mock('folds', async () => {
@@ -83,14 +81,7 @@ vi.mock('../../ui/SettingTile', () => ({
 }));
 
 vi.mock('../../preferences/useSetting', () => ({
-  useSetting: (_atom: unknown, key: 'prefetchScope' | 'prefetchDepth') => {
-    if (key === 'prefetchScope') return [state.prefetchScope, state.setPrefetchScope];
-    return [state.prefetchDepth, state.setPrefetchDepth];
-  },
-}));
-
-vi.mock('../../preferences/settings', () => ({
-  settingsAtom: {},
+  useSetting: () => [state.prefetchScope, state.setPrefetchScope],
 }));
 
 vi.mock('../../event-store/engine/prefetchSettings', () => ({
@@ -109,10 +100,8 @@ vi.mock('react-i18next', async () => {
 });
 
 afterEach(() => {
-  state.prefetchScope = 'my-server';
+  state.prefetchScope = 'current-room-only';
   state.setPrefetchScope.mockReset();
-  state.prefetchDepth = 10000;
-  state.setPrefetchDepth.mockReset();
 });
 
 describe('PrefetchSettings (ISSUE-207 P6.1 / D4)', () => {
@@ -126,12 +115,24 @@ describe('PrefetchSettings (ISSUE-207 P6.1 / D4)', () => {
       );
     });
 
-    // Two SequenceCards render as `<section className="settings-card">`.
-    const sections = renderer!.root.findAllByType('section');
-    expect(sections).toHaveLength(1);
-    expect(sections.every((el) => el.props.className === 'settings-card')).toBe(true);
+    // One SequenceCard renders as `<section className="settings-card">`.
+    expect(renderer!.root.findByType('section').props.className).toBe('settings-card');
     expect(renderer!.root.findByProps({ 'data-title': 'Prefetch scope' })).toBeDefined();
     expect(renderer!.root.findAllByType('input')).toHaveLength(0);
+  });
+
+  it('labels the trigger with the chosen scope and lists scopes narrowest first', async () => {
+    const { SelectPrefetchScope } = await import('./PrefetchSettings');
+    state.prefetchScope = 'all-rooms';
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(React.createElement(SelectPrefetchScope));
+    });
+
+    const labels = renderer!.root
+      .findAllByType('button')
+      .map((button) => button.findByType('span').children.join(''));
+    expect(labels).toEqual(['All rooms', 'Current room only', 'All rooms']);
   });
 
   it('commits a scope selection via the MenuItem literal', async () => {

@@ -1,13 +1,17 @@
 import { crc32, deflateSync } from 'node:zlib';
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
-import { joinRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
+import { joinRoom, sendRoomMessage } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+} from '../helpers/disposableAccounts';
 
 // Opening a room full of pictures and files fetches only what the person can see: thumbnails for
 // the pictures near the viewport, and files only when someone opens or saves them. Checked against
 // the slot's Tuwunel with real uploads. Set MEDIA_ROOM_SHOTS=<directory> to save the room.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'media-room-requests-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.MEDIA_ROOM_SHOTS;
@@ -49,32 +53,7 @@ const png = (index: number): Buffer => {
 
 test.use({ viewport: { width: 1280, height: 800 } });
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
-const register = async (name: string) => {
-  const username = `mrr_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string) => registerDisposableUser(`mrr_${name}_${RUN}`, PASSWORD);
 
 const upload = async (accessToken: string, bytes: Buffer, type: string): Promise<string> => {
   const response = await fetch(`${HOMESERVER}/_matrix/media/v3/upload`, {
@@ -156,7 +135,7 @@ const settle = async (requests: MediaRequest[]) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('a media room loads thumbnails near the viewport and files only on request @webkit', async ({

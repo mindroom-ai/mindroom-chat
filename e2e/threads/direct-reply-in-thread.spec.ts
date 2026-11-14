@@ -1,6 +1,11 @@
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
-import { matrixFetch, sendRoomMessage, setDirectAccountData } from '../helpers/matrix';
+import { matrixFetch, sendRoomMessage, setDirectAccountData, joinRoom } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // Reply in Thread in a direct chat between two people opens the thread, as it does in any other
 // room: the thread's banner shows, the reply goes into the thread (an `m.thread` relation on the
@@ -9,33 +14,16 @@ import { matrixFetch, sendRoomMessage, setDirectAccountData } from '../helpers/m
 // keep 60 earlier messages, so the conversation scrolls. Needs the slot homeserver:
 //   scripts/e2e-slot.sh <slot> --preview npx playwright test e2e/threads/direct-reply-in-thread.spec.ts
 
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'direct-reply-in-thread-password';
 const HISTORY = 60;
 const TIMEOUT = 60_000;
 
 test.use({
   viewport: { width: 1280, height: 800 },
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 type Account = { username: string; userId: string; accessToken: string };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (prefix: string, displayname: string): Promise<Account> => {
   const username = `${prefix}_${Date.now().toString(36)}`;
@@ -66,11 +54,7 @@ const createDirectChat = async (alice: Account, bob: Account, encrypted: boolean
     accessToken: alice.accessToken,
     body: JSON.stringify({ preset: 'trusted_private_chat', is_direct: true, invite: [bob.userId] }),
   });
-  await matrixFetch(HOMESERVER, `/join/${encodeURIComponent(roomId)}`, {
-    method: 'POST',
-    accessToken: bob.accessToken,
-    body: '{}',
-  });
+  await joinRoom(HOMESERVER, bob.accessToken, roomId);
   await setDirectAccountData(HOMESERVER, alice.accessToken, alice.userId, bob.userId, roomId);
   await setDirectAccountData(HOMESERVER, bob.accessToken, bob.userId, alice.userId, roomId);
   for (let index = 0; index < HISTORY; index += 1) {
@@ -131,7 +115,10 @@ for (const encrypted of [false, true]) {
   test(`Reply in Thread in ${kind} direct chat opens the thread and the reply stays in it for both people`, async ({
     browser,
   }) => {
-    test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+    test.skip(
+      !(await disposableHomeserverIsUp()),
+      `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+    );
     // Two sign-ins, two room loads and the sync of each message on a loaded machine.
     test.setTimeout(360_000);
 

@@ -10,13 +10,15 @@ import {
   sendStateEvent,
 } from '../helpers/matrix';
 import { defined } from '../../src/test/utils/defined';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Avatars come from MXC everywhere they show (rail, room list, header, members, Compact bars,
 // messages), with or without a service worker to authenticate the media requests, and an agent
 // reply's model name sits centred under the agent's avatar, its provider's logo on the corner.
 
-// A disposable local Matrix server with open registration (`just hs-up` or scripts/e2e-slot.sh).
-const homeserver = process.env.E2E_UI_ACTIONS_HOMESERVER;
 test.use({ video: 'off' });
 
 // A solid square PNG, so the spec carries its own pictures.
@@ -53,7 +55,7 @@ const squarePng = (edge: number, [r, g, b]: [number, number, number]) => {
 };
 
 const upload = async (accessToken: string, png: Buffer) => {
-  const response = await fetch(`${homeserver}/_matrix/media/v3/upload?filename=avatar.png`, {
+  const response = await fetch(`${HOMESERVER}/_matrix/media/v3/upload?filename=avatar.png`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'image/png' },
     body: png,
@@ -69,7 +71,7 @@ const routeConfig = (context: BrowserContext) =>
     await route.fulfill({
       json: {
         ...config,
-        homeserverList: [homeserver],
+        homeserverList: [HOMESERVER],
         defaultHomeserver: 0,
         allowCustomHomeservers: true,
         hashRouter: { enabled: false },
@@ -107,7 +109,7 @@ const seed = async (): Promise<Seeded> => {
   const password = randomUUID();
   const register = async (username: string, displayname: string, rgb: [number, number, number]) => {
     const account = await matrixFetch<{ access_token: string; user_id: string }>(
-      homeserver!,
+      HOMESERVER,
       '/register',
       {
         method: 'POST',
@@ -118,7 +120,7 @@ const seed = async (): Promise<Seeded> => {
     const avatarUrl = await upload(account.access_token, squarePng(128, rgb));
     for (const [field, value] of Object.entries({ displayname, avatar_url: avatarUrl })) {
       // eslint-disable-next-line no-await-in-loop
-      await matrixFetch(homeserver!, `${profile}/${field}`, {
+      await matrixFetch(HOMESERVER, `${profile}/${field}`, {
         method: 'PUT',
         accessToken: account.access_token,
         body: JSON.stringify({ [field]: value }),
@@ -130,18 +132,18 @@ const seed = async (): Promise<Seeded> => {
   const username = `avatar_viewer_${suffix}`;
   const viewer = await register(username, 'Avery Viewer', [200, 80, 60]);
   const agent = await register(`mindroom_research_${suffix}`, 'Research', [60, 150, 120]);
-  const fixture = await createThreadFixture(homeserver!, viewer.access_token, {
+  const fixture = await createThreadFixture(HOMESERVER, viewer.access_token, {
     name: 'Avatar Room',
     topic: 'Pictures everywhere',
     rootBody: 'Compare the churn numbers',
     replyBody: 'With last quarter, please',
     invite: [agent.user_id],
   });
-  await joinRoom(homeserver!, agent.access_token, fixture.roomId);
-  await sendStateEvent(homeserver!, viewer.access_token, fixture.roomId, 'm.room.avatar', '', {
+  await joinRoom(HOMESERVER, agent.access_token, fixture.roomId);
+  await sendStateEvent(HOMESERVER, viewer.access_token, fixture.roomId, 'm.room.avatar', '', {
     url: await upload(viewer.access_token, squarePng(128, [70, 90, 200])),
   });
-  await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+  await sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
     msgtype: 'm.text',
     body: 'Churn came in at 2.9%, down from 3.4%.',
     'io.mindroom.stream_status': 'completed',
@@ -168,7 +170,7 @@ const seed = async (): Promise<Seeded> => {
 const checkAvatars = async (page: Page, seeded: Seeded) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await loginWithPassword(page, {
-    homeserver: homeserver!,
+    homeserver: HOMESERVER,
     username: seeded.username,
     password: seeded.password,
   });
@@ -253,7 +255,10 @@ for (const serviceWorkers of ['allow', 'block'] as const) {
       page,
       context,
     }, testInfo) => {
-      test.skip(!homeserver, 'Set E2E_UI_ACTIONS_HOMESERVER to a disposable local Matrix server.');
+      test.skip(
+        !(await disposableHomeserverIsUp()),
+        `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+      );
       test.slow();
       const seeded = await seed();
       await routeConfig(context);

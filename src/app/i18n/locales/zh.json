@@ -2257,7 +2257,6 @@
         "noMicrophone": "在此设备上找不到麦克风。",
         "microphoneUnavailable": "麦克风目前不可用（可能正被其他应用程序使用）。",
         "microphoneFailed": "无法访问麦克风。",
-        "microphoneUnsupported": "此设备不支持麦克风访问。",
         "recordingStopped": "录音意外停止。请再次录制。",
         "noAudio": "未捕获任何音频数据。",
         "recordingUnsupported": "此浏览器不支持录音。",
@@ -2761,9 +2760,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "标记为已读"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "标记为已读"
       },

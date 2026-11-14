@@ -2369,7 +2369,6 @@
         "noMicrophone": "لم يتم العثور على ميكروفون في هذا الجهاز.",
         "microphoneUnavailable": "الميكروفون غير متاح الآن (قد يستخدمه تطبيق آخر).",
         "microphoneFailed": "تعذر الوصول إلى الميكروفون.",
-        "microphoneUnsupported": "هذا الجهاز لا يدعم الوصول إلى الميكروفون.",
         "recordingStopped": "توقف التسجيل الصوتي بشكل غير متوقع. سجّل مرة أخرى.",
         "noAudio": "لم يتم تسجيل أي بيانات صوتية.",
         "recordingUnsupported": "هذا المتصفح لا يدعم التسجيل الصوتي.",
@@ -3006,9 +3005,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "تعليم كمقروء"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "تعليم كمقروء"
       },

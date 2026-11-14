@@ -5,6 +5,11 @@ import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matr
 import { surfaceShowThrough } from '../helpers/surfaceShowThrough';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // Menus, popovers and dialogs over a busy room are tinted nearly opaque: the room's text behind
 // them shows only as a faint blur, and their own labels keep 4.5:1 against what shows through.
@@ -12,7 +17,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // composer's More actions menu, in dark and light themes, in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. Set MENU_SURFACE_SHOTS=<directory>
 // to also save each one.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'menu-surfaces-spec-password';
 const SHOTS = process.env.MENU_SURFACE_SHOTS;
 const DESKTOP = { width: 1440, height: 900 };
@@ -24,23 +28,8 @@ const MESSAGE =
   'requests after the release. Please read the summary before the call and add your questions.';
 
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 /** A fresh account with a room full of long messages, signed in on `page`. */
 const signIn = async (page: Page, prefix: string) => {
@@ -208,7 +197,10 @@ const checkSurfaces = async (page: Page, prefix: string, browser: string, testIn
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 test('menus and dialogs hide the room behind them', async ({ page }, testInfo) => {

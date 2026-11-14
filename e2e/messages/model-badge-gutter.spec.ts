@@ -12,14 +12,11 @@ import { createRoom } from '../helpers/createRoom';
 import {
   AI_RUN,
   DESKTOP,
-  HOMESERVER,
-  LAUNCH,
   PASSWORD,
   PHONE,
   RUN,
   SCHEMES,
   createOtherRooms,
-  homeserverIsUp,
   join,
   register,
   say,
@@ -28,7 +25,12 @@ import {
   shot,
   withRetry,
 } from '../helpers/designChoices';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  CHROMIUM_WITH_SCROLLBARS,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // An agent's model name sits centred under its avatar, at most 4 px wider than the avatar on each
 // side (44 px at 100 % zoom), so the thread's minimap strips in the gutter before the avatar never
@@ -39,8 +41,7 @@ import { launchWebKit } from '../helpers/webkit';
 // light and dark, English and Arabic, and on a phone (390 by 844, touch), in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
 // DESIGN_CHOICES_SHOTS=<directory> to save screenshots.
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
-const ENGINES = ['chromium', ...(WEBKIT ? ['webkit'] : [])] as const;
+const ENGINES = ['chromium', ...(WEBKIT_EXECUTABLE ? ['webkit'] : [])] as const;
 const ROOM_NAME = 'Launch planning';
 const THREAD_ROOT = 'Run the three steps and report what changed';
 const MODEL_NAME = 'Stub Large Model';
@@ -48,7 +49,7 @@ const MODEL_NAME = 'Stub Large Model';
 const AVATAR_PX = 36;
 const OVERHANG_PX = 4;
 
-test.use({ launchOptions: LAUNCH });
+test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
 type Seed = { username: string; roomId: string; root: string };
 
@@ -294,7 +295,7 @@ for (const engine of ENGINES) {
   test(`model badges sit centred under the avatar and clear of the minimap: ${engine}`, async ({
     browser,
   }, testInfo) => {
-    test.skip(!(await homeserverIsUp()), 'Test homeserver is not running.');
+    test.skip(!(await disposableHomeserverIsUp()), 'Test homeserver is not running.');
     test.setTimeout(360_000);
     const data = await seed(`${engine}_d`);
     const { page, close } = await newPage(engine, browser, DESKTOP);
@@ -314,7 +315,7 @@ for (const engine of ENGINES) {
   test(`a tap on a model badge shows the full model name: ${engine} phone`, async ({
     browser,
   }, testInfo) => {
-    test.skip(!(await homeserverIsUp()), 'Test homeserver is not running.');
+    test.skip(!(await disposableHomeserverIsUp()), 'Test homeserver is not running.');
     test.setTimeout(240_000);
     const data = await seed(`${engine}_p`);
     const { page, close } = await newPage(engine, browser, PHONE);

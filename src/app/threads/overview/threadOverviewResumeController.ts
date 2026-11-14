@@ -75,7 +75,7 @@ export const useThreadOverviewResumeController = ({
   // rate-limited by the 1s window below plus the scheduler's dedup.
   const lastOverviewResumeRefreshTsRef = useRef(0);
   const overviewRefreshAbortControllerRef = useRef<AbortController>();
-  const { overviewResumeRefreshIds: targetThreadIds } = useMemo(
+  const targetThreadIds = useMemo(
     () =>
       resolveThreadOverviewRefreshTargets({
         activeTimelineRange,
@@ -161,7 +161,7 @@ export const useThreadOverviewResumeController = ({
         scheduler: syncEngine.scheduler,
         room,
         threadId: expectedThreadId,
-        // Priority 2 = "recently-active my-server tails" band. Overview
+        // Priority 2 = the recently-active room tails band. Overview
         // resume is user-triggered (page focus / online / visibility)
         // so it beats prewarm (band 3) but yields to the current
         // room's own gap-fill (band 0-1).

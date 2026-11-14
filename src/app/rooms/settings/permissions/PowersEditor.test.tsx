@@ -80,7 +80,6 @@ vi.mock('../../../emoji/useImagePackRooms', () => ({ useImagePackRooms: () => []
 vi.mock('../../../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
 vi.mock('../../../lib/hooks/useFilePicker', () => ({ useFilePicker: () => vi.fn() }));
 vi.mock('../../../lib/hooks/useAlive', () => ({ useAlive: () => () => true }));
-vi.mock('../../../members/useMemberPowerTag', () => ({ getPowerTagIconSrc: () => undefined }));
 vi.mock('../../../matrix/hooks/useStateEvent', () => ({
   useStateEvent: () => ({ getContent: () => mocks.tagsContent }),
 }));

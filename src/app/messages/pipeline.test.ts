@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getLongTextSource, hydrateLongTextSource } from '../matrix/protocol/longText';
-import { getToolTraceEventByIndex } from '../matrix/protocol/toolTrace';
+import { getContentToolTraceEvents } from '../matrix/protocol/toolTrace';
 
 const expectDefined = <T>(value: T | undefined): T => {
   expect(value).toBeDefined();
@@ -48,6 +48,6 @@ describe('MindRoom message pipeline', () => {
 
     expect(resolved.formatted_body).toBe('<p>🔧 <code>search_web</code> [1]</p>');
 
-    expect(getToolTraceEventByIndex(resolved, 1)?.tool_name).toBe('search_web');
+    expect(getContentToolTraceEvents(resolved)?.[0]?.tool_name).toBe('search_web');
   });
 });

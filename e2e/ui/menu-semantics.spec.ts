@@ -2,8 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
-import { createPrivateRoom, joinRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
+import { createPrivateRoom, joinRoom, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // Every menu reachable from the main views is a WAI-ARIA menu: `getByRole('menu')` finds it while
 // it is open, its rows are menu items, the first row takes focus as it opens from the keyboard
@@ -12,7 +18,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // focus back to the button it opened from, and axe-core finds nothing critical or serious in it. Desktop and phone, Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE
 // names Playwright's WebKit, WebKit, against the disposable homeserver of `just hs-up` or of a
 // slot of scripts/e2e-slot.sh.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'menu-semantics-spec-password';
 const RUN = Date.now().toString(36);
 const DESKTOP = { width: 1280, height: 800 };
@@ -21,40 +26,10 @@ const AXE_PATH = path.join(process.cwd(), 'node_modules/axe-core/axe.min.js');
 const STARTUP_MS = 120_000;
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
-const register = async (name: string) => {
-  const username = `menus_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string) => registerDisposableUser(`menus_${name}_${RUN}`, PASSWORD);
 
 const NOTE = 'The crane schedule for berth four is posted.';
 
@@ -234,7 +209,7 @@ const phoneMenus = async (page: Page, name: string) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 const CHECKS: Array<[string, typeof DESKTOP, (page: Page, name: string) => Promise<void>]> = [

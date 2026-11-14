@@ -4,58 +4,33 @@ import { createRoom } from '../helpers/createRoom';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   seedRoomOverviewState,
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // Compact reads no message of the room's main timeline by being open (Escape, Mark as Read and a
 // view switch do). A room with no message yet shows its empty timeline under the bar until the
 // first message makes a card; that first arrival must not be read either. The reader opens an
 // empty people room stored in Compact, a colleague sends three messages a second apart, and none
 // of them gets the reader's receipt: the server still counts 3, and the three cards stay unread.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'compact-empty-room-password';
 const RUN = Date.now().toString(36);
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts; scrollbars are shown, as for readers.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 test.describe.configure({ timeout: 180_000 });
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `cer_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`cer_${name}_${RUN}`, PASSWORD);
 
 type JoinedRoomSync = {
   unread_notifications?: { notification_count?: number };
@@ -86,7 +61,7 @@ const readState = async (session: MatrixSession, roomId: string) => {
 test('Compact reads none of the first messages that arrive in an open, empty room', async ({
   page,
 }, testInfo) => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
   const reader = await registerAndLogin('reader');
   const colleague = await registerAndLogin('colleague');
   const roomId = await createRoom(HOMESERVER, colleague.accessToken, {

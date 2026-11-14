@@ -270,9 +270,7 @@ export const useCommandPaletteSource = ({
       'mark-current-room-read': inCurrentRoom((room) => {
         void markRoomsRead([room.roomId]);
       }),
-      'open-current-room-settings': inCurrentRoom((room) =>
-        openRoomSettings(room.roomId, selectedSpaceId)
-      ),
+      'open-current-room-settings': inCurrentRoom((room) => openRoomSettings(room.roomId)),
       // The thread tag write path checks the root, shows the change at once and reports errors.
       'resolve-current-thread': markCurrentThread(true),
       'unresolve-current-thread': markCurrentThread(false),

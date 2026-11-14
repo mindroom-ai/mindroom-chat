@@ -10,8 +10,14 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
+import { sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // On a phone (390 by 844, touch) the small controls get a hit area a finger can find: 44 px tall,
 // and 44 px wide where the next control is far enough, else up to the middle of the gap, so two
@@ -22,7 +28,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
 // Set TOUCH_TARGET_SHOTS=<directory> to save the controls, and a mock of the composer and banner
 // with 44 px between button centres (the visible change a full 44 px width would need).
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'touch-targets-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.TOUCH_TARGET_SHOTS;
@@ -47,44 +52,12 @@ const HEADER = ['Back', 'More Options'];
 const BANNER = ['Thread options', 'Pin thread', 'Resolve'];
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `ttg_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
 
 /** 25 other rooms, and one room with a thread of a few replies. */
 const seed = async (engine: string) => {
-  const reader = await registerAndLogin(`reader_${engine}`);
+  const reader = await registerDisposableUser(`ttg_reader_${engine}_${RUN}`, PASSWORD);
   await Promise.all(
     Array.from({ length: 25 }, (_, index) =>
       createRoom(HOMESERVER, reader.accessToken, { name: `Project room ${index + 1}` })
@@ -384,7 +357,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('small controls take a 44 px hit area on a phone (Chromium)', async ({ browser, baseURL }) => {

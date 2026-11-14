@@ -4,6 +4,10 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
 import { loginWithPassword } from '../helpers/auth';
 import { createThreadFixture, joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The Canvases page on a phone (live-test L9-F010): every column of a canvas shows inside the
 // viewport, and a long title wraps instead of being cut at the screen's edge. On a desktop the
@@ -12,8 +16,6 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 // The page names each canvas's agent by its display name, also on a device that has not loaded
 // the room's members since it started (live-test pass 2, P2-lane9-F004).
 
-// Explicit opt-in to an isolated, disposable local Matrix server with open registration.
-const homeserver = process.env.E2E_UI_ACTIONS_HOMESERVER;
 const SHOTS = process.env.CANVASES_SHOTS;
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
 // A thread title with one long token, as agents' generated titles have.
@@ -38,29 +40,29 @@ const seed = async (later = 0): Promise<Fixture> => {
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
   const password = randomUUID();
   const register = (username: string) =>
-    matrixFetch<{ access_token: string; user_id: string }>(homeserver!, '/register', {
+    matrixFetch<{ access_token: string; user_id: string }>(HOMESERVER, '/register', {
       method: 'POST',
       body: JSON.stringify({ username, password, auth: { type: 'm.login.dummy' } }),
     });
   const username = `canvas_phone_${suffix}`;
   const viewer = await register(username);
   const agent = await register(`mindroom_planner_${suffix}`);
-  await matrixFetch(homeserver!, `/profile/${encodeURIComponent(agent.user_id)}/displayname`, {
+  await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(agent.user_id)}/displayname`, {
     method: 'PUT',
     accessToken: agent.access_token,
     body: JSON.stringify({ displayname: 'Planner' }),
   });
   const roomName = 'Weekend planning with the family';
-  const fixture = await createThreadFixture(homeserver!, viewer.access_token, {
+  const fixture = await createThreadFixture(HOMESERVER, viewer.access_token, {
     name: roomName,
     topic: 'Canvases on a phone',
     rootBody: `Stub title: ${LONG_TOKEN} canvas`,
     replyBody: 'The trip conversation',
     invite: [agent.user_id],
   });
-  await joinRoom(homeserver!, agent.access_token, fixture.roomId);
+  await joinRoom(HOMESERVER, agent.access_token, fixture.roomId);
   const showCanvas = (title: string, threadId: string | null) =>
-    sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+    sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
       msgtype: 'm.notice',
       body: `Interactive panel: ${title}.`,
       ...(threadId ? { 'm.relates_to': { rel_type: 'm.thread', event_id: threadId } } : {}),
@@ -77,7 +79,7 @@ const seed = async (later = 0): Promise<Fixture> => {
   await showCanvas('Packing list for the coast trip', fixture.rootId);
   await showCanvas('Morning briefing', null);
   for (let index = 0; index < later; index += 1) {
-    await sendRoomMessage(homeserver!, viewer.access_token, fixture.roomId, {
+    await sendRoomMessage(HOMESERVER, viewer.access_token, fixture.roomId, {
       msgtype: 'm.text',
       body: `Later note ${index + 1} about the trip, with a few more words to fill the line.`,
     });
@@ -99,7 +101,7 @@ const routeConfig = (context: BrowserContext) =>
     await route.fulfill({
       json: {
         ...config,
-        homeserverList: [homeserver],
+        homeserverList: [HOMESERVER],
         defaultHomeserver: 0,
         allowCustomHomeservers: true,
         hashRouter: { enabled: false },
@@ -111,7 +113,7 @@ const routeConfig = (context: BrowserContext) =>
 
 const openCanvases = async (page: Page, fixture: Fixture) => {
   await loginWithPassword(page, {
-    homeserver: homeserver!,
+    homeserver: HOMESERVER,
     username: fixture.username,
     password: fixture.password,
   });
@@ -161,7 +163,10 @@ const shot = async (page: Page, name: string) => {
 };
 
 test('the Canvases page fits a phone in Chromium, light and dark', async ({ browser }) => {
-  test.skip(!homeserver, 'Set E2E_UI_ACTIONS_HOMESERVER to a disposable local Matrix server.');
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   const fixture = await seed();
   for (const colorScheme of ['light', 'dark'] as const) {
     const context = await browser.newContext({ ...PHONE, colorScheme });
@@ -192,7 +197,10 @@ test('the Canvases page fits a phone in Chromium, light and dark', async ({ brow
 });
 
 test('the Canvases page fits a phone in WebKit', async () => {
-  test.skip(!homeserver, 'Set E2E_UI_ACTIONS_HOMESERVER to a disposable local Matrix server.');
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.skip(!WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE not set');
   const fixture = await seed();
   const browser = await launchWebKit();
@@ -226,7 +234,7 @@ const checkAgentName = async (browser: Browser, engine: string) => {
     await routeConfig(context);
     const page = await context.newPage();
     await loginWithPassword(page, {
-      homeserver: homeserver!,
+      homeserver: HOMESERVER,
       username: fixture.username,
       password: fixture.password,
     });
@@ -259,12 +267,18 @@ const checkAgentName = async (browser: Browser, engine: string) => {
 test('the Canvases page names the agent after a fresh start (Chromium phone)', async ({
   browser,
 }) => {
-  test.skip(!homeserver, 'Set E2E_UI_ACTIONS_HOMESERVER to a disposable local Matrix server.');
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   await checkAgentName(browser, 'chromium');
 });
 
 test('the Canvases page names the agent after a fresh start (WebKit phone)', async () => {
-  test.skip(!homeserver, 'Set E2E_UI_ACTIONS_HOMESERVER to a disposable local Matrix server.');
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.skip(!WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE not set');
   const browser = await launchWebKit();
   try {

@@ -92,10 +92,7 @@ const seedRawEvent = (
 const readLedger = async (
   db: IDBDatabase,
   roomId: string
-): Promise<
-  | { approxBytes: number; eventCount: number; lastActivityTs: number; federated?: boolean }
-  | undefined
-> =>
+): Promise<{ approxBytes: number; eventCount: number; lastActivityTs: number } | undefined> =>
   new Promise((resolve, reject) => {
     const txn = db.transaction(ROOM_LEDGER_STORE, 'readonly');
     const store = txn.objectStore(ROOM_LEDGER_STORE);

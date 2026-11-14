@@ -7,7 +7,7 @@ import {
   disposableHomeserverIsUp,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
-import { onWebKitPage } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A saved draft comes back when its room opens again, in the app or after a reload. That is not
 // typing: the room hears "typing" only once the person presses a key. Runs in Chromium and, when
@@ -15,7 +15,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // homeserver.
 const PASSWORD = 'draft-restore-typing-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const DRAFT = 'Draft for the harbor notes: the tug arrives at nine, not sent yet';
 /** Long enough for a typing notice the restore would send. */
 const QUIET_MS = 3_000;
@@ -92,7 +91,7 @@ test('a restored draft announces no typing (Chromium)', async ({ page, browserNa
 });
 
 test('a restored draft announces no typing (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
   await onWebKitPage({ viewport: { width: 1280, height: 800 }, baseURL }, (page) =>
     restoringDraftSendsNoTyping(page, 'webkit')

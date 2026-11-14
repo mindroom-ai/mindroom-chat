@@ -2,9 +2,17 @@ import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import {
   getToolApprovalOperationLabel,
+  getToolApprovalRenderContent,
   MINDROOM_TOOL_APPROVAL_EVENT,
-  parseToolApproval,
+  parseToolApprovalContent,
 } from '../matrix/protocol/toolApproval';
+
+// An approval as its original content with the SDK's replacement event, if any, applied.
+const parseApproval = (event: MatrixEvent) =>
+  parseToolApprovalContent(
+    event.getType(),
+    getToolApprovalRenderContent(event.getOriginalContent(), event.replacingEvent()?.getContent())
+  );
 
 const original = {
   approval_id: 'approval',
@@ -48,7 +56,7 @@ describe('approval history', () => {
           },
         },
       });
-      return getToolApprovalOperationLabel(parseToolApproval(event)!);
+      return getToolApprovalOperationLabel(parseApproval(event)!);
     });
     expect(labels).toEqual(['personal / search', 'company / search']);
   });
@@ -89,7 +97,7 @@ describe('approval history', () => {
         },
       })
     );
-    const approval = parseToolApproval(event);
+    const approval = parseApproval(event);
     expect(approval?.status).toBe('approved');
     expect(approval?.fullArguments).toEqual({ command: 'the exact command' });
     expect(approval?.scope?.operation.mcpToolName).toBe('matrix_invite_user');
@@ -120,5 +128,5 @@ it('does not expand the original call’s approval capabilities through a replac
       },
     })
   );
-  expect(parseToolApproval(event)).toMatchObject({ approvable: false, autoApproveOptions: [] });
+  expect(parseApproval(event)).toMatchObject({ approvable: false, autoApproveOptions: [] });
 });

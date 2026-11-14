@@ -2,22 +2,15 @@ import { EventTimeline, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MessageEvent, StateEvent } from '../../matrix/types/room';
 import { isHiddenReferenceEvent, isMembershipChanged, reactionOrEditEvent } from '../../matrix/room';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
-import { buildVisibleThreadReplyCountMap, isThreadReplyEvent } from '../threads/threadUtils';
+import { isThreadReplyEvent } from '../threads/threadUtils';
 import {
   isNestedThreadReplyEvent,
   isZeroReplyStandaloneThreadRootEvent,
 } from '../threads/compactThreadRootData';
-import { isThreadOnlyRoomActivity } from '../threads/threadRenderUtils';
 
 export type TimelineEventEntry = {
   event: MatrixEvent;
   absoluteIndex: number;
-};
-
-type RoomPreloadCounts = {
-  cacheCount: number;
-  renderableCount: number;
-  surfaceCount: number;
 };
 
 const KNOWN_EVENT_TYPES = new Set<string>([
@@ -42,7 +35,7 @@ export const isRenderableEvent = (
   showThreadRepliesInRoom = false
 ): boolean => {
   const mEventId = mEvent.getId();
-  if (!mEvent || !mEventId) return false;
+  if (!mEventId) return false;
   const eventSender = mEvent.getSender();
   if (eventSender && ignoredUsersSet.has(eventSender)) return false;
   if (!threadId && !showThreadRepliesInRoom && isThreadReplyEvent(mEventId, mEvent.threadRootId)) {
@@ -104,102 +97,6 @@ export const getRenderableEventEntries = (
   });
 
   return entries;
-};
-
-export const mergeClassicRoomThreadReplyEntries = ({
-  renderableEventEntries,
-  room,
-  ignoredUsersSet,
-  showHiddenEvents,
-  hideMembershipEvents,
-  hideNickAvatarEvents,
-}: {
-  renderableEventEntries: TimelineEventEntry[];
-  room: Room;
-  ignoredUsersSet: Set<string>;
-  readonly hideMembershipEvents: boolean;
-  readonly hideNickAvatarEvents: boolean;
-  readonly showHiddenEvents: boolean;
-}): TimelineEventEntry[] => {
-  if (renderableEventEntries.length === 0) return renderableEventEntries;
-
-  const loadedEventIds = new Set<string>();
-  const loadedRootEntries = new Map<string, TimelineEventEntry>();
-
-  renderableEventEntries.forEach((entry) => {
-    const eventId = entry.event.getId();
-    if (!eventId) return;
-
-    loadedEventIds.add(eventId);
-    loadedRootEntries.set(eventId, entry);
-  });
-
-  const replyEventsByRootId = new Map<string, MatrixEvent[]>();
-
-  loadedRootEntries.forEach((_rootEntry, rootId) => {
-    const thread = room.getThread(rootId);
-    if (!thread) return;
-
-    thread.events.forEach((mEvent) => {
-      const eventId = mEvent.getId();
-      if (
-        !eventId ||
-        loadedEventIds.has(eventId) ||
-        mEvent.threadRootId !== rootId ||
-        !isThreadReplyEvent(eventId, mEvent.threadRootId) ||
-        !isRenderableEvent(
-          mEvent,
-          room,
-          undefined,
-          ignoredUsersSet,
-          showHiddenEvents,
-          hideMembershipEvents,
-          hideNickAvatarEvents,
-          true
-        )
-      ) {
-        return;
-      }
-
-      const replyEvents = replyEventsByRootId.get(rootId);
-      if (replyEvents) {
-        replyEvents.push(mEvent);
-      } else {
-        replyEventsByRootId.set(rootId, [mEvent]);
-      }
-      loadedEventIds.add(eventId);
-    });
-  });
-
-  if (replyEventsByRootId.size === 0) return renderableEventEntries;
-
-  const replyEntries: TimelineEventEntry[] = [];
-  replyEventsByRootId.forEach((replyEvents, rootId) => {
-    const rootEntry = loadedRootEntries.get(rootId);
-    if (!rootEntry) return;
-
-    replyEvents
-      .sort((eventA, eventB) => {
-        const tsDiff = eventA.getTs() - eventB.getTs();
-        if (tsDiff !== 0) return tsDiff;
-        return (eventA.getId() ?? '').localeCompare(eventB.getId() ?? '');
-      })
-      .forEach((mEvent, index) => {
-        replyEntries.push({
-          event: mEvent,
-          absoluteIndex: rootEntry.absoluteIndex + (index + 1) / (replyEvents.length + 1),
-        });
-      });
-  });
-
-  return [...renderableEventEntries, ...replyEntries].sort((entryA, entryB) => {
-    const absoluteIndexDiff = entryA.absoluteIndex - entryB.absoluteIndex;
-    if (absoluteIndexDiff !== 0) return absoluteIndexDiff;
-
-    const tsDiff = entryA.event.getTs() - entryB.event.getTs();
-    if (tsDiff !== 0) return tsDiff;
-    return (entryA.event.getId() ?? '').localeCompare(entryB.event.getId() ?? '');
-  });
 };
 
 export const getRenderableEvents = (
@@ -313,13 +210,10 @@ export const buildRoomSurfaceEventEntries = ({
         return;
       }
 
-      const existingEntry = surfaceEntryMap.get(threadRootId);
-      if (!existingEntry || absoluteIndex < existingEntry.absoluteIndex) {
-        surfaceEntryMap.set(threadRootId, {
-          event: rootEvent,
-          absoluteIndex,
-        });
-      }
+      surfaceEntryMap.set(threadRootId, {
+        event: rootEvent,
+        absoluteIndex,
+      });
 
       absoluteIndex += 1;
     });
@@ -330,48 +224,4 @@ export const buildRoomSurfaceEventEntries = ({
     if (absoluteIndexDiff !== 0) return absoluteIndexDiff;
     return (entryA.event.getId() ?? '').localeCompare(entryB.event.getId() ?? '');
   });
-};
-
-export const getRoomPreloadCounts = (
-  linkedTimelines: EventTimeline[],
-  room: Room,
-  filterOpts: {
-    threadId: string | undefined;
-    ignoredUsersSet: Set<string>;
-    readonly hideMembershipEvents: boolean;
-    readonly hideNickAvatarEvents: boolean;
-    readonly showHiddenEvents: boolean;
-  }
-): RoomPreloadCounts => {
-  const loadedTimelineEvents = getLinkedTimelineEvents(linkedTimelines);
-  const renderableEventEntries = getRenderableEventEntries(
-    linkedTimelines,
-    room,
-    filterOpts.threadId,
-    filterOpts.ignoredUsersSet,
-    filterOpts.showHiddenEvents,
-    filterOpts.hideMembershipEvents,
-    filterOpts.hideNickAvatarEvents
-  );
-  const threadReplyCountMap = buildVisibleThreadReplyCountMap(loadedTimelineEvents);
-  const surfaceEntries =
-    filterOpts.threadId || threadReplyCountMap.size === 0
-      ? renderableEventEntries
-      : buildRoomSurfaceEventEntries({
-          renderableEventEntries,
-          linkedTimelines,
-          room,
-          ignoredUsersSet: filterOpts.ignoredUsersSet,
-          showHiddenEvents: filterOpts.showHiddenEvents,
-          hideMembershipEvents: filterOpts.hideMembershipEvents,
-          hideNickAvatarEvents: filterOpts.hideNickAvatarEvents,
-          threadReplyCountMap,
-        });
-
-  return {
-    cacheCount: loadedTimelineEvents.filter((mEvent) => !isThreadOnlyRoomActivity(room, mEvent))
-      .length,
-    renderableCount: renderableEventEntries.length,
-    surfaceCount: surfaceEntries.length,
-  };
 };

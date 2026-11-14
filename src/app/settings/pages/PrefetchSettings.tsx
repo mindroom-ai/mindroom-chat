@@ -11,19 +11,13 @@ import { SettingTile } from '../../ui/SettingTile';
 import { SequenceCard } from '../../ui/SequenceCard';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
 
-/**
- * Menu order runs from the narrowest reach to the widest. The store turns `my-server` into
- * `current-room-only` on every write, so it is not offered.
- */
-const SCOPE_CHOICES = [
-  { value: 'current-room-only', labelKey: 'options.prefetchScope.currentRoomOnly' },
-  { value: 'all-rooms', labelKey: 'options.prefetchScope.allRooms' },
-] as const satisfies ReadonlyArray<{ value: PrefetchScope; labelKey: string }>;
+/** Menu order runs from the narrowest reach to the widest. */
+const SCOPE_LABEL_KEYS = {
+  'current-room-only': 'options.prefetchScope.currentRoomOnly',
+  'all-rooms': 'options.prefetchScope.allRooms',
+} as const satisfies Record<PrefetchScope, string>;
 
-type ScopeLabelKey = (typeof SCOPE_CHOICES)[number]['labelKey'];
-
-const scopeLabelKey = (scope: PrefetchScope): ScopeLabelKey =>
-  SCOPE_CHOICES.find((choice) => choice.value === scope)?.labelKey ?? SCOPE_CHOICES[0].labelKey;
+const SCOPE_CHOICES = Object.keys(SCOPE_LABEL_KEYS) as PrefetchScope[];
 
 type ScopeMenuProps = {
   current: PrefetchScope;
@@ -44,7 +38,7 @@ function ScopeMenu({ current, onPick, onDismiss }: ScopeMenuProps) {
     <FocusTrap focusTrapOptions={trapOptions}>
       <Menu>
         <Box style={{ padding: config.space.S100 }} direction="Column" gap="100">
-          {SCOPE_CHOICES.map(({ value, labelKey }) => (
+          {SCOPE_CHOICES.map((value) => (
             <MenuItem
               key={value}
               variant="Surface"
@@ -54,7 +48,7 @@ function ScopeMenu({ current, onPick, onDismiss }: ScopeMenuProps) {
               aria-checked={value === current}
               onClick={() => onPick(value)}
             >
-              <Text size="T300">{t(labelKey)}</Text>
+              <Text size="T300">{t(SCOPE_LABEL_KEYS[value])}</Text>
             </MenuItem>
           ))}
         </Box>
@@ -83,7 +77,7 @@ export function SelectPrefetchScope() {
         size="300"
         radii="300"
       >
-        <Text size="T300">{t(scopeLabelKey(scope))}</Text>
+        <Text size="T300">{t(SCOPE_LABEL_KEYS[scope])}</Text>
       </Button>
       <PopOut
         position="Bottom"
@@ -106,7 +100,7 @@ export function SelectPrefetchScope() {
 }
 
 /**
- * Settings → General → Messages: how far background prefetch reaches. Rooms whose history is
+ * Settings → Storage & offline: how far background prefetch reaches. Rooms whose history is
  * prefetched open from cache, at the cost of syncing their history in the background.
  */
 export function PrefetchSettings({ className }: { className?: string }) {

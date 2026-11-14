@@ -103,11 +103,8 @@ const renderRoomCard = (
         <RoomItemCard
           item={hierarchyItem(ROOM_ID)}
           loading={false}
-          error={null}
           summary={summaryOf(ROOM_ID, 'Harbor Plans', joinRule)}
           onOpen={onOpen}
-          onDragging={vi.fn()}
-          canReorder={false}
           getRoom={() => local}
         />
       </MatrixClientProvider>
@@ -196,11 +193,8 @@ describe('a lobby heading of a space the person is not in', () => {
           item={hierarchyItem(SPACE_ID, true)}
           summary={summaryOf(SPACE_ID, 'Design Guild', JoinRule.Public)}
           joined={false}
-          categoryId={SPACE_ID}
           closed={false}
           canEditChild={false}
-          canReorder={false}
-          onDragging={vi.fn()}
           getRoom={() => undefined}
         />
       </MatrixClientProvider>

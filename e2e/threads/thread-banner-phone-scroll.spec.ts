@@ -12,14 +12,19 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   registerAgentAccount,
   sendRoomMessage,
   sendStateEvent,
   type MatrixSession,
 } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // The thread banner of a long, tagged thread with a pending scheduled task, on a phone (390 by
 // 844, touch) and on a desktop (1440 by 900), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE
@@ -33,10 +38,8 @@ import { launchWebKit } from '../helpers/webkit';
 //   380 px in Chromium and 90 px in WebKit.
 // - A tap leaves no hover surface on a tool-call line; a mouse over it still shows one.
 // Set BANNER_SCROLL_SHOTS=<directory> to save the screen at each step.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'thread-banner-phone-scroll-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.BANNER_SCROLL_SHOTS;
 
 const PHONE: BrowserContextOptions = {
@@ -64,40 +67,8 @@ const REPLY_COUNT = 30;
 const lastReply = `Follow-up ${REPLY_COUNT}`;
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `tbps_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
 
 const inThread = (rootId: string, lastId: string) => ({
   'm.relates_to': {
@@ -146,7 +117,7 @@ const schedule = (agent: MatrixSession, roomId: string, rootId: string, taskId: 
  * whose first message names it, scheduled too.
  */
 const seed = async (engine: string) => {
-  const reader = await registerAndLogin(`reader_${engine}`);
+  const reader = await registerDisposableUser(`tbps_reader_${engine}_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `planner_${engine}`);
   const roomId = await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
     method: 'POST',
@@ -560,7 +531,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('the thread banner keeps its title readable and the thread in place (Chromium)', async ({
@@ -574,7 +545,7 @@ test('the thread banner keeps its title readable and the thread in place (Chromi
 test('the thread banner keeps its title readable and the thread in place (WebKit)', async ({
   baseURL,
 }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(420_000);
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
   const browser = await launchWebKit();

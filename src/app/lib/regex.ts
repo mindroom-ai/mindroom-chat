@@ -31,15 +31,6 @@ const JUMBO_TOKEN = `(?:${EMOJI_PATTERN}${VARIATION_SELECTOR_PATTERN}?|${SHORTCO
 /** A body of one to ten emoji or shortcodes and nothing else, which renders large. */
 export const JUMBO_EMOJI_REG = new RegExp(`^\\s*${JUMBO_TOKEN}(?:\\s*${JUMBO_TOKEN}){0,9}\\s*$`);
 
-// The URL body stops at whitespace and angle brackets. Its last character may not be punctuation
-// that usually ends a sentence or closes a bracket around the link, so "(https://a.b/c)." links
-// https://a.b/c. Greedy matching then backing off keeps this linear in the length of the run.
-const URL_TRAILING_EXCLUDED = `\\s<>.,:;!?'")\\]}/(`;
-export const URL_REG = new RegExp(
-  `(?:https?|ftp|mailto|magnet):\\/\\/[^\\s<>]*[^${URL_TRAILING_EXCLUDED}]`,
-  'g'
-);
-
 const URL_SCHEMES = ['https', 'http', 'ftp', 'mailto', 'magnet'];
 const WHITESPACE = /\s/;
 
@@ -74,28 +65,4 @@ export const createInsideUrlTest = (text: string): ((index: number) => boolean) 
     // Positions outside the text read as undefined.
     return end !== undefined && space !== undefined && end >= 0 && space < end;
   };
-};
-
-/**
- * The first match of `regex` in `text` that does not start inside a URL, or null. A match inside
- * a URL skips the rest of that URL, so no position of it is tried again.
- */
-export const execOutsideUrl = (regex: RegExp, text: string): RegExpExecArray | null => {
-  const flags =
-    regex.flags.includes('g') || regex.flags.includes('y') ? regex.flags : `${regex.flags}g`;
-  const search = new RegExp(regex.source, flags.replace('y', 'g'));
-  const insideUrl = createInsideUrlTest(text);
-
-  search.lastIndex = 0;
-  while (search.lastIndex <= text.length) {
-    const match = search.exec(text);
-    if (!match) return null;
-    if (!insideUrl(match.index)) return match;
-
-    // Skip to the first whitespace after the match start: the URL ends there.
-    let next = match.index;
-    while (next < text.length && !WHITESPACE.test(text.charAt(next))) next += 1;
-    search.lastIndex = Math.max(next + 1, match.index + 1);
-  }
-  return null;
 };

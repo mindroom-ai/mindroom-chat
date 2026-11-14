@@ -2257,7 +2257,6 @@
         "noMicrophone": "Bu cihazda mikrofon bulunamadı.",
         "microphoneUnavailable": "Mikrofon şu anda kullanılamıyor (başka bir uygulama kullanıyor olabilir).",
         "microphoneFailed": "Mikrofona erişilemedi.",
-        "microphoneUnsupported": "Bu cihaz mikrofon erişimini desteklemiyor.",
         "recordingStopped": "Ses kaydı beklenmedik şekilde durdu. Lütfen tekrar kaydedin.",
         "noAudio": "Ses verisi kaydedilemedi.",
         "recordingUnsupported": "Bu tarayıcı ses kaydını desteklemiyor.",
@@ -2774,9 +2773,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "Okundu olarak işaretle"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "Okundu olarak işaretle"
       },
