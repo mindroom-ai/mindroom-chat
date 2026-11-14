@@ -188,6 +188,17 @@ describe('readThreadSignals', () => {
     expect(signals.newsTs).toBe(2000);
   });
 
+  it("keeps people's newest message apart from agents'", async () => {
+    const { room } = await setup(ME, [
+      event({ id: '$person', ts: 1000, sender: '@other:example.org', content: { body: 'hi' } }),
+      event({ id: '$agent', ts: 2000, sender: AGENT, content: { body: 'Snoozed it.' } }),
+    ]);
+    expect(readThreadSignals(room, ROOT, ME, NOW)).toMatchObject({
+      newsTs: 2000,
+      personNewsTs: 1000,
+    });
+  });
+
   it('previews an agent reply by its words, its tool calls counted, not written out', async () => {
     const body = '🔧 `job` [1]\n🔧 `read_file` [2]\nHere is the **reply** to the licensor.';
     const { room } = await setup(ME, [
