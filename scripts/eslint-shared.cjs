@@ -38,8 +38,8 @@ const COMMON = {
   rules: {
     // TypeScript checks prop types; the React prop-types rule would only duplicate it.
     'react/prop-types': 'off',
-    // Lane P files carry `eslint-disable` comments for rules from these plugins,
-    // so the plugins load; their stricter rules stay off because Lane P code predates them.
+    // Older files carry `eslint-disable` comments for rules from these plugins,
+    // so the plugins load; these stricter rules stay off because that code predates them.
     'import/first': 'off',
     'import/no-relative-packages': 'off',
     'jsx-a11y/no-static-element-interactions': 'off',

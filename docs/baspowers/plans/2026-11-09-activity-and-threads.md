@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- All new code is Lane C: passes `just strict` and `just lint` (type-aware rules, logical CSS sides, `PopOut` from `src/app/ui/directional.tsx`).
+- All new code passes `just strict` and `just lint` (type-aware rules, logical CSS sides, `PopOut` from `src/app/ui/directional.tsx`).
 - Layers: `activity` at layer 10 in `.eslintrc.cjs` `LAYERS` and in `docs/architecture.md` "Layers"; no import climbs.
 - New strings only in `src/app/i18n/locales/additions/<code>.json`, English plus the 16 others with the same keys.
 - No em dashes in docs, comments or commit messages. Commits unsigned (`git -c commit.gpgsign=false commit`), files added by path.
@@ -80,7 +80,7 @@ export const readThreadSignals = (room: Room, rootId: string, userId: string, no
 - [ ] **Step 1: Failing tests** with stand-in `Room`/`Thread` objects holding real `MatrixEvent`s (room needs an `m.room.create`, see memory `matrix-sdk-edit-model-quirks`): a counted reply after the receipt gives `newCount 1` and `lastReply`; a later title notice and a skill-review `m.notice` from an agent leave `newCount 0` and `lastReply` on the earlier reply; an `m.room.encrypted` event and a redacted reply are skipped; `m.audio` previews as `{ kind: 'voice' }` when it has `org.matrix.msc3245.voice`, else `file` kinds by msgtype; a pending agent approval with `approverUserId` null gives `pendingApproval`, one for `@other:x` or expired does not; an agent message with `io.mindroom.interactive` `{options: {'✅': 'yes', '1': 'yes'}, option_labels: {'✅': 'Ship it', '1': 'Ship it'}}` gives `pendingQuestion.options [{key:'✅', label:'Ship it'}]` (emoji keys only), not after a reaction `✅` by the user, not after a later user message; `m.mentions.user_ids` with the user on an unread reply gives `mentionedMe`; an agent reply with `io.mindroom.ai_run.status 'cancelled'` gives outcome `stopped`; a `completed` reply edited 90 s later gives `finished` with `durationMs 90000`, edited 10 s later gives no outcome; root from `@mindroom_bot:x` with only agent replies gives `automation true`, a person's reply makes it false.
 - [ ] **Step 2: Run** `nix develop -c npx vitest run src/app/threads/cross-room/threadSignals.test.ts`; FAIL (module missing).
 - [ ] **Step 3: Implement** reading `room.getThread(rootId)?.timeline` (fall back to the root event alone), unread with `room.hasUserReadEvent(userId, eventId)`, highlight with `room.getThreadUnreadNotificationCount(rootId, NotificationCountType.Highlight) > 0`, reactions with `room.relations.getChildEventsForEvent(id, RelationType.Annotation, EventType.Reaction)`, content through `event.getContent()` (the SDK applies the latest edit), edit time from `event.replacingEvent()?.getTs()`.
-- [ ] **Step 4: Run**; PASS. Also `just strict` 0 Lane C errors.
+- [ ] **Step 4: Run**; PASS. Also `just strict` 0 errors.
 - [ ] **Step 5: Commit** `Threads: read each thread's signals for Activity and the Threads page`.
 
 ### Task 3: Activity rows model and the `activity` domain

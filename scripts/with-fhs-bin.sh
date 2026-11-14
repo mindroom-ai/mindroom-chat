@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs a command on a host where /bin/bash and the coreutils under /usr/bin exist.
 #
-# Some ported tests run shell scripts with PATH=<stub dir>:/usr/bin:/bin and stubs that start
+# Some tests run shell scripts with PATH=<stub dir>:/usr/bin:/bin and stubs that start
 # with `#!/bin/bash`, as on macOS (Xcode Cloud) and most Linux distributions. NixOS has neither
 # path, so there the command runs in a private mount namespace in which /bin and /usr/bin are
 # small tmpfs directories of symlinks into the Nix store. Elsewhere the command runs as is.

@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- Lane C: `just typecheck`, `just strict`, `just lint`, `just test` pass; new files are Lane C.
+- `just typecheck`, `just strict`, `just lint`, `just test` pass.
 - Styles use logical sides; the frame's `left` and `top` are physical (it is placed by coordinates) and take an `eslint-disable-next-line` with that reason.
 - `PopOut` and `TooltipProvider` come from `src/app/ui/directional.tsx`, never from `folds`.
 - No em dashes in docs, comments or commit messages. Comments explain why, in the codebase's full-sentence style.
@@ -23,7 +23,6 @@
 - The pre-push upstream-overlap hook flags 3 consecutive lines that each exist upstream, generic vanilla-extract property lines included (`flexDirection: 'column',`, `alignItems: 'center',`): put a line of this file's own (a local constant, `flexFlow`, a comment) between generic ones.
 - New strings go under `featureUi.calls.window` and `featureUi.calls.stage` in `src/app/i18n/locales/additions/en.json`; Task 6 adds them to every other language.
 - Values from the spec: margin 8 px, edge stick 16 px, default 400 by 480 px at 16 px from the bottom and end edges, minimum 340 by 220 px, bar 56 px, bar threshold 120 px, keyboard step 16 px, speaker view under 100 px tiles, voice avatars 64 px (one other) or 48 px (more). Storage key `mindroom.callWindow:<user id>`.
-- Never open `FORK_CHANGES.md`, the upstream client or the forbidden clients named in `AGENTS.md`.
 
 ## Review Focus
 

@@ -18,13 +18,11 @@
 #   tsc       tsc --noEmit -p config/tsconfig.app.json
 #   strict    tsc --noEmit -p config/tsconfig.strict.json (tests and e2e included)
 #   lint      ESLint on the files base...rev changes (on every file when the ESLint config or a file
-#             it reads changes: scripts/eslint-shared.cjs, scripts/provenance-paths.cjs, the
-#             docs/provenance lists, the tsconfigs)
+#             it reads changes: scripts/eslint-shared.cjs, the tsconfigs)
 #   vitest    the full unit suite; the files that fail run once more on their own, and only a
 #             second failure counts (the detail says how many passed on the rerun)
 #   keys      every object base..rev adds (files and commit messages) against the values in
 #             $PUSH_GATE_KEY_FILE (default ~/.config/mindroom-chat/llm.env); it prints key names, never values
-#   old-name  commit messages in base..rev that use the old name of the upstream client
 #   e2e       the smoke specs below through scripts/e2e-suite.sh: each spec file on the build with
 #             an empty homeserver of its own (in one shared run, the rooms earlier specs made pushed
 #             a spec's room out of the room list), with one retry; a test that passes on its retry
@@ -131,7 +129,6 @@ main() {
   run_check strict check_strict &
   run_check lint check_lint &
   run_check keys check_keys &
-  run_check old-name check_old_name &
   wait "$build_pid" "$vitest_pid"
   if [ "$(cut -f 1 "$results/build")" = PASS ]; then
     run_check e2e check_e2e &
@@ -142,7 +139,7 @@ main() {
 
   local name verdict seconds detail status=PASS
   printf '\n%-9s %-6s %8s  %s\n' check result seconds detail
-  for name in build tsc strict lint vitest keys old-name e2e; do
+  for name in build tsc strict lint vitest keys e2e; do
     verdict=FAIL seconds=- detail='no result'
     if [ -s "$results/$name" ]; then IFS=$'\t' read -r verdict seconds detail <"$results/$name"; fi
     printf '%-9s %-6s %8s  %s\n' "$name" "$verdict" "$seconds" "$detail"
@@ -230,9 +227,9 @@ check_lint() {
     git -C "$checkout" diff --name-only --diff-filter=ACMR "$base_sha...$sha" -- \
       src e2e scripts vite.config.js vitest.config.ts .eslintrc.plugin.cjs | grep -E '\.(ts|tsx|js|mjs|cjs)$' || true
   )
-  # The config, and what it reads to sort files into lanes and to type them.
+  # The config, and what it reads to type the files.
   if [ -n "$(git -C "$checkout" diff --name-only "$base_sha...$sha" -- .eslintrc.cjs scripts/eslint-shared.cjs \
-    scripts/provenance-paths.cjs 'docs/provenance/*.tsv' tsconfig.json config/tsconfig.strict.json)" ]; then
+    tsconfig.json config/tsconfig.strict.json)" ]; then
     scope='every file (the ESLint config or a file it reads changed)'
     (cd "$tree" && npm run lint) >"$logs/lint.log" 2>&1 || rc=$?
   elif [ ${#files[@]} -eq 0 ]; then
@@ -326,16 +323,6 @@ for hit in hits:
 print(f"{len(hits)} hits of {len(keys)} keys in {len(objects)} new objects")
 sys.exit(1 if hits else 0)
 PY
-}
-
-check_old_name() {
-  local count total
-  # The old name of the upstream client, written as a pattern so this file does not contain it.
-  git -C "$checkout" log --format='%h %s' -i --grep='c[i]nny' "$base_sha..$sha" >"$logs/old-name.log"
-  count="$(wc -l <"$logs/old-name.log")"
-  total="$(git -C "$checkout" rev-list --count "$base_sha..$sha")"
-  echo "$count of $total commit messages"
-  [ "$count" = 0 ]
 }
 
 check_e2e() {

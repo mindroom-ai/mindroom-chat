@@ -15,7 +15,7 @@
 ## Global Constraints
 
 - Phones only: `useScreenSizeContext() === ScreenSize.Mobile`; Tablet and Desktop render as before (same DOM boxes: the page wrapper is `display: contents` there).
-- Lane C rules: `just strict`, type-aware ESLint, logical CSS sides (`insetInlineStart`, `paddingInline`), `PopOut`/`TooltipProvider` from `ui/directional.tsx`.
+- Code rules: `just strict`, type-aware ESLint, logical CSS sides (`insetInlineStart`, `paddingInline`), `PopOut`/`TooltipProvider` from `ui/directional.tsx`.
 - Layers: the atom lives in `navigation/` (layer 4); top bar and drawer in `sidebar/` (13); `shell/` places them.
 - No upstream lines: `scripts/upstream-overlap/check.py` reports 0 findings for every commit.
 - No em dashes; unsigned commits by explicit path.
@@ -90,7 +90,7 @@
 **Files:**
 - Create: `e2e/sidebar/phone-nav-drawer.spec.ts`
 - Modify: phone specs the full-suite diff shows failing because of the new model (start with `e2e/ui/phone-back-button.spec.ts`, `e2e/sidebar/phone-back-path.spec.ts`, `e2e/sidebar/phone-room-edge-swipe.spec.ts`, `e2e/sidebar/drawer-motion.spec.ts`)
-- Modify: `AGENTS.md` (Product line on phones), `docs/provenance.md` (session row)
+- Modify: `AGENTS.md` (Product line on phones)
 
 - [ ] Step 1: spec at 390 by 844 with touch: top bar visible in a room; menu opens the drawer (rail and list visible, panel `transform` animates, room still in the DOM behind); room pick closes and shows that room; tapping the open room closes; space pick keeps it open with that space's list and the lobby behind; scrim, Escape and menu close; Escape with a rail context menu open only closes the menu; edge swipe opens; reduced motion: no transition; `dir=rtl`: panel at the right; search opens the palette and shows the shortcut; resizing to 844 by 390 keeps the room mounted.
 - [ ] Step 2: full e2e suite at the base commit and at the branch tip on gce; fix or update every new failure.

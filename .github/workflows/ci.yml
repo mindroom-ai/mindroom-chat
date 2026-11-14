@@ -6,14 +6,12 @@ name: CI
 on:
   push:
     branches: [main]
-    # Screenshots and the session log change nothing these jobs check.
+    # Screenshots change nothing these jobs check.
     paths-ignore:
       - 'docs/design/**'
-      - 'docs/provenance.md'
   pull_request:
     paths-ignore:
       - 'docs/design/**'
-      - 'docs/provenance.md'
 
 permissions:
   contents: read

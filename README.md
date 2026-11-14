@@ -100,16 +100,12 @@ On the Mac, Control+Option+Space opens Quick Capture over any app: a small windo
 | Command | What it does |
 |---|---|
 | `just dev` | Vite dev server on `http://127.0.0.1:4200` |
-| `just check` | The full local check: types, strict types, lint, unit tests, script tests, licenses and provenance |
+| `just check` | The full local check: types, strict types, lint, unit tests, script tests and licenses |
 | `just test [files]` | Vitest unit tests, next to the code as `*.test.ts(x)` |
 | `just hs-up` / `just hs-down` | Start or remove a disposable Tuwunel homeserver for the end-to-end specs |
 | `just e2e [specs]` | Playwright end-to-end specs |
 
 [`docs/development.md`](docs/development.md) covers setup, the checks, the end-to-end specs and their parallel slots, and a real MindRoom backend with a stub model for the agent specs. Read [`AGENTS.md`](AGENTS.md) before you change code: it holds the rules and describes the `just` recipes.
-
-### A clean-room rebuild
-
-This MindRoom Chat replaces the legacy MindRoom Chat client ([`mindroom-chat-legacy`](https://github.com/mindroom-ai/mindroom-chat-legacy)), a fork of another Matrix client under AGPL-3.0. Files whose lines Bas Nijholt wrote for the legacy client were brought over, and he licenses his lines in them under Apache-2.0 for this project (third-party material keeps its own license; see [`NOTICE`](NOTICE)); everything else was written fresh, without the source of the earlier client or the one it forked. Checks keep it that way: no commit may share code with that upstream client. [`docs/provenance.md`](docs/provenance.md) records where every file came from.
 
 ## Documentation
 
@@ -118,13 +114,16 @@ This MindRoom Chat replaces the legacy MindRoom Chat client ([`mindroom-chat-leg
 | [`docs/development.md`](docs/development.md) | setup, checks, end-to-end specs, native shells |
 | [`docs/deployment.md`](docs/deployment.md) | the build, serving it, homeserver and MindRoom backend |
 | [`docs/configuration.md`](docs/configuration.md) | `config.json`, `runtime-config.js` and build variables |
-| [`docs/architecture.md`](docs/architecture.md) | folders, layers, the two code lanes, and the MindRoom event formats |
+| [`docs/architecture.md`](docs/architecture.md) | folders, layers, and the MindRoom event formats |
 | [`docs/client-plugins.md`](docs/client-plugins.md) | the client plugin API: the declaration, the client SDK, each kind of contribution, tests |
 | [`docs/ios-release.md`](docs/ios-release.md) | calendar versions `vYYYY.M.N`, `just release`, Xcode Cloud and the App Store app |
-| [`docs/provenance.md`](docs/provenance.md) | where the code came from |
 | [`docs/design/reference/`](docs/design/reference/) | the screenshots the app is compared with |
 | [`AGENTS.md`](AGENTS.md) | rules for changing code, and the `just` recipes |
 
 ## License
 
 [Apache-2.0](LICENSE). [`NOTICE`](NOTICE) lists third-party material and its licenses.
+
+## History
+
+MindRoom Chat replaces the legacy MindRoom Chat client ([`mindroom-chat-legacy`](https://github.com/mindroom-ai/mindroom-chat-legacy)), a fork of [Cinny](https://github.com/cinnyapp/cinny) (AGPL-3.0); thanks to the Cinny authors for the client it grew from. In November 2026 it was rebuilt clean-room: files whose lines Bas Nijholt wrote for the legacy client were brought over, and he licenses his lines in them under Apache-2.0 (see [`NOTICE`](NOTICE)); everything else was written fresh, without the source of either earlier client. The record of the rebuild, which files came from where and the checks that proved it, is in the tree at commit [`fc19a488a`](https://github.com/mindroom-ai/mindroom-chat/tree/fc19a488a1794e751a6c2b56878757ca5225682d/docs/provenance.md).

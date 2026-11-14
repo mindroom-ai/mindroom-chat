@@ -21,7 +21,7 @@ import { isEncryptedRoomOf } from '../matrix/client/encryptedRoomTextOffDisk';
 import { clearKeptPastes } from './keptPastes';
 import { composerStateKey } from '../navigation/conversationView';
 
-// TUploadItem is declared with the upload state; this seam keeps exporting it (seams.tsv).
+// TUploadItem is declared with the upload state; this module keeps exporting it.
 export type { TUploadItem } from '../matrix/state/upload';
 
 export type IReplyDraft = {

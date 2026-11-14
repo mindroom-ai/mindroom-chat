@@ -1,6 +1,6 @@
 /* eslint-env node */
 // The ESLint config a client plugin outside this repository extends (docs/development.md "A client
-// plugin in its own repository"): the rules of the app's own code, without its lanes and layers,
+// plugin in its own repository"): the rules of the app's own code, without its layers,
 // and one more, that the plugin imports the app only through the client SDK. The plugin runs this
 // app's ESLint from its own directory with `--resolve-plugins-relative-to` this directory, and the
 // type-aware rules take the types of the plugin's tsconfig.strict.json there.
