@@ -1384,11 +1384,18 @@ describe('useCrossRoomThreadIndex', () => {
   });
 
   it('only attaches listeners for added rooms when the joined room set grows', async () => {
-    const [room1, room2, room3, room4] = [
-      makeRoom('!room-1:example.org').room,
-      makeRoom('!room-2:example.org').room,
-      makeRoom('!room-3:example.org').room,
-      makeRoom('!room-4:example.org').room,
+    const roomFixtures = [
+      makeRoom('!room-1:example.org'),
+      makeRoom('!room-2:example.org'),
+      makeRoom('!room-3:example.org'),
+      makeRoom('!room-4:example.org'),
+    ];
+    type FixtureRoom = (typeof roomFixtures)[number]['room'];
+    const [room1, room2, room3, room4] = roomFixtures.map((fixture) => fixture.room) as [
+      FixtureRoom,
+      FixtureRoom,
+      FixtureRoom,
+      FixtureRoom
     ];
     const mx = makeClient([room1, room2, room3, room4]);
     matrixClientMock.mockReturnValue(mx);

@@ -162,7 +162,7 @@ describe('CompactRoomView row rendering', () => {
 
     const firstMoreButton = renderer.root
       .findAllByType('button')
-      .find((button) => button.props['aria-haspopup'] === 'menu')!;
+      .filter((button) => button.props['aria-haspopup'] === 'menu')[0]!;
     await act(async () => {
       firstMoreButton.props.onClick({
         currentTarget: {
