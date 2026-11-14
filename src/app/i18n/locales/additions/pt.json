@@ -891,9 +891,20 @@
     "notFound": "Tópico não encontrado",
     "snoozedUntil": "Adiado até {{time}}",
     "snoozeEnded": "Adiamento encerrado",
+    "snooze": "Adiar",
+    "unsnooze": "Cancelar adiamento",
     "status": {
       "snoozed": "Adiado"
     }
+  },
+  "threadSnooze": {
+    "title": "Adiar até",
+    "inOneHour": "Em 1 hora",
+    "inThreeHours": "Em 3 horas",
+    "tomorrow": "Amanhã 09:00",
+    "nextMonday": "Próxima segunda-feira 09:00",
+    "pickDateTime": "Escolher data e hora",
+    "pastTime": "Escolha um horário no futuro"
   },
   "activity": {
     "title": "Atividade",

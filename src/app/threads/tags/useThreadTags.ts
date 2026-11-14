@@ -11,6 +11,7 @@ import {
   getDisplayTags,
   isThreadResolved,
   MINDROOM_THREAD_TAGS_EVENT,
+  SNOOZED_TAG,
   type TagMetadata,
   type ThreadTagsContent,
 } from '../../event-store/threads/threadTags';
@@ -20,6 +21,7 @@ import {
   withPendingThreadTags,
 } from './threadTagPending';
 import { usePinnedEventIds } from '../../event-store/threads/useThreadPinning';
+import { parseThreadSnooze } from '../../event-store/threads/threadSnooze';
 
 type ThreadTagsState = {
   /** Every tag on the thread, `resolved` included. */
@@ -27,6 +29,8 @@ type ThreadTagsState = {
   /** Tags to show as pills: everything but `resolved`. */
   displayTags: string[];
   isResolved: boolean;
+  /** The `until` of the thread's snooze, past or not; undefined without a valid one. */
+  snoozedUntilTs?: number;
   /** Whether the user may write the room's thread tag state. */
   canEdit: boolean;
   /** Tags used on other threads of the room, offered as suggestions. */
@@ -69,6 +73,7 @@ export const useThreadTags = (room: Room, threadRootId?: string): ThreadTagsStat
       tags: content.tags,
       displayTags: getDisplayTags(content),
       isResolved: isThreadResolved(content, pinned),
+      snoozedUntilTs: parseThreadSnooze(content.tags[SNOOZED_TAG])?.untilTs,
       canEdit,
       availableTags: collectAvailableTags(
         [...aggregated].filter(([rootId]) => rootId !== threadRootId).map(([, value]) => value),
