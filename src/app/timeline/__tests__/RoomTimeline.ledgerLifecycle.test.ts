@@ -257,7 +257,7 @@ describe('RoomTimeline ledger lifecycle', () => {
       expect(scrollElement.scrollTop).toBe(0);
 
       await act(async () => {
-        settleWaits[settleWaitIndex].resolve();
+        settleWaits[settleWaitIndex]!.resolve();
         await flushAsyncWork(5);
       });
       expect(innerElement.style.marginTop).toBe('');
@@ -329,7 +329,7 @@ describe('RoomTimeline ledger lifecycle', () => {
       });
       expect(innerElement.style.marginTop).toBe('-2600px');
       expect(settleWaits.length).toBe(1);
-      const staleWait = settleWaits[0];
+      const staleWait = settleWaits[0]!;
 
       // Switch to thread B while A's settle wait is still pending. The
       // render-time reset must zero the ledger for B.
@@ -378,7 +378,7 @@ describe('RoomTimeline ledger lifecycle', () => {
 
       // Healthy path: B's own wait settles B's ledger exactly.
       await act(async () => {
-        settleWaits[1].resolve();
+        settleWaits[1]!.resolve();
         await flushAsyncWork(5);
       });
       expect(innerElement.style.marginTop).toBe('');
@@ -466,7 +466,7 @@ describe('RoomTimeline ledger lifecycle', () => {
       expect(settleWaits).toHaveLength(settleWaitIndex + 1);
 
       await act(async () => {
-        settleWaits[settleWaitIndex].resolve();
+        settleWaits[settleWaitIndex]!.resolve();
         await flushAsyncWork(5);
       });
       expect(innerElement.style.marginTop).toBe('');
@@ -646,7 +646,7 @@ describe('RoomTimeline ledger lifecycle', () => {
       });
 
       await act(async () => {
-        settleWaits[waitsBefore].resolve();
+        settleWaits[waitsBefore]!.resolve();
         await flushAsyncWork(3);
       });
       expect(scrollWrites).toEqual([89]);
@@ -856,7 +856,7 @@ describe('RoomTimeline ledger lifecycle', () => {
       });
 
       await act(async () => {
-        settleWaits[waitsBefore].resolve();
+        settleWaits[waitsBefore]!.resolve();
         await flushAsyncWork(3);
       });
       expect(scrollWrites).toEqual([34412, 34362, 34385, 34472]);
@@ -949,7 +949,7 @@ describe('RoomTimeline ledger lifecycle', () => {
       // write fighting the live session, probe attributes the revert.
       expect(scrollWrites).toEqual([34412]);
       expect(innerElement.style.marginTop).toBe('-72px');
-      expect(await readDiscardProbe()).toBe(discardsBefore + 1);
+      expect(await readDiscardProbe()).toBe(discardsBefore! + 1);
       // No new boundary settle fired on the reassertion event itself.
       expect(await readLedgerSettleCounts()).toEqual({
         quiescence: countsBefore.quiescence,
@@ -958,7 +958,7 @@ describe('RoomTimeline ledger lifecycle', () => {
 
       await act(async () => {
         // The still-pending true-rest wait refolds the restored ledger.
-        settleWaits[waitsBefore].resolve();
+        settleWaits[waitsBefore]!.resolve();
         await flushAsyncWork(3);
       });
       expect(scrollWrites).toEqual([34412, 34410]);

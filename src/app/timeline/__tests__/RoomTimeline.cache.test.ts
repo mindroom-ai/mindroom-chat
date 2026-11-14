@@ -1,7 +1,9 @@
 import React from 'react';
 import { Direction, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
+import type { Editor } from 'slate';
 import { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
+import type { CachedThreadEventPage } from '../../event-store/cache/db';
 import type { ThreadRecord } from '../../event-store/threads/types';
 
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from '../../event-store/cache/threadOpenSeedCache';
@@ -263,7 +265,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         await act(async () => {
           renderer = create(
             wrapWithSyncEngine(
-              React.createElement(RoomTimeline, {
+              React.createElement(RoomTimeline as never, {
                 room,
                 editor,
                 summaryMap: new Map(),
@@ -336,7 +338,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         await act(async () => {
           renderer = create(
             wrapWithSyncEngine(
-              React.createElement(RoomTimeline, {
+              React.createElement(RoomTimeline as never, {
                 room,
                 editor,
                 summaryMap: new Map(),
@@ -493,7 +495,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         expect(messageNode).toBeDefined();
         // A fold that looked past the edit would take the rendered $m1
         // (same sender, <2min) as the row above and collapse this row.
-        expect(messageNode.props.collapse).toBe(false);
+        expect(messageNode!.props.collapse).toBe(false);
       } finally {
         reactionOrEditEventMock.mockImplementation(() => false);
         renderer?.unmount();
@@ -1342,7 +1344,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         await act(async () => {
           renderer = create(
             wrapWithSyncEngine(
-              React.createElement(RoomTimeline, {
+              React.createElement(RoomTimeline as never, {
                 room,
                 editor,
                 summaryMap: new Map(),
@@ -1441,7 +1443,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         await act(async () => {
           renderer = create(
             wrapWithSyncEngine(
-              React.createElement(RoomTimeline, {
+              React.createElement(RoomTimeline as never, {
                 room,
                 editor,
                 summaryMap: new Map(),
@@ -2162,7 +2164,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
               getTimelines: () => [threadTimeline],
             }),
           },
-        ],
+        ] as never,
       });
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
       let renderer: ReturnType<typeof create> | undefined;
@@ -2560,9 +2562,9 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       ];
       const room = makeRoom({
         liveEvents: [firstThread, secondThread],
-        threads: roomThreads as never,
+        threads: roomThreads,
       });
-      roomThreadListThreadsMock.push(...(roomThreads as never));
+      roomThreadListThreadsMock.push(...roomThreads);
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
       threadLastActivityTsMapMock.set(firstThread.getId(), 100);
       threadLastActivityTsMapMock.set(secondThread.getId(), 200);
@@ -2743,13 +2745,13 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       const olderTimeline = makeTimeline([rootEvent, firstReply, threadedEdit, editRedaction]);
       const liveTimeline = makeTimeline([newerReply]);
       (
-        olderTimeline as ReturnType<typeof makeTimeline> & {
+        olderTimeline as {
           getNeighbouringTimeline: (direction: Direction) => ReturnType<typeof makeTimeline> | null;
         }
       ).getNeighbouringTimeline = (direction: Direction) =>
         direction === Direction.Forward ? liveTimeline : null;
       (
-        liveTimeline as ReturnType<typeof makeTimeline> & {
+        liveTimeline as {
           getNeighbouringTimeline: (direction: Direction) => ReturnType<typeof makeTimeline> | null;
         }
       ).getNeighbouringTimeline = (direction: Direction) =>
@@ -2812,13 +2814,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         liveTimeline: makeTimeline([secondReply, threadedEdit, rootEvent, firstReply]),
       });
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-      let resolveCacheLoad:
-        | ((value: {
-            events: unknown[];
-            hasMoreBefore: boolean;
-            beforeToken?: string | null;
-          }) => void)
-        | undefined;
+      let resolveCacheLoad: ((value: CachedThreadEventPage) => void) | undefined;
       vi.mocked(loadLatestCachedThreadEvents).mockImplementation(
         () =>
           new Promise((resolve) => {
@@ -3094,14 +3090,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         threadedEdit,
         secondReply,
         thirdReply,
-      ]);
-      let resolveCacheLoad:
-        | ((value: {
-            events: unknown[];
-            hasMoreBefore: boolean;
-            beforeToken?: string | null;
-          }) => void)
-        | undefined;
+      ] as never);
+      let resolveCacheLoad: ((value: CachedThreadEventPage) => void) | undefined;
       vi.mocked(loadLatestCachedThreadEvents).mockImplementation(
         () =>
           new Promise((resolve) => {
@@ -3193,13 +3183,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
 
-      let resolveCacheLoad:
-        | ((value: {
-            events: unknown[];
-            hasMoreBefore: boolean;
-            beforeToken?: string | null;
-          }) => void)
-        | undefined;
+      let resolveCacheLoad: ((value: CachedThreadEventPage) => void) | undefined;
       vi.mocked(loadLatestCachedThreadEvents).mockImplementation(
         () =>
           new Promise((resolve) => {
@@ -3256,13 +3240,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       });
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
 
-      let resolveCacheLoad:
-        | ((value: {
-            events: unknown[];
-            hasMoreBefore: boolean;
-            beforeToken?: string | null;
-          }) => void)
-        | undefined;
+      let resolveCacheLoad: ((value: CachedThreadEventPage) => void) | undefined;
       vi.mocked(loadLatestCachedThreadEvents).mockImplementation(
         () =>
           new Promise((resolve) => {
@@ -3410,18 +3388,12 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
             } as never)
           : null;
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-      saveThreadOpenSeedSnapshot(room as never, threadId, [firstReply, secondReply]);
+      saveThreadOpenSeedSnapshot(room as never, threadId, [firstReply, secondReply] as never);
       expect(
         getThreadOpenSeedSnapshot(room as never, threadId).map((mEvent) => mEvent.getId())
       ).toEqual(['$thread-reply-1', '$thread-reply-2']);
 
-      let resolveCacheLoad:
-        | ((value: {
-            events: unknown[];
-            hasMoreBefore: boolean;
-            beforeToken?: string | null;
-          }) => void)
-        | undefined;
+      let resolveCacheLoad: ((value: CachedThreadEventPage) => void) | undefined;
       vi.mocked(loadLatestCachedThreadEvents).mockImplementation(
         () =>
           new Promise((resolve) => {
@@ -5140,7 +5112,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       const fallbackRoot = makeEvent('$thread-root');
       const messageEvent = makeEvent('$message');
       const fallbackCounts = new Map([[fallbackRoot.getId(), 2]]);
-      const resolutionMap = new Map<string, { isResolved: boolean }>();
+      const resolutionMap = new Map<string, { isResolved: boolean; tags: null }>();
 
       expect(
         getThreadFilteredEvents(
@@ -5184,7 +5156,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         [fakeReply.getId(), 1],
         [actualRoot.getId(), 1],
       ]);
-      const resolutionMap = new Map<string, { isResolved: boolean }>([
+      const resolutionMap = new Map<string, { isResolved: boolean; tags: null }>([
         ['$reply-event', { isResolved: false, tags: null }],
         ['$actual-root', { isResolved: false, tags: null }],
       ]);
