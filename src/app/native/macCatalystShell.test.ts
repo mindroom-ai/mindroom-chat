@@ -89,6 +89,17 @@ describe('Mac Catalyst shell', () => {
     );
   });
 
+  it('notes the app in front only as the widget shows, so hiding gives the keyboard back to it', () => {
+    const toggle = widgetSceneSource.match(/static func toggle\(\) \{[\s\S]*?\n {4}\}/)?.[0] ?? '';
+    const hideBranch = toggle.match(/if MacWindowing\.widgetIsKey\(host\) \{([\s\S]*?)\}/)?.[1];
+    expect(hideBranch).toContain('MacWindowing.hideWidget(host)');
+    expect(hideBranch).not.toContain('rememberFrontProcess');
+    expect(toggle.match(/rememberFrontProcess\(\)/g)).toHaveLength(2);
+    expect(toggle.split('widgetIsKey')[0]).toMatch(
+      /rememberFrontProcess\(\)\s*openWidgetScene\(\)/
+    );
+  });
+
   it('serves the routes whose IDs have dots, and the widget, from the app', () => {
     const roots = bridgeSource.match(/let routeRoots: Set<Substring> = \[([\s\S]*?)\]/)?.[1];
     ['home', 'direct', 'threads', 'activity', 'quick-capture'].forEach((root) =>

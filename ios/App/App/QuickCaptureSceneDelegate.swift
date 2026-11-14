@@ -170,15 +170,19 @@ enum QuickCapture {
 
     /// The shortcut: opens the widget, hides it while it has the keyboard, else shows it.
     static func toggle() {
-        // Before the widget brings the app forward, which would make MindRoom the app in front.
-        MacWindowing.rememberFrontProcess()
+        // The app in front is noted as the widget shows, before it brings MindRoom forward; hiding
+        // gives the keyboard back to that app.
         guard let host = widgetHost else {
-            if widgetScene == nil { openWidgetScene() }
+            if widgetScene == nil {
+                MacWindowing.rememberFrontProcess()
+                openWidgetScene()
+            }
             return
         }
         if MacWindowing.widgetIsKey(host) {
             MacWindowing.hideWidget(host)
         } else {
+            MacWindowing.rememberFrontProcess()
             show(host)
         }
     }
@@ -223,11 +227,15 @@ enum QuickCapture {
 
     /// The main window in front, opened again when it was closed.
     static func showMainWindow() {
-        if let window = mainScene?.windows.first, let host = MacWindowing.hostWindow(of: window) {
-            MacWindowing.showMainWindow(host)
+        if let main = mainScene {
+            whenHostWindow(of: main) { MacWindowing.showMainWindow($0) }
             return
         }
-        let session = UIApplication.shared.openSessions.first { $0.configuration.delegateClass == SceneDelegate.self }
+        // A closed main window's session; not a connected one, such as a second main scene that
+        // is closing.
+        let session = UIApplication.shared.openSessions.first {
+            $0.configuration.delegateClass == SceneDelegate.self && $0.scene == nil
+        }
         UIApplication.shared.requestSceneSessionActivation(session, userActivity: nil, options: nil) { error in
             NSLog("[QuickCapture] the main window did not open: %@", error.localizedDescription)
         }

@@ -785,6 +785,7 @@ describe('QuickCapturePage list', () => {
       ])
     );
     expect(within(item('Pinned')).queryByRole('button', { name: 'Done' })).toBeNull();
+    expect(within(item('Pinned')).getByRole('img', { name: 'Pinned' })).toBeTruthy();
     press(input(), 'ArrowDown');
     press(row('Pinned'), 'x');
     expect(rig.actions()).toEqual([]);
