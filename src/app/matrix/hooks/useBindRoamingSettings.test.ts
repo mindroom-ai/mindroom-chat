@@ -368,6 +368,33 @@ describe('bindRoamingSettings', () => {
     laptop.unbind();
   });
 
+  it('redoes an edit each time a write from older content undoes it, up to the limit', async () => {
+    logins.stored = [{ userId: ALICE, deviceId: 'LAPTOP' }];
+    const server = homeserver({ lag: true });
+    const laptop = open(login(server, ALICE, 'LAPTOP'));
+    await settle();
+    laptop.change('isMarkdown', false);
+    await settle();
+    server.deliver();
+    await settle();
+
+    // Three times, while another edit of the laptop is on its way, a device that read the content
+    // from before the laptop's first write stores over it. Each time the laptop sends its edit again.
+    for (const hour24Clock of [true, false, true]) {
+      laptop.change('hour24Clock', hour24Clock);
+      // eslint-disable-next-line no-await-in-loop
+      await settle();
+      server.put({ version: 1, rev: `stale-${String(hour24Clock)}`, base_rev: null });
+      for (let turn = 0; turn < 3; turn += 1) {
+        server.deliver();
+        // eslint-disable-next-line no-await-in-loop
+        await settle();
+      }
+      expect(server.content?.isMarkdown).toBe(false);
+    }
+    laptop.unbind();
+  });
+
   it('takes a change another device made after seeing this one', async () => {
     logins.stored = [
       { userId: ALICE, deviceId: 'PHONE' },
