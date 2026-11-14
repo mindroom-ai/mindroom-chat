@@ -456,7 +456,7 @@ describe('ThreadContextBanner rendering', () => {
     expect(selectedMenu.summaryText).toBe('Current summary');
     expect(selectedMenu.anchor).toEqual({ x: 120, y: 230, width: 0, height: 0 });
     expect(selectedMenu.onOpenThread).toBeUndefined();
-    act(() => selectedMenu.onClose());
+    await act(() => selectedMenu.onClose());
     // Focusing inside the sticky banner must not scroll the thread to its top.
     expect(target.focus).toHaveBeenCalledOnce();
     expect(target.focus).toHaveBeenCalledWith({ preventScroll: true });
@@ -485,7 +485,7 @@ describe('ThreadContextBanner rendering', () => {
     const selectedMenu = menuProps.mock.calls.at(-1)![0];
     expect(selectedMenu.rootId).toBe('$root');
     expect(selectedMenu.anchor).toEqual(anchor);
-    act(() => selectedMenu.onClose());
+    await act(() => selectedMenu.onClose());
     expect(trigger.focus).toHaveBeenCalledOnce();
     renderer.unmount();
   });
@@ -510,7 +510,7 @@ describe('ThreadContextBanner rendering', () => {
       })
     );
 
-    act(() => menuProps.mock.calls.at(-1)![0].onClose());
+    await act(() => menuProps.mock.calls.at(-1)![0].onClose());
 
     expect(trigger.focus).not.toHaveBeenCalled();
     expect(moreButton.focus).toHaveBeenCalledOnce();
@@ -541,14 +541,14 @@ describe('ThreadContextBanner rendering', () => {
     act(() => renderer.update(React.createElement(ThreadContextBanner, nextProps)));
     expect(renderer.root.findAllByProps({ role: 'menu' })).toHaveLength(0);
     await act(async () => more().props.onClick({ currentTarget: trigger }));
-    act(() => firstMenu.onClose());
+    await act(() => firstMenu.onClose());
 
     expect(trigger.focus).not.toHaveBeenCalled();
     expect(renderer.root.findAllByProps({ role: 'menu' })).toHaveLength(1);
     expect(menuProps.mock.calls.at(-1)![0].rootId).toBe('$next');
     const nextMenu = menuProps.mock.calls.at(-1)![0];
     renderer.unmount();
-    act(() => nextMenu.onClose());
+    await act(() => nextMenu.onClose());
     expect(trigger.focus).not.toHaveBeenCalled();
   });
 
@@ -871,7 +871,7 @@ describe('ThreadContextBanner rendering', () => {
     expect(banner(next).props.className).toBe('Banner Collapsed');
     expect(focusable.show.focus).toHaveBeenCalledOnce();
     focusable.more.focus.mockClear();
-    act(() => next.root.findByProps({ 'aria-label': 'Show thread details' }).props.onClick());
+    await act(() => next.root.findByProps({ 'aria-label': 'Show thread details' }).props.onClick());
     expect(banner(next).props.className).toBe('Banner');
     expect(store.get(settingsAtom).threadBannerCollapsed).toBe(false);
     expect(focusable.more.focus).toHaveBeenCalledOnce();
@@ -879,7 +879,7 @@ describe('ThreadContextBanner rendering', () => {
     next.unmount();
   });
 
-  it('focuses the banner on expanding while More waits for a confirmed root', () => {
+  it('focuses the banner on expanding while More waits for a confirmed root', async () => {
     store.set(settingsAtom, { ...store.get(settingsAtom), threadBannerCollapsed: true });
     bannerMocks.useThreadRootEvent.mockReturnValue('~!room:example.org:txn-root');
     const banner = { focus: vi.fn() };
@@ -892,7 +892,9 @@ describe('ThreadContextBanner rendering', () => {
         return null;
       });
     });
-    act(() => renderer!.root.findByProps({ 'aria-label': 'Show thread details' }).props.onClick());
+    await act(() =>
+      renderer!.root.findByProps({ 'aria-label': 'Show thread details' }).props.onClick()
+    );
     expect(more.focus).not.toHaveBeenCalled();
     expect(banner.focus).toHaveBeenCalledWith({ preventScroll: true });
     renderer!.unmount();
@@ -1028,7 +1030,7 @@ describe('ThreadContextBanner rendering', () => {
     expect(tree).not.toContain('Next task');
   });
 
-  it('tints the summary only when it changes in the same thread', () => {
+  it('tints the summary only when it changes in the same thread', async () => {
     const summaryClass = (renderer: ReturnType<typeof renderBanner>) =>
       renderer.root.findByProps({ 'data-thread-context-summary': 'true' }).props.className;
     let renderer!: ReturnType<typeof renderBanner>;
@@ -1040,7 +1042,7 @@ describe('ThreadContextBanner rendering', () => {
     act(() => renderer.update(bannerElement('Fixing token refresh')));
     expect(summaryClass(renderer)).toBe('SummaryText SummaryTextChanged');
     // Played once: remounting the title, as expanding the banner does, does not replay it.
-    act(() =>
+    await act(() =>
       renderer.root.findByProps({ 'data-thread-context-summary': 'true' }).props.onAnimationEnd()
     );
     expect(summaryClass(renderer)).toBe('SummaryText');
@@ -1239,7 +1241,7 @@ describe('ThreadContextBanner rendering', () => {
       expect(bannerClass()).toBe('Banner');
     });
 
-    it('offers Unsnooze beside the snooze to those who may edit tags', () => {
+    it('offers Unsnooze beside the snooze to those who may edit tags', async () => {
       const unsnooze = vi.fn();
       bannerMocks.useMutateThreadTags.mockReturnValue({
         addTag: vi.fn(),
@@ -1258,7 +1260,7 @@ describe('ThreadContextBanner rendering', () => {
       const renderer = renderBanner();
       const [button] = unsnoozeButtons(renderer);
       expect(button?.props.children).toBe('Unsnooze');
-      act(() => button?.props.onClick());
+      await act(() => button?.props.onClick());
       expect(unsnooze).toHaveBeenCalledWith('$root');
     });
 

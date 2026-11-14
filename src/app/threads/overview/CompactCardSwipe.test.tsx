@@ -357,23 +357,23 @@ describe('CompactCardSwipe', () => {
     expect(track.style.transform).toBe('');
   });
 
-  it('swallows the click that ends a swipe but not a keyboard click or a later tap', () => {
+  it('swallows the click that ends a swipe but not a keyboard click or a later tap', async () => {
     const { swipe, pointer, trackElement } = render();
-    const click = (detail = 1) => {
+    const click = async (detail = 1) => {
       const event = { detail, preventDefault: vi.fn(), stopPropagation: vi.fn() };
-      act(() => trackElement().props.onClickCapture(event));
+      await act(() => trackElement().props.onClickCapture(event));
       return event.stopPropagation;
     };
 
     swipe(300, 240);
-    expect(click(0)).not.toHaveBeenCalled();
-    expect(click()).toHaveBeenCalled();
-    expect(click()).not.toHaveBeenCalled();
+    expect(await click(0)).not.toHaveBeenCalled();
+    expect(await click()).toHaveBeenCalled();
+    expect(await click()).not.toHaveBeenCalled();
 
     swipe(300, 240);
     pointer('onPointerDown', 300);
     pointer('onPointerUp', 300);
-    expect(click()).not.toHaveBeenCalled();
+    expect(await click()).not.toHaveBeenCalled();
   });
 
   it('swipes toward the inline start in right-to-left layouts', () => {

@@ -172,7 +172,7 @@ it('keeps a room opened and left again while the pass runs', async () => {
     key: IDBValidKey | IDBKeyRange
   ) {
     // Opening stamps the room; leaving it clears the focus registry again.
-    if (key === 'room-1') store.noteRoomOpened(session, 'room-4');
+    if (key === 'room-1') void store.noteRoomOpened(session, 'room-4');
     return deleteKey.call(this, key);
   });
   const result = await store.runCacheEvictionIfOverBudget(session);
@@ -262,7 +262,7 @@ it('keeps a room pinned while the pass runs', async () => {
     this: IDBObjectStore,
     key: IDBValidKey | IDBKeyRange
   ) {
-    if (key === 'room-1') store.setRoomAttachmentPinned(session, 'room-4', true);
+    if (key === 'room-1') void store.setRoomAttachmentPinned(session, 'room-4', true);
     return deleteKey.call(this, key);
   });
   const result = await store.runCacheEvictionIfOverBudget(session);
