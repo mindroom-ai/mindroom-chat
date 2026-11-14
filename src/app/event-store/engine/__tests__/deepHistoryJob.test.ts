@@ -56,9 +56,7 @@ const makeRoom = (
       getState: () => ({
         getStateEvents: (eventType: StateEvent) => {
           if (eventType !== StateEvent.RoomCreate) return undefined;
-          return { getSender: () => createSender } as unknown as NonNullable<
-            ReturnType<ReturnType<Room['getLiveTimeline']>['getState']>
-          >['getStateEvents'];
+          return { getSender: () => createSender } as unknown as MatrixEvent;
         },
       }),
       getPaginationToken: (dir: Direction) => (dir === Direction.Backward ? liveBackToken : null),

@@ -250,7 +250,7 @@ export const extractDiscardedSettleWrites = (
     let previousScrollTop = settledScrollTop;
     for (
       let watch = index;
-      watch < frames.length && frames[watch]!.t - frames[index]!.t <= SETTLE_DISCARD_WINDOW_MS;
+      watch < frames.length && frames[watch]!.t - frame.t <= SETTLE_DISCARD_WINDOW_MS;
       watch += 1
     ) {
       if (watch > index && frames[watch]!.touch) break;

@@ -1,11 +1,4 @@
-import {
-  Direction,
-  type IAddEventToTimelineOptions,
-  MatrixClient,
-  MatrixEvent,
-  Room,
-  RoomEvent,
-} from 'matrix-js-sdk';
+import { Direction, MatrixClient, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { insertCachedRoomTimeline, prependCachedRoomTimeline } from './roomTimelineSdk';
 
@@ -183,7 +176,8 @@ describe('prependCachedRoomTimeline', () => {
     const overlap = makeEvent('$overlap', 2);
     timelineSet.addEventToTimeline(overlap, neighbor, {
       toStartOfTimeline: false,
-    } as IAddEventToTimelineOptions);
+      addToState: false,
+    });
     const oldest = makeEvent('$oldest', 1);
 
     const result = await prependCachedRoomTimeline({

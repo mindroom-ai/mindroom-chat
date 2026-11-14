@@ -595,12 +595,13 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     });
     const cachedPage = makeCachedPage([]);
     cachedPage.events = [targetWithEdit, redaction] as never;
-    const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
-      vi.fn(({ events }) => ({
-        rawEvents: events.map((event: MatrixEvent) => event.event),
-        loadedReplyCount: 0,
-        write: Promise.resolve(true),
-      }));
+    const persistRepair = vi.fn<
+      NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']>
+    >(({ events }) => ({
+      rawEvents: events.map((event) => event.event as Partial<IEvent>),
+      loadedReplyCount: 0,
+      write: Promise.resolve(true),
+    }));
 
     const result = await scheduleReconcile({
       mx,
@@ -914,12 +915,13 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
   it('resumes after a later-page failure without treating the persisted prefix as overlap', async () => {
     const room = makeFakeRoom();
     const continuationStore = createContinuationStore();
-    const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
-      vi.fn(({ events }) => ({
-        rawEvents: events.map((event: MatrixEvent) => event.event),
-        loadedReplyCount: 0,
-        write: Promise.resolve(true),
-      }));
+    const persistRepair = vi.fn<
+      NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']>
+    >(({ events }) => ({
+      rawEvents: events.map((event) => event.event as Partial<IEvent>),
+      loadedReplyCount: 0,
+      write: Promise.resolve(true),
+    }));
     const firstFetch = vi
       .fn()
       .mockResolvedValueOnce({ chunk: [{ event_id: '$new-1' }], next_batch: 'page-2' })
@@ -973,21 +975,20 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     expect(secondResult).toMatchObject({ repaired: true, durable: true, iterations: 2 });
     expect(continuationStore.getMarker()).toBeUndefined();
     expect(persistRepair).toHaveBeenCalledTimes(2);
-    const secondPersistedIds = vi
-      .mocked(persistRepair)
-      .mock.calls[1]![0].events.map((event) => event.getId());
+    const secondPersistedIds = persistRepair.mock.calls[1]![0].events.map((event) => event.getId());
     expect(secondPersistedIds).toContain('$new-head');
   });
 
   it('checkpoints the page cap and resumes from page 26 on the next pass', async () => {
     const room = makeFakeRoom();
     const continuationStore = createContinuationStore();
-    const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
-      vi.fn(({ events }) => ({
-        rawEvents: events.map((event: MatrixEvent) => event.event),
-        loadedReplyCount: 0,
-        write: Promise.resolve(true),
-      }));
+    const persistRepair = vi.fn<
+      NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']>
+    >(({ events }) => ({
+      rawEvents: events.map((event) => event.event as Partial<IEvent>),
+      loadedReplyCount: 0,
+      write: Promise.resolve(true),
+    }));
     const firstFetch = vi.fn(async (_roomId, _threadId, _relType, _eventType, options) => {
       const page: number = firstFetch.mock.calls.length;
       return {
@@ -1084,12 +1085,13 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
       nextToken: 'older-cursor',
       overlapEventIds: ['$known'],
     });
-    const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
-      vi.fn(({ events }) => ({
-        rawEvents: events.map((event: MatrixEvent) => event.event),
-        loadedReplyCount: 0,
-        write: Promise.resolve(true),
-      }));
+    const persistRepair = vi.fn<
+      NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']>
+    >(({ events }) => ({
+      rawEvents: events.map((event) => event.event as Partial<IEvent>),
+      loadedReplyCount: 0,
+      write: Promise.resolve(true),
+    }));
     let headPage = 0;
     const firstFetch = vi.fn(async (_roomId, _threadId, _relType, _eventType, options) => {
       if (options.from === 'older-cursor') {
@@ -1149,10 +1151,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     expect(secondFetch.mock.calls[0]![4]).toMatchObject({ from: 'head-26' });
     expect(result).toMatchObject({ repaired: true, durable: true });
     expect(continuationStore.getMarker()).toBeUndefined();
-    const persistedIds = vi
-      .mocked(persistRepair)
-      .mock.calls.at(-1)?.[0]
-      .events.map((event) => event.getId());
+    const persistedIds = persistRepair.mock.calls.at(-1)?.[0].events.map((event) => event.getId());
     expect(persistedIds).toContain('$validation-tail');
   });
 
@@ -1185,11 +1184,13 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
       room,
       threadId: '$thread',
       cachedPage: makeCachedPage(['$persisted-from-earlier-pass']),
-      persistRepair: vi.fn(({ events }) => ({
-        rawEvents: events.map((event: MatrixEvent) => event.event),
-        loadedReplyCount: 0,
-        write: Promise.resolve(true),
-      })),
+      persistRepair: vi.fn<NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']>>(
+        ({ events }) => ({
+          rawEvents: events.map((event) => event.event as Partial<IEvent>),
+          loadedReplyCount: 0,
+          write: Promise.resolve(true),
+        })
+      ),
       continuationStore,
     });
 
@@ -1305,12 +1306,13 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
       getEventMapper: () => (raw: Partial<IEvent>) => makeFakeEvent({ id: raw.event_id ?? '' }),
       fetchRelations,
     } as unknown as MatrixClient;
-    const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
-      vi.fn(({ events }) => ({
-        rawEvents: events.map((event: MatrixEvent) => event.event),
-        loadedReplyCount: 0,
-        write: Promise.resolve(true),
-      }));
+    const persistRepair = vi.fn<
+      NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']>
+    >(({ events }) => ({
+      rawEvents: events.map((event) => event.event as Partial<IEvent>),
+      loadedReplyCount: 0,
+      write: Promise.resolve(true),
+    }));
 
     await scheduleReconcile({
       mx,
