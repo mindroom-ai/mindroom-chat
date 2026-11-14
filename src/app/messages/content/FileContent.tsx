@@ -391,7 +391,10 @@ type FileActionsProps = {
   children?: ReactNode;
 };
 
-/** A file attachment's actions: open (text and PDF files) and whatever the caller adds. */
+/**
+ * A file attachment's actions: open (text and PDF files) and whatever the caller adds. The hover
+ * toolbar keeps clear of them (`data-file-actions`, hoverToolbarPlacement).
+ */
 export function FileContent({
   mimeType,
   renderAsTextFile,
@@ -401,7 +404,7 @@ export function FileContent({
   const opensAsText = isTextFileMimeType(mimeType);
   const opensAsPdf = isPdfFileMimeType(mimeType) && browserShowsPdfInline();
   return (
-    <Box alignItems="Center" gap="100" shrink="No">
+    <Box alignItems="Center" gap="100" shrink="No" data-file-actions="">
       {opensAsText && renderAsTextFile()}
       {opensAsPdf && renderAsPdfFile()}
       {children}
