@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   createRoot: vi.fn(),
   getActiveSession: vi.fn(),
   waitForServiceWorkerControl: vi.fn(),
+  forgetAvatars: vi.fn(),
 }));
 
 vi.mock('react-dom/client', () => ({
@@ -103,6 +104,10 @@ vi.mock('./app/diagnostics/sdkDebugLogging', () => ({}));
 
 vi.mock('./app/plugins/registry', () => ({}));
 
+vi.mock('./sw/avatarCache', () => ({
+  forgetAvatars: mocks.forgetAvatars,
+}));
+
 vi.mock('./app/plugins/pluginStorage', () => ({
   deletePluginStorageOfRemovedAccounts: vi.fn(),
 }));
@@ -154,6 +159,17 @@ describe('application bootstrap', () => {
     expect(mocks.installFlightRecorder).toHaveBeenCalledTimes(installs);
     expect(mocks.initializeDeepTraceRecorder).toHaveBeenCalledTimes(installs);
     expect(mocks.createRoot).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['deletes the kept avatars when no account is signed in', undefined, 1],
+    ['keeps them while an account is signed in', { sessionId: 'alice' }, 0],
+  ])('%s', async (_name, session, deletes) => {
+    mocks.getActiveSession.mockReturnValue(session);
+
+    await import('./index');
+
+    expect(mocks.forgetAvatars).toHaveBeenCalledTimes(deletes);
   });
 
   it('continues boot when recorder route classification throws', async () => {

@@ -86,3 +86,31 @@ test('deactivating the account deletes the kept avatars', async ({ page }) => {
   await expect(page).toHaveURL(/\/login\b/, { timeout: 60_000 });
   await expect.poll(() => keptAvatars(page)).toBe(-1);
 });
+
+test('an avatar kept after the last account left is deleted at the next start', async ({
+  page,
+}) => {
+  await signInWithKeptAvatar(page, 'late');
+  await matrixFetch(HOMESERVER, '/logout', {
+    method: 'POST',
+    accessToken: await pageAccessToken(page),
+    body: '{}',
+  });
+  await expect(page).toHaveURL(/\/login\b/, { timeout: 60_000 });
+  await expect.poll(() => keptAvatars(page)).toBe(-1);
+
+  // A download that was still under way when the account left writes its avatar afterwards.
+  await page.evaluate(
+    async ({ name, url }) => {
+      await (await caches.open(name)).put(url, new Response('late', { status: 200 }));
+    },
+    {
+      name: AVATAR_CACHE,
+      url: `${HOMESERVER}/_matrix/client/v1/media/thumbnail/late/avatar?width=48&height=48`,
+    }
+  );
+  expect(await keptAvatars(page)).toBe(1);
+
+  await page.reload();
+  await expect.poll(() => keptAvatars(page)).toBe(-1);
+});

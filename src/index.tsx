@@ -12,16 +12,9 @@ import './app/i18n/i18n';
 import './app/plugins/registry';
 import { deletePluginStorageOfRemovedAccounts } from './app/plugins/pluginStorage';
 import App from './app/shell/App';
-import {
-  isNativeApp,
-  isNativeIOS,
-  registerNativeAppUrlCallbacks,
-} from './app/native/nativeSso';
+import { isNativeApp, isNativeIOS, registerNativeAppUrlCallbacks } from './app/native/nativeSso';
 import { installFlightRecorder } from './app/diagnostics/flightRecorder';
-import {
-  initializeDeepTraceRecorder,
-  recordDeepTraceEvent,
-} from './app/diagnostics/deepTrace';
+import { initializeDeepTraceRecorder, recordDeepTraceEvent } from './app/diagnostics/deepTrace';
 import {
   installIndexedDbLossRecovery,
   readRecoveryReloadAge,
@@ -33,6 +26,7 @@ import { migratePrefetchSettingsStorage } from './app/event-store/engine/prefetc
 import { migrateLegacyIOSPushEnabled } from './app/notifications/push/iosPush';
 import { isServiceWorkerEnabled } from './app/config/runtimeConfig';
 import { getActiveSession, subscribeToSessionStore } from './app/matrix/session/sessions';
+import { forgetAvatars } from './sw/avatarCache';
 import {
   answerServiceWorkerSessionRequests,
   pushSessionToSW,
@@ -90,6 +84,10 @@ const prepareDocument = (): void => {
     migratePrefetchSettingsStorage();
   });
   runSafely('plugin storage of removed accounts', deletePluginStorageOfRemovedAccounts);
+  // An avatar that finished loading as the last account signed out could keep the avatar cache.
+  runSafely('kept avatars without an account', () => {
+    if (!getActiveSession()) void forgetAvatars();
+  });
   runSafely('native app links', () => {
     // Capacitor's App plugin reports the SSO and pairing links the native app opens with.
     if (isNativeApp()) registerNativeAppUrlCallbacks(NativeApp);

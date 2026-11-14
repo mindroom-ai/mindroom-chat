@@ -219,9 +219,9 @@ export const removeCurrentClientSessionAndReload = async (
     return;
   }
 
-  // Fallback when the client has no deviceId and no candidate matches: fall
-  // back to the identity derived from the live client and skip the per-
-  // session cache/native teardown that requires a full SessionCleanupContext.
+  // Fallback when the client has no deviceId and no candidate matches: the
+  // identity derived from the live client names the session, which is all the
+  // per-session teardown needs.
   const identity = getMatrixClientSessionIdentity(mx);
   const nextStore = removeSession(identity.sessionId);
   const clearUserScopedState = !nextStore.sessions.some(
@@ -230,7 +230,7 @@ export const removeCurrentClientSessionAndReload = async (
   try {
     await Promise.all([
       clearMatrixClientStores(mx),
-      // Saved canvas state and the canvas list need only the session ID, so they are deleted here too.
+      deleteSessionCaches(identity.sessionId),
       deleteNamedDatabase(getCanvasStateDbName(identity.sessionId)).catch(() => undefined),
       deleteNamedDatabase(getCanvasIndexDbName(identity.sessionId)).catch(() => undefined),
       clearUserScopedState ? forgetAccountInPlugins(identity.userId) : undefined,
@@ -240,6 +240,7 @@ export const removeCurrentClientSessionAndReload = async (
     await clearFetchedAvatars(identity.userId);
   }
   clearSessionScopedUiState(identity, clearUserScopedState);
+  clearSessionScopedNativeState(identity.sessionId);
   reloadAppAt(nextHref);
 };
 
