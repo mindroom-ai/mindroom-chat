@@ -1,4 +1,4 @@
-import React, { type RefObject, useEffect, useId, useRef } from 'react';
+import { type RefObject, useEffect, useId, useRef } from 'react';
 import classNames from 'classnames';
 import * as css from './InsetScrollbar.css';
 
@@ -119,7 +119,7 @@ export function InsetScrollbar({
       if (positions[event.key] === undefined || event.altKey || event.ctrlKey || event.metaKey)
         return;
       event.preventDefault();
-      scroll.scrollTop = positions[event.key];
+      scroll.scrollTop = positions[event.key]!;
       reveal();
     };
 

@@ -45,7 +45,7 @@ export const getThreadTailEvents = (
       eventIndex >= 0 && tailEvents.length < count;
       eventIndex -= 1
     ) {
-      const event = timelineEvents[eventIndex];
+      const event = timelineEvents[eventIndex]!;
       if (!isThreadTailMessageEvent(event)) continue;
 
       addEvent(event);

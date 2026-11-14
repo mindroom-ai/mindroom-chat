@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Box, Text } from 'folds';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRelativeTime } from '../i18n/useRelativeTime';
 import {

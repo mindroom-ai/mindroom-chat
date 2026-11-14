@@ -114,14 +114,14 @@ export const takeLeadingToolRefs = (
     html = '';
     childEnds = [];
     for (let childIndex = start; childIndex < children.length; childIndex += 1) {
-      const childHtml = getToolRefChildHtml(children[childIndex]);
+      const childHtml = getToolRefChildHtml(children[childIndex]!);
       if (childHtml === undefined) break;
       html += childHtml;
       childEnds.push(html.length);
     }
   };
   const childStartOf = (childIndex: number): number =>
-    childIndex === runStart ? 0 : childEnds[childIndex - runStart - 1];
+    childIndex === runStart ? 0 : childEnds[childIndex - runStart - 1]!;
   const skipWhitespaceText = () => {
     while (start < children.length) {
       const child = children[start];
@@ -148,7 +148,7 @@ export const takeLeadingToolRefs = (
     for (let childIndex = start; childIndex < runStart + childEnds.length; childIndex += 1) {
       const childStart = childIndex === start ? from : childStartOf(childIndex);
       if (childStart > longest) break;
-      const childEnd = childEnds[childIndex - runStart];
+      const childEnd = childEnds[childIndex - runStart]!;
       // Prefer the longest valid marker prefix (e.g. include optional " ⏳" when present).
       // Only a text child can be split.
       const candidate = isDomTextNode(children[childIndex])
@@ -163,7 +163,7 @@ export const takeLeadingToolRefs = (
 
     // Continue after the marker and its boundary: whitespace, then one line
     // break and more whitespace.
-    const endsInsideChild = end < childEnds[endChild - runStart];
+    const endsInsideChild = end < childEnds[endChild - runStart]!;
     start = endsInsideChild ? endChild : endChild + 1;
     split = endsInsideChild ? end - childStartOf(endChild) : 0;
     skipWhitespaceText();

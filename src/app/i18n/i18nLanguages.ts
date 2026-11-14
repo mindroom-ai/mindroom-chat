@@ -36,7 +36,7 @@ const toOptionalSupportedLanguageCode = (language: string | undefined): string |
   // zh_TW.UTF-8 without allowing encoding/modifier suffixes to affect matching.
   const subtags = language
     .trim()
-    .split(/[.@]/, 1)[0]
+    .split(/[.@]/, 1)[0]!
     .replace(/_/g, '-')
     .split('-')
     .filter(Boolean)

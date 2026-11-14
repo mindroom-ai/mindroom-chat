@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useId, useRef, useState, type PointerEvent } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Text, Tooltip, type RectCords } from 'folds';
 import { PopOut, revealDirectionControls } from '../../ui/directional';

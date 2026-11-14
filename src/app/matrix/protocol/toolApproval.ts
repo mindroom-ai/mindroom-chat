@@ -237,8 +237,8 @@ const pickCandidateValue = (content: Record<string, unknown>, key: string): unkn
   if (immutableRequestFields.has(key) && content[key] !== undefined) return content[key];
   const candidates = getApprovalCandidates(content);
 
-  for (let i = 0; i < candidates.length; i += 1) {
-    const value = candidates[i][key];
+  for (const candidate of candidates) {
+    const value = candidate[key];
     if (value !== undefined) return value;
   }
 

@@ -364,7 +364,7 @@ function ToolRefGroupBlock({
   );
   // Without a cog to open them (no ToolCallsFold), the calls show.
   if (!shown && fold && !fold.open) return null;
-  const running = loadedTools.filter((tool, index) => states[index] === 'running');
+  const running = loadedTools.filter((_tool, index) => states[index] === 'running');
   const outputTool = running.filter((tool) => tool.progress).at(-1);
   // Without the trace details the calls' states are unknown, so only count them.
   const icon = metadataStatus
@@ -403,7 +403,7 @@ function ToolRefGroupBlock({
         <ToolRefGroupItem
           key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
           parsedTool={parsedTool}
-          state={states[index]}
+          state={states[index]!}
         />
       ))}
       {metadataStatus && (
@@ -618,7 +618,7 @@ const createToolTraceMarkerParserOptions = (
           // Each marker that starts the trailing content gets its own block, as
           // rendering that content would give it. Take them in one pass, since
           // rendering it would recurse once per marker.
-          const [trailingElement] = trailingElements;
+          const trailingElement = trailingElements[0]!;
           const chainedToolBlocks: ReactNode[] = [];
           const restChildren = takeLeadingToolRefs(trailingElement, (html) => {
             const toolRef = parseToolRefHtml(html);

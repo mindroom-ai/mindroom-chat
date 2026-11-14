@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next';
-import React from 'react';
 import { color, Icon, Icons, Text } from 'folds';
 import * as css from './PendingSendIndicator.css';
 

@@ -188,7 +188,7 @@ export const attachLiquidGlass = (
   let pointerX = 0;
   let pointerY = 0;
   const permitsTransparency = () => !preferences.slice(0, 3).some((query) => query.matches);
-  const permitsMotion = () => permitsTransparency() && !preferences[3].matches;
+  const permitsMotion = () => permitsTransparency() && !preferences[3]!.matches;
 
   const clearFilter = () => {
     element.style.removeProperty('--liquid-glass-filter');

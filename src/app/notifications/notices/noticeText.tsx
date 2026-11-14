@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 import parse, { DOMNode, Element, HTMLReactParserOptions, domToReact } from 'html-react-parser';
 import { parseInlineMDWithRules } from '../../rich-text/markdown/inline/parser';
 import {
@@ -22,7 +22,7 @@ const ESCAPED_TEXT: Record<string, string> = {
 };
 // Undoes sanitizeText, so a URL is checked as the reader typed it.
 const unescapeText = (value: string): string =>
-  value.replace(/&(?:amp|lt|gt|quot|#39);/g, (entity) => ESCAPED_TEXT[entity]);
+  value.replace(/&(?:amp|lt|gt|quot|#39);/g, (entity) => ESCAPED_TEXT[entity]!);
 
 // The composer's LinkRule, narrowed to https: URLs; any other link stays literal text.
 const HTTPS_LINK_REG = /\[([^[\]]+)\]\((https:\/\/[^\s)]+)\)/;
@@ -31,8 +31,8 @@ const HttpsLinkRule: InlineMDRule = {
   html: (parseInline, match) => {
     const [source, label, url] = match;
     // A URL that only looks like https, such as https://a(b or https://a<b, stays literal text.
-    if (!toHttpsUrl(unescapeText(url))) return source;
-    return `<a href="${url}">${parseInline(label)}</a>`;
+    if (!toHttpsUrl(unescapeText(url!))) return source;
+    return `<a href="${url}">${parseInline(label!)}</a>`;
   },
 };
 

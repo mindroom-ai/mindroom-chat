@@ -192,7 +192,7 @@ export const useRoomPaginationCommandController = ({
       // pre-fetch earliest is absent and the whole slice is new).
       const eventsToPersist: MatrixEvent[] = [];
       for (let idx = 0; idx < backfilledEvents.length; idx += 1) {
-        const mEvent = backfilledEvents[idx];
+        const mEvent = backfilledEvents[idx]!;
         if (mEvent.getId() === preFetchEarliestId) break;
         eventsToPersist.push(mEvent);
       }
