@@ -1,5 +1,6 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { DefaultReset } from 'folds';
+import { DARK_THEMES } from '../preferences/themeNames';
 import {
   AVATAR_INK_PROPERTY,
   AVATAR_SWATCHES,
@@ -29,6 +30,4 @@ const swatchVars = (kind: 'light' | 'dark'): Record<string, string> => {
 };
 
 globalStyle(':root', { vars: swatchVars('light') });
-globalStyle('.dark-theme, .midnight-theme, .butter-theme, .green-theme, .orange-theme', {
-  vars: swatchVars('dark'),
-});
+globalStyle(DARK_THEMES, { vars: swatchVars('dark') });

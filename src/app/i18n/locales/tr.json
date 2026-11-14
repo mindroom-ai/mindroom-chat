@@ -38,11 +38,27 @@
     "themeName": {
       "light": "Açık",
       "silver": "Gümüş",
+      "sakura": "Sakura",
+      "matcha": "Matcha",
+      "catppuccinLatte": "Catppuccin Latte",
+      "gruvboxLight": "Gruvbox Light",
+      "solarizedLight": "Solarized Light",
       "dark": "Koyu",
       "midnight": "Gece yarısı",
       "butter": "Tereyağı",
       "green": "Yeşil",
-      "orange": "Turuncu"
+      "orange": "Turuncu",
+      "black": "Siyah",
+      "ocean": "Okyanus",
+      "wine": "Şarap",
+      "synthwave": "Synthwave",
+      "catppuccinMocha": "Catppuccin Mocha",
+      "dracula": "Dracula",
+      "gruvboxDark": "Gruvbox Dark",
+      "nord": "Nord",
+      "rosePine": "Rosé Pine",
+      "solarizedDark": "Solarized Dark",
+      "tokyoNight": "Tokyo Night"
     },
     "prefetchScope": {
       "allRooms": "Tüm odalar",

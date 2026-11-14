@@ -38,11 +38,27 @@
     "themeName": {
       "light": "Светлая",
       "silver": "Серебристая",
+      "sakura": "Сакура",
+      "matcha": "Матча",
+      "catppuccinLatte": "Catppuccin Latte",
+      "gruvboxLight": "Gruvbox Light",
+      "solarizedLight": "Solarized Light",
       "dark": "Тёмная",
       "midnight": "Полночь",
       "butter": "Сливочная",
       "green": "Зелёная",
-      "orange": "Оранжевая"
+      "orange": "Оранжевая",
+      "black": "Чёрная",
+      "ocean": "Океан",
+      "wine": "Винная",
+      "synthwave": "Synthwave",
+      "catppuccinMocha": "Catppuccin Mocha",
+      "dracula": "Dracula",
+      "gruvboxDark": "Gruvbox Dark",
+      "nord": "Nord",
+      "rosePine": "Rosé Pine",
+      "solarizedDark": "Solarized Dark",
+      "tokyoNight": "Tokyo Night"
     },
     "prefetchScope": {
       "allRooms": "Все комнаты",

@@ -38,11 +38,27 @@
     "themeName": {
       "light": "Hell",
       "silver": "Silber",
+      "sakura": "Sakura",
+      "matcha": "Matcha",
+      "catppuccinLatte": "Catppuccin Latte",
+      "gruvboxLight": "Gruvbox Light",
+      "solarizedLight": "Solarized Light",
       "dark": "Dunkel",
       "midnight": "Mitternacht",
       "butter": "Butter",
       "green": "Grün",
-      "orange": "Orange"
+      "orange": "Orange",
+      "black": "Schwarz",
+      "ocean": "Ozean",
+      "wine": "Wein",
+      "synthwave": "Synthwave",
+      "catppuccinMocha": "Catppuccin Mocha",
+      "dracula": "Dracula",
+      "gruvboxDark": "Gruvbox Dark",
+      "nord": "Nord",
+      "rosePine": "Rosé Pine",
+      "solarizedDark": "Solarized Dark",
+      "tokyoNight": "Tokyo Night"
     },
     "prefetchScope": {
       "allRooms": "Alle Räume",

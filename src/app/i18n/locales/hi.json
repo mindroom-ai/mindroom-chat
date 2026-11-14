@@ -1854,13 +1854,29 @@
       "currentRoomOnly": "केवल वर्तमान रूम"
     },
     "themeName": {
+      "black": "काला",
       "butter": "मक्खन",
+      "catppuccinLatte": "Catppuccin Latte",
+      "catppuccinMocha": "Catppuccin Mocha",
       "dark": "गहरा",
+      "dracula": "Dracula",
       "green": "हरा",
+      "gruvboxDark": "Gruvbox Dark",
+      "gruvboxLight": "Gruvbox Light",
       "light": "हल्का",
+      "matcha": "माचा",
       "midnight": "मध्यरात्रि",
+      "nord": "Nord",
+      "ocean": "महासागर",
       "orange": "नारंगी",
-      "silver": "चाँदी"
+      "rosePine": "Rosé Pine",
+      "sakura": "साकुरा",
+      "silver": "चाँदी",
+      "solarizedDark": "Solarized Dark",
+      "solarizedLight": "Solarized Light",
+      "synthwave": "Synthwave",
+      "tokyoNight": "Tokyo Night",
+      "wine": "वाइन"
     }
   },
   "Organisms": {

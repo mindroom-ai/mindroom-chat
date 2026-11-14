@@ -6,16 +6,6 @@ import { DarkTheme, LightTheme, ThemeContextProvider, type Theme } from '../../t
 import { MINDROOM_LOGO_SRC } from '../../ui/branding/branding';
 import { BrandLogo } from './BrandLogo';
 
-vi.mock('../../theme/colors.css', () => ({
-  lightTheme: 'light-palette',
-  silverTheme: 'silver-palette',
-  darkTheme: 'dark-palette',
-  midnightTheme: 'midnight-palette',
-  butterTheme: 'butter-palette',
-  greenTheme: 'green-palette',
-  orangeTheme: 'orange-palette',
-}));
-
 const BRANDED: ClientConfig = {
   branding: {
     logo: {

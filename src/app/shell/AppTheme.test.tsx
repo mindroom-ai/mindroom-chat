@@ -17,16 +17,6 @@ import { putSession, removeSession } from '../matrix/session/sessions';
 import { applyAppTheme } from '../theme/appliedTheme';
 import { AppTheme } from './App';
 
-vi.mock('../theme/colors.css', () => ({
-  lightTheme: 'light-palette',
-  silverTheme: 'silver-palette',
-  darkTheme: 'dark-palette',
-  midnightTheme: 'midnight-palette',
-  butterTheme: 'butter-palette',
-  greenTheme: 'green-palette',
-  orangeTheme: 'orange-palette',
-}));
-
 vi.mock('../theme/appliedTheme', () => ({
   applyAppTheme: vi.fn(),
 }));

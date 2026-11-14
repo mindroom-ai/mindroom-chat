@@ -1,6 +1,7 @@
 import { createVar, style, StyleRule } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { ContainerColor, color } from 'folds';
+import { DARK_THEMES } from '../../preferences/themeNames';
 
 const surfaceContainer = createVar();
 const surfaceHover = createVar();
@@ -13,9 +14,6 @@ const rimHighlight = createVar();
 const rimShade = createVar();
 const rimReflection = createVar();
 export const glassShadow = createVar();
-
-/** The theme classes whose palettes are dark. */
-const darkThemes = ':is(.dark-theme, .midnight-theme, .butter-theme, .green-theme, .orange-theme)';
 
 const maskedRimSupport =
   '((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) and ((mask-composite: exclude) or (-webkit-mask-composite: xor))';
@@ -70,7 +68,7 @@ const material = (
       backgroundColor: surfaceContainer,
       backgroundImage: 'none',
     },
-    [`${darkThemes} &&`]: {
+    [`${DARK_THEMES} &&`]: {
       vars: {
         [surfaceTint]: `${darkTint}%`,
         [highlight]: 'rgb(255 255 255 / 4%)',
@@ -175,7 +173,7 @@ export const glassFlat = style({
       boxShadow: 'none',
       backgroundImage: 'none',
     },
-    [`${darkThemes} &&&`]: {
+    [`${DARK_THEMES} &&&`]: {
       vars: { [surfaceTint]: denseTint.dark },
     },
   },
@@ -189,7 +187,7 @@ export const glassInheritTint = style({
   selectors: {
     '&&&&&': { vars: { [surfaceContainer]: 'inherit', [surfaceTint]: '0%' } },
     '&&&&&[data-scrolled-beneath]': { vars: { [surfaceTint]: denseTint.light } },
-    [`${darkThemes} &&&&&[data-scrolled-beneath]`]: {
+    [`${DARK_THEMES} &&&&&[data-scrolled-beneath]`]: {
       vars: { [surfaceTint]: denseTint.dark },
     },
   },
@@ -200,7 +198,7 @@ export const glassOverBackdrop = style({
   selectors: {
     '&&&': { vars: { [surfaceTint]: '60%' } },
     '.silver-theme &&&': { vars: { [surfaceTint]: '64%' } },
-    [`${darkThemes} &&&`]: {
+    [`${DARK_THEMES} &&&`]: {
       vars: { [surfaceTint]: '28%' },
     },
   },
@@ -212,7 +210,7 @@ export const glassOverBackdrop = style({
 export const glassDenseOverBackdrop = style({
   selectors: {
     '&&&': { vars: { [surfaceTint]: denseTint.light } },
-    [`${darkThemes} &&&`]: {
+    [`${DARK_THEMES} &&&`]: {
       vars: { [surfaceTint]: denseTint.dark },
     },
   },

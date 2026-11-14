@@ -7,55 +7,6 @@ const statusBarTheme = vi.hoisted(() => ({
   syncNativeStatusBarTheme: vi.fn(),
 }));
 
-vi.mock('./useTheme', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./useTheme')>();
-  const ThemeKind = {
-    Light: 'light',
-    Dark: 'dark',
-  };
-
-  return {
-    deploymentDefaultTheme: actual.deploymentDefaultTheme,
-    effectiveThemeSettings: actual.effectiveThemeSettings,
-    ThemeKind,
-    LightTheme: {
-      id: 'light-theme',
-      kind: ThemeKind.Light,
-      classNames: ['light-class', 'light-font', 'prism-light'],
-    },
-    SilverTheme: {
-      id: 'silver-theme',
-      kind: ThemeKind.Light,
-      classNames: ['silver-theme', 'silver-class', 'light-font', 'prism-light'],
-    },
-    DarkTheme: {
-      id: 'dark-theme',
-      kind: ThemeKind.Dark,
-      classNames: ['dark-theme', 'dark-class', 'dark-font', 'prism-dark'],
-    },
-    MidnightTheme: {
-      id: 'midnight-theme',
-      kind: ThemeKind.Dark,
-      classNames: ['midnight-theme', 'midnight-class', 'dark-font', 'prism-dark'],
-    },
-    ButterTheme: {
-      id: 'butter-theme',
-      kind: ThemeKind.Dark,
-      classNames: ['butter-theme', 'butter-class', 'dark-font', 'prism-dark'],
-    },
-    GreenTheme: {
-      id: 'green-theme',
-      kind: ThemeKind.Dark,
-      classNames: ['green-theme', 'green-class', 'dark-font', 'prism-dark'],
-    },
-    OrangeTheme: {
-      id: 'orange-theme',
-      kind: ThemeKind.Dark,
-      classNames: ['orange-theme', 'orange-class', 'dark-font', 'prism-dark'],
-    },
-  };
-});
-
 vi.mock('./statusBarTheme', () => statusBarTheme);
 
 import { DarkTheme, SilverTheme } from './useTheme';

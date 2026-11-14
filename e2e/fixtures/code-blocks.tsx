@@ -7,33 +7,18 @@ import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import '../../src/index.css';
 import '../../src/app/i18n/i18n';
-import {
-  butterTheme,
-  darkTheme,
-  greenTheme,
-  lightTheme,
-  midnightTheme,
-  orangeTheme,
-  silverTheme,
-} from '../../src/app/theme/colors.css';
 import { roundedRadii } from '../../src/app/theme/config.css';
+import { LightTheme, THEMES } from '../../src/app/theme/useTheme';
 import {
   getReactCustomHtmlParser,
   LINKIFY_OPTS,
 } from '../../src/app/messages/html/react-custom-html-parser';
 
-const themes = {
-  light: [lightTheme, 'prism-light'],
-  silver: [silverTheme, 'prism-light'],
-  dark: [darkTheme, 'prism-dark'],
-  midnight: [midnightTheme, 'prism-dark'],
-  butter: [butterTheme, 'prism-dark'],
-  green: [greenTheme, 'prism-dark'],
-  orange: [orangeTheme, 'prism-dark'],
-} as const;
+// The palette goes on the root element and the code scheme on <body>, without the theme's ID class.
 const themeName = new URLSearchParams(window.location.search).get('theme');
-const [themeClass, prismClass] = themes[themeName as keyof typeof themes] ?? themes.light;
-document.documentElement.className = `${configClass} ${varsClass} ${themeClass} ${roundedRadii}`;
+const theme = THEMES.find(({ name }) => name === themeName) ?? LightTheme;
+const [, paletteClass = '', prismClass = ''] = theme.classNames;
+document.documentElement.className = `${configClass} ${varsClass} ${paletteClass} ${roundedRadii}`;
 document.body.className = prismClass;
 
 const parser = getReactCustomHtmlParser({} as MatrixClient, undefined, {
