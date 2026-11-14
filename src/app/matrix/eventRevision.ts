@@ -524,9 +524,9 @@ export const describeMatrixEventRevision = (event: MatrixEvent): EventRevisionDe
   return {
     redacted: event.isRedacted(),
     replacement: replacement
-      ? getReplacementRevision(event.getSender(), replacement.event as Partial<IEvent>)
+      ? getReplacementRevision(event.getSender(), replacement.event)
       : undefined,
-    aggregations: canonicalizeRelations(getNonReplacementRelations(event.event as Partial<IEvent>)),
+    aggregations: canonicalizeRelations(getNonReplacementRelations(event.event)),
   };
 };
 
@@ -697,7 +697,7 @@ export const mergeSameIdEventRevision = ({
   // shallow merge the SDK mapper's reuse branch performs), with both sides'
   // `m.replace` bundles stripped first so nothing can eagerly apply the old
   // bundle. The winning replacement is applied explicitly below.
-  const rawLiveEvent = liveEvent.event as Partial<IEvent>;
+  const rawLiveEvent = liveEvent.event;
   const mergedRawEvent = withMergedRelations(
     rawEvent,
     rawLiveEvent,
@@ -713,7 +713,7 @@ export const mergeSameIdEventRevision = ({
 
   let resolvedReplacement = latestReplacement;
   if (latestReplacement && latestReplacement !== currentReplacement) {
-    const mappedReplacement = mapDetached(latestReplacement.event as Partial<IEvent>);
+    const mappedReplacement = mapDetached(latestReplacement.event);
     resolvedReplacement =
       isSameSenderEditEvent(liveEvent, mappedReplacement) && !isKnownRedacted(mappedReplacement)
         ? mappedReplacement
@@ -723,10 +723,7 @@ export const mergeSameIdEventRevision = ({
     liveEvent.makeReplaced(resolvedReplacement);
   }
 
-  const liveWithReplacement = withRawReplacement(
-    liveEvent.event as Partial<IEvent>,
-    resolvedReplacement
-  );
+  const liveWithReplacement = withRawReplacement(liveEvent.event, resolvedReplacement);
   if (liveWithReplacement !== liveEvent.event) {
     liveEvent.setUnsigned(liveWithReplacement.unsigned ?? {});
   }

@@ -1544,9 +1544,7 @@ describe('useRoomInputSendSessionController long messages', () => {
 
     // The whole message, relation included, is uploaded as the file MindRoom reads back.
     expect(mx.uploadContent).toHaveBeenCalledTimes(1);
-    const uploaded = parseLongTextJsonSidecar(
-      await (mx.uploadContent.mock.calls[0]![0] as Blob).text()
-    );
+    const uploaded = parseLongTextJsonSidecar(await mx.uploadContent.mock.calls[0]![0].text());
     expect(uploaded).toMatchObject({
       msgtype: 'm.text',
       body: longBody,

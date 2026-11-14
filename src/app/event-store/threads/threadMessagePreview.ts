@@ -252,9 +252,7 @@ const resolveThreadPreview = (
 ): ThreadPreview => {
   if (!content || !isRecord(content)) return NO_PREVIEW;
 
-  const newContent = isRecord(content['m.new_content'])
-    ? (content['m.new_content'] as Record<string, unknown>)
-    : undefined;
+  const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
   const previewContent = newContent ? { ...content, ...newContent } : content;
 
   // The SDK leaves its error text as the body of an event it cannot decrypt.

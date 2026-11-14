@@ -653,7 +653,9 @@ describe('useOpenCanvasById', () => {
     return {
       open: (canvasId: string) => act(async () => opener.open!(canvasId)),
       show: (next: string, onActivate = activate) =>
-        act(() => root.render(<Probe conversation={next} onActivate={onActivate} />)),
+        act(async () => {
+          root.render(<Probe conversation={next} onActivate={onActivate} />);
+        }),
       unmount: () => act(() => root.unmount()),
     };
   };

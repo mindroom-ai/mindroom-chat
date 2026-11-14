@@ -55,7 +55,7 @@ describe('buildEditContent', () => {
 
     // The file holds the whole edit, as MindRoom uploads its own: MindRoom reads the file in place
     // of the event and takes the edited message from its `m.new_content`.
-    const uploaded = await (mx.uploadContent.mock.calls[0]![0] as Blob).text();
+    const uploaded = await mx.uploadContent.mock.calls[0]![0].text();
     expect(JSON.parse(uploaded)).toEqual({
       ...longContent,
       body: `* ${longContent.body}`,
