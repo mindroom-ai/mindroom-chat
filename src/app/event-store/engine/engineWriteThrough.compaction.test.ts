@@ -29,9 +29,7 @@
  *      attribution captured at schedule time (engine equivalent: a
  *      thread-attributed replace uses the thread key regardless of
  *      whether a UI thread is "open").
- *  10. Non-replace thread events persist via the thread path: the
- *      engine routes every thread event through the same persist
- *      entry point.
+ *  10. Non-replace thread events persist via the thread path.
  *  11. Room-level edits compact onto the target's room cache record.
  *  12. Thread and room compaction keys are isolated for the same
  *      target id.

@@ -266,6 +266,7 @@ describe('recentThreads', () => {
     sessions.active = session;
     try {
       bumpRecentThread('!room:example.org', '$thread', 200);
+      expect(localStorage.setItem).not.toHaveBeenCalled();
       expect(getDefaultStore().get(makeRecentThreadsAtom(''))).toEqual([]);
     } finally {
       sessions.active = { userId: USER_ID };
