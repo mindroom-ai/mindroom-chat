@@ -39,6 +39,13 @@ final class PlainTextTests: XCTestCase {
         XCTAssertEqual(result.text, "Done, booked.")
     }
 
+    func testMentionsBecomeDisplayNames() {
+        let text = "@mindroom_helper_t1:matrix.localhost could you help? cc @bas:x."
+        XCTAssertEqual(PlainText.mentionedUserIds(text), ["@mindroom_helper_t1:matrix.localhost", "@bas:x"])
+        XCTAssertEqual(PlainText.replacingMentions(text, names: ["@mindroom_helper_t1:matrix.localhost": "Helper"]),
+                       "Helper could you help? cc @bas:x.")
+    }
+
     func testToolLinesInsideCodeFencesStay() {
         let result = PlainText.withToolCount("```\n🔧 `x` [1]\n```")
         XCTAssertEqual(result.tools, 0)
