@@ -41,6 +41,9 @@ final class RoomModel: ObservableObject {
     /// What the thread list said of each thread when its snapshot was read (newest event, reply count).
     private var snapshotKeys: [String: String] = [:]
     private var resolved: Set<String> = []
+    /// The thread rows as last read from the server, kept when the list cannot be read (offline).
+    private var threadRows: [ThreadRow] = []
+    private var threadRoots: [String] = []
     private let session: Session?
 
     init(room: Room, userId: String, session: Session?) {
@@ -76,13 +79,8 @@ final class RoomModel: ObservableObject {
         try await sendVoiceMessage(take, on: timeline)
     }
 
-    /// Sends the room's failed messages again.
-    func retry() async {
-        room.enableSendQueue(enable: true)
-        scheduleRefresh()
-    }
-
-    /// Drops a message that could not be sent.
+    /// Drops a message that could not be sent, which also frees the room's queue behind it. (A failure the
+    /// SDK can recover from, such as no network, it retries by itself.)
     func discard(transactionId: String) async {
         try? await timeline?.redactEvent(eventOrTransactionId: .transactionId(transactionId: transactionId), reason: nil)
         scheduleRefresh()
@@ -135,8 +133,12 @@ final class RoomModel: ObservableObject {
         // Left, or replaced by a new version of the room: the person picks another.
         if room.membership() != .joined || room.successorRoom() != nil { gone = true; return }
         await threads.reset()
-        // Offline the list cannot be read: keep the rows (and the widget) as they were.
-        do { try await threads.paginate() } catch { return }
+        // Offline the list cannot be read: keep its rows (and the widget) as they were, with the person's own
+        // messages, queued or failed, kept current.
+        do { try await threads.paginate() } catch {
+            rows = (threadRows + ownUnansweredRoots(excluding: Set(threadRoots).union(resolved))).sorted { $0.ts > $1.ts }
+            return
+        }
         if let resolved = await resolvedRoots() { self.resolved = resolved }
         let items = threads.items().prefix(Self.pageSize).filter { !resolved.contains($0.rootEvent.eventId) }
         let roots = items.map(\.rootEvent.eventId)
@@ -153,15 +155,20 @@ final class RoomModel: ObservableObject {
             }
             if let jsons = try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId),
                let root = jsons.first.flatMap(parse) {
-                let snapshot = ThreadSnapshot.build(root: root, related: jsons.dropFirst().compactMap(parse), ownUserId: userId, now: Date())
+                let related = jsons.dropFirst().compactMap(parse)
+                let snapshot = ThreadSnapshot.build(root: root, related: related, ownUserId: userId, now: Date())
                 snapshots[rootId] = snapshot
-                snapshotKeys[rootId] = key
+                // A thread with events this device cannot decrypt yet is read again once its keys may have come.
+                let undecryptable = ([root] + related).contains { $0["type"] as? String == "m.room.encrypted" }
+                snapshotKeys[rootId] = undecryptable ? nil : key
                 if let reply = snapshot.reply { await learnNames([reply.sender] + PlainText.mentionedUserIds(reply.text)) }
                 rows.append(row(snapshot))
             } else if let cached = snapshots[rootId] {
                 rows.append(row(cached))
             }
         }
+        threadRows = rows
+        threadRoots = roots
         rows += ownUnansweredRoots(excluding: Set(roots).union(resolved))
         self.rows = rows.sorted { $0.ts > $1.ts }
         publishWidgetSnapshot()

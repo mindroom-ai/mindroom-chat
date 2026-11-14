@@ -64,9 +64,19 @@ final class ApprovalTests: XCTestCase {
         XCTAssertEqual(parsed.applying(edits: [], now: before).status, .pending)
     }
 
-    func testTruncatedArgumentsAreFlagged() throws {
-        let parsed = try XCTUnwrap(ApprovalCard.parse(card(["arguments_truncated": true])))
+    func testTruncatedArgumentsCannotBeApprovedOnTheWatch() throws {
+        // The full arguments live in a file the watch does not show: Deny only.
+        let parsed = try XCTUnwrap(ApprovalCard.parse(card(["arguments_truncated": true, "full_arguments_file": ["url": "mxc://x/y"]])))
         XCTAssertTrue(parsed.argumentsTruncated)
+        XCTAssertFalse(parsed.approvable)
+    }
+
+    func testInlineFullArgumentsAreShownAndApprovable() throws {
+        let parsed = try XCTUnwrap(ApprovalCard.parse(card(["arguments_truncated": true,
+                                                            "full_arguments": ["to": "anna@example.com", "body": "the whole text"]])))
+        XCTAssertFalse(parsed.argumentsTruncated)
+        XCTAssertTrue(parsed.approvable)
+        XCTAssertEqual(parsed.arguments.first { $0.key == "body" }?.value, "the whole text")
     }
 
     func testResponseContentMatchesTheWebClient() throws {

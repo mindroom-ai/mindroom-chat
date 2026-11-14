@@ -57,7 +57,7 @@ final class Recorder: ObservableObject {
         let duration = recorder.isRecording ? recorder.currentTime : elapsed
         recorder.stop()
         finish()
-        guard duration > 0.3 else { return nil }
+        guard duration > 0.3 else { recorder.deleteRecording(); return nil }
         return Take(url: recorder.url, duration: duration, waveform: Waveform.bars(from: levels))
     }
 
@@ -96,6 +96,8 @@ enum RecorderError: Error {
 
 /// Sends a take as a voice message on the timeline: a new message in the room, or a reply in a thread.
 func sendVoiceMessage(_ take: Take, on timeline: Timeline) async throws {
+    // The send queue keeps its own copy once the message is queued.
+    defer { try? FileManager.default.removeItem(at: take.url) }
     let size = (try? FileManager.default.attributesOfItem(atPath: take.url.path)[.size] as? NSNumber)?.uint64Value
     let handle = try timeline.sendVoiceMessage(
         params: UploadParameters(source: .file(filename: take.url.path), caption: nil, formattedCaption: nil,

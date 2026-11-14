@@ -16,6 +16,9 @@ final class ThreadModel: ObservableObject {
     @Published var error: String?
     /// Cards and questions answered from this watch, until the thread shows the outcome.
     @Published private(set) var answered: Set<String> = []
+    /// The transaction ids of this person's replies the server refused: they hold up the room's queue
+    /// until deleted.
+    @Published private(set) var failedReplies: [String] = []
     private var timeline: Timeline?
     private let feed: TimelineFeed
     private var handle: TaskHandle?
@@ -71,6 +74,11 @@ final class ThreadModel: ObservableObject {
     /// Reads the thread again as raw JSON (root and everything related to it): the thread-focused
     /// timeline leaves MindRoom's approval cards out, so it only says when something changed.
     private func update() {
+        failedReplies = feed.events.compactMap { item in
+            guard item.isOwn, case let .sendingFailed(_, isRecoverable) = item.localSendState, !isRecoverable,
+                  case let .transactionId(transactionId) = item.eventOrTransactionId else { return nil }
+            return transactionId
+        }
         if fetching { fetchAgain = true; return }
         fetching = true
         Task {
@@ -130,6 +138,11 @@ final class ThreadModel: ObservableObject {
             self.error = String(localized: "Not sent")
             log.error("answer failed: \(String(describing: error), privacy: .public)")
         }
+    }
+
+    /// Drops a reply that could not be sent.
+    func discard(_ transactionId: String) async {
+        try? await timeline?.redactEvent(eventOrTransactionId: .transactionId(transactionId: transactionId), reason: nil)
     }
 
     func replyVoice(_ take: Take) async {

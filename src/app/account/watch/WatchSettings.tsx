@@ -35,7 +35,8 @@ type Step =
   | { kind: 'connecting' }
   | { kind: 'waiting' }
   | { kind: 'verifying' }
-  | { kind: 'message'; text: string };
+  /** `retry`: verifying did not finish, so Verify is offered again. */
+  | { kind: 'message'; text: string; retry?: boolean };
 
 /** Hooks up the watch: mints its login, verifies its device when it reports in, disconnects it. */
 function WatchSettingsSection() {
@@ -97,8 +98,9 @@ function WatchSettingsSection() {
       }
       if (result !== 'timeout') setCrossSigned(true);
       if (result === 'verified') setStep({ kind: 'idle' });
-      else if (result === 'no-backup') setStep({ kind: 'message', text: t(`${W}.noBackup`) });
-      else setStep({ kind: 'message', text: t(`${W}.timeout`) });
+      else if (result === 'no-backup')
+        setStep({ kind: 'message', text: t(`${W}.noBackup`), retry: true });
+      else setStep({ kind: 'message', text: t(`${W}.timeout`), retry: true });
     },
     [mx, refresh, t]
   );
@@ -167,7 +169,7 @@ function WatchSettingsSection() {
   if (deviceId) {
     action = (
       <Box gap="200">
-        {crossSigned === false && (
+        {(crossSigned === false || (step.kind === 'message' && step.retry)) && (
           <Button
             size="300"
             radii="300"

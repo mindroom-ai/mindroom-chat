@@ -45,16 +45,20 @@ struct HomeView: View {
             // At launch the default room may reach the room list only after the first sync.
             if model == nil, let roomId = DefaultRoom.get(userId: userId) { open(roomId) }
         }
-        .onChange(of: openThread.target?.threadId, initial: true) { _, _ in
-            // A tapped notification opens its thread; another room's thread opens without making it the default.
-            guard model != nil, let target = openThread.target else { return }
-            openThread.target = nil
-            if !target.threadId.isEmpty { path = [ThreadTarget(roomId: target.roomId, rootId: target.threadId)] }
-        }
+        .onChange(of: openThread.target?.threadId, initial: true) { _, _ in openRequestedThread() }
+        // On a cold launch the tap may come before the default room is open.
+        .onChange(of: model?.room.id()) { _, _ in openRequestedThread() }
         .onOpenURL { url in
             // The complication opens the app recording (`mindroom-watch://record`).
             if url.host == "record" { RecordRequest.shared.pending = true }
         }
+    }
+
+    /// A tapped notification opens its thread; another room's thread opens without making it the default.
+    private func openRequestedThread() {
+        guard model != nil, let target = openThread.target else { return }
+        openThread.target = nil
+        if !target.threadId.isEmpty { path = [ThreadTarget(roomId: target.roomId, rootId: target.threadId)] }
     }
 
     private func select(_ roomId: String) {
@@ -156,11 +160,7 @@ private struct RoomHome: View {
                             }
                             .tint(.green)
                         } else if row.state == .failed {
-                            // A message that could not be sent: send it again, or drop it.
-                            Button { Task { await model.retry() } } label: {
-                                Label("Retry", systemImage: "arrow.clockwise")
-                            }
-                            .tint(.accentColor)
+                            // A message that could not be sent: drop it (Delete), which also frees the queue.
                             Button(role: .destructive) { Task { await model.discard(transactionId: row.id) } } label: {
                                 Label("Delete", systemImage: "trash")
                             }

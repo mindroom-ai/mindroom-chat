@@ -155,10 +155,12 @@ final class MatrixSession: ObservableObject {
             .userAgent(userAgent: "MindRoom Apple Watch")
             .build()
         try await client.restoreSession(session: session)
+        let deviceId = session.deviceId
         if let handle = try client.setDelegate(delegate: AuthErrorDelegate { [weak self] in
-            Task { @MainActor in await self?.revoked() }
+            Task { @MainActor in await self?.revoked(deviceId: deviceId) }
         }) { handles.append(handle) }
-        let syncService = try await client.syncService().finish()
+        // Offline mode: sync waits for the network to come back instead of stopping at the first error.
+        let syncService = try await client.syncService().withOfflineMode().finish()
         handles.append(syncService.state(listener: SyncStateListener { [weak self] state in
             log.notice("sync \(String(describing: state), privacy: .public)")
             Task { @MainActor in
@@ -174,8 +176,12 @@ final class MatrixSession: ObservableObject {
     }
 
     /// The server no longer knows the token (signed out elsewhere, device deleted).
-    private func revoked() async {
-        await serially { await self.revokedNow() }
+    private func revoked(deviceId: String) async {
+        await serially {
+            // An error from a client that "Connect again" already replaced does not sign the new one out.
+            guard SessionStore.load()?.deviceId == deviceId else { return }
+            await self.revokedNow()
+        }
     }
 
     private func revokedNow() async {

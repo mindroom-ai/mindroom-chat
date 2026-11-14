@@ -39,15 +39,19 @@ public struct ApprovalCard: Equatable, Sendable {
         let threadId = content["thread_id"] as? String
             ?? (event.relation?["rel_type"] as? String == "m.thread" ? event.relation?["event_id"] as? String : nil)
             ?? eventId
-        let arguments = (content["arguments"] as? JSON ?? [:])
+        // Cut-short arguments come in full inline (`full_arguments`) or as a file the watch does not read:
+        // then the watch cannot show everything, so the card can only be denied here.
+        let fullArguments = content["full_arguments"] as? JSON
+        let truncated = content["arguments_truncated"] as? Bool == true && fullArguments == nil
+        let arguments = (fullArguments ?? content["arguments"] as? JSON ?? [:])
             .map { Argument(key: $0.key, value: text(of: $0.value)) }
             .sorted { $0.key < $1.key }
         return ApprovalCard(
             eventId: eventId, sender: event["sender"] as? String ?? "", threadId: threadId, toolName: toolName,
             agentName: content["agent_name"] as? String, arguments: arguments,
-            argumentsTruncated: content["arguments_truncated"] as? Bool ?? false,
+            argumentsTruncated: truncated,
             status: status, expiresAt: (content["expires_at"] as? String).flatMap(parseDate),
-            approverUserId: content["approver_user_id"] as? String, approvable: content["approvable"] as? Bool ?? true)
+            approverUserId: content["approver_user_id"] as? String, approvable: (content["approvable"] as? Bool ?? true) && !truncated)
     }
 
     /// The id of the card an `m.replace` edit of a card changes.

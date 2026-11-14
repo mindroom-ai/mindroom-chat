@@ -227,6 +227,27 @@ describe('AppleWatch', () => {
     ).toBeTruthy();
   });
 
+  it('sends the keys again once there is a key backup', async () => {
+    flow.verify.mockResolvedValue('no-backup');
+    await renderSettings();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+    });
+    native.status = {
+      ...native.status,
+      device: { userId: '@bas:mindroom.chat', deviceId: 'WATCH' },
+    };
+    await act(async () => {
+      native.signedIn?.({ userId: '@bas:mindroom.chat', deviceId: 'WATCH' });
+    });
+    flow.verify.mockResolvedValue('verified');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+    });
+    expect(flow.verify).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('button', { name: 'Verify' })).toBeNull();
+  });
+
   it('says when there is no key backup to share', async () => {
     flow.verify.mockResolvedValue('no-backup');
     await renderSettings();

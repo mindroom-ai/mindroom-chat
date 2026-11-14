@@ -58,6 +58,14 @@ struct ThreadView: View {
                 if let error = model.error {
                     Text(error).font(.footnote).foregroundStyle(.red)
                 }
+                ForEach(model.failedReplies, id: \.self) { transactionId in
+                    HStack {
+                        Text("Not sent").font(.footnote).foregroundStyle(.red)
+                        Spacer()
+                        Button("Delete", role: .destructive) { Task { await model.discard(transactionId) } }
+                            .fixedSize()
+                    }
+                }
                 Button { recording = true } label: {
                     Label("Reply", systemImage: "mic.fill").frame(maxWidth: .infinity)
                 }
