@@ -213,15 +213,15 @@ export const fetchAvatar = (mx: AvatarMediaClient, src: string): Promise<string 
 
 /**
  * Drops fetched avatars and revokes their object URLs: those one account fetched when `userId`
- * is given (it signed out), otherwise every account's.
+ * is given (it signed out), otherwise every account's. Resolves once the kept avatars are deleted.
  */
-export const clearFetchedAvatars = (userId?: string) => {
-  // The kept pictures belong to no one account; any sign-out deletes them.
-  void forgetAvatars();
+export const clearFetchedAvatars = (userId?: string): Promise<void> => {
   [...fetchedAvatars].forEach(([key, entry]) => {
     if (userId !== undefined && !key.startsWith(`${userId}\n`)) return;
     fetchedAvatars.delete(key);
     entry.cleared = true;
     if (entry.objectUrl) URL.revokeObjectURL(entry.objectUrl);
   });
+  // The kept pictures belong to no one account; any sign-out deletes them.
+  return forgetAvatars();
 };

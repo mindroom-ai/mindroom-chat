@@ -27,8 +27,10 @@ vi.mock('../matrix/cachedSpecVersions', () => ({
   writeCachedSpecVersions: vi.fn(),
 }));
 vi.mock('../matrix/cs-api', () => ({ specVersions: vi.fn() }));
-vi.mock('../account/lifecycle/initMatrix', () => ({ clearAllCacheAndReload: vi.fn() }));
-vi.mock('../account/lifecycle/sessionLifecycle', () => ({ removeSessionAndReload: vi.fn() }));
+vi.mock('../account/lifecycle/sessionLifecycle', () => ({
+  clearAllCacheAndReload: vi.fn(),
+  removeSessionAndReload: vi.fn(),
+}));
 vi.mock('../matrix/session/useSessionStore', () => ({
   useActiveSession: () => ({
     sessionId: 'session-a',

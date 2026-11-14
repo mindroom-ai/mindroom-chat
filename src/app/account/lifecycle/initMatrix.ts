@@ -9,8 +9,7 @@ import {
   installEventContentGuard,
   trustAgentsOfViewer,
 } from '../../matrix/protocol/untrustedContent';
-import * as sessionLifecycle from './sessionLifecycle';
-import { clearFetchedAvatars } from '../../avatars/avatarMedia';
+import { removeSessionAndReload, removeStoredSession } from './sessionLifecycle';
 import { LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT } from '../../matrix/client/clientSyncPolicy';
 import {
   type ClientBootstrapSession,
@@ -33,27 +32,8 @@ import { renewExpiredCloudflareAccess } from '../../native/cloudflareAccess';
 import { keepEveryReceiptInSavedSync } from '../../matrix/client/savedSyncReceipts';
 import { restoreStreamingRepliesFromCache } from '../../event-store/sdk/restoredStreamingReplies';
 
-// Account removal, logout and cache clearing live in sessionLifecycle.ts. The three below end an
-// account's session and also drop the avatars that account fetched (avatarMedia keeps them per
-// account), so callers take them from here.
-
-// The account a client signed in as, or undefined when it has none (then every avatar goes).
-const accountOf = (mx: MatrixClient): string | undefined => {
-  try {
-    return mx.getSafeUserId();
-  } catch {
-    return undefined;
-  }
-};
-
-export const logoutClient = async (mx: MatrixClient): Promise<void> => {
-  const userId = accountOf(mx);
-  try {
-    await sessionLifecycle.logoutClient(mx);
-  } finally {
-    clearFetchedAvatars(userId);
-  }
-};
+// Account removal, logout and cache clearing live in sessionLifecycle.ts; the two below first log
+// a stored session's device out on the homeserver.
 
 /** A client of `session` without stores or sync, for requests in its name. */
 export const createSessionRequestClient = (session: ClientBootstrapSession): MatrixClient =>
@@ -88,19 +68,7 @@ export const logoutSessionWithoutStores = async (
   nextHref: string
 ): Promise<void> => {
   await logoutOnServer(session);
-  try {
-    await sessionLifecycle.removeSessionAndReload(session, undefined, nextHref);
-  } finally {
-    clearFetchedAvatars(session.userId);
-  }
-};
-
-export const removeStoredSession = async (session: StoredSession): Promise<void> => {
-  try {
-    await sessionLifecycle.removeStoredSession(session);
-  } finally {
-    clearFetchedAvatars(session.userId);
-  }
+  await removeSessionAndReload(session, undefined, nextHref);
 };
 
 /**
@@ -111,11 +79,6 @@ export const removeStoredSession = async (session: StoredSession): Promise<void>
 export const logoutStoredSession = async (session: StoredSession): Promise<void> => {
   await logoutOnServer(session);
   await removeStoredSession(session);
-};
-
-export const clearAllCacheAndReload = async (mx?: MatrixClient): Promise<void> => {
-  clearFetchedAvatars();
-  await sessionLifecycle.clearAllCacheAndReload(mx);
 };
 
 const MAX_CLIENT_LISTENERS = 50;

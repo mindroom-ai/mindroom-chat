@@ -32,6 +32,7 @@ import { getCanvasStateDbName } from '../../canvas/canvasStateStore';
 import { getCanvasIndexDbName } from '../../canvas/canvasIndexStore';
 import { forgetAccountInPlugins } from '../../plugins/forgetAccountInPlugins';
 import { revokeClientSessions } from '../../computer/clientSessions';
+import { clearFetchedAvatars } from '../../avatars/avatarMedia';
 import {
   SessionCleanupContext,
   clearAppScopedCacheStorage,
@@ -152,6 +153,7 @@ const deleteSessionLocalData = async (
     deleteNamedDatabase(getCanvasStateDbName(session.sessionId)),
     deleteNamedDatabase(getCanvasIndexDbName(session.sessionId)),
     clearUserScopedState ? forgetAccountInPlugins(session.userId) : undefined,
+    clearFetchedAvatars(session.userId),
   ]);
   clearSessionScopedNativeState(session.sessionId);
 };
@@ -230,6 +232,7 @@ export const removeCurrentClientSessionAndReload = async (
     deleteNamedDatabase(getCanvasStateDbName(identity.sessionId)).catch(() => undefined),
     deleteNamedDatabase(getCanvasIndexDbName(identity.sessionId)).catch(() => undefined),
     clearUserScopedState ? forgetAccountInPlugins(identity.userId) : undefined,
+    clearFetchedAvatars(identity.userId),
   ]);
   clearSessionScopedUiState(identity, clearUserScopedState);
   reloadAppAt(nextHref);
@@ -282,6 +285,9 @@ export const clearAllCacheAndReload = async (mx?: MatrixClient): Promise<void> =
   } catch {
     // ignore MindRoom in-memory cleanup errors
   }
+
+  // The kept avatars are homeserver thumbnails, outside the app scope cleared above.
+  await clearFetchedAvatars();
 
   try {
     const appOwnedDbNames = await getAppOwnedIndexedDbNames(sessions);

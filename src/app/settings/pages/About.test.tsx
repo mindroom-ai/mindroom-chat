@@ -99,7 +99,7 @@ vi.mock('../../ui/settings/styles.css', () => ({
 vi.mock('../../messages/viewers/TextViewer', () => ({ TextViewer: () => null }));
 vi.mock('../../messages/content/FileContent', () => ({ ViewerOverlay: () => null }));
 
-vi.mock('../../account/lifecycle/initMatrix', () => ({
+vi.mock('../../account/lifecycle/sessionLifecycle', () => ({
   clearAllCacheAndReload: vi.fn(),
 }));
 
