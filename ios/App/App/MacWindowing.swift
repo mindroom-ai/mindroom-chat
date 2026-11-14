@@ -15,8 +15,10 @@ enum MacWindowing {
     private static var hotKeyInstalled = false
 
     /// The process id of the app that was in front before the widget showed, for the window
-    /// screenshot and to give the keyboard back when the widget hides.
+    /// screenshot and to give the keyboard back when the widget hides: this app's own when the
+    /// shortcut showed the widget over it, else the last other app that came forward.
     private(set) static var lastFrontProcess: pid_t?
+    private static var frontObserver: NSObjectProtocol?
 
     // MARK: The runtime
 
@@ -169,12 +171,33 @@ enum MacWindowing {
         return (description?["NSScreenNumber"] as? NSNumber)?.uint32Value
     }
 
+    private static var workspace: NSObject? {
+        appKitClass("NSWorkspace")?.value(forKey: "sharedWorkspace") as? NSObject
+    }
+
+    private static func processID(of runningApplication: NSObject?) -> pid_t? {
+        (runningApplication?.value(forKey: "processIdentifier") as? NSNumber)?.int32Value
+    }
+
     /// Notes the app in front, for the window screenshot and to give the keyboard back to it.
     static func rememberFrontProcess() {
-        let workspace = appKitClass("NSWorkspace")?.value(forKey: "sharedWorkspace") as? NSObject
-        let front = workspace?.value(forKey: "frontmostApplication") as? NSObject
-        if let pid = (front?.value(forKey: "processIdentifier") as? NSNumber)?.int32Value {
+        if let pid = processID(of: workspace?.value(forKey: "frontmostApplication") as? NSObject) {
             lastFrontProcess = pid
+        }
+    }
+
+    /// Notes every other app that comes forward, so a widget brought forward by a click, not by
+    /// the shortcut, knows the app the user was in.
+    static func followFrontProcess() {
+        guard frontObserver == nil,
+              let center = workspace?.value(forKey: "notificationCenter") as? NotificationCenter else { return }
+        frontObserver = center.addObserver(
+            forName: Notification.Name("NSWorkspaceDidActivateApplicationNotification"),
+            object: nil,
+            queue: .main
+        ) { notification in
+            let pid = processID(of: notification.userInfo?["NSWorkspaceApplicationKey"] as? NSObject)
+            if let pid, pid != getpid() { lastFrontProcess = pid }
         }
     }
 

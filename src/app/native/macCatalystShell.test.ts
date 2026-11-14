@@ -7,6 +7,7 @@ const sceneSource = readSource('../../../ios/App/App/SceneDelegate.swift');
 const capacitorConfigSource = readSource('../../../capacitor.config.ts');
 const appDelegateSource = readSource('../../../ios/App/App/AppDelegate.swift');
 const widgetSceneSource = readSource('../../../ios/App/App/QuickCaptureSceneDelegate.swift');
+const windowingSource = readSource('../../../ios/App/App/MacWindowing.swift');
 
 /** The source outside every `#if targetEnvironment(macCatalyst)` block (and its `#else`). */
 const outsideMacOnly = (source: string) =>
@@ -98,6 +99,17 @@ describe('Mac Catalyst shell', () => {
     expect(toggle.split('widgetIsKey')[0]).toMatch(
       /rememberFrontProcess\(\)\s*openWidgetScene\(\)/
     );
+  });
+
+  it('follows every other app that comes forward, for a widget a click brought forward', () => {
+    expect(appDelegateSource).toMatch(
+      /#if targetEnvironment\(macCatalyst\)[^#]*MacWindowing\.followFrontProcess\(\)[^#]*#endif/
+    );
+    const follow =
+      windowingSource.match(/static func followFrontProcess\(\) \{[\s\S]*?\n {4}\}/)?.[0] ?? '';
+    expect(follow).toContain('Notification.Name("NSWorkspaceDidActivateApplicationNotification")');
+    expect(follow).toContain('userInfo?["NSWorkspaceApplicationKey"]');
+    expect(follow).toMatch(/pid != getpid\(\) \{ lastFrontProcess = pid \}/);
   });
 
   it('serves the routes whose IDs have dots, and the widget, from the app', () => {

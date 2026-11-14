@@ -54,7 +54,7 @@ Out:
 
 ### Mac shell
 
-- `Control+Option+Space` anywhere: shows the widget above the app in front with the caret in the input. Pressed while the widget has the keyboard, it hides it and gives the keyboard back to the app that had it; so does Escape. The main window stays where it is.
+- `Control+Option+Space` anywhere: shows the widget above the app in front with the caret in the input. Pressed while the widget has the keyboard, it hides it and gives the keyboard back to the app that had it; so does Escape. That app, also the one the window screenshot takes, is MindRoom itself when the shortcut showed the widget over it, else the last other app that came forward, also when a click brought the widget forward. The main window stays where it is.
 - The widget's window: 360 by 460 points, no title bar, movable by its header, above other apps' windows, on the Space in front as it shows. Over another app's full-screen window it opens on a desktop Space instead: only a non-activating panel can show over a full-screen app, and a UIKit scene's window cannot be one. Its place is remembered. It has a panel's rounded corners and shadow, and the system's material behind it: the web view is transparent and the page paints no background there, so what is under the window shows through, blurred. The page does not bounce as a whole, cannot be zoomed, and a right click shows no web menu (Reload, Inspect) outside a text field.
 - The app's Window menu has "Quick Capture" with the same shortcut shown.
 - Closing the main window closes the widget too, so that the Dock opens the main window again; an activation of the app with no main window (the Dock, or a launch that restored only the widget) opens one. A widget restored at launch starts hidden.
@@ -111,6 +111,7 @@ Checked on the MacBook M2 (macOS 26.5.2, Xcode 26.6), driving its screen over Sc
 - Requests time out in the widget after 20 s (60 s for a send with images) with `timeout`; the host answers every request once.
 - Host errors are codes, shown as text in the widget: `no-room` (the room is not listed any more: left, archived or replaced), `upload-failed`, `send-failed`, `forbidden` (no permission to resolve), `timeout`.
 - An image that fails to upload fails the whole send before any event is sent, so no thread is left without its picture.
+- A send that fails after it started its thread says so with `posted` (the thread and how many images went out): the widget drops those images from the entry and sends the rest into that thread, so a retry repeats nothing. An entry emptied by hand starts a new thread.
 - A message that is not a valid protocol message, or names another `hostId`, is ignored.
 - Native rejections: `PERMISSION_DENIED`, `NO_WINDOW` (the front app has no window), `UNSUPPORTED` (not a Mac, or macOS older than ScreenCaptureKit on Catalyst), `CAPTURE_FAILED`.
 - A widget whose host goes away (`gone`, or no state for 30 s while it shows, or for 1.5 s after the hello it says as it shows again) says hello again at once and falls back to "MindRoom is not open".
