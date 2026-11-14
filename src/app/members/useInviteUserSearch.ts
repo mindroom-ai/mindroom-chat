@@ -127,7 +127,7 @@ export const useInviteUserSearch = (
     shouldSearchServer(trimmedQuery, localSearchTerm, cacheState, localSuggestions);
 
   const runServerSearch = useCallback(
-    async (term: string, queryTerm: string, requestId: number) => {
+    (term: string, queryTerm: string, requestId: number) => {
       if (!alive() || requestId !== requestIdRef.current) return;
 
       setIsServerFetching(true);
@@ -180,7 +180,7 @@ export const useInviteUserSearch = (
         }
       };
 
-      await Promise.allSettled(
+      void Promise.allSettled(
         terms.map((searchTerm) =>
           mx
             .searchUserDirectory({

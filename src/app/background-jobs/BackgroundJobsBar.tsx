@@ -165,7 +165,7 @@ export function BackgroundJobsBar({
   };
   const stopJob = (item: BackgroundJobsBarItem, pressed: HTMLElement) => {
     focusNextCancel(pressed);
-    cancel(
+    void cancel(
       { jobId: item.jobId },
       [item.jobId],
       t('mindroomUi.backgroundJobs.stopFailed', { tool: item.name })
@@ -173,7 +173,7 @@ export function BackgroundJobsBar({
   };
   const stopAll = () => {
     bar.current?.focus();
-    cancel(
+    void cancel(
       { all: true },
       model.items.map((item) => item.jobId),
       t('mindroomUi.backgroundJobs.stopAllFailed')

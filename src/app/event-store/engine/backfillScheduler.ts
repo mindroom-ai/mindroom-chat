@@ -284,9 +284,9 @@ export const createBackfillScheduler = (
           if (byKey.get(entry.key) === entry) {
             byKey.delete(entry.key);
           }
-          // Recurse via macrotask so a synchronous resolve doesn't
+          // Recurse via microtask so a synchronous resolve doesn't
           // grow the stack when many jobs settle in a burst.
-          Promise.resolve().then(drain);
+          void Promise.resolve().then(drain);
         }
       })();
     }
@@ -338,7 +338,7 @@ export const createBackfillScheduler = (
     countCacheProbe('schedulerEnqueued');
     // Kick the drain on a microtask so callers can await the promise
     // without racing sync errors from the executor.
-    Promise.resolve().then(drain);
+    void Promise.resolve().then(drain);
     return entry.promise;
   };
 

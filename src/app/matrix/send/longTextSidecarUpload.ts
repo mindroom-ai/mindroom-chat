@@ -24,7 +24,7 @@ export const uploadLongTextSidecar = async (
   if (!item) throw new Error('The long message could not be prepared for upload.');
   if (item.prepError) throw item.prepError;
   const mxc = await new Promise<string>((resolve, reject) => {
-    uploadContent(mx, item.file, {
+    void uploadContent(mx, item.file, {
       name: SIDECAR_FILENAME,
       fileType: SIDECAR_MIMETYPE,
       hideFilename: !!item.encInfo,
