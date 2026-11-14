@@ -8,6 +8,7 @@ import {
   uniqueWord,
   type AgentStack,
 } from '../helpers/agentStack';
+import { createRoom } from '../helpers/createRoom';
 import { matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
@@ -62,19 +63,10 @@ const roomEvents = async (stack: AgentStack, roomId: string): Promise<Raw[]> =>
 
 /** A new room of the tester's with the helper and the router, once both joined it. */
 const createAgentRoom = async (stack: AgentStack, name: string): Promise<string> => {
-  const { room_id: roomId } = await matrixFetch<{ room_id: string }>(
-    stack.homeserver,
-    '/createRoom',
-    {
-      method: 'POST',
-      accessToken: stack.tester.accessToken,
-      body: JSON.stringify({
-        name,
-        preset: 'private_chat',
-        invite: [stack.agents.helper, stack.agents.router],
-      }),
-    }
-  );
+  const roomId = await createRoom(stack.homeserver, stack.tester.accessToken, {
+    name,
+    invite: [stack.agents.helper, stack.agents.router],
+  });
   await expect
     .poll(
       async () => {
@@ -91,14 +83,8 @@ const createAgentRoom = async (stack: AgentStack, name: string): Promise<string>
   return roomId;
 };
 
-const createPlainRoom = async (stack: AgentStack, name: string): Promise<string> =>
-  (
-    await matrixFetch<{ room_id: string }>(stack.homeserver, '/createRoom', {
-      method: 'POST',
-      accessToken: stack.tester.accessToken,
-      body: JSON.stringify({ name, preset: 'private_chat' }),
-    })
-  ).room_id;
+const createPlainRoom = (stack: AgentStack, name: string): Promise<string> =>
+  createRoom(stack.homeserver, stack.tester.accessToken, { name });
 
 /** Asks the helper in the room (a mention, as the composer sends it); its reply starts a thread. */
 const askHelper = async (stack: AgentStack, name: string, roomId: string): Promise<Stream> => {

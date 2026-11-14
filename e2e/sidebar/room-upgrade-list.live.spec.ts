@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver } from '../env';
 import { loginWithPassword } from '../helpers/auth';
+import { createRoom } from '../helpers/createRoom';
 import { matrixFetch } from '../helpers/matrix';
 
 // After a room upgrade the room list shows the successor only: the old room, whose tombstone
@@ -24,13 +25,7 @@ test('an upgraded room is listed once, as its successor @webkit', async ({ page,
     }
   );
   const roomName = `Upgraded room ${Date.now().toString(36)}`;
-  const oldRoomId = (
-    await matrixFetch<{ room_id: string }>(homeserver, '/createRoom', {
-      method: 'POST',
-      accessToken: account.access_token,
-      body: JSON.stringify({ name: roomName, preset: 'private_chat' }),
-    })
-  ).room_id;
+  const oldRoomId = await createRoom(homeserver, account.access_token, { name: roomName });
 
   await loginWithPassword(page, { homeserver, username, password: PASSWORD });
   const rows = page.getByRole('link', { name: new RegExp(roomName) });

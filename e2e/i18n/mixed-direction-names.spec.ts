@@ -3,18 +3,13 @@ import { join } from 'node:path';
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import {
-  joinRoom,
-  loginToMatrix,
-  matrixFetch,
-  registerAgentAccount,
-  sendRoomMessage,
-  type MatrixSession,
-} from '../helpers/matrix';
+import { joinRoom, matrixFetch, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
+  CHROMIUM_WITH_SCROLLBARS,
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // A name or message in another direction than the interface keeps one order and its own side, on
@@ -34,33 +29,11 @@ const ARABIC = 'مرحبا بالجميع، الاجتماع في الساعة 1
 const HEBREW = 'שלום, אני בודק את ה-build';
 const ENGLISH = 'Sounds good, see you there.';
 
-test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
-});
+test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 test.describe.configure({ timeout: 180_000 });
 
-const registerAndLogin = async (
-  name: string,
-  displayName?: string
-): Promise<MatrixSession & { username: string }> => {
-  const username = `mdn_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  const session = await loginToMatrix(HOMESERVER, username, PASSWORD);
+const registerAndLogin = async (name: string, displayName?: string) => {
+  const session = await registerDisposableUser(`mdn_${name}_${RUN}`, PASSWORD);
   if (displayName) {
     await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(session.userId)}/displayname`, {
       method: 'PUT',
@@ -68,7 +41,7 @@ const registerAndLogin = async (
       body: JSON.stringify({ displayname: displayName }),
     });
   }
-  return { ...session, username };
+  return session;
 };
 
 /** A thread the Arabic-named member starts, with replies in Hebrew and English and an approval. */

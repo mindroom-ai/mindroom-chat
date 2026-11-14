@@ -206,9 +206,11 @@ const recentThreadsRegistry = createUserScopedAtomRegistry<RecentThreadsAtom>({
 
 export const makeRecentThreadsAtom = recentThreadsRegistry.getOrCreate;
 
-const getResolvedRecentThreadsAtom = (): RecentThreadsAtom | undefined => {
+/** Applies `action` to the signed-in account's recent threads; does nothing while no one is signed in. */
+const dispatch = (action: RecentThreadsAction) => {
   const userId = getActiveSession()?.userId;
-  return recentThreadsRegistry.resolveActiveOrCreate(userId);
+  if (!userId) return;
+  getImperativeJotaiStore().set(recentThreadsRegistry.getOrCreate(userId), action);
 };
 
 export const bumpRecentThread = (
@@ -216,41 +218,13 @@ export const bumpRecentThread = (
   threadId: string,
   openedAt?: number,
   summaryText?: string
-) => {
-  const recentThreadsAtom = getResolvedRecentThreadsAtom();
-  if (!recentThreadsAtom) return;
+) => dispatch({ type: 'BUMP', roomId, threadId, openedAt, summaryText });
 
-  getImperativeJotaiStore().set(recentThreadsAtom, {
-    type: 'BUMP',
-    roomId,
-    threadId,
-    openedAt,
-    summaryText,
-  });
-};
+export const removeRecentThread = (roomId: string, threadId: string) =>
+  dispatch({ type: 'REMOVE', roomId, threadId });
 
-export const removeRecentThread = (roomId: string, threadId: string) => {
-  const recentThreadsAtom = getResolvedRecentThreadsAtom();
-  if (!recentThreadsAtom) return;
-
-  getImperativeJotaiStore().set(recentThreadsAtom, {
-    type: 'REMOVE',
-    roomId,
-    threadId,
-  });
-};
-
-export const rekeyRecentThread = (roomId: string, threadId: string, nextThreadId: string) => {
-  const recentThreadsAtom = getResolvedRecentThreadsAtom();
-  if (!recentThreadsAtom) return;
-
-  getImperativeJotaiStore().set(recentThreadsAtom, {
-    type: 'REKEY',
-    roomId,
-    threadId,
-    nextThreadId,
-  });
-};
+export const rekeyRecentThread = (roomId: string, threadId: string, nextThreadId: string) =>
+  dispatch({ type: 'REKEY', roomId, threadId, nextThreadId });
 
 /** Deletes the text an older version stored for the threads of the account's encrypted rooms. */
 export const forgetEncryptedRecentThreadText = (userId: string) => {

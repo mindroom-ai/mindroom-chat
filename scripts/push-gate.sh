@@ -18,7 +18,9 @@
 #             scripts/perf/bundle-budget.json (scripts/perf/bundle-report.mjs)
 #   tsc       tsc --noEmit -p config/tsconfig.app.json
 #   strict    node scripts/strict-check.mjs
-#   lint      ESLint on the files base...rev changes (on every file when .eslintrc.cjs changes)
+#   lint      ESLint on the files base...rev changes (on every file when the ESLint config or a file
+#             it reads changes: scripts/eslint-shared.cjs, scripts/provenance-paths.cjs, the
+#             docs/provenance lists, the tsconfigs)
 #   vitest    the full unit suite; the files that fail run once more on their own, and only a
 #             second failure counts (the detail says how many passed on the rerun)
 #   overlap   scripts/upstream-overlap/check.py --history; it reads every ref of the checkout, but
@@ -233,10 +235,12 @@ check_lint() {
   local rc=0 files=() scope problems
   mapfile -t files < <(
     git -C "$checkout" diff --name-only --diff-filter=ACMR "$base_sha...$sha" -- \
-      src e2e scripts vite.config.js vitest.config.ts .eslintrc.cjs .eslintrc.plugin.cjs | grep -E '\.(ts|tsx|js|mjs|cjs)$' || true
+      src e2e scripts vite.config.js vitest.config.ts .eslintrc.plugin.cjs | grep -E '\.(ts|tsx|js|mjs|cjs)$' || true
   )
-  if printf '%s\n' "${files[@]}" | grep -qxE '\.eslintrc\.cjs|scripts/eslint-shared\.cjs'; then
-    scope='every file (the ESLint config changed)'
+  # The config, and what it reads to sort files into lanes and to type them.
+  if [ -n "$(git -C "$checkout" diff --name-only "$base_sha...$sha" -- .eslintrc.cjs scripts/eslint-shared.cjs \
+    scripts/provenance-paths.cjs 'docs/provenance/*.tsv' tsconfig.json config/tsconfig.strict.json)" ]; then
+    scope='every file (the ESLint config or a file it reads changed)'
     (cd "$tree" && npm run lint) >"$logs/lint.log" 2>&1 || rc=$?
   elif [ ${#files[@]} -eq 0 ]; then
     echo 'no changed files to lint'

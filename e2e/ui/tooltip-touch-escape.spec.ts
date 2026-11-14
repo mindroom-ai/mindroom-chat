@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
+import { createRoom } from '../helpers/createRoom';
 import { matrixFetch } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 import {
@@ -27,11 +28,7 @@ const seed = async () => {
       body: JSON.stringify({ username, password: PASSWORD, auth: { type: 'm.login.dummy' } }),
     }
   );
-  const { room_id: roomId } = await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
-    method: 'POST',
-    accessToken,
-    body: JSON.stringify({ preset: 'private_chat', name: 'Project Team' }),
-  });
+  const roomId = await createRoom(HOMESERVER, accessToken, { name: 'Project Team' });
   return { username, roomId };
 };
 

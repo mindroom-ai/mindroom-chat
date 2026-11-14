@@ -31,17 +31,6 @@ describe('createUserScopedAtomRegistry', () => {
     expect(ephemeral.getOrCreate('')).not.toBe(ephemeral.getOrCreate(''));
   });
 
-  it('resolves the given user to its stable atom and no user to none', () => {
-    const registry = createUserScopedAtomRegistry({
-      create: (userId) => ({ userId }),
-      getStorageKey: (userId) => `state:${userId}`,
-    });
-
-    expect(registry.resolveActiveOrCreate('@alice')).toBe(registry.getOrCreate('@alice'));
-    expect(registry.resolveActiveOrCreate(undefined)).toBeUndefined();
-    expect(registry.resolveActiveOrCreate('')).toBeUndefined();
-  });
-
   it('clears the cached identity and storage key together', () => {
     const registry = createUserScopedAtomRegistry({
       create: (userId) => ({ userId }),
