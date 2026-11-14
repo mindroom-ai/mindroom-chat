@@ -140,14 +140,15 @@ const agentText = () => {
 };
 
 const homeserver = getHomeserver();
-let sent = 0;
+/** Events sent to each room. */
+const sentTo = new Map<string, number>();
 const send = async (
   token: string,
   roomId: string,
   content: Record<string, unknown>,
   type = 'm.room.message'
 ): Promise<string> => {
-  sent += 1;
+  sentTo.set(roomId, (sentTo.get(roomId) ?? 0) + 1);
   const { event_id: eventId } = await matrixFetch<{ event_id: string }>(
     homeserver,
     `/rooms/${encodeURIComponent(roomId)}/send/${type}/${randomUUID()}`,
@@ -230,7 +231,6 @@ const seedBigRoom = async (
   withLongThread: boolean
 ): Promise<{ room: RoomFixture; long?: Manifest['longThread'] }> => {
   const roomId = await createRoom(tokens, agentId, name);
-  const before = sent;
   // Top-level chatter first, then the threads, so the threads are the newest activity.
   await pool(
     Array.from({ length: 150 }, () => () => send(tokens.user, roomId, userText())),
@@ -270,7 +270,7 @@ const seedBigRoom = async (
       probes: probes
         .reverse()
         .map(({ rootId, lastReplyId, replies }) => ({ rootId, lastReplyId, replies })),
-      events: sent - before,
+      events: sentTo.get(roomId) ?? 0,
     },
     long,
   };
@@ -278,7 +278,6 @@ const seedBigRoom = async (
 
 const seedSmallRoom = async (tokens: Tokens, agentId: string, name: string) => {
   const roomId = await createRoom(tokens, agentId, name);
-  const before = sent;
   const threads = [];
   for (let index = 0; index < SMALL_ROOM_MESSAGES / 5; index += 1)
     // eslint-disable-next-line no-await-in-loop
@@ -291,7 +290,7 @@ const seedSmallRoom = async (tokens: Tokens, agentId: string, name: string) => {
     lastReplyId: last.lastReplyId,
     threads: threads.map(({ rootId, lastReplyId, replies }) => ({ rootId, lastReplyId, replies })),
     probes: [],
-    events: sent - before,
+    events: sentTo.get(roomId) ?? 0,
   };
 };
 
@@ -339,7 +338,7 @@ const seedAccount = async (): Promise<Manifest> => {
     homeSmallRooms: small.slice(SPACES * ROOMS_PER_SPACE),
     spaces,
     longThread: item(big, 0).long!,
-    totalEvents: sent,
+    totalEvents: [...sentTo.values()].reduce((total, count) => total + count, 0),
     seedSeconds: (Date.now() - started) / 1000,
   };
 };

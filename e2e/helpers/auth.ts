@@ -115,6 +115,8 @@ export const loginWithPassword = async (page: Page, options: LoginOptions) => {
 
   if (showToolCalls) {
     await page.addInitScript(() => {
+      // Init scripts run in every frame, and a sandboxed one (an agent's canvas) has no storage.
+      if (window !== window.top) return;
       const stored = JSON.parse(localStorage.getItem('settings') ?? '{}') as Record<
         string,
         unknown
