@@ -2285,7 +2285,6 @@
         "noMicrophone": "Não foi encontrado nenhum microfone neste dispositivo.",
         "microphoneUnavailable": "O microfone está indisponível neste momento; poderá estar a ser utilizado por outra aplicação.",
         "microphoneFailed": "Não foi possível aceder ao microfone.",
-        "microphoneUnsupported": "O acesso ao microfone não é suportado neste dispositivo.",
         "recordingStopped": "A gravação de voz parou inesperadamente. Grave novamente.",
         "noAudio": "Não foram captados dados de áudio.",
         "recordingUnsupported": "A gravação de voz não é suportada neste navegador.",

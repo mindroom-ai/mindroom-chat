@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 
 const MODULE_PATH = '/src/app/diagnostics/flightRecorder.ts';
+const EXPORT_MODULE_PATH = '/src/app/diagnostics/diagnosticsExport.ts';
 const SAVE_MODULE_PATH = '/src/app/native/nativeFileSave.ts';
 const CURRENT_KEY = 'mindroom.flight.current.v1';
 const ABNORMAL_KEY = 'mindroom.flight.abnormal.v1';
@@ -65,7 +66,7 @@ test('retains and exports a fast-relaunch abnormal voice session without inventi
   const page = await context.newPage();
   await page.goto('/login/');
   await page.evaluate(
-    ([key, now]) => {
+    ([key, abnormalKey, now]) => {
       localStorage.setItem(
         key,
         JSON.stringify({
@@ -83,9 +84,9 @@ test('retains and exports a fast-relaunch abnormal voice session without inventi
           events: [],
         })
       );
-      localStorage.removeItem('mindroom.flight.abnormal.v1');
+      localStorage.removeItem(abnormalKey);
     },
-    [CURRENT_KEY, Date.now()] as const
+    [CURRENT_KEY, ABNORMAL_KEY, Date.now()] as const
   );
 
   await page.reload();
@@ -124,13 +125,13 @@ test('retains and exports a fast-relaunch abnormal voice session without inventi
 
   const downloadPromise = page.waitForEvent('download');
   await page.evaluate(
-    async ([modulePath, saveModulePath]) => {
-      const recorder = await import(modulePath);
+    async ([exportModulePath, saveModulePath]) => {
+      const { buildDiagnosticsExport } = await import(exportModulePath);
       const { saveFile } = await import(saveModulePath);
-      const { blob, fileName } = recorder.buildFlightRecorderExport();
+      const { blob, fileName } = await buildDiagnosticsExport();
       await saveFile(blob, fileName);
     },
-    [MODULE_PATH, SAVE_MODULE_PATH] as const
+    [EXPORT_MODULE_PATH, SAVE_MODULE_PATH] as const
   );
   const download = await downloadPromise;
   const downloadPath = await download.path();
