@@ -821,9 +821,20 @@
     "notFound": "No se encontró el hilo",
     "snoozedUntil": "Pospuesto hasta {{time}}",
     "snoozeEnded": "Aplazamiento terminado",
+    "snooze": "Posponer",
+    "unsnooze": "Dejar de posponer",
     "status": {
       "snoozed": "Pospuesto"
     }
+  },
+  "threadSnooze": {
+    "title": "Posponer hasta",
+    "inOneHour": "En 1 hora",
+    "inThreeHours": "En 3 horas",
+    "tomorrow": "Mañana 09:00",
+    "nextMonday": "El próximo lunes 09:00",
+    "pickDateTime": "Elegir fecha y hora",
+    "pastTime": "Elige una hora en el futuro"
   },
   "activity": {
     "title": "Actividad",

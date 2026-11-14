@@ -31,7 +31,9 @@ const { threadUtilsMockState } = vi.hoisted(() => ({
 }));
 
 vi.mock('../../event-store/threads/threadUtils', async () => {
-  const actual = await vi.importActual<typeof import('../../event-store/threads/threadUtils')>('../../event-store/threads/threadUtils');
+  const actual = await vi.importActual<typeof import('../../event-store/threads/threadUtils')>(
+    '../../event-store/threads/threadUtils'
+  );
   threadUtilsMockState.defaultGetValidThreadRootEvent = actual.getValidThreadRootEvent;
   return {
     ...actual,
@@ -533,5 +535,137 @@ describe('useMutateThreadTags', () => {
     });
 
     renderer.unmount();
+  });
+  const renderHarness = (room: Room) => {
+    let snapshot!: ReturnType<typeof useMutateThreadTags>;
+    const renderer = create(
+      React.createElement(Harness, {
+        room,
+        onRender: (value) => {
+          snapshot = value;
+        },
+      })
+    );
+    return { renderer, current: () => snapshot };
+  };
+
+  it('snooze sends the tag with until in UTC and a note', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(ISO_1));
+    const room = makeRoom();
+    const { renderer, current } = renderHarness(room);
+
+    await act(async () => {
+      await current().snooze('$root', new Date('2026-11-14T09:00:00+01:00'), 'check CI');
+    });
+
+    const content = {
+      set_by: '@alice:example.org',
+      set_at: ISO_1,
+      note: 'check CI',
+      data: { until: '2026-11-14T08:00:00.000Z' },
+    };
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      '!room:example.org',
+      MINDROOM_THREAD_TAGS_EVENT,
+      content,
+      '["$root","snoozed"]'
+    );
+    expect(pendingTags(room, '$root')).toEqual({ tags: { snoozed: content } });
+    expect(current().error).toBeNull();
+    renderer.unmount();
+  });
+
+  it('snooze leaves out an empty note', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(ISO_1));
+    const { renderer, current } = renderHarness(makeRoom());
+
+    await act(async () => {
+      await current().snooze('$root', new Date('2026-11-14T08:00:00Z'));
+    });
+
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      '!room:example.org',
+      MINDROOM_THREAD_TAGS_EVENT,
+      { set_by: '@alice:example.org', set_at: ISO_1, data: { until: '2026-11-14T08:00:00.000Z' } },
+      '["$root","snoozed"]'
+    );
+    renderer.unmount();
+  });
+
+  it('unsnooze sends empty content', async () => {
+    const room = makeRoom([
+      makePerTagEvent('$root', 'snoozed', {
+        set_by: '@alice:example.org',
+        set_at: ISO_1,
+        data: { until: '2099-01-01T00:00:00Z' },
+      }),
+    ]);
+    const { renderer, current } = renderHarness(room);
+
+    await act(async () => {
+      await current().unsnooze('$root');
+    });
+
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      '!room:example.org',
+      MINDROOM_THREAD_TAGS_EVENT,
+      {},
+      '["$root","snoozed"]'
+    );
+    expect(pendingTags(room, '$root')).toEqual({ tags: {} });
+    renderer.unmount();
+  });
+
+  it('refuses a past time and a pinned thread', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(ISO_2));
+    const room = makeRoom();
+    const { renderer, current } = renderHarness(room);
+
+    await act(async () => {
+      await current().snooze('$root', new Date(ISO_2));
+    });
+    expect(current().error?.message).toBe('Snooze time must be in the future.');
+    await act(async () => {
+      await current().snooze('$root', new Date(Number.NaN));
+    });
+    expect(current().error?.message).toBe('Snooze time must be in the future.');
+    expect(sendStateEvent).not.toHaveBeenCalled();
+    renderer.unmount();
+
+    const readState = room.getLiveTimeline().getState;
+    room.getLiveTimeline = () =>
+      ({
+        getState: () => ({
+          ...readState(EventTimeline.FORWARDS),
+          getStateEvents: (type: string, stateKey?: string) =>
+            type === 'm.room.pinned_events'
+              ? new MatrixEvent({ type, state_key: '', content: { pinned: ['$root'] } })
+              : stateKey === undefined
+              ? readState(EventTimeline.FORWARDS)?.getStateEvents(type)
+              : readState(EventTimeline.FORWARDS)?.getStateEvents(type, stateKey),
+        }),
+      } as never);
+    const pinned = renderHarness(room);
+    await act(async () => {
+      await pinned.current().snooze('$root', new Date('2026-11-14T08:00:00Z'));
+    });
+    expect(pinned.current().error?.message).toBe('Pinned threads cannot be snoozed.');
+    expect(sendStateEvent).not.toHaveBeenCalled();
+    expect(pendingTags(room, '$root')).toBeUndefined();
+
+    // A snooze set before the pin can still be lifted.
+    await act(async () => {
+      await pinned.current().unsnooze('$root');
+    });
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      '!room:example.org',
+      MINDROOM_THREAD_TAGS_EVENT,
+      {},
+      '["$root","snoozed"]'
+    );
+    pinned.renderer.unmount();
   });
 });

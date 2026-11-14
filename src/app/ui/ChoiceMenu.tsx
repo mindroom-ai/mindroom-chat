@@ -3,14 +3,17 @@ import { Box, Icon, Icons, Text, config } from 'folds';
 import { Menu, MenuItem } from './glass/GlassPrimitives';
 import { stopPropagation } from '../lib/keyboard';
 
-/** One option of a {@link ChoiceMenu}; `critical` options read as a warning. */
-export type Choice = { name: string; critical?: boolean };
+/**
+ * One option of a {@link ChoiceMenu}; `critical` options read as a warning, and `detail` shows
+ * after the name, such as the time a preset picks.
+ */
+export type Choice = { name: string; critical?: boolean; detail?: string };
 
 type ChoiceMenuProps = {
   /** Names the menu for assistive technology. */
   label: string;
   choices: Choice[];
-  /** Position of the current option in `choices`. */
+  /** Position of the current option in `choices`; -1 checks none. */
   current: number;
   onChoose(index: number): void;
   /** Escape or a click outside the menu. */
@@ -50,6 +53,11 @@ export function ChoiceMenu({ label, choices, current, onChoose, onDismiss }: Cho
                 <Text size="T300" style={{ flexGrow: 1, textAlign: 'start' }}>
                   {choice.name}
                 </Text>
+                {choice.detail && (
+                  <Text as="span" size="T200" priority="300" data-choice-detail="">
+                    {choice.detail}
+                  </Text>
+                )}
               </MenuItem>
             );
           })}

@@ -791,9 +791,20 @@
     "notFound": "未找到该讨论串",
     "snoozedUntil": "已延后至 {{time}}",
     "snoozeEnded": "延后已结束",
+    "snooze": "延后",
+    "unsnooze": "取消延后",
     "status": {
       "snoozed": "已延后"
     }
+  },
+  "threadSnooze": {
+    "title": "延后至",
+    "inOneHour": "1 小时后",
+    "inThreeHours": "3 小时后",
+    "tomorrow": "明天 09:00",
+    "nextMonday": "下周一 09:00",
+    "pickDateTime": "选择日期和时间",
+    "pastTime": "请选择将来的时间"
   },
   "activity": {
     "title": "动态",

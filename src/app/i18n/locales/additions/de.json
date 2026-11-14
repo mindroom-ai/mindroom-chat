@@ -806,9 +806,20 @@
     "notFound": "Thread nicht gefunden",
     "snoozedUntil": "Zurückgestellt bis {{time}}",
     "snoozeEnded": "Zurückstellung beendet",
+    "snooze": "Zurückstellen",
+    "unsnooze": "Nicht mehr zurückstellen",
     "status": {
       "snoozed": "Zurückgestellt"
     }
+  },
+  "threadSnooze": {
+    "title": "Zurückstellen bis",
+    "inOneHour": "In 1 Stunde",
+    "inThreeHours": "In 3 Stunden",
+    "tomorrow": "Morgen 09:00",
+    "nextMonday": "Nächsten Montag 09:00",
+    "pickDateTime": "Datum und Uhrzeit wählen",
+    "pastTime": "Wähle eine Zeit in der Zukunft"
   },
   "activity": {
     "title": "Aktivität",

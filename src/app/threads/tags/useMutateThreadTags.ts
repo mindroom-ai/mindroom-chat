@@ -7,6 +7,7 @@ import {
   MINDROOM_THREAD_TAGS_EVENT,
   normalizeTagName,
   RESOLVED_TAG,
+  SNOOZED_TAG,
 } from '../../event-store/threads/threadTags';
 import { clearPendingThreadTag, setPendingThreadTag } from './threadTagPending';
 import { getResolvableThreadRootEvent } from '../../event-store/threads/threadResolvableRoot';
@@ -16,6 +17,9 @@ export type UseMutateThreadTagsResult = {
   addTag: (threadRootId: string, tagName: string) => Promise<void>;
   removeTag: (threadRootId: string, tagName: string) => Promise<void>;
   setResolved: (threadRootId: string, resolved: boolean) => Promise<void>;
+  /** Snoozes the thread until a later time; a past time or a pinned thread sets `error`. */
+  snooze: (threadRootId: string, until: Date, note?: string) => Promise<void>;
+  unsnooze: (threadRootId: string) => Promise<void>;
   updating: boolean;
   updatingThreadRootIds: ReadonlySet<string>;
   error: Error | null;
@@ -37,7 +41,12 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
   const pendingRef = useRef(new Set<string>());
 
   const sendUpdate = useCallback(
-    async (threadRootId: string, tagName: string, present: boolean) => {
+    async (
+      threadRootId: string,
+      tagName: string,
+      present: boolean,
+      extra: { note?: string; data?: Record<string, unknown> } = {}
+    ) => {
       if (pendingRef.current.has(threadRootId)) return;
       pendingRef.current.add(threadRootId);
       setUpdatingThreadRootIds(new Set(pendingRef.current));
@@ -51,24 +60,29 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
         }
 
         const stateKey = buildPerTagStateKey(validThreadRootId, tagName);
-        if (
-          stateKey === buildPerTagStateKey(validThreadRootId, RESOLVED_TAG) &&
-          isThreadPinned(room, validThreadRootId)
-        ) {
+        const pinned = () => isThreadPinned(room, validThreadRootId);
+        if (stateKey === buildPerTagStateKey(validThreadRootId, RESOLVED_TAG) && pinned()) {
           throw new Error('Pinned threads cannot be resolved.');
         }
-        const setAt = new Date().toISOString();
+        // A snooze set before the pin may still be lifted.
+        if (
+          present &&
+          stateKey === buildPerTagStateKey(validThreadRootId, SNOOZED_TAG) &&
+          pinned()
+        ) {
+          throw new Error('Pinned threads cannot be snoozed.');
+        }
+        const content = present
+          ? buildPerTagEventContent(userId, extra.note, extra.data, new Date().toISOString())
+          : undefined;
         pending = [validThreadRootId, normalizeTagName(tagName)];
-        setPendingThreadTag(
-          room.roomId,
-          ...pending,
-          present ? { set_by: userId, set_at: setAt } : null
-        );
+        // The pending tag is the content being sent: its author, time, note and data.
+        setPendingThreadTag(room.roomId, ...pending, content ?? null);
         await mx.sendStateEvent(
           room.roomId,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           MINDROOM_THREAD_TAGS_EVENT as any,
-          present ? buildPerTagEventContent(userId, undefined, undefined, setAt) : {},
+          content ?? {},
           stateKey
         );
       } catch (err) {
@@ -93,8 +107,26 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
   );
 
   const setResolved = useCallback(
-    (threadRootId: string, resolved: boolean) =>
-      sendUpdate(threadRootId, RESOLVED_TAG, resolved),
+    (threadRootId: string, resolved: boolean) => sendUpdate(threadRootId, RESOLVED_TAG, resolved),
+    [sendUpdate]
+  );
+
+  const snooze = useCallback(
+    async (threadRootId: string, until: Date, note?: string) => {
+      if (!(until.getTime() > Date.now())) {
+        setError(new Error('Snooze time must be in the future.'));
+        return;
+      }
+      await sendUpdate(threadRootId, SNOOZED_TAG, true, {
+        note,
+        data: { until: until.toISOString() },
+      });
+    },
+    [sendUpdate]
+  );
+
+  const unsnooze = useCallback(
+    (threadRootId: string) => sendUpdate(threadRootId, SNOOZED_TAG, false),
     [sendUpdate]
   );
 
@@ -102,6 +134,8 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
     addTag,
     removeTag,
     setResolved,
+    snooze,
+    unsnooze,
     updating: updatingThreadRootIds.size > 0,
     updatingThreadRootIds,
     error,

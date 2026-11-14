@@ -791,9 +791,20 @@
     "notFound": "スレッドが見つかりません",
     "snoozedUntil": "{{time}} までスヌーズ中",
     "snoozeEnded": "スヌーズが終了しました",
+    "snooze": "スヌーズ",
+    "unsnooze": "スヌーズを解除",
     "status": {
       "snoozed": "スヌーズ中"
     }
+  },
+  "threadSnooze": {
+    "title": "スヌーズの終了日時",
+    "inOneHour": "1時間後",
+    "inThreeHours": "3時間後",
+    "tomorrow": "明日 09:00",
+    "nextMonday": "来週の月曜日 09:00",
+    "pickDateTime": "日時を選択",
+    "pastTime": "未来の日時を選んでください"
   },
   "activity": {
     "title": "アクティビティ",

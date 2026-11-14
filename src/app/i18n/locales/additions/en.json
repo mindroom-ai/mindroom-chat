@@ -806,9 +806,20 @@
     "notFound": "Thread not found",
     "snoozedUntil": "Snoozed until {{time}}",
     "snoozeEnded": "Snooze ended",
+    "snooze": "Snooze",
+    "unsnooze": "Unsnooze",
     "status": {
       "snoozed": "Snoozed"
     }
+  },
+  "threadSnooze": {
+    "title": "Snooze until",
+    "inOneHour": "In 1 hour",
+    "inThreeHours": "In 3 hours",
+    "tomorrow": "Tomorrow 09:00",
+    "nextMonday": "Next Monday 09:00",
+    "pickDateTime": "Pick date and time",
+    "pastTime": "Pick a time in the future"
   },
   "activity": {
     "title": "Activity",

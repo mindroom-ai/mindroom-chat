@@ -30,6 +30,9 @@ import { describeError } from '../lib/describeError';
 import { ErrorDetail } from '../ui/ErrorDetail';
 import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
 import { useToolCallsShown } from '../messages/toolCallVisibility';
+import { isSnoozedAt } from '../event-store/threads/threadSnooze';
+import { useSnoozeNow } from './tags/useSnoozeNow';
+import { SnoozePicker } from './snooze/SnoozePicker';
 
 export type ThreadActionsMenuProps = {
   room: Room;
@@ -48,7 +51,7 @@ export type ThreadActionsMenuProps = {
   onShowFull?: () => void;
 };
 
-type OpenDialog = 'tags' | 'editSummary' | 'regenerate';
+type OpenDialog = 'tags' | 'editSummary' | 'regenerate' | 'snooze';
 
 // As the original's thread menu measures: at least 220px wide, with the banner's 12px corners.
 const menuStyle: React.CSSProperties = { minWidth: toRem(220), borderRadius: config.radii.R500 };
@@ -64,7 +67,7 @@ const fieldStyle: React.CSSProperties = {
   color: 'inherit',
 };
 
-/** Thread options: open, tags, edit or regenerate the summary, resolve, pin, copy a link. */
+/** Thread options: open, tags, edit or regenerate the summary, resolve, snooze, pin, copy a link. */
 export function ThreadActionsMenu({
   room,
   rootId,
@@ -109,13 +112,16 @@ export function ThreadActionsMenu({
 
   const rootLoaded = !!getResolvableThreadRootEvent(room, rootId);
   const pinned = pinning.pinnedEventIds.includes(rootId);
+  const snoozeNow = useSnoozeNow([tags.snoozedUntilTs]);
+  const snoozed = isSnoozedAt(tags.snoozedUntilTs, snoozeNow);
   const canSummarize = getThreadSummaryActionError(mx, room, rootId) === undefined;
   const showTags = tags.canEdit
     ? rootLoaded || tags.displayTags.length > 0
     : tags.displayTags.length > 0;
   const tagsEditable = tags.canEdit && rootLoaded;
   const tagsUpdating = !!mutations.updating;
-  // Resolve and pin keep the menu open on their new label; it closes once their save is done.
+  // Resolve, Unsnooze and pin keep the menu open on their new label; it closes once their save is
+  // done.
   const saving = tagsUpdating || !!pinning.updating;
   const savingRef = useRef(saving);
   savingRef.current = saving;
@@ -172,6 +178,20 @@ export function ThreadActionsMenu({
     void copyToClipboard(getMatrixToRoomEvent(room.roomId, rootId, getViaServers(room)));
     onClose();
   };
+
+  if (dialog === 'snooze') {
+    return (
+      <SnoozePicker
+        anchor={anchor}
+        onPick={(until) => {
+          void mutations.snooze(rootId, until);
+          setDialog(undefined);
+          onClose();
+        }}
+        onClose={closeDialog}
+      />
+    );
+  }
 
   if (dialog === 'tags') {
     const label = tagsEditable ? t('threadActions.tags') : t('thread.stats.tags');
@@ -354,15 +374,15 @@ export function ThreadActionsMenu({
     return true;
   };
 
-  // The thread's own details (tags, title) first, then its state (resolved, pinned), then the link,
-  // whether it shows tool calls, and the banner's Show beside and Hide; each label has its icon at
-  // the end of the row.
+  // The thread's own details (tags, title) first, then its state (resolved, snoozed, pinned), then
+  // the link, whether it shows tool calls, and the banner's Show beside and Hide; each label has its
+  // icon at the end of the row.
   const items: Array<{
     action: string;
     label: string;
     icon: IconSrc;
     onSelect: () => void;
-    /** Resolve and pin wait for the previous save. */
+    /** Resolve, snooze and pin wait for the previous save. */
     mutates?: boolean;
     shortcut?: ShortcutId;
     /** A switch: checked while on. */
@@ -410,6 +430,19 @@ export function ThreadActionsMenu({
       shortcut: onOpenThread ? undefined : 'resolveThread',
       onSelect: () => {
         void mutations.setResolved(rootId, !tags.isResolved);
+      },
+    });
+  }
+  // A resolved thread shows as resolved whether snoozed or not, so it offers neither.
+  if (tags.canEdit && rootLoaded && !pinned && !tags.isResolved) {
+    items.push({
+      action: 'snooze',
+      mutates: true,
+      label: snoozed ? t('thread.unsnooze') : t('thread.snooze'),
+      icon: Icons.Clock,
+      onSelect: () => {
+        if (snoozed) void mutations.unsnooze(rootId);
+        else openDialog('snooze');
       },
     });
   }

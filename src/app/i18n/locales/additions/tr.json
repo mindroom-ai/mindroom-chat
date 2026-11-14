@@ -806,9 +806,20 @@
     "notFound": "Konu bulunamadı",
     "snoozedUntil": "{{time}} tarihine kadar ertelendi",
     "snoozeEnded": "Erteleme sona erdi",
+    "snooze": "Ertele",
+    "unsnooze": "Ertelemeyi kaldır",
     "status": {
       "snoozed": "Ertelendi"
     }
+  },
+  "threadSnooze": {
+    "title": "Şu zamana kadar ertele",
+    "inOneHour": "1 saat sonra",
+    "inThreeHours": "3 saat sonra",
+    "tomorrow": "Yarın 09:00",
+    "nextMonday": "Gelecek pazartesi 09:00",
+    "pickDateTime": "Tarih ve saat seç",
+    "pastTime": "Gelecekte bir zaman seçin"
   },
   "activity": {
     "title": "Etkinlik",

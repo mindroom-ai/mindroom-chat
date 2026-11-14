@@ -806,9 +806,20 @@
     "notFound": "थ्रेड नहीं मिला",
     "snoozedUntil": "{{time}} तक स्थगित",
     "snoozeEnded": "स्थगन समाप्त",
+    "snooze": "स्थगित करें",
+    "unsnooze": "स्थगन हटाएँ",
     "status": {
       "snoozed": "स्नूज़ किया गया"
     }
+  },
+  "threadSnooze": {
+    "title": "कब तक स्थगित करें",
+    "inOneHour": "1 घंटे में",
+    "inThreeHours": "3 घंटे में",
+    "tomorrow": "कल 09:00",
+    "nextMonday": "अगले सोमवार 09:00",
+    "pickDateTime": "तारीख और समय चुनें",
+    "pastTime": "भविष्य का समय चुनें"
   },
   "activity": {
     "title": "गतिविधि",
