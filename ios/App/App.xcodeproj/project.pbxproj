@@ -749,6 +749,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 4.12.6;
+				INFOPLIST_FILE = ../Watch/MindRoomWatch/Info.plist;
 				PRODUCT_BUNDLE_IDENTIFIER = chat.mindroom.app.watchkitapp;
 				PRODUCT_NAME = MindRoomWatch;
 				SDKROOT = watchos;
@@ -784,6 +785,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 4.12.6;
+				INFOPLIST_FILE = ../Watch/MindRoomWatch/Info.plist;
 				PRODUCT_BUNDLE_IDENTIFIER = chat.mindroom.app.watchkitapp;
 				PRODUCT_NAME = MindRoomWatch;
 				SDKROOT = watchos;
@@ -917,12 +919,20 @@
 			);
 			target = 926F9D3B3244570B5EE57113 /* MindRoomWatchWidgets */;
 		};
+		C6F39969A32347B46409949B /* Exceptions for "MindRoomWatch" folder in "MindRoomWatch" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D7D31FF8B14971A37B635916 /* MindRoomWatch */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		84F19358D5FEAA6B0DBB7242 /* MindRoomWatch */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
+				C6F39969A32347B46409949B /* Exceptions for "MindRoomWatch" folder in "MindRoomWatch" target */,
 			);
 			path = MindRoomWatch;
 			sourceTree = "<group>";

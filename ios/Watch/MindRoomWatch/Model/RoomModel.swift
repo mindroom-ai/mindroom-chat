@@ -111,6 +111,9 @@ final class RoomModel: ObservableObject {
         }
     }
 
+    /// Reads the threads now (background refresh).
+    func refreshNow() async { await refresh() }
+
     private func refresh() async {
         if room.membership() != .joined { gone = true; return }
         await threads.reset()
@@ -128,6 +131,7 @@ final class RoomModel: ObservableObject {
         }
         rows += ownUnansweredRoots(excluding: Set(roots).union(resolved))
         self.rows = rows.sorted { $0.ts > $1.ts }
+        publishWidgetSnapshot()
     }
 
     private func row(_ snapshot: ThreadSnapshot) -> ThreadRow {

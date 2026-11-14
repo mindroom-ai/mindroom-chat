@@ -27,6 +27,10 @@ struct MindRoomWatchApp: App {
         }
         .onChange(of: scenePhase) { _, phase in
             Task { await session.setActive(phase == .active) }
+            if phase == .background { BackgroundRefresh.schedule() }
+        }
+        .backgroundTask(.appRefresh(BackgroundRefresh.identifier)) {
+            await BackgroundRefresh.run(session)
         }
     }
 

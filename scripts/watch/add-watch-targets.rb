@@ -77,6 +77,7 @@ watch.build_configurations.each do |config|
     'PRODUCT_BUNDLE_IDENTIFIER' => 'chat.mindroom.app.watchkitapp',
     'PRODUCT_NAME' => 'MindRoomWatch',
     'CODE_SIGN_ENTITLEMENTS' => '../Watch/MindRoomWatch/MindRoomWatch.entitlements',
+    'INFOPLIST_FILE' => '../Watch/MindRoomWatch/Info.plist',
     'ASSETCATALOG_COMPILER_APPICON_NAME' => 'AppIcon',
     'INFOPLIST_KEY_WKCompanionAppBundleIdentifier' => 'chat.mindroom.app',
     'INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp' => 'YES',
@@ -97,14 +98,17 @@ widgets.build_configurations.each do |config|
   )
 end
 
-watch.file_system_synchronized_groups << synced_folder(project, watch_group, 'MindRoomWatch')
+watch_folder = synced_folder(project, watch_group, 'MindRoomWatch')
+watch.file_system_synchronized_groups << watch_folder
 widget_folder = synced_folder(project, watch_group, 'MindRoomWatchWidgets')
 widgets.file_system_synchronized_groups << widget_folder
-# Info.plist is the extension's Info.plist file, not a resource to copy.
-exception = project.new(Xcodeproj::Project::Object::PBXFileSystemSynchronizedBuildFileExceptionSet)
-exception.target = widgets
-exception.membership_exceptions = ['Info.plist']
-widget_folder.exceptions << exception
+# Each Info.plist is its target's Info.plist file, not a resource to copy.
+[[watch_folder, watch], [widget_folder, widgets]].each do |folder, target|
+  exception = project.new(Xcodeproj::Project::Object::PBXFileSystemSynchronizedBuildFileExceptionSet)
+  exception.target = target
+  exception.membership_exceptions = ['Info.plist']
+  folder.exceptions << exception
+end
 
 link_package(project, watch, local_package(project, '../Watch/MatrixRustSDK', 'MatrixRustSDK'))
 link_package(project, watch, local_package(project, '../Watch/MindRoomWatchKit', 'MindRoomWatchKit'))
