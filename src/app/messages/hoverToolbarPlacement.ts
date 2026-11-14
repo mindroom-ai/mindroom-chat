@@ -105,13 +105,12 @@ export const toolbarOffset = (
       }
     });
   // Moved down into its row, it goes on below the buttons of a code block or a file it would
-  // cover there; up, it would go back under what floats over the timeline.
+  // cover there (they come top to bottom); up, it would go back under what floats over the
+  // timeline.
   if (top > usual + 0.5) {
-    [...contentActions]
-      .sort((a, b) => a.top - b.top)
-      .forEach((actions) => {
-        if (nearControl(top, actions)) top = actions.bottom + CONTROL_GAP_PX;
-      });
+    contentActions.forEach((actions) => {
+      if (nearControl(top, actions)) top = actions.bottom + CONTROL_GAP_PX;
+    });
   }
   // Moved down into its row, it goes on below the row's sender line where that shows, so the
   // name, the time and the reply details button stay in reach, unless a fold button is there (a
