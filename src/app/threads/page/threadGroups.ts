@@ -45,7 +45,8 @@ const groupOf = (
   if (signals.automation && !entry.isInvolved) return scope === 'all' ? 'automations' : undefined;
   if (signals.newCount > 0 || signals.mentionedMe) return 'unread';
   if (entry.threadRecord.status.isStreaming) return 'working';
-  if (isSnoozedAt(entry.snoozedUntilTs, now)) return 'snoozed';
+  // Resolved wins over a snooze, as everywhere else: the thread stays with the quiet ones.
+  if (!entry.isResolved && isSnoozedAt(entry.snoozedUntilTs, now)) return 'snoozed';
   return 'recent';
 };
 

@@ -110,7 +110,12 @@ describe('CompactThreadCard', () => {
         renderer.root.findAll(
           (n) => typeof n.type === 'string' && n.props['data-thread-snoozed'] === 'true'
         );
-      expect(JSON.stringify(renderer.toJSON())).toContain('Snoozed until in 30m');
+      expect(JSON.stringify(renderer.toJSON())).toContain(
+        `Snoozed until ${new Intl.DateTimeFormat('en', {
+          hour: 'numeric',
+          minute: '2-digit',
+        }).format(until)}`
+      );
       expect(shown().length).toBeGreaterThan(0);
       act(() => {
         vi.advanceTimersByTime(30 * 60_000);
