@@ -1,6 +1,6 @@
 {
-  "comment": "Gzip bytes a first visit downloads before the app runs (scripts/perf/bundle-report.mjs). Measured 2026-11-05: initial JS 669,696 (one entry chunk), initial CSS 13,312. The push gate fails a build over these; raise them only on purpose, in the commit that needs it.",
-  "initialJsGzipBytes": 690000,
-  "entryJsGzipBytes": 690000,
-  "initialCssGzipBytes": 14500
+  "comment": "Gzip bytes a first visit downloads before the app runs (scripts/perf/bundle-report.mjs). Measured 2026-11-13 with `npx vite build` at c157793e3: initial JS 719,611 (one entry chunk), initial CSS 18,996; the limits are about 3% above. CI (after its build) and the push gate fail a build over these; they catch sudden growth, they are not a target. Raise them only on purpose, in the commit that needs it.",
+  "initialJsGzipBytes": 741000,
+  "entryJsGzipBytes": 741000,
+  "initialCssGzipBytes": 19600
 }

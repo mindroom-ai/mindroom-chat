@@ -58,7 +58,7 @@ release *args:
 bundle-report dist="dist" *args:
     node scripts/perf/bundle-report.mjs {{dist}} --budget scripts/perf/bundle-budget.json {{args}}
 
-# The full local check. CI (.github/workflows/ci.yml) runs typecheck, strict, lint, test and a smoke subset of the e2e specs on every push to main and every pull request; scripts/push-gate.sh runs the overlap history check before each push.
+# The full local check. CI (.github/workflows/ci.yml) runs typecheck, strict, lint, test, the production build with the bundle size budget (scripts/perf/bundle-budget.json) and a smoke subset of the e2e specs on every push to main and every pull request; scripts/push-gate.sh runs the overlap history check before each push.
 check: typecheck strict lint test script-tests license-check verify-ported check-holes identifier-renames upstream-overlap
 
 # Fail when an installed package has a license outside the allowlist (also runs the script's own tests).
