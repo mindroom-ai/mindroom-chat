@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { Method, type MatrixClient, type Room } from 'matrix-js-sdk';
 import type { TFunction } from 'i18next';
 import { appUrl } from '../lib/basePath';
+import { getLoginPath } from '../routes/pathUtils';
 import { describeError } from '../lib/describeError';
 import { isRecord } from '../lib/isRecord';
 import { freshFetch, specVersions } from '../matrix/cs-api';
@@ -186,12 +187,28 @@ export const ssoProviderNames = (mx: MatrixClient): Promise<string[]> =>
     () => []
   );
 
-/** Where this app is served; undefined in the native app, whose pages have no web address. */
-export const chatUrl = (origin: string = window.location.origin): string | undefined =>
-  Capacitor.isNativePlatform() ? undefined : new URL(appUrl(''), origin).href;
+/**
+ * Where an invited person signs in: this app's sign-in page for the administrator's homeserver,
+ * since the invite is there and not on another server the deployment may start on. A server the
+ * deployment lists goes by its name, as the sign-in page only takes a listed one when the
+ * deployment is locked to its list; any other by its address, which needs no discovery. The
+ * native app's pages have no web address, so there the line names the homeserver itself.
+ */
+export const invitationUrl = (
+  server: { name: string; baseUrl: string },
+  listed: readonly string[] = [],
+  native: boolean = Capacitor.isNativePlatform(),
+  origin?: string
+): string => {
+  const name = server.name.toLowerCase();
+  const signIn = listed.find((item) => item.trim().toLowerCase() === name) ?? server.baseUrl;
+  return native
+    ? signIn
+    : new URL(appUrl(getLoginPath(signIn)), origin ?? window.location.origin).href;
+};
 
 type Invitation = {
-  /** Where this app is served. */
+  /** Where to sign in. */
   url: string;
   providers: readonly string[];
   email: string;

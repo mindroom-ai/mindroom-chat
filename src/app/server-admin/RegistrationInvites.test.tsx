@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   rooms: vi.fn(),
   copy: vi.fn(),
   client: {
+    getDomain: () => 'example.com',
+    baseUrl: 'https://matrix.example.com',
     getRoom: (roomId: string) => {
       if (roomId === '!lobby:example.com')
         return { roomId, name: 'Lobby', getCanonicalAlias: () => '#lobby:example.com' };
@@ -74,7 +76,7 @@ vi.mock('./invites', async (original) => ({
   deleteInvite: mocks.remove,
   ssoProviderNames: mocks.providers,
   invitableRooms: mocks.rooms,
-  chatUrl: () => 'https://chat.example.com/',
+  invitationUrl: () => 'https://chat.example.com/',
 }));
 
 const ALICE: RegistrationInvite = {

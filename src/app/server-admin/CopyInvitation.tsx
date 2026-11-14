@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Chip, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
+import { useOptionalClientConfig } from '../config/useClientConfig';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { copyToClipboard } from '../lib/dom';
-import { chatUrl, invitationText } from './invites';
+import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { invitationText, invitationUrl } from './invites';
 
 type CopyInvitationProps = {
   /** The invited address, as the server stores it. */
@@ -24,8 +26,10 @@ export function CopyInvitation({ email, providers, showText = false }: CopyInvit
   const language = useAppLanguageCode();
   // Undefined until a copy was tried; copyToClipboard resolves false when every clipboard failed.
   const [copied, setCopied] = useState<boolean>();
-  const url = chatUrl();
-  if (url === undefined) return null;
+  const mx = useMatrixClient();
+  const listed = useOptionalClientConfig()?.homeserverList;
+  const server = { name: mx.getDomain() ?? '', baseUrl: mx.baseUrl };
+  const url = invitationUrl(server, listed);
   const line = invitationText(t, language, { url, providers, email });
   const label = copied ? t('messageCodeBlock.copied') : t('serverAccounts.invites.copy');
 

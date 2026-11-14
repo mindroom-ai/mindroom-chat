@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { TFunction } from 'i18next';
 import type { MatrixClient } from 'matrix-js-sdk';
 import {
-  chatUrl,
+  invitationUrl,
   deleteInvite,
   invitableRooms,
   invitationText,
@@ -331,9 +331,24 @@ describe('ssoProviderNames', () => {
   });
 });
 
-describe('chatUrl', () => {
-  it('is where the app is served', () => {
-    expect(chatUrl('https://chat.example.com')).toBe('https://chat.example.com/');
+describe('invitationUrl', () => {
+  const server = { name: 'example.com', baseUrl: 'https://matrix.example.com' };
+
+  it("is this app's sign-in page for a homeserver the deployment lists, by its name", () => {
+    expect(
+      invitationUrl(server, ['other.example', 'Example.com'], false, 'https://chat.example')
+    ).toBe('https://chat.example/login/Example.com');
+  });
+
+  it("is this app's sign-in page for any other homeserver, by its address", () => {
+    expect(invitationUrl(server, ['other.example'], false, 'https://chat.example')).toBe(
+      'https://chat.example/login/https%3A%2F%2Fmatrix.example.com'
+    );
+  });
+
+  it('names the homeserver in the native app, whose pages have no web address', () => {
+    expect(invitationUrl(server, ['example.com'], true)).toBe('example.com');
+    expect(invitationUrl(server, [], true)).toBe('https://matrix.example.com');
   });
 });
 
