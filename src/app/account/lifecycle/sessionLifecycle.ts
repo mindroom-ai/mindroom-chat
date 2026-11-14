@@ -227,15 +227,19 @@ export const removeCurrentClientSessionAndReload = async (
   const clearUserScopedState = !nextStore.sessions.some(
     (storedSession) => storedSession.userId === identity.userId
   );
-  await Promise.all([
-    clearMatrixClientStores(mx),
-    // Saved canvas state and the canvas list need only the session ID, so they are deleted here too.
-    deleteNamedDatabase(getCanvasStateDbName(identity.sessionId)).catch(() => undefined),
-    deleteNamedDatabase(getCanvasIndexDbName(identity.sessionId)).catch(() => undefined),
-    clearUserScopedState ? forgetAccountInPlugins(identity.userId) : undefined,
-  ]);
+  try {
+    await Promise.all([
+      clearMatrixClientStores(mx),
+      // Saved canvas state and the canvas list need only the session ID, so they are deleted here too.
+      deleteNamedDatabase(getCanvasStateDbName(identity.sessionId)).catch(() => undefined),
+      deleteNamedDatabase(getCanvasIndexDbName(identity.sessionId)).catch(() => undefined),
+      clearUserScopedState ? forgetAccountInPlugins(identity.userId) : undefined,
+    ]);
+  } finally {
+    // The account has left the registry, also when a store could not be cleared.
+    await clearFetchedAvatars(identity.userId);
+  }
   clearSessionScopedUiState(identity, clearUserScopedState);
-  await clearFetchedAvatars(identity.userId);
   reloadAppAt(nextHref);
 };
 
@@ -287,9 +291,6 @@ export const clearAllCacheAndReload = async (mx?: MatrixClient): Promise<void> =
     // ignore MindRoom in-memory cleanup errors
   }
 
-  // The kept avatars are homeserver thumbnails, outside the app scope cleared above.
-  await clearFetchedAvatars();
-
   try {
     const appOwnedDbNames = await getAppOwnedIndexedDbNames(sessions);
     await deleteNamedDatabases(appOwnedDbNames);
@@ -308,6 +309,10 @@ export const clearAllCacheAndReload = async (mx?: MatrixClient): Promise<void> =
   } catch {
     // ignore sessionStorage cleanup errors
   }
+
+  // The kept avatars are homeserver thumbnails, outside the app scope cleared above; last, as in
+  // deleteSessionLocalData.
+  await clearFetchedAvatars();
 
   window.location.replace(getCacheBustedAppReloadTarget(appBasePath));
 };

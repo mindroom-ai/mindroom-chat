@@ -73,6 +73,16 @@ describe('removing an account deletes the avatars before the page reloads', () =
     expect(steps).toEqual([`avatars ${ALICE}`, 'reload']);
   });
 
+  it('of a client without its device whose stores could not be cleared', async () => {
+    signIn(ALICE);
+    const client = clientOf(ALICE, null);
+    client.clearStores = () => Promise.reject(new Error('blocked'));
+
+    await expect(removeCurrentClientSessionAndReload(client)).rejects.toThrow('blocked');
+
+    expect(steps).toEqual([`avatars ${ALICE}`]);
+  });
+
   it('without a client, as Cancel on the connecting screen does', async () => {
     const alice = signIn(ALICE);
 
