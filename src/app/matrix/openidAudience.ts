@@ -1,13 +1,11 @@
 import { ConnectionError, Method, type IOpenIDToken, type MatrixClient } from 'matrix-js-sdk';
-import { specVersions } from './cs-api';
+import { freshFetch, specVersions } from './cs-api';
 
 // The Tuwunel fork binds the token to this audience (`io.mindroom.openid_audience`); stock homeservers ignore it.
 export const OPENID_AUDIENCE_FIELD = 'io.mindroom.audience';
 
 /** The homeserver advertises this in `/versions` while it binds tokens to the audience they were requested for. */
 const OPENID_AUDIENCE_FEATURE = 'io.mindroom.openid_audience';
-
-const freshFetch: typeof fetch = (input, init) => fetch(input, { ...init, cache: 'no-store' });
 
 /**
  * Ask the homeserver now whether it binds tokens, or undefined when it cannot be asked. The client's
