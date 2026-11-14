@@ -14,9 +14,9 @@
  *        second `/relations` or `/messages` request.
  *
  *   Priority + cap: bands 0-4 (0 = current-room / current-thread
- *        opened; 1 = my-server gap-fills on other rooms; 2 = recently-
- *        active my-server tails; 3 = thread inventory prewarm; 4 =
- *        current-room deep history sweep). Within a band, sort by
+ *        opened; 1 = gap fills; 2 = thread overview resume; 3 = thread
+ *        prewarm and writer backfill; 4 = room deep history sweep and
+ *        attachments). Within a band, sort by
  *        `room.getLastActiveTimestamp()` descending so the most
  *        recently active work runs first. At most
  *        `MAX_CONCURRENT_BACKFILL_JOBS` (2) jobs run concurrently.
@@ -140,11 +140,6 @@ export type BackfillScheduler = {
    * not guaranteed except that queued jobs come before running jobs.
    */
   pendingJobs(): readonly BackfillJob[];
-  /**
-   * Test-only reset — clears jobs without dispatching aborts. Use
-   * `abortAll()` in production teardown.
-   */
-  reset(): void;
 };
 
 /**
@@ -172,10 +167,6 @@ type QueueEntry<T = unknown> = {
   resolve: (value: T) => void;
   reject: (reason: unknown) => void;
   promise: Promise<T>;
-};
-
-type RunningEntry<T = unknown> = QueueEntry<T> & {
-  runPromise: Promise<void>;
 };
 
 export type CreateBackfillSchedulerOptions = {
@@ -212,7 +203,7 @@ export const createBackfillScheduler = (
   // for the non-cancellable SDK request.
   const byKey = new Map<string, QueueEntry>();
   const queue: QueueEntry[] = [];
-  const running = new Map<string, RunningEntry>();
+  const running = new Map<string, QueueEntry>();
 
   const pickNextIndex = (): number => {
     if (queue.length === 0) return -1;
@@ -264,15 +255,12 @@ export const createBackfillScheduler = (
       // ordering would delete-before-set, leaving the failed job in
       // `running` forever and leaking a concurrency slot.
       //
-      // Fix: set the running entry with a placeholder promise first,
-      // then patch in the real runPromise. The `finally` block's
-      // `running.delete` now always runs AFTER the corresponding set,
-      // regardless of whether the executor throws synchronously, runs
-      // to completion synchronously, or actually awaits.
-      const runningEntry: RunningEntry = { ...entry, runPromise: Promise.resolve() };
-      running.set(entry.key, runningEntry);
+      // Setting it first means the `finally` block's `running.delete`
+      // always runs AFTER the corresponding set, whether the executor
+      // throws synchronously, runs to completion synchronously, or awaits.
+      running.set(entry.key, { ...entry });
 
-      const runPromise = (async () => {
+      void (async () => {
         try {
           const value = await entry.args.execute(entry.controller.signal);
           entry.resolve(value);
@@ -302,8 +290,6 @@ export const createBackfillScheduler = (
           Promise.resolve().then(drain);
         }
       })();
-
-      runningEntry.runPromise = runPromise;
     }
   };
 
@@ -432,17 +418,10 @@ export const createBackfillScheduler = (
     return [...queue.map(toJob), ...Array.from(running.values()).map(toJob)];
   };
 
-  const reset = (): void => {
-    byKey.clear();
-    queue.length = 0;
-    running.clear();
-  };
-
   return {
     enqueue,
     abort,
     abortAll,
     pendingJobs,
-    reset,
   };
 };
