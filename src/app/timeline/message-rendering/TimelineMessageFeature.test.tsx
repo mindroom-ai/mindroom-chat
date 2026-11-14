@@ -51,7 +51,7 @@ const snoozeEndedEvent = (id: string, sender: string) =>
     sender,
     threadRootId: '$thread',
     content: {
-      msgtype: 'm.notice',
+      msgtype: 'm.text',
       body: '\u23f0 Snooze ended: check CI',
       'io.mindroom.thread_snooze': { event: 'ended', until: '2026-11-13T09:00:00Z' },
     },

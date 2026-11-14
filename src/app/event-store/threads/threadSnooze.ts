@@ -17,7 +17,8 @@ const isCalendarDateTime = (text: string): boolean => {
   return date.getUTCMonth() === month - 1 && date.getUTCDate() === day && hour < 24 && minute < 60;
 };
 
-const parseUntil = (value: unknown): number | undefined => {
+/** A protocol time: a real date and time, UTC without a zone. */
+const parseTime = (value: unknown): number | undefined => {
   if (typeof value !== 'string') return undefined;
   // The backend's ISO reader also takes a space for the T.
   const text = value.trim().replace(' ', 'T');
@@ -29,12 +30,11 @@ const parseUntil = (value: unknown): number | undefined => {
 /** The snooze a `snoozed` tag carries; none when its `until` is missing or invalid. */
 export const parseThreadSnooze = (metadata: TagMetadata | undefined): ThreadSnooze | undefined => {
   if (!metadata) return undefined;
-  const untilTs = parseUntil(metadata.data?.until);
+  const untilTs = parseTime(metadata.data?.until);
   if (untilTs === undefined) return undefined;
-  const setAt = Date.parse(metadata.set_at);
   return {
     untilTs,
-    setAtTs: Number.isFinite(setAt) ? setAt : 0,
+    setAtTs: parseTime(metadata.set_at) ?? 0,
     setBy: metadata.set_by,
     ...(metadata.note ? { note: metadata.note } : {}),
   };

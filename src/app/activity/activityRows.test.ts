@@ -96,7 +96,7 @@ describe('buildActivityRows', () => {
     expect(kinds(rows)).toEqual(['named:mention']);
   });
 
-  it('hides a snoozed thread until a person writes, or something waits for or names them, after the snooze', () => {
+  it('hides a snoozed thread until a person writes after the snooze', () => {
     const snoozed = { snoozedUntilTs: NOW + 3600_000, snoozedAtTs: 100 };
     const keys = (overrides: Partial<CrossRoomThreadIndexEntry>, newsTs: number) =>
       build([[entry('t', overrides), { newCount: 1, newsTs, personNewsTs: newsTs }]]).rows.map(
@@ -106,14 +106,14 @@ describe('buildActivityRows', () => {
     expect(keys(snoozed, 90)).toEqual([]);
     expect(keys(snoozed, 110)).toEqual(['t']);
     expect(keys({ ...snoozed, snoozedUntilTs: NOW }, 90)).toEqual(['t']);
-    // An agent's reply after the snooze, such as the one confirming it, is no such news; what
-    // waits for the person or names them is.
+    // An agent's reply after the snooze, such as the one confirming it, is no such news, also
+    // when an older mention or approval still waits in the thread.
     const agentNews = (signals: Partial<ThreadSignals>) =>
       build([
         [entry('t', snoozed), { newCount: 1, newsTs: 110, personNewsTs: 50, ...signals }],
       ]).rows.map((row) => row.key);
     expect(agentNews({})).toEqual([]);
-    expect(agentNews({ mentionedMe: true })).toEqual(['t']);
+    expect(agentNews({ mentionedMe: true })).toEqual([]);
     // Hidden, it is not counted among the automations either.
     expect(
       build([

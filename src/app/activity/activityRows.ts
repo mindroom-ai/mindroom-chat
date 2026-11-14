@@ -90,7 +90,7 @@ const compareRows = (a: ActivityRow, b: ActivityRow): number =>
  * thread an agent runs alone (an automation) is only counted, unless it names them, it waits for
  * them, or `showAutomations` lists it. A resolved thread has no row and is not counted, until
  * news (`ThreadSignals.newsTs`) comes in it after it was resolved; a thread snoozed at `now` the
- * same, until a person writes in it, or it waits for or names them, after it was snoozed.
+ * same, until a person writes in it after it was snoozed.
  */
 export const buildActivityRows = ({
   entries,
@@ -113,16 +113,13 @@ export const buildActivityRows = ({
     if (entry.isResolved && (threadSignals.newsTs ?? 0) <= (entry.resolvedTs ?? Infinity)) {
       continue;
     }
-    // A snooze holds until a person writes, or something waits for or names them, after it was
-    // set; an agent's reply, such as the one confirming the snooze, does not end it.
-    if (isSnoozedAt(entry.snoozedUntilTs, now)) {
-      const snoozedAt = entry.snoozedAtTs ?? Infinity;
-      const needsThem =
-        !!threadSignals.pendingApproval ||
-        !!threadSignals.pendingQuestion ||
-        threadSignals.mentionedMe;
-      const personWrote = (threadSignals.personNewsTs ?? 0) > snoozedAt;
-      if (!personWrote && !(needsThem && (threadSignals.newsTs ?? 0) > snoozedAt)) continue;
+    // A snooze holds until a person writes in the thread after it was set. Agents' replies, such
+    // as the one confirming the snooze, wait for its end; the Threads page still shows what waits.
+    if (
+      isSnoozedAt(entry.snoozedUntilTs, now) &&
+      (threadSignals.personNewsTs ?? 0) <= (entry.snoozedAtTs ?? Infinity)
+    ) {
+      continue;
     }
     const recent = now - entry.lastActivityTs <= ACTIVITY_READ_WINDOW_MS;
     const waits = !!threadSignals.pendingApproval || !!threadSignals.pendingQuestion;
