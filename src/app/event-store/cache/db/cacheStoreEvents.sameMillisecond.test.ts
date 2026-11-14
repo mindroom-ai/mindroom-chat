@@ -85,7 +85,7 @@ it("leaves out no event of the earliest event's millisecond when the limit cuts 
   expect(page.hasMoreBefore).toBe(true);
 });
 
-it('ends the room pager on a page of only held events, with nothing older cached', async () => {
+it('gives the room pager only the held events of the millisecond when nothing older is cached', async () => {
   // The room holds both events of the millisecond; $aaa sorts first, so it is the anchor.
   await saveRoomEventsToCache('session', ROOM, [message('$zzz', 1000), message('$aaa', 1000)]);
 
@@ -97,8 +97,8 @@ it('ends the room pager on a page of only held events, with nothing older cached
     mapEvent: (raw) => new MatrixEvent(raw),
   });
 
-  // The pager adds none of these, so it pages from the server (roomPaginationCommandController,
-  // "pages from the server when a cached page holds only events the room has loaded").
+  // The pager adds none of these and pages from the server: roomPaginationCommandController's test
+  // "pages from the server when a cached page holds only events the room has loaded".
   expect(snapshot.events.map((event) => event.getId())).toEqual(['$zzz']);
   expect(snapshot.hasMoreCachedBack).toBe(false);
 });

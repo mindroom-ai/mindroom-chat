@@ -415,8 +415,8 @@ type ScopedCursorOptions = {
   scope: string;
   limit: number;
   upperBound?: CursorAnchor;
-  /** Also the events of the bound's millisecond that sort after it (see `runScopedCursor`). */
-  withBoundMillisecond?: boolean;
+  /** Also the events of the bound's millisecond that sort after it (`loadCachedRoomEventsBefore`). */
+  withBeforeMillisecond?: boolean;
   shouldSkip: (record: CachedEventRecord, rawEvent: Partial<IEvent>) => boolean;
 };
 
@@ -447,8 +447,8 @@ const runScopedCursor = async (options: ScopedCursorOptions): Promise<ScopedCurs
     const metaRequest = metaStore.get(buildMetaKey(options.roomId, options.scope));
 
     const events: (Partial<IEvent> & { event_id: string; origin_server_ts: number })[] = [];
+    const beforeMillisecond: typeof events = [];
     let hasMoreBefore = false;
-    let counted = 0;
     const take = (record: CachedEventRecord) => {
       const normalized = toRawEventInternal(record.rawEvent);
       return normalized &&
@@ -458,23 +458,19 @@ const runScopedCursor = async (options: ScopedCursorOptions): Promise<ScopedCurs
         : undefined;
     };
 
-    // Inside one millisecond the index orders by event ID, not as the server does: the bound's
-    // millisecond can hold events older than it that sort after it, which no other page holds.
-    // Asked for, they come first (newest first, as the cursor reads), outside the limit, with
-    // the ones the caller holds already: it has to drop those.
-    if (options.upperBound && options.withBoundMillisecond) {
-      const { ts, eventId } = options.upperBound;
+    // The bound's millisecond above the bound, newest first as the cursor reads, outside the limit.
+    if (options.upperBound && options.withBeforeMillisecond) {
       const sameMillisecond = index.getAll(
         IDBKeyRange.bound(
-          [options.roomId, options.scope, ts, eventId],
-          [options.roomId, options.scope, ts, MAX_EVENT_ID],
+          upper,
+          [options.roomId, options.scope, options.upperBound.ts, MAX_EVENT_ID],
           true
         )
       );
       sameMillisecond.onsuccess = () => {
         (sameMillisecond.result as CachedEventRecord[]).reverse().forEach((record) => {
           const normalized = take(record);
-          if (normalized) events.push(normalized);
+          if (normalized) beforeMillisecond.push(normalized);
         });
       };
     }
@@ -490,8 +486,7 @@ const runScopedCursor = async (options: ScopedCursorOptions): Promise<ScopedCurs
         return;
       }
 
-      if (counted < options.limit) {
-        counted += 1;
+      if (events.length < options.limit) {
         events.push(normalized);
         cursor.continue();
         return;
@@ -503,7 +498,7 @@ const runScopedCursor = async (options: ScopedCursorOptions): Promise<ScopedCurs
 
     transaction.oncomplete = () =>
       resolve({
-        events,
+        events: [...beforeMillisecond, ...events],
         hasMoreBefore,
         meta: metaRequest.result as CachedMetaRecord | undefined,
       });
@@ -544,7 +539,7 @@ export const loadCachedRoomEventsBefore = async (
   roomId: string,
   before: CursorAnchor | undefined,
   limit: number,
-  { withBeforeMillisecond = false }: { withBeforeMillisecond?: boolean } = {}
+  { withBeforeMillisecond }: { withBeforeMillisecond?: boolean } = {}
 ): Promise<CachedRoomEventPage> => {
   if (!before) return { events: [], hasMoreBefore: false };
   const { events, hasMoreBefore, meta } = await runScopedCursor({
@@ -553,7 +548,7 @@ export const loadCachedRoomEventsBefore = async (
     scope: ROOM_SCOPE,
     limit,
     upperBound: before,
-    withBoundMillisecond: withBeforeMillisecond,
+    withBeforeMillisecond,
     shouldSkip: (_record, rawEvent) => isRawLocalEchoEventId(rawEvent.event_id),
   });
   const orderedEvents = events.reverse() as CachedRoomEvent[];
