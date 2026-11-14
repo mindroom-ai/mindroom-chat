@@ -213,7 +213,7 @@ function ComposerIconButton({
         <IconButton
           ref={triggerRef}
           // The click handler keeps the send's promise as its result: callers that await a send
-          // (the Lane P composer tests) read it there; a click ignores it, and the send handles
+          // (the composer tests) read it there; a click ignores it, and the send handles
           // its own failure.
           // eslint-disable-next-line @typescript-eslint/no-misused-promises
           onClick={onPress}

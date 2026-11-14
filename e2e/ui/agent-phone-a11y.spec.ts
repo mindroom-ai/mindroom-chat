@@ -49,8 +49,8 @@ const THEMES = ['light', 'dark'] as const;
 const PASSWORD = 'phone-a11y-spec-password';
 
 /**
- * Findings in ported (Lane P) code that stay: a control whose label summarizes more than its
- * visible text (each Compact card).
+ * Known findings that stay: a control whose label summarizes more than its visible text (each
+ * Compact card).
  */
 const KNOWN = [
   /^label-content-name-mismatch: <button [^>]*data-thread-root-id="[^"]*"(?:[^>]*aria-label="Open thread:| [^>]*\.\.\.>$)/,

@@ -84,9 +84,9 @@ describe('language overlays (locales/additions/<code>.json)', () => {
       values.forEach((value, path) => expect(value.trim(), path).not.toBe(''));
     });
 
-    it('adds only keys that the ported catalog of the language lacks', () => {
-      const ported = new Set(leaves(readTree(`${LOCALES_DIR}${code}.json`)).map(([p]) => p));
-      values.forEach((_value, path) => expect(ported.has(path), path).toBe(false));
+    it('adds only keys that the main catalog of the language lacks', () => {
+      const main = new Set(leaves(readTree(`${LOCALES_DIR}${code}.json`)).map(([p]) => p));
+      values.forEach((_value, path) => expect(main.has(path), path).toBe(false));
     });
 
     it('is what the app loads for the language', async () => {

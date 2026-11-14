@@ -25,7 +25,7 @@ import {
 // between two people with 400 messages (the Threads view, newest at the bottom), about 200
 // messages up, after a colleague wrote twice meanwhile, and in a room with an agent (the Threads
 // view sorted Last Reply, newest first, so newest at the top), and in the Full view. (An open
-// thread keeps the place of a reader who scrolled up its replies, as the ported live-row suite
+// thread keeps the place of a reader who scrolled up its replies, as the live-row suite
 // expects.) Among 25 rooms, with classic scrollbars, on a desktop (1280 by 800) and a phone (390 by 844,
 // touch), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in
 // WebKit. Set SEND_FOLLOWS_SHOTS to a directory to save each landing.

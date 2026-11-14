@@ -73,7 +73,7 @@ describe('shared surface import boundary', () => {
   });
 
   // Pop-outs and tooltips come from the directional wrappers, which place them in reading order:
-  // in a file of either lane, and under a made-up path.
+  // in any file, and under a made-up path.
   it.each([
     ['PopOut', 'src/app/shell/accountState.ts'],
     ['TooltipProvider', 'src/app/shell/accountState.ts'],

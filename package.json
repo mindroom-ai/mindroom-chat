@@ -2,7 +2,7 @@
   "name": "mindroom-client",
   "version": "0.1.0",
   "private": true,
-  "description": "Apache-2.0 MindRoom client on matrix-js-sdk with Rust crypto (clean-room implementation)",
+  "description": "Apache-2.0 MindRoom client on matrix-js-sdk with Rust crypto",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {

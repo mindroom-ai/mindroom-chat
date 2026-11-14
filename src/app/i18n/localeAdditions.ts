@@ -1,6 +1,6 @@
 import type { LocaleTree } from './englishResources';
 
-// Translations of the Lane C keys (locales/additions/en.json) for the other app languages,
+// Translations of the added keys (locales/additions/en.json) for the other app languages,
 // one overlay per language in locales/additions/<code>.json. Each is its own chunk, loaded
 // only when its language is, and merged into the catalog fetched from public/locales/ the way
 // the English overlay merges into en.json: a key the fetched catalog already has keeps its text.

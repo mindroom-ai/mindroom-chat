@@ -16,7 +16,7 @@
 
 - Every command runs in `nix develop -c`, from the repository root. `node_modules` is installed.
 - Before each commit: `just typecheck`, `just strict`, `just lint`, `just test <the task's test files>` all pass, and `just format <the files you wrote>` was run.
-- New code is Lane C: no unused names, no unchecked index access, no floating promises, exhaustive switches.
+- New code: no unused names, no unchecked index access, no floating promises, exhaustive switches.
 - Never open or fetch anything outside this repository except library documentation and type definitions in `node_modules`. No new dependencies.
 - Styles: vanilla-extract `Name.css.ts` beside `Name.tsx`, folds tokens (`color.*`, `config.space.*`, `config.radii.*`, `toRem`), logical sides only (`paddingInlineStart`, `insetInlineEnd`, no four-part `padding`). `PopOut` and `TooltipProvider` come from `src/app/ui/directional.tsx`; menus and dialogs from `src/app/ui/glass/GlassPrimitives.tsx`. Avoid three consecutive lines of generic style declarations that any stylesheet would have in the same order.
 - No barrel files. Tests sit beside their subject; DOM tests start with `// @vitest-environment jsdom`.
