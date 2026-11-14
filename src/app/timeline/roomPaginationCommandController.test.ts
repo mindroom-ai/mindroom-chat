@@ -301,7 +301,7 @@ describe('useRoomPaginationCommandController', () => {
     const root = makeRoomEvent('$root');
     const reply = makeRoomEvent('$reply', '$root');
     const older = makeRoomEvent('$older');
-    const timelineEvents = [root, reply];
+    const timelineEvents: unknown[] = [root, reply];
     const timeline = makeTimeline(timelineEvents);
     const initialTimeline: Timeline = {
       linkedTimelines: [timeline],
@@ -388,7 +388,7 @@ describe('useRoomPaginationCommandController', () => {
     const root = makeRoomEvent('$root');
     const olderRoot = makeRoomEvent('$older-root');
     const olderReply = makeRoomEvent('$older-reply', '$older-root');
-    const timelineEvents = [root];
+    const timelineEvents: unknown[] = [root];
     const timeline = makeTimeline(timelineEvents);
     const initialTimeline: Timeline = {
       linkedTimelines: [timeline],
@@ -415,7 +415,7 @@ describe('useRoomPaginationCommandController', () => {
       processThreadRoots: vi.fn(),
       hasEncryptionStateEvent: () => false,
       relations: {},
-    } as never;
+    } as unknown as Room;
     const mx = {
       getEventMapper: () => (rawEvent: unknown) => rawEvent,
       processAggregatedTimelineEvents: vi.fn(),

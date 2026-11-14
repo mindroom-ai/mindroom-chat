@@ -252,7 +252,7 @@ describe('service worker upgrade lifecycle', () => {
       Promise.resolve(input === 'index.html' ? new Response('network index') : networkResponse)
     );
     vi.stubGlobal('fetch', fetchMock);
-    const navigationRoute = routingSpies.registerRoute.mock.calls[0][0] as {
+    const navigationRoute = routingSpies.registerRoute.mock.calls[0]![0] as {
       handler: (options: { request: Request }) => Promise<Response>;
     };
 
