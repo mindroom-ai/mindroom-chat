@@ -1,6 +1,6 @@
 // @ts-check
 // Builds the client config bundled into the iOS app: the shared web config
-// (config.mindroom.json) with the iOS settings (config.mindroom.ios.json) merged over it, and
+// (config/mindroom.json) with the iOS settings (config/mindroom.ios.json) merged over it, and
 // optionally an operator's computer service URL.
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -29,7 +29,7 @@ const deepMerge = (base, override) => {
 };
 
 /**
- * @param {string} source the text of config.mindroom.json
+ * @param {string} source the text of config/mindroom.json
  * @param {Record<string, unknown>} settings the iOS overrides
  * @param {string} [computerApiUrl] the computer service origin; an empty string clears the shared
  *   config's value, which the app reads as unset (it then uses the origin the room's agents publish)
@@ -52,7 +52,7 @@ const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv
 if (isMain) {
   const root = fileURLToPath(new URL('..', import.meta.url));
   const output = path.resolve(process.argv[2] ?? path.join(root, 'dist/config.json'));
-  const source = readFileSync(path.join(root, 'config.mindroom.json'), 'utf8');
-  const settings = JSON.parse(readFileSync(path.join(root, 'config.mindroom.ios.json'), 'utf8'));
+  const source = readFileSync(path.join(root, 'config/mindroom.json'), 'utf8');
+  const settings = JSON.parse(readFileSync(path.join(root, 'config/mindroom.ios.json'), 'utf8'));
   writeFileSync(output, iosClientConfig(source, settings, process.env.MINDROOM_COMPUTER_API_URL));
 }

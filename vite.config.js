@@ -72,7 +72,7 @@ const speechModelFiles = () => ({
 export const copyFiles = {
   targets: [
     // The MindRoom defaults are served as the runtime client config.
-    { src: 'config.mindroom.json', dest: '', rename: 'config.json' },
+    { src: 'config/mindroom.json', dest: '', rename: 'config.json' },
     // Non-English catalogs load on demand from `public/locales/<code>.json` (src/app/i18n/i18n.ts).
     // English ships in the bundle, with its overlay in src/app/i18n/locales/additions/en.json; the other
     // languages' overlays in that directory load as chunks (src/app/i18n/localeAdditions.ts).

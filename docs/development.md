@@ -14,7 +14,7 @@ just dev       # http://127.0.0.1:4200
 
 Without Nix, use Node 24 or newer (`package.json` `engines`; some unit tests fail on Node 22), Python 3, `just` and Docker, and set `CHROMIUM_PATH` for the end-to-end specs.
 
-The dev server answers `/config.json` with `config.mindroom.json`, so the sign-in page offers `mindroom.chat` and `matrix.org`. Type any other homeserver into the Server field: a server name is looked up through `/.well-known/matrix/client`, and a URL works too. Plain HTTP is accepted only for localhost and private network addresses.
+The dev server answers `/config.json` with `config/mindroom.json`, so the sign-in page offers `mindroom.chat` and `matrix.org`. Type any other homeserver into the Server field: a server name is looked up through `/.well-known/matrix/client`, and a URL works too. Plain HTTP is accepted only for localhost and private network addresses.
 
 - **Test homeserver.** `just hs-up` starts a disposable Tuwunel homeserver with open registration at `http://127.0.0.1:28008` (server name `matrix.localhost`) that binds OpenID tokens to the audience they were requested for (`io.mindroom.openid_audience`); `just hs-down` stops it and deletes its data. Every end-to-end run starts the Tuwunel image that `e2e/docker-compose.yaml` pins by release tag and digest: CI, `just hs-up`, slot runs, `scripts/e2e-matrix-up.sh` (unless `MINDROOM_TUWUNEL_IMAGE` names another) and the remote test runners. Server behaviour, such as read and unread counts, changes between releases, so a new release reaches the specs only through a commit that bumps the pin:
   1. Pick the release (`gh release list -R mindroom-ai/mindroom-tuwunel`) and read its notes.
@@ -62,7 +62,7 @@ A client plugin ([client-plugins.md](client-plugins.md)) can live in a repositor
   ```
 
 - **Unit tests.** From the checkout, `MINDROOM_CLIENT_PLUGINS=<plugin directory> MINDROOM_CLIENT_PLUGIN_TESTS_ONLY=1 npx vitest run` runs the plugin's tests alone, with its build module's hooks, so the names its `resolveId` maps resolve as in the build (`vitest.config.ts`); without `MINDROOM_CLIENT_PLUGIN_TESTS_ONLY` they run with the app's. Tests of the checkout inside the plugin's directory never run as the plugin's.
-- **Build.** `MINDROOM_CLIENT_PLUGINS=<plugin directory> just build` in the checkout, or the image's `MINDROOM_CLIENT_PLUGINS` build argument (`Dockerfile`).
+- **Build.** `MINDROOM_CLIENT_PLUGINS=<plugin directory> just build` in the checkout, or the image's `MINDROOM_CLIENT_PLUGINS` build argument (`docker/Dockerfile`).
 - **E2E.** The plugin's specs (`*.spec.ts` in its `e2e/` and the folders below it) run in the checkout's Playwright while `E2E_PLUGIN_DIRS` names the plugin's directory, in a Chromium project named after the directory (`playwright.config.ts`), with the app's global setup and its accounts. They import the app's helpers as `@mindroom/e2e/<helper>`, such as `@mindroom/e2e/matrix` for `e2e/helpers/matrix.ts`, and `@playwright/test` as the app's; a fixture page in the plugin's `e2e/fixtures/` loads at `/e2e-plugins/<directory name>/e2e/fixtures/<page>.html`. Such a page imports the app through `@mindroom/client-sdk/fixtures` (and the other subpaths), never its `src/`: `await bootFixturePage({ id, plugin, appearance: 'dark' })` before it renders gives it the app's styles, theme and translations with the plugin's strings, and `fixtureMindroomServer({ client, apiUrl })` a `MindroomServer` for a signed-in `createClient` client against a live backend ([client-plugins.md](client-plugins.md#fixtures)). From the checkout, with absolute directories:
 
   ```bash
@@ -100,7 +100,7 @@ just e2e-slot 3 down                                                        # st
 
 `capacitor.config.ts` (app ID `chat.mindroom.app`; Android's `android/app/build.gradle` uses `com.mindroom_ai.app`) points both shells at `dist/`.
 
-- **iOS** (macOS with Xcode and CocoaPods): `npm run build:ios` builds and writes `dist/config.json` from `config.mindroom.json` with `config.mindroom.ios.json` merged over it (set `MINDROOM_COMPUTER_API_URL` to pin the computer API). Then `npx cap sync ios` and open `ios/App/App.xcworkspace` in Xcode. Xcode Cloud runs `ios/App/ci_scripts/`, which version the app from the release tags. `scripts/build-macos-app.sh [--sign]` builds the Mac Catalyst app; `ios/App/fastlane/screenshots/README.md` covers App Store screenshots.
+- **iOS** (macOS with Xcode and CocoaPods): `npm run build:ios` builds and writes `dist/config.json` from `config/mindroom.json` with `config/mindroom.ios.json` merged over it (set `MINDROOM_COMPUTER_API_URL` to pin the computer API). Then `npx cap sync ios` and open `ios/App/App.xcworkspace` in Xcode. Xcode Cloud runs `ios/App/ci_scripts/`, which version the app from the release tags. `scripts/build-macos-app.sh [--sign]` builds the Mac Catalyst app; `ios/App/fastlane/screenshots/README.md` covers App Store screenshots.
 - **Android**: `npm run build`, then `npx cap sync android`, then build `android/` with Android Studio or Gradle.
 
 [`ios-release.md`](ios-release.md) covers releases and the App Store app.

@@ -5,7 +5,7 @@ import os
 import sys
 from urllib.parse import urlsplit, urlunsplit
 
-from scripts.frame_headers import with_framing_headers
+from frame_headers import with_framing_headers
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8090
 DIRECTORY = os.getcwd()

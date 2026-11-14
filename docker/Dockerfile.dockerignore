@@ -1,5 +1,6 @@
-# What the image build (Dockerfile) leaves out of its context: history, local builds and installs,
-# secrets, and what the web build does not read.
+# What the image build (docker/Dockerfile) leaves out of its context: history, local builds and
+# installs, secrets, and what the web build does not read. BuildKit reads this file in place of a
+# .dockerignore at the root of the context because it sits beside the Dockerfile and has its name.
 .git
 .env
 .env.*

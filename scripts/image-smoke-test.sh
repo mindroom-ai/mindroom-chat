@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Starts a web client image (Dockerfile) and checks what it serves: the release it was built as in
-# version.json, the app shell on any route, a 404 for a missing build file or file under /public/,
-# the deployment files the start scripts and the build provide, and the cache and framing headers.
+# Starts a web client image (docker/Dockerfile) and checks what it serves: the release it was built
+# as in version.json, the app shell on any route, a 404 for a missing build file or file under
+# /public/, the deployment files the start scripts and the build provide, and the cache and framing
+# headers.
 # The Image workflow (.github/workflows/image.yml) runs it on every image before anything is pushed.
 #
 #   scripts/image-smoke-test.sh <image> <release tag> [docker run options, e.g. --platform linux/arm64]
@@ -67,7 +68,7 @@ expect '/config.json' "$(status /config.json)" '200'
 expect '/notices.json' "$(body /notices.json)" '[]'
 case "$(body /runtime-config.js)" in
   'window.__APP_BASE_PATH__ = "/";'*) echo 'ok: /runtime-config.js comes from the start script' ;;
-  *) fail '/runtime-config.js was not written by docker-entrypoint.d/99-runtime-config.sh' ;;
+  *) fail '/runtime-config.js was not written by docker/entrypoint.d/99-runtime-config.sh' ;;
 esac
 expect '/.well-known/apple-app-site-association Content-Type' \
   "$(header /.well-known/apple-app-site-association Content-Type)" 'application/json'

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 // A file that starts with `#!` is meant to be run by path: scripts call each other that way
 // (scripts/appstore-screenshots.sh runs scripts/appstore-fixture-up.sh), Xcode Cloud runs
-// ios/App/ci_scripts/, nginx's entrypoint skips docker-entrypoint.d/ scripts it cannot execute,
+// ios/App/ci_scripts/, nginx's entrypoint skips docker/entrypoint.d/ scripts it cannot execute,
 // and Gradle users run android/gradlew. Git keeps the executable bit in the index, so check it there.
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -59,7 +59,7 @@ describe('executable scripts', () => {
         'ios/App/ci_scripts/ci_post_clone.sh',
         'ios/App/ci_scripts/ci_pre_xcodebuild.sh',
         'android/gradlew',
-        'docker-entrypoint.d/99-runtime-config.sh',
+        'docker/entrypoint.d/99-runtime-config.sh',
       ].filter((path) => !executable.has(path))
     ).toEqual([]);
   });

@@ -12,12 +12,12 @@ The homeserver adds a few settings of its own through `/.well-known/matrix/clien
 
 The app fetches `/config.json` from the root of its origin before it shows anything (`src/app/config/ClientConfigLoader.tsx`). The file must hold a JSON object. Every key is optional, and a missing key means the default in the tables below, so `{}` is a valid configuration. The TypeScript type is `ClientConfig` in `src/app/config/useClientConfig.ts`.
 
-- **Where it comes from.** `vite build` copies `config.mindroom.json` to `dist/config.json`, and the dev server answers `/config.json` with the same file. A deployment replaces `dist/config.json` with its own; no new build is needed.
+- **Where it comes from.** `vite build` copies `config/mindroom.json` to `dist/config.json`, and the dev server answers `/config.json` with the same file. A deployment replaces `dist/config.json` with its own; no new build is needed.
 - **When a change applies.** On the web the app starts with the copy it stored in `localStorage` at the previous start and fetches a fresh one in the background, and a changed file applies as soon as that copy arrives, in the same load. A fresh copy that changes `hashRouter` or `sidebar.showMindRoom`, which the router is built from, waits whole for the next load, its other changes included. The native apps fetch it at every start.
 - **Failures.** If the fetch fails, the app shows an error with a retry button, plus a button to go on with the stored copy when there is one. A redirect or a 401 or 403 answer counts as an expired sign-in at an authenticating proxy and starts sign-in recovery (see `__AUTHENTICATION_RECOVERY_CONFIG__` below).
 - **Requests.** `cache: no-store`, same-origin credentials, and redirects are not followed.
 
-The configuration this repository ships (`config.mindroom.json`) sets `homeserverList` (`mindroom.chat`, `matrix.org`), `defaultHomeserver`, `allowCustomHomeservers`, `hashRouter` (off), `auth.allowRegistration`, `auth.requireAppleProvider`, `sidebar.showMindRoom`, `sidebar.mindRoomProvisioningUrl` (`https://mindroom.chat`), `welcome`, `splash`, `mindroom` (its own thinking messages, canvases off, no computer API origin), `messageRendering` (`obsidian`, `readdlespark`) and part of `push.ios` (push stays off).
+The configuration this repository ships (`config/mindroom.json`) sets `homeserverList` (`mindroom.chat`, `matrix.org`), `defaultHomeserver`, `allowCustomHomeservers`, `hashRouter` (off), `auth.allowRegistration`, `auth.requireAppleProvider`, `sidebar.showMindRoom`, `sidebar.mindRoomProvisioningUrl` (`https://mindroom.chat`), `welcome`, `splash`, `mindroom` (its own thinking messages, canvases off, no computer API origin), `messageRendering` (`obsidian`, `readdlespark`) and part of `push.ios` (push stays off).
 
 ### Sign-in
 
@@ -258,7 +258,7 @@ Each account's pusher also puts the account's random tag on the device into its 
 
 ## runtime-config.js
 
-`index.html` loads `/runtime-config.js` and then `/authentication-recovery.js` before the app. The built `runtime-config.js` (from `src/boot/runtimeConfig.ts`) sets each global below only when it is not set yet, so a deployment prepends its own assignments to the file, as the Docker start script does. `serve.py` instead answers with a script of its own that sets only the first two.
+`index.html` loads `/runtime-config.js` and then `/authentication-recovery.js` before the app. The built `runtime-config.js` (from `src/boot/runtimeConfig.ts`) sets each global below only when it is not set yet, so a deployment prepends its own assignments to the file, as the Docker start script does. `scripts/serve.py` instead answers with a script of its own that sets only the first two.
 
 | Global | Default | Effect |
 |---|---|---|
@@ -269,7 +269,7 @@ Each account's pusher also puts the account's random tag on the device into its 
 
 ### Docker start script
 
-`docker-entrypoint.d/99-runtime-config.sh` writes `/usr/share/nginx/html/runtime-config.js` at container start, then appends the build's own `runtime-config.js` from `/opt/mindroom/runtime-config.js`:
+`docker/entrypoint.d/99-runtime-config.sh` writes `/usr/share/nginx/html/runtime-config.js` at container start, then appends the build's own `runtime-config.js` from `/opt/mindroom/runtime-config.js`:
 
 | Variable | Default | Sets |
 |---|---|---|
@@ -278,7 +278,7 @@ Each account's pusher also puts the account's random tag on the device into its 
 | `APP_AUTHENTICATION_RECOVERY_PROBE_URL` | none | `__AUTHENTICATION_RECOVERY_CONFIG__.probeUrl`; without it the config is `null` |
 | `APP_AUTHENTICATION_RECOVERY_NAVIGATION_URL` | none | `__AUTHENTICATION_RECOVERY_CONFIG__.navigationUrl` |
 
-`serve.py` reads `APP_BASE_PATH` and `APP_ENABLE_SERVICE_WORKER` too (the latter in any letter case), and takes its port as the first argument (default 8090).
+`scripts/serve.py` reads `APP_BASE_PATH` and `APP_ENABLE_SERVICE_WORKER` too (the latter in any letter case), and takes its port as the first argument (default 8090).
 
 ## Build-time variables
 
@@ -289,7 +289,7 @@ Each account's pusher also puts the account's random tag on the device into its 
 | `MINDROOM_CLIENT_PLUGINS` | `scripts/client-plugins.mjs`, `scripts/build-version.mjs`, `vitest.config.ts` | Client plugins to build in: their directories, absolute and comma-separated, each with its own installed `node_modules` and a `package.json` that declares the plugin ([`client-plugins.md`](client-plugins.md)). The build fails, naming the directory, when one has no readable `package.json`, no `version` or no `mindroomClientPlugin` declaration, an id that is not kebab-case or that another listed plugin has, an `apiVersion` (the client SDK version the plugin needs) that is not a whole number from 1 or that is newer than the build's SDK (`CLIENT_PLUGIN_API_VERSION`), naming the plugin, or an entry that does not exist, a build module (`build`) that does not exist, lies outside its directory or whose default export is not a Vite plugin or an array of them, or whose Vite plugins have a hook or property other than `name`, `enforce`, `apply`, `resolveId`, `load` and `transform`, naming the plugin and the hook, or a symbolic link in its `public/` directory, and, naming the package too, when a plugin lists a package the app shares with plugins under `dependencies`. A plugin's `public/` directory ships under `public/plugins/<id>/` ([`client-plugins.md`](client-plugins.md#public-files)). Unset, no plugin code ships. The unit tests (`just test`) also run the listed plugins' tests, with the hooks of their build modules, and with `MINDROOM_CLIENT_PLUGIN_TESTS_ONLY=1` only those ([`client-plugins.md`](client-plugins.md#tests)). The notices the build ships (`public/licenses/`) also list each plugin's installed production packages, from its `package-lock.json` (the build fails for a plugin that installed packages without one), and `just license-check` with the same variable also checks every package installed in each plugin's directory. The build version (`MINDROOM_BUILD_VERSION`) covers the plugins: each one's files in the listed order, without any `node_modules` (its lockfile stands for them), `.git` or `.mindroom-chat` (the app linked in, which the version names already) in it, so a rebuild that changes only files in plugin directories offers open apps the update. Code a plugin takes from outside its directory, such as a linked package or a lockfile higher up, is not covered. The image build takes it as a build argument, for directories inside the build stage: `--build-arg MINDROOM_CLIENT_PLUGINS=/src/plugins/example` for a plugin the build context holds at `plugins/example`. |
 | `MINDROOM_COMPUTER_API_URL` | `scripts/ios-client-config.mjs` (`npm run build:ios`) | Written into the iOS bundle's `mindroom.computers.apiUrl`. An empty value leaves it unset, so the app uses the origin the room's agents publish; it does not turn computers off. |
 
-`npm run build:ios` writes `dist/config.json` from `config.mindroom.json` with `config.mindroom.ios.json` merged over it: objects merge key by key, and any other value replaces the base one. The shipped iOS overlay turns canvases and canvas libraries on. The Android build uses `config.mindroom.json` as it is.
+`npm run build:ios` writes `dist/config.json` from `config/mindroom.json` with `config/mindroom.ios.json` merged over it: objects merge key by key, and any other value replaces the base one. The shipped iOS overlay turns canvases and canvas libraries on. The Android build uses `config/mindroom.json` as it is.
 
 ### Development and test variables
 
@@ -297,7 +297,7 @@ The e2e scripts set these; they are listed so their effect is not a surprise.
 
 | Variable | Effect |
 |---|---|
-| `MINDROOM_E2E_PROVISIONING_URL` | The dev and preview servers answer `/config.json` with `config.mindroom.json` whose `sidebar.mindRoomProvisioningUrl` is this origin (Playwright sets it to the app's own origin, where the specs stub the service). |
+| `MINDROOM_E2E_PROVISIONING_URL` | The dev and preview servers answer `/config.json` with `config/mindroom.json` whose `sidebar.mindRoomProvisioningUrl` is this origin (Playwright sets it to the app's own origin, where the specs stub the service). |
 | `E2E_APP_PORT`, `E2E_MATRIX_PORT` | App and homeserver ports of an end-to-end slot (`scripts/e2e-slot.sh`). A slot's dev server keeps its own Vite cache. |
 | `E2E_NO_WATCH` | `1` makes the dev server serve files as they were at its start. |
 | `E2E_PORT`, `E2E_SERVER_COMMAND`, `E2E_REUSE_EXISTING_SERVER` | Override Playwright's app port, server command, and whether it reuses a server already listening (`playwright.config.ts`). |

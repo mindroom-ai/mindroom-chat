@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const runtimeConfigPath = fileURLToPath(new URL('../config.mindroom.json', import.meta.url));
+const runtimeConfigPath = fileURLToPath(new URL('../config/mindroom.json', import.meta.url));
 
 /**
  * @typedef {{

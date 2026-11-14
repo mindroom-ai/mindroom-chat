@@ -8,7 +8,7 @@ import { DISPOSABLE_HOMESERVER, disposableHomeserverIsUp } from './helpers/dispo
  *
  * | Variable | Used for |
  * | --- | --- |
- * | `E2E_HOMESERVER` | Homeserver base URL (a full URL); falls back to `config.mindroom.json`, then `mindroom.chat` |
+ * | `E2E_HOMESERVER` | Homeserver base URL (a full URL); falls back to `config/mindroom.json`, then `mindroom.chat` |
  * | `E2E_USERNAME`, `E2E_PASSWORD` | Primary account (`*.live.spec.ts` specs, account specs, fixture-room seeding) |
  * | `E2E_SECOND_USERNAME`, `E2E_SECOND_PASSWORD` | Second account (multi-account specs) |
  * | `E2E_THIRD_USERNAME`, `E2E_THIRD_PASSWORD` | Third account (three-account spec) |
