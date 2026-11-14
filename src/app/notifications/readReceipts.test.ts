@@ -98,7 +98,7 @@ describe('markMainTimelineAsRead', () => {
   it('sends no receipt on an event before the reader’s receipt', async () => {
     // The newest event outside threads comes before the event the reader's receipt is on.
     const room = makeRoom([makeMessageEvent('$main', 1), makeThreadReplyEvent('$reply', 2)]);
-    room.getEventReadUpTo.mockReturnValue('$reply' as never);
+    room.getEventReadUpTo.mockReturnValue('$reply');
     const mx = makeClient(room);
     await markMainTimelineAsRead(mx as never, ROOM_ID, false);
 
@@ -112,13 +112,13 @@ describe('markMainTimelineAsRead', () => {
       getEventReadUpTo: vi.fn(() => '$newest'),
       getReadReceiptForUserId: vi.fn(() => ({ eventId: '$newest', data: { ts: 9 } })),
     };
-    const mx = makeClient(room as never);
+    const mx = makeClient(room);
     await markMainTimelineAsRead(mx as never, ROOM_ID, false);
     expect(mx.sendReceipt).not.toHaveBeenCalled();
 
     // A message sent after that receipt is read.
     const later = makeMessageEvent('$later', 12);
-    room.getLiveTimeline.mockReturnValue({ getEvents: () => [later] } as never);
+    room.getLiveTimeline.mockReturnValue({ getEvents: () => [later] });
     await markMainTimelineAsRead(mx as never, ROOM_ID, false);
     expect(mx.sendReceipt).toHaveBeenCalledWith(later, ReceiptType.Read, {
       thread_id: MAIN_ROOM_TIMELINE,

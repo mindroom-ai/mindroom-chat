@@ -36,15 +36,16 @@ describe('native localization resources', () => {
       const localized = readStrings(code, 'Localizable');
       expect(Object.keys(localized).sort()).toEqual(Object.keys(notifications).sort());
       Object.entries(notifications).forEach(([key, source]) => {
-        expect(localized[key]!.trim()).not.toBe('');
-        const argumentsInMessage = [...localized[key]!.matchAll(/%\d+\$@/g)];
+        const message = localized[key]!;
+        expect(message.trim()).not.toBe('');
+        const argumentsInMessage = [...message.matchAll(/%\d+\$@/g)];
         expect(argumentsInMessage.map(([token]) => token).sort()).toEqual(
           [...source.matchAll(/%\d+\$@/g)].map(([token]) => token).sort()
         );
         if (code === 'ar') {
           argumentsInMessage.forEach((match) => {
-            expect(localized[key]![match.index - 1], key).toBe('\u2068');
-            expect(localized[key]![match.index + match[0].length], key).toBe('\u2069');
+            expect(message[match.index - 1], key).toBe('\u2068');
+            expect(message[match.index + match[0].length], key).toBe('\u2069');
           });
         }
       });
