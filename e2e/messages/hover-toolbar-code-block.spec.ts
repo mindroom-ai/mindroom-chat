@@ -8,15 +8,15 @@ import {
   registerAgentAccount,
   sendRoomMessage,
 } from '../helpers/matrix';
-import { roomViewSwitch } from '../helpers/roomViewSwitch';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
 } from '../helpers/disposableAccounts';
 
-// A message that continues the one above shows no sender line, and one that starts with a code
-// block has the block's Wrap lines, Expand and Copy code buttons at the top of its row. When that
-// row's top is under the room header, its hover toolbar moves down into the row; it must not land
+// In a thread, a reply that continues the one above shows no sender line, and one that starts
+// with a code block has the block's Wrap lines, Expand and Copy code buttons at the top of its
+// row. When that row's top is under the room header and the thread's banner, its hover toolbar
+// moves down into the row; it must not land
 // on those buttons, nor go back under the header. Set E2E_SCREENSHOT_DIR to save the row at each
 // scroll position.
 
@@ -86,21 +86,32 @@ test('the hover toolbar keeps off the code block buttons of a row without a send
   await joinRoom(HOMESERVER, helper.accessToken, roomId);
   const send = (accessToken: string, content: Record<string, unknown>) =>
     sendRoomMessage(HOMESERVER, accessToken, roomId, content, 'hover-toolbar-code-block');
+  const rootId = await send(token, { msgtype: 'm.text', body: 'Show me the module' });
+  const inThread = {
+    rel_type: 'm.thread',
+    event_id: rootId,
+    is_falling_back: true,
+    'm.in_reply_to': { event_id: rootId },
+  };
   for (let index = 0; index < 12; index += 1) {
-    await send(token, { msgtype: 'm.text', body: `Earlier note ${index}` });
+    await send(token, {
+      msgtype: 'm.text',
+      body: `Earlier note ${index}`,
+      'm.relates_to': inThread,
+    });
   }
-  await send(helper.accessToken, { msgtype: 'm.text', body: 'Here is the module:' });
-  const codeId = await send(helper.accessToken, codeMessage);
+  await send(helper.accessToken, {
+    msgtype: 'm.text',
+    body: 'Here is the module:',
+    'm.relates_to': inThread,
+  });
+  const codeId = await send(helper.accessToken, { ...codeMessage, 'm.relates_to': inThread });
   for (let index = 0; index < 12; index += 1) {
-    await send(token, { msgtype: 'm.text', body: `Later note ${index}` });
+    await send(token, { msgtype: 'm.text', body: `Later note ${index}`, 'm.relates_to': inThread });
   }
 
   await signIn(page, username);
-  await page.goto(`/home/${encodeURIComponent(roomId)}/`);
-  await expect(roomViewSwitch(page)).toBeVisible({ timeout: 30_000 });
-  if ((await roomViewSwitch(page).getAttribute('aria-pressed')) === 'true') {
-    await roomViewSwitch(page).click();
-  }
+  await page.goto(`/home/${encodeURIComponent(roomId)}/?threadId=${encodeURIComponent(rootId)}`);
 
   const row = page.locator(`[data-message-id="${codeId}"]`).first();
   const block = row.locator('pre');
