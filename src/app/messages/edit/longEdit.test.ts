@@ -96,9 +96,7 @@ describe('loadEditableContent', () => {
   });
 
   it('returns the whole content of a long-text message', async () => {
-    const hydrate = vi.fn(
-      async (_source: LongTextSource) => longContent
-    );
+    const hydrate = vi.fn(async (_source: LongTextSource) => longContent);
 
     expect(await loadEditableContent(longTextFile, hydrate)).toBe(longContent);
     expect(hydrate.mock.calls[0]![0]).toMatchObject({ mxcUri: 'mxc://example.org/earlier' });
@@ -106,10 +104,7 @@ describe('loadEditableContent', () => {
 
   it('returns nothing when the whole content cannot be loaded', async () => {
     // Hydration falls back to the preview, which must never be edited in place of the message.
-    const hydrate = vi.fn(
-      async (source: LongTextSource) =>
-        source.previewContent
-    );
+    const hydrate = vi.fn(async (source: LongTextSource) => source.previewContent);
 
     expect(await loadEditableContent(longTextFile, hydrate)).toBeUndefined();
   });

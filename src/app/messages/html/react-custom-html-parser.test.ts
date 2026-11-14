@@ -75,7 +75,8 @@ vi.mock('folds', async () => {
     Chip: passthrough('span'),
     Spinner: passthrough('span'),
     Header: passthrough('div'),
-    Icon: passthrough('span'),
+    Icon: ({ children, ...props }: Record<string, unknown> & { children?: React.ReactNode }) =>
+      ReactLib.createElement('span', props, children),
     IconButton: passthrough('button'),
     Scroll: passthrough('div'),
     Text: ({
