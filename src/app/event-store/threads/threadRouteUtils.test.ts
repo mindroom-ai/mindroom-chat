@@ -1,3 +1,4 @@
+import type { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import {
   getEffectiveThreadRootActivityTs,
@@ -28,7 +29,7 @@ const makeEvent = (
         : {},
     isSending: () => options?.isSending ?? false,
     threadRootId: options?.threadRootId,
-  }) as never;
+  }) as unknown as MatrixEvent;
 
 const makeRoom = ({
   events = [],

@@ -149,7 +149,7 @@ test('lists and reopens a large thread overview without a request per thread', a
   await page.locator(`[data-thread-root-id="${roots[7]}"]`).click();
   await expect(page.getByText('First reply 7', { exact: true })).toBeVisible();
   await page.waitForTimeout(2_000);
-  const forOpenedThread = opening.filter(({ path }) => path.includes(roots[7]));
+  const forOpenedThread = opening.filter(({ path }) => path.includes(roots[7]!));
   expect(countThreadRequests(forOpenedThread).relations).toBeGreaterThan(0);
   expect(countRoomThreadRequests(opening)).toEqual(countThreadRequests(forOpenedThread));
 });

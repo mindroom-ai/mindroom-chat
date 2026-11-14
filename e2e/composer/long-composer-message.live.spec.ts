@@ -142,7 +142,7 @@ test('room: a long message you sent is edited from its whole text', async () => 
     `/media/download/${server}/${mediaId}`,
     { accessToken: session.accessToken, apiVersion: 'v1' }
   );
-  expect(file['m.new_content'].body).toMatch(/Edited at the end$/);
+  expect(file['m.new_content']!.body).toMatch(/Edited at the end$/);
 
   // The next edit starts from the edited whole text, and a short one is sent as plain text.
   await composer.press('ArrowUp');

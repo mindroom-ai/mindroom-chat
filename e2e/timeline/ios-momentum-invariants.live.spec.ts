@@ -584,8 +584,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
         );
       const readThreadCount = () =>
         Number(
-          (scroller.querySelector('[data-thread-count]') as HTMLElement | null)?.dataset
-            .threadCount ?? -1
+          scroller.querySelector<HTMLElement>('[data-thread-count]')?.dataset.threadCount ?? -1
         );
       const steps: {
         scrollTop: number;
@@ -1054,8 +1053,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
         });
       const readThreadCount = () =>
         Number(
-          (scroller.querySelector('[data-thread-count]') as HTMLElement | null)?.dataset
-            .threadCount ?? -1
+          scroller.querySelector<HTMLElement>('[data-thread-count]')?.dataset.threadCount ?? -1
         );
       const readAutoPaginateFired = () =>
         w.__MINDROOM_CACHE_PROBE__?.snapshot().threadAutoPaginateBackFired ?? 0;

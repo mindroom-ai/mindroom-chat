@@ -7,9 +7,9 @@ import {
 } from '../composer/roomInputDrafts';
 import { useInConversationView } from '../navigation/conversationView';
 import { act, create } from 'react-test-renderer';
-import { createClient, Room } from 'matrix-js-sdk';
+import { createClient, Room, type IContent, type ISendEventResponse } from 'matrix-js-sdk';
 import { createEditor } from 'slate';
-import { expect, it, vi } from 'vitest';
+import { expect, it, vi, type MockInstance } from 'vitest';
 import { RoomView } from '../room/RoomView';
 import { useRoomInputSendSessionController } from '../composer/useRoomInputSendSessionController';
 import type { TUploadItem } from '../matrix/state/upload';
@@ -244,7 +244,9 @@ it('continues the pending second upload and caption when the first upload opens 
   let sent = 0;
   const send = vi
     .spyOn(mx, 'sendMessage')
-    .mockImplementation(async () => ({ event_id: `$sent-${++sent}` }));
+    .mockImplementation(async () => ({ event_id: `$sent-${++sent}` })) as unknown as MockInstance<
+    (roomId: string, content: IContent) => Promise<ISendEventResponse>
+  >;
   function Conversation() {
     const [threadId, setThreadId] = useState<string>();
     navigate = setThreadId;
@@ -267,11 +269,11 @@ it('continues the pending second upload and caption when the first upload opens 
     ]);
     // The room's composer goes as the thread fills the page; the thread's takes the send over.
     expect(mounts).toBe(2);
-    expect(send.mock.calls[1][1]['m.relates_to']).toMatchObject({
+    expect(send.mock.calls[1]![1]['m.relates_to']).toMatchObject({
       rel_type: 'm.thread',
       event_id: '$sent-1',
     });
-    expect(send.mock.calls[2][1]['m.relates_to']).toMatchObject({
+    expect(send.mock.calls[2]![1]['m.relates_to']).toMatchObject({
       rel_type: 'm.thread',
       event_id: '$sent-1',
     });

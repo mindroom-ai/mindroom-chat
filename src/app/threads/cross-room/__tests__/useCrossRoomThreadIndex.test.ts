@@ -240,9 +240,9 @@ const makeRoomWithThreadReplies = (roomId: string, threadCount: number) => {
       roomId,
     })
   );
-  const threads = roots.map((root, index) => makeThread(root, [replies[index]]));
+  const threads = roots.map((root, index) => makeThread(root, [replies[index]!]));
   const threadMap = new Map<string, Thread>(
-    roots.map((root, index): [string, Thread] => [root.getId() ?? '', threads[index]])
+    roots.map((root, index): [string, Thread] => [root.getId() ?? '', threads[index]!])
   );
   const eventMap = new Map<string, MatrixEvent>([
     ...roots.map((root): [string, MatrixEvent] => [root.getId() ?? '', root]),
@@ -390,7 +390,7 @@ describe('useCrossRoomThreadIndex', () => {
       const untouched = store
         .get(crossRoomThreadIndexAtom)
         .entries.get(getCrossRoomThreadIndexKey(room.roomId, '$root-0'));
-      const untouchedContent = vi.spyOn(replies[0], 'getContent');
+      const untouchedContent = vi.spyOn(replies[0]!, 'getContent');
       const metadata = { set_by: '@me:example.org', set_at: '2026-09-21T00:00:00Z' };
       for (const resolved of [true, false]) {
         tag = new StateMatrixEvent({
@@ -472,7 +472,7 @@ describe('useCrossRoomThreadIndex', () => {
       };
       try {
         await flushScheduledWork();
-        expect(entries()[0].isResolved).toBe(true);
+        expect(entries()[0]!.isResolved).toBe(true);
         expect(buildSidebarThreadEntries(entries(), [])).toHaveLength(0);
         if (source === 'sync') await syncPins(['$root']);
         else {
@@ -481,15 +481,15 @@ describe('useCrossRoomThreadIndex', () => {
           });
           await flushScheduledWork();
         }
-        expect(entries()[0].isResolved).toBe(false);
-        expect(entries()[0].threadRecord.status.isResolved).toBe(false);
+        expect(entries()[0]!.isResolved).toBe(false);
+        expect(entries()[0]!.threadRecord.status.isResolved).toBe(false);
         expect(
           entries().filter((entry) => !entry.isResolved)
         ).toHaveLength(1);
         expect(buildSidebarThreadEntries(entries(), [])).toHaveLength(1);
         await syncPins(['$root']);
         await syncPins([]);
-        expect(entries()[0].isResolved).toBe(true);
+        expect(entries()[0]!.isResolved).toBe(true);
         expect(
           entries().filter((entry) => !entry.isResolved)
         ).toHaveLength(0);
@@ -582,7 +582,7 @@ describe('useCrossRoomThreadIndex', () => {
       renderer = create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
     });
     await flushScheduledWork();
-    const replyContent = vi.spyOn(replies[0], 'getContent');
+    const replyContent = vi.spyOn(replies[0]!, 'getContent');
     const emitUpdates = async (count: number) => {
       for (let index = 0; index < count; index += 1) {
         // Each SDK update arrives in its own task, so each microtask checkpoint passes.
@@ -1390,7 +1390,13 @@ describe('useCrossRoomThreadIndex', () => {
       makeRoom('!room-3:example.org'),
       makeRoom('!room-4:example.org'),
     ];
-    const [room1, room2, room3, room4] = roomFixtures.map((fixture) => fixture.room);
+    type FixtureRoom = (typeof roomFixtures)[number]['room'];
+    const [room1, room2, room3, room4] = roomFixtures.map((fixture) => fixture.room) as [
+      FixtureRoom,
+      FixtureRoom,
+      FixtureRoom,
+      FixtureRoom
+    ];
     const mx = makeClient([room1, room2, room3, room4]);
     matrixClientMock.mockReturnValue(mx);
     const store = createStore();

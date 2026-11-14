@@ -313,7 +313,7 @@ vi.mock('../upload/UploadCardRenderer', () => ({
   }) =>
     React.createElement('button', {
       'aria-label': `Remove upload ${fileItem.file.name}`,
-      onClick: () => onRemove(fileItem.file as File),
+      onClick: () => onRemove(fileItem.file),
     }),
 }));
 
@@ -1008,7 +1008,7 @@ describe('RoomInput', () => {
     expect(fileItem?.file).toBeInstanceOf(File);
     expect(fileItem?.file.name).toMatch(/^mindroom-paste-[a-f0-9]{6}\.txt$/);
     expect(fileItem?.file.type).toBe('text/plain');
-    expect(await (fileItem!.file as File).text()).toBe(pastedText);
+    expect(await fileItem!.file.text()).toBe(pastedText);
     expect(marker).toMatch(
       /^\[\[mindroom-paste:\{"v":1,"id":"paste-[a-f0-9]{6}","chars":\d+,"file":"mindroom-paste-[a-f0-9]{6}\.txt"\}\]\]$/
     );
@@ -1530,11 +1530,7 @@ describe('RoomInput', () => {
     let sendPromise!: Promise<void>;
 
     await act(async () => {
-      sendPromise = voiceRecorderState.props!.onSendRecording(
-        file,
-        1200,
-        [0, 512, 1024]
-      ) as Promise<void>;
+      sendPromise = voiceRecorderState.props!.onSendRecording(file, 1200, [0, 512, 1024]);
       await Promise.resolve();
     });
 
@@ -2940,7 +2936,7 @@ describe('RoomInput', () => {
         1100,
         undefined,
         capturedContext
-      ) as Promise<void>;
+      );
       await Promise.resolve();
     });
 
@@ -3000,12 +2996,7 @@ describe('RoomInput', () => {
 
     let sendPromise!: Promise<void>;
     await act(async () => {
-      sendPromise = sendRecordingAfterUnmount(
-        file,
-        1100,
-        undefined,
-        capturedContext
-      ) as Promise<void>;
+      sendPromise = sendRecordingAfterUnmount(file, 1100, undefined, capturedContext);
       await Promise.resolve();
     });
 
@@ -3082,12 +3073,7 @@ describe('RoomInput', () => {
 
     let sendPromise!: Promise<void>;
     await act(async () => {
-      sendPromise = sendRecordingAfterStop(
-        firstFile,
-        1100,
-        undefined,
-        capturedContext
-      ) as Promise<void>;
+      sendPromise = sendRecordingAfterStop(firstFile, 1100, undefined, capturedContext);
       await Promise.resolve();
     });
 
@@ -3165,7 +3151,7 @@ describe('RoomInput', () => {
       expect(voiceRecorderState.props!.onSendStopRequest?.()).toBe(true);
     });
     await act(async () => {
-      sendPromise = voiceRecorderState.props!.onSendRecording(file, 1100) as Promise<void>;
+      sendPromise = voiceRecorderState.props!.onSendRecording(file, 1100);
       await Promise.resolve();
     });
 
@@ -3206,7 +3192,7 @@ describe('RoomInput', () => {
     let sendPromise!: Promise<void>;
 
     await act(async () => {
-      sendPromise = voiceRecorderState.props!.onSendRecording(firstFile, 1100) as Promise<void>;
+      sendPromise = voiceRecorderState.props!.onSendRecording(firstFile, 1100);
       await Promise.resolve();
     });
 
@@ -3758,7 +3744,7 @@ describe('RoomInput', () => {
     let sendPromise!: Promise<void>;
 
     await act(async () => {
-      sendPromise = voiceRecorderState.props!.onSendRecording(file, 900) as Promise<void>;
+      sendPromise = voiceRecorderState.props!.onSendRecording(file, 900);
       await Promise.resolve();
     });
 

@@ -91,7 +91,7 @@ const loadServiceWorker = async () => {
 };
 
 describe('service worker session handshake', () => {
-  const fetchMock = vi.fn(async () => new Response('ok'));
+  const fetchMock = vi.fn<typeof fetch>(async () => new Response('ok'));
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -110,7 +110,7 @@ describe('service worker session handshake', () => {
     dispatchMessage({ type: 'setSession', accessToken: 'token-a', baseUrl: HOMESERVER });
 
     await dispatchFetch();
-    const authenticatedInit = fetchMock.mock.calls[0][1] as RequestInit;
+    const authenticatedInit = fetchMock.mock.calls[0]![1] as RequestInit;
     expect(new Headers(authenticatedInit.headers).get('Authorization')).toBe('Bearer token-a');
 
     fetchMock.mockClear();
@@ -133,7 +133,7 @@ describe('service worker session handshake', () => {
     );
 
     await dispatchFetch();
-    const authenticatedInit = fetchMock.mock.calls[0][1] as RequestInit;
+    const authenticatedInit = fetchMock.mock.calls[0]![1] as RequestInit;
     expect(new Headers(authenticatedInit.headers).get('Authorization')).toBe('Bearer token-a');
 
     dispatchMessage({ type: 'setSession', accessToken: '', baseUrl: HOMESERVER });
@@ -192,7 +192,7 @@ describe('service worker session handshake', () => {
     await second;
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    const authenticatedInit = fetchMock.mock.calls[1][1] as RequestInit;
+    const authenticatedInit = fetchMock.mock.calls[1]![1] as RequestInit;
     expect(new Headers(authenticatedInit.headers).get('Authorization')).toBe('Bearer token-a');
   });
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Button, Icon, Icons, Text, color } from 'folds';
 import { Chip } from '../../src/app/ui/glass/GlassPrimitives';
 import { VoiceRecordingCapsule } from '../../src/app/composer/voice/VoiceRecordingCapsule';
@@ -66,13 +66,15 @@ export function ChatControlsGlass() {
             </CollapsibleMessage>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-            {[
-              ['Jump to Latest', Icons.ArrowBottom],
-              ['Load older messages', Icons.ArrowTop],
-              ['Load newer messages', Icons.ArrowBottom],
-              ['Jump to Unread', Icons.MessageUnread],
-              ['Mark as Read', Icons.CheckTwice],
-            ].map(([label, icon]) => (
+            {(
+              [
+                ['Jump to Latest', Icons.ArrowBottom],
+                ['Load older messages', Icons.ArrowTop],
+                ['Load newer messages', Icons.ArrowBottom],
+                ['Jump to Unread', Icons.MessageUnread],
+                ['Mark as Read', Icons.CheckTwice],
+              ] as const
+            ).map(([label, icon]) => (
               <Chip
                 key={label}
                 variant={label === 'Jump to Unread' ? 'Primary' : 'SurfaceVariant'}
@@ -138,7 +140,6 @@ export function ChatControlsGlass() {
           <div data-testid="upload-error">
             <UploadCard
               outlined
-              compact
               bottom={<UploadCardError>Upload interrupted. Retry.</UploadCardError>}
             >
               <Text size="T300">draft.txt</Text>

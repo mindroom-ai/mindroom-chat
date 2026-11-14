@@ -6,7 +6,8 @@ import { compareCachedPaginationAnchors } from '../eventCacheTokenUtils';
 // separate — the thread version has txn-id dedup and local-echo
 // preference logic that the room version does not, and unifying them
 // would be a behavior change out of scope for this step (see plan §5
-// P2.1: pure port).
+// P2.1: pure port). Pure event helpers added later (cache order, the
+// room check) live here too.
 
 export type CachedRoomEvent = Partial<IEvent> & {
   event_id: string;
@@ -52,14 +53,9 @@ const toCachedThreadEvent = (rawEvent: Partial<IEvent>): CachedThreadEvent | und
   };
 };
 
-const sortRoomEvents = (a: CachedRoomEvent, b: CachedRoomEvent): number =>
+/** Cached events in cache order (`compareCachedPaginationAnchors`), as the store pages them. */
+const sortByCacheOrder = (a: CachedRoomEvent, b: CachedRoomEvent): number =>
   compareCachedPaginationAnchors(getRoomCursorAnchor(a), getRoomCursorAnchor(b));
-
-const sortThreadEvents = (a: CachedThreadEvent, b: CachedThreadEvent): number => {
-  const tsDiff = a.origin_server_ts - b.origin_server_ts;
-  if (tsDiff !== 0) return tsDiff;
-  return a.event_id.localeCompare(b.event_id);
-};
 
 export const normalizeCachedRoomEvents = (rawEvents: Partial<IEvent>[]): CachedRoomEvent[] => {
   const eventMap = new Map<string, CachedRoomEvent>();
@@ -71,8 +67,16 @@ export const normalizeCachedRoomEvents = (rawEvents: Partial<IEvent>[]): CachedR
     eventMap.set(normalized.event_id, normalized);
   });
 
-  return Array.from(eventMap.values()).sort(sortRoomEvents);
+  return Array.from(eventMap.values()).sort(sortByCacheOrder);
 };
+
+/**
+ * Whether `raw` names a room other than `roomId`. An event is its room's: one saved under a room
+ * it does not name (an earlier version could do that) reads as absent there, and so does a thread
+ * whose root does. Rows saved without a room ID read as the room's they were saved under.
+ */
+export const isOtherRoomEvent = (raw: Partial<IEvent> | undefined, roomId: string): boolean =>
+  typeof raw?.room_id === 'string' && raw.room_id !== roomId;
 
 export const getRoomCursorAnchor = (
   rawEvent: Partial<IEvent> | CachedRoomEvent | undefined
@@ -169,7 +173,7 @@ export const normalizeCachedThreadEvents = (
     }
   }
 
-  return Array.from(new Set(eventMap.values())).sort(sortThreadEvents);
+  return Array.from(new Set(eventMap.values())).sort(sortByCacheOrder);
 };
 
 export const getThreadCursorAnchor = (

@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Direction, type EventTimelineSet, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { createEngineGapTracker, type GapFillJob } from '../engineGapTracker';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../cache/cacheProbe';
-import { loadRoomCacheGap, revokeCacheStoreWrites } from '../../cache/db';
+import { loadRoomCacheGap, revokeCacheStoreWrites, type CachedRoomEventPage } from '../../cache/db';
 
 const makeRoom = ({
   roomId,
@@ -47,7 +47,9 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
     marker: { markedAt: number; prevBatch?: string | null; generation?: string }
   ) => marker;
   const markDiscontinuity = vi.fn(defaultMarkDiscontinuity);
-  const loadCachedTail = vi.fn(async () => ({ events: [], hasMoreBefore: false }));
+  const loadCachedTail = vi.fn(
+    async (): Promise<CachedRoomEventPage> => ({ events: [], hasMoreBefore: false })
+  );
 
   beforeEach(() => {
     resetCacheProbe();
@@ -81,7 +83,7 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
 
     tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet(), false);
     await vi.waitFor(() => expect(markDiscontinuity).toHaveBeenCalledTimes(1));
-    await markDiscontinuity.mock.results[0].value;
+    await markDiscontinuity.mock.results[0]!.value;
     await Promise.resolve();
 
     expect(markDiscontinuity).toHaveBeenCalledWith('session', '!a', {
@@ -229,14 +231,14 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
     await tracker.handleSyncPrepared();
     tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet(), false);
     await vi.waitFor(() => expect(markDiscontinuity).toHaveBeenCalledTimes(1));
-    await markDiscontinuity.mock.results[0].value;
+    await markDiscontinuity.mock.results[0]!.value;
     await Promise.resolve();
 
     // Both jobs dispatch; the executor keeps the one with the newest
     // markedAt, so the later reset supersedes the startup resume.
     expect(enqueued.map((job) => job.reason)).toEqual(['startup', 'limited-sync']);
-    expect(enqueued[1].prevBatch).toBe('batch-1');
-    expect(enqueued[1].markedAt).toBeGreaterThan(enqueued[0].markedAt);
+    expect(enqueued[1]!.prevBatch).toBe('batch-1');
+    expect(enqueued[1]!.markedAt).toBeGreaterThan(enqueued[0]!.markedAt);
   });
 
   it('retains and retries a limited-sync job until its marker is durable', async () => {

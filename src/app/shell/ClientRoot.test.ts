@@ -16,6 +16,7 @@ import {
 } from '../account/lifecycle/sessionLifecycle';
 import { startClient } from '../matrix/client/clientSyncPolicy';
 import { clearSecretStorageKeys } from '../matrix/client/secretStorageKeys';
+import { matchesEnum } from '../lib/matchesEnum';
 
 const { passthrough } = vi.hoisted(() => ({
   passthrough: 'div',
@@ -181,12 +182,12 @@ const createMockClient = (
         event: string,
         handler: (current?: SyncState | null, previous?: SyncState | null | undefined) => void
       ) => {
-        if (event === ClientEvent.Sync) syncHandler = handler;
+        if (matchesEnum(event, ClientEvent.Sync)) syncHandler = handler;
       }
     ),
     once: vi.fn(),
     removeListener: vi.fn((event: string, handler: () => void) => {
-      if (event === ClientEvent.Sync && syncHandler === handler) {
+      if (matchesEnum(event, ClientEvent.Sync) && syncHandler === handler) {
         syncHandler = undefined;
       }
     }),

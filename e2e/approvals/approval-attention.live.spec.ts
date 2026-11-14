@@ -87,9 +87,9 @@ test('approval attention settles, stops on review, and respects actionability an
   await expect(bar.getByRole('status')).toHaveText('assistant is waiting for you · save_note');
   const bounds = await review.boundingBox();
   const timing = await review.evaluate((el) =>
-    el.getAnimations({ subtree: true })[0].effect!.getTiming()
+    el.getAnimations({ subtree: true })[0]!.effect!.getTiming()
   );
-  expect(Number(timing.duration) * timing.iterations).toBe(4000);
+  expect(Number(timing.duration) * timing.iterations!).toBe(4000);
   expect(timing.iterations).toBe(2);
   await expect.poll(animations, { timeout: 6000 }).toBe(0);
   const halo = await review.evaluate((el) => getComputedStyle(el).boxShadow);

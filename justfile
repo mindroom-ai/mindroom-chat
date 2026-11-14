@@ -11,32 +11,19 @@ install:
 typecheck:
     npx tsc --noEmit -p config/tsconfig.app.json
 
-# Type-check everything, tests and e2e included (tsconfig.json). Reports the errors without failing; docs/provenance/m1-baseline.txt records the count.
-typecheck-tests:
-    #!/usr/bin/env bash
-    set -uo pipefail
-    output=$(npx tsc --noEmit -p . --pretty false)
-    if [ -n "$output" ]; then printf '%s\n' "$output"; fi
-    echo "typecheck-tests: $(grep -c 'error TS' <<<"$output") errors (reported, not enforced)"
-
-# Type-check and report syntax and semantic errors together.
-typecheck-all:
-    node scripts/typecheck-all.mjs
-
-# Type-check everything with the stricter flags of config/tsconfig.strict.json (unused names, implicit returns, unchecked index access, ...). Fails on errors in Lane C files only and prints how many Lane P errors it ignored.
+# Type-check everything, tests and e2e included, with the stricter flags of config/tsconfig.strict.json (unused names, implicit returns, unchecked index access, ...); must report 0 errors.
 strict:
-    node --test scripts/strict-check.test.mjs scripts/provenance-paths.test.mjs
-    node scripts/strict-check.mjs
+    npx tsc --noEmit -p config/tsconfig.strict.json
 
 # Run the unit tests. On NixOS, scripts/with-fhs-bin.sh adds the /bin/bash and /usr/bin tools that tests of the iOS CI scripts expect.
 test *args:
     bash scripts/with-fhs-bin.sh npx vitest run {{args}}
 
-# Lint with ESLint (rules: .eslintrc.cjs): src, e2e, scripts and the config files (package.json "lint" names them). Lane C TypeScript also gets type-aware rules (floating and misused promises, `await` of non-promises, exhaustive switches, needless assertions, enum comparisons) with the types of config/tsconfig.strict.json. Every file takes `PopOut` and `TooltipProvider` from src/app/ui/directional.tsx rather than folds (that module and the glass adapter excepted), and every TypeScript file of src but the tests writes styles with logical sides (`paddingInlineStart`, `insetInlineEnd`, `textAlign: 'start'`, no four-part `margin` or `padding`) so they mirror in right-to-left languages; a side that must stay physical takes a disable comment with its reason (safe-area insets are allowed).
+# Lint with ESLint (rules: .eslintrc.cjs): src, e2e, scripts and the config files (package.json "lint" names them). TypeScript also gets type-aware rules (floating and misused promises, `await` of non-promises, exhaustive switches, needless assertions, enum comparisons) with the types of config/tsconfig.strict.json; the files of PROMISE_RULES_PENDING in .eslintrc.cjs skip the two promise rules until they are fixed. Every file takes `PopOut` and `TooltipProvider` from src/app/ui/directional.tsx rather than folds (that module and the glass adapter excepted), and every TypeScript file of src but the tests writes styles with logical sides (`paddingInlineStart`, `insetInlineEnd`, `textAlign: 'start'`, no four-part `margin` or `padding`) so they mirror in right-to-left languages; a side that must stay physical takes a disable comment with its reason (safe-area insets are allowed).
 lint:
     npm run lint
 
-# Format the files you changed, in either lane, with Prettier (2.8.8, the style of the Lane P files).
+# Format the files you changed with Prettier (2.8.8).
 format *paths:
     npx prettier --write {{paths}}
 
@@ -58,43 +45,13 @@ release *args:
 bundle-report dist="dist" *args:
     node scripts/perf/bundle-report.mjs {{dist}} --budget scripts/perf/bundle-budget.json {{args}}
 
-# The full local check. CI (.github/workflows/ci.yml) runs typecheck, strict, lint, test, the production build with the bundle size budget (scripts/perf/bundle-budget.json) and a smoke subset of the e2e specs on every push to main and every pull request; scripts/push-gate.sh runs the overlap history check before each push.
-check: typecheck strict lint test script-tests license-check verify-ported check-holes identifier-renames upstream-overlap
+# The full local check. CI (.github/workflows/ci.yml) runs typecheck, strict, lint, test, the production build with the bundle size budget (scripts/perf/bundle-budget.json) and a smoke subset of the e2e specs on every push to main and every pull request.
+check: typecheck strict lint test script-tests license-check
 
 # Fail when an installed package has a license outside the allowlist (also runs the script's own tests).
 license-check:
     node --test scripts/license-check.test.mjs
     node scripts/license-check.mjs node_modules
-
-# Recompute the Lane P import from a legacy MindRoom Chat checkout (mindroom-ai/mindroom-chat-legacy) and compare it with the import commit; skipped without a path.
-verify-ported *checkout:
-    bash scripts/verify-ported.sh {{checkout}}
-
-# Lane P files may differ from each import only in their blanked lines. Later Lane P edits are allowed, so each wave is checked at the commit that filled its blanks, not the working tree.
-check-holes:
-    python3 scripts/check_holes.py --wave 1 --rev feed1b4
-    python3 scripts/check_holes.py --wave 2 --rev ec7dca5
-    python3 scripts/check_holes.py --overlap --rev 54314f8
-
-# Every Lane P line a commit of docs/provenance/identifier-renames.tsv changes differs only by the names it lists (also runs the script's own tests).
-identifier-renames:
-    node --test scripts/check-identifier-renames.test.mjs
-    node scripts/check-identifier-renames.mjs
-
-# No run of 3+ shared lines or 30+ shared tokens with any version of the upstream client (docs/provenance.md); pass a full upstream git clone, skipped without one. Add --history to check every commit.
-upstream-overlap corpus='' *args:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [ -z "{{corpus}}" ]; then echo 'upstream-overlap: skipped (no upstream clone given)'; exit 0; fi
-    python3 scripts/upstream-overlap/check.py --corpus "{{corpus}}" {{args}}
-
-# Install the pre-push hook that runs the upstream overlap check on every commit a push adds (scripts/git-hooks/install.sh): pass the upstream clone, then other clones to install it in (default: this one). The hook fetches the objects of the remote's main when the clone lacks them; the headers of scripts/git-hooks/install.sh, scripts/git-hooks/pre-push and scripts/upstream-overlap/check.py describe the rest.
-install-hooks corpus *clones:
-    bash scripts/git-hooks/install.sh --corpus "{{corpus}}" {{clones}}
-
-# Compare Lane C code with each corpus given, a directory or a Git repository as <dir>@<commit> (scripts/similarity-audit.sh says what counts); writes docs/provenance/audit/<date>/.
-similarity-audit *corpora:
-    bash scripts/similarity-audit.sh {{corpora}}
 
 # Start the disposable Tuwunel test homeserver (server name matrix.localhost) on http://127.0.0.1:28008 and wait until it is healthy.
 hs-up:
@@ -126,10 +83,10 @@ agent-stack slot *args:
 e2e-suite *args:
     bash scripts/e2e-suite.sh {{args}}
 
-# Tests of the e2e tooling, the notices generator, the bundle report and the iOS test fixture generators (scripts/e2e-results-tsv.test.mjs, scripts/third-party-notices.test.mjs, scripts/ios-routing-test-routes.test.mjs, scripts/ios-canvas-test-fixtures.test.mjs and scripts/perf/bundle-report.test.mjs with Node's test runner, scripts/test_matrix_http.py, scripts/reference/test_seed.py, scripts/agent-stack/test_stack.py, scripts/upstream-overlap/test_check.py, scripts/test_e2e_plugin_dirs.py and scripts/watch/test_check_sdk_licenses.py with unittest). test_check.py pushes to local bare repositories through the pre-push hook, with a made-up corpus: no upstream clone is needed.
+# Tests of the e2e tooling, the notices generator, the bundle report and the iOS test fixture generators (scripts/e2e-results-tsv.test.mjs, scripts/third-party-notices.test.mjs, scripts/ios-routing-test-routes.test.mjs, scripts/ios-canvas-test-fixtures.test.mjs and scripts/perf/bundle-report.test.mjs with Node's test runner, scripts/test_matrix_http.py, scripts/reference/test_seed.py, scripts/agent-stack/test_stack.py, scripts/test_e2e_plugin_dirs.py and scripts/watch/test_check_sdk_licenses.py with unittest).
 script-tests:
     node --test scripts/e2e-results-tsv.test.mjs scripts/third-party-notices.test.mjs scripts/ios-routing-test-routes.test.mjs scripts/ios-canvas-test-fixtures.test.mjs scripts/perf/bundle-report.test.mjs
-    python3 -m unittest scripts/test_matrix_http.py scripts/reference/test_seed.py scripts/agent-stack/test_stack.py scripts/upstream-overlap/test_check.py scripts/test_e2e_plugin_dirs.py scripts/watch/test_check_sdk_licenses.py
+    python3 -m unittest scripts/test_matrix_http.py scripts/reference/test_seed.py scripts/agent-stack/test_stack.py scripts/test_e2e_plugin_dirs.py scripts/watch/test_check_sdk_licenses.py
 
 # Build the watch app's Rust SDK (matrix-sdk-ffi) into ios/Watch/MatrixRustSDK/ on a Mac with rustup; `--fetch` downloads the published build instead. Options: the scripts/watch/build-sdk.sh header.
 watch-sdk *args:

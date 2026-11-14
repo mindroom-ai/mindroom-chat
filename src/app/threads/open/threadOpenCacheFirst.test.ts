@@ -2,7 +2,7 @@ import { type MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { makeEvent, makeRoom, makeTimeline } from '../../timeline/test-utils/RoomTimeline.test.shared';
 import { buildThreadCacheCoverage } from '../../event-store/cache/threadCacheCoverage';
-import { runThreadOpenCacheFirst } from './threadOpenCacheFirst';
+import { runThreadOpenCacheFirst, type ScheduleReconcileFn } from './threadOpenCacheFirst';
 import * as timelineDebug from '../../diagnostics/timelineDebug';
 
 const makeDefaultOptions = () => {
@@ -32,7 +32,7 @@ const makeDefaultOptions = () => {
     // at the top of `runThreadOpenCacheFirst`. Every open that survives
     // the hydrate + post-hydrate guards schedules exactly one reconcile
     // from the single thread-open choke point.
-    scheduleReconcile: vi.fn(async () => ({
+    scheduleReconcile: vi.fn<ScheduleReconcileFn>(async () => ({
       repaired: false,
       fetchedCount: 0,
       iterations: 1,
@@ -161,7 +161,7 @@ describe('runThreadOpenCacheFirst', () => {
     // The choke-point reconcile is the ONLY network-side work the
     // cache-first path triggers for a partial snapshot.
     expect(opts.scheduleReconcile).toHaveBeenCalledTimes(1);
-    const [reconcileArgs] = opts.scheduleReconcile.mock.calls[0];
+    const [reconcileArgs] = opts.scheduleReconcile.mock.calls[0]!;
     expect(reconcileArgs.threadId).toBe('$root');
     expect(reconcileArgs.cachedPage).toBe(cachedPage);
   });
@@ -226,11 +226,14 @@ describe('runThreadOpenCacheFirst', () => {
     // during the cache-first path itself — the hydration path lives in
     // hydrateThreadFromCache, which is mocked here. All the following
     // calls must therefore come from the onRepaired wiring.
-    const supplementalMock = opts.setSupplementalThreadEvents as ReturnType<typeof vi.fn>;
+    const supplementalMock = opts.setSupplementalThreadEvents;
     const preRepairCalls = supplementalMock.mock.calls.length;
 
     // Simulate the reconciler firing the tick with a repaired batch.
-    const repairedEvent = makeEvent('$edit-v2', { threadRootId: '$root', ts: 3 });
+    const repairedEvent = makeEvent('$edit-v2', {
+      threadRootId: '$root',
+      ts: 3,
+    }) as unknown as MatrixEvent;
     capturedOnRepaired?.([repairedEvent]);
 
     // The load-bearing assertion: the repaired batch flows into
@@ -287,7 +290,7 @@ describe('runThreadOpenCacheFirst', () => {
 
     await runThreadOpenCacheFirst(opts as never);
 
-    const supplementalMock = opts.setSupplementalThreadEvents as ReturnType<typeof vi.fn>;
+    const supplementalMock = opts.setSupplementalThreadEvents;
     const preCalls = supplementalMock.mock.calls.length;
 
     // Fire with an empty batch (contract-defensive test — the engine

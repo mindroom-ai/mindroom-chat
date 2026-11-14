@@ -87,20 +87,22 @@ export const isNearLatestEnd = (element: HTMLElement, latestAtTop: boolean): boo
 };
 
 /**
- * Whether the latest-end anchor (the mark at the rows' latest end) is within the follow threshold
- * of the scroll area, so the reader counts as at the latest end: at most that far below its lower
- * edge or, with the newest row first, above its upper edge. Without a scroll area, the window's.
+ * Whether the latest-end anchor (the mark at the rows' latest end) is within `reach` (by default
+ * the follow threshold) of the scroll area, so the reader counts as at the latest end: at most
+ * that far below its lower edge or, with the newest row first, above its upper edge. Without a
+ * scroll area, the window's.
  */
 export const isLatestAnchorInReach = (
   anchor: Element,
   scrollArea: Element | null | undefined,
-  latestAtTop: boolean
+  latestAtTop: boolean,
+  reach = TIMELINE_BOTTOM_THRESHOLD_PX
 ): boolean => {
   const anchorRect = anchor.getBoundingClientRect();
   const areaRect = scrollArea?.getBoundingClientRect();
-  if (latestAtTop) return anchorRect.bottom >= (areaRect?.top ?? 0) - TIMELINE_BOTTOM_THRESHOLD_PX;
+  if (latestAtTop) return anchorRect.bottom >= (areaRect?.top ?? 0) - reach;
   const lowerEdge = areaRect?.bottom ?? window.innerHeight;
-  return anchorRect.top <= lowerEdge + TIMELINE_BOTTOM_THRESHOLD_PX;
+  return anchorRect.top <= lowerEdge + reach;
 };
 
 /**

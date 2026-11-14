@@ -105,7 +105,7 @@ const serveRfb = async (page: Page): Promise<RfbStub> => {
           const length = complete(6);
           if (length) {
             stub.pointerEvents.push({
-              mask: input[1],
+              mask: input[1]!,
               x: input.readUInt16BE(2),
               y: input.readUInt16BE(4),
             });
@@ -206,7 +206,7 @@ const touchscreen = async (page: Page, browserName: string) => {
     return {
       tap: async (...fingers: Point[]) => {
         if (fingers.length !== 1) throw new Error(WEBKIT_TAPS_ONLY);
-        await page.touchscreen.tap(fingers[0].x, fingers[0].y);
+        await page.touchscreen.tap(fingers[0]!.x, fingers[0]!.y);
       },
       drag: async () => {
         throw new Error(WEBKIT_TAPS_ONLY);
@@ -291,8 +291,10 @@ test('a one-finger drag moves the pointer without a button', async ({ page, brow
   expect(moves.map(({ mask, y }) => ({ mask, y }))).toEqual(
     moves.map(() => ({ mask: NONE, y: CENTRE.y }))
   );
-  moves.forEach(({ x }, index) => expect(x).toBeGreaterThan(index ? moves[index - 1].x : CENTRE.x));
-  expect(moves[moves.length - 1].x).toBeLessThanOrEqual(end.x);
+  moves.forEach(({ x }, index) =>
+    expect(x).toBeGreaterThan(index ? moves[index - 1]!.x : CENTRE.x)
+  );
+  expect(moves[moves.length - 1]!.x).toBeLessThanOrEqual(end!.x);
 });
 
 test('a tap clicks at the pointer', async ({ page, browserName }) => {

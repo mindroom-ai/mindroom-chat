@@ -151,7 +151,7 @@ test.describe('room resume thread preload', () => {
     // Each root's synced latest-reply bundle fills its card without loading the thread.
     await Promise.all(
       cards.map((card, index) =>
-        expect(card).toContainText(threads[index].replyBody, { timeout: 30_000 })
+        expect(card).toContainText(threads[index]!.replyBody, { timeout: 30_000 })
       )
     );
     // Shown cards load their threads once the client is live; let those loads fail first.
@@ -187,9 +187,9 @@ test.describe('room resume thread preload', () => {
     await expect.poll(() => heldSyncResponseCount, { timeout: 40_000 }).toBeGreaterThan(0);
     const staleCardTexts = await Promise.all(cards.map((card) => card.innerText()));
     staleCardTexts.forEach((cardText, index) => {
-      expect(cardText).toContain(threads[index].rootBody);
-      expect(cardText).toContain(threads[index].replyBody);
-      expect(cardText).not.toContain(threads[index].latestReplyBody);
+      expect(cardText).toContain(threads[index]!.rootBody);
+      expect(cardText).toContain(threads[index]!.replyBody);
+      expect(cardText).not.toContain(threads[index]!.latestReplyBody);
     });
 
     await page.unroute(threadLoadPattern);
@@ -197,15 +197,15 @@ test.describe('room resume thread preload', () => {
 
     await Promise.all(
       cards.map((card, index) =>
-        expect(card).toContainText(threads[index].latestReplyBody, { timeout: 30_000 })
+        expect(card).toContainText(threads[index]!.latestReplyBody, { timeout: 30_000 })
       )
     );
     endSuspension();
     suspension = undefined;
 
-    await cards[0].click();
+    await cards[0]!.click();
     await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText(threads[0].latestReplyBody)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(threads[0]!.latestReplyBody)).toBeVisible({ timeout: 30_000 });
 
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'issue-069-room-resume-thread-preload');
   });

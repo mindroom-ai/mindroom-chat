@@ -154,11 +154,11 @@ describe('CompactCardSwipe', () => {
     pointer('onPointerMove', 250);
     expect(track.style.transform).toBe('translateX(-40px)');
     expect(actionStrip()).toHaveLength(1);
-    expect(actionStrip()[0].props['data-armed']).toBeUndefined();
+    expect(actionStrip()[0]!.props['data-armed']).toBeUndefined();
 
     pointer('onPointerMove', 170);
     expect(track.style.transform).toBe('translateX(-120px)');
-    expect(actionStrip()[0].props['data-armed']).toBe('true');
+    expect(actionStrip()[0]!.props['data-armed']).toBe('true');
   });
 
   it('hides the strip once the card itself has settled back', () => {
@@ -193,9 +193,9 @@ describe('CompactCardSwipe', () => {
     swipe(300, 150);
     rerender({ resolved: true, label: 'Reopen thread' });
 
-    expect(actionStrip()[0].props['data-armed']).toBe('true');
-    expect(actionStrip()[0].props['data-resolved']).toBeUndefined();
-    expect(actionStrip()[0].findByType('span').props.children).toBe('Resolve');
+    expect(actionStrip()[0]!.props['data-armed']).toBe('true');
+    expect(actionStrip()[0]!.props['data-resolved']).toBeUndefined();
+    expect(actionStrip()[0]!.findByType('span').props.children).toBe('Resolve');
   });
 
   it('runs the action the strip showed when the thread toggles mid-swipe', () => {
@@ -310,7 +310,7 @@ describe('CompactCardSwipe', () => {
 
     expect(onSwipe).not.toHaveBeenCalled();
     expect(track.style.transform).toBe('');
-    expect(actionStrip()[0].props['data-armed']).toBeUndefined();
+    expect(actionStrip()[0]!.props['data-armed']).toBeUndefined();
   });
 
   it('lets go of a swipe without its action once a second finger makes it a pinch', () => {
@@ -394,8 +394,8 @@ describe('CompactCardSwipe', () => {
     pointer('onPointerDown', 300);
     pointer('onPointerMove', 260);
 
-    expect(actionStrip()[0].props['data-resolved']).toBe('true');
-    expect(actionStrip()[0].findByType('span').props.children).toBe('Reopen thread');
-    expect(actionStrip()[0].props['aria-hidden']).toBe(true);
+    expect(actionStrip()[0]!.props['data-resolved']).toBe('true');
+    expect(actionStrip()[0]!.findByType('span').props.children).toBe('Reopen thread');
+    expect(actionStrip()[0]!.props['aria-hidden']).toBe(true);
   });
 });

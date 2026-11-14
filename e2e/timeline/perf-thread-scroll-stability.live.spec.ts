@@ -144,12 +144,12 @@ test.describe('PERF: timeline scroll stability under expand-all', () => {
       let maxJump = 0;
       let total = 0;
       for (let i = 1; i < s.length; i += 1) {
-        if (s[i].anchorSwitched) continue;
-        const dSt = s[i].st - s[i - 1].st;
+        if (s[i]!.anchorSwitched) continue;
+        const dSt = s[i]!.st - s[i - 1]!.st;
         if (Math.abs(dSt) > 2000) continue;
-        const dAnchor = s[i].anchorTop - s[i - 1].anchorTop;
+        const dAnchor = s[i]!.anchorTop - s[i - 1]!.anchorTop;
         const residual = Math.abs(dAnchor + dSt);
-        if (residual > 40 && s[i].anchorTop !== -1 && s[i - 1].anchorTop !== -1) {
+        if (residual > 40 && s[i]!.anchorTop !== -1 && s[i - 1]!.anchorTop !== -1) {
           jumps += 1;
           maxJump = Math.max(maxJump, residual);
           total += residual;

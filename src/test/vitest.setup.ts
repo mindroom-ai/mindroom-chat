@@ -92,6 +92,7 @@ vi.mock('../app/ui/styles/RoomOverlay.css', () => ({
   footerInset: 'var(--room-footer-height, 0px)',
   topInset: '0px',
   controlsTopInset: '0px',
+  overviewInsetStop: {},
 }));
 
 // Existing component tests replace Folds primitives with focused doubles.

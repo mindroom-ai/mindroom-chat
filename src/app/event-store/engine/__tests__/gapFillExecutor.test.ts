@@ -14,6 +14,7 @@ import {
   loadCachedRoomEvent,
   loadLatestCachedThreadEvents,
   resetCacheStoreForTesting,
+  type CachedRoomEventPage,
 } from '../../cache/db';
 import { revokeRoomCacheStoreWrites } from '../../cache/db/cacheStoreDb';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../cache/cacheProbe';
@@ -194,7 +195,7 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
       let aborted = false;
       const fault = vi
         .spyOn(IDBDatabase.prototype, 'transaction')
-        .mockImplementation(function abortFirstWrite(...args) {
+        .mockImplementation(function abortFirstWrite(this: IDBDatabase, ...args) {
           const result = transaction.apply(this, args);
           if (
             failure === 'commit' &&
@@ -280,8 +281,8 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     await waitForCompleted();
 
     expect(mx.__messages.length).toBeGreaterThanOrEqual(1);
-    expect(mx.__messages[0].fromToken).toBe('tok-0');
-    expect(mx.__messages[0].dir).toBe(Direction.Backward);
+    expect(mx.__messages[0]!.fromToken).toBe('tok-0');
+    expect(mx.__messages[0]!.dir).toBe(Direction.Backward);
 
     const cached = await loadCachedRoomEvent(SESSION_ID, '!room:mindroom.chat', '$e1');
     expect(cached?.event_id).toBe('$e1');
@@ -500,7 +501,7 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     // /messages was called with fromToken=null (no from param → SDK
     // starts from live tip backward, per the spec-legal default).
     expect(mx.__messages.length).toBe(1);
-    expect(mx.__messages[0].fromToken).toBeNull();
+    expect(mx.__messages[0]!.fromToken).toBeNull();
   });
 
   it('leaves the durable marker in place when the network request fails', async () => {
@@ -562,7 +563,11 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
         scheduler,
         loadCachedTail: async () => {
           revokeRoomCacheStoreWrites(SESSION_ID, roomId);
-          return { events: [rawEvent('$boundary', 1)], hasMore: false, beforeToken: null };
+          return {
+            events: [rawEvent('$boundary', 1)],
+            hasMore: false,
+            beforeToken: null,
+          } as unknown as CachedRoomEventPage;
         },
       });
       executor.enqueue({ roomId, reason: 'limited-sync', ...marker });
@@ -808,7 +813,7 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     budget.grant(200);
     executor.recheckDeferred('!room:mindroom.chat');
     await waitForCompleted(21);
-    expect(mx.__messages[20].fromToken).toBe('tok-20');
+    expect(mx.__messages[20]!.fromToken).toBe('tok-20');
     expect(mx.__messages).toHaveLength(21);
     expect(await loadRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat')).toBeUndefined();
   });
@@ -986,7 +991,7 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
 
     expect(mx.__messages).toHaveLength(1);
     // The page asks for no more events than the reservation holds.
-    expect(mx.__messages[0].limit).toBe(50);
+    expect(mx.__messages[0]!.limit).toBe(50);
     expect(budget.settled).toEqual([1]);
     expect(loadCachedTail).toHaveBeenCalledTimes(1);
     expect(await loadCachedRoomEvent(SESSION_ID, roomId, '$original-tail')).toBeDefined();

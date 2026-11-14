@@ -49,7 +49,10 @@ describe('matrix-js-sdk timeline insertion', () => {
     const { roomState, timelineSet, liveTimeline } = makeTimelineSet();
     const newest = makeEvent('$newest', 3, true);
     const missing = makeEvent('$missing', 2, true);
-    timelineSet.addEventToTimeline(newest, liveTimeline, { toStartOfTimeline: false });
+    timelineSet.addEventToTimeline(newest, liveTimeline, {
+      toStartOfTimeline: false,
+      addToState: false,
+    });
 
     timelineSet.insertEventIntoTimeline(missing, liveTimeline, roomState, false);
 
@@ -64,8 +67,14 @@ describe('matrix-js-sdk timeline insertion', () => {
     const root = makeEvent(ROOT_ID, 1);
     const newest = makeEvent('$newest', 3, true);
     const missing = makeEvent('$missing', 2, true);
-    timelineSet.addEventToTimeline(root, liveTimeline, { toStartOfTimeline: false });
-    timelineSet.addEventToTimeline(newest, liveTimeline, { toStartOfTimeline: false });
+    timelineSet.addEventToTimeline(root, liveTimeline, {
+      toStartOfTimeline: false,
+      addToState: false,
+    });
+    timelineSet.addEventToTimeline(newest, liveTimeline, {
+      toStartOfTimeline: false,
+      addToState: false,
+    });
 
     timelineSet.insertEventIntoTimeline(missing, liveTimeline, roomState, false);
 
@@ -82,8 +91,14 @@ describe('matrix-js-sdk timeline insertion', () => {
     const root = makeEvent(ROOT_ID, 1);
     const newest = makeEvent('$newest', 3, true);
     const missing = makeEvent('$missing', 2, true);
-    timelineSet.addEventToTimeline(root, olderTimeline, { toStartOfTimeline: false });
-    timelineSet.addEventToTimeline(newest, liveTimeline, { toStartOfTimeline: false });
+    timelineSet.addEventToTimeline(root, olderTimeline, {
+      toStartOfTimeline: false,
+      addToState: false,
+    });
+    timelineSet.addEventToTimeline(newest, liveTimeline, {
+      toStartOfTimeline: false,
+      addToState: false,
+    });
 
     timelineSet.insertEventIntoTimeline(missing, liveTimeline, roomState, false);
 
@@ -103,8 +118,14 @@ describe('matrix-js-sdk timeline insertion', () => {
     const root = makeEvent(ROOT_ID, 1);
     const newest = makeEvent('$newest', 3, true);
     const missing = makeEvent('$missing', 2, true);
-    timelineSet.addEventToTimeline(root, olderTimeline, { toStartOfTimeline: false });
-    timelineSet.addEventToTimeline(newest, liveTimeline, { toStartOfTimeline: false });
+    timelineSet.addEventToTimeline(root, olderTimeline, {
+      toStartOfTimeline: false,
+      addToState: false,
+    });
+    timelineSet.addEventToTimeline(newest, liveTimeline, {
+      toStartOfTimeline: false,
+      addToState: false,
+    });
 
     timelineSet.insertEventIntoTimeline(missing, liveTimeline, roomState, false);
 

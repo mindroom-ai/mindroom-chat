@@ -728,7 +728,7 @@ export function ComputerPanel({
                 <Button
                   {...actionButtonProps}
                   disabled={!!operation}
-                  onClick={handleTakeControl}
+                  onClick={() => void handleTakeControl()}
                   variant="Primary"
                 >
                   <Text size="B300">
@@ -740,7 +740,7 @@ export function ComputerPanel({
                 <Button
                   {...actionButtonProps}
                   disabled={!!operation || !continuationReady}
-                  onClick={handleResumeAgent}
+                  onClick={() => void handleResumeAgent()}
                   variant="Primary"
                 >
                   <Text size="B300">{operation === 'resume' ? 'Releasing…' : 'Resume agent'}</Text>
@@ -767,14 +767,18 @@ export function ComputerPanel({
                 <Button
                   {...actionButtonProps}
                   disabled={!!operation}
-                  onClick={handleReconnect}
+                  onClick={() => void handleReconnect()}
                   variant="Secondary"
                 >
                   <Text size="B300">Reconnect</Text>
                 </Button>
               )}
               {phase === 'stopped' && (
-                <Button {...actionButtonProps} onClick={handleReconnect} variant="Primary">
+                <Button
+                  {...actionButtonProps}
+                  onClick={() => void handleReconnect()}
+                  variant="Primary"
+                >
                   <Text size="B300">Start computer</Text>
                 </Button>
               )}
@@ -782,7 +786,7 @@ export function ComputerPanel({
                 <Button
                   {...actionButtonProps}
                   disabled={!!operation}
-                  onClick={handleStop}
+                  onClick={() => void handleStop()}
                   variant="Critical"
                 >
                   <Text size="B300">{operation === 'stop' ? 'Stopping…' : 'Stop'}</Text>

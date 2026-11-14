@@ -71,7 +71,11 @@ const makeThreadRoom = () => {
       { id: plain.getId(), rootEvent: plain },
     ],
   });
-  room.getUnfilteredTimelineSet().relations = { getChildEventsForEvent: () => undefined };
+  (
+    room.getUnfilteredTimelineSet() as ReturnType<typeof room.getUnfilteredTimelineSet> & {
+      relations?: unknown;
+    }
+  ).relations = { getChildEventsForEvent: () => undefined };
   return {
     room,
     streamingId: streaming.getId(),

@@ -82,7 +82,7 @@ describe('thread relation tiles', () => {
         expect(tiles.map((node) => node.props['data-virtual-index'])).toEqual([1, 4]);
         const after = renderer!.root.findAll(
           (node) => node.props['data-message-id'] === '$after'
-        )[0];
+        )[0]!;
         expect(after.props.collapse).toBe(false);
         if (dayOffset > 0) {
           expect(
@@ -121,7 +121,7 @@ describe('thread relation tiles', () => {
 
         // Mutable SDK events can become renderable again without changing
         // object/array identity. A cached zero must not suppress their content.
-        events[2].getRelation = () => undefined;
+        events[2]!.getRelation = () => undefined;
         await act(async () => {
           renderer!.update(React.createElement(Harness, { room, threadId }));
           await flushAsyncWork();

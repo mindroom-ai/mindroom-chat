@@ -1,5 +1,6 @@
 import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
+import { isSnoozedAt } from '../event-store/threads/threadSnooze';
 
 export type ActivityKind =
   | 'approval'
@@ -88,7 +89,8 @@ const compareRows = (a: ActivityRow, b: ActivityRow): number =>
  * in with activity in the last `ACTIVITY_READ_WINDOW_MS`, one row each; then the invites. A
  * thread an agent runs alone (an automation) is only counted, unless it names them, it waits for
  * them, or `showAutomations` lists it. A resolved thread has no row and is not counted, until
- * news (`ThreadSignals.newsTs`) comes in it after it was resolved.
+ * news (`ThreadSignals.newsTs`) comes in it after it was resolved; a thread snoozed at `now` the
+ * same, until a person writes in it after it was snoozed.
  */
 export const buildActivityRows = ({
   entries,
@@ -109,6 +111,14 @@ export const buildActivityRows = ({
     const threadSignals = signals(entry);
     // Resolving a thread answers what it held; only news that comes after brings it back.
     if (entry.isResolved && (threadSignals.newsTs ?? 0) <= (entry.resolvedTs ?? Infinity)) {
+      continue;
+    }
+    // A snooze holds until a person writes in the thread after it was set. Agents' replies, such
+    // as the one confirming the snooze, wait for its end; the Threads page still shows what waits.
+    if (
+      isSnoozedAt(entry.snoozedUntilTs, now) &&
+      (threadSignals.personNewsTs ?? 0) <= (entry.snoozedAtTs ?? Infinity)
+    ) {
       continue;
     }
     const recent = now - entry.lastActivityTs <= ACTIVITY_READ_WINDOW_MS;

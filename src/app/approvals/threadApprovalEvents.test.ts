@@ -1,4 +1,4 @@
-import { MatrixEvent } from 'matrix-js-sdk';
+import { MatrixEvent, type IEvent } from 'matrix-js-sdk';
 import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as editEvent from '../matrix/editEvent';
@@ -65,7 +65,7 @@ describe('approval bundle relevance', () => {
       unpack: 0,
       clone: 0,
     });
-    expect(messages[0].getUnsigned()['m.relations']?.['m.replace']).toBeDefined();
+    expect(messages[0]!.getUnsigned()['m.relations']?.['m.replace']).toBeDefined();
   });
 
   it.each(['serialized', 'attached'] as const)('keeps %s approval decisions', (kind) => {
@@ -78,7 +78,7 @@ describe('approval bundle relevance', () => {
 
     expect([...retained.events.keys()]).toEqual(['$approval', '$approval-edit']);
     expect(
-      collectThreadApprovals([...retained.events.values()], roomId, threadId)[0].approval.status
+      collectThreadApprovals([...retained.events.values()], roomId, threadId)[0]!.approval.status
     ).toBe('approved');
   });
 
@@ -95,7 +95,7 @@ describe('approval bundle relevance', () => {
           decryptEvent: async () => {
             throw new Error('Missing key');
           },
-        } as CryptoBackend);
+        } as unknown as CryptoBackend);
         expect(original.getType()).toBe('m.room.message');
       }
       original.setUnsigned({
@@ -113,7 +113,7 @@ describe('approval bundle relevance', () => {
     (kind) => {
       const original = makeEvent('$former', 'm.room.message');
       const edit = replacement(original);
-      edit.setUnsigned({ redacted_because: { type: 'm.room.redaction', content: {} } });
+      edit.setUnsigned({ redacted_because: { type: 'm.room.redaction', content: {} } as IEvent });
       original.setUnsigned({ 'm.relations': { 'm.replace': edit.event } });
       const old: ThreadApprovalEvents = {
         events: kind === 'retained' ? new Map([['$former', original]]) : new Map(),
@@ -129,7 +129,9 @@ describe('approval bundle relevance', () => {
 
   it('still retains original tombstones and early redactions among ordinary messages', () => {
     const tombstone = makeEvent('$removed', 'm.room.message');
-    tombstone.setUnsigned({ redacted_because: { type: 'm.room.redaction', content: {} } });
+    tombstone.setUnsigned({
+      redacted_because: { type: 'm.room.redaction', content: {} } as IEvent,
+    });
     const redaction = new MatrixEvent({
       ...makeEvent('$redaction').event,
       type: 'm.room.redaction',

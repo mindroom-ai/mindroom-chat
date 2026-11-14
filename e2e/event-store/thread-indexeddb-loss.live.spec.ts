@@ -103,7 +103,7 @@ const findOwnWebKitNetworkProcesses = (): number[] => {
       return false;
     };
     return rows
-      .filter(([, , comm]) => /NetworkProce/.test(comm))
+      .filter(([, , comm]) => /NetworkProce/.test(comm!))
       .map(([pid]) => Number(pid))
       .filter(descendsFromWorker);
   } catch {

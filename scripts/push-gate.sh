@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 # The checks a commit passes before the coordinator pushes it to GitHub.
 #
-# Usage: scripts/push-gate.sh <checkout> --slot <n> --corpus <upstream clone> [--rev <commit>] [--base <rev>]
-#   scripts/push-gate.sh ~/Work/mindroom-client-new --slot 46 --corpus <upstream clone>
+# Usage: scripts/push-gate.sh <checkout> --slot <n> [--rev <commit>] [--base <rev>]
+#   scripts/push-gate.sh ~/Work/mindroom-client-new --slot 46
 #
 # <checkout> is the clone the push goes out from. --rev is the commit to push (default its HEAD) and
 # --base what GitHub main already has (default origin/main), so base..rev is what the push adds.
 # --slot is the e2e slot of the smoke specs, or a list such as 46,47 that shares them out
-# (scripts/e2e-suite.sh --slots); --corpus, or $PUSH_GATE_CORPUS, the full upstream clone of the
-# overlap check.
+# (scripts/e2e-suite.sh --slots).
 #
 # Every check reads the commit, never the working tree: the code checks run in an archive copy of it
 # that links the checkout's node_modules and has the commit's index, and the smoke specs in e2e-slot
@@ -17,17 +16,13 @@
 #             and what a first visit downloads before the app runs, against the commit's
 #             scripts/perf/bundle-budget.json (scripts/perf/bundle-report.mjs)
 #   tsc       tsc --noEmit -p config/tsconfig.app.json
-#   strict    node scripts/strict-check.mjs
+#   strict    tsc --noEmit -p config/tsconfig.strict.json (tests and e2e included)
 #   lint      ESLint on the files base...rev changes (on every file when the ESLint config or a file
-#             it reads changes: scripts/eslint-shared.cjs, scripts/provenance-paths.cjs, the
-#             docs/provenance lists, the tsconfigs)
+#             it reads changes: scripts/eslint-shared.cjs, the tsconfigs)
 #   vitest    the full unit suite; the files that fail run once more on their own, and only a
 #             second failure counts (the detail says how many passed on the rerun)
-#   overlap   scripts/upstream-overlap/check.py --history; it reads every ref of the checkout, but
-#             only findings in blobs reachable from the commit fail the gate
 #   keys      every object base..rev adds (files and commit messages) against the values in
 #             $PUSH_GATE_KEY_FILE (default ~/.config/mindroom-chat/llm.env); it prints key names, never values
-#   old-name  commit messages in base..rev that use the old name of the upstream client
 #   e2e       the smoke specs below through scripts/e2e-suite.sh: each spec file on the build with
 #             an empty homeserver of its own (in one shared run, the rooms earlier specs made pushed
 #             a spec's room out of the room list), with one retry; a test that passes on its retry
@@ -70,14 +65,11 @@ main() {
   checkout="$1"
   shift
   slot=''
-  corpus="${PUSH_GATE_CORPUS:-}"
   local rev=HEAD base=origin/main
   while [ $# -gt 0 ]; do
     case "$1" in
       --slot) slot="$2"; shift ;;
       --slot=*) slot="${1#--slot=}" ;;
-      --corpus) corpus="$2"; shift ;;
-      --corpus=*) corpus="${1#--corpus=}" ;;
       --rev) rev="$2"; shift ;;
       --rev=*) rev="${1#--rev=}" ;;
       --base) base="$2"; shift ;;
@@ -136,9 +128,7 @@ main() {
   run_check tsc check_tsc &
   run_check strict check_strict &
   run_check lint check_lint &
-  run_check overlap check_overlap &
   run_check keys check_keys &
-  run_check old-name check_old_name &
   wait "$build_pid" "$vitest_pid"
   if [ "$(cut -f 1 "$results/build")" = PASS ]; then
     run_check e2e check_e2e &
@@ -149,7 +139,7 @@ main() {
 
   local name verdict seconds detail status=PASS
   printf '\n%-9s %-6s %8s  %s\n' check result seconds detail
-  for name in build tsc strict lint vitest overlap keys old-name e2e; do
+  for name in build tsc strict lint vitest keys e2e; do
     verdict=FAIL seconds=- detail='no result'
     if [ -s "$results/$name" ]; then IFS=$'\t' read -r verdict seconds detail <"$results/$name"; fi
     printf '%-9s %-6s %8s  %s\n' "$name" "$verdict" "$seconds" "$detail"
@@ -226,8 +216,8 @@ check_tsc() {
 
 check_strict() {
   local rc=0
-  (cd "$tree" && node scripts/strict-check.mjs) >"$logs/strict.log" 2>&1 || rc=$?
-  tail -n 1 "$logs/strict.log" | sed 's/^strict-check: //'
+  (cd "$tree" && npx tsc --noEmit -p config/tsconfig.strict.json) >"$logs/strict.log" 2>&1 || rc=$?
+  echo "$(grep -c 'error TS' "$logs/strict.log") errors, exit $rc"
   return "$rc"
 }
 
@@ -237,9 +227,9 @@ check_lint() {
     git -C "$checkout" diff --name-only --diff-filter=ACMR "$base_sha...$sha" -- \
       src e2e scripts vite.config.js vitest.config.ts .eslintrc.plugin.cjs | grep -E '\.(ts|tsx|js|mjs|cjs)$' || true
   )
-  # The config, and what it reads to sort files into lanes and to type them.
+  # The config, and what it reads to type the files.
   if [ -n "$(git -C "$checkout" diff --name-only "$base_sha...$sha" -- .eslintrc.cjs scripts/eslint-shared.cjs \
-    scripts/provenance-paths.cjs 'docs/provenance/*.tsv' tsconfig.json config/tsconfig.strict.json)" ]; then
+    tsconfig.json config/tsconfig.strict.json)" ]; then
     scope='every file (the ESLint config or a file it reads changed)'
     (cd "$tree" && npm run lint) >"$logs/lint.log" 2>&1 || rc=$?
   elif [ ${#files[@]} -eq 0 ]; then
@@ -280,34 +270,6 @@ check_vitest() {
     echo "files ${files:-?}; tests ${tests:-?}; rerun of the ${#failed[@]} failed files: ${again:-?}"
   fi
   return "$rc"
-}
-
-check_overlap() {
-  local rc=0 found all
-  [ -n "$corpus" ] || {
-    echo 'no corpus: pass --corpus <upstream clone> or set PUSH_GATE_CORPUS'
-    return 1
-  }
-  # --history reads the commits of every ref and HEAD; a commit on none of them would go unread.
-  if ! git -C "$checkout" merge-base --is-ancestor "$sha" HEAD &&
-    [ -z "$(git -C "$checkout" for-each-ref --contains "$sha" --count=1)" ]; then
-    echo "${sha:0:12} is on no ref of the checkout, so --history would not read it"
-    return 1
-  fi
-  python3 "$checkout/scripts/upstream-overlap/check.py" --corpus "$corpus" --history \
-    --out "$work/overlap.tsv" >"$logs/overlap.log" 2>&1 || rc=$?
-  [ -f "$work/overlap.tsv" ] || {
-    echo "check.py failed, exit $rc"
-    return 1
-  }
-  git -C "$checkout" rev-list --objects "$sha" | cut -d ' ' -f 1 >"$work/reachable.txt"
-  awk -F '\t' 'NR == FNR { reachable[$1] = 1; next } $1 in reachable' "$work/reachable.txt" \
-    "$work/overlap.tsv" >"$work/overlap-reachable.tsv"
-  cat "$work/overlap-reachable.tsv" >>"$logs/overlap.log"
-  found="$(wc -l <"$work/overlap-reachable.tsv")"
-  all="$(wc -l <"$work/overlap.tsv")"
-  echo "$found findings reachable from ${sha:0:12}, $((all - found)) only on other refs"
-  [ "$found" = 0 ]
 }
 
 check_keys() {
@@ -361,16 +323,6 @@ for hit in hits:
 print(f"{len(hits)} hits of {len(keys)} keys in {len(objects)} new objects")
 sys.exit(1 if hits else 0)
 PY
-}
-
-check_old_name() {
-  local count total
-  # The old name of the upstream client, written as a pattern so this file does not contain it.
-  git -C "$checkout" log --format='%h %s' -i --grep='c[i]nny' "$base_sha..$sha" >"$logs/old-name.log"
-  count="$(wc -l <"$logs/old-name.log")"
-  total="$(git -C "$checkout" rev-list --count "$base_sha..$sha")"
-  echo "$count of $total commit messages"
-  [ "$count" = 0 ]
 }
 
 check_e2e() {

@@ -10,6 +10,7 @@ import {
   prepareAgentCallRoom,
   toAgentCallOrigin,
 } from './agentCall';
+import { matchesEnum } from '../../lib/matchesEnum';
 
 const setRoomArchived = vi.hoisted(() => vi.fn());
 vi.mock('../../matrix/state/archivedRooms', () => ({ setRoomArchived }));
@@ -213,7 +214,7 @@ describe('MindRoom agent calls', () => {
   it('starts the call only once an older call room lets the agent publish its jobs', async () => {
     let land: () => void = () => undefined;
     sendStateEvent.mockImplementation((_roomId: string, type: string) =>
-      type === StateEvent.RoomPowerLevels
+      matchesEnum(type, StateEvent.RoomPowerLevels)
         ? new Promise((resolve) => {
             land = () => resolve({});
           })

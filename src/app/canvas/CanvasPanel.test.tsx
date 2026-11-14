@@ -155,9 +155,7 @@ const render = (props: Partial<CanvasPanelProps> = {}) =>
 const frame = () => container.querySelector('iframe') as HTMLIFrameElement;
 const button = (selector: string) => container.querySelector(selector) as HTMLButtonElement;
 const buttonNamed = (name: string) =>
-  [...container.querySelectorAll('button')].find((candidate) => candidate.textContent === name) as
-    | HTMLButtonElement
-    | undefined;
+  [...container.querySelectorAll('button')].find((candidate) => candidate.textContent === name);
 const canvasWindow = () => {
   if (!canvasWindows.has(frame())) canvasWindows.set(frame(), {});
   return canvasWindows.get(frame());

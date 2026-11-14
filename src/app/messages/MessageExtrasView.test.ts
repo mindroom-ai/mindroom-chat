@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
+import { isText } from 'domhandler';
 import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { create, ReactTestInstance } from 'react-test-renderer';
@@ -67,7 +68,7 @@ const section = (
 
 const getNodeText = (value: ReactTestInstance | string | number): string => {
   if (typeof value === 'string' || typeof value === 'number') return `${value}`;
-  return value.children.map((child) => getNodeText(child as ReactTestInstance | string)).join('');
+  return value.children.map(getNodeText).join('');
 };
 
 describe('MessageExtras', () => {
@@ -486,7 +487,7 @@ describe('MessageExtras', () => {
         ),
         htmlReactParserOptions: {
           replace: (domNode) => {
-            if ('type' in domNode && domNode.type === 'text') {
+            if ('type' in domNode && isText(domNode)) {
               const data = 'data' in domNode ? domNode.data : '';
               if (typeof data === 'string' && data.includes('magnet:')) {
                 return React.createElement('a', { href: 'magnet:?xt=urn:btih:abc' }, data);

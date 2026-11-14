@@ -138,6 +138,18 @@ const buildModel = (
 };
 
 describe('buildCompactThreadCardViewModelFromRecord', () => {
+  it('carries the snooze time, and none once the thread is resolved', () => {
+    const snoozed = {
+      set_by: '@me:server',
+      set_at: '2026-11-13T10:00:00Z',
+      data: { until: '2026-11-14T08:00:00Z' },
+    };
+    const model = (isResolved: boolean) =>
+      buildModel(makeRoom(), { threadResolution: { isResolved, tags: { snoozed } } });
+    expect(model(false).snoozedUntilTs).toBe(Date.UTC(2026, 10, 14, 8));
+    expect(model(true).snoozedUntilTs).toBeUndefined();
+  });
+
   it('renders room member display names instead of raw Matrix IDs in card text', () => {
     const rootEvent = makeEvent({
       eventId: '$root',

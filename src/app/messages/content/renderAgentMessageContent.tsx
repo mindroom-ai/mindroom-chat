@@ -9,14 +9,14 @@ import { RenderBody } from './RenderBody';
 import { BrokenContent } from './BrokenContent';
 import { trimReplyFromBody } from '../../matrix/room';
 import { MessageExtras } from '../MessageExtras';
-import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMessageExtras } from '../../matrix/protocol/messageExtrasData';
+import {
+  MINDROOM_MESSAGE_EXTRAS_KEY,
+  parseMessageExtras,
+} from '../../matrix/protocol/messageExtrasData';
 import { useToolTraceMarkerParserOptions } from '../html/HtmlBlocks';
 import type { ToolMetadataStatus } from '../../matrix/protocol/toolTrace';
 import { isAiRunStreaming } from '../../matrix/protocol/aiRun';
-import {
-  formatMarkdownTextBodyAsHtml,
-  formatMessageTextBodyAsHtml,
-} from '../html/blocks';
+import { formatMarkdownTextBodyAsHtml, formatMessageTextBodyAsHtml } from '../html/blocks';
 import { getLongTextSource } from '../../matrix/protocol/longText';
 import { LongTextKind, LongTextText } from './LongTextText';
 import { PasteAttachmentContent } from './PasteAttachmentContent';
@@ -30,8 +30,13 @@ import { renderStreamingIndicator } from '../agent-run/StreamingIndicator';
 import { isThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
 import { isTranscribingPlaceholder } from '../../matrix/protocol/transcribingPlaceholder';
 import { getPasteAttachmentFile } from '../../matrix/protocol/pasteAttachmentMarker';
-import { MINDROOM_TOOL_APPROVAL_EVENT, parseToolApprovalContent } from '../../matrix/protocol/toolApproval';
+import {
+  MINDROOM_TOOL_APPROVAL_EVENT,
+  parseToolApprovalContent,
+} from '../../matrix/protocol/toolApproval';
 import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import { readSnoozeEndedNote } from '../../matrix/protocol/threadSnooze';
+import { SnoozeEndedMarker } from '../SnoozeEndedMarker';
 import { getMessageStateSuffixRenderer } from './messageStateSuffix';
 import { ChatUiActionButton } from '../../ui-actions/ChatUiActionButton';
 import { CHAT_UI_ACTION_KEY, readCanvasNoticeTitle } from '../../matrix/protocol/chatUiProtocol';
@@ -41,6 +46,7 @@ import { CanvasResponseSidecarReceipt } from '../canvas/CanvasResponseSidecarRec
 import { readCallTranscript } from '../../matrix/protocol/callTranscript';
 import { CallTranscriptCard } from './CallTranscriptCard';
 import { ownDirectionLine } from '../../ui/directional';
+import { matchesEnum } from '../../lib/matchesEnum';
 
 export type RenderAgentMessageContentOptions = {
   mEvent?: MatrixEvent;
@@ -254,7 +260,9 @@ export const renderAgentMessageContent = ({
       renderStateSuffix,
     });
 
-  const canvasReceipt = msgType === MsgType.Text ? readCanvasResponse(content) : undefined;
+  const isTextMessage = matchesEnum(msgType, MsgType.Text);
+  const isFileMessage = matchesEnum(msgType, MsgType.File);
+  const canvasReceipt = isTextMessage ? readCanvasResponse(content) : undefined;
   if (canvasReceipt) {
     return (
       <CanvasResponseReceipt
@@ -276,23 +284,23 @@ export const renderAgentMessageContent = ({
     );
   }
 
+  // An open thread shows this as a marker row of its own (useTimelineMessageFeature); other
+  // views, such as threads shown in the room, keep the message row with the marker as its body.
+  const snoozeEndedNote = fromMindroomAgent ? readSnoozeEndedNote(content) : null;
+  if (snoozeEndedNote !== null) return <SnoozeEndedMarker note={snoozeEndedNote} />;
+
   if (eventType === MINDROOM_TOOL_APPROVAL_EVENT) {
     // Only MindRoom sends approval cards; any member can post this event type.
     const approval = fromMindroomAgent ? parseToolApprovalContent(eventType, content) : null;
     return approval ? (
-      <ToolApprovalCard
-        approval={approval}
-        roomId={roomId}
-        eventId={eventId}
-        threadId={threadId}
-      />
+      <ToolApprovalCard approval={approval} roomId={roomId} eventId={eventId} threadId={threadId} />
     ) : (
       <BrokenContent />
     );
   }
 
-  if (msgType === MsgType.Text || msgType === MsgType.File) {
-    if (msgType === MsgType.Text && isTranscribingPlaceholder(content)) {
+  if (isTextMessage || isFileMessage) {
+    if (isTextMessage && isTranscribingPlaceholder(content)) {
       return (
         <MText
           content={content}
@@ -304,7 +312,7 @@ export const renderAgentMessageContent = ({
     }
 
     const isStreaming = isAiRunStreaming(content);
-    if (msgType === MsgType.Text && isStreaming && isThinkingPlaceholderBody(content)) {
+    if (isTextMessage && isStreaming && isThinkingPlaceholderBody(content)) {
       return (
         <MText
           content={content}
@@ -337,7 +345,7 @@ export const renderAgentMessageContent = ({
         />
       );
       // A canvas answer too large for one event arrives as a sidecar; its receipt waits for the file.
-      if (msgType === MsgType.File && content[CANVAS_RESPONSE_KEY]) {
+      if (isFileMessage && content[CANVAS_RESPONSE_KEY]) {
         return (
           <CanvasResponseSidecarReceipt
             source={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
@@ -352,7 +360,7 @@ export const renderAgentMessageContent = ({
       return longText;
     }
 
-    if (msgType === MsgType.File) {
+    if (isFileMessage) {
       const pasteAttachment = getPasteAttachmentFile(content);
       if (pasteAttachment) {
         return (
@@ -364,7 +372,7 @@ export const renderAgentMessageContent = ({
       }
     }
 
-    if (msgType === MsgType.Text) {
+    if (isTextMessage) {
       const renderableContent = withToolRefFormattedBodyFallback(content);
       return (
         <MText
@@ -381,7 +389,7 @@ export const renderAgentMessageContent = ({
     }
   }
 
-  if (msgType === MsgType.Emote) {
+  if (matchesEnum(msgType, MsgType.Emote)) {
     const isStreaming = isAiRunStreaming(content);
     const longTextSource = getRenderableLongTextSource(content);
     if (longTextSource) {
@@ -421,7 +429,7 @@ export const renderAgentMessageContent = ({
     );
   }
 
-  if (msgType === MsgType.Notice) {
+  if (matchesEnum(msgType, MsgType.Notice)) {
     const uiAction = content[CHAT_UI_ACTION_KEY];
     // Canvas updates are edits of the request, so an edited canvas keeps its button.
     const editableUiAction =

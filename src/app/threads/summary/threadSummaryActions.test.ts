@@ -108,7 +108,7 @@ describe('thread summary actions', () => {
     );
     const saving = saveThreadSummary(mx, room, '$root', 'Human title');
     await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
-    const content = sendMessage.mock.calls[0][2];
+    const content = sendMessage.mock.calls[0]![2];
     const generatedTs = getThreadSummaryInfo(content)!.generatedTs!;
     const automatic = new MatrixEvent({
       event_id: '$auto',
@@ -157,7 +157,7 @@ describe('thread summary actions', () => {
       event_id: '$summary',
       type: 'm.room.message',
       origin_server_ts: 1200,
-      content: sendMessage.mock.calls[0][2],
+      content: sendMessage.mock.calls[0]![2],
     });
     storeThreadSummaryInState(
       createSessionId('https://matrix.test', '@me:test'),
@@ -206,7 +206,7 @@ describe('thread summary actions', () => {
       }
       await saveThreadSummary(mx, room, '$root', 'Human title wins');
       expect(getStoredSummary()?.summaryText).toBe('Human title wins');
-      const written = getThreadSummaryInfo(sendMessage.mock.calls[0][2]);
+      const written = getThreadSummaryInfo(sendMessage.mock.calls[0]![2]);
       expect(written?.generatedTs).toBeGreaterThan(prior.generatedTs);
       if (source === 'cached-events') {
         const cachedPage = await loadLatestCachedThreadEvents('session', room.roomId, '$root', 32);
@@ -312,7 +312,7 @@ describe('thread summary actions', () => {
   it('publishes a normalized manual summary through the shared notice format in the selected thread', async () => {
     const { room, mx, sendMessage } = setup();
     await saveThreadSummary(mx, room, '$root', '  Updated\n summary  ');
-    const [roomId, threadId, content] = sendMessage.mock.calls[0];
+    const [roomId, threadId, content] = sendMessage.mock.calls[0]!;
     expect([roomId, threadId]).toEqual(['!room:test', '$root']);
     expect(content).toMatchObject({
       msgtype: 'm.notice',
@@ -392,8 +392,8 @@ describe('thread summary actions', () => {
       }),
       'summary-transaction'
     );
-    expect(sendMessage.mock.calls[0][2].body).toContain('set_thread_summary');
-    expect(sendMessage.mock.calls[0][2].body).toContain('pin=true');
+    expect(sendMessage.mock.calls[0]![2].body).toContain('set_thread_summary');
+    expect(sendMessage.mock.calls[0]![2].body).toContain('pin=true');
   });
 
   it('rejects an agent that is no longer joined', async () => {

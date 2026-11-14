@@ -1,4 +1,4 @@
-import React, { type MutableRefObject } from 'react';
+import { type MutableRefObject } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { MatrixEvent, type IEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';

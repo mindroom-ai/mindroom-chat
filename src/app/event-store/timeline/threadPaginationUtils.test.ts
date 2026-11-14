@@ -41,6 +41,13 @@ describe('findEarliestLoadedThreadReplyByCacheOrder', () => {
     expect(result?.getId()).toBe('$a');
   });
 
+  it('breaks a tie the way the cache sorts event IDs, by code unit', () => {
+    // The cache (IndexedDB) puts '$B' before '$a'; a locale-aware comparison would not.
+    const events = [makeEvent('$a', '$root', 200), makeEvent('$B', '$root', 200)];
+    const result = findEarliestLoadedThreadReplyByCacheOrder(events as any, threadId);
+    expect(result?.getId()).toBe('$B');
+  });
+
   it('excludes the thread root from selection', () => {
     const events = [
       makeEvent('$root', undefined, 50),

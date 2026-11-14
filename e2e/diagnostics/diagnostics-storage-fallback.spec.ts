@@ -71,7 +71,7 @@ test('exports thread and network evidence after a real IndexedDB connection is c
         await trace.setDeepTraceEnabled(false);
       }
     },
-    [TRACE, EXPORT, THREAD]
+    [TRACE, EXPORT, THREAD] as const
   );
 
   expect(payload.metadata.exportSchemaVersion).toBe(4);

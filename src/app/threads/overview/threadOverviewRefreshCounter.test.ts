@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { RoomEvent, ThreadEvent } from 'matrix-js-sdk';
+import { RoomEvent, ThreadEvent, type Room } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
 import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter';
@@ -19,7 +19,7 @@ const makeRoom = () => {
     emit: (eventName: string, ...args: unknown[]) => {
       listeners.get(eventName)?.forEach((listener) => listener(...args));
     },
-  } as never;
+  } as unknown as Room & { emit: (eventName: string, ...args: unknown[]) => void };
 };
 
 const CounterHarness = ({

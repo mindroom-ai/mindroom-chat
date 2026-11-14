@@ -166,9 +166,7 @@ const asMessageCount = (value: unknown): number | undefined => {
 const getThreadSummaryCandidates = (
   content: Record<string, unknown>
 ): Record<string, unknown>[] => {
-  const newContent = isRecord(content['m.new_content'])
-    ? (content['m.new_content'] as Record<string, unknown>)
-    : undefined;
+  const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
 
   return newContent ? [newContent, content] : [content];
 };
@@ -241,9 +239,7 @@ export const isThreadSummaryEvent = (event: ThreadSummaryEventLike): boolean => 
 export const getThreadSummaryPreviewText = (event: ThreadSummaryEventLike): string | undefined => {
   const content = event.getContent();
 
-  const newContent = isRecord(content['m.new_content'])
-    ? (content['m.new_content'] as Record<string, unknown>)
-    : undefined;
+  const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
 
   const body = newContent?.body ?? content.body;
   if (typeof body === 'string' && body.length > 0) return body;

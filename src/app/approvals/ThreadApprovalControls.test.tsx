@@ -94,7 +94,9 @@ vi.mock('./ThreadApprovals.css', () => ({
   DialogHeading: 'DialogHeading',
 }));
 vi.mock('focus-trap-react', async (importOriginal) => {
-  const { default: FocusTrap } = await importOriginal<typeof import('focus-trap-react')>();
+  const { default: FocusTrap } = await importOriginal<{
+    default: typeof import('focus-trap-react');
+  }>();
   return {
     // JSDOM has no layout; keep the real trap and focus handoffs.
     default: (props: React.ComponentProps<typeof FocusTrap>) => (
@@ -469,8 +471,8 @@ it('lists the calls with their errors once bulk actions no longer apply', async 
     current = {
       ...current,
       actions: new Map([
-        [records[0].eventId, { kind: 'decision', status: 'submitted' }],
-        [records[1].eventId, { kind: 'decision', status: 'error', error: 'Network down' }],
+        [records[0]!.eventId, { kind: 'decision', status: 'submitted' }],
+        [records[1]!.eventId, { kind: 'decision', status: 'error', error: 'Network down' }],
       ]),
     };
     await rerender(<ApprovalReviewGroup records={records} />);
@@ -535,7 +537,7 @@ it('says a submitted decision waits for the room once after the folded calls are
   reviewContext(records);
   current = {
     ...current,
-    actions: new Map([[records[0].eventId, { kind: 'decision', status: 'submitted' }]]),
+    actions: new Map([[records[0]!.eventId, { kind: 'decision', status: 'submitted' }]]),
   };
   const { container, cleanup } = await renderInto(<ApprovalReviewGroup records={records} />);
   try {

@@ -98,7 +98,7 @@ const seedPortalFixture = async (
         `mindroom_${shortName}_${runId}`,
         shortName === 'mind'
           ? 'Mind'
-          : `${shortName[0].toUpperCase() + shortName.slice(1)} ${runId}`
+          : `${shortName[0]!.toUpperCase() + shortName.slice(1)} ${runId}`
       ),
     }))
   );

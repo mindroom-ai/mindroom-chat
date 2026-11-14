@@ -2,7 +2,7 @@
   "name": "mindroom-client",
   "version": "0.1.0",
   "private": true,
-  "description": "Apache-2.0 MindRoom client on matrix-js-sdk with Rust crypto (clean-room implementation)",
+  "description": "Apache-2.0 MindRoom client on matrix-js-sdk with Rust crypto",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -19,10 +19,8 @@
     "appstore:fixture": "scripts/appstore-fixture-up.sh",
     "appstore:screenshots": "scripts/appstore-screenshots.sh",
     "typecheck": "tsc --noEmit -p config/tsconfig.app.json",
-    "typecheck-tests": "tsc --noEmit -p .",
     "test": "vitest run",
     "lint": "eslint --ext .ts,.tsx,.js,.mjs,.cjs src e2e scripts vite.config.js vitest.config.ts .eslintrc.cjs .eslintrc.plugin.cjs",
-    "typecheck-all": "node scripts/typecheck-all.mjs",
     "postinstall": "patch-package --error-on-fail"
   },
   "dependencies": {

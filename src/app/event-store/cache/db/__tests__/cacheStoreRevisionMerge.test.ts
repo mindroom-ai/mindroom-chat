@@ -118,7 +118,7 @@ const redacted = (eventId: string): Partial<IEvent> => ({
       type: 'm.room.redaction',
       redacts: eventId,
       content: {},
-    },
+    } as IEvent,
   },
 });
 
@@ -580,7 +580,7 @@ describe('cache storage same-ID revision merge', () => {
       type: 'm.room.redaction',
       redacts: '$reply',
       content: {},
-    } satisfies Partial<IEvent>;
+    } as IEvent;
     const staleServerReply = {
       ...message('$reply', 'secret from stale /relations'),
       unsigned: {

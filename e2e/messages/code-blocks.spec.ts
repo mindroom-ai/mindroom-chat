@@ -47,7 +47,7 @@ test('fenced code stays syntax highlighted while it streams', async ({ page }) =
   await expect(code.locator('.token.keyword')).toHaveCount(3);
   expect(
     await page.evaluate(
-      () => (window as Window & { streamingCode: { uncolored: number } }).streamingCode.uncolored
+      () => (window as unknown as { streamingCode: { uncolored: number } }).streamingCode.uncolored
     )
   ).toBe(0);
 });

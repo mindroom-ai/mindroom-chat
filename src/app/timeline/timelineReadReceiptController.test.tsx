@@ -466,6 +466,22 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
 
   describe('a thread at its bottom', () => {
     const openThread = { threadId: '$thread', threadEventsLength: 2 };
+    /** Lets the scroll area come to rest, then runs the frames that rest scheduled. */
+    const rest = async () => {
+      await act(async () => {
+        rests.splice(0).forEach((resolve) => resolve());
+        await Promise.resolve();
+      });
+      runFrames();
+    };
+    /** A scroll area whose lower edge is at 500 px. */
+    const restingArea = () => {
+      const area = document.createElement('div');
+      vi.spyOn(area, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 400, 500));
+      return area;
+    };
+    const anchorAt = (top: number) =>
+      vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, top, 400, 0));
 
     it('waits for opening scroll corrections to settle before reading the thread', async () => {
       const area = document.createElement('div');
@@ -473,11 +489,36 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
       runFrames();
       expect(markThreadAsRead).not.toHaveBeenCalled();
 
-      await act(async () => {
-        rests.splice(0).forEach((rest) => rest());
-        await Promise.resolve();
-      });
+      await rest();
+      expect(markThreadAsRead).toHaveBeenCalledTimes(1);
+    });
+
+    it('waits until a landing correction brings the newest reply into view before reading the thread', async () => {
+      const area = restingArea();
+      // The view rests 38 px short of the bottom, within the 96 px that count as at the bottom.
+      anchorAt(538);
+      mount(optionsWith({ ...openThread, getScrollElement: () => area }));
       runFrames();
+      await rest();
+      expect(markThreadAsRead).not.toHaveBeenCalled();
+
+      // The correction lands the view at the newest reply.
+      anchorAt(500);
+      await rest();
+      expect(markThreadAsRead).toHaveBeenCalledTimes(1);
+    });
+
+    it('reads the thread after a few rests when the reader stays just short of the bottom', async () => {
+      const area = restingArea();
+      anchorAt(538);
+      mount(optionsWith({ ...openThread, getScrollElement: () => area }));
+      runFrames();
+      for (let time = 0; time < 3; time += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        await rest();
+        expect(markThreadAsRead).not.toHaveBeenCalled();
+      }
+      await rest();
       expect(markThreadAsRead).toHaveBeenCalledTimes(1);
     });
 

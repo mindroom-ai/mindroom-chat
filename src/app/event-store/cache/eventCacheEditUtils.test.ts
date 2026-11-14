@@ -443,7 +443,7 @@ describe('collectRedactedRelationTargetsFromLookup', () => {
           room_id: '!room:example.org',
           sender: '@alice:example.org',
           type: 'm.room.redaction',
-        },
+        } as unknown as IEvent,
       },
     });
 

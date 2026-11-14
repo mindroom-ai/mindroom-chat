@@ -39,9 +39,11 @@ globalStyle(`${FloatingShell} ${PageDivider}`, { display: 'none' });
 // A side panel of a room is a card of the conversation's height, a gap after the conversation. The
 // room keeps the gap at its end around the panel, so the panel's card is as wide as the panel. A
 // panel inside a page (the room page's thread column) is part of the page's card and stays flat,
-// its splitter's line between it and the conversation.
+// its splitter's line between it and the conversation. The room and the lobby lay out in a panel
+// row (`PanelRow`); the rule asks only that row, as any element a `:has()` may match is checked
+// again on every change below it, which in a long room is the whole page.
 const SIDE_PANEL = `${Panel}[data-side='end']:not(${PageSurface} *)`;
-globalStyle(`${FloatingShell} :has(> ${SIDE_PANEL})`, {
+globalStyle(`${FloatingShell} [data-panel-row]:has(> ${SIDE_PANEL})`, {
   paddingInlineEnd: CARD_GAP,
 });
 globalStyle(`${FloatingShell} ${SIDE_PANEL}`, { paddingBlock: CARD_GAP });

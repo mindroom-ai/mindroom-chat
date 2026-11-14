@@ -31,7 +31,7 @@ it('delivers discovery to a healthy device when another signed device has no Olm
   let sending: Promise<void> | undefined;
   try {
     const upload = async (machine: rust.OlmMachine) => {
-      const request = (await machine.outgoingRequests())!.find(
+      const request = (await machine.outgoingRequests()).find(
         (item) => item.type === rust.RequestType.KeysUpload
       ) as rust.KeysUploadRequest;
       return JSON.parse(request.body);
@@ -84,7 +84,7 @@ it('delivers discovery to a healthy device when another signed device has no Olm
               userId,
               deviceId: keys.device_keys.device_id,
               algorithms: keys.device_keys.algorithms,
-              keys: new Map(Object.entries(keys.device_keys.keys) as [string, string][]),
+              keys: new Map(Object.entries(keys.device_keys.keys)),
             }),
           ])
         ),

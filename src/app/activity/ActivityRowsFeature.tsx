@@ -4,6 +4,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { allInvitesAtom } from '../matrix/state/inviteList';
 import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
 import { useMinuteClock } from '../lib/hooks/useMinuteClock';
+import { useSnoozeNow } from '../threads/tags/useSnoozeNow';
 import {
   crossRoomThreadIndexAtom,
   type CrossRoomThreadIndexEntry,
@@ -23,8 +24,8 @@ const QUIET: ThreadSignals = {
 
 /**
  * Activity's rows from the cross-room thread index and the pending invites, rebuilt when the
- * index or a room's unread counts change, and every minute; a thread's signals come from the
- * client's shared cache.
+ * index or a room's unread counts change, every minute, and when a snooze ends; a thread's signals
+ * come from the client's shared cache.
  */
 const useComputedActivityRows = (): ActivityRowsResult => {
   const mx = useMatrixClient();
@@ -32,7 +33,15 @@ const useComputedActivityRows = (): ActivityRowsResult => {
   const index = useAtomValue(crossRoomThreadIndexAtom);
   const inviteIds = useAtomValue(allInvitesAtom);
   const showAutomations = useAtomValue(activityShowAutomationsAtom);
-  const now = useMinuteClock();
+  const minuteNow = useMinuteClock();
+  // A snooze's end renews it too, so its thread comes back then, not up to a minute later.
+  const snoozeNow = useSnoozeNow(
+    useMemo(
+      () => Array.from(index.entries.values(), (entry) => entry.snoozedUntilTs),
+      [index.entries]
+    )
+  );
+  const now = Math.max(minuteNow, snoozeNow);
   // Unread counts change with no index change: a read on another device, a sync after Mark all
   // read. The room counts move only when they do, not with every streamed edit.
   const roomUnreads = useAtomValue(roomToUnreadAtom);

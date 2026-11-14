@@ -354,7 +354,7 @@ export const hydrateCachedEvents = ({
   seenRelationEventIds?: Set<string>;
 }): RedactedRelationTarget[] => {
   const redactedRelationTargets = applyCachedRedactions(room, events);
-  const rawEvents = events.map((event) => event.event as Partial<IEvent>);
+  const rawEvents = events.map((event) => event.event);
   // `applyCachedRedactions` has already applied every in-batch redaction, so
   // `collectKnownRedactedEventIds` now sees the same `unsigned.redacted_because`
   // that a manual `events.forEach(event.isRedacted())` pass would surface, plus
@@ -363,7 +363,7 @@ export const hydrateCachedEvents = ({
   const redactedEventIds = collectKnownRedactedEventIds(room, rawEvents);
 
   events.forEach((event) => {
-    const rawEvent = event.event as Partial<IEvent>;
+    const rawEvent = event.event;
     const prunedRawEvent = stripRedactedRelationsFromRawEvent(rawEvent, redactedEventIds);
     if (prunedRawEvent !== rawEvent) event.setUnsigned(prunedRawEvent.unsigned ?? {});
   });

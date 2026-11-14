@@ -61,7 +61,9 @@ describe('new thread history', () => {
       );
       matrixClientMock.paginateEventTimeline.mockImplementation(async (timeline) => {
         if (outcome === 'request failure') throw new Error('pagination request failed');
-        const thread = room.getThread(threadId) as ReturnType<typeof room.createThread>;
+        const thread = room.getThread(threadId) as unknown as {
+          addEvents: (events: ReturnType<typeof makeEvent>[], toStart: boolean) => void;
+        };
         if (outcome === 'older reply') thread.addEvents([reply], true);
         timeline.setPaginationToken(null, Direction.Backward);
         return false;

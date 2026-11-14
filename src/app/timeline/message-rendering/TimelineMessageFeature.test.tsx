@@ -1,4 +1,4 @@
-import React, { createRef } from 'react';
+import { createRef } from 'react';
 import {
   EventStatus,
   MatrixEvent,
@@ -44,6 +44,16 @@ const summaryEvent = (id: string) =>
         summary: 'Fixing token refresh',
         message_count: 21,
       },
+    },
+  }) as unknown as MatrixEvent;
+const snoozeEndedEvent = (id: string, sender: string) =>
+  makeEvent(id, {
+    sender,
+    threadRootId: '$thread',
+    content: {
+      msgtype: 'm.text',
+      body: '\u23f0 Snooze ended: check CI',
+      'io.mindroom.thread_snooze': { event: 'ended', until: '2026-11-13T09:00:00Z' },
     },
   }) as unknown as MatrixEvent;
 const summaryMarkers = (renderer: ReturnType<typeof create>) =>
@@ -140,10 +150,10 @@ describe('timeline message feature', () => {
     expect(messages.map((message) => !!message.props.reply)).toEqual([true, true, false]);
     expect(messages.map((message) => !!message.props.reactions)).toEqual([true, true, false]);
     expect(messages.map((message) => message.props.highlight)).toEqual([true, true, true]);
-    act(() => messages[0].props.onEditId('$0'));
+    act(() => messages[0]!.props.onEditId('$0'));
     expect(renderer.root.findByProps({ 'data-message-id': '$0' }).props.edit).toBe(true);
-    expect(messages[1].props.edit).toBeUndefined();
-    expect(messages[2].props.edit).toBeUndefined();
+    expect(messages[1]!.props.edit).toBeUndefined();
+    expect(messages[2]!.props.edit).toBeUndefined();
   });
 
   it('gives message content its event ID so tool calls can find their approval cards', async () => {
@@ -159,7 +169,7 @@ describe('timeline message feature', () => {
     Object.defineProperty(events[0], 'replyEventId', { value: '$older' });
     Object.defineProperty(events[1], 'replyEventId', { value: '$first' });
     Object.defineProperty(events[2], 'replyEventId', { value: '$older' });
-    events[2].getWireContent = () => ({
+    events[2]!.getWireContent = () => ({
       'm.relates_to': { rel_type: 'm.thread', is_falling_back: true },
     });
     let previousEventId = '$older';
@@ -290,7 +300,7 @@ describe('timeline message feature', () => {
             content: { approval_id: 'approval-1' },
           },
         }),
-      } as Parameters<MatrixEvent['attemptDecryption']>[0]);
+      } as unknown as Parameters<MatrixEvent['attemptDecryption']>[0]);
     });
     expect(
       renderer.root
@@ -318,7 +328,7 @@ describe('timeline message feature', () => {
             content: { body: 'Now decrypted', msgtype: 'm.text' },
           },
         }),
-      } as Parameters<MatrixEvent['attemptDecryption']>[0]);
+      } as unknown as Parameters<MatrixEvent['attemptDecryption']>[0]);
     });
     const content = renderer.root.findAll((node) => typeof node.props.getContent === 'function');
     expect(
@@ -327,7 +337,7 @@ describe('timeline message feature', () => {
           node.props.eventType === MessageEvent.RoomMessage && node.props.msgType === 'm.text'
       )
     ).toBe(true);
-    expect(content[0].props.getContent()).toEqual({ body: 'Now decrypted', msgtype: 'm.text' });
+    expect(content[0]!.props.getContent()).toEqual({ body: 'Now decrypted', msgtype: 'm.text' });
     const replacement = new MatrixEvent({
       event_id: '$encrypted',
       type: MessageEvent.RoomMessageEncrypted,
@@ -348,7 +358,7 @@ describe('timeline message feature', () => {
       event.status = EventStatus.NOT_SENT;
       return event;
     });
-    const { renderer } = await mountFeature([rowFor(root), rowFor(reply, 1, '~root')], '~root');
+    const { renderer } = await mountFeature([rowFor(root!), rowFor(reply!, 1, '~root')], '~root');
 
     expect(renderer.root.findAllByType(FailedSendActions).map((node) => node.props.event)).toEqual([
       reply,
@@ -360,7 +370,10 @@ describe('timeline message feature', () => {
       content: { body: 'First', msgtype: 'm.text' },
     }) as unknown as MatrixEvent;
     const { renderer, update } = await mountFeature([rowFor(event)]);
-    event.getContent = () => ({ body: 'Stream update', msgtype: 'm.text' });
+    event.getContent = (() => ({
+      body: 'Stream update',
+      msgtype: 'm.text',
+    })) as MatrixEvent['getContent'];
     update();
     const message = renderer.root.findByProps({ 'data-message-id': '$mutable' });
     expect(message.props.resolvedMessageContent.body).toBe('Stream update');
@@ -379,9 +392,33 @@ describe('timeline message feature', () => {
     update();
 
     const [marker] = summaryMarkers(renderer);
-    expect(marker.props.summaryInfo.summaryText).toBe('Fixing token refresh');
-    expect(marker.props.plan).toEqual({ first: false, previousSummaryText: 'Push bug' });
+    expect(marker!.props.summaryInfo.summaryText).toBe('Fixing token refresh');
+    expect(marker!.props.plan).toEqual({ first: false, previousSummaryText: 'Push bug' });
     expect(renderedContent(renderer)).toHaveLength(0);
+  });
+
+  it("shows an agent's snooze-ended message in an open thread as a marker row", async () => {
+    const { Message } = await import('../../messages/Message');
+    const { SnoozeEndedMarker } = await import('../../messages/SnoozeEndedMarker');
+    const event = snoozeEndedEvent('$wake', '@mindroom_router:example.org');
+    const { renderer } = await mountFeature([rowFor(event)], '$thread');
+
+    const marker = renderer.root.findByType(SnoozeEndedMarker);
+    expect(marker.props.note).toBe('check CI');
+    // No message chrome: no avatar, sender name or toolbar.
+    expect(renderer.root.findAllByType(Message)).toHaveLength(0);
+    expect(renderedContent(renderer)).toHaveLength(0);
+  });
+
+  it("keeps a person's message with the snooze-ended key as a normal message", async () => {
+    const { Message } = await import('../../messages/Message');
+    const { SnoozeEndedMarker } = await import('../../messages/SnoozeEndedMarker');
+    const event = snoozeEndedEvent('$fake', '@bob:example.org');
+    const { renderer } = await mountFeature([rowFor(event)], '$thread');
+
+    expect(renderer.root.findAllByType(Message)).toHaveLength(1);
+    expect(renderedContent(renderer)).toHaveLength(1);
+    expect(renderer.root.findAllByType(SnoozeEndedMarker)).toHaveLength(0);
   });
 
   it('keeps the summary card for a summary outside an open thread', async () => {

@@ -185,7 +185,7 @@ test.describe('PERF: seeded large room with concurrent streaming edits', () => {
             const label = card?.getAttribute('aria-label');
             const state = card?.getAttribute('data-attention-state');
             return (
-              label?.includes(markers[index]) &&
+              label?.includes(markers[index]!) &&
               state &&
               (terminal ? state !== 'streaming' : state === 'streaming')
             );

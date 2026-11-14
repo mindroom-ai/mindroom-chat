@@ -10,7 +10,11 @@ import type { ApprovalActionState } from './approvalActions';
 import type { ThreadApprovalRecord } from '../matrix/protocol/threadApprovalModel';
 import type { ToolApprovalData } from '../matrix/protocol/toolApproval';
 
-const record = (overrides: Partial<ToolApprovalData>, eventId = '$one'): ThreadApprovalRecord => {
+// `expiresAt: null` stands for an approval without an expiry.
+const record = (
+  overrides: Partial<Omit<ToolApprovalData, 'expiresAt'>> & { expiresAt?: string | null },
+  eventId = '$one'
+): ThreadApprovalRecord => {
   const approval = {
     approvalId: eventId,
     toolName: 'read_file',

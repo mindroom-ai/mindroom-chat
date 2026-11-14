@@ -80,7 +80,7 @@ const pauseAttachmentLookup = (mxcUri: string) => {
   let request: IDBRequest | undefined;
   const spy = vi
     .spyOn(IDBObjectStore.prototype, 'get')
-    .mockImplementation(function pausedGet(query) {
+    .mockImplementation(function pausedGet(this: IDBObjectStore, query) {
       if (query !== mxcUri) return originalGet.call(this, query);
       request = {
         error: null,
@@ -321,7 +321,7 @@ describe('persistent attachment repository', () => {
 
     await downloadCachedAttachment(alice, { mxcUri: 'mxc://matrix.example.org/legacy' });
 
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url, init] = fetchMock.mock.calls[0]!;
     expect(String(url)).toContain('/_matrix/media/v3/download/');
     expect(init?.headers).toBeUndefined();
   });
@@ -980,7 +980,7 @@ it('validated owned cache hits do not rewrite attachment payloads', async () => 
   const original = IDBObjectStore.prototype.put;
   const spy = vi
     .spyOn(IDBObjectStore.prototype, 'put')
-    .mockImplementation(function countWrites(value, key) {
+    .mockImplementation(function countWrites(this: IDBObjectStore, value, key) {
       writes.push(this.name);
       return original.call(this, value, key);
     });

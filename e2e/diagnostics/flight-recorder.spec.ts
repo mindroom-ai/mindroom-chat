@@ -35,7 +35,7 @@ test('records a heartbeat gap after the main thread recovers from a synchronous 
         return raw ? JSON.parse(raw).lastBeatAt : null;
       }, CURRENT_KEY)
     )
-    .toBeGreaterThan(initialBeatAt!);
+    .toBeGreaterThan(initialBeatAt);
 
   await page.evaluate(() => {
     const deadline = performance.now() + 6000;
@@ -137,7 +137,7 @@ test('retains and exports a fast-relaunch abnormal voice session without inventi
   const downloadPath = await download.path();
   expect(download.suggestedFilename()).toMatch(/^mindroom-diagnostics-.*Z\.json$/);
   expect(downloadPath).not.toBeNull();
-  const payload = JSON.parse(await readFile(downloadPath!, 'utf8'));
+  const payload = JSON.parse(await readFile(downloadPath, 'utf8'));
 
   expect(payload.abnormalSession.sessionId).toBe(retained.sessionId);
   expect(payload.currentOrPreservedSession.sessionId).not.toBe(retained.sessionId);

@@ -165,7 +165,7 @@ describe('reconciler shortfall drain (2026-07-10 missing-middle fix)', () => {
     expect(result.repaired).toBe(true);
     expect(result.iterations).toBe(2);
     expect(onRepaired).toHaveBeenCalledTimes(1);
-    const [batch] = onRepaired.mock.calls[0];
+    const [batch] = onRepaired.mock.calls[0]!;
     const batchIds = (batch as MatrixEvent[]).map((mEvent) => mEvent.getId());
     expect(batchIds).toContain('$r1');
     expect(batchIds).toContain('$r2');

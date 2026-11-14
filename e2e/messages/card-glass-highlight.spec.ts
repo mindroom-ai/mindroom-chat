@@ -29,7 +29,7 @@ for (const theme of ['light', 'dark']) {
       await expect(surface).toHaveCSS('backdrop-filter', 'none');
       expect((await highlight(surface)).x).toBe('');
       const [near] = await sampleScreenshot(page, points);
-      expect(pixelDifference(resting, near)).toBeGreaterThan(0);
+      expect(pixelDifference(resting!, near!)).toBeGreaterThan(0);
       const hoverColor = await surface.evaluate(
         (element) => getComputedStyle(element).backgroundColor
       );

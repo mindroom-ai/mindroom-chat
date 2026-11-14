@@ -14,9 +14,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 export const getThinkingPlaceholderBody = (
   content: Record<string, unknown>
 ): string | undefined => {
-  const newContent = isRecord(content['m.new_content'])
-    ? (content['m.new_content'] as Record<string, unknown>)
-    : undefined;
+  const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
   const body = newContent?.body ?? content.body;
   return typeof body === 'string' ? body : undefined;
 };

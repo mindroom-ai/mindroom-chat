@@ -46,7 +46,7 @@ describe('matrix-js-sdk Room.findEventById (patched)', () => {
         false
       )
     );
-    const reply = threads[4].findEventById('$reply-4');
+    const reply = threads[4]!.findEventById('$reply-4');
     expect(reply).toBeDefined();
     expect(room.findEventById('$reply-4')).toBe(reply);
     const otherThreadLookups = threads

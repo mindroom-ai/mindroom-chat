@@ -737,7 +737,13 @@
         "threadFiltersActive": "Filtros de tópicos (ativos)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtros avançados"
+        "advancedFilters": "Filtros avançados",
+        "presets": {
+          "snoozed": {
+            "label": "Adiados",
+            "description": "Apenas tópicos adiados"
+          }
+        }
       },
       "threadPeopleFilter": {
         "label": "Pessoas",
@@ -900,7 +906,23 @@
     "resize": "Redimensionar o tópico",
     "showFull": "Mostrar o tópico inteiro",
     "showBeside": "Mostrar o tópico ao lado das mensagens",
-    "notFound": "Tópico não encontrado"
+    "notFound": "Tópico não encontrado",
+    "snoozedUntil": "Adiado até {{time}}",
+    "snoozeEnded": "Adiamento encerrado",
+    "snooze": "Adiar",
+    "unsnooze": "Cancelar adiamento",
+    "status": {
+      "snoozed": "Adiado"
+    }
+  },
+  "threadSnooze": {
+    "title": "Adiar até",
+    "inOneHour": "Em 1 hora",
+    "inThreeHours": "Em 3 horas",
+    "tomorrow": "Amanhã 09:00",
+    "nextMonday": "Próxima segunda-feira 09:00",
+    "pickDateTime": "Escolher data e hora",
+    "pastTime": "Escolha um horário no futuro"
   },
   "activity": {
     "title": "Atividade",
@@ -1002,7 +1024,8 @@
       "unread": "Não lidos",
       "working": "Agentes a trabalhar",
       "recent": "Recentes",
-      "automations": "Automatizações"
+      "automations": "Automatizações",
+      "snoozed": "Adiados"
     },
     "showMore": "Mostrar mais",
     "chips": {

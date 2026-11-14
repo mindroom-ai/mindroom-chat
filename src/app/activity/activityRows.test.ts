@@ -96,6 +96,35 @@ describe('buildActivityRows', () => {
     expect(kinds(rows)).toEqual(['named:mention']);
   });
 
+  it('hides a snoozed thread until a person writes after the snooze', () => {
+    const snoozed = { snoozedUntilTs: NOW + 3600_000, snoozedAtTs: 100 };
+    const keys = (overrides: Partial<CrossRoomThreadIndexEntry>, newsTs: number) =>
+      build([[entry('t', overrides), { newCount: 1, newsTs, personNewsTs: newsTs }]]).rows.map(
+        (row) => row.key
+      );
+
+    expect(keys(snoozed, 90)).toEqual([]);
+    expect(keys(snoozed, 110)).toEqual(['t']);
+    expect(keys({ ...snoozed, snoozedUntilTs: NOW }, 90)).toEqual(['t']);
+    // An agent's reply after the snooze, such as the one confirming it, is no such news, also
+    // when an older mention or approval still waits in the thread.
+    const agentNews = (signals: Partial<ThreadSignals>) =>
+      build([
+        [entry('t', snoozed), { newCount: 1, newsTs: 110, personNewsTs: 50, ...signals }],
+      ]).rows.map((row) => row.key);
+    expect(agentNews({})).toEqual([]);
+    expect(agentNews({ mentionedMe: true })).toEqual([]);
+    // Hidden, it is not counted among the automations either.
+    expect(
+      build([
+        [
+          entry('bot', { ...snoozed, isInvolved: false }),
+          { automation: true, newCount: 1, newsTs: 90 },
+        ],
+      ]).hiddenAutomations
+    ).toBe(0);
+  });
+
   it('leaves out a resolved thread, whatever waits in it or names the user', () => {
     const question = { eventId: '$q', senderId: '@mindroom_mind:x', text: 'q', options: [] };
     const resolved = { isResolved: true, resolvedTs: NOW - 60_000 };

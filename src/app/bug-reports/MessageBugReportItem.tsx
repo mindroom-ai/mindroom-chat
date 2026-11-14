@@ -87,7 +87,7 @@ export function MessageBugReportItem(props: {
         label={t(phaseKeys[phase])}
         icon={Icons.Flag}
         disabled={phase === 'busy' || phase === 'done'}
-        // The click handler keeps the download's promise as its result for the Lane P tests that
+        // The click handler keeps the download's promise as its result for the tests that
         // await it; a click ignores it.
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onSelect={delivers ? () => setAsking(true) : download}
@@ -95,7 +95,7 @@ export function MessageBugReportItem(props: {
       {asking && (
         <BugReportConsentDialog
           encrypted={room.hasEncryptionStateEvent()}
-          // The send keeps the report's promise as its result for the Lane P tests that await it.
+          // The send keeps the report's promise as its result for the tests that await it.
           // eslint-disable-next-line @typescript-eslint/no-misused-promises
           onSend={deliver}
           // Cancel closes the message menu too, as the menu's other dialogs do.

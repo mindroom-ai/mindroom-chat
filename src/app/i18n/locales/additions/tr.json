@@ -726,7 +726,13 @@
         "threadFiltersActive": "Konu filtreleri (etkin)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Gelişmiş filtreler"
+        "advancedFilters": "Gelişmiş filtreler",
+        "presets": {
+          "snoozed": {
+            "label": "Ertelenenler",
+            "description": "Yalnızca ertelenmiş konular"
+          }
+        }
       },
       "threadPeopleFilter": {
         "label": "Kişiler",
@@ -885,7 +891,23 @@
     "resize": "Konuyu yeniden boyutlandır",
     "showFull": "Konuyu tam göster",
     "showBeside": "Konuyu mesajların yanında göster",
-    "notFound": "Konu bulunamadı"
+    "notFound": "Konu bulunamadı",
+    "snoozedUntil": "{{time}} tarihine kadar ertelendi",
+    "snoozeEnded": "Erteleme sona erdi",
+    "snooze": "Ertele",
+    "unsnooze": "Ertelemeyi kaldır",
+    "status": {
+      "snoozed": "Ertelendi"
+    }
+  },
+  "threadSnooze": {
+    "title": "Şu zamana kadar ertele",
+    "inOneHour": "1 saat sonra",
+    "inThreeHours": "3 saat sonra",
+    "tomorrow": "Yarın 09:00",
+    "nextMonday": "Gelecek pazartesi 09:00",
+    "pickDateTime": "Tarih ve saat seç",
+    "pastTime": "Gelecekte bir zaman seçin"
   },
   "activity": {
     "title": "Etkinlik",
@@ -980,7 +1002,8 @@
       "unread": "Okunmamış",
       "working": "Çalışan ajanlar",
       "recent": "Son konular",
-      "automations": "Otomasyonlar"
+      "automations": "Otomasyonlar",
+      "snoozed": "Ertelenenler"
     },
     "showMore": "Daha fazla göster",
     "chips": {

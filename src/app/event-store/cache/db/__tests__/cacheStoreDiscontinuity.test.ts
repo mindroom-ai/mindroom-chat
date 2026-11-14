@@ -17,15 +17,15 @@ const SESSION_ID = 'session-p32';
 const ROOM_ID = '!room:example.org';
 
 describe('cacheStoreDiscontinuity (ISSUE-207 P3.2)', () => {
-  beforeEach(async () => {
-    await resetCacheStoreForTesting();
+  beforeEach(() => {
+    resetCacheStoreForTesting();
   });
 
   afterEach(async () => {
     vi.unstubAllGlobals();
-    await resetCacheStoreForTesting();
+    resetCacheStoreForTesting();
     await clearRoomTailDiscontinuity(SESSION_ID, ROOM_ID);
-    await resetCacheStoreForTesting();
+    resetCacheStoreForTesting();
   });
 
   it('returns undefined when no marker or meta row exists', async () => {
@@ -184,7 +184,7 @@ describe('cacheStoreDiscontinuity (ISSUE-207 P3.2)', () => {
   });
 
   it('rejects marker reads, writes, and clears when IndexedDB is unavailable', async () => {
-    await resetCacheStoreForTesting();
+    resetCacheStoreForTesting();
     vi.stubGlobal('indexedDB', undefined);
 
     await expect(

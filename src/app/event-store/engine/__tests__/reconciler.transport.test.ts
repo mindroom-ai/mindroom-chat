@@ -82,12 +82,12 @@ describe('reconciliation transport recovery', () => {
     await vi.waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
     const reopened = reconcile(currentObserver);
     await vi.advanceTimersByTimeAsync(DEADLINE_MS);
-    expect(signals[0].aborted).toBe(true);
+    expect(signals[0]!.aborted).toBe(true);
     await expect(reopened).resolves.toMatchObject({ repaired: true, aborted: false });
     await first;
     expect(fetchFn).toHaveBeenCalledTimes(2);
     expect(
-      currentObserver.mock.calls[0][0].some(
+      currentObserver.mock.calls[0]![0].some(
         (event: { getId(): string }) => event.getId() === '$reply'
       )
     ).toBe(true);
@@ -132,7 +132,7 @@ describe('reconciliation transport recovery', () => {
     await vi.waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
     scheduler.abortAll();
     await vi.advanceTimersByTimeAsync(0);
-    expect(signals[0].aborted).toBe(true);
+    expect(signals[0]!.aborted).toBe(true);
     await result.catch(() => undefined);
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });

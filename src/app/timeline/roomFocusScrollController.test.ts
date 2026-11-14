@@ -95,7 +95,7 @@ function Harness({ onSuppressRef, scrollEl, ...overrides }: HarnessProps) {
     threadTimelineTick: 0,
     timelineAtLiveEnd: true,
     ...overrides,
-  });
+  } as RoomFocusScrollControllerOptions);
 
   return null;
 }

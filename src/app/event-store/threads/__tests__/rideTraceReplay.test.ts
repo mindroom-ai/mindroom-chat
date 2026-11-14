@@ -100,7 +100,7 @@ describe('ride trace corpus', () => {
 
     // The settle is deferred, not lost: the same geometry at the bounce's
     // in-bounds landing offset still fires.
-    const landing = ipadFill.frames[191];
+    const landing = ipadFill.frames[191]!;
     const innerTop = landing.tr - landing.st;
     expect(
       shouldSettleLedgerAtBoundary({
@@ -121,13 +121,13 @@ describe('ride trace corpus', () => {
     const settles = extractLedgerSettles(iphoneFixed.frames, 465);
     const boundary = settles.filter((settle) => settle.cause === 'boundary');
     expect(boundary).toHaveLength(1);
-    expect(boundary[0].outOfBoundsBefore).toBe(false);
-    expect(boundary[0].anchorSlipPx).toBeLessThanOrEqual(2);
+    expect(boundary[0]!.outOfBoundsBefore).toBe(false);
+    expect(boundary[0]!.anchorSlipPx).toBeLessThanOrEqual(2);
   });
 
   it('detects the pre-fix boundary snap class in the 2026-07-10 rides', () => {
     [iphoneOldA, iphoneOldB].forEach((trace, index) => {
-      const clientHeight = CORPUS[2 + index].clientHeight;
+      const clientHeight = CORPUS[2 + index]!.clientHeight;
       const slips = extractLedgerSettles(trace.frames, clientHeight)
         .map((settle) => settle.anchorSlipPx)
         .filter((slip): slip is number => slip !== undefined);
@@ -158,7 +158,7 @@ describe('ride trace corpus', () => {
 
     const iphoneCascade = cascade(iphoneFixed, 465);
     expect(iphoneCascade.map((settle) => settle.frameIndex)).toEqual([641]);
-    expect(iphoneCascade[0].extraGrowthPx).toBe(216);
+    expect(iphoneCascade[0]!.extraGrowthPx).toBe(216);
   });
 
   it('holds the #124 build to atomic settles: large rest rebases track the anchor with zero slip', () => {

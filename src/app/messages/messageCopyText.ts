@@ -45,9 +45,7 @@ export type MessageCopyTextSource = {
 const getNewContent = (
   content: Record<string, unknown> | undefined
 ): Record<string, unknown> | undefined =>
-  isRecord(content?.['m.new_content'])
-    ? (content?.['m.new_content'] as Record<string, unknown>)
-    : undefined;
+  isRecord(content?.['m.new_content']) ? content?.['m.new_content'] : undefined;
 
 export const getMessageCopyTextSource = (
   content: Record<string, unknown>,

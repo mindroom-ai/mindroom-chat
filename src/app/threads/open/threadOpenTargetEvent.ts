@@ -1,4 +1,4 @@
-import type { EventTimelineSet, MatrixClient, Room } from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
 import to from 'await-to-js';
 import type { ThreadTargetCommands } from './threadSessionTypes';
 
@@ -27,9 +27,7 @@ export const runThreadOpenTargetEvent = async ({
     return true;
   }
 
-  const evtThreadTimelineSet = room.getThread(threadId)?.getUnfilteredTimelineSet() as
-    | EventTimelineSet
-    | undefined;
+  const evtThreadTimelineSet = room.getThread(threadId)?.getUnfilteredTimelineSet();
   if (evtThreadTimelineSet) {
     const [evtErr] = await to(mx.getEventTimeline(evtThreadTimelineSet, eventId));
     if (!isCurrentThreadOpen()) return false;

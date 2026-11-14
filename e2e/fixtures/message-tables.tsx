@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import parse from 'html-react-parser';
 import { MatrixClient } from 'matrix-js-sdk';

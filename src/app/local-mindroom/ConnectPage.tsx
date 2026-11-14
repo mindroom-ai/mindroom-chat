@@ -333,7 +333,7 @@ export function ConnectPage() {
                 size="400"
                 radii="300"
                 disabled={!canApprove}
-                onClick={handleApprove}
+                onClick={() => void handleApprove()}
                 before={
                   pairState.status === 'approving' && (
                     <Spinner variant="Primary" fill="Soft" size="200" />

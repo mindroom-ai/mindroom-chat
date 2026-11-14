@@ -59,13 +59,13 @@ describe('thread message preview analysis reuse', () => {
     const bodies = Array.from({ length: 5_000 }, (_, index) => `Entry limit body ${index}`);
     bodies.forEach((body) => getThreadMessagePreviewText(textContent(body)));
     // Reading the oldest body makes the second oldest the next to go.
-    getThreadMessagePreviewText(textContent(bodies[0]));
+    getThreadMessagePreviewText(textContent(bodies[0]!));
     getThreadMessagePreviewText(textContent('Entry limit overflow'));
     trimReplyFromBody.mockClear();
 
-    getThreadMessagePreviewText(textContent(bodies[0]));
+    getThreadMessagePreviewText(textContent(bodies[0]!));
     expect(trimReplyFromBody).not.toHaveBeenCalled();
-    getThreadMessagePreviewText(textContent(bodies[1]));
+    getThreadMessagePreviewText(textContent(bodies[1]!));
     expect(trimReplyFromBody).toHaveBeenCalledTimes(1);
   });
 
@@ -78,9 +78,9 @@ describe('thread message preview analysis reuse', () => {
     bodies.forEach((body) => getThreadMessagePreviewText(textContent(body)));
     trimReplyFromBody.mockClear();
 
-    getThreadMessagePreviewText(textContent(bodies[66]));
+    getThreadMessagePreviewText(textContent(bodies[66]!));
     expect(trimReplyFromBody).not.toHaveBeenCalled();
-    getThreadMessagePreviewText(textContent(bodies[0]));
+    getThreadMessagePreviewText(textContent(bodies[0]!));
     expect(trimReplyFromBody).toHaveBeenCalledTimes(1);
   });
 });

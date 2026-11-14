@@ -726,7 +726,13 @@
         "threadFiltersActive": "Threadfilters (actief)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Geavanceerde filters"
+        "advancedFilters": "Geavanceerde filters",
+        "presets": {
+          "snoozed": {
+            "label": "Gesnoozed",
+            "description": "Alleen gesnoozede threads"
+          }
+        }
       },
       "threadPeopleFilter": {
         "label": "Personen",
@@ -885,7 +891,23 @@
     "resize": "Breedte van de thread wijzigen",
     "showFull": "Thread volledig tonen",
     "showBeside": "Thread naast de berichten tonen",
-    "notFound": "Thread niet gevonden"
+    "notFound": "Thread niet gevonden",
+    "snoozedUntil": "Gesnoozed tot {{time}}",
+    "snoozeEnded": "Snooze afgelopen",
+    "snooze": "Snoozen",
+    "unsnooze": "Snooze opheffen",
+    "status": {
+      "snoozed": "Gesnoozed"
+    }
+  },
+  "threadSnooze": {
+    "title": "Snoozen tot",
+    "inOneHour": "Over 1 uur",
+    "inThreeHours": "Over 3 uur",
+    "tomorrow": "Morgen 09:00",
+    "nextMonday": "Volgende maandag 09:00",
+    "pickDateTime": "Datum en tijd kiezen",
+    "pastTime": "Kies een tijd in de toekomst"
   },
   "activity": {
     "title": "Activiteit",
@@ -980,7 +1002,8 @@
       "unread": "Ongelezen",
       "working": "Agenten aan het werk",
       "recent": "Recent",
-      "automations": "Automatiseringen"
+      "automations": "Automatiseringen",
+      "snoozed": "Gesnoozed"
     },
     "showMore": "Meer tonen",
     "chips": {

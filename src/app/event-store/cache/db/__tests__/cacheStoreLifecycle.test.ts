@@ -1,4 +1,5 @@
 import { IDBFactory, IDBKeyRange, IDBObjectStore as FakeIDBObjectStore } from 'fake-indexeddb';
+import type { IEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 // fake-indexeddb runs every request in tasks of its own, so these tests take thousands of tasks;
@@ -105,7 +106,7 @@ it('rolls back a failed clear while cancelling earlier local writes', async () =
   const remove = FakeIDBObjectStore.prototype.delete;
   const fault = vi
     .spyOn(FakeIDBObjectStore.prototype, 'delete')
-    .mockImplementation(function abortDelete(key) {
+    .mockImplementation(function abortDelete(this: IDBObjectStore, key) {
       const request = remove.call(this, key);
       // Abort once the room's events are removed, so the clear must roll back.
       if (key instanceof IDBKeyRange) {
@@ -161,7 +162,7 @@ it('does not persist encrypted history when this runtime clears during decryptio
   mx.decryptEventIfNeeded = async (event) => {
     entered();
     await gate;
-    event.setClearData({
+    event['setClearData']({
       clearEvent: {
         type: 'm.room.message',
         content: {
@@ -216,7 +217,10 @@ it.each(['settle', 'prepare'] as const)(
     const room = new Room(roomId, mx, userId);
     mx.fetchRelations = async (_room, _thread, _relation, _type, options) => {
       if (options?.from) throw new Error('history temporarily unavailable');
-      return { chunk: [{ ...rawEvent, room_id: roomId, sender: userId }], next_batch: 'older' };
+      return {
+        chunk: [{ ...rawEvent, room_id: roomId, sender: userId } as unknown as IEvent],
+        next_batch: 'older',
+      };
     };
     let release!: () => void;
     let entered!: () => void;

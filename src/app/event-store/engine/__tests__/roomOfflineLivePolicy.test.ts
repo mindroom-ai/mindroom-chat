@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory, IDBIndex } from 'fake-indexeddb';
-import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { createClient, MatrixEvent, Room, type IServerVersions } from 'matrix-js-sdk';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createRoomOfflineController } from '../roomOffline';
 import { createBackfillScheduler } from '../backfillScheduler';
@@ -25,7 +25,7 @@ const setup = async (scope: 'all-rooms' | 'current-room-only') => {
   const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
   const room = new Room(roomId, mx, '@alice:example.org');
   mx.store.storeRoom(room);
-  vi.spyOn(mx, 'getVersions').mockResolvedValue({ versions: ['v1.11'] });
+  vi.spyOn(mx, 'getVersions').mockResolvedValue({ versions: ['v1.11'] } as IServerVersions);
   const scheduler = createBackfillScheduler();
   const control = createRoomOfflineController({
     mx,

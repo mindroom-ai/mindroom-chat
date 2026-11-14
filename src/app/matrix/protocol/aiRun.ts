@@ -93,12 +93,8 @@ const getAiRunMetadataFromCandidate = (
   return metadata as AiRunMetadata;
 };
 
-const getAiRunMetadata = (
-  content: Record<string, unknown>
-): AiRunMetadata | undefined => {
-  const newContent = isRecord(content['m.new_content'])
-    ? (content['m.new_content'] as Record<string, unknown>)
-    : undefined;
+const getAiRunMetadata = (content: Record<string, unknown>): AiRunMetadata | undefined => {
+  const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
 
   if (newContent) {
     const fromNewContent = getAiRunMetadataFromCandidate(newContent);
@@ -167,9 +163,7 @@ export const TERMINAL_STREAM_STATUSES = new Set([
 export const getStreamStatusFromContent = (
   content: Record<string, unknown>
 ): string | undefined => {
-  const newContent = isRecord(content['m.new_content'])
-    ? (content['m.new_content'] as Record<string, unknown>)
-    : undefined;
+  const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
 
   const raw = newContent?.[STREAM_STATUS_KEY] ?? content[STREAM_STATUS_KEY];
   return typeof raw === 'string' && raw.length > 0 ? raw.toLowerCase() : undefined;

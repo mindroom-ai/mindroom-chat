@@ -171,8 +171,9 @@ export const buildCompactThreadCardViewModelFromRecord = ({
   // Without a known reply the card previews the root, so it names the root's sender.
   const previewsRoot = !replyPreviewText && !!rootPreviewText && !!lastSenderId;
   const previewSenderId = previewsRoot
-    ? (room.getThread(record.threadRootId)?.rootEvent ?? room.findEventById(record.threadRootId))
-        ?.getSender()
+    ? (
+        room.getThread(record.threadRootId)?.rootEvent ?? room.findEventById(record.threadRootId)
+      )?.getSender()
     : lastSenderId;
   const lastSenderName =
     (previewSenderId ? getMemberDisplayName(room, previewSenderId) : undefined) ??
@@ -240,6 +241,8 @@ export const buildCompactThreadCardViewModelFromRecord = ({
     isStreaming: status.isStreaming,
     hasPendingSend: status.hasPendingSend === true,
     hasFailedSend: status.hasFailedSend === true,
+    // A resolved thread shows as resolved only.
+    snoozedUntilTs: status.isResolved ? undefined : status.snoozedUntilTs,
     scheduledDisplayText,
     scheduledTaskLabel,
     lastActivityTs: status.lastActivityTs,

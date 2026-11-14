@@ -84,7 +84,7 @@ describe('fetchAllThreadRelations', () => {
     expect(result!.events.map((e) => e.getId())).toEqual(['$e1', '$e2', '$e3']);
     expect(result!.nextBatchToken).toBeUndefined();
     expect(mx.fetchRelations).toHaveBeenCalledTimes(2);
-    expect(mx.fetchRelations.mock.calls[1][4]).toEqual(expect.objectContaining({ from: 'tok1' }));
+    expect(mx.fetchRelations.mock.calls[1]![4]).toEqual(expect.objectContaining({ from: 'tok1' }));
   });
 
   it('returns events in chronological order across batches', async () => {

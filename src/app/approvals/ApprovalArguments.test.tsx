@@ -1,4 +1,3 @@
-import React from 'react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
@@ -59,7 +58,7 @@ describe('exact approval arguments', () => {
     expect(JSON.stringify(renderer.toJSON())).toContain('Could not load complete arguments.');
     await act(async () => {
       renderer.root
-        .findAll((node) => node.type === 'button' && node.children.includes('Retry'))[0]
+        .findAll((node) => node.type === 'button' && node.children.includes('Retry'))[0]!
         .props.onClick();
     });
     expect(rendered()).toContain('Jamie');

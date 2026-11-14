@@ -131,7 +131,7 @@ it('restores a server-supplied surviving edit after latest-edit retraction and c
   vi.stubGlobal('fetch', offlineFetch);
   const reopened = account();
   const cachedRoot = await loadCachedRoomEvent(sessionId, roomId, '$root');
-  const cold = new MatrixEvent(cachedRoot!);
+  const cold = new MatrixEvent(cachedRoot);
   hydrateCachedEvents({ room: reopened.room, events: [cold] });
   expect(
     await hydrateCachedLongText(reopened.mx, {

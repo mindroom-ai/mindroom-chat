@@ -1,5 +1,5 @@
 import React from 'react';
-import { type Room, RoomEvent, type RoomEventHandlerMap } from 'matrix-js-sdk';
+import { type Room, RoomEvent } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
@@ -24,7 +24,8 @@ const Harness = ({ room, threadId, refreshLatestThreadSlice, onRoomRefresh }: Ha
 
 describe('useThreadAwareTimelineRefresh', () => {
   it('ignores timeline refreshes while the thread root still has a local event id', async () => {
-    let refreshHandler: RoomEventHandlerMap[RoomEvent.TimelineRefresh] | undefined;
+    // The hook reads only the refreshed room, so the test passes no timeline set.
+    let refreshHandler: ((refreshedRoom: Room) => void) | undefined;
     const room = {
       roomId: '!room:example.org',
       on: vi.fn((event, handler) => {

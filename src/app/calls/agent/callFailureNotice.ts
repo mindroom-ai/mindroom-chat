@@ -1,5 +1,6 @@
 import { EventType, MatrixEvent } from 'matrix-js-sdk';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
+import { matchesEnum } from '../../lib/matchesEnum';
 
 export const CALL_FAILURE_CONTENT_KEY = 'chat.mindroom.call_failure';
 
@@ -14,7 +15,7 @@ export const getCallFailureNotice = (
   event: MatrixEvent,
   viewerUserId: string | undefined
 ): string | undefined => {
-  if (event.getType() !== EventType.RoomMessage) return undefined;
+  if (!matchesEnum(event.getType(), EventType.RoomMessage)) return undefined;
   if (!isMindroomAgentUserIdForViewer(event.getSender(), viewerUserId)) return undefined;
 
   const content = event.getContent();

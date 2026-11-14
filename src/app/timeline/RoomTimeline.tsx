@@ -1162,6 +1162,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     eventId,
     eventsLength: renderableEvents.length,
     room,
+    roomDebugTraceId,
     roomIdRef,
     sessionId,
     setRoomHasMoreCachedBack,
@@ -1704,6 +1705,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
                 data-thread-count={threadId ? threadEvents.length : undefined}
                 data-testid={threadId ? undefined : 'room-virtual-inner'}
                 style={{
+                  ...overlay.overviewInsetStop,
                   position: 'relative',
                   height: listHeight,
                   visibility:

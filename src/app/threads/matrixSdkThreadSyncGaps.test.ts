@@ -74,13 +74,15 @@ describe('deferred thread sync gaps', () => {
       });
     }
     expect(threads.reduce((n, t) => n + t.timelineSet.getTimelines().length, 0)).toBe(200);
-    threads[0].addEvent(event('$new'), false);
-    await threads[0].flushPendingTimelineReset();
+    threads[0]!.addEvent(event('$new'), false);
+    await threads[0]!.flushPendingTimelineReset();
     expect(threads.reduce((n, t) => n + t.timelineSet.getTimelines().length, 0)).toBe(201);
-    expect(threads[0].findEventById('$reply-0')).toBe(old[0].getEvents()[0]);
-    expect(old[0].getPaginationToken(Direction.Forward)).toBe('messages:forward-0');
-    expect(threads[0].liveTimeline.getPaginationToken(Direction.Backward)).toBe('messages:back-19');
-    expect(threads[0].liveTimeline.getEvents()[0].getId()).toBe('$new');
+    expect(threads[0]!.findEventById('$reply-0')).toBe(old[0]!.getEvents()[0]);
+    expect(old[0]!.getPaginationToken(Direction.Forward)).toBe('messages:forward-0');
+    expect(threads[0]!.liveTimeline.getPaginationToken(Direction.Backward)).toBe(
+      'messages:back-19'
+    );
+    expect(threads[0]!.liveTimeline.getEvents()[0]!.getId()).toBe('$new');
   });
 
   it('starts shared conversions immediately, including the earliest forward boundary', async () => {
@@ -105,14 +107,14 @@ describe('deferred thread sync gaps', () => {
       .spyOn(client.http, 'authedRequest')
       .mockResolvedValue({ chunk: [event('$gap-reply').event], next_batch: 'older' });
     room.resetLiveTimeline('back', 'forward');
-    await threads[0].flushPendingTimelineReset();
+    await threads[0]!.flushPendingTimelineReset();
 
-    expect(threads[0].liveTimeline.getPaginationToken(Direction.Backward)).toBe('back');
-    await client.paginateEventTimeline(threads[0].liveTimeline, { backwards: true });
-    expect(new URL(http.mock.calls[0][1], 'https://example.org').searchParams.get('from')).toBe(
+    expect(threads[0]!.liveTimeline.getPaginationToken(Direction.Backward)).toBe('back');
+    await client.paginateEventTimeline(threads[0]!.liveTimeline, { backwards: true });
+    expect(new URL(http.mock.calls[0]![1], 'https://example.org').searchParams.get('from')).toBe(
       'back'
     );
-    expect(threads[0].liveTimeline.getEvents().map((e) => e.getId())).toContain('$gap-reply');
+    expect(threads[0]!.liveTimeline.getEvents().map((e) => e.getId())).toContain('$gap-reply');
   });
 
   it('clears a deferred gap on destructive reset and ignores old conversion completion', async () => {
@@ -121,19 +123,19 @@ describe('deferred thread sync gaps', () => {
     messages.mockReturnValue(pending.promise);
     room.resetLiveTimeline('back', 'forward');
     room.resetLiveTimeline(null, null);
-    const live = threads[0].liveTimeline;
+    const live = threads[0]!.liveTimeline;
     pending.resolve({ chunk: [], start: 'stale-forward', end: 'stale-back' });
     await settle();
-    await threads[0].flushPendingTimelineReset();
-    expect(threads[0].liveTimeline).toBe(live);
-    expect(threads[0].timelineSet.getTimelines()).toEqual([live]);
+    await threads[0]!.flushPendingTimelineReset();
+    expect(threads[0]!.liveTimeline).toBe(live);
+    expect(threads[0]!.timelineSet.getTimelines()).toEqual([live]);
     expect(live.getPaginationToken(Direction.Backward)).toBeNull();
   });
   it.each([true, false])(
     'waits for conversions and paginates the original historical target (backwards=%s)',
     async (backwards) => {
       const { room, threads, messages, client, event } = fixture();
-      const old = threads[0].liveTimeline;
+      const old = threads[0]!.liveTimeline;
       old.setPaginationToken('original-back', Direction.Backward);
       const conversion = deferred<any>();
       messages.mockReturnValue(conversion.promise);
@@ -145,17 +147,17 @@ describe('deferred thread sync gaps', () => {
       expect(http).not.toHaveBeenCalled();
       conversion.resolve({ chunk: [], start: 'converted-forward', end: 'converted-back' });
       await request;
-      expect(new URL(http.mock.calls[0][1], 'https://example.org').searchParams.get('from')).toBe(
+      expect(new URL(http.mock.calls[0]![1], 'https://example.org').searchParams.get('from')).toBe(
         backwards ? 'original-back' : 'converted-forward'
       );
-      expect(threads[0].timelineSet.getTimelineForEvent('$history') === old).toBe(true);
-      expect(threads[0].liveTimeline === old).toBe(false);
+      expect(threads[0]!.timelineSet.getTimelineForEvent('$history') === old).toBe(true);
+      expect(threads[0]!.liveTimeline === old).toBe(false);
     }
   );
 
   it('cancels pagination if a destructive reset removes its target during conversion', async () => {
     const { room, threads, messages, client } = fixture();
-    const old = threads[0].liveTimeline;
+    const old = threads[0]!.liveTimeline;
     const conversion = deferred<any>();
     messages.mockReturnValue(conversion.promise);
     const http = vi
@@ -177,52 +179,52 @@ describe('deferred thread sync gaps', () => {
       .spyOn(client.http, 'authedRequest')
       .mockResolvedValue({ chunk: [], next_batch: 'more' });
     room.resetLiveTimeline('back', 'forward');
-    threads[0].addEvent(event('$new'), false);
-    const request = client.paginateEventTimeline(threads[0].liveTimeline, { backwards: true });
+    threads[0]!.addEvent(event('$new'), false);
+    const request = client.paginateEventTimeline(threads[0]!.liveTimeline, { backwards: true });
     expect(http).not.toHaveBeenCalled();
     conversion.reject(new Error('conversion failed'));
     await expect(request).rejects.toThrow('conversion failed');
-    expect(threads[0].flushPendingTimelineReset()).toBeUndefined();
+    expect(threads[0]!.flushPendingTimelineReset()).toBeUndefined();
     await expect(
-      client.paginateEventTimeline(threads[0].liveTimeline, { backwards: true })
+      client.paginateEventTimeline(threads[0]!.liveTimeline, { backwards: true })
     ).resolves.toBe(true);
   });
 
   it('forks immediately while HTTP pagination is in flight and keeps its target registered', async () => {
     const { room, threads, client, event } = fixture();
-    const old = threads[0].liveTimeline;
+    const old = threads[0]!.liveTimeline;
     const transport = deferred<any>();
     vi.spyOn(client.http, 'authedRequest').mockReturnValue(transport.promise);
     const request = client.paginateEventTimeline(old, { backwards: true });
     room.resetLiveTimeline('back', 'forward');
-    expect(threads[0].liveTimeline === old).toBe(false);
+    expect(threads[0]!.liveTimeline === old).toBe(false);
     transport.resolve({ chunk: [event('$history').event], next_batch: 'more' });
     await request;
-    expect(threads[0].timelineSet.getTimelineForEvent('$history') === old).toBe(true);
-    expect(threads[0].timelineSet.getTimelines()).toContain(old);
+    expect(threads[0]!.timelineSet.getTimelineForEvent('$history') === old).toBe(true);
+    expect(threads[0]!.timelineSet.getTimelines()).toContain(old);
   });
 
   it.each(['cache', 'echo'])(
     'materializes before a direct timeline-set live insertion (%s)',
     async (kind) => {
       const { room, threads, event } = fixture();
-      const old = threads[0].liveTimeline;
+      const old = threads[0]!.liveTimeline;
       room.resetLiveTimeline('back', 'forward');
       const next = event('$insert');
       if (kind === 'cache')
-        threads[0].timelineSet.addLiveEvent(next, { fromCache: true, addToState: false });
-      else threads[0].timelineSet.handleRemoteEcho(next, '$local', '$insert');
-      expect(threads[0].liveTimeline === old).toBe(false);
-      expect(threads[0].liveTimeline.getEvents()).toContain(next);
+        threads[0]!.timelineSet.addLiveEvent(next, { fromCache: true, addToState: false });
+      else threads[0]!.timelineSet.handleRemoteEcho(next, '$local', '$insert');
+      expect(threads[0]!.liveTimeline === old).toBe(false);
+      expect(threads[0]!.liveTimeline.getEvents()).toContain(next);
       expect(old.getEvents()).not.toContain(next);
-      await threads[0].flushPendingTimelineReset();
+      await threads[0]!.flushPendingTimelineReset();
     }
   );
   it('does not materialize for duplicate thread or cache insertions', async () => {
     const { room, threads } = fixture();
-    const thread = threads[0];
+    const thread = threads[0]!;
     const old = thread.liveTimeline;
-    const known = old.getEvents()[0];
+    const known = old.getEvents()[0]!;
     room.resetLiveTimeline('back', 'forward');
     thread.addEvent(known, false);
     thread.insertEventIntoTimeline(known);
@@ -240,15 +242,15 @@ describe('deferred thread sync gaps', () => {
       .mockResolvedValue({ chunk: [], next_batch: 'more' });
     room.resetLiveTimeline('back', 'forward');
     let request: Promise<boolean> | undefined;
-    threads[0].once(RoomEvent.TimelineReset, () => {
-      request = client.paginateEventTimeline(threads[0].liveTimeline, { backwards: true });
+    threads[0]!.once(RoomEvent.TimelineReset, () => {
+      request = client.paginateEventTimeline(threads[0]!.liveTimeline, { backwards: true });
     });
-    const flush = threads[0].flushPendingTimelineReset();
+    const flush = threads[0]!.flushPendingTimelineReset();
     expect(http).not.toHaveBeenCalled();
     conversion.resolve({ chunk: [], start: 'converted-forward', end: 'converted-back' });
     await flush;
     await request;
-    expect(new URL(http.mock.calls[0][1], 'https://example.org').searchParams.get('from')).toBe(
+    expect(new URL(http.mock.calls[0]![1], 'https://example.org').searchParams.get('from')).toBe(
       'converted-back'
     );
   });
@@ -260,42 +262,42 @@ describe('deferred thread sync gaps', () => {
     const http = vi
       .spyOn(client.http, 'authedRequest')
       .mockResolvedValue({ chunk: [], next_batch: 'more' });
-    const old = threads[0].liveTimeline;
+    const old = threads[0]!.liveTimeline;
     room.resetLiveTimeline('back-1', 'forward-1');
     const request = client.paginateEventTimeline(old, { backwards: false });
     room.resetLiveTimeline('back-2', 'forward-2');
     first.resolve({ chunk: [], start: 'first-forward', end: 'first-back' });
     await request;
-    expect(new URL(http.mock.calls[0][1], 'https://example.org').searchParams.get('from')).toBe(
+    expect(new URL(http.mock.calls[0]![1], 'https://example.org').searchParams.get('from')).toBe(
       'first-forward'
     );
-    expect(threads[0].liveTimeline.getPaginationToken(Direction.Backward)).toBe('messages:back-2');
-    expect(threads[0].timelineSet.getTimelines()).toHaveLength(3);
+    expect(threads[0]!.liveTimeline.getPaginationToken(Direction.Backward)).toBe('messages:back-2');
+    expect(threads[0]!.timelineSet.getTimelines()).toHaveLength(3);
   });
 
   it('does not defer resets during initial metadata loading', async () => {
     const { room, threads } = fixture();
     await settle();
     // An opened thread whose first page is still loading.
-    threads[0].initialEventsFetched = false;
+    threads[0]!.initialEventsFetched = false;
     (threads[0] as unknown as { initializationDeferred: boolean }).initializationDeferred = false;
-    const old = threads[0].liveTimeline;
+    const old = threads[0]!.liveTimeline;
     room.resetLiveTimeline('back', 'forward');
-    expect(threads[0].liveTimeline === old).toBe(false);
-    await threads[0].flushPendingTimelineReset();
-    threads[0].timelineSet.resetLiveTimeline();
-    expect(threads[0].flushPendingTimelineReset()).toBeUndefined();
-    expect(threads[0].timelineSet.getTimelines()).toHaveLength(1);
+    expect(threads[0]!.liveTimeline === old).toBe(false);
+    await threads[0]!.flushPendingTimelineReset();
+    threads[0]!.timelineSet.resetLiveTimeline();
+    expect(threads[0]!.flushPendingTimelineReset()).toBeUndefined();
+    expect(threads[0]!.timelineSet.getTimelines()).toHaveLength(1);
   });
   it('materializes before direct history insertion while preserving the requested timeline', async () => {
     const { room, threads, event } = fixture();
-    const old = threads[0].liveTimeline;
+    const old = threads[0]!.liveTimeline;
     room.resetLiveTimeline('back', 'forward');
     const history = event('$history');
-    threads[0].timelineSet.addEventsToTimeline([history], true, false, old, 'older');
-    expect(threads[0].liveTimeline === old).toBe(false);
-    expect(threads[0].timelineSet.getTimelineForEvent('$history') === old).toBe(true);
-    await threads[0].flushPendingTimelineReset();
+    threads[0]!.timelineSet.addEventsToTimeline([history], true, false, old, 'older');
+    expect(threads[0]!.liveTimeline === old).toBe(false);
+    expect(threads[0]!.timelineSet.getTimelineForEvent('$history') === old).toBe(true);
+    await threads[0]!.flushPendingTimelineReset();
     expect(old.getPaginationToken(Direction.Backward)).toBe('older');
   });
 });

@@ -44,7 +44,7 @@ for (const lang of ['en', 'ar']) {
         [...layout.idLefts].sort((a, b) => a - b)
       );
       expect(Math.max(...layout.beforeRights), `${card}: ID comes after the name`).toBeLessThan(
-        layout.idLefts[0] + 1
+        layout.idLefts[0]! + 1
       );
     }
   });

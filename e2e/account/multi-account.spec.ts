@@ -33,8 +33,8 @@ test('adds a second account without leaving the add-account flow', async ({ page
 
   await loginWithPassword(page, {
     homeserver,
-    username: secondaryCredentials.username,
-    password: secondaryCredentials.password,
+    username: secondaryCredentials!.username,
+    password: secondaryCredentials!.password,
     addAccount: true,
   });
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });

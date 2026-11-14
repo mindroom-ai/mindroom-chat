@@ -79,7 +79,7 @@ export const expectNoUnexpectedBrowserDiagnostics = async (
     `[diag:${label}] consoleErrors=${diagnostics.consoleErrors.length} consoleWarnings=${diagnostics.consoleWarnings.length} pageErrors=${diagnostics.pageErrors.length} requestFailures=${diagnostics.requestFailures.length}`
   );
 
-  await expect(
+  expect(
     {
       criticalConsoleErrors,
       criticalConsoleWarnings,

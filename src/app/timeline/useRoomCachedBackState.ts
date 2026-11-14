@@ -20,12 +20,14 @@ import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } 
 import { Direction, EventType, type Room } from 'matrix-js-sdk';
 import { getEarliestLoadedRoomEvent, loadRoomCachedBackStateSnapshot } from '../event-store/cache/eventRepository';
 import type { Timeline } from '../event-store/timeline/timelinePagination';
+import { logTimelineDebug } from '../diagnostics/timelineDebug';
 
 export const useRoomCachedBackState = ({
   alive,
   eventId,
   eventsLength,
   room,
+  roomDebugTraceId,
   roomIdRef,
   sessionId,
   setRoomHasMoreCachedBack,
@@ -38,6 +40,7 @@ export const useRoomCachedBackState = ({
   eventId?: string;
   eventsLength: number;
   room: Room;
+  roomDebugTraceId: string;
   roomIdRef: MutableRefObject<string>;
   sessionId: string;
   setRoomHasMoreCachedBack: Dispatch<SetStateAction<boolean>>;
@@ -76,7 +79,15 @@ export const useRoomCachedBackState = ({
         sessionId,
         roomId: room.roomId,
         earliestLoadedEvent,
+      }).catch((error: unknown) => {
+        // A failed read tells nothing new: the state stays, and the next run reads again.
+        logTimelineDebug(roomDebugTraceId, 'room-cached-back-read-error', {
+          error,
+          roomId: room.roomId,
+        });
+        return undefined;
       });
+      if (!cachedBackState) return;
       if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
 
       if (cachedBackState.cachedBeforeToken === null) markRoomStart();
@@ -84,7 +95,7 @@ export const useRoomCachedBackState = ({
       setRoomHasMoreCachedBack(cachedBackState.hasCachedBack);
     };
 
-    refreshRoomCachedBackState();
+    void refreshRoomCachedBackState();
     return () => {
       cancelled = true;
     };
@@ -93,6 +104,7 @@ export const useRoomCachedBackState = ({
     eventId,
     eventsLength,
     room,
+    roomDebugTraceId,
     roomIdRef,
     sessionId,
     setRoomHasMoreCachedBack,

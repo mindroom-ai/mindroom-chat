@@ -1,4 +1,3 @@
-import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { Menu, MenuItem } from '../../src/app/ui/glass/GlassPrimitives';
 import { useLiquidGlass } from '../../src/app/ui/glass/liquid/useLiquidGlass';

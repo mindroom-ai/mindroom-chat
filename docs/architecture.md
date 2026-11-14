@@ -86,8 +86,9 @@ src/
                          started it
     rooms/               room management: cards, access control, leave prompt; create/, explore/ (route), join/,
                          settings/ (room settings pages), archive/
-    threads/             thread features: overview/ (list, compact view, filters), open/ (session, bootstrap), tags/,
-                         summary/, cross-room/ (index, signals), page/ (the Threads section's list), banner, actions menu
+    threads/             thread features: overview/ (list, compact view, filters), open/ (session, bootstrap), tags/
+                         (tags, resolve and snooze, the snooze picker), summary/, cross-room/ (index, signals), page/ (the
+                         Threads section's list), banner, actions menu
     account/             sign-in and the account: auth/, lifecycle/ (start, stop, wipe a session), switcher/,
                          settings/, devices/, encryption/, verification/, uia/, onboarding/
     activity/            the Activity bell: rows from thread signals and invites, inline answers, the popover, the
@@ -118,10 +119,10 @@ Outside `src/` and `e2e/`:
 
 | Path | What is there |
 |---|---|
-| `scripts/` | Vite plugins and build helpers, check scripts (`strict-check.mjs`, `license-check.mjs`), provenance tools, e2e tooling (`e2e-slot.sh`, `e2e-suite.sh`, `e2e-rtc.sh`, `agent-stack/`, `reference/seed.py`), release versions and tags (`calver.mjs`), iOS and App Store helpers |
+| `scripts/` | Vite plugins and build helpers, check scripts (`license-check.mjs`), e2e tooling (`e2e-slot.sh`, `e2e-suite.sh`, `e2e-rtc.sh`, `agent-stack/`, `reference/seed.py`), release versions and tags (`calver.mjs`), iOS and App Store helpers |
 | `public/` | Files served at the root as they are: icons, sounds, `manifest.json` |
 | `ios/`, `android/` | The Capacitor native projects; `ios/Watch/` holds the native Apple Watch app, its widgets, the `MindRoomWatchKit` package and the matrix-rust-sdk build inputs |
-| `docs/` | This page, `configuration.md`, `development.md`, `deployment.md`, provenance records, design reference screenshots, the README screenshots (`screenshots/`), specs and plans |
+| `docs/` | This page, `configuration.md`, `development.md`, `deployment.md`, design reference screenshots, the README screenshots (`screenshots/`), specs and plans |
 
 Unit tests run in Vitest, in Node by default; DOM tests opt in with `// @vitest-environment jsdom`.
 
@@ -184,26 +185,9 @@ A build can add code from outside this repository: `MINDROOM_CLIENT_PLUGINS` nam
 A plugin imports the app only through the client SDK (`src/client-sdk/`, `@mindroom/client-sdk/<subpath>`), and its entry's default export, a `ClientPlugin`, lists what it adds to the app (`src/app/plugins/`).
 [`client-plugins.md`](client-plugins.md) describes the plugin API.
 
-## Two lanes of code
-
-Every file belongs to one of two lanes. [`docs/provenance.md`](provenance.md) records how each came to be, and [`AGENTS.md`](../AGENTS.md) holds the rules for editing them.
-
-- **Lane P (ported).** Files written by Bas Nijholt for the earlier MindRoom client and licensed under Apache-2.0 for this project. They are listed at the paths they were imported at in `docs/provenance/portable.tsv` (code), `portable-wave2.tsv` (other text files: native shells, locales, scripts) and `portable-wave3.tsv` (binary assets); `dropped.tsv` lists the ones deleted during the rewrite.
-- **Lane C (clean).** Everything else, written new for this repository: the app shell, client setup and sync, room list, timeline, composer editor, settings, sign-in pages, and the seams. Lane C must pass `just strict`, tests and `e2e/` included, and the type-aware ESLint rules of `just lint`. The app sources of both lanes compile with the same strict flags in `just typecheck`.
-- **Seams.** Modules that Lane P files import but that were not ported, with an implementation of their own. `docs/provenance/seams.tsv` lists each one's import-time path and the names Lane P imported from it, and `seams-dropped.tsv` the ones deleted or merged during the rewrite. A seam may move, be renamed or be merged like other Lane C code; the Lane P imports of it are re-pointed with it. When a Lane P test and a seam disagree, the seam changes.
-
-`docs/provenance/moves.tsv` (old path, new path, batch) maps the files moved during the rewrite to their paths then, and `scripts/provenance-paths.cjs` folds it for the tools that sort files by lane (`strict-check.mjs`, the ESLint config, `similarity-audit.sh`, `check_holes.py`). These records are no longer kept up to date, so a Lane P file moved after the rewrite is Lane C to these tools: `just strict` and `just lint` hold it to Lane C's rules. To see which lane the tools give a file:
-
-```bash
-node scripts/provenance-paths.cjs lane src/app/matrix/protocol/toolTrace.ts src/app/config/useClientConfig.ts
-node scripts/provenance-paths.cjs lane-p        # every Lane P file, at its path after the rewrite
-```
-
-`just check` enforces the split: `check-holes` proves each Lane P file differed from its import only in its blanked lines at the commit that filled them, `verify-ported` recomputes the import from a source checkout, and the overlap check described in `docs/provenance.md` runs over new code.
-
 ## MindRoom event formats
 
-The MindRoom backend defines the formats its agents send, and the client reads them unchanged. The parsing and rendering are mostly Lane P code. The Lane C side supplies Matrix data and hands events over: the room view seams (`src/app/room/Room.tsx`, `src/app/timeline/RoomTimeline.tsx`), the message row seam (`src/app/timeline/message-rendering/useTimelineMessageFeature.tsx`), and `src/app/messages/content/RenderMessageContent.tsx`, which passes each message to `renderAgentMessageContent.tsx` first, unless a client plugin's renderer takes it ([Client plugins](client-plugins.md#message-renderers)). Section 5 of `docs/baspowers/specs/2026-11-02-clean-room-client-design.md` gives the backend source for each format.
+The MindRoom backend (`/home/basnijholt/Work/dev/mindroom/`) defines the formats its agents send, and the client reads them unchanged. The room view (`src/app/room/Room.tsx`, `src/app/timeline/RoomTimeline.tsx`) and the message row (`src/app/timeline/message-rendering/useTimelineMessageFeature.tsx`) supply Matrix data and hand events over to `src/app/messages/content/RenderMessageContent.tsx`, which passes each message to `renderAgentMessageContent.tsx` first, unless a client plugin's renderer takes it ([Client plugins](client-plugins.md#message-renderers)). Where the backend defines each (under `src/mindroom/` there, docs under `docs/`): stream status in `constants.py` and `matrix/client_delivery.py` (`docs/streaming.md`), tool trace in `tool_system/events.py`, run metadata in `ai_run_metadata.py`, thread titles in `thread_summary/state.py`, thread tags in `thread_tags.py`, tool approvals in `approval/manager.py`, the canvas page API in `docs/canvases.md`, and the computer API in `docs/tools/worker-computer.md`.
 
 | Format | Shape | Read in (under `src/app/`) |
 |---|---|---|
@@ -214,7 +198,8 @@ The MindRoom backend defines the formats its agents send, and the client reads t
 | Run metadata | `io.mindroom.ai_run`: `{version, run_id, session_id, status, model, usage?}` | `matrix/protocol/aiRun.ts`, `event-store/threads/threadConversationCost.ts`; shown by `messages/MessageControls.tsx` |
 | Thread title | an `m.notice` in the thread with `io.mindroom.thread_summary: {version, summary, generated_at, model, pinned}` | `matrix/protocol/threadSummary.ts`, `event-store/threads/threadSummaryTimeline.ts` |
 | Conversation notice | an `m.notice` outside a thread with `io.mindroom.conversation: true` in its content and in the `m.new_content` of its edits, such as a card or a report that starts a conversation; the thread lists show it before anyone replies when a MindRoom agent on the active account's homeserver sent it, while any other notice but a call's row lists only once its thread has replies, and until then leaves a room with a MindRoom agent read | `matrix/protocol/conversationNotice.ts`, used by `event-store/threads/compactThreadRootData.ts` and `matrix/mainTimelineRead.ts` |
-| Thread tags | room state `com.mindroom.thread.tags`, state key `["<root event ID>","<tag>"]`, content `{set_by, set_at, note?, data?}`; the tag `resolved` marks a resolved thread; `set_by` counts when the sender is that person or a MindRoom agent on the active account's homeserver, and a tag from anyone else names its sender | `event-store/threads/threadTags.ts`, `threads/tags/useMutateThreadTags.ts`, `threads/tags/useRoomThreadTags.ts` |
+| Thread tags | room state `com.mindroom.thread.tags`, state key `["<root event ID>","<tag>"]`, content `{set_by, set_at, note?, data?}`; the tag `resolved` marks a resolved thread and the tag `snoozed` (`data: {until}`, an ISO time) a snoozed one while `until` is in the future, both lifecycle state rather than tag pills; `set_by` counts when the sender is that person or a MindRoom agent on the active account's homeserver, and a tag from anyone else names its sender | `event-store/threads/threadTags.ts`, `event-store/threads/threadSnooze.ts`, `threads/tags/useMutateThreadTags.ts`, `threads/tags/useRoomThreadTags.ts` |
+| Snooze ended | the backend's thread message when a snooze's `until` passes: body `⏰ Snooze ended` or `⏰ Snooze ended: <note>`, with `io.mindroom.thread_snooze: {event: "ended", until}`; from a MindRoom agent on the active account's homeserver it renders as a marker row in an open thread and as a marker body elsewhere | `matrix/protocol/threadSnooze.ts`, `messages/SnoozeEndedMarker.tsx`, `timeline/message-rendering/useTimelineMessageFeature.tsx` |
 | Tool approval | event `io.mindroom.tool_approval` (`tool_name`, `arguments`, `status`, `approval_id`, `expires_at`, ...), answered with `io.mindroom.tool_approval_response` | `matrix/protocol/toolApproval.ts`, `approvals/approvalActions.ts`, `approvals/ToolApprovalCard.tsx` |
 | Canvas page API | pages get `window.mindroom.submit`, `saveState`, `state` and `colorScheme`, and the `--mr-*` theme variables, in a sandboxed `srcdoc` frame with its own content security policy | `messages/canvas/canvasDocument.ts` |
 | Computer | `/api/computers/*` on the MindRoom backend, a WebSocket for the screen, authorized with a Matrix OpenID token | `computer/api.ts` |

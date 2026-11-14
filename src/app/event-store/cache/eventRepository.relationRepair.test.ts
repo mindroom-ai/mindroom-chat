@@ -172,6 +172,8 @@ it('does not rescan retained events or attachment owners when retrying a marked 
   await persist([redaction]);
   expect(scans).not.toHaveBeenCalled();
   expect(
-    references.mock.instances.filter((index) => index.objectStore.name === 'attachment_references')
+    (references.mock.instances as unknown as IDBIndex[]).filter(
+      (index) => index.objectStore.name === 'attachment_references'
+    )
   ).toHaveLength(0);
 });

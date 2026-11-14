@@ -580,7 +580,7 @@ describe('RoomTimeline', () => {
           });
 
           expect(resizeObserverInstances).toHaveLength(1);
-          const resizeObserver = resizeObserverInstances[0];
+          const resizeObserver = resizeObserverInstances[0]!;
           expect(resizeObserver.observe).toHaveBeenNthCalledWith(1, expect.anything());
           expect(resizeObserver.observe).toHaveBeenNthCalledWith(2, expect.anything());
 
@@ -827,7 +827,7 @@ describe('RoomTimeline', () => {
         const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
         let renderer: ReturnType<typeof create> | undefined;
 
-        const createNodeMock = (element: { type: string }) => {
+        const createNodeMock = (element: React.ReactElement) => {
           if (element.type === scrollType) {
             return {
               addEventListener: vi.fn(),

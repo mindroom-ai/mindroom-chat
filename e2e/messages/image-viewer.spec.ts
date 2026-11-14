@@ -15,7 +15,10 @@ test.describe('image viewer touch gestures', () => {
     const image = page.getByRole('img', { name: 'Test image' });
     await expect(image).toBeVisible();
     const session = await page.context().newCDPSession(page);
-    const touch = async (type: 'touchStart' | 'touchMove' | 'touchEnd', points: number[][]) => {
+    const touch = async (
+      type: 'touchStart' | 'touchMove' | 'touchEnd',
+      points: [number, number, number][]
+    ) => {
       await session.send('Input.dispatchTouchEvent', {
         type,
         touchPoints: points.map(([id, x, y]) => ({ id, x, y })),

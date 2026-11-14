@@ -2,6 +2,7 @@ import { MatrixEvent, RelationType, type IEvent, type Room } from 'matrix-js-sdk
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from './editEvent';
 import { getLatestEdit } from './room';
 import { threadSummaryPreviews, withoutRedactedThreadPreviews } from './threadSummaryPreviews';
+import { matchesEnum } from '../lib/matchesEnum';
 
 export type ReplacementRevision = {
   readonly eventId: string;
@@ -253,7 +254,8 @@ const canonicalizeAggregation = (value: unknown): unknown => {
 const canonicalizeRelationBundle = (relationType: string, value: unknown): unknown => {
   const canonical = canonicalizeAggregation(value);
   if (
-    (relationType === RelationType.Annotation || relationType === RelationType.Reference) &&
+    (matchesEnum(relationType, RelationType.Annotation) ||
+      matchesEnum(relationType, RelationType.Reference)) &&
     isRecord(canonical) &&
     Array.isArray(canonical.chunk)
   ) {
@@ -418,9 +420,9 @@ const mergeNonReplacementRelations = (
     const currentBundle = merged[relationType];
     if (currentBundle === undefined) {
       merged[relationType] = incomingBundle;
-    } else if (relationType === RelationType.Thread) {
+    } else if (matchesEnum(relationType, RelationType.Thread)) {
       merged[relationType] = mergePartialThreadBundle(currentBundle, incomingBundle);
-    } else if (relationType === RelationType.Annotation) {
+    } else if (matchesEnum(relationType, RelationType.Annotation)) {
       merged[relationType] = mergePartialAnnotationBundle(currentBundle, incomingBundle);
     }
   });
@@ -522,9 +524,9 @@ export const describeMatrixEventRevision = (event: MatrixEvent): EventRevisionDe
   return {
     redacted: event.isRedacted(),
     replacement: replacement
-      ? getReplacementRevision(event.getSender(), replacement.event as Partial<IEvent>)
+      ? getReplacementRevision(event.getSender(), replacement.event)
       : undefined,
-    aggregations: canonicalizeRelations(getNonReplacementRelations(event.event as Partial<IEvent>)),
+    aggregations: canonicalizeRelations(getNonReplacementRelations(event.event)),
   };
 };
 
@@ -695,7 +697,7 @@ export const mergeSameIdEventRevision = ({
   // shallow merge the SDK mapper's reuse branch performs), with both sides'
   // `m.replace` bundles stripped first so nothing can eagerly apply the old
   // bundle. The winning replacement is applied explicitly below.
-  const rawLiveEvent = liveEvent.event as Partial<IEvent>;
+  const rawLiveEvent = liveEvent.event;
   const mergedRawEvent = withMergedRelations(
     rawEvent,
     rawLiveEvent,
@@ -711,7 +713,7 @@ export const mergeSameIdEventRevision = ({
 
   let resolvedReplacement = latestReplacement;
   if (latestReplacement && latestReplacement !== currentReplacement) {
-    const mappedReplacement = mapDetached(latestReplacement.event as Partial<IEvent>);
+    const mappedReplacement = mapDetached(latestReplacement.event);
     resolvedReplacement =
       isSameSenderEditEvent(liveEvent, mappedReplacement) && !isKnownRedacted(mappedReplacement)
         ? mappedReplacement
@@ -721,10 +723,7 @@ export const mergeSameIdEventRevision = ({
     liveEvent.makeReplaced(resolvedReplacement);
   }
 
-  const liveWithReplacement = withRawReplacement(
-    liveEvent.event as Partial<IEvent>,
-    resolvedReplacement
-  );
+  const liveWithReplacement = withRawReplacement(liveEvent.event, resolvedReplacement);
   if (liveWithReplacement !== liveEvent.event) {
     liveEvent.setUnsigned(liveWithReplacement.unsigned ?? {});
   }

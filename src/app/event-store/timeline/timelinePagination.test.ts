@@ -27,7 +27,7 @@ const makeLinkedTimeline = () => {
   const timeline = {
     getEvents: () => [],
     getNeighbouringTimeline: (direction: Direction) => neighbours.get(direction) ?? null,
-  } as EventTimeline;
+  } as unknown as EventTimeline;
 
   return {
     timeline,
@@ -98,15 +98,18 @@ describe('timeline pagination helpers', () => {
   it('walks a deep valid backward chain without consuming the call stack', () => {
     const linkedTimelines = Array.from({ length: 20_000 }, makeLinkedTimeline);
     for (let index = 1; index < linkedTimelines.length; index += 1) {
-      linkedTimelines[index].setNeighbour(Direction.Backward, linkedTimelines[index - 1].timeline);
+      linkedTimelines[index]!.setNeighbour(
+        Direction.Backward,
+        linkedTimelines[index - 1]!.timeline
+      );
     }
 
     expect(
       getFirstLinkedTimeline(
-        linkedTimelines[linkedTimelines.length - 1].timeline,
+        linkedTimelines[linkedTimelines.length - 1]!.timeline,
         Direction.Backward
       )
-    ).toBe(linkedTimelines[0].timeline);
+    ).toBe(linkedTimelines[0]!.timeline);
   });
 
   it('collects each timeline once when forward links form a cycle', () => {
@@ -119,7 +122,7 @@ describe('timeline pagination helpers', () => {
         if (forwardReads > 2) throw new Error('forward cycle was not stopped');
         return timeline;
       },
-    } as EventTimeline;
+    } as unknown as EventTimeline;
 
     expect(getLinkedTimelines(timeline)).toEqual([timeline]);
     expect(forwardReads).toBe(1);

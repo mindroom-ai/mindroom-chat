@@ -15,7 +15,7 @@ test.beforeAll(async () => {
     format: 'esm',
     write: false,
   });
-  const module = result.outputFiles[0].text;
+  const module = result.outputFiles[0]!.text;
   const start = async (): Promise<string> => {
     const server = createServer((request, response) => {
       response.setHeader('Access-Control-Allow-Origin', appOrigin || '*');

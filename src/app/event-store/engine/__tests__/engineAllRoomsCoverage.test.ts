@@ -89,7 +89,7 @@ describe('engineWriteThrough — F1 fix (background room coverage)', () => {
     );
 
     expect(roomWrites()).toHaveLength(1);
-    const call = roomWrites()[0];
+    const call = roomWrites()[0]!;
     // A live event says nothing about whether the room's older tail is loaded.
     expect(call.tailLoaded).toBe(false);
     expect(call.room.roomId).toBe('!background:example.org');
@@ -106,7 +106,7 @@ describe('engineWriteThrough — F1 fix (background room coverage)', () => {
     );
 
     expect(roomWrites()).toHaveLength(1);
-    expect(roomWrites()[0].room.roomId).toBe('!foreground:example.org');
+    expect(roomWrites()[0]!.room.roomId).toBe('!foreground:example.org');
   });
 
   it('captures thread attribution from the event (not from any UI context) — thread events persist to their thread cache', () => {
@@ -120,9 +120,9 @@ describe('engineWriteThrough — F1 fix (background room coverage)', () => {
     writer.handleLiveEvent(threadReply as unknown as MatrixEvent, room, meta('!room:example.org'));
 
     expect(threadWrites()).toHaveLength(1);
-    expect(threadWrites()[0].threadId).toBe('$thread-root');
+    expect(threadWrites()[0]!.threadId).toBe('$thread-root');
     // tailLoaded:true is the engine's semantic (see engineWriteThrough
     // header — live events are by definition at the tail).
-    expect(threadWrites()[0].tailLoaded).toBe(true);
+    expect(threadWrites()[0]!.tailLoaded).toBe(true);
   });
 });

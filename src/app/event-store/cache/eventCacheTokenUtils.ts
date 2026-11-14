@@ -123,6 +123,10 @@ export const getCachedPaginationToken = (
   return entry ? entry.token : undefined;
 };
 
+/**
+ * Cache order, the one the event cache's index keeps: sent time, then event ID by code unit, as
+ * IndexedDB compares strings. Neither is the server's order inside one millisecond.
+ */
 export const compareCachedPaginationAnchors = (
   left: CachedPaginationAnchor | undefined,
   right: CachedPaginationAnchor | undefined
@@ -133,5 +137,6 @@ export const compareCachedPaginationAnchors = (
 
   const tsDiff = left.ts - right.ts;
   if (tsDiff !== 0) return tsDiff;
-  return left.eventId.localeCompare(right.eventId);
+  if (left.eventId === right.eventId) return 0;
+  return left.eventId < right.eventId ? -1 : 1;
 };

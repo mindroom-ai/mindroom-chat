@@ -40,7 +40,7 @@ const getPreferredEventContent = (
     isSameSenderEditEvent(mEvent, serializedReplacementCandidate);
 
   if (!hasResolvableReplacement || !timelineSet) {
-    return (mEvent.getContent() as Record<string, unknown>) ?? {};
+    return mEvent.getContent() ?? {};
   }
 
   const eventId = mEvent.getId();
@@ -68,9 +68,7 @@ const getStreamStatus = (content: Record<string, unknown>): string | undefined =
   const fromStringForm = getStreamStatusFromContent(content);
   if (fromStringForm) return fromStringForm;
 
-  const newContent = isRecord(content['m.new_content'])
-    ? (content['m.new_content'] as Record<string, unknown>)
-    : undefined;
+  const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
   return (
     getStatusFromRecordMetadata(newContent?.[STREAM_STATUS_KEY]) ??
     getStatusFromRecordMetadata(content[STREAM_STATUS_KEY])

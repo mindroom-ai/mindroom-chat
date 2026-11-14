@@ -172,7 +172,7 @@ it('keeps previous references when registering a replacement fails atomically', 
   });
   const put = vi
     .spyOn(IDBObjectStore.prototype, 'put')
-    .mockImplementation(function failReference(value, key) {
+    .mockImplementation(function failReference(this: IDBObjectStore, value, key) {
       if (this.name === 'attachment_references' && value.mxcUri === 'mxc://test/new')
         throw new Error('write failed');
       return key === undefined ? original.call(this, value) : original.call(this, value, key);

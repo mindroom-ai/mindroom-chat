@@ -219,14 +219,14 @@ describe('engineWriteThrough redaction thread attribution (ISSUE-207 P3 gate re-
       // The redaction record lands on the thread scope the cache walker
       // reported, self-consistent by construction.
       expect(threadWrites()).toHaveLength(1);
-      expect(threadWrites()[0].threadId).toBe('$thread-root');
-      expect(threadWrites()[0].events).toEqual([redaction]);
+      expect(threadWrites()[0]!.threadId).toBe('$thread-root');
+      expect(threadWrites()[0]!.events).toEqual([redaction]);
       // No belt-and-braces room persist: the derived scope is authoritative.
       expect(roomWrites()).toHaveLength(0);
       // We routed through the by-event-id walker (that's how we learned
       // the scope), not the keyed thread delete.
       expect(deleteThreadEventFromCacheByEventId).toHaveBeenCalledTimes(1);
-      expect(deleteThreadEventFromCacheByEventId.mock.calls[0][2]).toBe('$reaction');
+      expect(deleteThreadEventFromCacheByEventId.mock.calls[0]![2]).toBe('$reaction');
       expect(deleteThreadEventsFromCache).not.toHaveBeenCalled();
       // Room-scoped reaction record (if any) still cleared.
       expect(deleteRoomEventsFromCache).toHaveBeenCalledTimes(1);
@@ -260,7 +260,7 @@ describe('engineWriteThrough redaction thread attribution (ISSUE-207 P3 gate re-
 
     // Tombstone persists to the pre-prune thread scope.
     expect(threadWrites()).toHaveLength(1);
-    expect(threadWrites()[0].threadId).toBe('$thread-root');
+    expect(threadWrites()[0]!.threadId).toBe('$thread-root');
     expect(roomWrites()).toHaveLength(0);
     // No deletion (message target, not reaction).
     expect(deleteThreadEventFromCacheByEventId).not.toHaveBeenCalled();
@@ -291,7 +291,7 @@ describe('engineWriteThrough redaction thread attribution (ISSUE-207 P3 gate re-
     expect(deleteRoomEventsFromCache).not.toHaveBeenCalled();
     expect(threadWrites()).toHaveLength(0);
     expect(roomWrites()).toHaveLength(1);
-    expect(roomWrites()[0].events).toEqual([redaction]);
+    expect(roomWrites()[0]!.events).toEqual([redaction]);
   });
 
   it('persists the redaction to every scope the cache walker returns (ambiguous cross-thread reaction)', async () => {
@@ -351,11 +351,11 @@ describe('engineWriteThrough redaction thread attribution (ISSUE-207 P3 gate re-
     await flushMicrotasks();
 
     expect(threadWrites()).toHaveLength(1);
-    expect(threadWrites()[0].threadId).toBe('$thread-root');
+    expect(threadWrites()[0]!.threadId).toBe('$thread-root');
     expect(roomWrites()).toHaveLength(0);
     expect(deleteThreadEventsFromCache).toHaveBeenCalledTimes(1);
-    expect(deleteThreadEventsFromCache.mock.calls[0][2]).toBe('$thread-root');
-    expect(deleteThreadEventsFromCache.mock.calls[0][3]).toEqual(['$reaction']);
+    expect(deleteThreadEventsFromCache.mock.calls[0]![2]).toBe('$thread-root');
+    expect(deleteThreadEventsFromCache.mock.calls[0]![3]).toEqual(['$reaction']);
     expect(deleteThreadEventFromCacheByEventId).not.toHaveBeenCalled();
     expect(deleteRoomEventsFromCache).toHaveBeenCalledTimes(1);
   });

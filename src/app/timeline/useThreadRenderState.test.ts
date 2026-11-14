@@ -275,7 +275,7 @@ describe('useThreadRenderState', () => {
     expect(getSnapshot().threadInitialRenderMode).toBe('cached');
     expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
     expect(getSnapshot().threadEvents[1]).toBe(correctedFallbackReply);
-    expect(getSnapshot().threadEvents[1].replacingEvent()?.getId()).toBe('$edit-2');
+    expect(getSnapshot().threadEvents[1]!.replacingEvent()?.getId()).toBe('$edit-2');
 
     update({
       room,
@@ -289,7 +289,7 @@ describe('useThreadRenderState', () => {
     expect(getSnapshot().threadInitialRenderMode).toBe('live');
     expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
     expect(getSnapshot().threadEvents[1]).toBe(correctedFallbackReply);
-    expect(getSnapshot().threadEvents[1].replacingEvent()?.getId()).toBe('$edit-2');
+    expect(getSnapshot().threadEvents[1]!.replacingEvent()?.getId()).toBe('$edit-2');
 
     renderer.unmount();
   });
@@ -320,7 +320,7 @@ describe('useThreadRenderState', () => {
     expect(getSnapshot().threadInitialRenderMode).toBe('cached');
     expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
     expect(getSnapshot().threadEvents[1]).toBe(refetchedFallbackReply);
-    expect(getSnapshot().threadEvents[1].replacingEvent()?.getId()).toBe('$edit-13');
+    expect(getSnapshot().threadEvents[1]!.replacingEvent()?.getId()).toBe('$edit-13');
 
     update({
       room,
@@ -333,7 +333,7 @@ describe('useThreadRenderState', () => {
 
     expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
     expect(getSnapshot().threadEvents[1]).toBe(refetchedFallbackReply);
-    expect(getSnapshot().threadEvents[1].replacingEvent()?.getId()).toBe('$edit-13');
+    expect(getSnapshot().threadEvents[1]!.replacingEvent()?.getId()).toBe('$edit-13');
 
     renderer.unmount();
   });
@@ -391,8 +391,8 @@ describe('useThreadRenderState', () => {
     });
 
     expect(getSnapshot().threadInitialRenderMode).toBe('cached');
-    expect(getSnapshot().threadEvents[0].getId()).toBe('$reply');
-    expect(getSnapshot().threadEvents[0].replacingEvent()?.getId()).toBe('$edit-1');
+    expect(getSnapshot().threadEvents[0]!.getId()).toBe('$reply');
+    expect(getSnapshot().threadEvents[0]!.replacingEvent()?.getId()).toBe('$edit-1');
 
     renderer.unmount();
   });
@@ -515,7 +515,7 @@ describe('useThreadRenderState', () => {
     });
 
     expect(getRenderCount()).toBeGreaterThan(afterReplyRenderCount);
-    expect(getSnapshot().threadEvents[1].replacingEvent()?.getId()).toBe('$reply-edit-streaming');
+    expect(getSnapshot().threadEvents[1]!.replacingEvent()?.getId()).toBe('$reply-edit-streaming');
     const afterStreamingRenderCount = getRenderCount();
 
     const completedEdit = makeAiRunEditEvent('$reply-edit-completed', 4, '$reply', 'completed');
@@ -524,10 +524,10 @@ describe('useThreadRenderState', () => {
     });
 
     expect(getRenderCount()).toBeGreaterThan(afterStreamingRenderCount);
-    expect(getSnapshot().threadEvents[1].replacingEvent()?.getId()).toBe('$reply-edit-completed');
+    expect(getSnapshot().threadEvents[1]!.replacingEvent()?.getId()).toBe('$reply-edit-completed');
     expect(
       (
-        getSnapshot().threadEvents[1].replacingEvent()?.getContent()['m.new_content'] as {
+        getSnapshot().threadEvents[1]!.replacingEvent()?.getContent()['m.new_content'] as {
           ['io.mindroom.ai_run']?: { status?: string };
         }
       )?.['io.mindroom.ai_run']?.status
@@ -848,11 +848,9 @@ describe('useThreadRenderState', () => {
     // The bundled body reachable through the SDK's own resolver is
     // the ultimate render-side truth (getLatestMessageContent reads
     // this).
-    expect(
-      (afterRepair?.replacingEvent()?.getContent() as Record<string, unknown> | undefined)?.[
-        'm.new_content'
-      ]
-    ).toMatchObject({ body: '$edit-c' });
+    expect(afterRepair?.replacingEvent()?.getContent()?.['m.new_content']).toMatchObject({
+      body: '$edit-c',
+    });
 
     renderer.unmount();
   });
@@ -1054,11 +1052,9 @@ describe('useThreadRenderState', () => {
     const afterRepair = getSnapshot().threadEvents.find((mEvt) => mEvt.getId() === '$edit-target');
     expect(afterRepair).toBeDefined();
     expect(afterRepair?.replacingEvent()).toBe(editEventC);
-    expect(
-      (afterRepair?.replacingEvent()?.getContent() as Record<string, unknown> | undefined)?.[
-        'm.new_content'
-      ]
-    ).toMatchObject({ body: '$edit-c' });
+    expect(afterRepair?.replacingEvent()?.getContent()?.['m.new_content']).toMatchObject({
+      body: '$edit-c',
+    });
 
     renderer.unmount();
   });

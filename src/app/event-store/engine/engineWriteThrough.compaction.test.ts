@@ -163,8 +163,8 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     await waitForDebounce();
 
     expect(threadWrites()).toHaveLength(1);
-    expect(threadWrites()[0].events).toEqual([target, edit]);
-    expect(threadWrites()[0].threadId).toBe(threadId);
+    expect(threadWrites()[0]!.events).toEqual([target, edit]);
+    expect(threadWrites()[0]!.threadId).toBe(threadId);
     expect(getCacheProbeSnapshot().editCompactions).toBe(1);
     expect(getCacheProbeSnapshot().editCompactionTargetMisses).toBe(0);
   });
@@ -191,7 +191,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     await waitForDebounce();
 
     expect(threadWrites()).toHaveLength(1);
-    expect(threadWrites()[0].events).toEqual([target, edits[2]]);
+    expect(threadWrites()[0]!.events).toEqual([target, edits[2]]);
   });
 
   it('coalesces N rapid edits into one target upsert', async () => {
@@ -217,7 +217,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     await waitForDebounce();
 
     expect(threadWrites()).toHaveLength(1);
-    expect(threadWrites()[0].events).toEqual([
+    expect(threadWrites()[0]!.events).toEqual([
       target,
       expect.objectContaining({ __id: '$edit-25' }),
     ]);
@@ -239,7 +239,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
 
     writer.flush();
     expect(threadWrites()).toHaveLength(1);
-    expect(threadWrites()[0].events).toEqual([target, edit]);
+    expect(threadWrites()[0]!.events).toEqual([target, edit]);
   });
 
   it('persists non-replace thread events immediately, bypassing the debounce', () => {
@@ -251,7 +251,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     writer.handleLiveEvent(reply as unknown as MatrixEvent, room, timelineMeta());
 
     expect(threadWrites()).toHaveLength(1);
-    expect(threadWrites()[0].events).toEqual([reply]);
+    expect(threadWrites()[0]!.events).toEqual([reply]);
   });
 
   it('falls back to persisting the replace standalone when the target is not in SDK memory (probe bumped)', async () => {
@@ -270,7 +270,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     await waitForDebounce();
 
     expect(threadWrites()).toHaveLength(1);
-    expect(threadWrites()[0].events).toEqual([edit]);
+    expect(threadWrites()[0]!.events).toEqual([edit]);
     expect(getCacheProbeSnapshot().editCompactionTargetMisses).toBe(1);
   });
 
@@ -297,7 +297,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     await waitForDebounce();
 
     expect(threadWrites()).toHaveLength(1);
-    expect(threadWrites()[0].events).toEqual([target, crossSenderEdit]);
+    expect(threadWrites()[0]!.events).toEqual([target, crossSenderEdit]);
   });
 
   it('keeps the D12-latest replace when a stale one arrives later in the same window', async () => {
@@ -324,7 +324,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     expect(threadWrites()).toHaveLength(1);
     // Fire-time target-miss durability fallback persists the D12-latest
     // replace we captured, not the last-arrived one.
-    expect(threadWrites()[0].events).toEqual([newer]);
+    expect(threadWrites()[0]!.events).toEqual([newer]);
   });
 
   it('persists arm-time cross-sender replaces directly instead of compacting them', () => {
@@ -344,7 +344,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     writer.handleLiveEvent(crossSenderEdit as unknown as MatrixEvent, room, timelineMeta());
 
     expect(threadWrites()).toHaveLength(1);
-    expect(threadWrites()[0].events).toEqual([crossSenderEdit]);
+    expect(threadWrites()[0]!.events).toEqual([crossSenderEdit]);
     // No scheduler was armed → no compaction probe increment.
     expect(getCacheProbeSnapshot().editCompactions).toBe(0);
   });
@@ -371,7 +371,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     expect(threadWrites()).toHaveLength(1);
     // Fires against the thread that was known at ARM time, not
     // re-derived at fire time from the (possibly redacted) event.
-    expect(threadWrites()[0].threadId).toBe(rootId);
+    expect(threadWrites()[0]!.threadId).toBe(rootId);
   });
 
   it('routes non-replace thread events through the thread persist entry point (F1 fix: no view branching)', () => {
@@ -383,8 +383,8 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     writer.handleLiveEvent(reply as unknown as MatrixEvent, room, timelineMeta());
 
     expect(threadWrites()).toHaveLength(1);
-    expect(threadWrites()[0].threadId).toBe(rootId);
-    expect(threadWrites()[0].events).toEqual([reply]);
+    expect(threadWrites()[0]!.threadId).toBe(rootId);
+    expect(threadWrites()[0]!.events).toEqual([reply]);
     // Non-thread room persist path is not touched.
     expect(roomWrites()).toHaveLength(0);
   });
@@ -404,7 +404,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     await waitForDebounce();
 
     expect(roomWrites()).toHaveLength(1);
-    expect(roomWrites()[0].events).toEqual([target, edit]);
+    expect(roomWrites()[0]!.events).toEqual([target, edit]);
     expect(getCacheProbeSnapshot().editCompactions).toBe(1);
   });
 
@@ -439,9 +439,9 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     await waitForDebounce();
 
     expect(threadWrites()).toHaveLength(1);
-    expect(threadWrites()[0].events).toEqual([roomTarget, threadEdit]);
+    expect(threadWrites()[0]!.events).toEqual([roomTarget, threadEdit]);
     expect(roomWrites()).toHaveLength(1);
-    expect(roomWrites()[0].events).toEqual([roomTarget, roomEdit]);
+    expect(roomWrites()[0]!.events).toEqual([roomTarget, roomEdit]);
   });
 
   it('flush() on engine teardown drains pending upserts (equivalent of the old unmount flush)', () => {

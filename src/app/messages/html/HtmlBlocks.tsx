@@ -428,7 +428,7 @@ const cloneDomChildNode = (node: ChildNode): ChildNode => {
   }
 
   if (isDomElementNode(node)) {
-    const clonedChildren = node.children.map((child) => cloneDomChildNode(child as ChildNode));
+    const clonedChildren = node.children.map((child) => cloneDomChildNode(child));
     return new Element(node.name, { ...node.attribs }, clonedChildren);
   }
 
@@ -437,7 +437,7 @@ const cloneDomChildNode = (node: ChildNode): ChildNode => {
 
 const normalizeLeadingToolRefBoundaryInPlace = (element: Element): boolean => {
   if (!['p', 'div', 'li'].includes(element.name)) return false;
-  const children = element.children as ChildNode[];
+  const children = element.children;
 
   let index = 0;
   while (index < children.length) {
@@ -515,7 +515,7 @@ const createToolTraceMarkerParserOptions = (
       if (isContainer) {
         const maybeChildren = domNode.children;
         const maybeToolIndex = parseToolRefIndexFromTextPrefix(
-          extractTextFromChildren(maybeChildren as ChildNode[])
+          extractTextFromChildren(maybeChildren)
         );
         if (maybeToolIndex !== undefined && consumedToolIndexes.has(maybeToolIndex)) {
           return null;
@@ -667,7 +667,7 @@ const createToolTraceMarkerParserOptions = (
       if (isContainer) {
         const maybeChildren = domNode.children;
         const maybeToolIndex = parseToolRefIndexFromTextPrefix(
-          extractTextFromChildren(maybeChildren as ChildNode[])
+          extractTextFromChildren(maybeChildren)
         );
         if (
           maybeToolIndex !== undefined &&

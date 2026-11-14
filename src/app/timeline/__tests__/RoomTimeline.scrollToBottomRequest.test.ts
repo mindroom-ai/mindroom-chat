@@ -66,7 +66,7 @@ const setup = async (initialViewMode: 'classic' | 'threaded', extra: Record<stri
         ...extra,
       }),
       {
-        createNodeMock: (element: { type: string }) => {
+        createNodeMock: (element) => {
           if (element.type === scrollType) return scroll.el;
           return null;
         },
@@ -138,8 +138,7 @@ describe('RoomTimeline scroll-to-bottom request', () => {
       renderer = create(
         React.createElement(ControlledRoomTimeline, { room, initialViewMode: 'classic' }),
         {
-          createNodeMock: (element: { type: string }) =>
-            element.type === scrollType ? scroll.el : null,
+          createNodeMock: (element) => (element.type === scrollType ? scroll.el : null),
         }
       );
       await flushAsyncWork();
@@ -195,9 +194,8 @@ describe('RoomTimeline scroll-to-bottom request', () => {
         ),
         {
           unstable_isConcurrent: true,
-          createNodeMock: (element: { type: string }) =>
-            element.type === scrollType ? scroll.el : null,
-        }
+          createNodeMock: (element) => (element.type === scrollType ? scroll.el : null),
+        } as Parameters<typeof create>[1]
       );
       await flushAsyncWork();
     });

@@ -57,7 +57,7 @@ async function workerSource(legacy: boolean) {
       ]),
     },
   });
-  return result.outputFiles[0].text;
+  return result.outputFiles[0]!.text;
 }
 
 test.beforeAll(async () => {

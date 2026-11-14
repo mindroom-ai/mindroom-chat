@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { createClient, MatrixEvent, Room, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -110,21 +109,22 @@ afterEach(() => {
 
 describe('compact card formatting work', () => {
   it('skips formatting unchanged values even when records and cache coverage are rebuilt', () => {
-    const format = vi.spyOn(Intl.NumberFormat.prototype, 'format', 'get');
+    // `format` is a getter on the prototype, which lib.es5 types as a method.
+    const format = vi.spyOn(Intl.NumberFormat.prototype as { format: unknown }, 'format', 'get');
     const harness = mount(room, [record('$a'), record('$b')]);
     const original = harness.models;
     // Each built card formats its count twice: the label and the bare number.
     expect(format).toHaveBeenCalledTimes(4);
     const rebuilt = [record('$a'), record('$b')];
-    rebuilt[0].absoluteIndex = 10;
-    rebuilt[0].cache.eventCount = 500;
+    rebuilt[0]!.absoluteIndex = 10;
+    rebuilt[0]!.cache.eventCount = 500;
     harness.update(rebuilt);
     expect(harness.models[0]).toBe(original[0]);
     expect(harness.models[1]).toBe(original[1]);
     expect(format).toHaveBeenCalledTimes(4);
 
     harness.update([record('$a', 1001), record('$b')]);
-    expect(harness.models[0].messageCount).toBe(1001);
+    expect(harness.models[0]!.messageCount).toBe(1001);
     expect(harness.models[1]).toBe(original[1]);
     expect(format).toHaveBeenCalledTimes(6);
     harness.unmount();
@@ -135,36 +135,36 @@ describe('compact card formatting work', () => {
     first.status.isResolved = true;
     first.status.resolvedByUserId = '@alice:server';
     const harness = mount(room, [first]);
-    expect(harness.models[0].titleText).toContain('Alice');
-    expect(harness.models[0].previewText).toContain('@bob:server');
-    const oldAvatar = harness.models[0].participants[0].avatarUrl;
+    expect(harness.models[0]!.titleText).toContain('Alice');
+    expect(harness.models[0]!.previewText).toContain('@bob:server');
+    const oldAvatar = harness.models[0]!.participants[0]!.avatarUrl;
 
     setMember(room, '@alice:server', 'Alicia', 'mxc://server/new-avatar');
     setMember(room, '@bob:server', 'Bob');
     harness.update([structuredClone(first)]);
-    expect(harness.models[0].titleText).toContain('Alicia');
-    expect(harness.models[0].previewText).toContain('Bob');
-    expect(harness.models[0].resolvedByDisplayName).toBe('Alicia');
-    expect(harness.models[0].participants[0].avatarUrl).not.toBe(oldAvatar);
+    expect(harness.models[0]!.titleText).toContain('Alicia');
+    expect(harness.models[0]!.previewText).toContain('Bob');
+    expect(harness.models[0]!.resolvedByDisplayName).toBe('Alicia');
+    expect(harness.models[0]!.participants[0]!.avatarUrl).not.toBe(oldAvatar);
     harness.unmount();
   });
 
   it('refreshes locale, media authentication, and native token changes', () => {
     const harness = mount(room, [record('$a')]);
-    expect(harness.models[0].messageCountLabel).toContain('1,000');
-    const publicAvatar = harness.models[0].participants[0].avatarUrl;
+    expect(harness.models[0]!.messageCountLabel).toContain('1,000');
+    const publicAvatar = harness.models[0]!.participants[0]!.avatarUrl;
     state.locale = 'de';
     state.authenticated = true;
     harness.update([record('$a')]);
-    expect(harness.models[0].messageCountLabel).toContain('1.000');
-    expect(harness.models[0].participants[0].avatarUrl).not.toBe(publicAvatar);
+    expect(harness.models[0]!.messageCountLabel).toContain('1.000');
+    expect(harness.models[0]!.participants[0]!.avatarUrl).not.toBe(publicAvatar);
 
     vi.stubGlobal('window', { location: { protocol: 'capacitor:' } });
     harness.update([record('$a')]);
-    expect(harness.models[0].participants[0].avatarUrl).toContain('access_token=first-token');
+    expect(harness.models[0]!.participants[0]!.avatarUrl).toContain('access_token=first-token');
     state.mx!.setAccessToken('second-token');
     harness.update([record('$a')]);
-    expect(harness.models[0].participants[0].avatarUrl).toContain('access_token=second-token');
+    expect(harness.models[0]!.participants[0]!.avatarUrl).toContain('access_token=second-token');
     harness.unmount();
   });
 
@@ -175,10 +175,10 @@ describe('compact card formatting work', () => {
     scheduled.status.scheduledTaskCount = 1;
     scheduled.status.nextScheduledTs = 20000;
     const harness = mount(room, [scheduled]);
-    const previous = harness.models[0].scheduledDisplayText;
+    const previous = harness.models[0]!.scheduledDisplayText;
     vi.setSystemTime(15000);
     harness.update([structuredClone(scheduled)]);
-    expect(harness.models[0].scheduledDisplayText).not.toBe(previous);
+    expect(harness.models[0]!.scheduledDisplayText).not.toBe(previous);
     harness.unmount();
   });
 
@@ -207,11 +207,11 @@ describe('compact card formatting work', () => {
 
   it('refreshes attention and avatar URLs when the account changes', () => {
     const harness = mount(room, [record('$a')]);
-    expect(harness.models[0].attentionState).toBe('needs-attention');
+    expect(harness.models[0]!.attentionState).toBe('needs-attention');
     state.mx = createClient({ baseUrl: 'https://other.example', userId: '@alice:server' });
     harness.update([record('$a')]);
-    expect(harness.models[0].attentionState).toBe('waiting');
-    expect(harness.models[0].participants[0].avatarUrl).toContain('https://other.example/');
+    expect(harness.models[0]!.attentionState).toBe('waiting');
+    expect(harness.models[0]!.participants[0]!.avatarUrl).toContain('https://other.example/');
     harness.unmount();
   });
 });

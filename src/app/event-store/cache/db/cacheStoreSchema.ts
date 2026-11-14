@@ -37,7 +37,7 @@ export const ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX = 'by_attachment';
 // Scope constant used by the room timeline (empty string sorts before any
 // thread id). Callers pass a threadId (which starts with `$` in Matrix
 // event ids) for thread records.
-export const ROOM_SCOPE = '' as const;
+export const ROOM_SCOPE = '';
 
 export const MAX_EVENT_TS = Number.MAX_SAFE_INTEGER;
 export const MAX_EVENT_ID = '￿';

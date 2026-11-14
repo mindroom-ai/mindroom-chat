@@ -40,7 +40,7 @@ export function useCanvasOpenRequest(
       return undefined;
     }
     let alive = true;
-    loadCanvasEvent(mx, room, asked.canvasId).then((event) => {
+    void loadCanvasEvent(mx, room, asked.canvasId).then((event) => {
       if (!alive || request !== asked) return;
       request = undefined;
       if (event) latestOpen.current(event);

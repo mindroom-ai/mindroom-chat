@@ -30,7 +30,7 @@ const makeRoom = (tokens: Array<string | null>) => {
       paginateEventTimeline,
       supportsThreads: vi.fn(() => true),
     },
-    createThreadsTimelineSets: vi.fn(async () => room.threadsTimelineSets),
+    createThreadsTimelineSets: vi.fn(async (): Promise<unknown> => room.threadsTimelineSets),
     fetchRoomThreads: vi.fn(async () => undefined),
     threadsTimelineSets: [
       {

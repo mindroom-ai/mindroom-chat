@@ -157,13 +157,13 @@ const expectRecentlyOpenedRowGrouping = async (page: Page, expectedRowCount: num
     .toBe(expectedRowCount);
 
   const rows = await readRecentlyOpenedRowMetrics(page);
-  expect.soft(rows[0].marginTop).toBe('0px');
-  expect.soft(rows[0].dividerContent).toBe('none');
-  expect.soft(rows[0].height).toBe(38);
+  expect.soft(rows[0]!.marginTop).toBe('0px');
+  expect.soft(rows[0]!.dividerContent).toBe('none');
+  expect.soft(rows[0]!.height).toBe(38);
 
   for (let index = 1; index < rows.length; index += 1) {
-    const previousRow = rows[index - 1];
-    const row = rows[index];
+    const previousRow = rows[index - 1]!;
+    const row = rows[index]!;
     expect.soft(row.top - previousRow.top).toBe(42);
     expect.soft(row.top - (previousRow.top + previousRow.height)).toBe(4);
     expect.soft(row.height).toBe(38);
@@ -281,7 +281,7 @@ const prepareThreadFixtures = async (threadCount: number) => {
     name: `ISSUE-073 Space ${stamp}`,
     topic: 'Regression fixture for persistent Recently Opened placement.',
   });
-  await addRoomToSpace(homeserver, session.accessToken, spaceId, fixtures[0].roomId);
+  await addRoomToSpace(homeserver, session.accessToken, spaceId, fixtures[0]!.roomId);
 
   return { fixtures, homeserver, password, roomNames, session, spaceId, username };
 };
@@ -457,7 +457,7 @@ test.describe('live issue073 persistent thread navigation', () => {
       if (viewport.label === 'mobile-narrow') {
         const oldestThreadButton = getRecentlyOpenedThreadButton(
           page,
-          fixtures[fixtures.length - 1].rootBody
+          fixtures[fixtures.length - 1]!.rootBody
         );
         await expect
           .poll(async () => (await recentlyOpenedPanel.boundingBox())?.height ?? Infinity)
@@ -474,7 +474,7 @@ test.describe('live issue073 persistent thread navigation', () => {
 
       await getRoomsCategoryButton(page).click();
       await expect(getRoomsCategoryButton(page)).toHaveAttribute('aria-expanded', 'false');
-      await expect(roomsCategory.getByText(roomNames[0], { exact: true })).toHaveCount(0);
+      await expect(roomsCategory.getByText(roomNames[0]!, { exact: true })).toHaveCount(0);
       await waitForThreadEntries(page, fixtures);
       await waitForRecentlyOpenedEntries(page, fixtures);
 

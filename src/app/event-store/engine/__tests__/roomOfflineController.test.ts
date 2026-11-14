@@ -339,7 +339,7 @@ it('awaits SDK decryption before grouping and retains ciphertext for late keys',
   expect(
     (await loadLatestCachedThreadEvents(engine.sessionId, roomId, '$root', 10)).events[0]?.content
   ).toMatchObject({ ciphertext: 'ciphertext-at-rest' });
-  observed!.setClearData({
+  observed!['setClearData']({
     clearEvent: { type: 'm.room.message', content: { msgtype: 'm.text', body: 'decoded' } },
   });
   f.mx.emit(MatrixEventEvent.Decrypted, observed!);
@@ -375,7 +375,7 @@ it('releases a scheduler slot for foreground work between two explicit downloads
       order.push('foreground');
     },
   });
-  resolvers[0]({ chunk: [raw('$first')], end: 'next' });
+  resolvers[0]!({ chunk: [raw('$first')], end: 'next' });
   await foreground;
   expect(order.slice(0, 3)).toEqual(['history', 'history', 'foreground']);
   engine.offline.cancel(roomId);
@@ -515,9 +515,9 @@ it.each(['recovered', 'failed'] as const)(
         expect(enqueue.mock.calls.some(([job]) => job.kind === 'room-deep-history')).toBe(true);
         expect(engine.scheduler.pendingJobs().map((job) => job.kind)).toEqual(['gap-fill']);
       });
-      pending[0].resolve({ chunk: [], end: 'older' });
+      pending[0]!.resolve({ chunk: [], end: 'older' });
       await vi.waitFor(() => expect(pending).toHaveLength(2));
-      expect(f.request.mock.calls[1][1]).toBe('older');
+      expect(f.request.mock.calls[1]![1]).toBe('older');
       // The empty page's checkpoint starts a second pass. Settle the successor only once that pass
       // holds the status for it too: on a busy machine the test got here while the pass was still
       // starting, and the pass then saved history of its own after the successor had failed.
@@ -528,8 +528,8 @@ it.each(['recovered', 'failed'] as const)(
         expect(engine.scheduler.pendingJobs().map((job) => job.kind)).toEqual(['gap-fill']);
       });
       expect(engine.offline.getSnapshot(roomId).status).toBe('saving');
-      if (outcome === 'recovered') pending[1].resolve({ chunk: [] });
-      else pending[1].reject(new Error('successor unavailable'));
+      if (outcome === 'recovered') pending[1]!.resolve({ chunk: [] });
+      else pending[1]!.reject(new Error('successor unavailable'));
       await vi.waitFor(() => expect(engine.scheduler.pendingJobs()).toHaveLength(0));
       await vi.waitFor(() =>
         expect(engine.offline.getSnapshot(roomId).status).toBe(
@@ -718,7 +718,7 @@ it('retains text and distinguishes soft pressure from quota read-only', async ()
     reportCacheWriteError('test', new DOMException('quota', 'QuotaExceededError'));
     expect(warn).toHaveBeenCalledOnce();
     expect(error).toHaveBeenCalledOnce();
-    expect(error.mock.calls[0][0]).toContain('cache degraded to read-only');
+    expect(error.mock.calls[0]![0]).toContain('cache degraded to read-only');
   } finally {
     warn.mockRestore();
     error.mockRestore();
@@ -791,7 +791,7 @@ it('attachment turns yield to foreground work with two downloads active', async 
       foregroundRan = true;
     },
   });
-  bodies[0](new Response(JSON.stringify({ msgtype: 'm.text', body: 'saved' })));
+  bodies[0]!(new Response(JSON.stringify({ msgtype: 'm.text', body: 'saved' })));
   await foreground;
   expect(foregroundRan).toBe(true);
   expect(fetch).toHaveBeenCalledTimes(2);
@@ -828,7 +828,7 @@ it.each([false, true])(
         expect(engine.offline.getSnapshot(roomId).historyExhausted).toBe(true)
       );
     }
-    old.setClearData({
+    old['setClearData']({
       clearEvent: { type: 'm.room.message', content: { msgtype: 'm.text', body: 'late decoded' } },
     });
     f.mx.emit(MatrixEventEvent.Decrypted, old);
@@ -987,7 +987,7 @@ it('concurrent coverage repairs remove only processed IDs and retain newer addit
   await Promise.all([
     (() => {
       const decrypted = new MatrixEvent(key('$key-remove'));
-      decrypted.setClearData({
+      decrypted['setClearData']({
         clearEvent: { type: 'm.room.message', content: { msgtype: 'm.text', body: 'clear' } },
       });
       return persistRoomChunkWithPreferLive({
@@ -1289,7 +1289,7 @@ it('second idle focus does not rewrite complete retained history or attachment b
   const original = IDBObjectStore.prototype.put;
   const spy = vi
     .spyOn(IDBObjectStore.prototype, 'put')
-    .mockImplementation(function countWrites(value, key) {
+    .mockImplementation(function countWrites(this: IDBObjectStore, value, key) {
       writes.push(this.name);
       return original.call(this, value, key);
     });
@@ -1320,7 +1320,7 @@ it('streamed replacements persist and hydrate only the latest compacted body', a
   const original = IDBObjectStore.prototype.put;
   const spy = vi
     .spyOn(IDBObjectStore.prototype, 'put')
-    .mockImplementation(function countWrites(value, key) {
+    .mockImplementation(function countWrites(this: IDBObjectStore, value, key) {
       writes.push(this.name);
       return original.call(this, value, key);
     });
@@ -1328,7 +1328,7 @@ it('streamed replacements persist and hydrate only the latest compacted body', a
   const originalGetAll = IDBIndex.prototype.getAll;
   const scan = vi
     .spyOn(IDBIndex.prototype, 'getAll')
-    .mockImplementation(function countReads(...args) {
+    .mockImplementation(function countReads(this: IDBIndex, ...args) {
       if (this.objectStore.name === 'attachment_references') scans.push(this.name);
       return originalGetAll.apply(this, args);
     });
@@ -1530,7 +1530,7 @@ it('superseding a queued live owner still downloads the other owners in its batc
     await vi.waitFor(() =>
       expect(scheduler.pendingJobs().some((job) => job.threadId === '$first')).toBe(true)
     );
-    const replacement = offline.observe([events[0]], roomId);
+    const replacement = offline.observe([events[0]!], roomId);
     await vi.waitFor(() =>
       expect(scheduler.pendingJobs().some((job) => job.threadId === '$other')).toBe(true)
     );
@@ -1589,7 +1589,7 @@ it.each([false, true])(
     const original = IDBIndex.prototype.openCursor;
     const spy = vi
       .spyOn(IDBIndex.prototype, 'openCursor')
-      .mockImplementation(function countReads(...args) {
+      .mockImplementation(function countReads(this: IDBIndex, ...args) {
         scans.push(this.name);
         return original.apply(this, args);
       });
@@ -1675,7 +1675,7 @@ it.each([false, true])(
         : raw('$pruned-root')
     );
     if (encrypted)
-      root.setClearData({
+      root['setClearData']({
         clearEvent: {
           type: 'm.room.message',
           content: { msgtype: 'm.text', body: 'decrypted root' },
@@ -1696,7 +1696,7 @@ it.each([false, true])(
     const original = IDBIndex.prototype.openCursor;
     const spy = vi
       .spyOn(IDBIndex.prototype, 'openCursor')
-      .mockImplementation(function countScans(...args) {
+      .mockImplementation(function countScans(this: IDBIndex, ...args) {
         scans.push(this.name);
         return original.apply(this, args);
       });
@@ -1738,7 +1738,7 @@ it('SDK-pruned encrypted standalone edits still recover their compacted owner', 
     type: 'm.room.encrypted',
     content: { ciphertext: 'edit ciphertext', 'm.relates_to': relation },
   });
-  edit.setClearData({
+  edit['setClearData']({
     clearEvent: {
       type: 'm.room.message',
       content: {

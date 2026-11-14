@@ -34,7 +34,7 @@ test('bends the backdrop at the curved rim while keeping the center steady', asy
     element.style.backdropFilter = 'blur(3px)';
   });
   const flat = await sampleScreenshot(page, [...edge, ...center]);
-  const deltas = bent.map((pixel, index) => pixelDifference(pixel, flat[index]));
+  const deltas = bent.map((pixel, index) => pixelDifference(pixel, flat[index]!));
   const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
   expect(mean(deltas.slice(0, edge.length)), 'visible lens bending at the rim').toBeGreaterThan(60);
   expect(mean(deltas.slice(edge.length)), 'neutral glass center').toBeLessThan(30);

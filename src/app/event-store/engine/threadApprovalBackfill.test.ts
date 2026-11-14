@@ -1,4 +1,4 @@
-import { ConnectionError, createClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { ConnectionError, createClient, MatrixEvent, Room, type IEvent } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { createBackfillScheduler } from './backfillScheduler';
 import { enqueueThreadApprovalBackfill } from './threadApprovalBackfill';
@@ -22,7 +22,7 @@ const original = {
     expires_at: '2999-09-12T12:00:00Z',
     thread_id: threadId,
   },
-};
+} as unknown as IEvent;
 const setup = () => {
   const mx = createClient({ baseUrl: 'https://matrix.example.org' });
   const room = new Room(roomId, mx, '@alice:example.org');
@@ -41,7 +41,7 @@ const redacted = (value: typeof original) => ({
       sender: value.sender,
       content: {},
       redacts: value.event_id,
-    },
+    } as IEvent,
   },
 });
 
@@ -71,7 +71,7 @@ it('refreshes an omitted retained origin to recover a missed redaction', async (
     retained,
   ]);
   expect(fetch).toHaveBeenCalledWith(roomId, '$approval');
-  expect(result.events[0].isRedacted()).toBe(true);
+  expect(result.events[0]!.isRedacted()).toBe(true);
   expect(collectThreadApprovals([retained, ...result.events], roomId, threadId)).toEqual([]);
 });
 
@@ -101,7 +101,7 @@ it('refreshes an omitted retained edit without fetching unrelated origins during
   );
   expect(fetch.mock.calls).toEqual([[roomId, '$edit']]);
   expect(
-    collectThreadApprovals([retained, edit, ...result.events], roomId, threadId)[0].approval.status
+    collectThreadApprovals([retained, edit, ...result.events], roomId, threadId)[0]!.approval.status
   ).toBe('pending');
 });
 
@@ -148,7 +148,7 @@ describe('thread approval backfill', () => {
       [threadId, 'next'],
       ['$approval', undefined],
     ]);
-    expect(collectThreadApprovals(result.events, roomId, threadId)[0].approval.status).toBe(
+    expect(collectThreadApprovals(result.events, roomId, threadId)[0]!.approval.status).toBe(
       'approved'
     );
     expect(result.repairedEventIds).toEqual(['$approval']);
@@ -165,7 +165,7 @@ describe('thread approval backfill', () => {
     const decrypt = vi.spyOn(mx, 'decryptEventIfNeeded').mockResolvedValue();
     const result = await enqueueThreadApprovalBackfill(mx, scheduler, roomId, threadId);
     expect(result.events).toHaveLength(1);
-    expect(result.events[0].getType()).toBe('m.room.encrypted');
+    expect(result.events[0]!.getType()).toBe('m.room.encrypted');
     expect(decrypt).toHaveBeenCalledWith(result.events[0]);
     expect(result.repairedEventIds).toEqual([]);
   });

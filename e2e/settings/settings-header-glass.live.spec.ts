@@ -74,7 +74,7 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
         await waitForPointerPaint();
         await expect
           .poll(() =>
-            header.evaluate((element) => {
+            header.evaluate((element: HTMLElement) => {
               const lights: string[] = [];
               for (let node: HTMLElement | null = element; node; node = node.parentElement) {
                 lights.push(node.style.getPropertyValue('--liquid-glass-light-x'));

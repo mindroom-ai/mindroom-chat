@@ -55,13 +55,13 @@ test('cleans up session-scoped browser storage after account removal and final l
   await chooseFromAccountMenu(page, 'Add Account');
   await loginWithPassword(page, {
     homeserver,
-    username: secondaryCredentials.username,
-    password: secondaryCredentials.password,
+    username: secondaryCredentials!.username,
+    password: secondaryCredentials!.password,
     addAccount: true,
   });
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
 
-  const secondarySession = await getStoredSessionByUsername(page, secondaryCredentials.username);
+  const secondarySession = await getStoredSessionByUsername(page, secondaryCredentials!.username);
   const secondaryDbNames = getExpectedSessionDbNames(secondarySession);
   const foreignDbNames = [
     'matrix-js-sdk:web-sync-store::foreign-app',

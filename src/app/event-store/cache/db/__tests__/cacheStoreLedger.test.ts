@@ -138,7 +138,7 @@ describe('ISSUE-207 P2.2 commit 1: cacheStore ledger', () => {
 
     const db = await openTestDb(dbName);
     const ledger = await readLedger(db, ROOM_ID);
-    const expectedBytes = estimateRawEventBytes(events[0]) + estimateRawEventBytes(events[1]);
+    const expectedBytes = estimateRawEventBytes(events[0]!) + estimateRawEventBytes(events[1]!);
     expect(ledger).toBeDefined();
     expect(ledger?.approxBytes).toBe(expectedBytes);
     expect(ledger?.eventCount).toBe(2);
@@ -181,7 +181,7 @@ describe('ISSUE-207 P2.2 commit 1: cacheStore ledger', () => {
 
     const db = await openTestDb(dbName);
     const ledger = await readLedger(db, ROOM_ID);
-    const expectedBytes = estimateRawEventBytes(events[0]) + estimateRawEventBytes(events[2]);
+    const expectedBytes = estimateRawEventBytes(events[0]!) + estimateRawEventBytes(events[2]!);
     expect(ledger?.approxBytes).toBe(expectedBytes);
     expect(ledger?.eventCount).toBe(2);
   });
@@ -231,8 +231,8 @@ describe('ISSUE-207 P2.2 commit 1: cacheStore ledger', () => {
     // Seed two more pre-existing records directly into the events store
     // (bypassing saveRoomEventsToCache so the ledger stays absent).
     const preSeeded = [makeRawEvent('$x', 500, 15), makeRawEvent('$y', 600, 25)];
-    await seedRawEvent(db, ROOM_ID, '', preSeeded[0]);
-    await seedRawEvent(db, ROOM_ID, '', preSeeded[1]);
+    await seedRawEvent(db, ROOM_ID, '', preSeeded[0]!);
+    await seedRawEvent(db, ROOM_ID, '', preSeeded[1]!);
     db.close();
 
     // Force cacheStoreDb to re-open on the next cacheStore call.
@@ -253,8 +253,8 @@ describe('ISSUE-207 P2.2 commit 1: cacheStore ledger', () => {
         sender: '@alice:example.org',
         content: { body: 'x'.repeat(5) },
       }) +
-      estimateRawEventBytes(preSeeded[0]) +
-      estimateRawEventBytes(preSeeded[1]) +
+      estimateRawEventBytes(preSeeded[0]!) +
+      estimateRawEventBytes(preSeeded[1]!) +
       estimateRawEventBytes(fresh);
     expect(ledger?.approxBytes).toBe(expectedBytes);
     expect(ledger?.eventCount).toBe(4);

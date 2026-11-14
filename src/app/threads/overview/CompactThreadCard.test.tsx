@@ -1,5 +1,5 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { CompactThreadCard } from './CompactThreadCard';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
@@ -60,6 +60,7 @@ vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
   return {
     useTranslation: () => ({
+      i18n: { language: 'en' },
       t: (key: string, options?: Record<string, unknown>) =>
         key === 'thread.aria.messageFailed'
           ? 'Localized message failure'
@@ -92,6 +93,71 @@ const makeViewModel = (
 });
 
 describe('CompactThreadCard', () => {
+  it('shows when a snooze ends, and nothing once its time passes', () => {
+    vi.useFakeTimers();
+    // Midday, so the wake time is today and shows without a date.
+    vi.setSystemTime(new Date(2026, 10, 14, 12, 0));
+    try {
+      const until = Date.now() + 30 * 60_000;
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          <CompactThreadCard
+            viewModel={makeViewModel({ snoozedUntilTs: until })}
+            onClick={vi.fn()}
+          />
+        );
+      });
+      const shown = () =>
+        renderer.root.findAll(
+          (n) => typeof n.type === 'string' && n.props['data-thread-snoozed'] === 'true'
+        );
+      expect(JSON.stringify(renderer.toJSON())).toContain(
+        `Snoozed until ${new Intl.DateTimeFormat('en', {
+          hour: 'numeric',
+          minute: '2-digit',
+        }).format(until)}`
+      );
+      expect(shown().length).toBeGreaterThan(0);
+      act(() => {
+        vi.advanceTimersByTime(30 * 60_000);
+      });
+      expect(JSON.stringify(renderer.toJSON())).not.toContain('Snoozed until');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows the date of a snooze that ends on another day, and the year in another year', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 14, 12, 0));
+    try {
+      const textFor = (until: number) =>
+        JSON.stringify(
+          create(
+            <CompactThreadCard
+              viewModel={makeViewModel({ snoozedUntilTs: until })}
+              onClick={vi.fn()}
+            />
+          ).toJSON()
+        );
+      const tomorrow = new Date(2026, 10, 15, 9, 0).getTime();
+      const nextYear = new Date(2027, 0, 5, 9, 0).getTime();
+      const format = (options: Intl.DateTimeFormatOptions, ts: number) =>
+        new Intl.DateTimeFormat('en', { ...options, hour: 'numeric', minute: '2-digit' }).format(
+          ts
+        );
+      expect(textFor(tomorrow)).toContain(
+        `Snoozed until ${format({ month: 'short', day: 'numeric' }, tomorrow)}`
+      );
+      expect(textFor(nextYear)).toContain(
+        `Snoozed until ${format({ year: 'numeric', month: 'short', day: 'numeric' }, nextYear)}`
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('renders the pending send indicator beside compact preview text', () => {
     const renderer = create(
       <CompactThreadCard viewModel={makeViewModel({ hasPendingSend: true })} onClick={vi.fn()} />

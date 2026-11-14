@@ -125,7 +125,7 @@ test('agent requests open the active conversation and leave passive history butt
   await expect(panel.getByText('Local fixture computer unavailable')).toBeVisible();
   expect(sessions).toHaveLength(1);
   expect(sessions[0]).toMatchObject({ agent_user_id: agent.user_id, room_id: fixture.roomId });
-  expect(sessions[0].openid_token).toBeTruthy();
+  expect(sessions[0]!.openid_token).toBeTruthy();
   await page.screenshot({ path: testInfo.outputPath('desktop-agent-computer.png') });
   await panel.getByRole('button', { name: 'Close computer', exact: true }).click();
   await expect(panel).toHaveCount(0);

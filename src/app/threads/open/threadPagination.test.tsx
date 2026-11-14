@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { createClient, Direction, MatrixEvent, Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -243,6 +243,43 @@ describe('thread pagination request ownership', () => {
     }
   });
 
+  it('asks the cache with the replies the thread holds', async () => {
+    vi.mocked(loadThreadCachedPaginationSnapshot).mockResolvedValueOnce(page('$cached'));
+    const f = fixture([new MatrixEvent({ event_id: '$r1' }), new MatrixEvent({ event_id: '$r2' })]);
+    try {
+      await act(async () => {
+        await f.current().paginateBack();
+      });
+      const options = vi.mocked(loadThreadCachedPaginationSnapshot).mock.calls[0]![0];
+      expect([...options.heldEventIds]).toEqual(['$r1', '$r2']);
+    } finally {
+      f.unmount();
+    }
+  });
+
+  it('keeps the server cursor after a cache miss when the server request fails', async () => {
+    vi.mocked(loadThreadCachedPaginationSnapshot).mockResolvedValueOnce({
+      status: 'cache-miss',
+      events: [],
+      cachedPage: { events: [], hasMoreBefore: false, beforeToken: 'cached-token' },
+      hasMoreCachedBack: true,
+    });
+    const f = fixture();
+    f.useNetwork();
+    f.paginate.mockRejectedValueOnce(new Error('Offline'));
+    const exhausted = vi.spyOn(f.current().commands, 'markBackwardExhausted');
+    try {
+      await act(async () => {
+        await f.current().paginateBack();
+      });
+      expect(exhausted).not.toHaveBeenCalled();
+      expect(f.runtime.render.append).not.toHaveBeenCalled();
+      expect(f.room.getLiveTimeline().getPaginationToken(Direction.Backward)).toBe('older');
+    } finally {
+      f.unmount();
+    }
+  });
+
   it('loads a cached page when the server request fails', async () => {
     const cached = page('$offline-reply');
     vi.mocked(loadThreadCachedPaginationSnapshot).mockResolvedValueOnce(cached);
@@ -370,7 +407,7 @@ describe('pagination boundaries and commit ordering', () => {
       await request;
     });
     expect(f.runtime.render.append).toHaveBeenCalledWith('$a', cachedPage.events);
-    expect(vi.mocked(f.runtime.render.append).mock.calls[0][1][0]).toBe(cachedPage.events[0]);
+    expect(vi.mocked(f.runtime.render.append).mock.calls[0]![1][0]).toBe(cachedPage.events[0]);
     expect(f.current().snapshot.backward).toBe('idle');
     f.unmount();
   });
@@ -479,7 +516,9 @@ describe('pagination boundaries and commit ordering', () => {
     f.unmount();
   });
   it('preserves a stale backward network result for persistence without UI publication', async () => {
-    vi.mocked(loadThreadCachedPaginationSnapshot).mockResolvedValue({ status: 'cache-miss' });
+    vi.mocked(loadThreadCachedPaginationSnapshot).mockResolvedValue({
+      status: 'cache-miss',
+    } as Page);
     const network = deferred<boolean>();
     const f = fixture();
     f.useNetwork();
@@ -527,7 +566,7 @@ describe('pagination boundaries and commit ordering', () => {
       await request;
     });
     expect(f.order).toEqual(['wait', 'append', 'invalidate']);
-    expect(vi.mocked(f.runtime.render.append).mock.calls[0][1]).toBe(cached.events);
+    expect(vi.mocked(f.runtime.render.append).mock.calls[0]![1]).toBe(cached.events);
     expect(f.runtime.beginCacheWrite()).not.toHaveBeenCalled();
     f.unmount();
   });
@@ -535,7 +574,7 @@ describe('pagination boundaries and commit ordering', () => {
     '%s pages commit once scrolling rests, whether or not a row is visible',
     async (source) => {
       vi.mocked(loadThreadCachedPaginationSnapshot).mockResolvedValue(
-        source === 'cache' ? page('$cached') : { status: 'cache-miss' }
+        source === 'cache' ? page('$cached') : ({ status: 'cache-miss' } as Page)
       );
       const f = fixture();
       if (source === 'network') f.useNetwork();

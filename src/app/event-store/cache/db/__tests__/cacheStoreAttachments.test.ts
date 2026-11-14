@@ -233,7 +233,7 @@ it('indexed target lookup merges duplicate tombstones and finds metadata-only ro
   );
   const batch = await loadRoomOfflineEventBatch(SESSION_ID, row.roomId, undefined, 1);
   expect(batch.events).toHaveLength(1);
-  expect(batch.events[0].unsigned?.redacted_because).toBeDefined();
+  expect(batch.events[0]!.unsigned?.redacted_because).toBeDefined();
   expect(
     await loadCachedEventAcrossRoomScopes(SESSION_ID, '!other:test', '$event')
   ).toBeUndefined();

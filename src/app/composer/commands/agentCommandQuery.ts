@@ -1,7 +1,7 @@
 import { BaseRange, Editor, Range } from 'slate';
 import type { AutocompleteQuery } from '../../editor/autocomplete/autocompleteQuery';
 
-export const MINDROOM_COMMAND_PREFIX = '!' as const;
+export const MINDROOM_COMMAND_PREFIX = '!';
 
 export const getAgentCommandQuery = (
   editor: Editor,

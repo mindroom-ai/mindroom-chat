@@ -120,7 +120,7 @@ describe('useCompactThreadCardViewModels identity reuse', () => {
     });
 
     expect(latest[0]).not.toBe(firstA);
-    expect(latest[0].messageCount).toBe(4);
+    expect(latest[0]!.messageCount).toBe(4);
     expect(latest[1]).toBe(firstB);
 
     act(() => {

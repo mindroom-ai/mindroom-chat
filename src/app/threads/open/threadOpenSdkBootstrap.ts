@@ -274,9 +274,7 @@ export const reconcileCachedThreadBackwardToken = ({
 }): void => {
   const cachedEarliestAnchor = getThreadCursorAnchor(cachedPage?.events[0]);
   const earliestThreadReply = findEarliestLoadedThreadReplyByCacheOrder(threadEvents, threadId);
-  const threadTimelineAnchor = getThreadCursorAnchor(
-    earliestThreadReply?.event as Partial<IEvent> | undefined
-  );
+  const threadTimelineAnchor = getThreadCursorAnchor(earliestThreadReply?.event);
   if (
     firstThreadTimeline &&
     cachedPage?.beforeToken !== undefined &&

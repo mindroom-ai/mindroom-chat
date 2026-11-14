@@ -1,5 +1,4 @@
 import 'fake-indexeddb/auto';
-import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { Direction, MatrixClient, MatrixEvent, Room, type IEvent } from 'matrix-js-sdk';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';

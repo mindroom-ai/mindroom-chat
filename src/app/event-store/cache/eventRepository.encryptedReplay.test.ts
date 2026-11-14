@@ -38,7 +38,7 @@ const wire = (id: string, ts: number): Partial<IEvent> => ({
   content: { ciphertext: id, ...(id === '$edit' ? { 'm.relates_to': relation } : {}) },
 });
 const clear = (event: MatrixEvent) =>
-  event.setClearData({
+  event['setClearData']({
     clearEvent: {
       type: 'm.room.message',
       content:

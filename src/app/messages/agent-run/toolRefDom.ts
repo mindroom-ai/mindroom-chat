@@ -98,7 +98,7 @@ export const takeLeadingToolRefs = (
   element: Element,
   take: (html: string) => boolean
 ): ChildNode[] => {
-  const children = element.children as ChildNode[];
+  const children = element.children;
   if (!['p', 'div', 'li'].includes(element.name)) return children;
 
   // What is left starts `split` characters into children[start]. The children
@@ -220,7 +220,7 @@ export const getRenderedToolRefs = (html: string): RenderedToolRefs => {
   const visit = (node: ChildNode) => {
     if (!isDomElementNode(node)) return;
     // Necessary for a match, and far cheaper than the prefix scan.
-    const text = extractTextFromChildren(node.children as ChildNode[]);
+    const text = extractTextFromChildren(node.children);
     if (!text.trimStart().startsWith(MINDROOM_TOOL_REF_ICON)) return;
 
     takeLeadingToolRefs(node, (html) => {
@@ -245,7 +245,7 @@ export const getRenderedToolRefs = (html: string): RenderedToolRefs => {
               (sum, value) => sum + countToolRefIcons(value),
               0
             ) +
-            countAttributeIcons(node.children as ChildNode[])
+            countAttributeIcons(node.children)
           : count,
       0
     );

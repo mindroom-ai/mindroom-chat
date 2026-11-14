@@ -6,6 +6,7 @@ import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
 import { getThreadMessagePreviewText } from './threadMessagePreview';
 import { hasLoadedFirstThreadPage } from '../sdk/threadBootstrapSdk';
+import { matchesEnum } from '../../lib/matchesEnum';
 
 type ThreadEventLike = {
   getId(): string | undefined;
@@ -47,7 +48,7 @@ const VISIBLE_THREAD_REPLY_EVENT_TYPES = new Set<string>([
 
 const isThreadRelation = (event: ThreadEventLike): boolean => {
   const relationType = event.getRelation?.()?.rel_type;
-  return !relationType || relationType === RelationType.Thread;
+  return !relationType || matchesEnum(relationType, RelationType.Thread);
 };
 
 /**

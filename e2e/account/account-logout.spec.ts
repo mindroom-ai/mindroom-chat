@@ -38,12 +38,12 @@ test('falls back to the remaining account on logout, then returns to auth after 
 
   await loginWithPassword(page, {
     homeserver,
-    username: secondaryCredentials.username,
-    password: secondaryCredentials.password,
+    username: secondaryCredentials!.username,
+    password: secondaryCredentials!.password,
     addAccount: true,
   });
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
-  await expectActiveStoredUsername(page, secondaryCredentials.username);
+  await expectActiveStoredUsername(page, secondaryCredentials!.username);
   await expectAccountRailCount(page, 3);
 
   await logoutActiveAccount(page);

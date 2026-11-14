@@ -56,7 +56,7 @@ vi.mock('./ThreadSummaryCard.css', () => ({
 
 const getNodeText = (value: ReactTestInstance | string): string => {
   if (typeof value === 'string') return value;
-  return value.children.map((child) => getNodeText(child as ReactTestInstance | string)).join('');
+  return value.children.map(getNodeText).join('');
 };
 
 describe('ThreadSummaryCard', () => {

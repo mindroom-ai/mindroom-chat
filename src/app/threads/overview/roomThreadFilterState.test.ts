@@ -294,9 +294,11 @@ describe('roomThreadFilterState', () => {
     const store = createStore();
     const unmount = store.sub(atom, () => undefined);
 
+    // A payload stored before snoozing existed hides snoozed threads.
     expect(store.get(atom)).toEqual({
       ...createDefaultThreadFilterState(),
       resolved: 'include',
+      snoozed: 'exclude',
       streaming: 'exclude',
       unread: 'include',
       sortBy: 'lastReply',
@@ -339,6 +341,7 @@ describe('roomThreadFilterState', () => {
     expect(store.get(atom)).toEqual({
       ...createDefaultThreadFilterState(),
       resolved: 'exclude',
+      snoozed: 'exclude',
       tags: new Map([['priority', 'include']]),
       freeText: 'hello',
       unsupportedQuery: 'is:unknown',

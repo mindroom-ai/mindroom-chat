@@ -349,7 +349,7 @@ describe('ISSUE-207 P2 review: duplicate eventIds do not underflow the ledger', 
     const ledger = await readLedger(db, ROOM_ID_A);
     // Only $a survives.
     expect(ledger?.eventCount).toBe(1);
-    expect(ledger?.approxBytes).toBe(estimateRawEventBytes(events[0]));
+    expect(ledger?.approxBytes).toBe(estimateRawEventBytes(events[0]!));
   });
 
   it('thread delete with duplicate ids decrements the ledger exactly once per real record', async () => {

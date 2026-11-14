@@ -53,6 +53,7 @@ import {
 } from './cacheStoreSchema';
 import {
   filterPageableCachedThreadEvents,
+  isOtherRoomEvent,
   isRawLocalEchoEventPublic,
   mergeThreadCacheFlag,
   mergeThreadExpectedReplyCount,
@@ -401,20 +402,14 @@ const toRawEventInternal = (
   };
 };
 
-/**
- * Whether `raw` names a room other than `roomId`. An event is its room's: one saved under a room
- * it does not name (an earlier version could do that) reads as absent there, and so does a thread
- * whose root does. Rows saved without a room ID read as the room's they were saved under.
- */
-const isOtherRoomEvent = (raw: Partial<IEvent> | undefined, roomId: string): boolean =>
-  typeof raw?.room_id === 'string' && raw.room_id !== roomId;
-
 type ScopedCursorOptions = {
   sessionId: string;
   roomId: string;
   scope: string;
   limit: number;
   upperBound?: CursorAnchor;
+  /** Also the events of the bound's millisecond that sort after it (the room and thread pagers). */
+  withBeforeMillisecond?: boolean;
   shouldSkip: (record: CachedEventRecord, rawEvent: Partial<IEvent>) => boolean;
 };
 
@@ -445,20 +440,41 @@ const runScopedCursor = async (options: ScopedCursorOptions): Promise<ScopedCurs
     const metaRequest = metaStore.get(buildMetaKey(options.roomId, options.scope));
 
     const events: (Partial<IEvent> & { event_id: string; origin_server_ts: number })[] = [];
+    const beforeMillisecond: typeof events = [];
     let hasMoreBefore = false;
+    const take = (record: CachedEventRecord) => {
+      const normalized = toRawEventInternal(record.rawEvent);
+      return normalized &&
+        !isOtherRoomEvent(normalized, options.roomId) &&
+        !options.shouldSkip(record, normalized)
+        ? normalized
+        : undefined;
+    };
+
+    // The bound's millisecond above the bound, newest first as the cursor reads, outside the limit.
+    if (options.upperBound && options.withBeforeMillisecond) {
+      const sameMillisecond = index.getAll(
+        IDBKeyRange.bound(
+          upper,
+          [options.roomId, options.scope, options.upperBound.ts, MAX_EVENT_ID],
+          true
+        )
+      );
+      sameMillisecond.onsuccess = () => {
+        (sameMillisecond.result as CachedEventRecord[]).reverse().forEach((record) => {
+          const normalized = take(record);
+          if (normalized) beforeMillisecond.push(normalized);
+        });
+      };
+    }
 
     const cursorRequest = index.openCursor(range, 'prev');
     cursorRequest.onsuccess = () => {
       const cursor = cursorRequest.result;
       if (!cursor) return;
 
-      const record = cursor.value as CachedEventRecord;
-      const normalized = toRawEventInternal(record.rawEvent);
+      const normalized = take(cursor.value as CachedEventRecord);
       if (!normalized) {
-        cursor.continue();
-        return;
-      }
-      if (isOtherRoomEvent(normalized, options.roomId) || options.shouldSkip(record, normalized)) {
         cursor.continue();
         return;
       }
@@ -475,7 +491,7 @@ const runScopedCursor = async (options: ScopedCursorOptions): Promise<ScopedCurs
 
     transaction.oncomplete = () =>
       resolve({
-        events,
+        events: [...beforeMillisecond, ...events],
         hasMoreBefore,
         meta: metaRequest.result as CachedMetaRecord | undefined,
       });
@@ -506,11 +522,17 @@ export const loadLatestCachedRoomEvents = async (
   };
 };
 
+/**
+ * The room's cached events before `before`, oldest first. With `withBeforeMillisecond`, the page
+ * also holds the events of `before`'s millisecond that sort after it, some of which are older on
+ * the server and on no other page; the caller must drop those it holds.
+ */
 export const loadCachedRoomEventsBefore = async (
   sessionId: string,
   roomId: string,
   before: CursorAnchor | undefined,
-  limit: number
+  limit: number,
+  { withBeforeMillisecond }: { withBeforeMillisecond?: boolean } = {}
 ): Promise<CachedRoomEventPage> => {
   if (!before) return { events: [], hasMoreBefore: false };
   const { events, hasMoreBefore, meta } = await runScopedCursor({
@@ -519,6 +541,7 @@ export const loadCachedRoomEventsBefore = async (
     scope: ROOM_SCOPE,
     limit,
     upperBound: before,
+    withBeforeMillisecond,
     shouldSkip: (_record, rawEvent) => isRawLocalEchoEventId(rawEvent.event_id),
   });
   const orderedEvents = events.reverse() as CachedRoomEvent[];
@@ -603,12 +626,14 @@ export const loadCachedEventAcrossRoomScopes = async (
       .getAll([roomId, eventId]);
     const root = transaction.objectStore(META_STORE).get(buildMetaKey(roomId, eventId));
     transaction.oncomplete = () => {
-      let merged: Partial<IEvent> | undefined = (root.result as CachedMetaRecord | undefined)
-        ?.rootEvent;
+      const rootEvent = (root.result as CachedMetaRecord | undefined)?.rootEvent;
+      let merged: Partial<IEvent> | undefined = rootEvent;
+      // A copy that names another room lends nothing, and a thread root that does hides every copy.
       (request.result as CachedEventRecord[]).forEach((row) => {
-        merged = mergeRawEventRevisions(merged, row.rawEvent);
+        if (!isOtherRoomEvent(row.rawEvent, roomId))
+          merged = mergeRawEventRevisions(merged, row.rawEvent);
       });
-      resolve(isOtherRoomEvent(merged, roomId) ? undefined : merged);
+      resolve(isOtherRoomEvent(rootEvent, roomId) ? undefined : merged);
     };
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
@@ -1013,7 +1038,7 @@ export const loadCachedThreadRootsForRoom = async (
       (request.result as CachedMetaRecord[]).forEach((meta) => {
         // Rows written before relations were checked can hold a scope of any type.
         if (meta.roomId !== roomId || typeof meta.scope !== 'string') return;
-        if (!meta.scope.startsWith('$')) return;
+        if (!meta.scope.startsWith('$') || isOtherRoomEvent(meta.rootEvent, roomId)) return;
         // A downloaded reply can precede its root. The root may then exist
         // only in room scope; merge copies using the normal revision rules.
         const copies = transaction
@@ -1023,9 +1048,10 @@ export const loadCachedThreadRootsForRoom = async (
         copies.onsuccess = () => {
           let root = meta.rootEvent;
           (copies.result as CachedEventRecord[]).forEach((row) => {
-            root = mergeRawEventRevisions(root, row.rawEvent);
+            if (!isOtherRoomEvent(row.rawEvent, roomId))
+              root = mergeRawEventRevisions(root, row.rawEvent);
           });
-          if (root?.event_id !== meta.scope || isOtherRoomEvent(root, roomId)) return;
+          if (root?.event_id !== meta.scope) return;
           const rootEvent = root;
           const entry: CachedThreadRoot = { rootEvent };
           roots.push(entry);
@@ -1047,6 +1073,11 @@ export const loadCachedThreadRootsForRoom = async (
           latest.onsuccess = () => {
             const cursor = latest.result;
             const event = (cursor?.value as CachedEventRecord | undefined)?.rawEvent;
+            // Another room's event saved under this thread decides nothing here.
+            if (cursor && isOtherRoomEvent(event, roomId)) {
+              cursor.continue();
+              return;
+            }
             if (!cursor || !event || (summaryLatest && isOlderThanSummary(event, summaryLatest))) {
               if (summaryLatest) entry.rootEvent = withNewestCachedReplies(rootEvent, newerReplies);
               return;
@@ -1186,12 +1217,18 @@ export const loadLatestCachedThreadEventsBatch = async (
   });
 };
 
+/**
+ * The thread's cached replies before `before`, oldest first. With `withBeforeMillisecond`, the page
+ * also holds the replies of `before`'s millisecond that sort after it, as
+ * `loadCachedRoomEventsBefore` does; the caller must drop those it holds.
+ */
 export const loadCachedThreadEventsBefore = async (
   sessionId: string,
   roomId: string,
   threadId: string,
   before: CursorAnchor | undefined,
-  limit: number
+  limit: number,
+  { withBeforeMillisecond }: { withBeforeMillisecond?: boolean } = {}
 ): Promise<CachedThreadEventPage> => {
   if (!before) return buildThreadEventPage(undefined, [], false, roomId);
   const { events, hasMoreBefore, meta } = await runScopedCursor({
@@ -1200,6 +1237,7 @@ export const loadCachedThreadEventsBefore = async (
     scope: threadId,
     limit,
     upperBound: before,
+    withBeforeMillisecond,
     shouldSkip: (record) => record.eventId === threadId,
   });
   return buildThreadEventPage(meta, events.reverse() as CachedThreadEvent[], hasMoreBefore, roomId);
@@ -1219,15 +1257,18 @@ export const loadCachedThreadEvent = async (
     const eventStore = transaction.objectStore(EVENTS_STORE);
     const metaStore = transaction.objectStore(META_STORE);
     const eventRequest = eventStore.get(buildEventCacheKey(roomId, threadId, eventId));
-    const metaRequest =
-      eventId === threadId ? metaStore.get(buildMetaKey(roomId, threadId)) : undefined;
+    // The thread's meta row: its root, and the room the thread is.
+    const metaRequest = metaStore.get(buildMetaKey(roomId, threadId));
 
     transaction.oncomplete = () => {
       const record = eventRequest.result as CachedEventRecord | undefined;
-      const meta = metaRequest?.result as CachedMetaRecord | undefined;
-      const raw = record ? record.rawEvent : meta?.rootEvent;
+      const meta = metaRequest.result as CachedMetaRecord | undefined;
+      // A copy that names another room is skipped; the root then comes from the meta row.
+      const own =
+        record && !isOtherRoomEvent(record.rawEvent, roomId) ? record.rawEvent : undefined;
+      const raw = own ?? (eventId === threadId ? meta?.rootEvent : undefined);
       resolve(
-        isOtherRoomEvent(raw, roomId)
+        isOtherRoomEvent(meta?.rootEvent, roomId)
           ? undefined
           : (toRawEventInternal(raw) as CachedThreadEvent | undefined)
       );
@@ -1235,7 +1276,7 @@ export const loadCachedThreadEvent = async (
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
     eventRequest.onerror = () => reject(eventRequest.error);
-    metaRequest?.addEventListener('error', () => reject(metaRequest.error));
+    metaRequest.onerror = () => reject(metaRequest.error);
   });
 };
 

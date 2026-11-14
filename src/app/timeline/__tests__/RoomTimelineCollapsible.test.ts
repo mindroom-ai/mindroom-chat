@@ -930,7 +930,7 @@ const createControlledRoomTimelineHarness = (
 };
 
 const HARNESS_TEST_SESSION_ID = 'test-session';
-const harnessSyncEngine: SyncEngine = {
+const harnessSyncEngine = {
   mx: {} as SyncEngine['mx'],
   sessionId: HARNESS_TEST_SESSION_ID,
   start: () => undefined,
@@ -944,7 +944,7 @@ const harnessSyncEngine: SyncEngine = {
   scheduler: createBackfillScheduler(),
   noteRoomFocused: () => undefined,
   subscribeRoomRecovery: () => () => undefined,
-};
+} as unknown as SyncEngine;
 
 const findCollapseModeForEvent = (renderer: ReactTestRenderer, eventId: string) =>
   renderer.root
@@ -1105,9 +1105,9 @@ describe('RoomTimeline collapsible wiring', () => {
       await flushAsyncWork(2);
     });
 
-    expect(renderer.root.findByType('collapsible-message-state-provider').props.expandAllInit).toBe(
-      false
-    );
+    expect(
+      renderer.root.findByType('collapsible-message-state-provider' as never).props.expandAllInit
+    ).toBe(false);
   });
 
   it("shows agent replies in full and folds people's long messages", async () => {
@@ -1157,7 +1157,7 @@ describe('RoomTimeline collapsible wiring', () => {
       await flushAsyncWork(2);
     });
 
-    const provider = renderer.root.findByType('collapsible-message-state-provider');
+    const provider = renderer.root.findByType('collapsible-message-state-provider' as never);
     const manualExpansionState = provider.props.manualExpansionState as Map<string, boolean>;
     manualExpansionState.set('$historical', true);
     const expandAllButton = renderer.root.find(
@@ -1175,7 +1175,9 @@ describe('RoomTimeline collapsible wiring', () => {
     });
 
     expect(manualExpansionState.size).toBe(0);
-    const refreshedProvider = renderer.root.findByType('collapsible-message-state-provider');
+    const refreshedProvider = renderer.root.findByType(
+      'collapsible-message-state-provider' as never
+    );
     expect(refreshedProvider.props.expandAllInit).toBe(true);
     expect(refreshedProvider.props.manualExpansionState).toBe(manualExpansionState);
   });
@@ -1434,7 +1436,7 @@ describe('RoomTimeline collapsible wiring', () => {
         sender: OTHER_PERSON_ID,
       })
     );
-    await emitLiveTimelineEvent(room, liveEvents[liveEvents.length - 1]);
+    await emitLiveTimelineEvent(room, liveEvents[liveEvents.length - 1]!);
 
     expect(findCollapseModeForEvent(renderer, '$target')).toBe('initially-expanded');
 

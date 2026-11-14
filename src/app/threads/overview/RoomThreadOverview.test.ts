@@ -6,7 +6,10 @@ import { getSettings, settingsAtom } from '../../preferences/settings';
 import { RoomThreadOverview } from './RoomThreadOverview';
 import type { ThreadFilterState } from './RoomThreadOverview';
 import { normalizeThreadSearchText } from '../../event-store/threads/roomThreadOverviewModel';
-import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from '../../event-store/threads/threadFilterDsl';
+import {
+  applyParsedThreadFilterQuery,
+  parseThreadFilterQuery,
+} from '../../event-store/threads/threadFilterDsl';
 
 // These tests cover the advanced filters; the bar starts with the simple ones.
 getDefaultStore().set(settingsAtom, { ...getSettings(), simpleThreadFilters: false });
@@ -95,6 +98,7 @@ vi.mock('react-i18next', async () => {
 
 const makeDefaultState = (overrides?: Partial<ThreadFilterState>): ThreadFilterState => ({
   resolved: 'any',
+  snoozed: 'any',
   streaming: 'any',
   scheduled: 'any',
   unread: 'any',
@@ -169,16 +173,16 @@ describe('RoomThreadOverview', () => {
     renderer.unmount();
   });
 
-  it('renders five icon toggles', () => {
+  it('renders six icon toggles', () => {
     const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
 
     const buttons = renderer.root.findAll(
       (node) => node.type === 'button' && node.props['data-filter-key']
     );
-    expect(buttons).toHaveLength(5);
+    expect(buttons).toHaveLength(6);
 
     const keys = buttons.map((b) => b.props['data-filter-key']);
-    expect(keys).toEqual(['resolved', 'streaming', 'scheduled', 'unread', 'idle']);
+    expect(keys).toEqual(['resolved', 'snoozed', 'streaming', 'scheduled', 'unread', 'idle']);
 
     renderer.unmount();
   });
@@ -349,7 +353,7 @@ describe('RoomThreadOverview', () => {
     );
     expect(freezeButton.props['aria-pressed']).toBe(false);
     expect(freezeButton.props['aria-label']).toBe('Lock sort order (currently Last Reply)');
-    expect(freezeButton.findAllByType('icon-lock')).toHaveLength(1);
+    expect(freezeButton.findAllByType('icon-lock' as never)).toHaveLength(1);
 
     renderer.unmount();
   });
@@ -369,7 +373,7 @@ describe('RoomThreadOverview', () => {
     expect(freezeButton.props.className).toContain('PauseButtonActive');
     expect(freezeButton.props['aria-pressed']).toBe(true);
     expect(freezeButton.props['aria-label']).toBe('Unlock sort order (currently Last Reply)');
-    expect(freezeButton.findAllByType('icon-lock-open')).toHaveLength(1);
+    expect(freezeButton.findAllByType('icon-lock-open' as never)).toHaveLength(1);
 
     renderer.unmount();
   });
@@ -497,7 +501,14 @@ describe('RoomThreadOverview', () => {
     const renderer = create(
       React.createElement(RoomThreadOverview, {
         ...defaultProps,
-        statusCounts: { resolved: 42, streaming: 3, scheduled: 5, unread: 12, idle: 28 },
+        statusCounts: {
+          resolved: 42,
+          snoozed: 2,
+          streaming: 3,
+          scheduled: 5,
+          unread: 12,
+          idle: 28,
+        },
       })
     );
 
@@ -532,9 +543,9 @@ describe('RoomThreadOverview', () => {
     const dropdown = renderer.root.findAll((node) => node.props['data-preset-dropdown'] === 'true');
     expect(dropdown).toHaveLength(1);
 
-    // Should have 5 preset options
+    // Should have 6 preset options
     const options = renderer.root.findAll((node) => node.props['data-preset-option'] !== undefined);
-    expect(options).toHaveLength(5);
+    expect(options).toHaveLength(6);
 
     renderer.unmount();
   });
@@ -564,7 +575,7 @@ describe('RoomThreadOverview', () => {
     });
 
     expect(onApplyPreset).toHaveBeenCalledTimes(1);
-    expect(onApplyPreset.mock.calls[0][0].id).toBe('needs-attention');
+    expect(onApplyPreset.mock.calls[0]![0].id).toBe('needs-attention');
 
     renderer.unmount();
   });
@@ -584,7 +595,7 @@ describe('RoomThreadOverview', () => {
     const renderer = create(
       React.createElement(RoomThreadOverview, {
         ...defaultProps,
-        statusCounts: { resolved: 10, streaming: 2, scheduled: 1, unread: 3, idle: 5 },
+        statusCounts: { resolved: 10, snoozed: 1, streaming: 2, scheduled: 1, unread: 3, idle: 5 },
         tagCounts: { bug: 3, feature: 2 },
       })
     );
