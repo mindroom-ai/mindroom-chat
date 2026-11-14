@@ -37,7 +37,7 @@ const FOLD_BUTTON = '[data-message-fold] > * > [data-message-disclosure] > butto
 /**
  * Buttons at the end side of a message's content: a code block's (Wrap lines, Expand, Copy code),
  * at the end of its top edge, and a file card's (View, Download). They sit under a toolbar that
- * moves down below the sender line of a message whose code block or file starts there.
+ * moves down into a row whose code block or file starts at its top or below its sender line.
  */
 const CONTENT_ACTIONS = '[data-code-block-actions], [data-file-actions]';
 /**
@@ -104,6 +104,15 @@ export const toolbarOffset = (
         top = fold.ownRow ? fold.top - CONTROL_GAP_PX - height : fold.bottom + CONTROL_GAP_PX;
       }
     });
+  // Moved down into its row, it goes on below the buttons of a code block or a file it would
+  // cover there; up, it would go back under what floats over the timeline.
+  if (top > usual + 0.5) {
+    [...contentActions]
+      .sort((a, b) => a.top - b.top)
+      .forEach((actions) => {
+        if (nearControl(top, actions)) top = actions.bottom + CONTROL_GAP_PX;
+      });
+  }
   // Moved down into its row, it goes on below the row's sender line where that shows, so the
   // name, the time and the reply details button stay in reach, unless a fold button is there (a
   // long row's own Show less sticks to the bottom of the view) or the buttons of a code block or
@@ -127,9 +136,10 @@ export const toolbarOffset = (
  * place above the row. It moves to stay clear of what floats over the top of the timeline (the
  * first row starts right under the room's `[+all]` toggle or a thread's banner, so its toolbar
  * moves down into the row instead of covering them) and of the fold buttons of long messages, so
- * it never draws over a Show less button. Moved down into its row, it also keeps below the row's
- * sender line, unless the buttons of a code block or a file are there. Measured while the toolbar shows, and
- * again as the timeline scrolls under it or the row changes size.
+ * it never draws over a Show less button. Moved down into its row, it also keeps clear of the
+ * buttons of a code block or a file, and below the row's sender line unless such buttons are
+ * there. Measured while the toolbar shows, and again as the timeline scrolls under it or the row
+ * changes size.
  */
 export const useToolbarClearance = (
   rowRef: RefObject<HTMLElement>,

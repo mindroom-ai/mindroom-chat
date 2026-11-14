@@ -126,9 +126,10 @@ test('the hover toolbar keeps off the code block buttons of a row without a send
   // The row continues the message above: no sender line.
   await expect(row.locator('[data-message-sender-line]')).toHaveCount(0);
 
-  // The row's top 10 to 50 px under the header's lower edge (the timeline's scroll padding).
+  // The row's top 60 px below the header's lower edge (the timeline's scroll padding), where the
+  // toolbar keeps its usual place above the row, at that edge, then 10 to 50 px under it.
   const blocked: string[] = [];
-  for (const under of [10, 20, 30, 40, 50]) {
+  for (const under of [-60, 0, 10, 20, 30, 40, 50]) {
     // Scrolled until the row is there: the timeline may still settle after a jump.
     let covered = 0;
     await expect(async () => {

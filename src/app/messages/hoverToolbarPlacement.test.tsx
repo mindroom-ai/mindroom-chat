@@ -139,10 +139,20 @@ describe('useToolbarClearance', () => {
     // Below the sender line (34) it would cover the code block's buttons at 46 to 70, so it stays
     // below the toggle, over the sender line.
     expect(renderRow(140, 900, 1000, 46)).toBe(-2);
-    // Buttons right under the sender line do not push it up under the toggle either.
-    expect(renderRow(140, 900, 1000, 30)).toBe(-2);
+    // Buttons right under the sender line, where it would cover them, push it on below them
+    // (30 + 24 + 8), never up under the toggle.
+    expect(renderRow(140, 900, 1000, 30)).toBe(62);
     // Buttons further down leave it below the sender line.
     expect(renderRow(140, 900, 1000, 80)).toBe(34);
+  });
+
+  it('moves below the buttons of a code block at the top of a row without a sender line', () => {
+    // Below the toggle (-2) it would cover the buttons at 4 to 28; it goes 8 px below them.
+    expect(renderRow(140, 900, undefined, 4)).toBe(36);
+    // Buttons it is clear of leave it below the toggle.
+    expect(renderRow(140, 900, undefined, 48)).toBe(-2);
+    // In its usual place above the row it stays, also over buttons at the row's top.
+    expect(renderRow(400, 900, undefined, 4)).toBeUndefined();
   });
 
   it('stays over the sender line where the buttons of a file card are under it', () => {
