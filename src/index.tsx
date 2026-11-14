@@ -12,16 +12,9 @@ import './app/i18n/i18n';
 import './app/plugins/registry';
 import { deletePluginStorageOfRemovedAccounts } from './app/plugins/pluginStorage';
 import App from './app/shell/App';
-import {
-  isNativeApp,
-  isNativeIOS,
-  registerNativeAppUrlCallbacks,
-} from './app/native/nativeSso';
+import { isNativeApp, isNativeIOS, registerNativeAppUrlCallbacks } from './app/native/nativeSso';
 import { installFlightRecorder } from './app/diagnostics/flightRecorder';
-import {
-  initializeDeepTraceRecorder,
-  recordDeepTraceEvent,
-} from './app/diagnostics/deepTrace';
+import { initializeDeepTraceRecorder, recordDeepTraceEvent } from './app/diagnostics/deepTrace';
 import {
   installIndexedDbLossRecovery,
   readRecoveryReloadAge,
@@ -62,7 +55,9 @@ const runSafely = (label: string, step: () => void): void => {
 
 const startDiagnostics = (): void => {
   // The flight recorder and deep tracing exist for the iOS app, where crashes leave no console.
-  if (isNativeIOS()) {
+  // They record the main web view: the quick capture widget's, beside it on the Mac, shares their
+  // storage and would take its live session for one that ended unexpectedly.
+  if (isNativeIOS() && !isQuickCapturePath(window.location.pathname)) {
     runSafely('flight recorder', () => {
       installFlightRecorder();
     });
