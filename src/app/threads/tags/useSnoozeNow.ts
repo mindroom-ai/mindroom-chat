@@ -15,7 +15,8 @@ export const useSnoozeNow = (untilTsList: Iterable<number | undefined>): number 
       Math.max(0, Math.min(wakeTs - Date.now(), MAX_TIMEOUT_MS))
     );
     return () => clearTimeout(timer);
-  }, [wakeTs]);
+    // `now` is a dependency so a capped timer re-arms for the rest of a long snooze.
+  }, [wakeTs, now]);
 
   return now;
 };

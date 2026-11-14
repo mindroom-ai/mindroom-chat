@@ -5,7 +5,7 @@ import { useSnoozeNow } from './useSnoozeNow';
 
 const START = Date.UTC(2026, 10, 13, 10);
 
-const renderNow = (untilTsList: number[]) => {
+const renderNow = (untilTsList: Array<number | undefined>) => {
   const seen: number[] = [];
   const Probe = () => {
     seen.push(useSnoozeNow(untilTsList));
@@ -27,7 +27,7 @@ describe('useSnoozeNow', () => {
 
   it('renews now when the earliest snooze ends', () => {
     const until = START + 60_000;
-    const current = renderNow([until + 1000, until, undefined as unknown as number]);
+    const current = renderNow([until + 1000, until, undefined]);
     expect(current()).toBe(START);
     act(() => {
       vi.advanceTimersByTime(60_000);
@@ -44,5 +44,22 @@ describe('useSnoozeNow', () => {
     expect(current()).toBe(START);
     const delays = setTimeoutSpy.mock.calls.map((call) => Number(call[1] ?? 0));
     expect(Math.max(...delays)).toBeLessThanOrEqual(2 ** 31 - 1);
+  });
+
+  it('re-arms after the capped timer and wakes at the snooze end', () => {
+    const until = START + 40 * 24 * 3600 * 1000;
+    const current = renderNow([until]);
+    act(() => {
+      vi.advanceTimersByTime(2 ** 31 - 1);
+    });
+    expect(current()).toBeLessThan(until);
+    act(() => {
+      vi.advanceTimersByTime(until - Date.now() - 1);
+    });
+    expect(current()).toBeLessThan(until);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(current()).toBeGreaterThanOrEqual(until);
   });
 });

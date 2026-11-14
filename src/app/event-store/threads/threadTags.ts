@@ -15,13 +15,13 @@ import { getActiveSession } from '../../matrix/session/sessions';
 export const MINDROOM_THREAD_TAGS_EVENT = 'com.mindroom.thread.tags';
 export const RESOLVED_TAG = 'resolved';
 export const SNOOZED_TAG = 'snoozed';
-
-const isLifecycleTag = (name: string): boolean => name === RESOLVED_TAG || name === SNOOZED_TAG;
 export const MAX_TAG_LENGTH = 50;
 const PERSISTED_TAG_NAME = /^[a-z0-9-]{1,50}$/;
 const ISO_8601_PATTERN =
   /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)?$/;
 const aggregatedThreadTagEventsCache = new WeakMap<MatrixEvent[], Map<string, ThreadTagsContent>>();
+
+const isLifecycleTag = (name: string): boolean => name === RESOLVED_TAG || name === SNOOZED_TAG;
 
 export type TagMetadata = {
   set_by: string;

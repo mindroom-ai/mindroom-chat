@@ -23,10 +23,7 @@ import {
   getVisibleThreadParticipantIds,
 } from './threadUtils';
 import { EMPTY_THREAD_SCHEDULED_STATUS, type ThreadScheduledStatus } from './threadScheduledStatus';
-import {
-  isFailedLocalEchoEvent,
-  isPendingLocalEchoEvent,
-} from '../../matrix/protocol/pendingLocalEcho';
+import { isFailedLocalEchoEvent, isPendingLocalEchoEvent } from '../../matrix/protocol/pendingLocalEcho';
 import type { ThreadCacheCoverage, ThreadRecord } from './types';
 import { collectThreadPeopleIds, currentUserTookPart } from './threadPeopleFilter';
 import { RESOLVED_TAG, SNOOZED_TAG, type TagMetadata } from './threadTags';
