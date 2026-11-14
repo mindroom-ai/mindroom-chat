@@ -652,8 +652,8 @@
         "advancedFilters": "Filtres avancés",
         "presets": {
           "snoozed": {
-            "label": "En attente",
-            "description": "Fils en attente uniquement"
+            "label": "Reportés",
+            "description": "Fils reportés uniquement"
           }
         }
       },
@@ -822,7 +822,7 @@
     "snoozedUntil": "Reporté jusqu'à {{time}}",
     "snoozeEnded": "Report terminé",
     "status": {
-      "snoozed": "En attente"
+      "snoozed": "Reporté"
     }
   },
   "activity": {
@@ -926,7 +926,7 @@
       "working": "Agents au travail",
       "recent": "Récents",
       "automations": "Automatisations",
-      "snoozed": "En attente"
+      "snoozed": "Reportés"
     },
     "showMore": "Afficher plus",
     "chips": {
