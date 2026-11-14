@@ -18,7 +18,15 @@ describe('parseThreadSnooze', () => {
       Date.UTC(2026, 10, 14, 8)
     ));
 
-  it.each([undefined, 5, 'tomorrow', '2026-11-14'])('has no snooze for until %s', (until) =>
+  it.each([
+    undefined,
+    5,
+    'tomorrow',
+    '2026-11-14',
+    '2027-02-30T08:00:00Z',
+    '2026-11-14T24:00:00Z',
+    '2026-13-01T08:00:00',
+  ])('has no snooze for until %s', (until) =>
     expect(parseThreadSnooze(meta(until))).toBeUndefined()
   );
 

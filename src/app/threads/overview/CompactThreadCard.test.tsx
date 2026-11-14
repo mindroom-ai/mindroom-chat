@@ -95,6 +95,8 @@ const makeViewModel = (
 describe('CompactThreadCard', () => {
   it('shows when a snooze ends, and nothing once its time passes', () => {
     vi.useFakeTimers();
+    // Midday, so the wake time is today and shows without a date.
+    vi.setSystemTime(new Date(2026, 10, 14, 12, 0));
     try {
       const until = Date.now() + 30 * 60_000;
       let renderer!: ReturnType<typeof create>;
@@ -121,6 +123,36 @@ describe('CompactThreadCard', () => {
         vi.advanceTimersByTime(30 * 60_000);
       });
       expect(JSON.stringify(renderer.toJSON())).not.toContain('Snoozed until');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows the date of a snooze that ends on another day, and the year in another year', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 14, 12, 0));
+    try {
+      const textFor = (until: number) =>
+        JSON.stringify(
+          create(
+            <CompactThreadCard
+              viewModel={makeViewModel({ snoozedUntilTs: until })}
+              onClick={vi.fn()}
+            />
+          ).toJSON()
+        );
+      const tomorrow = new Date(2026, 10, 15, 9, 0).getTime();
+      const nextYear = new Date(2027, 0, 5, 9, 0).getTime();
+      const format = (options: Intl.DateTimeFormatOptions, ts: number) =>
+        new Intl.DateTimeFormat('en', { ...options, hour: 'numeric', minute: '2-digit' }).format(
+          ts
+        );
+      expect(textFor(tomorrow)).toContain(
+        `Snoozed until ${format({ month: 'short', day: 'numeric' }, tomorrow)}`
+      );
+      expect(textFor(nextYear)).toContain(
+        `Snoozed until ${format({ year: 'numeric', month: 'short', day: 'numeric' }, nextYear)}`
+      );
     } finally {
       vi.useRealTimers();
     }
