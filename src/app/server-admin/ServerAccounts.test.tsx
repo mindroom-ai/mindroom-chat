@@ -150,32 +150,83 @@ describe('ServerAccounts', () => {
     expect(rowIds(root)).toEqual(['@alice:example.com', '@bob:example.com']);
   });
 
-  it('lists every account, without the external badge and filters when the server marks none', async () => {
+  it('lists the active accounts, without the external badge and filters when the server can make none', async () => {
     const root = await render([ALICE, BOB, DAVE]);
 
-    expect(rowIds(root)).toEqual(['@alice:example.com', '@bob:example.com', '@dave:example.com']);
-    expect(filterLabels(root)).toEqual(['All', 'Deactivated']);
-    expect(text(root)).toContain('Accounts: 3 of 3');
+    expect(rowIds(root)).toEqual(['@alice:example.com', '@bob:example.com']);
+    expect(filterLabels(root)).toEqual(['Show deactivated (1)']);
+    expect(text(root)).toContain('Accounts: 2 of 3');
+    expect(text(root)).toContain('Hidden: 1 deactivated');
     expect(text(root)).not.toContain('External');
     expect(root.findAllByProps({ role: 'alert' })).toEqual([]);
     expect(text(rows(root)[0]!)).toContain('Admin');
-    expect(text(rows(root)[2]!)).toContain('Deactivated');
     // Each row shows that it opens.
     rows(root).forEach((row) => expect(row.findAllByType('i')).toHaveLength(1));
+  });
+
+  it('shows deactivated accounts only when asked, on top of the other filters', async () => {
+    const root = await render([ALICE, BOB, DAVE]);
+
+    await click(button(root, 'Show deactivated (1)'));
+    expect(rowIds(root)).toEqual(['@alice:example.com', '@bob:example.com', '@dave:example.com']);
+    expect(button(root, 'Show deactivated (1)').props['aria-pressed']).toBe(true);
+    expect(text(root)).toContain('Accounts: 3 of 3');
+    expect(text(root)).not.toContain('Hidden:');
+    expect(text(rows(root)[2]!)).toContain('Deactivated');
+  });
+
+  it('offers Internal and External on a server that invites external accounts, before any exists', async () => {
+    mocks.supports.mockResolvedValue(true);
+    const root = await render([ALICE, BOB, DAVE]);
+
+    expect(filterLabels(root)).toEqual(['All', 'Internal', 'External', 'Show deactivated (1)']);
+    await click(button(root, 'External'));
+    expect(rowIds(root)).toEqual([]);
+    expect(text(root)).toContain('No account matches');
+  });
+
+  it('offers no switch for deactivated accounts where the kind or search has none', async () => {
+    mocks.supports.mockResolvedValue(true);
+    const root = await render([ALICE, BOB, DAVE]);
+
+    await click(button(root, 'External'));
+    expect(filterLabels(root)).toEqual(['All', 'Internal', 'External']);
+    await click(button(root, 'All'));
+    expect(filterLabels(root)).toContain('Show deactivated (1)');
   });
 
   it('marks external accounts and filters by them when the server says which they are', async () => {
     const root = await render([ALICE, BOB, CAROL, DAVE]);
 
-    expect(filterLabels(root)).toEqual(['All', 'Internal', 'External', 'Deactivated']);
+    expect(filterLabels(root)).toEqual(['All', 'Internal', 'External', 'Show deactivated (1)']);
     expect(text(rows(root)[2]!)).toContain('External');
 
     await click(button(root, 'External'));
     expect(rowIds(root)).toEqual(['@carol:example.com']);
     await click(button(root, 'Internal'));
+    expect(rowIds(root)).toEqual(['@alice:example.com', '@bob:example.com']);
+    await click(button(root, 'Show deactivated (1)'));
     expect(rowIds(root)).toEqual(['@alice:example.com', '@bob:example.com', '@dave:example.com']);
-    await click(button(root, 'Deactivated'));
+  });
+
+  it('says how many deactivated accounts a search leaves hidden, and opens one once shown', async () => {
+    const root = await render([ALICE, BOB, DAVE]);
+
+    await act(async () => {
+      root.findByType('input').props.onChange({ currentTarget: { value: 'dave' } });
+    });
+    expect(rowIds(root)).toEqual([]);
+    expect(text(root)).toContain('No account matches');
+    expect(text(root)).toContain('Hidden: 1 deactivated');
+
+    // The empty list offers them where it says so.
+    const offer = root.findByProps({ 'data-show-hidden': '' });
+    await click(offer);
     expect(rowIds(root)).toEqual(['@dave:example.com']);
+    expect(button(root, 'Show deactivated (1)').props['aria-pressed']).toBe(true);
+    await click(rows(root)[0]!);
+    expect(text(root)).toContain('@dave:example.com');
+    expect(buttons(root).map(text)).toEqual(['Back']);
   });
 
   it('searches names and Matrix IDs', async () => {
@@ -297,6 +348,7 @@ describe('ServerAccounts', () => {
     expect(text(root)).toContain('Administrators and your own account cannot be changed here.');
 
     await click(button(root, 'Back'));
+    await click(button(root, 'Show deactivated (1)'));
     await click(rows(root)[1]!);
     expect(buttons(root).map(text)).toEqual(['Back']);
     expect(text(root)).not.toContain('cannot be changed here');

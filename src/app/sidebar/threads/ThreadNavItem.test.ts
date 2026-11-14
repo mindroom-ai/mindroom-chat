@@ -233,12 +233,12 @@ describe('ThreadNavItem', () => {
         node.props['aria-label'].startsWith('Open thread:')
     );
 
-  it('uses the room-row shape and opens compact threads directly', () => {
+  it('uses the room-row shape and opens compact threads directly', async () => {
     renderItem();
     const row = renderer!.root.findByProps({ variant: 'Background' });
     expect(row.props.radii).toBe('400');
 
-    act(() => getOpenButton().props.onClick());
+    await act(() => getOpenButton().props.onClick());
 
     expect(navigateRoomThreadDirectMock).toHaveBeenCalledWith(entry.roomId, entry.threadRootId);
   });
@@ -283,11 +283,11 @@ describe('ThreadNavItem', () => {
     expect(requestCachedThreadRootMock).not.toHaveBeenCalled();
   });
 
-  it('uses room navigation in classic mode', () => {
+  it('uses room navigation in classic mode', async () => {
     roomViewModeState.value = 'classic';
     renderItem();
 
-    act(() => getOpenButton().props.onClick());
+    await act(() => getOpenButton().props.onClick());
 
     expect(navigateRoomMock).toHaveBeenCalledWith(entry.roomId, entry.threadRootId);
   });
@@ -319,11 +319,11 @@ describe('ThreadNavItem', () => {
     expect(text).toContain('1m ago');
   });
 
-  it('pins without opening the thread', () => {
+  it('pins without opening the thread', async () => {
     const onTogglePin = renderItem(true);
     const pinButton = renderer!.root.findByProps({ 'aria-label': 'Unpin thread' });
 
-    act(() => pinButton.props.onClick());
+    await act(() => pinButton.props.onClick());
 
     expect(onTogglePin).toHaveBeenCalledOnce();
     expect(navigateRoomMock).not.toHaveBeenCalled();
@@ -340,23 +340,23 @@ describe('ThreadNavItem', () => {
     expect(renderer!.root.findAllByProps({ 'aria-label': 'Resolve' }).length).toBeGreaterThan(0);
   });
 
-  it('fills the pin while the pin button is hovered', () => {
+  it('fills the pin while the pin button is hovered', async () => {
     renderItem();
     const pinButton = renderer!.root.findByProps({ 'aria-label': 'Pin thread' });
 
     expect(pinButton.findByProps({ 'data-icon-src': 'Pin' }).props['data-icon-filled']).toBe(false);
 
-    act(() => pinButton.props.onMouseEnter());
+    await act(() => pinButton.props.onMouseEnter());
     expect(pinButton.findByProps({ 'data-icon-src': 'Pin' }).props['data-icon-filled']).toBe(true);
 
-    act(() => pinButton.props.onMouseLeave());
+    await act(() => pinButton.props.onMouseLeave());
     expect(pinButton.findByProps({ 'data-icon-src': 'Pin' }).props['data-icon-filled']).toBe(false);
   });
 
-  it('resolves without opening the thread', () => {
+  it('resolves without opening the thread', async () => {
     renderItem();
 
-    act(() => renderer!.root.findByProps({ 'aria-label': 'Resolve' }).props.onClick());
+    await act(() => renderer!.root.findByProps({ 'aria-label': 'Resolve' }).props.onClick());
 
     expect(setResolvedMock).toHaveBeenCalledWith(entry.threadRootId, true);
     expect(navigateRoomMock).not.toHaveBeenCalled();

@@ -186,7 +186,7 @@ describe('PowersEditor power-level tag persistence', () => {
     });
 
     expect(nodeText(renderer.root)).toContain('DE Admin');
-    act(() => buttonByText(renderer, 'Erstellen').props.onClick());
+    await act(() => buttonByText(renderer, 'Erstellen').props.onClick());
     const form = renderer.root.findByType('form');
     act(() => {
       form.props.onSubmit({
@@ -202,7 +202,7 @@ describe('PowersEditor power-level tag persistence', () => {
       .findAllByType('section')
       .find((section) => nodeText(section).includes('Obsolete role'));
     expect(obsoleteRole).toBeDefined();
-    act(() => obsoleteRole?.findAllByType('button')[0]!.props.onClick());
+    await act(() => obsoleteRole?.findAllByType('button')[0]!.props.onClick());
 
     await act(async () => {
       await language.changeLanguage('en');

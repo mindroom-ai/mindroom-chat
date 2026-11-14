@@ -282,7 +282,7 @@ describe('Explore room access wiring', () => {
         (button) => button.findAll((node) => node.children.includes('Request to join')).length > 0
       );
 
-    act(() => knockButton?.props.onClick());
+    await act(() => knockButton?.props.onClick());
     const form = renderer!.root.find((node) => node.type === 'form');
     await act(async () => {
       form.props.onSubmit({
@@ -319,7 +319,7 @@ describe('Explore room access wiring', () => {
     );
   });
 
-  it('keeps legacy public-directory rooms joinable when their rule is omitted', () => {
+  it('keeps legacy public-directory rooms joinable when their rule is omitted', async () => {
     mocks.publicRooms.chunk[0]!.join_rule = undefined;
     const mx = makeMx();
     let renderer: ReturnType<typeof create>;
@@ -335,7 +335,7 @@ describe('Explore room access wiring', () => {
       .findAllByType('button')
       .find((button) => button.findAll((node) => node.children.includes('Join')).length > 0);
 
-    act(() => joinButton?.props.onClick());
+    await act(() => joinButton?.props.onClick());
 
     expect(mocks.roomCardProps[0]).toEqual(expect.objectContaining({ joinRule: JoinRule.Public }));
     expect(mx.joinRoom).toHaveBeenCalledWith('!server-room:example.org', {

@@ -106,9 +106,10 @@ describe('parseInvite and listInvites', () => {
       invites: [{ email: 'alice@example.com', rooms: [], external: true }, { rooms: [] }],
     }));
 
-    expect(await listInvites(client)).toEqual([
-      { email: 'alice@example.com', rooms: [], external: true },
-    ]);
+    expect(await listInvites(client)).toEqual({
+      invites: [{ email: 'alice@example.com', rooms: [], external: true }],
+      externalForbiddenRooms: [],
+    });
     expect(authedRequest).toHaveBeenCalledWith(
       'GET',
       '/admin/registration_invites',
@@ -116,6 +117,18 @@ describe('parseInvite and listInvites', () => {
       undefined,
       PREFIX
     );
+  });
+
+  it('reads the rooms an external account may never join, none from an older server', async () => {
+    const { client } = clientWith(() => ({
+      invites: [],
+      external_forbidden_rooms: ['!staff:example.com', 7, '!board:example.com'],
+    }));
+
+    expect(await listInvites(client)).toEqual({
+      invites: [],
+      externalForbiddenRooms: ['!staff:example.com', '!board:example.com'],
+    });
   });
 });
 
@@ -270,13 +283,20 @@ describe('inviteErrorText', () => {
     );
   });
 
+  it("gives the server's own reason for a refusal, which names the room", () => {
+    expect(
+      inviteErrorText(
+        t,
+        matrixError('M_FORBIDDEN', 'An external account may not join !staff:example.com.')
+      )
+    ).toBe('An external account may not join !staff:example.com.');
+  });
+
   it("falls back to the app's text for the error", () => {
     expect(inviteErrorText(t, matrixError('M_THREEPID_IN_USE', 'Taken.'))).toBe(
       'errors.addressTaken'
     );
-    expect(inviteErrorText(t, matrixError('M_FORBIDDEN', 'You are not a server admin.'))).toBe(
-      'errors.forbidden'
-    );
+    expect(inviteErrorText(t, matrixError('M_FORBIDDEN', ''))).toBe('errors.forbidden');
   });
 });
 

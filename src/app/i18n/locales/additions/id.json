@@ -993,6 +993,8 @@
       "deactivated": "Dinonaktifkan"
     },
     "count": "Akun: {{shown}} dari {{total}}",
+    "showDeactivated": "Tampilkan yang dinonaktifkan ({{count}})",
+    "hiddenDeactivated": "Disembunyikan: {{count}} dinonaktifkan",
     "noMatches": "Tidak ada akun yang cocok",
     "loadFailed": "Tidak dapat memuat akun.",
     "status": {
@@ -1029,6 +1031,7 @@
       "title": "Undangan",
       "description": "Alamat email yang diundang dapat membuat satu akun di sini dengan masuk memakai alamat itu.",
       "sendYourself": "Tidak ada email yang dikirim: salin undangan dan kirimkan sendiri.",
+      "noEmail": "Tidak ada email yang dikirim. Setelah mengundang, undangan yang perlu dikirim muncul di sini: salin dan kirimkan sendiri ke setiap orang.",
       "add": "Undang lewat email",
       "none": "Tidak ada undangan tertunda",
       "loadFailed": "Tidak dapat memuat undangan.",
@@ -1036,6 +1039,8 @@
       "addressesHint": "Pisahkan beberapa alamat dengan koma atau baris baru.",
       "rooms": "Ruang yang diikuti akun baru",
       "external": "Akun eksternal",
+      "externalHint": "Untuk orang di luar organisasi Anda: akun hanya bergabung ke ruang yang dipilih di sini dan ruang yang nanti mengundangnya, serta tidak bisa membuat ruang atau mengundang orang.",
+      "externalForbidden": "Akun eksternal tidak dapat bergabung ke ruang bertanda gembok.",
       "invited": "Diundang",
       "replaces": "Menggantikan undangan sebelumnya",
       "copy": "Salin undangan",

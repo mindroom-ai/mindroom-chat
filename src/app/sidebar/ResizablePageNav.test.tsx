@@ -136,18 +136,18 @@ describe('ResizablePanel at the member edge', () => {
     { layout: 'rtl', endX: 800, arrow: 'ArrowRight' },
   ])(
     'grows toward the conversation in $layout and saves an independent width',
-    ({ layout, endX, arrow }) => {
+    async ({ layout, endX, arrow }) => {
       direction = layout;
       storage.set(storageKey, '420');
       const { renderer, handle, width } = renderPanel(ScreenSize.Tablet, undefined, true);
       expect(width()).toBe(266);
-      act(() => handle().props.onPointerDown(pointer(700)));
-      act(() => handle().props.onPointerMove(pointer(endX)));
+      await act(() => handle().props.onPointerDown(pointer(700)));
+      await act(() => handle().props.onPointerMove(pointer(endX)));
       expect(width()).toBe(366);
       expect(storage.has(membersStorageKey)).toBe(false);
-      act(() => handle().props.onPointerUp(pointer(endX)));
+      await act(() => handle().props.onPointerUp(pointer(endX)));
       expect(storage.get(membersStorageKey)).toBe('366');
-      act(() => handle().props.onKeyDown({ key: arrow, preventDefault: vi.fn() }));
+      await act(() => handle().props.onKeyDown({ key: arrow, preventDefault: vi.fn() }));
       expect(width()).toBe(386);
       expect(storage.get(storageKey)).toBe('420');
       act(() => renderer.unmount());
@@ -159,16 +159,16 @@ describe('ResizablePanel at the member edge', () => {
 
   it.each(['mouse', 'touch', 'pen'])(
     'collapses with %s and reopens at the last usable width',
-    (pointerType) => {
+    async (pointerType) => {
       storage.set(membersStorageKey, '366');
       const onCollapse = vi.fn();
       const { renderer, handle, width } = renderPanel(ScreenSize.Tablet, onCollapse, true);
-      act(() => handle().props.onPointerDown(pointer(700, pointerType)));
-      act(() => handle().props.onPointerMove(pointer(906, pointerType)));
+      await act(() => handle().props.onPointerDown(pointer(700, pointerType)));
+      await act(() => handle().props.onPointerMove(pointer(906, pointerType)));
       expect(width()).toBe(160);
       expect(handle().props['aria-valuetext']).toBe('Hide Members');
       expect(onCollapse).not.toHaveBeenCalled();
-      act(() => handle().props.onPointerUp(pointer(906, pointerType)));
+      await act(() => handle().props.onPointerUp(pointer(906, pointerType)));
       expect(onCollapse).toHaveBeenCalledTimes(1);
       expect(storage.get(membersStorageKey)).toBe('366');
       act(() => renderer.unmount());
@@ -186,15 +186,15 @@ describe('ResizablePanel at the member edge', () => {
     act(() => renderer.unmount());
   });
 
-  it('resizes the phone overlay within its viewport', () => {
+  it('resizes the phone overlay within its viewport', async () => {
     availableWidth = 375;
     storage.set(membersStorageKey, '500');
     const { renderer, handle, width } = renderPanel(ScreenSize.Mobile, undefined, true);
     expect(width()).toBe(375);
-    act(() => handle().props.onPointerDown(pointer(0, 'touch')));
-    act(() => handle().props.onPointerMove(pointer(100, 'touch')));
+    await act(() => handle().props.onPointerDown(pointer(0, 'touch')));
+    await act(() => handle().props.onPointerMove(pointer(100, 'touch')));
     expect(width()).toBe(275);
-    act(() => handle().props.onPointerUp(pointer(100, 'touch')));
+    await act(() => handle().props.onPointerUp(pointer(100, 'touch')));
     expect(storage.get(membersStorageKey)).toBe('275');
     act(() => renderer.unmount());
   });
@@ -214,22 +214,22 @@ describe('ResizablePageNav', () => {
 
   it.each(['mouse', 'touch', 'pen'])(
     'previews collapse with %s, commits on release, and preserves the previous width',
-    (pointerType) => {
+    async (pointerType) => {
       storage.set(storageKey, '356');
       const onCollapse = vi.fn();
       const { renderer, handle, width } = renderPanel(ScreenSize.Tablet, onCollapse);
-      act(() => handle().props.onPointerDown(pointer(356, pointerType)));
-      act(() => handle().props.onPointerMove(pointer(190, pointerType)));
+      await act(() => handle().props.onPointerDown(pointer(356, pointerType)));
+      await act(() => handle().props.onPointerMove(pointer(190, pointerType)));
       expect(width()).toBe(190);
       expect(handle().props['aria-valuetext']).toBeUndefined();
-      act(() => handle().props.onPointerMove(pointer(160, pointerType)));
+      await act(() => handle().props.onPointerMove(pointer(160, pointerType)));
       expect(width()).toBe(160);
       expect(handle().props['aria-valuenow']).toBe(160);
       expect(handle().props['aria-valuemin']).toBe(0);
       expect(handle().props['aria-valuetext']).toBe('Collapse navigation panel');
       expect(onCollapse).not.toHaveBeenCalled();
       expect(storage.get(storageKey)).toBe('356');
-      act(() => handle().props.onPointerUp(pointer(160, pointerType)));
+      await act(() => handle().props.onPointerUp(pointer(160, pointerType)));
       expect(onCollapse).toHaveBeenCalledTimes(1);
       expect(storage.get(storageKey)).toBe('356');
       expect(capture.size).toBe(0);
@@ -240,21 +240,21 @@ describe('ResizablePageNav', () => {
     }
   );
 
-  it('follows the pointer below the smallest width and settles on it above the threshold', () => {
+  it('follows the pointer below the smallest width and settles on it above the threshold', async () => {
     const onCollapse = vi.fn();
     const { renderer, handle, width } = renderPanel(ScreenSize.Desktop, onCollapse);
-    act(() => handle().props.onPointerDown(pointer(256)));
-    act(() => handle().props.onPointerMove(pointer(40)));
+    await act(() => handle().props.onPointerDown(pointer(256)));
+    await act(() => handle().props.onPointerMove(pointer(40)));
     expect(width()).toBe(40);
-    act(() => handle().props.onPointerMove(pointer(-30)));
+    await act(() => handle().props.onPointerMove(pointer(-30)));
     expect(width()).toBe(0);
-    act(() => handle().props.onPointerMove(pointer(160)));
+    await act(() => handle().props.onPointerMove(pointer(160)));
     expect(width()).toBe(160);
     expect(handle().props['aria-valuetext']).toBe('Collapse navigation panel');
-    act(() => handle().props.onPointerMove(pointer(180)));
+    await act(() => handle().props.onPointerMove(pointer(180)));
     expect(width()).toBe(180);
     expect(handle().props['aria-valuetext']).toBeUndefined();
-    act(() => handle().props.onPointerUp(pointer(180)));
+    await act(() => handle().props.onPointerUp(pointer(180)));
     expect(onCollapse).not.toHaveBeenCalled();
     expect(width()).toBe(200);
     expect(storage.get(storageKey)).toBe('200');
@@ -263,13 +263,13 @@ describe('ResizablePageNav', () => {
 
   it.each(['onPointerCancel', 'onLostPointerCapture'])(
     'cancels a collapse preview on %s without saving a tiny width',
-    (event) => {
+    async (event) => {
       const onCollapse = vi.fn();
       const { renderer, handle, width } = renderPanel(ScreenSize.Desktop, onCollapse);
-      act(() => handle().props.onPointerDown(pointer(256)));
-      act(() => handle().props.onPointerMove(pointer(150)));
+      await act(() => handle().props.onPointerDown(pointer(256)));
+      await act(() => handle().props.onPointerMove(pointer(150)));
       expect(width()).toBe(150);
-      act(() => handle().props[event](pointer(150)));
+      await act(() => handle().props[event](pointer(150)));
       expect(width()).toBe(256);
       expect(onCollapse).not.toHaveBeenCalled();
       expect(storage.has(storageKey)).toBe(false);
@@ -277,82 +277,87 @@ describe('ResizablePageNav', () => {
     }
   );
 
-  it('previews collapse when dragging inward in RTL', () => {
+  it('previews collapse when dragging inward in RTL', async () => {
     direction = 'rtl';
     const onCollapse = vi.fn();
     const { renderer, handle, width } = renderPanel(ScreenSize.Desktop, onCollapse);
-    act(() => handle().props.onPointerDown(pointer(800)));
-    act(() => handle().props.onPointerMove(pointer(906)));
+    await act(() => handle().props.onPointerDown(pointer(800)));
+    await act(() => handle().props.onPointerMove(pointer(906)));
     expect(width()).toBe(150);
-    act(() => handle().props.onPointerUp(pointer(906)));
+    await act(() => handle().props.onPointerUp(pointer(906)));
     expect(onCollapse).toHaveBeenCalledTimes(1);
     expect(storage.has(storageKey)).toBe(false);
     act(() => renderer.unmount());
   });
 
-  it('keeps resizing bounded when the owner does not support collapse', () => {
+  it('keeps resizing bounded when the owner does not support collapse', async () => {
     const { renderer, handle, width } = renderPanel();
-    act(() => handle().props.onPointerDown(pointer(256)));
-    act(() => handle().props.onPointerMove(pointer(100)));
+    await act(() => handle().props.onPointerDown(pointer(256)));
+    await act(() => handle().props.onPointerMove(pointer(100)));
     expect(width()).toBe(200);
-    act(() => handle().props.onPointerUp(pointer(100)));
+    await act(() => handle().props.onPointerUp(pointer(100)));
     expect(storage.get(storageKey)).toBe('200');
     act(() => renderer.unmount());
   });
 
-  it('expands toward the content in right-to-left layouts', () => {
+  it('expands toward the content in right-to-left layouts', async () => {
     direction = 'rtl';
     const { renderer, handle, width } = renderPanel();
-    act(() => handle().props.onPointerDown(pointer(800)));
-    act(() => handle().props.onPointerMove(pointer(700)));
-    act(() => handle().props.onPointerUp(pointer(700)));
+    await act(() => handle().props.onPointerDown(pointer(800)));
+    await act(() => handle().props.onPointerMove(pointer(700)));
+    await act(() => handle().props.onPointerUp(pointer(700)));
     expect(width()).toBe(356);
-    act(() => handle().props.onKeyDown({ key: 'ArrowLeft', preventDefault: vi.fn() }));
+    await act(() => handle().props.onKeyDown({ key: 'ArrowLeft', preventDefault: vi.fn() }));
     expect(width()).toBe(376);
     act(() => renderer.unmount());
   });
-  it.each(['mouse', 'touch', 'pen'])('resizes with %s and saves only on release', (pointerType) => {
-    const { renderer, handle, width } = renderPanel();
-    expect(width()).toBe(256);
-    act(() => handle().props.onPointerDown(pointer(256, pointerType)));
-    act(() => handle().props.onPointerMove(pointer(356, pointerType)));
-    expect(width()).toBe(356);
-    expect(storage.has(storageKey)).toBe(false);
-    act(() => handle().props.onPointerUp(pointer(356, pointerType)));
-    expect(storage.get(storageKey)).toBe('356');
-    expect(capture.size).toBe(0);
-    act(() => renderer.unmount());
-    const restored = renderPanel();
-    expect(restored.width()).toBe(356);
-    act(() => restored.renderer.unmount());
-  });
+  it.each(['mouse', 'touch', 'pen'])(
+    'resizes with %s and saves only on release',
+    async (pointerType) => {
+      const { renderer, handle, width } = renderPanel();
+      expect(width()).toBe(256);
+      await act(() => handle().props.onPointerDown(pointer(256, pointerType)));
+      await act(() => handle().props.onPointerMove(pointer(356, pointerType)));
+      expect(width()).toBe(356);
+      expect(storage.has(storageKey)).toBe(false);
+      await act(() => handle().props.onPointerUp(pointer(356, pointerType)));
+      expect(storage.get(storageKey)).toBe('356');
+      expect(capture.size).toBe(0);
+      act(() => renderer.unmount());
+      const restored = renderPanel();
+      expect(restored.width()).toBe(356);
+      act(() => restored.renderer.unmount());
+    }
+  );
 
   it.each(['onPointerCancel', 'onLostPointerCapture'])(
     'discards an interrupted drag on %s',
-    (event) => {
+    async (event) => {
       const { renderer, handle, width } = renderPanel();
-      act(() => handle().props.onPointerDown(pointer(256)));
-      act(() => handle().props.onPointerMove(pointer(400)));
-      act(() => handle().props[event](pointer(400)));
+      await act(() => handle().props.onPointerDown(pointer(256)));
+      await act(() => handle().props.onPointerMove(pointer(400)));
+      await act(() => handle().props[event](pointer(400)));
       expect(width()).toBe(256);
       expect(storage.has(storageKey)).toBe(false);
       act(() => renderer.unmount());
     }
   );
 
-  it('ignores secondary pointers and right-button drags', () => {
+  it('ignores secondary pointers and right-button drags', async () => {
     const { renderer, handle, width } = renderPanel();
-    act(() => handle().props.onPointerDown({ ...pointer(256), button: 2 }));
-    act(() => handle().props.onPointerMove(pointer(400)));
+    await act(() => handle().props.onPointerDown({ ...pointer(256), button: 2 }));
+    await act(() => handle().props.onPointerMove(pointer(400)));
     expect(width()).toBe(256);
-    act(() => handle().props.onPointerDown(pointer(256)));
-    act(() => handle().props.onPointerDown({ ...pointer(256, 'touch', 2), isPrimary: false }));
-    act(() => handle().props.onPointerMove(pointer(400, 'touch', 2)));
-    act(() => handle().props.onPointerUp(pointer(400, 'touch', 2)));
+    await act(() => handle().props.onPointerDown(pointer(256)));
+    await act(() =>
+      handle().props.onPointerDown({ ...pointer(256, 'touch', 2), isPrimary: false })
+    );
+    await act(() => handle().props.onPointerMove(pointer(400, 'touch', 2)));
+    await act(() => handle().props.onPointerUp(pointer(400, 'touch', 2)));
     expect(width()).toBe(256);
     expect(capture.has(1)).toBe(true);
-    act(() => handle().props.onPointerMove(pointer(300)));
-    act(() => handle().props.onPointerUp(pointer(300)));
+    await act(() => handle().props.onPointerMove(pointer(300)));
+    await act(() => handle().props.onPointerUp(pointer(300)));
     expect(width()).toBe(300);
     act(() => renderer.unmount());
   });
@@ -388,12 +393,12 @@ describe('ResizablePageNav', () => {
     { pointerX: 150, preview: 150 },
   ])(
     'discards the $preview px preview on mobile and restores the saved width',
-    ({ pointerX, preview }) => {
+    async ({ pointerX, preview }) => {
       storage.set(storageKey, '300');
       const onCollapse = vi.fn();
       const { renderer, handle, width } = renderPanel(ScreenSize.Tablet, onCollapse);
-      act(() => handle().props.onPointerDown(pointer(300)));
-      act(() => handle().props.onPointerMove(pointer(pointerX)));
+      await act(() => handle().props.onPointerDown(pointer(300)));
+      await act(() => handle().props.onPointerMove(pointer(pointerX)));
       expect(width()).toBe(preview);
       const changeScreen = (screenSize: ScreenSize) =>
         act(() => {
@@ -410,9 +415,9 @@ describe('ResizablePageNav', () => {
       expect(storage.get(storageKey)).toBe('300');
       changeScreen(ScreenSize.Tablet);
       expect(width()).toBe(300);
-      act(() => handle().props.onPointerDown(pointer(300)));
-      act(() => handle().props.onPointerMove(pointer(320)));
-      act(() => handle().props.onPointerUp(pointer(320)));
+      await act(() => handle().props.onPointerDown(pointer(300)));
+      await act(() => handle().props.onPointerMove(pointer(320)));
+      await act(() => handle().props.onPointerUp(pointer(320)));
       expect(width()).toBe(320);
       expect(storage.get(storageKey)).toBe('320');
       expect(onCollapse).not.toHaveBeenCalled();
@@ -420,21 +425,21 @@ describe('ResizablePageNav', () => {
     }
   );
 
-  it('supports bounded keyboard resizing and reset', () => {
+  it('supports bounded keyboard resizing and reset', async () => {
     const onCollapse = vi.fn();
     const { renderer, handle, width } = renderPanel(ScreenSize.Desktop, onCollapse);
     const key = (value: string) =>
       act(() => handle().props.onKeyDown({ key: value, preventDefault: vi.fn() }));
-    key('ArrowRight');
+    await key('ArrowRight');
     expect(width()).toBe(276);
-    key('Home');
+    await key('Home');
     expect(width()).toBe(200);
-    key('End');
+    await key('End');
     expect(width()).toBe(600);
     expect(handle().props['aria-valuenow']).toBe(600);
-    key('ArrowLeft');
+    await key('ArrowLeft');
     expect(width()).toBe(580);
-    key('Enter');
+    await key('Enter');
     expect(width()).toBe(256);
     expect(storage.get(storageKey)).toBe('256');
     expect(onCollapse).not.toHaveBeenCalled();

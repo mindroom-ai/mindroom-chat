@@ -1039,6 +1039,8 @@
       "deactivated": "Désactivés"
     },
     "count": "Comptes : {{shown}} sur {{total}}",
+    "showDeactivated": "Afficher les désactivés ({{count}})",
+    "hiddenDeactivated": "Masqués : {{count}} désactivés",
     "noMatches": "Aucun compte ne correspond",
     "loadFailed": "Impossible de charger les comptes.",
     "status": {
@@ -1075,6 +1077,7 @@
       "title": "Invitations",
       "description": "Une adresse e-mail invitée peut créer un compte ici en se connectant avec elle.",
       "sendYourself": "Aucun e-mail n'est envoyé : copiez l'invitation et envoyez-la vous-même.",
+      "noEmail": "Aucun e-mail n’est envoyé. Après l’invitation, le message à envoyer s’affiche ici : copiez-le et envoyez-le vous-même à chaque personne.",
       "add": "Inviter par e-mail",
       "none": "Aucune invitation en attente",
       "loadFailed": "Impossible de charger les invitations.",
@@ -1082,6 +1085,8 @@
       "addressesHint": "Séparez plusieurs adresses par des virgules ou des retours à la ligne.",
       "rooms": "Salons que le nouveau compte rejoint",
       "external": "Compte externe",
+      "externalHint": "Pour une personne extérieure à votre organisation : le compte ne rejoint que les salons choisis ici et ceux où il sera invité plus tard, et ne peut ni créer de salons ni inviter quelqu’un.",
+      "externalForbidden": "Les comptes externes ne peuvent pas rejoindre les salons marqués d’un cadenas.",
       "invited": "Invitée",
       "replaces": "Remplace l'invitation précédente",
       "copy": "Copier l'invitation",
