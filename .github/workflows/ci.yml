@@ -46,10 +46,10 @@ jobs:
         run: npm ci
       # Each check runs even when one before it failed, so one run reports all of them.
       - name: Type check
-        run: npx tsc --noEmit -p tsconfig.app.json
+        run: npx tsc --noEmit -p config/tsconfig.app.json
       - name: Strict check
         if: ${{ !cancelled() }}
-        # tsconfig.strict.json covers the tests too; tsc needs more than Node's default heap on a runner.
+        # config/tsconfig.strict.json covers the tests too; tsc needs more than Node's default heap on a runner.
         env:
           NODE_OPTIONS: --max-old-space-size=6144
         run: node scripts/strict-check.mjs

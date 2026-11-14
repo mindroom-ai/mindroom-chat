@@ -19,43 +19,16 @@ describe('build version selection', () => {
     ).toBe('release-candidate');
   });
 
-  it('uses provider commit hashes before a Netlify deploy ID', () => {
-    expect(
-      resolveBuildVersion({
-        COMMIT_REF: ` ${'b'.repeat(40)} `,
-        DEPLOY_ID: 'netlify-deploy-id',
-      })
-    ).toBe('b'.repeat(40));
-  });
-
   it('uses the GitHub commit hash when no explicit version is provided', () => {
-    expect(
-      resolveBuildVersion({
-        GITHUB_SHA: 'd'.repeat(40),
-        DEPLOY_ID: 'netlify-deploy-id',
-      })
-    ).toBe('d'.repeat(40));
+    expect(resolveBuildVersion({ GITHUB_SHA: ` ${'d'.repeat(40)} ` }, 'c'.repeat(40))).toBe(
+      'd'.repeat(40)
+    );
   });
 
-  it('rejects branch-like provider values and uses the checked-out commit', () => {
-    expect(
-      resolveBuildVersion(
-        {
-          COMMIT_REF: 'feature/offline-updater',
-          DEPLOY_ID: 'netlify-deploy-id',
-        },
-        'c'.repeat(40)
-      )
-    ).toBe('c'.repeat(40));
-  });
-
-  it('uses the deploy ID only when no Git commit is available', () => {
-    expect(
-      resolveBuildVersion({
-        COMMIT_REF: 'feature/offline-updater',
-        DEPLOY_ID: 'netlify-deploy-id',
-      })
-    ).toBe('netlify-deploy-id');
+  it('rejects a branch-like GITHUB_SHA and uses the checked-out commit', () => {
+    expect(resolveBuildVersion({ GITHUB_SHA: 'feature/offline-updater' }, 'c'.repeat(40))).toBe(
+      'c'.repeat(40)
+    );
   });
 
   it('returns no version when every source is unavailable', () => {

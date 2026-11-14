@@ -24,18 +24,13 @@ const commitHash = (value) => {
 
 /**
  * The version a build reports (and the service worker URL carries): an explicit
- * `MINDROOM_BUILD_VERSION`, else a provider's commit hash (Netlify `COMMIT_REF`, GitHub
- * `GITHUB_SHA`), else the checked-out commit, else a Netlify deploy ID.
+ * `MINDROOM_BUILD_VERSION`, else GitHub's commit hash `GITHUB_SHA`, else the checked-out commit.
  * @param {Record<string, string | undefined>} env
  * @param {string | undefined} [gitCommit]
  * @returns {string | undefined}
  */
 export const resolveBuildVersion = (env, gitCommit) =>
-  clean(env.MINDROOM_BUILD_VERSION) ??
-  commitHash(env.COMMIT_REF) ??
-  commitHash(env.GITHUB_SHA) ??
-  commitHash(gitCommit) ??
-  clean(env.DEPLOY_ID);
+  clean(env.MINDROOM_BUILD_VERSION) ?? commitHash(env.GITHUB_SHA) ?? commitHash(gitCommit);
 
 /**
  * The release name: an explicit `MINDROOM_RELEASE_VERSION`, else the described release tag,

@@ -1,4 +1,4 @@
-// Type-check with the stricter flags of tsconfig.strict.json and fail only on errors in Lane C
+// Type-check with the stricter flags of config/tsconfig.strict.json and fail only on errors in Lane C
 // files. Lane P files (the docs/provenance/portable*.tsv lists, at the paths
 // docs/provenance/moves.tsv gives them now) keep their ported logic, so their errors are counted
 // and ignored.
@@ -50,7 +50,7 @@ export function splitByLane(output, lanePPaths) {
 function runTsc() {
   const result = spawnSync(
     'npx',
-    ['tsc', '--noEmit', '--pretty', 'false', '-p', 'tsconfig.strict.json'],
+    ['tsc', '--noEmit', '--pretty', 'false', '-p', 'config/tsconfig.strict.json'],
     { cwd: repoRoot, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 }
   );
   if (result.error) throw result.error;

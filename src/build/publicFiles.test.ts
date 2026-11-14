@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { withServePy } from './test-utils/servePy';
 
@@ -27,43 +26,4 @@ describe('scripts/serve.py', () => {
       }
     );
   }, 30_000);
-});
-
-describe('netlify.toml', () => {
-  type Redirect = { from: string; to: string; status: number; force: boolean };
-
-  /** The [[redirects]] rules, in their order. */
-  const redirects: Redirect[] = [
-    ...readFileSync(new URL('../../netlify.toml', import.meta.url), 'utf8').matchAll(
-      /^\[\[redirects\]\]\n((?:[ \t]+\S.*\n)+)/gm
-    ),
-  ].map(([, rule = '']) => {
-    const value = (key: string) => new RegExp(`^\\s*${key} = (.+)$`, 'm').exec(rule)?.[1];
-    return {
-      from: JSON.parse(value('from') ?? '""') as string,
-      to: JSON.parse(value('to') ?? '""') as string,
-      status: Number(value('status')),
-      force: value('force') === 'true',
-    };
-  });
-
-  /**
-   * The rule Netlify applies to a request: the first one whose `from` matches, where a rule that
-   * is not forced never applies to a path that has a file ("Shadowing" in Netlify's documentation).
-   */
-  const ruleFor = (path: string, { fileExists }: { fileExists: boolean }) =>
-    redirects.find(
-      ({ from, force }) =>
-        (force || !fileExists) &&
-        (from.endsWith('/*') ? path.startsWith(from.slice(0, -1)) : path === from)
-    );
-
-  it('answers a missing file under /public/ with 404, and the files there and app routes as before', () => {
-    expect(ruleFor('/public/missing.html', { fileExists: false })?.status).toBe(404);
-    expect(ruleFor('/public/locales/de.json', { fileExists: true })).toBeUndefined();
-    expect(ruleFor('/home/', { fileExists: false })).toMatchObject({
-      to: '/index.html',
-      status: 200,
-    });
-  });
 });
