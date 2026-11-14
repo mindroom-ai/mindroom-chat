@@ -597,6 +597,29 @@ describe('renderAgentMessageContent', () => {
     );
   });
 
+  it('shows the snooze-ended marker only for a MindRoom agent', async () => {
+    const { MatrixEvent } = await import('matrix-js-sdk');
+    const content = {
+      msgtype: 'm.notice',
+      body: '⏰ Snooze ended: check CI',
+      'io.mindroom.thread_snooze': { event: 'ended', until: '2026-11-13T09:00:00Z' },
+    };
+    const render = (fromMindroomAgent: boolean) =>
+      renderNode({
+        mEvent: new MatrixEvent({ type: 'm.room.message', content }),
+        fromMindroomAgent,
+        msgType: 'm.notice',
+        content,
+      });
+
+    const agentRow = JSON.stringify((await render(true)).toJSON());
+    expect(agentRow).toContain('data-thread-snooze-ended');
+    // Any member can write the content key; a person's message renders as written.
+    const personRow = JSON.stringify((await render(false)).toJSON());
+    expect(personRow).not.toContain('data-thread-snooze-ended');
+    expect(personRow).toContain('Snooze ended: check CI');
+  });
+
   it('renders extras for MindRoom long-text text paths', async () => {
     longTextTextMock.mockReset();
 

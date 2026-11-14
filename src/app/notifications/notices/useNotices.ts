@@ -32,7 +32,7 @@ export const useNotices = (url: string | undefined) => {
       const current = new AbortController();
       request = current;
       const timeout = window.setTimeout(() => current.abort(), NOTICE_FETCH_TIMEOUT_MS);
-      fetchNotices(url, current.signal).then((next) => {
+      void fetchNotices(url, current.signal).then((next) => {
         window.clearTimeout(timeout);
         request = undefined;
         if (disposed) return;

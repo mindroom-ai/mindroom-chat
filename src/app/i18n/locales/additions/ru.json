@@ -730,7 +730,13 @@
         "threadFiltersActive": "Фильтры веток (активны)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Расширенные фильтры"
+        "advancedFilters": "Расширенные фильтры",
+        "presets": {
+          "snoozed": {
+            "label": "Отложенные",
+            "description": "Только отложенные ветки"
+          }
+        }
       },
       "threadPeopleFilter": {
         "label": "Участники",
@@ -897,7 +903,23 @@
     "resize": "Изменить ширину ветки",
     "showFull": "Показать ветку целиком",
     "showBeside": "Показать ветку рядом с сообщениями",
-    "notFound": "Ветка не найдена"
+    "notFound": "Ветка не найдена",
+    "snoozedUntil": "Отложено до {{time}}",
+    "snoozeEnded": "Отсрочка закончилась",
+    "snooze": "Отложить",
+    "unsnooze": "Вернуть",
+    "status": {
+      "snoozed": "Отложена"
+    }
+  },
+  "threadSnooze": {
+    "title": "Отложить до",
+    "inOneHour": "Через 1 час",
+    "inThreeHours": "Через 3 часа",
+    "tomorrow": "Завтра в 09:00",
+    "nextMonday": "В следующий понедельник в 09:00",
+    "pickDateTime": "Выбрать дату и время",
+    "pastTime": "Выберите время в будущем"
   },
   "activity": {
     "title": "Активность",
@@ -1006,7 +1028,8 @@
       "unread": "Непрочитанные",
       "working": "Агенты работают",
       "recent": "Недавние",
-      "automations": "Автоматизации"
+      "automations": "Автоматизации",
+      "snoozed": "Отложенные"
     },
     "showMore": "Показать больше",
     "chips": {

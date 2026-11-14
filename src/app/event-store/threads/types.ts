@@ -40,6 +40,10 @@ export type ThreadStatusSnapshot = {
   cronDescription?: string;
   lastActivityTs?: number;
   tags: string[];
+  /** Set whenever the snoozed tag parses, also after its time. */
+  snoozedUntilTs?: number;
+  /** The snoozed tag's `set_at`. */
+  snoozedAtTs?: number;
 };
 
 export type ThreadCacheCoverage = {
@@ -134,6 +138,8 @@ export type CompactThreadCardViewModel = {
   isStreaming: boolean;
   hasPendingSend?: boolean;
   hasFailedSend?: boolean;
+  /** When the snooze ends; absent once resolved. The card shows it only while it is ahead. */
+  snoozedUntilTs?: number;
   scheduledDisplayText?: string;
   scheduledTaskLabel?: string;
   lastActivityTs?: number;
@@ -156,6 +162,8 @@ export type ThreadHeaderViewModel = {
   canEdit: boolean;
   availableTags: string[];
   pickerDisabled: boolean;
+  /** When the snooze ends; absent once resolved. The banner shows it only while it is ahead. */
+  snoozedUntilTs?: number;
   scheduledTaskCount: number;
   nextScheduledTs?: number;
   scheduledDisplayText?: string;

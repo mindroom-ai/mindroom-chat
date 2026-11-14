@@ -13,12 +13,13 @@ import classNames from 'classnames';
 import { useAtomValue } from 'jotai';
 import { Box, Icon, IconButton, Icons, Text, type RectCords } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { IconCalendarEvent } from '@tabler/icons-react';
+import { IconCalendarEvent, IconClock } from '@tabler/icons-react';
 import { Room } from 'matrix-js-sdk';
 import { type Thread, ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import * as threadIndicatorCss from '../messages/ThreadIndicator.css';
 import { useThreadHeaderInfo } from './useThreadHeaderInfo';
+import { useSnoozedUntilText } from './tags/useSnoozedUntilText';
 import { buildThreadHeaderViewModelFromRecord } from './threadHeaderViewModel';
 import { buildThreadRecord } from '../event-store/threads/threadRecord';
 import { useThreadRootEvent } from './useThreadRootEvent';
@@ -119,7 +120,7 @@ export function ThreadContextBanner({
   const { scheduledTaskCount, nextScheduledTs, cronDescription, scheduledDisplayText } =
     useThreadHeaderInfo(room, threadId);
   const { tags, isResolved, canEdit, availableTags } = useThreadTags(room, rootEventId);
-  const { addTag, removeTag, setResolved, updating, error } = useMutateThreadTags(room);
+  const { addTag, removeTag, setResolved, unsnooze, updating, error } = useMutateThreadTags(room);
   const threadRootId = rootEventId ?? threadId;
   const canOpenMenu = isConfirmedMatrixEventId(threadRootId);
   const [menu, setMenu] = useState<BannerMenuState>();
@@ -246,7 +247,7 @@ export function ThreadContextBanner({
   const handleAddTag = useCallback(
     (name: string) => {
       if (!mutableThreadRootId) return;
-      addTag(mutableThreadRootId, name);
+      void addTag(mutableThreadRootId, name);
     },
     [mutableThreadRootId, addTag]
   );
@@ -254,15 +255,19 @@ export function ThreadContextBanner({
   const handleRemoveTag = useCallback(
     (name: string) => {
       if (!mutableThreadRootId) return;
-      removeTag(mutableThreadRootId, name);
+      void removeTag(mutableThreadRootId, name);
     },
     [mutableThreadRootId, removeTag]
   );
 
   const handleToggleResolve = useCallback(() => {
     if (!mutableThreadRootId || isPinned) return;
-    setResolved(mutableThreadRootId, !headerModel.isResolved);
+    void setResolved(mutableThreadRootId, !headerModel.isResolved);
   }, [mutableThreadRootId, headerModel.isResolved, setResolved, isPinned]);
+  const handleUnsnooze = useCallback(() => {
+    if (!mutableThreadRootId) return;
+    void unsnooze(mutableThreadRootId);
+  }, [mutableThreadRootId, unsnooze]);
   const resolveDisabled = !headerModel.canEdit || headerModel.pickerDisabled || pinning.updating;
   // Not a thread that a side panel in the conversation's place hides.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
@@ -276,7 +281,8 @@ export function ThreadContextBanner({
   const hasScheduled = !!(headerModel.bannerScheduledText && headerModel.scheduledLabel);
   // Without an AI summary, the start of the thread's first message is its title.
   const rootTitle = getThreadRootTitle(room, headerRecord.presentation, t);
-  const hasSubtitle = !!headerModel.summaryText || !!rootTitle || hasScheduled;
+  const snoozedText = useSnoozedUntilText(headerModel.snoozedUntilTs);
+  const hasSubtitle = !!headerModel.summaryText || !!rootTitle || hasScheduled || !!snoozedText;
   // A pinned thread shows the pin instead of the resolve chip and its byline.
   const showResolver = !isPinned && !!resolvedByDisplayName;
   // The Resolved button is described by the byline, also on short screens,
@@ -309,7 +315,11 @@ export function ThreadContextBanner({
       <div
         ref={glassRef}
         className={classNames(
-          headerModel.isResolved ? css.BannerResolved : css.Banner,
+          headerModel.isResolved
+            ? css.BannerResolved
+            : snoozedText
+            ? css.BannerSnoozed
+            : css.Banner,
           collapsed && css.Collapsed
         )}
         data-thread-context-banner="true"
@@ -332,7 +342,7 @@ export function ThreadContextBanner({
         }}
       >
         {collapsed ? (
-          // Collapsed to back and Show details; the tint still says resolved, and
+          // Collapsed to back and Show details; the tint still says resolved or snoozed, and
           // auto-approval and an active permissions grant stay in view.
           <Box alignItems="Center" gap="100">
             {backButton}
@@ -447,6 +457,49 @@ export function ThreadContextBanner({
                       </Box>
                     </Box>
                   )}
+                  {snoozedText && (
+                    <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
+                      {(headerModel.summaryText || rootTitle || hasScheduled) && (
+                        <Text
+                          as="span"
+                          className={classNames(css.MetadataDot, css.ScheduledDot)}
+                          size="T200"
+                          priority="300"
+                          aria-hidden="true"
+                        >
+                          ·
+                        </Text>
+                      )}
+                      <Box
+                        as="span"
+                        className={`${css.ScheduledIndicator} ${threadIndicatorCss.ThreadScheduledIndicator}`}
+                        alignItems="Center"
+                        gap="100"
+                        data-thread-snoozed="true"
+                      >
+                        <IconClock
+                          size={12}
+                          stroke={1.8}
+                          className={threadIndicatorCss.ThreadScheduledIcon}
+                          aria-hidden="true"
+                        />
+                        <Text as="span" size="T200" priority="300" truncate>
+                          {snoozedText}
+                        </Text>
+                      </Box>
+                      {headerModel.canEdit && (
+                        <button
+                          type="button"
+                          className={css.SnoozeAction}
+                          data-thread-unsnooze="true"
+                          disabled={headerModel.pickerDisabled}
+                          onClick={handleUnsnooze}
+                        >
+                          {t('thread.unsnooze')}
+                        </button>
+                      )}
+                    </Box>
+                  )}
                   {showResolver && (
                     <Box
                       as="span"
@@ -522,7 +575,7 @@ export function ThreadContextBanner({
                       fill="None"
                       aria-pressed={isPinned}
                       disabled={pinning.updating || updating}
-                      onClick={() => pinning.setPinned(mutableThreadRootId, !isPinned)}
+                      onClick={() => void pinning.setPinned(mutableThreadRootId, !isPinned)}
                     >
                       <Icon src={Icons.Pin} size="100" filled={isPinned} />
                     </IconButton>

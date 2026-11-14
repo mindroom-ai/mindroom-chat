@@ -16,9 +16,8 @@ With --verify it recomputes the same output in memory and compares it with the f
 holes.tsv as they were committed by the import commit recorded in docs/provenance/import.txt.
 
 Lines listed for the wave in docs/provenance/holes-overlap-import.tsv (path, line, wave) are blanked
-too: Bas-authored lines that are part of a run shared with the upstream client (scripts/upstream-overlap/check.py),
-blanked in every commit by the history rewrite of 2026-11-03. A new import must rerun that check
-on its output and blank what it reports.
+too: Bas-authored lines that are part of a run shared with the upstream client,
+blanked in every commit by the history rewrite of 2026-11-03. A new import must blank them the same way.
 
 Paths in the portable lists are this repository's paths. docs/provenance/rename-map.tsv (the name
 scrub, read through scripts/rename_map.py) maps a renamed path back to its path in the checkout,

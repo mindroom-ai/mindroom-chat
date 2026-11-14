@@ -43,6 +43,7 @@ type CreateThreadFixtureOptions = {
 type SerializedThreadFilterState = {
   v: 1;
   resolved: 'any' | 'include' | 'exclude';
+  snoozed?: 'any' | 'include' | 'exclude';
   streaming: 'any' | 'include' | 'exclude';
   scheduled: 'any' | 'include' | 'exclude';
   unread: 'any' | 'include' | 'exclude';
@@ -440,6 +441,28 @@ export const sendStateEvent = async (
   );
 };
 
+/** The content of a room's state event, or undefined while the room has none of that type and key. */
+export const getStateEvent = async (
+  homeserver: string,
+  accessToken: string,
+  roomId: string,
+  eventType: string,
+  stateKey: string
+): Promise<Record<string, unknown> | undefined> => {
+  try {
+    return await matrixFetch<Record<string, unknown>>(
+      homeserver,
+      `/rooms/${encodeURIComponent(roomId)}/state/${encodeURIComponent(
+        eventType
+      )}/${encodeURIComponent(stateKey)}`,
+      { accessToken }
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Matrix API 404 ')) return undefined;
+    throw error;
+  }
+};
+
 export const addRoomToSpace = async (
   homeserver: string,
   accessToken: string,
@@ -500,6 +523,7 @@ export const setDirectAccountData = async (
 export const createDefaultThreadFilterState = (): SerializedThreadFilterState => ({
   v: 1,
   resolved: 'any',
+  snoozed: 'any',
   streaming: 'any',
   scheduled: 'any',
   unread: 'any',

@@ -126,12 +126,13 @@ export const useRoomViewThreadState = ({
     [roomId, userId]
   );
   const [storedThreadFilterState, setThreadFilterState] = useAtom(threadFilterAtom);
-  // Until the reader sets a filter in the room, Compact hides resolved threads.
+  // Until the reader sets a filter in the room, Compact hides resolved and snoozed threads.
   const threadFilterState = useMemo<ThreadFilterState>(
     () =>
       storedThreadFilterState ?? {
         ...createDefaultThreadFilterState(),
         resolved: effectiveViewMode === 'compact' ? 'exclude' : 'any',
+        snoozed: effectiveViewMode === 'compact' ? 'exclude' : 'any',
       },
     [effectiveViewMode, storedThreadFilterState]
   );

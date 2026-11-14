@@ -2,6 +2,7 @@ import type { TFunction } from 'i18next';
 import { EventType } from 'matrix-js-sdk';
 import { isMindroomAgentMessageEvent, isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import { getLocalizedThreadMessagePreviewText } from '../event-store/threads/threadMessagePreview';
+import { matchesEnum } from '../lib/matchesEnum';
 
 export const TIMELINE_MINIMAP_ITEM_SPACING = 8;
 export const TIMELINE_MINIMAP_MIN_ITEMS = 2;
@@ -61,7 +62,7 @@ const compactMinimapPreview = (text: string | null | undefined): string | null =
 type MinimapSourceKind = 'user' | 'agent' | 'redactedUser' | 'other';
 
 const resolveMinimapSourceKind = (mEvent: TimelineMinimapEvent): MinimapSourceKind => {
-  if (mEvent.getType() !== EventType.RoomMessage) return 'other';
+  if (!matchesEnum(mEvent.getType(), EventType.RoomMessage)) return 'other';
   if (mEvent.isRedacted?.()) {
     // Redaction strips the content metadata, so only the sender convention is
     // left to classify. A redacted human question gets no stripe but must

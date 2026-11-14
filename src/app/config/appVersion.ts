@@ -94,7 +94,9 @@ export const startAppVersionMonitor = ({
 
   document.addEventListener('visibilitychange', handleVisibilityChange);
   window.addEventListener('online', handleOnline);
-  const intervalId = window.setInterval(() => check().catch(() => undefined), pollIntervalMs);
+  const intervalId = window.setInterval(() => {
+    check().catch(() => undefined);
+  }, pollIntervalMs);
   check().catch(() => undefined);
 
   return () => {

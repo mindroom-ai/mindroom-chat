@@ -269,7 +269,7 @@ export function LongTextText({
       }
     };
 
-    hydrateContent();
+    void hydrateContent();
 
     return () => {
       cancelled = true;

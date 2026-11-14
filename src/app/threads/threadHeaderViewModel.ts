@@ -44,6 +44,8 @@ export const buildThreadHeaderViewModelFromRecord = ({
     canEdit,
     availableTags,
     pickerDisabled,
+    // A resolved thread shows as resolved only.
+    snoozedUntilTs: record.status.isResolved ? undefined : record.status.snoozedUntilTs,
     scheduledTaskCount,
     nextScheduledTs,
     scheduledDisplayText,

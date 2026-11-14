@@ -26,7 +26,8 @@ import { EMPTY_THREAD_SCHEDULED_STATUS, type ThreadScheduledStatus } from './thr
 import { isFailedLocalEchoEvent, isPendingLocalEchoEvent } from '../../matrix/protocol/pendingLocalEcho';
 import type { ThreadCacheCoverage, ThreadRecord } from './types';
 import { collectThreadPeopleIds, currentUserTookPart } from './threadPeopleFilter';
-import { RESOLVED_TAG } from './threadTags';
+import { RESOLVED_TAG, SNOOZED_TAG, type TagMetadata } from './threadTags';
+import { parseThreadSnooze } from './threadSnooze';
 
 const THREAD_PARTICIPANT_LIMIT = 3;
 
@@ -177,7 +178,9 @@ export const getThreadReplyParticipantIds = (
 };
 
 const getThreadStatusTags = (threadResolution: ThreadResolutionLike | undefined): string[] =>
-  Object.keys(threadResolution?.tags ?? {}).filter((tagName) => tagName !== RESOLVED_TAG);
+  Object.keys(threadResolution?.tags ?? {}).filter(
+    (tagName) => tagName !== RESOLVED_TAG && tagName !== SNOOZED_TAG
+  );
 
 const getThreadResolverUserId = (
   threadResolution: ThreadResolutionLike | undefined
@@ -326,6 +329,9 @@ export const buildThreadRecord = ({
       (!!resolvedThreadRootEvent &&
         isMainTimelineMessageUnread(room, resolvedThreadRootEvent, currentUserId)));
   const isResolved = threadResolution?.isResolved ?? false;
+  const snooze = parseThreadSnooze(
+    threadResolution?.tags?.[SNOOZED_TAG] as TagMetadata | undefined
+  );
   const isStreaming = getThreadStreamingState(room, threadRootId);
   const hasPendingSend = getThreadPendingSend(resolvedThreadRootEvent, visibleReplyEvents);
   const hasFailedSend = getThreadFailedSend(resolvedThreadRootEvent, visibleReplyEvents);
@@ -369,6 +375,8 @@ export const buildThreadRecord = ({
       cronDescription: resolvedCronDescription,
       lastActivityTs,
       tags: getThreadStatusTags(threadResolution),
+      snoozedUntilTs: snooze?.untilTs,
+      snoozedAtTs: snooze?.setAtTs,
     },
     cache: cacheCoverage ?? buildDefaultThreadCacheCoverage(thread, recordReplyCount),
     absoluteIndex: absoluteIndex ?? 0,

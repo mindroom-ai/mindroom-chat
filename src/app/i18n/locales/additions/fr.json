@@ -719,7 +719,13 @@
         "threadFiltersActive": "Filtres de fils (actifs)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtres avancés"
+        "advancedFilters": "Filtres avancés",
+        "presets": {
+          "snoozed": {
+            "label": "Reportés",
+            "description": "Fils reportés uniquement"
+          }
+        }
       },
       "threadPeopleFilter": {
         "label": "Personnes",
@@ -882,7 +888,23 @@
     "resize": "Redimensionner le fil",
     "showFull": "Afficher le fil en entier",
     "showBeside": "Afficher le fil à côté des messages",
-    "notFound": "Fil introuvable"
+    "notFound": "Fil introuvable",
+    "snoozedUntil": "Reporté jusqu'à {{time}}",
+    "snoozeEnded": "Report terminé",
+    "snooze": "Reporter",
+    "unsnooze": "Annuler le report",
+    "status": {
+      "snoozed": "Reporté"
+    }
+  },
+  "threadSnooze": {
+    "title": "Reporter jusqu'à",
+    "inOneHour": "Dans 1 heure",
+    "inThreeHours": "Dans 3 heures",
+    "tomorrow": "Demain 09:00",
+    "nextMonday": "Lundi prochain 09:00",
+    "pickDateTime": "Choisir la date et l'heure",
+    "pastTime": "Choisissez une heure dans le futur"
   },
   "activity": {
     "title": "Activité",
@@ -984,7 +1006,8 @@
       "unread": "Non lus",
       "working": "Agents au travail",
       "recent": "Récents",
-      "automations": "Automatisations"
+      "automations": "Automatisations",
+      "snoozed": "Reportés"
     },
     "showMore": "Afficher plus",
     "chips": {

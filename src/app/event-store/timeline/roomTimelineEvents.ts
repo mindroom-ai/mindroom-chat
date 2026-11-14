@@ -7,6 +7,7 @@ import {
   isNestedThreadReplyEvent,
   isZeroReplyStandaloneThreadRootEvent,
 } from '../threads/compactThreadRootData';
+import { matchesEnum } from '../../lib/matchesEnum';
 
 export type TimelineEventEntry = {
   event: MatrixEvent;
@@ -46,7 +47,7 @@ export const isRenderableEvent = (
   if (mEvent.isRedaction()) return false;
   if (isHiddenReferenceEvent(mEvent) && !showHiddenEvents) return false;
 
-  if (mEvent.getType() === StateEvent.RoomMember) {
+  if (matchesEnum(mEvent.getType(), StateEvent.RoomMember)) {
     const membershipChanged = isMembershipChanged(mEvent);
     if (membershipChanged && hideMembershipEvents) return false;
     if (!membershipChanged && hideNickAvatarEvents) return false;

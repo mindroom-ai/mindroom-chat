@@ -719,7 +719,13 @@
         "threadFiltersActive": "Filtri dei thread (attivi)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtri avanzati"
+        "advancedFilters": "Filtri avanzati",
+        "presets": {
+          "snoozed": {
+            "label": "Posticipati",
+            "description": "Solo thread posticipati"
+          }
+        }
       },
       "threadPeopleFilter": {
         "label": "Persone",
@@ -882,7 +888,23 @@
     "resize": "Ridimensiona il thread",
     "showFull": "Mostra il thread a tutta larghezza",
     "showBeside": "Mostra il thread accanto ai messaggi",
-    "notFound": "Thread non trovato"
+    "notFound": "Thread non trovato",
+    "snoozedUntil": "Posticipato fino a {{time}}",
+    "snoozeEnded": "Posticipo terminato",
+    "snooze": "Posticipa",
+    "unsnooze": "Annulla posticipo",
+    "status": {
+      "snoozed": "Posticipato"
+    }
+  },
+  "threadSnooze": {
+    "title": "Posticipa fino a",
+    "inOneHour": "Tra 1 ora",
+    "inThreeHours": "Tra 3 ore",
+    "tomorrow": "Domani 09:00",
+    "nextMonday": "Lunedì prossimo 09:00",
+    "pickDateTime": "Scegli data e ora",
+    "pastTime": "Scegli un orario nel futuro"
   },
   "activity": {
     "title": "Attività",
@@ -984,7 +1006,8 @@
       "unread": "Non letti",
       "working": "Agenti al lavoro",
       "recent": "Recenti",
-      "automations": "Automazioni"
+      "automations": "Automazioni",
+      "snoozed": "Posticipati"
     },
     "showMore": "Mostra di più",
     "chips": {

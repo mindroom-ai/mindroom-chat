@@ -256,6 +256,23 @@ export const ScheduledDot = style({
   ...whenCompact({ display: 'inline' }),
 });
 
+// Unsnooze after the snooze's time: a text button in the subtitle's size, underlined as a link.
+export const SnoozeAction = style({
+  flexShrink: 0,
+  padding: 0,
+  border: 'none',
+  background: 'none',
+  color: 'inherit',
+  font: 'inherit',
+  fontSize: '0.75rem',
+  textDecoration: 'underline',
+  textUnderlineOffset: '0.15em',
+  cursor: 'pointer',
+  selectors: {
+    '&:disabled': { cursor: 'default', opacity: 0.6 },
+  },
+});
+
 export const MetadataDot = style({
   flexShrink: 0,
 });
@@ -276,6 +293,15 @@ export const BannerResolved = style([
   glassFloating,
   glassDenseOverBackdrop,
   { color: color.Success.OnContainer },
+]);
+
+// Snoozed, the banner goes amber the way resolved goes green: the thread is set aside until then.
+export const BannerSnoozed = style([
+  BannerLayout,
+  glassSurface({ level: 'control', variant: 'Warning' }),
+  glassFloating,
+  glassDenseOverBackdrop,
+  { color: color.Warning.OnContainer },
 ]);
 
 export const BannerDisabled = style({

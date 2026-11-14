@@ -50,7 +50,9 @@ vi.mock('../useInitializeShownThread', () => ({ useInitializeShownThread: () => 
 vi.mock('../../ui/InsetScrollbar', () => ({ InsetScrollbar: () => null }));
 vi.mock('../ThreadActionsMenu', () => ({ ThreadActionsMenu: () => null }));
 vi.mock('../../i18n/useRelativeTime', () => ({ useRelativeTime: () => '' }));
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ i18n: { language: 'en' }, t: (key: string) => key }),
+}));
 
 const message = (eventId: string, sender: string, content: IContent) =>
   new MatrixEvent({
