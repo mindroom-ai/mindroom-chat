@@ -20,8 +20,10 @@ const READERS = [
   'src/app/ui/styles/RoomOverlay.css.ts',
 ];
 
-// The inset by name, and the classes built on it: RoomOverlay.css's Scroll and Scrollbar (by the
-// `overlay` namespace or a named import) and the minimap's container.
+// The inset by name, and three classes built on it: RoomOverlay.css's Scroll and Scrollbar (through
+// the `overlay` namespace or a named import) and the minimap's container. A class built on one of
+// these elsewhere, or another namespace alias, is not found: the rule beside `overviewInsetStop`
+// still holds for it.
 const INSET = new RegExp(
   [
     String.raw`\b(?:overviewInset|topInset|controlsTopInset|overviewInsetStop|MinimapContainer)\b`,
