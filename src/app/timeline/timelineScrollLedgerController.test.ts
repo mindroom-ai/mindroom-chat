@@ -246,7 +246,7 @@ describe('useTimelineScrollLedgerController', () => {
     // -5px snapshot, so the DOM still carries the previous 512px ledger.
     innerElement.style.marginTop = '-512px';
     await act(async () => {
-      settleWaits[0]();
+      settleWaits[0]!();
       await Promise.resolve();
     });
     expect(writes).toEqual([]);
@@ -254,7 +254,7 @@ describe('useTimelineScrollLedgerController', () => {
     expect(settleWaits).toHaveLength(2);
 
     await act(async () => {
-      settleWaits[1]();
+      settleWaits[1]!();
       await Promise.resolve();
     });
     expect(writes).toEqual([4995]);
