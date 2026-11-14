@@ -288,6 +288,7 @@ describe('bindRoamingSettings', () => {
     const laptop = login(server, ALICE, 'LAPTOP');
     const app = open(laptop);
     // Another device sets the clock after this one queued its write and before the write ran.
+    // Sync brings it here at once (no lag), so the write reads it from the client's copy.
     server.put({ version: 1, dateFormatString: 'YYYY-MM-DD', hour24Clock: false });
 
     await vi.waitFor(() =>
