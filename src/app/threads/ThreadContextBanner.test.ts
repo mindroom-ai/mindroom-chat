@@ -179,6 +179,7 @@ vi.mock('./ThreadContextBanner.css', () => ({
   ScheduledDot: 'ScheduledDot',
   ScheduledIndicator: 'ScheduledIndicator',
   ScheduledWrap: 'ScheduledWrap',
+  SnoozeAction: 'SnoozeAction',
   SubtitleRow: 'SubtitleRow',
   SummaryText: 'SummaryText',
   SummaryTextChanged: 'SummaryTextChanged',
@@ -1196,14 +1197,18 @@ describe('ThreadContextBanner rendering', () => {
 
   describe('snooze', () => {
     const SET_AT = '2026-11-13T10:00:00Z';
-    const withSnooze = (until: string, isResolved = false) =>
+    const withSnooze = (until: string, isResolved = false, canEdit = false) =>
       bannerMocks.useThreadTags.mockReturnValue({
         tags: { snoozed: { set_by: '@alice:example.org', set_at: SET_AT, data: { until } } },
         displayTags: [],
         isResolved,
-        canEdit: false,
+        canEdit,
         availableTags: [],
       });
+    const unsnoozeButtons = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root.findAll(
+        (node) => node.type === 'button' && node.props['data-thread-unsnooze'] === 'true'
+      );
     const snoozedRows = (renderer: ReturnType<typeof renderBanner>) =>
       renderer.root.findAll(
         (node) => typeof node.type === 'string' && node.props['data-thread-snoozed'] === 'true'
@@ -1232,6 +1237,29 @@ describe('ThreadContextBanner rendering', () => {
       expect(JSON.stringify(renderer.toJSON())).not.toContain('Snoozed until');
       expect(snoozedRows(renderer)).toHaveLength(0);
       expect(bannerClass()).toBe('Banner');
+    });
+
+    it('offers Unsnooze beside the snooze to those who may edit tags', () => {
+      const unsnooze = vi.fn();
+      bannerMocks.useMutateThreadTags.mockReturnValue({
+        addTag: vi.fn(),
+        removeTag: vi.fn(),
+        setResolved: vi.fn(),
+        unsnooze,
+        updating: false,
+        error: undefined,
+      });
+      const until = new Date(Date.now() + 3600_000).toISOString();
+
+      withSnooze(until, false, false);
+      expect(unsnoozeButtons(renderBanner())).toHaveLength(0);
+
+      withSnooze(until, false, true);
+      const renderer = renderBanner();
+      const [button] = unsnoozeButtons(renderer);
+      expect(button?.props.children).toBe('Unsnooze');
+      act(() => button?.props.onClick());
+      expect(unsnooze).toHaveBeenCalledWith('$root');
     });
 
     it('shows a resolved and snoozed thread as resolved only', () => {

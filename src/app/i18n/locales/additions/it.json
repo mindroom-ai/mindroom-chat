@@ -891,9 +891,20 @@
     "notFound": "Thread non trovato",
     "snoozedUntil": "Posticipato fino a {{time}}",
     "snoozeEnded": "Posticipo terminato",
+    "snooze": "Posticipa",
+    "unsnooze": "Annulla posticipo",
     "status": {
       "snoozed": "Posticipato"
     }
+  },
+  "threadSnooze": {
+    "title": "Posticipa fino a",
+    "inOneHour": "Tra 1 ora",
+    "inThreeHours": "Tra 3 ore",
+    "tomorrow": "Domani 09:00",
+    "nextMonday": "Lunedì prossimo 09:00",
+    "pickDateTime": "Scegli data e ora",
+    "pastTime": "Scegli un orario nel futuro"
   },
   "activity": {
     "title": "Attività",

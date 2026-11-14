@@ -861,9 +861,20 @@
     "notFound": "Utas tidak ditemukan",
     "snoozedUntil": "Ditunda hingga {{time}}",
     "snoozeEnded": "Penundaan berakhir",
+    "snooze": "Tunda",
+    "unsnooze": "Batalkan penundaan",
     "status": {
       "snoozed": "Ditunda"
     }
+  },
+  "threadSnooze": {
+    "title": "Tunda hingga",
+    "inOneHour": "Dalam 1 jam",
+    "inThreeHours": "Dalam 3 jam",
+    "tomorrow": "Besok 09:00",
+    "nextMonday": "Senin depan 09:00",
+    "pickDateTime": "Pilih tanggal dan waktu",
+    "pastTime": "Pilih waktu di masa depan"
   },
   "activity": {
     "title": "Aktivitas",
