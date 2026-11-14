@@ -10,6 +10,7 @@ import {
   MessageExtrasSection,
 } from '../matrix/protocol/messageExtrasData';
 import { MessageExtras } from './MessageExtras';
+import { matchesEnum } from '../lib/matchesEnum';
 
 vi.mock('./html/HtmlBlocks.css', () => ({}));
 vi.mock('../approvals/ApprovalArgumentFields.css', () => ({}));
@@ -486,7 +487,7 @@ describe('MessageExtras', () => {
         ),
         htmlReactParserOptions: {
           replace: (domNode) => {
-            if ('type' in domNode && domNode.type === 'text') {
+            if ('type' in domNode && matchesEnum(domNode.type, 'text')) {
               const data = 'data' in domNode ? domNode.data : '';
               if (typeof data === 'string' && data.includes('magnet:')) {
                 return React.createElement('a', { href: 'magnet:?xt=urn:btih:abc' }, data);

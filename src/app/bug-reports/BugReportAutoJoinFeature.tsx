@@ -9,6 +9,7 @@ import { getMxIdServer } from '../matrix/matrix';
 import { getStateEvent } from '../matrix/room';
 import { useBugReportAdmins } from './bugReportConfig';
 import { BUG_REPORTS_ROOM_TYPE } from './bugReportRoom';
+import { matchesEnum } from '../lib/matchesEnum';
 
 /**
  * Admins join report rooms without accepting invites. The invite's stripped state must show
@@ -21,7 +22,7 @@ export const shouldAutoJoinBugReportInvite = (
 ): boolean => {
   const myUserId = mx.getUserId();
   if (!room || !myUserId || !admins.includes(myUserId)) return false;
-  if (room.getMyMembership() !== Membership.Invite) return false;
+  if (!matchesEnum(room.getMyMembership(), Membership.Invite)) return false;
   const create = getStateEvent(room, StateEvent.RoomCreate);
   if (create?.getContent().type !== BUG_REPORTS_ROOM_TYPE) return false;
   if (getStateEvent(room, StateEvent.RoomJoinRules)?.getContent().join_rule !== JoinRule.Invite) {

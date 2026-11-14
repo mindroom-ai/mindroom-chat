@@ -18,6 +18,7 @@ import {
 } from '../event-store/threads/threadRouteUtils';
 import { getMessageRelation } from '../matrix/send/composeMessageRelation';
 import type { PasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
+import { matchesEnum } from '../lib/matchesEnum';
 
 export type RoomInputAutocompletePrefix = typeof MINDROOM_COMMAND_PREFIX;
 export type RoomInputAutocompleteQuery =
@@ -94,7 +95,7 @@ export const refreshRoomInputVoiceSendContext = (
   context: PendingVoiceSendContext
 ): PendingVoiceSendContext | null => {
   const liveRoom = mx.getRoom(context.roomId);
-  if (!liveRoom || liveRoom.getMyMembership() !== Membership.Join) return null;
+  if (!liveRoom || !matchesEnum(liveRoom.getMyMembership(), Membership.Join)) return null;
   return {
     ...context,
     room: liveRoom,

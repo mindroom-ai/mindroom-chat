@@ -32,6 +32,7 @@ import {
   type CrossRoomThreadIndexBatchRemoval,
   type CrossRoomThreadIndexEntry,
 } from './crossRoomThreadIndex';
+import { matchesEnum } from '../../lib/matchesEnum';
 
 const BOOTSTRAP_ROOM_CHUNK_SIZE = 5;
 
@@ -548,7 +549,8 @@ export const useCrossRoomThreadIndex = () => {
 
     const handleStateEvent = (event: MatrixEvent, roomState: { roomId?: string }) => {
       const type = event.getType();
-      if (type !== MINDROOM_THREAD_TAGS_EVENT && type !== StateEvent.RoomPinnedEvents) return;
+      if (type !== MINDROOM_THREAD_TAGS_EVENT && !matchesEnum(type, StateEvent.RoomPinnedEvents))
+        return;
       const roomId =
         roomState?.roomId ?? (event as unknown as { getRoomId?: () => string }).getRoomId?.();
       if (!roomId) return;
@@ -557,7 +559,7 @@ export const useCrossRoomThreadIndex = () => {
       if (!room) return;
       if (!roomDisposers.has(room.roomId)) return;
 
-      if (type === StateEvent.RoomPinnedEvents) {
+      if (matchesEnum(type, StateEvent.RoomPinnedEvents)) {
         handlePinChange(room);
       } else {
         const stateKey = event.getStateKey();

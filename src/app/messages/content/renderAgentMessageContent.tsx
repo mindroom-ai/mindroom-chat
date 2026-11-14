@@ -41,6 +41,7 @@ import { CanvasResponseSidecarReceipt } from '../canvas/CanvasResponseSidecarRec
 import { readCallTranscript } from '../../matrix/protocol/callTranscript';
 import { CallTranscriptCard } from './CallTranscriptCard';
 import { ownDirectionLine } from '../../ui/directional';
+import { matchesEnum } from '../../lib/matchesEnum';
 
 export type RenderAgentMessageContentOptions = {
   mEvent?: MatrixEvent;
@@ -254,7 +255,9 @@ export const renderAgentMessageContent = ({
       renderStateSuffix,
     });
 
-  const canvasReceipt = msgType === MsgType.Text ? readCanvasResponse(content) : undefined;
+  const canvasReceipt = matchesEnum(msgType, MsgType.Text)
+    ? readCanvasResponse(content)
+    : undefined;
   if (canvasReceipt) {
     return (
       <CanvasResponseReceipt
@@ -291,8 +294,8 @@ export const renderAgentMessageContent = ({
     );
   }
 
-  if (msgType === MsgType.Text || msgType === MsgType.File) {
-    if (msgType === MsgType.Text && isTranscribingPlaceholder(content)) {
+  if (matchesEnum(msgType, MsgType.Text) || matchesEnum(msgType, MsgType.File)) {
+    if (matchesEnum(msgType, MsgType.Text) && isTranscribingPlaceholder(content)) {
       return (
         <MText
           content={content}
@@ -304,7 +307,7 @@ export const renderAgentMessageContent = ({
     }
 
     const isStreaming = isAiRunStreaming(content);
-    if (msgType === MsgType.Text && isStreaming && isThinkingPlaceholderBody(content)) {
+    if (matchesEnum(msgType, MsgType.Text) && isStreaming && isThinkingPlaceholderBody(content)) {
       return (
         <MText
           content={content}
@@ -337,7 +340,7 @@ export const renderAgentMessageContent = ({
         />
       );
       // A canvas answer too large for one event arrives as a sidecar; its receipt waits for the file.
-      if (msgType === MsgType.File && content[CANVAS_RESPONSE_KEY]) {
+      if (matchesEnum(msgType, MsgType.File) && content[CANVAS_RESPONSE_KEY]) {
         return (
           <CanvasResponseSidecarReceipt
             source={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
@@ -352,7 +355,7 @@ export const renderAgentMessageContent = ({
       return longText;
     }
 
-    if (msgType === MsgType.File) {
+    if (matchesEnum(msgType, MsgType.File)) {
       const pasteAttachment = getPasteAttachmentFile(content);
       if (pasteAttachment) {
         return (
@@ -364,7 +367,7 @@ export const renderAgentMessageContent = ({
       }
     }
 
-    if (msgType === MsgType.Text) {
+    if (matchesEnum(msgType, MsgType.Text)) {
       const renderableContent = withToolRefFormattedBodyFallback(content);
       return (
         <MText
@@ -381,7 +384,7 @@ export const renderAgentMessageContent = ({
     }
   }
 
-  if (msgType === MsgType.Emote) {
+  if (matchesEnum(msgType, MsgType.Emote)) {
     const isStreaming = isAiRunStreaming(content);
     const longTextSource = getRenderableLongTextSource(content);
     if (longTextSource) {
@@ -421,7 +424,7 @@ export const renderAgentMessageContent = ({
     );
   }
 
-  if (msgType === MsgType.Notice) {
+  if (matchesEnum(msgType, MsgType.Notice)) {
     const uiAction = content[CHAT_UI_ACTION_KEY];
     // Canvas updates are edits of the request, so an edited canvas keeps its button.
     const editableUiAction =

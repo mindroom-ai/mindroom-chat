@@ -14,6 +14,7 @@ import {
   formatPasteMarkerTextAsHtml,
   parsePasteMarker,
 } from '../../matrix/protocol/pasteAttachmentMarker';
+import { matchesEnum } from '../../lib/matchesEnum';
 
 export type ToolRefParseResult = {
   toolName: string;
@@ -145,9 +146,9 @@ const normalizeMarkdownDashLists = (markdown: string): string =>
       .join('\n')
   );
 
-const isDomTextNode = (node: DOMNode): node is DOMText => node.type === 'text';
+const isDomTextNode = (node: DOMNode): node is DOMText => matchesEnum(node.type, 'text');
 
-const isDomElementNode = (node: DOMNode): node is Element => node.type === 'tag';
+const isDomElementNode = (node: DOMNode): node is Element => matchesEnum(node.type, 'tag');
 
 const extractDomText = (nodes: DOMNode[]): string =>
   nodes

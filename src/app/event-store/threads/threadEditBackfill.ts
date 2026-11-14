@@ -1,6 +1,7 @@
 import { MatrixEvent } from 'matrix-js-sdk';
 import { MessageEvent } from '../../matrix/types/room';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
+import { matchesEnum } from '../../lib/matchesEnum';
 
 const getThreadEditBackfillPhase = (threadTailLoaded: boolean): number =>
   threadTailLoaded ? 1 : 0;
@@ -44,8 +45,8 @@ export const shouldFetchThreadEditBackfill = (
 
   const eventType = mEvent.getType();
   const supportedEventType =
-    eventType === MessageEvent.RoomMessage ||
-    eventType === MessageEvent.RoomMessageEncrypted ||
+    matchesEnum(eventType, MessageEvent.RoomMessage) ||
+    matchesEnum(eventType, MessageEvent.RoomMessageEncrypted) ||
     eventType === MINDROOM_TOOL_APPROVAL_EVENT;
   if (!supportedEventType) return false;
 

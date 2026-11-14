@@ -32,6 +32,7 @@ import {
   replaceDeletedVersion,
   subscribeCanvasList,
 } from './canvasIndexStore';
+import { matchesEnum } from '../lib/matchesEnum';
 
 export const canvasSessionId = (mx: MatrixClient): string =>
   createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
@@ -52,7 +53,7 @@ export const recordCanvasEvent = (
   // Only deletions that may be of a canvas reach the store: agents delete a reaction after every reply.
   // A deleted encrypted event has lost its decrypted type, also by the time its deletion arrives.
   const maybeCanvas = (deleted: MatrixEvent) =>
-    (deleted.getType() === EventType.RoomMessage || deleted.isEncrypted()) &&
+    (matchesEnum(deleted.getType(), EventType.RoomMessage) || deleted.isEncrypted()) &&
     isMindroomAgentUserIdForViewer(deleted.getSender() ?? '', mx.getSafeUserId());
   // A canvas can also turn up already deleted, in history loaded after a missed deletion.
   if (event.isRedacted()) return maybeCanvas(event) ? forgetDeleted(mx, eventId) : undefined;

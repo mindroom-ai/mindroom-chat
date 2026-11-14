@@ -5,6 +5,7 @@ import { MessageEvent } from '../matrix/types/room';
 import { shouldUseLongTextSearchResultBody } from '../messages/content/searchResultPolicy';
 import { parseInlineMD } from '../rich-text/markdown/inline/parser';
 import { parseBlockMD } from '../rich-text/markdown/block/parser';
+import { matchesEnum } from '../lib/matchesEnum';
 
 const collapseWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
 export const SEARCH_RESULT_BODY_CHAR_LIMIT = 1600;
@@ -156,7 +157,7 @@ export const getSearchResultPreviewText = (
       ? getSearchResultBodySnippet(collapseWhitespace(body), highlights)
       : undefined;
 
-  if (event.type === MessageEvent.RoomMessage) {
+  if (matchesEnum(event.type, MessageEvent.RoomMessage)) {
     switch (content?.msgtype) {
       case MsgType.Text:
       case MsgType.Notice:
@@ -199,7 +200,7 @@ export const getSearchResultPreviewText = (
     }
   }
 
-  if (event.type === MessageEvent.Reaction) {
+  if (matchesEnum(event.type, MessageEvent.Reaction)) {
     return t?.('mindroomUi.message-search.searchResultPreview.reaction') ?? 'Reaction';
   }
 

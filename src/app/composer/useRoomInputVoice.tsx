@@ -50,6 +50,7 @@ import { ComposerIconButton } from './RoomInput.css';
 import { revealDirectionControls } from '../ui/directional';
 import { ConversationViewContext } from '../navigation/conversationView';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
+import { matchesEnum } from '../lib/matchesEnum';
 
 type VoiceComposerAdapter = {
   getContext: () => Pick<
@@ -217,7 +218,7 @@ export const useRoomInputVoice = ({
       return;
     }
     const sourceRoom = mx.getRoom(pendingVoiceSendDraft.context.roomId);
-    if (!sourceRoom || sourceRoom.getMyMembership() !== Membership.Join) {
+    if (!sourceRoom || !matchesEnum(sourceRoom.getMyMembership(), Membership.Join)) {
       setPendingVoiceSendDraft(undefined);
     }
   }, [draftBelongsToCurrentSession, mx, pendingVoiceSendDraft, setPendingVoiceSendDraft]);
