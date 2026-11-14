@@ -9,11 +9,13 @@ import {
 import { setImperativeJotaiStore } from '../../lib/state/jotaiStore';
 
 const USER_ID = '@alice:example.org';
-const activeSession = vi.hoisted(() => ({ userId: '@alice:example.org' }));
+const sessions = vi.hoisted(() => ({
+  active: { userId: '@alice:example.org' } as { userId: string } | undefined,
+}));
 
 vi.mock('../../matrix/session/sessions', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../matrix/session/sessions')>()),
-  getActiveSession: () => activeSession,
+  getActiveSession: () => sessions.active,
 }));
 
 const createStorage = (): Storage => {
@@ -245,13 +247,16 @@ describe('recentThreads', () => {
     unregisterStore();
   });
 
-  it('records nothing while no account is signed in', () => {
-    activeSession.userId = '';
+  it.each([
+    ['no session', undefined],
+    ['a session without a user', { userId: '' }],
+  ])('records nothing with %s', (_name, session) => {
+    sessions.active = session;
     try {
       bumpRecentThread('!room:example.org', '$thread', 200);
       expect(getDefaultStore().get(makeRecentThreadsAtom(''))).toEqual([]);
     } finally {
-      activeSession.userId = USER_ID;
+      sessions.active = { userId: USER_ID };
     }
   });
 

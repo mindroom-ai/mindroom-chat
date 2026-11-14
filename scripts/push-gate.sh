@@ -19,7 +19,8 @@
 #   tsc       tsc --noEmit -p config/tsconfig.app.json
 #   strict    node scripts/strict-check.mjs
 #   lint      ESLint on the files base...rev changes (on every file when the ESLint config or a file
-#             it reads changes: scripts/eslint-shared.cjs, the lane lists, the tsconfigs)
+#             it reads changes: scripts/eslint-shared.cjs, scripts/provenance-paths.cjs, the
+#             docs/provenance lists, the tsconfigs)
 #   vitest    the full unit suite; the files that fail run once more on their own, and only a
 #             second failure counts (the detail says how many passed on the rerun)
 #   overlap   scripts/upstream-overlap/check.py --history; it reads every ref of the checkout, but
