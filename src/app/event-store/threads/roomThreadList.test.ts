@@ -741,6 +741,19 @@ describe('loadRoomThreads and the gap relist', () => {
     stop();
   });
 
+  it('reads the list after a gap that comes during a later read of a listed room', async () => {
+    const { room, requests, gap, answer, stop } = setupGapRoom();
+    answer();
+    await loadRoomThreads(room as never);
+    const later = loadRoomThreads(room as never);
+    await Promise.resolve();
+    gap();
+    await later;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(requests).toEqual([null]);
+    stop();
+  });
+
   it('reads the list after a gap that comes once the first read answered', async () => {
     const { room, requests, gap, answer, stop } = setupGapRoom();
     const loading = loadRoomThreads(room as never);
