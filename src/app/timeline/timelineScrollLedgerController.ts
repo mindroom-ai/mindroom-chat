@@ -629,7 +629,7 @@ export const useTimelineScrollLedgerController = ({
     if (compensationSettleArmedRef.current) return;
     compensationSettleArmedRef.current = true;
     const generation = ledgerGenerationRef.current;
-    waitForScrollQuiescence(getScrollElement(), { maxWaitMs: Infinity }).then(() => {
+    void waitForScrollQuiescence(getScrollElement(), { maxWaitMs: Infinity }).then(() => {
       compensationSettleArmedRef.current = false;
       if (!alive() || ledgerGenerationRef.current !== generation) return;
       settleScrollCompensation('quiescence');
