@@ -133,11 +133,10 @@ const openRoom = async (page: Page) => {
 };
 
 /**
- * Findings in ported (Lane P) code, which may not be rewritten here: each control's `aria-label`
- * leaves out its visible text. Matched by rule and element, with the label in the page's
- * language, so any other finding still fails.
+ * Known findings that stay: each control's `aria-label` leaves out its visible text. Matched by
+ * rule and element, with the label in the page's language, so any other finding still fails.
  */
-const knownPortedFindings = (code: string) => [
+const knownFindings = (code: string) => [
   // CompactThreadCard: a thread card's label summarizes the thread instead of repeating its text.
   // Matched by its attributes: production builds shorten the class names the dev server spells out,
   // and axe-core cuts a long element short, sometimes before the label (an Arabic label with a
@@ -211,7 +210,7 @@ test.describe.serial('keyboard and accessibility', () => {
    * inside the running app; the findings come back as `screen rule: element` lines.
    */
   const axeMainScreens = async (code: string): Promise<string[]> => {
-    const known = knownPortedFindings(code);
+    const known = knownFindings(code);
     const findings: string[] = [];
     const check = async (screen: string) => {
       const found = (await axeFindings(page)).filter(
@@ -430,7 +429,7 @@ test.describe.serial('keyboard and accessibility', () => {
     const findings = await axeMainScreens('en');
     await openInApp(page, '/home/create/');
     await expect(page.getByRole('textbox', { name: 'Name' })).toBeVisible();
-    const known = knownPortedFindings('en');
+    const known = knownFindings('en');
     findings.push(
       ...(await axeFindings(page))
         .filter((finding) => !known.some((pattern) => pattern.test(finding)))

@@ -53,6 +53,7 @@ import {
 } from './cacheStoreSchema';
 import {
   filterPageableCachedThreadEvents,
+  isOtherRoomEvent,
   isRawLocalEchoEventPublic,
   mergeThreadCacheFlag,
   mergeThreadExpectedReplyCount,
@@ -401,14 +402,6 @@ const toRawEventInternal = (
   };
 };
 
-/**
- * Whether `raw` names a room other than `roomId`. An event is its room's: one saved under a room
- * it does not name (an earlier version could do that) reads as absent there, and so does a thread
- * whose root does. Rows saved without a room ID read as the room's they were saved under.
- */
-const isOtherRoomEvent = (raw: Partial<IEvent> | undefined, roomId: string): boolean =>
-  typeof raw?.room_id === 'string' && raw.room_id !== roomId;
-
 type ScopedCursorOptions = {
   sessionId: string;
   roomId: string;
@@ -633,12 +626,14 @@ export const loadCachedEventAcrossRoomScopes = async (
       .getAll([roomId, eventId]);
     const root = transaction.objectStore(META_STORE).get(buildMetaKey(roomId, eventId));
     transaction.oncomplete = () => {
-      let merged: Partial<IEvent> | undefined = (root.result as CachedMetaRecord | undefined)
-        ?.rootEvent;
+      const rootEvent = (root.result as CachedMetaRecord | undefined)?.rootEvent;
+      let merged: Partial<IEvent> | undefined = rootEvent;
+      // A copy that names another room lends nothing, and a thread root that does hides every copy.
       (request.result as CachedEventRecord[]).forEach((row) => {
-        merged = mergeRawEventRevisions(merged, row.rawEvent);
+        if (!isOtherRoomEvent(row.rawEvent, roomId))
+          merged = mergeRawEventRevisions(merged, row.rawEvent);
       });
-      resolve(isOtherRoomEvent(merged, roomId) ? undefined : merged);
+      resolve(isOtherRoomEvent(rootEvent, roomId) ? undefined : merged);
     };
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
@@ -1043,7 +1038,7 @@ export const loadCachedThreadRootsForRoom = async (
       (request.result as CachedMetaRecord[]).forEach((meta) => {
         // Rows written before relations were checked can hold a scope of any type.
         if (meta.roomId !== roomId || typeof meta.scope !== 'string') return;
-        if (!meta.scope.startsWith('$')) return;
+        if (!meta.scope.startsWith('$') || isOtherRoomEvent(meta.rootEvent, roomId)) return;
         // A downloaded reply can precede its root. The root may then exist
         // only in room scope; merge copies using the normal revision rules.
         const copies = transaction
@@ -1053,9 +1048,10 @@ export const loadCachedThreadRootsForRoom = async (
         copies.onsuccess = () => {
           let root = meta.rootEvent;
           (copies.result as CachedEventRecord[]).forEach((row) => {
-            root = mergeRawEventRevisions(root, row.rawEvent);
+            if (!isOtherRoomEvent(row.rawEvent, roomId))
+              root = mergeRawEventRevisions(root, row.rawEvent);
           });
-          if (root?.event_id !== meta.scope || isOtherRoomEvent(root, roomId)) return;
+          if (root?.event_id !== meta.scope) return;
           const rootEvent = root;
           const entry: CachedThreadRoot = { rootEvent };
           roots.push(entry);
@@ -1077,6 +1073,11 @@ export const loadCachedThreadRootsForRoom = async (
           latest.onsuccess = () => {
             const cursor = latest.result;
             const event = (cursor?.value as CachedEventRecord | undefined)?.rawEvent;
+            // Another room's event saved under this thread decides nothing here.
+            if (cursor && isOtherRoomEvent(event, roomId)) {
+              cursor.continue();
+              return;
+            }
             if (!cursor || !event || (summaryLatest && isOlderThanSummary(event, summaryLatest))) {
               if (summaryLatest) entry.rootEvent = withNewestCachedReplies(rootEvent, newerReplies);
               return;
@@ -1256,15 +1257,15 @@ export const loadCachedThreadEvent = async (
     const eventStore = transaction.objectStore(EVENTS_STORE);
     const metaStore = transaction.objectStore(META_STORE);
     const eventRequest = eventStore.get(buildEventCacheKey(roomId, threadId, eventId));
-    const metaRequest =
-      eventId === threadId ? metaStore.get(buildMetaKey(roomId, threadId)) : undefined;
+    // The thread's meta row: its root, and the room the thread is.
+    const metaRequest = metaStore.get(buildMetaKey(roomId, threadId));
 
     transaction.oncomplete = () => {
       const record = eventRequest.result as CachedEventRecord | undefined;
-      const meta = metaRequest?.result as CachedMetaRecord | undefined;
-      const raw = record ? record.rawEvent : meta?.rootEvent;
+      const meta = metaRequest.result as CachedMetaRecord | undefined;
+      const raw = record ? record.rawEvent : eventId === threadId ? meta?.rootEvent : undefined;
       resolve(
-        isOtherRoomEvent(raw, roomId)
+        isOtherRoomEvent(meta?.rootEvent, roomId) || isOtherRoomEvent(raw, roomId)
           ? undefined
           : (toRawEventInternal(raw) as CachedThreadEvent | undefined)
       );
@@ -1272,7 +1273,7 @@ export const loadCachedThreadEvent = async (
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
     eventRequest.onerror = () => reject(eventRequest.error);
-    metaRequest?.addEventListener('error', () => reject(metaRequest.error));
+    metaRequest.onerror = () => reject(metaRequest.error);
   });
 };
 

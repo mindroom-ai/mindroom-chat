@@ -1,3 +1,0 @@
-8c6e5b27126179b5c5e784deb566fe7b46d0ae26 mindroom-chat fc3a5905
-3a92886ab37313e68f4638af658e8ebd3d1c779f mindroom-chat fc3a5905 wave 2
-9bd6d3c45d7fc5c2893ca61102d1f4341733428b mindroom-chat fc3a5905 wave 3 (binary, blob-hash verified)

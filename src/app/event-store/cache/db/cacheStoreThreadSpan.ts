@@ -11,13 +11,14 @@ import {
   type CachedEventRecord,
   type CachedMetaRecord,
 } from './cacheStoreSchema';
-import type { CursorAnchor } from './cacheStoreNormalize';
+import { isOtherRoomEvent, type CursorAnchor } from './cacheStoreNormalize';
 
 /**
  * Every event the cache holds in a room's thread scopes from `from` (inclusive) to `before`
  * (exclusive) in cache order (sent time, then event ID): the thread replies, edits and reactions of
  * a span of the room's history. Without `before`, everything from `from` on. Thread roots, which
- * the room's own scope holds, are left out.
+ * the room's own scope holds, are left out, and so are events that name another room and every
+ * event of a thread whose root does.
  */
 export const loadCachedThreadEventsInSpan = async (
   sessionId: string,
@@ -40,8 +41,11 @@ export const loadCachedThreadEventsInSpan = async (
         IDBKeyRange.bound(buildMetaKey(roomId, ROOM_SCOPE), buildMetaKey(roomId, MAX_EVENT_ID))
       );
     metas.onsuccess = () => {
-      (metas.result as CachedMetaRecord[]).forEach(({ roomId: metaRoomId, scope }) => {
-        if (metaRoomId !== roomId || !scope.startsWith('$')) return;
+      (metas.result as CachedMetaRecord[]).forEach(({ roomId: metaRoomId, scope, rootEvent }) => {
+        // Rows written before relations were checked can hold a scope of any type. A thread whose
+        // root names another room is that room's, as the other thread readers hold.
+        if (metaRoomId !== roomId || typeof scope !== 'string' || !scope.startsWith('$')) return;
+        if (isOtherRoomEvent(rootEvent, roomId)) return;
         const span = IDBKeyRange.bound(
           [roomId, scope, from.ts, from.eventId],
           before
@@ -56,7 +60,10 @@ export const loadCachedThreadEventsInSpan = async (
           .getAll(span);
         request.onsuccess = () => {
           (request.result as CachedEventRecord[]).forEach(({ rawEvent }) => {
-            if (rawEvent.event_id !== scope) events.push(rawEvent);
+            // An older build could save another room's events under this room's thread scopes.
+            if (rawEvent.event_id !== scope && !isOtherRoomEvent(rawEvent, roomId)) {
+              events.push(rawEvent);
+            }
           });
         };
       });

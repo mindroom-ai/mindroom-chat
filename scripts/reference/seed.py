@@ -2,7 +2,7 @@
 
 Usage: scripts/e2e-slot.sh <N> python3 scripts/reference/seed.py [suffix]
 Prints the signed-in user, password, room, thread roots (r1..r4) and the direct room as JSON.
-The screenshots in docs/design/reference/ show this data in MindRoom Chat; compare against them.
+The screenshots in docs/design/reference/ show this data; compare against them.
 
 Avatars come from two folders: $E2E_SEED_AGENT_AVATARS (research.png, code.png, mind.png; default
 /home/basnijholt/Work/dev/assets/avatars/painted/agents, the MindRoom assets repository) and

@@ -122,7 +122,7 @@ type SidebarConfig = {
    * `/connect` pairing page; on unless set to false.
    */
   showMindRoom?: boolean;
-  /** Read by nothing; kept because the ported WelcomePage test's config still sets it. */
+  /** Read by nothing; kept because the WelcomePage test's config still sets it. */
   mindRoomUrl?: string;
   /** Provisioning service the Local MindRoom pairing flow talks to. */
   mindRoomProvisioningUrl?: string;

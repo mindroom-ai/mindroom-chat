@@ -10,7 +10,7 @@ import type { MatrixClient } from 'matrix-js-sdk';
  */
 export const closeClient = (client: MatrixClient): void => {
   client.stopClient();
-  // Optional call: the fake clients of the ported tests have a store without `destroy`.
+  // Optional call: the fake clients of some tests have a store without `destroy`.
   Promise.resolve(client.store.destroy?.()).catch((error: unknown) => {
     // eslint-disable-next-line no-console
     console.warn('[client] could not close the sync store', error);

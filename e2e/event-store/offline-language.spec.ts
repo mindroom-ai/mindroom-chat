@@ -10,7 +10,7 @@ import {
 // --preview`; the dev server's worker keeps everything it serves and the spec skips there). The
 // language's catalog (public/locales/<code>.json) has no hash in its name and is not precached:
 // the worker answers it from the network and keeps the latest copy (src/sw/swLanguageFiles.ts), and
-// keeps the overlay chunk of Lane C strings like any other on-demand chunk. Without them the whole
+// keeps the overlay chunk of added strings like any other on-demand chunk. Without them the whole
 // app came up in English offline.
 const PASSWORD = 'offline-language-password';
 const GREETING = 'Offline auf Deutsch';
@@ -58,7 +58,7 @@ const cachedPaths = (page: Page, cacheName: string): Promise<string[]> =>
     return requests.map((request) => new URL(request.url).pathname);
   }, cacheName);
 
-/** The room in German: a sidebar string from the catalog, a Lane C string from the overlay. */
+/** The room in German: a sidebar string from the catalog, an added string from the overlay. */
 const expectGermanRoom = async (page: Page): Promise<void> => {
   await expect(page.getByText(GREETING, { exact: true }).first()).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('html')).toHaveAttribute('lang', 'de');
@@ -72,7 +72,7 @@ const expectGermanRoom = async (page: Page): Promise<void> => {
   await expect(page.getByRole('navigation', { name: 'Hauptnavigation' })).toBeAttached();
 };
 
-test('an offline start keeps the language: its catalog and its overlay of Lane C strings', async ({
+test('an offline start keeps the language: its catalog and its overlay of added strings', async ({
   context,
   page,
 }) => {
