@@ -1,10 +1,13 @@
-import type {
-  ThreadFilterKey,
-  ThreadFilterState,
-  TriState,
-} from './roomThreadOverviewModel';
+import type { ThreadFilterKey, ThreadFilterState, TriState } from './roomThreadOverviewModel';
 
-const STATUS_KEYS: ThreadFilterKey[] = ['resolved', 'streaming', 'scheduled', 'unread', 'idle'];
+const STATUS_KEYS: ThreadFilterKey[] = [
+  'resolved',
+  'snoozed',
+  'streaming',
+  'scheduled',
+  'unread',
+  'idle',
+];
 const TAG_NAME = /^[a-z0-9-]{1,50}$/;
 const isOrToken = (token: string) => token.toLowerCase() === 'or';
 const stripNegation = (token: string) => (token.startsWith('-') ? token.slice(1) : token);
@@ -107,9 +110,7 @@ export const serializeThreadFilterQuery = (state: ThreadFilterState): string => 
   const tags = [...state.tags.entries()].sort(([left], [right]) => left.localeCompare(right));
   const positives = statuses('include', 'is:');
   const negatives = statuses('exclude', '-is:');
-  const positiveTags = tags
-    .filter(([, value]) => value === 'include')
-    .map(([key]) => `tag:${key}`);
+  const positiveTags = tags.filter(([, value]) => value === 'include').map(([key]) => `tag:${key}`);
   const negativeTags = tags
     .filter(([, value]) => value === 'exclude')
     .map(([key]) => `-tag:${key}`);

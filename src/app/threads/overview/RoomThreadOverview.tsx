@@ -6,6 +6,7 @@ import { type TFunction } from 'i18next';
 import {
   IconCalendarEvent,
   IconChevronDown,
+  IconClock,
   IconFilter,
   IconInfoCircle,
   IconLock,
@@ -61,6 +62,7 @@ export type { ThreadFilterState, ThreadFilterKey };
 
 const FILTER_LABEL_KEYS = {
   resolved: 'thread.status.resolved',
+  snoozed: 'thread.status.snoozed',
   streaming: 'thread.status.streaming',
   scheduled: 'thread.status.scheduled',
   unread: 'thread.status.unread',
@@ -176,6 +178,12 @@ function ThreadPresetDropdown({
           ...preset,
           label: t('mindroomUi.threads.roomThreadOverview.presets.review-queue.label'),
           description: t('mindroomUi.threads.roomThreadOverview.presets.review-queue.description'),
+        };
+      case 'snoozed':
+        return {
+          ...preset,
+          label: t('mindroomUi.threads.roomThreadOverview.presets.snoozed.label'),
+          description: t('mindroomUi.threads.roomThreadOverview.presets.snoozed.description'),
         };
       case 'archived':
         return {
@@ -338,6 +346,7 @@ function ThreadPresetDropdown({
 
 const STATUS_LABEL_KEYS = {
   resolved: 'thread.status.resolved',
+  snoozed: 'thread.status.snoozed',
   streaming: 'thread.status.streaming',
   scheduled: 'thread.status.scheduled',
   unread: 'thread.status.unread',
@@ -775,9 +784,7 @@ export function RoomThreadOverview({
       {(triggerRef) => (
         <span ref={triggerRef} className={css.CompactCount} data-thread-count="true">
           <IconMessages size={14} stroke={1.8} aria-hidden="true" />
-          <Text size="T200">
-            {localDigits(String(threadCount), i18n.language)}
-          </Text>
+          <Text size="T200">{localDigits(String(threadCount), i18n.language)}</Text>
         </span>
       )}
     </TooltipProvider>
@@ -918,6 +925,15 @@ export function RoomThreadOverview({
               onToggle={handleToggleWithPresetClear}
             >
               <Icon size="50" src={Icons.CheckTwice} />
+            </TriStateIconToggle>
+
+            <TriStateIconToggle
+              filterKey="snoozed"
+              state={state.snoozed}
+              isOrMode={isOrModeStatusChip(state, 'snoozed')}
+              onToggle={handleToggleWithPresetClear}
+            >
+              <IconClock size={14} stroke={1.8} aria-hidden="true" />
             </TriStateIconToggle>
 
             <TriStateIconToggle

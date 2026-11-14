@@ -649,7 +649,13 @@
         "threadFiltersActive": "Filtros de hilos (activos)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtros avanzados"
+        "advancedFilters": "Filtros avanzados",
+        "presets": {
+          "snoozed": {
+            "label": "Pospuestos",
+            "description": "Solo hilos pospuestos"
+          }
+        }
       },
       "threadPeopleFilter": {
         "label": "Personas",
@@ -812,7 +818,10 @@
     "resize": "Cambiar el tamaño del hilo",
     "showFull": "Mostrar el hilo completo",
     "showBeside": "Mostrar el hilo junto a los mensajes",
-    "notFound": "No se encontró el hilo"
+    "notFound": "No se encontró el hilo",
+    "status": {
+      "snoozed": "Pospuesto"
+    }
   },
   "activity": {
     "title": "Actividad",
@@ -914,7 +923,8 @@
       "unread": "Sin leer",
       "working": "Agentes trabajando",
       "recent": "Recientes",
-      "automations": "Automatizaciones"
+      "automations": "Automatizaciones",
+      "snoozed": "Pospuestos"
     },
     "showMore": "Mostrar más",
     "chips": {

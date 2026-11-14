@@ -638,7 +638,13 @@
         "threadFiltersActive": "থ্রেড ফিল্টার (চালু)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "উন্নত ফিল্টার"
+        "advancedFilters": "উন্নত ফিল্টার",
+        "presets": {
+          "snoozed": {
+            "label": "স্নুজ করা",
+            "description": "শুধুমাত্র স্নুজ করা থ্রেড"
+          }
+        }
       },
       "threadPeopleFilter": {
         "label": "লোকজন",
@@ -797,7 +803,10 @@
     "resize": "থ্রেডের আকার বদলান",
     "showFull": "থ্রেডটি পুরোটা দেখান",
     "showBeside": "থ্রেডটি বার্তাগুলোর পাশে দেখান",
-    "notFound": "থ্রেড পাওয়া যায়নি"
+    "notFound": "থ্রেড পাওয়া যায়নি",
+    "status": {
+      "snoozed": "স্নুজ করা"
+    }
   },
   "activity": {
     "title": "কার্যকলাপ",
@@ -892,7 +901,8 @@
       "unread": "অপঠিত",
       "working": "এজেন্ট কাজ করছে",
       "recent": "সাম্প্রতিক",
-      "automations": "অটোমেশন"
+      "automations": "অটোমেশন",
+      "snoozed": "স্নুজ করা"
     },
     "showMore": "আরও দেখুন",
     "chips": {

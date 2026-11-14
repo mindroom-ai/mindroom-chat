@@ -627,7 +627,13 @@
         "threadFiltersActive": "讨论串过滤器（已启用）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "高级过滤器"
+        "advancedFilters": "高级过滤器",
+        "presets": {
+          "snoozed": {
+            "label": "已延后",
+            "description": "仅已延后的讨论串"
+          }
+        }
       },
       "threadPeopleFilter": {
         "label": "参与者",
@@ -782,7 +788,10 @@
     "resize": "调整讨论串大小",
     "showFull": "完整显示讨论串",
     "showBeside": "在消息旁显示讨论串",
-    "notFound": "未找到该讨论串"
+    "notFound": "未找到该讨论串",
+    "status": {
+      "snoozed": "已延后"
+    }
   },
   "activity": {
     "title": "动态",
@@ -870,7 +879,8 @@
       "unread": "未读",
       "working": "智能体工作中",
       "recent": "最近",
-      "automations": "自动化"
+      "automations": "自动化",
+      "snoozed": "已延后"
     },
     "showMore": "显示更多",
     "chips": {

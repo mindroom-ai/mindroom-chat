@@ -638,7 +638,13 @@
         "threadFiltersActive": "Threadfilters (actief)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Geavanceerde filters"
+        "advancedFilters": "Geavanceerde filters",
+        "presets": {
+          "snoozed": {
+            "label": "Gesnoozed",
+            "description": "Alleen gesnoozede threads"
+          }
+        }
       },
       "threadPeopleFilter": {
         "label": "Personen",
@@ -797,7 +803,10 @@
     "resize": "Breedte van de thread wijzigen",
     "showFull": "Thread volledig tonen",
     "showBeside": "Thread naast de berichten tonen",
-    "notFound": "Thread niet gevonden"
+    "notFound": "Thread niet gevonden",
+    "status": {
+      "snoozed": "Gesnoozed"
+    }
   },
   "activity": {
     "title": "Activiteit",
@@ -892,7 +901,8 @@
       "unread": "Ongelezen",
       "working": "Agenten aan het werk",
       "recent": "Recent",
-      "automations": "Automatiseringen"
+      "automations": "Automatiseringen",
+      "snoozed": "Gesnoozed"
     },
     "showMore": "Meer tonen",
     "chips": {

@@ -627,7 +627,13 @@
         "threadFiltersActive": "스레드 필터 (사용 중)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "고급 필터"
+        "advancedFilters": "고급 필터",
+        "presets": {
+          "snoozed": {
+            "label": "다시 알림",
+            "description": "다시 알림이 설정된 스레드만"
+          }
+        }
       },
       "threadPeopleFilter": {
         "label": "참여자",
@@ -782,7 +788,10 @@
     "resize": "스레드 크기 조정",
     "showFull": "스레드를 전체로 보기",
     "showBeside": "스레드를 메시지 옆에 보기",
-    "notFound": "스레드를 찾을 수 없습니다"
+    "notFound": "스레드를 찾을 수 없습니다",
+    "status": {
+      "snoozed": "다시 알림"
+    }
   },
   "activity": {
     "title": "활동",
@@ -870,7 +879,8 @@
       "unread": "읽지 않음",
       "working": "에이전트 작업 중",
       "recent": "최근",
-      "automations": "자동화"
+      "automations": "자동화",
+      "snoozed": "다시 알림"
     },
     "showMore": "더 보기",
     "chips": {

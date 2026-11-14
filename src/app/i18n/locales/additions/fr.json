@@ -649,7 +649,13 @@
         "threadFiltersActive": "Filtres de fils (actifs)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtres avancés"
+        "advancedFilters": "Filtres avancés",
+        "presets": {
+          "snoozed": {
+            "label": "En attente",
+            "description": "Fils en attente uniquement"
+          }
+        }
       },
       "threadPeopleFilter": {
         "label": "Personnes",
@@ -812,7 +818,10 @@
     "resize": "Redimensionner le fil",
     "showFull": "Afficher le fil en entier",
     "showBeside": "Afficher le fil à côté des messages",
-    "notFound": "Fil introuvable"
+    "notFound": "Fil introuvable",
+    "status": {
+      "snoozed": "En attente"
+    }
   },
   "activity": {
     "title": "Activité",
@@ -914,7 +923,8 @@
       "unread": "Non lus",
       "working": "Agents au travail",
       "recent": "Récents",
-      "automations": "Automatisations"
+      "automations": "Automatisations",
+      "snoozed": "En attente"
     },
     "showMore": "Afficher plus",
     "chips": {

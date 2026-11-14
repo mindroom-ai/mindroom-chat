@@ -9,12 +9,19 @@ import {
   type ThreadSortFreezeState,
 } from './roomThreadOverviewModel';
 import { matchesThreadPeopleFilter } from './threadPeopleFilter';
+import { isSnoozedAt } from './threadSnooze';
 import type { ThreadRecord } from './types';
 
-const getThreadRecordDimension = (record: ThreadRecord, key: ThreadFilterKey): boolean => {
+const getThreadRecordDimension = (
+  record: ThreadRecord,
+  key: ThreadFilterKey,
+  now: number
+): boolean => {
   switch (key) {
     case 'resolved':
       return record.status.isResolved;
+    case 'snoozed':
+      return isSnoozedAt(record.status.snoozedUntilTs, now);
     case 'streaming':
       return record.status.isStreaming;
     case 'scheduled':
@@ -37,20 +44,22 @@ const hasStatusOrTagFilters = (state: ThreadFilterState): boolean =>
   state.tags.size > 0 ||
   (state.people?.length ?? 0) > 0;
 
+/** Whether `record` passes `state`; a snooze counts while its time is later than `now`. */
 export const matchesThreadRecordFilterState = (
   record: ThreadRecord,
-  state: ThreadFilterState
+  state: ThreadFilterState,
+  now = Date.now()
 ): boolean => {
   if (!matchesThreadPeopleFilter(record, state.people)) return false;
   if (state.statusMode === 'or') {
     for (const key of THREAD_FILTER_KEYS) {
-      if (state[key] === 'exclude' && getThreadRecordDimension(record, key)) return false;
+      if (state[key] === 'exclude' && getThreadRecordDimension(record, key, now)) return false;
     }
 
     const includeKeys = THREAD_FILTER_KEYS.filter((key) => state[key] === 'include');
     if (includeKeys.length > 0) {
       return (
-        includeKeys.some((key) => getThreadRecordDimension(record, key)) &&
+        includeKeys.some((key) => getThreadRecordDimension(record, key, now)) &&
         matchesTagFilters(record.status.tags, state.tags)
       );
     }
@@ -59,7 +68,7 @@ export const matchesThreadRecordFilterState = (
   }
 
   for (const key of THREAD_FILTER_KEYS) {
-    if (!matchesTriState(getThreadRecordDimension(record, key), state[key])) return false;
+    if (!matchesTriState(getThreadRecordDimension(record, key, now), state[key])) return false;
   }
 
   return matchesTagFilters(record.status.tags, state.tags);
@@ -68,14 +77,15 @@ export const matchesThreadRecordFilterState = (
 export const filterThreadRecordRootIds = (
   threadRootIds: string[],
   state: ThreadFilterState,
-  recordMap: ReadonlyMap<string, ThreadRecord>
+  recordMap: ReadonlyMap<string, ThreadRecord>,
+  now = Date.now()
 ): string[] => {
   if (!hasStatusOrTagFilters(state)) return threadRootIds;
 
   return threadRootIds.filter((threadRootId) => {
     const record = recordMap.get(threadRootId);
     if (!record) return false;
-    return matchesThreadRecordFilterState(record, state);
+    return matchesThreadRecordFilterState(record, state, now);
   });
 };
 
@@ -130,6 +140,7 @@ export const resolveThreadRecordOverviewRootIds = ({
   recordMap,
   threadSortFreezeState,
   threadSortControlSignature,
+  now = Date.now(),
 }: {
   threadRootIds: string[];
   pinnedThreadRootIds?: string[];
@@ -138,13 +149,15 @@ export const resolveThreadRecordOverviewRootIds = ({
   recordMap: ReadonlyMap<string, ThreadRecord>;
   threadSortFreezeState: ThreadSortFreezeState | null;
   threadSortControlSignature: string;
+  /** The clock the snoozed filter reads. */
+  now?: number;
 }): {
   filteredIds: string[];
   liveOrderedIds: string[];
   displayOrderedIds: string[];
 } => {
   const matchingIds = filterThreadRecordsBySearch(
-    filterThreadRecordRootIds(threadRootIds, threadFilterState, recordMap),
+    filterThreadRecordRootIds(threadRootIds, threadFilterState, recordMap, now),
     searchQuery,
     recordMap
   );
@@ -173,16 +186,24 @@ export const resolveThreadRecordOverviewRootIds = ({
 
 export const computeThreadRecordStatusCounts = (
   threadRootIds: string[],
-  recordMap: ReadonlyMap<string, ThreadRecord>
+  recordMap: ReadonlyMap<string, ThreadRecord>,
+  now = Date.now()
 ): StatusCounts => {
-  const counts: StatusCounts = { resolved: 0, streaming: 0, scheduled: 0, unread: 0, idle: 0 };
+  const counts: StatusCounts = {
+    resolved: 0,
+    snoozed: 0,
+    streaming: 0,
+    scheduled: 0,
+    unread: 0,
+    idle: 0,
+  };
 
   threadRootIds.forEach((threadRootId) => {
     const record = recordMap.get(threadRootId);
     if (!record) return;
 
     THREAD_FILTER_KEYS.forEach((key) => {
-      if (getThreadRecordDimension(record, key)) counts[key]++;
+      if (getThreadRecordDimension(record, key, now)) counts[key]++;
     });
   });
 

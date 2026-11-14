@@ -61,6 +61,18 @@ describe('buildSidebarThreadEntries', () => {
     ).toEqual(['unresolved']);
   });
 
+  it('drops a snoozed thread from the sidebar until its time passes', () => {
+    const open = makeEntry({ key: 'open', lastActivityTs: 10 });
+    const snoozed = { ...makeEntry({ key: 'snoozed', lastActivityTs: 20 }), snoozedUntilTs: 500 };
+    const keys = (now: number) =>
+      buildSidebarThreadEntries([open, snoozed], ['snoozed'], new Set(), 50, now).map(
+        (entry) => entry.key
+      );
+
+    expect(keys(499)).toEqual(['open']);
+    expect(keys(500)).toEqual(['snoozed', 'open']);
+  });
+
   it('excludes threads from direct-message rooms even when they are pinned', () => {
     const roomThread = makeEntry({ key: 'room', lastActivityTs: 10, roomId: '!room' });
     const directThread = makeEntry({ key: 'direct', lastActivityTs: 20, roomId: '!direct' });

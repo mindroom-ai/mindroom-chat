@@ -682,7 +682,13 @@
         "threadFiltersActive": "عوامل تصفية سلاسل المحادثات (مفعّلة)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "عوامل تصفية متقدمة"
+        "advancedFilters": "عوامل تصفية متقدمة",
+        "presets": {
+          "snoozed": {
+            "label": "مؤجلة",
+            "description": "سلاسل المحادثات المؤجلة فقط"
+          }
+        }
       },
       "threadPeopleFilter": {
         "label": "الأشخاص",
@@ -857,7 +863,10 @@
     "resize": "تغيير حجم السلسلة",
     "showFull": "عرض السلسلة كاملة",
     "showBeside": "عرض السلسلة بجانب الرسائل",
-    "notFound": "لم يُعثر على السلسلة"
+    "notFound": "لم يُعثر على السلسلة",
+    "status": {
+      "snoozed": "مؤجلة"
+    }
   },
   "activity": {
     "title": "النشاط",
@@ -980,7 +989,8 @@
       "unread": "غير المقروءة",
       "working": "وكلاء يعملون",
       "recent": "الأخيرة",
-      "automations": "الأتمتة"
+      "automations": "الأتمتة",
+      "snoozed": "مؤجلة"
     },
     "showMore": "عرض المزيد",
     "chips": {

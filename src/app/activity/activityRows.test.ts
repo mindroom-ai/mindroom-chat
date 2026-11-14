@@ -96,6 +96,25 @@ describe('buildActivityRows', () => {
     expect(kinds(rows)).toEqual(['named:mention']);
   });
 
+  it('hides a snoozed thread until news newer than the snooze arrives', () => {
+    const snoozed = { snoozedUntilTs: NOW + 3600_000, snoozedAtTs: 100 };
+    const keys = (overrides: Partial<CrossRoomThreadIndexEntry>, newsTs: number) =>
+      build([[entry('t', overrides), { newCount: 1, newsTs }]]).rows.map((row) => row.key);
+
+    expect(keys(snoozed, 90)).toEqual([]);
+    expect(keys(snoozed, 110)).toEqual(['t']);
+    expect(keys({ ...snoozed, snoozedUntilTs: NOW }, 90)).toEqual(['t']);
+    // Hidden, it is not counted among the automations either.
+    expect(
+      build([
+        [
+          entry('bot', { ...snoozed, isInvolved: false }),
+          { automation: true, newCount: 1, newsTs: 90 },
+        ],
+      ]).hiddenAutomations
+    ).toBe(0);
+  });
+
   it('leaves out a resolved thread, whatever waits in it or names the user', () => {
     const question = { eventId: '$q', senderId: '@mindroom_mind:x', text: 'q', options: [] };
     const resolved = { isResolved: true, resolvedTs: NOW - 60_000 };

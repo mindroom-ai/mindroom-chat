@@ -638,7 +638,13 @@
         "threadFiltersActive": "Thread-Filter (aktiv)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Erweiterte Filter"
+        "advancedFilters": "Erweiterte Filter",
+        "presets": {
+          "snoozed": {
+            "label": "Zurückgestellt",
+            "description": "Nur zurückgestellte Threads"
+          }
+        }
       },
       "threadPeopleFilter": {
         "label": "Personen",
@@ -797,7 +803,10 @@
     "resize": "Thread-Breite ändern",
     "showFull": "Thread ganz anzeigen",
     "showBeside": "Thread neben den Nachrichten anzeigen",
-    "notFound": "Thread nicht gefunden"
+    "notFound": "Thread nicht gefunden",
+    "status": {
+      "snoozed": "Zurückgestellt"
+    }
   },
   "activity": {
     "title": "Aktivität",
@@ -892,7 +901,8 @@
       "unread": "Ungelesen",
       "working": "Agenten arbeiten",
       "recent": "Zuletzt aktiv",
-      "automations": "Automatisierungen"
+      "automations": "Automatisierungen",
+      "snoozed": "Zurückgestellt"
     },
     "showMore": "Mehr anzeigen",
     "chips": {

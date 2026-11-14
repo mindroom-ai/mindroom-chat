@@ -627,7 +627,13 @@
         "threadFiltersActive": "スレッドフィルター（有効）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "詳細フィルター"
+        "advancedFilters": "詳細フィルター",
+        "presets": {
+          "snoozed": {
+            "label": "スヌーズ中",
+            "description": "スヌーズ中のスレッドのみ"
+          }
+        }
       },
       "threadPeopleFilter": {
         "label": "参加者",
@@ -782,7 +788,10 @@
     "resize": "スレッドのサイズを変更",
     "showFull": "スレッドを全体に表示",
     "showBeside": "スレッドをメッセージの横に表示",
-    "notFound": "スレッドが見つかりません"
+    "notFound": "スレッドが見つかりません",
+    "status": {
+      "snoozed": "スヌーズ中"
+    }
   },
   "activity": {
     "title": "アクティビティ",
@@ -870,7 +879,8 @@
       "unread": "未読",
       "working": "エージェントが作業中",
       "recent": "最近",
-      "automations": "自動化"
+      "automations": "自動化",
+      "snoozed": "スヌーズ中"
     },
     "showMore": "もっと見る",
     "chips": {

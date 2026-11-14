@@ -638,7 +638,13 @@
         "threadFiltersActive": "थ्रेड फ़िल्टर (सक्रिय)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "उन्नत फ़िल्टर"
+        "advancedFilters": "उन्नत फ़िल्टर",
+        "presets": {
+          "snoozed": {
+            "label": "स्नूज़ किए गए",
+            "description": "केवल स्नूज़ किए गए थ्रेड"
+          }
+        }
       },
       "threadPeopleFilter": {
         "label": "लोग",
@@ -797,7 +803,10 @@
     "resize": "थ्रेड का आकार बदलें",
     "showFull": "थ्रेड पूरा दिखाएँ",
     "showBeside": "थ्रेड संदेशों के बगल में दिखाएँ",
-    "notFound": "थ्रेड नहीं मिला"
+    "notFound": "थ्रेड नहीं मिला",
+    "status": {
+      "snoozed": "स्नूज़ किया गया"
+    }
   },
   "activity": {
     "title": "गतिविधि",
@@ -892,7 +901,8 @@
       "unread": "अपठित",
       "working": "एजेंट काम कर रहे हैं",
       "recent": "हाल के",
-      "automations": "ऑटोमेशन"
+      "automations": "ऑटोमेशन",
+      "snoozed": "स्नूज़ किए गए"
     },
     "showMore": "और दिखाएँ",
     "chips": {

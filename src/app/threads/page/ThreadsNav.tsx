@@ -31,6 +31,7 @@ import { crossRoomThreadIndexBootstrappedAtom } from '../cross-room/crossRoomThr
 import { getThreadsScopeAtom } from './threadsScope';
 import { useJoinedRoomThreadLists } from './useJoinedRoomThreadLists';
 import { useThreadListItems } from './useThreadListItems';
+import { useSnoozeNow } from '../tags/useSnoozeNow';
 import * as css from './ThreadsNav.css';
 
 const SCOPES: ThreadsScope[] = ['mine', 'following', 'all'];
@@ -147,8 +148,8 @@ const ThreadRow = memo(function ThreadRow({ item, selected, onOpen }: ThreadRowP
 
 /**
  * The Threads section's navigation column: the threads of the joined rooms for the chosen scope,
- * grouped by what they need (needs you, unread, agents working, recent, automations folded), with
- * a search; a row opens its thread beside the list.
+ * grouped by what they need (needs you, unread, agents working, recent, then snoozed and
+ * automations folded), with a search; a row opens its thread beside the list.
  */
 export function ThreadsNav() {
   // Every page of every room's thread list, so the page lists all threads.
@@ -163,12 +164,15 @@ export function ThreadsNav() {
   const [query, setQuery] = useState('');
   const [recentLimit, setRecentLimit] = useState(RECENT_PAGE);
   const [automationsOpen, setAutomationsOpen] = useState(false);
+  const [snoozedOpen, setSnoozedOpen] = useState(false);
   const shown = useShownThread();
   // Until the index scanned the rooms and their thread lists are in, an empty list says nothing.
   const loading = !useAtomValue(crossRoomThreadIndexBootstrappedAtom) || !listsComplete;
+  // Renewed when a snooze ends, so its thread leaves the Snoozed group.
+  const now = useSnoozeNow(useMemo(() => items.map((it) => it.entry.snoozedUntilTs), [items]));
   const groups = useMemo(
-    () => groupThreads(items, scope, userId, query),
-    [items, scope, userId, query]
+    () => groupThreads(items, scope, userId, query, now),
+    [items, scope, userId, query, now]
   );
   // Senders are named from the member lists, which a room the user has not opened lacks.
   const namesVersion = useLoadedRoomMembers(
@@ -252,7 +256,10 @@ export function ThreadsNav() {
           </div>
         )}
         {groups.map(({ id, items: groupItems }) => {
-          if (id === 'automations') {
+          if (id === 'automations' || id === 'snoozed') {
+            // Folded until opened, each on its own.
+            const expanded = id === 'automations' ? automationsOpen : snoozedOpen;
+            const setExpanded = id === 'automations' ? setAutomationsOpen : setSnoozedOpen;
             return (
               <section key={id} aria-label={groupName(id)}>
                 <Button
@@ -260,18 +267,15 @@ export function ThreadsNav() {
                   variant="Secondary"
                   fill="None"
                   radii="300"
-                  aria-expanded={automationsOpen}
-                  onClick={() => setAutomationsOpen(!automationsOpen)}
+                  aria-expanded={expanded}
+                  onClick={() => setExpanded(!expanded)}
                   before={
-                    <Icon
-                      size="100"
-                      src={automationsOpen ? Icons.ChevronBottom : Icons.ChevronRight}
-                    />
+                    <Icon size="100" src={expanded ? Icons.ChevronBottom : Icons.ChevronRight} />
                   }
                 >
                   <Text size="B300">{`${groupName(id)} · ${groupItems.length}`}</Text>
                 </Button>
-                {automationsOpen && groupItems.map(row)}
+                {expanded && groupItems.map(row)}
               </section>
             );
           }

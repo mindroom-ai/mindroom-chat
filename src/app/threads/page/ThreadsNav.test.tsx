@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import { MatrixEvent } from 'matrix-js-sdk';
 import { MemoryRouter, useLocation } from 'react-router-dom';
@@ -209,6 +209,46 @@ describe('ThreadsNav', () => {
     expect(screen.queryByText('Daily digest')).toBeNull();
     fireEvent.click(toggle);
     expect(screen.getByText('Daily digest')).toBeTruthy();
+  });
+
+  it('folds the snoozed threads before the automations, each fold on its own', () => {
+    state.items = [
+      item(
+        'digest',
+        'Daily digest',
+        { rootSenderId: '@mindroom_bot:x', isInvolved: false },
+        { automation: true }
+      ),
+      item('later', 'Revisit pricing', { snoozedUntilTs: Date.now() + 3600_000 }),
+    ];
+    renderNav();
+    fireEvent.click(screen.getByRole('radio', { name: 'All' }));
+    const snoozed = screen.getByRole('button', { name: /Snoozed/ });
+    const automations = screen.getByRole('button', { name: /Automations/ });
+    expect(
+      snoozed.compareDocumentPosition(automations) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(screen.queryByText('Revisit pricing')).toBeNull();
+    fireEvent.click(snoozed);
+    expect(screen.getByText('Revisit pricing')).toBeTruthy();
+    expect(screen.queryByText('Daily digest')).toBeNull();
+    expect(snoozed.getAttribute('aria-expanded')).toBe('true');
+    expect(automations.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('moves a snoozed thread back to Recent when its time passes', () => {
+    vi.useFakeTimers();
+    try {
+      state.items = [item('later', 'Revisit pricing', { snoozedUntilTs: Date.now() + 60_000 })];
+      renderNav();
+      expect(screen.queryByText('Revisit pricing')).toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(60_000);
+      });
+      expect(within(group('Recent')).getByText('Revisit pricing')).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('opens a thread beside the list', () => {

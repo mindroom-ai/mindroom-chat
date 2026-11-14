@@ -4,7 +4,10 @@ import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getSettings, settingsAtom } from '../preferences/settings';
-import { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } from '../threads/overview/roomThreadFilterState';
+import {
+  getRoomThreadFilterStorageKey,
+  roomThreadFilterAtomFamily,
+} from '../threads/overview/roomThreadFilterState';
 import {
   createDefaultThreadFilterState,
   serializeThreadFilterState,
@@ -258,6 +261,23 @@ describe('useRoomViewThreadState', () => {
 
     act(() => renderer?.unmount());
     expect(mountThreadState().current().threadFilterState.resolved).toBe('any');
+  });
+
+  it('hides snoozed threads in Compact, and keeps that through a simple filter change', () => {
+    const { current } = mountThreadState();
+    expect(current().threadFilterState.snoozed).toBe('exclude');
+
+    act(() => current().handleToggleUnresolvedOnly());
+    expect(current().threadFilterState.snoozed).toBe('exclude');
+
+    act(() => renderer?.unmount());
+    viewMode.current = 'threaded';
+    expect(mountThreadState().current().threadFilterState.snoozed).toBe('exclude');
+  });
+
+  it('shows snoozed threads by default outside Compact', () => {
+    viewMode.current = 'threaded';
+    expect(mountThreadState().current().threadFilterState.snoozed).toBe('any');
   });
 
   it('follows the view for its default until the reader chooses a filter', () => {

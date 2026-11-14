@@ -31,6 +31,7 @@ const expectExpandedFocusedTimeline = async (page: Page, rootBody: string) => {
 const createNaturalFocusedOverviewState = () => ({
   v: 1 as const,
   resolved: 'any' as const,
+  snoozed: 'any' as const,
   streaming: 'any' as const,
   scheduled: 'any' as const,
   unread: 'any' as const,
