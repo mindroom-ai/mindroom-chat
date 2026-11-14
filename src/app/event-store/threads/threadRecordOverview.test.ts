@@ -254,6 +254,20 @@ describe('threadRecordOverview selectors', () => {
     ).toEqual(['$resolved-idle']);
   });
 
+  it('counts a resolved and snoozed thread as resolved, not snoozed', () => {
+    const base = makeRecord('$both');
+    const record: ThreadRecord = {
+      ...base,
+      status: { ...base.status, isResolved: true, snoozedUntilTs: 2000 },
+    };
+    expect(
+      matchesThreadRecordFilterState(record, makeDefaultState({ snoozed: 'include' }), 1000)
+    ).toBe(false);
+    expect(
+      computeThreadRecordStatusCounts(['$both'], new Map([['$both', record]]), 1000)
+    ).toMatchObject({ snoozed: 0, resolved: 1 });
+  });
+
   it('matches the snoozed dimension by the clock', () => {
     const base = makeRecord('$snoozed');
     const record: ThreadRecord = { ...base, status: { ...base.status, snoozedUntilTs: 2000 } };

@@ -21,7 +21,8 @@ const getThreadRecordDimension = (
     case 'resolved':
       return record.status.isResolved;
     case 'snoozed':
-      return isSnoozedAt(record.status.snoozedUntilTs, now);
+      // Resolved wins over a snooze, as on the card: such a thread counts as resolved only.
+      return !record.status.isResolved && isSnoozedAt(record.status.snoozedUntilTs, now);
     case 'streaming':
       return record.status.isStreaming;
     case 'scheduled':
