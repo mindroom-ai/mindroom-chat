@@ -102,7 +102,7 @@ const loadingUpload = (file: File): Upload => ({
   },
 });
 
-const prepErrorUpload = (file: File): Upload => ({
+const prepErrorUpload = (file: File): Upload & { error: MatrixError } => ({
   file,
   status: UploadStatus.Error,
   error: toMatrixUploadError(new Error(`failed to prepare ${file.name}`), 'create'),
@@ -620,7 +620,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
       await rootSend.promise.catch(() => undefined);
     });
     await vi.waitFor(() => expect(mx.sendMessage).toHaveBeenCalledTimes(2));
-    expect((mx.sendMessage.mock.calls[1][1] as { body: string }).body).toBe('caption');
+    expect((mx.sendMessage.mock.calls[1]![1] as { body: string }).body).toBe('caption');
     await vi.waitFor(() => expect(api.hasActiveSendSession()).toBe(false));
   });
 
@@ -962,8 +962,8 @@ describe('useRoomInputSendSessionController active session query', () => {
     api.selectedFilesRef.current = [createUploadItem(file)];
     api.uploadsRef.current = [successUpload(file)];
     mx.sendMessage.mockImplementationOnce(
-      async (targetRoomId: string, _content: unknown, txnId: string) => {
-        localEvents.set(txnId, {
+      async (targetRoomId: string, _content: unknown, txnId?: string) => {
+        localEvents.set(txnId!, {
           getId: () => `~${targetRoomId}:${txnId}`,
           status: EventStatus.NOT_SENT,
         });
@@ -1073,7 +1073,7 @@ describe('useRoomInputSendSessionController prep-error uploads', () => {
     });
 
     expect(mx.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mx.sendMessage.mock.calls[0][1]).toMatchObject({
+    expect(mx.sendMessage.mock.calls[0]![1]).toMatchObject({
       body: 'later.txt',
       url: 'mxc://mindroom/later.txt',
     });
@@ -1096,7 +1096,7 @@ describe('useRoomInputSendSessionController prep-error uploads', () => {
     });
 
     expect(mx.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mx.sendMessage.mock.calls[0][1]).toMatchObject({
+    expect(mx.sendMessage.mock.calls[0]![1]).toMatchObject({
       msgtype: 'm.text',
       body: 'text survives prep failure',
     });
@@ -1139,7 +1139,7 @@ describe('useRoomInputSendSessionController prep-error uploads', () => {
     });
 
     expect(mx.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mx.sendMessage.mock.calls[0][1]).toMatchObject({
+    expect(mx.sendMessage.mock.calls[0]![1]).toMatchObject({
       body: `${marker}\n\ntext after paste`,
     });
   });
@@ -1166,12 +1166,12 @@ describe('useRoomInputSendSessionController prep-error uploads', () => {
     });
 
     expect(mx.sendMessage).toHaveBeenCalledTimes(2);
-    expect(mx.sendMessage.mock.calls[0][1]).toMatchObject({
+    expect(mx.sendMessage.mock.calls[0]![1]).toMatchObject({
       body: 'root.txt',
       url: 'mxc://mindroom/root',
     });
-    expect(mx.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
-    expect(mx.sendMessage.mock.calls[1][1]).toMatchObject({
+    expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty('m.relates_to');
+    expect(mx.sendMessage.mock.calls[1]![1]).toMatchObject({
       body: 'child.txt',
       url: 'mxc://mindroom/child',
       'm.relates_to': {
@@ -1323,7 +1323,7 @@ describe('useRoomInputSendSessionController caption send failures', () => {
 
     expect(failure).toBe(textFailure);
     expect(mx.sendMessage).toHaveBeenCalledTimes(2);
-    expect(mx.sendMessage.mock.calls[0][1]).toMatchObject({
+    expect(mx.sendMessage.mock.calls[0]![1]).toMatchObject({
       url: 'mxc://mindroom/image.png',
     });
     expect(mocks.resetEditor).toHaveBeenCalledWith(editor);
@@ -1341,7 +1341,7 @@ describe('useRoomInputSendSessionController caption send failures', () => {
     });
 
     expect(mx.sendMessage).toHaveBeenCalledTimes(3);
-    expect(mx.sendMessage.mock.calls[2][1]).toMatchObject({
+    expect(mx.sendMessage.mock.calls[2]![1]).toMatchObject({
       body: 'later.txt',
       url: 'mxc://mindroom/later.txt',
     });
@@ -1470,7 +1470,7 @@ describe('useRoomInputSendSessionController caption send failures', () => {
     });
 
     expect(mx.sendMessage).toHaveBeenCalledTimes(2);
-    expect(mx.sendMessage.mock.calls[1][1]).toMatchObject({
+    expect(mx.sendMessage.mock.calls[1]![1]).toMatchObject({
       body: 'later.txt',
       url: 'mxc://mindroom/later.txt',
     });
@@ -1509,7 +1509,7 @@ describe('useRoomInputSendSessionController caption send failures', () => {
     });
 
     expect(mx.sendMessage).toHaveBeenCalledTimes(4);
-    expect(mx.sendMessage.mock.calls[3][1]).toMatchObject({
+    expect(mx.sendMessage.mock.calls[3]![1]).toMatchObject({
       body: 'second.png',
       url: 'mxc://mindroom/second.png',
       'm.relates_to': {
@@ -1545,7 +1545,7 @@ describe('useRoomInputSendSessionController long messages', () => {
     // The whole message, relation included, is uploaded as the file MindRoom reads back.
     expect(mx.uploadContent).toHaveBeenCalledTimes(1);
     const uploaded = parseLongTextJsonSidecar(
-      await (mx.uploadContent.mock.calls[0][0] as Blob).text()
+      await (mx.uploadContent.mock.calls[0]![0] as Blob).text()
     );
     expect(uploaded).toMatchObject({
       msgtype: 'm.text',
@@ -1556,7 +1556,7 @@ describe('useRoomInputSendSessionController long messages', () => {
 
     // The event is a preview that points at the file and keeps the routing.
     expect(mx.sendMessage).toHaveBeenCalledTimes(1);
-    const sent = mx.sendMessage.mock.calls[0][1] as Record<string, unknown>;
+    const sent = mx.sendMessage.mock.calls[0]![1] as Record<string, unknown>;
     expect(sent).toMatchObject({
       msgtype: 'm.file',
       url: 'mxc://mindroom/sidecar',
@@ -1578,7 +1578,7 @@ describe('useRoomInputSendSessionController long messages', () => {
     });
 
     expect(mx.uploadContent).not.toHaveBeenCalled();
-    expect(mx.sendMessage.mock.calls[0][1]).toEqual({ msgtype: 'm.text', body: 'short' });
+    expect(mx.sendMessage.mock.calls[0]![1]).toEqual({ msgtype: 'm.text', body: 'short' });
   });
 
   it('returns a long message to the composer when its file upload fails', async () => {
@@ -1785,7 +1785,7 @@ describe('useRoomInputSendSessionController sends that cannot go out yet', () =>
       await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'after the file' } });
     });
     expect(textBodies(mx)).toEqual(['after the file']);
-    expect(mx.sendMessage.mock.calls[0][1]).toMatchObject({
+    expect(mx.sendMessage.mock.calls[0]![1]).toMatchObject({
       'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
     });
     expect(mocks.resetEditor).toHaveBeenCalledTimes(1);
@@ -1796,7 +1796,7 @@ describe('useRoomInputSendSessionController sends that cannot go out yet', () =>
       await api.processSendSession();
     });
     expect(mx.sendMessage).toHaveBeenCalledTimes(2);
-    expect(mx.sendMessage.mock.calls[1][1]).toMatchObject({ body: 'tide-table.txt' });
+    expect(mx.sendMessage.mock.calls[1]![1]).toMatchObject({ body: 'tide-table.txt' });
     expect(api.hasActiveSendSession()).toBe(false);
   });
 
