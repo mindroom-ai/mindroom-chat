@@ -71,11 +71,10 @@ const ROOM_ID = '!room:example.org';
 const AGENT = '@mindroom_planner:example.org';
 const VIEWER = '@alice:example.org';
 
-const roomEmitter = new EventEmitter();
-const room = Object.assign(roomEmitter, {
+const room = Object.assign(new EventEmitter(), {
   roomId: ROOM_ID,
   getMember: (userId: string) => ({ userId, membership: 'join', rawDisplayName: 'Planner' }),
-}) as unknown as Room;
+}) as unknown as Room & EventEmitter;
 
 const metadata = (html: string) => ({
   version: 1,
@@ -248,7 +247,7 @@ describe('RoomCanvasPanel', () => {
     render(event);
     await act(async () => undefined);
     act(() => {
-      roomEmitter.emit(
+      room.emit(
         RoomEvent.Timeline,
         new MatrixEvent({ type: 'm.room.redaction', redacts: '$edit-2', content: {} }),
         room,
@@ -269,7 +268,7 @@ describe('RoomCanvasPanel', () => {
     await act(async () => undefined);
     // The newest edit is deleted and the client knows no other, so it shows the request again.
     act(() => {
-      roomEmitter.emit(
+      room.emit(
         RoomEvent.Timeline,
         new MatrixEvent({ type: 'm.room.redaction', redacts: '$edit-3', content: {} }),
         room,
@@ -306,7 +305,7 @@ describe('RoomCanvasPanel', () => {
     expect(panels.props?.canvas.html).toBe('<p>Step 2</p>');
     act(() => {
       // The edit was only fetched, never loaded, so the timeline is where its deletion shows.
-      roomEmitter.emit(
+      room.emit(
         RoomEvent.Timeline,
         new MatrixEvent({ type: 'm.room.redaction', redacts: '$edit-2', content: {} }),
         room,
