@@ -51,7 +51,7 @@ export function PanelRow({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <Box ref={rowRef} grow="Yes" style={{ minWidth: 0, minHeight: 0 }}>
+    <Box ref={rowRef} grow="Yes" style={{ minWidth: 0, minHeight: 0 }} data-panel-row>
       {overlay !== undefined && (
         <MembersOverlayContext.Provider value={overlay}>
           <RowWidthContext.Provider value={rowWidth}>{children}</RowWidthContext.Provider>

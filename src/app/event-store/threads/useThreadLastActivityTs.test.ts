@@ -550,7 +550,7 @@ describe('useThreadLastActivityTs', () => {
     expect(getSnapshot()).toBe(210);
 
     act(() => {
-      replies[0].makeReplaced(outsideTailEdit);
+      replies[0]!.makeReplaced(outsideTailEdit);
     });
 
     expect(getSnapshot()).toBe(210);

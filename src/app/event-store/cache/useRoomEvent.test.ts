@@ -277,7 +277,7 @@ describe('useRoomEvent', () => {
           );
           await flushAsyncWork();
         });
-        expect(events[0].getContent().body).toBe('First edit');
+        expect(events[0]!.getContent().body).toBe('First edit');
         const replacement = edit('$second-edit', 'Latest edit', 300);
         const liveEvent = new MatrixEvent(
           change === 'redaction'
@@ -313,7 +313,7 @@ describe('useRoomEvent', () => {
               decryptEvent: async () => ({
                 clearEvent: { type: replacement.type, content: replacement.content },
               }),
-            } as Parameters<MatrixEvent['attemptDecryption']>[0]);
+            } as unknown as Parameters<MatrixEvent['attemptDecryption']>[0]);
             await flushAsyncWork();
           });
         }
@@ -352,7 +352,7 @@ describe('useRoomEvent', () => {
       await flushAsyncWork();
     });
     expect(events.map((event) => event.getId())).toEqual(['$old']);
-    expect(events[0].getContent().body).toBe('Older announcement');
+    expect(events[0]!.getContent().body).toBe('Older announcement');
     expect(fetchRoomEventMock).toHaveBeenCalledTimes(3);
     renderer.unmount();
     client.clear();
@@ -379,14 +379,14 @@ describe('useRoomEvent', () => {
       renderer = create(render(0));
       await flushAsyncWork();
     });
-    expect(events[0].getContent().body).toBe('body-$old');
+    expect(events[0]!.getContent().body).toBe('body-$old');
     const live = new MatrixEvent({
       ...makeRawEvent('$old'),
       content: { body: 'Updated announcement' },
     });
     room.findEventById.mockImplementation((id: string) => (id === '$old' ? live : undefined));
     act(() => renderer.update(render(1)));
-    expect(events[0].getContent().body).toBe('Updated announcement');
+    expect(events[0]!.getContent().body).toBe('Updated announcement');
     renderer.unmount();
     client.clear();
   });

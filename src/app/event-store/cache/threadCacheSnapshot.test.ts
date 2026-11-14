@@ -1,3 +1,4 @@
+import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import {
   getAuthoritativeCachedThreadReplyCount,
@@ -5,7 +6,16 @@ import {
   isCompleteCachedThreadSnapshot,
   mergeThreadBackfillEvents,
 } from './threadCacheSnapshot';
-import { makeEvent, makeRoom } from '../../timeline/test-utils/RoomTimeline.test.shared';
+import {
+  makeEvent as makeMockEvent,
+  makeRoom as makeMockRoom,
+} from '../../timeline/test-utils/RoomTimeline.test.shared';
+
+// The shared helpers build partial mocks; type them once as the SDK objects they stand in for.
+const makeEvent = makeMockEvent as unknown as (
+  ...args: Parameters<typeof makeMockEvent>
+) => MatrixEvent;
+const makeRoom = makeMockRoom as unknown as () => Room;
 
 describe('threadCacheSnapshot', () => {
   it('marks room-derived snapshots complete only when the room covers start, tail, and known replies', () => {

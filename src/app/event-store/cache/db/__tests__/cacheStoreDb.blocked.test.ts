@@ -15,7 +15,9 @@ const makeBlockedRequest = (): IDBOpenDBRequest => {
     onsuccess: null,
     onupgradeneeded: null,
   } as unknown as IDBOpenDBRequest;
-  queueMicrotask(() => request.onblocked?.call(request, new Event('blocked')));
+  queueMicrotask(() =>
+    request.onblocked?.call(request, new Event('blocked') as IDBVersionChangeEvent)
+  );
   return request;
 };
 

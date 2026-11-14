@@ -40,7 +40,7 @@ const createMockClient = (initialSyncState: SyncState | null = null): MockClient
     getSafeUserId: () => '@alice:example.test',
     __listeners: listeners,
     __syncState: syncState,
-    __setSyncState(state: SyncState | null) {
+    __setSyncState(this: MockClient, state: SyncState | null) {
       syncState = state;
       this.__syncState = state;
     },
@@ -316,7 +316,7 @@ describe('SyncEngine (ISSUE-207 P3.1)', () => {
 
     mx.__emit(RoomEvent.Redaction, makeEvent(), makeRoom('!r1'));
     await vi.waitFor(() => expect(writeThrough.handleLiveEvent).toHaveBeenCalledTimes(1));
-    expect(writeThrough.handleLiveEvent.mock.calls[0][2].kind).toBe('redaction');
+    expect(writeThrough.handleLiveEvent.mock.calls[0]![2].kind).toBe('redaction');
 
     // Redaction without a room is a no-op.
     mx.__emit(RoomEvent.Redaction, makeEvent(), undefined);
