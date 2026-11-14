@@ -40,6 +40,10 @@ export type ThreadStatusSnapshot = {
   cronDescription?: string;
   lastActivityTs?: number;
   tags: string[];
+  /** Set whenever the snoozed tag parses, also after its time. */
+  snoozedUntilTs?: number;
+  /** The snoozed tag's `set_at`. */
+  snoozedAtTs?: number;
 };
 
 export type ThreadCacheCoverage = {

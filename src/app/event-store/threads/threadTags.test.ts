@@ -16,6 +16,7 @@ import {
   parsePerTagStateKey,
   parseThreadTagsContent,
   RESOLVED_TAG,
+  SNOOZED_TAG,
   type ThreadTagsContent,
 } from './threadTags';
 
@@ -174,7 +175,9 @@ describe('parsePerTagContent', () => {
     expect(parsePerTagContent({})).toBeNull();
     expect(parsePerTagContent({ set_by: '@alice:example.com', set_at: 'invalid' })).toBeNull();
     expect(parsePerTagContent({ set_by: '@alice:example.com', set_at: ISO_1, note: 1 })).toBeNull();
-    expect(parsePerTagContent({ set_by: '@alice:example.com', set_at: ISO_1, data: [] })).toBeNull();
+    expect(
+      parsePerTagContent({ set_by: '@alice:example.com', set_at: ISO_1, data: [] })
+    ).toBeNull();
   });
 });
 
@@ -183,9 +186,7 @@ describe('buildPerTagEventContent', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(ISO_3));
 
-    expect(
-      buildPerTagEventContent('@alice:example.com', ' queued ', { source: 'ui' })
-    ).toEqual({
+    expect(buildPerTagEventContent('@alice:example.com', ' queued ', { source: 'ui' })).toEqual({
       set_by: '@alice:example.com',
       set_at: ISO_3,
       note: 'queued',
@@ -414,4 +415,21 @@ describe('EventTimeline.FORWARDS usage', () => {
     expect(EventTimeline.FORWARDS).toBeDefined();
     expect(typeof EventTimeline.FORWARDS).toBe('string');
   });
+});
+
+describe('snoozed lifecycle tag', () => {
+  it.each([{ until: '2026-11-14T09:00:00Z' }, { until: 'tomorrow' }])(
+    'keeps snoozed out of display tags, available tags and valid tag names (%j)',
+    (data) => {
+      const content: ThreadTagsContent = {
+        tags: {
+          bug: { set_by: '@a:b', set_at: ISO_1 },
+          [SNOOZED_TAG]: { set_by: '@a:b', set_at: ISO_1, data },
+        },
+      };
+      expect(getDisplayTags(content)).toEqual(['bug']);
+      expect(collectAvailableTags([content], {})).toEqual(['bug']);
+      expect(isValidTagName(SNOOZED_TAG)).toBe(false);
+    }
+  );
 });
