@@ -13,6 +13,11 @@ import { isThreadPinned } from '../event-store/threads/threadPinning';
 import { isThreadResolved } from '../event-store/threads/threadTags';
 import { getVisibleThreadEventBodyPreviewText } from '../event-store/threads/threadUtils';
 import { getEditedEvent, getLatestMessageContent } from '../matrix/room';
+import {
+  getMessageCopyTexts,
+  getMessageCopyTextSource,
+  scanToolMarkerLines,
+} from '../messages/messageCopyText';
 import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
 import { getThreadSignalsReader } from '../threads/cross-room/threadSignalsReader';
@@ -26,10 +31,36 @@ import {
 import { revealDirectionControls } from '../ui/directional';
 import type { CaptureReply, CaptureThread } from './captureItems';
 
+/** Each reply's copy text with the edit it was read from: the scan of its tool lines is costly. */
+const copyTexts = new WeakMap<MatrixEvent, { editId: string | undefined; text: string }>();
+
+/**
+ * The reply as the app's Copy text copies it: as its sender wrote it, without MindRoom's tool-call
+ * lines (a reply of only tool calls keeps them).
+ */
+const copyTextOf = (
+  event: MatrixEvent,
+  edit: MatrixEvent | undefined,
+  content: Record<string, unknown>
+): string | undefined => {
+  const editId = edit?.getId();
+  const cached = copyTexts.get(event);
+  if (cached && cached.editId === editId) return cached.text;
+  const source = getMessageCopyTextSource(content, event.getOriginalContent());
+  if (!source) return undefined;
+  const { body, formattedBody, plainBodyFallback } = source;
+  const { text } = getMessageCopyTexts(
+    source,
+    scanToolMarkerLines(body, formattedBody, plainBodyFallback)
+  );
+  copyTexts.set(event, { editId, text });
+  return text;
+};
+
 /**
  * The reply's whole text, as its newest edit shows it, when it is a text message and loaded:
  * cleaned as the app's previews clean it (tool calls counted, Markdown dropped), its lines kept,
- * and as its sender wrote it.
+ * and as the app's Copy text copies it.
  */
 const replyBody = (
   room: Room,
@@ -42,19 +73,19 @@ const replyBody = (
   const event: MatrixEvent | undefined =
     room.findEventById(eventId) ?? (latest?.getId() === eventId ? latest : undefined);
   if (!event) return undefined;
-  const content = getLatestMessageContent(
-    event,
-    getEditedEvent(eventId, event, thread?.timelineSet)
-  );
+  const edit = getEditedEvent(eventId, event, thread?.timelineSet);
+  const content = getLatestMessageContent(event, edit);
   if (content.msgtype !== MsgType.Text || typeof content.body !== 'string') return undefined;
   const { text, localization } = getThreadMessageBodyPreview(content.body);
   const cleaned = localizeThreadPreview(text, localization, t);
-  return cleaned === undefined ? undefined : { text: cleaned, own: content.body };
+  const own = copyTextOf(event, edit, content);
+  return cleaned === undefined || own === undefined ? undefined : { text: cleaned, own };
 };
 
 /**
- * The reply the server bundled with the root (`io.mindroom.latest_reply`) as its sender wrote it,
- * where it is the reply the index's preview shows: a reply not loaded yet, as after a restart.
+ * The reply the server bundled with the root (`io.mindroom.latest_reply`) as the app's Copy text
+ * copies it, where it is the reply the index's preview shows: a reply not loaded yet, as after a
+ * restart.
  */
 const bundledReplyBody = (room: Room, entry: CrossRoomThreadIndexEntry): string | undefined => {
   const root =
@@ -62,9 +93,10 @@ const bundledReplyBody = (room: Room, entry: CrossRoomThreadIndexEntry): string 
   const reply = getBundledThreadPreviews(room, root).reply;
   const shown = entry.threadRecord.presentation?.latestReplyPreviewText;
   if (!reply || !shown || getVisibleThreadEventBodyPreviewText(reply) !== shown) return undefined;
-  const content = getLatestMessageContent(reply, reply.replacingEvent() ?? undefined);
+  const edit = reply.replacingEvent() ?? undefined;
+  const content = getLatestMessageContent(reply, edit);
   return content.msgtype === MsgType.Text && typeof content.body === 'string'
-    ? content.body
+    ? copyTextOf(reply, edit, content)
     : undefined;
 };
 

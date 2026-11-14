@@ -46,7 +46,7 @@ type CaptureListProps = {
   onOpened: () => Promise<void>;
 };
 
-/** What Copy puts on the clipboard: the reply as written, else as the peek shows it. */
+/** What Copy puts on the clipboard: the reply as the app's Copy text copies it, else as the peek shows it. */
 const copyTextOf = (item: CaptureItem): string => item.copyText ?? item.replyText ?? item.line;
 
 /**

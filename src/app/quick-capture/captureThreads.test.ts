@@ -185,6 +185,37 @@ describe('readCaptureThreads', () => {
     expect(thread?.reply().replySender).toBe('alice');
   });
 
+  it('copies the newest edit of the reply, read again once it is edited', () => {
+    const reply = message('$reply', {
+      msgtype: 'm.text',
+      body: '🔧 `shell` [1]\nFirst **draft**',
+    });
+    const room = makeRoom({ loaded: [reply] });
+    mocks.read.mockReturnValue({
+      ...QUIET,
+      lastReply: {
+        eventId: '$reply',
+        senderId: '@alice:x',
+        ts: 90,
+        preview: { kind: 'text', text: 'unused' },
+      },
+    });
+    const copied = () =>
+      readCaptureThreads(mx, room, [makeEntry('$t')], t, NOW)[0]?.reply().copyText;
+
+    expect(copied()).toBe('First **draft**');
+    expect(copied()).toBe('First **draft**');
+    reply.makeReplaced(
+      message('$edit', {
+        msgtype: 'm.text',
+        body: '* Final',
+        'm.new_content': { msgtype: 'm.text', body: '🔧 `shell` [1]\nFinal **answer**' },
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+      })
+    );
+    expect(copied()).toBe('Final **answer**');
+  });
+
   it("cleans the newest reply's body as the previews do: tool calls counted, lines kept", () => {
     const body = '🔧 `shell` [1]\n🔧 `read_file` [2]\nAll **green**.\n\nNext: `deploy`.';
     const room = makeRoom({ loaded: [message('$reply', { msgtype: 'm.text', body })] });
@@ -203,8 +234,8 @@ describe('readCaptureThreads', () => {
     expect(thread?.reply().replyText).toBe(
       '🔧 t:sharedUi.threadPreviews.tools · All green.\n\nNext: deploy.'
     );
-    // Copy takes the reply as its sender wrote it.
-    expect(thread?.reply().copyText).toBe(body);
+    // Copy takes the reply as the app's Copy text does: as written, without the tool-call lines.
+    expect(thread?.reply().copyText).toBe('All **green**.\n\nNext: `deploy`.');
   });
 
   it('says which threads are pinned, from the room state', () => {

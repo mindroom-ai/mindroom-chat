@@ -4,7 +4,7 @@ export const MAX_CAPTURE_ITEMS = 30;
 export const RESOLVED_SHOWN_MS = 24 * 60 * 60 * 1000;
 export const MAX_REPLY_TEXT = 600;
 
-/** A thread's newest reply: cleaned as the app's previews clean it, as written, and its sender. */
+/** A thread's newest reply: cleaned as the app's previews clean it, as the app's Copy text copies it, and its sender. */
 export type CaptureReply = { replyText?: string; copyText?: string; replySender?: string };
 
 export type CaptureThread = {

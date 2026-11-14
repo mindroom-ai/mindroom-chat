@@ -9,7 +9,7 @@ export type CaptureItem = {
   lineSender?: string;
   /** The newest reply's plain text, at most 600 characters and an ellipsis where it is cut. */
   replyText?: string;
-  /** The newest reply as its sender wrote it, whole, where it differs. */
+  /** The newest reply whole, as the app's Copy text copies it, where it differs. */
   copyText?: string;
   chip?: CaptureChip;
   /** A pinned thread, which cannot be resolved. */
