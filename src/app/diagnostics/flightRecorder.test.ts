@@ -91,6 +91,8 @@ const makePriorSession = (
   };
 };
 
+type LifecycleEvent = Extract<FlightRecorderSession['events'][number], { type: 'lifecycle' }>;
+
 const readCurrent = (storage: MemoryStorage): FlightRecorderSession =>
   JSON.parse(storage.getItem(FLIGHT_RECORDER_CURRENT_KEY) ?? 'null') as FlightRecorderSession;
 
@@ -256,9 +258,9 @@ describe('iOS freeze flight recorder', () => {
     windowTarget.dispatchEvent(new Event('pageshow'));
     expect(readCurrent(storage)).toMatchObject({ expectedEndAt: null, endReason: null });
     expect(
-      readCurrent(storage).events.flatMap((event) =>
-        event.type === 'lifecycle' ? [event.state] : []
-      )
+      readCurrent(storage)
+        .events.filter((event): event is LifecycleEvent => event.type === 'lifecycle')
+        .map((event) => event.state)
     ).toEqual(['hidden', 'visible', 'pagehide', 'pageshow']);
   });
 

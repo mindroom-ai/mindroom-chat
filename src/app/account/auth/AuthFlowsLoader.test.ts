@@ -1,4 +1,4 @@
-import React, { type ComponentProps, type ReactNode } from 'react';
+import React, { type ComponentProps, type ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { act, create } from 'react-test-renderer';
 import { Text } from 'folds';
@@ -8,17 +8,13 @@ import { AuthFlowsLoader } from './AuthFlowsLoader';
 import { AutoDiscoveryInfoProvider } from '../../matrix/hooks/useAutoDiscoveryInfo';
 import { createMatrixClient } from '../../matrix/client/matrixClientFactory';
 
-// createElement types children as ReactNode and wants `children` in props, so the loader's
-// element is built here, with its render function passed through one cast.
-const loaderElement = (
+// createElement types its children as ReactNode and wants `children` among the props, so it is
+// typed once here for the loader and its render function.
+const createLoaderElement = React.createElement as unknown as (
+  type: typeof AuthFlowsLoader,
   props: Omit<ComponentProps<typeof AuthFlowsLoader>, 'children'> | null,
   render: ComponentProps<typeof AuthFlowsLoader>['children']
-) =>
-  React.createElement(
-    AuthFlowsLoader,
-    props as ComponentProps<typeof AuthFlowsLoader>,
-    render as unknown as ReactNode
-  );
+) => ReactElement;
 
 vi.mock('../../matrix/client/matrixClientFactory', () => ({
   createMatrixClient: vi.fn(),
@@ -55,7 +51,7 @@ describe('AuthFlowsLoader', () => {
           React.createElement(
             AutoDiscoveryInfoProvider,
             { value: { 'm.homeserver': { base_url: 'https://example.com' } } },
-            loaderElement(null, () => null)
+            createLoaderElement(AuthFlowsLoader, null, () => null)
           )
         )
       );
@@ -91,7 +87,8 @@ describe('AuthFlowsLoader', () => {
         React.createElement(
           AutoDiscoveryInfoProvider,
           { value: { 'm.homeserver': { base_url: 'https://example.com' } } },
-          loaderElement(
+          createLoaderElement(
+            AuthFlowsLoader,
             {
               fallback: () => React.createElement(Text, null, 'Loading'),
               error: () => React.createElement(Text, null, 'Error'),
