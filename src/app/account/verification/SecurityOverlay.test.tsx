@@ -18,12 +18,16 @@ vi.mock('focus-trap-react', () => ({
     children: ReactNode;
     focusTrapOptions: { clickOutsideDeactivates: PressOutside };
   }) => {
-    trap.pressOutside = focusTrapOptions.clickOutsideDeactivates;
+    // focus-trap-react reads its options once, as the trap starts.
+    trap.pressOutside ??= focusTrapOptions.clickOutsideDeactivates;
     return children;
   },
 }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  trap.pressOutside = undefined;
+});
 
 const overlay = (dismissible?: boolean) => (
   <SecurityOverlay onClose={vi.fn()} dismissible={dismissible}>

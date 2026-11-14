@@ -107,13 +107,16 @@ const firstSession = async (browser: Browser, account: Account) => {
   return { page, recoveryKey };
 };
 
-/** A later fresh browser: Unlock opens by itself; it unlocks with `secret` and is closed. */
+/**
+ * A later fresh browser: Unlock opens by itself; it unlocks with `secret` and is closed with a
+ * click beside it.
+ */
 const unlockedSession = async (browser: Browser, account: Account, secret: string) => {
   const page = await signIn(browser, account.username);
   const dialog = unlockDialog(page);
   await expect(dialog).toBeVisible({ timeout: 90_000 });
   await unlockWithRecovery(dialog, secret);
-  await page.keyboard.press('Escape');
+  await page.mouse.click(5, 5);
   await expect(dialog).toHaveCount(0, { timeout: 60_000 });
   return page;
 };
