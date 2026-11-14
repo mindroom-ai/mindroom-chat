@@ -946,8 +946,8 @@
       "invited": "已邀請",
       "replaces": "取代先前的邀請",
       "copy": "複製邀請內容",
-      "message": "你已受邀使用 {{url}}。請透過 {{providers}} 登入，並務必使用此電子郵件地址：{{email}}",
-      "messagePlain": "你已受邀使用 {{url}}。請務必使用此電子郵件地址登入：{{email}}",
+      "message": "你已受邀使用以下網址：{{url}}\n請透過 {{providers}} 登入，並務必使用此電子郵件地址：{{email}}",
+      "messagePlain": "你已受邀使用以下網址：{{url}}\n請務必使用此電子郵件地址登入：{{email}}",
       "delete": "刪除邀請",
       "confirmDelete": "要刪除 {{email}} 的邀請嗎？該邀請將無法再用於建立帳號。",
       "errors": {

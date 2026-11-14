@@ -1,8 +1,8 @@
 import { Capacitor } from '@capacitor/core';
 import { Method, type MatrixClient, type Room } from 'matrix-js-sdk';
 import type { TFunction } from 'i18next';
-import { appUrl } from '../lib/basePath';
-import { getLoginPath } from '../routes/pathUtils';
+import type { ClientConfig } from '../config/useClientConfig';
+import { getLoginPath, getOriginBaseUrl } from '../routes/pathUtils';
 import { describeError } from '../lib/describeError';
 import { isRecord } from '../lib/isRecord';
 import { freshFetch, specVersions } from '../matrix/cs-api';
@@ -187,24 +187,29 @@ export const ssoProviderNames = (mx: MatrixClient): Promise<string[]> =>
     () => []
   );
 
+/** A server name or address as a deployment may write it: any case, a trailing slash. */
+const sameServer = (a: string, b: string): boolean => {
+  const normal = (server: string) => server.trim().toLowerCase().replace(/\/+$/, '');
+  return normal(a) === normal(b);
+};
+
 /**
  * Where an invited person signs in: this app's sign-in page for the administrator's homeserver,
  * since the invite is there and not on another server the deployment may start on. A server the
- * deployment lists goes by its name, as the sign-in page only takes a listed one when the
- * deployment is locked to its list; any other by its address, which needs no discovery. The
+ * deployment lists goes as the list writes it, as the sign-in page only takes a listed one when
+ * the deployment is locked to its list; any other by its address, which needs no discovery. The
  * native app's pages have no web address, so there the line names the homeserver itself.
  */
 export const invitationUrl = (
   server: { name: string; baseUrl: string },
-  listed: readonly string[] = [],
-  native: boolean = Capacitor.isNativePlatform(),
-  origin?: string
+  { homeserverList = [], hashRouter }: Pick<ClientConfig, 'homeserverList' | 'hashRouter'> = {},
+  native: boolean = Capacitor.isNativePlatform()
 ): string => {
-  const name = server.name.toLowerCase();
-  const signIn = listed.find((item) => item.trim().toLowerCase() === name) ?? server.baseUrl;
-  return native
-    ? signIn
-    : new URL(appUrl(getLoginPath(signIn)), origin ?? window.location.origin).href;
+  const listed = homeserverList.find(
+    (item) => sameServer(item, server.name) || sameServer(item, server.baseUrl)
+  );
+  const signIn = listed?.trim() ?? server.baseUrl;
+  return native ? signIn : `${getOriginBaseUrl(hashRouter)}${getLoginPath(signIn)}`;
 };
 
 type Invitation = {

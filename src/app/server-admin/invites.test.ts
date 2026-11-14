@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { readdirSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import * as linkify from 'linkifyjs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TFunction } from 'i18next';
 import type { MatrixClient } from 'matrix-js-sdk';
 import {
@@ -333,22 +336,44 @@ describe('ssoProviderNames', () => {
 
 describe('invitationUrl', () => {
   const server = { name: 'example.com', baseUrl: 'https://matrix.example.com' };
+  beforeEach(() => {
+    vi.stubGlobal('window', { location: { origin: 'https://chat.example' } });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it("is this app's sign-in page for a homeserver the deployment lists, by its name", () => {
+    expect(invitationUrl(server, { homeserverList: ['other.example', 'Example.com'] }, false)).toBe(
+      'https://chat.example/login/Example.com'
+    );
+  });
+
+  it('finds a homeserver the deployment lists by its address', () => {
     expect(
-      invitationUrl(server, ['other.example', 'Example.com'], false, 'https://chat.example')
-    ).toBe('https://chat.example/login/Example.com');
+      invitationUrl(server, { homeserverList: [' HTTPS://matrix.example.com/ '] }, false)
+    ).toBe('https://chat.example/login/HTTPS%3A%2F%2Fmatrix.example.com%2F');
   });
 
   it("is this app's sign-in page for any other homeserver, by its address", () => {
-    expect(invitationUrl(server, ['other.example'], false, 'https://chat.example')).toBe(
+    expect(invitationUrl(server, { homeserverList: ['other.example'] }, false)).toBe(
       'https://chat.example/login/https%3A%2F%2Fmatrix.example.com'
     );
   });
 
+  it('keeps the hash of a deployment that routes by it', () => {
+    expect(
+      invitationUrl(
+        server,
+        { homeserverList: ['example.com'], hashRouter: { enabled: true } },
+        false
+      )
+    ).toBe('https://chat.example/#/login/example.com');
+  });
+
   it('names the homeserver in the native app, whose pages have no web address', () => {
-    expect(invitationUrl(server, ['example.com'], true)).toBe('example.com');
-    expect(invitationUrl(server, [], true)).toBe('https://matrix.example.com');
+    expect(invitationUrl(server, { homeserverList: ['example.com'] }, true)).toBe('example.com');
+    expect(invitationUrl(server, {}, true)).toBe('https://matrix.example.com');
   });
 });
 
@@ -376,6 +401,30 @@ describe('invitationText', () => {
       'serverAccounts.invites.messagePlain {"url":"https://chat.example.com/","email":"alice@example.com"}'
     );
   });
+});
+
+describe('invitation in every language', () => {
+  const ADDITIONS = fileURLToPath(new URL('../i18n/locales/additions/', import.meta.url));
+  const URL_TO_SEND = 'https://chat.example.com/login/example.com';
+  const fill = (template: string): string =>
+    template
+      .replace('{{url}}', URL_TO_SEND)
+      .replace('{{providers}}', 'Google')
+      .replace('{{email}}', 'alice@example.com');
+
+  it.each(readdirSync(ADDITIONS).filter((file) => file.endsWith('.json')))(
+    'leaves the link alone where mail and chat apps detect it, in %s',
+    (file) => {
+      const tree = JSON.parse(readFileSync(`${ADDITIONS}${file}`, 'utf8')) as {
+        serverAccounts: { invites: { message: string; messagePlain: string } };
+      };
+      const { message, messagePlain } = tree.serverAccounts.invites;
+      for (const template of [message, messagePlain]) {
+        const links = linkify.find(fill(template), 'url').map(({ href }) => href);
+        expect(links).toEqual([URL_TO_SEND]);
+      }
+    }
+  );
 });
 
 describe('invitableRooms', () => {
