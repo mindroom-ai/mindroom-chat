@@ -1,16 +1,13 @@
 import { configClass, varsClass } from 'folds';
 import {
-  ButterTheme,
   DarkTheme,
-  GreenTheme,
   LightTheme,
-  MidnightTheme,
-  OrangeTheme,
-  SilverTheme,
+  THEMES,
   type Theme,
-  ThemeKind,
+  type ThemeKind,
   deploymentDefaultTheme,
   effectiveThemeSettings,
+  getThemeById,
 } from './useTheme';
 import { readCachedClientConfig } from '../config/ClientConfigLoader';
 import { MINDROOM_SESSION_STORE_KEY } from '../lib/sessionStoreConfig';
@@ -18,27 +15,12 @@ import { syncNativeStatusBarTheme } from './statusBarTheme';
 import { getSettings } from '../preferences/settings';
 
 const UNAUTH_ROUTE_PATH_PATTERN = /(?:^|\/)(login|register|reset-password)(?:\/[^/]+)?\/?$/;
-const hasOwn = Object.prototype.hasOwnProperty;
-
-const THEME_IDS = [
-  LightTheme.id,
-  SilverTheme.id,
-  DarkTheme.id,
-  MidnightTheme.id,
-  ButterTheme.id,
-  GreenTheme.id,
-  OrangeTheme.id,
-] as const;
-type ThemeId = (typeof THEME_IDS)[number];
-type ThemeScheme = 'light' | 'dark';
-
-type ThemeLike = Pick<Theme, 'id' | 'kind' | 'classNames'>;
 
 export type ResolvedTheme = {
-  themeId: ThemeId;
+  themeId: string;
   themeKind: ThemeKind;
   bgColor: string;
-  scheme: ThemeScheme;
+  scheme: ThemeKind;
   classNames: string[];
 };
 
@@ -48,63 +30,14 @@ declare global {
   }
 }
 
-const RESOLVED_THEME_MAP: Record<ThemeId, ResolvedTheme> = {
-  [LightTheme.id]: {
-    themeId: LightTheme.id,
-    themeKind: LightTheme.kind,
-    bgColor: '#F2F2F2',
-    scheme: 'light',
-    classNames: [configClass, varsClass, ...LightTheme.classNames],
-  },
-  [SilverTheme.id]: {
-    themeId: SilverTheme.id,
-    themeKind: SilverTheme.kind,
-    bgColor: '#DEDEDE',
-    scheme: 'light',
-    classNames: [configClass, varsClass, ...SilverTheme.classNames],
-  },
-  [DarkTheme.id]: {
-    themeId: DarkTheme.id,
-    themeKind: DarkTheme.kind,
-    bgColor: '#1A1A1A',
-    scheme: 'dark',
-    classNames: [configClass, varsClass, ...DarkTheme.classNames],
-  },
-  [MidnightTheme.id]: {
-    themeId: MidnightTheme.id,
-    themeKind: MidnightTheme.kind,
-    bgColor: '#17161D',
-    scheme: 'dark',
-    classNames: [configClass, varsClass, ...MidnightTheme.classNames],
-  },
-  [ButterTheme.id]: {
-    themeId: ButterTheme.id,
-    themeKind: ButterTheme.kind,
-    bgColor: '#1A1916',
-    scheme: 'dark',
-    classNames: [configClass, varsClass, ...ButterTheme.classNames],
-  },
-  [GreenTheme.id]: {
-    themeId: GreenTheme.id,
-    themeKind: GreenTheme.kind,
-    bgColor: '#042018',
-    scheme: 'dark',
-    classNames: [configClass, varsClass, ...GreenTheme.classNames],
-  },
-  [OrangeTheme.id]: {
-    themeId: OrangeTheme.id,
-    themeKind: OrangeTheme.kind,
-    bgColor: '#0F161B',
-    scheme: 'dark',
-    classNames: [configClass, varsClass, ...OrangeTheme.classNames],
-  },
-};
-
-const isThemeId = (themeId: string | undefined): themeId is ThemeId =>
-  typeof themeId === 'string' && hasOwn.call(RESOLVED_THEME_MAP, themeId);
-
-const resolveThemeId = (themeId: string | undefined, fallbackThemeId: ThemeId): ThemeId =>
-  isThemeId(themeId) ? themeId : fallbackThemeId;
+/** A theme as the document shows it. */
+const resolveTheme = (theme: Theme): ResolvedTheme => ({
+  themeId: theme.id,
+  themeKind: theme.kind,
+  bgColor: theme.pageColor,
+  scheme: theme.kind,
+  classNames: [configClass, varsClass, ...theme.classNames],
+});
 
 const stripSearchAndHash = (raw: string | undefined): string => {
   if (typeof raw !== 'string') return '';
@@ -165,21 +98,10 @@ const hasActiveStoredSession = (): boolean => {
 const resolveStoredThemeSettings = (deploymentTheme: Theme | undefined): ResolvedTheme => {
   const settings = effectiveThemeSettings(getSettings(), deploymentTheme);
 
-  if (!settings.useSystemTheme) {
-    return RESOLVED_THEME_MAP[resolveThemeId(settings.themeId, LightTheme.id)];
-  }
-
-  if (prefersDarkMode()) {
-    return RESOLVED_THEME_MAP[resolveThemeId(settings.darkThemeId, DarkTheme.id)];
-  }
-
-  return RESOLVED_THEME_MAP[resolveThemeId(settings.lightThemeId, LightTheme.id)];
+  if (!settings.useSystemTheme) return resolveTheme(getThemeById(settings.themeId) ?? LightTheme);
+  if (prefersDarkMode()) return resolveTheme(getThemeById(settings.darkThemeId) ?? DarkTheme);
+  return resolveTheme(getThemeById(settings.lightThemeId) ?? LightTheme);
 };
-
-const resolveTheme = (theme: ThemeLike | ResolvedTheme): ResolvedTheme =>
-  'themeId' in theme
-    ? RESOLVED_THEME_MAP[theme.themeId]
-    : RESOLVED_THEME_MAP[resolveThemeId(theme.id, DarkTheme.id)];
 
 const setMetaContent = (name: string, content: string): void => {
   const meta = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
@@ -197,21 +119,20 @@ export const resolveInitialTheme = (
 ): ResolvedTheme => {
   const deploymentTheme = deploymentDefaultTheme(readCachedClientConfig());
   if (isUnauthRouteUrl(pathname, hash) || !hasActiveStoredSession()) {
-    const systemThemeId = prefersDarkMode() ? DarkTheme.id : LightTheme.id;
-    return RESOLVED_THEME_MAP[resolveThemeId(deploymentTheme?.id, systemThemeId)];
+    return resolveTheme(deploymentTheme ?? (prefersDarkMode() ? DarkTheme : LightTheme));
   }
 
-  if (typeof window !== 'undefined' && isThemeId(window.__INITIAL_THEME__)) {
-    return RESOLVED_THEME_MAP[window.__INITIAL_THEME__];
-  }
-
-  return resolveStoredThemeSettings(deploymentTheme);
+  const initialTheme =
+    typeof window !== 'undefined' ? getThemeById(window.__INITIAL_THEME__) : undefined;
+  return initialTheme ? resolveTheme(initialTheme) : resolveStoredThemeSettings(deploymentTheme);
 };
 
-export const applyThemeToDom = (theme: ThemeLike | ResolvedTheme): void => {
+export const applyThemeToDom = (theme: Pick<Theme, 'id'> | ResolvedTheme): void => {
   if (typeof document === 'undefined') return;
 
-  const resolvedTheme = resolveTheme(theme);
+  const resolvedTheme = resolveTheme(
+    getThemeById('themeId' in theme ? theme.themeId : theme.id) ?? DarkTheme
+  );
   const html = document.documentElement;
   const body = document.body;
 
@@ -220,7 +141,7 @@ export const applyThemeToDom = (theme: ThemeLike | ResolvedTheme): void => {
   body.className = '';
   body.classList.add(...resolvedTheme.classNames);
 
-  html.classList.remove(...THEME_IDS);
+  html.classList.remove(...THEMES.map(({ id }) => id));
   html.classList.add(resolvedTheme.themeId);
   html.style.setProperty('--app-bg-color', resolvedTheme.bgColor);
   html.style.backgroundColor = resolvedTheme.bgColor;

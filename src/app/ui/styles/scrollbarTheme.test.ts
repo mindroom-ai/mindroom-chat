@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import chroma from 'chroma-js';
 import { describe, expect, it } from 'vitest';
 
-const indexCss = readFileSync(new URL('../../../index.css', import.meta.url), 'utf8');
 const colorsSource = readFileSync(new URL('../../theme/colors.css.ts', import.meta.url), 'utf8');
 const foldsCss = readFileSync(
   new URL('../../../../node_modules/folds/dist/style.css', import.meta.url),
@@ -11,8 +10,8 @@ const foldsCss = readFileSync(
 
 describe('scrollbar theme', () => {
   it('keeps the dark-theme thumb visible on every dark track', () => {
-    const thumbValue = indexCss.match(
-      /\.dark-theme,\s*\.midnight-theme,\s*\.butter-theme,\s*\.green-theme,\s*\.orange-theme\s*\{[^}]*--mr-scrollbar-thumb-color:\s*(#[\da-f]{8})/i
+    const thumbValue = colorsSource.match(
+      /globalStyle\(DARK_THEMES, \{\s*vars: \{ '--mr-scrollbar-thumb-color': '(#[\da-f]{8})'/i
     )?.[1];
     if (!thumbValue) throw new Error('Dark scrollbar thumb token is missing.');
 

@@ -9,15 +9,7 @@ import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import '../../src/index.css';
 import '../../src/app/i18n/i18n';
-import {
-  ButterTheme,
-  DarkTheme,
-  GreenTheme,
-  LightTheme,
-  MidnightTheme,
-  OrangeTheme,
-  SilverTheme,
-} from '../../src/app/theme/useTheme';
+import { LightTheme, THEMES } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
 import { MatrixClientProvider } from '../../src/app/matrix/hooks/useMatrixClient';
 import { SpecVersionsProvider } from '../../src/app/matrix/hooks/useSpecVersions';
@@ -42,17 +34,8 @@ import { showToolCalls } from '../../src/test/utils/showToolCalls';
 // The page shows agent replies' tool calls, which the app hides until the reader shows them.
 showToolCalls();
 
-const themes = {
-  light: LightTheme,
-  silver: SilverTheme,
-  dark: DarkTheme,
-  midnight: MidnightTheme,
-  butter: ButterTheme,
-  green: GreenTheme,
-  orange: OrangeTheme,
-};
-const themeName = new URLSearchParams(window.location.search).get('theme') ?? 'light';
-const theme = themes[themeName as keyof typeof themes] ?? LightTheme;
+const themeName = new URLSearchParams(window.location.search).get('theme');
+const theme = THEMES.find(({ name }) => name === themeName) ?? LightTheme;
 applyThemeToDom(theme);
 
 const audioContent = {

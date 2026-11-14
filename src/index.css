@@ -152,54 +152,7 @@ pre {
   text-align: left;
 }
 
-/*
- * Links in running text, such as the welcome page credits: each theme's Primary.Main from
- * src/app/theme/colors.css.ts, for markup that cannot import the folds colour contract.
- */
-:root,
-.light-theme,
-.silver-theme {
-  --mr-link-color: #694ccd;
-}
-
-.dark-theme,
-.midnight-theme {
-  --mr-link-color: #9b85f0;
-}
-
-.butter-theme {
-  --mr-link-color: #e3c46b;
-}
-
-.green-theme {
-  --mr-link-color: #25faa1;
-}
-
-.orange-theme {
-  --mr-link-color: #ff5000;
-}
-
-/* Scrollbars: a thumb that stays visible on every track of the theme. */
-:root,
-.light-theme,
-.silver-theme {
-  --mr-scrollbar-thumb-color: #1f1e2659;
-}
-
-.dark-theme,
-.midnight-theme,
-.butter-theme,
-.green-theme,
-.orange-theme {
-  --mr-scrollbar-thumb-color: #ffffff73;
-  color-scheme: dark;
-}
-
-.light-theme,
-.silver-theme {
-  color-scheme: light;
-}
-
+/* Scrollbars: the thumb takes the colour src/app/theme/colors.css.ts gives each kind of theme. */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--mr-scrollbar-thumb-color) transparent;

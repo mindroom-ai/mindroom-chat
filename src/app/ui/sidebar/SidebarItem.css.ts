@@ -1,6 +1,7 @@
 import { createVar, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
+import { DARK_THEMES } from '../../preferences/themeNames';
 import { motion } from '../styles/Motion.css';
 import { shortViewport } from '../styles/shortViewport';
 
@@ -142,9 +143,6 @@ const railButtonFill = (tone: string, percent: number) =>
  */
 const pressed = `${sidebarItemRoot} &&:active`;
 
-/** The theme classes whose palettes are dark. */
-const darkThemes = ':is(.dark-theme, .midnight-theme, .butter-theme, .green-theme, .orange-theme)';
-
 /** A raised rail button that is hovered, focused or has its menu open, under `scope`. */
 const raisedEngaged = (scope: string) =>
   [':hover', ':focus-visible', menuOpen].map((state) => `${scope}&&&${state}`).join(', ');
@@ -238,10 +236,10 @@ export const SidebarAvatar = recipe({
             backgroundColor: railButtonFill(color.Secondary.ContainerLine, 82),
           },
           // room-dark.png: on dark rails the button barely lifts off the rail; its rim shows it.
-          [`${darkThemes} &&&`]: {
+          [`${DARK_THEMES} &&&`]: {
             backgroundColor: railButtonFill(color.Background.ContainerHover, 10),
           },
-          [raisedEngaged(`${darkThemes} `)]: {
+          [raisedEngaged(`${DARK_THEMES} `)]: {
             backgroundColor: railButtonFill(color.Background.ContainerActive, 50),
           },
         },

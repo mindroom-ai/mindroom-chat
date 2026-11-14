@@ -27,6 +27,7 @@ vi.mock('folds', async () => {
       children?: React.ReactNode;
       [key: string]: unknown;
     }) => reactModule.createElement('a', props, before, children),
+    color: { Primary: { Main: 'primary' } },
     config: {
       space: {
         S400: '16px',

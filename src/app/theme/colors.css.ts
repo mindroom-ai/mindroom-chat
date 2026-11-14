@@ -1,5 +1,6 @@
-import { createTheme } from '@vanilla-extract/css';
+import { createTheme, globalStyle } from '@vanilla-extract/css';
 import { color } from 'folds';
+import { DARK_THEMES, LIGHT_THEMES, type ThemeName } from '../preferences/themeNames';
 
 // MindRoom's palettes for the folds colour contract. Light and dark follow the reference
 // screenshots (docs/design/reference/): neutral greys with a faint violet cast, a violet
@@ -128,7 +129,7 @@ const silverPalette: Palette = {
   ...lightAccents,
 };
 
-// Everything below this line is a dark palette; scrollbarTheme.test.ts reads their hover tracks.
+// Every palette below this line is a dark one; scrollbarTheme.test.ts reads their hover tracks.
 const darkAccents = {
   Primary: {
     Main: '#9B85F0',
@@ -403,3 +404,23 @@ export const midnightTheme = createTheme(color, midnightPalette);
 export const butterTheme = createTheme(color, butterPalette);
 export const greenTheme = createTheme(color, greenPalette);
 export const orangeTheme = createTheme(color, orangePalette);
+
+/** Each theme's page colour, its Background.Container, which the document shows behind the app. */
+export const pageColors: Record<ThemeName, string> = {
+  light: lightPalette.Background.Container,
+  silver: silverPalette.Background.Container,
+  dark: darkPalette.Background.Container,
+  midnight: midnightPalette.Background.Container,
+  butter: butterPalette.Background.Container,
+  green: greenPalette.Background.Container,
+  orange: orangePalette.Background.Container,
+};
+
+// Scrollbars (src/index.css draws them): a thumb that stays visible on every track of a theme
+// of its kind. Native controls and scrollbars follow the kind's colour scheme.
+globalStyle(`:root, ${LIGHT_THEMES}`, { vars: { '--mr-scrollbar-thumb-color': '#1f1e2659' } });
+globalStyle(DARK_THEMES, {
+  vars: { '--mr-scrollbar-thumb-color': '#ffffff73' },
+  colorScheme: 'dark',
+});
+globalStyle(LIGHT_THEMES, { colorScheme: 'light' });

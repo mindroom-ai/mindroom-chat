@@ -1,5 +1,5 @@
 import { Fragment, ReactNode, useEffect, useState } from 'react';
-import { Box, Button, Icon, Icons, Text, config, toRem } from 'folds';
+import { Box, Button, Icon, Icons, Text, color, config, toRem } from 'folds';
 import type { IconSrc } from 'folds';
 import { useSetAtom } from 'jotai';
 import { Trans, useTranslation } from 'react-i18next';
@@ -151,8 +151,8 @@ function WelcomeLink({ href, icon, children }: WelcomeLinkProps) {
   );
 }
 
-/** Credit links in the theme's link colour (src/index.css), without underlines. */
-const CREDIT_LINK_STYLE = { color: 'var(--mr-link-color)', textDecoration: 'none' } as const;
+/** Credit links in the theme's primary colour, without underlines. */
+const CREDIT_LINK_STYLE = { color: color.Primary.Main, textDecoration: 'none' } as const;
 
 /** "Powered by A • B": the credited projects, each linked. */
 function PoweredByLine({ links }: { links: readonly PoweredByLink[] }) {

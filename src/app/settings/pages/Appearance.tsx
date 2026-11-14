@@ -15,21 +15,6 @@ import { SettingsSection } from '../../ui/settings/SettingsSection';
 import { AdvancedFold } from '../../ui/settings/AdvancedFold';
 import { ChoiceButton } from '../../ui/settings/ChoiceButton';
 
-const THEME_LABEL_KEYS = {
-  'light-theme': 'options.themeName.light',
-  'silver-theme': 'options.themeName.silver',
-  'dark-theme': 'options.themeName.dark',
-  'midnight-theme': 'options.themeName.midnight',
-  'butter-theme': 'options.themeName.butter',
-  'green-theme': 'options.themeName.green',
-  'orange-theme': 'options.themeName.orange',
-} as const;
-
-type ThemeLabelKey = (typeof THEME_LABEL_KEYS)[keyof typeof THEME_LABEL_KEYS];
-
-const themeLabelKey = (themeId: string): ThemeLabelKey =>
-  THEME_LABEL_KEYS[themeId as keyof typeof THEME_LABEL_KEYS] ?? THEME_LABEL_KEYS['light-theme'];
-
 const ZOOM_STEPS = [50, 75, 90, 100, 110, 125, 150];
 
 const LAYOUT_CHOICES = [
@@ -115,7 +100,10 @@ function ThemePickTile({ pick }: { pick: ThemePick }) {
         <ChoiceButton
           label={title}
           value={picked ?? pick.fallback}
-          choices={offered.map((theme) => ({ value: theme.id, label: t(themeLabelKey(theme.id)) }))}
+          choices={offered.map((theme) => ({
+            value: theme.id,
+            label: t(`options.themeName.${theme.name}`),
+          }))}
           onChoose={setPicked}
         />
       }

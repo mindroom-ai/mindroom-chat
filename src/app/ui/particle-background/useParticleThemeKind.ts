@@ -1,21 +1,15 @@
 import { useEffect, useState } from 'react';
+import { DARK_THEME_NAMES, LIGHT_THEME_NAMES } from '../../preferences/themeNames';
 import type { ParticleThemeKind } from './particleBackgroundTheme';
-
-const LIGHT_THEME_CLASSES = ['light-theme', 'silver-theme'];
-const DARK_THEME_CLASSES = [
-  'dark-theme',
-  'midnight-theme',
-  'butter-theme',
-  'green-theme',
-  'orange-theme',
-];
 
 export const resolveParticleThemeKind = (): ParticleThemeKind => {
   if (typeof document === 'undefined') return 'dark';
 
   const { classList } = document.documentElement;
-  if (LIGHT_THEME_CLASSES.some((className) => classList.contains(className))) return 'light';
-  if (DARK_THEME_CLASSES.some((className) => classList.contains(className))) return 'dark';
+  const showsOneOf = (names: readonly string[]) =>
+    names.some((name) => classList.contains(`${name}-theme`));
+  if (showsOneOf(LIGHT_THEME_NAMES)) return 'light';
+  if (showsOneOf(DARK_THEME_NAMES)) return 'dark';
 
   const prefersDark =
     typeof window !== 'undefined' &&

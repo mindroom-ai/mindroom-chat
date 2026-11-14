@@ -7,6 +7,9 @@ import {
   sampleScreenshot,
   type Rgba,
 } from '../helpers/glassVisual';
+import { DARK_THEME_NAMES, LIGHT_THEME_NAMES } from '../../src/app/preferences/themeNames';
+
+const THEME_NAMES = [...LIGHT_THEME_NAMES, ...DARK_THEME_NAMES];
 
 for (const theme of ['light', 'dark']) {
   test(`chat controls and attachment shells have top and bottom rim highlights in ${theme}`, async ({
@@ -174,7 +177,7 @@ for (const theme of ['light', 'dark']) {
   });
 }
 
-for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter', 'green', 'orange']) {
+for (const theme of THEME_NAMES) {
   test(`thread and audio rims highlight the top and bottom in ${theme}`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 1600 });
     await page.goto(`/e2e/fixtures/glass-surfaces.html?theme=${theme}`);
@@ -271,7 +274,7 @@ for (const theme of ['light', 'dark']) {
   });
 }
 
-for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter', 'green', 'orange']) {
+for (const theme of THEME_NAMES) {
   test(`settings sheet reveals its dimmed backdrop and retains contrast in ${theme}`, async ({
     page,
   }) => {
@@ -520,7 +523,7 @@ const expectOpaqueFallback = async (page: Page) => {
   }
 };
 
-for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter', 'green', 'orange']) {
+for (const theme of THEME_NAMES) {
   test(`shared materials retain rendered text contrast over every backdrop in ${theme}`, async ({
     page,
   }) => {

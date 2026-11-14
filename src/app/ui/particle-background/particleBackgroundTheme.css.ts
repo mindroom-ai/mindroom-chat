@@ -1,4 +1,5 @@
 import { createVar, globalStyle } from '@vanilla-extract/css';
+import { LIGHT_THEMES } from '../../preferences/themeNames';
 import { DARK_PARTICLE_THEME, LIGHT_PARTICLE_THEME } from './particleBackgroundTheme';
 
 export const particleBackgroundColorVar = createVar();
@@ -22,7 +23,7 @@ globalStyle(':root', {
   },
 });
 
-globalStyle(':root.light-theme, :root.silver-theme', {
+globalStyle(`:root${LIGHT_THEMES}`, {
   vars: {
     [particleBackgroundColorVar]: LIGHT_PARTICLE_THEME.backgroundColor,
     [particleBackgroundGradientVar]: LIGHT_PARTICLE_THEME.backgroundRadialGradient,

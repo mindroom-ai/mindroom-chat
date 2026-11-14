@@ -1,6 +1,7 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
+import { DARK_THEMES } from '../../preferences/themeNames';
 import { MESSAGE_AVATAR_WIDTH_PX } from './config';
 
 export const MessageBase = recipe({
@@ -111,11 +112,9 @@ export const OwnBubble = style({ marginInlineStart: 'auto' });
 // Sender names take the colour of the sender's standing in the room: whoever leads it (creators
 // and administrators) in blue, moderators in violet, everyone else in teal. The dark themes use
 // lighter shades of the same hues.
-const DARK_THEMES =
-  ':is(.dark-theme, .midnight-theme, .butter-theme, .green-theme, .orange-theme) &';
 const nameTone = (light: string, dark: string) => ({
   color: light,
-  selectors: { [DARK_THEMES]: { color: dark } },
+  selectors: { [`${DARK_THEMES} &`]: { color: dark } },
 });
 
 export const Username = recipe({

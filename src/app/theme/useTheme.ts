@@ -3,6 +3,7 @@ import { atom, useAtomValue } from 'jotai';
 import { type Settings, settingsAtom } from '../preferences/settings';
 import { readCachedClientConfig } from '../config/ClientConfigLoader';
 import type { ClientConfig } from '../config/useClientConfig';
+import { DARK_THEME_NAMES, LIGHT_THEME_NAMES, type ThemeName } from '../preferences/themeNames';
 import * as palettes from './colors.css';
 import { roundedRadii } from './config.css';
 
@@ -14,8 +15,11 @@ export const ThemeKind = {
 export type ThemeKind = (typeof ThemeKind)[keyof typeof ThemeKind];
 
 export interface Theme {
+  name: ThemeName;
   id: string;
   kind: ThemeKind;
+  /** The colour the document shows behind the app: the palette's Background.Container. */
+  pageColor: string;
   /**
    * Classes for `<body>`: the theme ID, its palette, the code highlighting scheme, and the corner
    * radii every theme shares.
@@ -23,32 +27,37 @@ export interface Theme {
   classNames: string[];
 }
 
-/** Builds the theme `<name>-theme` on top of a palette class from `colors.css`. */
-const defineTheme = (name: string, kind: ThemeKind, paletteClass: string): Theme => {
+/** Builds the theme `<name>-theme` on top of its palette class and page colour from `colors.css`. */
+const defineTheme = (name: ThemeName, kind: ThemeKind): Theme => {
   const id = `${name}-theme`;
   const prismScheme = kind === ThemeKind.Dark ? 'prism-dark' : 'prism-light';
-  return { id, kind, classNames: [id, paletteClass, prismScheme, roundedRadii] };
+  return {
+    name,
+    id,
+    kind,
+    pageColor: palettes.pageColors[name],
+    classNames: [id, palettes[`${name}Theme`], prismScheme, roundedRadii],
+  };
 };
 
-export const LightTheme = defineTheme('light', ThemeKind.Light, palettes.lightTheme);
-export const SilverTheme = defineTheme('silver', ThemeKind.Light, palettes.silverTheme);
-export const DarkTheme = defineTheme('dark', ThemeKind.Dark, palettes.darkTheme);
-export const MidnightTheme = defineTheme('midnight', ThemeKind.Dark, palettes.midnightTheme);
-export const ButterTheme = defineTheme('butter', ThemeKind.Dark, palettes.butterTheme);
-export const GreenTheme = defineTheme('green', ThemeKind.Dark, palettes.greenTheme);
-export const OrangeTheme = defineTheme('orange', ThemeKind.Dark, palettes.orangeTheme);
-
+/** Every theme, in the order Settings offers them: the light ones, then the dark ones. */
 export const THEMES: Theme[] = [
-  LightTheme,
-  SilverTheme,
-  DarkTheme,
-  MidnightTheme,
-  ButterTheme,
-  GreenTheme,
-  OrangeTheme,
+  ...LIGHT_THEME_NAMES.map((name) => defineTheme(name, ThemeKind.Light)),
+  ...DARK_THEME_NAMES.map((name) => defineTheme(name, ThemeKind.Dark)),
 ];
 
-const getThemeById = (themeId: string | undefined): Theme | undefined =>
+const themesByName = Object.fromEntries(THEMES.map((theme) => [theme.name, theme])) as Record<
+  ThemeName,
+  Theme
+>;
+
+export const LightTheme = themesByName.light;
+export const SilverTheme = themesByName.silver;
+export const DarkTheme = themesByName.dark;
+export const MidnightTheme = themesByName.midnight;
+export const GreenTheme = themesByName.green;
+
+export const getThemeById = (themeId: string | undefined): Theme | undefined =>
   THEMES.find((theme) => theme.id === themeId);
 
 /** The theme `config.json` names as `defaultTheme` (`"green"` for `green-theme`), if there is one. */
