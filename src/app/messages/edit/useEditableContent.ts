@@ -27,7 +27,7 @@ export const useEditableContent = (
       editedEvent?.getContent()['m.new_content'] ?? mEvent.getContent();
     let cancelled = false;
     // No cache owner: the editor only reads the text, usually already cached by the timeline.
-    loadEditableContent(latest, (source) => hydrateCachedLongText(mx, source))
+    void loadEditableContent(latest, (source) => hydrateCachedLongText(mx, source))
       .catch(() => undefined)
       .then((content) => {
         if (!cancelled) setEditable({ content, failed: content === undefined });

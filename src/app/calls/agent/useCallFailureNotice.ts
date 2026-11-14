@@ -48,7 +48,7 @@ export const useCallFailureNotice = (
       setNotice({ eventId: event.getId() ?? `${eventTs}:${message}`, message });
       return true;
     };
-    const handleTimelineEvent: EventTimelineSetHandlerMap[RoomEvent.Timeline] = async (
+    const handleTimelineEvent: EventTimelineSetHandlerMap[RoomEvent.Timeline] = (
       event,
       eventRoom,
       toStartOfTimeline,
@@ -65,7 +65,7 @@ export const useCallFailureNotice = (
         return;
       }
 
-      await inspectEvent(event);
+      void inspectEvent(event);
     };
 
     mx.on(RoomEvent.Timeline, handleTimelineEvent);

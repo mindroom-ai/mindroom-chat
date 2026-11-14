@@ -247,7 +247,7 @@ export function ThreadContextBanner({
   const handleAddTag = useCallback(
     (name: string) => {
       if (!mutableThreadRootId) return;
-      addTag(mutableThreadRootId, name);
+      void addTag(mutableThreadRootId, name);
     },
     [mutableThreadRootId, addTag]
   );
@@ -255,14 +255,14 @@ export function ThreadContextBanner({
   const handleRemoveTag = useCallback(
     (name: string) => {
       if (!mutableThreadRootId) return;
-      removeTag(mutableThreadRootId, name);
+      void removeTag(mutableThreadRootId, name);
     },
     [mutableThreadRootId, removeTag]
   );
 
   const handleToggleResolve = useCallback(() => {
     if (!mutableThreadRootId || isPinned) return;
-    setResolved(mutableThreadRootId, !headerModel.isResolved);
+    void setResolved(mutableThreadRootId, !headerModel.isResolved);
   }, [mutableThreadRootId, headerModel.isResolved, setResolved, isPinned]);
   const resolveDisabled = !headerModel.canEdit || headerModel.pickerDisabled || pinning.updating;
   // Not a thread that a side panel in the conversation's place hides.
@@ -560,7 +560,7 @@ export function ThreadContextBanner({
                       fill="None"
                       aria-pressed={isPinned}
                       disabled={pinning.updating || updating}
-                      onClick={() => pinning.setPinned(mutableThreadRootId, !isPinned)}
+                      onClick={() => void pinning.setPinned(mutableThreadRootId, !isPinned)}
                     >
                       <Icon src={Icons.Pin} size="100" filled={isPinned} />
                     </IconButton>
