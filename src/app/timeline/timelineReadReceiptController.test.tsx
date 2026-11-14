@@ -481,6 +481,54 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
       expect(markThreadAsRead).toHaveBeenCalledTimes(1);
     });
 
+    it('waits until a landing correction brings the newest reply into view before reading the thread', async () => {
+      const area = document.createElement('div');
+      vi.spyOn(area, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 400, 500));
+      const anchorAt = (top: number) =>
+        vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, top, 400, 0));
+      const rest = async () => {
+        await act(async () => {
+          rests.splice(0).forEach((resolve) => resolve());
+          await Promise.resolve();
+        });
+        runFrames();
+      };
+      // The view rests 38 px short of the bottom, within the 96 px that count as at the bottom.
+      anchorAt(538);
+      mount(optionsWith({ ...openThread, getScrollElement: () => area }));
+      runFrames();
+      await rest();
+      expect(markThreadAsRead).not.toHaveBeenCalled();
+
+      // The correction lands the view at the newest reply.
+      anchorAt(500);
+      await rest();
+      expect(markThreadAsRead).toHaveBeenCalledTimes(1);
+    });
+
+    it('reads the thread after a few rests when the reader stays just short of the bottom', async () => {
+      const area = document.createElement('div');
+      vi.spyOn(area, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 400, 500));
+      vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 538, 400, 0));
+      mount(optionsWith({ ...openThread, getScrollElement: () => area }));
+      runFrames();
+      for (let time = 0; time < 3; time += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        await act(async () => {
+          rests.splice(0).forEach((resolve) => resolve());
+          await Promise.resolve();
+        });
+        runFrames();
+        expect(markThreadAsRead).not.toHaveBeenCalled();
+      }
+      await act(async () => {
+        rests.splice(0).forEach((resolve) => resolve());
+        await Promise.resolve();
+      });
+      runFrames();
+      expect(markThreadAsRead).toHaveBeenCalledTimes(1);
+    });
+
     it.each([
       ['its newest replies are not loaded', { threadTailLoaded: false }],
       ['it is still loading', { threadInitialRenderMode: 'loading' as const }],
