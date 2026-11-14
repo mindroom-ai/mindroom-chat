@@ -663,6 +663,7 @@
       "verifying": "Verifica dell’orologio…",
       "connected": "Connesso come {{deviceId}}.",
       "disconnect": "Disconnetti",
+      "verify": "Verifica",
       "unsupported": "Questo homeserver non può accedere con un Apple Watch.",
       "failed": "Impossibile connettersi: {{reason}}",
       "noCrossSigning": "L’orologio è connesso ma non verificato: configura la crittografia su questo iPhone per verificarlo.",

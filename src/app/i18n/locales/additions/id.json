@@ -645,6 +645,7 @@
       "verifying": "Memverifikasi jam…",
       "connected": "Terhubung sebagai {{deviceId}}.",
       "disconnect": "Putuskan",
+      "verify": "Verifikasi",
       "unsupported": "Homeserver ini tidak dapat memasukkan Apple Watch.",
       "failed": "Tidak dapat terhubung: {{reason}}",
       "noCrossSigning": "Jam terhubung tetapi belum diverifikasi: siapkan enkripsi di iPhone ini untuk memverifikasinya.",

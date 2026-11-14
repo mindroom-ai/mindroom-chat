@@ -645,6 +645,7 @@
       "verifying": "ウォッチを確認中…",
       "connected": "{{deviceId}} として接続済みです。",
       "disconnect": "接続解除",
+      "verify": "確認する",
       "unsupported": "このホームサーバーはApple Watchにサインインできません。",
       "failed": "接続できませんでした: {{reason}}",
       "noCrossSigning": "ウォッチは接続されていますが未確認です。確認するには、このiPhoneで暗号化を設定してください。",

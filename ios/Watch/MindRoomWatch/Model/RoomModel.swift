@@ -38,6 +38,9 @@ final class RoomModel: ObservableObject {
     private var refreshing = false
     private var refreshAgain = false
     private var snapshots: [String: ThreadSnapshot] = [:]
+    /// What the thread list said of each thread when its snapshot was read (newest event, reply count).
+    private var snapshotKeys: [String: String] = [:]
+    private var resolved: Set<String> = []
     private let session: Session?
 
     init(room: Room, userId: String, session: Session?) {
@@ -132,17 +135,32 @@ final class RoomModel: ObservableObject {
         // Left, or replaced by a new version of the room: the person picks another.
         if room.membership() != .joined || room.successorRoom() != nil { gone = true; return }
         await threads.reset()
-        try? await threads.paginate()
-        let resolved = await resolvedRoots()
-        let roots = threads.items().prefix(Self.pageSize).map(\.rootEvent.eventId).filter { !resolved.contains($0) }
+        // Offline the list cannot be read: keep the rows (and the widget) as they were.
+        do { try await threads.paginate() } catch { return }
+        if let resolved = await resolvedRoots() { self.resolved = resolved }
+        let items = threads.items().prefix(Self.pageSize).filter { !resolved.contains($0.rootEvent.eventId) }
+        let roots = items.map(\.rootEvent.eventId)
         var rows: [ThreadRow] = []
-        for rootId in roots {
-            guard let jsons = try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId),
-                  let root = jsons.first.flatMap(parse) else { continue }
-            let snapshot = ThreadSnapshot.build(root: root, related: jsons.dropFirst().compactMap(parse), ownUserId: userId, now: Date())
-            snapshots[rootId] = snapshot
-            if let reply = snapshot.reply { await learnNames([reply.sender] + PlainText.mentionedUserIds(reply.text)) }
-            rows.append(row(snapshot))
+        for item in items {
+            let rootId = item.rootEvent.eventId
+            let key = "\(item.latestEvent?.eventId ?? rootId) \(item.numReplies)"
+            // A thread nothing new happened in keeps its snapshot, unless it streams or waits for the person
+            // (edits and reactions there do not show in the list).
+            if let cached = snapshots[rootId], snapshotKeys[rootId] == key,
+               ![.running, .needsYou].contains(cached.rowState(lastSeenEventId: nil)) {
+                rows.append(row(cached))
+                continue
+            }
+            if let jsons = try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId),
+               let root = jsons.first.flatMap(parse) {
+                let snapshot = ThreadSnapshot.build(root: root, related: jsons.dropFirst().compactMap(parse), ownUserId: userId, now: Date())
+                snapshots[rootId] = snapshot
+                snapshotKeys[rootId] = key
+                if let reply = snapshot.reply { await learnNames([reply.sender] + PlainText.mentionedUserIds(reply.text)) }
+                rows.append(row(snapshot))
+            } else if let cached = snapshots[rootId] {
+                rows.append(row(cached))
+            }
         }
         rows += ownUnansweredRoots(excluding: Set(roots).union(resolved))
         self.rows = rows.sorted { $0.ts > $1.ts }
@@ -193,15 +211,17 @@ final class RoomModel: ObservableObject {
         }
     }
 
-    /// The thread tags in the room's state: one request per refresh (state events are not encrypted).
-    private func resolvedRoots() async -> Set<String> {
-        guard let session, let base = URL(string: session.homeserverUrl) else { return [] }
+    /// The thread tags and pinned events in the room's state: one request per refresh (state events are not
+    /// encrypted); nil when it could not be read.
+    private func resolvedRoots() async -> Set<String>? {
+        guard let session, let base = URL(string: session.homeserverUrl) else { return nil }
         let roomId = room.id().addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "!:/"))) ?? room.id()
-        guard let url = URL(string: "\(base.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")))/_matrix/client/v3/rooms/\(roomId)/state") else { return [] }
+        guard let url = URL(string: "\(base.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")))/_matrix/client/v3/rooms/\(roomId)/state") else { return nil }
         var request = URLRequest(url: url)
         request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
-        guard let (data, _) = try? await URLSession.shared.data(for: request),
-              let state = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              let state = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
         return ThreadTags.resolvedRoots(state: state)
     }
 }

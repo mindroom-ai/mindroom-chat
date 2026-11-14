@@ -14,10 +14,18 @@ final class ThreadTagsTests: XCTestCase {
     }
 
     func testLegacyTagsAndPinnedThreads() {
+        // As the web client: a pinned event (m.room.pinned_events) never reads as resolved; a "pinned" tag does not count.
         let state = [tag("$old", ["tags": ["resolved": ["set_by": "@bas:x"]]]),
                      tag(#"["$p","resolved"]"#, ["set_by": "@bas:x"]),
-                     tag(#"["$p","pinned"]"#, ["set_by": "@bas:x"])]
-        XCTAssertEqual(ThreadTags.resolvedRoots(state: state), ["$old"])
+                     tag(#"["$t","resolved"]"#, ["set_by": "@bas:x"]),
+                     tag(#"["$t","pinned"]"#, ["set_by": "@bas:x"]),
+                     ["type": "m.room.pinned_events", "state_key": "", "content": ["pinned": ["$p"]]]]
+        XCTAssertEqual(ThreadTags.resolvedRoots(state: state), ["$old", "$t"])
+    }
+
+    func testAPerTagTombstoneReopensALegacyResolvedThread() {
+        let state = [tag("$old", ["tags": ["resolved": ["set_by": "@bas:x"]]]), tag(#"["$old","resolved"]"#, [:])]
+        XCTAssertEqual(ThreadTags.resolvedRoots(state: state), [])
     }
 
     func testStateKeyAndContentForResolving() {
@@ -65,26 +73,5 @@ final class WaveformTests: XCTestCase {
         XCTAssertEqual(Waveform.bars(from: [-20]).count, 48)
         XCTAssertEqual(Waveform.bars(from: []).count, 48)
         XCTAssertTrue(Waveform.bars(from: Array(repeating: -30, count: 500)).allSatisfy { $0 >= 0 && $0 <= 1 })
-    }
-}
-
-final class ThreadRowStateTests: XCTestCase {
-    private let ts = Date(timeIntervalSince1970: 1_700_000_000)
-    private func latest(_ content: JSON, id: String = "$l") -> JSON {
-        ["type": "m.room.message", "event_id": id, "origin_server_ts": 1_700_000_000_000, "content": content]
-    }
-
-    func testOrder() {
-        let streaming = latest(["body": "…", "io.mindroom.stream_status": "streaming"])
-        XCTAssertEqual(ThreadRowState.of(latest: streaming, latestEdit: nil, pendingApproval: true, openQuestion: false, lastSeenEventId: nil, sendFailed: true, queued: true), .failed)
-        XCTAssertEqual(ThreadRowState.of(latest: streaming, latestEdit: nil, pendingApproval: true, openQuestion: false, lastSeenEventId: nil, sendFailed: false, queued: true), .queued)
-        XCTAssertEqual(ThreadRowState.of(latest: streaming, latestEdit: nil, pendingApproval: false, openQuestion: true, lastSeenEventId: nil, sendFailed: false, queued: false), .needsYou)
-        XCTAssertEqual(ThreadRowState.of(latest: streaming, latestEdit: nil, pendingApproval: false, openQuestion: false, lastSeenEventId: nil, sendFailed: false, queued: false), .running)
-    }
-
-    func testUnreadUntilSeen() {
-        let reply = latest(["body": "done"], id: "$r")
-        XCTAssertEqual(ThreadRowState.of(latest: reply, latestEdit: nil, pendingApproval: false, openQuestion: false, lastSeenEventId: "$older", sendFailed: false, queued: false), .unread)
-        XCTAssertEqual(ThreadRowState.of(latest: reply, latestEdit: nil, pendingApproval: false, openQuestion: false, lastSeenEventId: "$r", sendFailed: false, queued: false), .idle(ts))
     }
 }

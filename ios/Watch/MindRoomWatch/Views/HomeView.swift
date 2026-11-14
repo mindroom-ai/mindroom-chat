@@ -106,6 +106,7 @@ private struct RoomHome: View {
     let pick: () -> Void
     let roomGone: () -> Void
     @ObservedObject private var request = RecordRequest.shared
+    @EnvironmentObject private var session: MatrixSession
     @State private var recording = false
     @State private var sendError: String?
     /// The threads there were when a voice message went out: the first new one is its thread, opened once it has an id.
@@ -206,6 +207,8 @@ private struct RoomHome: View {
     }
 
     private var summary: String {
+        // Recording still works offline: the message waits in the queue.
+        if session.syncState == .offline { return String(localized: "No connection") }
         let counts = WidgetSnapshot(roomName: model.roomName, states: model.rows.map(\.state), at: Date())
         return counts.needsYou + counts.running == 0 ? String(localized: "Tap to talk") : counts.summary
     }

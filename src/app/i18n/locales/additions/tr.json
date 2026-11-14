@@ -654,6 +654,7 @@
       "verifying": "Saat doğrulanıyor…",
       "connected": "{{deviceId}} olarak bağlı.",
       "disconnect": "Bağlantıyı kes",
+      "verify": "Doğrula",
       "unsupported": "Bu ana sunucu bir Apple Watch’ta oturum açamaz.",
       "failed": "Bağlanılamadı: {{reason}}",
       "noCrossSigning": "Saat bağlı ama doğrulanmadı: doğrulamak için bu iPhone’da şifrelemeyi ayarlayın.",

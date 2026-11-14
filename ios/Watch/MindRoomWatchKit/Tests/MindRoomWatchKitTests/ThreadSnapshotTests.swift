@@ -59,6 +59,43 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertNil(ThreadSnapshot.build(root: voiceRoot, related: [relay], ownUserId: me, now: now).reply)
     }
 
+    func testOnlyTheSendersOwnEditsCount() {
+        let reply = event("$reply", 2, inThread(["msgtype": "m.text", "body": "Booked."]))
+        let forged = event("$forged", 3, sender: "@anna:x", ["m.new_content": ["body": "Cancelled everything."] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$reply"] as JSON])
+        XCTAssertEqual(ThreadSnapshot.build(root: voiceRoot, related: [reply, forged], ownUserId: me, now: now).reply?.text, "Booked.")
+        let approved = event("$cardEdit", 4, sender: "@anna:x", type: "io.mindroom.tool_approval", ["m.new_content": ["status": "approved"] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$c"] as JSON])
+        XCTAssertEqual(ThreadSnapshot.build(root: voiceRoot, related: [card("$c", 3), approved], ownUserId: me, now: now).pendingApproval?.eventId, "$c")
+    }
+
+    func testAnEditedSummaryRetitlesTheThread() {
+        let summary = event("$sum", 6, sender: "@mindroom_router:x", inThread(["msgtype": "m.notice", "body": "Dentist",
+            "io.mindroom.thread_summary": ["version": 1, "summary": "Dentist"] as JSON]))
+        let edit = event("$sumEdit", 7, sender: "@mindroom_router:x", ["m.new_content": ["msgtype": "m.notice", "body": "Dentist on Friday",
+            "io.mindroom.thread_summary": ["version": 1, "summary": "Dentist on Friday"] as JSON] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$sum"] as JSON])
+        XCTAssertEqual(ThreadSnapshot.build(root: voiceRoot, related: [summary, edit], ownUserId: me, now: now).title, "Dentist on Friday")
+    }
+
+    func testAPushedEventActsOnlyWhereTheThreadDoes() {
+        let mine = card("$mine", 3)
+        let anna = card("$anna", 4, extra: ["approver_user_id": "@anna:x"])
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [mine, anna], ownUserId: me, now: now)
+        XCTAssertEqual(snapshot.pushed(eventId: "$mine"), .approval(snapshot.approvals[0], actionable: true))
+        XCTAssertEqual(snapshot.pushed(eventId: "$anna"), .approval(snapshot.approvals[1], actionable: false))
+        let asked = ThreadSnapshot.build(root: voiceRoot, related: [question("$q", 3)], ownUserId: me, now: now)
+        XCTAssertEqual(asked.pushed(eventId: "$q"), .question(asked.openQuestion!))
+        let stale = ThreadSnapshot.build(root: voiceRoot, related: [question("$q", 3)], ownUserId: me, now: Date(timeIntervalSince1970: 8 * 24 * 3600))
+        XCTAssertEqual(stale.pushed(eventId: "$q"), .message)
+    }
+
+    func testThreadRootOfAPushedEvent() {
+        XCTAssertEqual(ThreadSnapshot.threadRootId(of: question("$q", 3)), "$root")
+        XCTAssertEqual(ThreadSnapshot.threadRootId(of: voiceRoot), "$root")
+        XCTAssertEqual(ThreadSnapshot.threadRootId(of: event("$plain", 2, ["msgtype": "m.text", "body": "hi"])), "$plain")
+    }
+
     func testTextRootIsItsOwnTitleWithoutAnswer() {
         let root = event("$root", 1, sender: me, ["msgtype": "m.text", "body": "Book a table for **four**"])
         let snapshot = ThreadSnapshot.build(root: root, related: [], ownUserId: me, now: now)

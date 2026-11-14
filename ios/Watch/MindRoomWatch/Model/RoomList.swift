@@ -28,6 +28,11 @@ final class RoomList: ObservableObject {
             rooms = []
         }
     }
+
+    /// Loads the next 50 rooms (the picker reached its end).
+    func loadMore() {
+        result?.controller().addOnePage()
+    }
 }
 
 private final class RoomFeed: RoomListEntriesListener, @unchecked Sendable {

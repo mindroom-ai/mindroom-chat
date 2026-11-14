@@ -40,32 +40,40 @@ public struct ThreadSnapshot: Equatable, Sendable {
 
     public static func build(root: JSON, related: [JSON], ownUserId: String, now: Date) -> ThreadSnapshot {
         let rootId = root.eventId ?? ""
-        var latestEdits: [String: JSON] = [:]
-        var cardEdits: [JSON] = []
+        var edits: [JSON] = []
         var reactions: [JSON] = []
         var messages: [JSON] = []
         for event in related {
             let type = event["type"] as? String
             if type == "m.reaction" {
                 reactions.append(event)
-            } else if let target = event.replacedEventId {
-                if type == ApprovalCard.eventType { cardEdits.append(event) }
-                if (latestEdits[target]?.timestamp ?? -1) < event.timestamp { latestEdits[target] = event }
+            } else if event.replacedEventId != nil {
+                edits.append(event)
             } else if type == "m.room.message" || type == ApprovalCard.eventType {
                 messages.append(event)
             }
         }
         messages.sort { $0.timestamp < $1.timestamp }
+        // As the Matrix spec and the web client: only the sender's own edits replace a message.
+        var senders: [String: String] = [:]
+        for event in [root] + messages { if let id = event.eventId { senders[id] = event["sender"] as? String } }
+        var latestEdits: [String: JSON] = [:]
+        for event in edits {
+            guard let target = event.replacedEventId, let sender = senders[target], sender == event["sender"] as? String else { continue }
+            if (latestEdits[target]?.timestamp ?? -1) < event.timestamp { latestEdits[target] = event }
+        }
+        let cardEdits = edits.filter { $0["type"] as? String == ApprovalCard.eventType }
         let edit = { (event: JSON) in latestEdits[event.eventId ?? ""] }
 
         let isVoiceRoot = root.content["org.matrix.msc3245.voice"] is JSON || root.content["m.voice"] is JSON
         let transcript = messages.lazy
             .compactMap { VoiceEcho.transcript($0, latestEdit: edit($0)) }
             .first { $0.voiceEventId == rootId }?.text
-        let notices = messages.map { message in edit(message).map { e -> JSON in
+        // Each message as its newest edit says it (the whole new content, keeping its thread relation).
+        let notices = messages.map { message in edit(message).flatMap(\.newContent).map { newContent -> JSON in
             var merged = message
-            var content = message.content
-            content["body"] = e.newContent?["body"] ?? content["body"]
+            var content = newContent
+            content["m.relates_to"] = message.relation
             merged["content"] = content
             return merged
         } ?? message }
@@ -121,5 +129,31 @@ public struct ThreadSnapshot: Equatable, Sendable {
             pendingApproval: pendingApproval, openQuestion: openQuestion, latestEventId: latest.eventId ?? rootId, latestTs: latest.timestamp,
             latestFromMe: (latest["sender"] as? String) == ownUserId,
             latestRun: RunState.of(latest, latestEdit: edit(latest)))
+    }
+}
+
+/// What a pushed event lets the person do from its notification: the thread screen's own rules.
+public enum PushedState: Equatable, Sendable {
+    case approval(ApprovalCard, actionable: Bool)
+    case question(Question)
+    case message
+}
+
+extension ThreadSnapshot {
+    /// The pushed event as the thread shows it: a card only this person may decide is actionable, a question
+    /// only while it is the thread's open one.
+    public func pushed(eventId: String) -> PushedState {
+        if let card = approvals.first(where: { $0.eventId == eventId }) {
+            return .approval(card, actionable: pendingApproval?.eventId == eventId)
+        }
+        if let openQuestion, openQuestion.eventId == eventId { return .question(openQuestion) }
+        return .message
+    }
+
+    /// The root of the thread an event belongs to: its `m.thread` relation, a card's `thread_id`, else itself.
+    public static func threadRootId(of event: JSON) -> String {
+        if event.relation?["rel_type"] as? String == "m.thread", let root = event.relation?["event_id"] as? String { return root }
+        if event["type"] as? String == ApprovalCard.eventType, let root = event.content["thread_id"] as? String { return root }
+        return event.eventId ?? ""
     }
 }

@@ -690,6 +690,7 @@
       "verifying": "جارٍ التحقق من الساعة…",
       "connected": "متصل باسم ⁨{{deviceId}}⁩.",
       "disconnect": "قطع الاتصال",
+      "verify": "تحقّق",
       "unsupported": "لا يستطيع هذا الخادم تسجيل الدخول على Apple Watch.",
       "failed": "تعذّر الاتصال: ⁨{{reason}}⁩",
       "noCrossSigning": "الساعة متصلة لكنها غير موثّقة: أعدّ التشفير على هذا الـ iPhone لتوثيقها.",

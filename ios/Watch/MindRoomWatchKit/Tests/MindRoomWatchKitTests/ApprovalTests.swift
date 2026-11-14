@@ -49,10 +49,10 @@ final class ApprovalTests: XCTestCase {
 
     func testNewestEditStatusWins() throws {
         let parsed = try XCTUnwrap(ApprovalCard.parse(card()))
-        let approved: JSON = ["type": "io.mindroom.tool_approval", "origin_server_ts": 2, "content": [
+        let approved: JSON = ["type": "io.mindroom.tool_approval", "sender": "@mindroom_mind:x", "origin_server_ts": 2, "content": [
             "m.new_content": ["status": "approved"], "m.relates_to": ["rel_type": "m.replace", "event_id": "$card"],
         ]]
-        let olderDenied: JSON = ["type": "io.mindroom.tool_approval", "origin_server_ts": 1, "content": [
+        let olderDenied: JSON = ["type": "io.mindroom.tool_approval", "sender": "@mindroom_mind:x", "origin_server_ts": 1, "content": [
             "m.new_content": ["status": "denied"], "m.relates_to": ["rel_type": "m.replace", "event_id": "$card"],
         ]]
         XCTAssertEqual(parsed.applying(edits: [approved, olderDenied], now: before).status, .approved)

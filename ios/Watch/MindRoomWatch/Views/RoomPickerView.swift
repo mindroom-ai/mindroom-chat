@@ -19,6 +19,7 @@ struct RoomPickerView: View {
                         if room.id == selected { Image(systemName: "checkmark").foregroundStyle(.tint) }
                     }
                 }
+                .onAppear { if room.id == rooms.rooms.last?.id { rooms.loadMore() } }
             }
         }
         .navigationTitle(Text("Rooms"))

@@ -13,7 +13,7 @@ afterEach(() =>
 const fixture = () => {
   const root = mkdtempSync(join(tmpdir(), 'mindroom-macos-test-'));
   fixtures.push(root);
-  mkdirSync(join(root, 'scripts'));
+  mkdirSync(join(root, 'scripts/watch'), { recursive: true });
   mkdirSync(join(root, 'bin'));
   copyFileSync(resolve('scripts/build-macos-app.sh'), join(root, 'scripts/build-macos-app.sh'));
   writeFileSync(join(root, 'profile.provisionprofile'), 'fixture profile');
@@ -51,6 +51,14 @@ if (command === 'hdiutil') fs.writeFileSync(args[args.length - 1], 'fixture dmg'
     'hdiutil',
     'codesign',
   ].forEach((command) => writeFileSync(join(root, 'bin', command), stub, { mode: 0o755 }));
+  // The watch SDK download (scripts/watch/build-sdk.sh --fetch) is recorded like the tools.
+  writeFileSync(
+    join(root, 'scripts/watch/build-sdk.sh'),
+    stub.replace('path.basename(process.argv[1])', "'build-sdk.sh'"),
+    {
+      mode: 0o755,
+    }
+  );
   const env = {
     ...process.env,
     HOME: join(root, 'home'),
@@ -96,6 +104,18 @@ if (command === 'hdiutil') fs.writeFileSync(args[args.length - 1], 'fixture dmg'
 };
 
 describe('Mac release build script', () => {
+  it('fetches the watch SDK the Xcode project references before archiving', () => {
+    const { run } = fixture();
+    const result = run([]);
+    expect(result.status, result.stderr).toBe(0);
+    const order = result.commands.map(({ command }) => command);
+    expect(order.indexOf('build-sdk.sh')).toBeGreaterThan(-1);
+    expect(order.indexOf('build-sdk.sh')).toBeLessThan(order.indexOf('xcodebuild'));
+    expect(result.commands.find(({ command }) => command === 'build-sdk.sh')?.args).toEqual([
+      '--fetch',
+    ]);
+  });
+
   it('keeps unsigned archives unsigned and forwards both release version fields', () => {
     const { run } = fixture();
     const result = run([]);

@@ -663,6 +663,7 @@
       "verifying": "Verificando o relógio…",
       "connected": "Conectado como {{deviceId}}.",
       "disconnect": "Desconectar",
+      "verify": "Verificar",
       "unsupported": "Este servidor não consegue iniciar sessão num Apple Watch.",
       "failed": "Não foi possível conectar: {{reason}}",
       "noCrossSigning": "O relógio está conectado mas não verificado: configure a criptografia neste iPhone para verificá-lo.",

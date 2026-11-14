@@ -654,6 +654,7 @@
       "verifying": "Watch wird verifiziert…",
       "connected": "Verbunden als {{deviceId}}.",
       "disconnect": "Trennen",
+      "verify": "Verifizieren",
       "unsupported": "Dieser Homeserver kann keine Apple Watch anmelden.",
       "failed": "Verbindung fehlgeschlagen: {{reason}}",
       "noCrossSigning": "Die Watch ist verbunden, aber nicht verifiziert: Richte auf diesem iPhone die Verschlüsselung ein, um sie zu verifizieren.",

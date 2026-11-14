@@ -11,22 +11,25 @@ public enum ThreadTags {
         return ["set_by": userId, "set_at": formatter.string(from: date)]
     }
 
-    /// The roots whose thread is resolved and not pinned.
+    /// The roots whose thread is resolved and not pinned, as the web client reads them: a per-tag record
+    /// overrides the legacy per-thread tags, an empty one (a tombstone) removes the tag, and a pinned event
+    /// (`m.room.pinned_events`) never reads as resolved.
     public static func resolvedRoots(state: [JSON]) -> Set<String> {
-        var resolved = Set<String>(), pinned = Set<String>()
-        for event in state where event["type"] as? String == eventType {
-            guard let stateKey = event["state_key"] as? String else { continue }
+        var legacy = Set<String>(), perTag = Set<String>(), tombstones = Set<String>(), pinned = Set<String>()
+        for event in state {
+            if event["type"] as? String == "m.room.pinned_events" {
+                pinned.formUnion(event.content["pinned"] as? [String] ?? [])
+            }
+            guard event["type"] as? String == eventType, let stateKey = event["state_key"] as? String else { continue }
             let content = event.content
             if let parts = try? JSONSerialization.jsonObject(with: Data(stateKey.utf8)) as? [String], parts.count == 2 {
-                guard !content.isEmpty else { continue }
-                if parts[1] == "resolved" { resolved.insert(parts[0]) }
-                if parts[1] == "pinned" { pinned.insert(parts[0]) }
-            } else if let tags = content["tags"] as? JSON {
-                if tags["resolved"] != nil { resolved.insert(stateKey) }
-                if tags["pinned"] != nil { pinned.insert(stateKey) }
+                guard parts[1] == "resolved" else { continue }
+                if content.isEmpty { tombstones.insert(parts[0]) } else { perTag.insert(parts[0]) }
+            } else if let tags = content["tags"] as? JSON, tags["resolved"] != nil {
+                legacy.insert(stateKey)
             }
         }
-        return resolved.subtracting(pinned)
+        return legacy.subtracting(tombstones).union(perTag).subtracting(pinned)
     }
 
     private static func key(_ root: String, _ tag: String) -> String {
@@ -38,16 +41,6 @@ public enum ThreadTags {
 /// What a thread's row says at its end, most urgent first.
 public enum ThreadRowState: Equatable, Sendable {
     case failed, queued, needsYou, running, unread, idle(Date)
-
-    public static func of(latest: JSON?, latestEdit: JSON?, pendingApproval: Bool, openQuestion: Bool,
-                          lastSeenEventId: String?, sendFailed: Bool, queued: Bool) -> ThreadRowState {
-        if sendFailed { return .failed }
-        if queued { return .queued }
-        if pendingApproval || openQuestion { return .needsYou }
-        if let latest, RunState.of(latest, latestEdit: latestEdit) == .streaming { return .running }
-        if let id = latest?.eventId, id != lastSeenEventId { return .unread }
-        return .idle(Date(timeIntervalSince1970: Double(latest?.timestamp ?? 0) / 1000))
-    }
 }
 
 /// A recording's meter samples (dB, -160 to 0) as bars from 0 to 1.

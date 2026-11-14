@@ -663,6 +663,7 @@
       "verifying": "Vérification de la montre…",
       "connected": "Connectée en tant que {{deviceId}}.",
       "disconnect": "Déconnecter",
+      "verify": "Vérifier",
       "unsupported": "Ce serveur ne peut pas connecter une Apple Watch.",
       "failed": "Connexion impossible : {{reason}}",
       "noCrossSigning": "La montre est connectée mais non vérifiée : configurez le chiffrement sur cet iPhone pour la vérifier.",

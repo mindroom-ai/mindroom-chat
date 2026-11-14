@@ -645,6 +645,7 @@
       "verifying": "正在驗證手錶…",
       "connected": "已以 {{deviceId}} 連線。",
       "disconnect": "中斷連線",
+      "verify": "驗證",
       "unsupported": "此主伺服器無法登入 Apple Watch。",
       "failed": "無法連線：{{reason}}",
       "noCrossSigning": "手錶已連線但未驗證：請在此 iPhone 上設定加密以驗證它。",

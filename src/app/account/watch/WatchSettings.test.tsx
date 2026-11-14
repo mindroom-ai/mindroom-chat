@@ -33,12 +33,23 @@ const flow = vi.hoisted(() => ({
 }));
 vi.mock('./connectWatch', () => ({ connectWatch: flow.connect, verifyWatch: flow.verify }));
 
-const server = vi.hoisted(() => ({ deleteMultipleDevices: vi.fn(async () => ({})) }));
-vi.mock('../../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({
+const server = vi.hoisted(() => {
+  const state = {
+    deleteMultipleDevices: vi.fn(async () => ({})),
+    crossSigned: true,
+  };
+  // One client, as the app's context gives it.
+  const client = {
     getSafeUserId: () => '@bas:mindroom.chat',
-    deleteMultipleDevices: server.deleteMultipleDevices,
-  }),
+    deleteMultipleDevices: state.deleteMultipleDevices,
+    getCrypto: () => ({
+      getDeviceVerificationStatus: async () => ({ crossSigningVerified: state.crossSigned }),
+    }),
+  };
+  return Object.assign(state, { client });
+});
+vi.mock('../../matrix/hooks/useMatrixClient', () => ({
+  useMatrixClient: () => server.client,
 }));
 vi.mock('../uia/useAuthenticatedAction', () => ({
   useAuthenticatedAction: () => ({
@@ -83,6 +94,7 @@ const connectThenSignIn = async (device = { userId: '@bas:mindroom.chat', device
 
 describe('AppleWatch', () => {
   beforeEach(() => {
+    server.crossSigned = true;
     native.available = true;
     native.status = { paired: true, installed: true, reachable: true };
     flow.connect.mockResolvedValue({ kind: 'sent' });
@@ -105,6 +117,40 @@ describe('AppleWatch', () => {
     await renderSettings();
     expect(screen.getByText('No Apple Watch is paired with this iPhone.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull();
+  });
+
+  it('still disconnects a watch that is no longer paired', async () => {
+    native.status = {
+      paired: false,
+      installed: false,
+      reachable: false,
+      device: { userId: '@bas:mindroom.chat', deviceId: 'WATCH' },
+    };
+    await renderSettings();
+    expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy();
+  });
+
+  it('verifies again a connected watch the account has not cross-signed', async () => {
+    server.crossSigned = false;
+    native.status = {
+      ...native.status,
+      device: { userId: '@bas:mindroom.chat', deviceId: 'WATCH' },
+    };
+    await renderSettings();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+    });
+    expect(flow.verify).toHaveBeenCalledWith(expect.anything(), 'WATCH', native.sendSecrets);
+  });
+
+  it('offers no Verify for a cross-signed watch', async () => {
+    native.status = {
+      ...native.status,
+      device: { userId: '@bas:mindroom.chat', deviceId: 'WATCH' },
+    };
+    await renderSettings();
+    expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Verify' })).toBeNull();
   });
 
   it('says to install the watch app', async () => {

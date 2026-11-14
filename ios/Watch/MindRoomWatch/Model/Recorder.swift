@@ -75,8 +75,10 @@ final class Recorder: ObservableObject {
             levels.append(recorder.averagePower(forChannel: 0))
             elapsed = recorder.currentTime
         } else {
+            // Stopped by itself: the 5 minutes ran out (sent as is), or an interruption such as a call
+            // (the take waits for Send or Discard).
             isRecording = false
-            reachedLimit = true
+            if elapsed >= Self.maxDuration - 1 { reachedLimit = true }
         }
     }
 

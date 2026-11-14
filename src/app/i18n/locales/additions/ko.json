@@ -645,6 +645,7 @@
       "verifying": "워치 확인 중…",
       "connected": "{{deviceId}}(으)로 연결됨.",
       "disconnect": "연결 해제",
+      "verify": "인증",
       "unsupported": "이 홈서버는 Apple Watch에 로그인할 수 없습니다.",
       "failed": "연결할 수 없음: {{reason}}",
       "noCrossSigning": "워치가 연결되었지만 확인되지 않았습니다. 확인하려면 이 iPhone에서 암호화를 설정하세요.",

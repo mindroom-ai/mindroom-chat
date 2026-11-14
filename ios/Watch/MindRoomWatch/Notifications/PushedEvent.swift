@@ -4,10 +4,13 @@ import MindRoomWatchKit
 
 /// What a MindRoom push is about, read with the watch's own client: the push carries only the room
 /// and event ids (Sygnal's `event_id_only` format, or content the watch cannot read when encrypted).
+/// Its thread is read too, so a notification offers only what the thread screen would.
 enum PushedEvent {
-    case approval(ApprovalCard, roomId: String)
-    case question(Question, roomId: String)
-    case message(sender: String, text: String, roomId: String, threadId: String?)
+    /// `actionable` when the card waits for this person's decision.
+    case approval(ApprovalCard, actionable: Bool, roomId: String)
+    /// The thread's open question.
+    case question(Question, roomId: String, threadId: String)
+    case message(sender: String, text: String, roomId: String, threadId: String)
 
     static let category = "MINDROOM_EVENT"
 
@@ -19,20 +22,27 @@ enum PushedEvent {
               let room = try? client.getRoom(roomId: roomId),
               let jsons = try? await room.loadOrFetchEventJsonWithRelations(eventId: eventId),
               let event = jsons.first.flatMap(parse) else { return nil }
-        let related = jsons.dropFirst().compactMap(parse)
-        if let card = ApprovalCard.parse(event) {
-            return .approval(card.applying(edits: related, now: Date()), roomId: roomId)
+        let rootId = ThreadSnapshot.threadRootId(of: event)
+        let threadJsons = rootId == eventId ? jsons : (try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId)) ?? []
+        if let root = threadJsons.first.flatMap(parse) {
+            let snapshot = ThreadSnapshot.build(root: root, related: threadJsons.dropFirst().compactMap(parse), ownUserId: userId, now: Date())
+            switch snapshot.pushed(eventId: eventId) {
+            case let .approval(card, actionable): return .approval(card, actionable: actionable, roomId: roomId)
+            case let .question(question): return .question(question, roomId: roomId, threadId: rootId)
+            case .message: break
+            }
         }
-        let edits = related.filter { ($0["content"] as? [String: Any]).flatMap { ($0["m.relates_to"] as? [String: Any])?["rel_type"] as? String } == "m.replace" }
-        let latestEdit = edits.max { ($0["origin_server_ts"] as? Int ?? 0) < ($1["origin_server_ts"] as? Int ?? 0) }
-        let answered = related.contains { $0["type"] as? String == "m.reaction" && $0["sender"] as? String == userId }
-        if !answered, let question = Question.parse(event, latestEdit: latestEdit) {
-            return .question(question, roomId: roomId)
-        }
+        // The message as its sender's newest edit says it.
+        let sender = event["sender"] as? String
+        let latestEdit = jsons.dropFirst().compactMap(parse)
+            .filter { edit in
+                let relation = (edit["content"] as? [String: Any])?["m.relates_to"] as? [String: Any]
+                return relation?["rel_type"] as? String == "m.replace" && relation?["event_id"] as? String == eventId
+                    && edit["sender"] as? String == sender
+            }
+            .max { ($0["origin_server_ts"] as? Int ?? 0) < ($1["origin_server_ts"] as? Int ?? 0) }
         let content = (latestEdit?["content"] as? [String: Any])?["m.new_content"] as? [String: Any] ?? event["content"] as? [String: Any] ?? [:]
-        let relation = (event["content"] as? [String: Any])?["m.relates_to"] as? [String: Any]
-        let threadId = relation?["rel_type"] as? String == "m.thread" ? relation?["event_id"] as? String : nil
-        return .message(sender: event["sender"] as? String ?? "", text: PlainText.of(markdown: content["body"] as? String ?? ""),
-                        roomId: roomId, threadId: threadId ?? eventId)
+        return .message(sender: sender ?? "", text: PlainText.of(markdown: content["body"] as? String ?? ""),
+                        roomId: roomId, threadId: rootId)
     }
 }

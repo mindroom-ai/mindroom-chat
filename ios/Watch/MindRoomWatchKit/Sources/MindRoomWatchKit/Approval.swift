@@ -55,10 +55,11 @@ public struct ApprovalCard: Equatable, Sendable {
         event["type"] as? String == eventType ? event.replacedEventId : nil
     }
 
-    /// The card with the newest edit's status applied; a pending card past its expiry is expired.
+    /// The card with the newest edit's status applied (only the card sender's own edits count); a pending
+    /// card past its expiry is expired.
     public func applying(edits: [JSON], now: Date) -> ApprovalCard {
         let newest = edits
-            .filter { ApprovalCard.editTarget($0) == eventId }
+            .filter { ApprovalCard.editTarget($0) == eventId && $0["sender"] as? String == sender }
             .max { $0.timestamp < $1.timestamp }
         var status = (newest?.newContent?["status"] as? String).flatMap(ApprovalStatus.init(rawValue:)) ?? self.status
         if status == .pending, let expiresAt, expiresAt <= now { status = .expired }

@@ -24,6 +24,9 @@ final class MatrixSession: ObservableObject {
     @Published private(set) var syncState: SyncServiceState = .idle
     private(set) var syncService: SyncService?
     private var handles: [TaskHandle] = []
+    /// The last session change queued: connecting, restoring, importing secrets and signing out run one at a
+    /// time, so two clients never open the one store and a sign-out never misses a client still starting.
+    private var lastChange: Task<Void, Never>?
     /// Called with the new device after a sign-in, to tell the iPhone (WatchLink).
     var onSignedIn: ((String, String) -> Void)?
 
@@ -32,7 +35,21 @@ final class MatrixSession: ObservableObject {
         return nil
     }
 
+    private func serially(_ change: @escaping @MainActor () async -> Void) async {
+        let previous = lastChange
+        let task = Task { @MainActor in
+            await previous?.value
+            await change()
+        }
+        lastChange = task
+        await task.value
+    }
+
     func connect(_ message: WatchLinkMessage) async {
+        await serially { await self.connectNow(message) }
+    }
+
+    private func connectNow(_ message: WatchLinkMessage) async {
         guard case let .credentials(homeserverUrl, _, token, _) = message else { return }
         // A live session stays until the new one works: stale or repeated credentials must not sign the watch out.
         let signedIn = client != nil
@@ -45,7 +62,7 @@ final class MatrixSession: ObservableObject {
             let (data, response) = try await URLSession.shared.data(for: TokenLoginRequest.make(homeserverUrl: homeserverUrl, token: token))
             let result = try TokenLoginRequest.parse(data: data, status: (response as? HTTPURLResponse)?.statusCode ?? 0)
             // Connecting again replaces the old device.
-            if SessionStore.load() != nil { await signOut() }
+            if SessionStore.load() != nil { await signOutNow() }
             let session = Session(accessToken: result.accessToken, refreshToken: nil, userId: result.userId,
                                   deviceId: result.deviceId, homeserverUrl: homeserverUrl.absoluteString,
                                   oauthData: nil, slidingSyncVersion: .native)
@@ -60,20 +77,28 @@ final class MatrixSession: ObservableObject {
         }
     }
 
-    /// Opens the saved session, if there is one.
+    /// Opens the saved session, if there is one (and none is open or opening).
     func restore() async {
+        await serially { await self.restoreNow() }
+    }
+
+    private func restoreNow() async {
         guard client == nil, let session = SessionStore.load() else { return }
         state = .connecting
         do {
             try await start(session)
         } catch {
             log.error("restore failed: \(String(describing: error), privacy: .public)")
-            state = .failed(String(describing: error))
+            state = .failed(String(localized: "Could not connect"))
         }
     }
 
     /// Logs the device out on the server when it can, then forgets everything on the watch.
     func signOut() async {
+        await serially { await self.signOutNow() }
+    }
+
+    private func signOutNow() async {
         let userId = SessionStore.load()?.userId
         await syncService?.stop()
         if let client { try? await client.logout() }
@@ -85,7 +110,16 @@ final class MatrixSession: ObservableObject {
     /// Imports the account's secrets bundle the iPhone sent: verifies this device and turns key backup on,
     /// so the account's devices trust it and messages from before it signed in decrypt.
     func importSecrets(userId: String, bundle: String) async {
-        guard let client else { return }
+        await serially { await self.importSecretsNow(userId: userId, bundle: bundle) }
+    }
+
+    private func importSecretsNow(userId: String, bundle: String) async {
+        // The bundle may arrive while the app is still opening its session.
+        if client == nil { await restoreNow() }
+        guard let client, (try? client.userId()) == userId else {
+            log.error("secrets bundle for another account or no session")
+            return
+        }
         do {
             let secrets = try SecretsBundleWithUserId.fromJson(userId: userId, json: bundle)
             try await client.encryption().importSecretsBundle(secretsBundle: secrets)
@@ -141,6 +175,10 @@ final class MatrixSession: ObservableObject {
 
     /// The server no longer knows the token (signed out elsewhere, device deleted).
     private func revoked() async {
+        await serially { await self.revokedNow() }
+    }
+
+    private func revokedNow() async {
         log.notice("session revoked")
         let userId = SessionStore.load()?.userId
         await syncService?.stop()

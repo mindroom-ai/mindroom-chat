@@ -76,7 +76,8 @@ final class ThreadModel: ObservableObject {
         Task {
             repeat {
                 fetchAgain = false
-                try? await Task.sleep(nanoseconds: 300_000_000)
+                // Coalesces a streaming reply's edits: at most about one read a second.
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
                 await fetch()
             } while fetchAgain
             fetching = false
