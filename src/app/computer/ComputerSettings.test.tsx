@@ -96,7 +96,9 @@ describe('computer service settings', () => {
   });
 
   it('keeps a service the user previously saved', () => {
-    act(() => store.set(computerServicePreferenceAtom, 'https://custom.example'));
+    act(() => {
+      store.set(computerServicePreferenceAtom, 'https://custom.example');
+    });
     render();
     expect(input().props.value).toBe('https://custom.example');
     expect(loadComputerServicePreference()).toBe('https://custom.example');

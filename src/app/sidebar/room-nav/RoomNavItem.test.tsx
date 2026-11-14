@@ -227,8 +227,8 @@ describe('RoomNavItem avatar', () => {
   });
 
   it('frames the icon of a row shown under the room it is a sub-room of', () => {
-    expect(findByTestId(renderRoomNavItem(), 'room-icon')[0].props.subRoom).toBe(false);
-    expect(findByTestId(renderRoomNavItem({ subRoom: true }), 'room-icon')[0].props.subRoom).toBe(
+    expect(findByTestId(renderRoomNavItem(), 'room-icon')[0]!.props.subRoom).toBe(false);
+    expect(findByTestId(renderRoomNavItem({ subRoom: true }), 'room-icon')[0]!.props.subRoom).toBe(
       true
     );
   });
@@ -253,7 +253,7 @@ describe('RoomNavItem avatar', () => {
 
     const images = findByTestId(renderer, 'room-avatar-image');
     expect(images).toHaveLength(1);
-    expect(images[0].props).toMatchObject({
+    expect(images[0]!.props).toMatchObject({
       alt: 'Agent Room',
       src: 'https://media.example.org/avatar',
     });
@@ -290,7 +290,7 @@ describe('RoomNavItem avatar', () => {
     const renderer = renderRoomNavItem();
 
     act(() => {
-      findByTestId(renderer, 'room-avatar-image')[0].props.onError();
+      findByTestId(renderer, 'room-avatar-image')[0]!.props.onError();
     });
 
     expect(findByTestId(renderer, 'room-icon')).toHaveLength(1);
@@ -308,7 +308,7 @@ describe('RoomNavItem avatar', () => {
       );
     });
 
-    expect(findByTestId(renderer, 'room-avatar-image')[0].props.src).toBe(
+    expect(findByTestId(renderer, 'room-avatar-image')[0]!.props.src).toBe(
       'https://media.example.org/avatar-2'
     );
     expect(findByTestId(renderer, 'room-icon')).toHaveLength(0);
@@ -330,12 +330,12 @@ describe('RoomNavItem avatar', () => {
     const renderer = renderRoomNavItem({ direct: true, showAvatar: true });
 
     expect(testState.matrixMxcUrlToHttp).not.toHaveBeenCalled();
-    expect(findByTestId(renderer, 'room-avatar-image')[0].props.src).toBe(
+    expect(findByTestId(renderer, 'room-avatar-image')[0]!.props.src).toBe(
       'https://media.example.org/avatar'
     );
 
     act(() => {
-      findByTestId(renderer, 'room-avatar-image')[0].props.onError();
+      findByTestId(renderer, 'room-avatar-image')[0]!.props.onError();
     });
 
     expect(renderer.root.findAllByType('span').some((node) => node.children.includes('A'))).toBe(
@@ -350,7 +350,7 @@ describe('RoomNavItem avatar', () => {
     const renderer = renderRoomNavItem({ direct: true, showAvatar: true });
 
     expect(testState.matrixMxcUrlToHttp).toHaveBeenCalledTimes(1);
-    expect(findByTestId(renderer, 'room-avatar-image')[0].props.src).toBe(
+    expect(findByTestId(renderer, 'room-avatar-image')[0]!.props.src).toBe(
       'https://media.example.org/room-avatar'
     );
     expect(findByTestId(renderer, 'room-icon')).toHaveLength(0);
@@ -372,7 +372,7 @@ describe('RoomNavItem background jobs', () => {
     const indicators = jobsIndicators(renderRoomNavItem());
 
     expect(indicators).toHaveLength(1);
-    expect(indicators[0].props['aria-label']).toBe('Background jobs running');
+    expect(indicators[0]!.props['aria-label']).toBe('Background jobs running');
   });
 
   it('keeps the mark while the row is hovered, so its tooltip can name it', () => {

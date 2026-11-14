@@ -247,7 +247,7 @@ describe('RoomCanvasPanel', () => {
     render(event);
     await act(async () => undefined);
     act(() => {
-      room.emit(
+      (room as unknown as EventEmitter).emit(
         RoomEvent.Timeline,
         new MatrixEvent({ type: 'm.room.redaction', redacts: '$edit-2', content: {} }),
         room,
@@ -268,7 +268,7 @@ describe('RoomCanvasPanel', () => {
     await act(async () => undefined);
     // The newest edit is deleted and the client knows no other, so it shows the request again.
     act(() => {
-      room.emit(
+      (room as unknown as EventEmitter).emit(
         RoomEvent.Timeline,
         new MatrixEvent({ type: 'm.room.redaction', redacts: '$edit-3', content: {} }),
         room,
@@ -305,7 +305,7 @@ describe('RoomCanvasPanel', () => {
     expect(panels.props?.canvas.html).toBe('<p>Step 2</p>');
     act(() => {
       // The edit was only fetched, never loaded, so the timeline is where its deletion shows.
-      room.emit(
+      (room as unknown as EventEmitter).emit(
         RoomEvent.Timeline,
         new MatrixEvent({ type: 'm.room.redaction', redacts: '$edit-2', content: {} }),
         room,
@@ -417,7 +417,7 @@ describe('RoomCanvasPanel', () => {
     const invalid = edit('<p>Broken</p>', { id: '$edit-4', ts: 400 });
     (invalid.getContent()['m.new_content'] as Record<string, Record<string, unknown>>)[
       'io.mindroom.ui_action'
-    ].canvas = { title: '', html: '<p>Broken</p>' };
+    ]!.canvas = { title: '', html: '<p>Broken</p>' };
     broken.makeReplaced(invalid);
     act(() => {
       mx.emit(MatrixEventEvent.Replaced, broken);

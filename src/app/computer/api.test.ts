@@ -101,7 +101,7 @@ describe('computer session client', () => {
       });
       const stream = await client.createStream();
 
-      const createCall = request.mock.calls[0];
+      const createCall = request.mock.calls[0]!;
       expect(createCall[0]).toBe(`${apiUrl}/api/computers/sessions`);
       expect(createCall[1]).toMatchObject({
         cache: 'no-store',

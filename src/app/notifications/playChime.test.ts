@@ -45,7 +45,7 @@ describe('playChime', () => {
   it('plays the sound through Web Audio and closes the context when it ends', async () => {
     const played = playChime(SRC);
     await vi.advanceTimersByTimeAsync(0);
-    const [context] = FakeAudioContext.instances;
+    const context = FakeAudioContext.instances[0]!;
     expect(context.source.start).toHaveBeenCalledOnce();
 
     expect(fetch).toHaveBeenCalledWith(SRC, { signal: expect.any(AbortSignal) });
@@ -63,7 +63,7 @@ describe('playChime', () => {
   it('closes a context the autoplay policy never lets play', async () => {
     const played = playChime(SRC);
     await vi.advanceTimersByTimeAsync(0);
-    const [context] = FakeAudioContext.instances;
+    const context = FakeAudioContext.instances[0]!;
     expect(context.source.start).toHaveBeenCalledOnce();
 
     await vi.advanceTimersByTimeAsync(2499);
@@ -82,13 +82,13 @@ describe('playChime', () => {
 
     expect(FakeAudioContext.instances).toHaveLength(1);
 
-    FakeAudioContext.instances[0].source.onended?.();
+    FakeAudioContext.instances[0]!.source.onended?.();
     await played;
     const next = playChime(SRC);
     await vi.advanceTimersByTimeAsync(0);
 
     expect(FakeAudioContext.instances).toHaveLength(2);
-    FakeAudioContext.instances[1].source.onended?.();
+    FakeAudioContext.instances[1]!.source.onended?.();
     await next;
   });
 
@@ -97,14 +97,14 @@ describe('playChime', () => {
     vi.stubGlobal(
       'AudioContext',
       class extends FakeAudioContext {
-        decodeAudioData = vi.fn(() => Promise.reject(decodeError));
+        override decodeAudioData = vi.fn(() => Promise.reject(decodeError));
       }
     );
 
     await expect(playChime(SRC)).rejects.toBe(decodeError);
 
-    expect(FakeAudioContext.instances[0].close).toHaveBeenCalledOnce();
-    expect(FakeAudioContext.instances[0].source.start).not.toHaveBeenCalled();
+    expect(FakeAudioContext.instances[0]!.close).toHaveBeenCalledOnce();
+    expect(FakeAudioContext.instances[0]!.source.start).not.toHaveBeenCalled();
 
     await expect(playChime(SRC)).rejects.toBe(decodeError);
     expect(FakeAudioContext.instances).toHaveLength(2);

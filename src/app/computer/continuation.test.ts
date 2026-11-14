@@ -14,7 +14,7 @@ const sentFormattedBody = async (rawDisplayName: string | undefined): Promise<st
     sendMessage,
   } as unknown as MatrixClient;
   await sendComputerContinuation(mx, '!room:example.org', undefined, AGENT);
-  return sendMessage.mock.calls[0][1].formatted_body;
+  return sendMessage.mock.calls[0]![1].formatted_body;
 };
 
 describe('sendComputerContinuation', () => {

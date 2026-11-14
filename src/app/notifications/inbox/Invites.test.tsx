@@ -26,7 +26,7 @@ const myUserId = '@me:matrix.localhost';
 const mx = createClient({ baseUrl: 'https://matrix.example', userId: myUserId });
 
 // Stripped invite state: the server includes the inviter's member event.
-const inviteRoom = (inviterId: string, displayname: string): Room => {
+const inviteRoom = (inviterId: string, displayname: string | undefined): Room => {
   const roomId = '!invite:matrix.localhost';
   const room = new Room(roomId, mx, myUserId);
   room.currentState.setStateEvents([

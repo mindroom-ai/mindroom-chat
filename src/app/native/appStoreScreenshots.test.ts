@@ -47,7 +47,7 @@ describe('app store screenshot plan', () => {
 
     expect(
       APP_STORE_SCREENSHOT_SCENES.map((scene) =>
-        getAppStoreScreenshotFileName(APP_STORE_SCREENSHOT_DEVICES[0], scene)
+        getAppStoreScreenshotFileName(APP_STORE_SCREENSHOT_DEVICES[0]!, scene)
       )
     ).toEqual([
       '0_iphone-6-9_light_personal-workspace.png',
@@ -69,8 +69,8 @@ describe('app store screenshot plan', () => {
   it('writes screenshots into the fastlane locale folder', () => {
     expect(
       getAppStoreScreenshotRelativePath(
-        APP_STORE_SCREENSHOT_DEVICES[1],
-        APP_STORE_SCREENSHOT_SCENES[4]
+        APP_STORE_SCREENSHOT_DEVICES[1]!,
+        APP_STORE_SCREENSHOT_SCENES[4]!
       )
     ).toBe('ios/App/fastlane/screenshots/en-US/4_ipad-13_light_home-reminders.png');
   });
