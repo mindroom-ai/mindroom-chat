@@ -1263,9 +1263,12 @@ export const loadCachedThreadEvent = async (
     transaction.oncomplete = () => {
       const record = eventRequest.result as CachedEventRecord | undefined;
       const meta = metaRequest.result as CachedMetaRecord | undefined;
-      const raw = record ? record.rawEvent : eventId === threadId ? meta?.rootEvent : undefined;
+      // A copy that names another room is skipped; the root then comes from the meta row.
+      const own =
+        record && !isOtherRoomEvent(record.rawEvent, roomId) ? record.rawEvent : undefined;
+      const raw = own ?? (eventId === threadId ? meta?.rootEvent : undefined);
       resolve(
-        isOtherRoomEvent(meta?.rootEvent, roomId) || isOtherRoomEvent(raw, roomId)
+        isOtherRoomEvent(meta?.rootEvent, roomId)
           ? undefined
           : (toRawEventInternal(raw) as CachedThreadEvent | undefined)
       );
