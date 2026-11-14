@@ -1739,7 +1739,7 @@ describe('logoutClient', () => {
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
-  it("deletes the account's saved canvas state when the client has no device ID", async () => {
+  it("deletes the account's saved canvas state, event cache and native state when the client has no device ID", async () => {
     const { storage: localStorageMock } = createStorageMock();
     const deleteDatabase = createDeleteDatabaseMock();
     const reload = vi.fn();
@@ -1770,9 +1770,10 @@ describe('logoutClient', () => {
       stopClient: vi.fn(),
     } as never);
 
-    expect(deleteDatabase).toHaveBeenCalledWith(
-      getCanvasStateDbName(createSessionId('https://example.com', '@alice:example.com'))
-    );
+    const sessionId = createSessionId('https://example.com', '@alice:example.com');
+    expect(deleteDatabase).toHaveBeenCalledWith(getCanvasStateDbName(sessionId));
+    expect(vi.mocked(deleteCacheStoreDb)).toHaveBeenCalledWith(sessionId);
+    expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(sessionId);
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
