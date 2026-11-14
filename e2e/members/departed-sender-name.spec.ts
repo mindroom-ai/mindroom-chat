@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
+import { createRoom } from '../helpers/createRoom';
 import {
   CHROMIUM_WITH_SCROLLBARS,
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -48,10 +49,9 @@ const departedKeepsName = async (page: Page, browserName: string) => {
   await setDisplayName(host, 'Ari Host');
   await setDisplayName(member, DEPARTED_NAME);
   const roomName = `Departed probe ${browserName} ${RUN}`;
-  const { room_id: roomId } = await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
-    method: 'POST',
-    accessToken: host.accessToken,
-    body: JSON.stringify({ preset: 'private_chat', name: roomName, invite: [member.userId] }),
+  const roomId = await createRoom(HOMESERVER, host.accessToken, {
+    name: roomName,
+    invite: [member.userId],
   });
   await joinRoom(HOMESERVER, member.accessToken, roomId);
   const rootBody = `Release checklist for the departed probe ${browserName}`;

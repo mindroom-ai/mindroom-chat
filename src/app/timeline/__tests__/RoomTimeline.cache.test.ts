@@ -436,11 +436,11 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       }
     });
 
-    it('primes window-boundary grouping from the trailing edit, matching the sequential fold', async () => {
-      // Component-level pin for the primer wiring: a message that follows an
+    it('groups a window that starts after an edit as a fold from the top does', async () => {
+      // Component-level pin for the window-start fold: a message that follows an
       // edit must render UNCOLLAPSED when the virtual window starts on it,
-      // exactly as it does when the window includes the edit (the sequential
-      // path keeps the edit as prevEvent with isPrevRendered=false).
+      // exactly as it does when the window includes the edit (the edit has no
+      // row of its own and ends the author group).
       const { RoomTimeline } = await import('../RoomTimeline');
       const threadId = '$thread-root';
       const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
@@ -497,8 +497,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
           (node) => node.props?.['data-message-id'] === '$m2'
         )[0];
         expect(messageNode).toBeDefined();
-        // Reverting the primer wiring makes prevEvent the rendered $m1
-        // (same sender, <2min), which would collapse this row.
+        // A fold that looked past the edit would take the rendered $m1
+        // (same sender, <2min) as the row above and collapse this row.
         expect(messageNode.props.collapse).toBe(false);
       } finally {
         reactionOrEditEventMock.mockImplementation(() => false);
@@ -506,7 +506,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       }
     });
 
-    it('primes the pending day divider carried across a midnight-crossing edit', async () => {
+    it('carries the pending day divider across a midnight-crossing edit', async () => {
       const { RoomTimeline } = await import('../RoomTimeline');
       const DAY_MS = 86_400_000;
       const threadId = '$thread-root';
@@ -5078,21 +5078,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         });
       }
     });
-
-    // ISSUE-207 P3.3: removed six sweep-derived room→thread persist
-    // tests. Their subject was the pre-strip sweep in
-    // `roomCacheLifecycleController` calling
-    // `persistThreadCacheFromRoomEvents` on the room's loaded thread
-    // events. The sweep is gone with P3.3; the engine only sees
-    // LIVE events. Unit coverage for the
-    // `persistThreadCacheFromRoomEventsSnapshot` function itself
-    // lives in `eventRepository.test.ts`. Removed tests:
-    //   - 'marks room-derived thread cache snapshots complete only when the known reply count is satisfied'
-    //   - 'keeps room-derived thread cache snapshots incomplete when only a subset of replies is loaded'
-    //   - 'does not downgrade room-derived thread cache completeness when the room tail is still unknown'
-    //   - 'does not treat sdk thread length as authoritative when root counts are sparse'
-    //   - 'persists root-targeted relations into the thread cache during room cache persistence'
-    //   - 'persists redactions targeting thread replies into the thread cache during room cache persistence'
 
     it('leaves paginated event persistence to its captured operation', async () => {
       const { RoomTimeline } = await import('../RoomTimeline');

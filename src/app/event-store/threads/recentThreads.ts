@@ -208,7 +208,7 @@ export const makeRecentThreadsAtom = recentThreadsRegistry.getOrCreate;
 
 const getResolvedRecentThreadsAtom = (): RecentThreadsAtom | undefined => {
   const userId = getActiveSession()?.userId;
-  return recentThreadsRegistry.resolveActiveOrCreate(userId);
+  return userId ? recentThreadsRegistry.getOrCreate(userId) : undefined;
 };
 
 export const bumpRecentThread = (

@@ -236,13 +236,14 @@ describe('RoomPinMenu', () => {
     getEditedEventMock.mockReset();
     getEditedEventMock.mockReturnValue(undefined);
     navigateRoomMock.mockReset();
-    pinnedEventMock.getContent.mockClear();
-    pinnedEventMock.getId.mockClear();
-    pinnedEventMock.getSender.mockClear();
-    pinnedEventMock.getTs.mockClear();
-    pinnedEventMock.getType.mockClear();
-    pinnedEventMock.getUnsigned.mockClear();
-    pinnedEventMock.isRedacted.mockClear();
+    // Back to each mock's own implementation, without the return values a test set.
+    pinnedEventMock.getContent.mockRestore();
+    pinnedEventMock.getId.mockRestore();
+    pinnedEventMock.getSender.mockRestore();
+    pinnedEventMock.getTs.mockRestore();
+    pinnedEventMock.getType.mockRestore();
+    pinnedEventMock.getUnsigned.mockRestore();
+    pinnedEventMock.isRedacted.mockRestore();
     pinnedEventMock.replacingEvent.mockReset();
     pinnedEventMock.replacingEvent.mockReturnValue(undefined);
     renderMessageContentMock.mockReset();

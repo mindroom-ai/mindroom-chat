@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
 import { matrixFetch } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -15,7 +15,6 @@ import {
 // - the Leave Room confirmation takes focus as it opens, so a screen reader announces it;
 // - a long Latin name in a right-to-left list loses its end to the ellipsis, not its start.
 const PASSWORD = 'dialog-keyboard-paths-spec-password';
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const LONG_NAME = 'Sam Taylor with a considerably longer display name than usual';
 
 type Account = { username: string; userId: string; accessToken: string };
@@ -175,7 +174,7 @@ for (const [title, check] of CHECKS) {
   });
 
   test(`${title} (WebKit)`, async ({ baseURL }) => {
-    test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to run WebKit');
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to run WebKit');
     test.slow();
     const browser = await launchWebKit();
     try {

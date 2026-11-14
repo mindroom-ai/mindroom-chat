@@ -8,6 +8,7 @@ import {
   uniqueWord,
   type AgentStack,
 } from '../helpers/agentStack';
+import { createRoom } from '../helpers/createRoom';
 import { matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
@@ -91,14 +92,8 @@ const createAgentRoom = async (stack: AgentStack, name: string): Promise<string>
   return roomId;
 };
 
-const createPlainRoom = async (stack: AgentStack, name: string): Promise<string> =>
-  (
-    await matrixFetch<{ room_id: string }>(stack.homeserver, '/createRoom', {
-      method: 'POST',
-      accessToken: stack.tester.accessToken,
-      body: JSON.stringify({ name, preset: 'private_chat' }),
-    })
-  ).room_id;
+const createPlainRoom = (stack: AgentStack, name: string): Promise<string> =>
+  createRoom(stack.homeserver, stack.tester.accessToken, { name });
 
 /** Asks the helper in the room (a mention, as the composer sends it); its reply starts a thread. */
 const askHelper = async (stack: AgentStack, name: string, roomId: string): Promise<Stream> => {

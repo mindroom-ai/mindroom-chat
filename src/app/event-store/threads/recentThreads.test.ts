@@ -9,10 +9,11 @@ import {
 import { setImperativeJotaiStore } from '../../lib/state/jotaiStore';
 
 const USER_ID = '@alice:example.org';
+const activeSession = vi.hoisted(() => ({ userId: '@alice:example.org' }));
 
 vi.mock('../../matrix/session/sessions', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../matrix/session/sessions')>()),
-  getActiveSession: () => ({ userId: '@alice:example.org' }),
+  getActiveSession: () => activeSession,
 }));
 
 const createStorage = (): Storage => {
@@ -242,6 +243,16 @@ describe('recentThreads', () => {
     expect(getDefaultStore().get(recentThreadsAtom)).toEqual([]);
 
     unregisterStore();
+  });
+
+  it('records nothing while no account is signed in', () => {
+    activeSession.userId = '';
+    try {
+      bumpRecentThread('!room:example.org', '$thread', 200);
+      expect(getDefaultStore().get(makeRecentThreadsAtom(''))).toEqual([]);
+    } finally {
+      activeSession.userId = USER_ID;
+    }
   });
 
   it('updates a stored summary without changing recency order', () => {
