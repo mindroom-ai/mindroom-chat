@@ -276,8 +276,9 @@ describe('ThreadsNav', () => {
     ];
     const { container } = renderNav();
     fireEvent.click(screen.getByRole('radio', { name: 'All' }));
-    const toggle = screen.queryByRole('button', { name: /Snoozed/ });
-    if (toggle) fireEvent.click(toggle);
+    // It stays with the other quiet threads; no Snoozed group takes it.
+    expect(screen.queryByRole('button', { name: /Snoozed/ })).toBeNull();
+    expect(screen.getByText('Revisit pricing')).toBeTruthy();
     expect(container.querySelector('[data-thread-snoozed]')).toBeNull();
     expect(container.textContent).not.toContain('Snoozed until');
   });

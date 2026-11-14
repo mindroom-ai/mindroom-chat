@@ -1218,7 +1218,12 @@ describe('ThreadContextBanner rendering', () => {
       const renderer = renderBanner();
       const bannerClass = () =>
         renderer.root.findByProps({ 'data-thread-context-banner': 'true' }).props.className;
-      expect(JSON.stringify(renderer.toJSON())).toContain('Snoozed until in 30m');
+      expect(JSON.stringify(renderer.toJSON())).toContain(
+        `Snoozed until ${new Intl.DateTimeFormat('en', {
+          hour: 'numeric',
+          minute: '2-digit',
+        }).format(Date.parse('2026-11-13T10:30:00Z'))}`
+      );
       expect(snoozedRows(renderer)).toHaveLength(1);
       expect(bannerClass()).toBe('BannerSnoozed');
       act(() => {
