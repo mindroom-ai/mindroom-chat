@@ -3542,7 +3542,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
           threadRootId: threadId,
           ts: 2,
         }),
-      ] as never;
+      ];
       vi.mocked(loadLatestCachedThreadEvents).mockResolvedValueOnce({
         beforeToken: null,
         events: [
