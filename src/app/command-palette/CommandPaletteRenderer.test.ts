@@ -299,7 +299,7 @@ describe('CommandPaletteRenderer', () => {
     const { renderer, store } = renderRenderer('all');
 
     await act(async () => {
-      findCloseButtons(renderer)[0].props.onClick();
+      findCloseButtons(renderer)[0]!.props.onClick();
     });
 
     expect(store.get(commandPaletteOpenAtom)).toBeUndefined();

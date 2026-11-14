@@ -177,7 +177,7 @@ describe('matrix upload errors', () => {
     });
 
     expect(onError).toHaveBeenCalledOnce();
-    expect(onError.mock.calls[0][0]).toMatchObject({
+    expect(onError.mock.calls[0]![0]).toMatchObject({
       errcode: 'M_UNKNOWN',
       message: expect.stringContaining('The operation was aborted.'),
     });

@@ -124,7 +124,7 @@ describe('model picker hook ownership', () => {
       await vi.advanceTimersByTimeAsync(12000);
     });
     expect(state!.eligible).toBe(true);
-    expect(state!.models[0].key).toBe('fast');
+    expect(state!.models[0]!.key).toBe('fast');
     await act(async () => {
       renderer!.update(render());
       await flush();

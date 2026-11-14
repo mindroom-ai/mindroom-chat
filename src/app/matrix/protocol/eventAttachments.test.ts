@@ -24,7 +24,7 @@ const saveAndReadCoverage = async (...args: Parameters<typeof prefetchEventAttac
   await prefetchEventAttachments(...args);
   return readRoomAttachmentStorage(
     createSessionId(args[0].getHomeserverUrl(), args[0].getSafeUserId()),
-    args[1][0].getRoomId()!
+    args[1][0]!.getRoomId()!
   );
 };
 
@@ -259,7 +259,7 @@ it('keeps body coverage incomplete after quota failure while interactive bytes r
   const original = IDBObjectStore.prototype.put;
   const put = vi
     .spyOn(IDBObjectStore.prototype, 'put')
-    .mockImplementation(function failBlob(value, key) {
+    .mockImplementation(function failBlob(this: IDBObjectStore, value, key) {
       if (this.name === 'attachments') throw new DOMException('Storage full', 'QuotaExceededError');
       return key === undefined ? original.call(this, value) : original.call(this, value, key);
     });
@@ -336,7 +336,7 @@ it('ignores foreign-sender and unresolved edits when tracking essential ownershi
     },
   });
   expect(collectEventAttachments([root, foreign])).toHaveLength(1);
-  expect(collectEventAttachments([root, foreign])[0].attachments[0].mxcUri).toBe(
+  expect(collectEventAttachments([root, foreign])[0]!.attachments[0]!.mxcUri).toBe(
     'mxc://test/protected'
   );
   expect(collectEventAttachments([foreign])).toEqual([]);

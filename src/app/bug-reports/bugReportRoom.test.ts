@@ -119,7 +119,7 @@ describe('ensureBugReportRoom', () => {
     });
     const result = await ensureBugReportRoom(mx as never, ['@admin:example.com', ME]);
     expect(result.roomId).toBe('!new:example.com');
-    const request = mx.createRoom.mock.calls[0][0] as Record<string, unknown>;
+    const request = mx.createRoom.mock.calls[0]![0] as Record<string, unknown>;
     expect(request).toMatchObject({
       name: 'Bug reports · Alice',
       preset: 'private_chat',
@@ -154,7 +154,7 @@ describe('ensureBugReportRoom', () => {
     });
     const result = await ensureBugReportRoom(mx as never, ['@admin:example.com']);
     expectNewRoomReplacingStored(mx, result);
-    expect(mx.createRoom.mock.calls[0][0]).toMatchObject({ invite: ['@admin:example.com'] });
+    expect(mx.createRoom.mock.calls[0]![0]).toMatchObject({ invite: ['@admin:example.com'] });
   });
 
   it('moves to a new room when someone other than an admin was invited to the stored room', async () => {
@@ -294,7 +294,7 @@ describe('ensureBugReportRoom', () => {
     const mx = client();
     const result = await ensureBugReportRoom(mx as never, [ME]);
     expect(result.roomId).toBe('!new:example.com');
-    expect(mx.createRoom.mock.calls[0][0]).toMatchObject({ invite: [] });
+    expect(mx.createRoom.mock.calls[0]![0]).toMatchObject({ invite: [] });
     expect(mx.invite).not.toHaveBeenCalled();
   });
 });

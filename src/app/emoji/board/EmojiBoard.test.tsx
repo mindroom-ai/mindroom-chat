@@ -70,7 +70,7 @@ const clickItem = (attributes: Record<string, string>) => {
     matches: (selector: string) => selector === 'button',
     getAttribute: (name: string) => attributes[name] ?? null,
   };
-  const list = renderer!.root.findAll((node) => typeof node.props.onMouseMove === 'function')[0];
+  const list = renderer!.root.findAll((node) => typeof node.props.onMouseMove === 'function')[0]!;
   act(() =>
     list.props.onClick({
       nativeEvent: { composedPath: () => [button] },

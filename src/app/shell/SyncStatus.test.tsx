@@ -1,5 +1,4 @@
 import { EventEmitter } from 'events';
-import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { ClientEvent, MatrixClient, SyncState } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

@@ -624,7 +624,7 @@ describe('hydrateLongTextSource', () => {
     );
     const cacheOwner = {};
     const loader = vi
-      .fn<[], Promise<string>>()
+      .fn<() => Promise<string>>()
       .mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValueOnce(JSON.stringify({ msgtype: 'm.text', body: 'Recovered' }));
 
@@ -654,7 +654,7 @@ describe('hydrateLongTextSource', () => {
     // finally-cleanup fires before registration and a resolved preview
     // promise stays in the map forever.
     const loader = vi
-      .fn<[], Promise<string>>()
+      .fn<() => Promise<string>>()
       .mockImplementationOnce(() => {
         throw new Error('sync failure');
       })

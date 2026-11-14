@@ -180,10 +180,14 @@ describe('useRelativeTime', () => {
     });
     onRender.mockClear();
     for (let tick = 0; tick < 5; tick += 1) {
-      act(() => vi.advanceTimersByTime(secondsToMs(10)));
+      act(() => {
+        vi.advanceTimersByTime(secondsToMs(10));
+      });
     }
     expect(onRender).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(secondsToMs(10)));
+    act(() => {
+      vi.advanceTimersByTime(secondsToMs(10));
+    });
     expect(onRender).toHaveBeenCalledTimes(1);
     expect(onRender).toHaveBeenLastCalledWith('11m ago');
     act(() => renderer!.unmount());

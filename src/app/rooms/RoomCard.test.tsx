@@ -76,7 +76,7 @@ const makeMx = (
     getLiveTimeline: () => ({
       getState: () => ({ getStateEvents: () => null }),
     }),
-  } as Room;
+  } as unknown as Room;
   const mx: MockMatrixClient = {
     getRoom: vi.fn((roomId: string) =>
       membership && roomId === '!private:example.org' ? room : null
@@ -173,7 +173,7 @@ describe('RoomCard room access', () => {
   });
 
   it('offers the same request flow for knock-restricted rooms', () => {
-    const { renderer } = renderRoomCard('knock_restricted');
+    const { renderer } = renderRoomCard('knock_restricted' as RoomAccessJoinRule);
 
     expect(renderer.root.findAll((node) => node.children.includes('Request to join'))).toHaveLength(
       1

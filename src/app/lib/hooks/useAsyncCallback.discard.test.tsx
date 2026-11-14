@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { revokeBlobUrl, useBlobUrlCleanup } from './useBlobUrlCleanup';
@@ -59,7 +59,7 @@ describe('useAsyncCallback discarded result ownership', () => {
   it('revokes blob results discarded after replacement and unmount', async () => {
     const requests = [createDeferred<void>(), createDeferred<void>()];
     const request = vi.fn(async (requestIndex: number) => {
-      await requests[requestIndex].promise;
+      await requests[requestIndex]!.promise;
       return URL.createObjectURL(new Blob([String(requestIndex)]));
     });
     let load!: AsyncCallback<[number], string>;
@@ -85,14 +85,14 @@ describe('useAsyncCallback discarded result ownership', () => {
       await Promise.resolve();
     });
 
-    requests[0].resolve();
+    requests[0]!.resolve();
     await expect(replacedRequest).rejects.toThrow('AsyncCallbackHook: Request replaced!');
     expect(outstandingUrls).toHaveLength(0);
 
     act(() => {
       renderer.unmount();
     });
-    requests[1].resolve();
+    requests[1]!.resolve();
     await expect(unmountedRequest).resolves.toBe('blob:async-discard-1');
     expect(outstandingUrls).toHaveLength(0);
     expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2);
