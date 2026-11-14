@@ -40,27 +40,27 @@ test('propagates active-account switches across tabs without crashing', async ({
 
   await loginWithPassword(page, {
     homeserver,
-    username: secondaryCredentials.username,
-    password: secondaryCredentials.password,
+    username: secondaryCredentials!.username,
+    password: secondaryCredentials!.password,
     addAccount: true,
   });
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
-  await expectActiveStoredUsername(page, secondaryCredentials.username);
+  await expectActiveStoredUsername(page, secondaryCredentials!.username);
 
   const pageTwo = await context.newPage();
   const pageTwoDiagnostics = attachBrowserDiagnostics(pageTwo);
   await pageTwo.goto('/home/');
   await expectLoggedInShellStable(pageTwo, { durationMs: 6_000, sampleIntervalMs: 300 });
-  await expectActiveStoredUsername(pageTwo, secondaryCredentials.username);
+  await expectActiveStoredUsername(pageTwo, secondaryCredentials!.username);
 
   await switchToStoredUsername(page, primaryCredentials.username);
   await expect(page).toHaveURL(/\/home\/?$/);
   await expectLoggedInShellStable(pageTwo, { durationMs: 6_000, sampleIntervalMs: 300 });
   await expectActiveStoredUsername(pageTwo, primaryCredentials.username);
 
-  await switchToStoredUsername(pageTwo, secondaryCredentials.username);
+  await switchToStoredUsername(pageTwo, secondaryCredentials!.username);
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
-  await expectActiveStoredUsername(page, secondaryCredentials.username);
+  await expectActiveStoredUsername(page, secondaryCredentials!.username);
 
   await expectNoUnexpectedBrowserDiagnostics(pageOneDiagnostics, 'multi-tab switch page one');
   await expectNoUnexpectedBrowserDiagnostics(pageTwoDiagnostics, 'multi-tab switch page two');
@@ -88,18 +88,18 @@ test('propagates logout fallback across tabs without crashing', async ({ page, c
 
   await loginWithPassword(page, {
     homeserver,
-    username: secondaryCredentials.username,
-    password: secondaryCredentials.password,
+    username: secondaryCredentials!.username,
+    password: secondaryCredentials!.password,
     addAccount: true,
   });
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
-  await expectActiveStoredUsername(page, secondaryCredentials.username);
+  await expectActiveStoredUsername(page, secondaryCredentials!.username);
 
   const pageTwo = await context.newPage();
   const pageTwoDiagnostics = attachBrowserDiagnostics(pageTwo);
   await pageTwo.goto('/home/');
   await expectLoggedInShellStable(pageTwo, { durationMs: 6_000, sampleIntervalMs: 300 });
-  await expectActiveStoredUsername(pageTwo, secondaryCredentials.username);
+  await expectActiveStoredUsername(pageTwo, secondaryCredentials!.username);
 
   await logoutActiveAccount(page);
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });

@@ -14,8 +14,8 @@ const cardGeometry = (page: Page) =>
         Number.parseFloat(style.borderRightWidth) -
         Number.parseFloat(style.paddingRight);
       const [titleRow, previewRow] = Array.from(card.children);
-      const title = titleRow.firstElementChild!;
-      const preview = previewRow.firstElementChild!;
+      const title = titleRow!.firstElementChild!;
+      const preview = previewRow!.firstElementChild!;
       const metadata = card.querySelector('[data-compact-card-metadata="true"]');
       const menu = card.parentElement!.querySelector('[aria-label="More options"]');
       return {
@@ -24,7 +24,7 @@ const cardGeometry = (page: Page) =>
         titleLeft: rect(title).left,
         previewLeft: rect(preview).left,
         previewRight: rect(preview).right,
-        previewHasCount: previewRow.querySelector('[data-compact-card-reply-count]') !== null,
+        previewHasCount: previewRow!.querySelector('[data-compact-card-reply-count]') !== null,
         metadataCenter: (rect(metadata).top + rect(metadata).bottom) / 2,
         menuCenter: (rect(menu).top + rect(menu).bottom) / 2,
       };
@@ -101,7 +101,7 @@ test.describe('compact card swipe', () => {
       const [first, ...rest] = points;
       await touch.send('Input.dispatchTouchEvent', {
         type: 'touchStart',
-        touchPoints: [{ ...first, id: 1 }],
+        touchPoints: [{ ...first!, id: 1 }],
       });
       for (const point of rest) {
         await touch.send('Input.dispatchTouchEvent', {

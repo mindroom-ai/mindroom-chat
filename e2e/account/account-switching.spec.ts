@@ -46,12 +46,12 @@ test('restores per-account routes, survives reload, and removes an inactive acco
 
   await loginWithPassword(page, {
     homeserver,
-    username: secondaryCredentials.username,
-    password: secondaryCredentials.password,
+    username: secondaryCredentials!.username,
+    password: secondaryCredentials!.password,
     addAccount: true,
   });
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
-  await expectActiveStoredUsername(page, secondaryCredentials.username);
+  await expectActiveStoredUsername(page, secondaryCredentials!.username);
 
   await page.goto('/home/join/');
   await expect(page).toHaveURL(/\/home\/join\/?$/);
@@ -59,17 +59,17 @@ test('restores per-account routes, survives reload, and removes an inactive acco
   await switchToStoredUsername(page, primaryCredentials.username);
   await expect(page).toHaveURL(/\/home\/create\/?$/);
 
-  await switchToStoredUsername(page, secondaryCredentials.username);
+  await switchToStoredUsername(page, secondaryCredentials!.username);
   await expect(page).toHaveURL(/\/home\/join\/?$/);
 
   await page.reload();
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
-  await expectActiveStoredUsername(page, secondaryCredentials.username);
+  await expectActiveStoredUsername(page, secondaryCredentials!.username);
   await expect(page).toHaveURL(/\/home\/join\/?$/);
 
   await removeInactiveStoredUsername(page, primaryCredentials.username);
   await expectAccountRailCount(page, 2);
-  await expectActiveStoredUsername(page, secondaryCredentials.username);
+  await expectActiveStoredUsername(page, secondaryCredentials!.username);
 
   await expectNoUnexpectedBrowserDiagnostics(
     diagnostics,

@@ -78,7 +78,7 @@ for (const [themeId, width] of [
         ['/home/', 'Home'],
         ['/direct/', 'Direct Messages'],
         ['/explore/', 'Explore Community'],
-      ]) {
+      ] as const) {
         // eslint-disable-next-line no-await-in-loop
         await navigate(path);
         const header = panel.locator('header').filter({ hasText: title });
@@ -223,7 +223,7 @@ for (const [themeId, width] of [
       await page.setViewportSize({ width, height: 640 });
       await page.keyboard.press('Escape');
       // Room settings uses the same navigation primitive inside the glass modal.
-      await navigate('/home/' + encodeURIComponent(rooms[0]));
+      await navigate('/home/' + encodeURIComponent(rooms[0]!));
       const roomHeader = page.locator('header').filter({ hasText: '01 · Design studio' });
       await roomHeader.getByRole('button').last().click();
       await page.getByRole('menuitem', { name: 'Room Settings', exact: true }).click();
