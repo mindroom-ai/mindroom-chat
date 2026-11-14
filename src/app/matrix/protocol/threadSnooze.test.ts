@@ -33,6 +33,17 @@ describe('getSnoozeEndedNote', () => {
     ).toBe('ask @code: then ship');
   });
 
+  it('takes the note after the marker text, not after an earlier colon', () => {
+    expect(
+      getSnoozeEndedNote(
+        message({
+          body: '> <@bas:x> re: launch\n\n⏰ Snooze ended: check CI',
+          [THREAD_SNOOZE_CONTENT_KEY]: ended,
+        })
+      )
+    ).toBe('check CI');
+  });
+
   it('gives undefined for one without a note', () => {
     expect(
       getSnoozeEndedNote(message({ body: '⏰ Snooze ended', [THREAD_SNOOZE_CONTENT_KEY]: ended }))
