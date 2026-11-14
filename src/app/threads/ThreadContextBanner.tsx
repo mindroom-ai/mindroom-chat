@@ -120,7 +120,7 @@ export function ThreadContextBanner({
   const { scheduledTaskCount, nextScheduledTs, cronDescription, scheduledDisplayText } =
     useThreadHeaderInfo(room, threadId);
   const { tags, isResolved, canEdit, availableTags } = useThreadTags(room, rootEventId);
-  const { addTag, removeTag, setResolved, updating, error } = useMutateThreadTags(room);
+  const { addTag, removeTag, setResolved, unsnooze, updating, error } = useMutateThreadTags(room);
   const threadRootId = rootEventId ?? threadId;
   const canOpenMenu = isConfirmedMatrixEventId(threadRootId);
   const [menu, setMenu] = useState<BannerMenuState>();
@@ -264,6 +264,10 @@ export function ThreadContextBanner({
     if (!mutableThreadRootId || isPinned) return;
     setResolved(mutableThreadRootId, !headerModel.isResolved);
   }, [mutableThreadRootId, headerModel.isResolved, setResolved, isPinned]);
+  const handleUnsnooze = useCallback(() => {
+    if (!mutableThreadRootId) return;
+    void unsnooze(mutableThreadRootId);
+  }, [mutableThreadRootId, unsnooze]);
   const resolveDisabled = !headerModel.canEdit || headerModel.pickerDisabled || pinning.updating;
   // Not a thread that a side panel in the conversation's place hides.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
@@ -483,6 +487,17 @@ export function ThreadContextBanner({
                           {snoozedText}
                         </Text>
                       </Box>
+                      {headerModel.canEdit && (
+                        <button
+                          type="button"
+                          className={css.SnoozeAction}
+                          data-thread-unsnooze="true"
+                          disabled={headerModel.pickerDisabled}
+                          onClick={handleUnsnooze}
+                        >
+                          {t('thread.unsnooze')}
+                        </button>
+                      )}
                     </Box>
                   )}
                   {showResolver && (

@@ -936,9 +936,20 @@
     "notFound": "لم يُعثر على السلسلة",
     "snoozedUntil": "مؤجّل حتى ⁨{{time}}⁩",
     "snoozeEnded": "انتهى التأجيل",
+    "snooze": "تأجيل",
+    "unsnooze": "إلغاء التأجيل",
     "status": {
       "snoozed": "مؤجلة"
     }
+  },
+  "threadSnooze": {
+    "title": "تأجيل حتى",
+    "inOneHour": "بعد ساعة",
+    "inThreeHours": "بعد 3 ساعات",
+    "tomorrow": "غدًا 09:00",
+    "nextMonday": "الاثنين القادم 09:00",
+    "pickDateTime": "اختيار التاريخ والوقت",
+    "pastTime": "اختر وقتًا في المستقبل"
   },
   "activity": {
     "title": "النشاط",

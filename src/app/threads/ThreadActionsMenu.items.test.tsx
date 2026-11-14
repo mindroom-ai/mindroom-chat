@@ -19,6 +19,8 @@ vi.mock('../ui/styles/Motion.css', () => ({
 
 const state = vi.hoisted(() => ({
   resolved: false,
+  canEdit: true,
+  snoozedUntilTs: undefined as number | undefined,
   pinned: [] as string[],
   members: [] as { userId: string; membership: string }[],
 }));
@@ -26,11 +28,15 @@ vi.mock('./tags/useThreadTags', () => ({
   useThreadTags: () => ({
     displayTags: ['triage'],
     availableTags: [],
-    canEdit: true,
+    canEdit: state.canEdit,
     isResolved: state.resolved,
+    snoozedUntilTs: state.snoozedUntilTs,
   }),
 }));
-vi.mock('./tags/useMutateThreadTags', () => ({ useMutateThreadTags: () => ({ updating: false }) }));
+const mutations = vi.hoisted(() => ({ snooze: vi.fn(), unsnooze: vi.fn() }));
+vi.mock('./tags/useMutateThreadTags', () => ({
+  useMutateThreadTags: () => ({ updating: false, ...mutations }),
+}));
 vi.mock('../event-store/threads/useThreadPinning', () => ({
   useThreadPinning: () => ({ pinnedEventIds: state.pinned, canPin: true, updating: false }),
 }));
@@ -74,7 +80,11 @@ let root: Root;
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   state.resolved = false;
+  state.canEdit = true;
+  state.snoozedUntilTs = undefined;
   state.pinned = [];
+  mutations.snooze.mockReset();
+  mutations.unsnooze.mockReset();
   state.members = [];
   host = document.createElement('div');
   document.body.append(host);
@@ -121,6 +131,7 @@ describe('ThreadActionsMenu rows', () => {
       { action: 'editSummary', label: 'Edit summary', icon: glyph(Icons.Pencil) },
       { action: 'regenerate', label: 'Regenerate summary', icon: glyph(Icons.Bulb) },
       { action: 'resolve', label: 'Resolve', icon: glyph(Icons.CheckTwice) },
+      { action: 'snooze', label: 'Snooze', icon: glyph(Icons.Clock) },
       { action: 'pin', label: 'Pin thread', icon: glyph(Icons.Pin) },
       { action: 'copy', label: 'Copy thread link', icon: glyph(Icons.Link) },
       { action: 'hideDetails', label: 'Hide thread details', icon: glyph(Icons.ChevronTop) },
@@ -203,6 +214,76 @@ describe('ThreadActionsMenu rows', () => {
 
     expect(menu?.style.minWidth).toBe('13.75rem');
     expect(menu?.style.borderRadius).toBe(config.radii.R500);
+  });
+});
+
+describe("ThreadActionsMenu's snooze", () => {
+  it('offers Snooze on an open thread and Unsnooze on a snoozed one', async () => {
+    mutations.snooze.mockResolvedValue(true);
+    const onClose = vi.fn();
+    const items = renderMenu({ onClose });
+    expect(rowOf(items, 'snooze')?.textContent).toBe('Snooze');
+
+    const before = Date.now();
+    act(() => rowOf(items, 'snooze')?.click());
+    const preset = [...host.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find((node) =>
+      node.textContent?.startsWith('In 1 hour')
+    );
+    expect(host.querySelector('[role="menu"]')?.getAttribute('aria-label')).toBe('Snooze until');
+    await act(async () => preset?.click());
+    expect(mutations.snooze).toHaveBeenCalledOnce();
+    const [rootId, until] = mutations.snooze.mock.calls[0] as [string, Date];
+    expect(rootId).toBe('$root');
+    expect(until.getTime()).toBeGreaterThanOrEqual(before + 3600_000);
+    expect(until.getTime()).toBeLessThanOrEqual(Date.now() + 3600_000);
+    expect(onClose).toHaveBeenCalled();
+
+    act(() => root.unmount());
+    root = createRoot(host);
+    state.snoozedUntilTs = Date.now() + 60_000;
+    const snoozed = renderMenu();
+    expect(rowOf(snoozed, 'snooze')?.textContent).toBe('Unsnooze');
+    act(() => rowOf(snoozed, 'snooze')?.click());
+    expect(mutations.unsnooze).toHaveBeenCalledWith('$root');
+  });
+
+  it('keeps the picker open with the error when the snooze fails to save', async () => {
+    mutations.snooze.mockResolvedValue(false);
+    const onClose = vi.fn();
+    const items = renderMenu({ onClose });
+    act(() => rowOf(items, 'snooze')?.click());
+    const preset = [...host.querySelectorAll<HTMLElement>('[role="menuitemradio"]')][0];
+
+    await act(async () => preset?.click());
+
+    expect(mutations.snooze).toHaveBeenCalledOnce();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(host.querySelector('[role="menu"]')?.getAttribute('aria-label')).toBe('Snooze until');
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(
+      'Could not complete this action. Please try again.'
+    );
+  });
+
+  it('reads a snooze whose time has passed as no snooze', () => {
+    state.snoozedUntilTs = Date.now() - 1;
+    expect(rowOf(renderMenu(), 'snooze')?.textContent).toBe('Snooze');
+  });
+
+  it('offers neither on a resolved thread or without permission, and only Unsnooze on a pinned one', () => {
+    state.resolved = true;
+    expect(rowOf(renderMenu(), 'snooze')).toBeUndefined();
+
+    state.resolved = false;
+    state.pinned = ['$root'];
+    expect(rowOf(renderMenu(), 'snooze')).toBeUndefined();
+    // A snooze set before the pin can still be lifted.
+    state.snoozedUntilTs = Date.now() + 60_000;
+    expect(rowOf(renderMenu(), 'snooze')?.textContent).toBe('Unsnooze');
+
+    state.pinned = [];
+    state.canEdit = false;
+    state.snoozedUntilTs = Date.now() + 60_000;
+    expect(rowOf(renderMenu(), 'snooze')).toBeUndefined();
   });
 });
 

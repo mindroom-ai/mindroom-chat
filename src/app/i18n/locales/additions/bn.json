@@ -876,9 +876,20 @@
     "notFound": "থ্রেড পাওয়া যায়নি",
     "snoozedUntil": "{{time}} পর্যন্ত স্থগিত",
     "snoozeEnded": "স্থগিতাদেশ শেষ",
+    "snooze": "স্থগিত করুন",
+    "unsnooze": "স্থগিত বাতিল করুন",
     "status": {
       "snoozed": "স্নুজ করা"
     }
+  },
+  "threadSnooze": {
+    "title": "যতক্ষণ পর্যন্ত স্থগিত",
+    "inOneHour": "১ ঘণ্টা পরে",
+    "inThreeHours": "৩ ঘণ্টা পরে",
+    "tomorrow": "আগামীকাল 09:00",
+    "nextMonday": "আগামী সোমবার 09:00",
+    "pickDateTime": "তারিখ ও সময় বেছে নিন",
+    "pastTime": "ভবিষ্যতের একটি সময় বেছে নিন"
   },
   "activity": {
     "title": "কার্যকলাপ",

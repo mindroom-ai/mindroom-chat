@@ -861,9 +861,20 @@
     "notFound": "找不到該討論串",
     "snoozedUntil": "已延後至 {{time}}",
     "snoozeEnded": "延後已結束",
+    "snooze": "延後",
+    "unsnooze": "取消延後",
     "status": {
       "snoozed": "已延後"
     }
+  },
+  "threadSnooze": {
+    "title": "延後至",
+    "inOneHour": "1 小時後",
+    "inThreeHours": "3 小時後",
+    "tomorrow": "明天 09:00",
+    "nextMonday": "下週一 09:00",
+    "pickDateTime": "選擇日期和時間",
+    "pastTime": "請選擇未來的時間"
   },
   "activity": {
     "title": "動態",

@@ -177,4 +177,11 @@ describe('ThreadActionsMenu focus while saving', () => {
     act(renderMenu);
     expect(host.querySelectorAll('button:not(:disabled)').length).toBeGreaterThan(0);
   });
+
+  it('moves focus to the first preset when Snooze swaps the menu for the picker', () => {
+    openDialog('snooze');
+    const presets = host.querySelectorAll('[role="menuitemradio"]');
+    expect(presets.length).toBeGreaterThan(0);
+    expect(document.activeElement).toBe(presets[0]);
+  });
 });

@@ -190,15 +190,15 @@ export const buildPerTagEventContent = (
   note?: string,
   data?: Record<string, unknown>,
   setAt = new Date().toISOString()
-): Record<string, unknown> => {
+): TagMetadata => {
   const normalizedNote = normalizeNote(note);
   const normalizedData = normalizeData(data);
 
   return {
     set_by: userId,
     set_at: setAt,
-    ...(normalizedNote !== undefined ? { note: normalizedNote } : {}),
-    ...(normalizedData !== undefined ? { data: normalizedData } : {}),
+    ...(normalizedNote != null ? { note: normalizedNote } : {}),
+    ...(normalizedData != null ? { data: normalizedData } : {}),
   };
 };
 
