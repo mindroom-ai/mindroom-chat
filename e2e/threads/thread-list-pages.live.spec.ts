@@ -11,7 +11,6 @@ import { getHomeserver } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
-  createHiddenOverviewFilterState,
   joinRoom,
   loginToMatrix,
   matrixFetch,
@@ -225,7 +224,6 @@ const checkThreadList = async (page: Page, name: string, engine: 'chromium' | 'w
     roomId,
     userId: reader.userId,
     viewMode: 'compact',
-    filterState: createHiddenOverviewFilterState(),
   });
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
 
@@ -253,8 +251,7 @@ const checkThreadList = async (page: Page, name: string, engine: 'chromium' | 'w
   // Every thread is listed, promptly.
   expect(seen.at(-1), `count values: ${seen.join(' -> ')}`).toBe(String(THREADS));
   // The room opens in Compact with resolved threads hidden (none is resolved here), so the
-  // summary names the total too: the filter seeded above does not reach the app, whose key
-  // `seedRoomOverviewState` does not write.
+  // summary names the total too: `seedRoomOverviewState` writes no thread filter the app reads.
   await expect(
     page.getByText(`Showing ${THREADS} of ${THREADS} threads`, { exact: true })
   ).toHaveCount(1);
@@ -384,7 +381,6 @@ const checkOlderQuestions = async (page: Page, name: string) => {
     roomId,
     userId: reader.userId,
     viewMode: 'compact',
-    filterState: createHiddenOverviewFilterState(),
   });
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
 

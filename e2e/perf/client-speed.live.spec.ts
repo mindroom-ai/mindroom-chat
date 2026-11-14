@@ -140,8 +140,7 @@ const agentText = () => {
 };
 
 const homeserver = getHomeserver();
-let sent = 0;
-/** Events sent to each room; rooms are seeded side by side, so `sent` alone cannot tell them apart. */
+/** Events sent to each room. */
 const sentTo = new Map<string, number>();
 const send = async (
   token: string,
@@ -149,7 +148,6 @@ const send = async (
   content: Record<string, unknown>,
   type = 'm.room.message'
 ): Promise<string> => {
-  sent += 1;
   sentTo.set(roomId, (sentTo.get(roomId) ?? 0) + 1);
   const { event_id: eventId } = await matrixFetch<{ event_id: string }>(
     homeserver,
@@ -340,7 +338,7 @@ const seedAccount = async (): Promise<Manifest> => {
     homeSmallRooms: small.slice(SPACES * ROOMS_PER_SPACE),
     spaces,
     longThread: item(big, 0).long!,
-    totalEvents: sent,
+    totalEvents: [...sentTo.values()].reduce((total, count) => total + count, 0),
     seedSeconds: (Date.now() - started) / 1000,
   };
 };
