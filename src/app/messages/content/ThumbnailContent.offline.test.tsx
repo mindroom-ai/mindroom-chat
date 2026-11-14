@@ -1,5 +1,4 @@
 import 'fake-indexeddb/auto';
-import React from 'react';
 import { IDBFactory } from 'fake-indexeddb';
 import { createClient, MatrixEvent } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
@@ -78,7 +77,7 @@ it('renders persisted thumbnail bytes after remount with transport offline', asy
   await vi.waitFor(() =>
     expect(renderer!.root.findByType('img').props.src).toBe('blob:thumbnail-2')
   );
-  expect(await displayed[1].text()).toBe('thumbnail bytes');
+  expect(await displayed[1]!.text()).toBe('thumbnail bytes');
   const { readRoomAttachmentStorage } = await import('../../event-store/cache/db');
   const { createSessionId } = await import('../../matrix/session/sessions');
   expect(

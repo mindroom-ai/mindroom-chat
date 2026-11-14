@@ -1,6 +1,11 @@
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { contentBytes, getLongTextSource, hydrateLongTextSource } from '../../matrix/protocol/longText';
+import {
+  contentBytes,
+  getLongTextSource,
+  hydrateLongTextSource,
+  type LongTextSource,
+} from '../../matrix/protocol/longText';
 import { buildEditContent, loadEditableContent } from './longEdit';
 
 const relation = { rel_type: 'm.replace', event_id: '$original' };
@@ -50,7 +55,7 @@ describe('buildEditContent', () => {
 
     // The file holds the whole edit, as MindRoom uploads its own: MindRoom reads the file in place
     // of the event and takes the edited message from its `m.new_content`.
-    const uploaded = await (mx.uploadContent.mock.calls[0][0] as Blob).text();
+    const uploaded = await (mx.uploadContent.mock.calls[0]![0] as Blob).text();
     expect(JSON.parse(uploaded)).toEqual({
       ...longContent,
       body: `* ${longContent.body}`,
@@ -91,18 +96,15 @@ describe('loadEditableContent', () => {
   });
 
   it('returns the whole content of a long-text message', async () => {
-    const hydrate = vi.fn(async () => longContent);
+    const hydrate = vi.fn(async (_source: LongTextSource) => longContent);
 
     expect(await loadEditableContent(longTextFile, hydrate)).toBe(longContent);
-    expect(hydrate.mock.calls[0][0]).toMatchObject({ mxcUri: 'mxc://example.org/earlier' });
+    expect(hydrate.mock.calls[0]![0]).toMatchObject({ mxcUri: 'mxc://example.org/earlier' });
   });
 
   it('returns nothing when the whole content cannot be loaded', async () => {
     // Hydration falls back to the preview, which must never be edited in place of the message.
-    const hydrate = vi.fn(
-      async (source: NonNullable<ReturnType<typeof getLongTextSource>>) =>
-        source.previewContent
-    );
+    const hydrate = vi.fn(async (source: LongTextSource) => source.previewContent);
 
     expect(await loadEditableContent(longTextFile, hydrate)).toBeUndefined();
   });

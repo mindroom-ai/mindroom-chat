@@ -25,7 +25,12 @@ import { bootstrapRideTraceFlagFromUrl } from './app/timeline/rideTraceRecorder'
 import { migratePrefetchSettingsStorage } from './app/event-store/engine/prefetchSettingsStorage';
 import { migrateLegacyIOSPushEnabled } from './app/notifications/push/iosPush';
 import { isServiceWorkerEnabled } from './app/config/runtimeConfig';
-import { getActiveSession, subscribeToSessionStore } from './app/matrix/session/sessions';
+import {
+  getActiveSession,
+  readSnapshot,
+  subscribeToSessionStore,
+} from './app/matrix/session/sessions';
+import { forgetAvatars } from './sw/avatarCache';
 import {
   answerServiceWorkerSessionRequests,
   pushSessionToSW,
@@ -86,6 +91,12 @@ const prepareDocument = (): void => {
     migratePrefetchSettingsStorage();
   });
   runSafely('plugin storage of removed accounts', deletePluginStorageOfRemovedAccounts);
+  // An avatar that finished loading as the last account signed out could keep the avatar cache.
+  // A registry this build cannot read fully may still hold accounts, so it keeps them.
+  runSafely('kept avatars without an account', () => {
+    const { sorted, unrecognized, writable } = readSnapshot(undefined);
+    if (writable && unrecognized.length === 0 && sorted.length === 0) void forgetAvatars();
+  });
   runSafely('native app links', () => {
     // Capacitor's App plugin reports the SSO and pairing links the native app opens with. The
     // quick capture widget's web view leaves them to the main one: followed there, a link would

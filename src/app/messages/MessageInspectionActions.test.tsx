@@ -11,7 +11,10 @@ vi.mock('folds', () => ({
   Icon: () => null,
   Icons: { BlockCode: 'code', CheckTwice: 'read' },
   MenuItem: React.forwardRef(
-    ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>, ref) => (
+    (
+      { children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>,
+      ref: React.ForwardedRef<HTMLButtonElement>
+    ) => (
       <button ref={ref} type="button" {...props}>
         {children}
       </button>

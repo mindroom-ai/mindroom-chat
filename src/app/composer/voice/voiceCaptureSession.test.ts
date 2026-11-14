@@ -196,8 +196,8 @@ describe('voice capture session', () => {
     expect(result.recording.waveform).toEqual(Array(48).fill(512));
     expect(session.getSnapshot().phase).toBe('processing');
     expect(stream.track.stop).toHaveBeenCalledOnce();
-    expect(Audio.instances[0].source.disconnect).toHaveBeenCalledOnce();
-    expect(Audio.instances[0].close).toHaveBeenCalledOnce();
+    expect(Audio.instances[0]!.source.disconnect).toHaveBeenCalledOnce();
+    expect(Audio.instances[0]!.close).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -394,7 +394,7 @@ describe('voice capture session', () => {
       const started = await session[operation]();
       expect(session.getSnapshot().phase).toBe('idle');
       expect(stream.track.stop).toHaveBeenCalledOnce();
-      expect(Audio.instances[0].close).toHaveBeenCalledOnce();
+      expect(Audio.instances[0]!.close).toHaveBeenCalledOnce();
       expect(vi.getTimerCount()).toBe(0);
       expect(started).toBe(false);
     }
@@ -443,8 +443,9 @@ describe('voice capture session', () => {
       Audio.failure = failure;
       const session = capture();
       await session.start();
-      expect(Audio.instances[0].close).toHaveBeenCalledOnce();
-      if (failure !== 'source') expect(Audio.instances[0].source.disconnect).toHaveBeenCalledOnce();
+      expect(Audio.instances[0]!.close).toHaveBeenCalledOnce();
+      if (failure !== 'source')
+        expect(Audio.instances[0]!.source.disconnect).toHaveBeenCalledOnce();
       vi.advanceTimersByTime(250);
       const result = await finish(session);
       expect(result.status).toBe('captured');
@@ -464,7 +465,7 @@ describe('voice capture session', () => {
     expect(await session.finish()).toEqual({ status: 'failed' });
     expect(session.getSnapshot().errorMessage).toBe('stop failed');
     expect(stream.track.stop).toHaveBeenCalledOnce();
-    expect(Audio.instances[0].close).toHaveBeenCalledOnce();
+    expect(Audio.instances[0]!.close).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);
     session.clearError();
     expect(session.getSnapshot().errorMessage).toBeUndefined();
@@ -541,7 +542,7 @@ describe('voice capture session', () => {
   it('bounds raw live samples without normalizing display data', async () => {
     const session = capture();
     await session.start();
-    Audio.instances[0].analyser.getByteTimeDomainData = (buffer) => buffer.fill(128);
+    Audio.instances[0]!.analyser.getByteTimeDomainData = (buffer) => buffer.fill(128);
     vi.advanceTimersByTime(96_000);
     expect(session.getSnapshot().waveform).toEqual(Array(1200).fill(0));
     const result = await finish(session);

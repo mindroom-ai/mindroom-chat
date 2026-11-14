@@ -14,7 +14,9 @@ const mocks = vi.hoisted(() => ({
   render: vi.fn(),
   createRoot: vi.fn(),
   getActiveSession: vi.fn(),
+  readSnapshot: vi.fn(),
   waitForServiceWorkerControl: vi.fn(),
+  forgetAvatars: vi.fn(),
 }));
 
 vi.mock('react-dom/client', () => ({
@@ -71,6 +73,7 @@ vi.mock('./app/config/runtimeConfig', () => ({
 
 vi.mock('./app/matrix/session/sessions', () => ({
   getActiveSession: mocks.getActiveSession,
+  readSnapshot: mocks.readSnapshot,
   subscribeToSessionStore: vi.fn(),
 }));
 
@@ -103,6 +106,10 @@ vi.mock('./app/diagnostics/sdkDebugLogging', () => ({}));
 
 vi.mock('./app/plugins/registry', () => ({}));
 
+vi.mock('./sw/avatarCache', () => ({
+  forgetAvatars: mocks.forgetAvatars,
+}));
+
 vi.mock('./app/plugins/pluginStorage', () => ({
   deletePluginStorageOfRemovedAccounts: vi.fn(),
 }));
@@ -131,6 +138,7 @@ describe('application bootstrap', () => {
     mocks.isServiceWorkerEnabled.mockReturnValue(false);
     mocks.createRoot.mockReturnValue({ render: mocks.render });
     mocks.getActiveSession.mockReturnValue(undefined);
+    mocks.readSnapshot.mockReturnValue({ sorted: [], unrecognized: [], writable: true });
     window.sessionStorage.clear();
   });
 
@@ -154,6 +162,28 @@ describe('application bootstrap', () => {
     expect(mocks.installFlightRecorder).toHaveBeenCalledTimes(installs);
     expect(mocks.initializeDeepTraceRecorder).toHaveBeenCalledTimes(installs);
     expect(mocks.createRoot).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['deletes the kept avatars when no account is stored', {}, 1],
+    ['keeps them while an account is stored', { sorted: [{ sessionId: 'alice' }] }, 0],
+    [
+      'keeps them when the registry holds an entry this build cannot read',
+      { unrecognized: [{}] },
+      0,
+    ],
+    ['keeps them when the registry cannot be parsed', { writable: false }, 0],
+  ])('%s', async (_name, snapshot, deletes) => {
+    mocks.readSnapshot.mockReturnValue({
+      sorted: [],
+      unrecognized: [],
+      writable: true,
+      ...snapshot,
+    });
+
+    await import('./index');
+
+    expect(mocks.forgetAvatars).toHaveBeenCalledTimes(deletes);
   });
 
   it("leaves the recorders to the main web view in the quick capture widget's", async () => {
