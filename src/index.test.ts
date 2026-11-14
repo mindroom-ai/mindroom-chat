@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   render: vi.fn(),
   createRoot: vi.fn(),
   getActiveSession: vi.fn(),
+  readSnapshot: vi.fn(),
   waitForServiceWorkerControl: vi.fn(),
   forgetAvatars: vi.fn(),
 }));
@@ -72,6 +73,7 @@ vi.mock('./app/config/runtimeConfig', () => ({
 
 vi.mock('./app/matrix/session/sessions', () => ({
   getActiveSession: mocks.getActiveSession,
+  readSnapshot: mocks.readSnapshot,
   subscribeToSessionStore: vi.fn(),
 }));
 
@@ -136,6 +138,7 @@ describe('application bootstrap', () => {
     mocks.isServiceWorkerEnabled.mockReturnValue(false);
     mocks.createRoot.mockReturnValue({ render: mocks.render });
     mocks.getActiveSession.mockReturnValue(undefined);
+    mocks.readSnapshot.mockReturnValue({ sorted: [], unrecognized: [], writable: true });
     window.sessionStorage.clear();
   });
 
@@ -162,10 +165,21 @@ describe('application bootstrap', () => {
   });
 
   it.each([
-    ['deletes the kept avatars when no account is signed in', undefined, 1],
-    ['keeps them while an account is signed in', { sessionId: 'alice' }, 0],
-  ])('%s', async (_name, session, deletes) => {
-    mocks.getActiveSession.mockReturnValue(session);
+    ['deletes the kept avatars when no account is stored', {}, 1],
+    ['keeps them while an account is stored', { sorted: [{ sessionId: 'alice' }] }, 0],
+    [
+      'keeps them when the registry holds an entry this build cannot read',
+      { unrecognized: [{}] },
+      0,
+    ],
+    ['keeps them when the registry cannot be parsed', { writable: false }, 0],
+  ])('%s', async (_name, snapshot, deletes) => {
+    mocks.readSnapshot.mockReturnValue({
+      sorted: [],
+      unrecognized: [],
+      writable: true,
+      ...snapshot,
+    });
 
     await import('./index');
 

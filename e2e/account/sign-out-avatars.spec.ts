@@ -57,7 +57,10 @@ const keptAvatars = (page: Page): Promise<number | undefined> =>
       if (!(await caches.has(name))) return -1;
       return (await (await caches.open(name)).keys()).length;
     }, AVATAR_CACHE)
-    .catch(() => undefined);
+    .catch((error: unknown) => {
+      if (/context was destroyed|navigat/i.test(String(error))) return undefined;
+      throw error;
+    });
 
 /** The access token of the device this page signed in. */
 const pageAccessToken = (page: Page): Promise<string> =>

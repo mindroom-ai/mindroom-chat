@@ -221,7 +221,7 @@ export const removeCurrentClientSessionAndReload = async (
 
   // Fallback when the client has no deviceId and no candidate matches: the
   // identity derived from the live client names the session, which is all the
-  // per-session teardown needs.
+  // cache, canvas and native teardown needs.
   const identity = getMatrixClientSessionIdentity(mx);
   const nextStore = removeSession(identity.sessionId);
   const clearUserScopedState = !nextStore.sessions.some(
@@ -237,10 +237,10 @@ export const removeCurrentClientSessionAndReload = async (
     ]);
   } finally {
     // The account has left the registry, also when a store could not be cleared.
+    clearSessionScopedNativeState(identity.sessionId);
     await clearFetchedAvatars(identity.userId);
   }
   clearSessionScopedUiState(identity, clearUserScopedState);
-  clearSessionScopedNativeState(identity.sessionId);
   reloadAppAt(nextHref);
 };
 
