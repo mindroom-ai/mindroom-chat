@@ -244,6 +244,22 @@ describe('EncryptionRecoveryPrompt', () => {
     expect(store.get(recoveryDialogAtom)).toBeUndefined();
   });
 
+  it('a dialog closed while the server check is pending keeps Set up from opening after it', async () => {
+    let answer: (hasSetup: boolean) => void = () => {};
+    vi.mocked(hasServerEncryptionSetup).mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        answer = resolve;
+      })
+    );
+    const { store } = setup(NONE);
+    await act(async () => {});
+    // Set up opened from the welcome page and closed with Not now before the check answers.
+    snoozeRecoveryPrompt('@alice:example.org');
+    answer(false);
+    await act(async () => {});
+    expect(store.get(recoveryDialogAtom)).toBeUndefined();
+  });
+
   it('leaving the last encrypted room while the server check is pending leaves the account unprompted', async () => {
     let answer: (hasSetup: boolean) => void = () => {};
     vi.mocked(hasServerEncryptionSetup).mockReturnValueOnce(

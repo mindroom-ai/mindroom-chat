@@ -76,8 +76,11 @@ export function EncryptionRecoveryPrompt() {
       isRecoveryPromptSnoozed(userId)
     )
       return;
+    // Checked again when it opens: a dialog closed while the server check was pending snoozed it.
     const open = (dialog: 'setup' | 'unlock') => {
-      if (store.get(recoveryDialogAtom) === undefined) store.set(recoveryDialogAtom, dialog);
+      if (store.get(recoveryDialogAtom) === undefined && !isRecoveryPromptSnoozed(userId)) {
+        store.set(recoveryDialogAtom, dialog);
+      }
     };
     if (kind === 'locked') {
       promptedAccounts.add(userId);

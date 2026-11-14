@@ -15,8 +15,10 @@ export type RecoveryDialog = 'setup' | 'unlock' | 'reset' | 'change';
 
 export const recoveryDialogAtom = atom<RecoveryDialog | undefined>(undefined);
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 /** How long a recovery dialog closed unfinished keeps the start prompt from opening it again. */
-export const RECOVERY_PROMPT_SNOOZE_MS = 7 * 24 * 60 * 60 * 1000;
+export const RECOVERY_PROMPT_SNOOZE_MS = 7 * DAY_MS;
 
 /** Keeps the start prompt (`EncryptionRecoveryPrompt`) closed for the account on this browser. */
 export const snoozeRecoveryPrompt = (userId: string): void => {
@@ -27,12 +29,15 @@ export const snoozeRecoveryPrompt = (userId: string): void => {
   );
 };
 
-/** A snooze ending further away than one snooze lasts was written by a clock set ahead: ignored. */
+/**
+ * A snooze ending more than a day further away than one snooze lasts was written by a clock set
+ * ahead, and is ignored; the day leaves room for a clock corrected back a little.
+ */
 export const isRecoveryPromptSnoozed = (userId: string): boolean => {
   const left =
     Number(getStorageItemSafe(getSafeLocalStorage(), recoveryPromptSnoozeStorageKey(userId))) -
     Date.now();
-  return left > 0 && left <= RECOVERY_PROMPT_SNOOZE_MS;
+  return left > 0 && left <= RECOVERY_PROMPT_SNOOZE_MS + DAY_MS;
 };
 
 export const endRecoveryPromptSnooze = (userId: string): void => {
