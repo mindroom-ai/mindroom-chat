@@ -192,7 +192,7 @@ describe('BackfillScheduler (ISSUE-207 P4.1)', () => {
         priority: 0,
         execute: push('band0'),
       });
-      void scheduler.enqueue({
+      await scheduler.enqueue({
         roomId: '!r-band2',
         kind: 'gap-fill',
         priority: 2,
@@ -338,7 +338,7 @@ describe('BackfillScheduler (ISSUE-207 P4.1)', () => {
         priority: 2,
         execute: push('!new'),
       });
-      void scheduler.enqueue({
+      await scheduler.enqueue({
         roomId: '!mid',
         kind: 'gap-fill',
         priority: 2,

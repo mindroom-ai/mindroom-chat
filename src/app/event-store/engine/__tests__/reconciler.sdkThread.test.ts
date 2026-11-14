@@ -181,10 +181,10 @@ describe('reconciler SDK thread injection', () => {
 
   // A sync gap leaves the window in an older segment; the SDK defers the new live
   // segment until an event is added to the thread.
-  const gappedThread = (env: ReturnType<typeof setup>, server: Partial<IEvent>[]) => {
+  const gappedThread = async (env: ReturnType<typeof setup>, server: Partial<IEvent>[]) => {
     const sdkThread = createInitializedThreadForRoot(env.room, env.root);
     sdkThread.addEvents(server.slice(-6).map(env.mapper), false);
-    void sdkThread.deferLiveTimelineReset('gap-back', 'gap-forward');
+    await sdkThread.deferLiveTimelineReset('gap-back', 'gap-forward');
     return sdkThread;
   };
   const segmentEventIds = (sdkThread: Thread) =>
@@ -200,7 +200,7 @@ describe('reconciler SDK thread injection', () => {
   it('leaves history behind an older segment out of the live segment after a sync gap', async () => {
     const env = setup();
     const server = thread(40);
-    const sdkThread = gappedThread(env, server);
+    const sdkThread = await gappedThread(env, server);
     await settle();
 
     await reconcile(env, sdkThread, server);
@@ -211,7 +211,7 @@ describe('reconciler SDK thread injection', () => {
 
   it('adds replies newer than an older segment to an empty live segment after a sync gap', async () => {
     const env = setup();
-    const sdkThread = gappedThread(env, thread(40));
+    const sdkThread = await gappedThread(env, thread(40));
     flushGap(sdkThread);
     await settle();
 
@@ -226,7 +226,7 @@ describe('reconciler SDK thread injection', () => {
 
   it('leaves a fetched page from deep in the history out of the live segment', async () => {
     const env = setup();
-    const sdkThread = gappedThread(env, thread(40));
+    const sdkThread = await gappedThread(env, thread(40));
     flushGap(sdkThread);
     sdkThread.addEvents(thread(42).slice(-4).map(env.mapper), false);
     await settle();
@@ -242,7 +242,7 @@ describe('reconciler SDK thread injection', () => {
 
   it('leaves a late edit of an older reply out of the live segment', async () => {
     const env = setup();
-    const sdkThread = gappedThread(env, thread(40));
+    const sdkThread = await gappedThread(env, thread(40));
     flushGap(sdkThread);
     await settle();
     // Sent after reply 40 but before its edit, both of which the older segment holds.
