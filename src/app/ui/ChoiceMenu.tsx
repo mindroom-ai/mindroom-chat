@@ -26,6 +26,8 @@ type ChoiceMenuProps = {
   focusFirst?: boolean;
   /** Shown under the options, such as why the last choice failed. */
   footer?: ReactNode;
+  /** While a choice is being saved, Escape and clicks outside leave the menu open. */
+  busy?: boolean;
 };
 
 /**
@@ -40,14 +42,18 @@ export function ChoiceMenu({
   onDismiss,
   focusFirst = false,
   footer,
+  busy = false,
 }: ChoiceMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  // focus-trap reads its options once, so they ask a ref.
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
   return (
     <FocusTrap
       focusTrapOptions={{
         onDeactivate: onDismiss,
-        escapeDeactivates: stopPropagation,
-        clickOutsideDeactivates: true,
+        escapeDeactivates: (event) => !busyRef.current && stopPropagation(event),
+        clickOutsideDeactivates: () => !busyRef.current,
         initialFocus: focusFirst
           ? () => menuRef.current?.querySelector<HTMLElement>('[role="menuitemradio"]') ?? false
           : false,

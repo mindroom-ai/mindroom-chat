@@ -73,6 +73,8 @@ function CustomTime({
 }) {
   const { t } = useTranslation();
   const [value, setValue] = useState('');
+  // Renders again when a time that was ahead has passed by the time it is confirmed.
+  const [, setCheckedAt] = useState(0);
   const until = parseDateTimeLocalValue(value);
   const now = Date.now();
   const past = until !== undefined && until.getTime() <= now;
@@ -80,6 +82,7 @@ function CustomTime({
   const submit = (evt: FormEvent<HTMLFormElement>) => {
     evt.preventDefault();
     if (until && until.getTime() > Date.now()) onPick(until);
+    else setCheckedAt(Date.now());
   };
 
   return (
@@ -119,6 +122,8 @@ export function SnoozePicker({ anchor, onPick, onClose }: SnoozePickerProps) {
   const presets = usePresetChoices();
   const [custom, setCustom] = useState(false);
   const [failed, setFailed] = useState(false);
+  // While a pick saves, the menu and the dialog stay put, so a failure can still be dismissed.
+  const [saving, setSaving] = useState(false);
   // The menu's focus trap reports a dismissal when it unmounts, also after a pick or on its way
   // to the custom time dialog; only a real dismissal closes the picker, and only once. A pick
   // that failed to save opens it again for another try.
@@ -128,9 +133,11 @@ export function SnoozePicker({ anchor, onPick, onClose }: SnoozePickerProps) {
     if (settledRef.current) return;
     settledRef.current = true;
     setFailed(false);
+    setSaving(true);
     void onPick(until).then((written) => {
       if (written) return;
       settledRef.current = false;
+      setSaving(false);
       setFailed(true);
     });
   };
@@ -191,7 +198,7 @@ export function SnoozePicker({ anchor, onPick, onClose }: SnoozePickerProps) {
 
   if (custom) {
     return (
-      <ActionDialog label={t('threadSnooze.title')} onClose={dismiss} busy={false}>
+      <ActionDialog label={t('threadSnooze.title')} onClose={dismiss} busy={saving}>
         <Box direction="Column" gap="300">
           <CustomTime onPick={pick} onCancel={dismiss} />
           {failure}
@@ -207,6 +214,7 @@ export function SnoozePicker({ anchor, onPick, onClose }: SnoozePickerProps) {
       return;
     }
     leftMenuRef.current = true;
+    setFailed(false);
     setCustom(true);
   };
   const dismissMenu = () => {
@@ -231,6 +239,7 @@ export function SnoozePicker({ anchor, onPick, onClose }: SnoozePickerProps) {
           onDismiss={dismissMenu}
           focusFirst
           footer={failure}
+          busy={saving}
         />
       }
     />

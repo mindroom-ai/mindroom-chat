@@ -10,9 +10,25 @@ vi.mock('folds', async (original) => ({
   ...(await original<typeof import('folds')>()),
   PopOut: ({ content }: { content: React.ReactNode }) => content,
 }));
-// jsdom lays nothing out, so focus-trap would find no tabbable node.
+// jsdom lays nothing out, so focus-trap would find no tabbable node. The options the menu gives
+// it are kept, to check what Escape and a click outside would do.
+type TrapOptions = {
+  onDeactivate?: () => void;
+  escapeDeactivates?: (event: KeyboardEvent) => boolean;
+  clickOutsideDeactivates?: () => boolean;
+};
+const trap = vi.hoisted(() => ({ options: undefined as TrapOptions | undefined }));
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
+  default: ({
+    children,
+    focusTrapOptions,
+  }: {
+    children: React.ReactNode;
+    focusTrapOptions?: TrapOptions;
+  }) => {
+    trap.options = focusTrapOptions;
+    return children;
+  },
 }));
 
 const FRIDAY_AFTERNOON = new Date(2026, 10, 13, 15, 30);
@@ -173,6 +189,61 @@ describe('SnoozePicker', () => {
 
     await act(async () => option('In 3 hours')?.click());
     expect(onPick).toHaveBeenCalledTimes(2);
+  });
+
+  it('stays put while a pick saves, and can be dismissed once it failed', async () => {
+    let finish!: (written: boolean) => void;
+    const onPick = vi.fn(() => new Promise<boolean>((resolve) => (finish = resolve)));
+    const onClose = vi.fn();
+    act(() =>
+      root.render(
+        <ScreenSizeProvider value={ScreenSize.Desktop}>
+          <SnoozePicker
+            anchor={{ x: 0, y: 0, width: 0, height: 0 }}
+            onPick={onPick}
+            onClose={onClose}
+          />
+        </ScreenSizeProvider>
+      )
+    );
+    const escape = () => trap.options?.escapeDeactivates?.(new KeyboardEvent('keydown'));
+    const clickOutside = () => trap.options?.clickOutsideDeactivates?.();
+    expect(escape()).toBe(true);
+
+    act(() => option('In 1 hour')?.click());
+    expect(escape()).toBe(false);
+    expect(clickOutside()).toBe(false);
+
+    await act(async () => finish(false));
+    expect(document.querySelector('[role="alert"]')).not.toBeNull();
+    expect(escape()).toBe(true);
+    expect(clickOutside()).toBe(true);
+    act(() => trap.options?.onDeactivate?.());
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("leaves a failed preset's error behind on the way to the custom time", async () => {
+    renderPicker(ScreenSize.Desktop, false);
+    await act(async () => option('In 1 hour')?.click());
+    expect(document.querySelector('[role="alert"]')).not.toBeNull();
+    act(() => option('Pick date and time')?.click());
+    expect(document.querySelector('input[type="datetime-local"]')).not.toBeNull();
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('says the time has passed when it passes before it is confirmed', () => {
+    const { onPick } = renderPicker();
+    act(() => option('Pick date and time')?.click());
+    const input = document.querySelector<HTMLInputElement>('input[type="datetime-local"]')!;
+    typeDateTime(input, '2026-11-13T15:32');
+    const confirm = () => document.querySelector<HTMLButtonElement>('button[type="submit"]');
+    expect(confirm()?.textContent).toBe('Snooze');
+
+    vi.setSystemTime(new Date(2026, 10, 13, 15, 33));
+    act(() => confirm()?.form?.requestSubmit());
+    expect(onPick).not.toHaveBeenCalled();
+    expect(confirm()?.textContent).toBe('Pick a time in the future');
+    expect(confirm()?.disabled).toBe(true);
   });
 
   it('shows a failed save in the sheet on phones', async () => {

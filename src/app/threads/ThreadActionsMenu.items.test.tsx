@@ -269,13 +269,16 @@ describe("ThreadActionsMenu's snooze", () => {
     expect(rowOf(renderMenu(), 'snooze')?.textContent).toBe('Snooze');
   });
 
-  it('offers neither on a resolved or pinned thread, or without permission', () => {
+  it('offers neither on a resolved thread or without permission, and only Unsnooze on a pinned one', () => {
     state.resolved = true;
     expect(rowOf(renderMenu(), 'snooze')).toBeUndefined();
 
     state.resolved = false;
     state.pinned = ['$root'];
     expect(rowOf(renderMenu(), 'snooze')).toBeUndefined();
+    // A snooze set before the pin can still be lifted.
+    state.snoozedUntilTs = Date.now() + 60_000;
+    expect(rowOf(renderMenu(), 'snooze')?.textContent).toBe('Unsnooze');
 
     state.pinned = [];
     state.canEdit = false;

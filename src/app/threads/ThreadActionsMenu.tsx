@@ -438,8 +438,9 @@ export function ThreadActionsMenu({
       },
     });
   }
-  // A resolved thread shows as resolved whether snoozed or not, so it offers neither.
-  if (tags.canEdit && rootLoaded && !pinned && !tags.isResolved) {
+  // A resolved thread shows as resolved whether snoozed or not, so it offers neither. A pinned
+  // thread takes no new snooze, but one set before the pin can still be lifted.
+  if (tags.canEdit && rootLoaded && !tags.isResolved && (snoozed || !pinned)) {
     items.push({
       action: 'snooze',
       mutates: true,
