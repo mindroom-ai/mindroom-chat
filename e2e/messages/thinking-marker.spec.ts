@@ -110,9 +110,7 @@ for (const { title, query, maxPaints } of [
     const cdp = await page.context().newCDPSession(page);
     let paintCount = 0;
     cdp.on('Tracing.dataCollected', ({ value }) => {
-      paintCount += value.filter(
-        (event: { name: string; ph: string }) => event.name === 'Paint' && event.ph === 'X'
-      ).length;
+      paintCount += value.filter((event) => event.name === 'Paint' && event.ph === 'X').length;
     });
     await cdp.send('Tracing.start', {
       categories: 'devtools.timeline',
@@ -121,7 +119,7 @@ for (const { title, query, maxPaints } of [
     // Cover a complete flip / glowing-core / flip cycle.
     await page.waitForTimeout(9500);
     const complete = new Promise<void>((resolve) => {
-      cdp.once('Tracing.tracingComplete', resolve);
+      cdp.once('Tracing.tracingComplete', () => resolve());
     });
     await cdp.send('Tracing.end');
     await complete;
@@ -268,7 +266,10 @@ test('thinking marker paints its glass faces and gold core', async ({ page }) =>
         let glass = 0;
         let gold = 0;
         for (let index = 0; index < data.length; index += 4) {
-          const [red, green, blue, alpha] = data.slice(index, index + 4);
+          const red = data[index]!;
+          const green = data[index + 1]!;
+          const blue = data[index + 2]!;
+          const alpha = data[index + 3]!;
           if (alpha > 128 && blue > red + 20 && green > red + 15) glass += 1;
           if (alpha > 128 && red > 100 && red > green * 1.08 && green > blue * 1.15) gold += 1;
         }

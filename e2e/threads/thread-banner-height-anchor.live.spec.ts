@@ -144,13 +144,13 @@ const expectReaderHeld = async (page: Page, change: () => Promise<void>) => {
   const clientHeight = await scroller(page).evaluate((element) => element.clientHeight);
   const [readerId, readerTop] = Object.entries(before)
     .filter(([, top]) => top > 0 && top < clientHeight - 100)
-    .sort(([, a], [, b]) => Math.abs(a - clientHeight / 2) - Math.abs(b - clientHeight / 2))[0];
+    .sort(([, a], [, b]) => Math.abs(a - clientHeight / 2) - Math.abs(b - clientHeight / 2))[0]!;
   const height = await bannerHeight(page);
   await change();
   await expect.poll(() => bannerHeight(page)).not.toBe(height);
   // Let the timeline settle.
   await page.waitForTimeout(1_000);
-  expect(Math.abs((await rowTops(page))[readerId] - readerTop)).toBeLessThanOrEqual(1);
+  expect(Math.abs((await rowTops(page))[readerId]! - readerTop)).toBeLessThanOrEqual(1);
   expect(
     await page.evaluate(
       () => (window as unknown as { resizeObserverLoops?: number }).resizeObserverLoops ?? 0

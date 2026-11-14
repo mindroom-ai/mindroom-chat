@@ -167,7 +167,7 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
     });
   expect(streams.length).toBeGreaterThan(0);
   const streamCount = streams.length;
-  const stream = streams[streamCount - 1];
+  const stream = streams[streamCount - 1]!;
   expect(stream.isClosed()).toBe(false);
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   const writeLocalClipboard = (text: string) =>
@@ -211,7 +211,7 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
   expect(streams).toHaveLength(streamCount);
   expect(stream.isClosed()).toBe(false);
   await expect.poll(() => continuations.length).toBe(1);
-  const continuation = continuations[0];
+  const continuation = continuations[0]!;
   expect(continuation.content['m.mentions']).toEqual({ user_ids: [fixture.agent_user_id] });
   expect(continuation.content['m.relates_to']).toMatchObject({
     rel_type: 'm.thread',

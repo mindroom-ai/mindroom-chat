@@ -253,7 +253,7 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   const [response] = (await viewerMessages()).filter(
     (event) => event.content['io.mindroom.canvas_response']
   );
-  expect(response.content['io.mindroom.canvas_response']).toEqual({
+  expect(response!.content['io.mindroom.canvas_response']).toEqual({
     version: 1,
     canvas_event_id: canvasId,
     canvas_revision_event_id: canvasId,
@@ -261,10 +261,10 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
     label: 'Pro plan',
     data: { plan: 'pro', price: '12.5', seats: 3 },
   });
-  expect(response.content.body).toBe(
+  expect(response!.content.body).toBe(
     `${agent.user_id} Canvas response (${canvasId}, revision ${canvasId}): Pro plan\n{"plan":"pro","price":"12.5","seats":3}`
   );
-  expect(response.content['m.mentions']).toEqual({ user_ids: [agent.user_id] });
+  expect(response!.content['m.mentions']).toEqual({ user_ids: [agent.user_id] });
   const receipt = page.locator(`[data-canvas-receipt="${canvasId}"]`);
   await expect(receipt).toContainText('Pro plan');
   await expect(page.getByText('Canvas response (', { exact: false })).toHaveCount(0);
@@ -612,8 +612,8 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   await frame.locator('#tent').check();
   await expect.poll(() => stateCopies(sharedId), { timeout: 15_000 }).toHaveLength(1);
   const [copy] = await stateCopies(sharedId);
-  expect(copy.sender).toBe(viewer.user_id);
-  expect(copy.content).toEqual({
+  expect(copy!.sender).toBe(viewer.user_id);
+  expect(copy!.content).toEqual({
     msgtype: 'm.notice',
     version: 1,
     json: '{"tent":true}',

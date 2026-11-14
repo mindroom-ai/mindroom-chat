@@ -197,7 +197,9 @@ for (const theme of THEME_NAMES) {
       });
       // The gap above this banner is plain page background, without overlapping text.
       const [edge, backdrop] = await sampleScreenshot(page, [top, { ...top, y: top.y - 2 }]);
-      expect(pixelDifference(edge, backdrop), 'top rim stays visible on white').toBeGreaterThan(24);
+      expect(pixelDifference(edge!, backdrop!), 'top rim stays visible on white').toBeGreaterThan(
+        24
+      );
     }
   });
 }
@@ -235,13 +237,13 @@ for (const theme of ['light', 'dark']) {
     await expect
       .poll(async () => {
         const dimmed = await sampleScreenshot(page, points);
-        return pixelDifference(dimmed[0], normal[0]);
+        return pixelDifference(dimmed[0]!, normal[0]!);
       })
       .toBeGreaterThan(10);
     const dimmed = await sampleScreenshot(page, points);
     // Separate compositor layers can round the same alpha blend by one channel value.
-    dimmed[0].slice(0, 3).forEach((channel, index) => {
-      expect(Math.abs(channel - dimmed[1][index])).toBeLessThanOrEqual(1);
+    dimmed[0]!.slice(0, 3).forEach((channel, index) => {
+      expect(Math.abs(channel - dimmed[1]![index]!)).toBeLessThanOrEqual(1);
     });
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('settings-sheet')).toHaveCount(0);
@@ -307,10 +309,10 @@ for (const theme of THEME_NAMES) {
         element.textContent = `main { background: ${value} !important; } main > * { visibility: hidden; }`;
       }, color);
       await expectRenderedContrast(page, theme, color, samples);
-      backgrounds.push((await renderedBackgrounds(page, samples))[0]);
+      backgrounds.push((await renderedBackgrounds(page, samples))[0]!);
     }
     // Nearly opaque (Bas, 2026-11-05): the backdrop still moves the glass, but only faintly.
-    const response = pixelDifference(backgrounds[0], backgrounds[1]);
+    const response = pixelDifference(backgrounds[0]!, backgrounds[1]!);
     expect(response, 'visible backdrop response through the settings sheet').toBeGreaterThan(12);
     expect(response, 'faint backdrop response through the settings sheet').toBeLessThan(60);
     await page.keyboard.press('Escape');
@@ -375,7 +377,7 @@ const prepareSamples = async (samples: VisualSample[]): Promise<PreparedSample[]
       const bounds = rect ?? element.getBoundingClientRect();
       const visibility = (element as HTMLElement).style.visibility;
       return {
-        color: [pixel[0], pixel[1], pixel[2], (pixel[3] / 255) * effectiveOpacity] as Rgba,
+        color: [pixel[0], pixel[1], pixel[2], (pixel[3]! / 255) * effectiveOpacity] as Rgba,
         point: {
           x: bounds.left + bounds.width / 2 + window.scrollX,
           y: bounds.top + bounds.height / 2 + window.scrollY,
@@ -414,7 +416,7 @@ const renderedContrast = async (page: Page, samples: VisualSample[]) => {
     );
     return prepared.map(({ name, color }, index) => ({
       name,
-      ratio: contrastRatio(color, backgrounds[index]),
+      ratio: contrastRatio(color, backgrounds[index]!),
     }));
   } finally {
     await restoreSamples(prepared);
@@ -503,7 +505,7 @@ const expectOpaqueFallback = async (page: Page) => {
         if (!context) throw new Error('Canvas context unavailable');
         context.fillStyle = getComputedStyle(element).backgroundColor;
         context.fillRect(0, 0, 1, 1);
-        return context.getImageData(0, 0, 1, 1).data[3] / 255;
+        return context.getImageData(0, 0, 1, 1).data[3]! / 255;
       }),
       `${name} own background alpha`
     ).toBe(1);
@@ -588,8 +590,8 @@ test('shared materials reveal changes in the backdrop', async ({ page }) => {
   const lightBackdrop = await renderedBackgrounds(page, samples);
 
   samples.forEach(({ name }, index) => {
-    const screenshotDrift = pixelDifference(darkBackdrop[index], repeatedDarkBackdrop[index]);
-    const backdropResponse = pixelDifference(repeatedDarkBackdrop[index], lightBackdrop[index]);
+    const screenshotDrift = pixelDifference(darkBackdrop[index]!, repeatedDarkBackdrop[index]!);
+    const backdropResponse = pixelDifference(repeatedDarkBackdrop[index]!, lightBackdrop[index]!);
     expect(backdropResponse, `${name} backdrop response`).toBeGreaterThanOrEqual(
       screenshotDrift + 12
     );

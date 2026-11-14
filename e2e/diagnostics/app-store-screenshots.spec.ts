@@ -266,7 +266,7 @@ for (const device of APP_STORE_SCREENSHOT_DEVICES) {
       await openFixtureRoom(page, fixtureRoomId);
       await applySceneTheme(page, sceneById('personal-workspace'));
       await expectFixtureRoomOverview(page);
-      const threadAgents = [
+      const threadAgents: Array<[string, string]> = [
         [WEEK_THREAD_TITLE, 'Atlas'],
         [DINNER_THREAD_TITLE, 'Pantry'],
         [HOME_AUTOMATION_THREAD_TITLE, 'Hearth'],

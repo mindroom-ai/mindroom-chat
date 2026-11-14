@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { color, Text } from 'folds';
 import { ModelPicker } from '../../src/app/models/ModelPicker';
 import { ScreenSizeProvider, useScreenSize } from '../../src/app/lib/hooks/useScreenSize';
