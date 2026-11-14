@@ -46,13 +46,13 @@ type CaptureListProps = {
   onOpened: () => Promise<void>;
 };
 
+/** What Copy puts on the clipboard: the reply as written, else as the peek shows it. */
+const copyTextOf = (item: CaptureItem): string => item.copyText ?? item.replyText ?? item.line;
+
 /**
  * The room's threads. The selected row is the one with the focus, followed by its thread id, so a
  * new state that reorders the list keeps it; the peek shows under it with the reply field.
  */
-
-/** What Copy puts on the clipboard: the reply as written, else as the peek shows it. */
-const copyTextOf = (item: CaptureItem): string => item.copyText ?? item.replyText ?? item.line;
 export function CaptureList({
   roomId,
   roomName,

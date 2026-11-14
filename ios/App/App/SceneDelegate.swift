@@ -58,9 +58,20 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func sceneDidDisconnect(_ scene: UIScene) {
 #if targetEnvironment(macCatalyst)
-        // The widget closes with the main window, so that the Dock opens the main window again.
-        if window != nil, let widget = QuickCapture.widgetScene {
-            UIApplication.shared.requestSceneSessionDestruction(widget.session, options: nil)
+        if let window {
+            // The widget closes with the main window, so that the Dock opens the main window again.
+            if let widget = QuickCapture.widgetScene {
+                UIApplication.shared.requestSceneSessionDestruction(widget.session, options: nil)
+            }
+            // A closed window's page would live on unseen: its client syncing beside the next
+            // window's, and serving the widget a room nobody sees. It stops, which tells the widget;
+            // without the bridge's navigation policy, which would hand the blank page to a browser.
+            if let webView = (window.rootViewController as? CAPBridgeViewController)?.webView,
+               let blank = URL(string: "about:blank") {
+                webView.navigationDelegate = nil
+                webView.load(URLRequest(url: blank))
+            }
+            self.window = nil
         }
 #endif
         MindRoomDiagnosticsRecorder.shared.recordScene(.sceneDisconnected, scene: scene)

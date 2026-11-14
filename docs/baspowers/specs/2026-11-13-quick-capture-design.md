@@ -104,7 +104,7 @@ Checked on the MacBook M2 (macOS 26.5.2, Xcode 26.6), driving its screen over Sc
 1. A `BroadcastChannel` message crosses between the two `CAPBridgeViewController` web views of the process; an 8 MB `File` arrives in 4 ms as a `File`. No relay.
 2. The scene's window is raised to the floating level, shown over Safari and given the keyboard through AppKit reached at run time, with the main window left behind it; the Carbon hot key fires while another app is in front. Over another app's full-screen Space it does not show (see the Mac shell above). Dragging by the header works through the hidden title bar, whose clicks still reach the room button.
 3. ScreenCaptureKit builds for Mac Catalyst 18.2 and captures the front window of another app and the display without the app's own windows, at the display's pixel scale.
-4. Ordered out, the widget's page reports `document.visibilityState` `hidden`; it gets `focus` when shown. With the main window closed, the main web view lives on and its host still answers, so a widget shown then keeps working; the widget closes with the main window anyway (see the Mac shell above).
+4. Ordered out, the widget's page reports `document.visibilityState` `hidden`; it gets `focus` when shown. With the main window closed, its web view lives on unless stopped: the app now blanks that page as its scene disconnects (past Capacitor's navigation policy, which would hand `about:blank` to a browser), so its host says `gone`, its client stops, and a widget opened then says MindRoom is not open until the main window opens again. The widget closes with the main window (see the Mac shell above).
 
 ## Error handling
 

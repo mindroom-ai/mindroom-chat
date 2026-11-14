@@ -101,6 +101,19 @@ describe('Mac Catalyst shell', () => {
     );
   });
 
+  it("stops a closed main window's page on the Mac, which closes the widget with it", () => {
+    const disconnect =
+      sceneSource.match(/func sceneDidDisconnect\(_ scene: UIScene\) \{[\s\S]*?\n {4}\}/)?.[0] ??
+      '';
+    const macOnly = disconnect.match(/#if targetEnvironment\(macCatalyst\)([\s\S]*?)#endif/)?.[1];
+    expect(macOnly).toMatch(/if let window \{/);
+    expect(macOnly).toContain('requestSceneSessionDestruction(widget.session');
+    expect(macOnly).toMatch(
+      /webView\.navigationDelegate = nil\s*webView\.load\(URLRequest\(url: blank\)\)[\s\S]*self\.window = nil/
+    );
+    expect(outsideMacOnly(disconnect)).not.toContain('about:blank');
+  });
+
   it('follows every other app that comes forward, for a widget a click brought forward', () => {
     expect(appDelegateSource).toMatch(
       /#if targetEnvironment\(macCatalyst\)[^#]*MacWindowing\.followFrontProcess\(\)[^#]*#endif/
