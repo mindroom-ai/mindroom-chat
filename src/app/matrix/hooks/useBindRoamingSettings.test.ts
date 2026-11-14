@@ -81,6 +81,8 @@ const login = (
     emitter.emit(ClientEvent.Sync, next, previous, nextData);
   };
   let echoed: (() => void)[] = [];
+  /** Runs once in the next write, after its wait for sync begins and before it reaches the server. */
+  let beforeNextPut: (() => void) | undefined;
   const client = {
     connected: true,
     receive(next: Content) {
@@ -102,6 +104,9 @@ const login = (
     const echo = new Promise<void>((resolve) => {
       echoed.push(resolve);
     });
+    const hook = beforeNextPut;
+    beforeNextPut = undefined;
+    hook?.();
     server.put(next);
     await echo;
     return {};
@@ -128,6 +133,9 @@ const login = (
     mx,
     setAccountData,
     sync,
+    beforeNextPut(run: () => void) {
+      beforeNextPut = run;
+    },
     listeners: () =>
       emitter.listenerCount(ClientEvent.Sync) + emitter.listenerCount(ClientEvent.AccountData),
     goOffline() {
@@ -230,6 +238,9 @@ describe('bindRoamingSettings', () => {
     );
     await vi.waitFor(() => expect(app.pending()).toEqual({}));
     expect(loadPendingRoamingSettings(pendingRoamingSettingsKey(ALICE, 'PHONE'))).toEqual({});
+    // One read, for the write: its own echo confirms it, with no read after it.
+    await settle();
+    expect(phone.mx.getAccountDataFromServer).toHaveBeenCalledTimes(1);
     // The device entry keeps the value it had before the setting roamed: no clock of its own.
     expect(getSettings().hour24Clock).toBeUndefined();
     app.unbind();
@@ -371,26 +382,32 @@ describe('bindRoamingSettings', () => {
   it('redoes an edit each time a write from older content undoes it, up to the limit', async () => {
     logins.stored = [{ userId: ALICE, deviceId: 'LAPTOP' }];
     const server = homeserver({ lag: true });
-    const laptop = open(login(server, ALICE, 'LAPTOP'));
+    const client = login(server, ALICE, 'LAPTOP');
+    const laptop = open(client);
     await settle();
+    // Another device's write lands before the laptop reads the content, and sync brings it while
+    // the laptop's write is on its way: the content the laptop wrote over, not a conflict.
+    server.put({ version: 1, rev: 'other', base_rev: null, enterForNewline: true });
+    client.beforeNextPut(server.deliver);
     laptop.change('isMarkdown', false);
     await settle();
     server.deliver();
     await settle();
 
-    // Three times, while another edit of the laptop is on its way, a device that read the content
-    // from before the laptop's first write stores over it. Each time the laptop sends its edit again.
-    for (const hour24Clock of [true, false, true]) {
+    // Four times, while another edit of the laptop is on its way, a device that read the content
+    // from before the laptop's first write stores over it. The laptop sends its edit again three
+    // times, then lets the other device have it.
+    for (const [round, hour24Clock] of [true, false, true, false].entries()) {
       laptop.change('hour24Clock', hour24Clock);
       // eslint-disable-next-line no-await-in-loop
       await settle();
-      server.put({ version: 1, rev: `stale-${String(hour24Clock)}`, base_rev: null });
+      server.put({ version: 1, rev: `stale-${round}`, base_rev: 'other', enterForNewline: true });
       for (let turn = 0; turn < 3; turn += 1) {
         server.deliver();
         // eslint-disable-next-line no-await-in-loop
         await settle();
       }
-      expect(server.content?.isMarkdown).toBe(false);
+      expect(server.content?.isMarkdown).toBe(round < 3 ? false : undefined);
     }
     laptop.unbind();
   });

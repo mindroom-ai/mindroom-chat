@@ -159,12 +159,16 @@ export const bindRoamingSettings = (mx: MatrixClient, store: Store): (() => void
       .then((written) => {
         if (written === undefined || !bound) return;
         migrated = true;
-        const write = written && { ...written, patch, at: Date.now() };
-        if (write) recent = [...recent, write];
-        confirm(sent);
+        if (written) recent = [...recent, { ...written, patch, at: Date.now() }];
         // The write resolves on the first account data that sync delivers after the call, which
-        // may be another device's write from the same content, checked before this one was known.
-        if (write) redoUndoneEdits(contentOf(mx), [write]);
+        // may be another device's content, checked before this write was known. Unless what the
+        // client holds now saw this write, the edits stay and are checked against a fresh read.
+        const held = contentOf(mx);
+        const heldSawIt =
+          isRecord(held) &&
+          (held.rev === written?.stored.rev || held.base_rev === written?.stored.rev);
+        if (written && !heldSawIt) again = true;
+        else confirm(sent);
       })
       .catch(() => undefined)
       .finally(() => {
@@ -179,17 +183,14 @@ export const bindRoamingSettings = (mx: MatrixClient, store: Store): (() => void
     online = live;
     if (reconnected) flush();
   };
-  /**
-   * Sends again the edits of this device's `writes` (the recent ones) that `content`, written from
-   * an older copy, undid.
-   */
-  const redoUndoneEdits = (content: unknown, writes?: typeof recent): void => {
+  /** Sends again the edits of this device that `content`, written from an older copy, undid. */
+  const redoUndoneEdits = (content: unknown): void => {
     const now = Date.now();
     recent = recent.filter((write) => now - write.at <= GUARD_MS);
     if (recent.length === 0) redos.clear();
     const incoming = isRecord(content) ? content : {};
     const undone: Record<string, unknown> = {};
-    (writes ?? recent).forEach(({ stored, base, patch }) => {
+    recent.forEach(({ stored, base, patch }) => {
       const sawThisWrite = incoming.rev === stored.rev || incoming.base_rev === stored.rev;
       const readItsBase = incoming.base_rev === stored.base_rev || incoming.rev === stored.base_rev;
       if (sawThisWrite || !readItsBase) return;
