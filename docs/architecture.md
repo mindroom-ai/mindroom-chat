@@ -85,8 +85,9 @@ src/
                          started it
     rooms/               room management: cards, access control, leave prompt; create/, explore/ (route), join/,
                          settings/ (room settings pages), archive/
-    threads/             thread features: overview/ (list, compact view, filters), open/ (session, bootstrap), tags/,
-                         summary/, cross-room/ (index, signals), page/ (the Threads section's list), banner, actions menu
+    threads/             thread features: overview/ (list, compact view, filters), open/ (session, bootstrap), tags/
+                         (tags, resolve and snooze, the snooze picker), summary/, cross-room/ (index, signals), page/ (the
+                         Threads section's list), banner, actions menu
     account/             sign-in and the account: auth/, lifecycle/ (start, stop, wipe a session), switcher/,
                          settings/, devices/, encryption/, verification/, uia/, onboarding/
     activity/            the Activity bell: rows from thread signals and invites, inline answers, the popover, the

@@ -32,7 +32,7 @@ import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
 import { useToolCallsShown } from '../messages/toolCallVisibility';
 import { isSnoozedAt } from '../event-store/threads/threadSnooze';
 import { useSnoozeNow } from './tags/useSnoozeNow';
-import { SnoozePicker } from './snooze/SnoozePicker';
+import { SnoozePicker } from './tags/SnoozePicker';
 
 export type ThreadActionsMenuProps = {
   room: Room;

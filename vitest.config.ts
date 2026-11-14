@@ -92,7 +92,7 @@ export default defineConfig({
     // keeps the zone it started in, so these files stay in a fork under `--pool=threads` too.
     poolMatchGlobs: [
       ['**/src/app/lib/time.formatterCache.test.ts', 'forks'],
-      ['**/src/app/threads/snooze/snoozePresets.test.ts', 'forks'],
+      ['**/src/app/threads/tags/snoozePresets.test.ts', 'forks'],
     ],
   },
 });
