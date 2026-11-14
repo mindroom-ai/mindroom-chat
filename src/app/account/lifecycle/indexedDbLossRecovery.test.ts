@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import 'fake-indexeddb/auto';
-import { forceCloseDatabase } from 'fake-indexeddb';
+import { forceCloseDatabase as forceCloseFakeDatabase } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   INDEXED_DB_LOSS_RELOAD_KEY,
@@ -9,6 +9,9 @@ import {
   installIndexedDbLossRecovery,
   readRecoveryReloadAge,
 } from './indexedDbLossRecovery';
+
+// fake-indexeddb declares the parameter as the database class; it takes an open connection.
+const forceCloseDatabase = forceCloseFakeDatabase as unknown as (db: IDBDatabase) => void;
 
 const setVisibility = (state: DocumentVisibilityState) => {
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: state });

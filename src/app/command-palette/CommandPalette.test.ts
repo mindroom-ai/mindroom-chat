@@ -181,7 +181,7 @@ const FIXTURE_SOURCE: CommandPaletteSource = {
       boost: 10,
     },
   ],
-  getUsers: vi.fn(() => [
+  getUsers: vi.fn<CommandPaletteSource['getUsers']>(() => [
     {
       id: '@alice:example.org',
       kind: 'user',

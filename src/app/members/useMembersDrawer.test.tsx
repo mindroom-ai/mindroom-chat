@@ -1,4 +1,3 @@
-import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -47,8 +46,8 @@ const renderDrawer = (initialScreen: ScreenSize, desktopOpen = true) => {
     store,
     pressed: () =>
       renderer!.root.findAllByType('button').map((button) => button.props['aria-pressed']),
-    click: () => act(() => renderer!.root.findAllByType('button')[0].props.onClick()),
-    captureClick: () => renderer!.root.findAllByType('button')[0].props.onClick,
+    click: () => act(() => renderer!.root.findAllByType('button')[0]!.props.onClick()),
+    captureClick: () => renderer!.root.findAllByType('button')[0]!.props.onClick,
     resize: (screen: ScreenSize) => {
       viewport.width = screen === ScreenSize.Mobile ? 390 : 1200;
       act(() => renderer!.update(content(screen)));

@@ -1,4 +1,3 @@
-import React from 'react';
 import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -256,7 +255,7 @@ describe('AddCustomEmoji', () => {
 
     await submit();
 
-    const [uploaded, options] = mx.uploadContent.mock.calls[0];
+    const [uploaded, options] = mx.uploadContent.mock.calls[0]!;
     expect([uploaded.name, uploaded.type, uploaded.size]).toEqual([
       'party parrot.png',
       'image/png',

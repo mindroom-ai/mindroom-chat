@@ -450,6 +450,6 @@ describe('sessions', () => {
     expect(activeA).toBe(activeB);
     expect(activeA?.sessionId).toBe(session.sessionId);
     expect(sessionsA).toBe(sessionsB);
-    expect(sessionsA[0].sessionId).toBe(session.sessionId);
+    expect(sessionsA[0]!.sessionId).toBe(session.sessionId);
   });
 });

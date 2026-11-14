@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { atom, createStore, Provider, useAtomValue, useSetAtom } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';

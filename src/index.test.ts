@@ -235,7 +235,7 @@ describe('application bootstrap', () => {
     });
     // Recorded earlier, the event would be dropped silently.
     expect(mocks.initializeDeepTraceRecorder.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.recordDeepTraceEvent.mock.invocationCallOrder[0]
+      mocks.recordDeepTraceEvent.mock.invocationCallOrder[0]!
     );
     expect(mocks.installIndexedDbLossRecovery).toHaveBeenCalledOnce();
   });
@@ -339,7 +339,7 @@ describe('application bootstrap', () => {
         }
         await vi.waitFor(() => expect(navigationUrls).toHaveLength(1));
 
-        const destination = new URL(navigationUrls[0]);
+        const destination = new URL(navigationUrls[0]!);
         expect(destination.pathname + destination.search + destination.hash).toBe(
           '/home/room?threadId=reply&authentication-recovery-navigation=1#event'
         );

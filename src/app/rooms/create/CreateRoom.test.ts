@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
-import { Capabilities } from 'matrix-js-sdk';
+import { Capabilities, RoomVersionStability } from 'matrix-js-sdk';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { CapabilitiesProvider } from '../../matrix/hooks/useCapabilities';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
@@ -59,7 +59,7 @@ const capabilities: Capabilities = {
   'm.room_versions': {
     default: '9',
     available: {
-      '9': 'stable',
+      '9': RoomVersionStability.Stable,
     },
   },
 };

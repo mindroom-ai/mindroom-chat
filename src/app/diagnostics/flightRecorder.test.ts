@@ -91,6 +91,8 @@ const makePriorSession = (
   };
 };
 
+type LifecycleEvent = Extract<FlightRecorderSession['events'][number], { type: 'lifecycle' }>;
+
 const readCurrent = (storage: MemoryStorage): FlightRecorderSession =>
   JSON.parse(storage.getItem(FLIGHT_RECORDER_CURRENT_KEY) ?? 'null') as FlightRecorderSession;
 
@@ -257,7 +259,7 @@ describe('iOS freeze flight recorder', () => {
     expect(readCurrent(storage)).toMatchObject({ expectedEndAt: null, endReason: null });
     expect(
       readCurrent(storage)
-        .events.filter((event) => event.type === 'lifecycle')
+        .events.filter((event): event is LifecycleEvent => event.type === 'lifecycle')
         .map((event) => event.state)
     ).toEqual(['hidden', 'visible', 'pagehide', 'pageshow']);
   });
@@ -427,7 +429,7 @@ describe('iOS freeze flight recorder', () => {
     documentTarget.dispatchEvent(new Event('visibilitychange'));
     setFlightRecorderVoiceCaptureState('recording');
     vi.advanceTimersByTime(4000);
-    dispose();
+    dispose!();
 
     expect(storage.writes).toHaveLength(writesAfterFailure);
   });
@@ -636,7 +638,7 @@ describe('iOS freeze flight recorder', () => {
     expect(storage.getItem(FLIGHT_RECORDER_ABNORMAL_KEY)).toBeNull();
     expect(storage.getItem(FLIGHT_RECORDER_CURRENT_KEY)).not.toContain('private text');
 
-    dispose();
+    dispose!();
     vi.stubGlobal('localStorage', undefined);
     expect(() => {
       dispose = installFlightRecorder();

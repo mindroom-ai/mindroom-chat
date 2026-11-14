@@ -1,4 +1,4 @@
-import { createInstance } from 'i18next';
+import { createInstance, type ParseKeys } from 'i18next';
 import { expect, it } from 'vitest';
 
 // patches/i18next+23.12.2.patch backports i18next 26.5's interpolation fix.
@@ -13,7 +13,7 @@ it('inserts an escaped value that contains its own placeholder once', async () =
   // placeholder, the scan resumed inside the inserted value and inserted it again,
   // up to 1000 times.
   expect(
-    i18n.t('joined', {
+    i18n.t('joined' as ParseKeys, {
       userName: 'Maya////$&{{userName}}',
       interpolation: { escapeValue: true },
     })

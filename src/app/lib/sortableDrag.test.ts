@@ -33,7 +33,11 @@ describe('animateSortableLayoutDuringDrag', () => {
     expect(
       animateSortableLayoutDuringDrag(
         layoutArgs({
-          active: { id: 'item-a', data: { current: undefined }, rect: { current: {} } },
+          active: {
+            id: 'item-a',
+            data: { current: undefined },
+            rect: { current: {} },
+          } as Parameters<AnimateLayoutChanges>[0]['active'],
           isSorting: true,
         })
       )

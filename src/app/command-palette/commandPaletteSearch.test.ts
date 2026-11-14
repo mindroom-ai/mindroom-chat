@@ -116,7 +116,7 @@ describe('searchCommandPaletteSection', () => {
   });
 
   it('searches array fields such as thread tags', () => {
-    const items: CommandPaletteThreadItem[] = [
+    const items = [
       {
         id: '$thread-1',
         kind: 'thread',
@@ -131,7 +131,7 @@ describe('searchCommandPaletteSection', () => {
         roomName: 'Docs',
         tags: ['docs'],
       },
-    ];
+    ] as CommandPaletteThreadItem[];
 
     const results = searchCommandPaletteSection({
       items,

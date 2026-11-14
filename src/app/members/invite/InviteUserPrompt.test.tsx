@@ -113,7 +113,7 @@ const makeMx = (): MockMatrixClient => ({
     limited: false,
     results: [],
   })),
-  invite: vi.fn(async () => undefined),
+  invite: vi.fn(async () => undefined) as unknown as MockMatrixClient['invite'],
 });
 
 const makeRoom = (): Pick<Room, 'roomId' | 'getMember'> => ({
@@ -200,7 +200,7 @@ const keyDown = (renderer: ReactTestRenderer, key: string) => {
     shiftKey: false,
     preventDefault,
     stopPropagation,
-  } as KeyboardEvent;
+  } as unknown as KeyboardEvent;
 
   act(() => {
     getInput(renderer).props.onKeyDown(keyboardEvent);

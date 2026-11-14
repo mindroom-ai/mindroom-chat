@@ -106,13 +106,13 @@ describe('parseMessageExtras', () => {
   it('defaults collapsed to true', () => {
     const extras = parseMessageExtras(createContent([validSection()]));
 
-    expect(extras?.sections[0].collapsed).toBe(true);
+    expect(extras?.sections[0]!.collapsed).toBe(true);
   });
 
   it('keeps explicit collapsed false open', () => {
     const extras = parseMessageExtras(createContent([validSection({ collapsed: false })]));
 
-    expect(extras?.sections[0].collapsed).toBe(false);
+    expect(extras?.sections[0]!.collapsed).toBe(false);
   });
 
   it('skips invalid sections while keeping valid sections', () => {
@@ -126,7 +126,7 @@ describe('parseMessageExtras', () => {
     );
 
     expect(extras?.sections).toHaveLength(1);
-    expect(extras?.sections[0].title).toBe('Kept');
+    expect(extras?.sections[0]!.title).toBe('Kept');
   });
 
   it('skips text/html in v1', () => {
@@ -264,7 +264,7 @@ describe('parseMessageExtras', () => {
     const title = ` ${'a'.repeat(MINDROOM_MESSAGE_EXTRAS_MAX_TITLE_CHARS + 10)} `;
     const extras = parseMessageExtras(createContent([validSection({ title })]));
 
-    expect(extras?.sections[0].title).toBe('a'.repeat(MINDROOM_MESSAGE_EXTRAS_MAX_TITLE_CHARS));
+    expect(extras?.sections[0]!.title).toBe('a'.repeat(MINDROOM_MESSAGE_EXTRAS_MAX_TITLE_CHARS));
   });
 
   it('never throws when given unexpected content', () => {

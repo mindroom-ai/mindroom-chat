@@ -43,7 +43,7 @@ describe('navigateToRoomThread', () => {
     expect(scheduled).toHaveLength(1);
     expect(scheduled[0]).toBeTypeOf('function');
 
-    scheduled[0]();
+    scheduled[0]!();
     expect(getRoomThreadExitTargetFromHistoryState(historyState)).toEqual({
       exitPath: '/home/!room:example.org?filter=open#reply',
       roomId: '!room:example.org',

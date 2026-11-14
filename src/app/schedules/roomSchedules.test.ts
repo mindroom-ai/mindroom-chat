@@ -43,12 +43,12 @@ describe('pending room schedules', () => {
     'treats %s as UTC without an offset',
     (executeAt) => {
       const [task] = getPendingRoomSchedules([event('naive', { execute_at: executeAt })]);
-      expect(getScheduleTimestamp(task)).toBe(1789551000000);
+      expect(getScheduleTimestamp(task!)).toBe(1789551000000);
     }
   );
 
   it('recognizes the legacy main destination as the room timeline', () => {
     const [task] = getPendingRoomSchedules([event('main', { thread_id: 'main' })]);
-    expect(task.threadId).toBeNull();
+    expect(task!.threadId).toBeNull();
   });
 });

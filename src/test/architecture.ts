@@ -72,7 +72,7 @@ export const moduleDependencies = (path: string): ModuleDependency[] => {
     if (
       ts.isCallExpression(node) &&
       node.arguments.length >= 1 &&
-      ts.isStringLiteral(node.arguments[0]) &&
+      ts.isStringLiteral(node.arguments[0]!) &&
       (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
         (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
     ) {

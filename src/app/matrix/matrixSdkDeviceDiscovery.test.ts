@@ -118,7 +118,7 @@ const makeCryptoHarness = ({
     },
     outgoingRequestsManager: { doProcessOutgoingRequests: processOutgoingRequests },
     stopped: false,
-  }) as RustCrypto;
+  }) as unknown as RustCrypto;
 
   return {
     crypto,

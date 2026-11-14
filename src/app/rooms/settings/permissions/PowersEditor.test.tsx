@@ -202,7 +202,7 @@ describe('PowersEditor power-level tag persistence', () => {
       .findAllByType('section')
       .find((section) => nodeText(section).includes('Obsolete role'));
     expect(obsoleteRole).toBeDefined();
-    act(() => obsoleteRole?.findAllByType('button')[0].props.onClick());
+    act(() => obsoleteRole?.findAllByType('button')[0]!.props.onClick());
 
     await act(async () => {
       await language.changeLanguage('en');

@@ -32,7 +32,7 @@ vi.mock('folds', () => ({
         after,
         ...props
       }: React.ButtonHTMLAttributes<HTMLButtonElement> & { after?: React.ReactNode },
-      ref
+      ref: React.ForwardedRef<HTMLButtonElement>
     ) => (
       <button ref={ref} type="button" {...props}>
         {children}

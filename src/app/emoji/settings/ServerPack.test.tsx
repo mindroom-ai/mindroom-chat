@@ -112,13 +112,13 @@ describe('ServerPack', () => {
     // The deleted pack at '3' gets no tile.
     expect(buttons('View')).toHaveLength(2);
 
-    click(buttons('View')[0]);
+    click(buttons('View')[0]!);
 
     expect(onViewPack).toHaveBeenCalledTimes(1);
     expect(onViewPack).toHaveBeenCalledWith(first);
-    expect(onViewPack.mock.calls[0][0].address).toEqual({ roomId: '!emoji', stateKey: '' });
+    expect(onViewPack.mock.calls[0]![0].address).toEqual({ roomId: '!emoji', stateKey: '' });
 
-    click(buttons('View')[1]);
+    click(buttons('View')[1]!);
 
     expect(onViewPack).toHaveBeenLastCalledWith(overflow);
   });
@@ -131,10 +131,10 @@ describe('ServerPack', () => {
     const { onViewPack } = renderSection();
 
     expect(buttons('View')).toHaveLength(1);
-    click(buttons('View')[0]);
+    click(buttons('View')[0]!);
 
     expect(onViewPack).toHaveBeenCalledTimes(1);
-    const [opened] = onViewPack.mock.calls[0];
+    const [opened] = onViewPack.mock.calls[0]!;
     expect(opened).toBeInstanceOf(ImagePack);
     expect(opened.address).toEqual({ roomId: '!emoji', stateKey: '' });
   });
@@ -159,9 +159,9 @@ describe('ServerPack', () => {
     // The configured alias moved to another joined room.
     hooks.useServerEmojiRoom.mockReturnValue({ roomId: '!emoji-new' });
     rerender();
-    click(buttons('View')[0]);
+    click(buttons('View')[0]!);
 
-    expect(onViewPack.mock.calls[0][0].address).toEqual({ roomId: '!emoji-new', stateKey: '' });
+    expect(onViewPack.mock.calls[0]![0].address).toEqual({ roomId: '!emoji-new', stateKey: '' });
   });
 
   it('shows Permissions only to users who may change power levels', () => {
@@ -173,7 +173,7 @@ describe('ServerPack', () => {
     rerender();
 
     expect(buttons('Permissions')).toHaveLength(1);
-    click(buttons('Permissions')[0]);
+    click(buttons('Permissions')[0]!);
 
     expect(hooks.openRoomSettings).toHaveBeenCalledWith('!emoji', RoomSettingsPage.PermissionsPage);
   });
