@@ -7,6 +7,7 @@ import {
   MINDROOM_THREAD_TAGS_EVENT,
   RESOLVED_TAG,
 } from '../event-store/threads/threadTags';
+import { getVisibleThreadEventBodyPreviewText } from '../event-store/threads/threadUtils';
 import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
 import { threadActorName } from '../threads/cross-room/threadText';
@@ -271,6 +272,46 @@ describe('readCaptureThreads', () => {
 
     expect(thread?.reply().replyText).toBe('Indexed');
     expect(thread?.reply().replySender).toBe('carol');
+  });
+
+  it('copies the reply the server bundled with the root whole, where the preview shows it', () => {
+    const body = `**Answer** ${'with many words '.repeat(60)}`;
+    const reply = {
+      event_id: '$reply',
+      sender: '@agent:x',
+      type: 'm.room.message',
+      origin_server_ts: 900,
+      content: {
+        msgtype: 'm.text',
+        body,
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$t' },
+      },
+    };
+    const root = new MatrixEvent({
+      event_id: '$t',
+      room_id: ROOM_ID,
+      sender: '@me:x',
+      type: 'm.room.message',
+      origin_server_ts: 100,
+      content: { msgtype: 'm.text', body: 'Question' },
+      unsigned: { 'm.relations': { 'm.thread': { 'io.mindroom.latest_reply': reply } } },
+    });
+    const shown = getVisibleThreadEventBodyPreviewText(
+      new MatrixEvent({ ...reply, room_id: ROOM_ID })
+    );
+    const room = makeRoom({ loaded: [root] });
+    const read = (preview: string | undefined) =>
+      readCaptureThreads(
+        mx,
+        room,
+        [makeEntry('$t', {}, { latestReplyPreviewText: preview, lastSenderId: '@agent:x' })],
+        t,
+        NOW
+      )[0]?.reply();
+
+    expect(read(shown)?.copyText).toBe(body);
+    // A preview of another reply (one cached later) keeps its own text.
+    expect(read('Another answer')).not.toHaveProperty('copyText');
   });
 
   it("adds the user's own roots nobody answered from the live timeline, once each", () => {

@@ -8,8 +8,10 @@ import {
   getThreadMessageBodyPreview,
   localizeThreadPreview,
 } from '../event-store/threads/threadMessagePreview';
+import { getBundledThreadPreviews } from '../event-store/threads/threadBundledPreviews';
 import { isThreadPinned } from '../event-store/threads/threadPinning';
 import { isThreadResolved } from '../event-store/threads/threadTags';
+import { getVisibleThreadEventBodyPreviewText } from '../event-store/threads/threadUtils';
 import { getEditedEvent, getLatestMessageContent } from '../matrix/room';
 import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
@@ -50,6 +52,22 @@ const replyBody = (
   return cleaned === undefined ? undefined : { text: cleaned, own: content.body };
 };
 
+/**
+ * The reply the server bundled with the root (`io.mindroom.latest_reply`) as its sender wrote it,
+ * where it is the reply the index's preview shows: a reply not loaded yet, as after a restart.
+ */
+const bundledReplyBody = (room: Room, entry: CrossRoomThreadIndexEntry): string | undefined => {
+  const root =
+    room.findEventById(entry.threadRootId) ?? room.getThread(entry.threadRootId)?.rootEvent;
+  const reply = getBundledThreadPreviews(room, root).reply;
+  const shown = entry.threadRecord.presentation?.latestReplyPreviewText;
+  if (!reply || !shown || getVisibleThreadEventBodyPreviewText(reply) !== shown) return undefined;
+  const content = getLatestMessageContent(reply, reply.replacingEvent() ?? undefined);
+  return content.msgtype === MsgType.Text && typeof content.body === 'string'
+    ? content.body
+    : undefined;
+};
+
 /** The thread's newest reply and its sender: from the signals, else from the index's preview. */
 const readReply = (
   mx: MatrixClient,
@@ -70,7 +88,13 @@ const readReply = (
     };
   }
   const indexed = threadIndexReplyPreview(entry);
-  return indexed ? { replyText: indexed.text, ...sender(indexed.senderId) } : {};
+  if (!indexed) return {};
+  const own = bundledReplyBody(room, entry);
+  return {
+    replyText: indexed.text,
+    ...(own === undefined ? {} : { copyText: own }),
+    ...sender(indexed.senderId),
+  };
 };
 
 /**
