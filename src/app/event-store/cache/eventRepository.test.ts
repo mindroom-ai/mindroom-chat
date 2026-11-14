@@ -254,7 +254,7 @@ describe('eventRepository same-id revision merge', () => {
 
     const snapshot = persistThreadEventCacheSnapshot({
       sessionId: 'session',
-      room: room,
+      room,
       threadId: '$root',
       events: [mapRawEvent(target), mapRawEvent(replace)],
       authoritativeRawEvents: [target, replace],
@@ -432,10 +432,10 @@ describe('eventRepository cache persistence snapshots', () => {
 
     const snapshot = persistThreadEventCacheSnapshot({
       sessionId: 'session',
-      room: room,
+      room,
       threadId: '$root',
       events: [replyEvent],
-      rootEvent: rootEvent,
+      rootEvent,
       beforeTokenForEarliest: null,
       tailLoaded: true,
       snapshotComplete: true,
@@ -477,7 +477,7 @@ describe('eventRepository cache persistence snapshots', () => {
 
     const snapshot = persistRoomEventCacheSnapshot({
       sessionId: 'session',
-      room: room,
+      room,
       events: [rootEvent, replyEvent, roomEvent],
       beforeTokenForEarliest: 'before-root',
       save: (...args) => {
@@ -520,7 +520,7 @@ describe('eventRepository cache persistence snapshots', () => {
 
     const snapshots = persistThreadCacheFromRoomEventsSnapshot({
       sessionId: 'session',
-      room: room,
+      room,
       events: [replyEvent],
       opts: {
         roomStartKnown: true,
@@ -677,7 +677,7 @@ describe('eventRepository cached thread snapshots', () => {
       sessionId: 'session',
       roomId: '!room:example.org',
       threadId: '$root',
-      earliestLoadedReply: earliestLoadedReply,
+      earliestLoadedReply,
       heldEventIds: new Set(),
       limit: 50,
       mapEvent: (rawEvent) =>
@@ -721,7 +721,7 @@ describe('eventRepository cached thread snapshots', () => {
       sessionId: 'session',
       roomId: '!room:example.org',
       threadId: '$root',
-      earliestLoadedReply: earliestLoadedReply,
+      earliestLoadedReply,
       heldEventIds: new Set(),
       limit: 50,
       mapEvent: (rawEvent) =>
@@ -923,7 +923,7 @@ describe('eventRepository room cached-back state snapshots', () => {
     const snapshot = await loadRoomCachedBackStateSnapshot({
       sessionId: 'session',
       roomId: '!room:example.org',
-      earliestLoadedEvent: earliestLoadedEvent,
+      earliestLoadedEvent,
       loadBefore: async (_sessionId, _roomId, anchor, limit) => {
         requestedAnchor = anchor;
         expect(limit).toBe(1);
@@ -949,7 +949,7 @@ describe('eventRepository room cached pagination snapshots', () => {
     const snapshot = await loadRoomCachedPaginationSnapshot({
       sessionId: 'session',
       roomId: '!room:example.org',
-      earliestLoadedEvent: earliestLoadedEvent,
+      earliestLoadedEvent,
       limit: 50,
       mapEvent: (rawEvent) => makeEvent(rawEvent.event_id ?? '$missing'),
       loadPaginationToken: async () => null,
@@ -971,7 +971,7 @@ describe('eventRepository room cached pagination snapshots', () => {
     const snapshot = await loadRoomCachedPaginationSnapshot({
       sessionId: 'session',
       roomId: '!room:example.org',
-      earliestLoadedEvent: earliestLoadedEvent,
+      earliestLoadedEvent,
       limit: 50,
       mapEvent: (rawEvent) =>
         makeEvent(rawEvent.event_id ?? '$missing', {
@@ -1325,7 +1325,7 @@ describe('persist entry points always delegate to the injected save (ISSUE-207 P
 
     persistRoomEventCacheSnapshot({
       sessionId: 'session',
-      room: room,
+      room,
       events: [],
       save: flakySave,
     });
@@ -1335,7 +1335,7 @@ describe('persist entry points always delegate to the injected save (ISSUE-207 P
 
     persistRoomEventCacheSnapshot({
       sessionId: 'session',
-      room: room,
+      room,
       events: [],
       save: flakySave,
     });
@@ -1348,7 +1348,7 @@ describe('persist entry points always delegate to the injected save (ISSUE-207 P
 
     persistThreadEventCacheSnapshot({
       sessionId: 'session',
-      room: room,
+      room,
       threadId: '$root',
       events: [],
       save: threadSave,
