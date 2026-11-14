@@ -930,6 +930,30 @@
       "unsuspend": "解除 {{user}} 的停權？該帳號可以再次傳送訊息和加入聊天室。",
       "deactivate": "停用 {{user}}？該帳號將退出其聊天室，並且永遠無法再登入。此操作無法復原。"
     },
-    "protected": "管理員和你自己的帳號無法在此變更。"
+    "protected": "管理員和你自己的帳號無法在此變更。",
+    "accounts": "帳號",
+    "invites": {
+      "title": "邀請",
+      "description": "受邀的電子郵件地址使用該地址登入後，可在此建立一個帳號。",
+      "sendYourself": "不會寄出任何郵件：請複製邀請內容並自行傳送。",
+      "add": "透過電子郵件邀請",
+      "none": "沒有待處理的邀請",
+      "loadFailed": "無法載入邀請。",
+      "addresses": "電子郵件地址",
+      "addressesHint": "多個地址請用逗號或換行分隔。",
+      "rooms": "新帳號將加入的聊天室",
+      "external": "外部帳號",
+      "invited": "已邀請",
+      "replaces": "取代先前的邀請",
+      "copy": "複製邀請內容",
+      "message": "你已受邀使用以下網址：{{url}}\n請透過 {{providers}} 登入，並務必使用此電子郵件地址：{{email}}",
+      "messagePlain": "你已受邀使用以下網址：{{url}}\n請務必使用此電子郵件地址登入：{{email}}",
+      "delete": "刪除邀請",
+      "confirmDelete": "要刪除 {{email}} 的邀請嗎？該邀請將無法再用於建立帳號。",
+      "errors": {
+        "inUse": "{{user}} 已擁有此地址。",
+        "invalidAddress": "這不是有效的電子郵件地址。"
+      }
+    }
   }
 }

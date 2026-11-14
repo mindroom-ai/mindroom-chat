@@ -156,6 +156,10 @@ const withTimeout = <T>(task: Promise<T>, timeoutMs: number): Promise<T> =>
     );
   });
 
+/** `fetch` past the HTTP cache, for an answer that has to be the server's own right now. */
+export const freshFetch: typeof fetch = (input, init) =>
+  fetch(input, { ...init, cache: 'no-store' });
+
 /** The homeserver's `/_matrix/client/versions`; rejects on a non-2xx answer or after a timeout. */
 export const specVersions = async (
   request: typeof fetch,

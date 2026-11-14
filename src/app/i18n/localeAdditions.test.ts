@@ -96,8 +96,12 @@ describe('language overlays (locales/additions/<code>.json)', () => {
     it.runIf(code === 'ar')('isolates every placeholder from the right-to-left text', () => {
       values.forEach((value, path) => {
         for (const match of value.matchAll(/\{\{[^}]+\}\}/g)) {
-          expect(value[match.index - 1], path).toBe('\u2068');
-          expect(value[match.index + match[0].length], path).toBe('\u2069');
+          const before = value[match.index - 1];
+          const after = value[match.index + match[0].length];
+          // A placeholder on a line of its own is a paragraph of its own, with no text to mix.
+          if ([before, after].every((side) => side === undefined || side === '\n')) continue;
+          expect(before, path).toBe('\u2068');
+          expect(after, path).toBe('\u2069');
         }
       });
     });
