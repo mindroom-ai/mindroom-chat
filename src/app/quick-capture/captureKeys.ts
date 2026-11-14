@@ -21,8 +21,8 @@ type CaptureKeyEvent = Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'shif
 export type CaptureKeyContext = {
   zone: CaptureZone;
   inputEmpty: boolean;
-  /** The caret is in the input's last line, so the down arrow has nowhere to go in it. */
-  caretOnLastLine: boolean;
+  /** The caret is at the end of the input, so the down arrow has nowhere to go in it. */
+  caretAtEnd: boolean;
   /** The selected row is the list's first. */
   firstRow: boolean;
   /** ⌘ is the platform's command key (macOS, iOS); Ctrl elsewhere. */
@@ -45,7 +45,7 @@ const isCharacter = (key: string): boolean => [...key].length === 1;
 const inputAction = (
   { key, shiftKey }: CaptureKeyEvent,
   mod: boolean,
-  { inputEmpty, caretOnLastLine }: CaptureKeyContext
+  { inputEmpty, caretAtEnd }: CaptureKeyContext
 ): CaptureKeyAction | undefined => {
   if (key === 'Enter') return shiftKey ? undefined : { kind: 'send', open: mod };
   if (mod && shiftKey) {
@@ -56,7 +56,7 @@ const inputAction = (
   }
   if (mod || shiftKey) return undefined;
   if (key === 'Tab' && inputEmpty) return { kind: 'picker' };
-  if (key === 'ArrowDown' && caretOnLastLine) return { kind: 'toList' };
+  if (key === 'ArrowDown' && caretAtEnd) return { kind: 'toList' };
   return undefined;
 };
 

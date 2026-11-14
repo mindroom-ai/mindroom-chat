@@ -76,7 +76,7 @@ export function CaptureRoomPicker({
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (isComposingKey(event.nativeEvent)) return;
-    const context = { inputEmpty: false, caretOnLastLine: false, firstRow: false, apple };
+    const context = { inputEmpty: false, caretAtEnd: false, firstRow: false, apple };
     const action = captureKeyAction(event, { ...context, zone: 'picker' });
     // Escape goes on to the page, which closes the picker.
     if (!action || action.kind === 'escape') return;

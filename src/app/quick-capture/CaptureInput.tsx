@@ -52,9 +52,12 @@ const pastedImages = (event: ClipboardEvent<HTMLTextAreaElement>): File[] =>
     file.type.startsWith('image/')
   );
 
-/** The caret, or the end of the selection, has no line break after it. */
-const caretOnLastLine = (field: HTMLTextAreaElement): boolean =>
-  !field.value.slice(field.selectionEnd).includes('\n');
+/**
+ * The caret is at the end of the text: before that, `ArrowDown` moves it, through lines a long
+ * paragraph wraps into too, which no character marks.
+ */
+const caretAtEnd = (field: HTMLTextAreaElement): boolean =>
+  field.selectionStart === field.value.length && field.selectionEnd === field.value.length;
 
 type ToolProps = { label: string; icon: IconSrc; disabled: boolean; onClick: () => void };
 
@@ -169,7 +172,7 @@ export function CaptureInput({
     const action = captureKeyAction(event, {
       zone: 'input',
       inputEmpty: field.value === '',
-      caretOnLastLine: caretOnLastLine(field),
+      caretAtEnd: caretAtEnd(field),
       firstRow: false,
       apple,
     });

@@ -286,6 +286,18 @@ export function QuickCapturePage({ channel }: { channel?: CaptureChannel }) {
   const [text, setText] = useState('');
   const [images, setImages] = useState<File[]>([]);
   const [started, setStarted] = useState<CaptureStarted>();
+  // The entry belongs to the account it was written under: another account's host gets none of it.
+  const userId = snapshot.state?.userId;
+  const entryOwner = useRef(userId);
+  useLayoutEffect(() => {
+    if (userId === undefined) return;
+    if (entryOwner.current !== undefined && entryOwner.current !== userId) {
+      setText('');
+      setImages([]);
+      setStarted(undefined);
+    }
+    entryOwner.current = userId;
+  }, [userId]);
   // An entry emptied by hand is a new one.
   useEffect(() => {
     if (text === '' && images.length === 0) setStarted(undefined);

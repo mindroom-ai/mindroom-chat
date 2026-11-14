@@ -208,7 +208,7 @@ export function CaptureList({
 
   const onRowKeyDown = (event: KeyboardEvent<HTMLDivElement>, item: CaptureItem, index: number) => {
     if (isComposingKey(event.nativeEvent)) return;
-    const context = { inputEmpty: false, caretOnLastLine: false, firstRow: index === 0, apple };
+    const context = { inputEmpty: false, caretAtEnd: false, firstRow: index === 0, apple };
     const action = captureKeyAction(event, { ...context, zone: 'list' });
     if (!action || action.kind === 'escape') return;
     event.preventDefault();
@@ -217,7 +217,7 @@ export function CaptureList({
 
   const onReplyKeyDown = (event: KeyboardEvent<HTMLInputElement>, item: CaptureItem) => {
     if (isComposingKey(event.nativeEvent)) return;
-    const context = { inputEmpty: false, caretOnLastLine: true, firstRow: false, apple };
+    const context = { inputEmpty: false, caretAtEnd: true, firstRow: false, apple };
     const action = captureKeyAction(event, { ...context, zone: 'reply' });
     if (action?.kind === 'send') {
       event.preventDefault();

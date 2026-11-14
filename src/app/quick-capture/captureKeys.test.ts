@@ -10,7 +10,7 @@ type Press = {
 
 type Context = {
   inputEmpty?: boolean;
-  caretOnLastLine?: boolean;
+  caretAtEnd?: boolean;
   firstRow?: boolean;
 };
 
@@ -26,7 +26,7 @@ const actionOf = (
     {
       zone,
       inputEmpty: context.inputEmpty ?? false,
-      caretOnLastLine: context.caretOnLastLine ?? false,
+      caretAtEnd: context.caretAtEnd ?? false,
       firstRow: context.firstRow ?? false,
       apple,
     }
@@ -53,13 +53,11 @@ describe.each([true, false])('captureKeyAction (apple: %s)', (apple) => {
       expect(actionOf('input', { key: 'Tab' }, apple, { inputEmpty: false })).toBeUndefined();
     });
 
-    it('moves into the list on ArrowDown only from the last line', () => {
-      expect(actionOf('input', { key: 'ArrowDown' }, apple, { caretOnLastLine: true })).toEqual({
+    it('moves into the list on ArrowDown only from the end of the input', () => {
+      expect(actionOf('input', { key: 'ArrowDown' }, apple, { caretAtEnd: true })).toEqual({
         kind: 'toList',
       });
-      expect(
-        actionOf('input', { key: 'ArrowDown' }, apple, { caretOnLastLine: false })
-      ).toBeUndefined();
+      expect(actionOf('input', { key: 'ArrowDown' }, apple, { caretAtEnd: false })).toBeUndefined();
     });
 
     it('takes a screenshot of the window on mod+Shift+A and of the screen on mod+Shift+S', () => {
@@ -165,7 +163,7 @@ describe('captureKeyAction on each platform', () => {
   const context = {
     zone: 'input' as const,
     inputEmpty: false,
-    caretOnLastLine: false,
+    caretAtEnd: false,
     firstRow: false,
   };
   const enter = { key: 'Enter', shiftKey: false, altKey: false };

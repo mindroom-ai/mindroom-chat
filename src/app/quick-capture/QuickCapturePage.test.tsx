@@ -284,6 +284,16 @@ describe('QuickCapturePage and its host', () => {
     expect(rig.actions().at(-1)).toMatchObject({ kind: 'send', threadId: '$t' });
   });
 
+  it("drops the entry when another account's host comes back", () => {
+    const rig = setup();
+    paste([png('a.png')]);
+    type(input(), 'For my work account');
+    rig.deliver({ v: 1, type: 'gone', hostId: HOST });
+    rig.pushState({ ...roomState(), userId: '@other:x' });
+    expect((input() as HTMLTextAreaElement).value).toBe('');
+    expect(screen.queryByRole('button', { name: 'Remove a.png' })).toBeNull();
+  });
+
   it('keeps the text and the images of the entry while the host goes and comes back', () => {
     const rig = setup();
     paste([png('a.png')]);
@@ -883,6 +893,18 @@ describe('QuickCapturePage list', () => {
     press(row('Why does slot 27 flake'), 'B');
     expect(document.activeElement).toBe(input());
     expect((input() as HTMLTextAreaElement).value).toBe('B');
+  });
+
+  it('moves the caret on ArrowDown before the end of the text, as through a wrapped line', () => {
+    setup();
+    const field = input() as HTMLTextAreaElement;
+    type(field, 'A long note that wraps in the narrow window');
+    field.setSelectionRange(3, 3);
+    press(field, 'ArrowDown');
+    expect(document.activeElement).toBe(field);
+    field.setSelectionRange(field.value.length, field.value.length);
+    press(field, 'ArrowDown');
+    expect(document.activeElement).toBe(row('Why does slot 27 flake'));
   });
 
   it('keeps a character typed in the list out of an entry that sends', async () => {
