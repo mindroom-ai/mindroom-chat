@@ -187,6 +187,33 @@ describe('useToolbarClearance', () => {
 });
 
 describe('toolbarOffset', () => {
+  it('goes below two button groups only to a spot clear of both', () => {
+    const groups = [
+      { top: 4, bottom: 28 },
+      { top: 64, bottom: 88 },
+    ];
+    // Below the first group (36) it would cover the second, and below the second (96) it would
+    // reach past the 120 px row: it stays.
+    expect(toolbarOffset(-36, 0, 120, 42, [], undefined, groups)).toBe(0);
+    // In a taller row it goes below both.
+    expect(toolbarOffset(-36, 0, 400, 42, [], undefined, groups)).toBe(96);
+  });
+
+  it('goes to the nearest clear spot below the buttons, never up', () => {
+    // Below the first group (36) is clear of the second, at 100.
+    const apart = [
+      { top: 4, bottom: 28 },
+      { top: 100, bottom: 124 },
+    ];
+    expect(toolbarOffset(-36, 0, 400, 42, [], undefined, apart)).toBe(36);
+    // Below a group above the toolbar (-68) would be back under the header.
+    const above = [
+      { top: -100, bottom: -76 },
+      { top: 20, bottom: 44 },
+    ];
+    expect(toolbarOffset(-36, 0, 400, 42, [], undefined, above)).toBe(52);
+  });
+
   it('stays below what floats over the timeline in a row too short to go below the buttons', () => {
     // A file card's buttons from 18 to 50 px in a 68 px row without a sender line.
     expect(toolbarOffset(-36, 10, 68, 42, [], undefined, [{ top: 18, bottom: 50 }])).toBe(10);
