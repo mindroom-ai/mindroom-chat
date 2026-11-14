@@ -39,11 +39,14 @@ const writes = new WeakMap<MatrixClient, Promise<Write | null | undefined>>();
 
 /**
  * Stores the patch `makePatch` computes from the account's content right before the write, over
- * that content, after any earlier write of this client. The content is read from the homeserver,
- * not from sync, so a change another device stored a moment ago stays. The stored content gets a
- * new `rev` and names the one it patched in `base_rev`. Resolves the write, `null` for an empty
- * patch (nothing written), and `undefined` without writing when the stored content has a later
- * version.
+ * that content, after any earlier write of this client. `getAccountDataFromServer` asks the
+ * homeserver only until the first sync completes; while sync is live (Prepared or Syncing) the
+ * SDK answers from the client's copy, the content sync last delivered, so a change another device
+ * stored that sync has not brought yet is missing and gets patched over. The stored content gets
+ * a new `rev` and names the one it patched in `base_rev`. Resolves the write once the SDK's
+ * `setAccountData` does: when sync delivers the next roaming settings, whoever wrote them (at
+ * once when the client already holds this content). Resolves `null` for an empty patch (nothing
+ * written), and `undefined` without writing when the stored content has a later version.
  */
 const writeRoamingSettings = (
   mx: MatrixClient,
@@ -92,7 +95,9 @@ const isLive = (state: SyncState | null, data: SyncStateData | null | undefined)
  *   replaced (its `base_rev`, or an older client's copied `rev`, is that content's) puts this
  *   write's edits that it set back to their old value into pending again, and they are sent
  *   again. A writer that saw this write changed what it changed on purpose. Other incoming
- *   account data never causes a write.
+ *   account data never causes a write. Known limit (#328): when two devices save at the same
+ *   moment, the earlier write can resolve on the content of the later one, which undid it; that
+ *   content arrives before the write is recorded, so the edit is not sent again and is lost.
  */
 export const bindRoamingSettings = (mx: MatrixClient, store: Store): (() => void) => {
   const userId = mx.getUserId();
