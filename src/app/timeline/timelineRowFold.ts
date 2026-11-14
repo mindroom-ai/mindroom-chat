@@ -132,7 +132,7 @@ const primeReplyRun = (
 type FoldOptions = {
   /** The virtual indexes that render, ascending. */
   indexes: readonly number[];
-  /** An index's event; below the window's first index, the rows before it (negative indexes). */
+  /** An index's event; negative indexes are the rows before the caller's index 0. */
   getEvent: (index: number) => MatrixEvent | undefined;
   /** Events that render nothing and do not count as the row above the next one. */
   isSkipped: (event: MatrixEvent) => boolean;
@@ -161,8 +161,8 @@ export const foldTimelineRowContexts = ({
   const firstIndex = indexes[0];
   const lastIndex = indexes.at(-1);
   if (firstIndex === undefined || lastIndex === undefined) return contexts;
-  // The last row with output above the window, read past the window's own first index into the
-  // rows before it; without one, the index before the first event.
+  // The last row with output above the first mounted row, read on into negative indexes; without
+  // one, the index just before the first event.
   let before = firstIndex - 1;
   while (getEvent(before) && !showsRow(getEvent(before), isSkipped)) before -= 1;
   let lastRowAbsoluteIndex = getAbsoluteIndex?.(before);

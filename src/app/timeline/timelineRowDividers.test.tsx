@@ -14,14 +14,14 @@ const DAY = 24 * 60 * 60_000;
 const START = new Date(2026, 10, 3, 12, 0).getTime();
 const ROOM = '!room:x';
 
-const event = (id: string, type: string, ts: number, stateKey?: string) =>
+const event = (id: string, type: string, ts: number, stateKey?: string, content: object = {}) =>
   new MatrixEvent({
     event_id: id,
     room_id: ROOM,
     sender: '@maya:x',
     type,
     origin_server_ts: ts,
-    content: { body: id, msgtype: 'm.text' },
+    content: { body: id, msgtype: 'm.text', ...content },
     ...(stateKey === undefined ? {} : { state_key: stateKey }),
   });
 
@@ -126,17 +126,8 @@ describe('the dividers above a row that renders nothing', () => {
 });
 
 const replyTo = (id: string, target: string) =>
-  new MatrixEvent({
-    event_id: id,
-    room_id: ROOM,
-    sender: '@maya:x',
-    type: 'm.room.message',
-    origin_server_ts: START + 60_000,
-    content: {
-      body: id,
-      msgtype: 'm.text',
-      'm.relates_to': { 'm.in_reply_to': { event_id: target } },
-    },
+  event(id, 'm.room.message', START + 60_000, undefined, {
+    'm.relates_to': { 'm.in_reply_to': { event_id: target } },
   });
 
 describe('a reply right below the start of the row window', () => {
