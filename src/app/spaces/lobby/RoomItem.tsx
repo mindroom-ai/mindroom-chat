@@ -111,7 +111,7 @@ export function RoomItemCard({
         {loading ? (
           <div className={styleCss.LinePlaceholder} />
         ) : (
-          <Box className={css.ErrorNameContainer} alignItems="Center">
+          <Box className={css.RoomNameRow} alignItems="Center">
             {opensByCard ? (
               <button type="button" className={css.CardOpener} data-card-opener>
                 <Text as="span" className={css.RoomName} size="T400" {...ownDirectionLine}>

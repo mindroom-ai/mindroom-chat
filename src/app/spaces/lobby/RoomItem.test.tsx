@@ -45,10 +45,6 @@ vi.mock('../../avatars/RoomAvatar', () => ({
   RoomIcon: () => React.createElement('i'),
 }));
 
-vi.mock('../../room/RoomTopicViewer', () => ({
-  RoomTopicViewer: () => null,
-}));
-
 vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));
@@ -63,8 +59,8 @@ vi.mock('../../matrix/room', async () => {
 
 vi.mock('./RoomItem.css', () => ({
   CardOpener: 'CardOpener',
-  ErrorNameContainer: 'ErrorNameContainer',
   RoomName: 'RoomName',
+  RoomNameRow: 'RoomNameRow',
   RoomItemCard: 'RoomItemCard',
   RoomProfileTopic: 'RoomProfileTopic',
 }));
