@@ -235,7 +235,7 @@ check_lint() {
   local rc=0 files=() scope problems
   mapfile -t files < <(
     git -C "$checkout" diff --name-only --diff-filter=ACMR "$base_sha...$sha" -- \
-      src e2e scripts vite.config.js vitest.config.ts .eslintrc.cjs .eslintrc.plugin.cjs | grep -E '\.(ts|tsx|js|mjs|cjs)$' || true
+      src e2e scripts vite.config.js vitest.config.ts .eslintrc.plugin.cjs | grep -E '\.(ts|tsx|js|mjs|cjs)$' || true
   )
   # The config, and what it reads to sort files into lanes and to type them.
   if [ -n "$(git -C "$checkout" diff --name-only "$base_sha...$sha" -- .eslintrc.cjs scripts/eslint-shared.cjs \

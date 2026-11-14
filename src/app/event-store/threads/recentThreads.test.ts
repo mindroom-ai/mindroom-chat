@@ -5,6 +5,7 @@ import {
   clearRecentThreadsStore,
   makeRecentThreadsAtom,
   rekeyRecentThread,
+  removeRecentThread,
 } from './recentThreads';
 import { setImperativeJotaiStore } from '../../lib/state/jotaiStore';
 
@@ -245,6 +246,17 @@ describe('recentThreads', () => {
     expect(getDefaultStore().get(recentThreadsAtom)).toEqual([]);
 
     unregisterStore();
+  });
+
+  it('removes one thread of the signed-in account', () => {
+    bumpRecentThread('!room:example.org', '$kept', 100);
+    bumpRecentThread('!room:example.org', '$gone', 200);
+
+    removeRecentThread('!room:example.org', '$gone');
+
+    expect(getDefaultStore().get(makeRecentThreadsAtom(USER_ID))).toEqual([
+      { roomId: '!room:example.org', threadId: '$kept', openedAt: 100 },
+    ]);
   });
 
   it.each([

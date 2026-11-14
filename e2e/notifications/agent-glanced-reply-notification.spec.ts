@@ -63,19 +63,10 @@ const roomEvents = async (stack: AgentStack, roomId: string): Promise<Raw[]> =>
 
 /** A new room of the tester's with the helper and the router, once both joined it. */
 const createAgentRoom = async (stack: AgentStack, name: string): Promise<string> => {
-  const { room_id: roomId } = await matrixFetch<{ room_id: string }>(
-    stack.homeserver,
-    '/createRoom',
-    {
-      method: 'POST',
-      accessToken: stack.tester.accessToken,
-      body: JSON.stringify({
-        name,
-        preset: 'private_chat',
-        invite: [stack.agents.helper, stack.agents.router],
-      }),
-    }
-  );
+  const roomId = await createRoom(stack.homeserver, stack.tester.accessToken, {
+    name,
+    invite: [stack.agents.helper, stack.agents.router],
+  });
   await expect
     .poll(
       async () => {

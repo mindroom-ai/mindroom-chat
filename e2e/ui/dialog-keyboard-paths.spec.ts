@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
-import { matrixFetch } from '../helpers/matrix';
+import { joinRoom, matrixFetch } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -47,11 +47,7 @@ const seed = async () => {
     accessToken: viewer.accessToken,
     body: JSON.stringify({ preset: 'public_chat', name: 'Project Team', topic: 'Weekly goals' }),
   });
-  await matrixFetch(HOMESERVER, `/join/${encodeURIComponent(roomId)}`, {
-    method: 'POST',
-    accessToken: member.accessToken,
-    body: '{}',
-  });
+  await joinRoom(HOMESERVER, member.accessToken, roomId);
   return { viewer, member, roomId };
 };
 

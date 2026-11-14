@@ -108,7 +108,7 @@ test('an invite is titled by its room name, offline too, and refreshes when the 
   const inviter = await register('identity_inviter', 'Invite Sender');
   const invitee = await register('identity_invitee', 'Invite Reader');
   const roomName = `Invite identity ${Date.now().toString(36)}`;
-  const roomId = await createRoom(getHomeserver(), inviter.accessToken, {
+  const roomId = await createRoom(homeserver, inviter.accessToken, {
     name: roomName,
     invite: [invitee.userId],
   });

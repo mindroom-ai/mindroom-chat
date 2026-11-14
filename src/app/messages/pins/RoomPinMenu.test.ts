@@ -233,10 +233,9 @@ describe('RoomPinMenu', () => {
     }
 
     renderer = undefined;
-    getEditedEventMock.mockReset();
-    getEditedEventMock.mockReturnValue(undefined);
     navigateRoomMock.mockReset();
     // Back to each mock's own implementation, without the return values a test set.
+    getEditedEventMock.mockRestore();
     pinnedEventMock.getContent.mockRestore();
     pinnedEventMock.getId.mockRestore();
     pinnedEventMock.getSender.mockRestore();
@@ -244,11 +243,9 @@ describe('RoomPinMenu', () => {
     pinnedEventMock.getType.mockRestore();
     pinnedEventMock.getUnsigned.mockRestore();
     pinnedEventMock.isRedacted.mockRestore();
-    pinnedEventMock.replacingEvent.mockReset();
-    pinnedEventMock.replacingEvent.mockReturnValue(undefined);
+    pinnedEventMock.replacingEvent.mockRestore();
     renderMessageContentMock.mockReset();
-    roomMock.getTimelineForEvent.mockReset();
-    roomMock.getTimelineForEvent.mockReturnValue(undefined);
+    roomMock.getTimelineForEvent.mockRestore();
     roomMock.hasEncryptionStateEvent.mockReturnValue(false);
     Object.keys(settingValues).forEach((key) => delete settingValues[key]);
   });

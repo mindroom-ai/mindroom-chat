@@ -4,12 +4,6 @@ import { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { ThreadRecord } from '../../event-store/threads/types';
 
-// ISSUE-207 P3.3: the pre-strip ROOM_CACHE_PERSIST_DEBOUNCE_MS mock is
-// gone — its subject (the room-cache persist sweep) was deleted along
-// with `roomCacheLifecycleController`. Fetch-controller persist calls
-// (thread-open, thread-pagination, etc.) still need a small settle
-// window for their post-await microtasks to drain; the following
-// helper is now just that.
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from '../../event-store/cache/threadOpenSeedCache';
 import {
   compactPlaceholderType,
@@ -55,7 +49,7 @@ import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 // promises inside effects that queue in Promise/microtask ticks; a
 // short real-time settle plus a flushAsyncWork pass is enough for
 // their `saveThreadEventsToCacheMock` invocations to land.
-const waitForPersistSweepDebounce = async () => {
+const settleThreadCacheWrites = async () => {
   await act(async () => {
     await new Promise((resolve) => {
       setTimeout(resolve, 25);
@@ -1615,25 +1609,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       });
     });
 
-    // ISSUE-207 P3.3: removed the two P1.1 sweep tests that asserted
-    // saveRoomEventsToCacheMock after `waitForPersistSweepDebounce`.
-    // Their subject — the mount-time sweep that re-serialized the whole
-    // loaded timeline — is gone (persistence moved into
-    // SyncEngine's per-event write-through). Coverage of the
-    // engine's live-event persistence lives in
-    // `src/app/event-store/engine/engineWriteThrough.compaction.test.ts`
-    // (13 tests) and `src/app/event-store/engine/__tests__/engineAllRoomsCoverage.test.ts`
-    // (2 tests).
-
-    // ISSUE-207 P4.3: the "keeps eager-preloading past fifty batches"
-    // test asserted the deleted `useRoomEagerPreload` loop drove
-    // `mx.paginateEventTimeline` iteratively against the SDK live
-    // timeline. That loop is gone — deep-history sweep runs in the
-    // engine as a band-4 `BackfillScheduler` job that calls
-    // `mx.createMessagesRequest` and persists straight to IDB. The
-    // scheduler-side behavior is covered by
-    // `src/app/event-store/engine/__tests__/deepHistoryJob.test.ts`.
-
     it('renders the room thread overview outside thread view', async () => {
       const { RoomTimeline } = await import('../RoomTimeline');
       const root = makeEvent('$thread-root', { isThreadRoot: true });
@@ -2885,25 +2860,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         renderer?.unmount();
       }
     });
-
-    // ISSUE-207 P3.3: removed the mount-time sweep that grouped a
-    // room's loaded thread events and called
-    // `persistThreadCacheFromRoomEventsSnapshot` (which as a side
-    // effect populated `saveThreadOpenSeedSnapshot`). The engine
-    // write-through only sees LIVE events, so pre-loaded room-thread
-    // events are no longer warmed at component mount time. Seed
-    // warming for opened threads still runs via
-    // `threadOpenCacheController` and `threadSeedPrewarmController`.
-    // The removed tests below were exercising sweep-mediated behavior:
-    //   - "warms thread-open seed snapshots from room-preloaded thread events"
-    //   - "marks room-derived thread cache snapshots complete only when the known reply count is satisfied"
-    //   - "keeps room-derived thread cache snapshots incomplete when only a subset of replies is loaded"
-    //   - "does not downgrade room-derived thread cache completeness when the room tail is still unknown"
-    //   - "does not treat sdk thread length as authoritative when root counts are sparse"
-    //   - "persists root-targeted relations into the thread cache during room cache persistence"
-    //   - "persists redactions targeting thread replies into the thread cache during room cache persistence"
-    // Unit coverage of `persistThreadCacheFromRoomEventsSnapshot`
-    // itself lives in `eventRepository.test.ts`.
 
     it('prioritizes large thread seeds from the room thread list even when they are outside the viewport', async () => {
       const { collectPriorityThreadSeedPrewarmRoots } = await import('../../threads/open/threadBootstrap');
@@ -4680,15 +4636,12 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
           await flushAsyncWork(10);
         });
 
-        await waitForPersistSweepDebounce();
+        await settleThreadCacheWrites();
         await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
 
-        // 2026-07-06 consolidation contract: a partial-coverage open
-        // fires exactly ONE `/relations` call — the choke-point
-        // reconciler's. The open-time thread-backfill leg (the second
-        // full drain STEP d used to assert here) is deleted; the open
-        // falls through to SDK bootstrap + refreshLatestThreadSlice
-        // instead of drain-racing the reconciler.
+        // A partial-coverage open makes the choke-point reconciler's
+        // `/relations` call and runs no thread-backfill drain of its own:
+        // it falls through to SDK bootstrap + refreshLatestThreadSlice.
         expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(2);
         // Fall-through evidence: the second `/relations` call is the SDK
         // bootstrap's fill for a root-only thread. The thread model
@@ -4872,7 +4825,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         // empty chunk, so the reconciler has nothing to repair and the
         // open converges through SDK bootstrap + refreshLatestThreadSlice.
         expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
-        await waitForPersistSweepDebounce();
+        await settleThreadCacheWrites();
         await waitForCondition(() => vi.mocked(saveThreadEventsToCache).mock.calls.length > 0, 50);
         // The persisted snapshot must keep the known first reply...
         expect(vi.mocked(saveThreadEventsToCache)).toHaveBeenCalledWith(
