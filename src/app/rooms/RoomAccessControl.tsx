@@ -77,7 +77,7 @@ const KNOCKABLE_RULES: ReadonlySet<string> = new Set([
   RoomJoinRule.KnockRestricted,
 ]);
 
-// An error this client cannot translate keeps its own text here, as the ported tests expect.
+// An error this client cannot translate keeps its own text here, as the tests expect.
 const errorMessage = (error: unknown): string | undefined =>
   error instanceof Error && error.message ? error.message : undefined;
 

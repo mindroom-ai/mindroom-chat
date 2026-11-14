@@ -254,7 +254,7 @@ Each account's pusher also puts the account's random tag on the device into its 
 
 ### Declared but not read
 
-`sidebar.mindRoomUrl` is in the `ClientConfig` type, but no code reads it, so setting it changes nothing. It stays in the type because the ported welcome page test's configuration sets it.
+`sidebar.mindRoomUrl` is in the `ClientConfig` type, but no code reads it, so setting it changes nothing. It stays in the type because the welcome page test's configuration sets it.
 
 ## runtime-config.js
 

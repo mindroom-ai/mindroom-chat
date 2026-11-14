@@ -81,7 +81,7 @@ const namespaceLoaders = new Map<string, NamespaceLoader>();
 
 /**
  * Fetches non-English catalogs from the deployed `public/locales/` directory on demand, with the
- * language's overlay of Lane C keys (locales/additions/<code>.json) merged in. A namespace added
+ * language's overlay of added keys (locales/additions/<code>.json) merged in. A namespace added
  * with `registerNamespace` loads from its own loader instead.
  */
 const httpBackend: BackendModule = {

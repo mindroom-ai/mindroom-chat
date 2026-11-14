@@ -7,7 +7,7 @@ import { AppErrorBoundary } from './AppErrorBoundary';
 import { createRouter } from './Router';
 
 // A route whose page fails to render (here the pairing page; in practice a part whose chunk a
-// deployment removed, in Lane P code without a fallback) reaches the app's root error boundary
+// deployment removed, in code without a fallback) reaches the app's root error boundary
 // instead of React Router's developer page.
 vi.mock('../local-mindroom/ConnectPage', () => ({
   ConnectPage: () => {

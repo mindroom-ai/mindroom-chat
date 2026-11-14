@@ -2,9 +2,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-// Lane P: the files of every docs/provenance/portable*.tsv list, at the paths
-// docs/provenance/moves.tsv gives them, which the type-aware rules leave out.
-const provenancePaths = require('./scripts/provenance-paths.cjs');
 const {
   COMMON,
   DIRECTIONAL_COMPONENTS,
@@ -12,25 +9,81 @@ const {
   logicalSidesOverrides,
 } = require('./scripts/eslint-shared.cjs');
 
-function lanePPaths() {
-  return [...provenancePaths.lanePPaths(__dirname).keys()];
-}
-
-// Lane C TypeScript on disk: the files tsconfig.json compiles (`src`, `e2e` and two configs)
-// minus Lane P. The list holds only files that exist, because the type-aware rules need each
-// file in the TypeScript program; text linted under a made-up path (as surfaceImports.test.ts
-// does) gets the other rules only.
-function laneCTypeScriptFiles() {
-  const laneP = new Set(lanePPaths());
+// TypeScript on disk: the files tsconfig.json compiles (`src`, `e2e` and two configs). The list
+// holds only files that exist, because the type-aware rules need each file in the TypeScript
+// program; text linted under a made-up path (as surfaceImports.test.ts does) gets the other rules
+// only.
+function typeScriptFiles() {
   const sources = ['src', 'e2e'].flatMap((dir) =>
     fs
       .readdirSync(path.join(__dirname, dir), { recursive: true })
       .map((file) => path.posix.join(dir, String(file).split(path.sep).join('/')))
   );
-  return [...sources, 'vitest.config.ts', 'playwright.config.ts'].filter(
-    (file) => /\.tsx?$/.test(file) && !laneP.has(file)
+  return [...sources, 'vitest.config.ts', 'playwright.config.ts'].filter((file) =>
+    /\.tsx?$/.test(file)
   );
 }
+
+// Files written before the promise rules, which do not pass them yet. Fix a file's floating and
+// misused promises, then drop it from this list; add no file to it.
+const PROMISE_RULES_PENDING = [
+  'e2e/canvas/agent-canvas.spec.ts',
+  'e2e/event-store/gap-fill-restart.live.spec.ts',
+  'e2e/fixtures/compact-thread-cards.tsx',
+  'e2e/fixtures/room-schedules.tsx',
+  'src/app/approvals/ApprovalReviewCall.test.tsx',
+  'src/app/avatars/RoomAvatar.test.tsx',
+  'src/app/avatars/UserAvatar.test.tsx',
+  'src/app/background-jobs/BackgroundJobsBar.test.tsx',
+  'src/app/canvas/CanvasHeaderButton.test.tsx',
+  'src/app/composer/useRoomInputAttachments.test.ts',
+  'src/app/composer/voice/useVoiceRecorder.test.ts',
+  'src/app/computer/ComputerSettings.test.tsx',
+  'src/app/config/ClientConfigLoader.test.ts',
+  'src/app/connections/ConnectionsSettings.test.tsx',
+  'src/app/emoji/board/EmojiBoard.test.tsx',
+  'src/app/emoji/board/components/AddCustomEmoji.test.tsx',
+  'src/app/emoji/settings/ServerPack.test.tsx',
+  'src/app/event-store/cache/db/__tests__/cacheEviction.test.ts',
+  'src/app/event-store/engine/__tests__/backfillScheduler.test.ts',
+  'src/app/event-store/engine/__tests__/reconciler.sdkThread.test.ts',
+  'src/app/event-store/threads/threadUtils.test.ts',
+  'src/app/matrix/matrix.test.ts',
+  'src/app/members/useMembersDrawer.test.tsx',
+  'src/app/messages/FailedSendActions.test.tsx',
+  'src/app/messages/MessageInspectionActions.test.tsx',
+  'src/app/messages/agent-run/Reasoning.test.tsx',
+  'src/app/messages/html/react-custom-html-parser.test.ts',
+  'src/app/messages/reactions/MessageReactionActions.test.tsx',
+  'src/app/messages/thread-summary/ThreadSummaryMarker.test.tsx',
+  'src/app/models/ModelPicker.test.tsx',
+  'src/app/notifications/MarkRoomReadMenuItem.test.ts',
+  'src/app/notifications/MarkRoomsReadMenuItem.test.ts',
+  'src/app/rich-text/MessageLink.test.tsx',
+  'src/app/rooms/RoomAccessControl.test.tsx',
+  'src/app/rooms/RoomCard.test.tsx',
+  'src/app/rooms/explore/ExploreRoomAccess.test.tsx',
+  'src/app/rooms/join/JoinBeforeNavigate.test.tsx',
+  'src/app/rooms/settings/general/OfflineRoomSettings.test.tsx',
+  'src/app/rooms/settings/permissions/PowersEditor.test.tsx',
+  'src/app/sidebar/Navigation.test.tsx',
+  'src/app/sidebar/ResizablePageNav.test.tsx',
+  'src/app/sidebar/rail/HomeTab.test.ts',
+  'src/app/sidebar/threads/ThreadNavCategory.test.ts',
+  'src/app/sidebar/threads/ThreadNavItem.test.ts',
+  'src/app/spaces/lobby/RoomItem.test.tsx',
+  'src/app/spaces/lobby/SpaceItem.test.tsx',
+  'src/app/threads/ThreadActionsMenu.test.tsx',
+  'src/app/threads/ThreadContextBanner.test.ts',
+  'src/app/threads/open/threadSession.render.test.tsx',
+  'src/app/threads/overview/CompactCardSwipe.test.tsx',
+  'src/app/threads/overview/CompactRoomView.test.ts',
+  'src/app/timeline/CollapsibleMessage.test.ts',
+  'src/app/timeline/message-rendering/TimelineMessageFeature.test.tsx',
+  'src/app/timeline/scrollQuiescence.test.ts',
+  'src/app/timeline/useRoomCachedBackState.ts',
+  'src/app/ui-actions/ChatUiActionProvider.test.tsx',
+];
 
 // Menus, dialogs, modals and headers come from the glass primitives, which give every surface
 // the same material; only the adapter itself may use the raw folds components.
@@ -169,16 +222,24 @@ module.exports = {
       },
     },
     {
-      // Type-aware rules for Lane C TypeScript: the files tsconfig.json compiles, minus Lane P.
-      // Types come from config/tsconfig.strict.json, whose unchecked index access `just strict` enforces.
-      files: laneCTypeScriptFiles(),
+      // Type-aware rules for the TypeScript that tsconfig.json compiles. Types come from
+      // config/tsconfig.strict.json, whose unchecked index access `just strict` enforces.
+      files: typeScriptFiles(),
       parserOptions: { project: './config/tsconfig.strict.json', tsconfigRootDir: __dirname },
       rules: TYPE_AWARE_RULES,
+    },
+    {
+      // PROMISE_RULES_PENDING above.
+      files: PROMISE_RULES_PENDING,
+      rules: {
+        '@typescript-eslint/no-floating-promises': 'off',
+        '@typescript-eslint/no-misused-promises': 'off',
+      },
     },
     // Physical sides in styles (scripts/eslint-shared.cjs).
     ...logicalSidesOverrides('src/', TESTS),
     {
-      // Domain layers (LAYERS above), in both lanes. Zones resolve from this directory, so the
+      // Domain layers (LAYERS above). Zones resolve from this directory, so the
       // rule does not depend on the directory ESLint runs in.
       files: ['src/**/*.{ts,tsx,js,jsx,mjs}'],
       excludedFiles: LAYERS_EXEMPT,

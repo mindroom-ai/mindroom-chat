@@ -1,5 +1,5 @@
 // The files an offline start in a language other than English needs: its catalog
-// (public/locales/<code>.json, fetched by src/app/i18n/i18n.ts) and the build's overlay chunk of Lane C
+// (public/locales/<code>.json, fetched by src/app/i18n/i18n.ts) and the build's overlay chunk of added
 // strings for it (src/app/i18n/localeAdditions.ts). Without the catalog the whole app falls back to
 // English offline.
 //

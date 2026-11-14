@@ -119,8 +119,7 @@ describe('logical sides in styles', () => {
     expect(await physicalSides(source, COMPONENT)).toEqual([]);
   });
 
-  it('holds ported styles to the rule too', async () => {
-    // A Lane P file (docs/provenance/portable.tsv).
+  it('holds the glass styles to the rule too', async () => {
     expect(
       await physicalSides(
         styleFile('export const x = style({ left: 0 });'),

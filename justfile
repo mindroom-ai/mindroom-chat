@@ -11,20 +11,19 @@ install:
 typecheck:
     npx tsc --noEmit -p config/tsconfig.app.json
 
-# Type-check everything, tests and e2e included, with the stricter flags of config/tsconfig.strict.json (unused names, implicit returns, unchecked index access, ...); must report 0 errors. Also runs the tests of scripts/provenance-paths.cjs, which sorts files by lane for the lint rules.
+# Type-check everything, tests and e2e included, with the stricter flags of config/tsconfig.strict.json (unused names, implicit returns, unchecked index access, ...); must report 0 errors.
 strict:
-    node --test scripts/provenance-paths.test.mjs
     npx tsc --noEmit -p config/tsconfig.strict.json
 
 # Run the unit tests. On NixOS, scripts/with-fhs-bin.sh adds the /bin/bash and /usr/bin tools that tests of the iOS CI scripts expect.
 test *args:
     bash scripts/with-fhs-bin.sh npx vitest run {{args}}
 
-# Lint with ESLint (rules: .eslintrc.cjs): src, e2e, scripts and the config files (package.json "lint" names them). Lane C TypeScript also gets type-aware rules (floating and misused promises, `await` of non-promises, exhaustive switches, needless assertions, enum comparisons) with the types of config/tsconfig.strict.json. Every file takes `PopOut` and `TooltipProvider` from src/app/ui/directional.tsx rather than folds (that module and the glass adapter excepted), and every TypeScript file of src but the tests writes styles with logical sides (`paddingInlineStart`, `insetInlineEnd`, `textAlign: 'start'`, no four-part `margin` or `padding`) so they mirror in right-to-left languages; a side that must stay physical takes a disable comment with its reason (safe-area insets are allowed).
+# Lint with ESLint (rules: .eslintrc.cjs): src, e2e, scripts and the config files (package.json "lint" names them). TypeScript also gets type-aware rules (floating and misused promises, `await` of non-promises, exhaustive switches, needless assertions, enum comparisons) with the types of config/tsconfig.strict.json; the files of PROMISE_RULES_PENDING in .eslintrc.cjs skip the two promise rules until they are fixed. Every file takes `PopOut` and `TooltipProvider` from src/app/ui/directional.tsx rather than folds (that module and the glass adapter excepted), and every TypeScript file of src but the tests writes styles with logical sides (`paddingInlineStart`, `insetInlineEnd`, `textAlign: 'start'`, no four-part `margin` or `padding`) so they mirror in right-to-left languages; a side that must stay physical takes a disable comment with its reason (safe-area insets are allowed).
 lint:
     npm run lint
 
-# Format the files you changed, in either lane, with Prettier (2.8.8, the style of the Lane P files).
+# Format the files you changed with Prettier (2.8.8).
 format *paths:
     npx prettier --write {{paths}}
 
@@ -47,31 +46,12 @@ bundle-report dist="dist" *args:
     node scripts/perf/bundle-report.mjs {{dist}} --budget scripts/perf/bundle-budget.json {{args}}
 
 # The full local check. CI (.github/workflows/ci.yml) runs typecheck, strict, lint, test, the production build with the bundle size budget (scripts/perf/bundle-budget.json) and a smoke subset of the e2e specs on every push to main and every pull request.
-check: typecheck strict lint test script-tests license-check verify-ported check-holes identifier-renames
+check: typecheck strict lint test script-tests license-check
 
 # Fail when an installed package has a license outside the allowlist (also runs the script's own tests).
 license-check:
     node --test scripts/license-check.test.mjs
     node scripts/license-check.mjs node_modules
-
-# Recompute the Lane P import from a legacy MindRoom Chat checkout (mindroom-ai/mindroom-chat-legacy) and compare it with the import commit; skipped without a path.
-verify-ported *checkout:
-    bash scripts/verify-ported.sh {{checkout}}
-
-# Lane P files may differ from each import only in their blanked lines. Later Lane P edits are allowed, so each wave is checked at the commit that filled its blanks, not the working tree.
-check-holes:
-    python3 scripts/check_holes.py --wave 1 --rev feed1b4
-    python3 scripts/check_holes.py --wave 2 --rev ec7dca5
-    python3 scripts/check_holes.py --overlap --rev 54314f8
-
-# Every Lane P line a commit of docs/provenance/identifier-renames.tsv changes differs only by the names it lists (also runs the script's own tests).
-identifier-renames:
-    node --test scripts/check-identifier-renames.test.mjs
-    node scripts/check-identifier-renames.mjs
-
-# Compare Lane C code with each corpus given, a directory or a Git repository as <dir>@<commit> (scripts/similarity-audit.sh says what counts); writes docs/provenance/audit/<date>/.
-similarity-audit *corpora:
-    bash scripts/similarity-audit.sh {{corpora}}
 
 # Start the disposable Tuwunel test homeserver (server name matrix.localhost) on http://127.0.0.1:28008 and wait until it is healthy.
 hs-up:
