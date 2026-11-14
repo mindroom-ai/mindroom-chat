@@ -1,4 +1,3 @@
-import React from 'react';
 import { EventEmitter } from 'events';
 import { Provider, createStore } from 'jotai';
 import { ClientEvent, MatrixClient, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
@@ -203,7 +202,7 @@ describe('archived rooms', () => {
       const newRoom = {
         roomId: '!joined:test',
         getAccountData: () => new MatrixEvent({ type: eventType, content: { archived: true } }),
-      } as Room;
+      } as unknown as Room;
       mx.emit(ClientEvent.Room, newRoom);
     });
     expect([...store.get(archivedRoomsAtom)]).toEqual(['!new:test', '!joined:test']);

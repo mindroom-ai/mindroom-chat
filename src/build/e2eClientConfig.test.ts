@@ -28,10 +28,10 @@ describe('e2e client config', () => {
     const [middleware] = installMiddleware('http://127.0.0.1:4173');
     const hosted = JSON.parse(readFileSync('config/mindroom.json', 'utf8'));
 
-    const { res, next } = request(middleware, '/config.json?cache=1');
+    const { res, next } = request(middleware!, '/config.json?cache=1');
 
     expect(next).not.toHaveBeenCalled();
-    const served = JSON.parse(res.end.mock.calls[0][0]);
+    const served = JSON.parse(res.end.mock.calls[0]![0]);
     expect(served.sidebar.mindRoomProvisioningUrl).toBe('http://127.0.0.1:4173');
     // The start prompt is off for the specs, which ask for it where they test it.
     expect(served.encryptionRecovery.promptAtStart).toBe(false);
@@ -48,7 +48,7 @@ describe('e2e client config', () => {
 
   it('leaves other requests and non-e2e servers alone', () => {
     const [middleware] = installMiddleware('http://127.0.0.1:4173');
-    expect(request(middleware, '/home/').next).toHaveBeenCalledTimes(1);
+    expect(request(middleware!, '/home/').next).toHaveBeenCalledTimes(1);
     expect(installMiddleware(undefined)).toHaveLength(0);
   });
 

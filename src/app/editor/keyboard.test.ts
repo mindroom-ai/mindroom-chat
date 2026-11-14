@@ -14,7 +14,7 @@ const modNumberEvent = (key: string, modifierKey: ModifierKey) =>
     metaKey: modifierKey === 'metaKey',
     shiftKey: false,
     preventDefault: vi.fn(),
-  } as KeyboardEvent<Element>);
+  } as unknown as KeyboardEvent<Element>);
 
 const shortcutCases = [
   ...['1', '2', '3'].map((key) => ({

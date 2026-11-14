@@ -214,10 +214,10 @@ describe('LocalMindroom settings', () => {
     expect(textOf(renderer?.root)).toContain('studio-mac');
 
     await act(async () => {
-      findButton('Revoke').props.onClick();
+      findButton('Revoke')!.props.onClick();
     });
     await act(async () => {
-      findButton('Confirm Revoke').props.onClick();
+      findButton('Confirm Revoke')!.props.onClick();
     });
 
     expect(revokeLocalMindroomConnection).toHaveBeenCalledWith(

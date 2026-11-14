@@ -205,7 +205,7 @@ describe('Matrix sync when the crypto store cannot take to-device messages', () 
       responses: {
         ...replyAfterInitial,
         initial: {
-          ...replyAfterInitial.initial,
+          ...replyAfterInitial.initial!,
           account_data: { events: [{ type: 'org.mindroom.test.settings', content: { a: 1 } }] },
         },
       },

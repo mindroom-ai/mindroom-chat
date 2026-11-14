@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { type ComponentProps, type ReactNode } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +11,18 @@ import {
 } from './ClientConfigLoader';
 import { recoverAuthentication } from '../../boot/authenticationRecovery';
 import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from '../../boot/serviceWorkerNavigation';
+
+// createElement types children as ReactNode and wants `children` in props, so the loader's
+// element is built here, with its render function passed through one cast.
+const loaderElement = (
+  props: Omit<ComponentProps<typeof ClientConfigLoader>, 'children'> | null,
+  render: ComponentProps<typeof ClientConfigLoader>['children']
+) =>
+  React.createElement(
+    ClientConfigLoader,
+    props as ComponentProps<typeof ClientConfigLoader>,
+    render as unknown as ReactNode
+  );
 
 const originalFetch = globalThis.fetch;
 
@@ -132,8 +144,7 @@ describe('client configuration loading', () => {
 
     await act(async () => {
       renderer = create(
-        React.createElement(
-          ClientConfigLoader,
+        loaderElement(
           {
             error: (_error, _retry, ignore) => {
               continueOffline = ignore;
@@ -173,8 +184,7 @@ describe('client configuration loading', () => {
     let renderer!: ReturnType<typeof create>;
     await act(async () => {
       renderer = create(
-        React.createElement(
-          ClientConfigLoader,
+        loaderElement(
           {
             fallback: () => React.createElement('span', null, 'Loading bundled config'),
           },
@@ -211,8 +221,7 @@ describe('client configuration loading', () => {
     let renderer!: ReturnType<typeof create>;
     await act(async () => {
       renderer = create(
-        React.createElement(
-          ClientConfigLoader,
+        loaderElement(
           {
             fallback: () => React.createElement('span', null, 'Loading'),
           },
@@ -231,12 +240,12 @@ describe('client configuration loading', () => {
       expect(renderer.root.findByType('span').children).toEqual(['Chats']);
       expect(routers).toHaveLength(1);
       await act(async () => {
-        await routers[0].navigate('/room/thread');
+        await routers[0]!.navigate('/room/thread');
       });
       const refreshedConfig = { ...cachedConfig, hashRouter: true };
       await act(async () => finish(response({ json: async () => refreshedConfig })));
       expect(routers).toHaveLength(1);
-      expect(routers[0].state.location.pathname).toBe('/room/thread');
+      expect(routers[0]!.state.location.pathname).toBe('/room/thread');
       expect(renderedConfigs).toEqual([cachedConfig]);
       expect(readCachedClientConfig()).toEqual(refreshedConfig);
     } finally {
@@ -264,8 +273,7 @@ describe('client configuration loading', () => {
       let renderer!: ReturnType<typeof create>;
       await act(async () => {
         renderer = create(
-          React.createElement(
-            ClientConfigLoader,
+          loaderElement(
             {
               fallback: () => React.createElement('span', null, 'Loading'),
               error: () => React.createElement('span', null, 'Error'),
@@ -299,8 +307,7 @@ describe('client configuration loading', () => {
     let renderer!: ReturnType<typeof create>;
     await act(async () => {
       renderer = create(
-        React.createElement(
-          ClientConfigLoader,
+        loaderElement(
           {
             fallback: () => React.createElement('span', null, 'Loading'),
             error: (_error, retryRequest) => {
@@ -332,8 +339,7 @@ describe('client configuration loading', () => {
     let renderer!: ReturnType<typeof create>;
     await act(async () => {
       renderer = create(
-        React.createElement(
-          ClientConfigLoader,
+        loaderElement(
           {
             fallback: () => React.createElement('span', null, 'Loading'),
           },
@@ -356,8 +362,7 @@ describe('client configuration loading', () => {
 
     await act(async () => {
       create(
-        React.createElement(
-          ClientConfigLoader,
+        loaderElement(
           {
             error: (_error, _retry, ignore) => {
               errorRendered = true;
@@ -420,8 +425,7 @@ describe('client configuration loading', () => {
     let renderer!: ReturnType<typeof create>;
     await act(async () => {
       renderer = create(
-        React.createElement(
-          ClientConfigLoader,
+        loaderElement(
           {
             error: (error, retryRequest, _ignore, signIn) => {
               shownError = error;
@@ -468,8 +472,7 @@ describe('client configuration loading', () => {
     let renderer!: ReturnType<typeof create>;
     await act(async () => {
       renderer = create(
-        React.createElement(
-          ClientConfigLoader,
+        loaderElement(
           {
             fallback: () => React.createElement('span', null, 'Loading'),
             error: (_error, _retry, _ignore, signIn) => {
@@ -506,8 +509,7 @@ describe('client configuration loading', () => {
     let renderer!: ReturnType<typeof create>;
     await act(async () => {
       renderer = create(
-        React.createElement(
-          ClientConfigLoader,
+        loaderElement(
           {
             error: (error, _retry, _ignore, signIn) => {
               shownError = error;
@@ -547,10 +549,8 @@ describe('client configuration loading', () => {
 
     await act(async () => {
       renderer = create(
-        React.createElement(
-          ClientConfigLoader,
-          { fallback: () => React.createElement('span', null, 'Loading') },
-          () => React.createElement('span', null, 'Chats')
+        loaderElement({ fallback: () => React.createElement('span', null, 'Loading') }, () =>
+          React.createElement('span', null, 'Chats')
         )
       );
     });

@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { createStore, Provider } from 'jotai';
 import { enableMapSet } from 'immer';
@@ -97,7 +96,9 @@ it('shows a member until the server stops listing them as typing', async () => {
   // the SDK emits nothing for it.
   for (let elapsed = 0; elapsed < 30_000; elapsed += 10_000) {
     // eslint-disable-next-line no-await-in-loop
-    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
     serverTyping([AGENT]);
   }
   expect(shown()).toEqual([AGENT]);
@@ -113,7 +114,9 @@ it('keeps hearing typing after a gappy sync', async () => {
 
   // A gappy sync resets the live timeline while the agent is typing.
   room.resetLiveTimeline('back-token', 'forward-token');
-  await act(() => vi.advanceTimersByTimeAsync(TYPING_TIMEOUT_MS));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(TYPING_TIMEOUT_MS);
+  });
   expect(shown()).toEqual([AGENT]);
 
   serverTyping([]);
@@ -131,7 +134,9 @@ it('stops checking a room we left, which gets no more m.typing', async () => {
   // Leaving or being kicked keeps the room and its typing members in the SDK.
   room.updateMyMembership(KnownMembership.Leave);
   expect(room.getMember(AGENT)?.typing).toBe(true);
-  await act(() => vi.advanceTimersByTimeAsync(TYPING_TIMEOUT_MS));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(TYPING_TIMEOUT_MS);
+  });
   expect(shown()).toEqual([]);
   expect(vi.getTimerCount()).toBe(timers);
 });
@@ -144,7 +149,9 @@ it('stops checking once the binder unmounts', async () => {
 
   act(() => renderer?.unmount());
   renderer = undefined;
-  await act(() => vi.advanceTimersByTimeAsync(TYPING_TIMEOUT_MS));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(TYPING_TIMEOUT_MS);
+  });
   expect(shown()).toEqual([]);
   expect(vi.getTimerCount()).toBe(timers);
 });

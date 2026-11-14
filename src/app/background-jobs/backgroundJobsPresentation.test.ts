@@ -61,7 +61,7 @@ describe('presentBackgroundJobs', () => {
     expect(elsewhere?.title).toBe('Stopping: run_tests');
     const here = presentBackgroundJobs([job('job_1')], (jobId) => jobId === 'job_1', t);
     expect(here?.title).toBe('Stopping: run_tests');
-    expect(here?.items[0].stopping).toBe(true);
+    expect(here?.items[0]!.stopping).toBe(true);
   });
 
   it('names finished jobs as finished, with nothing left to stop', () => {
@@ -77,7 +77,7 @@ describe('presentBackgroundJobs', () => {
     );
     expect(several?.title).toBe('2 background jobs finished');
     expect(several?.items.map((item) => item.finished)).toEqual([true, true]);
-    expect(presentBackgroundJobs([job('job_1')], none, t)?.items[0].finished).toBe(false);
+    expect(presentBackgroundJobs([job('job_1')], none, t)?.items[0]!.finished).toBe(false);
   });
 
   it('counts several jobs and lists them in order', () => {

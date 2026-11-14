@@ -6,6 +6,7 @@ import {
   MatrixEvent,
   RelationType,
   SyncState,
+  type IAddLiveEventOptions,
   type IEvent,
   type MatrixClient,
 } from 'matrix-js-sdk';
@@ -18,14 +19,15 @@ const BASE_URL = 'https://matrix.example';
 const USER_ID = '@alice:example';
 const ROOM_ID = '!room:example';
 
-const event = (eventId: string, content: IEvent['content'], type = EventType.RoomMessage) => ({
-  event_id: eventId,
-  room_id: ROOM_ID,
-  sender: USER_ID,
-  origin_server_ts: 1,
-  type,
-  content,
-});
+const event = (eventId: string, content: IEvent['content'], type = EventType.RoomMessage) =>
+  ({
+    event_id: eventId,
+    room_id: ROOM_ID,
+    sender: USER_ID,
+    origin_server_ts: 1,
+    type,
+    content,
+  } as IEvent);
 
 const olderMessage = event('$older', { msgtype: 'm.text', body: 'Original message' });
 const recentMessage = event('$recent', { msgtype: 'm.text', body: 'Recent cached message' });
@@ -113,7 +115,7 @@ describe('cached Matrix startup', () => {
           },
         },
       },
-    });
+    } as unknown as Parameters<IndexedDBStore['setSyncData']>[0]);
     await previousClient.store.save(true);
     await previousClient.store.destroy();
 
@@ -180,7 +182,7 @@ describe('cached Matrix startup', () => {
         room.addEventsToTimeline([parent], true, false, thread.liveTimeline);
         expect(thread.liveTimeline.getEvents()).toContain(parent);
       } else {
-        await room.addLiveEvents([parent], { fromCache: false });
+        await room.addLiveEvents([parent], { fromCache: false } as IAddLiveEventOptions);
       }
 
       await vi.waitFor(() => expect(parent.getContent().body).toBe('Edited message'));
@@ -202,7 +204,9 @@ describe('cached Matrix startup', () => {
     const room = client.getRoom(ROOM_ID)!;
     const fetchParent = vi.spyOn(client, 'fetchRoomEvent').mockResolvedValue(olderMessage);
 
-    await room.addLiveEvents([new MatrixEvent(reaction)], { fromCache: false });
+    await room.addLiveEvents([new MatrixEvent(reaction)], {
+      fromCache: false,
+    } as IAddLiveEventOptions);
 
     expect(fetchParent).toHaveBeenCalledOnce();
     expect(fetchParent).toHaveBeenCalledWith(ROOM_ID, '$older');

@@ -111,7 +111,9 @@ describe('Matrix sync store after an IndexedDB connection loss', () => {
 
   it('keeps the persisted sync when operations run after the browser closed the connection', async () => {
     const store = await savedStore();
-    forceCloseDatabase(backendDatabase(store));
+    forceCloseDatabase(
+      backendDatabase(store) as unknown as Parameters<typeof forceCloseDatabase>[0]
+    );
     await new Promise((resolve) => {
       setImmediate(resolve);
     });

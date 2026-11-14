@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { type ComponentProps, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { act, create } from 'react-test-renderer';
 import { Text } from 'folds';
@@ -7,6 +7,18 @@ import { I18nextProvider } from 'react-i18next';
 import { AuthFlowsLoader } from './AuthFlowsLoader';
 import { AutoDiscoveryInfoProvider } from '../../matrix/hooks/useAutoDiscoveryInfo';
 import { createMatrixClient } from '../../matrix/client/matrixClientFactory';
+
+// createElement types children as ReactNode and wants `children` in props, so the loader's
+// element is built here, with its render function passed through one cast.
+const loaderElement = (
+  props: Omit<ComponentProps<typeof AuthFlowsLoader>, 'children'> | null,
+  render: ComponentProps<typeof AuthFlowsLoader>['children']
+) =>
+  React.createElement(
+    AuthFlowsLoader,
+    props as ComponentProps<typeof AuthFlowsLoader>,
+    render as unknown as ReactNode
+  );
 
 vi.mock('../../matrix/client/matrixClientFactory', () => ({
   createMatrixClient: vi.fn(),
@@ -43,7 +55,7 @@ describe('AuthFlowsLoader', () => {
           React.createElement(
             AutoDiscoveryInfoProvider,
             { value: { 'm.homeserver': { base_url: 'https://example.com' } } },
-            React.createElement(AuthFlowsLoader, null, () => null)
+            loaderElement(null, () => null)
           )
         )
       );
@@ -71,10 +83,6 @@ describe('AuthFlowsLoader', () => {
       registerRequest,
     } as unknown as ReturnType<typeof createMatrixClient>);
 
-    const AuthFlowsLoaderComponent = AuthFlowsLoader as React.ComponentType<
-      React.ComponentProps<typeof AuthFlowsLoader>
-    >;
-
     // Inside act, the mount effects run before the test goes on. After a bare create() React's
     // scheduler ran them in a later task, and on a busy machine that came after the act below.
     let renderer!: ReturnType<typeof create>;
@@ -83,8 +91,7 @@ describe('AuthFlowsLoader', () => {
         React.createElement(
           AutoDiscoveryInfoProvider,
           { value: { 'm.homeserver': { base_url: 'https://example.com' } } },
-          React.createElement(
-            AuthFlowsLoaderComponent,
+          loaderElement(
             {
               fallback: () => React.createElement(Text, null, 'Loading'),
               error: () => React.createElement(Text, null, 'Error'),

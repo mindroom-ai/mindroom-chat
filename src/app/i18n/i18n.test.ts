@@ -26,7 +26,7 @@ const collectEntries = (tree: LocaleTree, prefix = ''): Array<[string, string]> 
 
 const interpolationPlaceholders = (value: string): string[] =>
   [...value.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)]
-    .map((match) => match[1].replace(/\s+/g, ''))
+    .map((match) => match[1]!.replace(/\s+/g, ''))
     .sort();
 
 const collectLeafValues = (tree: LocaleTree): string[] =>
@@ -43,7 +43,7 @@ const richTextBindings = (value: string): string[] => {
     } else if (match[0].startsWith('</')) {
       expect(stack.pop(), 'unbalanced translation markup').toBe(match[1]);
     } else if (!match[0].endsWith('/>')) {
-      stack.push(match[1]);
+      stack.push(match[1]!);
     }
   }
   expect(stack, 'unclosed translation markup').toEqual([]);

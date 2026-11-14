@@ -66,7 +66,7 @@ describe('uploadLongTextSidecar', () => {
     expect(event.file).toBeUndefined();
     // Chat's own reader finds the file and parses back exactly the content that was sent.
     expect(getLongTextSource(event)?.mxcUri).toBe('mxc://example.org/sidecar');
-    const uploaded = await uploads[0].text();
+    const uploaded = await uploads[0]!.text();
     const parsed = parseLongTextJsonSidecar(uploaded)!;
     expect(parsed).toEqual(content);
     // The file is the content itself, the shape MindRoom reads, and its size is recorded.
@@ -94,7 +94,7 @@ describe('uploadLongTextSidecar', () => {
     const file = event.file as Record<string, unknown>;
     expect(file).toMatchObject({ url: 'mxc://example.org/sidecar', v: 'v2' });
     expect(getLongTextSource(event)?.encryptedFile).toEqual(file);
-    const ciphertext = await uploads[0].arrayBuffer();
+    const ciphertext = await uploads[0]!.arrayBuffer();
     expect(new TextDecoder().decode(ciphertext)).not.toContain('Here is the whole draft');
     const plaintext = await decryptFile(ciphertext, 'application/json', file as never);
     expect(parseLongTextJsonSidecar(await plaintext.text())).toEqual(content);

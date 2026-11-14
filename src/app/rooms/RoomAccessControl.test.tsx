@@ -9,7 +9,9 @@ import {
   type MatrixClient,
   type MatrixEvent,
   type Room,
+  type RoomEventHandlerMap,
   type RoomState,
+  type RoomStateEventHandlerMap,
 } from 'matrix-js-sdk';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
@@ -52,6 +54,17 @@ const getButton = (container: HTMLElement, label: string): HTMLButtonElement => 
   if (!button) throw new Error(`Missing ${label} button`);
   return button;
 };
+
+// vi.mocked(mx.on) types its calls by the last `on` overload, so each listener the component
+// registered is cast to its event's handler here.
+const findMembershipListener = () =>
+  vi.mocked(mx.on).mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1] as
+    | RoomEventHandlerMap[RoomEvent.MyMembership]
+    | undefined;
+const findStateEventsListener = () =>
+  vi.mocked(mx.on).mock.calls.find(([event]) => event === RoomStateEvent.Events)?.[1] as
+    | RoomStateEventHandlerMap[RoomStateEvent.Events]
+    | undefined;
 
 describe('RoomAccessControl request dialog', () => {
   let container: HTMLDivElement;
@@ -366,9 +379,7 @@ describe('RoomAccessControl request dialog', () => {
     });
 
     expect(getButton(container, 'Access unavailable')).toBeDefined();
-    const membershipListener = vi
-      .mocked(mx.on)
-      .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+    const membershipListener = findMembershipListener();
     if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
 
     act(() => {
@@ -410,9 +421,7 @@ describe('RoomAccessControl request dialog', () => {
     });
 
     expect(getButton(container, 'Access unavailable')).toBeDefined();
-    const membershipListener = vi
-      .mocked(mx.on)
-      .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+    const membershipListener = findMembershipListener();
     if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
 
     act(() => membershipListener(room, Membership.Invite, Membership.Leave));
@@ -458,9 +467,7 @@ describe('RoomAccessControl request dialog', () => {
     act(() => getButton(container, 'Request to join').click());
     expect(container.querySelector('form')).not.toBeNull();
 
-    const membershipListener = vi
-      .mocked(mx.on)
-      .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+    const membershipListener = findMembershipListener();
     if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
 
     act(() => {
@@ -511,9 +518,7 @@ describe('RoomAccessControl request dialog', () => {
     });
 
     expect(getButton(container, 'Access unavailable')).toBeDefined();
-    const membershipListener = vi
-      .mocked(mx.on)
-      .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+    const membershipListener = findMembershipListener();
     if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
 
     act(() => membershipListener(room, Membership.Invite, Membership.Leave));
@@ -574,9 +579,7 @@ describe('RoomAccessControl request dialog', () => {
         );
       });
 
-      const membershipListener = vi
-        .mocked(mx.on)
-        .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+      const membershipListener = findMembershipListener();
       if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
 
       act(() => membershipListener(room, Membership.Leave, initialMembership));
@@ -682,9 +685,7 @@ describe('RoomAccessControl request dialog', () => {
     });
     expect(getButton(container, 'Request sent')).toBeDefined();
 
-    const stateListener = vi
-      .mocked(mx.on)
-      .mock.calls.find(([event]) => event === RoomStateEvent.Events)?.[1];
+    const stateListener = findStateEventsListener();
     if (typeof stateListener !== 'function') throw new Error('Missing state event listener');
 
     act(() => {
@@ -733,9 +734,7 @@ describe('RoomAccessControl request dialog', () => {
     act(() => getButton(container, 'Request to join').click());
     act(() => container.querySelector('form')?.requestSubmit());
 
-    const membershipListener = vi
-      .mocked(mx.on)
-      .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+    const membershipListener = findMembershipListener();
     if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
 
     act(() => {
@@ -822,9 +821,7 @@ describe('RoomAccessControl request dialog', () => {
       await Promise.resolve();
     });
 
-    const membershipListener = vi
-      .mocked(mx.on)
-      .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+    const membershipListener = findMembershipListener();
     if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
     act(() => {
       membershipListener({ roomId: '!private:example.org' } as Room, Membership.Leave);
@@ -851,9 +848,7 @@ describe('RoomAccessControl request dialog', () => {
       await Promise.resolve();
     });
 
-    const membershipListener = vi
-      .mocked(mx.on)
-      .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+    const membershipListener = findMembershipListener();
     if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
     act(() => {
       membershipListener({ roomId: '!private:example.org' } as Room, Membership.Leave);
@@ -901,9 +896,7 @@ describe('RoomAccessControl request dialog', () => {
 
     act(renderAccess);
 
-    const membershipListener = vi
-      .mocked(mx.on)
-      .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+    const membershipListener = findMembershipListener();
     if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
     act(() => {
       membershipListener({ roomId: '!private:example.org' } as Room, Membership.Invite);
@@ -946,7 +939,7 @@ describe('RoomAccessControl request dialog', () => {
   });
 
   it('ignores a deferred join result after live membership joins and then leaves', async () => {
-    let resolveJoin = () => undefined;
+    let resolveJoin: () => void = () => undefined;
     vi.mocked(mx.joinRoom).mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -978,9 +971,7 @@ describe('RoomAccessControl request dialog', () => {
       await Promise.resolve();
     });
     expect(getButton(container, 'Joining').disabled).toBe(true);
-    const membershipListener = vi
-      .mocked(mx.on)
-      .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1];
+    const membershipListener = findMembershipListener();
     if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
 
     act(() => {
