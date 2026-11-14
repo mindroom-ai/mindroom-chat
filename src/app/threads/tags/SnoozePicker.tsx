@@ -210,6 +210,7 @@ export function SnoozePicker({ anchor, onPick, onClose }: SnoozePickerProps) {
           current={-1}
           onChoose={choose}
           onDismiss={dismissMenu}
+          focusFirst
         />
       }
     />

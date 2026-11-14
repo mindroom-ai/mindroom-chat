@@ -1,3 +1,4 @@
+import { useRef, type ReactNode } from 'react';
 import FocusTrap from 'focus-trap-react';
 import { Box, Icon, Icons, Text, config } from 'folds';
 import { Menu, MenuItem } from './glass/GlassPrimitives';
@@ -18,23 +19,41 @@ type ChoiceMenuProps = {
   onChoose(index: number): void;
   /** Escape or a click outside the menu. */
   onDismiss(): void;
+  /**
+   * Focus the first option as the menu opens, for a menu that replaces the control that opened
+   * it, whose focus would otherwise fall to the page.
+   */
+  focusFirst?: boolean;
+  /** Shown under the options, such as why the last choice failed. */
+  footer?: ReactNode;
 };
 
 /**
  * A small menu of mutually exclusive options with a check at the chosen one, for a pop-out.
  * Arrow keys walk the options; Escape and clicks outside dismiss it.
  */
-export function ChoiceMenu({ label, choices, current, onChoose, onDismiss }: ChoiceMenuProps) {
+export function ChoiceMenu({
+  label,
+  choices,
+  current,
+  onChoose,
+  onDismiss,
+  focusFirst = false,
+  footer,
+}: ChoiceMenuProps) {
+  const menuRef = useRef<HTMLDivElement>(null);
   return (
     <FocusTrap
       focusTrapOptions={{
         onDeactivate: onDismiss,
         escapeDeactivates: stopPropagation,
         clickOutsideDeactivates: true,
-        initialFocus: false,
+        initialFocus: focusFirst
+          ? () => menuRef.current?.querySelector<HTMLElement>('[role="menuitemradio"]') ?? false
+          : false,
       }}
     >
-      <Menu role="menu" aria-label={label}>
+      <Menu ref={menuRef} role="menu" aria-label={label}>
         <Box style={{ padding: config.space.S100 }} gap="100" direction="Column">
           {choices.map((choice, index) => {
             const chosen = index === current;
@@ -61,6 +80,7 @@ export function ChoiceMenu({ label, choices, current, onChoose, onDismiss }: Cho
               </MenuItem>
             );
           })}
+          {footer}
         </Box>
       </Menu>
     </FocusTrap>
