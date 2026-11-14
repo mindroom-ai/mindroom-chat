@@ -177,7 +177,7 @@ const getDownloadLongTextSidecarBlob = async () =>
 const getLongTextTextModule = async () => import('./LongTextText');
 const getShouldResetResolvedContentToPreview = async () =>
   (await import('./LongTextText')).shouldResetResolvedContentToPreview;
-const mockMx = hookMocks.mx as MatrixClient;
+const mockMx = hookMocks.mx as unknown as MatrixClient;
 
 const createLongTextSource = (
   overrides: Partial<LongTextSource> = {}
@@ -723,6 +723,12 @@ describe('LongTextText hydration identity', () => {
 
   it('renders hydrated Markdown and a tool card while the real message stays collapsed', async () => {
     const { CollapsibleMessage } = await import('../../timeline/CollapsibleMessage');
+    // React.createElement's overloads do not type a render function passed as children.
+    const createCollapsibleMessageElement = React.createElement as unknown as (
+      type: typeof CollapsibleMessage,
+      props: Omit<React.ComponentProps<typeof CollapsibleMessage>, 'children'>,
+      render: React.ComponentProps<typeof CollapsibleMessage>['children']
+    ) => React.ReactElement;
     const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
     const content = createPreviewContent();
     const toolTrace = {
@@ -766,7 +772,7 @@ describe('LongTextText hydration identity', () => {
           React.createElement(
             ClientConfigProvider,
             { value: {} },
-            React.createElement(
+            createCollapsibleMessageElement(
               CollapsibleMessage,
               { collapseMode: 'default', forceOverflowing: true },
               ({ loadFullContent }) =>

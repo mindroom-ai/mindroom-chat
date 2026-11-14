@@ -287,7 +287,7 @@ describe('VoiceAudioContent media identity', () => {
     });
 
     expect(renderer.root.findByType('audio').props.autoPlay).toBe(true);
-    const currentAudio = audioElements[audioElements.length - 1];
+    const currentAudio = audioElements[audioElements.length - 1]!;
     expect(currentAudio.currentTime).toBe(0);
     currentAudio.readyState = 1;
     act(() => {

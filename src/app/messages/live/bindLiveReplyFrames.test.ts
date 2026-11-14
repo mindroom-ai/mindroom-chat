@@ -155,7 +155,7 @@ describe('bindLiveReplyFrames', () => {
     await settle();
 
     expect(decrypted).toHaveLength(1);
-    const [event] = decrypted;
+    const event = decrypted[0]!;
     expect(event.getWireType()).toBe('m.room.encrypted');
     expect(event.getWireContent()).toEqual(megolm('a'));
     expect(event.getRoomId()).toBe(ROOM);

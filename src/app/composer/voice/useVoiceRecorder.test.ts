@@ -299,8 +299,8 @@ describe('useVoiceRecorder', () => {
       vi.advanceTimersByTime(250);
       await recorderState.current!.send();
     });
-    expect(send.mock.calls[0][1]).toBe(250);
-    expect(send.mock.calls[0][2]).toBeUndefined();
+    expect(send.mock.calls[0]![1]).toBe(250);
+    expect(send.mock.calls[0]![2]).toBeUndefined();
   });
 
   it('releases mic resources after native stop throws', async () => {
@@ -309,7 +309,7 @@ describe('useVoiceRecorder', () => {
     await act(async () => {
       await recorderState.current!.start();
     });
-    MockMediaRecorder.instances[0].stop.mockImplementation(() => {
+    MockMediaRecorder.instances[0]!.stop.mockImplementation(() => {
       throw new Error('stop failed');
     });
     await act(async () => {
@@ -328,7 +328,7 @@ describe('useVoiceRecorder', () => {
     await act(async () => {
       await recorderState.current!.start();
     });
-    const old = MockMediaRecorder.instances[0];
+    const old = MockMediaRecorder.instances[0]!;
     await act(async () => {
       recorderState.current!.reset();
     });
@@ -343,7 +343,7 @@ describe('useVoiceRecorder', () => {
     });
     expect(recorderState.current!.phase).toBe('recording');
     expect(freshStream.track.stop).not.toHaveBeenCalled();
-    const fresh = MockMediaRecorder.instances[1];
+    const fresh = MockMediaRecorder.instances[1]!;
     let result!: Promise<boolean>;
     await act(async () => {
       result = recorderState.current!.send();
@@ -352,8 +352,8 @@ describe('useVoiceRecorder', () => {
       fresh.flushStop();
       await result;
     });
-    expect(await send.mock.calls[0][0].text()).toBe('voice');
-    expect(send.mock.calls[0][1]).toBe(250);
+    expect(await send.mock.calls[0]![0].text()).toBe('voice');
+    expect(send.mock.calls[0]![1]).toBe(250);
   });
 
   it('pins the compressed speech capture contract', () => {
@@ -392,15 +392,15 @@ describe('useVoiceRecorder', () => {
     expect(getUserMedia).toHaveBeenCalledWith({
       audio: VOICE_RECORDER_AUDIO_CONSTRAINTS,
     });
-    expect(MockMediaRecorder.instances[0].options).toEqual({
+    expect(MockMediaRecorder.instances[0]!.options).toEqual({
       mimeType: 'audio/ogg;codecs=opus',
       audioBitsPerSecond: VOICE_RECORDER_AUDIO_BITS_PER_SECOND,
     });
     expect(onSendRecording).toHaveBeenCalledOnce();
-    expect(onSendRecording.mock.calls[0][0]).toBeInstanceOf(File);
-    expect(onSendRecording.mock.calls[0][1]).toBe(1200);
-    expect(onSendRecording.mock.calls[0][2]).toHaveLength(VOICE_WAVEFORM_BAR_COUNT);
-    expect(onSendRecording.mock.calls[0][3]).toMatchObject({
+    expect(onSendRecording.mock.calls[0]![0]).toBeInstanceOf(File);
+    expect(onSendRecording.mock.calls[0]![1]).toBe(1200);
+    expect(onSendRecording.mock.calls[0]![2]).toHaveLength(VOICE_WAVEFORM_BAR_COUNT);
+    expect(onSendRecording.mock.calls[0]![3]).toMatchObject({
       roomId: ROOM_ID,
       threadId: '$thread-a',
     });
@@ -452,7 +452,7 @@ describe('useVoiceRecorder', () => {
     await act(async () => {
       await recorderState.current?.start();
     });
-    const staleRecorder = MockMediaRecorder.instances[0];
+    const staleRecorder = MockMediaRecorder.instances[0]!;
     let staleSendPromise!: Promise<boolean>;
     await act(async () => {
       staleSendPromise = recorderState.current!.send();
@@ -546,10 +546,10 @@ describe('useVoiceRecorder', () => {
       await recorderState.current?.start();
     });
 
-    expect(MockMediaRecorder.instances[0].options).toEqual({
+    expect(MockMediaRecorder.instances[0]!.options).toEqual({
       audioBitsPerSecond: VOICE_RECORDER_AUDIO_BITS_PER_SECOND,
     });
-    expect(MockMediaRecorder.instances[0].options).not.toHaveProperty('mimeType');
+    expect(MockMediaRecorder.instances[0]!.options).not.toHaveProperty('mimeType');
 
     renderer.unmount();
   });
@@ -684,8 +684,8 @@ describe('useVoiceRecorder', () => {
 
     const metadataSamples = expectedAnalyserSamples(1, 61);
     expect(onSendRecording).toHaveBeenCalledOnce();
-    expect(onSendRecording.mock.calls[0][2]).toEqual(normalizeMatrixWaveform(metadataSamples));
-    expect(onSendRecording.mock.calls[0][2]).not.toEqual(metadataSamples.slice(-48));
+    expect(onSendRecording.mock.calls[0]![2]).toEqual(normalizeMatrixWaveform(metadataSamples));
+    expect(onSendRecording.mock.calls[0]![2]).not.toEqual(metadataSamples.slice(-48));
 
     renderer.unmount();
   });
@@ -716,10 +716,10 @@ describe('useVoiceRecorder', () => {
       await recorderState.current?.send();
     });
 
-    const recorder = MockMediaRecorder.instances[0];
+    const recorder = MockMediaRecorder.instances[0]!;
     expect(recorder.pause).toHaveBeenCalledOnce();
     expect(recorder.resume).toHaveBeenCalledOnce();
-    expect(onSendRecording.mock.calls[0][1]).toBe(1500);
+    expect(onSendRecording.mock.calls[0]![1]).toBe(1500);
 
     renderer.unmount();
   });
@@ -752,7 +752,7 @@ describe('useVoiceRecorder', () => {
       await recorderState.current?.start();
     });
 
-    const recorder = MockMediaRecorder.instances[0];
+    const recorder = MockMediaRecorder.instances[0]!;
     let sendPromise!: Promise<boolean>;
     await act(async () => {
       vi.advanceTimersByTime(500);
@@ -769,7 +769,7 @@ describe('useVoiceRecorder', () => {
 
     expect(discardResult).toBe(false);
     expect(onSendRecording).toHaveBeenCalledOnce();
-    expect(onSendRecording.mock.calls[0][1]).toBe(500);
+    expect(onSendRecording.mock.calls[0]![1]).toBe(500);
 
     renderer.unmount();
   });
@@ -783,7 +783,7 @@ describe('useVoiceRecorder', () => {
       await recorderState.current?.start();
     });
 
-    const recorder = MockMediaRecorder.instances[0];
+    const recorder = MockMediaRecorder.instances[0]!;
     let sendPromise!: Promise<boolean>;
     await act(async () => {
       vi.advanceTimersByTime(500);
@@ -799,7 +799,7 @@ describe('useVoiceRecorder', () => {
     });
 
     expect(onSendRecording).toHaveBeenCalledOnce();
-    expect(onSendRecording.mock.calls[0][1]).toBe(500);
+    expect(onSendRecording.mock.calls[0]![1]).toBe(500);
     expect(stream.track.stop).toHaveBeenCalled();
   });
 
@@ -892,7 +892,7 @@ describe('useVoiceRecorder', () => {
       await recorderState.current?.start();
     });
 
-    const recorder = MockMediaRecorder.instances[0];
+    const recorder = MockMediaRecorder.instances[0]!;
     let sendPromise!: Promise<boolean>;
     await act(async () => {
       vi.advanceTimersByTime(500);
@@ -908,7 +908,7 @@ describe('useVoiceRecorder', () => {
     });
 
     expect(onSendRecording).toHaveBeenCalledOnce();
-    expect(onSendRecording.mock.calls[0][1]).toBe(500);
+    expect(onSendRecording.mock.calls[0]![1]).toBe(500);
 
     renderer.unmount();
   });
@@ -921,7 +921,7 @@ describe('useVoiceRecorder', () => {
       await recorderState.current?.start();
     });
 
-    const recorder = MockMediaRecorder.instances[0];
+    const recorder = MockMediaRecorder.instances[0]!;
     act(() => {
       renderer.unmount();
     });
@@ -997,10 +997,10 @@ describe('useVoiceRecorder', () => {
       await recorderState.current?.send();
     });
 
-    const firstFile = onSendRecording.mock.calls[0][0];
-    const firstDuration = onSendRecording.mock.calls[0][1];
-    const firstWaveform = onSendRecording.mock.calls[0][2];
-    const firstContext = onSendRecording.mock.calls[0][3];
+    const firstFile = onSendRecording.mock.calls[0]![0];
+    const firstDuration = onSendRecording.mock.calls[0]![1];
+    const firstWaveform = onSendRecording.mock.calls[0]![2];
+    const firstContext = onSendRecording.mock.calls[0]![3];
     expect(recorderState.current?.hasPendingSend).toBe(true);
     expect(recorderState.current?.pendingDuration).toBe(firstDuration);
     expect(recorderState.current?.pendingWaveform).toEqual(firstWaveform);
@@ -1010,12 +1010,12 @@ describe('useVoiceRecorder', () => {
     });
 
     expect(onSendRecording).toHaveBeenCalledTimes(2);
-    expect(onSendRecording.mock.calls[1][0]).toBe(firstFile);
-    expect(onSendRecording.mock.calls[1][1]).toBe(firstDuration);
-    expect(onSendRecording.mock.calls[1][2]).toBe(firstWaveform);
+    expect(onSendRecording.mock.calls[1]![0]).toBe(firstFile);
+    expect(onSendRecording.mock.calls[1]![1]).toBe(firstDuration);
+    expect(onSendRecording.mock.calls[1]![2]).toBe(firstWaveform);
     // The retry must reuse the originally-captured context so the message
     // lands in the room where it was recorded, not the room currently shown.
-    expect(onSendRecording.mock.calls[1][3]).toEqual(firstContext);
+    expect(onSendRecording.mock.calls[1]![3]).toEqual(firstContext);
     expect(recorderState.current?.hasPendingSend).toBe(false);
     expect(recorderState.current?.phase).toBe('idle');
 
@@ -1041,7 +1041,7 @@ describe('useVoiceRecorder', () => {
       await recorderState.current?.send();
     });
 
-    expect(onSendRecording.mock.calls[0][3]).toMatchObject({
+    expect(onSendRecording.mock.calls[0]![3]).toMatchObject({
       roomId: ROOM_ID,
       threadId: '$thread-at-send',
     });
@@ -1055,7 +1055,7 @@ describe('useVoiceRecorder', () => {
       await recorderState.current?.retry();
     });
 
-    expect(onSendRecording.mock.calls[1][3]).toMatchObject({
+    expect(onSendRecording.mock.calls[1]![3]).toMatchObject({
       roomId: ROOM_ID,
       threadId: '$thread-at-send',
     });
@@ -1081,12 +1081,12 @@ describe('useVoiceRecorder', () => {
       vi.advanceTimersByTime(100);
       await recorderState.current?.send();
     });
-    expect(onSendRecording.mock.calls[0][3]).toMatchObject({ roomId: ROOM_ID });
+    expect(onSendRecording.mock.calls[0]![3]).toMatchObject({ roomId: ROOM_ID });
 
     await act(async () => {
       await recorderState.current?.retry();
     });
-    expect(onSendRecording.mock.calls[1][3]).toMatchObject({ roomId: ROOM_ID });
+    expect(onSendRecording.mock.calls[1]![3]).toMatchObject({ roomId: ROOM_ID });
 
     renderer.unmount();
   });
@@ -1126,7 +1126,7 @@ describe('useVoiceRecorder', () => {
       await recorderState.current?.send();
     });
 
-    const pendingFile = onSendRecording.mock.calls[0][0];
+    const pendingFile = onSendRecording.mock.calls[0]![0];
     getUserMedia.mockClear();
 
     let started: boolean | undefined;
@@ -1141,7 +1141,7 @@ describe('useVoiceRecorder', () => {
       await recorderState.current?.retry();
     });
 
-    expect(onSendRecording.mock.calls[1][0]).toBe(pendingFile);
+    expect(onSendRecording.mock.calls[1]![0]).toBe(pendingFile);
 
     renderer.unmount();
   });
@@ -1403,7 +1403,7 @@ describe('useVoiceRecorder', () => {
 
   it('surfaces a busy message when retry is blocked by onSendStopRequest', async () => {
     const onSendStopRequest = vi
-      .fn<[], boolean | void>()
+      .fn<() => boolean | void>()
       .mockReturnValueOnce(true)
       .mockReturnValueOnce(false);
     const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('upload failed'));
@@ -1439,7 +1439,7 @@ describe('useVoiceRecorder', () => {
     const onSendStopFailure = vi.fn();
     const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('initial failure'));
     const onSendStopRequest = vi
-      .fn<[], boolean | void>()
+      .fn<() => boolean | void>()
       .mockReturnValueOnce(true)
       .mockImplementationOnce(() => {
         store.set(pendingVoiceSendDraftAtom, undefined);
@@ -1550,7 +1550,7 @@ describe('useVoiceRecorder', () => {
       await recorderState.current?.start();
     });
 
-    const recorder = MockMediaRecorder.instances[0];
+    const recorder = MockMediaRecorder.instances[0]!;
     await act(async () => {
       recorder.state = 'inactive';
       recorder.flushStop();
@@ -1577,7 +1577,7 @@ describe('useVoiceRecorder', () => {
       await recorderState.current?.start();
     });
 
-    const recorder = MockMediaRecorder.instances[0];
+    const recorder = MockMediaRecorder.instances[0]!;
     let sendPromise!: Promise<boolean>;
     await act(async () => {
       vi.advanceTimersByTime(100);
@@ -1617,8 +1617,8 @@ describe('useVoiceRecorder', () => {
     });
 
     expect(onSendRecording).toHaveBeenCalledOnce();
-    expect(onSendRecording.mock.calls[0][1]).toBe(700);
-    expect(onSendRecording.mock.calls[0][2]).toBeUndefined();
+    expect(onSendRecording.mock.calls[0]![1]).toBe(700);
+    expect(onSendRecording.mock.calls[0]![2]).toBeUndefined();
 
     renderer.unmount();
   });

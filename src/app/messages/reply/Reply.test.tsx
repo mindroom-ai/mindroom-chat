@@ -1,4 +1,3 @@
-import React from 'react';
 import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { expect, it, vi } from 'vitest';

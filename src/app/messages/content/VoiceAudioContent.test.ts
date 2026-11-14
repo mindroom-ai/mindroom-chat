@@ -1,5 +1,5 @@
 import React from 'react';
-import { Provider, createStore, type Store } from 'jotai';
+import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AsyncStatus } from '../../lib/hooks/useAsyncCallback';
@@ -187,6 +187,7 @@ vi.mock('../../lib/hooks/useThrottle', () => ({
 type StorageListener = (event: StorageEvent) => void;
 
 type AudioMock = HTMLAudioElement & {
+  duration: number;
   mozPreservesPitch?: boolean;
   webkitPreservesPitch?: boolean;
 };
@@ -222,7 +223,7 @@ const renderVoiceAudioContent = (props?: Partial<React.ComponentProps<typeof Voi
   });
 
 const renderVoiceAudio = (
-  store: Store = createStore(),
+  store: ReturnType<typeof createStore> = createStore(),
   props?: Partial<React.ComponentProps<typeof VoiceAudioContent>>
 ) => React.createElement(Provider, { store }, renderVoiceAudioContent(props));
 
@@ -231,7 +232,7 @@ const openAudioOptions = (renderer: ReactTestRenderer, index = 0) => {
     renderer.root
       .findAllByType('button')
       .filter((button) => button.props['aria-label'] === 'More audio options')
-      [index].props.onClick({
+      [index]!.props.onClick({
         currentTarget: {
           getBoundingClientRect: () => ({ left: 0, top: 0, width: 24, height: 24 }),
         },
@@ -357,7 +358,7 @@ describe('VoiceAudioContent', () => {
         .props.onClick({ currentTarget: volumeTriggerTarget });
     });
 
-    const focusTrapOptions = renderer.root.findAllByProps({ 'data-focus-trap': true })[1].props
+    const focusTrapOptions = renderer.root.findAllByProps({ 'data-focus-trap': true })[1]!.props
       .focusTrapOptions as {
       onDeactivate: () => void;
     };
@@ -758,7 +759,7 @@ describe('VoiceAudioContent', () => {
 
     act(() => {
       renderer.root
-        .findAllByProps({ 'aria-label': 'Voice volume, currently 100%' })[0]
+        .findAllByProps({ 'aria-label': 'Voice volume, currently 100%' })[0]!
         .props.onClick({
           currentTarget: {
             getBoundingClientRect: () => ({ left: 0, top: 0, width: 44, height: 44 }),
@@ -818,7 +819,7 @@ describe('VoiceAudioContent', () => {
     });
 
     expect(renderer.root.findAllByProps({ 'data-popout': 'true' })).toHaveLength(2);
-    const focusTrapOptions = renderer.root.findAllByProps({ 'data-focus-trap': true })[1].props
+    const focusTrapOptions = renderer.root.findAllByProps({ 'data-focus-trap': true })[1]!.props
       .focusTrapOptions as {
       clickOutsideDeactivates: (event: Pick<MouseEvent, 'target'>) => boolean;
       allowOutsideClick: (event: Pick<MouseEvent, 'target'>) => boolean;
@@ -1007,7 +1008,7 @@ describe('VoiceAudioContent', () => {
 
     act(() => {
       renderer.root
-        .findAllByProps({ 'aria-label': 'Playback speed, currently 1×, click to cycle' })[0]
+        .findAllByProps({ 'aria-label': 'Playback speed, currently 1×, click to cycle' })[0]!
         .props.onClick();
     });
     expect(store.get(voiceMessagePlaybackRateAtom)).toBe(1.5);
@@ -1068,11 +1069,11 @@ describe('VoiceAudioContent', () => {
     });
 
     act(() => {
-      renderer.root.findAllByProps({ 'aria-label': 'Play voice message' })[0].props.onClick();
+      renderer.root.findAllByProps({ 'aria-label': 'Play voice message' })[0]!.props.onClick();
     });
     act(() => {
       renderer.root
-        .findAllByProps({ 'aria-label': 'Playback speed, currently 1×, click to cycle' })[0]
+        .findAllByProps({ 'aria-label': 'Playback speed, currently 1×, click to cycle' })[0]!
         .props.onClick();
     });
 
@@ -1085,7 +1086,7 @@ describe('VoiceAudioContent', () => {
     ).toHaveLength(2);
 
     act(() => {
-      renderer.root.findAllByType('audio')[1].props.onPlay();
+      renderer.root.findAllByType('audio')[1]!.props.onPlay();
     });
 
     expect(
