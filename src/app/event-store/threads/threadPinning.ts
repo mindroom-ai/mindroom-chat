@@ -17,6 +17,7 @@ import { getRoomPermissionsAPI } from '../../matrix/hooks/useRoomPermissions';
 import { getStateEvent } from '../../matrix/room';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
 import { guardPinWrite } from './pinWriteGuard';
+import { matchesEnum } from '../../lib/matchesEnum';
 
 /** Whether the room's power levels let `userId` write its pins, as the server decides it. */
 export const canPinRoomEvents = (
@@ -128,7 +129,8 @@ const publishPendingPins = (
         });
     };
     const handler = (event: MatrixEvent) => {
-      if (event.getType() !== StateEvent.RoomPinnedEvents || event.getStateKey() !== '') return;
+      if (!matchesEnum(event.getType(), StateEvent.RoomPinnedEvents) || event.getStateKey() !== '')
+        return;
       // Keep the latest save visible through older echoes from this client's queue.
       const pending = pendingPins.get(room);
       if (!pending?.accepted || pending.earlierEventIds.has(event.getId() ?? '')) return;

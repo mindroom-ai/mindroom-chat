@@ -20,6 +20,7 @@ import {
   type CrossRoomThreadIndexSnapshot,
 } from '../crossRoomThreadIndex';
 import type { ThreadTagSnapshot } from '../../tags/threadTagSnapshots';
+import { matchesEnum } from '../../../lib/matchesEnum';
 
 const upsert = (snapshot: CrossRoomThreadIndexSnapshot, entry: CrossRoomThreadIndexEntry) =>
   applyCrossRoomThreadIndexBatch(snapshot, { upserts: [entry] });
@@ -52,7 +53,8 @@ const makeEvent = ({
     getContent: () => content ?? { msgtype: 'm.text', body },
     getUnsigned: () => ({}),
     getRelation: () => (threadRootId ? { rel_type: RelationType.Thread } : undefined),
-    isRelation: (relationType: string) => relationType === RelationType.Thread && !!threadRootId,
+    isRelation: (relationType: string) =>
+      matchesEnum(relationType, RelationType.Thread) && !!threadRootId,
     isRedacted: () => false,
     isRedaction: () => false,
     replacingEvent: () => replacingEvent?.(),
