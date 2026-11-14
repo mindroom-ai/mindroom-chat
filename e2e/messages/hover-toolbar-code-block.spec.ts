@@ -16,9 +16,8 @@ import {
 // In a thread, a reply that continues the one above shows no sender line, and one that starts
 // with a code block has the block's Wrap lines, Expand and Copy code buttons at the top of its
 // row. When that row's top is under the room header and the thread's banner, its hover toolbar
-// moves down into the row; it must not land
-// on those buttons, nor go back under the header. Set E2E_SCREENSHOT_DIR to save the row at each
-// scroll position.
+// moves down into the row; it must not land on those buttons, nor go back under the header. Set
+// E2E_SCREENSHOT_DIR to save the row at each scroll position.
 
 const PASSWORD = 'hover-toolbar-code-block-password';
 const SCREENSHOT = process.env.E2E_SCREENSHOT_DIR;
@@ -106,7 +105,8 @@ test('the hover toolbar keeps off the code block buttons of a row without a send
     'm.relates_to': inThread,
   });
   const codeId = await send(helper.accessToken, { ...codeMessage, 'm.relates_to': inThread });
-  for (let index = 0; index < 12; index += 1) {
+  // Enough after it for the timeline to scroll the row up under the header.
+  for (let index = 0; index < 40; index += 1) {
     await send(token, { msgtype: 'm.text', body: `Later note ${index}`, 'm.relates_to': inThread });
   }
 
@@ -121,23 +121,25 @@ test('the hover toolbar keeps off the code block buttons of a row without a send
   // The row continues the message above: no sender line.
   await expect(row.locator('[data-message-sender-line]')).toHaveCount(0);
 
-  // The row's top at the header's lower edge, then 10 to 50 px under it.
-  await row.evaluate((element) => element.scrollIntoView({ block: 'start' }));
+  // The row's top 10 to 50 px under the header's lower edge (the timeline's scroll padding).
   const blocked: string[] = [];
   for (const under of [10, 20, 30, 40, 50]) {
-    // The timeline scrolls by 10 px; `covered` is where the header ends (its scroll padding).
-    const covered = await row.evaluate((element) => {
+    const covered = await row.evaluate((element, by) => {
       let scroller = element.parentElement;
       while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) {
         scroller = scroller.parentElement;
       }
       if (!scroller) throw new Error('The row has no scroller');
-      scroller.scrollBy(0, 10);
-      return (
+      const line =
         scroller.getBoundingClientRect().top +
-        Number.parseFloat(getComputedStyle(scroller).scrollPaddingTop)
-      );
-    });
+        Number.parseFloat(getComputedStyle(scroller).scrollPaddingTop);
+      scroller.scrollBy(0, element.getBoundingClientRect().top - line + by);
+      return line;
+    }, under);
+    expect(
+      Math.round((await row.boundingBox())?.y ?? 0),
+      'the timeline scrolls the row under the header'
+    ).toBe(Math.round(covered - under));
     const box = await block.boundingBox();
     if (!box) throw new Error('The code block has no box');
     await page.mouse.move(box.x + box.width / 2, box.y + Math.min(box.height / 2, 200));
