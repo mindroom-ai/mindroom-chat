@@ -111,7 +111,7 @@ describe('threadBootstrapSdk', () => {
       expect(thread.rootEvent).toBe(root);
       expect(room.getThread('$root')).toBe(thread);
 
-      await thread.addEvent(reply, false);
+      thread.addEvent(reply, false);
       await settleMetadata();
 
       expect(thread.events).toContain(reply);

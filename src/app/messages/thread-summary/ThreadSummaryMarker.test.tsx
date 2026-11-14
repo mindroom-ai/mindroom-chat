@@ -28,9 +28,7 @@ vi.mock('./ThreadSummaryMarker.css', () => ({
 }));
 
 const text = (value: ReactTestInstance | string): string =>
-  typeof value === 'string'
-    ? value
-    : value.children.map((child) => text(child as ReactTestInstance | string)).join('');
+  typeof value === 'string' ? value : value.children.map(text).join('');
 
 const summaryInfo = { summaryText: 'Fixing token refresh', messageCount: 21 };
 const triggerRect = { x: 10, y: 20, width: 100, height: 16 };

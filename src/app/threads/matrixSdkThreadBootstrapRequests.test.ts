@@ -519,7 +519,7 @@ describe('SDK thread bootstrap requests', () => {
     const room = roomFor(f.client);
     const encryptedRoot = (rootId: string): IEvent => {
       const root = summarizedRoot(rootId, 1);
-      const relations = root.unsigned!['m.relations'] as { 'm.thread': { latest_event: IEvent } };
+      const relations = root.unsigned['m.relations'] as { 'm.thread': { latest_event: IEvent } };
       relations['m.thread'].latest_event = {
         ...relations['m.thread'].latest_event,
         type: 'm.room.encrypted',
@@ -621,7 +621,7 @@ describe('SDK thread bootstrap requests', () => {
     expect(thread.replyToEvent?.getContent().body).toBe('partial');
 
     // The mapper merges a later listing into the same root object.
-    root.setUnsigned(listedRoot('final answer', 6).unsigned!);
+    root.setUnsigned(listedRoot('final answer', 6).unsigned);
     room.processListedThreadRoots([root], true);
     await settle();
 
@@ -708,7 +708,7 @@ describe('SDK thread bootstrap requests', () => {
         ...reply(rootId, 2, 10),
         unsigned: { 'm.relations': { 'm.replace': firstTool.event } },
       };
-      Object.assign((midStream.unsigned!['m.relations'] as Record<string, object>)['m.thread']!, {
+      Object.assign((midStream.unsigned['m.relations'] as Record<string, object>)['m.thread']!, {
         latest_event: latest,
         'io.mindroom.latest_reply': latest,
       });
@@ -742,7 +742,7 @@ describe('SDK thread bootstrap requests', () => {
         'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
       });
       const titled = summarizedRoot(rootId, 2);
-      (titled.unsigned!['m.relations'] as Record<string, { latest_event: IEvent }>)[
+      (titled.unsigned['m.relations'] as Record<string, { latest_event: IEvent }>)[
         'm.thread'
       ]!.latest_event = title;
       const f = server({ roots: [titled] });

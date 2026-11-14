@@ -3,12 +3,8 @@ import type { Relations } from 'matrix-js-sdk/lib/models/relations';
 
 export type AnnotationEntry = [string, Set<MatrixEvent>];
 
-export const getActiveAnnotationsByKey = (
-  relations: Relations | undefined
-): AnnotationEntry[] => {
-  const groupedAnnotations =
-    (relations?.getSortedAnnotationsByKey() as [string, Set<MatrixEvent>][] | null | undefined) ??
-    [];
+export const getActiveAnnotationsByKey = (relations: Relations | undefined): AnnotationEntry[] => {
+  const groupedAnnotations = relations?.getSortedAnnotationsByKey() ?? [];
 
   return groupedAnnotations.reduce<AnnotationEntry[]>((entries, [key, events]) => {
     if (typeof key !== 'string') return entries;

@@ -598,7 +598,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     const persistRepair = vi.fn<
       NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']>
     >(({ events }) => ({
-      rawEvents: events.map((event) => event.event as Partial<IEvent>),
+      rawEvents: events.map((event) => event.event),
       loadedReplyCount: 0,
       write: Promise.resolve(true),
     }));
@@ -918,7 +918,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     const persistRepair = vi.fn<
       NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']>
     >(({ events }) => ({
-      rawEvents: events.map((event) => event.event as Partial<IEvent>),
+      rawEvents: events.map((event) => event.event),
       loadedReplyCount: 0,
       write: Promise.resolve(true),
     }));
@@ -985,7 +985,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     const persistRepair = vi.fn<
       NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']>
     >(({ events }) => ({
-      rawEvents: events.map((event) => event.event as Partial<IEvent>),
+      rawEvents: events.map((event) => event.event),
       loadedReplyCount: 0,
       write: Promise.resolve(true),
     }));
@@ -1088,7 +1088,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     const persistRepair = vi.fn<
       NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']>
     >(({ events }) => ({
-      rawEvents: events.map((event) => event.event as Partial<IEvent>),
+      rawEvents: events.map((event) => event.event),
       loadedReplyCount: 0,
       write: Promise.resolve(true),
     }));
@@ -1186,7 +1186,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
       cachedPage: makeCachedPage(['$persisted-from-earlier-pass']),
       persistRepair: vi.fn<NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']>>(
         ({ events }) => ({
-          rawEvents: events.map((event) => event.event as Partial<IEvent>),
+          rawEvents: events.map((event) => event.event),
           loadedReplyCount: 0,
           write: Promise.resolve(true),
         })
@@ -1309,7 +1309,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     const persistRepair = vi.fn<
       NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']>
     >(({ events }) => ({
-      rawEvents: events.map((event) => event.event as Partial<IEvent>),
+      rawEvents: events.map((event) => event.event),
       loadedReplyCount: 0,
       write: Promise.resolve(true),
     }));

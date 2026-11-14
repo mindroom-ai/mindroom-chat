@@ -316,7 +316,7 @@ export class ModelController {
     }
     scope.catalogs = query.replies;
     if (this.roomCatalogs.size >= 64 && !this.roomCatalogs.has(scope.room.roomId)) {
-      this.roomCatalogs.delete(this.roomCatalogs.keys().next().value!);
+      this.roomCatalogs.delete(this.roomCatalogs.keys().next().value);
     }
     this.roomCatalogs.set(
       scope.room.roomId,

@@ -2819,7 +2819,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         () =>
           new Promise((resolve) => {
             resolveCacheLoad = resolve;
-          }) as ReturnType<typeof loadLatestCachedThreadEvents>
+          })
       );
 
       let renderer: ReturnType<typeof create> | undefined;
@@ -3096,7 +3096,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         () =>
           new Promise((resolve) => {
             resolveCacheLoad = resolve;
-          }) as ReturnType<typeof loadLatestCachedThreadEvents>
+          })
       );
 
       let renderer: ReturnType<typeof create> | undefined;
@@ -3188,7 +3188,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         () =>
           new Promise((resolve) => {
             resolveCacheLoad = resolve;
-          }) as ReturnType<typeof loadLatestCachedThreadEvents>
+          })
       );
 
       let renderer: ReturnType<typeof create> | undefined;
@@ -3245,7 +3245,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         () =>
           new Promise((resolve) => {
             resolveCacheLoad = resolve;
-          }) as ReturnType<typeof loadLatestCachedThreadEvents>
+          })
       );
 
       let renderer: ReturnType<typeof create> | undefined;
@@ -3398,7 +3398,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         () =>
           new Promise((resolve) => {
             resolveCacheLoad = resolve;
-          }) as ReturnType<typeof loadLatestCachedThreadEvents>
+          })
       );
 
       let secondRenderer: ReturnType<typeof create> | undefined;
