@@ -181,13 +181,13 @@ describe('RoomCard room access', () => {
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
   });
 
-  it('preserves direct joining for a confirmed public room', () => {
+  it('preserves direct joining for a confirmed public room', async () => {
     const { renderer, mx } = renderRoomCard(JoinRule.Public);
     const joinButton = renderer.root
       .findAllByType('button')
       .find((button) => button.findAll((node) => node.children.includes('Join')).length > 0);
 
-    act(() => joinButton?.props.onClick());
+    await act(() => joinButton?.props.onClick());
 
     expect(mx.joinRoom).toHaveBeenCalledWith('!private:example.org', {
       viaServers: ['one.example.org', 'two.example.org'],
@@ -312,7 +312,7 @@ describe('RoomCard room access', () => {
     expect(mx.joinRoom).not.toHaveBeenCalled();
   });
 
-  it('offers a safe summary retry without attempting to join', () => {
+  it('offers a safe summary retry without attempting to join', async () => {
     const retry = vi.fn();
     const { renderer, mx } = renderRoomCard(JoinRule.Public, undefined, AsyncStatus.Error, retry);
     const retryButton = renderer.root
@@ -321,7 +321,7 @@ describe('RoomCard room access', () => {
         (button) => button.findAll((node) => node.children.includes('Retry room info')).length > 0
       );
 
-    act(() => retryButton?.props.onClick());
+    await act(() => retryButton?.props.onClick());
 
     expect(retry).toHaveBeenCalledOnce();
     expect(mx.joinRoom).not.toHaveBeenCalled();
@@ -346,13 +346,13 @@ describe('RoomCard room access', () => {
     );
   });
 
-  it('treats an omitted rule in a successful summary as public', () => {
+  it('treats an omitted rule in a successful summary as public', async () => {
     const { renderer, mx } = renderRoomCard(undefined, undefined, AsyncStatus.Success);
     const joinButton = renderer.root
       .findAllByType('button')
       .find((button) => button.findAll((node) => node.children.includes('Join')).length > 0);
 
-    act(() => joinButton?.props.onClick());
+    await act(() => joinButton?.props.onClick());
 
     expect(joinButton).toBeDefined();
     expect(mx.joinRoom).toHaveBeenCalledWith('!private:example.org', {
@@ -368,7 +368,7 @@ describe('RoomCard room access', () => {
         (button) => button.findAll((node) => node.children.includes('Request to join')).length > 0
       );
 
-    act(() => accessButton?.props.onClick());
+    await act(() => accessButton?.props.onClick());
     const form = renderer.root.find((node) => node.type === 'form');
 
     await act(async () => {

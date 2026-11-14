@@ -158,7 +158,7 @@ describe('JoinBeforeNavigate room access', () => {
       .find(
         (button) => button.findAll((node) => node.children.includes('Request to join')).length > 0
       );
-    act(() => requestButton?.props.onClick());
+    await act(() => requestButton?.props.onClick());
     const form = renderer.root.find((node) => node.type === 'form');
     await act(async () => {
       form.props.onSubmit({
@@ -224,7 +224,7 @@ describe('JoinBeforeNavigate room access', () => {
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
   });
 
-  it('retries failed room access discovery without attempting to join', () => {
+  it('retries failed room access discovery without attempting to join', async () => {
     summaryLoaderMock.state = {
       status: AsyncStatus.Error,
       error: new Error('Summary unavailable'),
@@ -243,13 +243,13 @@ describe('JoinBeforeNavigate room access', () => {
         (button) => button.findAll((node) => node.children.includes('Retry room info')).length > 0
       );
 
-    act(() => retryButton?.props.onClick());
+    await act(() => retryButton?.props.onClick());
 
     expect(summaryLoaderMock.retry).toHaveBeenCalledOnce();
     expect(mx.joinRoom).not.toHaveBeenCalled();
   });
 
-  it('treats an omitted rule in a successful summary as public', () => {
+  it('treats an omitted rule in a successful summary as public', async () => {
     summaryLoaderMock.state = {
       status: AsyncStatus.Success,
       data: {
@@ -270,13 +270,13 @@ describe('JoinBeforeNavigate room access', () => {
       .findAllByType('button')
       .find((button) => button.findAll((node) => node.children.includes('Join')).length > 0);
 
-    act(() => joinButton?.props.onClick());
+    await act(() => joinButton?.props.onClick());
 
     expect(joinButton).toBeDefined();
     expect(mx.joinRoom).toHaveBeenCalledWith('!private:example.org', { viaServers: undefined });
   });
 
-  it('allows an invited user to accept an invite-only room deep link', () => {
+  it('allows an invited user to accept an invite-only room deep link', async () => {
     summaryLoaderMock.state = {
       status: AsyncStatus.Success,
       data: {
@@ -298,7 +298,7 @@ describe('JoinBeforeNavigate room access', () => {
       .findAllByType('button')
       .find((button) => button.findAll((node) => node.children.includes('Join')).length > 0);
 
-    act(() => joinButton?.props.onClick());
+    await act(() => joinButton?.props.onClick());
 
     expect(mx.joinRoom).toHaveBeenCalledWith('!invited:example.org', {
       viaServers: undefined,
