@@ -142,7 +142,7 @@ describe('Chat UI request buttons', () => {
     const { mx, room, perform, render } = setup(event);
     render({ autoOpenFromHomeservers: ['elsewhere.org'] });
     event.event.origin_server_ts = Date.now();
-    act(() =>
+    await act(() =>
       mx.emit(RoomEvent.Timeline, event, room, false, false, {
         liveEvent: true,
         timeline: room.getLiveTimeline(),
@@ -154,11 +154,11 @@ describe('Chat UI request buttons', () => {
     expect(perform).toHaveBeenCalledWith(expect.objectContaining({ action: 'show_computer' }));
   });
 
-  it('executes a fresh request once without executing the card during rerender', () => {
+  it('executes a fresh request once without executing the card during rerender', async () => {
     const event = makeUiEvent({}, { origin_server_ts: Date.now() + 5 });
     const { mx, room, perform, render } = setup(event);
     event.event.origin_server_ts = Date.now();
-    act(() =>
+    await act(() =>
       mx.emit(RoomEvent.Timeline, event, room, false, false, {
         liveEvent: true,
         timeline: room.getLiveTimeline(),
@@ -195,7 +195,7 @@ describe('Chat UI request buttons', () => {
       expect(attemptedReplacement).toBe(true);
       expect(container.textContent).toContain('View computer');
       event.event.origin_server_ts = Date.now();
-      act(() =>
+      await act(() =>
         mx.emit(RoomEvent.Timeline, event, room, false, false, {
           liveEvent: true,
           timeline: room.getLiveTimeline(),

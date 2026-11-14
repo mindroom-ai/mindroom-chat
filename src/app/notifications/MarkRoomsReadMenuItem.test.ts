@@ -75,7 +75,7 @@ describe('MarkRoomsReadMenuItem', () => {
       );
       const button = renderer.root.findByType('button');
 
-      act(() => button.props.onClick());
+      await act(() => button.props.onClick());
 
       expect(button.props.disabled).toBeUndefined();
       expect(button.props['aria-disabled']).not.toBe(true);
@@ -103,7 +103,7 @@ describe('MarkRoomsReadMenuItem', () => {
     );
     const button = renderer.root.findByType('button');
 
-    act(() => button.props.onClick());
+    await act(() => button.props.onClick());
 
     expect(button.props.disabled).toBeUndefined();
     expect(button.props['aria-disabled']).toBe(true);

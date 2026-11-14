@@ -98,7 +98,7 @@ describe('ServerPack', () => {
     expect(renderer!.toJSON()).toBeNull();
   });
 
-  it('lists the server packs and opens one', () => {
+  it('lists the server packs and opens one', async () => {
     const first = livePack('', 'Parrots');
     const overflow = livePack('2', 'Cats');
     hooks.useRoomImagePacks.mockReturnValue([first, deletedPack('3'), overflow]);
@@ -112,13 +112,13 @@ describe('ServerPack', () => {
     // The deleted pack at '3' gets no tile.
     expect(buttons('View')).toHaveLength(2);
 
-    click(buttons('View')[0]!);
+    await click(buttons('View')[0]!);
 
     expect(onViewPack).toHaveBeenCalledTimes(1);
     expect(onViewPack).toHaveBeenCalledWith(first);
     expect(onViewPack.mock.calls[0]![0].address).toEqual({ roomId: '!emoji', stateKey: '' });
 
-    click(buttons('View')[1]!);
+    await click(buttons('View')[1]!);
 
     expect(onViewPack).toHaveBeenLastCalledWith(overflow);
   });
@@ -126,12 +126,12 @@ describe('ServerPack', () => {
   it.each([
     ['no pack', []],
     ['only a deleted pack', [deletedPack('')]],
-  ])('offers the first pack when the room has none yet: %s', (_case, packs) => {
+  ])('offers the first pack when the room has none yet: %s', async (_case, packs) => {
     hooks.useRoomImagePacks.mockReturnValue(packs);
     const { onViewPack } = renderSection();
 
     expect(buttons('View')).toHaveLength(1);
-    click(buttons('View')[0]!);
+    await click(buttons('View')[0]!);
 
     expect(onViewPack).toHaveBeenCalledTimes(1);
     const [opened] = onViewPack.mock.calls[0]!;
@@ -139,7 +139,7 @@ describe('ServerPack', () => {
     expect(opened.address).toEqual({ roomId: '!emoji', stateKey: '' });
   });
 
-  it('shows the packs of the new room when the server emoji room changes while open', () => {
+  it('shows the packs of the new room when the server emoji room changes while open', async () => {
     // Like the real hook, the packs are read once per mounted section.
     hooks.useRoomImagePacks.mockImplementation((room: { roomId: string }) => {
       const [packs] = React.useState(() => [
@@ -159,12 +159,12 @@ describe('ServerPack', () => {
     // The configured alias moved to another joined room.
     hooks.useServerEmojiRoom.mockReturnValue({ roomId: '!emoji-new' });
     rerender();
-    click(buttons('View')[0]!);
+    await click(buttons('View')[0]!);
 
     expect(onViewPack.mock.calls[0]![0].address).toEqual({ roomId: '!emoji-new', stateKey: '' });
   });
 
-  it('shows Permissions only to users who may change power levels', () => {
+  it('shows Permissions only to users who may change power levels', async () => {
     const { rerender } = renderSection();
 
     expect(buttons('Permissions')).toHaveLength(0);
@@ -173,7 +173,7 @@ describe('ServerPack', () => {
     rerender();
 
     expect(buttons('Permissions')).toHaveLength(1);
-    click(buttons('Permissions')[0]!);
+    await click(buttons('Permissions')[0]!);
 
     expect(hooks.openRoomSettings).toHaveBeenCalledWith('!emoji', RoomSettingsPage.PermissionsPage);
   });

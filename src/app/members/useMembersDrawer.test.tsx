@@ -68,26 +68,26 @@ afterEach(() => {
 });
 
 describe('useMembersDrawer', () => {
-  it('opens the phone overlay explicitly without changing the saved split-layout choice', () => {
+  it('opens the phone overlay explicitly without changing the saved split-layout choice', async () => {
     const drawer = renderDrawer(ScreenSize.Mobile);
     expect(drawer.pressed()).toEqual([false, false]);
-    drawer.click();
+    await drawer.click();
     expect(drawer.pressed()).toEqual([true, true]);
-    drawer.click();
+    await drawer.click();
     expect(drawer.pressed()).toEqual([false, false]);
     expect(drawer.store.get(settingsAtom).isPeopleDrawer).toBe(true);
     drawer.resize(ScreenSize.Tablet);
     expect(drawer.pressed()).toEqual([true, true]);
-    drawer.click();
+    await drawer.click();
     expect(drawer.store.get(settingsAtom).isPeopleDrawer).toBe(false);
     drawer.resize(ScreenSize.Desktop);
     expect(drawer.pressed()).toEqual([false, false]);
     drawer.unmount();
   });
 
-  it('keeps phone opening state separate for each account', () => {
+  it('keeps phone opening state separate for each account', async () => {
     const drawer = renderDrawer(ScreenSize.Mobile);
-    drawer.click();
+    await drawer.click();
     account.userId = '@bob:example.org';
     drawer.resize(ScreenSize.Mobile);
     expect(drawer.pressed()).toEqual([false, false]);
@@ -97,12 +97,12 @@ describe('useMembersDrawer', () => {
     drawer.unmount();
   });
 
-  it('opens the phone overlay when a desktop callback runs after a viewport resize', () => {
+  it('opens the phone overlay when a desktop callback runs after a viewport resize', async () => {
     const drawer = renderDrawer(ScreenSize.Desktop, false);
     const desktopClick = drawer.captureClick();
     drawer.setViewportWidth(390);
     try {
-      act(() => desktopClick());
+      await act(() => desktopClick());
       drawer.resize(ScreenSize.Mobile);
       expect(drawer.pressed()).toEqual([true, true]);
       expect(drawer.store.get(settingsAtom).isPeopleDrawer).toBe(false);

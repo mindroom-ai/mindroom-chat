@@ -136,7 +136,7 @@ test.describe('ISSUE-207 gap-fill after restart', () => {
       // Run once via microtask (probe module is imported eagerly during
       // app bootstrap) and once via requestAnimationFrame as a belt-
       // and-braces fallback for very slow bundlers.
-      Promise.resolve().then(tryReset);
+      void Promise.resolve().then(tryReset);
       if (typeof window.requestAnimationFrame === 'function') {
         window.requestAnimationFrame(tryReset);
       }

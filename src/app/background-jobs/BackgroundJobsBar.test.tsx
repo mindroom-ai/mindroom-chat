@@ -139,7 +139,7 @@ it('names one job in the title, with Stop and no list', () => {
   expect(button(cancelA)?.textContent).toBe('mindroomUi.backgroundJobs.stop');
 });
 
-it('keeps the jobs it showed for a moment after they end, as finished and without Stop', () => {
+it('keeps the jobs it showed for a moment after they end, as finished and without Stop', async () => {
   vi.useFakeTimers();
   try {
     state.jobs = [job('a')];
@@ -154,7 +154,7 @@ it('keeps the jobs it showed for a moment after they end, as finished and withou
     render();
     expect(title()).toBe('mindroomUi.backgroundJobs.jobCountFinished{"count":2}');
     expect(button('mindroomUi.backgroundJobs.stopAll')).toBeUndefined();
-    act(() => vi.advanceTimersByTime(2_000));
+    await act(() => vi.advanceTimersByTime(2_000));
     expect(container.innerHTML).toBe('');
   } finally {
     vi.useRealTimers();
@@ -220,7 +220,7 @@ it('closes the list on Escape, back on the title, and on a press outside', async
   expect(container.querySelector('ul')).toBeNull();
 });
 
-it('lists several jobs while a mouse rests on the title, not for a passing pointer or a touch', () => {
+it('lists several jobs while a mouse rests on the title, not for a passing pointer or a touch', async () => {
   vi.useFakeTimers();
   try {
     state.jobs = [job('a'), job('b')];
@@ -228,28 +228,28 @@ it('lists several jobs while a mouse rests on the title, not for a passing point
     const listed = () => container.querySelector('ul') !== null;
     // Not from the rest of the bar, such as Stop all.
     pointer('pointerover', 'mouse', button('mindroomUi.backgroundJobs.stopAll') ?? null);
-    act(() => vi.advanceTimersByTime(500));
+    await act(() => vi.advanceTimersByTime(500));
     expect(listed()).toBe(false);
     pointer('pointerout', 'mouse');
     pointer('pointerover', 'mouse', toggle());
     pointer('pointerout', 'mouse');
-    act(() => vi.advanceTimersByTime(500));
+    await act(() => vi.advanceTimersByTime(500));
     expect(listed()).toBe(false);
     // Nor for one passing over the title to Stop all.
     const stopAll = button('mindroomUi.backgroundJobs.stopAll') ?? null;
     pointer('pointerover', 'mouse', toggle());
     pointer('pointerout', 'mouse', toggle(), stopAll);
     pointer('pointerover', 'mouse', stopAll, toggle());
-    act(() => vi.advanceTimersByTime(500));
+    await act(() => vi.advanceTimersByTime(500));
     expect(listed()).toBe(false);
     pointer('pointerout', 'mouse');
     pointer('pointerover', 'touch', toggle());
-    act(() => vi.advanceTimersByTime(500));
+    await act(() => vi.advanceTimersByTime(500));
     expect(listed()).toBe(false);
     pointer('pointerover', 'mouse', toggle());
-    act(() => vi.advanceTimersByTime(100));
+    await act(() => vi.advanceTimersByTime(100));
     expect(listed()).toBe(false);
-    act(() => vi.advanceTimersByTime(60));
+    await act(() => vi.advanceTimersByTime(60));
     expect(listed()).toBe(true);
     // A press inside the bar keeps the list.
     pointer('pointerdown', 'mouse', container.querySelector('li'));
@@ -261,7 +261,7 @@ it('lists several jobs while a mouse rests on the title, not for a passing point
   }
 });
 
-it('keeps the jobs listed once focus is in the list, and closes them when focus leaves the bar', () => {
+it('keeps the jobs listed once focus is in the list, and closes them when focus leaves the bar', async () => {
   vi.useFakeTimers();
   const outside = document.createElement('button');
   document.body.appendChild(outside);
@@ -269,7 +269,7 @@ it('keeps the jobs listed once focus is in the list, and closes them when focus 
     state.jobs = [job('a'), job('b')];
     render();
     pointer('pointerover', 'mouse', toggle());
-    act(() => vi.advanceTimersByTime(200));
+    await act(() => vi.advanceTimersByTime(200));
     act(() => button(cancelA)?.focus());
     pointer('pointerout', 'mouse');
     expect(container.querySelector('ul')).not.toBeNull();
