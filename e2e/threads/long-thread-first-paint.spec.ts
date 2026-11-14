@@ -16,7 +16,7 @@ import {
   seedRoomOverviewState,
   type MatrixSession,
 } from '../helpers/matrix';
-import { onWebKitPage } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A thread of 2,000 replies opens at its newest replies from the first frame that shows any
 // reply: neither the root followed by the newest replies the client already holds, nor a jump to
@@ -27,7 +27,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // disposable homeserver.
 const PASSWORD = 'long-thread-first-paint-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.THREAD_READ_RELOAD_SHOTS;
 const REPLIES = Number(process.env.LONG_THREAD_REPLIES ?? 2000);
 /** How long each open is sampled. */
@@ -259,7 +258,7 @@ test('a long thread opens at its newest replies from its first painted reply (Ch
 test('a long thread opens at its newest replies from its first painted reply (WebKit)', async ({
   baseURL,
 }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(600_000);
   await onWebKitPage({ viewport: { width: 1440, height: 900 }, baseURL }, (page) =>
     longThreadOpensAtItsNewestReplies(page, 'webkit')

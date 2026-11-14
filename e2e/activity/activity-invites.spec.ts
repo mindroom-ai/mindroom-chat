@@ -8,11 +8,12 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import { joinRoom, loginToMatrix, matrixFetch } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // Activity leads to the invites: the bell counts them, the Activity list shows each one with Join
@@ -24,7 +25,6 @@ import {
 // runs in WebKit (the iPhone engine) when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit.
 // Set ACTIVITY_INVITES_SHOTS=<directory> to also save screenshots.
 const PASSWORD = 'activity-invites-spec-password';
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.ACTIVITY_INVITES_SHOTS;
 
 const PHONE: BrowserContextOptions = {
@@ -35,13 +35,9 @@ const PHONE: BrowserContextOptions = {
 const INVITED_ROOMS = ['Design Review', 'Launch Checklist'];
 
 // Headless Chromium hides scrollbars; desktop browsers with classic scrollbars show them, and
-// they take width from the columns. The other launch options repeat playwright.config.ts.
+// they take width from the columns.
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 type Account = { username: string; userId: string; accessToken: string };
@@ -300,7 +296,7 @@ test.describe('on a phone', () => {
 });
 
 test('the top bar bell lists the invites on a phone (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
   const seeded = await seed();
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.

@@ -15,7 +15,7 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
-import { onWebKitPage } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // An unread thread taller than the screen, opened from a link (a full page load, as from a
 // notification). Agent replies carry tool calls and reasoning, whose rows change height after
@@ -26,7 +26,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // homeserver.
 const PASSWORD = 'unread-thread-open-landing-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.THREAD_READ_RELOAD_SHOTS;
 const THEME = process.env.THREAD_READ_RELOAD_THEME ?? 'light-theme';
 const REPLIES = 12;
@@ -343,7 +342,7 @@ test('an unread thread opened from a link lands at its newest reply (Chromium)',
 test('an unread thread opened from a link lands at its newest reply (WebKit)', async ({
   baseURL,
 }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
   await onWebKitPage({ viewport: { width: 1440, height: 900 }, baseURL }, (page) =>
     unreadThreadOpensAtItsNewestReply(page, 'webkit')
@@ -353,7 +352,7 @@ test('an unread thread opened from a link lands at its newest reply (WebKit)', a
 test('an unread thread opened from a link lands at its newest reply (phone, WebKit)', async ({
   baseURL,
 }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
   await onWebKitPage(
     { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, baseURL },

@@ -10,12 +10,14 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { loginToMatrix, matrixFetch, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
+import { matrixFetch, sendRoomMessage, type MatrixSession, joinRoom } from '../helpers/matrix';
 import { holdFirstWrites } from '../helpers/holdWrites';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // Two people work on the same room at the same moment, each in their own browser, against a
@@ -36,7 +38,6 @@ import {
 // Set CONCURRENT_STATE_SHOTS=<directory> to save screenshots there as well.
 const PASSWORD = 'concurrent-state-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.CONCURRENT_STATE_SHOTS;
 
 const DESK: BrowserContextOptions = { viewport: { width: 1440, height: 900 } };
@@ -61,35 +62,19 @@ const THREADS = [
 ];
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 type Account = MatrixSession & { username: string };
 
 const register = async (username: string, displayname: string): Promise<Account> => {
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  const session = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const session = await registerDisposableUser(username, PASSWORD);
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(session.userId)}/displayname`, {
     method: 'PUT',
     accessToken: session.accessToken,
     body: JSON.stringify({ displayname }),
   });
-  return { ...session, username };
+  return session;
 };
 
 type PowerLevels = { users?: Record<string, number>; events?: Record<string, number> };
@@ -145,11 +130,7 @@ const seed = async (name: string, guestPower: number) => {
     name: ROOM_NAME,
     invite: [guest.userId],
   });
-  await matrixFetch(HOMESERVER, `/join/${encodeURIComponent(roomId)}`, {
-    method: 'POST',
-    accessToken: guest.accessToken,
-    body: '{}',
-  });
+  await joinRoom(HOMESERVER, guest.accessToken, roomId);
   await setPowers(owner, roomId, { [guest.userId]: guestPower });
   const roots: string[] = [];
   for (const thread of THREADS) {
@@ -381,7 +362,7 @@ for (const [title, check] of CHECKS) {
   });
 
   test(`${title} (WebKit)`, async ({ baseURL }, testInfo) => {
-    test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
     test.setTimeout(240_000);
     // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
     const browser = await launchWebKit();

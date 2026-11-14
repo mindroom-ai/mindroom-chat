@@ -10,38 +10,43 @@ import {
   sendRoomMessage,
   setAccountData,
 } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
-// Explicit opt-in to an isolated, disposable local Matrix server with open registration.
-const homeserver = process.env.E2E_UI_ACTIONS_HOMESERVER;
 test.use({ video: 'off' });
 
 test('the Canvases page lists canvases, keeps pins in account data, and opens one expanded', async ({
   page,
   context,
 }, testInfo) => {
-  test.skip(!homeserver, 'Set E2E_UI_ACTIONS_HOMESERVER to a disposable local Matrix server.');
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
   const password = randomUUID();
   const register = (username: string) =>
-    matrixFetch<{ access_token: string; user_id: string }>(homeserver!, '/register', {
+    matrixFetch<{ access_token: string; user_id: string }>(HOMESERVER, '/register', {
       method: 'POST',
       body: JSON.stringify({ username, password, auth: { type: 'm.login.dummy' } }),
     });
   const username = `canvas_list_${suffix}`;
   const viewer = await register(username);
   // This spec follows the sidebar's Canvases button, which is off until the account turns it on.
-  await setAccountData(homeserver!, viewer.access_token, viewer.user_id, 'io.mindroom.settings', {
+  await setAccountData(HOMESERVER, viewer.access_token, viewer.user_id, 'io.mindroom.settings', {
     showCanvasesInSidebar: true,
   });
   const agent = await register(`mindroom_lister_${suffix}`);
-  const fixture = await createThreadFixture(homeserver!, viewer.access_token, {
+  const fixture = await createThreadFixture(HOMESERVER, viewer.access_token, {
     name: 'Canvas list',
     topic: 'Canvases page regression',
     rootBody: 'Plan my trip',
     replyBody: 'The trip conversation',
     invite: [agent.user_id],
   });
-  await joinRoom(homeserver!, agent.access_token, fixture.roomId);
+  await joinRoom(HOMESERVER, agent.access_token, fixture.roomId);
   const action = (title: string, threadId: string | null) => ({
     version: 1,
     action: 'show_canvas',
@@ -55,7 +60,7 @@ test('the Canvases page lists canvases, keeps pins in account data, and opens on
     },
   });
   const showCanvas = (title: string, threadId: string | null) =>
-    sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+    sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
       msgtype: 'm.notice',
       body: `Interactive panel: ${title}.`,
       ...(threadId ? { 'm.relates_to': { rel_type: 'm.thread', event_id: threadId } } : {}),
@@ -68,7 +73,7 @@ test('the Canvases page lists canvases, keeps pins in account data, and opens on
     await route.fulfill({
       json: {
         ...config,
-        homeserverList: [homeserver],
+        homeserverList: [HOMESERVER],
         defaultHomeserver: 0,
         allowCustomHomeservers: true,
         hashRouter: { enabled: false },
@@ -78,7 +83,7 @@ test('the Canvases page lists canvases, keeps pins in account data, and opens on
     });
   });
   await page.setViewportSize({ width: 1600, height: 1000 });
-  await loginWithPassword(page, { homeserver: homeserver!, username, password });
+  await loginWithPassword(page, { homeserver: HOMESERVER, username, password });
 
   // The sidebar has no Canvases button until there is a canvas.
   const canvasesButton = page.getByRole('button', { name: 'Canvases', exact: true });
@@ -96,7 +101,7 @@ test('the Canvases page lists canvases, keeps pins in account data, and opens on
   await expect(list.locator('tbody tr').first()).toContainText('Canvas list');
 
   // An update renames its row and moves it up, while the page is open.
-  await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+  await sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
     msgtype: 'm.notice',
     body: '* Interactive panel updated.',
     'm.new_content': {
@@ -114,7 +119,7 @@ test('the Canvases page lists canvases, keeps pins in account data, and opens on
   await expect
     .poll(() =>
       matrixFetch<unknown>(
-        homeserver!,
+        HOMESERVER,
         `/user/${encodeURIComponent(viewer.user_id)}/account_data/io.mindroom.pinned_canvases`,
         { accessToken: viewer.access_token }
       ).catch(() => undefined)
@@ -166,7 +171,7 @@ test('the Canvases page lists canvases, keeps pins in account data, and opens on
 
   // A deleted canvas leaves the list.
   await page.getByRole('button', { name: 'Canvases', exact: true }).click();
-  await redactEvent(homeserver!, agent.access_token, fixture.roomId, tripId);
+  await redactEvent(HOMESERVER, agent.access_token, fixture.roomId, tripId);
   await expect(titles).toHaveText(['Morning briefing']);
 
   // Logging out deletes this session's list (the page reloads meanwhile, so the check retries).

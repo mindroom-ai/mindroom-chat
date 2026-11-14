@@ -10,10 +10,8 @@ import { createRoom } from '../helpers/createRoom';
 import {
   addRoomToSpace,
   createDefaultThreadFilterState,
-  loginToMatrix,
   seedRoomOverviewState,
   sendRoomMessage,
-  type MatrixSession,
 } from '../helpers/matrix';
 import { standInVisualViewport } from '../helpers/keyboardViewport';
 import { touch } from '../helpers/touch';
@@ -21,6 +19,8 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // A phone's on-screen keyboard and the composer. A reader who read back a little with a finger and
@@ -63,29 +63,8 @@ const TOPICS = [
 ];
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
-
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `pkb_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
 
 const message = (index: number) =>
   `Update ${index}: ${TOPICS[index % TOPICS.length]} is ${
@@ -102,7 +81,7 @@ type SeedOptions = { inSpace?: boolean };
  * address, as a space's lobby does, so the app's links to it name its alias.
  */
 const seed = async (name: string, { inSpace = false }: SeedOptions = {}) => {
-  const reader = await registerAndLogin(name);
+  const reader = await registerDisposableUser(`pkb_${name}_${RUN}`, PASSWORD);
   await Promise.all(
     Array.from({ length: 25 }, (_, index) =>
       createRoom(HOMESERVER, reader.accessToken, { name: `Team room ${index + 1}` })

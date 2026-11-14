@@ -13,7 +13,7 @@ import {
   sendRoomMessage,
   sendStateEvent,
 } from '../helpers/matrix';
-import { onWebKitPage } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A Compact card on a phone shows a few whole tags and "+N" for the rest, as the thread banner
 // does: every tag of a card with six shrank to one to three letters ("b...", "d.."), and in Arabic
@@ -23,7 +23,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // for screenshots.
 const PASSWORD = 'compact-card-tag-pills-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.CARD_TAG_SHOTS;
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
 const TAGS = ['bug', 'billing', 'documentation', 'release', 'urgent', 'customer-facing'];
@@ -117,7 +116,7 @@ test('a phone card shows whole tags and a count of the rest (Chromium)', async (
 });
 
 test('a phone card shows whole tags and a count of the rest (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
   await onWebKitPage({ ...PHONE, baseURL }, (page) => tagsStayReadable(page, 'webkit'));
 });

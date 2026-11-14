@@ -5,6 +5,7 @@ import { createPrivateSpace, matrixFetch, setAccountData } from '../helpers/matr
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // Hovering any rail entry slides its button 2 px toward the inline end and grows the indicator
@@ -321,14 +322,9 @@ const expectHover = (name: string, measured: Awaited<ReturnType<typeof hoverAndM
 };
 
 // Headless Chromium hides scrollbars (`--hide-scrollbars`); desktop browsers with classic
-// scrollbars show them, and a scrollbar takes width from the rail. The other launch options
-// repeat playwright.config.ts.
+// scrollbars show them, and a scrollbar takes width from the rail.
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.beforeEach(async () => {

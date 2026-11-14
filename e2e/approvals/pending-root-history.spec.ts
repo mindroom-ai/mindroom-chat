@@ -12,7 +12,6 @@ import { createRoom } from '../helpers/createRoom';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   registerAgentAccount,
   seedRoomOverviewState,
   sendRoomMessage,
@@ -22,6 +21,8 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // In the Compact view a new message opens its own thread at once, under the local ID of a message
@@ -53,26 +54,10 @@ const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } 
 
 type Account = MatrixSession & { username: string };
 
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `pra_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
-
 type World = { reader: Account; roomId: string };
 
 const seed = async (engine: string): Promise<World> => {
-  const reader = await registerAndLogin(engine);
+  const reader = await registerDisposableUser(`pra_${engine}_${RUN}`, PASSWORD);
   const helper = await registerAgentAccount(HOMESERVER, `release_${engine}`);
   const roomId = await createRoom(HOMESERVER, reader.accessToken, {
     name: ROOM_NAME,
@@ -272,11 +257,7 @@ test.beforeEach(async () => {
 });
 
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test('a thread whose message waits for the server asks nothing about its local ID (Chromium)', async ({

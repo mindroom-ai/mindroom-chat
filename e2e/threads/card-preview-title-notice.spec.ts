@@ -3,18 +3,14 @@ import path from 'node:path';
 import { expect, test, type Browser, type BrowserContextOptions } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import {
-  joinRoom,
-  loginToMatrix,
-  registerAgentAccount,
-  sendRoomMessage,
-  type MatrixSession,
-} from '../helpers/matrix';
+import { joinRoom, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
 import { setRoomCompact } from '../helpers/roomViewSwitch';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // P2-macos-safari-F009: MindRoom titles a thread with an m.notice thread event that carries
@@ -58,29 +54,8 @@ const replyTo = (question: string) =>
   `Here is what I found about "${question}" The short answer: two items remain, and both have owners and dates in the tracker.`;
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
-
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `cptn_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
 
 const inThread = (rootId: string) => ({
   'm.relates_to': {
@@ -93,7 +68,7 @@ const inThread = (rootId: string) => ({
 
 /** 25 other rooms, and a room of 9 threads: the reader asked, the helper answered, then titled. */
 const seed = async (engine: string) => {
-  const reader = await registerAndLogin(`reader_${engine}`);
+  const reader = await registerDisposableUser(`cptn_reader_${engine}_${RUN}`, PASSWORD);
   const helper = await registerAgentAccount(HOMESERVER, `titles_${engine}`);
   await Promise.all(
     Array.from({ length: 25 }, (_, index) =>

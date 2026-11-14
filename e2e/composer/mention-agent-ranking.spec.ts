@@ -3,7 +3,6 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   registerAgentAccount,
   sendRoomMessage,
@@ -13,6 +12,8 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // "@Min" and Tab in a room of MindRoom agents mentions Mind, whose display name matches, rather
@@ -26,12 +27,7 @@ const SHOTS = process.env.MENTION_RANKING_SHOTS;
 const FILLER_ROOMS = 24;
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const setDisplayName = (session: MatrixSession, displayName: string) =>
@@ -43,20 +39,9 @@ const setDisplayName = (session: MatrixSession, displayName: string) =>
 
 const registerPerson = async (localpart: string, displayName: string) => {
   const username = `${localpart}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  const session = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const session = await registerDisposableUser(username, PASSWORD);
   await setDisplayName(session, displayName);
-  return { ...session, username };
+  return session;
 };
 
 const registerAgent = async (name: string, displayName: string) => {

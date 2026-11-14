@@ -10,17 +10,18 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import {
   createDefaultThreadFilterState,
-  loginToMatrix,
   matrixFetch,
   seedRoomOverviewState,
   sendRoomMessage,
   type MatrixSession,
+  joinRoom,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { leaveCompactView } from '../helpers/roomViewSwitch';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // Links in messages against the slot's homeserver, in Chromium (desktop) and WebKit (phone):
@@ -44,21 +45,8 @@ const PHONE: BrowserContextOptions = {
   isMobile: true,
 };
 
-const register = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `lp_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`lp_${name}_${RUN}`, PASSWORD);
 
 const createRoom = async (
   owner: MatrixSession,
@@ -175,11 +163,7 @@ const checkIcons = async (
     encrypted: false,
     invite: reader.userId,
   });
-  await matrixFetch(HOMESERVER, `/join/${encodeURIComponent(plainRoom)}`, {
-    method: 'POST',
-    accessToken: reader.accessToken,
-    body: '{}',
-  });
+  await joinRoom(HOMESERVER, reader.accessToken, plainRoom);
   await sendLink(writer, plainRoom, 'Plain', '<a href="https://example.org/plain">plain-link</a>');
   const secretRoom = await createRoom(reader, 'Harbor Survey', { encrypted: true });
 
@@ -262,11 +246,7 @@ const checkDestinations = async (
     encrypted: false,
     invite: reader.userId,
   });
-  await matrixFetch(HOMESERVER, `/join/${encodeURIComponent(roomId)}`, {
-    method: 'POST',
-    accessToken: reader.accessToken,
-    body: '{}',
-  });
+  await joinRoom(HOMESERVER, reader.accessToken, roomId);
   await sendLink(
     writer,
     roomId,

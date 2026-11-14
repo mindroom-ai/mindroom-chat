@@ -7,7 +7,7 @@ import {
   disposableHomeserverIsUp,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
-import { onWebKitPage } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Two tabs of one account, opened one right after the other: both start. A tab that starts while
 // the other one is still starting must not land on "Failed to start account". A start never
@@ -17,7 +17,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // Playwright's WebKit, in WebKit, against the disposable homeserver.
 const PASSWORD = 'two-tabs-start-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const ROUNDS = 5;
 const SETTLE_MS = 9_000;
 
@@ -117,7 +116,7 @@ test('two tabs of one account both start (Chromium)', async ({ browser, browserN
 });
 
 test('two tabs of one account both start (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
   await onWebKitPage({ viewport: { width: 1024, height: 768 }, baseURL }, (page) =>
     bothTabsStart(page.context(), 'webkit')

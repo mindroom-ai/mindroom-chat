@@ -3,10 +3,11 @@ import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { joinRoom, loginToMatrix, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
+import { joinRoom, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // Agent replies hide their tool calls by default: a faint cog at the top of the reply, on the line
@@ -44,18 +45,7 @@ const threadReply = (rootId: string, content: Record<string, unknown>) => ({
  */
 const seed = async () => {
   const username = `tct_reader_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  const reader = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const reader = await registerDisposableUser(username, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, 'research');
   const roomId = await createRoom(HOMESERVER, reader.accessToken, {
     name: 'Churn report',

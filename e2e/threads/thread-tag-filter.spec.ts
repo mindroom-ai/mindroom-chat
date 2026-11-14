@@ -11,7 +11,8 @@ import {
   sendStateEvent,
   type MatrixSession,
 } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
 // The thread filter bar's Tags dropdown in a room with 32 threads and 8 tags: it lists the tags,
 // most used first, with their thread counts; its search narrows them; two tags chosen with the
@@ -25,18 +26,12 @@ import { launchWebKit } from '../helpers/webkit';
 // Playwright's WebKit, in WebKit.
 // Set L28_SHOTS=<directory> to save the L28 screenshots (Chromium only).
 const SHOTS = process.env.L28_SHOTS;
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
 
 test.use({
   viewport: DESKTOP,
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const TOPICS = [
@@ -437,7 +432,7 @@ test.describe('thread Tags filter', () => {
   test('searches, keeps the threads with every chosen tag, clears, and fits a phone (WebKit)', async ({
     baseURL,
   }) => {
-    test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
     test.setTimeout(360_000);
     const homeserver = getHomeserver();
     const credentials = getPrimaryCredentials();

@@ -5,6 +5,7 @@ import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // The rail keeps Home, Direct Messages, Activity, Threads and Canvases in place while only the
@@ -21,13 +22,9 @@ const HOVER_INDICATOR = 18;
 const SELECTED_HOVER_INDICATOR = 32;
 
 // Headless Chromium hides scrollbars; desktop browsers with classic scrollbars show them, and a
-// scrollbar would take width from the rail. The other launch options repeat playwright.config.ts.
+// scrollbar would take width from the rail.
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.beforeEach(async () => {

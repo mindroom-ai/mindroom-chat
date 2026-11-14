@@ -21,6 +21,7 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
 // A new device opens a room with 500 threads in the Compact view and lists all of them. The server
 // lists a room's threads 30 at a time, newest activity first. The reader replied to every other
@@ -47,12 +48,7 @@ const PHONE: BrowserContextOptions = {
 
 test.use({
   serviceWorkers: 'block',
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts; classic scrollbars stay shown.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 test.describe.configure({ mode: 'serial' });
 

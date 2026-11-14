@@ -10,18 +10,13 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import {
-  joinRoom,
-  loginToMatrix,
-  matrixFetch,
-  registerAgentAccount,
-  sendRoomMessage,
-  type MatrixSession,
-} from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { joinRoom, matrixFetch, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // An agent's tool calls show as one line each in its reply: icon, title, detail and an arrow
@@ -35,7 +30,6 @@ import {
 // Set TOOL_ROWS_SHOTS=<directory> to save each check's rows.
 const PASSWORD = 'tool-rows-phone-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.TOOL_ROWS_SHOTS;
 
 const PHONE: BrowserContextOptions = {
@@ -48,29 +42,8 @@ const QUERY = '2026 SaaS churn benchmarks';
 const COMMAND = 'python export_chart.py --slide 6';
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
-
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `trp_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
 
 const traceOf = (...calls: [string, string, string][]) => ({
   version: 2,
@@ -87,7 +60,7 @@ const traceOf = (...calls: [string, string, string][]) => ({
  * third one that the reader approved.
  */
 const seed = async (engine: string) => {
-  const reader = await registerAndLogin(`reader_${engine}`);
+  const reader = await registerDisposableUser(`trp_reader_${engine}_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `research_${engine}`);
   const roomId = await createRoom(HOMESERVER, reader.accessToken, {
     name: 'Board deck',
@@ -416,7 +389,7 @@ test('an agent’s tool lines on a phone (Chromium)', async ({ browser, baseURL 
 });
 
 test('an agent’s tool lines on a phone (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
   const browser = await launchWebKit();

@@ -3,16 +3,15 @@ import { loginWithPassword } from '../helpers/auth';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   registerAgentAccount,
   seedRoomOverviewState,
   sendRoomMessage,
-  type MatrixSession,
 } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // The room list's unread mark and the room's unread thread filter agree, against the disposable
@@ -22,22 +21,6 @@ import {
 // main receipt reads it. Each run registers its own reader and agent.
 const PASSWORD = 'room-unread-filter-spec-password';
 const RUN = Date.now().toString(36);
-
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `ruf_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
 
 const inThread = (rootId: string, content: Record<string, unknown>) => ({
   ...content,
@@ -78,7 +61,7 @@ test('the room list marks a room unread only for threads its unread filter finds
   page,
 }) => {
   test.setTimeout(240_000);
-  const reader = await registerAndLogin('reader');
+  const reader = await registerDisposableUser(`ruf_reader_${RUN}`, PASSWORD);
   // An agent, so the rooms show the agent rooms' thread filters, Unread among them.
   const writer = await registerAgentAccount(HOMESERVER, 'router');
   const makeRoom = async (name: string) => {

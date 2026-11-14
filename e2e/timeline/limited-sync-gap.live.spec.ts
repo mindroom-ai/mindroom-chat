@@ -11,6 +11,7 @@ import {
   seedRoomOverviewState,
 } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
+import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
 /**
  * Messages the client missed in a gappy sync still show. When more events arrive in a room than a
@@ -575,13 +576,7 @@ const runScenario = async (
 let fixture: Fixture;
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    // Classic scrollbars, as desktop readers without overlay scrollbars have them.
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.describe('messages missed in a gappy sync show', () => {

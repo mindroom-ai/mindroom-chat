@@ -1,9 +1,10 @@
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
-import { matrixFetch, sendRoomMessage, setDirectAccountData } from '../helpers/matrix';
+import { matrixFetch, sendRoomMessage, setDirectAccountData, joinRoom } from '../helpers/matrix';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // Reply in Thread in a direct chat between two people opens the thread, as it does in any other
@@ -19,12 +20,7 @@ const TIMEOUT = 60_000;
 
 test.use({
   viewport: { width: 1280, height: 800 },
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 type Account = { username: string; userId: string; accessToken: string };
@@ -58,11 +54,7 @@ const createDirectChat = async (alice: Account, bob: Account, encrypted: boolean
     accessToken: alice.accessToken,
     body: JSON.stringify({ preset: 'trusted_private_chat', is_direct: true, invite: [bob.userId] }),
   });
-  await matrixFetch(HOMESERVER, `/join/${encodeURIComponent(roomId)}`, {
-    method: 'POST',
-    accessToken: bob.accessToken,
-    body: '{}',
-  });
+  await joinRoom(HOMESERVER, bob.accessToken, roomId);
   await setDirectAccountData(HOMESERVER, alice.accessToken, alice.userId, bob.userId, roomId);
   await setDirectAccountData(HOMESERVER, bob.accessToken, bob.userId, alice.userId, roomId);
   for (let index = 0; index < HISTORY; index += 1) {

@@ -8,6 +8,7 @@ import {
   matrixFetch,
   seedRoomOverviewState,
   sendRoomMessage,
+  setAccountData,
 } from '../helpers/matrix';
 import { openThreadsCategory } from '../helpers/threadsCategory';
 
@@ -324,14 +325,12 @@ test('an offline start shows a rename and a roaming setting made shortly before 
     body: JSON.stringify({ displayname: 'Name After' }),
   });
   await expect(message).toContainText('Name After', { timeout: 20_000 });
-  await matrixFetch(
+  await setAccountData(
     homeserver,
-    `/user/${encodeURIComponent(viewer.userId)}/account_data/io.mindroom.client.settings`,
-    {
-      method: 'PUT',
-      accessToken: viewer.accessToken,
-      body: JSON.stringify({ version: 1, hideMembershipEvents: true }),
-    }
+    viewer.accessToken,
+    viewer.userId,
+    'io.mindroom.client.settings',
+    { version: 1, hideMembershipEvents: true }
   );
   await expect(page.getByText(/Room Member joined the room/)).toHaveCount(0, { timeout: 20_000 });
   await waitForSavedSync(page, 'Name After');

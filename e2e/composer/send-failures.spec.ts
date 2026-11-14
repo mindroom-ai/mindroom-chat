@@ -13,7 +13,6 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
   createThreadFixture,
-  loginToMatrix,
   matrixFetch,
   sendRoomMessage,
   type MatrixSession,
@@ -22,6 +21,8 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // A message the person typed is never lost and never merged into another one. A send that fails
@@ -56,29 +57,8 @@ const LAYOUTS: Layout[] = [
 ];
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts; the scrollbars stay visible.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
-
-const register = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `sf_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
 
 const ROOT_BODY = 'Shift handover checklist for the weekend crew';
 const REPLY_BODY = 'I added the fuel readings and the open work orders.';
@@ -103,7 +83,7 @@ type World = {
  * and a thread with a reply. Each test has its own account.
  */
 const seed = async (name: string): Promise<World> => {
-  const user = await register(name);
+  const user = await registerDisposableUser(`sf_${name}_${RUN}`, PASSWORD);
   const fixture = await createThreadFixture(HOMESERVER, user.accessToken, {
     name: `Harbour desk ${name}`,
     topic: 'Daily coordination',

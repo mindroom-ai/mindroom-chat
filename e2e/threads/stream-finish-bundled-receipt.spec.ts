@@ -4,7 +4,6 @@ import { createRoom } from '../helpers/createRoom';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   registerAgentAccount,
   seedRoomOverviewState,
@@ -15,6 +14,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // Replies that finished streaming while the reader was away, read half-way on another device. A
@@ -33,22 +33,6 @@ const LATER_MESSAGES = 40;
 const FINISHED = 'The migration note is at the top and both missing entries are in the release notes.';
 
 type Account = MatrixSession & { username: string };
-
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `sfb_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
 
 type Streamed = { rootId: string; finishId: string };
 
@@ -120,7 +104,7 @@ const describeReceipts = (receipts: SentReceipt[]) =>
   });
 
 const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {
-  const reader = await registerAndLogin(engine);
+  const reader = await registerDisposableUser(`sfb_${engine}_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `ops_${engine}`);
   const roomId = await createRoom(HOMESERVER, reader.accessToken, {
     name: ROOM_NAME,

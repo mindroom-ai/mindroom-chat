@@ -7,11 +7,12 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { loginToMatrix, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import { matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // A voice message whose upload fails says "Your recording is still saved", with Retry and Discard.
@@ -81,19 +82,7 @@ const toneMicrophone = () => {
 };
 
 const seed = async (name: string) => {
-  const username = `vdr_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  const session = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const session = await registerDisposableUser(`vdr_${name}_${RUN}`, PASSWORD);
   const roomId = await createRoom(HOMESERVER, session.accessToken, {
     name: `Field notes ${name}`,
   });
@@ -101,7 +90,7 @@ const seed = async (name: string) => {
     msgtype: 'm.text',
     body: 'I will send the dock report as a voice message after the inspection.',
   });
-  return { username, session, roomId };
+  return { session, roomId };
 };
 
 const voiceMessages = async (world: Awaited<ReturnType<typeof seed>>): Promise<number> => {
@@ -134,7 +123,7 @@ const failedRecordingSurvivesReload = async (browser: Browser, layout: Layout, l
     const page = await context.newPage();
     await loginWithPassword(page, {
       homeserver: HOMESERVER,
-      username: world.username,
+      username: world.session.username,
       password: PASSWORD,
     });
     await page.evaluate(

@@ -9,14 +9,27 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { addRoomToSpace, matrixFetch, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { addRoomToSpace, matrixFetch, sendStateEvent } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import { showResolvedThreads } from '../helpers/threadOverview';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
+import {
+  AI_RUN,
+  DESKTOP,
+  PHONE,
+  SCHEMES,
+  createOtherRooms,
+  join,
+  say,
+  setLook,
+  withRetry,
+  type Account,
+} from '../helpers/designChoices';
 
 // Layout checks from the live-test lanes, against a real homeserver, in Chromium and (when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit) WebKit, in light and dark, left to right
@@ -33,16 +46,8 @@ import {
 // Set VISUAL_LAYOUT_SHOTS=<directory> to save screenshots.
 const PASSWORD = 'visual-layout-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.VISUAL_LAYOUT_SHOTS;
 
-const DESKTOP: BrowserContextOptions = { viewport: { width: 1440, height: 900 } };
-const PHONE: BrowserContextOptions = {
-  viewport: { width: 390, height: 844 },
-  hasTouch: true,
-  isMobile: true,
-};
-const SCHEMES = ['light', 'dark'] as const;
 const DIRECTIONS = ['ltr', 'rtl'] as const;
 type Direction = (typeof DIRECTIONS)[number];
 
@@ -52,16 +57,6 @@ const ARABIC_THREAD = '📊 تقرير الأداء الأسبوعي';
 const LATIN_THREAD = '✉️ Launch email draft';
 const LONG_THREAD = 'Run the three steps and report what changed';
 const RESOLVED_THREAD = '🧪 Staging load test before go-live';
-const MODEL = {
-  version: 1,
-  status: 'completed',
-  model: {
-    config: 'large',
-    display_name: 'Stub Large Model',
-    id: 'stub-large',
-    provider: 'openai',
-  },
-};
 const LONG_REPLY = Array.from(
   { length: 28 },
   (_, line) =>
@@ -72,31 +67,8 @@ const LONG_REPLY = Array.from(
 ).join('\n');
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
-
-/** Retries what the server refuses with 429. */
-const withRetry = async <T>(run: () => Promise<T>): Promise<T> => {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      // eslint-disable-next-line no-await-in-loop
-      return await run();
-    } catch (error) {
-      if (attempt > 8 || !String(error).includes('429')) throw error;
-      // eslint-disable-next-line no-await-in-loop
-      await new Promise((resolve) => {
-        setTimeout(resolve, 500 * (attempt + 1));
-      });
-    }
-  }
-};
-
-type Account = { username: string; userId: string; token: string };
 
 const register = async (username: string, name: string): Promise<Account> => {
   const body = await withRetry(() =>
@@ -112,25 +84,6 @@ const register = async (username: string, name: string): Promise<Account> => {
   });
   return { username, userId: body.user_id, token: body.access_token };
 };
-
-const say = (account: Account, roomId: string, body: string, root?: string, extra = {}) =>
-  withRetry(() =>
-    sendRoomMessage(HOMESERVER, account.token, roomId, {
-      msgtype: 'm.text',
-      body,
-      ...extra,
-      ...(root
-        ? {
-            'm.relates_to': {
-              rel_type: 'm.thread',
-              event_id: root,
-              is_falling_back: true,
-              'm.in_reply_to': { event_id: root },
-            },
-          }
-        : {}),
-    })
-  );
 
 const tag = (owner: Account, roomId: string, root: string, name: string) =>
   sendStateEvent(
@@ -158,32 +111,20 @@ const seed = async (label: string): Promise<Seed> => {
   const tester = await register(`vl_${id}`, 'Robin Tester');
   const helper = await register(`mindroom_helper_${id}`, 'Helper');
   const research = await register(`mindroom_research_${id}`, 'Research');
-  await Promise.all(
-    Array.from({ length: 24 }, (_, index) =>
-      withRetry(() => createRoom(HOMESERVER, tester.token, { name: `Project room ${index + 1}` }))
-    )
-  );
+  await createOtherRooms(tester);
   const invite = [helper.userId, research.userId];
   const roomId = await createRoom(HOMESERVER, tester.token, { name: ROOM_NAME, invite });
   const arabicRoomId = await createRoom(HOMESERVER, tester.token, { name: ARABIC_ROOM, invite });
   for (const agent of [helper, research]) {
     for (const room of [roomId, arabicRoomId]) {
       // eslint-disable-next-line no-await-in-loop
-      await withRetry(() =>
-        matrixFetch(HOMESERVER, `/join/${encodeURIComponent(room)}`, {
-          method: 'POST',
-          accessToken: agent.token,
-          body: '{}',
-        })
-      );
+      await join(agent, room);
     }
   }
 
   // A resolved thread with two tags, and two others with one tag each.
   const resolved = await say(tester, roomId, RESOLVED_THREAD);
-  await say(research, roomId, 'Load test passed at 2.1k rps with p99 at 180 ms.', resolved, {
-    'io.mindroom.ai_run': MODEL,
-  });
+  await say(research, roomId, 'Load test passed at 2.1k rps with p99 at 180 ms.', resolved, AI_RUN);
   await say(tester, roomId, 'Thanks, that settles it.', resolved);
   for (const name of ['resolved', 'infra', 'launch']) {
     // eslint-disable-next-line no-await-in-loop
@@ -195,15 +136,17 @@ const seed = async (label: string): Promise<Seed> => {
     roomId,
     'Subject: your workspace just got agents, zephyr notes inside.',
     email,
-    {
-      'io.mindroom.ai_run': MODEL,
-    }
+    AI_RUN
   );
   await tag(tester, roomId, email, 'launch');
   const chart = await say(tester, roomId, '📈 Cohort chart for slide 6');
-  await say(helper, roomId, 'The chart is ready; the cohort from March is the outlier.', chart, {
-    'io.mindroom.ai_run': MODEL,
-  });
+  await say(
+    helper,
+    roomId,
+    'The chart is ready; the cohort from March is the outlier.',
+    chart,
+    AI_RUN
+  );
   await tag(tester, roomId, chart, 'metrics');
 
   // A thread with a long title and six tags (L8-F016).
@@ -213,9 +156,7 @@ const seed = async (label: string): Promise<Seed> => {
     // Short enough for one line: a title may take two lines by design.
     '🧩 Fix the flaky login test'
   );
-  await say(helper, roomId, 'Found it: the session cookie expires mid-run.', tagged, {
-    'io.mindroom.ai_run': MODEL,
-  });
+  await say(helper, roomId, 'Found it: the session cookie expires mid-run.', tagged, AI_RUN);
   for (const name of ['auth', 'flaky', 'ci', 'nightly', 'qa', 'blocker']) {
     // eslint-disable-next-line no-await-in-loop
     await tag(tester, roomId, tagged, name);
@@ -242,12 +183,10 @@ const seed = async (label: string): Promise<Seed> => {
             step * 3
           } ms; nothing to worry about before the launch.`,
       longThread,
-      { 'io.mindroom.ai_run': MODEL }
+      AI_RUN
     );
   }
-  await say(helper, roomId, 'I thought about it and the answer is 42.', longThread, {
-    'io.mindroom.ai_run': MODEL,
-  });
+  await say(helper, roomId, 'I thought about it and the answer is 42.', longThread, AI_RUN);
 
   const arabicThread = await say(tester, arabicRoomId, ARABIC_THREAD);
   await say(
@@ -255,7 +194,7 @@ const seed = async (label: string): Promise<Seed> => {
     arabicRoomId,
     'بالتأكيد. ارتفع معدل الاستخدام بنسبة 12% بعد zephyr وتم إصلاح الخطأ.',
     arabicThread,
-    { 'io.mindroom.ai_run': MODEL }
+    AI_RUN
   );
 
   const spaceId = await createRoom(HOMESERVER, tester.token, {
@@ -282,17 +221,6 @@ const signIn = async (page: Page, data: Seed) => {
     username: data.username,
     password: PASSWORD,
   });
-};
-
-const setLook = async (page: Page, direction: Direction, scheme: (typeof SCHEMES)[number]) => {
-  await page.emulateMedia({ colorScheme: scheme });
-  const want = direction === 'rtl' ? 'ar' : 'en';
-  const now = await page.evaluate(() => localStorage.getItem('i18nextLng'));
-  if (now !== want) {
-    await page.evaluate((code) => localStorage.setItem('i18nextLng', code), want);
-    await page.reload();
-  }
-  await expect(page.locator('html')).toHaveAttribute('dir', direction);
 };
 
 /** Every combination of direction and scheme, in an order that reloads only twice. */
@@ -358,7 +286,7 @@ const checkMembers = async (run: Run) => {
       const where = `${run.engine}, ${width} px, ${direction}, ${scheme}`;
       await page.setViewportSize({ width, height: 900 });
       await page.goto(`/home/${encodeURIComponent(data.roomId)}/`);
-      await setLook(page, direction, scheme);
+      await setLook(page, scheme, direction);
       await expect(page.getByText(LATIN_THREAD).first()).toBeVisible({ timeout: 60_000 });
       await expect
         .poll(() => membersBeside(page), `no members beside the room (${where})`)
@@ -429,7 +357,7 @@ const checkThread = async (run: Run, sizes: { width: number; height: number }[])
       await page.goto(
         `/home/${encodeURIComponent(data.roomId)}/?threadId=${encodeURIComponent(data.longThread)}`
       );
-      await setLook(page, direction, scheme);
+      await setLook(page, scheme, direction);
       await expect(page.getByText('I thought about it and the answer is 42.')).toBeVisible({
         timeout: 60_000,
       });
@@ -468,7 +396,7 @@ const checkCompact = async (run: Run) => {
   await signIn(page, data);
   for (const { direction, scheme } of looks) {
     await page.goto(`/home/${encodeURIComponent(data.roomId)}/`);
-    await setLook(page, direction, scheme);
+    await setLook(page, scheme, direction);
     // Compact opens with resolved threads hidden; the check needs the resolved card.
     await showResolvedThreads(page);
     const cards = page.locator('[data-thread-root-id]');
@@ -536,7 +464,7 @@ const checkPalette = async (run: Run) => {
   await signIn(page, data);
   for (const { direction, scheme } of looks) {
     await page.goto(`/home/${encodeURIComponent(data.roomId)}/`);
-    await setLook(page, direction, scheme);
+    await setLook(page, scheme, direction);
     await expect(page.getByText(LATIN_THREAD).first()).toBeVisible({ timeout: 60_000 });
     await pressPaletteShortcut(page);
     const dialog = page.getByRole('dialog').last();
@@ -584,7 +512,7 @@ const checkSettingsPhone = async (run: Run) => {
   await signIn(page, data);
   for (const { direction, scheme } of looks) {
     await page.goto('/home/');
-    await setLook(page, direction, scheme);
+    await setLook(page, scheme, direction);
     await page.goto('/settings/appearance');
     const root = page.locator('[data-dialog-title]').first();
     await expect(root).toBeVisible({ timeout: 60_000 });
@@ -629,7 +557,7 @@ const checkZoomMembers = async (run: Run) => {
   });
   for (const { direction, scheme } of looks) {
     await page.goto(`/home/${encodeURIComponent(data.roomId)}/`);
-    await setLook(page, direction, scheme);
+    await setLook(page, scheme, direction);
     const panel = page.getByTestId('resizable-members-panel');
     await expect(panel).toBeVisible({ timeout: 60_000 });
     // How many lines each chip's text takes.
@@ -662,7 +590,7 @@ const checkAddExisting = async (run: Run) => {
   await signIn(page, data);
   for (const { direction, scheme } of looks) {
     await page.goto(`/${encodeURIComponent(data.spaceId)}/lobby/`);
-    await setLook(page, direction, scheme);
+    await setLook(page, scheme, direction);
     await expect(page.getByText(ARABIC_ROOM).last()).toBeVisible({ timeout: 60_000 });
     await page
       .getByRole('button', { name: tr(direction, 'featureUi.lobby.spaceItem.addRoom') })
@@ -794,7 +722,7 @@ for (const { name, form, options, check } of CASES) {
     });
 
     test(`${name} (WebKit, ${form})`, async ({ baseURL }, testInfo) => {
-      test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+      test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
       test.setTimeout(420_000);
       await runIn('webkit', form, options, check, { baseURL }, testInfo);
     });

@@ -6,6 +6,7 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // The Settings dialog keeps one inset. Every box of the menu column (the search field, the rows,
@@ -40,11 +41,7 @@ const SIZES: Record<string, Viewport> = {
 test.use({
   // The routed configuration (Local MindRoom) reaches the page only without the service worker.
   serviceWorkers: 'block',
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 /** The deployment offers Local MindRoom to this homeserver's accounts; the slot has no service. */

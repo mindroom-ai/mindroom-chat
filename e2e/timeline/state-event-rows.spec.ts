@@ -1,11 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { loginToMatrix, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
+import { sendRoomMessage, sendStateEvent } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // The rows for a new room name, topic or avatar carry an icon like the membership rows, so all
@@ -19,32 +21,11 @@ const SHOTS = process.env.STATE_ROWS_SHOTS;
 
 test.use({
   viewport: VIEWPORT,
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const register = async (name: string) => {
-  const username = `ser_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
-
 const linesShareAColumn = async (page: Page, name: string) => {
-  const reader = await register(name);
+  const reader = await registerDisposableUser(`ser_${name}_${RUN}`, PASSWORD);
   const roomId = await createRoom(HOMESERVER, reader.accessToken, {
     name: `Ferry log ${name} ${RUN}`,
   });

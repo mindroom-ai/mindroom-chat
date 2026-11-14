@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { activeAccountButton, waitForLoggedInShell } from './auth';
+import { DISPOSABLE_HOMESERVER as HOMESERVER } from './disposableAccounts';
 
 // Single sign-on against the disposable homeserver of `just hs-up`. The test homeserver has no
 // identity provider, so two requests are answered here: the login flows gain an `m.login.sso`
@@ -7,20 +8,8 @@ import { activeAccountButton, waitForLoggedInShell } from './auth';
 // with a login token. That token is a real one, minted by the homeserver for a real account
 // (`POST /login/get_token`), so the client's token exchange and the session it starts are real.
 
-export const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 export const PASSWORD = 'sso-spec-password';
 export const PROVIDER = { id: 'oidc-e2e', name: 'E2E Identity' };
-
-export const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 export const postJson = async (path: string, body: unknown, accessToken?: string) => {
   const response = await fetch(`${HOMESERVER}/_matrix/client${path}`, {

@@ -5,7 +5,6 @@ import { buildLoginPath } from '../env';
 import {
   createPrivateRoom,
   joinRoom,
-  loginToMatrix,
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
@@ -13,6 +12,7 @@ import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // Keyboard and screen reader basics against the disposable homeserver of `just hs-up` (or a slot
@@ -30,21 +30,8 @@ const THREAD_REPLY = 'Every item on the checklist is ticked.';
 // axe-core comes with eslint-plugin-jsx-a11y; the axe test is skipped if it is ever gone.
 const AXE_PATH = path.join(process.cwd(), 'node_modules/axe-core/axe.min.js');
 
-const register = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `a11y_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`a11y_${name}_${RUN}`, PASSWORD);
 
 // The app's message catalogs (src/app/i18n/locales/<code>.json and its additions), flattened, so the
 // passes in other languages find controls by the names they have there. A key a language lacks

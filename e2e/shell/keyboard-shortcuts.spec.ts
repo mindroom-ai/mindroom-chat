@@ -1,10 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword, openAccountMenu } from '../helpers/auth';
-import { joinRoom, loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
+import { joinRoom, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // The first batch of keyboard shortcuts against the disposable homeserver of `just hs-up` (or a
@@ -24,21 +26,8 @@ const MOD = MAC ? 'Meta' : 'Control';
 
 type Account = MatrixSession & { username: string };
 
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `l23_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<Account> =>
+  registerDisposableUser(`l23_${name}_${RUN}`, PASSWORD);
 
 const roomName = (index: number) => `Room ${String(index).padStart(2, '0')}`;
 
@@ -82,14 +71,9 @@ const blur = (page: Page) =>
 /** Nothing happened after a key: give the app a moment to act on it first. */
 const settle = (page: Page) => page.waitForTimeout(400);
 
-// Headless Chromium hides scrollbars; desktop browsers with classic scrollbars show them. The
-// other launch options repeat playwright.config.ts.
+// Headless Chromium hides scrollbars; desktop browsers with classic scrollbars show them.
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.beforeEach(async () => {

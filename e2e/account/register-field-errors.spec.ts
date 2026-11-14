@@ -7,7 +7,7 @@ import {
   accountSessionShot,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
-import { onWebKitPage } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Signing up with a confirmation that does not match, then with a username someone already has:
 // each error belongs to its field. It shows in words under that field, the field is marked invalid
@@ -16,7 +16,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // homeserver.
 const PASSWORD = 'register-field-errors-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const TAKEN = 'This username is already taken.';
 const MISMATCH = 'The passwords do not match.';
 
@@ -80,7 +79,7 @@ test('a mismatch and a taken username are their fields’ errors (Chromium)', as
 });
 
 test('a mismatch and a taken username are their fields’ errors (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(120_000);
   await onWebKitPage({ viewport: { width: 1280, height: 800 }, baseURL }, (page) =>
     errorsBelongToTheirFields(page, 'webkit')

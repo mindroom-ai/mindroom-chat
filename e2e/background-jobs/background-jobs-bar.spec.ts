@@ -2,9 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createThreadFixture, joinRoom, matrixFetch, sendStateEvent } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
-// Explicit opt-in to an isolated, disposable local Matrix server with open registration.
-const homeserver = process.env.E2E_UI_ACTIONS_HOMESERVER;
 test.use({ video: 'off' });
 
 type MessagesPage = {
@@ -15,11 +17,14 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   page,
   context,
 }, testInfo) => {
-  test.skip(!homeserver, 'Set E2E_UI_ACTIONS_HOMESERVER to a disposable local Matrix server.');
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
   const password = randomUUID();
   const register = (username: string) =>
-    matrixFetch<{ access_token: string; user_id: string }>(homeserver!, '/register', {
+    matrixFetch<{ access_token: string; user_id: string }>(HOMESERVER, '/register', {
       method: 'POST',
       body: JSON.stringify({ username, password, auth: { type: 'm.login.dummy' } }),
     });
@@ -27,34 +32,27 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   const viewer = await register(username);
   const coder = await register(`mindroom_coder_${suffix}`);
   const researcher = await register(`mindroom_researcher_${suffix}`);
-  const fixture = await createThreadFixture(homeserver!, viewer.access_token, {
+  const fixture = await createThreadFixture(HOMESERVER, viewer.access_token, {
     name: 'Release prep',
     topic: 'Background jobs bar',
     rootBody: 'Run the test suite and check the changelog',
     replyBody: 'Started the suite in the background',
     invite: [coder.user_id, researcher.user_id],
   });
-  await joinRoom(homeserver!, coder.access_token, fixture.roomId);
-  await joinRoom(homeserver!, researcher.access_token, fixture.roomId);
+  await joinRoom(HOMESERVER, coder.access_token, fixture.roomId);
+  await joinRoom(HOMESERVER, researcher.access_token, fixture.roomId);
   // MindRoom lets its agents publish their jobs; this room's creator does the same.
   const powerLevelsPath = `/rooms/${encodeURIComponent(fixture.roomId)}/state/m.room.power_levels`;
-  const powerLevels = await matrixFetch<Record<string, unknown>>(homeserver!, powerLevelsPath, {
+  const powerLevels = await matrixFetch<Record<string, unknown>>(HOMESERVER, powerLevelsPath, {
     accessToken: viewer.access_token,
   });
-  await sendStateEvent(
-    homeserver!,
-    viewer.access_token,
-    fixture.roomId,
-    'm.room.power_levels',
-    '',
-    {
-      ...powerLevels,
-      events: {
-        ...(powerLevels.events as Record<string, number>),
-        'io.mindroom.background_jobs': 0,
-      },
-    }
-  );
+  await sendStateEvent(HOMESERVER, viewer.access_token, fixture.roomId, 'm.room.power_levels', '', {
+    ...powerLevels,
+    events: {
+      ...(powerLevels.events as Record<string, number>),
+      'io.mindroom.background_jobs': 0,
+    },
+  });
   const job = (jobId: string, threadId: string | null, tool: string, extra = {}) => ({
     job_id: jobId,
     thread_id: threadId,
@@ -71,7 +69,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
     extra: Record<string, unknown> = {}
   ) =>
     sendStateEvent(
-      homeserver!,
+      HOMESERVER,
       agent.access_token,
       fixture.roomId,
       'io.mindroom.background_jobs',
@@ -94,7 +92,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
     await route.fulfill({
       json: {
         ...config,
-        homeserverList: [homeserver],
+        homeserverList: [HOMESERVER],
         defaultHomeserver: 0,
         allowCustomHomeservers: true,
         hashRouter: { enabled: false },
@@ -103,7 +101,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
     });
   });
   await page.setViewportSize({ width: 1280, height: 800 });
-  await loginWithPassword(page, { homeserver: homeserver!, username, password });
+  await loginWithPassword(page, { homeserver: HOMESERVER, username, password });
 
   // The room list marks the room while it has jobs.
   await expect(page.getByLabel('Background jobs running')).toBeVisible();
@@ -169,7 +167,7 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   await expect
     .poll(async () => {
       const messages = await matrixFetch<MessagesPage>(
-        homeserver!,
+        HOMESERVER,
         `/rooms/${encodeURIComponent(fixture.roomId)}/messages?dir=b&limit=20`,
         { accessToken: viewer.access_token }
       );

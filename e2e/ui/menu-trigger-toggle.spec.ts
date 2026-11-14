@@ -1,10 +1,12 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
-import { createPrivateRoom, loginToMatrix } from '../helpers/matrix';
+import { createPrivateRoom } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // A press on the button of an open menu closes the menu and leaves it closed. The menu's focus
@@ -19,32 +21,11 @@ const PHONE = { width: 390, height: 844 };
 const STARTUP_MS = 120_000;
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const register = async (name: string) => {
-  const username = `toggle_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
-
 const pressTwice = async (page: Page, name: string, touch: boolean) => {
-  const reader = await register(name);
+  const reader = await registerDisposableUser(`toggle_${name}_${RUN}`, PASSWORD);
   const roomName = `Quay notes ${name} ${RUN}`;
   const roomId = await createPrivateRoom(HOMESERVER, reader.accessToken, {
     name: roomName,

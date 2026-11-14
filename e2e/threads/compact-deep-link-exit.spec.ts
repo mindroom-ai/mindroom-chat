@@ -1,17 +1,13 @@
 import { expect, test, type BrowserContextOptions, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import {
-  joinRoom,
-  loginToMatrix,
-  registerAgentAccount,
-  sendRoomMessage,
-  type MatrixSession,
-} from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { joinRoom, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // Leaving a thread that was opened from a link (not from its card) brings its card into view in
@@ -22,7 +18,6 @@ import {
 // COMPACT_EXIT_SHOTS to a directory to save the room after leaving.
 const PASSWORD = 'compact-deep-link-exit-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.COMPACT_EXIT_SHOTS;
 const ROOTS = 120;
 const LINKED = 20;
@@ -35,32 +30,11 @@ const PHONE: BrowserContextOptions = {
 };
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `cdl_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
-
 const seed = async (label: string) => {
-  const reader = await registerAndLogin(`reader_${label}`);
+  const reader = await registerDisposableUser(`cdl_reader_${label}_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `triage_${label}`);
   for (let index = 1; index <= 24; index += 1) {
     // eslint-disable-next-line no-await-in-loop
@@ -158,7 +132,7 @@ for (const [form, options] of [
     test(`leaving a linked thread shows its card in Compact (WebKit, ${form})`, async ({
       baseURL,
     }) => {
-      test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+      test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
       test.setTimeout(240_000);
       const seeded = await seed(`w${form[0]}`);
       // The runner adds the file's launch options, whose Chromium flag WebKit refuses.

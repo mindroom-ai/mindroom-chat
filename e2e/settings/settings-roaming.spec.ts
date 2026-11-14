@@ -17,24 +17,20 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { holdFirstWrites } from '../helpers/holdWrites';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // Settings that follow the account: browser contexts signed in to one account on the disposable
 // homeserver of `just hs-up` (or a slot of scripts/e2e-slot.sh) share the 8 roaming settings
 // through the `io.mindroom.client.settings` account data, live and without a reload, while
 // device settings such as the theme stay where they were changed. Nothing about the account data
-// is mocked. Classic scrollbars, as desktop browsers show them; the launch options repeat
-// playwright.config.ts.
+// is mocked. Classic scrollbars, as desktop browsers show them.
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
   viewport: { width: 1280, height: 800 },
 });
 
@@ -432,7 +428,7 @@ test('two devices that change different settings at the same moment keep both (C
 test('two devices that change different settings at the same moment keep both (WebKit)', async ({
   baseURL,
 }) => {
-  test.skip(!process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
   test.setTimeout(240_000);
   const browser = await launchWebKit();
   try {

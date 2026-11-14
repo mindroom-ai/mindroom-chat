@@ -10,7 +10,7 @@ import {
 } from '../helpers/disposableAccounts';
 import { jobsBarChanges, watchJobsBar } from '../helpers/jobsBar';
 import { joinRoom, matrixFetch, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
-import { onWebKitPage } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // The jobs bar keeps an agent's tool call after it ends while the agent's reply streams, since the
 // agent's next call may follow however long it thinks, and shows it as finished, without Stop. It
@@ -20,7 +20,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // scripts/e2e-slot.sh). Set JOBS_RUN_END_SHOTS=<directory> for screenshots.
 const PASSWORD = 'jobs-bar-run-end-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.JOBS_RUN_END_SHOTS;
 const STATUS = 'io.mindroom.stream_status';
 
@@ -148,7 +147,7 @@ test('the jobs bar stays while the agent’s reply streams, and goes 2 s after i
 test('the jobs bar stays while the agent’s reply streams, and goes 2 s after it (WebKit)', async ({
   baseURL,
 }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
   await onWebKitPage({ viewport: { width: 1280, height: 800 }, baseURL }, (page) =>
     barHoldsForTheReply(page, 'webkit')

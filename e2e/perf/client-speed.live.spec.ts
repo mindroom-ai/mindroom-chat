@@ -13,6 +13,7 @@ import {
   registerAgentAccount,
   seedRoomOverviewState,
 } from '../helpers/matrix';
+import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
 /**
  * How fast the client feels with a realistic account, measured in the production build
@@ -592,12 +593,7 @@ const switchTo = async (page: Page, room: RoomFixture, mark: string) => {
 };
 
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    // Classic scrollbars, as desktop users without overlay scrollbars see them.
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-    args: ['--disable-features=IsolateSandboxedIframes'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
   trace: 'off',
   video: 'off',
   screenshot: 'off',

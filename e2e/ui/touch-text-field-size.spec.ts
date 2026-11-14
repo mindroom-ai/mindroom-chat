@@ -11,11 +11,12 @@ import {
 import { buildLoginPath } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { loginToMatrix } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // iOS Safari zooms the page into a text field whose text is smaller than 16 px when the field
@@ -27,7 +28,6 @@ import {
 // WebKit, in WebKit. Set TEXT_FIELD_SHOTS=<directory> to save the screens.
 const PASSWORD = 'touch-text-field-size-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.TEXT_FIELD_SHOTS;
 const PHONE: BrowserContextOptions = {
   viewport: { width: 390, height: 844 },
@@ -38,12 +38,7 @@ const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } 
 const ROOM = 'Design studio';
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.beforeEach(async () => {
@@ -53,18 +48,7 @@ test.beforeEach(async () => {
 /** A reader with a room to invite into. */
 const seed = async (engine: string) => {
   const username = `ttf_${engine}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  const session = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const session = await registerDisposableUser(username, PASSWORD);
   await createRoom(HOMESERVER, session.accessToken, { name: ROOM });
   return username;
 };
@@ -178,7 +162,7 @@ test('text fields on touch screens write at the root size (Chromium)', async ({
 });
 
 test('text fields on touch screens write at the root size (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
   const browser = await launchWebKit();

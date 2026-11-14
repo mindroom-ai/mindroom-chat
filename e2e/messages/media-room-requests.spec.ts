@@ -1,11 +1,12 @@
 import { crc32, deflateSync } from 'node:zlib';
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
-import { joinRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
+import { joinRoom, sendRoomMessage } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // Opening a room full of pictures and files fetches only what the person can see: thumbnails for
@@ -52,21 +53,7 @@ const png = (index: number): Buffer => {
 
 test.use({ viewport: { width: 1280, height: 800 } });
 
-const register = async (name: string) => {
-  const username = `mrr_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string) => registerDisposableUser(`mrr_${name}_${RUN}`, PASSWORD);
 
 const upload = async (accessToken: string, bytes: Buffer, type: string): Promise<string> => {
   const response = await fetch(`${HOMESERVER}/_matrix/media/v3/upload`, {

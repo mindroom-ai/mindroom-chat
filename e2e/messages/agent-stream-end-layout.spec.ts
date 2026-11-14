@@ -18,6 +18,7 @@ import {
   waitForThreadEvent,
 } from '../helpers/agentStack';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
+import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
 // A reader at the bottom of a thread watches an agent's reply finish. Every painted frame from the
 // send to well after the finish keeps the newest row right above the composer's overlay: the
@@ -32,12 +33,7 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 test.describe.configure({ timeout: 300_000 });
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts; scrollbars are shown, as for readers.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const DESKTOP = { width: 1280, height: 800 };

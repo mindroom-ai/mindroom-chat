@@ -5,9 +5,11 @@ import { expect, test } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { alignUiActionSync } from '../helpers/uiActionSync';
 import { createThreadFixture, joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
-// Explicit opt-in to an isolated, disposable local Matrix server with open registration.
-const homeserver = process.env.E2E_UI_ACTIONS_HOMESERVER;
 test.use({ video: 'off' });
 test.afterEach(async ({ context }) => {
   await context.unrouteAll({ behavior: 'ignoreErrors' });
@@ -43,14 +45,14 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   page,
   context,
 }, testInfo) => {
-  test.skip(!homeserver, 'Set E2E_UI_ACTIONS_HOMESERVER to a disposable local Matrix server.');
-  const origin = new URL(homeserver!);
-  expect(origin.protocol).toBe('http:');
-  expect(['127.0.0.1', 'localhost', '[::1]']).toContain(origin.hostname);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
   const password = randomUUID();
   const register = (username: string) =>
-    matrixFetch<{ access_token: string; user_id: string }>(homeserver!, '/register', {
+    matrixFetch<{ access_token: string; user_id: string }>(HOMESERVER, '/register', {
       method: 'POST',
       body: JSON.stringify({ username, password, auth: { type: 'm.login.dummy' } }),
     });
@@ -58,14 +60,14 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   const viewer = await register(username);
   const agent = await register(`mindroom_canvas_${suffix}`);
   const server = viewer.user_id.slice(viewer.user_id.indexOf(':') + 1);
-  const fixture = await createThreadFixture(homeserver!, viewer.access_token, {
+  const fixture = await createThreadFixture(HOMESERVER, viewer.access_token, {
     name: 'Agent canvas',
     topic: 'Local canvas regression',
     rootBody: 'Help me choose a plan',
     replyBody: 'The canvas conversation',
     invite: [agent.user_id],
   });
-  await joinRoom(homeserver!, agent.access_token, fixture.roomId);
+  await joinRoom(HOMESERVER, agent.access_token, fixture.roomId);
   const originalTitle = 'Choose a plan with a long native panel title';
   const action = (html: string, title = originalTitle) => ({
     version: 1,
@@ -82,7 +84,7 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
     if (await close.isVisible()) await close.focus();
     else await page.locator('[data-slate-editor="true"]').click();
     await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true);
-    return sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+    return sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
       msgtype: 'm.notice',
       body: 'Interactive panel: Choose a plan. Open it in MindRoom Chat to respond.',
       'm.relates_to': { rel_type: 'm.thread', event_id: fixture.rootId },
@@ -90,7 +92,7 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
     });
   };
   const updateCanvas = (canvasId: string, html: string, title?: string) =>
-    sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+    sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
       msgtype: 'm.notice',
       body: '* Interactive panel updated.',
       'm.new_content': {
@@ -104,7 +106,7 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
     (
       await matrixFetch<{
         chunk: Array<{ sender: string; content: Record<string, unknown> }>;
-      }>(homeserver!, `/rooms/${encodeURIComponent(fixture.roomId)}/messages?dir=b&limit=50`, {
+      }>(HOMESERVER, `/rooms/${encodeURIComponent(fixture.roomId)}/messages?dir=b&limit=50`, {
         accessToken: viewer.access_token,
       })
     ).chunk.filter((event) => event.sender === viewer.user_id);
@@ -147,14 +149,14 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
           }
     );
   });
-  await alignUiActionSync(context, page, homeserver!);
+  await alignUiActionSync(context, page, HOMESERVER);
   await context.route('**/config.json', async (route) => {
     const response = await route.fetch();
     const config = await response.json();
     await route.fulfill({
       json: {
         ...config,
-        homeserverList: [homeserver],
+        homeserverList: [HOMESERVER],
         defaultHomeserver: 0,
         allowCustomHomeservers: true,
         hashRouter: { enabled: false },
@@ -168,7 +170,7 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
     });
   });
   await page.setViewportSize({ width: 1600, height: 1000 });
-  await loginWithPassword(page, { homeserver: homeserver!, username, password });
+  await loginWithPassword(page, { homeserver: HOMESERVER, username, password });
   const waitForLiveSync = () =>
     page.waitForRequest((request) => {
       const url = new URL(request.url());
@@ -358,7 +360,7 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
     { length: 600 },
     (_, index) => `<article>Region ${index} <b>${index * 7}</b></article>`
   ).join('')}</main>`;
-  const upload = await fetch(`${homeserver}/_matrix/media/v3/upload?filename=canvas.html`, {
+  const upload = await fetch(`${HOMESERVER}/_matrix/media/v3/upload?filename=canvas.html`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${agent.access_token}`, 'Content-Type': 'text/html' },
     body: largePage,
@@ -368,7 +370,7 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   await page.bringToFront();
   await panel.getByRole('button', { name: 'Close canvas', exact: true }).focus();
   await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true);
-  await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+  await sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
     msgtype: 'm.notice',
     body: 'Interactive panel: Report. Open it in MindRoom Chat to respond.',
     'm.relates_to': { rel_type: 'm.thread', event_id: fixture.rootId },
@@ -425,7 +427,7 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   );
   const [mediaServer, mediaId] = String(largeAnswer.content.url).slice('mxc://'.length).split('/');
   const sidecar = await fetch(
-    `${homeserver}/_matrix/client/v1/media/download/${mediaServer}/${mediaId}`,
+    `${HOMESERVER}/_matrix/client/v1/media/download/${mediaServer}/${mediaId}`,
     {
       headers: { Authorization: `Bearer ${agent.access_token}` },
     }
@@ -510,7 +512,7 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   notes.value = mindroom.state?.notes ?? '';
   notes.addEventListener('input', () => mindroom.saveState({ notes: notes.value }));
 </script>`;
-  const notesId = await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+  const notesId = await sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
     msgtype: 'm.notice',
     body: 'Interactive panel: Notes. Open it in MindRoom Chat to respond.',
     'm.relates_to': { rel_type: 'm.thread', event_id: fixture.rootId },
@@ -541,7 +543,7 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   const rate = document.getElementById('rate');
   rate.addEventListener('input', () => { document.getElementById('shown').textContent = rate.value; });
 </script>`;
-  const ratesId = await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+  const ratesId = await sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
     msgtype: 'm.notice',
     body: 'Interactive panel: Rates. Open it in MindRoom Chat to respond.',
     'm.relates_to': { rel_type: 'm.thread', event_id: fixture.rootId },
@@ -578,7 +580,7 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
       await matrixFetch<{
         chunk: Array<{ type: string; sender: string; content: Record<string, unknown> }>;
       }>(
-        homeserver!,
+        HOMESERVER,
         `/rooms/${encodeURIComponent(fixture.roomId)}/relations/${encodeURIComponent(
           canvasId
         )}/m.reference`,
@@ -586,7 +588,7 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
       )
     ).chunk.filter((event) => event.type === 'io.mindroom.canvas_state');
   expect(await stateCopies(ratesId)).toEqual([]);
-  const sharedId = await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+  const sharedId = await sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
     msgtype: 'm.notice',
     body: 'Interactive panel: Packing. Open it in MindRoom Chat to respond.',
     'm.relates_to': { rel_type: 'm.thread', event_id: fixture.rootId },
@@ -623,11 +625,14 @@ test("the room header brings back a conversation's canvases: a menu for several,
   page,
   context,
 }, testInfo) => {
-  test.skip(!homeserver, 'Set E2E_UI_ACTIONS_HOMESERVER to a disposable local Matrix server.');
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
   const password = randomUUID();
   const register = (username: string) =>
-    matrixFetch<{ access_token: string; user_id: string }>(homeserver!, '/register', {
+    matrixFetch<{ access_token: string; user_id: string }>(HOMESERVER, '/register', {
       method: 'POST',
       body: JSON.stringify({ username, password, auth: { type: 'm.login.dummy' } }),
     });
@@ -635,21 +640,21 @@ test("the room header brings back a conversation's canvases: a menu for several,
   const viewer = await register(username);
   const agent = await register(`mindroom_header_${suffix}`);
   const server = viewer.user_id.slice(viewer.user_id.indexOf(':') + 1);
-  const fixture = await createThreadFixture(homeserver!, viewer.access_token, {
+  const fixture = await createThreadFixture(HOMESERVER, viewer.access_token, {
     name: 'Canvas header',
     topic: 'Header canvas button regression',
     rootBody: 'Plan my trip',
     replyBody: 'The trip conversation',
     invite: [agent.user_id],
   });
-  await joinRoom(homeserver!, agent.access_token, fixture.roomId);
+  await joinRoom(HOMESERVER, agent.access_token, fixture.roomId);
   // A second conversation in the same room, whose canvases must stay apart from the first's.
-  const otherRootId = await sendRoomMessage(homeserver!, viewer.access_token, fixture.roomId, {
+  const otherRootId = await sendRoomMessage(HOMESERVER, viewer.access_token, fixture.roomId, {
     msgtype: 'm.text',
     body: 'Plan my move',
   });
   const otherReplyBody = 'The move conversation';
-  await sendRoomMessage(homeserver!, viewer.access_token, fixture.roomId, {
+  await sendRoomMessage(HOMESERVER, viewer.access_token, fixture.roomId, {
     msgtype: 'm.text',
     body: otherReplyBody,
     'm.relates_to': {
@@ -666,7 +671,7 @@ test("the room header brings back a conversation's canvases: a menu for several,
     if (await close.isVisible()) await close.focus();
     else await page.locator('[data-slate-editor="true"]').click();
     await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true);
-    return sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+    return sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
       msgtype: 'm.notice',
       body: `Interactive panel: ${title}. Open it in MindRoom Chat to respond.`,
       'm.relates_to': { rel_type: 'm.thread', event_id: threadId },
@@ -682,14 +687,14 @@ test("the room header brings back a conversation's canvases: a menu for several,
     });
   };
 
-  await alignUiActionSync(context, page, homeserver!);
+  await alignUiActionSync(context, page, HOMESERVER);
   await context.route('**/config.json', async (route) => {
     const response = await route.fetch();
     const config = await response.json();
     await route.fulfill({
       json: {
         ...config,
-        homeserverList: [homeserver],
+        homeserverList: [HOMESERVER],
         defaultHomeserver: 0,
         allowCustomHomeservers: true,
         hashRouter: { enabled: false },
@@ -703,7 +708,7 @@ test("the room header brings back a conversation's canvases: a menu for several,
     });
   });
   await page.setViewportSize({ width: 1600, height: 1000 });
-  await loginWithPassword(page, { homeserver: homeserver!, username, password });
+  await loginWithPassword(page, { homeserver: HOMESERVER, username, password });
   const openThread = async (threadId: string, replyBody: string) => {
     const liveSync = page.waitForRequest((request) => {
       const url = new URL(request.url());

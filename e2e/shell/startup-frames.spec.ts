@@ -1,11 +1,12 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
-import { joinRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
+import { joinRoom, sendRoomMessage } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
 import { blockWebKitServiceWorkers } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // What a person sees while the app starts, frame by frame, in the light theme: the splash never
@@ -27,21 +28,7 @@ test.use({ viewport: { width: 1280, height: 800 }, colorScheme: 'light' });
 // The warm start holds the first sync back with a route.
 test.use(blockWebKitServiceWorkers);
 
-const register = async (name: string) => {
-  const username = `suf_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string) => registerDisposableUser(`suf_${name}_${RUN}`, PASSWORD);
 
 type DomState = { t: number; state: string; detail: string };
 

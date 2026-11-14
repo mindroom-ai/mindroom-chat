@@ -3,9 +3,11 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type BrowserContext } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createThreadFixture, joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
-// Explicit opt-in to an isolated, disposable local Matrix server with open registration.
-const homeserver = process.env.E2E_UI_ACTIONS_HOMESERVER;
 test.use({ video: 'off' });
 
 // Point the app at the disposable homeserver.
@@ -16,7 +18,7 @@ const routeConfig = (context: BrowserContext) =>
     await route.fulfill({
       json: {
         ...config,
-        homeserverList: [homeserver],
+        homeserverList: [HOMESERVER],
         defaultHomeserver: 0,
         allowCustomHomeservers: true,
         hashRouter: { enabled: false },
@@ -53,57 +55,60 @@ test('reply details show what a reply and the conversation so far cost', async (
   page,
   context,
 }, testInfo) => {
-  test.skip(!homeserver, 'Set E2E_UI_ACTIONS_HOMESERVER to a disposable local Matrix server.');
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   // Several window sizes and color schemes.
   test.slow();
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
   const password = randomUUID();
   const register = (username: string) =>
-    matrixFetch<{ access_token: string; user_id: string }>(homeserver!, '/register', {
+    matrixFetch<{ access_token: string; user_id: string }>(HOMESERVER, '/register', {
       method: 'POST',
       body: JSON.stringify({ username, password, auth: { type: 'm.login.dummy' } }),
     });
   const username = `cost_viewer_${suffix}`;
   const viewer = await register(username);
   const agent = await register(`mindroom_code_${suffix}`);
-  await matrixFetch(homeserver!, `/profile/${encodeURIComponent(agent.user_id)}/displayname`, {
+  await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(agent.user_id)}/displayname`, {
     method: 'PUT',
     accessToken: agent.access_token,
     body: JSON.stringify({ displayname: 'Code' }),
   });
-  const fixture = await createThreadFixture(homeserver!, viewer.access_token, {
+  const fixture = await createThreadFixture(HOMESERVER, viewer.access_token, {
     name: 'Cost check',
     topic: 'Reply costs',
     rootBody: 'Plan the release',
     replyBody: 'Keep it short',
     invite: [agent.user_id],
   });
-  await joinRoom(homeserver!, agent.access_token, fixture.roomId);
+  await joinRoom(HOMESERVER, agent.access_token, fixture.roomId);
   const inThread = {
     rel_type: 'm.thread',
     event_id: fixture.rootId,
     is_falling_back: true,
     'm.in_reply_to': { event_id: fixture.rootId },
   };
-  await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+  await sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
     msgtype: 'm.text',
     body: 'Cut the branch first.',
     'io.mindroom.ai_run': aiRun('0.0034'),
     'm.relates_to': inThread,
   });
-  await sendRoomMessage(homeserver!, viewer.access_token, fixture.roomId, {
+  await sendRoomMessage(HOMESERVER, viewer.access_token, fixture.roomId, {
     msgtype: 'm.text',
     body: 'And then?',
     'm.relates_to': inThread,
   });
   // A streamed reply starts without metadata; its final edit carries the cost.
-  const streamed = await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+  const streamed = await sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
     msgtype: 'm.text',
     body: 'Thinking...',
     'io.mindroom.stream_status': 'streaming',
     'm.relates_to': inThread,
   });
-  await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+  await sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
     msgtype: 'm.text',
     body: '* Then tag it.',
     'm.new_content': {
@@ -114,19 +119,19 @@ test('reply details show what a reply and the conversation so far cost', async (
     },
     'm.relates_to': { rel_type: 'm.replace', event_id: streamed },
   });
-  await sendRoomMessage(homeserver!, viewer.access_token, fixture.roomId, {
+  await sendRoomMessage(HOMESERVER, viewer.access_token, fixture.roomId, {
     msgtype: 'm.text',
     body: 'Ship it?',
     'm.relates_to': inThread,
   });
-  await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+  await sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
     msgtype: 'm.text',
     body: 'Done, v2.4 is tagged.',
     'io.mindroom.ai_run': aiRun('0.0026'),
     'm.relates_to': inThread,
   });
   // Anyone can write the same keys; only MindRoom's own accounts count.
-  await sendRoomMessage(homeserver!, viewer.access_token, fixture.roomId, {
+  await sendRoomMessage(HOMESERVER, viewer.access_token, fixture.roomId, {
     msgtype: 'm.text',
     body: 'Sounds good',
     'io.mindroom.ai_run': aiRun('100'),
@@ -135,7 +140,7 @@ test('reply details show what a reply and the conversation so far cost', async (
 
   await routeConfig(context);
   await page.setViewportSize({ width: 1280, height: 800 });
-  await loginWithPassword(page, { homeserver: homeserver!, username, password });
+  await loginWithPassword(page, { homeserver: HOMESERVER, username, password });
   await page.goto(
     `/home/${encodeURIComponent(fixture.roomId)}?threadId=${encodeURIComponent(fixture.rootId)}`
   );

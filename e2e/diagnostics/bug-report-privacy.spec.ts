@@ -10,7 +10,6 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import {
   createDefaultThreadFilterState,
-  loginToMatrix,
   matrixFetch,
   seedRoomOverviewState,
   type MatrixSession,
@@ -20,7 +19,9 @@ import { leaveCompactView } from '../helpers/roomViewSwitch';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
+import { createRoom } from '../helpers/createRoom';
 
 // "Report a bug" on a message of an end-to-end encrypted room, against the slot's homeserver.
 // The report room is unencrypted (bug report agents read it without E2EE), so the menu entry
@@ -46,21 +47,8 @@ type UploadedReport = {
   events: Array<{ eventId: string | null; event: { content: Record<string, unknown> } }>;
 };
 
-const register = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `brp_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`brp_${name}_${RUN}`, PASSWORD);
 
 const isUpload = (request: Request) =>
   request.method() === 'POST' &&
@@ -113,20 +101,9 @@ const check = async (
 ) => {
   const reporter = await register(`reporter_${engine}`);
   const admin = await register(`admin_${engine}`);
-  const { room_id: roomId } = await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
-    method: 'POST',
-    accessToken: reporter.accessToken,
-    body: JSON.stringify({
-      name: 'Harbor Survey',
-      preset: 'private_chat',
-      initial_state: [
-        {
-          type: 'm.room.encryption',
-          state_key: '',
-          content: { algorithm: 'm.megolm.v1.aes-sha2' },
-        },
-      ],
-    }),
+  const roomId = await createRoom(HOMESERVER, reporter.accessToken, {
+    name: 'Harbor Survey',
+    encrypted: true,
   });
 
   const context = await browser.newContext({ ...options, baseURL });

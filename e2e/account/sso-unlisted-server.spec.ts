@@ -1,16 +1,18 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readSessionStore } from '../helpers/accounts';
 import {
-  HOMESERVER,
   PASSWORD,
   PROVIDER,
-  homeserverIsUp,
   listSlotHomeserver,
   loginPath,
   registerSsoAccount,
   stubIdentityProvider,
   waitForShell,
 } from '../helpers/ssoHomeserver';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A server the deployment does not offer may be an attacker's (R6, B1): the sign-in page for it
 // runs on the real Chat origin, its SSO redirect reads the nonce this tab put in `redirectUrl`,
@@ -134,7 +136,10 @@ const pressGoogleOnEvil = async (page: Page, path: string) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 test('asks before single sign-on on a server the deployment does not offer, and Cancel sends it nothing', async ({

@@ -8,10 +8,11 @@ import {
   setAccountData,
   setDirectAccountData,
 } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // The page navigation (the room list beside the content) moves in the same way however it opens:
@@ -24,7 +25,6 @@ import {
 // classic scrollbars, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
 // WebKit, in WebKit.
 const PASSWORD = 'drawer-motion-spec-password';
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SPACE_COUNT = 26;
 const ROOM_COUNT = 30;
 const NAV = '[data-testid="resizable-page-nav"]';
@@ -43,14 +43,9 @@ const PHONE: BrowserContextOptions = {
 /** A phone held sideways has room for the panel beside the content, which then collapses. */
 const SIDEWAYS: BrowserContextOptions = { ...PHONE, viewport: { width: 844, height: 390 } };
 
-// Headless Chromium hides scrollbars; desktop browsers with classic scrollbars show them. The
-// other launch options repeat playwright.config.ts.
+// Headless Chromium hides scrollbars; desktop browsers with classic scrollbars show them.
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.beforeEach(async () => {
@@ -457,7 +452,7 @@ test('the page navigation opens in the same motion however it opens', async ({ p
 });
 
 test('the page navigation opens in the same motion in WebKit', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
   const seededAccount = await account();
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
@@ -515,7 +510,7 @@ for (const [name, options, check] of [
     });
 
     test(`the room list on ${name} in WebKit`, async ({ baseURL }) => {
-      test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+      test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
       test.setTimeout(180_000);
       const seededAccount = await account();
       const browser = await launchWebKit();

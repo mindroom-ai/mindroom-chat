@@ -10,7 +10,6 @@ import { createRoom } from '../helpers/createRoom';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   registerAgentAccount,
   seedRoomOverviewState,
@@ -21,6 +20,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // A /sync answer carries at most 20 events per room (`limited: true` past that): a page that falls
@@ -59,21 +59,8 @@ const titleOf = (label: string) => `Release notes for ${label}`;
 type Account = MatrixSession & { username: string };
 type World = { reader: Account; agent: MatrixSession; peer: Account; roomId: string };
 
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `tlsg_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<Account> =>
+  registerDisposableUser(`tlsg_${name}_${RUN}`, PASSWORD);
 
 const inThread = (rootId: string) => ({
   'm.relates_to': {

@@ -7,8 +7,10 @@ import {
   matrixFetch,
   seedRoomOverviewState,
   sendRoomMessage,
+  setAccountData,
 } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
+import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
 // A limited sync replaces a small room's timeline while an older page is still running. Its
 // direct relink page fails once, so it shows an empty chain and asks for history through the
@@ -53,11 +55,7 @@ const gate = () => {
 };
 
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 for (const engine of ['chromium', 'webkit'] as const) {
@@ -282,14 +280,12 @@ for (const engine of ['chromium', 'webkit'] as const) {
                 body: JSON.stringify({ displayname: 'Name After' }),
               }
             );
-            await matrixFetch(
+            await setAccountData(
               homeserver,
-              `/user/${encodeURIComponent(viewer.userId)}/account_data/io.mindroom.client.settings`,
-              {
-                method: 'PUT',
-                accessToken: viewer.accessToken,
-                body: JSON.stringify({ version: 1, hideMembershipEvents: true }),
-              }
+              viewer.accessToken,
+              viewer.userId,
+              'io.mindroom.client.settings',
+              { version: 1, hideMembershipEvents: true }
             );
             await Promise.all(Array.from({ length: 25 }, (_, index) => sendHidden(`gap-${index}`)));
             holdSync = false;

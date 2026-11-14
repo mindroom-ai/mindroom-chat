@@ -2,11 +2,13 @@ import { mkdirSync } from 'node:fs';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { joinRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
-import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { joinRoom, sendRoomMessage } from '../helpers/matrix';
+import { WEBKIT_EXECUTABLE, onWebKitPage } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // A real right click on a message's text opens the message's menu where the pointer is, in
@@ -36,29 +38,10 @@ const LINK = 'https://example.org/handbook';
 const LINKED = `The onboarding handbook moved to ${LINK} last night.`;
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const register = async (name: string) => {
-  const username = `mrc_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string) => registerDisposableUser(`mrc_${name}_${RUN}`, PASSWORD);
 
 /** 25 other rooms, and a room where a colleague wrote 24 messages, then the four under test. */
 const seed = async (engine: string) => {
@@ -229,19 +212,7 @@ test(`${TITLE} (Chromium)`, async ({ page }) => {
 test(`${TITLE} (WebKit)`, async ({ baseURL }) => {
   test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
-  const browser = await launchWebKit();
-  try {
-    const context = await browser.newContext({ viewport: DESKTOP, baseURL });
-    const page = await context.newPage();
-    try {
-      await rightClicksOpenTheMessageMenu(page, 'webkit');
-    } catch (error) {
-      await page
-        .screenshot({ path: test.info().outputPath('webkit-failure.png') })
-        .catch(() => undefined);
-      throw error;
-    }
-  } finally {
-    await browser.close();
-  }
+  await onWebKitPage({ viewport: DESKTOP, baseURL }, (page) =>
+    rightClicksOpenTheMessageMenu(page, 'webkit')
+  );
 });

@@ -8,7 +8,7 @@ import {
 } from '@playwright/test';
 import { loginWithPassword, waitForLoggedInShell } from '../helpers/auth';
 import { readSessionStore } from '../helpers/accounts';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -29,7 +29,6 @@ import {
 // Needs the slot homeserver: scripts/e2e-slot.sh <slot> --preview npx playwright test <this file>
 const PASSWORD = 'crypto-store-loss-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 // Set CRYPTO_STORE_LOSS_SHOTS=<directory> to save the screen on a desktop and a phone, light and dark.
 const SHOTS = process.env.CRYPTO_STORE_LOSS_SHOTS;
 // A same-origin page that runs no app code: the deletion happens there, as a person clearing
@@ -291,7 +290,7 @@ test('a store lost before the page loads asks to sign in again (Chromium)', asyn
 });
 
 test('a store lost before the page loads asks to sign in again (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   await inWebKit(baseURL, lostStoreAtLoad);
 });
 
@@ -300,6 +299,6 @@ test('a store deleted after the check makes no new device keys (Chromium)', asyn
 });
 
 test('a store deleted after the check makes no new device keys (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   await inWebKit(baseURL, storeRecreatedBehindTheCheck);
 });
