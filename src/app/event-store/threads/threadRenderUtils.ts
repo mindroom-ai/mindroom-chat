@@ -879,64 +879,11 @@ export const mergeThreadRenderEvents = (
     unionKeys.forEach((key) => indexedSet(key, winner));
   };
 
-  existingEvents.forEach((mEvent) => {
-    const keys = getThreadRenderEventKeys(mEvent, resolveConfirmedId);
-    if (keys.length === 0) return;
-    setEventForKeys(keys, mEvent);
-  });
+  // setEventForKeys picks the winner and displaces the losers (RG5d).
+  const addEvent = (mEvent: MatrixEvent) =>
+    setEventForKeys(getThreadRenderEventKeys(mEvent, resolveConfirmedId), mEvent);
+  existingEvents.forEach(addEvent);
+  incomingEvents.forEach(addEvent);
 
-  // ISSUE-207 AC2 render-gap RG1 (2026-07-04) — F9 fold (2026-07-04):
-  // observability for "incoming batch carried at least one m.replace"
-  // (`mergeSawIncomingEditRelation`) is folded into the incoming loop
-  // as a boolean flip — no extra iteration. Bumped once per merge call
-  // if any incoming event had a Replace relation.
-  let incomingHadEditRelation = false;
-  incomingEvents.forEach((mEvent) => {
-    const incomingKeys = getThreadRenderEventKeys(mEvent, resolveConfirmedId);
-    if (incomingKeys.length === 0) return;
-
-    if (mEvent.getRelation()?.rel_type === RelationType.Replace) {
-      incomingHadEditRelation = true;
-    }
-
-    // setEventForKeys handles the pick + displacement internally; the
-    // caller just provides the new event and its keys. This is the
-    // canonicalization seam (RG5d); see setEventForKeys comment block.
-    setEventForKeys(incomingKeys, mEvent);
-  });
-  if (incomingHadEditRelation) {
-    countCacheProbe('mergeSawIncomingEditRelation');
-  }
-
-  const merged = Array.from(new Set(eventMap.values())).sort(compareThreadRenderOrder);
-
-  // ISSUE-207 AC2 render-gap RG1 (2026-07-04): observability at the
-  // merge seam — bumps once per incoming m.replace whose target IS
-  // present in the merged output but has NO `replacingEvent()` set.
-  // That shape names "the applier ran (or was expected to run) upstream,
-  // but the instance the merge kept for the target does not carry the
-  // repaired replacement" — a merge-preference regression.
-  //
-  // F9 fold (2026-07-04): query `eventMap` directly by the target's
-  // event key instead of building a fresh `Map<id, MatrixEvent>` from
-  // the sorted output. Post-RG5d canonicalization the map already
-  // holds exactly one instance per identity reachable under the
-  // `event:${id}` key, so the lookup is O(1) with no per-call
-  // allocation. Guarded on incomingHadEditRelation so the whole block
-  // is skipped when the incoming batch has no edit relations.
-  if (incomingHadEditRelation) {
-    incomingEvents.forEach((mEvent) => {
-      const relation = mEvent.getRelation();
-      if (relation?.rel_type !== RelationType.Replace) return;
-      const targetEventId = relation.event_id;
-      if (!targetEventId) return;
-      const target = eventMap.get(`event:${targetEventId}`);
-      if (!target) return;
-      if (!target.replacingEvent()) {
-        countCacheProbe('mergeSawEditRelationNoTargetChange');
-      }
-    });
-  }
-
-  return merged;
+  return Array.from(new Set(eventMap.values())).sort(compareThreadRenderOrder);
 };

@@ -428,6 +428,25 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
       expect(markMainTimelineAsRead).toHaveBeenCalledTimes(receipts);
     });
 
+    it('reads another room the view shows from a fresh report of the anchor', () => {
+      const options = optionsWith();
+      mount(options);
+      const observer = observers.at(-1);
+      const unobserved = observer?.unobserve.mock.calls.length ?? 0;
+
+      // The view stays mounted from one room to the next, at the live end of each: the anchor
+      // stays within reach, so only observing it afresh makes it report for the next room.
+      const next = { roomId: '!next:example.org' } as Room;
+      rerender({ ...options, room: next });
+      expect(observers.at(-1)).toBe(observer);
+      expect(observer?.unobserve).toHaveBeenCalledTimes(unobserved + 1);
+      expect(observer?.observe).toHaveBeenLastCalledWith(anchor);
+
+      reportAnchor(true);
+      runFrames();
+      expect(markMainTimelineAsRead).toHaveBeenCalledWith(mx, next.roomId, false);
+    });
+
     it('reads the room from the fresh report once the view is back at its live end', () => {
       const options = optionsWith({ atLiveEndRef: { current: false }, timelineAtLiveEnd: false });
       mount(options);

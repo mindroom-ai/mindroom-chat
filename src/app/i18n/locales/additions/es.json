@@ -811,7 +811,8 @@
     "back": "Atrás",
     "resize": "Cambiar el tamaño del hilo",
     "showFull": "Mostrar el hilo completo",
-    "showBeside": "Mostrar el hilo junto a los mensajes"
+    "showBeside": "Mostrar el hilo junto a los mensajes",
+    "notFound": "No se encontró el hilo"
   },
   "activity": {
     "title": "Actividad",

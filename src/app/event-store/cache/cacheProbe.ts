@@ -185,35 +185,6 @@ export type CacheProbeCounters = {
   threadOpenScheduledCacheFirst: number;
   threadOpenSkipCacheFirstHydrateGuard: number;
   threadOpenSkipCacheFirstPostHydrateGuard: number;
-  // ISSUE-207 AC2 render-gap RG1 (2026-07-04): sink counters that
-  // distinguish the three candidate mechanisms for the render-gap
-  // ("engine converges, edit-target v2 never renders"). Each names a
-  // specific seam between the reconciler's onRepaired batch and the
-  // MatrixEvent instance the render layer actually holds.
-  //
-  //   onRepairedGuardBailed: reconciler fired onRepaired but the
-  //     component-side guard (`isCurrentThreadOpen()`) returned false,
-  //     so `setSupplementalThreadEvents` did NOT run for this batch.
-  //     Diagnostic for candidate (b) / (c): the repair batch reached
-  //     the render seam but was gated out before the sink ran.
-  //     For the production thread-open observer,
-  //     `reconcilesOnRepairedFired` is bumped after its callback returns, so
-  //     the relation
-  //     reconcilesOnRepairedFired == onRepairedGuardBailed +
-  //       supplementalEventsExecuted + supplementalEventsSkippedEmpty
-  //     holds and can be asserted from a probe snapshot.
-  //   supplementalEventsExecuted: reconciler's onRepaired ran end to
-  //     end and called `setSupplementalThreadEvents(threadId, [...])`.
-  //     Diagnostic: sink executed; if v2 still not visible, the gap
-  //     is downstream of the fallback state (candidate (a) or (b)).
-  //   supplementalEventsSkippedEmpty: onRepaired ran but the repaired
-  //     batch was empty, so the sink was intentionally skipped (see
-  //     P5-GATE-FIX v3 cost-guarantee test). Kept separate so a docker
-  //     trace can distinguish "sink skipped because nothing to sink"
-  //     from "sink guarded out".
-  onRepairedGuardBailed: number;
-  supplementalEventsExecuted: number;
-  supplementalEventsSkippedEmpty: number;
   // Task #125 (2026-07-04): bumps once per scroll-driven thread
   // back-pagination auto-fire (the effect in MindroomRoomTimeline that
   // fires the chip pipeline when the rendered window's top edge enters
@@ -222,64 +193,19 @@ export type CacheProbeCounters = {
   // assertion on fast networks, so without this scalar the e2e cannot
   // distinguish trigger-driven from band-driven loading.
   threadAutoPaginateBackFired: number;
-  // ISSUE-207 AC2 render-gap RG1 (2026-07-04): mergeThreadRenderEvents
-  // "edit-relation seen but target's replacingEvent() unchanged"
-  // observability. Diagnostic for candidate (b): the merge received an
-  // m.replace event but the target instance it kept has no
-  // `replacingEvent()` set — i.e. the applier mutated some other
-  // instance and this merge is picking the un-repaired copy. See
-  // threadRenderUtils.ts `mergeThreadRenderEvents`.
-  mergeSawEditRelationNoTargetChange: number;
-  // ISSUE-207 AC2 render-gap RG2 (2026-07-04): distinguishes
-  // hypothesis 1 (merge never receives the edit event) from
-  // hypothesis 2 (merge receives it and produces correct output, but
-  // downstream render swallows). Bumps once per merge call whose
-  // `incomingEvents` contains ANY m.replace event, regardless of
-  // whether the target's replacingEvent() is set. If this counter is
-  // 0 while supplementalEventsExecuted is >0, the sink fired but the
-  // re-render / state propagation is not delivering the incoming
-  // batch to the merge — the seam is between the sink and the memo.
-  mergeSawIncomingEditRelation: number;
-  // ISSUE-207 AC2 render-gap RG3 (2026-07-04): observability at the
-  // ACTUAL render-pipeline entry point (getEditedEvent in
-  // matrix/room.ts). Bumps once per getEditedEvent call:
-  //
-  //   renderTargetHadReplacement: `mEvent.replacingEvent()` returned
-  //     a non-null candidate that PASSED the same-sender check and
-  //     was included in the candidate edit list.
-  //   renderTargetLackedReplacement: `mEvent.replacingEvent()`
-  //     returned null.
-  //
-  // Diagnostic: if `renderTargetHadReplacement` is 0 while merge
-  // counter `mergeSawEditRelationNoTargetChange` is also 0 AND the
-  // merge saw incoming edits (`mergeSawIncomingEditRelation > 0`),
-  // then the merge produced correct output but the RENDER is
-  // receiving a DIFFERENT instance for the target — proving the seam
-  // between "merge output stored in state" and "render reads state".
-  renderTargetHadReplacement: number;
-  renderTargetLackedReplacement: number;
-  // ISSUE-207 AC2 render-gap RG5b (2026-07-04): unconditional applier
-  // observability, kept as permanent scalar tripwires after the RG4-era
-  // instance-identity classifiers were retired. Together they partition
-  // every path out of `applyCachedReplaceRelations`:
+  // ISSUE-207 AC2 render-gap RG5b (2026-07-04): applier observability.
+  // Together they partition every path out of
+  // `applyCachedReplaceRelations` that has a target and an edit:
   //   applierMakeReplacedFired: bumped once per real makeReplaced call
   //     in the applier (the m.replace was in the batch, sender matched,
   //     latestEdit differed from the current replacement).
-  //   applierMakeReplacedNoOpGuardFired: bumped when the guard bailed
-  //     out (no candidate edit OR the picked edit equalled the current
-  //     replacement). Sub-split into the two mutually exclusive causes
-  //     via `applierMakeReplacedNoLatestEdit` (getLatestEdit returned
-  //     undefined — every candidate had a sender mismatch) and
-  //     `applierMakeReplacedLatestEqualsCurrent` (target already carries
-  //     the picked replacement — benign no-op). Invariant:
-  //     applierMakeReplacedNoOpGuardFired ==
-  //       applierMakeReplacedNoLatestEdit +
-  //       applierMakeReplacedLatestEqualsCurrent
-  //   applierMakeReplacedNoLatestEdit > 0 names a sender-mismatch shape
-  //     (hydration issue or cross-sender edit). Must-stay-0 in a
-  //     well-formed corpus.
+  //   applierMakeReplacedNoLatestEdit: getLatestEdit returned undefined:
+  //     every candidate edit was redacted or failed the same-sender check.
+  //     A reading that redacted edits do not explain names a hydration
+  //     issue or a cross-sender edit.
+  //   applierMakeReplacedLatestEqualsCurrent: the target already carries
+  //     the picked replacement (benign no-op).
   applierMakeReplacedFired: number;
-  applierMakeReplacedNoOpGuardFired: number;
   applierMakeReplacedNoLatestEdit: number;
   applierMakeReplacedLatestEqualsCurrent: number;
   // ISSUE-207 AC2 render-gap RG5d (2026-07-04): permanent WORK counter
@@ -412,16 +338,8 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   threadOpenScheduledCacheFirst: 0,
   threadOpenSkipCacheFirstHydrateGuard: 0,
   threadOpenSkipCacheFirstPostHydrateGuard: 0,
-  onRepairedGuardBailed: 0,
-  supplementalEventsExecuted: 0,
-  supplementalEventsSkippedEmpty: 0,
   threadAutoPaginateBackFired: 0,
-  mergeSawEditRelationNoTargetChange: 0,
-  mergeSawIncomingEditRelation: 0,
-  renderTargetHadReplacement: 0,
-  renderTargetLackedReplacement: 0,
   applierMakeReplacedFired: 0,
-  applierMakeReplacedNoOpGuardFired: 0,
   applierMakeReplacedNoLatestEdit: 0,
   applierMakeReplacedLatestEqualsCurrent: 0,
   eventMapCanonicalizedDisplacements: 0,

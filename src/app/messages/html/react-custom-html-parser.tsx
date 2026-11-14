@@ -475,6 +475,7 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
           className={css.CodeBlockActions}
           role="group"
           aria-label={t('messageCodeBlock.actions')}
+          data-code-block-actions=""
         >
           <button
             type="button"

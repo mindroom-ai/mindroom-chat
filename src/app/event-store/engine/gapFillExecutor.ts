@@ -20,7 +20,6 @@ import {
   collectOverlapEventIds,
   GAP_FILL_OVERLAP_TAIL_LIMIT,
   type GapFillJob,
-  type GapFillScheduler,
 } from './engineGapTracker';
 
 // Batch size for the /messages page — matches the app's other backfill
@@ -49,20 +48,18 @@ export type GapFillExecutorOptions = {
 type GapFillTurn = 'policy-deferred' | 'continuation-deferred' | 'page-committed' | undefined;
 
 export type GapFillExecutor = {
+  /** Run a gap's fill now, or coalesce it into the room's running fill. */
+  enqueue(job: GapFillJob): void;
   /** Retry deferred work after its allowance, the focus or the prefetch scope changes. */
   recheckDeferred(roomId?: string): void;
   stop(): void;
 };
 
 /**
- * Wire the executor to a `GapFillScheduler` dispatch seam: every enqueue
- * from the gap tracker runs (or coalesces into) a fill immediately.
- * `stop()` unsubscribes and blocks further enqueues.
+ * Every job the gap tracker enqueues runs (or coalesces into) a fill
+ * immediately. `stop()` blocks further enqueues.
  */
-export const createGapFillExecutor = (
-  options: GapFillExecutorOptions,
-  gapFillScheduler: GapFillScheduler
-): GapFillExecutor => {
+export const createGapFillExecutor = (options: GapFillExecutorOptions): GapFillExecutor => {
   const { mx, sessionId, scheduler } = options;
   const persistChunk = options.persistChunk ?? persistRoomChunkWithPreferLive;
   const loadCachedTail = options.loadCachedTail ?? loadLatestCachedRoomEvents;
@@ -289,14 +286,11 @@ export const createGapFillExecutor = (
     });
   };
 
-  const unsubscribe = gapFillScheduler.onEnqueue(enqueue);
-
   const stop = (): void => {
     stopped = true;
     latestJobs.clear();
     deferredJobs.clear();
-    unsubscribe();
   };
 
-  return { recheckDeferred, stop };
+  return { enqueue, recheckDeferred, stop };
 };
