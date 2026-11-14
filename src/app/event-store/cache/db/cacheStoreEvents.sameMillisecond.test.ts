@@ -1,19 +1,22 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { MatrixEvent } from 'matrix-js-sdk';
-import { beforeEach, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { resetCacheStoreForTesting } from '.';
 import { resetCacheHealthForTesting } from '../cacheHealth';
 import {
   loadCachedThreadSnapshot,
   loadRoomCachedBackStateSnapshot,
   loadRoomCachedPaginationSnapshot,
+  loadThreadCachedPaginationSnapshot,
 } from '../eventRepository';
 import {
   loadCachedRoomEventsBefore,
+  loadCachedThreadEventsBefore,
   saveRoomEventsToCache,
   saveThreadEventsToCache,
 } from './cacheStoreEvents';
+import { loadCachedThreadEventsInSpan } from './cacheStoreThreadSpan';
 
 // The cache orders events by sent time, then event ID; the server's order inside one millisecond
 // is unknown to it. The room's pager, which drops the events it holds, asks a page before an event
@@ -132,4 +135,94 @@ it('reads a thread whose replies share a millisecond once each', async () => {
   });
 
   expect(ids(snapshot?.events ?? [])).toEqual(['$r1', '$r2', '$r3', '$r4']);
+});
+
+describe('thread replies of one millisecond', () => {
+  // Server order, oldest first: $older, then $zzz and $aaa in one millisecond, then $newer. The
+  // cache sorts $aaa before $zzz.
+  const replies = [
+    message('$older', 900, '$root'),
+    message('$zzz', 1000, '$root'),
+    message('$aaa', 1000, '$root'),
+    message('$newer', 1100, '$root'),
+  ];
+  const aaa = { eventId: '$aaa', ts: 1000 };
+
+  beforeEach(async () => {
+    await saveThreadEventsToCache('session', ROOM, '$root', replies);
+  });
+
+  it("holds, when asked, an older reply of the earliest reply's millisecond whose ID sorts after it", async () => {
+    const asked = await loadCachedThreadEventsBefore('session', ROOM, '$root', aaa, 10, {
+      withBeforeMillisecond: true,
+    });
+    const strict = await loadCachedThreadEventsBefore('session', ROOM, '$root', aaa, 10);
+
+    expect(ids(asked.events)).toEqual(['$older', '$zzz']);
+    expect(ids(strict.events)).toEqual(['$older']);
+  });
+
+  const paginate = (heldEventIds: string[]) =>
+    loadThreadCachedPaginationSnapshot({
+      sessionId: 'session',
+      roomId: ROOM,
+      threadId: '$root',
+      earliestLoadedReply: new MatrixEvent(message('$aaa', 1000, '$root')),
+      heldEventIds: new Set(heldEventIds),
+      limit: 10,
+      mapEvent: (raw) => new MatrixEvent(raw),
+    });
+
+  it('gives the thread pager the reply of the millisecond it does not hold', async () => {
+    // The thread came from the server with $aaa and $newer; $zzz is on no strict page before $aaa.
+    const snapshot = await paginate(['$aaa', '$newer']);
+
+    expect(snapshot.status).toBe('cache-hit');
+    expect(snapshot.events.map((event) => event.getId())).toEqual(['$older', '$zzz']);
+  });
+
+  it('calls a page of only held replies a miss', async () => {
+    // Only the held $zzz shares the millisecond, and the thread holds $older too.
+    const snapshot = await paginate(['$older', '$zzz', '$aaa', '$newer']);
+
+    expect(snapshot.status).toBe('cache-miss');
+    expect(snapshot.events).toEqual([]);
+  });
+
+  // The thread's snapshot pages from its own earliest cached reply, so its pages run on in cache
+  // order and no reply of a millisecond falls between them, whatever the page size.
+  it.each([1, 2, 3])('reads every reply in the thread snapshot with pages of %i', async (limit) => {
+    const snapshot = await loadCachedThreadSnapshot({
+      sessionId: 'session',
+      roomId: ROOM,
+      threadId: '$root',
+      limit,
+      maxPages: 10,
+    });
+
+    expect(ids(snapshot?.events ?? [])).toEqual(['$older', '$aaa', '$zzz', '$newer']);
+  });
+
+  // Classic's spans of a room's history run from a page's oldest event up to the next newer
+  // page's oldest event, so a millisecond's replies fall in one span or the next; a span whose
+  // start lies after its end (a page of only events of the millisecond) holds nothing.
+  it('splits the replies of a millisecond between two spans that meet at a room event', async () => {
+    const roomEvent = { eventId: '$raaa', ts: 1000 };
+
+    const older = await loadCachedThreadEventsInSpan(
+      'session',
+      ROOM,
+      { eventId: '$r800', ts: 800 },
+      roomEvent
+    );
+    const newer = await loadCachedThreadEventsInSpan('session', ROOM, roomEvent);
+    const inverted = await loadCachedThreadEventsInSpan('session', ROOM, roomEvent, {
+      eventId: '$r900',
+      ts: 900,
+    });
+
+    expect(older.map((event) => event.event_id)).toEqual(['$older', '$aaa']);
+    expect(newer.map((event) => event.event_id)).toEqual(['$zzz', '$newer']);
+    expect(inverted).toEqual([]);
+  });
 });

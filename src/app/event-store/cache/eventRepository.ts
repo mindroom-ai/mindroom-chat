@@ -400,6 +400,7 @@ export const loadThreadCachedPaginationSnapshot = async ({
   roomId,
   threadId,
   earliestLoadedReply,
+  heldEventIds,
   limit,
   mapEvent,
   loadBefore = loadCachedThreadEventsBeforeFromCache,
@@ -408,19 +409,25 @@ export const loadThreadCachedPaginationSnapshot = async ({
   roomId: string;
   threadId: string;
   earliestLoadedReply?: MatrixEvent;
+  /** The replies the thread holds: the page drops them. */
+  heldEventIds: ReadonlySet<string>;
   limit: number;
   mapEvent: (rawEvent: Partial<IEvent>) => MatrixEvent;
   loadBefore?: LoadCachedThreadEventsBefore;
 }): Promise<ThreadCachedPaginationSnapshot> => {
+  // The page also holds the replies of the earliest loaded reply's millisecond that sort after it:
+  // some are older on the server and on no other page. Those the thread holds are dropped.
   const cachedPage = await loadBefore(
     sessionId,
     roomId,
     threadId,
     getCachedThreadCursorAnchor(earliestLoadedReply?.event as Partial<IEvent> | undefined),
-    limit
+    limit,
+    { withBeforeMillisecond: true }
   );
+  const newEvents = cachedPage.events.filter((rawEvent) => !heldEventIds.has(rawEvent.event_id));
   const events = mapCachedThreadPageEvents({
-    events: cachedPage.events,
+    events: newEvents,
     rootEvent: cachedPage.rootEvent,
     mapEvent,
   });
@@ -436,8 +443,8 @@ export const loadThreadCachedPaginationSnapshot = async ({
     // would otherwise report an eternal barren "cache-hit" — committing
     // nothing new on every gesture while the network leg (the only source
     // of genuinely older events) never runs, leaving a partially-opened
-    // thread permanently un-paginatable.
-    status: cachedPage.events.length > 0 ? 'cache-hit' : 'cache-miss',
+    // thread permanently un-paginatable. A page of only held replies is a miss the same way.
+    status: newEvents.length > 0 ? 'cache-hit' : 'cache-miss',
   };
 };
 

@@ -3,7 +3,10 @@ import { Direction, type MatrixClient, type MatrixEvent, type Room } from 'matri
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import to from 'await-to-js';
 import { THREAD_BATCH_SIZE } from '../../event-store/cache/preloadSettings';
-import { getLinkedTimelines, getThreadTimelineEvents } from '../../event-store/timeline/linkedTimelines';
+import {
+  getLinkedTimelines,
+  getThreadTimelineEvents,
+} from '../../event-store/timeline/linkedTimelines';
 import {
   findEarliestLoadedThreadReplyByCacheOrder,
   reconcileThreadBackwardPagination,
@@ -145,6 +148,12 @@ export const useThreadPagination = (session: ThreadSessionCommands, route: Threa
             earliestLoadedReply: findEarliestLoadedThreadReplyByCacheOrder(
               threadEvents,
               lease.threadId
+            ),
+            heldEventIds: new Set(
+              threadEvents.flatMap((mEvent) => {
+                const eventId = mEvent.getId();
+                return eventId ? [eventId] : [];
+              })
             ),
             limit: THREAD_BATCH_SIZE,
             mapEvent: createPreferLiveEventMapper(room, mx.getEventMapper()),

@@ -674,15 +674,17 @@ describe('eventRepository cached thread snapshots', () => {
       roomId: '!room:example.org',
       threadId: '$root',
       earliestLoadedReply: earliestLoadedReply as never,
+      heldEventIds: new Set(),
       limit: 50,
       mapEvent: (rawEvent) =>
         makeEvent(rawEvent.event_id ?? '$missing', {
           ts: rawEvent.origin_server_ts,
         }),
-      loadBefore: async (_sessionId, _roomId, threadId, anchor, limit) => {
+      loadBefore: async (_sessionId, _roomId, threadId, anchor, limit, options) => {
         expect(threadId).toBe('$root');
         expect(anchor).toEqual({ eventId: '$loaded', ts: 300 });
         expect(limit).toBe(50);
+        expect(options).toEqual({ withBeforeMillisecond: true });
         return {
           rootEvent: { event_id: '$root', origin_server_ts: 100 },
           events: [{ event_id: '$older-reply', origin_server_ts: 200 }],
@@ -716,6 +718,7 @@ describe('eventRepository cached thread snapshots', () => {
       roomId: '!room:example.org',
       threadId: '$root',
       earliestLoadedReply: earliestLoadedReply as never,
+      heldEventIds: new Set(),
       limit: 50,
       mapEvent: (rawEvent) =>
         makeEvent(rawEvent.event_id ?? '$missing', {
