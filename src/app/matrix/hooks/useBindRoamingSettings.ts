@@ -39,8 +39,9 @@ const writes = new WeakMap<MatrixClient, Promise<Write | null | undefined>>();
 
 /**
  * Stores the patch `makePatch` computes from the account's content right before the write, over
- * that content, after any earlier write of this client. The content is read from the homeserver,
- * not from sync, so a change another device stored a moment ago stays. The stored content gets a
+ * that content, after any earlier write of this client. `getAccountDataFromServer` reads the
+ * homeserver only before the first sync, then the client's copy: a change another device stored
+ * that sync has not delivered yet is undone, and that device redoes it. The stored content gets a
  * new `rev` and names the one it patched in `base_rev`. Resolves the write, `null` for an empty
  * patch (nothing written), and `undefined` without writing when the stored content has a later
  * version.
@@ -91,9 +92,9 @@ const isLive = (state: SyncState | null, data: SyncStateData | null | undefined)
  *   For half a minute after a write, incoming content whose writer read the content this write
  *   replaced (its `base_rev`, or an older client's copied `rev`, is that content's) puts this
  *   write's edits that it set back to their old value into pending again, and they are sent
- *   again. Content that arrived while the write was on its way is judged by a fresh read once
- *   the write lands. A writer that saw this write changed what it changed on purpose. Other
- *   incoming account data never causes a write.
+ *   again. Content that arrived while the write was on its way is checked once the write is
+ *   recorded. A writer that saw this write changed what it changed on purpose. Other incoming
+ *   account data never causes a write.
  */
 export const bindRoamingSettings = (mx: MatrixClient, store: Store): (() => void) => {
   const userId = mx.getUserId();
@@ -157,22 +158,16 @@ export const bindRoamingSettings = (mx: MatrixClient, store: Store): (() => void
       patch = { ...migration, ...unconfirmedRoamingEdits(sent, account) };
       return patch;
     })
-      .then(async (written) => {
+      .then((written) => {
         if (written === undefined || !bound) return;
         migrated = true;
         const write = written && { ...written, patch, at: Date.now() };
         if (write) recent = [...recent, write];
         confirm(sent);
-        // The write resolves on the first roaming settings that sync delivers after the call.
-        // Unless that is this write or one made after it, its check ran before this write was
-        // known: check what the homeserver holds now for this write's edits another device undid.
-        const held = contentOf(mx);
-        const rev = write?.stored.rev;
-        if (!write || (isRecord(held) && (held.rev === rev || held.base_rev === rev))) return;
-        const content: unknown = await mx.getAccountDataFromServer(
-          ROAMING_SETTINGS_EVENT_TYPE as never
-        );
-        if (bound) redoUndoneEdits(content, [write]);
+        // The write resolves on the first roaming settings that sync delivers after the call,
+        // which may be another device's write, checked before this write was known: check it
+        // for this write.
+        if (write) redoUndoneEdits(contentOf(mx), [write]);
       })
       .catch(() => undefined)
       .finally(() => {

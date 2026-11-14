@@ -119,7 +119,9 @@ const login = (
         ? { getContent: () => held }
         : undefined,
     setAccountData,
+    // After the first sync the SDK answers from the client's copy, not the homeserver.
     getAccountDataFromServer: vi.fn(async () => {
+      if (state === SyncState.Prepared || state === SyncState.Syncing) return held ?? null;
       if (!client.connected) throw new Error('ConnectionError: offline');
       return server.raw ?? null;
     }),
@@ -379,16 +381,35 @@ describe('bindRoamingSettings', () => {
     laptop.unbind();
   });
 
-  it('redoes an edit each time a write from older content undoes it, up to the limit', async () => {
+  it("keeps both edits when another device's write reaches sync while this one is on its way", async () => {
     logins.stored = [{ userId: ALICE, deviceId: 'LAPTOP' }];
     const server = homeserver({ lag: true });
     const client = login(server, ALICE, 'LAPTOP');
     const laptop = open(client);
     await settle();
-    // Another device's write lands before the laptop reads the content, and sync brings it while
-    // the laptop's write is on its way: the content the laptop wrote over, not a conflict.
+    // The other device's write lands first; sync brings it after the laptop read its copy.
     server.put({ version: 1, rev: 'other', base_rev: null, enterForNewline: true });
     client.beforeNextPut(server.deliver);
+    laptop.change('isMarkdown', false);
+    for (let turn = 0; turn < 3; turn += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await settle();
+      server.deliver();
+    }
+    await settle();
+
+    expect(server.content).toEqual({ version: 1, enterForNewline: true, isMarkdown: false });
+    laptop.unbind();
+  });
+
+  it('redoes an edit each time a write from older content undoes it, up to the limit', async () => {
+    logins.stored = [{ userId: ALICE, deviceId: 'LAPTOP' }];
+    const server = homeserver({ lag: true });
+    const laptop = open(login(server, ALICE, 'LAPTOP'));
+    await settle();
+    server.put({ version: 1, rev: 'other', base_rev: null, enterForNewline: true });
+    server.deliver();
+    await settle();
     laptop.change('isMarkdown', false);
     await settle();
     server.deliver();
