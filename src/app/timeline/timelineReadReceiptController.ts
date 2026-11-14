@@ -289,14 +289,16 @@ export const useTimelineReadReceiptController = ({
   };
   const observer = useIntersectionObserver(handleAnchorReports, getObserverOptions, getAnchor);
 
-  // Coming back to the live end while the anchor stayed within reach changes nothing the observer
-  // watches, so it would stay silent: observing the anchor afresh makes it report again.
+  // Coming back to the live end, or showing another room there (the view stays mounted), while
+  // the anchor stayed within reach changes nothing the observer watches, so it would stay silent:
+  // observing the anchor afresh makes it report again.
+  const shownRoomId = room.roomId;
   useEffect(() => {
     const anchor = atBottomAnchorRef.current;
     if (!timelineAtLiveEnd || !observer || !anchor) return;
     observer.unobserve(anchor);
     observer.observe(anchor);
-  }, [atBottomAnchorRef, observer, timelineAtLiveEnd]);
+  }, [atBottomAnchorRef, observer, shownRoomId, timelineAtLiveEnd]);
 
   const handleWindowFocus = useCallback(
     (inFocus: boolean) => {
