@@ -415,7 +415,7 @@ type ScopedCursorOptions = {
   scope: string;
   limit: number;
   upperBound?: CursorAnchor;
-  /** Also the events of the bound's millisecond that sort after it (`loadCachedRoomEventsBefore`). */
+  /** Also the events of the bound's millisecond that sort after it (the room and thread pagers). */
   withBeforeMillisecond?: boolean;
   shouldSkip: (record: CachedEventRecord, rawEvent: Partial<IEvent>) => boolean;
 };

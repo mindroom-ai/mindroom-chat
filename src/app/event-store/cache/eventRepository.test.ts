@@ -696,7 +696,7 @@ describe('eventRepository cached thread snapshots', () => {
 
     expect(snapshot.status).toBe('cache-hit');
     expect(snapshot.events.map((event) => event.getId())).toEqual(['$root', '$older-reply']);
-    expect(snapshot.beforeToken).toBe('before-older-reply');
+    expect(snapshot.cachedPage.beforeToken).toBe('before-older-reply');
     expect(snapshot.hasMoreCachedBack).toBe(true);
   });
 

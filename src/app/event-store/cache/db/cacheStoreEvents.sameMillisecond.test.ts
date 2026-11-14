@@ -19,9 +19,10 @@ import {
 import { loadCachedThreadEventsInSpan } from './cacheStoreThreadSpan';
 
 // The cache orders events by sent time, then event ID; the server's order inside one millisecond
-// is unknown to it. The room's pager, which drops the events it holds, asks a page before an event
-// for the events of that event's millisecond that sort after it too: some are older on the
-// server, and no other page holds them. Every other reader keeps the strict bound.
+// is unknown to it. The room's and the thread's pagers, which drop the events they hold, ask a
+// page before an event for the events of that event's millisecond that sort after it too: some
+// are older on the server, and no other page holds them. Every other reader keeps the strict
+// bound.
 
 const ROOM = '!room:test';
 
@@ -162,12 +163,12 @@ describe('thread replies of one millisecond', () => {
     expect(ids(strict.events)).toEqual(['$older']);
   });
 
-  const paginate = (heldEventIds: string[]) =>
+  const paginate = (heldEventIds: string[], threadId = '$root') =>
     loadThreadCachedPaginationSnapshot({
       sessionId: 'session',
       roomId: ROOM,
-      threadId: '$root',
-      earliestLoadedReply: new MatrixEvent(message('$aaa', 1000, '$root')),
+      threadId,
+      earliestLoadedReply: new MatrixEvent(message('$aaa', 1000, threadId)),
       heldEventIds: new Set(heldEventIds),
       limit: 10,
       mapEvent: (raw) => new MatrixEvent(raw),
@@ -204,22 +205,13 @@ describe('thread replies of one millisecond', () => {
       );
       await saveThreadEventsToCache('session', ROOM, '$other', [message('$aaa', 1000, '$other')]);
 
-      const snapshot = await loadThreadCachedPaginationSnapshot({
-        sessionId: 'session',
-        roomId: ROOM,
-        threadId: '$other',
-        earliestLoadedReply: new MatrixEvent(message('$aaa', 1000, '$other')),
-        heldEventIds: new Set(['$aaa']),
-        limit: 10,
-        mapEvent: (raw) => new MatrixEvent(raw),
-      });
+      const snapshot = await paginate(['$aaa'], '$other');
 
       expect(snapshot.status).toBe('cache-hit');
       expect(snapshot.events.map((event) => event.getId())).toEqual(['$zzz']);
       // $zzz's token says what lies before $zzz, not before $aaa: replies between them that the
       // cache lacks would be lost behind it.
       expect(snapshot.cachedPage.beforeToken).toBeUndefined();
-      expect(snapshot.beforeToken).toBeUndefined();
     }
   );
 
