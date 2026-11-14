@@ -137,7 +137,7 @@ describe('MindroomReasoning', () => {
   const blockBody = (root: ReturnType<typeof render>) =>
     root.find((node) => typeof node.type === 'string' && node.props.className === 'ReasoningBody');
 
-  it('shows final reasoning collapsed with its duration, and expands it on click', () => {
+  it('shows final reasoning collapsed with its duration, and expands it on click', async () => {
     const root = render({
       msgtype: 'm.text',
       body: 'Answer',
@@ -149,13 +149,13 @@ describe('MindroomReasoning', () => {
     expect(header(root).props['aria-expanded']).toBe(false);
     expect(root.findAllByType('strong')).toHaveLength(0);
 
-    act(() => header(root).props.onClick());
+    await act(() => header(root).props.onClick());
 
     expect(header(root).props['aria-expanded']).toBe(true);
     expect(text(root.findByType('strong'))).toBe('two');
   });
 
-  it('requests the Markdown renderer for final reasoning only once it is expanded', () => {
+  it('requests the Markdown renderer for final reasoning only once it is expanded', async () => {
     vi.mocked(renderLiveMarkdown).mockClear();
     vi.mocked(useLiveMarkdownReady).mockClear();
     const root = render({
@@ -167,7 +167,7 @@ describe('MindroomReasoning', () => {
     expect(useLiveMarkdownReady).not.toHaveBeenCalled();
     expect(renderLiveMarkdown).not.toHaveBeenCalled();
 
-    act(() => header(root).props.onClick());
+    await act(() => header(root).props.onClick());
 
     expect(useLiveMarkdownReady).toHaveBeenCalled();
     expect(renderLiveMarkdown).toHaveBeenCalledWith('Compared **two** caches');
@@ -201,7 +201,7 @@ describe('MindroomReasoning', () => {
     expect(renderLiveMarkdown).toHaveBeenCalledTimes(1);
   });
 
-  it('collapses the reasoning once the reply finishes, even after it was toggled', () => {
+  it('collapses the reasoning once the reply finishes, even after it was toggled', async () => {
     const element = (content: Record<string, unknown>) => (
       <ClientConfigProvider value={{}}>
         {renderAgentMessageContent({
@@ -226,8 +226,8 @@ describe('MindroomReasoning', () => {
     if (!renderer) throw new Error('Nothing rendered');
     expect(header(renderer.root).props['aria-expanded']).toBe(true);
     // Collapsed and reopened by hand while it streams.
-    act(() => header(renderer!.root).props.onClick());
-    act(() => header(renderer!.root).props.onClick());
+    await act(() => header(renderer!.root).props.onClick());
+    await act(() => header(renderer!.root).props.onClick());
 
     act(() =>
       renderer?.update(

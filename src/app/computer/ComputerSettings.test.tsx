@@ -104,63 +104,63 @@ describe('computer service settings', () => {
     expect(loadComputerServicePreference()).toBe('https://custom.example');
   });
 
-  it('explains LAN HTTP before Save, persists it, and clears the notice for HTTPS', () => {
+  it('explains LAN HTTP before Save, persists it, and clears the notice for HTTPS', async () => {
     render();
-    edit('http://192.168.1.50:8765/');
+    await edit('http://192.168.1.50:8765/');
     expect(message('note').children).toEqual([
       'HTTP does not encrypt your sign-in or computer traffic. Use it only on a trusted local network.',
     ]);
     expect(loadComputerServicePreference()).toBeNull();
-    click('Save computer service');
+    await click('Save computer service');
     expect(loadComputerServicePreference()).toBe('http://192.168.1.50:8765');
     expect(input().props.value).toBe('http://192.168.1.50:8765');
     expect(message('note')).toBeDefined();
-    edit('https://custom.example');
+    await edit('https://custom.example');
     expect(message('note')).toBeUndefined();
   });
 
-  it('requires Save for an entered service, persists it, and keeps confirmation visible', () => {
+  it('requires Save for an entered service, persists it, and keeps confirmation visible', async () => {
     render();
-    edit('https://custom.example');
+    await edit('https://custom.example');
     expect(input().props.value).toBe('https://custom.example');
     expect(loadComputerServicePreference()).toBeNull();
-    click('Save computer service');
+    await click('Save computer service');
     expect(loadComputerServicePreference()).toBe('https://custom.example');
     expect(message('status').children).toEqual(['Computer service saved.']);
   });
 
-  it('validates custom origins without changing the current service', () => {
+  it('validates custom origins without changing the current service', async () => {
     render('https://deployment.example');
-    edit('https://user:secret@example.org/path');
-    click('Save computer service');
+    await edit('https://user:secret@example.org/path');
+    await click('Save computer service');
     expect(message('alert')).toBeDefined();
     expect(store.get(computerServicePreferenceAtom)).toBeNull();
     expect(loadComputerServicePreference()).toBeNull();
   });
 
-  it('normalizes custom URLs, disables on blank, and restores the displayed deployment', () => {
+  it('normalizes custom URLs, disables on blank, and restores the displayed deployment', async () => {
     render('https://deployment.example');
-    edit('https://custom.example/');
-    click('Save computer service');
+    await edit('https://custom.example/');
+    await click('Save computer service');
     expect(input().props.value).toBe('https://custom.example');
-    edit('');
-    click('Save computer service');
+    await edit('');
+    await click('Save computer service');
     expect(store.get(computerServicePreferenceAtom)).toBe('');
-    click('Use app default');
+    await click('Use app default');
     expect(input().props.value).toBe('https://deployment.example');
     expect(store.get(computerServicePreferenceAtom)).toBeNull();
-    edit('https://unsaved.example');
-    click('Use app default');
+    await edit('https://unsaved.example');
+    await click('Use app default');
     expect(input().props.value).toBe('https://deployment.example');
   });
 
-  it('reports failed persistence without activating the entered service', () => {
+  it('reports failed persistence without activating the entered service', async () => {
     render();
-    edit('https://custom.example');
+    await edit('https://custom.example');
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('blocked');
     });
-    click('Save computer service');
+    await click('Save computer service');
     expect(message('alert').children).toEqual([
       'Could not save the computer service on this device.',
     ]);
