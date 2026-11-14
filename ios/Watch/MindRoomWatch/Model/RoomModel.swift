@@ -14,6 +14,8 @@ struct ThreadRow: Identifiable, Equatable {
     let line: String
     let state: ThreadRowState
     let ts: Int
+    /// When the root was sent.
+    let rootTs: Int
 }
 
 /// The default room: its threads (and the user's own messages nobody answered yet), new voice
@@ -142,7 +144,8 @@ final class RoomModel: ObservableObject {
             line = String(localized: "Sent")
         }
         return ThreadRow(id: snapshot.rootId, rootId: snapshot.rootId, title: snapshot.title, line: line,
-                         state: snapshot.rowState(lastSeenEventId: SeenStore.lastSeen(snapshot.rootId)), ts: snapshot.latestTs)
+                         state: snapshot.rowState(lastSeenEventId: SeenStore.lastSeen(snapshot.rootId)), ts: snapshot.latestTs,
+                         rootTs: snapshot.rootTs)
     }
 
     /// The user's own messages in the room that no thread holds yet: a voice message just sent,
@@ -169,7 +172,8 @@ final class RoomModel: ObservableObject {
             if case .audio = message.msgType { isVoice = true } else { isVoice = false }
             let title = isVoice ? String(localized: "Voice message") : PlainText.of(markdown: message.body)
             let state: ThreadRowState = failed ? .failed : queued ? .queued : .idle(Date(timeIntervalSince1970: Double(item.timestamp) / 1000))
-            return ThreadRow(id: id, rootId: rootId, title: title, line: String(localized: "Sent"), state: state, ts: Int(item.timestamp))
+            return ThreadRow(id: id, rootId: rootId, title: title, line: String(localized: "Sent"), state: state,
+                             ts: Int(item.timestamp), rootTs: Int(item.timestamp))
         }
     }
 

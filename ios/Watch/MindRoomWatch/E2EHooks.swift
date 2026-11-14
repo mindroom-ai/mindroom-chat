@@ -19,6 +19,8 @@ enum E2EHooks {
     static let environment = ProcessInfo.processInfo.environment
     static var room: String? { environment["MINDROOM_WATCH_E2E_ROOM"] }
     static var openNewest: Bool { environment["MINDROOM_WATCH_E2E_OPEN"] == "newest" }
+    /// Milliseconds since the epoch when the app started: the hooks act on what was sent after it.
+    static let launchedAt = Int(Date().timeIntervalSince1970 * 1000) - 5_000
     static var resolveNewest: Bool { environment["MINDROOM_WATCH_E2E_RESOLVE"] == "newest" }
     static var resolved = false
     private static var sent = false

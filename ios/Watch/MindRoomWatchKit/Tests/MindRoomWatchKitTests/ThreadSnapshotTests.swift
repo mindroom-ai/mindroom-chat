@@ -40,6 +40,7 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.reply?.run, .finished)
         XCTAssertEqual(snapshot.latestEventId, "$reply")
         XCTAssertEqual(snapshot.latestTs, 4)
+        XCTAssertEqual(snapshot.rootTs, 1)
     }
 
     func testAITitleWinsOverTheTranscript() {

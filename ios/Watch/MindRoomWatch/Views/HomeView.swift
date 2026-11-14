@@ -139,7 +139,9 @@ private struct RoomHome: View {
         .onChange(of: request.pending) { _, _ in takeRequest() }
         #if DEBUG
         .onChange(of: model.rows) { _, rows in
-            if E2EHooks.openNewest, path.isEmpty, let rootId = rows.first?.rootId { path = [rootId] }
+            // The thread of the message the hooks just sent: the newest root, once it has an event id.
+            if E2EHooks.openNewest, path.isEmpty, let row = rows.max(by: { $0.rootTs < $1.rootTs }),
+               row.rootTs >= E2EHooks.launchedAt, let rootId = row.rootId { path = [rootId] }
             if E2EHooks.resolveNewest, !E2EHooks.resolved, let rootId = rows.first(where: { $0.state != .queued })?.rootId {
                 E2EHooks.resolved = true
                 Task { await model.resolve(rootId); E2EHooks.log("resolved \(rootId)") }

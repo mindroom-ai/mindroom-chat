@@ -12,6 +12,8 @@ public struct ThreadSnapshot: Equatable, Sendable {
     }
 
     public let rootId: String
+    /// Milliseconds since the epoch of the root.
+    public let rootTs: Int
     public let title: String
     public let isVoiceRoot: Bool
     /// The newest agent (anyone else's) reply.
@@ -91,7 +93,7 @@ public struct ThreadSnapshot: Equatable, Sendable {
         }.first
         let latest = conversation.last ?? root
         return ThreadSnapshot(
-            rootId: rootId, title: title, isVoiceRoot: isVoiceRoot, reply: reply, approvals: approvals,
+            rootId: rootId, rootTs: root.timestamp, title: title, isVoiceRoot: isVoiceRoot, reply: reply, approvals: approvals,
             openQuestion: openQuestion, latestEventId: latest.eventId ?? rootId, latestTs: latest.timestamp,
             latestFromMe: (latest["sender"] as? String) == ownUserId,
             latestRun: RunState.of(latest, latestEdit: edit(latest)))
