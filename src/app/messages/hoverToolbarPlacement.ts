@@ -93,6 +93,8 @@ export const toolbarOffset = (
 ): number | undefined => {
   const nearControl = (at: number, control: Span) =>
     at < control.bottom + CONTROL_GAP_PX && at + height > control.top - CONTROL_GAP_PX;
+  const clearAt = (at: number) =>
+    ![...folds, ...contentActions].some((control) => nearControl(at, control));
   // Below the header and the controls under it, but no lower than 4 px above the row's bottom.
   let top = covered > usual + 0.5 ? Math.min(covered, rowHeight - ROW_END_GAP_PX - height) : usual;
   [...folds]
@@ -113,11 +115,7 @@ export const toolbarOffset = (
       .map((actions) => actions.bottom + CONTROL_GAP_PX)
       .filter((at) => at > top)
       .sort((a, b) => a - b)
-      .find(
-        (at) =>
-          at + height <= rowHeight - ROW_END_GAP_PX &&
-          ![...folds, ...contentActions].some((control) => nearControl(at, control))
-      );
+      .find((at) => at + height <= rowHeight - ROW_END_GAP_PX && clearAt(at));
     if (below !== undefined) top = below;
   }
   // Moved down into its row, it goes on below the row's sender line where that shows, so the
@@ -133,7 +131,7 @@ export const toolbarOffset = (
     top + height > senderLine.top
   ) {
     const below = senderLine.bottom + CONTROL_GAP_PX;
-    if (![...folds, ...contentActions].some((control) => nearControl(below, control))) top = below;
+    if (clearAt(below)) top = below;
   }
   return Math.abs(top - usual) > 0.5 ? Math.round(top) : undefined;
 };

@@ -274,22 +274,21 @@ describe('toolbarOffset', () => {
       expect(toolbarOffset(-36, 0, 92, 42, [], sender, [{ top: 42, bottom: 74 }])).toBe(0);
     });
 
+    // The fold button of the long message above, and the row's own Show less, which sticks to
+    // the bottom of the view, here 60 px into the row.
+    const foldAboveAndOwn = [
+      { top: -46, bottom: -14, ownRow: false },
+      { top: 60, bottom: 92, ownRow: true },
+    ];
+
     it('stays under the fold button above when below the buttons is its own Show less', () => {
-      const folds = [
-        { top: -46, bottom: -14, ownRow: false },
-        { top: 60, bottom: 92, ownRow: true },
-      ];
-      expect(toolbarOffset(-36, -200, 400, 42, folds, sender, [{ top: 30, bottom: 54 }])).toBe(-6);
+      const actions = [{ top: 30, bottom: 54 }];
+      expect(toolbarOffset(-36, -200, 400, 42, foldAboveAndOwn, sender, actions)).toBe(-6);
     });
 
     it('stays under the fold button above when its own Show less is below the sender line', () => {
-      // A long row's own Show less sticks to the bottom of the view, here 60 px into the row,
-      // where the toolbar below the sender line would cover it.
-      const folds = [
-        { top: -46, bottom: -14, ownRow: false },
-        { top: 60, bottom: 92, ownRow: true },
-      ];
-      expect(toolbarOffset(-36, -200, 400, 42, folds, sender)).toBe(-6);
+      // Below the sender line it would cover its own Show less.
+      expect(toolbarOffset(-36, -200, 400, 42, foldAboveAndOwn, sender)).toBe(-6);
     });
   });
 });

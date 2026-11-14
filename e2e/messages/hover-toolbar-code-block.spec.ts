@@ -47,6 +47,12 @@ const signIn = async (page: Page, username: string) => {
   });
 };
 
+/** Waits two frames, for the toolbar's placement to settle after a scroll or a hover. */
+const twoFrames = (page: Page) =>
+  page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+  );
+
 type Box = { x: number; y: number; width: number; height: number };
 const overlaps = (a: Box, b: Box) =>
   a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
@@ -139,9 +145,7 @@ test('the hover toolbar keeps off the code block buttons of a row without a send
         });
         return line;
       }, under);
-      await page.evaluate(
-        () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-      );
+      await twoFrames(page);
       const rowTop = (await row.boundingBox())?.y ?? 0;
       expect(Math.abs(rowTop - (covered - under))).toBeLessThan(1);
     }, 'the timeline scrolls the row under the header').toPass({ timeout: 15_000 });
@@ -151,9 +155,7 @@ test('the hover toolbar keeps off the code block buttons of a row without a send
     const reply = row.locator('button[aria-label="Reply"]');
     await expect(reply).toBeVisible();
     // Let the placement settle after the scroll.
-    await page.evaluate(
-      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-    );
+    await twoFrames(page);
     // The toolbar's pill (around the row of its buttons) stays below the header and inside its
     // row's bottom, and touches none of the code block's buttons.
     const bar = await reply.evaluate((element) => {
@@ -167,6 +169,7 @@ test('the hover toolbar keeps off the code block buttons of a row without a send
     );
     for (const name of BUTTONS) {
       const button = await block.getByRole('button', { name, exact: true }).boundingBox();
+      expect(button, `${name} at ${under} px`).not.toBeNull();
       if (button && overlaps(bar, button)) blocked.push(`${name} at ${under} px`);
     }
     if (SCREENSHOT) {
