@@ -92,7 +92,7 @@ struct ThreadView: View {
         .userActivity("chat.mindroom.open-thread") { activity in
             activity.isEligibleForHandoff = true
             activity.title = model.snapshot?.title
-            activity.userInfo = ["roomId": roomModel.room.id(), "threadId": rootId]
+            activity.userInfo = ["roomId": roomModel.room.id(), "threadId": rootId, "userId": roomModel.userId]
         }
     }
 

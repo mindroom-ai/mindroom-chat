@@ -18,7 +18,7 @@ const client = (options: {
   let polls = 0;
   const crossSignDevice = vi.fn(async () => undefined);
   const exportSecretsBundle = vi.fn(
-    options.exportBundle ?? (async () => ({ cross_signing: {}, backup: null }))
+    options.exportBundle ?? (async () => ({ cross_signing: {}, backup: { key: 'k' } }))
   );
   const authedRequest = vi.fn(
     async (_method: string, _path: string, _query: unknown, body: { auth?: AuthDict }) =>
@@ -137,7 +137,7 @@ describe('verifyWatch', () => {
       v: 1,
       kind: 'secrets',
       userId: '@bas:mindroom.chat',
-      bundle: JSON.stringify({ cross_signing: {}, backup: null }),
+      bundle: JSON.stringify({ cross_signing: {}, backup: { key: 'k' } }),
     });
   });
 
@@ -150,15 +150,24 @@ describe('verifyWatch', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  it('still verifies the watch when there is no backup to share', async () => {
-    const { mx, crossSignDevice } = client({
+  it('sends the cross-signing keys and says so when there is no backup to share', async () => {
+    // The export leaves the backup out when there is none; it does not fail.
+    const bundle = { cross_signing: { master_key: 'm' } };
+    const { mx, crossSignDevice } = client({ exportBundle: async () => bundle });
+    const send = vi.fn(async (_message: WatchSecrets) => undefined);
+    await expect(verifyWatch(mx, 'WATCH', send, options)).resolves.toBe('no-backup');
+    expect(crossSignDevice).toHaveBeenCalledWith('WATCH');
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ bundle: JSON.stringify(bundle) }));
+  });
+
+  it('fails when the secrets cannot be exported', async () => {
+    const { mx } = client({
       exportBundle: async () => {
-        throw new Error('no backup key');
+        throw new Error('no backup version');
       },
     });
     const send = vi.fn();
-    await expect(verifyWatch(mx, 'WATCH', send, options)).resolves.toBe('no-backup');
-    expect(crossSignDevice).toHaveBeenCalledWith('WATCH');
+    await expect(verifyWatch(mx, 'WATCH', send, options)).rejects.toThrow('no backup version');
     expect(send).not.toHaveBeenCalled();
   });
 

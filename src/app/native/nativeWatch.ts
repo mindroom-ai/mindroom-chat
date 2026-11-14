@@ -21,7 +21,8 @@ export type WatchSecrets = { v: 1; kind: 'secrets'; userId: string; bundle: stri
 export type WatchDevice = { userId: string; deviceId: string };
 
 /** A thread the watch handed off to the iPhone (Handoff from the watch's thread screen). */
-export type WatchThread = { roomId: string; threadId: string };
+/** `userId`: the account the watch shows the thread as. */
+export type WatchThread = { roomId: string; threadId: string; userId?: string };
 
 export type WatchStatus = {
   /** An Apple Watch is paired with this iPhone. */

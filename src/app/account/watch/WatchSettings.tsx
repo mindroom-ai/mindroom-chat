@@ -162,7 +162,7 @@ function WatchSettingsSection() {
   else if (step.kind === 'message') description = step.text;
   else if (deviceId) description = t(`${W}.connected`, { deviceId });
 
-  const busy = step.kind === 'connecting' || step.kind === 'verifying';
+  const busy = step.kind === 'connecting' || step.kind === 'waiting' || step.kind === 'verifying';
   let action = null;
   // A remembered watch can always be disconnected: its device is deleted on the server even when the
   // watch is unpaired or gone.

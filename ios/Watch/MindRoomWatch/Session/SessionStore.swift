@@ -27,9 +27,15 @@ enum SessionStore {
                        homeserverUrl: saved.homeserverUrl, oauthData: nil, slidingSyncVersion: .native)
     }
 
-    /// The SQLite store's passphrase: 32 random bytes made once per install.
-    static func passphrase() -> String {
-        if let data = read(passphraseItem) { return String(decoding: data, as: UTF8.self) }
+    /// The SQLite store's passphrase: 32 random bytes made once per install. A Keychain that cannot be read
+    /// right now (before the first unlock) throws: a new passphrase would lock the store out for good.
+    static func passphrase() throws -> String {
+        var item = query(passphraseItem)
+        item[kSecReturnData as String] = true
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(item as CFDictionary, &result)
+        if status == errSecSuccess, let data = result as? Data { return String(decoding: data, as: UTF8.self) }
+        guard status == errSecItemNotFound else { throw SessionStoreError.keychain(status) }
         let value = SymmetricKey(size: .bits256).withUnsafeBytes { Data($0).base64EncodedString() }
         write(passphraseItem, Data(value.utf8))
         return value
@@ -80,4 +86,8 @@ enum SessionStore {
     private static func delete(_ account: String) {
         SecItemDelete(query(account) as CFDictionary)
     }
+}
+
+enum SessionStoreError: Error {
+    case keychain(OSStatus)
 }

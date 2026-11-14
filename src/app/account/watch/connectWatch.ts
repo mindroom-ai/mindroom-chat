@@ -68,7 +68,8 @@ const wait = (ms: number) =>
  * other devices and other people trust it, then sends it this account's secrets bundle (the private
  * cross-signing keys and the key backup's key), which makes the watch trust the account's devices in
  * turn and turns key backup on there, so it reads messages from before it signed in. Needs this
- * device to hold the cross-signing keys; without a key backup the watch is verified but gets no bundle.
+ * device to hold the cross-signing keys; without a key backup the bundle holds only those
+ * (`no-backup`). An export that fails throws.
  */
 export const verifyWatch = async (
   mx: MatrixClient,
@@ -92,13 +93,10 @@ export const verifyWatch = async (
     await wait(pollMs);
   }
   await crypto.crossSignDevice(deviceId);
-  let bundle: unknown;
-  try {
-    bundle = await crypto.exportSecretsBundle?.();
-  } catch {
-    bundle = undefined;
-  }
+  const bundle: unknown = await crypto.exportSecretsBundle?.();
   if (bundle === undefined) return 'no-backup';
   await send({ v: 1, kind: 'secrets', userId, bundle: JSON.stringify(bundle) });
-  return 'verified';
+  // The export leaves the key backup out when this account has none.
+  const backup = (bundle as { backup?: unknown }).backup;
+  return backup === undefined || backup === null ? 'no-backup' : 'verified';
 };

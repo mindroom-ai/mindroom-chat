@@ -95,6 +95,7 @@ enum WatchHandoff {
               let roomId = activity.userInfo?["roomId"] as? String,
               let threadId = activity.userInfo?["threadId"] as? String else { return false }
         pending = ["roomId": roomId, "threadId": threadId]
+        if let userId = activity.userInfo?["userId"] as? String { pending?["userId"] = userId }
         NotificationCenter.default.post(name: notification, object: nil)
         return true
     }

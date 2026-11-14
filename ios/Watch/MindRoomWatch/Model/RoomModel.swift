@@ -16,6 +16,8 @@ struct ThreadRow: Identifiable, Equatable {
     let ts: Int
     /// When the root was sent.
     let rootTs: Int
+    /// The person sent the root (a message of theirs, which Send follows).
+    let ownRoot: Bool
 }
 
 /// The default room: its threads (and the user's own messages nobody answered yet), new voice
@@ -38,8 +40,10 @@ final class RoomModel: ObservableObject {
     private var refreshing = false
     private var refreshAgain = false
     private var snapshots: [String: ThreadSnapshot] = [:]
-    /// What the thread list said of each thread when its snapshot was read (newest event, reply count).
-    private var snapshotKeys: [String: String] = [:]
+    /// What the thread list said of each thread when its snapshot was read (newest event, reply count), and when.
+    private var snapshotReads: [String: (key: String, at: Date)] = [:]
+    /// How long a quiet thread's snapshot stands before it is read again (edits, keys that came later).
+    private static let snapshotLifetime: TimeInterval = 60
     private var resolved: Set<String> = []
     /// The thread rows as last read from the server, kept when the list cannot be read (offline).
     private var threadRows: [ThreadRow] = []
@@ -140,15 +144,22 @@ final class RoomModel: ObservableObject {
             return
         }
         if let resolved = await resolvedRoots() { self.resolved = resolved }
-        let items = threads.items().prefix(Self.pageSize).filter { !resolved.contains($0.rootEvent.eventId) }
+        // Resolved threads do not count: read a few more pages while they fill the first one.
+        for _ in 0..<3 {
+            let open = threads.items().filter { !resolved.contains($0.rootEvent.eventId) }.count
+            guard open < Self.pageSize, threads.paginationState() != .idle(endReached: true) else { break }
+            do { try await threads.paginate() } catch { break }
+        }
+        let items = threads.items().filter { !resolved.contains($0.rootEvent.eventId) }.prefix(Self.pageSize)
         let roots = items.map(\.rootEvent.eventId)
         var rows: [ThreadRow] = []
         for item in items {
             let rootId = item.rootEvent.eventId
             let key = "\(item.latestEvent?.eventId ?? rootId) \(item.numReplies)"
-            // A thread nothing new happened in keeps its snapshot, unless it streams or waits for the person
-            // (edits and reactions there do not show in the list).
-            if let cached = snapshots[rootId], snapshotKeys[rootId] == key,
+            // A thread nothing new happened in keeps its snapshot for a minute, unless it streams or waits for
+            // the person (edits and reactions do not show in the list).
+            if let cached = snapshots[rootId], let read = snapshotReads[rootId], read.key == key,
+               Date().timeIntervalSince(read.at) < Self.snapshotLifetime,
                ![.running, .needsYou].contains(cached.rowState(lastSeenEventId: nil)) {
                 rows.append(row(cached))
                 continue
@@ -158,9 +169,7 @@ final class RoomModel: ObservableObject {
                 let related = jsons.dropFirst().compactMap(parse)
                 let snapshot = ThreadSnapshot.build(root: root, related: related, ownUserId: userId, now: Date())
                 snapshots[rootId] = snapshot
-                // A thread with events this device cannot decrypt yet is read again once its keys may have come.
-                let undecryptable = ([root] + related).contains { $0["type"] as? String == "m.room.encrypted" }
-                snapshotKeys[rootId] = undecryptable ? nil : key
+                snapshotReads[rootId] = (key, Date())
                 if let reply = snapshot.reply { await learnNames([reply.sender] + PlainText.mentionedUserIds(reply.text)) }
                 rows.append(row(snapshot))
             } else if let cached = snapshots[rootId] {
@@ -186,7 +195,7 @@ final class RoomModel: ObservableObject {
         }
         return ThreadRow(id: snapshot.rootId, rootId: snapshot.rootId, title: snapshot.title, line: line,
                          state: snapshot.rowState(lastSeenEventId: SeenStore.lastSeen(snapshot.rootId)), ts: snapshot.latestTs,
-                         rootTs: snapshot.rootTs)
+                         rootTs: snapshot.rootTs, ownRoot: snapshot.rootFromMe)
     }
 
     /// The user's own messages in the room that no thread holds yet: a voice message just sent,
@@ -214,7 +223,7 @@ final class RoomModel: ObservableObject {
             let title = isVoice ? String(localized: "Voice message") : PlainText.of(markdown: message.body)
             let state: ThreadRowState = failed ? .failed : queued ? .queued : .idle(Date(timeIntervalSince1970: Double(item.timestamp) / 1000))
             return ThreadRow(id: id, rootId: rootId, title: title, line: String(localized: "Sent"), state: state,
-                             ts: Int(item.timestamp), rootTs: Int(item.timestamp))
+                             ts: Int(item.timestamp), rootTs: Int(item.timestamp), ownRoot: true)
         }
     }
 

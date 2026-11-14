@@ -27,6 +27,7 @@ vi.mock('../../matrix/ClientStartupContext', () => ({
 }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
+    getSafeUserId: () => '@bas:x',
     getRoom: (roomId: string) =>
       state.joined.has(roomId) ? { getMyMembership: () => 'join' } : null,
   }),
@@ -49,6 +50,16 @@ describe('WatchHandoffFeature', () => {
     expect(state.navigateRoom).toHaveBeenCalledWith('!room:x', '$root', {
       state: OPENED_FROM_OUTSIDE_STATE,
     });
+  });
+
+  it('ignores a thread the watch opened as another account', async () => {
+    state.synced = true;
+    render(<WatchHandoffFeature />);
+    await act(async () => undefined);
+    await act(async () =>
+      state.listener?.({ roomId: '!room:x', threadId: '$root', userId: '@anna:x' })
+    );
+    expect(state.navigateRoom).not.toHaveBeenCalled();
   });
 
   it('ignores a room this account is not in', async () => {

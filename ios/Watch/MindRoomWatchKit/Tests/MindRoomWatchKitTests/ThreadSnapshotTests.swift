@@ -33,6 +33,7 @@ final class ThreadSnapshotTests: XCTestCase {
             "m.relates_to": ["rel_type": "m.replace", "event_id": "$reply"] as JSON])
         let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [echo, echoEdit, reply, replyEdit], ownUserId: me, now: now)
         XCTAssertTrue(snapshot.isVoiceRoot)
+        XCTAssertTrue(snapshot.rootFromMe)
         XCTAssertEqual(snapshot.title, "🎤 Remind me to call the dentist")
         XCTAssertEqual(snapshot.reply?.sender, agent)
         XCTAssertEqual(snapshot.reply?.text, "Reminder set for Saturday.")
@@ -101,6 +102,7 @@ final class ThreadSnapshotTests: XCTestCase {
         let snapshot = ThreadSnapshot.build(root: root, related: [], ownUserId: me, now: now)
         XCTAssertFalse(snapshot.isVoiceRoot)
         XCTAssertEqual(snapshot.title, "Book a table for four")
+        XCTAssertFalse(ThreadSnapshot.build(root: root, related: [], ownUserId: "@anna:x", now: now).rootFromMe)
         XCTAssertEqual(snapshot.latestEventId, "$root")
     }
 

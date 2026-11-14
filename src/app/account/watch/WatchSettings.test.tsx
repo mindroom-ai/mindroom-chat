@@ -182,6 +182,14 @@ describe('AppleWatch', () => {
     expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy();
   });
 
+  it('offers no second Connect while the watch signs in', async () => {
+    await renderSettings();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+    });
+    expect(screen.getByRole('button', { name: 'Connect' })).toHaveProperty('disabled', true);
+  });
+
   it('ignores a sign-in of another account', async () => {
     await renderSettings();
     await connectThenSignIn({ userId: '@other:mindroom.chat', deviceId: 'X' });

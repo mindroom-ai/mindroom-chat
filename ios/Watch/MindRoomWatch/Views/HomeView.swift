@@ -213,10 +213,10 @@ private struct RoomHome: View {
         return counts.needsYou + counts.running == 0 ? String(localized: "Tap to talk") : counts.summary
     }
 
-    /// After Send: opens the message's thread once it has an id, if it is the room's newest.
+    /// After Send: opens the message's thread once it has an id: the person's newest message that was not there before.
     private func openSent(_ rows: [ThreadRow]) {
         guard let known = following, path.isEmpty,
-              let newest = rows.filter({ $0.rootId != nil }).max(by: { $0.rootTs < $1.rootTs }),
+              let newest = rows.filter({ $0.rootId != nil && $0.ownRoot }).max(by: { $0.rootTs < $1.rootTs }),
               let rootId = newest.rootId, !known.contains(rootId) else { return }
         following = nil
         path = [ThreadTarget(roomId: model.room.id(), rootId: rootId)]

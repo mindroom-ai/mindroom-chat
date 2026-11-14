@@ -16,6 +16,8 @@ public struct ThreadSnapshot: Equatable, Sendable {
     public let rootTs: Int
     public let title: String
     public let isVoiceRoot: Bool
+    /// The person sent the root.
+    public let rootFromMe: Bool
     /// The newest reply from anyone else, not a relay.
     public let reply: Reply?
     public let approvals: [ApprovalCard]
@@ -125,7 +127,8 @@ public struct ThreadSnapshot: Equatable, Sendable {
         }
         let latest = conversation.last ?? root
         return ThreadSnapshot(
-            rootId: rootId, rootTs: root.timestamp, title: title, isVoiceRoot: isVoiceRoot, reply: reply, approvals: approvals,
+            rootId: rootId, rootTs: root.timestamp, title: title, isVoiceRoot: isVoiceRoot,
+            rootFromMe: (root["sender"] as? String) == ownUserId, reply: reply, approvals: approvals,
             pendingApproval: pendingApproval, openQuestion: openQuestion, latestEventId: latest.eventId ?? rootId, latestTs: latest.timestamp,
             latestFromMe: (latest["sender"] as? String) == ownUserId,
             latestRun: RunState.of(latest, latestEdit: edit(latest)))

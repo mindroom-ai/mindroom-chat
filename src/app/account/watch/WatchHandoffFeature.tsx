@@ -8,7 +8,8 @@ import { onWatchOpenThread, type WatchThread } from '../../native/nativeWatch';
 
 /**
  * On the iOS app, opens the thread the Apple Watch hands off ("Open on iPhone") once the first
- * sync is done, as a tapped push opens its message. A room this account is not in is ignored.
+ * sync is done, as a tapped push opens its message. A room this account is not in, or a thread the
+ * watch shows as another account, is ignored.
  */
 export function WatchHandoffFeature() {
   const mx = useMatrixClient();
@@ -32,6 +33,7 @@ export function WatchHandoffFeature() {
   useEffect(() => {
     if (!target || !hasCompletedInitialSync) return;
     setTarget(undefined);
+    if (target.userId && target.userId !== mx.getSafeUserId()) return;
     if (mx.getRoom(target.roomId)?.getMyMembership() !== KnownMembership.Join) return;
     navigateRoom(target.roomId, target.threadId, { state: OPENED_FROM_OUTSIDE_STATE });
   }, [hasCompletedInitialSync, mx, navigateRoom, target]);

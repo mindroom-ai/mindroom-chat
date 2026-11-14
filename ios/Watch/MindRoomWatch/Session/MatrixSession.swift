@@ -143,7 +143,7 @@ final class MatrixSession: ObservableObject {
     private func start(_ session: Session) async throws {
         let paths = SessionStore.paths(userId: session.userId)
         let store = SqliteStoreBuilder(dataPath: paths.data.path, cachePath: paths.cache.path)
-            .passphrase(passphrase: SessionStore.passphrase())
+            .passphrase(passphrase: try SessionStore.passphrase())
         let client = try await ClientBuilder()
             .homeserverUrl(url: session.homeserverUrl)
             .sqliteStore(config: store)
