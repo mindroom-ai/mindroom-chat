@@ -1,4 +1,4 @@
-import { generatePath } from 'react-router-dom';
+import { generatePath, matchPath } from 'react-router-dom';
 import { getAppBasePath } from '../lib/basePath';
 import {
   ACTIVITY_INVITES_PATH,
@@ -17,6 +17,7 @@ import {
   HOME_ROOM_PATH,
   HOME_SEARCH_PATH,
   LOGIN_PATH,
+  QUICK_CAPTURE_PATH,
   REGISTER_PATH,
   RESET_PASSWORD_PATH,
   ROOT_PATH,
@@ -47,6 +48,21 @@ export const decodeRouteParam = (value: string): string => {
   } catch {
     return value;
   }
+};
+
+/**
+ * Whether `pathname` is the quick capture widget's page: QUICK_CAPTURE_PATH under the app's base
+ * path, matched as the router matches it (the trailing slash optional). The hash router's form
+ * is not read: its setting comes with the client config, after startup.
+ */
+export const isQuickCapturePath = (
+  pathname: string,
+  basePath: string = getAppBasePath()
+): boolean => {
+  const base = trimSlashes(basePath);
+  const prefix = base ? `/${base}` : '';
+  if (!pathname.startsWith(`${prefix}/`)) return false;
+  return matchPath({ path: QUICK_CAPTURE_PATH, end: true }, pathname.slice(prefix.length)) !== null;
 };
 
 /** Joins a stored `{ pathname, search, hash }` back into a single app path. */

@@ -20,6 +20,7 @@ import { keepEncryptedRoomTextOffDisk } from '../matrix/client/encryptedRoomText
 import { forgetEncryptedRecentThreadText } from '../event-store/threads/recentThreads';
 import { forgetEncryptedReplyText } from '../composer/roomInputDrafts';
 import { UnconfirmedRootsFeature } from '../composer/UnconfirmedRootsFeature';
+import { QuickCaptureHost } from '../quick-capture/QuickCaptureHost';
 
 /** The account's stores keep no text read out of its encrypted rooms. */
 function EncryptedRoomTextOffDiskFeature() {
@@ -37,8 +38,9 @@ function EncryptedRoomTextOffDiskFeature() {
  * threads' titles, invites, message notifications and the count in the page title, push, the emoji room, the bug
  * report rooms an administrator joins without accepting their invites, agents' connect links,
  * which open through the Connections portal signed in as this account, and the error reports of
- * sync, decryption and send failures when the deployment collects them, and no text of the
- * encrypted rooms in the account's stores on disk. The account's MindRoom
+ * sync, decryption and send failures when the deployment collects them, no text of the
+ * encrypted rooms in the account's stores on disk, and the quick capture widget's host
+ * (`QuickCaptureHost`), which serves the widget from this client. The account's MindRoom
  * settings are seeded behind the `ClientBindAtoms` gate instead, since the first render reads them.
  */
 export function ClientNonUIFeatures() {
@@ -60,6 +62,7 @@ export function ClientNonUIFeatures() {
       <ErrorReportingClientFeature />
       <EncryptedRoomTextOffDiskFeature />
       <UnconfirmedRootsFeature />
+      <QuickCaptureHost />
     </>
   );
 }

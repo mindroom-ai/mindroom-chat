@@ -12,16 +12,9 @@ import './app/i18n/i18n';
 import './app/plugins/registry';
 import { deletePluginStorageOfRemovedAccounts } from './app/plugins/pluginStorage';
 import App from './app/shell/App';
-import {
-  isNativeApp,
-  isNativeIOS,
-  registerNativeAppUrlCallbacks,
-} from './app/native/nativeSso';
+import { isNativeApp, isNativeIOS, registerNativeAppUrlCallbacks } from './app/native/nativeSso';
 import { installFlightRecorder } from './app/diagnostics/flightRecorder';
-import {
-  initializeDeepTraceRecorder,
-  recordDeepTraceEvent,
-} from './app/diagnostics/deepTrace';
+import { initializeDeepTraceRecorder, recordDeepTraceEvent } from './app/diagnostics/deepTrace';
 import {
   installIndexedDbLossRecovery,
   readRecoveryReloadAge,
@@ -44,6 +37,7 @@ import { createServiceWorkerUrl } from './app/config/serviceWorkerRegistration';
 import { markServiceWorkerUnavailable } from './app/matrix/hooks/useMediaAuthentication';
 import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from './boot/serviceWorkerNavigation';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/lib/basePath';
+import { isQuickCapturePath } from './app/routes/pathUtils';
 import { installErrorCapture } from './app/bug-reports/error-reporting/errorReporting';
 
 /** Marks the one reload that recovers a page the service worker does not control. */
@@ -61,7 +55,9 @@ const runSafely = (label: string, step: () => void): void => {
 
 const startDiagnostics = (): void => {
   // The flight recorder and deep tracing exist for the iOS app, where crashes leave no console.
-  if (isNativeIOS()) {
+  // They record the main web view: the quick capture widget's, beside it on the Mac, shares their
+  // storage and would take its live session for one that ended unexpectedly.
+  if (isNativeIOS() && !isQuickCapturePath(window.location.pathname)) {
     runSafely('flight recorder', () => {
       installFlightRecorder();
     });
@@ -91,8 +87,12 @@ const prepareDocument = (): void => {
   });
   runSafely('plugin storage of removed accounts', deletePluginStorageOfRemovedAccounts);
   runSafely('native app links', () => {
-    // Capacitor's App plugin reports the SSO and pairing links the native app opens with.
-    if (isNativeApp()) registerNativeAppUrlCallbacks(NativeApp);
+    // Capacitor's App plugin reports the SSO and pairing links the native app opens with. The
+    // quick capture widget's web view leaves them to the main one: followed there, a link would
+    // take the widget's window away from the widget, to a second copy of the app.
+    if (isNativeApp() && !isQuickCapturePath(window.location.pathname)) {
+      registerNativeAppUrlCallbacks(NativeApp);
+    }
   });
 };
 

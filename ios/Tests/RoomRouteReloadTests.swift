@@ -98,18 +98,20 @@ final class RoomRouteReloadTests: XCTestCase {
 
     private func checkNativePlugins(_ webView: WKWebView) async throws {
         // Invalid arguments return immediately without showing authentication or
-        // file-save UI, while exercising a real JS -> Swift -> JS round trip.
+        // file-save UI, while exercising a real JS -> Swift -> JS round trip. Quick
+        // Capture is the Mac's only.
         let errors = try await webView.callAsyncJavaScript("""
             return await Promise.all([
               ['MindRoomAuth', 'authenticate'],
               ['MindRoomFileSave', 'beginSave'],
+              ['MindRoomQuickCapture', 'hide'],
             ].map(async ([plugin, method]) => {
               try { await window.Capacitor.nativePromise(plugin, method, {}); }
               catch (error) { return error.code; }
               return 'unexpected success';
             }));
             """, arguments: [:], in: nil, contentWorld: .page) as? [String]
-        XCTAssertEqual(errors, ["INVALID_URL", "INVALID_PAGE"])
+        XCTAssertEqual(errors, ["INVALID_URL", "INVALID_PAGE", "UNSUPPORTED"])
     }
 
     private func nativeDiagnostics(_ webView: WKWebView) async throws -> [String: Any] {

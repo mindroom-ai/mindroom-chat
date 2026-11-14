@@ -11,27 +11,46 @@ const xcode = requireCapacitor('xcode');
 const appDirectory = resolve('ios/App/App');
 const info = plist.parse(readFileSync(resolve(appDirectory, 'Info.plist'), 'utf8'));
 
+const projectSource = readFileSync(resolve('ios/App/App.xcodeproj/project.pbxproj'), 'utf8');
+const appBuildSettings = projectSource
+  .split('isa = XCBuildConfiguration;')
+  .filter((section) => section.includes('PRODUCT_BUNDLE_IDENTIFIER = chat.mindroom.app;'));
+
 describe('iOS scene launch configuration', () => {
-  it('provides a single application scene for SDKs that require scene lifecycle adoption', () => {
+  it('provides the application scene first, and a second one only the Mac opens', () => {
     const manifest = info.UIApplicationSceneManifest;
     expect(manifest, 'iOS 27 rejects legacy application-only startup').toBeDefined();
-    expect(manifest.UIApplicationSupportsMultipleScenes).toBe(false);
+    // One scene on iPhone and iPad; the Mac also opens the Quick Capture window.
+    expect(manifest.UIApplicationSupportsMultipleScenes).toBe(
+      '$(MINDROOM_SUPPORTS_MULTIPLE_SCENES)'
+    );
+    expect(appBuildSettings).toHaveLength(2);
+    appBuildSettings.forEach((settings) => {
+      expect(settings).toContain('MINDROOM_SUPPORTS_MULTIPLE_SCENES = NO;');
+      expect(settings).toContain('"MINDROOM_SUPPORTS_MULTIPLE_SCENES[sdk=macosx*]" = YES;');
+    });
     const scenes = manifest.UISceneConfigurations.UIWindowSceneSessionRoleApplication;
-    expect(scenes).toHaveLength(1);
-    expect(scenes[0].UISceneConfigurationName).toBeTruthy();
+    expect(scenes).toHaveLength(2);
+    expect(scenes[0].UISceneConfigurationName).toBe('Default Configuration');
+    expect(scenes[1]).toEqual({
+      UISceneConfigurationName: 'Quick Capture',
+      UISceneDelegateClassName: '$(PRODUCT_MODULE_NAME).QuickCaptureSceneDelegate',
+    });
     // This app creates its custom bridge in the scene delegate, so UIKit must
     // not create a second bridge from the old application or scene storyboard.
     expect(info.UIMainStoryboardFile).toBeUndefined();
     expect(scenes[0].UISceneStoryboardFile).toBeUndefined();
   });
 
-  it('compiles the scene delegate referenced by the launch manifest into the App target', () => {
-    const scenes =
+  it('compiles the scene delegates referenced by the launch manifest into the App target', () => {
+    const scenes: { UISceneDelegateClassName: string }[] =
       info.UIApplicationSceneManifest?.UISceneConfigurations?.UIWindowSceneSessionRoleApplication;
-    const delegateName = scenes?.[0]?.UISceneDelegateClassName;
-    expect(delegateName).toMatch(/^\$\(PRODUCT_MODULE_NAME\)\.[A-Za-z]+$/);
-    const fileName = `${delegateName.split('.').at(-1)}.swift`;
-    expect(existsSync(resolve(appDirectory, fileName))).toBe(true);
+    const fileNames = scenes.map(({ UISceneDelegateClassName: delegateName }) => {
+      expect(delegateName).toMatch(/^\$\(PRODUCT_MODULE_NAME\)\.[A-Za-z]+$/);
+      const fileName = `${delegateName.split('.').at(-1)}.swift`;
+      expect(existsSync(resolve(appDirectory, fileName))).toBe(true);
+      return fileName;
+    });
 
     const project = xcode.project(resolve('ios/App/App.xcodeproj/project.pbxproj'));
     project.parseSync();
@@ -43,7 +62,10 @@ describe('iOS scene launch configuration', () => {
       const reference = fileReferences[buildFiles[value].fileRef];
       return reference.path.replace(/^"|"$/g, '');
     });
-    expect(compiledPaths).toContain(fileName);
+    fileNames.forEach((fileName) => expect(compiledPaths).toContain(fileName));
     expect(compiledPaths).toContain('MindRoomBridgeViewController.swift');
+    ['MacWindowing.swift', 'MacScreenshot.swift', 'MindRoomQuickCapturePlugin.swift'].forEach(
+      (fileName) => expect(compiledPaths).toContain(fileName)
+    );
   });
 });
