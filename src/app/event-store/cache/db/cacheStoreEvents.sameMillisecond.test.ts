@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import { MatrixEvent } from 'matrix-js-sdk';
+import { Direction, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { resetCacheStoreForTesting } from '.';
 import { resetCacheHealthForTesting } from '../cacheHealth';
@@ -13,10 +13,14 @@ import {
 import {
   loadCachedRoomEventsBefore,
   loadCachedThreadEventsBefore,
+  loadLatestCachedThreadEvents,
   saveRoomEventsToCache,
   saveThreadEventsToCache,
 } from './cacheStoreEvents';
 import { loadCachedThreadEventsInSpan } from './cacheStoreThreadSpan';
+import { findEarliestLoadedThreadReplyByCacheOrder } from '../../timeline/threadPaginationUtils';
+import { mergeThreadRenderEvents } from '../../threads/threadRenderUtils';
+import { prependCachedRoomTimeline } from '../../sdk/roomTimelineSdk';
 
 // The cache orders events by sent time, then event ID; the server's order inside one millisecond
 // is unknown to it. The room's and the thread's pagers, which drop the events they hold, ask a
@@ -106,6 +110,53 @@ it('gives the room pager only the held events of the millisecond when nothing ol
   expect(snapshot.events.map((event) => event.getId())).toEqual(['$zzz']);
   expect(snapshot.hasMoreCachedBack).toBe(false);
 });
+
+it.each([null, 'cached-token'])(
+  "keeps the room's back cursor when only events of the millisecond are new (saved token %s)",
+  async (token) => {
+    // $zzz was saved as the earliest of its page with a backward token; nothing older than the
+    // loaded $aaa's millisecond is cached.
+    await saveRoomEventsToCache('session', ROOM, [message('$zzz', 1000)], token);
+    await saveRoomEventsToCache('session', ROOM, [message('$aaa', 1000)]);
+    const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: '@alice:test' });
+    const room = new Room(ROOM, mx, '@alice:test', { timelineSupport: true });
+    const loaded = new MatrixEvent(message('$aaa', 1000));
+    await room.addLiveEvents([loaded], { addToState: false });
+    const timeline = room.getLiveTimeline();
+    timeline.setPaginationToken('server-cursor', Direction.Backward);
+
+    // Before #342 the page before $aaa was empty, a miss: the server paged from its cursor.
+    const strict = await loadCachedRoomEventsBefore(
+      'session',
+      ROOM,
+      { eventId: '$aaa', ts: 1000 },
+      10
+    );
+    expect(strict.events).toEqual([]);
+
+    const snapshot = await loadRoomCachedPaginationSnapshot({
+      sessionId: 'session',
+      roomId: ROOM,
+      earliestLoadedEvent: loaded,
+      limit: 10,
+      mapEvent: (raw) => new MatrixEvent(raw),
+    });
+    expect(snapshot.status).toBe('cache-hit');
+    expect(snapshot.events.map((event) => event.getId())).toEqual(['$zzz']);
+    await prependCachedRoomTimeline({
+      mx,
+      room,
+      events: snapshot.events,
+      firstTimeline: timeline,
+      beforeToken: snapshot.beforeToken,
+      showThreadRepliesInRoom: false,
+    });
+
+    // $zzz's token says what lies before $zzz, not before $aaa: events between them that the cache
+    // lacks would be skipped, or the room's history would seem to end.
+    expect(timeline.getPaginationToken(Direction.Backward)).toBe('server-cursor');
+  }
+);
 
 it('finds nothing older for the back state when only held events share the millisecond', async () => {
   await saveRoomEventsToCache('session', ROOM, [message('$zzz', 1000), message('$aaa', 1000)]);
@@ -250,5 +301,79 @@ describe('thread replies of one millisecond', () => {
     expect(older.map((event) => event.event_id)).toEqual(['$older', '$aaa']);
     expect(newer.map((event) => event.event_id)).toEqual(['$zzz', '$newer']);
     expect(inverted).toEqual([]);
+  });
+});
+
+it("anchors the thread pager on the store's earliest reply when IDs of one millisecond differ in case", async () => {
+  await saveThreadEventsToCache('session', ROOM, '$root', [
+    message('$a', 1000, '$root'),
+    message('$B', 1000, '$root'),
+  ]);
+
+  const stored = await loadLatestCachedThreadEvents('session', ROOM, '$root', 10);
+  const earliest = findEarliestLoadedThreadReplyByCacheOrder(
+    stored.events.map((raw) => new MatrixEvent(raw)),
+    '$root'
+  );
+
+  expect(ids(stored.events)).toEqual(['$B', '$a']);
+  expect(earliest?.getId()).toBe('$B');
+});
+
+describe('a pair of one millisecond the client holds in server order', () => {
+  // The server sent $a, then $B; cache order puts $B first. The cached page comes back in cache
+  // order; merging it with the events the client holds keeps theirs, in their order, once each.
+
+  it('stays in place when the room prepends a cached page that holds it', async () => {
+    await saveRoomEventsToCache('session', ROOM, [
+      message('$older', 900),
+      message('$a', 1000),
+      message('$B', 1000),
+    ]);
+    const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: '@alice:test' });
+    const room = new Room(ROOM, mx, '@alice:test', { timelineSupport: true });
+    const held = [new MatrixEvent(message('$a', 1000)), new MatrixEvent(message('$B', 1000))];
+    await room.addLiveEvents(held, { addToState: false });
+    const timeline = room.getLiveTimeline();
+
+    const snapshot = await loadRoomCachedPaginationSnapshot({
+      sessionId: 'session',
+      roomId: ROOM,
+      earliestLoadedEvent: held[0],
+      limit: 10,
+      mapEvent: (raw) => new MatrixEvent(raw),
+    });
+    await prependCachedRoomTimeline({
+      mx,
+      room,
+      events: snapshot.events,
+      firstTimeline: timeline,
+      beforeToken: snapshot.beforeToken,
+      showThreadRepliesInRoom: false,
+    });
+
+    expect(snapshot.events.map((event) => event.getId())).toEqual(['$B', '$older']);
+    expect(timeline.getEvents().map((event) => event.getId())).toEqual(['$older', '$a', '$B']);
+  });
+
+  it('stays in place when the thread merges a cached page that holds it', async () => {
+    await saveThreadEventsToCache('session', ROOM, '$root', [
+      message('$a', 1000, '$root'),
+      message('$B', 1000, '$root'),
+    ]);
+    const held = [
+      new MatrixEvent(message('$a', 1000, '$root')),
+      new MatrixEvent(message('$B', 1000, '$root')),
+    ];
+
+    const cached = await loadLatestCachedThreadEvents('session', ROOM, '$root', 10);
+    const merged = mergeThreadRenderEvents(
+      held,
+      cached.events.map((raw) => new MatrixEvent(raw))
+    );
+
+    expect(ids(cached.events)).toEqual(['$B', '$a']);
+    expect(merged.map((event) => event.getId())).toEqual(['$a', '$B']);
+    expect(merged).toEqual(held);
   });
 });
