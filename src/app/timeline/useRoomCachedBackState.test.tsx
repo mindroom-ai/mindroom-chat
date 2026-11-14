@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import type { Dispatch, SetStateAction } from 'react';
 import { act, create } from 'react-test-renderer';
 import { Direction, type EventTimeline, type Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -30,9 +29,11 @@ const makeTimeline = (): Timeline => {
 const room = { roomId: '!room:example.org' } as unknown as Room;
 
 type HookProps = Parameters<typeof useRoomCachedBackState>[0];
-type SetHasMore = Dispatch<SetStateAction<boolean>>;
+type SetHasMore = HookProps['setRoomHasMoreCachedBack'];
 
-const mountHook = (timeline: Timeline, setRoomHasMoreCachedBack: SetHasMore) => {
+const mountHook = () => {
+  const timeline = makeTimeline();
+  const setRoomHasMoreCachedBack = vi.fn<SetHasMore>();
   const props: Omit<HookProps, 'eventsLength'> = {
     alive: () => true,
     eventId: undefined,
@@ -52,6 +53,8 @@ const mountHook = (timeline: Timeline, setRoomHasMoreCachedBack: SetHasMore) => 
   }
   const renderer = create(<Probe eventsLength={1} />);
   return {
+    timeline,
+    setRoomHasMoreCachedBack,
     rerender: (eventsLength: number) => renderer.update(<Probe eventsLength={eventsLength} />),
     unmount: () => renderer.unmount(),
   };
@@ -67,9 +70,8 @@ describe('useRoomCachedBackState', () => {
     process.on('unhandledRejection', unhandled);
     try {
       loadSnapshot.mockRejectedValueOnce(new DOMException('closing', 'InvalidStateError'));
-      const timeline = makeTimeline();
-      const setRoomHasMoreCachedBack = vi.fn<SetHasMore>();
-      const hook = mountHook(timeline, setRoomHasMoreCachedBack);
+      const hook = mountHook();
+      const { timeline, setRoomHasMoreCachedBack } = hook;
       await act(async () => {
         await new Promise((resolve) => {
           setTimeout(resolve, 0);
@@ -92,9 +94,8 @@ describe('useRoomCachedBackState', () => {
       cachedBeforeToken: null,
       hasCachedBack: true,
     });
-    const timeline = makeTimeline();
-    const setRoomHasMoreCachedBack = vi.fn<SetHasMore>();
-    const hook = mountHook(timeline, setRoomHasMoreCachedBack);
+    const hook = mountHook();
+    const { timeline, setRoomHasMoreCachedBack } = hook;
     await act(async () => {
       await Promise.resolve();
     });

@@ -87,14 +87,8 @@ export const useRoomCachedBackState = ({
         });
         return undefined;
       });
-      if (
-        !cachedBackState ||
-        cancelled ||
-        !alive() ||
-        roomIdRef.current !== room.roomId ||
-        threadIdRef.current
-      )
-        return;
+      if (!cachedBackState) return;
+      if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
 
       if (cachedBackState.cachedBeforeToken === null) markRoomStart();
 
