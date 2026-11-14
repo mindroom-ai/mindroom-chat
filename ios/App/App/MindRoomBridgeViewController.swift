@@ -40,6 +40,7 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(MindRoomFileSavePlugin())
         bridge?.registerPluginInstance(MindRoomDiagnosticsPlugin())
         bridge?.registerPluginInstance(MindRoomQuickCapturePlugin())
+        bridge?.registerPluginInstance(MindRoomWatchPlugin())
     }
 
     override func viewDidAppear(_ animated: Bool) {

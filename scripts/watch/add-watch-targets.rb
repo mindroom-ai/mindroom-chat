@@ -116,11 +116,15 @@ embed_widgets = watch.new_copy_files_build_phase('Embed Foundation Extensions')
 embed_widgets.symbol_dst_subfolder_spec = :plug_ins
 embed_widgets.add_file_reference(widgets.product_reference).settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
 
+# The iPhone only: the Mac build of the app (Mac Catalyst) has no watch app.
 app.add_dependency(watch)
+app.dependencies.find { |dependency| dependency.target == watch }.platform_filter = 'ios'
 embed_watch = app.new_copy_files_build_phase('Embed Watch Content')
 embed_watch.dst_subfolder_spec = '16'
 embed_watch.dst_path = '$(CONTENTS_FOLDER_PATH)/Watch'
-embed_watch.add_file_reference(watch.product_reference).settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
+embedded = embed_watch.add_file_reference(watch.product_reference)
+embedded.settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
+embedded.platform_filter = 'ios'
 
 project.save
 puts 'Added MindRoomWatch and MindRoomWatchWidgets'

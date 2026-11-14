@@ -632,6 +632,23 @@
         "noWindow": "最前面的 App 没有窗口",
         "failed": "截图失败"
       }
+    },
+    "watch": {
+      "title": "Apple Watch",
+      "description": "在房间中录制语音消息，并在手腕上回复你的智能体。",
+      "noWatch": "此 iPhone 未配对 Apple Watch。",
+      "notInstalled": "请通过此 iPhone 上的 Watch 应用在 Apple Watch 上安装 MindRoom。",
+      "notConnected": "未连接。",
+      "connect": "连接",
+      "connecting": "正在连接…",
+      "waiting": "请在 Apple Watch 上打开 MindRoom 以完成。",
+      "verifying": "正在验证手表…",
+      "connected": "已作为 {{deviceId}} 连接。",
+      "disconnect": "断开连接",
+      "unsupported": "此主服务器无法登录 Apple Watch。",
+      "failed": "无法连接：{{reason}}",
+      "noCrossSigning": "手表已连接但未验证：请在此 iPhone 上设置加密以验证它。",
+      "timeout": "手表未完成登录。请在手表上打开 MindRoom 并重新连接。"
     }
   },
   "mindroomUi": {

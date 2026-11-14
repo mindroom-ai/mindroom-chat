@@ -641,6 +641,23 @@
         "noWindow": "The app in front has no window",
         "failed": "The screenshot failed"
       }
+    },
+    "watch": {
+      "title": "Apple Watch",
+      "description": "Record voice messages into a room and answer your agents from your wrist.",
+      "noWatch": "No Apple Watch is paired with this iPhone.",
+      "notInstalled": "Install MindRoom on your Apple Watch from the Watch app on this iPhone.",
+      "notConnected": "Not connected.",
+      "connect": "Connect",
+      "connecting": "Connecting…",
+      "waiting": "Open MindRoom on your Apple Watch to finish.",
+      "verifying": "Verifying the watch…",
+      "connected": "Connected as {{deviceId}}.",
+      "disconnect": "Disconnect",
+      "unsupported": "This homeserver cannot sign in an Apple Watch.",
+      "failed": "Could not connect: {{reason}}",
+      "noCrossSigning": "The watch is connected but unverified: set up encryption on this iPhone to verify it.",
+      "timeout": "The watch did not finish signing in. Open MindRoom on the watch and connect again."
     }
   },
   "mindroomUi": {

@@ -373,6 +373,7 @@ describe('buildIOSPushPusherRequest', () => {
               body: 'New message',
             },
             sound: 'default',
+            category: 'MINDROOM_EVENT',
           },
         },
       },
@@ -402,6 +403,7 @@ describe('buildIOSPushPusherRequest', () => {
         mindroom_account: 'account-tag',
         aps: {
           sound: 'default',
+          category: 'MINDROOM_EVENT',
         },
       },
     });
@@ -522,7 +524,11 @@ describe('upsertIOSPushPusher', () => {
         data: expect.objectContaining({
           format: 'event_id_only',
           default_payload: {
-            aps: { sound: 'default', alert: { title: 'Chat', body: 'New message' } },
+            aps: {
+              sound: 'default',
+              category: 'MINDROOM_EVENT',
+              alert: { title: 'Chat', body: 'New message' },
+            },
             mindroom_account: expect.any(String),
           },
         }),

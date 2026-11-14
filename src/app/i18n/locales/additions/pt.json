@@ -650,6 +650,23 @@
         "noWindow": "O app em primeiro plano não tem janela",
         "failed": "A captura falhou"
       }
+    },
+    "watch": {
+      "title": "Apple Watch",
+      "description": "Grave mensagens de voz numa sala e responda aos seus agentes a partir do pulso.",
+      "noWatch": "Nenhum Apple Watch está emparelhado com este iPhone.",
+      "notInstalled": "Instale o MindRoom no seu Apple Watch pela app Watch deste iPhone.",
+      "notConnected": "Não conectado.",
+      "connect": "Conectar",
+      "connecting": "Conectando…",
+      "waiting": "Abra o MindRoom no seu Apple Watch para concluir.",
+      "verifying": "Verificando o relógio…",
+      "connected": "Conectado como {{deviceId}}.",
+      "disconnect": "Desconectar",
+      "unsupported": "Este servidor não consegue iniciar sessão num Apple Watch.",
+      "failed": "Não foi possível conectar: {{reason}}",
+      "noCrossSigning": "O relógio está conectado mas não verificado: configure a criptografia neste iPhone para verificá-lo.",
+      "timeout": "O relógio não concluiu o início de sessão. Abra o MindRoom no relógio e conecte novamente."
     }
   },
   "mindroomUi": {

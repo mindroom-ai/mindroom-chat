@@ -641,6 +641,23 @@
         "noWindow": "सबसे आगे वाले ऐप में कोई विंडो नहीं है",
         "failed": "स्क्रीनशॉट विफल रहा"
       }
+    },
+    "watch": {
+      "title": "Apple Watch",
+      "description": "किसी रूम में वॉइस संदेश रिकॉर्ड करें और अपनी कलाई से अपने एजेंटों को जवाब दें।",
+      "noWatch": "इस iPhone के साथ कोई Apple Watch पेयर नहीं है।",
+      "notInstalled": "इस iPhone पर Watch ऐप से अपनी Apple Watch पर MindRoom इंस्टॉल करें।",
+      "notConnected": "कनेक्ट नहीं है।",
+      "connect": "कनेक्ट करें",
+      "connecting": "कनेक्ट हो रहा है…",
+      "waiting": "पूरा करने के लिए अपनी Apple Watch पर MindRoom खोलें।",
+      "verifying": "घड़ी की पुष्टि हो रही है…",
+      "connected": "{{deviceId}} के रूप में कनेक्ट है।",
+      "disconnect": "डिस्कनेक्ट करें",
+      "unsupported": "यह होमसर्वर Apple Watch में साइन इन नहीं कर सकता।",
+      "failed": "कनेक्ट नहीं हो सका: {{reason}}",
+      "noCrossSigning": "घड़ी कनेक्ट है पर सत्यापित नहीं: इसे सत्यापित करने के लिए इस iPhone पर एन्क्रिप्शन सेट करें।",
+      "timeout": "घड़ी ने साइन इन पूरा नहीं किया। घड़ी पर MindRoom खोलें और फिर से कनेक्ट करें।"
     }
   },
   "mindroomUi": {

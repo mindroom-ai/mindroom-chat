@@ -28,6 +28,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         windowScene.sizeRestrictions?.minimumSize = CGSize(width: 400, height: 500)
 #endif
 
+        // A Handoff from the watch waits in WatchHandoff until the plugin passes it to the web app.
+        connectionOptions.userActivities.forEach { _ = WatchHandoff.receive($0) }
         // Capacitor defers cold-start links until the bridge plugins are ready.
         SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
     }
@@ -37,6 +39,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+        // "Open on iPhone" from the Apple Watch app.
+        if WatchHandoff.receive(userActivity) { return }
         SceneDelegateProxy.shared.scene(scene, continue: userActivity)
     }
 

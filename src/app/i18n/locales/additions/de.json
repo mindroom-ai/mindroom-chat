@@ -641,6 +641,23 @@
         "noWindow": "Die App im Vordergrund hat kein Fenster",
         "failed": "Der Screenshot ist fehlgeschlagen"
       }
+    },
+    "watch": {
+      "title": "Apple Watch",
+      "description": "Sprachnachrichten in einen Raum aufnehmen und deinen Agenten vom Handgelenk aus antworten.",
+      "noWatch": "Mit diesem iPhone ist keine Apple Watch gekoppelt.",
+      "notInstalled": "Installiere MindRoom auf deiner Apple Watch über die Watch-App auf diesem iPhone.",
+      "notConnected": "Nicht verbunden.",
+      "connect": "Verbinden",
+      "connecting": "Verbinde…",
+      "waiting": "Öffne MindRoom auf deiner Apple Watch, um abzuschließen.",
+      "verifying": "Watch wird verifiziert…",
+      "connected": "Verbunden als {{deviceId}}.",
+      "disconnect": "Trennen",
+      "unsupported": "Dieser Homeserver kann keine Apple Watch anmelden.",
+      "failed": "Verbindung fehlgeschlagen: {{reason}}",
+      "noCrossSigning": "Die Watch ist verbunden, aber nicht verifiziert: Richte auf diesem iPhone die Verschlüsselung ein, um sie zu verifizieren.",
+      "timeout": "Die Watch hat die Anmeldung nicht abgeschlossen. Öffne MindRoom auf der Watch und verbinde erneut."
     }
   },
   "mindroomUi": {

@@ -396,6 +396,15 @@ export const SETTINGS = [
     scope: 'account',
   },
   {
+    id: 'appleWatch',
+    page: 'privacy',
+    group: 'featureUi.watch.title',
+    labelKey: 'featureUi.watch.description',
+    keywordsKey: `${KEYWORDS}.sessions`,
+    scope: 'account',
+    hidden: (context) => !context.nativeIOS,
+  },
+  {
     id: 'exportKeys',
     page: 'privacy',
     group: `${DEVICES}.localBackup.localBackup`,

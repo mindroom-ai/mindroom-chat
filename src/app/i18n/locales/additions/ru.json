@@ -659,6 +659,23 @@
         "noWindow": "У приложения на переднем плане нет окна",
         "failed": "Не удалось сделать снимок экрана"
       }
+    },
+    "watch": {
+      "title": "Apple Watch",
+      "description": "Записывайте голосовые сообщения в комнату и отвечайте агентам с запястья.",
+      "noWatch": "С этим iPhone не объединены Apple Watch.",
+      "notInstalled": "Установите MindRoom на Apple Watch через приложение Watch на этом iPhone.",
+      "notConnected": "Не подключено.",
+      "connect": "Подключить",
+      "connecting": "Подключение…",
+      "waiting": "Откройте MindRoom на Apple Watch, чтобы завершить.",
+      "verifying": "Проверка часов…",
+      "connected": "Подключено как {{deviceId}}.",
+      "disconnect": "Отключить",
+      "unsupported": "Этот сервер не может выполнить вход на Apple Watch.",
+      "failed": "Не удалось подключить: {{reason}}",
+      "noCrossSigning": "Часы подключены, но не проверены: настройте шифрование на этом iPhone, чтобы проверить их.",
+      "timeout": "Часы не завершили вход. Откройте MindRoom на часах и подключите снова."
     }
   },
   "mindroomUi": {

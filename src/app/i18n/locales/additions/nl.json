@@ -641,6 +641,23 @@
         "noWindow": "De voorste app heeft geen venster",
         "failed": "De schermafbeelding is mislukt"
       }
+    },
+    "watch": {
+      "title": "Apple Watch",
+      "description": "Spraakberichten opnemen in een ruimte en je agents antwoorden vanaf je pols.",
+      "noWatch": "Er is geen Apple Watch gekoppeld aan deze iPhone.",
+      "notInstalled": "Installeer MindRoom op je Apple Watch via de Watch-app op deze iPhone.",
+      "notConnected": "Niet verbonden.",
+      "connect": "Verbinden",
+      "connecting": "Verbinden…",
+      "waiting": "Open MindRoom op je Apple Watch om af te ronden.",
+      "verifying": "Watch verifiëren…",
+      "connected": "Verbonden als {{deviceId}}.",
+      "disconnect": "Ontkoppelen",
+      "unsupported": "Deze homeserver kan geen Apple Watch aanmelden.",
+      "failed": "Verbinden mislukt: {{reason}}",
+      "noCrossSigning": "De watch is verbonden maar niet geverifieerd: stel versleuteling in op deze iPhone om hem te verifiëren.",
+      "timeout": "De watch heeft het aanmelden niet afgerond. Open MindRoom op de watch en verbind opnieuw."
     }
   },
   "mindroomUi": {

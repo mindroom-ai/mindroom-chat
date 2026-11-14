@@ -7,10 +7,12 @@ import { AdvancedFold } from '../../ui/settings/AdvancedFold';
 import { BlockedUsers } from '../../account/settings/BlockedUsers';
 import { DeviceSettings } from '../../account/devices/Devices';
 import { LocalKeyBackup } from '../../account/devices/LocalKeyBackup';
+import { WatchSettings } from '../../account/watch/WatchSettings';
 
 /**
  * What others learn from this client (activity, link previews in encrypted rooms), who is
- * blocked, and the account's encryption and sessions; key files sit in the Advanced fold.
+ * blocked, the account's encryption and sessions, and the Apple Watch on the iOS app; key files
+ * sit in the Advanced fold.
  */
 export function PrivacySecurity({ requestClose }: SettingsPageProps) {
   const { t } = useTranslation();
@@ -36,6 +38,7 @@ export function PrivacySecurity({ requestClose }: SettingsPageProps) {
       </SettingsSection>
       <BlockedUsers />
       <DeviceSettings trust={trust} />
+      <WatchSettings />
       {trust && (
         <AdvancedFold>
           <LocalKeyBackup />

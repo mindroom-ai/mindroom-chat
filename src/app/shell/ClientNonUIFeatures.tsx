@@ -21,6 +21,7 @@ import { forgetEncryptedRecentThreadText } from '../event-store/threads/recentTh
 import { forgetEncryptedReplyText } from '../composer/roomInputDrafts';
 import { UnconfirmedRootsFeature } from '../composer/UnconfirmedRootsFeature';
 import { QuickCaptureHost } from '../quick-capture/QuickCaptureHost';
+import { WatchHandoffFeature } from '../account/watch/WatchHandoffFeature';
 
 /** The account's stores keep no text read out of its encrypted rooms. */
 function EncryptedRoomTextOffDiskFeature() {
@@ -40,7 +41,8 @@ function EncryptedRoomTextOffDiskFeature() {
  * which open through the Connections portal signed in as this account, and the error reports of
  * sync, decryption and send failures when the deployment collects them, no text of the
  * encrypted rooms in the account's stores on disk, and the quick capture widget's host
- * (`QuickCaptureHost`), which serves the widget from this client. The account's MindRoom
+ * (`QuickCaptureHost`), which serves the widget from this client, and the threads the Apple Watch
+ * hands off (`WatchHandoffFeature`). The account's MindRoom
  * settings are seeded behind the `ClientBindAtoms` gate instead, since the first render reads them.
  */
 export function ClientNonUIFeatures() {
@@ -63,6 +65,7 @@ export function ClientNonUIFeatures() {
       <EncryptedRoomTextOffDiskFeature />
       <UnconfirmedRootsFeature />
       <QuickCaptureHost />
+      <WatchHandoffFeature />
     </>
   );
 }
