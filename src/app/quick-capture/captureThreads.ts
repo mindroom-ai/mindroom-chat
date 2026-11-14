@@ -8,6 +8,7 @@ import {
   getThreadMessageBodyPreview,
   localizeThreadPreview,
 } from '../event-store/threads/threadMessagePreview';
+import { isThreadPinned } from '../event-store/threads/threadPinning';
 import { getEditedEvent, getLatestMessageContent } from '../matrix/room';
 import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
@@ -19,20 +20,19 @@ import {
   threadTitleText,
 } from '../threads/cross-room/threadText';
 import { revealDirectionControls } from '../ui/directional';
-import type { CaptureThread } from './captureItems';
-
-type CaptureReply = Pick<CaptureThread, 'replyText' | 'replySender'>;
+import type { CaptureReply, CaptureThread } from './captureItems';
 
 /**
  * The reply's whole text, as its newest edit shows it, when it is a text message and loaded:
- * cleaned as the app's previews clean it (tool calls counted, Markdown dropped), its lines kept.
+ * cleaned as the app's previews clean it (tool calls counted, Markdown dropped), its lines kept,
+ * and as its sender wrote it.
  */
 const replyBody = (
   room: Room,
   rootId: string,
   eventId: string,
   t: TFunction
-): string | undefined => {
+): { text: string; own: string } | undefined => {
   const thread = room.getThread(rootId);
   const latest = thread?.replyToEvent;
   const event: MatrixEvent | undefined =
@@ -44,7 +44,8 @@ const replyBody = (
   );
   if (content.msgtype !== MsgType.Text || typeof content.body !== 'string') return undefined;
   const { text, localization } = getThreadMessageBodyPreview(content.body);
-  return localizeThreadPreview(text, localization, t);
+  const cleaned = localizeThreadPreview(text, localization, t);
+  return cleaned === undefined ? undefined : { text: cleaned, own: content.body };
 };
 
 /** The thread's newest reply and its sender: from the signals, else from the index's preview. */
@@ -59,10 +60,10 @@ const readReply = (
     senderId ? { replySender: threadActorName(mx, room, senderId) } : {};
   const reply = signals.lastReply;
   if (reply) {
+    const body = replyBody(room, entry.threadRootId, reply.eventId, t);
     return {
-      replyText:
-        replyBody(room, entry.threadRootId, reply.eventId, t) ??
-        threadPreviewText(t, reply.preview),
+      replyText: body?.text ?? threadPreviewText(t, reply.preview),
+      ...(body ? { copyText: body.own } : {}),
       ...sender(reply.senderId),
     };
   }
@@ -99,6 +100,8 @@ const unansweredRoots = (
         {
           threadId: eventId,
           title: revealDirectionControls(body),
+          reply: () => ({}),
+          pinned: isThreadPinned(room, eventId),
           streaming: false,
           needsYou: false,
           unread: false,
@@ -130,7 +133,8 @@ export const readCaptureThreads = (
       threads.push({
         threadId: entry.threadRootId,
         title: threadTitleText(entry),
-        ...readReply(mx, room, entry, signals, t),
+        reply: () => readReply(mx, room, entry, signals, t),
+        pinned: isThreadPinned(room, entry.threadRootId),
         streaming: entry.threadRecord.status.isStreaming,
         needsYou: !!signals.pendingApproval || !!signals.pendingQuestion,
         unread: entry.isUnread,

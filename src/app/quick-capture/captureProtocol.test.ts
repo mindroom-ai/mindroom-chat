@@ -82,6 +82,20 @@ describe('isCaptureMessage', () => {
     ).toBe(true);
   });
 
+  it('accepts an item with the reply as written and a pin, and no other pin', () => {
+    const item = { threadId: '$t', title: 'T', line: 'l', resolved: false, ts: 1 };
+    const withItem = (extra: Record<string, unknown>) =>
+      isCaptureMessage({
+        v: 1,
+        type: 'state',
+        hostId: 'a',
+        state: { ...state, items: [{ ...item, ...extra }] },
+      });
+    expect(withItem({ copyText: '**l**', pinned: true })).toBe(true);
+    expect(withItem({ pinned: false })).toBe(false);
+    expect(withItem({ copyText: 3 })).toBe(false);
+  });
+
   it('rejects malformed values', () => {
     expect(isCaptureMessage({ v: 2, type: 'hello' })).toBe(false);
     expect(isCaptureMessage({ v: 1, type: 'unknown' })).toBe(false);

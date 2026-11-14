@@ -56,7 +56,7 @@ const makeRoom = (roomId: string, name: string, lastActiveTs: number, space = fa
     name,
     isSpaceRoom: () => space,
     getLastActiveTimestamp: () => lastActiveTs,
-    getLiveTimeline: () => ({ getEvents: () => [] }),
+    getLiveTimeline: () => ({ getEvents: () => [], getState: () => undefined }),
     getUnfilteredTimelineSet: () => ({ relations: { getChildEventsForEvent: () => undefined } }),
     getThread: () => null,
     findEventById: () => undefined,

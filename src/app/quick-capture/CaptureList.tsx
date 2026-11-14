@@ -123,7 +123,8 @@ export function CaptureList({
   const fail = (threadId: string, code: CaptureErrorCode) => setRowError({ threadId, code });
 
   const resolve = async (item: CaptureItem) => {
-    if (isPending(item)) return;
+    // A pinned thread stays open: the app does not count a resolved tag on it.
+    if (isPending(item) || item.pinned) return;
     setRowError(undefined);
     const resolved = !item.resolved;
     // A resolved thread moves down among the resolved ones; the keyboard stays where it was.
@@ -145,7 +146,7 @@ export function CaptureList({
   };
 
   const copy = async (item: CaptureItem) => {
-    const text = item.replyText ?? item.line;
+    const text = item.copyText ?? item.replyText ?? item.line;
     if (text === '') return;
     if (await copyToClipboard(text)) setCopiedId(item.threadId);
   };
@@ -271,17 +272,23 @@ export function CaptureList({
         return (
           <div key={item.threadId} role="listitem" className={css.Item}>
             {/* As x does; the row keeps the keyboard, so the mark takes neither focus nor Tab. */}
-            <button
-              type="button"
-              className={classNames(css.Mark, item.resolved && css.MarkResolved)}
-              aria-label={resolveLabel}
-              tabIndex={-1}
-              disabled={isPending(item)}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => void resolve(item)}
-            >
-              {item.resolved && <Icon size="Inherit" src={Icons.Check} />}
-            </button>
+            {item.pinned ? (
+              <span className={classNames(css.Mark, css.MarkPinned)}>
+                <Icon size="Inherit" src={Icons.Pin} />
+              </span>
+            ) : (
+              <button
+                type="button"
+                className={classNames(css.Mark, item.resolved && css.MarkResolved)}
+                aria-label={resolveLabel}
+                tabIndex={-1}
+                disabled={isPending(item)}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => void resolve(item)}
+              >
+                {item.resolved && <Icon size="Inherit" src={Icons.Check} />}
+              </button>
+            )}
             <div
               ref={(element) => {
                 if (element) rows.current.set(item.threadId, element);
@@ -366,13 +373,15 @@ export function CaptureList({
                   >
                     {t('featureUi.quickCapture.peek.open')}
                   </PeekButton>
-                  <PeekButton
-                    keyCap="X"
-                    disabled={isPending(item)}
-                    onClick={() => void resolve(item)}
-                  >
-                    {resolveLabel}
-                  </PeekButton>
+                  {!item.pinned && (
+                    <PeekButton
+                      keyCap="X"
+                      disabled={isPending(item)}
+                      onClick={() => void resolve(item)}
+                    >
+                      {resolveLabel}
+                    </PeekButton>
+                  )}
                 </div>
                 {!isPending(item) && (
                   <input

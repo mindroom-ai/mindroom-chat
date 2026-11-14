@@ -123,6 +123,7 @@ export function CaptureInput({
       return;
     }
     onText('');
+    setShotError(undefined);
     // Only what went out: a screenshot started before the send may have come in since.
     setImages((current) => current.filter((image) => !images.includes(image)));
     inputRef.current?.focus();

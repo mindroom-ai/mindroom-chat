@@ -650,6 +650,18 @@ describe('QuickCapturePage attachments', () => {
     expect(openScreenRecordingSettings).toHaveBeenCalledTimes(1);
   });
 
+  it('drops a screenshot error once an entry is sent', async () => {
+    vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
+    vi.mocked(captureScreenshot).mockRejectedValue(new ScreenshotError('CAPTURE_FAILED'));
+    const rig = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Screenshot of the whole screen' }));
+    expect(await screen.findByText('The screenshot failed')).toBeTruthy();
+    type(input(), 'Without the picture');
+    press(input(), 'Enter');
+    await rig.respond({ ok: true, threadId: '$new' });
+    expect(screen.queryByText('The screenshot failed')).toBeNull();
+  });
+
   it('says when the app in front has no window', async () => {
     vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
     vi.mocked(captureScreenshot).mockRejectedValue(new ScreenshotError('NO_WINDOW'));
@@ -745,6 +757,37 @@ describe('QuickCapturePage list', () => {
     press(row('Why does slot 27 flake'), 'c');
     expect(copyToClipboard).toHaveBeenCalledWith('Running the suite again, with traces on.');
     expect(await screen.findByRole('button', { name: 'Copied' })).toBeTruthy();
+  });
+
+  it('copies the reply as its sender wrote it, where the item has that', () => {
+    setup(
+      roomState([
+        {
+          threadId: '$md',
+          title: 'Summarize the page',
+          line: 'Done',
+          replyText: 'Done',
+          copyText: '**Done**',
+          resolved: false,
+          ts: 1,
+        },
+      ])
+    );
+    press(input(), 'ArrowDown');
+    press(row('Summarize the page'), 'c');
+    expect(copyToClipboard).toHaveBeenCalledWith('**Done**');
+  });
+
+  it('shows a pin, not the mark that resolves, on a pinned thread, and x does nothing', () => {
+    const rig = setup(
+      roomState([
+        { threadId: '$pin', title: 'Pinned', line: '', pinned: true, resolved: false, ts: 1 },
+      ])
+    );
+    expect(within(item('Pinned')).queryByRole('button', { name: 'Done' })).toBeNull();
+    press(input(), 'ArrowDown');
+    press(row('Pinned'), 'x');
+    expect(rig.actions()).toEqual([]);
   });
 
   it('does nothing on x, r and Enter for an entry still being sent', () => {

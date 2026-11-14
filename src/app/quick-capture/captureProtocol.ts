@@ -9,7 +9,11 @@ export type CaptureItem = {
   lineSender?: string;
   /** The newest reply's plain text, at most 600 characters. */
   replyText?: string;
+  /** The newest reply as its sender wrote it, at most 600 characters, where it differs. */
+  copyText?: string;
   chip?: CaptureChip;
+  /** A pinned thread, which cannot be resolved. */
+  pinned?: true;
   resolved: boolean;
   ts: number;
 };
@@ -78,7 +82,9 @@ const isItem = (value: unknown): boolean =>
   isString(value.line) &&
   isOptional(value.lineSender, isString) &&
   isOptional(value.replyText, isString) &&
+  isOptional(value.copyText, isString) &&
   isOptional(value.chip, (chip) => CHIPS.includes(chip)) &&
+  isOptional(value.pinned, (pinned) => pinned === true) &&
   typeof value.resolved === 'boolean' &&
   typeof value.ts === 'number';
 

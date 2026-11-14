@@ -348,6 +348,9 @@ export const Mark = style({
   ':focus-visible': focusRing,
 });
 
+/** A pinned thread's mark: the pin, where the circle that resolves would be. */
+export const MarkPinned = style({ color: dim, borderColor: 'transparent' });
+
 export const MarkResolved = style({
   color: onAccent,
   borderColor: accent,

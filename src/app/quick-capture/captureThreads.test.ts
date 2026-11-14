@@ -44,7 +44,7 @@ const makeRoom = ({
 }: { timeline?: MatrixEvent[]; loaded?: MatrixEvent[] } = {}): Room =>
   ({
     roomId: ROOM_ID,
-    getLiveTimeline: () => ({ getEvents: () => timeline }),
+    getLiveTimeline: () => ({ getEvents: () => timeline, getState: () => undefined }),
     getUnfilteredTimelineSet: () => ({ relations: { getChildEventsForEvent: () => undefined } }),
     getThread: () => null,
     findEventById: (id: string) => loaded.find((event) => event.getId() === id),
@@ -95,6 +95,8 @@ describe('readCaptureThreads', () => {
       {
         threadId: '$a',
         title: 'AI title',
+        reply: expect.any(Function),
+        pinned: false,
         streaming: true,
         needsYou: false,
         unread: true,
@@ -104,6 +106,8 @@ describe('readCaptureThreads', () => {
       {
         threadId: '$b',
         title: 'root $b',
+        reply: expect.any(Function),
+        pinned: false,
         streaming: false,
         needsYou: false,
         unread: false,
@@ -146,9 +150,9 @@ describe('readCaptureThreads', () => {
 
     const [thread] = readCaptureThreads(mx, room, [makeEntry('$t')], t, NOW);
 
-    expect(thread?.replyText).toBe(body);
-    expect(thread?.replySender).toBe(threadActorName(mx, room, '@alice:x'));
-    expect(thread?.replySender).toBe('alice');
+    expect(thread?.reply().replyText).toBe(body);
+    expect(thread?.reply().replySender).toBe(threadActorName(mx, room, '@alice:x'));
+    expect(thread?.reply().replySender).toBe('alice');
   });
 
   it("cleans the newest reply's body as the previews do: tool calls counted, lines kept", () => {
@@ -166,9 +170,29 @@ describe('readCaptureThreads', () => {
 
     const [thread] = readCaptureThreads(mx, room, [makeEntry('$t')], t, NOW);
 
-    expect(thread?.replyText).toBe(
+    expect(thread?.reply().replyText).toBe(
       '🔧 t:sharedUi.threadPreviews.tools · All green.\n\nNext: deploy.'
     );
+    // Copy takes the reply as its sender wrote it.
+    expect(thread?.reply().copyText).toBe(body);
+  });
+
+  it('says which threads are pinned, from the room state', () => {
+    const pinned = new MatrixEvent({
+      type: 'm.room.pinned_events',
+      state_key: '',
+      content: { pinned: ['$t'] },
+    });
+    const room = {
+      ...makeRoom(),
+      getLiveTimeline: () => ({
+        getEvents: () => [],
+        getState: () => ({ getStateEvents: () => pinned }),
+      }),
+    } as unknown as Room;
+    mocks.read.mockReturnValue(QUIET);
+    const threads = readCaptureThreads(mx, room, [makeEntry('$t'), makeEntry('$u')], t, NOW);
+    expect(threads.map((thread) => thread.pinned)).toEqual([true, false]);
   });
 
   it("takes the preview's text for a reply that is no text message or is not loaded", () => {
@@ -196,7 +220,12 @@ describe('readCaptureThreads', () => {
       NOW
     );
 
-    expect(threads.map(({ replyText, replySender }) => ({ replyText, replySender }))).toEqual([
+    expect(
+      threads.map((thread) => {
+        const { replyText, replySender } = thread.reply();
+        return { replyText, replySender };
+      })
+    ).toEqual([
       { replyText: 't:threadPreview.image', replySender: 'bob' },
       { replyText: 'Short preview', replySender: 'bob' },
     ]);
@@ -211,8 +240,8 @@ describe('readCaptureThreads', () => {
 
     const [thread] = readCaptureThreads(mx, makeRoom(), [entry], t, NOW);
 
-    expect(thread?.replyText).toBe('Indexed');
-    expect(thread?.replySender).toBe('carol');
+    expect(thread?.reply().replyText).toBe('Indexed');
+    expect(thread?.reply().replySender).toBe('carol');
   });
 
   it("adds the user's own roots nobody answered from the live timeline, once each", () => {
@@ -236,6 +265,8 @@ describe('readCaptureThreads', () => {
     expect(threads[1]).toEqual({
       threadId: '$fresh',
       title: 'Buy milk',
+      reply: expect.any(Function),
+      pinned: false,
       streaming: false,
       needsYou: false,
       unread: false,

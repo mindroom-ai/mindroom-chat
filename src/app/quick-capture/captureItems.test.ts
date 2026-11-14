@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { vi } from 'vitest';
 import {
   buildCaptureItems,
+  CaptureReply,
   CaptureThread,
   MAX_CAPTURE_ITEMS,
   MAX_REPLY_TEXT,
@@ -12,6 +14,8 @@ const NOW = 10_000_000_000;
 const thread = (threadId: string, extra: Partial<CaptureThread> = {}): CaptureThread => ({
   threadId,
   title: `Title ${threadId}`,
+  reply: () => ({}),
+  pinned: false,
   streaming: false,
   needsYou: false,
   unread: false,
@@ -19,6 +23,8 @@ const thread = (threadId: string, extra: Partial<CaptureThread> = {}): CaptureTh
   ts: 1000,
   ...extra,
 });
+
+const withReply = (reply: CaptureReply) => thread('a', { reply: () => reply });
 
 const ids = (threads: CaptureThread[]): string[] =>
   buildCaptureItems(threads, NOW).map((item) => item.threadId);
@@ -103,7 +109,7 @@ describe('buildCaptureItems', () => {
 
   it('collapses white space in the line and keeps the reply sender', () => {
     const [item] = buildCaptureItems(
-      [thread('a', { replyText: 'one \n\n two\t three', replySender: 'Ada' })],
+      [thread('a', { reply: () => ({ replyText: 'one \n\n two\t three', replySender: 'Ada' }) })],
       NOW
     );
     expect(item?.line).toBe('one two three');
@@ -112,11 +118,11 @@ describe('buildCaptureItems', () => {
   });
 
   it('cuts replyText to 600 characters without splitting a surrogate pair', () => {
-    const plain = buildCaptureItems([thread('a', { replyText: 'x'.repeat(900) })], NOW)[0];
+    const plain = buildCaptureItems([withReply({ replyText: 'x'.repeat(900) })], NOW)[0];
     expect(plain?.replyText).toHaveLength(MAX_REPLY_TEXT);
 
     const emoji = `${'x'.repeat(MAX_REPLY_TEXT - 1)}😀tail`;
-    const cut = buildCaptureItems([thread('a', { replyText: emoji })], NOW)[0];
+    const cut = buildCaptureItems([withReply({ replyText: emoji })], NOW)[0];
     expect(cut?.replyText).toBe('x'.repeat(MAX_REPLY_TEXT - 1));
   });
 
@@ -125,5 +131,34 @@ describe('buildCaptureItems', () => {
     expect(item?.line).toBe('');
     expect(item).not.toHaveProperty('replyText');
     expect(item).not.toHaveProperty('lineSender');
+  });
+
+  it('reads the reply of the threads it keeps only', () => {
+    const reply = vi.fn(() => ({ replyText: 'An answer' }));
+    const threads = Array.from({ length: 31 }, (_, index) =>
+      thread(`t${index}`, { ts: index, reply: index === 0 ? reply : () => ({}) })
+    );
+    expect(ids(threads)).not.toContain('t0');
+    expect(reply).not.toHaveBeenCalled();
+  });
+
+  it('carries the reply as written where it differs, cut as the cleaned one', () => {
+    const [own] = buildCaptureItems(
+      [withReply({ replyText: 'Tool: 1 call. Done', copyText: '**Done**' })],
+      NOW
+    );
+    expect(own?.copyText).toBe('**Done**');
+    const [same] = buildCaptureItems([withReply({ replyText: 'Done', copyText: 'Done' })], NOW);
+    expect(same).not.toHaveProperty('copyText');
+    const [long] = buildCaptureItems(
+      [withReply({ replyText: 'x', copyText: 'y'.repeat(900) })],
+      NOW
+    );
+    expect(long?.copyText).toHaveLength(MAX_REPLY_TEXT);
+  });
+
+  it('marks a pinned thread, and only that one', () => {
+    const items = buildCaptureItems([thread('p', { pinned: true, ts: 2000 }), thread('a')], NOW);
+    expect(items.map((item) => item.pinned)).toEqual([true, undefined]);
   });
 });

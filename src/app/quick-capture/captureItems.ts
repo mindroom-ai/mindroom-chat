@@ -4,11 +4,16 @@ export const MAX_CAPTURE_ITEMS = 30;
 export const RESOLVED_SHOWN_MS = 24 * 60 * 60 * 1000;
 export const MAX_REPLY_TEXT = 600;
 
+/** A thread's newest reply: cleaned as the app's previews clean it, as written, and its sender. */
+export type CaptureReply = { replyText?: string; copyText?: string; replySender?: string };
+
 export type CaptureThread = {
   threadId: string;
   title: string;
-  replyText?: string;
-  replySender?: string;
+  /** Reads and cleans the newest reply: only for a thread the list keeps. */
+  reply: () => CaptureReply;
+  /** A pinned thread cannot be resolved. */
+  pinned: boolean;
   streaming: boolean;
   needsYou: boolean;
   unread: boolean;
@@ -35,15 +40,19 @@ const chipOf = (thread: CaptureThread): CaptureChip | undefined => {
 };
 
 const toItem = (thread: CaptureThread): CaptureItem => {
-  const replyText = thread.replyText ? cutReplyText(thread.replyText) : undefined;
+  const reply = thread.reply();
+  const replyText = reply.replyText ? cutReplyText(reply.replyText) : undefined;
+  const copyText = reply.copyText ? cutReplyText(reply.copyText) : undefined;
   const chip = chipOf(thread);
   return {
     threadId: thread.threadId,
     title: thread.title,
     line: replyText ? replyText.replace(/\s+/g, ' ').trim() : '',
-    ...(thread.replySender === undefined ? {} : { lineSender: thread.replySender }),
+    ...(reply.replySender === undefined ? {} : { lineSender: reply.replySender }),
     ...(replyText === undefined ? {} : { replyText }),
+    ...(copyText === undefined || copyText === replyText ? {} : { copyText }),
     ...(chip === undefined ? {} : { chip }),
+    ...(thread.pinned ? { pinned: true } : {}),
     resolved: thread.resolved,
     ts: thread.ts,
   };
