@@ -8,6 +8,9 @@ private let log = Logger(subsystem: "chat.mindroom.app.watchkitapp", category: "
 /// The watch's Matrix account: signs in with the iPhone's login token, restores, syncs, signs out.
 @MainActor
 final class MatrixSession: ObservableObject {
+    /// The app's session, for the notification controller and actions, which run in the app's process.
+    static weak var shared: MatrixSession?
+
     enum State {
         case signedOut
         case connecting

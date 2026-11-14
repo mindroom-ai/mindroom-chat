@@ -11,6 +11,7 @@ struct HomeView: View {
     @State private var model: RoomModel?
     @State private var picking = false
     @State private var path: [String] = []
+    @ObservedObject private var openThread = OpenThreadRequest.shared
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -35,6 +36,13 @@ struct HomeView: View {
         .onChange(of: rooms.rooms) { _, _ in
             // At launch the default room may reach the room list only after the first sync.
             if model == nil, let roomId = DefaultRoom.get(userId: userId) { open(roomId) }
+        }
+        .onChange(of: openThread.target?.threadId) { _, _ in
+            // A tapped notification: its room becomes the default and its thread opens.
+            guard let target = openThread.target else { return }
+            openThread.target = nil
+            if model?.room.id() != target.roomId { select(target.roomId) }
+            if !target.threadId.isEmpty { path = [target.threadId] }
         }
         .onChange(of: model?.gone ?? false) { _, gone in
             // The room was left or replaced: choose another.

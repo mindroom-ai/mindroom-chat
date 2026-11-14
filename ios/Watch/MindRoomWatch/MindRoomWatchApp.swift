@@ -1,16 +1,20 @@
 import MindRoomWatchKit
 import SwiftUI
+import UserNotifications
 
 @main
 struct MindRoomWatchApp: App {
     @StateObject private var session: MatrixSession
     @Environment(\.scenePhase) private var scenePhase
     private let link: WatchLink
+    private let notificationDelegate = NotificationDelegate()
 
     init() {
         let session = MatrixSession()
+        MatrixSession.shared = session
         _session = StateObject(wrappedValue: session)
         link = WatchLink(session: session)
+        UNUserNotificationCenter.current().delegate = notificationDelegate
     }
 
     var body: some Scene {
@@ -29,6 +33,7 @@ struct MindRoomWatchApp: App {
             Task { await session.setActive(phase == .active) }
             if phase == .background { BackgroundRefresh.schedule() }
         }
+        WKNotificationScene(controller: NotificationController.self, category: PushedEvent.category)
         .backgroundTask(.appRefresh(BackgroundRefresh.identifier)) {
             await BackgroundRefresh.run(session)
         }
