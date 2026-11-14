@@ -16,7 +16,7 @@
 // against real virtual-core range math — the sufficiency check the fake
 // virtualizer in the lifecycle suite cannot provide. The detector test
 // proves the harness would catch the defect it was born from.
-import { Virtualizer } from '@tanstack/react-virtual';
+import { Virtualizer, type VirtualItem } from '@tanstack/react-virtual';
 import { describe, expect, it } from 'vitest';
 import { applyLedgerSettle } from '../timeline/timelineScrollLedgerController';
 import { buildMeasurementScrollCorrectionHook } from '../event-store/threads/threadRenderUtils';
@@ -70,9 +70,13 @@ function makeTraceMismatch(paintedLedgerPx: number) {
   return state;
 }
 
+// virtual-core declares getMeasurements private and without a type, so it is typed once here.
+const measurementsOf = (virtualizer: Virtualizer<Element, Element>) =>
+  (virtualizer as unknown as { getMeasurements: () => VirtualItem[] }).getMeasurements();
+
 const rangeOf = (virtualizer: Virtualizer<Element, Element>): [number, number] => {
   const items = virtualizer.getVirtualItems();
-  return [items[0].index, items[items.length - 1].index];
+  return [items[0]!.index, items[items.length - 1]!.index];
 };
 
 describe('ledger settle contract (real virtual-core)', () => {
@@ -98,9 +102,9 @@ describe('ledger settle contract (real virtual-core)', () => {
       },
     };
     virtualizer.scrollOffset = nativeOffset;
-    const anchorBefore = virtualizer.getMeasurements()[COUNT - 1].start - root.scrollTop;
+    const anchorBefore = measurementsOf(virtualizer)[COUNT - 1]!.start - root.scrollTop;
     applyLedgerSettle(inner, root, debt, virtualizer);
-    expect(virtualizer.getMeasurements()[COUNT - 1].start - root.scrollTop).toBe(anchorBefore);
+    expect(measurementsOf(virtualizer)[COUNT - 1]!.start - root.scrollTop).toBe(anchorBefore);
     expect(virtualizer.scrollOffset).toBe(COUNT * ROW_ESTIMATE - VIEWPORT.height);
   });
 
@@ -153,11 +157,11 @@ describe('ledger settle contract (real virtual-core)', () => {
     };
     virtualizer.shouldAdjustScrollPositionOnItemSizeChange =
       buildMeasurementScrollCorrectionHook(policy);
-    const before = virtualizer.getMeasurements()[180].start - element.scrollTop;
+    const before = measurementsOf(virtualizer)[180]!.start - element.scrollTop;
     virtualizer.resizeItem(170, 20);
     virtualizer.setOptions({ ...virtualizer.options, scrollMargin: -debt });
     inner.style.marginTop = `${-debt}px`;
-    expect(virtualizer.getMeasurements()[180].start - element.scrollTop).toBe(before);
+    expect(measurementsOf(virtualizer)[180]!.start - element.scrollTop).toBe(before);
     expect(debt).toBe(-30);
     virtualizer.resizeItem(180, 20);
     expect(debt).toBe(-30);
@@ -183,7 +187,7 @@ describe('ledger settle contract (real virtual-core)', () => {
     });
     applyLedgerSettle(inner, element, FOLD_PX, virtualizer);
     const anchorIndex = 180;
-    const committedTop = virtualizer.getMeasurements()[anchorIndex].start;
+    const committedTop = measurementsOf(virtualizer)[anchorIndex]!.start;
     const before = committedTop - element.scrollTop;
     virtualizer.resizeItem(150, 20);
     virtualizer.resizeItem(151, 20);
@@ -193,9 +197,9 @@ describe('ledger settle contract (real virtual-core)', () => {
     expect(debt).toBe(-60);
     virtualizer.setOptions({ ...virtualizer.options, scrollMargin: -debt });
     inner.style.marginTop = `${-debt}px`;
-    expect(virtualizer.getMeasurements()[anchorIndex].start - element.scrollTop).toBe(before);
+    expect(measurementsOf(virtualizer)[anchorIndex]!.start - element.scrollTop).toBe(before);
     applyLedgerSettle(inner, element, debt, virtualizer);
-    expect(virtualizer.getMeasurements()[anchorIndex].start - element.scrollTop).toBe(before);
+    expect(measurementsOf(virtualizer)[anchorIndex]!.start - element.scrollTop).toBe(before);
   });
 
   it('keeps the computed window identical across the production settle block', () => {

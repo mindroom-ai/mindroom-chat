@@ -187,7 +187,7 @@ it.each([
         'render-state',
         expect.objectContaining({ sdkThreadCount: loadedIds.length })
       );
-      const firstReply = thread.findEventById(replies[0].event_id)!;
+      const firstReply = thread.findEventById(replies[0]!.event_id)!;
       const beforeEdit = renderCount;
       act(() =>
         firstReply.makeReplaced(

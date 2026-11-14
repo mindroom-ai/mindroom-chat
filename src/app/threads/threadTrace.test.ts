@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient, Room, type IEvent } from 'matrix-js-sdk';
 import { createBackfillScheduler } from '../event-store/engine/backfillScheduler';
 import { scheduleReconcile } from '../event-store/engine/reconciler';
+import type { ThreadReconcileContinuationStore } from '../event-store/engine/reconcilerScan';
 import {
   clearDeepTrace,
   initializeDeepTraceRecorder,
@@ -113,8 +114,8 @@ describe('anonymous thread diagnostics', () => {
         .filter((event) => event.name === 'thread.reconcile.delivery')
         .map((event) => event.data)
     ).toEqual([
-      { trace_id: Number(ids[0].split('#')[1]), current: false, mapped_count: 0 },
-      { trace_id: Number(ids[1].split('#')[1]), current: true, mapped_count: 0 },
+      { trace_id: Number(ids[0]!.split('#')[1]), current: false, mapped_count: 0 },
+      { trace_id: Number(ids[1]!.split('#')[1]), current: true, mapped_count: 0 },
     ]);
     expect(append).not.toHaveBeenCalled();
   });
@@ -164,7 +165,8 @@ describe('anonymous thread diagnostics', () => {
                 continuationStore: {
                   load: async () => undefined,
                   begin: async (_session, _room, _thread, candidate) => candidate,
-                  checkpoint: async () => undefined,
+                  checkpoint: (async () =>
+                    undefined) as unknown as ThreadReconcileContinuationStore['checkpoint'],
                   clear: async () => true,
                   restartFromHead: async () => undefined,
                 },
