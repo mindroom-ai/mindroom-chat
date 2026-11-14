@@ -2254,6 +2254,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       expect(renderer.root.findByType(roomThreadOverviewType).props.threadCount).toBe(1);
       expect(renderer.root.findByType(roomThreadOverviewType).props.statusCounts).toEqual({
         resolved: 0,
+        snoozed: 0,
         streaming: 0,
         scheduled: 0,
         unread: 0,
@@ -5104,6 +5105,18 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
           threadRecordMap
         ).map((event) => event.getId())
       ).toEqual(['$thread-resolved']);
+      // Hiding snoozed threads alone is the default, not a filter: every event stays.
+      expect(
+        getThreadFilteredEvents(
+          renderableEvents as never,
+          room as never,
+          resolutionMap,
+          undefined,
+          { ...DEFAULT_THREAD_FILTER_STATE, snoozed: 'exclude' as const, tags: new Map() },
+          undefined,
+          threadRecordMap
+        ).map((event) => event.getId())
+      ).toEqual(['$message', '$thread-unresolved', '$thread-resolved']);
     });
 
     it('treats fallback reply counts as visible thread roots for filtering', async () => {

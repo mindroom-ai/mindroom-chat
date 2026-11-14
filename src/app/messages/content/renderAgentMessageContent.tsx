@@ -9,14 +9,14 @@ import { RenderBody } from './RenderBody';
 import { BrokenContent } from './BrokenContent';
 import { trimReplyFromBody } from '../../matrix/room';
 import { MessageExtras } from '../MessageExtras';
-import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMessageExtras } from '../../matrix/protocol/messageExtrasData';
+import {
+  MINDROOM_MESSAGE_EXTRAS_KEY,
+  parseMessageExtras,
+} from '../../matrix/protocol/messageExtrasData';
 import { useToolTraceMarkerParserOptions } from '../html/HtmlBlocks';
 import type { ToolMetadataStatus } from '../../matrix/protocol/toolTrace';
 import { isAiRunStreaming } from '../../matrix/protocol/aiRun';
-import {
-  formatMarkdownTextBodyAsHtml,
-  formatMessageTextBodyAsHtml,
-} from '../html/blocks';
+import { formatMarkdownTextBodyAsHtml, formatMessageTextBodyAsHtml } from '../html/blocks';
 import { getLongTextSource } from '../../matrix/protocol/longText';
 import { LongTextKind, LongTextText } from './LongTextText';
 import { PasteAttachmentContent } from './PasteAttachmentContent';
@@ -30,8 +30,13 @@ import { renderStreamingIndicator } from '../agent-run/StreamingIndicator';
 import { isThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
 import { isTranscribingPlaceholder } from '../../matrix/protocol/transcribingPlaceholder';
 import { getPasteAttachmentFile } from '../../matrix/protocol/pasteAttachmentMarker';
-import { MINDROOM_TOOL_APPROVAL_EVENT, parseToolApprovalContent } from '../../matrix/protocol/toolApproval';
+import {
+  MINDROOM_TOOL_APPROVAL_EVENT,
+  parseToolApprovalContent,
+} from '../../matrix/protocol/toolApproval';
 import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import { readSnoozeEndedNote } from '../../matrix/protocol/threadSnooze';
+import { SnoozeEndedMarker } from '../SnoozeEndedMarker';
 import { getMessageStateSuffixRenderer } from './messageStateSuffix';
 import { ChatUiActionButton } from '../../ui-actions/ChatUiActionButton';
 import { CHAT_UI_ACTION_KEY, readCanvasNoticeTitle } from '../../matrix/protocol/chatUiProtocol';
@@ -276,16 +281,16 @@ export const renderAgentMessageContent = ({
     );
   }
 
+  // An open thread shows this as a marker row of its own (useTimelineMessageFeature); other
+  // views, such as threads shown in the room, keep the message row with the marker as its body.
+  const snoozeEndedNote = fromMindroomAgent ? readSnoozeEndedNote(content) : null;
+  if (snoozeEndedNote !== null) return <SnoozeEndedMarker note={snoozeEndedNote} />;
+
   if (eventType === MINDROOM_TOOL_APPROVAL_EVENT) {
     // Only MindRoom sends approval cards; any member can post this event type.
     const approval = fromMindroomAgent ? parseToolApprovalContent(eventType, content) : null;
     return approval ? (
-      <ToolApprovalCard
-        approval={approval}
-        roomId={roomId}
-        eventId={eventId}
-        threadId={threadId}
-      />
+      <ToolApprovalCard approval={approval} roomId={roomId} eventId={eventId} threadId={threadId} />
     ) : (
       <BrokenContent />
     );

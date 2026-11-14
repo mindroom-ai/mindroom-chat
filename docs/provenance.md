@@ -87,6 +87,8 @@ Decision 1 of the restructure (option A of its plan): `Mindroom` and `mindroom` 
 
 ## Upstream overlap check
 
+Removed on 2026-11-14, with the rewrite done: the checker, the pre-push hook, their `just` recipes and the push gate step are gone. The text below records how it worked.
+
 Bas's requirement of 2026-11-03: no line of Cinny's (AGPL-3.0) code in this repository, in any commit. `scripts/upstream-overlap/check.py --corpus <Cinny git repository>` (`just upstream-overlap <corpus>`, part of `just check`, skipped without a corpus) compares files with every version of every Cinny file in the corpus's history and prints only paths and line ranges of this repository. It flags:
 
 - **Line runs:** 3 or more consecutive counted lines that each occur in Cinny. A counted line has at least 8 characters after trimming and is not trivial. Trivial lines are skipped (they neither count nor break a run): import and re-export statements (the ported files keep Cinny's module paths), JSX closing tags, JSX tags or attributes whose values are all literals (folds design tokens such as `variant="Surface"`), lines that are only a Matrix namespaced identifier (`'m.relates_to': {`), lines that are only a name or pass a prop under its own name (`eventId,`, `room={room}`; the ported code fixes these names), and comment lines. Lines that also occur in third-party code under `node_modules` are skipped as generic. `package.json` and `package-lock.json` are not checked (dependency names and versions).

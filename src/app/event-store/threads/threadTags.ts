@@ -14,11 +14,14 @@ import { getActiveSession } from '../../matrix/session/sessions';
 
 export const MINDROOM_THREAD_TAGS_EVENT = 'com.mindroom.thread.tags';
 export const RESOLVED_TAG = 'resolved';
+export const SNOOZED_TAG = 'snoozed';
 export const MAX_TAG_LENGTH = 50;
 const PERSISTED_TAG_NAME = /^[a-z0-9-]{1,50}$/;
 const ISO_8601_PATTERN =
   /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)?$/;
 const aggregatedThreadTagEventsCache = new WeakMap<MatrixEvent[], Map<string, ThreadTagsContent>>();
+
+const isLifecycleTag = (name: string): boolean => name === RESOLVED_TAG || name === SNOOZED_TAG;
 
 export type TagMetadata = {
   set_by: string;
@@ -290,10 +293,10 @@ export const aggregateThreadTagEvents = (events: MatrixEvent[]): Map<string, Thr
 };
 
 /**
- * Get display tags (all tags except the reserved "resolved" tag).
+ * Get display tags (all tags except the reserved "resolved" and "snoozed" tags).
  */
 export const getDisplayTags = (content: ThreadTagsContent): string[] =>
-  Object.keys(content.tags).filter((name) => name !== RESOLVED_TAG);
+  Object.keys(content.tags).filter((name) => !isLifecycleTag(name));
 
 /**
  * Check if a thread is resolved.
@@ -311,7 +314,7 @@ export const collectAvailableTags = (
   const seen = new Set<string>();
   allTagContents.forEach((content) => {
     Object.keys(content.tags).forEach((name) => {
-      if (name !== RESOLVED_TAG && !(name in currentTags)) {
+      if (!isLifecycleTag(name) && !(name in currentTags)) {
         seen.add(name);
       }
     });
@@ -332,7 +335,7 @@ export const isValidTagName = (name: string): boolean => {
   return (
     normalized.length > 0 &&
     normalized.length <= MAX_TAG_LENGTH &&
-    normalized !== RESOLVED_TAG &&
+    !isLifecycleTag(normalized) &&
     PERSISTED_TAG_NAME.test(normalized)
   );
 };

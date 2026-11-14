@@ -29,7 +29,7 @@ The dev server answers `/config.json` with `config/mindroom.json`, so the sign-i
 
 | Command | What it does |
 |---|---|
-| `just check` | The full local check (CI, `.github/workflows/ci.yml`, runs `typecheck`, `strict`, `lint`, `test`, the production build with the `bundle-report` budget and a smoke subset of the end-to-end specs): `typecheck`, `strict`, `lint`, `test`, `script-tests`, `license-check`, and the provenance checks (`verify-ported`, `check-holes`, `identifier-renames` and the overlap check of `docs/provenance.md`; the ones that need an outside checkout skip without it) |
+| `just check` | The full local check (CI, `.github/workflows/ci.yml`, runs `typecheck`, `strict`, `lint`, `test`, the production build with the `bundle-report` budget and a smoke subset of the end-to-end specs): `typecheck`, `strict`, `lint`, `test`, `script-tests`, `license-check`, and the provenance checks (`verify-ported`, `check-holes`, `identifier-renames`; the ones that need an outside checkout skip without it) |
 | `just typecheck` | `tsc` over the app sources without tests, with the flags of `config/tsconfig.strict.json`; must report 0 errors |
 | `just strict` | `tsc` with `config/tsconfig.strict.json` over everything, tests and `e2e/` included; must report 0 errors |
 | `just lint` | ESLint, with type-aware rules for Lane C TypeScript |

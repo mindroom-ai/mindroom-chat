@@ -5,6 +5,7 @@ import type { ThreadSignals } from '../cross-room/threadSignals';
 import { groupThreads, type ThreadListItem } from './threadGroups';
 
 const ME = '@alice:x';
+const NOW = 10_000;
 const quiet: ThreadSignals = {
   mentionedMe: false,
   newCount: 0,
@@ -56,7 +57,8 @@ describe('groupThreads', () => {
       ],
       'following',
       ME,
-      ''
+      '',
+      NOW
     );
     expect(shape(groups)).toEqual([
       ['needsYou', ['waits', 'asks']],
@@ -67,7 +69,13 @@ describe('groupThreads', () => {
   });
 
   it('takes a thread whose root names the user for unread, though no reply is new', () => {
-    const groups = groupThreads([item('named', {}, { mentionedMe: true })], 'following', ME, '');
+    const groups = groupThreads(
+      [item('named', {}, { mentionedMe: true })],
+      'following',
+      ME,
+      '',
+      NOW
+    );
     expect(shape(groups)).toEqual([['unread', ['named']]]);
   });
 
@@ -78,7 +86,9 @@ describe('groupThreads', () => {
       item('other', { rootSenderId: '@bob:x', isInvolved: false }),
     ];
     const keys = (scope: Parameters<typeof groupThreads>[1]) =>
-      groupThreads(items, scope, ME, '').flatMap((group) => group.items.map((it) => it.entry.key));
+      groupThreads(items, scope, ME, '', NOW).flatMap((group) =>
+        group.items.map((it) => it.entry.key)
+      );
     expect(keys('mine')).toEqual(['mine']);
     expect(keys('following').sort()).toEqual(['joined', 'mine']);
     expect(keys('all').sort()).toEqual(['joined', 'mine', 'other']);
@@ -89,11 +99,11 @@ describe('groupThreads', () => {
       item('digest', { rootSenderId: '@mindroom_bot:x', isInvolved: false }, { automation: true }),
       item('talk', { rootSenderId: '@bob:x', isInvolved: false }),
     ];
-    expect(shape(groupThreads(items, 'all', ME, ''))).toEqual([
+    expect(shape(groupThreads(items, 'all', ME, '', NOW))).toEqual([
       ['recent', ['talk']],
       ['automations', ['digest']],
     ]);
-    expect(groupThreads(items, 'following', ME, '')).toEqual([]);
+    expect(groupThreads(items, 'following', ME, '', NOW)).toEqual([]);
   });
 
   it('leaves out threads without replies and matches the search on their text', () => {
@@ -102,7 +112,7 @@ describe('groupThreads', () => {
       item('deploy', { searchableText: 'staging load test deploy' }),
       item('deck', { searchableText: 'board deck polish' }),
     ];
-    expect(shape(groupThreads(items, 'following', ME, '  DEPLOY '))).toEqual([
+    expect(shape(groupThreads(items, 'following', ME, '  DEPLOY ', NOW))).toEqual([
       ['recent', ['deploy']],
     ]);
   });
@@ -112,8 +122,50 @@ describe('groupThreads', () => {
       [item('old', { lastActivityTs: 1 }), item('new', { lastActivityTs: 9 })],
       'following',
       ME,
-      ''
+      '',
+      NOW
     );
     expect(shape(groups)).toEqual([['recent', ['new', 'old']]]);
+  });
+
+  it('puts a snoozed recent thread in Snoozed, before Automations', () => {
+    const items = [
+      item('digest', { rootSenderId: '@mindroom_bot:x', isInvolved: false }, { automation: true }),
+      item('later', { snoozedUntilTs: NOW + 1 }),
+      item('talk', {}),
+    ];
+    expect(shape(groupThreads(items, 'all', ME, '', NOW))).toEqual([
+      ['recent', ['talk']],
+      ['snoozed', ['later']],
+      ['automations', ['digest']],
+    ]);
+  });
+
+  it('keeps a snoozed thread that needs you, is unread or has an agent working in its group', () => {
+    const snoozed = { snoozedUntilTs: NOW + 1 };
+    const groups = groupThreads(
+      [
+        item('waits', snoozed, { pendingApproval: approval }),
+        item('unread', snoozed, { newCount: 1 }),
+        item('working', { ...snoozed, streaming: true }),
+      ],
+      'following',
+      ME,
+      '',
+      NOW
+    );
+    expect(shape(groups)).toEqual([
+      ['needsYou', ['waits']],
+      ['unread', ['unread']],
+      ['working', ['working']],
+    ]);
+  });
+
+  it('returns a snoozed thread to Recent when its time has passed', () => {
+    const items = [item('later', { snoozedUntilTs: NOW })];
+    expect(shape(groupThreads(items, 'following', ME, '', NOW - 1))).toEqual([
+      ['snoozed', ['later']],
+    ]);
+    expect(shape(groupThreads(items, 'following', ME, '', NOW))).toEqual([['recent', ['later']]]);
   });
 });

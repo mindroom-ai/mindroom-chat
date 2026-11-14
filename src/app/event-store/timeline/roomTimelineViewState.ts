@@ -3,6 +3,7 @@ import type { RoomViewMode } from '../../navigation/roomViewMode';
 
 export const DIRECT_ROOM_TIMELINE_FILTER_STATE: ThreadFilterState = {
   resolved: 'any',
+  snoozed: 'any',
   streaming: 'any',
   scheduled: 'any',
   unread: 'any',

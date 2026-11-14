@@ -70,6 +70,8 @@ export type ThreadSignals = {
   waitsUntil?: number;
   /** When the newest of what it counts came: a message, by its newest edit, or the approval. */
   newsTs?: number;
+  /** The same for messages from other people only: not agents, not the reader. */
+  personNewsTs?: number;
 };
 
 /** The newest events of a thread the signals read. */
@@ -386,6 +388,12 @@ export const readThreadSignals = (
     approvalTs ?? 0,
     ...counted.map(({ event, editTs }) => editTs ?? event.getTs())
   );
+  const personNewsTs = Math.max(
+    0,
+    ...counted
+      .filter(({ event }) => event.getSender() !== userId && !isAgent(event.getSender()))
+      .map(({ event, editTs }) => editTs ?? event.getTs())
+  );
 
   const lapses = [
     pendingApproval && parseToolApprovalExpiryTimestamp(pendingApproval.approval.expiresAt),
@@ -394,6 +402,7 @@ export const readThreadSignals = (
   return {
     ...(lapses.length > 0 ? { waitsUntil: Math.min(...lapses) } : {}),
     ...(newsTs > 0 ? { newsTs } : {}),
+    ...(personNewsTs > 0 ? { personNewsTs } : {}),
     ...(pendingApproval ? { pendingApproval } : {}),
     ...(pendingQuestion ? { pendingQuestion } : {}),
     mentionedMe,

@@ -697,7 +697,13 @@
         "threadFiltersActive": "Filter utas (aktif)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filter lanjutan"
+        "advancedFilters": "Filter lanjutan",
+        "presets": {
+          "snoozed": {
+            "label": "Ditunda",
+            "description": "Hanya utas yang ditunda"
+          }
+        }
       },
       "threadPeopleFilter": {
         "label": "Orang",
@@ -852,7 +858,12 @@
     "resize": "Ubah ukuran utas",
     "showFull": "Tampilkan utas penuh",
     "showBeside": "Tampilkan utas di samping pesan",
-    "notFound": "Utas tidak ditemukan"
+    "notFound": "Utas tidak ditemukan",
+    "snoozedUntil": "Ditunda hingga {{time}}",
+    "snoozeEnded": "Penundaan berakhir",
+    "status": {
+      "snoozed": "Ditunda"
+    }
   },
   "activity": {
     "title": "Aktivitas",
@@ -940,7 +951,8 @@
       "unread": "Belum dibaca",
       "working": "Agen sedang bekerja",
       "recent": "Terbaru",
-      "automations": "Otomatisasi"
+      "automations": "Otomatisasi",
+      "snoozed": "Ditunda"
     },
     "showMore": "Tampilkan lebih banyak",
     "chips": {

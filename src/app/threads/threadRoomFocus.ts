@@ -4,7 +4,7 @@ import { buildCompactThreadRootData } from '../event-store/threads/compactThread
 import { isVisibleThreadRootEvent } from '../event-store/timeline/roomTimelineEvents';
 import {
   createThreadSortControlSignature,
-  hasActiveThreadFilters,
+  hasChosenThreadFilters,
   isRoomThreadOverviewActive,
   type ThreadFilterState,
   type ThreadSortFreezeState,
@@ -33,7 +33,7 @@ export const getThreadFilteredEvents = (
   threadReplyCountMap?: Map<string, number>,
   threadRecordMap?: ReadonlyMap<string, ThreadRecord>
 ): MatrixEvent[] => {
-  if (threadId || !hasActiveThreadFilters(threadFilterState)) return renderableEvents;
+  if (threadId || !hasChosenThreadFilters(threadFilterState)) return renderableEvents;
 
   return renderableEvents.filter((event) => {
     const eventId = event.getId();

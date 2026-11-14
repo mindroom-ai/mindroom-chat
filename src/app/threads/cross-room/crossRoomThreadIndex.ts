@@ -27,6 +27,10 @@ export type CrossRoomThreadIndexEntry = {
   lastActivityTs: number;
   isUnread: boolean;
   isResolved: boolean;
+  /** Set whenever the snoozed tag parses, also after its time. */
+  snoozedUntilTs?: number;
+  /** The snoozed tag's `set_at`. */
+  snoozedAtTs?: number;
   /** While resolved: when, by the server's clock (the tag's state event). */
   resolvedTs?: number;
   hasAttention: boolean;
@@ -441,6 +445,12 @@ export const buildCrossRoomThreadIndexEntry = ({
     lastActivityTs,
     isUnread: threadRecord.status.isUnread,
     isResolved,
+    ...(threadRecord.status.snoozedUntilTs !== undefined
+      ? {
+          snoozedUntilTs: threadRecord.status.snoozedUntilTs,
+          snoozedAtTs: threadRecord.status.snoozedAtTs,
+        }
+      : {}),
     ...(resolvedTs !== undefined ? { resolvedTs } : {}),
     hasAttention,
     isInvolved:

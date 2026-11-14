@@ -708,7 +708,13 @@
         "threadFiltersActive": "Thread filters (active)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Advanced filters"
+        "advancedFilters": "Advanced filters",
+        "presets": {
+          "snoozed": {
+            "label": "Snoozed",
+            "description": "Snoozed threads only"
+          }
+        }
       },
       "threadPeopleFilter": {
         "label": "People",
@@ -867,7 +873,12 @@
     "resize": "Resize the thread",
     "showFull": "Show the thread in full",
     "showBeside": "Show the thread beside the messages",
-    "notFound": "Thread not found"
+    "notFound": "Thread not found",
+    "snoozedUntil": "Snoozed until {{time}}",
+    "snoozeEnded": "Snooze ended",
+    "status": {
+      "snoozed": "Snoozed"
+    }
   },
   "activity": {
     "title": "Activity",
@@ -962,7 +973,8 @@
       "unread": "Unread",
       "working": "Agents working",
       "recent": "Recent",
-      "automations": "Automations"
+      "automations": "Automations",
+      "snoozed": "Snoozed"
     },
     "showMore": "Show more",
     "chips": {

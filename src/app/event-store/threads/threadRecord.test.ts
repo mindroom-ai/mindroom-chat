@@ -553,4 +553,30 @@ describe('buildThreadRecord', () => {
       },
     });
   });
+
+  it('carries snoozedUntilTs and snoozedAtTs from the tag, without listing it as a tag', () => {
+    const room = {
+      roomId: '!room:server',
+      name: 'Room',
+      getThread: () => null,
+      findEventById: () => undefined,
+    } as unknown as Room;
+    const record = buildThreadRecord({
+      room,
+      threadRootId: '$root',
+      threadResolution: {
+        isResolved: false,
+        tags: {
+          snoozed: {
+            set_by: '@bas:server',
+            set_at: '2026-11-13T10:00:00Z',
+            data: { until: '2026-11-14T08:00:00Z' },
+          },
+        },
+      },
+    });
+    expect(record.status.snoozedUntilTs).toBe(Date.UTC(2026, 10, 14, 8));
+    expect(record.status.snoozedAtTs).toBe(Date.UTC(2026, 10, 13, 10));
+    expect(record.status.tags).toEqual([]);
+  });
 });

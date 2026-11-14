@@ -3,6 +3,7 @@ import type { ThreadFilterState } from './roomThreadOverviewModel';
 
 const makeDefaultState = (overrides?: Partial<ThreadFilterState>): ThreadFilterState => ({
   resolved: 'any',
+  snoozed: 'any',
   streaming: 'any',
   scheduled: 'any',
   unread: 'any',
@@ -29,6 +30,7 @@ describe('roomThreadOverviewModel', () => {
       expect(serializeThreadFilterState(state)).toEqual({
         v: 2,
         resolved: 'any',
+        snoozed: 'any',
         streaming: 'any',
         scheduled: 'any',
         unread: 'any',
@@ -49,6 +51,7 @@ describe('roomThreadOverviewModel', () => {
       );
       const state = makeDefaultState({
         resolved: 'include',
+        snoozed: 'include',
         streaming: 'exclude',
         scheduled: 'include',
         unread: 'exclude',
@@ -90,6 +93,7 @@ describe('roomThreadOverviewModel', () => {
 
       expect(result).toEqual({
         resolved: 'any',
+        snoozed: 'exclude',
         streaming: 'include',
         scheduled: 'exclude',
         unread: 'any',
@@ -105,9 +109,63 @@ describe('roomThreadOverviewModel', () => {
         statusMode: 'and',
       });
     });
+
+    it('reads a stored filter state without a snoozed key as excluding snoozed threads', async () => {
+      const { deserializeThreadFilterState, serializeThreadFilterState } = await import(
+        './roomThreadOverviewModel'
+      );
+      const stored = { ...serializeThreadFilterState(makeDefaultState()) } as Record<
+        string,
+        unknown
+      >;
+      delete stored.snoozed;
+
+      expect(deserializeThreadFilterState(stored).snoozed).toBe('exclude');
+      expect(deserializeThreadFilterState({ ...stored, snoozed: 'bad' }).snoozed).toBe('exclude');
+      expect(deserializeThreadFilterState({ ...stored, snoozed: 'any' }).snoozed).toBe('any');
+      // A v1 state stored its filters as a query too; one without is:snoozed excludes them.
+      expect(
+        deserializeThreadFilterState({ ...stored, v: 1, searchQuery: '-is:resolved' })
+      ).toMatchObject({ resolved: 'exclude', snoozed: 'exclude' });
+      expect(
+        deserializeThreadFilterState({ ...stored, v: 1, searchQuery: 'is:snoozed' }).snoozed
+      ).toBe('include');
+      const { snoozed: _ignored, ...withoutSnoozed } = makeDefaultState();
+      expect(serializeThreadFilterState(withoutSnoozed as ThreadFilterState).snoozed).toBe(
+        'exclude'
+      );
+    });
   });
 
   describe('filter state helpers', () => {
+    it('does not count the default snoozed exclusion of an old stored state as a filter', async () => {
+      const {
+        deserializeThreadFilterState,
+        hasActiveThreadFilters,
+        hasChosenThreadFilters,
+        isRoomThreadOverviewActive,
+      } = await import('./roomThreadOverviewModel');
+      // Stored before snoozing existed: every status any, natural sort, no snoozed key.
+      const stored = deserializeThreadFilterState({
+        v: 2,
+        resolved: 'any',
+        streaming: 'any',
+        scheduled: 'any',
+        unread: 'any',
+        idle: 'any',
+        sortBy: 'natural',
+        sortDirection: 'desc',
+        tags: {},
+      });
+
+      expect(stored.snoozed).toBe('exclude');
+      expect(hasActiveThreadFilters(stored)).toBe(true);
+      expect(hasChosenThreadFilters(stored)).toBe(false);
+      expect(isRoomThreadOverviewActive(undefined, stored)).toBe(false);
+      expect(isRoomThreadOverviewActive(undefined, { ...stored, snoozed: 'include' })).toBe(true);
+      expect(isRoomThreadOverviewActive(undefined, { ...stored, resolved: 'exclude' })).toBe(true);
+    });
+
     it('cycles status filters and resets status mode to AND', async () => {
       const { updateThreadFilterKey } = await import('./roomThreadOverviewModel');
 
@@ -174,8 +232,9 @@ describe('roomThreadOverviewModel', () => {
 
   describe('tag filter helpers', () => {
     it('adds, removes, and counts tag filters', async () => {
-      const { addTagFilter, collectAvailableRoomTags, removeTagFilter } =
-        await import('./roomThreadOverviewModel');
+      const { addTagFilter, collectAvailableRoomTags, removeTagFilter } = await import(
+        './roomThreadOverviewModel'
+      );
 
       const defaultState = makeDefaultState();
       const added = addTagFilter(defaultState, 'blocked');
@@ -232,6 +291,41 @@ describe('roomThreadOverviewModel', () => {
   });
 
   describe('filter presets', () => {
+    it('has a Snoozed preset and keeps snoozed threads out of Needs attention and Unread', async () => {
+      const { FILTER_PRESETS, applyPreset } = await import('./roomThreadOverviewModel');
+      const preset = (id: string) => {
+        const found = FILTER_PRESETS.find((candidate) => candidate.id === id);
+        if (!found) throw new Error(`${id} preset missing`);
+        return found;
+      };
+
+      expect(preset('snoozed')).toMatchObject({
+        label: 'Snoozed',
+        description: 'Snoozed threads only',
+        apply: { resolved: 'exclude', snoozed: 'include' },
+      });
+      // A resolved and snoozed thread shows as resolved, so the preset leaves it to Archived.
+      expect(
+        applyPreset(makeDefaultState({ resolved: 'include' }), preset('snoozed'))
+      ).toMatchObject({ resolved: 'exclude', snoozed: 'include' });
+      expect(applyPreset(makeDefaultState(), preset('needs-attention')).snoozed).toBe('exclude');
+      expect(applyPreset(makeDefaultState(), preset('review-queue')).snoozed).toBe('exclude');
+      expect(
+        applyPreset(makeDefaultState({ snoozed: 'exclude' }), preset('archived')).snoozed
+      ).toBe('any');
+    });
+
+    it('keeps only an excluding snoozed filter in Simple mode', async () => {
+      const { simplifyThreadFilterState } = await import('./roomThreadOverviewModel');
+
+      expect(simplifyThreadFilterState(makeDefaultState({ snoozed: 'exclude' })).snoozed).toBe(
+        'exclude'
+      );
+      expect(simplifyThreadFilterState(makeDefaultState({ snoozed: 'include' })).snoozed).toBe(
+        'any'
+      );
+    });
+
     it('materializes the working preset as streaming OR scheduled and serializes it', async () => {
       const { FILTER_PRESETS, applyPreset } = await import('./roomThreadOverviewModel');
       const { serializeThreadFilterQuery } = await import('./threadFilterDsl');
@@ -270,6 +364,29 @@ describe('roomThreadOverviewModel', () => {
     });
   });
 
+  describe('simplifyAgentlessSimpleThreadFilterState', () => {
+    it('keeps only the sort, leaving the resolved and snoozed filters inactive', async () => {
+      const { simplifyAgentlessSimpleThreadFilterState } = await import(
+        './roomThreadOverviewModel'
+      );
+
+      expect(
+        simplifyAgentlessSimpleThreadFilterState(
+          makeDefaultState({
+            resolved: 'exclude',
+            snoozed: 'exclude',
+            sortBy: 'lastReply',
+            sortDirection: 'asc',
+          })
+        )
+      ).toEqual({
+        ...makeDefaultState(),
+        sortBy: 'lastReply',
+        sortDirection: 'asc',
+      });
+    });
+  });
+
   describe('simplifyAgentlessThreadFilterState', () => {
     it('keeps only text search and sorting from the full toolbar state', async () => {
       const { simplifyAgentlessThreadFilterState } = await import('./roomThreadOverviewModel');
@@ -277,6 +394,7 @@ describe('roomThreadOverviewModel', () => {
       const projected = simplifyAgentlessThreadFilterState(
         makeDefaultState({
           resolved: 'include',
+          snoozed: 'exclude',
           streaming: 'exclude',
           scheduled: 'include',
           unread: 'exclude',

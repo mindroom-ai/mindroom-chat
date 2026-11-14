@@ -5,9 +5,16 @@ import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFi
 
 export type TriState = 'any' | 'include' | 'exclude';
 
-export type ThreadFilterKey = 'resolved' | 'streaming' | 'scheduled' | 'unread' | 'idle';
+export type ThreadFilterKey =
+  | 'resolved'
+  | 'snoozed'
+  | 'streaming'
+  | 'scheduled'
+  | 'unread'
+  | 'idle';
 export const THREAD_FILTER_KEYS: ThreadFilterKey[] = [
   'resolved',
+  'snoozed',
   'streaming',
   'scheduled',
   'unread',
@@ -17,6 +24,7 @@ export const THREAD_FILTER_KEYS: ThreadFilterKey[] = [
 export interface ThreadFilterState {
   // Status toggles
   resolved: TriState;
+  snoozed: TriState;
   streaming: TriState;
   scheduled: TriState;
   unread: TriState;
@@ -42,6 +50,7 @@ export type ThreadSortFreezeState = {
 
 export const createDefaultThreadFilterState = (): ThreadFilterState => ({
   resolved: 'any',
+  snoozed: 'any',
   streaming: 'any',
   scheduled: 'any',
   unread: 'any',
@@ -57,6 +66,7 @@ export const createDefaultThreadFilterState = (): ThreadFilterState => ({
 export interface SerializedThreadFilterState {
   v: 2;
   resolved: TriState;
+  snoozed: TriState;
   streaming: TriState;
   scheduled: TriState;
   unread: TriState;
@@ -75,6 +85,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const isTriState = (value: unknown): value is TriState =>
   value === 'any' || value === 'include' || value === 'exclude';
+
+// A filter state stored before snoozing existed has no snoozed key; it hides snoozed threads.
+const storedSnoozed = (value: unknown): TriState => (isTriState(value) ? value : 'exclude');
 
 const isStoredTagTriState = (value: unknown): value is Exclude<TriState, 'any'> =>
   value === 'include' || value === 'exclude';
@@ -112,6 +125,7 @@ export const serializeThreadFilterState = (
   return {
     v: 2,
     resolved: isTriState(state.resolved) ? state.resolved : 'any',
+    snoozed: storedSnoozed(state.snoozed),
     streaming: isTriState(state.streaming) ? state.streaming : 'any',
     scheduled: isTriState(state.scheduled) ? state.scheduled : 'any',
     unread: isTriState(state.unread) ? state.unread : 'any',
@@ -161,6 +175,7 @@ export const deserializeThreadFilterState = (value: unknown): ThreadFilterState 
 
   const state: ThreadFilterState = {
     resolved: isTriState(value.resolved) ? value.resolved : defaultState.resolved,
+    snoozed: storedSnoozed(value.snoozed),
     streaming: isTriState(value.streaming) ? value.streaming : defaultState.streaming,
     scheduled: isTriState(value.scheduled) ? value.scheduled : defaultState.scheduled,
     unread: isTriState(value.unread) ? value.unread : defaultState.unread,
@@ -178,7 +193,9 @@ export const deserializeThreadFilterState = (value: unknown): ThreadFilterState 
   // the DSL authoritative, so migrate it once at the persistence boundary and
   // store only canonical structured filters + text from then on.
   if (value.v === 1 && typeof value.searchQuery === 'string') {
-    return applyParsedThreadFilterQuery(state, parseThreadFilterQuery(value.searchQuery));
+    const parsed = parseThreadFilterQuery(value.searchQuery);
+    const migrated = applyParsedThreadFilterQuery(state, parsed);
+    return parsed.status.snoozed ? migrated : { ...migrated, snoozed: state.snoozed };
   }
   return state;
 };
@@ -222,10 +239,17 @@ export const hasActiveThreadFilters = (state: ThreadFilterState): boolean =>
   (state.unsupportedQuery ?? '').length > 0 ||
   (state.people?.length ?? 0) > 0;
 
+/**
+ * Whether the reader chose a filter. Hiding snoozed threads is what Compact's default and every
+ * state stored before snoozing existed read as, so it alone does not count.
+ */
+export const hasChosenThreadFilters = (state: ThreadFilterState): boolean =>
+  hasActiveThreadFilters(state.snoozed === 'exclude' ? { ...state, snoozed: 'any' } : state);
+
 export const isRoomThreadOverviewActive = (
   threadId: string | undefined,
   state: ThreadFilterState
-): boolean => !threadId && (hasActiveThreadFilters(state) || state.sortBy !== 'natural');
+): boolean => !threadId && (hasChosenThreadFilters(state) || state.sortBy !== 'natural');
 
 export const updateThreadFilterKey = (
   state: ThreadFilterState,
@@ -257,6 +281,7 @@ export const createThreadSortControlSignature = ({
     sortBy: state.sortBy,
     sortDirection: state.sortDirection,
     resolved: state.resolved,
+    snoozed: state.snoozed,
     streaming: state.streaming,
     scheduled: state.scheduled,
     unread: state.unread,
@@ -294,9 +319,10 @@ export const normalizeThreadSearchText = (query: string): string =>
 
 /**
  * Project a persisted filter state onto the subspace reachable in simple
- * mode: defaults everywhere except sorting and the resolved dimension, of
- * which only 'exclude' ("unresolved only") survives. Controls for the other
- * dimensions are hidden in simple mode, so their persisted values must not
+ * mode: defaults everywhere except sorting and the resolved and snoozed
+ * dimensions, of which only 'exclude' survives ("unresolved only", and the
+ * snoozed threads Compact hides). Controls for the other dimensions are
+ * hidden in simple mode, so their persisted values must not
  * keep influencing which threads are shown. The stored state itself is left
  * untouched — leaving simple mode restores the full setup.
  *
@@ -307,6 +333,7 @@ export const simplifyThreadFilterState = (state: ThreadFilterState): ThreadFilte
   return {
     ...createDefaultThreadFilterState(),
     resolved: state.resolved === 'exclude' ? 'exclude' : 'any',
+    snoozed: state.snoozed === 'exclude' ? 'exclude' : 'any',
     sortBy: state.sortBy,
     sortDirection: state.sortDirection,
   };
@@ -322,6 +349,7 @@ export const simplifyAgentlessSimpleThreadFilterState = (
 ): ThreadFilterState => ({
   ...simplifyThreadFilterState(state),
   resolved: 'any',
+  snoozed: 'any',
 });
 
 /**
@@ -390,7 +418,7 @@ export const FILTER_PRESETS: FilterPreset[] = [
     id: 'needs-attention',
     label: 'Needs attention',
     description: 'Unresolved, non-streaming, non-scheduled threads',
-    apply: { resolved: 'exclude', streaming: 'exclude', scheduled: 'exclude' },
+    apply: { resolved: 'exclude', snoozed: 'exclude', streaming: 'exclude', scheduled: 'exclude' },
   },
   {
     id: 'working',
@@ -402,7 +430,14 @@ export const FILTER_PRESETS: FilterPreset[] = [
     id: 'review-queue',
     label: 'Review queue',
     description: 'Unresolved threads with unread replies',
-    apply: { resolved: 'exclude', unread: 'include' },
+    apply: { resolved: 'exclude', snoozed: 'exclude', unread: 'include' },
+  },
+  {
+    id: 'snoozed',
+    label: 'Snoozed',
+    description: 'Snoozed threads only',
+    // A resolved thread shows as resolved even while snoozed, so it belongs to Archived.
+    apply: { resolved: 'exclude', snoozed: 'include' },
   },
   {
     id: 'archived',
@@ -423,6 +458,7 @@ export const applyPreset = (state: ThreadFilterState, preset: FilterPreset): Thr
   const nextState: ThreadFilterState = {
     ...state,
     resolved: 'any',
+    snoozed: 'any',
     streaming: 'any',
     scheduled: 'any',
     unread: 'any',
