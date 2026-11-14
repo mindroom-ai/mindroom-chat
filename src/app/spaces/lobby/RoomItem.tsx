@@ -22,10 +22,10 @@ import * as styleCss from './style.css';
 
 type RoomItemCardProps = {
   item: HierarchyItem;
-  /** The summary is still being fetched; the card shows placeholders. */
-  loading: boolean;
   /** The hierarchy entry; a join rule the client does not know arrives as a plain string. */
   summary: (Omit<IHierarchyRoom, 'join_rule'> & { join_rule?: string }) | undefined;
+  /** The summary is still being fetched; the card shows placeholders. */
+  loading: boolean;
   /** The client's copy of a room, for rooms the summary does not describe yet. */
   getRoom: (roomId: string) => Room | undefined;
   onOpen: (roomId: string) => void;
@@ -111,7 +111,7 @@ export function RoomItemCard({
         {loading ? (
           <div className={styleCss.LinePlaceholder} />
         ) : (
-          <Box className={css.ErrorNameContainer} alignItems="Center">
+          <Box className={css.RoomNameRow} alignItems="Center">
             {opensByCard ? (
               <button type="button" className={css.CardOpener} data-card-opener>
                 <Text as="span" className={css.RoomName} size="T400" {...ownDirectionLine}>
@@ -125,7 +125,7 @@ export function RoomItemCard({
             )}
           </Box>
         )}
-        {topic && (
+        {!!topic && (
           <Text
             className={css.RoomProfileTopic}
             size="T200"

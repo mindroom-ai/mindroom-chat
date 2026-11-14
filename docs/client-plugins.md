@@ -409,8 +409,8 @@ The composer offers them after its own commands, in the same command menu, and r
 In a thread whose root the server has not confirmed yet, the command waits, its text in the composer, until the root has its own ID, as a message sent there does.
 `name` is what follows the `/`, letters a to z only; `description` is a key of the plugin's strings, shown in the app's language in the menu.
 A built-in command keeps its name, also one a later version of the app adds, so a plugin's command of the same name is none, and a name claimed more than once, by one plugin or by several, runs for none of them, with one warning that names the plugins.
-A `run` that throws, or whose promise rejects, leaves the text in the composer with "/<name> failed: <the error's message>" above it, as a built-in command's failure does.
-One that throws `commandUsage()` from `core`, for a text after the name that it does not take, shows instead the usage line a built-in command shows, "Could not run /<name>. <its description>", in the app's language; for a message of its own in the app's language, it throws an error whose message `getPluginTranslation(id)` translates.
+A `run` that throws, or whose promise rejects, leaves the text in the composer with `/<name> failed: <the error's message>` above it, as a built-in command's failure does.
+One that throws `commandUsage()` from `core`, for a text after the name that it does not take, shows instead the usage line a built-in command shows, `Could not run /<name>. <its description>`, in the app's language; for a message of its own in the app's language, it throws an error whose message `getPluginTranslation(id)` translates.
 
 ## Room menu entries
 

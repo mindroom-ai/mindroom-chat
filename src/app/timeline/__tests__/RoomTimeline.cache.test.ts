@@ -2254,34 +2254,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       }
     });
 
-    it('counts reply-backed thread roots in preload surface counts even when the root is not renderable in the room timeline', async () => {
-      const { getRoomPreloadCounts } = await import('../../event-store/timeline/roomTimelineEvents');
-      const fallbackRoot = makeEvent('$thread-root');
-      const fallbackReply = makeEvent('$thread-reply', {
-        threadRootId: fallbackRoot.getId(),
-      });
-      const liveTimeline = makeTimeline([fallbackReply]);
-      const room = makeRoom({
-        liveTimeline,
-        findEventById: (eventId: string) =>
-          eventId === fallbackRoot.getId() ? fallbackRoot : undefined,
-      });
-
-      expect(
-        getRoomPreloadCounts([liveTimeline] as never, room as never, {
-          threadId: undefined,
-          ignoredUsersSet: new Set<string>(),
-          showHiddenEvents: false,
-          hideMembershipEvents: false,
-          hideNickAvatarEvents: false,
-        })
-      ).toEqual({
-        cacheCount: 0,
-        renderableCount: 0,
-        surfaceCount: 1,
-      });
-    });
-
     it('renders reply-backed thread roots in overview mode when only replies are loaded in the room timeline', async () => {
       const { RoomTimeline } = await import('../RoomTimeline');
       const fallbackRoot = makeEvent('$thread-root');

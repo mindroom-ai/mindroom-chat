@@ -10,8 +10,8 @@ import {
 // The Invites page: a centered title, a Filter label over the list chips, a heading with Accept
 // All for the list shown, and one card per invite with its picture or a colored letter, small
 // chips over the name of a direct chat, Decline and Accept side by side at the card's end, and
-// the inviter on a quiet line under it. The Activity list beside it shows each pending invite as a
-// row of its own. The cards are checked in Chromium and, when
+// the inviter on a quiet line under it. The Activity list beside it gathers the three pending
+// invites into one row. The cards are checked in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set INVITES_SHOTS=<directory>
 // to also save the page in dark and light themes and at a phone's width.
 const PASSWORD = 'invites-page-spec-password';
@@ -147,9 +147,10 @@ test.beforeAll(async () => {
 });
 
 const checkInviteCards = async (page: Page) => {
-  // The Activity list beside the page shows each pending invite.
+  // The Activity list beside the page gathers the three pending invites into one row.
   const nav = page.getByRole('navigation', { name: 'Activity' });
-  await expect(nav.locator('[data-activity-row="invite"]')).toHaveCount(3);
+  await expect(nav.locator('[data-activity-row="invites"]')).toContainText('3 invites');
+  await expect(nav.locator('[data-activity-row="invite"]')).toHaveCount(0);
 
   // The Primary chip is pressed and counts its invites; the empty lists show no number.
   const filter = page.getByRole('group', { name: 'Filter' });

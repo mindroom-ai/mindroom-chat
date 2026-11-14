@@ -2,8 +2,10 @@ import { RelationType, type MatrixEvent } from 'matrix-js-sdk';
 import { reactionOrEditEvent } from '../matrix/room';
 import { inSameDay, minuteDifference } from '../lib/time';
 import { shouldRenderUnreadDividerAt } from '../event-store/timeline/timelineScrollUtils';
-import { primeTimelineRenderContextBefore } from '../event-store/threads/threadRenderUtils';
-import { getTimelineMessageKind } from '../event-store/timeline/timelineRowTypes';
+import {
+  NOTICE_STATE_EVENT_TYPES,
+  getTimelineMessageKind,
+} from '../event-store/timeline/timelineRowTypes';
 
 /** How one mounted row relates to the rows before it. */
 type TimelineRowContext = {
@@ -33,9 +35,16 @@ const groupKind = (event: MatrixEvent): string => {
   return getTimelineMessageKind(type) ? 'turn' : type;
 };
 
-/** Edits, reactions and redactions change other rows and have no row of their own. */
+/**
+ * Edits, reactions and redactions change other rows and have no row of their own, and an event
+ * of a type the timeline draws no row for (`timelineRowTypes`) renders nothing.
+ */
 export const isRowlessTimelineEvent = (event: MatrixEvent): boolean =>
-  reactionOrEditEvent(event) || !!event.isRedaction?.();
+  reactionOrEditEvent(event) ||
+  !!event.isRedaction?.() ||
+  (event.getStateKey() !== undefined
+    ? !NOTICE_STATE_EVENT_TYPES.has(event.getType())
+    : !getTimelineMessageKind(event.getType()));
 
 /**
  * The event `event` replies to, if it is a genuine reply. A thread message with an MSC3440
@@ -60,11 +69,17 @@ const continuesGroup = (above: MatrixEvent, event: MatrixEvent): boolean =>
   minuteDifference(above.getTs(), event.getTs()) < GROUP_MINUTES;
 
 /**
- * Whether a message right after `above` shows its own author line. An edit or reaction above
+ * Whether a message right after `above` shows its own author line. An event without a row above
  * ends the group, as it does in the fold below.
  */
 export const startsAuthorGroup = (above: MatrixEvent | undefined, event: MatrixEvent): boolean =>
   !above || isRowlessTimelineEvent(above) || !continuesGroup(above, event);
+
+/** Whether `event` is a row with output: not skipped, and with a row of its own. */
+const showsRow = (
+  event: MatrixEvent | undefined,
+  isSkipped: (event: MatrixEvent) => boolean
+): event is MatrixEvent => !!event?.getId() && !isSkipped(event) && !isRowlessTimelineEvent(event);
 
 /**
  * The reply quote state after a row. `targetId` is set while the rows down to `rowId` all reply
@@ -99,7 +114,7 @@ const primeReplyRun = (
   let targetId: string | undefined;
   for (let above = index - 1; above >= 0; above -= 1) {
     const event = getEvent(above);
-    if (event?.getId() && !isSkipped(event) && !isRowlessTimelineEvent(event)) {
+    if (showsRow(event, isSkipped)) {
       if (rowId === undefined) {
         rowId = event.getId();
         targetId = genuineReplyEventId(event);
@@ -128,10 +143,11 @@ type FoldOptions = {
 /**
  * Walks the rows of a virtual window in order and decides, for each, whether it groups with the
  * row above it, whether a date or unread divider goes above it, and which reply needs no quote
- * there. A window that starts after the first row is primed from the rows before it, so a row
- * looks the same whether or not the rows above it are mounted. An edit or reaction counts as the
- * row above (it ends a group) but renders nothing, so a day change at it shows above the next
- * message instead, and a reply quote looks past it.
+ * there. The walk starts at the last row with output above the window, so a row looks the same
+ * whether or not the rows above it are mounted. An event without a row (an edit,
+ * a reaction, or an event of a type the timeline draws nothing for) counts as the row above (it
+ * ends a group) but renders nothing, so a day change or the read marker at it shows above the
+ * next row with output instead, and a reply quote looks past it.
  */
 export const foldTimelineRowContexts = ({
   indexes,
@@ -144,22 +160,17 @@ export const foldTimelineRowContexts = ({
   const firstIndex = indexes[0];
   const lastIndex = indexes.at(-1);
   if (firstIndex === undefined || lastIndex === undefined) return contexts;
-  const primed = primeTimelineRenderContextBefore(getEvent, firstIndex, isSkipped);
-  let above: MatrixEvent | undefined = primed?.prevEvent;
-  let aboveHasRow = primed?.isPrevRendered ?? false;
-  let dayChanged = primed?.pendingDayDivider ?? false;
-  // The last row with output before the window, past the events it skips, as the walk below
-  // keeps it; that row may be outside the window (index -1): without it, a read marker above the
-  // window would put the unread divider over the window's first row.
+  // The last row with output above the window. Without one (-1), the row before these rows stands
+  // for it: a read marker above that row puts no unread divider over the first row here.
   let before = firstIndex - 1;
-  for (; before >= 0; before -= 1) {
-    const event = getEvent(before);
-    if (!event?.getId() || (!isSkipped(event) && !isRowlessTimelineEvent(event))) break;
-  }
+  while (before >= 0 && !showsRow(getEvent(before), isSkipped)) before -= 1;
   let lastRowAbsoluteIndex = getAbsoluteIndex?.(before);
-  let replyRun = primeReplyRun(getEvent, firstIndex, isSkipped);
+  let above: MatrixEvent | undefined;
+  let aboveHasRow = false;
+  let dayChanged = false;
+  let replyRun = primeReplyRun(getEvent, before, isSkipped);
 
-  for (let index = firstIndex; index <= lastIndex; index += 1) {
+  for (let index = Math.max(before, 0); index <= lastIndex; index += 1) {
     const event = getEvent(index);
     if (event?.getId() && !isSkipped(event)) {
       if (above && !inSameDay(above.getTs(), event.getTs())) dayChanged = true;

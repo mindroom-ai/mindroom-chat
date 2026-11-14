@@ -2285,7 +2285,6 @@
         "noMicrophone": "Nessun microfono trovato su questo dispositivo.",
         "microphoneUnavailable": "Il microfono non è disponibile al momento (potrebbe essere usato da un’altra app).",
         "microphoneFailed": "Impossibile accedere al microfono.",
-        "microphoneUnsupported": "L’accesso al microfono non è supportato su questo dispositivo.",
         "recordingStopped": "La registrazione vocale si è interrotta in modo imprevisto. Registrala di nuovo.",
         "noAudio": "Non è stato acquisito alcun dato audio.",
         "recordingUnsupported": "La registrazione vocale non è supportata in questo browser.",

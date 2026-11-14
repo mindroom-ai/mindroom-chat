@@ -5,8 +5,7 @@ import {
 } from '../../matrix/protocol/messageExtrasData';
 import { getThreadSummaryInfo, hasThreadSummary } from '../../matrix/protocol/threadSummary';
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../matrix/editEvent';
-import { getLatestEdit, reactionOrEditEvent } from '../../matrix/room';
-import { inSameDay } from '../../lib/time';
+import { getLatestEdit } from '../../matrix/room';
 import { countCacheProbe } from '../cache/cacheProbe';
 
 export type ThreadInitialRenderMode = 'loading' | 'cached' | 'live';
@@ -880,128 +879,11 @@ export const mergeThreadRenderEvents = (
     unionKeys.forEach((key) => indexedSet(key, winner));
   };
 
-  existingEvents.forEach((mEvent) => {
-    const keys = getThreadRenderEventKeys(mEvent, resolveConfirmedId);
-    if (keys.length === 0) return;
-    setEventForKeys(keys, mEvent);
-  });
+  // setEventForKeys picks the winner and displaces the losers (RG5d).
+  const addEvent = (mEvent: MatrixEvent) =>
+    setEventForKeys(getThreadRenderEventKeys(mEvent, resolveConfirmedId), mEvent);
+  existingEvents.forEach(addEvent);
+  incomingEvents.forEach(addEvent);
 
-  // ISSUE-207 AC2 render-gap RG1 (2026-07-04) — F9 fold (2026-07-04):
-  // observability for "incoming batch carried at least one m.replace"
-  // (`mergeSawIncomingEditRelation`) is folded into the incoming loop
-  // as a boolean flip — no extra iteration. Bumped once per merge call
-  // if any incoming event had a Replace relation.
-  let incomingHadEditRelation = false;
-  incomingEvents.forEach((mEvent) => {
-    const incomingKeys = getThreadRenderEventKeys(mEvent, resolveConfirmedId);
-    if (incomingKeys.length === 0) return;
-
-    if (mEvent.getRelation()?.rel_type === RelationType.Replace) {
-      incomingHadEditRelation = true;
-    }
-
-    // setEventForKeys handles the pick + displacement internally; the
-    // caller just provides the new event and its keys. This is the
-    // canonicalization seam (RG5d); see setEventForKeys comment block.
-    setEventForKeys(incomingKeys, mEvent);
-  });
-  if (incomingHadEditRelation) {
-    countCacheProbe('mergeSawIncomingEditRelation');
-  }
-
-  const merged = Array.from(new Set(eventMap.values())).sort(compareThreadRenderOrder);
-
-  // ISSUE-207 AC2 render-gap RG1 (2026-07-04): observability at the
-  // merge seam — bumps once per incoming m.replace whose target IS
-  // present in the merged output but has NO `replacingEvent()` set.
-  // That shape names "the applier ran (or was expected to run) upstream,
-  // but the instance the merge kept for the target does not carry the
-  // repaired replacement" — a merge-preference regression.
-  //
-  // F9 fold (2026-07-04): query `eventMap` directly by the target's
-  // event key instead of building a fresh `Map<id, MatrixEvent>` from
-  // the sorted output. Post-RG5d canonicalization the map already
-  // holds exactly one instance per identity reachable under the
-  // `event:${id}` key, so the lookup is O(1) with no per-call
-  // allocation. Guarded on incomingHadEditRelation so the whole block
-  // is skipped when the incoming batch has no edit relations.
-  if (incomingHadEditRelation) {
-    incomingEvents.forEach((mEvent) => {
-      const relation = mEvent.getRelation();
-      if (relation?.rel_type !== RelationType.Replace) return;
-      const targetEventId = relation.event_id;
-      if (!targetEventId) return;
-      const target = eventMap.get(`event:${targetEventId}`);
-      if (!target) return;
-      if (!target.replacingEvent()) {
-        countCacheProbe('mergeSawEditRelationNoTargetChange');
-      }
-    });
-  }
-
-  return merged;
-};
-
-export type TimelineRenderContextPrime = {
-  prevEvent: MatrixEvent;
-  isPrevRendered: boolean;
-  pendingDayDivider: boolean;
-};
-
-/**
- * Computes the sequential renderer's `prevEvent`/`isPrevRendered` context as
- * it would stand just before `windowStartIndex`, for priming a virtual window
- * that does not render the preceding rows.
- *
- * Parity contract with the sequential path: events failing `isSkipped`
- * (ignored sender, hidden redaction, filtered thread reply) never touch the
- * context; every other event becomes `prevEvent` — including reaction/edit
- * events, which set `isPrevRendered = false`. Skipping edits here instead
- * (the original primer bug) makes a message that follows an edit burst group
- * as collapsed only when the window starts on it, so its height flips as the
- * window boundary crosses the burst and the row measurement cache goes stale
- * — visible flicker in edit-heavy streaming threads.
- */
-export const primeTimelineRenderContextBefore = (
-  getEvent: (index: number) => MatrixEvent | undefined,
-  windowStartIndex: number,
-  isSkipped: (event: MatrixEvent) => boolean
-): TimelineRenderContextPrime | undefined => {
-  let prevEvent: MatrixEvent | undefined;
-  let oldestTrailing: MatrixEvent | undefined;
-  let consumptionBase: MatrixEvent | undefined;
-  for (let index = windowStartIndex - 1; index >= 0; index -= 1) {
-    const event = getEvent(index);
-    if (!event || !event.getId()) continue;
-    if (isSkipped(event)) continue;
-    if (!prevEvent) {
-      prevEvent = event;
-      // Residual approximation: a non-edit event whose renderer returns null
-      // (e.g. hidden membership) sequentially yields isPrevRendered = false;
-      // the collapsed check's sender/type equality makes that invisible.
-      if (!reactionOrEditEvent(event)) break;
-      oldestTrailing = event;
-      continue;
-    }
-    oldestTrailing = event;
-    if (!reactionOrEditEvent(event)) {
-      consumptionBase = event;
-      break;
-    }
-  }
-  if (!prevEvent) return undefined;
-  const isPrevRendered = !reactionOrEditEvent(prevEvent);
-  // Sequential fold: dayDivider latches at any adjacent midnight crossing and
-  // is only consumed (rendered) by a row with output — a crossing at a
-  // null-rendering edit/reaction row carries forward to the next real
-  // message. Events are ts-sorted, so a crossing exists among the trailing
-  // null rows iff the endpoints differ in day: from the nearest rendered row
-  // (where the last consumption happened) — or the oldest surviving event
-  // when nothing before renders — up to prevEvent.
-  const carryBase = consumptionBase ?? oldestTrailing;
-  const pendingDayDivider =
-    !isPrevRendered && carryBase !== undefined && carryBase !== prevEvent
-      ? !inSameDay(carryBase.getTs(), prevEvent.getTs())
-      : false;
-  return { prevEvent, isPrevRendered, pendingDayDivider };
+  return Array.from(new Set(eventMap.values())).sort(compareThreadRenderOrder);
 };

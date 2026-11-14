@@ -524,13 +524,3 @@ export const buildFlightRecorderPayload = () => {
       currentSession?.sessionId === abnormalSession?.sessionId ? null : currentSession,
   };
 };
-
-export const buildFlightRecorderExport = (): { fileName: string; blob: Blob } => {
-  const payload = buildFlightRecorderPayload();
-  const { exportedAt } = payload.metadata;
-  const timestamp = new Date(exportedAt).toISOString().replace(/[:.]/g, '-');
-  return {
-    fileName: `mindroom-diagnostics-${timestamp}.json`,
-    blob: new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }),
-  };
-};

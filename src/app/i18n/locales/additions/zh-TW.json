@@ -781,7 +781,8 @@
     "back": "返回",
     "resize": "調整討論串大小",
     "showFull": "完整顯示討論串",
-    "showBeside": "在訊息旁顯示討論串"
+    "showBeside": "在訊息旁顯示討論串",
+    "notFound": "找不到該討論串"
   },
   "activity": {
     "title": "動態",

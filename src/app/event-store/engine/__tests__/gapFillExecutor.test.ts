@@ -6,11 +6,7 @@ import type { IEvent, MatrixClient, Room } from 'matrix-js-sdk';
 import { STARTUP_SYNC_TIMELINE_LIMIT } from '../../../matrix/client/clientSyncPolicy';
 import { createBackfillScheduler } from '../backfillScheduler';
 import { createGapFillExecutor as createExecutor } from '../gapFillExecutor';
-import {
-  createInMemoryGapFillScheduler,
-  GAP_FILL_OVERLAP_TAIL_LIMIT,
-  type GapFillScheduler,
-} from '../engineGapTracker';
+import { GAP_FILL_OVERLAP_TAIL_LIMIT } from '../engineGapTracker';
 import {
   clearRoomTailDiscontinuity,
   loadRoomTailDiscontinuity,
@@ -59,9 +55,8 @@ const allowance = (events = Number.POSITIVE_INFINITY) => {
 
 const createGapFillExecutor = (
   options: Omit<ExecutorOptions, ControllerCallbacks> &
-    Partial<Pick<ExecutorOptions, ControllerCallbacks>>,
-  queue: GapFillScheduler
-) => createExecutor({ ...allowance().callbacks, ...options }, queue);
+    Partial<Pick<ExecutorOptions, ControllerCallbacks>>
+) => createExecutor({ ...allowance().callbacks, ...options });
 
 // `findEventById` returns null so the prefer-live mapper clones each raw chunk event.
 const makeRoomStub = (roomId: string, encrypted = false): Room =>
@@ -160,9 +155,8 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
       overlapEventIds: [],
     });
     const scheduler = createBackfillScheduler({ mx });
-    const queue = createInMemoryGapFillScheduler();
-    const executor = createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, queue);
-    queue.enqueueGapFill({ roomId, markedAt: 1, prevBatch: 'a', reason: 'limited-sync' });
+    const executor = createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler });
+    executor.enqueue({ roomId, markedAt: 1, prevBatch: 'a', reason: 'limited-sync' });
     await waitForCompleted(3);
     expect(mx.__messages).toHaveLength(2);
     expect(await loadRoomTailDiscontinuity(SESSION_ID, roomId)).toBeDefined();
@@ -214,9 +208,8 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
           return result;
         });
       const scheduler = createBackfillScheduler({ mx });
-      const queue = createInMemoryGapFillScheduler();
-      const executor = createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, queue);
-      queue.enqueueGapFill({ roomId, markedAt: 1, prevBatch: 'before', reason: 'limited-sync' });
+      const executor = createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler });
+      executor.enqueue({ roomId, markedAt: 1, prevBatch: 'before', reason: 'limited-sync' });
       await waitForCompleted(1);
       expect(mx.__messages).toHaveLength(1);
       expect(await loadRoomTailDiscontinuity(SESSION_ID, roomId)).toBeDefined();
@@ -275,9 +268,8 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     });
 
     const scheduler = createBackfillScheduler({ mx });
-    const gapFillScheduler = createInMemoryGapFillScheduler();
-    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
-    gapFillScheduler.enqueueGapFill({
+    const executor = createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler });
+    executor.enqueue({
       roomId: '!room:mindroom.chat',
       reason: 'limited-sync',
       markedAt: Date.now(),
@@ -328,9 +320,8 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     });
 
     const scheduler = createBackfillScheduler({ mx });
-    const gapFillScheduler = createInMemoryGapFillScheduler();
-    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
-    gapFillScheduler.enqueueGapFill({
+    const executor = createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler });
+    executor.enqueue({
       roomId: '!room:mindroom.chat',
       reason: 'limited-sync',
       markedAt: Date.now(),
@@ -358,11 +349,10 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     });
 
     const scheduler = createBackfillScheduler({ mx });
-    const gapFillScheduler = createInMemoryGapFillScheduler();
     // Encrypted pages decrypt through the SDK, so the executor fetches them
     // like any other room's.
-    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
-    gapFillScheduler.enqueueGapFill({
+    const executor = createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler });
+    executor.enqueue({
       roomId: '!e2e:mindroom.chat',
       reason: 'startup',
       markedAt: Date.now(),
@@ -376,7 +366,7 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     expect(marker).toBeUndefined();
   });
 
-  it('subscribes to future enqueues so a limited-sync reset dispatches immediately', async () => {
+  it('fills a limited-sync gap as soon as it is enqueued', async () => {
     let call = 0;
     const mx = createMockClient(() => {
       call += 1;
@@ -386,11 +376,9 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     mx.__rooms.set('!room:mindroom.chat', makeRoomStub('!room:mindroom.chat'));
 
     const scheduler = createBackfillScheduler({ mx });
-    const gapFillScheduler = createInMemoryGapFillScheduler();
-    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
+    const executor = createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler });
 
-    // Enqueue AFTER the executor is wired — subscription must fire.
-    gapFillScheduler.enqueueGapFill({
+    executor.enqueue({
       roomId: '!room:mindroom.chat',
       reason: 'limited-sync',
       markedAt: Date.now(),
@@ -403,6 +391,24 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
 
     const cached = await loadCachedRoomEvent(SESSION_ID, '!room:mindroom.chat', '$e2');
     expect(cached?.event_id).toBe('$e2');
+  });
+
+  it('starts no fill for a job enqueued after stop()', () => {
+    const mx = createMockClient(() => ({ chunk: [] }));
+    mx.__rooms.set('!room:mindroom.chat', makeRoomStub('!room:mindroom.chat'));
+    const scheduler = createBackfillScheduler({ mx });
+    const executor = createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler });
+
+    executor.stop();
+    executor.enqueue({
+      roomId: '!room:mindroom.chat',
+      reason: 'limited-sync',
+      markedAt: Date.now(),
+      prevBatch: 'tok-0',
+    });
+
+    expect(scheduler.pendingJobs()).toHaveLength(0);
+    expect(getCacheProbeSnapshot().schedulerEnqueued).toBe(0);
   });
 
   it('runs one latest successor when a newer reset arrives during an active fill', async () => {
@@ -431,9 +437,8 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
       overlapEventIds: ['$original-tail'],
     });
     const scheduler = createBackfillScheduler({ mx });
-    const gapFillScheduler = createInMemoryGapFillScheduler();
-    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
-    gapFillScheduler.enqueueGapFill({
+    const executor = createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler });
+    executor.enqueue({
       roomId: '!room:mindroom.chat',
       reason: 'limited-sync',
       markedAt: 1000,
@@ -449,7 +454,7 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
       generation: 'new-generation',
       nextToken: 'new-token',
     });
-    gapFillScheduler.enqueueGapFill({
+    executor.enqueue({
       roomId: '!room:mindroom.chat',
       reason: 'limited-sync',
       markedAt: 2000,
@@ -476,11 +481,10 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     mx.__rooms.set('!room:mindroom.chat', makeRoomStub('!room:mindroom.chat'));
 
     const scheduler = createBackfillScheduler({ mx });
-    const gapFillScheduler = createInMemoryGapFillScheduler();
-    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
+    const executor = createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler });
 
     // No prevBatch — mirrors handleSyncPrepared's initial state.
-    gapFillScheduler.enqueueGapFill({
+    executor.enqueue({
       roomId: '!room:mindroom.chat',
       reason: 'startup',
       markedAt: Date.now(),
@@ -510,9 +514,8 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     });
 
     const scheduler = createBackfillScheduler({ mx });
-    const gapFillScheduler = createInMemoryGapFillScheduler();
-    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
-    gapFillScheduler.enqueueGapFill({
+    const executor = createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler });
+    executor.enqueue({
       roomId: '!room:mindroom.chat',
       reason: 'limited-sync',
       markedAt: Date.now(),
@@ -553,20 +556,16 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
       });
       mx.__rooms.set(roomId, makeRoomStub(roomId));
       const scheduler = createBackfillScheduler({ mx });
-      const queue = createInMemoryGapFillScheduler();
-      createGapFillExecutor(
-        {
-          mx,
-          sessionId: SESSION_ID,
-          scheduler,
-          loadCachedTail: async () => {
-            revokeRoomCacheStoreWrites(SESSION_ID, roomId);
-            return { events: [rawEvent('$boundary', 1)], hasMore: false, beforeToken: null };
-          },
+      const executor = createGapFillExecutor({
+        mx,
+        sessionId: SESSION_ID,
+        scheduler,
+        loadCachedTail: async () => {
+          revokeRoomCacheStoreWrites(SESSION_ID, roomId);
+          return { events: [rawEvent('$boundary', 1)], hasMore: false, beforeToken: null };
         },
-        queue
-      );
-      queue.enqueueGapFill({ roomId, reason: 'limited-sync', ...marker });
+      });
+      executor.enqueue({ roomId, reason: 'limited-sync', ...marker });
       await waitForCompleted();
       expect(await loadRoomTailDiscontinuity(SESSION_ID, roomId)).toEqual(marker);
       expect(mx.__messages).toHaveLength(stage === 'empty-response' ? 1 : 0);
@@ -588,12 +587,13 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
       .mockRejectedValueOnce(new Error('read failed'))
       .mockImplementation(loadRoomTailDiscontinuity);
     const scheduler = createBackfillScheduler({ mx });
-    const gapFillScheduler = createInMemoryGapFillScheduler();
-    const executor = createGapFillExecutor(
-      { mx, sessionId: SESSION_ID, scheduler, loadDiscontinuity },
-      gapFillScheduler
-    );
-    gapFillScheduler.enqueueGapFill({
+    const executor = createGapFillExecutor({
+      mx,
+      sessionId: SESSION_ID,
+      scheduler,
+      loadDiscontinuity,
+    });
+    executor.enqueue({
       roomId: '!room:mindroom.chat',
       reason: 'limited-sync',
       markedAt: 1000,
@@ -622,23 +622,19 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     const mx = createMockClient(() => ({ chunk: [rawEvent('$committed', 1)] }));
     mx.__rooms.set(roomId, makeRoomStub(roomId));
     const scheduler = createBackfillScheduler({ mx });
-    const gapFillScheduler = createInMemoryGapFillScheduler();
     const onRoomRecovered = vi.fn();
-    createGapFillExecutor(
-      {
-        mx,
-        sessionId: SESSION_ID,
-        scheduler,
-        onRoomRecovered,
-        persistChunk: async (args) => {
-          const committed = await persistRoomChunkWithPreferLive(args);
-          scheduler.abortAll();
-          return committed;
-        },
+    const executor = createGapFillExecutor({
+      mx,
+      sessionId: SESSION_ID,
+      scheduler,
+      onRoomRecovered,
+      persistChunk: async (args) => {
+        const committed = await persistRoomChunkWithPreferLive(args);
+        scheduler.abortAll();
+        return committed;
       },
-      gapFillScheduler
-    );
-    gapFillScheduler.enqueueGapFill({
+    });
+    executor.enqueue({
       roomId,
       reason: 'limited-sync',
       markedAt: 1,
@@ -666,18 +662,14 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
       nextToken: 'tok-0',
     });
     const scheduler = createBackfillScheduler({ mx });
-    const gapFillScheduler = createInMemoryGapFillScheduler();
-    createGapFillExecutor(
-      {
-        mx,
-        sessionId: SESSION_ID,
-        scheduler,
-        persistChunk: vi.fn().mockRejectedValue(new Error('quota')),
-        onRoomRecovered,
-      },
-      gapFillScheduler
-    );
-    gapFillScheduler.enqueueGapFill({
+    const executor = createGapFillExecutor({
+      mx,
+      sessionId: SESSION_ID,
+      scheduler,
+      persistChunk: vi.fn().mockRejectedValue(new Error('quota')),
+      onRoomRecovered,
+    });
+    executor.enqueue({
       roomId: '!room:mindroom.chat',
       reason: 'limited-sync',
       markedAt: 1000,
@@ -719,21 +711,17 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
       });
     });
     const scheduler = createBackfillScheduler({ mx });
-    const gapFillScheduler = createInMemoryGapFillScheduler();
-    createGapFillExecutor(
-      {
-        mx,
-        sessionId: SESSION_ID,
-        scheduler,
-        persistChunk: persistChunk as never,
-        loadCachedTail: vi.fn().mockResolvedValue({
-          events: [rawEvent('$cached-tail', 10)],
-          hasMoreBefore: false,
-        }) as never,
-      },
-      gapFillScheduler
-    );
-    gapFillScheduler.enqueueGapFill({
+    const executor = createGapFillExecutor({
+      mx,
+      sessionId: SESSION_ID,
+      scheduler,
+      persistChunk: persistChunk as never,
+      loadCachedTail: vi.fn().mockResolvedValue({
+        events: [rawEvent('$cached-tail', 10)],
+        hasMoreBefore: false,
+      }) as never,
+    });
+    executor.enqueue({
       roomId: '!room:mindroom.chat',
       reason: 'limited-sync',
       markedAt: 1000,
@@ -748,8 +736,9 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
       overlapEventIds: ['$cached-tail'],
     });
 
+    // The first page's turn has already completed; wait for the overlap page's.
     commitOverlap();
-    await waitForCompleted();
+    await waitForCompleted(2);
 
     expect(mx.__messages).toHaveLength(2);
     expect(await loadRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat')).toBeUndefined();
@@ -781,22 +770,18 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     });
 
     const scheduler = createBackfillScheduler({ mx });
-    const gapFillScheduler = createInMemoryGapFillScheduler();
     const budget = allowance(20);
-    const executor = createGapFillExecutor(
-      {
-        mx,
-        sessionId: SESSION_ID,
-        scheduler,
-        ...budget.callbacks,
-        loadCachedTail: vi.fn().mockResolvedValue({
-          events: [rawEvent('$pre-gap-tail', 1)],
-          hasMoreBefore: false,
-        }) as never,
-      },
-      gapFillScheduler
-    );
-    gapFillScheduler.enqueueGapFill({
+    const executor = createGapFillExecutor({
+      mx,
+      sessionId: SESSION_ID,
+      scheduler,
+      ...budget.callbacks,
+      loadCachedTail: vi.fn().mockResolvedValue({
+        events: [rawEvent('$pre-gap-tail', 1)],
+        hasMoreBefore: false,
+      }) as never,
+    });
+    executor.enqueue({
       roomId: '!room:mindroom.chat',
       reason: 'limited-sync',
       markedAt: Date.now(),
@@ -891,9 +876,8 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     });
 
     const scheduler = createBackfillScheduler({ mx });
-    const gapFillScheduler = createInMemoryGapFillScheduler();
-    createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, gapFillScheduler);
-    gapFillScheduler.enqueueGapFill({
+    const executor = createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler });
+    executor.enqueue({
       roomId: '!room:mindroom.chat',
       reason: 'limited-sync',
       markedAt: Date.now(),
@@ -926,13 +910,15 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     });
 
     const scheduler = createBackfillScheduler({ mx });
-    const gapFillScheduler = createInMemoryGapFillScheduler();
     const canSavePage = vi.fn(async () => true);
-    createGapFillExecutor(
-      { mx, sessionId: SESSION_ID, scheduler, ...allowance(0).callbacks, canSavePage },
-      gapFillScheduler
-    );
-    gapFillScheduler.enqueueGapFill({
+    const executor = createGapFillExecutor({
+      mx,
+      sessionId: SESSION_ID,
+      scheduler,
+      ...allowance(0).callbacks,
+      canSavePage,
+    });
+    executor.enqueue({
       roomId,
       reason: 'startup',
       markedAt: Date.now(),
@@ -966,17 +952,19 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     });
 
     const scheduler = createBackfillScheduler({ mx });
-    const gapFillScheduler = createInMemoryGapFillScheduler();
     const loadCachedTail = vi
       .fn()
       .mockResolvedValueOnce({ events: [rawEvent('$original-tail', 1)], hasMoreBefore: false })
       .mockResolvedValueOnce({ events: [rawEvent('$late-tail', 2)], hasMoreBefore: false });
     const budget = allowance(0);
-    const executor = createGapFillExecutor(
-      { mx, sessionId: SESSION_ID, scheduler, ...budget.callbacks, loadCachedTail },
-      gapFillScheduler
-    );
-    gapFillScheduler.enqueueGapFill({
+    const executor = createGapFillExecutor({
+      mx,
+      sessionId: SESSION_ID,
+      scheduler,
+      ...budget.callbacks,
+      loadCachedTail,
+    });
+    executor.enqueue({
       roomId,
       reason: 'startup',
       markedAt: Date.now(),
@@ -1015,20 +1003,15 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
       let short = true;
       const { reservePage } = allowance().callbacks;
       const scheduler = createBackfillScheduler({ mx });
-      const gapFillScheduler = createInMemoryGapFillScheduler();
-      const executor = createGapFillExecutor(
-        {
-          mx,
-          sessionId: SESSION_ID,
-          scheduler,
-          // The allowance can run out while the controller makes space for the page.
-          canSavePage: async () => !(short && shortage === 'no space to save'),
-          reservePage: () =>
-            short && shortage === 'no page to reserve' ? undefined : reservePage(),
-        },
-        gapFillScheduler
-      );
-      gapFillScheduler.enqueueGapFill({
+      const executor = createGapFillExecutor({
+        mx,
+        sessionId: SESSION_ID,
+        scheduler,
+        // The allowance can run out while the controller makes space for the page.
+        canSavePage: async () => !(short && shortage === 'no space to save'),
+        reservePage: () => (short && shortage === 'no page to reserve' ? undefined : reservePage()),
+      });
+      executor.enqueue({
         roomId,
         reason: 'limited-sync',
         markedAt: 1,

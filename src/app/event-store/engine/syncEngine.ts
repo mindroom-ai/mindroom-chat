@@ -138,7 +138,6 @@ export const createSyncEngine = ({
   const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
 
   const effectiveScheduler = scheduler ?? createBackfillScheduler({ mx });
-  const effectiveGapTracker = gapTracker ?? createEngineGapTracker({ mx, sessionId });
   const effectivePersist = persist ?? createEnginePersistFacade({ sessionId });
   const recoveryListeners = new Map<string, Set<() => void>>();
   const subscribeRoomRecovery = (roomId: string, listener: () => void): (() => void) => {
@@ -159,7 +158,7 @@ export const createSyncEngine = ({
     connection,
     getPrefetchConfig: effectiveGetPrefetchConfig,
     onChanged: (roomId) => recoveryListeners.get(roomId)?.forEach((notify) => notify()),
-    onPolicyChange: () => gapFillExecutor?.recheckDeferred(),
+    onPolicyChange: () => gapFillExecutor.recheckDeferred(),
   });
 
   const effectiveWriteThrough =
@@ -183,35 +182,35 @@ export const createSyncEngine = ({
       },
     });
 
-  // ISSUE-207 P4.2: wire the executor over the gap tracker's queue so
-  // limited-sync / startup jobs actually drain. Test overrides can pass
-  // a stub `gapTracker` — in that case skip the executor (the stub
-  // controls its own queue).
-  const gapFillExecutor = gapTracker
-    ? undefined
-    : createGapFillExecutor(
-        {
-          mx,
-          sessionId,
-          scheduler: effectiveScheduler,
-          // One controller owns automatic and explicit-download eligibility.
-          pageAllowance: offline.allowance,
-          reservePage: offline.reservePage,
-          canSavePage: offline.canSavePage,
-          onRoomRecovered: (roomId) => {
-            offline.recheck();
-            Array.from(recoveryListeners.get(roomId) ?? []).forEach((notify) => {
-              try {
-                notify();
-              } catch {
-                // A reader must not prevent another reader's refresh or undo
-                // the executor's successful cache commit and cursor advance.
-              }
-            });
-          },
-        },
-        effectiveGapTracker.scheduler
-      );
+  // ISSUE-207 P4.2: the executor runs every limited-sync / startup job the
+  // gap tracker enqueues. A test's stub `gapTracker` enqueues none.
+  const gapFillExecutor = createGapFillExecutor({
+    mx,
+    sessionId,
+    scheduler: effectiveScheduler,
+    // One controller owns automatic and explicit-download eligibility.
+    pageAllowance: offline.allowance,
+    reservePage: offline.reservePage,
+    canSavePage: offline.canSavePage,
+    onRoomRecovered: (roomId) => {
+      offline.recheck();
+      Array.from(recoveryListeners.get(roomId) ?? []).forEach((notify) => {
+        try {
+          notify();
+        } catch {
+          // A reader must not prevent another reader's refresh or undo
+          // the executor's successful cache commit and cursor advance.
+        }
+      });
+    },
+  });
+  const effectiveGapTracker =
+    gapTracker ??
+    createEngineGapTracker({
+      mx,
+      sessionId,
+      enqueueGapFill: gapFillExecutor.enqueue,
+    });
 
   let started = false;
   let liveMode = false;
@@ -404,7 +403,7 @@ export const createSyncEngine = ({
     bindableWindow?.addEventListener('pagehide', handlePageHide);
     bindableDocument?.addEventListener('visibilitychange', handleVisibilityChange);
     unsubscribePrefetchConfig = subscribePrefetchConfig?.(() => {
-      gapFillExecutor?.recheckDeferred();
+      gapFillExecutor.recheckDeferred();
       offline.recheck();
     });
   };
@@ -437,7 +436,7 @@ export const createSyncEngine = ({
       unsubscribePrefetchConfig = undefined;
 
       effectiveGapTracker.stop();
-      gapFillExecutor?.stop();
+      gapFillExecutor.stop();
 
       // Abort every queued/in-flight backfill job. Callers receive a
       // rejection so their finally-blocks can release local state.
@@ -469,7 +468,7 @@ export const createSyncEngine = ({
     // Protect the room before its offline work can ask for space.
     setEvictionProtectedRoomIds([roomId]);
     offline.focus(roomId);
-    gapFillExecutor?.recheckDeferred(roomId);
+    gapFillExecutor.recheckDeferred(roomId);
     noteRoomOpened(sessionId, roomId).catch(() => undefined);
     if (threadId) {
       noteThreadOpened(sessionId, roomId, threadId).catch(() => undefined);

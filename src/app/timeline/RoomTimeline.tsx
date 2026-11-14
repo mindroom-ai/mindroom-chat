@@ -125,7 +125,7 @@ import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from '../event-store/cache/prelo
 import type { ThreadSummaryWriter } from '../event-store/threads/threadSummaryState';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { useThreadOpeningReveal } from './useThreadOpeningReveal';
-import { useViewScopedFlag } from './roomTimelineViewScope';
+import { useViewScopedFlag, useViewScopedState } from './roomTimelineViewScope';
 import {
   heldListHeight,
   isNearLatestEnd,
@@ -374,7 +374,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
     const { room: filterRoom, ...filters } = filterOptsRef.current;
     return countsRoomRows(getInitialTimeline(filterRoom, windowLimitRef.current, filters));
   }, [filterOptsRef, windowLimitRef]);
-  const [timeline, setTimeline] = useState<Timeline>(buildInitialTimeline);
+  // The room's own rows: the render that shows another room starts from that room's timeline, so
+  // no render pairs the room on screen with the rows of the room left (whose effects would page
+  // one room's history into the other's timeline), and an update for the room left is dropped.
+  const [timeline, setTimeline] = useViewScopedState<Timeline>(room.roomId, buildInitialTimeline);
   const [roomHasMoreCachedBack, setRoomHasMoreCachedBack] = useState(false);
   const [roomInitialCacheHydratedKey, setRoomInitialCacheHydratedKey] = useState<string>();
   const [atBottom, setAtBottom] = useState(true);
@@ -390,7 +393,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
   );
   // The room's rows come from its timeline once more, so a deleted thread's root leaves the
   // overview, a frozen sort order included.
-  const rederiveRoomRows = useCallback(() => setTimeline((current) => ({ ...current })), []);
+  const rederiveRoomRows = useCallback(
+    () => setTimeline((current) => ({ ...current })),
+    [setTimeline]
+  );
   useRoomThreadDeleted(room, threadId, rederiveRoomRows);
 
   // Thread rows.
@@ -557,7 +563,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
         threadStateRef.current.setSupplementalThreadEvents(targetThreadId, events),
       invalidateTimeline: () => setTimeline((current) => ({ ...current })),
     }),
-    [threadStateRef]
+    [setTimeline, threadStateRef]
   );
   const viewportPort = useMemo<ThreadOpenViewportPort>(
     () => ({
@@ -1191,7 +1197,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   );
   const handleRoomRefresh = useCallback(
     () => setTimeline(buildInitialTimeline()),
-    [buildInitialTimeline]
+    [buildInitialTimeline, setTimeline]
   );
   useThreadAwareTimelineRefresh({
     room,
@@ -1209,7 +1215,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
     getLoadedEvents: getLoadedThreadEvents,
     debugTraceId: threadDebugTraceId,
   });
-  const forceTimelineUpdate = useCallback(() => setTimeline((current) => ({ ...current })), []);
+  const forceTimelineUpdate = useCallback(
+    () => setTimeline((current) => ({ ...current })),
+    [setTimeline]
+  );
   useThreadEditBackfillController({
     atLiveEndRef,
     eventId,
