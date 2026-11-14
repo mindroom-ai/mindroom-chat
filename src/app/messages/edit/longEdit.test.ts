@@ -1,6 +1,11 @@
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { contentBytes, getLongTextSource, hydrateLongTextSource } from '../../matrix/protocol/longText';
+import {
+  contentBytes,
+  getLongTextSource,
+  hydrateLongTextSource,
+  type LongTextSource,
+} from '../../matrix/protocol/longText';
 import { buildEditContent, loadEditableContent } from './longEdit';
 
 const relation = { rel_type: 'm.replace', event_id: '$original' };
@@ -92,7 +97,7 @@ describe('loadEditableContent', () => {
 
   it('returns the whole content of a long-text message', async () => {
     const hydrate = vi.fn(
-      async (_source: NonNullable<ReturnType<typeof getLongTextSource>>) => longContent
+      async (_source: LongTextSource) => longContent
     );
 
     expect(await loadEditableContent(longTextFile, hydrate)).toBe(longContent);
@@ -102,7 +107,7 @@ describe('loadEditableContent', () => {
   it('returns nothing when the whole content cannot be loaded', async () => {
     // Hydration falls back to the preview, which must never be edited in place of the message.
     const hydrate = vi.fn(
-      async (source: NonNullable<ReturnType<typeof getLongTextSource>>) =>
+      async (source: LongTextSource) =>
         source.previewContent
     );
 

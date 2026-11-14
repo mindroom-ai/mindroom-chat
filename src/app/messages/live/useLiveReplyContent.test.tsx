@@ -193,7 +193,7 @@ describe('useLiveReplyContent', () => {
     const frame = snapshot(4);
     ingest({
       ...frame,
-      snapshot: { ...frame.snapshot!, tools: [{ ...running, progress: 'step 3' }] },
+      snapshot: { ...frame.snapshot, tools: [{ ...running, progress: 'step 3' }] },
     });
     render(checkpointed);
 
@@ -213,7 +213,7 @@ describe('useLiveReplyContent', () => {
     ingest({
       ...frame,
       snapshot: {
-        ...frame.snapshot!,
+        ...frame.snapshot,
         tools: [{ type: 'tool_call_started', tool_name: 'run_shell_command', progress: 'step 3' }],
       },
     });

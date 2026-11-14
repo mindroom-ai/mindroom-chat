@@ -9,6 +9,7 @@ import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { MATRIX_AUDIO_DETAILS_PROPERTY_NAME } from '../../matrix/types/common';
 import {
   IReplyDraft,
+  type PendingVoiceSendContext,
   pendingVoiceSendDraftAtom,
   roomIdToReplyDraftAtomFamily,
   roomIdToUploadItemsAtomFamily,
@@ -23,7 +24,6 @@ import {
   getMatrixUploadErrorStage,
   toMatrixUploadError,
 } from '../../matrix/matrix';
-import type { PendingVoiceSendContext } from '../roomInputDrafts';
 
 const ROOM_ID = '!room:example.org';
 const OTHER_ROOM_ID = '!other:example.org';
@@ -2303,7 +2303,7 @@ describe('RoomInput', () => {
         file: voice,
         duration: 575,
         errorMessage: undefined,
-        context: capturedContext as never,
+        context: capturedContext,
         inFlight: {
           token: 'retry-attempt',
           startedAt: 1,
@@ -2566,7 +2566,7 @@ describe('RoomInput', () => {
       store.set(pendingVoiceSendDraftAtom, {
         file: voice,
         duration: 350,
-        context: capturedContext as never,
+        context: capturedContext,
         inFlight: {
           token: 'retry-attempt',
           startedAt: 1,
@@ -2727,7 +2727,7 @@ describe('RoomInput', () => {
     store.set(pendingVoiceSendDraftAtom, {
       file,
       duration: 1100,
-      context: voiceRecorderState.props!.getSendContext() as never,
+      context: voiceRecorderState.props!.getSendContext(),
     });
 
     // Navigate to a different room (keyed remount mirrors production

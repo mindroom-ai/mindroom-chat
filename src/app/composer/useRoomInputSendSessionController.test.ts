@@ -102,9 +102,7 @@ const loadingUpload = (file: File): Upload => ({
   },
 });
 
-const prepErrorUpload = (
-  file: File
-): { file: File; status: UploadStatus.Error; error: MatrixError } => ({
+const prepErrorUpload = (file: File): Upload & { error: MatrixError } => ({
   file,
   status: UploadStatus.Error,
   error: toMatrixUploadError(new Error(`failed to prepare ${file.name}`), 'create'),
