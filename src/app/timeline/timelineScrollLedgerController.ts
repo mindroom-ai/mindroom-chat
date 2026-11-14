@@ -639,12 +639,16 @@ export const useTimelineScrollLedgerController = ({
   const handleDroppedCorrection = useCallback(
     (deltaPx: number) => {
       scrollCompensationPxRef.current += deltaPx;
+      // A thread's list holds all its rows: the next render takes the row's new size, so this
+      // margin is no room the list will give up, as for a fold (`rowFoldPxRef`). Counted, the end
+      // clamp pulled a reader at the newest reply up by the correction until the next landing.
+      if (threadId) rowFoldPxRef.current += deltaPx;
       // react-virtual can skip its own update when the visible range is
       // unchanged, so the ledger must force the coherent paint itself.
       setLedgerCommitTick((tick) => tick + 1);
       armSettleAtRest();
     },
-    [armSettleAtRest]
+    [armSettleAtRest, threadId]
   );
 
   // virtual-core writes an applied correction at once, in a ResizeObserver
