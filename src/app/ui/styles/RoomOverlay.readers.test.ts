@@ -1,6 +1,6 @@
-import { readFileSync, readdirSync } from 'node:fs';
-import path from 'node:path';
+import { relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { APP_ROOT, REPO_ROOT, readSource, walkProductionSources } from '../../../test/architecture';
 
 // The room's box sets the overview inset, and the containers of its rows and cards hold it at a
 // constant (`overviewInsetStop`), so a change of the filter bar's height does not restyle every
@@ -31,21 +31,11 @@ const INSET = new RegExp(
   ].join('|')
 );
 
-const sources = (dir: string): string[] =>
-  readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const file = path.join(dir, entry.name);
-    // Tests and their helpers render nothing in the app.
-    if (entry.isDirectory())
-      return /^(?:test-utils|__tests__)$/.test(entry.name) ? [] : sources(file);
-    return /\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name) ? [file] : [];
-  });
-
 describe('readers of the room overview inset', () => {
   it('are the files checked to render outside the rows and cards', () => {
-    const root = path.resolve(__dirname, '../../../..');
-    const readers = sources(path.join(root, 'src/app'))
-      .filter((file) => INSET.test(readFileSync(file, 'utf8')))
-      .map((file) => path.relative(root, file).split(path.sep).join('/'))
+    const readers = walkProductionSources(APP_ROOT)
+      .filter((file) => INSET.test(readSource(file)))
+      .map((file) => relative(REPO_ROOT, file).replace(/\\/g, '/'))
       .sort();
     expect(readers).toEqual(READERS);
   });
