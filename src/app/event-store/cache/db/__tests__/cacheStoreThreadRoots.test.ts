@@ -14,6 +14,8 @@ import {
   saveThreadEventsToCache,
 } from '..';
 import { loadCachedEventAcrossRoomScopes, loadRoomOfflineEventBatch } from '../cacheStoreEvents';
+import { openCacheStore } from '../cacheStoreDb';
+import { EVENTS_STORE, buildEventCacheKey } from '../cacheStoreSchema';
 
 // A root's thread summary is the server's word at the moment the page read it. A thread list read
 // while an agent streams keeps the reply's placeholder in it; the page then saves the reply's
@@ -248,6 +250,31 @@ describe('a cached thread whose root is another room’s', () => {
     const found = await loadCachedEventAcrossRoomScopes(SESSION_ID, ROOM_ID, ROOT_ID);
     expect(found?.event_id).toBe(ROOT_ID);
     expect(replacementOf(found)).toBeUndefined();
+  });
+
+  it('finds this room’s root over a copy that names another room, and skips such a reply', async () => {
+    await save([{ ...reply('completed'), room_id: OTHER_ROOM_ID }], root(reply('completed'), 1));
+    // An earlier version could save the root under its own thread's scope, as another room's.
+    const db = await openCacheStore(SESSION_ID);
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db!.transaction(EVENTS_STORE, 'readwrite');
+      transaction.objectStore(EVENTS_STORE).put({
+        cacheKey: buildEventCacheKey(ROOM_ID, ROOT_ID, ROOT_ID),
+        roomId: ROOM_ID,
+        scope: ROOT_ID,
+        eventId: ROOT_ID,
+        ts: 1_000,
+        rawEvent: otherRoot(),
+        approxBytes: 0,
+      });
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+
+    const found = await loadCachedThreadEvent(SESSION_ID, ROOM_ID, ROOT_ID, ROOT_ID);
+    expect(found?.event_id).toBe(ROOT_ID);
+    expect(found?.room_id).toBe(ROOM_ID);
+    expect(await loadCachedThreadEvent(SESSION_ID, ROOM_ID, ROOT_ID, REPLY_ID)).toBeUndefined();
   });
 
   it('keeps a root saved without its room, as older rows were', async () => {
