@@ -848,11 +848,9 @@ describe('useThreadRenderState', () => {
     // The bundled body reachable through the SDK's own resolver is
     // the ultimate render-side truth (getLatestMessageContent reads
     // this).
-    expect(
-      (afterRepair?.replacingEvent()?.getContent() as Record<string, unknown> | undefined)?.[
-        'm.new_content'
-      ]
-    ).toMatchObject({ body: '$edit-c' });
+    expect(afterRepair?.replacingEvent()?.getContent()?.['m.new_content']).toMatchObject({
+      body: '$edit-c',
+    });
 
     renderer.unmount();
   });
@@ -1054,11 +1052,9 @@ describe('useThreadRenderState', () => {
     const afterRepair = getSnapshot().threadEvents.find((mEvt) => mEvt.getId() === '$edit-target');
     expect(afterRepair).toBeDefined();
     expect(afterRepair?.replacingEvent()).toBe(editEventC);
-    expect(
-      (afterRepair?.replacingEvent()?.getContent() as Record<string, unknown> | undefined)?.[
-        'm.new_content'
-      ]
-    ).toMatchObject({ body: '$edit-c' });
+    expect(afterRepair?.replacingEvent()?.getContent()?.['m.new_content']).toMatchObject({
+      body: '$edit-c',
+    });
 
     renderer.unmount();
   });

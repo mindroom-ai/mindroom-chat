@@ -443,9 +443,7 @@ export const loadThreadCachedPaginationSnapshot = async ({
 }): Promise<ThreadCachedPaginationSnapshot> => {
   // The page also holds the replies of the earliest loaded reply's millisecond that sort after it:
   // some are older on the server and on no other page. Those the thread holds are dropped.
-  const anchor = getCachedThreadCursorAnchor(
-    earliestLoadedReply?.event as Partial<IEvent> | undefined
-  );
+  const anchor = getCachedThreadCursorAnchor(earliestLoadedReply?.event);
   const loadedPage = await loadBefore(sessionId, roomId, threadId, anchor, limit, {
     withBeforeMillisecond: true,
   });
@@ -530,9 +528,8 @@ export const getMainTimelineCacheEvents = (
 export const findEarliestLoadedRoomEventByCacheOrder = (
   cacheEvents: MatrixEvent[]
 ): MatrixEvent | undefined => {
-  const earliestEventId = normalizeCachedRoomEvents(
-    cacheEvents.map((mEvent) => mEvent.event as Partial<IEvent>)
-  )[0]?.event_id;
+  const earliestEventId = normalizeCachedRoomEvents(cacheEvents.map((mEvent) => mEvent.event))[0]
+    ?.event_id;
 
   return earliestEventId
     ? cacheEvents.find((mEvent) => mEvent.getId() === earliestEventId)
@@ -550,7 +547,7 @@ export const shouldHydrateLatestRoomCache = (
   cachedLatestEvent: Partial<IEvent> | undefined
 ): boolean => {
   if (!cachedLatestEvent) return false;
-  const loadedRaw = loadedLatestEvent?.event as Partial<IEvent> | undefined;
+  const loadedRaw = loadedLatestEvent?.event;
   const anchorComparison = compareCachedPaginationAnchors(
     getRoomCursorAnchor(cachedLatestEvent),
     getRoomCursorAnchor(loadedRaw)
@@ -701,12 +698,7 @@ export const loadRoomCachedBackStateSnapshot = async ({
   loadPaginationToken?: LoadCachedRoomPaginationToken;
 }): Promise<RoomCachedBackStateSnapshot> => {
   const [cachedPage, cachedBeforeToken] = await Promise.all([
-    loadBefore(
-      sessionId,
-      roomId,
-      getRoomCursorAnchor(earliestLoadedEvent?.event as Partial<IEvent> | undefined),
-      1
-    ),
+    loadBefore(sessionId, roomId, getRoomCursorAnchor(earliestLoadedEvent?.event), 1),
     loadPaginationToken(sessionId, roomId, earliestLoadedEvent?.getId()),
   ]);
 
@@ -766,7 +758,7 @@ export const loadRoomCachedPaginationSnapshot = async ({
   }
 
   // The room's pager drops the events of the page it holds already (the SDK skips them).
-  const anchor = getRoomCursorAnchor(earliestLoadedEvent?.event as Partial<IEvent> | undefined);
+  const anchor = getRoomCursorAnchor(earliestLoadedEvent?.event);
   const cachedPage = withTokenOnlyBelowAnchor(
     await loadBefore(sessionId, roomId, anchor, limit, { withBeforeMillisecond: true }),
     anchor
@@ -887,7 +879,7 @@ const sanitizeAuthoritativeRawEvents = (
     // for its authoritative non-replacement relation bundles; never let its
     // temporarily stale plaintext become the persisted base again.
     return stripRedactedRelationsFromRawEvent(
-      mergeRawEventRevisions(redactedEvent.event as Partial<IEvent>, rawEvent, 'authoritative'),
+      mergeRawEventRevisions(redactedEvent.event, rawEvent, 'authoritative'),
       redactedEventIds
     );
   });

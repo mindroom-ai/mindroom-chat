@@ -226,7 +226,7 @@ describe('runThreadOpenCacheFirst', () => {
     // during the cache-first path itself — the hydration path lives in
     // hydrateThreadFromCache, which is mocked here. All the following
     // calls must therefore come from the onRepaired wiring.
-    const supplementalMock = opts.setSupplementalThreadEvents as ReturnType<typeof vi.fn>;
+    const supplementalMock = opts.setSupplementalThreadEvents;
     const preRepairCalls = supplementalMock.mock.calls.length;
 
     // Simulate the reconciler firing the tick with a repaired batch.
@@ -290,7 +290,7 @@ describe('runThreadOpenCacheFirst', () => {
 
     await runThreadOpenCacheFirst(opts as never);
 
-    const supplementalMock = opts.setSupplementalThreadEvents as ReturnType<typeof vi.fn>;
+    const supplementalMock = opts.setSupplementalThreadEvents;
     const preCalls = supplementalMock.mock.calls.length;
 
     // Fire with an empty batch (contract-defensive test — the engine

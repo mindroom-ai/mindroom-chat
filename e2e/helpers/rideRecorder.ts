@@ -310,10 +310,7 @@ const recordFlickRide = (
         window.requestAnimationFrame(() => resolve());
       });
     const readThreadCount = () =>
-      Number(
-        (scroller.querySelector('[data-thread-count]') as HTMLElement | null)?.dataset
-          .threadCount ?? -1
-      );
+      Number(scroller.querySelector<HTMLElement>('[data-thread-count]')?.dataset.threadCount ?? -1);
     const readProbes = (): Record<string, number> => {
       const snapshot = w.__MINDROOM_CACHE_PROBE__?.snapshot() ?? {};
       return Object.fromEntries(
@@ -609,10 +606,7 @@ export const startRideSampling = (
     if (!scroller) return;
     scroller.dataset.e2eScroller = '1';
     const readThreadCount = () =>
-      Number(
-        (scroller.querySelector('[data-thread-count]') as HTMLElement | null)?.dataset
-          .threadCount ?? -1
-      );
+      Number(scroller.querySelector<HTMLElement>('[data-thread-count]')?.dataset.threadCount ?? -1);
     type Span = { top: number; bottom: number };
     // A row covers only if its message element (or the row, if it has
     // none) is not hidden there or above by visibility, opacity or display;
@@ -1015,10 +1009,7 @@ export const recordOpenSettle = (
         window.requestAnimationFrame(() => resolve());
       });
     const readThreadCount = () =>
-      Number(
-        (scroller.querySelector('[data-thread-count]') as HTMLElement | null)?.dataset
-          .threadCount ?? -1
-      );
+      Number(scroller.querySelector<HTMLElement>('[data-thread-count]')?.dataset.threadCount ?? -1);
     const samples: {
       t: number;
       distFromBottom: number;

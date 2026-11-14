@@ -492,8 +492,8 @@ describe('ComputerScreen', () => {
       // With noVNC's view-only flag at that moment: a view-only noVNC sends nothing.
       element.addEventListener('mousemove', (event) =>
         moves({
-          x: (event as MouseEvent).clientX,
-          y: (event as MouseEvent).clientY,
+          x: event.clientX,
+          y: event.clientY,
           viewOnly: rfb.viewOnly,
         })
       );
