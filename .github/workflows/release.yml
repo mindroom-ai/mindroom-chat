@@ -1,6 +1,6 @@
 # Automatic releases. After CI passes for a push to main, tags that commit with the next calendar
 # version (vYYYY.M.N) and publishes its GitHub release, with notes from the commits since the last
-# release, when release.config.json says "autoRelease": true. With false the job still runs, logs
+# release, when package.json says "autoRelease": true. With false the job still runs, logs
 # that automatic releases are off and stops. scripts/calver.mjs does the work; docs/ios-release.md
 # describes the scheme and how Xcode Cloud builds the tags. A new release then gets its container
 # image (image.yml).
@@ -42,7 +42,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - name: Release the commit if release.config.json allows it
+      - name: Release the commit if package.json allows it
         id: release
         env:
           GH_TOKEN: ${{ github.token }}

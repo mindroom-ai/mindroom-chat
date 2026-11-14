@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1
 # The web client behind nginx, as ghcr.io/mindroom-ai/mindroom-chat publishes it for every release
-# (.github/workflows/image.yml, docs/deployment.md "Container image").
+# (.github/workflows/image.yml, docs/deployment.md "Container image"). Build it from the
+# repository root, `docker build -f docker/Dockerfile .`, which reads Dockerfile.dockerignore here
+# as the build context's .dockerignore.
 #
 # The app is built once, on the platform of the machine that builds the image: its output is the
 # same for every platform. Each target platform's nginx image then only receives the files.
@@ -39,4 +41,4 @@ RUN rm -rf /usr/share/nginx/html \
     && cp /app/runtime-config.js /opt/mindroom/runtime-config.js \
     && cp /app/notices.json /opt/mindroom/notices/notices.json
 COPY docker/default.conf /etc/nginx/conf.d/default.conf
-COPY --chmod=0755 docker-entrypoint.d/ /docker-entrypoint.d/
+COPY --chmod=0755 docker/entrypoint.d/ /docker-entrypoint.d/

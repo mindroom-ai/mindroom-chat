@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
-const SERVE_PY = fileURLToPath(new URL('../../../serve.py', import.meta.url));
+const SERVE_PY = fileURLToPath(new URL('../../../scripts/serve.py', import.meta.url));
 
 const freePort = () =>
   new Promise<number>((resolve) => {
@@ -17,7 +17,7 @@ const freePort = () =>
   });
 
 /**
- * Runs serve.py over a temporary directory holding `files` (path: content) and hands `use` a fetch
+ * Runs scripts/serve.py over a temporary directory holding `files` (path: content) and hands `use` a fetch
  * on it, which asks again until the server listens: Python starts in well under a second, but
  * over 5 s on a loaded machine, so a test that uses this gets 30 s.
  */

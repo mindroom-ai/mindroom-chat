@@ -4,7 +4,7 @@ This page covers the calendar versions this repository releases under, how a rel
 
 In short:
 
-- A release is a tag `vYYYY.M.N` on a commit of `main`. `just release` cuts one by hand; `.github/workflows/release.yml` cuts one after every green push to `main` while `release.config.json` says `"autoRelease": true`, as it does. Every release also publishes the container image `ghcr.io/mindroom-ai/mindroom-chat:YYYY.M.N` ([`deployment.md`](deployment.md#container-image)).
+- A release is a tag `vYYYY.M.N` on a commit of `main`. `just release` cuts one by hand; `.github/workflows/release.yml` cuts one after every green push to `main` while `package.json` says `"autoRelease": true`, as it does. Every release also publishes the container image `ghcr.io/mindroom-ai/mindroom-chat:YYYY.M.N` ([`deployment.md`](deployment.md#container-image)).
 - Xcode Cloud builds take their App Store version from that scheme: a tag build gets the tag's version, any other build the version the next release will get. The build number is Xcode Cloud's own counter.
 - Every `YYYY.M.N` sorts above the `4.12.x` versions of the legacy MindRoom Chat builds, so with the same app record and bundle identifier, installed apps update in place.
 
@@ -43,21 +43,19 @@ The notes list the commits since the previous release, newest first, up to 200, 
 
 ## Automatic releases
 
-`.github/workflows/release.yml` runs after the CI workflow completes for a push to `main`. When CI passed, it checks out that commit with every tag and runs `node scripts/calver.mjs auto <commit> --main origin/main`, which reads `release.config.json` at that commit:
+`.github/workflows/release.yml` runs after the CI workflow completes for a push to `main`. When CI passed, it checks out that commit with every tag and runs `node scripts/calver.mjs auto <commit> --main origin/main`, which reads the top-level `autoRelease` of `package.json` at that commit:
 
 - `"autoRelease": true` (as it is): the job cuts the release as `just release --yes` would, with the job's `GITHUB_TOKEN` (`contents: write`), and hands its tag to the `image` job, which publishes the release's container image (`.github/workflows/image.yml`, [`deployment.md`](deployment.md#container-image)).
-- `"autoRelease": false`: the job logs `Automatic releases are off: release.config.json has "autoRelease": false. Nothing to do.` and succeeds.
+- `"autoRelease": false`: the job logs `Automatic releases are off: package.json has "autoRelease": false. Nothing to do.` and succeeds.
 
 A push whose CI failed, or was cancelled by a newer push, gets no release; the next green push releases its commits too. Runs never overlap, and a run whose commit no longer contains the newest release (one that lost a race) does nothing. Pushes that change only `docs/design/` or `docs/provenance.md` do not run CI, so they release nothing either.
 
 Releases follow every green push rather than a daily batch: a burst of pushes still makes one release at a time (a waiting run gives way to the newest), a deployment can take a fix as soon as CI passes, and Xcode Cloud builds move to a new version with each release instead of sharing one for a day, which App Store review may close for uploads once it approves a build of it.
 
-To switch automatic releases off, change the one boolean and push it to `main`:
+To switch automatic releases off, set the top-level boolean in `package.json` to false and push it to `main`:
 
 ```json
-{
-  "autoRelease": false
-}
+  "autoRelease": false,
 ```
 
 To switch them on again, push `true`; the commit that flips it is the first one released once its CI passes.
@@ -101,7 +99,7 @@ An approved version cannot be uploaded again: App Store Connect rejects any late
 
 - **Before any calendar version is approved:** enable the old workflow again and disable the new one, after checking that the old workflow's Primary Repository is `https://github.com/mindroom-ai/mindroom-chat-legacy.git` (step 1; if step 4 used Change URL, change it to that address), and set `app-store/source.env` back to `mindroom-ai/mindroom-chat-legacy`, the value of step 1 (not the one from before the move, which now names this repository); `./app-store/release.sh inspect` then names a legacy commit. Nothing on the App Store changes; TestFlight keeps the `2026.x` builds, which nobody has to install.
 - **After a calendar version is approved:** the App Store holds `2026.M.N`, and a legacy MindRoom Chat build at `4.12.x` can no longer be uploaded. A rollback build needs a version above the live one; in this repository's scripts `IOS_MARKETING_VERSION` sets it, and the legacy client's scripts would need the same before they can ship again.
-- **Automatic releases:** push `"autoRelease": false`. A release that should not exist can be deleted with `gh release delete <tag> --cleanup-tag --yes` while no build of it has reached App Store review. Its container image stays on GHCR under its tags until its package version is deleted there, and keeps `latest` if it holds it until a newer release takes it. When `docker buildx imagetools inspect` shows `latest` with the same digest as the withdrawn release, point `latest` at the newest remaining release that has an image first, with `docker buildx imagetools create --tag ghcr.io/mindroom-ai/mindroom-chat:latest ghcr.io/mindroom-ai/mindroom-chat:<that YYYY.M.N>` (a token with `write:packages`), and only then delete the package version, which would otherwise take `latest` with it.
+- **Automatic releases:** push `"autoRelease": false` in `package.json`. A release that should not exist can be deleted with `gh release delete <tag> --cleanup-tag --yes` while no build of it has reached App Store review. Its container image stays on GHCR under its tags until its package version is deleted there, and keeps `latest` if it holds it until a newer release takes it. When `docker buildx imagetools inspect` shows `latest` with the same digest as the withdrawn release, point `latest` at the newest remaining release that has an image first, with `docker buildx imagetools create --tag ghcr.io/mindroom-ai/mindroom-chat:latest ghcr.io/mindroom-ai/mindroom-chat:<that YYYY.M.N>` (a token with `write:packages`), and only then delete the package version, which would otherwise take `latest` with it.
 - The build counter keeps counting whichever way; there is nothing to reset.
 
 ## Choices to revisit

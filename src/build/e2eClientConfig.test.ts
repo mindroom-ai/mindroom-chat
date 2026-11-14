@@ -26,7 +26,7 @@ const request = (middleware: Middleware, url: string) => {
 describe('e2e client config', () => {
   it('points provisioning at the local dev server so browser tests never reach the hosted service', () => {
     const [middleware] = installMiddleware('http://127.0.0.1:4173');
-    const hosted = JSON.parse(readFileSync('config.mindroom.json', 'utf8'));
+    const hosted = JSON.parse(readFileSync('config/mindroom.json', 'utf8'));
 
     const { res, next } = request(middleware, '/config.json?cache=1');
 

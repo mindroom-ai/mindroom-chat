@@ -64,7 +64,7 @@ if [ "${E2E_ENABLE_DEPLOYED_FIXTURE:-1}" = "1" ]; then
   PREVIEW_LOG="$(mktemp "${TMPDIR:-/tmp}/mindroom-e2e-preview.XXXXXX")"
   (
     cd "${ROOT_DIR}/dist"
-    python3 ../serve.py "${DEPLOYED_PORT}"
+    python3 ../scripts/serve.py "${DEPLOYED_PORT}"
   ) >"${PREVIEW_LOG}" 2>&1 &
   DEPLOYED_PREVIEW_PID=$!
 

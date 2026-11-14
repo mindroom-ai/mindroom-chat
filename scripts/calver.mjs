@@ -14,7 +14,7 @@
 //       GitHub release, with notes from the commits since the last release; shows the plan and
 //       asks first (`just release`)
 //   node scripts/calver.mjs auto <commit> --main <ref> [--date YYYY-MM-DD]
-//       the same without asking, when release.config.json says "autoRelease": true; with false,
+//       the same without asking, when package.json says "autoRelease": true; with false,
 //       says that automatic releases are off and does nothing (.github/workflows/release.yml)
 //
 // `gh release create` makes the release and, with it, the tag on GitHub (lightweight, at the
@@ -38,8 +38,8 @@ export const DEFAULT_REPOSITORY = 'mindroom-ai/mindroom-chat';
 /** Release notes list this many commits and count the rest. */
 export const MAX_LISTED_COMMITS = 200;
 
-/** The tracked file whose one boolean switches automatic releases on. */
-export const RELEASE_CONFIG_FILE = 'release.config.json';
+/** The tracked file whose top-level `autoRelease` boolean switches automatic releases on. */
+export const RELEASE_CONFIG_FILE = 'package.json';
 
 /** @typedef {{ year: number; month: number; n: number }} CalendarVersion */
 /** @typedef {{ hash: string; subject: string }} Commit */
@@ -147,7 +147,7 @@ export const releaseNotes = ({ tag, previousTag, commits, repository }) => {
 };
 
 /**
- * The `autoRelease` switch of release.config.json.
+ * The `autoRelease` switch of package.json.
  * @param {string} text the file's content
  * @returns {boolean}
  */

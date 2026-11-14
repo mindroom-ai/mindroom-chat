@@ -170,7 +170,7 @@ describe('release notes', () => {
   });
 });
 
-describe('release.config.json', () => {
+describe('the autoRelease switch in package.json', () => {
   it('holds the autoRelease switch as a boolean', () => {
     expect(
       typeof readAutoRelease(readFileSync(path.join(repoRoot, RELEASE_CONFIG_FILE), 'utf8'))
@@ -294,7 +294,7 @@ describe('calver.mjs in a repository', () => {
 
     const result = run('auto', sha, '--main', 'main', '--date', '2026-11-05');
     expect(result.stdout).toBe(
-      'Automatic releases are off: release.config.json has "autoRelease": false. Nothing to do.\n'
+      'Automatic releases are off: package.json has "autoRelease": false. Nothing to do.\n'
     );
     expect(result.status).toBe(0);
     expect(ghCalls()).toEqual([]);

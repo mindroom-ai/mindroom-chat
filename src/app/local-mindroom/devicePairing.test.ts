@@ -2,7 +2,7 @@
 
 import { TokenRefreshLogoutError } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import hostedClientConfig from '../../../config.mindroom.json';
+import hostedClientConfig from '../../../config/mindroom.json';
 import {
   approveLocalMindroomPairCode,
   getLocalMindroomConnections,
