@@ -2,7 +2,6 @@ import React from 'react';
 import { MatrixClient, RelationType, Room } from 'matrix-js-sdk';
 import { Descendant, Editor, Element } from 'slate';
 import { Box, config } from 'folds';
-import { Membership } from '../matrix/types/room';
 import type { AutocompleteQuery } from '../editor/autocomplete/autocompleteQuery';
 import type { PasteMarkerElement } from '../editor/slate';
 import { BlockType } from '../editor/types';
@@ -18,6 +17,7 @@ import {
 } from '../event-store/threads/threadRouteUtils';
 import { getMessageRelation } from '../matrix/send/composeMessageRelation';
 import type { PasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
+import { isJoined } from '../matrix/state/roomList';
 
 export type RoomInputAutocompletePrefix = typeof MINDROOM_COMMAND_PREFIX;
 export type RoomInputAutocompleteQuery =
@@ -94,7 +94,7 @@ export const refreshRoomInputVoiceSendContext = (
   context: PendingVoiceSendContext
 ): PendingVoiceSendContext | null => {
   const liveRoom = mx.getRoom(context.roomId);
-  if (!liveRoom || liveRoom.getMyMembership() !== Membership.Join) return null;
+  if (!liveRoom || !isJoined(liveRoom)) return null;
   return {
     ...context,
     room: liveRoom,

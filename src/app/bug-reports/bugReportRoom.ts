@@ -3,6 +3,7 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { Membership } from '../matrix/types/room';
 import { getMxIdLocalPart } from '../matrix/matrix';
 import { waitForJoinedRoom } from '../matrix/waitForJoinedRoom';
+import { isJoined } from '../matrix/state/roomList';
 
 export const BUG_REPORTS_ROOM_TYPE = 'io.mindroom.bug_reports';
 const BUG_REPORTS_ACCOUNT_DATA_TYPE = 'io.mindroom.bug_reports';
@@ -44,7 +45,7 @@ const findReusableRoom = async (
 ): Promise<Room | undefined> => {
   const storedRoomId = getStoredRoomId(mx);
   const stored = storedRoomId ? mx.getRoom(storedRoomId) : null;
-  if (!stored || stored.getMyMembership() !== Membership.Join) return undefined;
+  if (!stored || !isJoined(stored)) return undefined;
   // The sync lazy-loads members, so admins who never spoke may be missing until loaded.
   await stored.loadMembersIfNeeded();
   return isReusableReportRoom(stored, myUserId, admins) ? stored : undefined;

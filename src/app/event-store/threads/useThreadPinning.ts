@@ -15,12 +15,14 @@ import {
   getPendingPinsVersion,
   getPendingPinnedEventIds,
 } from './threadPinning';
+import { matchesEnum } from '../../lib/matchesEnum';
 
 export const usePinnedEventIds = (room: Room): string[] => {
   const [stateVersion, refresh] = useForceUpdate();
   useEffect(() => {
     const handleState = (event: MatrixEvent) => {
-      if (event.getType() === StateEvent.RoomPinnedEvents && event.getStateKey() === '') refresh();
+      if (matchesEnum(event.getType(), StateEvent.RoomPinnedEvents) && event.getStateKey() === '')
+        refresh();
     };
     room.on(RoomStateEvent.Events, handleState);
     room.on(RoomEvent.CurrentStateUpdated, refresh);

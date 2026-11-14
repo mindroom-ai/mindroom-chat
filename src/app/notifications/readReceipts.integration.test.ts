@@ -1,4 +1,4 @@
-import { createClient, MatrixEvent, ReceiptType, RelationType, Room } from 'matrix-js-sdk';
+import { createClient, MatrixEvent, Method, ReceiptType, RelationType, Room } from 'matrix-js-sdk';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getThreadUnread } from '../event-store/threads/roomThreadList';
@@ -113,7 +113,7 @@ describe('thread receipt unread state with SDK models', () => {
 
     const threadReceipts = requests.mock.calls.filter(
       ([method, path, , body]) =>
-        method === 'POST' &&
+        method === Method.Post &&
         String(path).includes('/receipt/') &&
         (body as { thread_id?: string } | undefined)?.thread_id === '$root'
     );

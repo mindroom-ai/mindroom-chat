@@ -2,6 +2,7 @@ import { MatrixEvent, RelationType, type IEvent, type Room } from 'matrix-js-sdk
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from './editEvent';
 import { getLatestEdit } from './room';
 import { threadSummaryPreviews, withoutRedactedThreadPreviews } from './threadSummaryPreviews';
+import { matchesEnum } from '../lib/matchesEnum';
 
 export type ReplacementRevision = {
   readonly eventId: string;
@@ -253,7 +254,8 @@ const canonicalizeAggregation = (value: unknown): unknown => {
 const canonicalizeRelationBundle = (relationType: string, value: unknown): unknown => {
   const canonical = canonicalizeAggregation(value);
   if (
-    (relationType === RelationType.Annotation || relationType === RelationType.Reference) &&
+    (matchesEnum(relationType, RelationType.Annotation) ||
+      matchesEnum(relationType, RelationType.Reference)) &&
     isRecord(canonical) &&
     Array.isArray(canonical.chunk)
   ) {
@@ -418,9 +420,9 @@ const mergeNonReplacementRelations = (
     const currentBundle = merged[relationType];
     if (currentBundle === undefined) {
       merged[relationType] = incomingBundle;
-    } else if (relationType === RelationType.Thread) {
+    } else if (matchesEnum(relationType, RelationType.Thread)) {
       merged[relationType] = mergePartialThreadBundle(currentBundle, incomingBundle);
-    } else if (relationType === RelationType.Annotation) {
+    } else if (matchesEnum(relationType, RelationType.Annotation)) {
       merged[relationType] = mergePartialAnnotationBundle(currentBundle, incomingBundle);
     }
   });
