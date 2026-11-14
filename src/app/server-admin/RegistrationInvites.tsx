@@ -154,6 +154,8 @@ export function RegistrationInvites() {
               size="300"
               variant="Primary"
               radii="300"
+              // An invite replaces the one its address has: the form says so once it knows them.
+              disabled={invites === undefined}
               data-invite-add=""
               onClick={() => setAdding(true)}
             >

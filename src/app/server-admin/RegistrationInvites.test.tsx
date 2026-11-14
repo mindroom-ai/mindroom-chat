@@ -205,6 +205,19 @@ describe('RegistrationInvites', () => {
     expect(root.findAllByProps({ role: 'alert' })).toEqual([]);
   });
 
+  it('lets nobody invite until it knows which invites an invite would replace', async () => {
+    mocks.list.mockRejectedValueOnce(new Error('offline'));
+    await act(async () => {
+      renderer = create(<RegistrationInvites />);
+    });
+    const { root } = renderer!;
+
+    expect(withProp(root, 'data-invite-add').props.disabled).toBe(true);
+    mocks.list.mockResolvedValue([BOB]);
+    await click(root.findAllByType('button').find((entry) => text(entry) === 'Retry')!);
+    expect(withProp(root, 'data-invite-add').props.disabled).toBe(false);
+  });
+
   it('copies the invitation of a pending invite', async () => {
     const root = await render([ALICE]);
 
