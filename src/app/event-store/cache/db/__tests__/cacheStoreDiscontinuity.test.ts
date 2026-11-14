@@ -17,7 +17,7 @@ const SESSION_ID = 'session-p32';
 const ROOM_ID = '!room:example.org';
 
 describe('cacheStoreDiscontinuity (ISSUE-207 P3.2)', () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     resetCacheStoreForTesting();
   });
 

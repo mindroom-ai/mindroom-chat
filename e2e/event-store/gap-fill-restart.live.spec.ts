@@ -159,15 +159,16 @@ test.describe('ISSUE-207 gap-fill after restart', () => {
     // failure output so the next gate iteration doesn't require log
     // spelunking. `schedulerFailed` was added in the P4 gate fix
     // exactly to make this case visible.
-    const probeCounters = probe;
     expect(
-      probeCounters.schedulerFailed ?? 0,
-      `schedulerFailed=${probeCounters.schedulerFailed ?? 0}; a non-zero value indicates the executor rejected without an abort — inspect createMessagesRequest / saveRoomEventsToCache for the underlying error.`
+      probe.schedulerFailed ?? 0,
+      `schedulerFailed=${
+        probe.schedulerFailed ?? 0
+      }; a non-zero value indicates the executor rejected without an abort — inspect createMessagesRequest / saveRoomEventsToCache for the underlying error.`
     ).toBe(0);
     // (a) executor completed at least one gap-fill job for this session
-    expect(probeCounters.schedulerCompleted ?? 0).toBeGreaterThanOrEqual(1);
+    expect(probe.schedulerCompleted ?? 0).toBeGreaterThanOrEqual(1);
     // (b) tracker enqueued a gap-fill (startup or limited-sync)
-    expect(probeCounters.gapFillsEnqueued ?? 0).toBeGreaterThanOrEqual(1);
+    expect(probe.gapFillsEnqueued ?? 0).toBeGreaterThanOrEqual(1);
     // (c) user-observable outcome: the message reached the cache
     expect(cachedEventIds).toContain(offlineEventId);
   });
