@@ -175,7 +175,7 @@ export function ComputerPanel({
     () =>
       !activeAgentId &&
       agents.length === 1 &&
-      (!requestedAgent || requestedAgent.userId === agents[0].userId)
+      (!requestedAgent || requestedAgent.userId === agents[0]!.userId)
         ? agents[0]
         : agents.find((agent) => agent.userId === activeAgentId),
     [activeAgentId, agents, requestedAgent]
@@ -504,7 +504,7 @@ export function ComputerPanel({
     setPhase('reconnecting');
     try {
       while (reconnectAttemptsRef.current < RECONNECT_DELAYS_MS.length) {
-        const delay = RECONNECT_DELAYS_MS[reconnectAttemptsRef.current];
+        const delay = RECONNECT_DELAYS_MS[reconnectAttemptsRef.current]!;
         reconnectAttemptsRef.current += 1;
         if (!(await wait(delay, signal)) || !current()) return;
         try {

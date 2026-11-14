@@ -221,7 +221,7 @@ const readCachedBytes = (db: IDBDatabase): Promise<number> =>
     let attachmentBytes = 0;
     cursor.onsuccess = () => {
       if (!cursor.result) return;
-      attachmentBytes += (cursor.result.key as number[])[1];
+      attachmentBytes += (cursor.result.key as [number, number])[1];
       cursor.result.continue();
     };
     transaction.oncomplete = () =>
@@ -261,7 +261,7 @@ const reclaimOptionalMedia = (
       try {
         const cursor = cursorRequest.result;
         if (cursor) {
-          const [lastAccessedAt, byteLength] = cursor.key as number[];
+          const [lastAccessedAt, byteLength] = cursor.key as [number, number];
           records.push({ mxcUri: cursor.primaryKey as string, lastAccessedAt, byteLength });
           cursor.continue();
           return;

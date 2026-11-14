@@ -13,7 +13,7 @@ export const isSignalBridgeUserId = (userId: string): boolean => {
   const match = /^@([^:]+):/.exec(userId);
   if (!match) return false;
 
-  const localpart = match[1].toLowerCase();
+  const localpart = match[1]!.toLowerCase();
   return localpart === 'signalbot' || localpart.startsWith('signalbot_');
 };
 

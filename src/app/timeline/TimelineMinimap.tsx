@@ -2,7 +2,7 @@
 // apps/web/src/components/chat/TimelineMinimap.tsx), Copyright (c) 2026 T3 Tools Inc.,
 // MIT License. The license text is in licenses/T3-Code-MIT.txt; NOTICE lists the port.
 import { useTranslation } from 'react-i18next';
-import React, { MouseEvent, RefObject, useCallback, useEffect, useState } from 'react';
+import { MouseEvent, RefObject, useCallback, useEffect, useState } from 'react';
 import {
   TIMELINE_MINIMAP_MIN_ITEMS,
   TimelineMinimapItem,
@@ -54,7 +54,7 @@ export const useTimelineMinimapInView = (
       const inViewIds = new Set<string>();
       anchors.forEach((anchor, index) => {
         const rangeEnd =
-          index + 1 < anchors.length ? anchors[index + 1].top : Number.POSITIVE_INFINITY;
+          index + 1 < anchors.length ? anchors[index + 1]!.top : Number.POSITIVE_INFINITY;
         if (rangeEnd > containerRect.top && anchor.top < containerRect.bottom) {
           inViewIds.add(anchor.id);
         }

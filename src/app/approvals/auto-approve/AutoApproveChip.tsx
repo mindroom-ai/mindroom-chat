@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, Icons } from 'folds';
 import type { Room } from 'matrix-js-sdk';
@@ -66,7 +66,7 @@ export function AutoApproveChip({ room, threadId }: { room: Room; threadId: stri
   const others = windows.filter(({ requesterId }) => requesterId !== room.myUserId);
   let label = t('mindroomUi.autoApprove.label');
   if (others.length === windows.length) {
-    const name = userDisplayName(room, others[0].requesterId);
+    const name = userDisplayName(room, others[0]!.requesterId);
     label =
       others.length === 1
         ? t('mindroomUi.autoApprove.labelOne', { name })

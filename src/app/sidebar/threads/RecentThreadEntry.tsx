@@ -1,4 +1,4 @@
-import React, { memo, useEffect } from 'react';
+import { memo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Text } from 'folds';
 import type { Room } from 'matrix-js-sdk';

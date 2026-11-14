@@ -600,7 +600,7 @@ const getStackLocation = (stack: string | undefined, skipFrames = 0): DeepTraceD
       continue;
     }
     return {
-      source_code: getSourceCode(match[1]),
+      source_code: getSourceCode(match[1]!),
       line: Number(match[2]),
       column: Number(match[3]),
     };

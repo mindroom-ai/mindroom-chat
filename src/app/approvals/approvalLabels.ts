@@ -27,7 +27,7 @@ export const describeApprovalHistory = (
       approved: records.filter((item) => item.approval.status === 'approved').length,
     };
   }
-  const { approval } = records[0];
+  const { approval } = records[0]!;
   const resolver = approval.resolvedBy;
   return {
     kind: 'single',
@@ -93,7 +93,7 @@ export const describeApprovalChip = (
   const resolved = new Set(outcomes);
   const [only] = resolved;
   return {
-    label: resolved.size === 1 && only !== 'pending' ? only : 'resolved',
+    label: resolved.size === 1 && only !== 'pending' ? only! : 'resolved',
     tone: 'done',
   };
 };

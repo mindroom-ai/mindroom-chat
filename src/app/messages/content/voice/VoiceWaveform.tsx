@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import React, { KeyboardEventHandler } from 'react';
+import { KeyboardEventHandler } from 'react';
 import classNames from 'classnames';
 import {
   clampWaveformPoint,

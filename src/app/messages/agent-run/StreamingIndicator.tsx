@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next';
-import React from 'react';
 import * as css from './StreamingIndicator.css';
 
 export function StreamingIndicator() {

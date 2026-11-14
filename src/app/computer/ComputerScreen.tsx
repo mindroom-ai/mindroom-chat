@@ -1,10 +1,4 @@
-import React, {
-  type ForwardedRef,
-  forwardRef,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-} from 'react';
+import { type ForwardedRef, forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import RFB from '@novnc/novnc';
 import * as css from './ComputerPanel.css';
 import { attachComputerClipboard, isApplePlatform, type PasteResult } from './computerClipboard';

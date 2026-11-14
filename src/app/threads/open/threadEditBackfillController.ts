@@ -167,7 +167,7 @@ export const useThreadEditBackfillController = ({
           const currentIndex = cursor;
           cursor += 1;
 
-          const mEvent = missingEditEvents[currentIndex];
+          const mEvent = missingEditEvents[currentIndex]!;
           const targetEventId = mEvent.getId();
           if (!targetEventId) continue;
           // Another pass may have claimed or completed this queued candidate.

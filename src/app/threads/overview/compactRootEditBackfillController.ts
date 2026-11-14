@@ -83,10 +83,10 @@ export const useCompactRootEditBackfillController = ({
           const currentIndex = cursor;
           cursor += 1;
 
-          const { threadRootId, events } = compactRootEvents[currentIndex];
+          const { threadRootId, events } = compactRootEvents[currentIndex]!;
           const targetEvent = events[0];
           const eventId = targetEvent?.getId();
-          if (!eventId) continue;
+          if (!targetEvent || !eventId) continue;
 
           const [relErr, relData] = await to(
             mx.relations(room.roomId, eventId, RelationType.Replace, targetEvent.getType(), {

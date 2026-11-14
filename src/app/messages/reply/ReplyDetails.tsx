@@ -108,7 +108,7 @@ function CostHistory({ threadCost, index }: { threadCost: ThreadConversationCost
   const highest = Math.max(...shown.map(({ usd }) => usd));
   // Without older replies the numbers would be wrong, so a reply is named by its cost alone.
   const replyLabel = (position: number) => {
-    const cost = formatCostUsd(replies[position].usd, language);
+    const cost = formatCostUsd(replies[position]!.usd, language);
     return complete
       ? t('mindroomUi.messages.mindroomReplyDetails.costHistoryBar', { index: position + 1, cost })
       : cost;
@@ -124,10 +124,10 @@ function CostHistory({ threadCost, index }: { threadCost: ThreadConversationCost
     // The nearest bar, whichever way the bars run, so right-to-left languages point right too.
     const distance = (bar: DOMRect) => Math.abs(x - (bar.left + bar.right) / 2);
     const offset = bars.reduce(
-      (nearest, bar, candidate) => (distance(bar) < distance(bars[nearest]) ? candidate : nearest),
+      (nearest, bar, candidate) => (distance(bar) < distance(bars[nearest]!) ? candidate : nearest),
       0
     );
-    setPointedId(shown[offset].eventId);
+    setPointedId(shown[offset]!.eventId);
   };
   let caption: string;
   if (pointed !== undefined) caption = replyLabel(pointed);

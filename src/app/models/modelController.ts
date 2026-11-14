@@ -182,7 +182,7 @@ export class ModelController {
           ...emptySnapshot(),
           eligible: cached.length > 0,
           runtimes: cached.map((catalog) => catalog.runtime),
-          models: cached.length === 1 ? cached[0].models : [],
+          models: cached.length === 1 ? cached[0]!.models : [],
         },
         listeners: new Set(),
         catalogs: new Map(),

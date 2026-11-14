@@ -34,7 +34,7 @@ export const resampleWaveform = (value: unknown, barCount = VOICE_WAVEFORM_BAR_C
   const points = sanitizeWaveformPoints(value);
   if (points.length === 0) return createFallbackWaveform(barCount);
   if (points.length === barCount) return points;
-  if (points.length === 1) return Array.from({ length: barCount }, () => points[0]);
+  if (points.length === 1) return Array.from({ length: barCount }, () => points[0]!);
 
   return Array.from({ length: barCount }, (_value, index) => {
     const start = (index * points.length) / barCount;
@@ -50,12 +50,12 @@ export const resampleWaveform = (value: unknown, barCount = VOICE_WAVEFORM_BAR_C
       const overlap = overlapEnd - overlapStart;
       if (overlap <= 0 || pointIndex < 0 || pointIndex >= points.length) continue;
 
-      total += points[pointIndex] * overlap;
+      total += points[pointIndex]! * overlap;
       weight += overlap;
     }
 
     if (weight === 0) {
-      return points[clamp(Math.floor(start), 0, points.length - 1)];
+      return points[clamp(Math.floor(start), 0, points.length - 1)]!;
     }
 
     return clampWaveformPoint(total / weight);
@@ -85,8 +85,8 @@ export const timeDomainDataToWaveformPoint = (data: Uint8Array): number => {
   if (data.length === 0) return 0;
 
   let squareSum = 0;
-  for (let index = 0; index < data.length; index += 1) {
-    const centered = (data[index] - 128) / 128;
+  for (const value of data) {
+    const centered = (value - 128) / 128;
     squareSum += centered * centered;
   }
 
