@@ -32,8 +32,7 @@ import { renewExpiredCloudflareAccess } from '../../native/cloudflareAccess';
 import { keepEveryReceiptInSavedSync } from '../../matrix/client/savedSyncReceipts';
 import { restoreStreamingRepliesFromCache } from '../../event-store/sdk/restoredStreamingReplies';
 
-// Account removal, logout and cache clearing live in sessionLifecycle.ts; the two below first log
-// a stored session's device out on the homeserver.
+// Account removal, logout and cache clearing live in sessionLifecycle.ts.
 
 /** A client of `session` without stores or sync, for requests in its name. */
 export const createSessionRequestClient = (session: ClientBootstrapSession): MatrixClient =>

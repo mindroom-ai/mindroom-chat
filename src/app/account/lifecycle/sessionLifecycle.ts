@@ -153,9 +153,10 @@ const deleteSessionLocalData = async (
     deleteNamedDatabase(getCanvasStateDbName(session.sessionId)),
     deleteNamedDatabase(getCanvasIndexDbName(session.sessionId)),
     clearUserScopedState ? forgetAccountInPlugins(session.userId) : undefined,
-    clearFetchedAvatars(session.userId),
   ]);
   clearSessionScopedNativeState(session.sessionId);
+  // Last, so an avatar that finished loading meanwhile cannot keep the cache.
+  await clearFetchedAvatars(session.userId);
 };
 
 // Removes the session from the registry then runs local-data teardown,
@@ -232,9 +233,9 @@ export const removeCurrentClientSessionAndReload = async (
     deleteNamedDatabase(getCanvasStateDbName(identity.sessionId)).catch(() => undefined),
     deleteNamedDatabase(getCanvasIndexDbName(identity.sessionId)).catch(() => undefined),
     clearUserScopedState ? forgetAccountInPlugins(identity.userId) : undefined,
-    clearFetchedAvatars(identity.userId),
   ]);
   clearSessionScopedUiState(identity, clearUserScopedState);
+  await clearFetchedAvatars(identity.userId);
   reloadAppAt(nextHref);
 };
 
