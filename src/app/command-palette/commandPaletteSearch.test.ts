@@ -109,17 +109,16 @@ describe('searchCommandPaletteSection', () => {
       config: commandPaletteSearchConfig.users,
     });
 
-    expect(results.map((item) => item.id)).toEqual([
-      '@recent:example.org',
-      '@older:example.org',
-    ]);
+    expect(results.map((item) => item.id)).toEqual(['@recent:example.org', '@older:example.org']);
   });
 
   it('searches array fields such as thread tags', () => {
-    const items = [
+    const items: CommandPaletteThreadItem[] = [
       {
         id: '$thread-1',
         kind: 'thread',
+        roomId: '!support:example.org',
+        threadId: '$thread-1',
         summaryText: 'Investigate login issue',
         roomName: 'Support',
         tags: ['urgent'],
@@ -127,11 +126,13 @@ describe('searchCommandPaletteSection', () => {
       {
         id: '$thread-2',
         kind: 'thread',
+        roomId: '!docs:example.org',
+        threadId: '$thread-2',
         summaryText: 'Review docs',
         roomName: 'Docs',
         tags: ['docs'],
       },
-    ] as CommandPaletteThreadItem[];
+    ];
 
     const results = searchCommandPaletteSection({
       items,

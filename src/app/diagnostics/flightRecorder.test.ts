@@ -256,9 +256,9 @@ describe('iOS freeze flight recorder', () => {
     windowTarget.dispatchEvent(new Event('pageshow'));
     expect(readCurrent(storage)).toMatchObject({ expectedEndAt: null, endReason: null });
     expect(
-      readCurrent(storage)
-        .events.filter((event) => event.type === 'lifecycle')
-        .map((event) => (event as { state: string }).state)
+      readCurrent(storage).events.flatMap((event) =>
+        event.type === 'lifecycle' ? [event.state] : []
+      )
     ).toEqual(['hidden', 'visible', 'pagehide', 'pageshow']);
   });
 

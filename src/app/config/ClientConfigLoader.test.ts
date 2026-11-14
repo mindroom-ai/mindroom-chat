@@ -15,7 +15,7 @@ import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from '../../boot/serviceWork
 // createElement types children as ReactNode and wants `children` in props, so the loader's
 // element is built here, with its render function passed through one cast.
 const loaderElement = (
-  props: Omit<ComponentProps<typeof ClientConfigLoader>, 'children'> | null,
+  props: Omit<ComponentProps<typeof ClientConfigLoader>, 'children'>,
   render: ComponentProps<typeof ClientConfigLoader>['children']
 ) =>
   React.createElement(

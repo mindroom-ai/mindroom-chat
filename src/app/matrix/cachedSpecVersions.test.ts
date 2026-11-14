@@ -42,7 +42,9 @@ describe('cachedSpecVersions', () => {
     expect(Array.from(storageState.keys())).toEqual([
       'mindroom_client_spec_versions::https://matrix.example::@alice:example',
     ]);
-    expect(isCacheOwnedLocalStorageKey(Array.from(storageState.keys())[0]!)).toBe(true);
+    expect(
+      isCacheOwnedLocalStorageKey('mindroom_client_spec_versions::https://matrix.example::@alice:example')
+    ).toBe(true);
   });
 
   it('returns undefined for corrupt JSON', () => {

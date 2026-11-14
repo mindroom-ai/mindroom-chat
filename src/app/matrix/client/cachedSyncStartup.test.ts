@@ -6,7 +6,6 @@ import {
   MatrixEvent,
   RelationType,
   SyncState,
-  type IAddLiveEventOptions,
   type IEvent,
   type MatrixClient,
 } from 'matrix-js-sdk';
@@ -182,7 +181,7 @@ describe('cached Matrix startup', () => {
         room.addEventsToTimeline([parent], true, false, thread.liveTimeline);
         expect(thread.liveTimeline.getEvents()).toContain(parent);
       } else {
-        await room.addLiveEvents([parent], { fromCache: false } as IAddLiveEventOptions);
+        await room.addLiveEvents([parent], { fromCache: false, addToState: false });
       }
 
       await vi.waitFor(() => expect(parent.getContent().body).toBe('Edited message'));
@@ -204,9 +203,7 @@ describe('cached Matrix startup', () => {
     const room = client.getRoom(ROOM_ID)!;
     const fetchParent = vi.spyOn(client, 'fetchRoomEvent').mockResolvedValue(olderMessage);
 
-    await room.addLiveEvents([new MatrixEvent(reaction)], {
-      fromCache: false,
-    } as IAddLiveEventOptions);
+    await room.addLiveEvents([new MatrixEvent(reaction)], { fromCache: false, addToState: false });
 
     expect(fetchParent).toHaveBeenCalledOnce();
     expect(fetchParent).toHaveBeenCalledWith(ROOM_ID, '$older');

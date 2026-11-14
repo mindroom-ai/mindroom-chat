@@ -44,8 +44,8 @@ describe('Matrix sync store after an IndexedDB connection loss', () => {
     return store;
   };
 
-  const backendDatabase = (store: IndexedDBStore): IDBDatabase =>
-    (store as unknown as { backend: { db: IDBDatabase } }).backend.db;
+  const backendDatabase = (store: IndexedDBStore) =>
+    (store as unknown as { backend: { db: Parameters<typeof forceCloseDatabase>[0] } }).backend.db;
 
   const accumulate = (store: IndexedDBStore, nextBatch: string) =>
     store.setSyncData({ next_batch: nextBatch } as Parameters<IndexedDBStore['setSyncData']>[0]);
@@ -111,9 +111,7 @@ describe('Matrix sync store after an IndexedDB connection loss', () => {
 
   it('keeps the persisted sync when operations run after the browser closed the connection', async () => {
     const store = await savedStore();
-    forceCloseDatabase(
-      backendDatabase(store) as unknown as Parameters<typeof forceCloseDatabase>[0]
-    );
+    forceCloseDatabase(backendDatabase(store));
     await new Promise((resolve) => {
       setImmediate(resolve);
     });

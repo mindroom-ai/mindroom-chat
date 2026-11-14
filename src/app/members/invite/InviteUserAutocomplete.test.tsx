@@ -292,11 +292,7 @@ const keyDown = (renderer: ReactTestRenderer, key: string, event: Partial<Keyboa
   return { preventDefault, stopPropagation };
 };
 
-const optionKeyDown = (
-  _renderer: ReactTestRenderer,
-  option: ReturnType<typeof getOptions>[number],
-  key: string
-) => {
+const optionKeyDown = (option: ReturnType<typeof getOptions>[number], key: string) => {
   let defaultPrevented = false;
   const preventDefault = vi.fn(() => {
     defaultPrevented = true;
@@ -610,7 +606,7 @@ describe('InviteUserAutocomplete', () => {
     });
 
     keyDown(renderer, 'ArrowDown');
-    optionKeyDown(renderer, getOptions(renderer)[0]!, 'Enter');
+    optionKeyDown(getOptions(renderer)[0]!, 'Enter');
 
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith('@alpha:example.org');

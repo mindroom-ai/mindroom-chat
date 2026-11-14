@@ -56,15 +56,25 @@ const getButton = (container: HTMLElement, label: string): HTMLButtonElement => 
 };
 
 // vi.mocked(mx.on) types its calls by the last `on` overload, so each listener the component
-// registered is cast to its event's handler here.
-const findMembershipListener = () =>
-  vi.mocked(mx.on).mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1] as
+// registered is cast to its event's handler here; a test fails at once when it is missing.
+const findMembershipListener = () => {
+  const listener = vi
+    .mocked(mx.on)
+    .mock.calls.find(([event]) => event === RoomEvent.MyMembership)?.[1] as
     | RoomEventHandlerMap[RoomEvent.MyMembership]
     | undefined;
-const findStateEventsListener = () =>
-  vi.mocked(mx.on).mock.calls.find(([event]) => event === RoomStateEvent.Events)?.[1] as
+  if (typeof listener !== 'function') throw new Error('Missing membership listener');
+  return listener;
+};
+const findStateEventsListener = () => {
+  const listener = vi
+    .mocked(mx.on)
+    .mock.calls.find(([event]) => event === RoomStateEvent.Events)?.[1] as
     | RoomStateEventHandlerMap[RoomStateEvent.Events]
     | undefined;
+  if (typeof listener !== 'function') throw new Error('Missing state event listener');
+  return listener;
+};
 
 describe('RoomAccessControl request dialog', () => {
   let container: HTMLDivElement;
@@ -380,7 +390,6 @@ describe('RoomAccessControl request dialog', () => {
 
     expect(getButton(container, 'Access unavailable')).toBeDefined();
     const membershipListener = findMembershipListener();
-    if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
 
     act(() => {
       membershipListener(room, Membership.Invite, Membership.Leave);
@@ -422,7 +431,6 @@ describe('RoomAccessControl request dialog', () => {
 
     expect(getButton(container, 'Access unavailable')).toBeDefined();
     const membershipListener = findMembershipListener();
-    if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
 
     act(() => membershipListener(room, Membership.Invite, Membership.Leave));
     expect(getButton(container, 'Join')).toBeDefined();
@@ -468,7 +476,6 @@ describe('RoomAccessControl request dialog', () => {
     expect(container.querySelector('form')).not.toBeNull();
 
     const membershipListener = findMembershipListener();
-    if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
 
     act(() => {
       membershipListener({ roomId: '!private:example.org' } as Room, Membership.Join);
@@ -519,7 +526,6 @@ describe('RoomAccessControl request dialog', () => {
 
     expect(getButton(container, 'Access unavailable')).toBeDefined();
     const membershipListener = findMembershipListener();
-    if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
 
     act(() => membershipListener(room, Membership.Invite, Membership.Leave));
     expect(getButton(container, 'Access unavailable')).toBeDefined();
@@ -580,7 +586,6 @@ describe('RoomAccessControl request dialog', () => {
       });
 
       const membershipListener = findMembershipListener();
-      if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
 
       act(() => membershipListener(room, Membership.Leave, initialMembership));
       expect(getButton(container, expectedAction)).toBeDefined();
@@ -686,7 +691,6 @@ describe('RoomAccessControl request dialog', () => {
     expect(getButton(container, 'Request sent')).toBeDefined();
 
     const stateListener = findStateEventsListener();
-    if (typeof stateListener !== 'function') throw new Error('Missing state event listener');
 
     act(() => {
       stateListener(
@@ -735,7 +739,6 @@ describe('RoomAccessControl request dialog', () => {
     act(() => container.querySelector('form')?.requestSubmit());
 
     const membershipListener = findMembershipListener();
-    if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
 
     act(() => {
       membershipListener({ roomId: '!private:example.org' } as Room, Membership.Knock);
@@ -822,7 +825,6 @@ describe('RoomAccessControl request dialog', () => {
     });
 
     const membershipListener = findMembershipListener();
-    if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
     act(() => {
       membershipListener({ roomId: '!private:example.org' } as Room, Membership.Leave);
     });
@@ -849,7 +851,6 @@ describe('RoomAccessControl request dialog', () => {
     });
 
     const membershipListener = findMembershipListener();
-    if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
     act(() => {
       membershipListener({ roomId: '!private:example.org' } as Room, Membership.Leave);
     });
@@ -897,7 +898,6 @@ describe('RoomAccessControl request dialog', () => {
     act(renderAccess);
 
     const membershipListener = findMembershipListener();
-    if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
     act(() => {
       membershipListener({ roomId: '!private:example.org' } as Room, Membership.Invite);
     });
@@ -972,7 +972,6 @@ describe('RoomAccessControl request dialog', () => {
     });
     expect(getButton(container, 'Joining').disabled).toBe(true);
     const membershipListener = findMembershipListener();
-    if (typeof membershipListener !== 'function') throw new Error('Missing membership listener');
 
     act(() => {
       membershipListener({ roomId: '!public:example.org' } as Room, Membership.Join);
