@@ -2,11 +2,6 @@ import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../ui/page/PageScroll', () => ({
-  PageScroll: ({ header, children }: React.PropsWithChildren<{ header?: React.ReactNode }>) =>
-    React.createElement('div', null, header, children),
-}));
-
 const APPROVAL_EVENT_TYPE = 'io.mindroom.tool_approval';
 
 const {
@@ -53,14 +48,6 @@ const {
     getUnfilteredTimelineSet: vi.fn(() => undefined),
   },
   settingValues: {} as Record<string, boolean>,
-}));
-
-vi.mock('@tanstack/react-virtual', () => ({
-  useVirtualizer: () => ({
-    getTotalSize: () => 1,
-    getVirtualItems: () => [{ index: 0, key: 0, start: 0, size: 1 }],
-    measureElement: vi.fn(),
-  }),
 }));
 
 vi.mock('folds', () => {
@@ -124,38 +111,13 @@ vi.mock('folds', () => {
   };
 });
 
-vi.mock('../../ui/SequenceCard', () => ({
-  SequenceCard: ({ children, ...props }: { children?: React.ReactNode }) =>
-    React.createElement('div', props, children),
-}));
-
-vi.mock('../content/MsgTypeRenderers', () => ({
-  MSticker: () => React.createElement('div', { 'data-renderer': 'sticker' }),
-}));
-vi.mock('../reply/Reply', () => ({
-  Reply: () => null,
-}));
 vi.mock('../Time', () => ({
   Time: () => React.createElement('span', null, 'time'),
-}));
-vi.mock('../layout/layout', () => ({
-  AvatarBase: ({ children }: { children?: React.ReactNode }) =>
-    React.createElement(React.Fragment, null, children),
-  ModernLayout: ({ before, children }: { before?: React.ReactNode; children?: React.ReactNode }) =>
-    React.createElement('div', null, before, children),
-  Username: ({ children, ...props }: { children?: React.ReactNode }) =>
-    React.createElement('span', props, children),
-  UsernameBold: ({ children }: { children?: React.ReactNode }) =>
-    React.createElement('strong', null, children),
 }));
 vi.mock('../content/FallbackContent', () => ({
   MessageNotDecryptedContent: () => React.createElement('span', null, 'not-decrypted'),
   MessageUnsupportedContent: () => React.createElement('span', null, 'unsupported'),
 }));
-vi.mock('../content/ImageContent', () => ({
-  ImageContent: () => null,
-}));
-
 vi.mock('../../avatars/UserAvatar', () => ({
   UserAvatar: () => React.createElement('div', { 'data-renderer': 'user-avatar' }),
 }));
@@ -177,10 +139,6 @@ vi.mock('../../matrix/room', () => ({
   getMemberAvatarMxc: vi.fn(() => undefined),
   getMemberDisplayName: vi.fn(() => 'Alice'),
   getStateEvent: vi.fn(() => undefined),
-}));
-
-vi.mock('../useMentionClickHandler', () => ({
-  useMentionClickHandler: () => vi.fn(),
 }));
 
 vi.mock('../html/react-custom-html-parser', () => ({
@@ -235,78 +193,14 @@ vi.mock('./RoomPinMenu.css', () => ({
   PinnedJump: 'PinnedJump',
 }));
 
-vi.mock('../../rich-text/CustomHtml.css', () => ({
-  Code: 'Code',
-}));
-
-vi.mock('../../ui/media/Media', () => ({
-  Image: () => null,
-}));
-
-vi.mock('../viewers/ImageViewer', () => ({
-  ImageViewer: () => null,
-}));
-
 vi.mock('../../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({
     navigateRoom: navigateRoomMock,
   }),
 }));
 
-vi.mock('../../ui/VirtualTile', () => ({
-  VirtualTile: React.forwardRef<
-    HTMLDivElement,
-    { children?: React.ReactNode; [key: string]: unknown }
-  >(({ children, ...props }, ref) => React.createElement('div', { ...props, ref }, children)),
-}));
-
-vi.mock('../../matrix/hooks/usePowerLevels', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../matrix/hooks/usePowerLevels')>()),
-  usePowerLevelsContext: () => ({}),
-}));
-
-vi.mock('../../lib/hooks/useAsyncCallback', async () => {
-  const actual = await vi.importActual<typeof import('../../lib/hooks/useAsyncCallback')>(
-    '../../lib/hooks/useAsyncCallback'
-  );
-
-  return {
-    ...actual,
-    useAsyncCallback: () => [{ status: actual.AsyncStatus.Idle }, vi.fn()],
-  };
-});
-
 vi.mock('../../ui/styles/ContainerColor.css', () => ({
   ContainerColor: () => 'ContainerColor',
-}));
-
-vi.mock('../../members/usePowerLevelTags', () => ({
-  usePowerLevelTags: () => [],
-}));
-
-vi.mock('../../theme/useTheme', () => ({
-  useTheme: () => ({
-    kind: 'light',
-  }),
-}));
-
-vi.mock('../../matrix/hooks/useRoom', () => ({
-  useIsDirectRoom: () => false,
-}));
-
-vi.mock('../../matrix/hooks/useRoomCreators', () => ({
-  useRoomCreators: () => new Set(),
-}));
-
-vi.mock('../../matrix/hooks/useRoomPermissions', () => ({
-  useRoomPermissions: () => ({
-    stateEvent: () => false,
-  }),
-}));
-
-vi.mock('../../members/useMemberPowerTag', () => ({
-  getPowerTagIconSrc: () => undefined,
-  useGetMemberPowerTag: () => () => undefined,
 }));
 
 vi.mock('../../event-store/threads/useThreadPinning', () => ({

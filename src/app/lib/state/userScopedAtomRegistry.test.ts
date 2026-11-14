@@ -6,8 +6,6 @@ const storage = new Map<string, string>();
 beforeEach(() => {
   storage.clear();
   vi.stubGlobal('localStorage', {
-    getItem: vi.fn((key: string) => storage.get(key) ?? null),
-    setItem: vi.fn((key: string, value: string) => storage.set(key, value)),
     removeItem: vi.fn((key: string) => storage.delete(key)),
   });
 });
@@ -33,41 +31,28 @@ describe('createUserScopedAtomRegistry', () => {
     expect(ephemeral.getOrCreate('')).not.toBe(ephemeral.getOrCreate(''));
   });
 
-  it('keeps the newest registration active and makes cleanup identity-safe', () => {
+  it('resolves the given user to its stable atom and no user to none', () => {
     const registry = createUserScopedAtomRegistry({
       create: (userId) => ({ userId }),
       getStorageKey: (userId) => `state:${userId}`,
     });
-    const alice = registry.getOrCreate('@alice');
-    const bob = registry.getOrCreate('@bob');
-    const unregisterAlice = registry.registerActive('@alice', alice);
-    const unregisterBob = registry.registerActive('@bob', bob);
 
-    unregisterAlice();
-    expect(registry.resolveActiveOrCreate('@bob')).toBe(bob);
-
-    // An active registration from the previous account must never win over
-    // the account requested by an imperative caller during a client switch.
-    expect(registry.resolveActiveOrCreate('@alice')).toBe(alice);
-
-    unregisterBob();
+    expect(registry.resolveActiveOrCreate('@alice')).toBe(registry.getOrCreate('@alice'));
     expect(registry.resolveActiveOrCreate(undefined)).toBeUndefined();
-    expect(registry.resolveActiveOrCreate('@alice')).toBe(alice);
+    expect(registry.resolveActiveOrCreate('')).toBeUndefined();
   });
 
-  it('clears the cached identity, active registration, and storage key together', () => {
+  it('clears the cached identity and storage key together', () => {
     const registry = createUserScopedAtomRegistry({
       create: (userId) => ({ userId }),
       getStorageKey: (userId) => `state:${userId}`,
     });
     const before = registry.getOrCreate('@alice');
-    registry.registerActive('@alice', before);
     storage.set('state:@alice', 'value');
 
     registry.clear('@alice');
 
     expect(storage.has('state:@alice')).toBe(false);
-    expect(registry.resolveActiveOrCreate(undefined)).toBeUndefined();
     expect(registry.getOrCreate('@alice')).not.toBe(before);
   });
 

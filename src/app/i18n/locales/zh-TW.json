@@ -2257,7 +2257,6 @@
         "noMicrophone": "在此裝置上找不到麥克風。",
         "microphoneUnavailable": "麥克風目前不可用（可能正被其他應用程式使用）。",
         "microphoneFailed": "無法存取麥克風。",
-        "microphoneUnsupported": "此裝置不支援麥克風存取。",
         "recordingStopped": "錄音意外停止。請再次錄製。",
         "noAudio": "未擷取任何音訊資料。",
         "recordingUnsupported": "此瀏覽器不支援錄音。",

@@ -25,7 +25,6 @@ const {
   collapsibleType,
   collapsibleTestId,
   matrixClientMock,
-  shouldAutoScrollRoomOnLiveEventMock,
   threadResolutionMapMock,
   threadRenderStateControl,
 } = vi.hoisted(() => ({
@@ -49,7 +48,6 @@ const {
     processAggregatedTimelineEvents: vi.fn(),
     relations: vi.fn(),
   },
-  shouldAutoScrollRoomOnLiveEventMock: vi.fn(() => true),
   threadResolutionMapMock: new Map<string, { isResolved: boolean }>(),
   threadRenderStateControl: {
     currentThreadEvents: [] as unknown[],
@@ -131,8 +129,6 @@ vi.mock('../../preferences/useSetting', () => ({
         return ['MMM D'];
       case 'prefetchDepth':
         return [300];
-      case 'prefetchScope':
-        return ['my-server'];
       default:
         return [false];
     }
@@ -461,7 +457,6 @@ vi.mock('../CollapsibleMessage', async () => {
   const ReactImport = await import('react');
 
   return {
-    ExpandAllInitContext: ReactImport.createContext<boolean | undefined>(undefined),
     CollapsibleMessageStateProvider: ({
       children,
       expandAllInit,
@@ -566,7 +561,6 @@ vi.mock('../../matrix/state/roomToUnread', () => ({
 }));
 
 vi.mock('../../event-store/threads/threadUtils', () => ({
-  buildThreadParticipantMap: () => new Map(),
   buildThreadReplyCountMap: () => new Map(),
   buildVisibleThreadParticipantMap: () => new Map(),
   buildVisibleThreadReplyCountMap: () => new Map(),
@@ -669,16 +663,9 @@ vi.mock('../../event-store/timeline/timelineScrollUtils', async (importOriginal)
     ...actual,
     isScrollNearBottom: () => true,
     isTimelineAtLiveEnd: () => true,
-    shouldAutoScrollRoomOnLiveEvent: shouldAutoScrollRoomOnLiveEventMock,
     shouldAutoScrollThreadOnLiveEvent: () => false,
   };
 });
-
-vi.mock('../../event-store/threads/threadEditBackfill', () => ({
-  hasLikelyIncompleteStreamingBody: () => false,
-  markThreadEditBackfillAttempted: vi.fn(),
-  shouldFetchThreadEditBackfill: () => false,
-}));
 
 vi.mock('../../event-store/threads/threadEditBackfill', () => ({
   hasLikelyIncompleteStreamingBody: () => false,
@@ -1011,7 +998,6 @@ beforeEach(() => {
   });
   matrixClientMock.getEventTimeline.mockResolvedValue(undefined);
   matrixClientMock.getThreadTimeline.mockResolvedValue(undefined);
-  shouldAutoScrollRoomOnLiveEventMock.mockReturnValue(true);
   threadResolutionMapMock.clear();
   threadRenderStateControl.initialThreadEvents = [];
   threadRenderStateControl.currentThreadEvents = [];
