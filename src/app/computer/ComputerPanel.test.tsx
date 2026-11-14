@@ -977,9 +977,14 @@ describe('ComputerPanel', () => {
 
   it('sends the continuation exactly once even when watch reconnect fails', async () => {
     const gateway = createGateway();
-    let tickets = 0;
     const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (input.toString().endsWith('/stream-ticket') && ++tickets === 2) {
+      const url = input.toString();
+      if (
+        url.endsWith('/stream-ticket') &&
+        vi
+          .mocked(request)
+          .mock.calls.filter(([value]) => value.toString().endsWith('/stream-ticket')).length === 2
+      ) {
         return jsonResponse(503, { detail: 'Computer stream is unavailable.' });
       }
       return gateway(input, init);

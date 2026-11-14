@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { MatrixClient } from 'matrix-js-sdk';
 import {
   buildIOSPushPusherRequest,
   clearIOSPushState,
@@ -207,9 +208,9 @@ describe('resolveIOSPushConfig', () => {
     });
 
     const mx = {
-      setPusher: vi.fn(),
+      setPusher: async () => undefined,
       getHomeserverUrl: () => 'https://matrix.example',
-    };
+    } as unknown as MatrixClient;
     const pushConfig = {
       appId: 'com.mindroom-ios',
       gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
