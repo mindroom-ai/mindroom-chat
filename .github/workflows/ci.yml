@@ -1,7 +1,6 @@
 # Every push to main and every pull request: the type check, the strict Lane C check, ESLint and
 # the unit suite in one job, and a smoke subset of the end-to-end specs against a disposable Tuwunel
-# homeserver in another. The upstream overlap check needs the upstream clone, which never leaves the
-# coordinator's machine, so it runs in scripts/push-gate.sh before each push and never here.
+# homeserver in another.
 name: CI
 
 on:

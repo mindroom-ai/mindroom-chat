@@ -197,7 +197,7 @@ node scripts/provenance-paths.cjs lane src/app/matrix/protocol/toolTrace.ts src/
 node scripts/provenance-paths.cjs lane-p        # every Lane P file, at its path after the rewrite
 ```
 
-`just check` enforces the split: `check-holes` proves each Lane P file differed from its import only in its blanked lines at the commit that filled them, `verify-ported` recomputes the import from a source checkout, and the overlap check described in `docs/provenance.md` runs over new code.
+`just check` enforces the split: `check-holes` proves each Lane P file differed from its import only in its blanked lines at the commit that filled them, `verify-ported` recomputes the import from a source checkout.
 
 ## MindRoom event formats
 

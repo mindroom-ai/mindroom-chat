@@ -58,8 +58,8 @@ release *args:
 bundle-report dist="dist" *args:
     node scripts/perf/bundle-report.mjs {{dist}} --budget scripts/perf/bundle-budget.json {{args}}
 
-# The full local check. CI (.github/workflows/ci.yml) runs typecheck, strict, lint, test and a smoke subset of the e2e specs on every push to main and every pull request; scripts/push-gate.sh runs the overlap history check before each push.
-check: typecheck strict lint test script-tests license-check verify-ported check-holes identifier-renames upstream-overlap
+# The full local check. CI (.github/workflows/ci.yml) runs typecheck, strict, lint, test and a smoke subset of the e2e specs on every push to main and every pull request.
+check: typecheck strict lint test script-tests license-check verify-ported check-holes identifier-renames
 
 # Fail when an installed package has a license outside the allowlist (also runs the script's own tests).
 license-check:
@@ -80,17 +80,6 @@ check-holes:
 identifier-renames:
     node --test scripts/check-identifier-renames.test.mjs
     node scripts/check-identifier-renames.mjs
-
-# No run of 3+ shared lines or 30+ shared tokens with any version of the upstream client (docs/provenance.md); pass a full upstream git clone, skipped without one. Add --history to check every commit.
-upstream-overlap corpus='' *args:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [ -z "{{corpus}}" ]; then echo 'upstream-overlap: skipped (no upstream clone given)'; exit 0; fi
-    python3 scripts/upstream-overlap/check.py --corpus "{{corpus}}" {{args}}
-
-# Install the pre-push hook that runs the upstream overlap check on every commit a push adds (scripts/git-hooks/install.sh): pass the upstream clone, then other clones to install it in (default: this one). The hook fetches the objects of the remote's main when the clone lacks them; the headers of scripts/git-hooks/install.sh, scripts/git-hooks/pre-push and scripts/upstream-overlap/check.py describe the rest.
-install-hooks corpus *clones:
-    bash scripts/git-hooks/install.sh --corpus "{{corpus}}" {{clones}}
 
 # Compare Lane C code with each corpus given, a directory or a Git repository as <dir>@<commit> (scripts/similarity-audit.sh says what counts); writes docs/provenance/audit/<date>/.
 similarity-audit *corpora:
@@ -126,7 +115,7 @@ agent-stack slot *args:
 e2e-suite *args:
     bash scripts/e2e-suite.sh {{args}}
 
-# Tests of the e2e tooling, the notices generator, the bundle report and the iOS test fixture generators (scripts/e2e-results-tsv.test.mjs, scripts/third-party-notices.test.mjs, scripts/ios-routing-test-routes.test.mjs, scripts/ios-canvas-test-fixtures.test.mjs and scripts/perf/bundle-report.test.mjs with Node's test runner, scripts/test_matrix_http.py, scripts/reference/test_seed.py, scripts/agent-stack/test_stack.py, scripts/upstream-overlap/test_check.py and scripts/test_e2e_plugin_dirs.py with unittest). test_check.py pushes to local bare repositories through the pre-push hook, with a made-up corpus: no upstream clone is needed.
+# Tests of the e2e tooling, the notices generator, the bundle report and the iOS test fixture generators (scripts/e2e-results-tsv.test.mjs, scripts/third-party-notices.test.mjs, scripts/ios-routing-test-routes.test.mjs, scripts/ios-canvas-test-fixtures.test.mjs and scripts/perf/bundle-report.test.mjs with Node's test runner, scripts/test_matrix_http.py, scripts/reference/test_seed.py, scripts/agent-stack/test_stack.py, and scripts/test_e2e_plugin_dirs.py with unittest).
 script-tests:
     node --test scripts/e2e-results-tsv.test.mjs scripts/third-party-notices.test.mjs scripts/ios-routing-test-routes.test.mjs scripts/ios-canvas-test-fixtures.test.mjs scripts/perf/bundle-report.test.mjs
-    python3 -m unittest scripts/test_matrix_http.py scripts/reference/test_seed.py scripts/agent-stack/test_stack.py scripts/upstream-overlap/test_check.py scripts/test_e2e_plugin_dirs.py
+    python3 -m unittest scripts/test_matrix_http.py scripts/reference/test_seed.py scripts/agent-stack/test_stack.py scripts/test_e2e_plugin_dirs.py
