@@ -2,7 +2,6 @@ import { getSafeLocalStorage, removeStorageItemSafe } from '../safeLocalStorage'
 
 export type UserScopedAtomRegistry<TAtom> = {
   getOrCreate: (userId: string) => TAtom;
-  resolveActiveOrCreate: (userId: string | undefined) => TAtom | undefined;
   clear: (userId: string) => void;
 };
 
@@ -34,14 +33,11 @@ export const createUserScopedAtomRegistry = <TAtom>({
     return next;
   };
 
-  const resolveActiveOrCreate = (userId: string | undefined): TAtom | undefined =>
-    userId ? getOrCreate(userId) : undefined;
-
   const clear = (userId: string): void => {
     const storageKey = getStorageKey(userId);
     removeStorageItemSafe(getSafeLocalStorage(), storageKey);
     atoms.delete(userId);
   };
 
-  return { getOrCreate, resolveActiveOrCreate, clear };
+  return { getOrCreate, clear };
 };

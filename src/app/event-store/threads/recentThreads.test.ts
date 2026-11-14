@@ -5,14 +5,18 @@ import {
   clearRecentThreadsStore,
   makeRecentThreadsAtom,
   rekeyRecentThread,
+  removeRecentThread,
 } from './recentThreads';
 import { setImperativeJotaiStore } from '../../lib/state/jotaiStore';
 
 const USER_ID = '@alice:example.org';
+const sessions = vi.hoisted(() => ({
+  active: { userId: '@alice:example.org' } as { userId: string } | undefined,
+}));
 
 vi.mock('../../matrix/session/sessions', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../matrix/session/sessions')>()),
-  getActiveSession: () => ({ userId: '@alice:example.org' }),
+  getActiveSession: () => sessions.active,
 }));
 
 const createStorage = (): Storage => {
@@ -242,6 +246,31 @@ describe('recentThreads', () => {
     expect(getDefaultStore().get(recentThreadsAtom)).toEqual([]);
 
     unregisterStore();
+  });
+
+  it('removes one thread of the signed-in account', () => {
+    bumpRecentThread('!room:example.org', '$kept', 100);
+    bumpRecentThread('!room:example.org', '$gone', 200);
+
+    removeRecentThread('!room:example.org', '$gone');
+
+    expect(getDefaultStore().get(makeRecentThreadsAtom(USER_ID))).toEqual([
+      { roomId: '!room:example.org', threadId: '$kept', openedAt: 100 },
+    ]);
+  });
+
+  it.each([
+    ['no session', undefined],
+    ['a session without a user', { userId: '' }],
+  ])('records nothing with %s', (_name, session) => {
+    sessions.active = session;
+    try {
+      bumpRecentThread('!room:example.org', '$thread', 200);
+      expect(localStorage.setItem).not.toHaveBeenCalled();
+      expect(getDefaultStore().get(makeRecentThreadsAtom(''))).toEqual([]);
+    } finally {
+      sessions.active = { userId: USER_ID };
+    }
   });
 
   it('updates a stored summary without changing recency order', () => {

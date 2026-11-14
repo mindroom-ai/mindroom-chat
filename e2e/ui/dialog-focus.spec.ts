@@ -2,7 +2,7 @@ import { crc32, deflateSync } from 'node:zlib';
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
 import { activeAccountButton } from '../helpers/auth';
-import { matrixFetch } from '../helpers/matrix';
+import { joinRoom, matrixFetch } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -107,11 +107,7 @@ const seed = async () => {
   const viewer = await register('dfocus_viewer', 'Jordan Viewer');
   const member = await register('dfocus_member', 'Sam Taylor');
   const roomId = await createRoom(viewer, ROOM, TOPIC);
-  await matrixFetch(HOMESERVER, `/join/${encodeURIComponent(roomId)}`, {
-    method: 'POST',
-    accessToken: member.accessToken,
-    body: '{}',
-  });
+  await joinRoom(HOMESERVER, member.accessToken, roomId);
   const lines = [
     'Morning! I pushed the draft of the quarterly plan; comments welcome before Thursday.',
     'Thanks, I will read it after the standup and leave notes on the budget section.',

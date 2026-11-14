@@ -69,8 +69,6 @@ const hasCredentials = !!process.env.E2E_USERNAME;
 //     reconcilesOnRepairedFired=1 — reconciler runs, detects divergence,
 //     repairs, persists the converged cache snapshot, and fires the
 //     supplemental sink callback end-to-end.
-//   - RG3 render-seam counters: mergeSawIncomingEditRelation firing
-//     and the merge dedup does keep the incoming (repaired) instance.
 //   - Applier scalar tripwires: applierMakeReplacedLatestEqualsCurrent > 0
 //     — the render-held instance for the edit target IS the repaired one,
 //     holding the correct m.replace relation.
@@ -480,8 +478,6 @@ test.describe('ISSUE-207 stale-cache divergence reconcile', () => {
         const snap = w.__MINDROOM_CACHE_PROBE__?.snapshot() ?? {};
         const pick = (key: string): number => Number(snap[key] ?? 0);
         return {
-          renderTargetHadReplacement: pick('renderTargetHadReplacement'),
-          renderTargetLackedReplacement: pick('renderTargetLackedReplacement'),
           applierMakeReplacedFired: pick('applierMakeReplacedFired'),
           applierMakeReplacedLatestEqualsCurrent: pick(
             'applierMakeReplacedLatestEqualsCurrent'
