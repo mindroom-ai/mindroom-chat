@@ -864,6 +864,8 @@
     "showFull": "عرض السلسلة كاملة",
     "showBeside": "عرض السلسلة بجانب الرسائل",
     "notFound": "لم يُعثر على السلسلة",
+    "snoozedUntil": "مؤجّل حتى ⁨{{time}}⁩",
+    "snoozeEnded": "انتهى التأجيل",
     "status": {
       "snoozed": "مؤجلة"
     }

@@ -819,6 +819,8 @@
     "showFull": "Mostra il thread a tutta larghezza",
     "showBeside": "Mostra il thread accanto ai messaggi",
     "notFound": "Thread non trovato",
+    "snoozedUntil": "Posticipato fino a {{time}}",
+    "snoozeEnded": "Posticipo terminato",
     "status": {
       "snoozed": "Posticipato"
     }

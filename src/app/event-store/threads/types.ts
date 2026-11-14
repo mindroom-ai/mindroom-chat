@@ -138,6 +138,8 @@ export type CompactThreadCardViewModel = {
   isStreaming: boolean;
   hasPendingSend?: boolean;
   hasFailedSend?: boolean;
+  /** When the snooze ends; absent once resolved. The card shows it only while it is ahead. */
+  snoozedUntilTs?: number;
   scheduledDisplayText?: string;
   scheduledTaskLabel?: string;
   lastActivityTs?: number;
@@ -160,6 +162,8 @@ export type ThreadHeaderViewModel = {
   canEdit: boolean;
   availableTags: string[];
   pickerDisabled: boolean;
+  /** When the snooze ends; absent once resolved. The banner shows it only while it is ahead. */
+  snoozedUntilTs?: number;
   scheduledTaskCount: number;
   nextScheduledTs?: number;
   scheduledDisplayText?: string;

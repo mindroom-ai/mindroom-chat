@@ -789,6 +789,8 @@
     "showFull": "스레드를 전체로 보기",
     "showBeside": "스레드를 메시지 옆에 보기",
     "notFound": "스레드를 찾을 수 없습니다",
+    "snoozedUntil": "{{time}}까지 일시 중지됨",
+    "snoozeEnded": "일시 중지 종료",
     "status": {
       "snoozed": "다시 알림"
     }

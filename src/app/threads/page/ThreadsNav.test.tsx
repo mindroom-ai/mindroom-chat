@@ -251,6 +251,37 @@ describe('ThreadsNav', () => {
     }
   });
 
+  it('shows "Snoozed until ..." on a snoozed row, and nothing once its time passes', () => {
+    vi.useFakeTimers();
+    try {
+      state.items = [item('later', 'Revisit pricing', { snoozedUntilTs: Date.now() + 3600_000 })];
+      const { container } = renderNav();
+      fireEvent.click(screen.getByRole('radio', { name: 'All' }));
+      fireEvent.click(screen.getByRole('button', { name: /Snoozed/ }));
+      expect(container.querySelector('[data-thread-snoozed]')?.textContent).toMatch(
+        /^Snoozed until /
+      );
+      act(() => {
+        vi.advanceTimersByTime(3600_000);
+      });
+      expect(container.querySelector('[data-thread-snoozed]')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows a resolved and snoozed thread as resolved only', () => {
+    state.items = [
+      item('done', 'Revisit pricing', { snoozedUntilTs: Date.now() + 3600_000, isResolved: true }),
+    ];
+    const { container } = renderNav();
+    fireEvent.click(screen.getByRole('radio', { name: 'All' }));
+    const toggle = screen.queryByRole('button', { name: /Snoozed/ });
+    if (toggle) fireEvent.click(toggle);
+    expect(container.querySelector('[data-thread-snoozed]')).toBeNull();
+    expect(container.textContent).not.toContain('Snoozed until');
+  });
+
   it('opens a thread beside the list', () => {
     state.items = [item('t', 'Launch email draft')];
     renderNav();

@@ -819,6 +819,8 @@
     "showFull": "Afficher le fil en entier",
     "showBeside": "Afficher le fil à côté des messages",
     "notFound": "Fil introuvable",
+    "snoozedUntil": "Reporté jusqu'à {{time}}",
+    "snoozeEnded": "Report terminé",
     "status": {
       "snoozed": "En attente"
     }

@@ -804,6 +804,8 @@
     "showFull": "Thread ganz anzeigen",
     "showBeside": "Thread neben den Nachrichten anzeigen",
     "notFound": "Thread nicht gefunden",
+    "snoozedUntil": "Zurückgestellt bis {{time}}",
+    "snoozeEnded": "Zurückstellung beendet",
     "status": {
       "snoozed": "Zurückgestellt"
     }

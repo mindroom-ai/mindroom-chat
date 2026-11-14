@@ -789,6 +789,8 @@
     "showFull": "スレッドを全体に表示",
     "showBeside": "スレッドをメッセージの横に表示",
     "notFound": "スレッドが見つかりません",
+    "snoozedUntil": "{{time}} までスヌーズ中",
+    "snoozeEnded": "スヌーズが終了しました",
     "status": {
       "snoozed": "スヌーズ中"
     }

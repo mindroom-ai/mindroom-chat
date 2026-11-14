@@ -804,6 +804,8 @@
     "showFull": "Thread volledig tonen",
     "showBeside": "Thread naast de berichten tonen",
     "notFound": "Thread niet gevonden",
+    "snoozedUntil": "Gesnoozed tot {{time}}",
+    "snoozeEnded": "Snooze afgelopen",
     "status": {
       "snoozed": "Gesnoozed"
     }

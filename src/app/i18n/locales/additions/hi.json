@@ -804,6 +804,8 @@
     "showFull": "थ्रेड पूरा दिखाएँ",
     "showBeside": "थ्रेड संदेशों के बगल में दिखाएँ",
     "notFound": "थ्रेड नहीं मिला",
+    "snoozedUntil": "{{time}} तक स्थगित",
+    "snoozeEnded": "स्थगन समाप्त",
     "status": {
       "snoozed": "स्नूज़ किया गया"
     }

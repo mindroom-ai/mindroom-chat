@@ -789,6 +789,8 @@
     "showFull": "Tampilkan utas penuh",
     "showBeside": "Tampilkan utas di samping pesan",
     "notFound": "Utas tidak ditemukan",
+    "snoozedUntil": "Ditunda hingga {{time}}",
+    "snoozeEnded": "Penundaan berakhir",
     "status": {
       "snoozed": "Ditunda"
     }

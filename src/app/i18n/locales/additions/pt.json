@@ -819,6 +819,8 @@
     "showFull": "Mostrar o tópico inteiro",
     "showBeside": "Mostrar o tópico ao lado das mensagens",
     "notFound": "Tópico não encontrado",
+    "snoozedUntil": "Adiado até {{time}}",
+    "snoozeEnded": "Adiamento encerrado",
     "status": {
       "snoozed": "Adiado"
     }

@@ -804,6 +804,8 @@
     "showFull": "Konuyu tam göster",
     "showBeside": "Konuyu mesajların yanında göster",
     "notFound": "Konu bulunamadı",
+    "snoozedUntil": "{{time}} tarihine kadar ertelendi",
+    "snoozeEnded": "Erteleme sona erdi",
     "status": {
       "snoozed": "Ertelendi"
     }

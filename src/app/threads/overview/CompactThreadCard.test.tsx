@@ -1,5 +1,5 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { CompactThreadCard } from './CompactThreadCard';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
@@ -60,6 +60,7 @@ vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
   return {
     useTranslation: () => ({
+      i18n: { language: 'en' },
       t: (key: string, options?: Record<string, unknown>) =>
         key === 'thread.aria.messageFailed'
           ? 'Localized message failure'
@@ -92,6 +93,34 @@ const makeViewModel = (
 });
 
 describe('CompactThreadCard', () => {
+  it('shows when a snooze ends, and nothing once its time passes', () => {
+    vi.useFakeTimers();
+    try {
+      const until = Date.now() + 30 * 60_000;
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          <CompactThreadCard
+            viewModel={makeViewModel({ snoozedUntilTs: until })}
+            onClick={vi.fn()}
+          />
+        );
+      });
+      const shown = () =>
+        renderer.root.findAll(
+          (n) => typeof n.type === 'string' && n.props['data-thread-snoozed'] === 'true'
+        );
+      expect(JSON.stringify(renderer.toJSON())).toContain('Snoozed until in 30m');
+      expect(shown().length).toBeGreaterThan(0);
+      act(() => {
+        vi.advanceTimersByTime(30 * 60_000);
+      });
+      expect(JSON.stringify(renderer.toJSON())).not.toContain('Snoozed until');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('renders the pending send indicator beside compact preview text', () => {
     const renderer = create(
       <CompactThreadCard viewModel={makeViewModel({ hasPendingSend: true })} onClick={vi.fn()} />

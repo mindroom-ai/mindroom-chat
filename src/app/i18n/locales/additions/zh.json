@@ -789,6 +789,8 @@
     "showFull": "完整显示讨论串",
     "showBeside": "在消息旁显示讨论串",
     "notFound": "未找到该讨论串",
+    "snoozedUntil": "已延后至 {{time}}",
+    "snoozeEnded": "延后已结束",
     "status": {
       "snoozed": "已延后"
     }

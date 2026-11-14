@@ -51,7 +51,9 @@ const pinningMocks = vi.hoisted(() => ({
   updating: false,
   error: undefined,
 }));
-vi.mock('../event-store/threads/useThreadPinning', () => ({ useThreadPinning: () => pinningMocks }));
+vi.mock('../event-store/threads/useThreadPinning', () => ({
+  useThreadPinning: () => pinningMocks,
+}));
 
 const ISO_1 = '2026-04-07T00:00:01.000Z';
 const ISO_2 = '2026-04-07T00:00:02.000Z';
@@ -127,6 +129,7 @@ vi.mock('@tabler/icons-react', async () => {
   const React = await import('react');
   return {
     IconCalendarEvent: (props: Record<string, unknown>) => React.createElement('svg', props),
+    IconClock: (props: Record<string, unknown>) => React.createElement('svg', props),
   };
 });
 
@@ -739,9 +742,9 @@ describe('ThreadContextBanner rendering', () => {
     expect(summarized.root.findAllByProps({ 'data-thread-context-root-title': 'true' })).toEqual(
       []
     );
-    expect(
-      text(summarized.root.findByProps({ 'data-thread-context-summary': 'true' }))
-    ).toBe('Staging deploy plan');
+    expect(text(summarized.root.findByProps({ 'data-thread-context-summary': 'true' }))).toBe(
+      'Staging deploy plan'
+    );
     summarized.unmount();
   });
 
@@ -1190,6 +1193,45 @@ describe('ThreadContextBanner rendering', () => {
     ).toBeTruthy();
   });
 
+  describe('snooze', () => {
+    const SET_AT = '2026-11-13T10:00:00Z';
+    const withSnooze = (until: string, isResolved = false) =>
+      bannerMocks.useThreadTags.mockReturnValue({
+        tags: { snoozed: { set_by: '@alice:example.org', set_at: SET_AT, data: { until } } },
+        displayTags: [],
+        isResolved,
+        canEdit: false,
+        availableTags: [],
+      });
+    const snoozedRows = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root.findAll(
+        (node) => typeof node.type === 'string' && node.props['data-thread-snoozed'] === 'true'
+      );
+
+    afterEach(() => vi.useRealTimers());
+
+    it('shows "Snoozed until ..." while the thread is snoozed and nothing after its time', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(Date.parse('2026-11-13T10:00:00Z'));
+      withSnooze('2026-11-13T10:30:00Z');
+      const renderer = renderBanner();
+      expect(JSON.stringify(renderer.toJSON())).toContain('Snoozed until in 30m');
+      expect(snoozedRows(renderer)).toHaveLength(1);
+      act(() => {
+        vi.advanceTimersByTime(30 * 60_000);
+      });
+      expect(JSON.stringify(renderer.toJSON())).not.toContain('Snoozed until');
+      expect(snoozedRows(renderer)).toHaveLength(0);
+    });
+
+    it('shows a resolved and snoozed thread as resolved only', () => {
+      withSnooze(new Date(Date.now() + 3600_000).toISOString(), true);
+      const renderer = renderBanner();
+      expect(JSON.stringify(renderer.toJSON())).not.toContain('Snoozed until');
+      expect(snoozedRows(renderer)).toHaveLength(0);
+    });
+  });
+
   it('renders summary and scheduled countdown together when both exist', () => {
     bannerMocks.useThreadHeaderInfo.mockReturnValue({
       scheduledTaskCount: 1,
@@ -1222,12 +1264,7 @@ describe('ThreadContextBanner rendering', () => {
     expect(resolve.findByType('i').props.src).toBe('check');
     expect(resolve.props.className).toBe('MessageOptionsButton CompactHidden');
     const tips = renderer.root.findAllByProps({ role: 'tooltip' }).map(text);
-    expect(tips).toEqual([
-      'Back',
-      'Thread options',
-      'Pin thread',
-      'Resolve Ctrl+Shift+Enter',
-    ]);
+    expect(tips).toEqual(['Back', 'Thread options', 'Pin thread', 'Resolve Ctrl+Shift+Enter']);
     expect(resolve.props['aria-keyshortcuts']).toBe('Control+Shift+Enter');
     // The tooltips replace the native ones.
     expect(renderer.root.findAll((node) => node.type === 'button' && !!node.props.title)).toEqual(
@@ -1270,8 +1307,9 @@ describe('ThreadContextBanner rendering', () => {
 
   it('opens the back tooltip toward the banner in either text direction', () => {
     const backTip = (renderer: ReturnType<typeof renderBanner>) =>
-      renderer.root.findAllByProps({ role: 'tooltip' }).find((tip) => text(tip) === 'Back')!
-        .props['data-align'];
+      renderer.root.findAllByProps({ role: 'tooltip' }).find((tip) => text(tip) === 'Back')!.props[
+        'data-align'
+      ];
     const ltr = renderBanner('A concise thread summary');
     expect(backTip(ltr)).toBe('Start');
     ltr.unmount();

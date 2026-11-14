@@ -4,6 +4,7 @@ import { useAtom, useAtomValue } from 'jotai';
 import { Badge, Button, Icon, Icons, Input, Spinner, Text } from 'folds';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { IconClock } from '@tabler/icons-react';
 import { useRelativeTime } from '../../i18n/useRelativeTime';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useLoadedRoomMembers } from '../../matrix/hooks/useLoadedRoomMembers';
@@ -32,6 +33,7 @@ import { getThreadsScopeAtom } from './threadsScope';
 import { useJoinedRoomThreadLists } from './useJoinedRoomThreadLists';
 import { useThreadListItems } from './useThreadListItems';
 import { useSnoozeNow } from '../tags/useSnoozeNow';
+import { useSnoozedUntilText } from '../tags/useSnoozedUntilText';
 import * as css from './ThreadsNav.css';
 
 const SCOPES: ThreadsScope[] = ['mine', 'following', 'all'];
@@ -56,6 +58,8 @@ const ThreadRow = memo(function ThreadRow({ item, selected, onOpen }: ThreadRowP
   const { entry, signals } = item;
   const time = useRelativeTime(entry.lastActivityTs, 'compact');
   const room = mx.getRoom(entry.roomId);
+  // A resolved thread shows as resolved only.
+  const snoozedText = useSnoozedUntilText(entry.isResolved ? undefined : entry.snoozedUntilTs);
   let chip: string | undefined;
   if (signals.pendingApproval) chip = t('threadsPage.chips.approval');
   else if (signals.pendingQuestion) chip = t('threadsPage.chips.question');
@@ -132,6 +136,14 @@ const ThreadRow = memo(function ThreadRow({ item, selected, onOpen }: ThreadRowP
         >
           {revealDirectionControls(entry.roomName)}
         </Text>
+        {snoozedText && (
+          <span className={css.Line} data-thread-snoozed="true">
+            <IconClock size={12} stroke={1.8} aria-hidden="true" />
+            <Text as="span" size="T200" priority="300" truncate>
+              {snoozedText}
+            </Text>
+          </span>
+        )}
       </span>
       <span className={css.Side}>
         <Text as="span" size="T200" priority="300">

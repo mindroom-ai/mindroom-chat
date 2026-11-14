@@ -819,6 +819,8 @@
     "showFull": "Mostrar el hilo completo",
     "showBeside": "Mostrar el hilo junto a los mensajes",
     "notFound": "No se encontró el hilo",
+    "snoozedUntil": "Pospuesto hasta {{time}}",
+    "snoozeEnded": "Aplazamiento terminado",
     "status": {
       "snoozed": "Pospuesto"
     }

@@ -144,4 +144,17 @@ describe('buildThreadHeaderViewModelFromRecord', () => {
     expect(model.scheduledLabel).toBe('2 pending scheduled tasks, in 12m');
     expect(model.bannerScheduledText).toBe('Next task in 12m');
   });
+
+  it('carries the snooze time, and none once the thread is resolved', () => {
+    const snoozedUntilTs = Date.UTC(2026, 10, 14, 8);
+    const build = (isResolved: boolean) =>
+      buildThreadHeaderViewModelFromRecord({
+        record: makeRecord({ status: { isResolved, snoozedUntilTs } as ThreadRecord['status'] }),
+        canEdit: true,
+        availableTags: [],
+        pickerDisabled: false,
+      });
+    expect(build(false).snoozedUntilTs).toBe(snoozedUntilTs);
+    expect(build(true).snoozedUntilTs).toBeUndefined();
+  });
 });
