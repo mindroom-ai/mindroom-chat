@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The checks a commit passes before the coordinator pushes it to GitHub main.
+# The checks a commit passes before the coordinator pushes it to GitHub.
 #
 # Usage: scripts/push-gate.sh <checkout> --slot <n> --corpus <upstream clone> [--rev <commit>] [--base <rev>]
 #   scripts/push-gate.sh ~/Work/mindroom-client-new --slot 46 --corpus <upstream clone>
