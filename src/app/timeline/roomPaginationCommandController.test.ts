@@ -680,7 +680,7 @@ describe('network back-pagination persist point (ISSUE-207 P3.3)', () => {
 
     expect(handleTimelinePagination).toHaveBeenCalledWith(true);
     expect(persistRoomEventCache).toHaveBeenCalledTimes(1);
-    const [persisted, token] = persistRoomEventCache.mock.calls[0];
+    const [persisted, token] = persistRoomEventCache.mock.calls[0]!;
     // Oldest -> newest, only the newly fetched slice.
     expect((persisted as Array<{ getId: () => string }>).map((e) => e.getId())).toEqual([
       '$old-1',

@@ -312,7 +312,7 @@ describe('thread summary actions', () => {
   it('publishes a normalized manual summary through the shared notice format in the selected thread', async () => {
     const { room, mx, sendMessage } = setup();
     await saveThreadSummary(mx, room, '$root', '  Updated\n summary  ');
-    const [roomId, threadId, content] = sendMessage.mock.calls[0];
+    const [roomId, threadId, content] = sendMessage.mock.calls[0]!;
     expect([roomId, threadId]).toEqual(['!room:test', '$root']);
     expect(content).toMatchObject({
       msgtype: 'm.notice',

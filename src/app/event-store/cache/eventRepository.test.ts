@@ -1,4 +1,4 @@
-import { MatrixEvent, RelationType, type IEvent } from 'matrix-js-sdk';
+import { MatrixEvent, RelationType, type IEvent, type Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetCacheHealthForTesting } from './cacheHealth';
 import {
@@ -17,13 +17,23 @@ import {
   serializeRoomCacheEvents,
   serializeThreadCacheEvents,
 } from './eventRepository';
-import { makeEvent, makeRoom } from '../../timeline/test-utils/RoomTimeline.test.shared';
+import type { CachedRoomEvent } from './db/cacheStoreNormalize';
+import {
+  makeEvent as makeMockEvent,
+  makeRoom as makeMockRoom,
+} from '../../timeline/test-utils/RoomTimeline.test.shared';
+
+// The shared helpers build partial mocks; type them once as the SDK objects they stand in for.
+const makeEvent = makeMockEvent as unknown as (
+  ...args: Parameters<typeof makeMockEvent>
+) => MatrixEvent;
+const makeRoom = makeMockRoom as unknown as (options: { liveEvents: MatrixEvent[] }) => Room;
 
 const makeRawMessage = (
   eventId: string,
   body: string,
   opts: { sender?: string; ts?: number; replacement?: Partial<IEvent> } = {}
-): Partial<IEvent> => ({
+): CachedRoomEvent => ({
   event_id: eventId,
   room_id: '!room:example.org',
   sender: opts.sender ?? '@alice:example.org',
@@ -185,7 +195,7 @@ describe('eventRepository same-id revision merge', () => {
           origin_server_ts: 300,
           redacts: '$edit-v2',
           content: {},
-        },
+        } as IEvent,
       },
     } satisfies Partial<IEvent>;
     const room = {
@@ -244,7 +254,7 @@ describe('eventRepository same-id revision merge', () => {
 
     const snapshot = persistThreadEventCacheSnapshot({
       sessionId: 'session',
-      room: room as never,
+      room,
       threadId: '$root',
       events: [mapRawEvent(target), mapRawEvent(replace)],
       authoritativeRawEvents: [target, replace],
@@ -319,13 +329,13 @@ describe('eventRepository same-id revision merge', () => {
       type: 'm.room.redaction',
       redacts: '$target',
       content: {},
-    };
+    } as IEvent;
     const rawEvent = {
       ...makeRawMessage('$target', 'plaintext that must not be cached'),
       unsigned: { redacted_because: redactedBecause },
     };
 
-    const mapped = createPreferLiveEventMapper(room as never, mapRawEvent)(rawEvent);
+    const mapped = createPreferLiveEventMapper(room, mapRawEvent)(rawEvent);
 
     expect(mapped.isRedacted()).toBe(true);
     expect(mapped.event.content).toEqual({});
@@ -351,9 +361,7 @@ describe('eventRepository cache serialization helpers', () => {
     const room = makeRoom({ liveEvents: [targetEvent] });
 
     expect(
-      collectStateTargetEvents(room as never, [editEvent, redactionEvent] as never).map((event) =>
-        event.getId()
-      )
+      collectStateTargetEvents(room, [editEvent, redactionEvent]).map((event) => event.getId())
     ).toEqual(['$edit', '$target', '$redaction']);
   });
 
@@ -370,11 +378,9 @@ describe('eventRepository cache serialization helpers', () => {
     });
     const room = makeRoom({ liveEvents: [reactionEvent] });
 
-    expect(
-      collectStateTargetEvents(room as never, [redactionEvent] as never).map((event) =>
-        event.getId()
-      )
-    ).toEqual(['$redaction']);
+    expect(collectStateTargetEvents(room, [redactionEvent]).map((event) => event.getId())).toEqual([
+      '$redaction',
+    ]);
   });
 
   it('serializes room cache payloads without thread-only activity', () => {
@@ -388,7 +394,7 @@ describe('eventRepository cache serialization helpers', () => {
     const room = makeRoom({ liveEvents: [rootEvent, replyEvent, roomEvent] });
 
     expect(
-      serializeRoomCacheEvents(room as never, [rootEvent, replyEvent, roomEvent] as never).map(
+      serializeRoomCacheEvents(room, [rootEvent, replyEvent, roomEvent]).map(
         (event) => event.event_id
       )
     ).toEqual(['$root', '$room']);
@@ -404,9 +410,7 @@ describe('eventRepository cache serialization helpers', () => {
     const room = makeRoom({ liveEvents: [rootEvent, replyEvent] });
 
     expect(
-      serializeThreadCacheEvents(room as never, [replyEvent] as never, rootEvent as never).map(
-        (event) => event.event_id
-      )
+      serializeThreadCacheEvents(room, [replyEvent], rootEvent).map((event) => event.event_id)
     ).toEqual(['$root', '$reply']);
   });
 });
@@ -428,10 +432,10 @@ describe('eventRepository cache persistence snapshots', () => {
 
     const snapshot = persistThreadEventCacheSnapshot({
       sessionId: 'session',
-      room: room as never,
+      room,
       threadId: '$root',
-      events: [replyEvent] as never,
-      rootEvent: rootEvent as never,
+      events: [replyEvent],
+      rootEvent,
       beforeTokenForEarliest: null,
       tailLoaded: true,
       snapshotComplete: true,
@@ -473,8 +477,8 @@ describe('eventRepository cache persistence snapshots', () => {
 
     const snapshot = persistRoomEventCacheSnapshot({
       sessionId: 'session',
-      room: room as never,
-      events: [rootEvent, replyEvent, roomEvent] as never,
+      room,
+      events: [rootEvent, replyEvent, roomEvent],
       beforeTokenForEarliest: 'before-root',
       save: (...args) => {
         writes.push(args);
@@ -516,8 +520,8 @@ describe('eventRepository cache persistence snapshots', () => {
 
     const snapshots = persistThreadCacheFromRoomEventsSnapshot({
       sessionId: 'session',
-      room: room as never,
-      events: [replyEvent] as never,
+      room,
+      events: [replyEvent],
       opts: {
         roomStartKnown: true,
         roomTailLoaded: true,
@@ -533,17 +537,17 @@ describe('eventRepository cache persistence snapshots', () => {
     });
 
     expect(snapshots).toHaveLength(1);
-    expect(snapshots[0].threadId).toBe('$root');
-    expect(snapshots[0].nextSeedEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
-    expect(snapshots[0].roomDerivedSnapshot).toMatchObject({
+    expect(snapshots[0]!.threadId).toBe('$root');
+    expect(snapshots[0]!.nextSeedEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
+    expect(snapshots[0]!.roomDerivedSnapshot).toMatchObject({
       beforeTokenForEarliest: null,
       expectedReplyCount: 1,
       loadedReplyCount: 1,
       snapshotComplete: true,
       tailLoaded: true,
     });
-    expect(snapshots[0].cacheSnapshot.expectedReplyCount).toBe(1);
-    expect(savedSeeds[0].map((event) => event.getId())).toEqual(['$root', '$reply']);
+    expect(snapshots[0]!.cacheSnapshot.expectedReplyCount).toBe(1);
+    expect(savedSeeds[0]!.map((event) => event.getId())).toEqual(['$root', '$reply']);
     expect(writes).toHaveLength(1);
     expect(writes[0]).toMatchObject([
       'session',
@@ -592,7 +596,7 @@ describe('eventRepository cached thread snapshots', () => {
     const olderReply = { event_id: '$older', origin_server_ts: 20 };
     const loadedPageIndexes: number[] = [];
 
-    const snapshot = await loadCachedThreadSnapshot({
+    const snapshot = (await loadCachedThreadSnapshot({
       sessionId: 'session',
       roomId: '!room:example.org',
       threadId: '$root',
@@ -619,7 +623,7 @@ describe('eventRepository cached thread snapshots', () => {
       onPage: (_page, pageIndex) => {
         loadedPageIndexes.push(pageIndex);
       },
-    });
+    }))!;
 
     expect(snapshot.events.map((event) => event.event_id)).toEqual(['$older', '$newer']);
     expect(snapshot.rootEvent).toBe(rootEvent);
@@ -673,7 +677,7 @@ describe('eventRepository cached thread snapshots', () => {
       sessionId: 'session',
       roomId: '!room:example.org',
       threadId: '$root',
-      earliestLoadedReply: earliestLoadedReply as never,
+      earliestLoadedReply,
       heldEventIds: new Set(),
       limit: 50,
       mapEvent: (rawEvent) =>
@@ -717,7 +721,7 @@ describe('eventRepository cached thread snapshots', () => {
       sessionId: 'session',
       roomId: '!room:example.org',
       threadId: '$root',
-      earliestLoadedReply: earliestLoadedReply as never,
+      earliestLoadedReply,
       heldEventIds: new Set(),
       limit: 50,
       mapEvent: (rawEvent) =>
@@ -770,7 +774,7 @@ describe('eventRepository latest room cache hydration snapshots', () => {
       sessionId: 'session',
       roomId: '!room:example.org',
       limit: 32,
-      loadedEvents: [loadedEvent] as never,
+      loadedEvents: [loadedEvent],
       mapEvent: (rawEvent) => makeEvent(rawEvent.event_id ?? '$missing'),
       loadLatest: async () => ({
         events: [{ event_id: '$cached-old', origin_server_ts: 200 }],
@@ -790,7 +794,7 @@ describe('eventRepository latest room cache hydration snapshots', () => {
       sessionId: 'session',
       roomId: '!room:example.org',
       limit: 32,
-      loadedEvents: [loadedEvent] as never,
+      loadedEvents: [loadedEvent],
       mapEvent: (rawEvent) =>
         makeEvent(rawEvent.event_id ?? '$missing', {
           ts: rawEvent.origin_server_ts,
@@ -817,7 +821,7 @@ describe('eventRepository latest room cache hydration snapshots', () => {
       sessionId: 'session',
       roomId: '!room:example.org',
       limit: 32,
-      loadedEvents: [loadedEvent] as never,
+      loadedEvents: [loadedEvent],
       mapEvent: (rawEvent) =>
         makeEvent(rawEvent.event_id ?? '$missing', {
           ts: rawEvent.origin_server_ts,
@@ -849,7 +853,7 @@ describe('eventRepository latest room cache hydration snapshots', () => {
       sessionId: 'session',
       roomId: '!room:example.org',
       limit: 32,
-      loadedEvents: [makeEvent('$after-gap', { ts: 500 })] as never,
+      loadedEvents: [makeEvent('$after-gap', { ts: 500 })],
       mapEvent: mapByIdAndTs,
       loadGap: gapBefore('$before-gap'),
       loadLatest: async () => ({
@@ -873,7 +877,7 @@ describe('eventRepository latest room cache hydration snapshots', () => {
       sessionId: 'session',
       roomId: '!room:example.org',
       limit: 32,
-      loadedEvents: [makeEvent('$before-gap', { ts: 200 })] as never,
+      loadedEvents: [makeEvent('$before-gap', { ts: 200 })],
       mapEvent: mapByIdAndTs,
       loadGap: gapBefore('$older', '$before-gap'),
       loadLatest: async () => ({
@@ -894,7 +898,7 @@ describe('eventRepository latest room cache hydration snapshots', () => {
       sessionId: 'session',
       roomId: '!room:example.org',
       limit: 2,
-      loadedEvents: [makeEvent('$loaded-tail', { ts: 100 })] as never,
+      loadedEvents: [makeEvent('$loaded-tail', { ts: 100 })],
       mapEvent: mapByIdAndTs,
       loadGap: async () => undefined,
       loadLatest: async () => ({
@@ -919,7 +923,7 @@ describe('eventRepository room cached-back state snapshots', () => {
     const snapshot = await loadRoomCachedBackStateSnapshot({
       sessionId: 'session',
       roomId: '!room:example.org',
-      earliestLoadedEvent: earliestLoadedEvent as never,
+      earliestLoadedEvent,
       loadBefore: async (_sessionId, _roomId, anchor, limit) => {
         requestedAnchor = anchor;
         expect(limit).toBe(1);
@@ -945,7 +949,7 @@ describe('eventRepository room cached pagination snapshots', () => {
     const snapshot = await loadRoomCachedPaginationSnapshot({
       sessionId: 'session',
       roomId: '!room:example.org',
-      earliestLoadedEvent: earliestLoadedEvent as never,
+      earliestLoadedEvent,
       limit: 50,
       mapEvent: (rawEvent) => makeEvent(rawEvent.event_id ?? '$missing'),
       loadPaginationToken: async () => null,
@@ -967,7 +971,7 @@ describe('eventRepository room cached pagination snapshots', () => {
     const snapshot = await loadRoomCachedPaginationSnapshot({
       sessionId: 'session',
       roomId: '!room:example.org',
-      earliestLoadedEvent: earliestLoadedEvent as never,
+      earliestLoadedEvent,
       limit: 50,
       mapEvent: (rawEvent) =>
         makeEvent(rawEvent.event_id ?? '$missing', {
@@ -1000,7 +1004,7 @@ describe('eventRepository room cached pagination snapshots', () => {
     const snapshot = await loadRoomCachedPaginationSnapshot({
       sessionId: 'session',
       roomId: '!room:example.org',
-      earliestLoadedEvent: makeEvent('$after-gap', { ts: 300 }) as never,
+      earliestLoadedEvent: makeEvent('$after-gap', { ts: 300 }),
       limit: 50,
       mapEvent: (rawEvent) => makeEvent(rawEvent.event_id ?? '$missing'),
       loadPaginationToken: async () => 'token-before-gap-run',
@@ -1024,7 +1028,7 @@ describe('eventRepository room cached pagination snapshots', () => {
     const snapshot = await loadRoomCachedPaginationSnapshot({
       sessionId: 'session',
       roomId: '!room:example.org',
-      earliestLoadedEvent: makeEvent('$before-gap', { ts: 300 }) as never,
+      earliestLoadedEvent: makeEvent('$before-gap', { ts: 300 }),
       limit: 50,
       mapEvent: (rawEvent) => makeEvent(rawEvent.event_id ?? '$missing'),
       loadPaginationToken: async () => undefined,
@@ -1321,7 +1325,7 @@ describe('persist entry points always delegate to the injected save (ISSUE-207 P
 
     persistRoomEventCacheSnapshot({
       sessionId: 'session',
-      room: room as never,
+      room,
       events: [],
       save: flakySave,
     });
@@ -1331,7 +1335,7 @@ describe('persist entry points always delegate to the injected save (ISSUE-207 P
 
     persistRoomEventCacheSnapshot({
       sessionId: 'session',
-      room: room as never,
+      room,
       events: [],
       save: flakySave,
     });
@@ -1344,7 +1348,7 @@ describe('persist entry points always delegate to the injected save (ISSUE-207 P
 
     persistThreadEventCacheSnapshot({
       sessionId: 'session',
-      room: room as never,
+      room,
       threadId: '$root',
       events: [],
       save: threadSave,

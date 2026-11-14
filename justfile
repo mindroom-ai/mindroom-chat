@@ -11,22 +11,10 @@ install:
 typecheck:
     npx tsc --noEmit -p config/tsconfig.app.json
 
-# Type-check everything, tests and e2e included (tsconfig.json). Reports the errors without failing; docs/provenance/m1-baseline.txt records the count.
-typecheck-tests:
-    #!/usr/bin/env bash
-    set -uo pipefail
-    output=$(npx tsc --noEmit -p . --pretty false)
-    if [ -n "$output" ]; then printf '%s\n' "$output"; fi
-    echo "typecheck-tests: $(grep -c 'error TS' <<<"$output") errors (reported, not enforced)"
-
-# Type-check and report syntax and semantic errors together.
-typecheck-all:
-    node scripts/typecheck-all.mjs
-
-# Type-check everything with the stricter flags of config/tsconfig.strict.json (unused names, implicit returns, unchecked index access, ...). Fails on errors in Lane C files only and prints how many Lane P errors it ignored.
+# Type-check everything, tests and e2e included, with the stricter flags of config/tsconfig.strict.json (unused names, implicit returns, unchecked index access, ...); must report 0 errors. Also runs the tests of scripts/provenance-paths.cjs, which sorts files by lane for the lint rules.
 strict:
-    node --test scripts/strict-check.test.mjs scripts/provenance-paths.test.mjs
-    node scripts/strict-check.mjs
+    node --test scripts/provenance-paths.test.mjs
+    npx tsc --noEmit -p config/tsconfig.strict.json
 
 # Run the unit tests. On NixOS, scripts/with-fhs-bin.sh adds the /bin/bash and /usr/bin tools that tests of the iOS CI scripts expect.
 test *args:
