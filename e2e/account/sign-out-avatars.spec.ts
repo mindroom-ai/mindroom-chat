@@ -76,7 +76,7 @@ test('the homeserver ending the device deletes the kept avatars', async ({ page 
     body: '{}',
   });
 
-  await expect(page.locator('input[name="usernameInput"]')).toBeVisible({ timeout: 60_000 });
+  await expect(page).toHaveURL(/\/login\b/, { timeout: 60_000 });
   await expect.poll(() => keptAvatars(page)).toBe(-1);
 });
 
@@ -85,6 +85,6 @@ test('deactivating the account deletes the kept avatars', async ({ page }) => {
 
   await deactivateActiveAccount(page, PASSWORD);
 
-  await expect(page.locator('input[name="usernameInput"]')).toBeVisible({ timeout: 60_000 });
+  await expect(page).toHaveURL(/\/login\b/, { timeout: 60_000 });
   await expect.poll(() => keptAvatars(page)).toBe(-1);
 });
