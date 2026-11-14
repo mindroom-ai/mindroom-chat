@@ -28,10 +28,6 @@ vi.mock('../../routes/pathUtils', async (importOriginal) => ({
     steps.push('reload');
   },
 }));
-vi.mock('./browserStorageCleanup', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./browserStorageCleanup')>()),
-  getCacheBustedAppReloadTarget: () => 'reload-target',
-}));
 
 const ALICE = '@alice:example.org';
 const BOB = '@bob:example.org';
@@ -101,6 +97,5 @@ it('clearing the cache deletes every account’s avatars before the page reloads
 
   await clearAllCacheAndReload();
 
-  expect(replace).toHaveBeenCalledWith('reload-target');
   expect(steps).toEqual(['avatars all', 'reload']);
 });

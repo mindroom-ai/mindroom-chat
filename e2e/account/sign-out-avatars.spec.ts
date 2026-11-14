@@ -5,7 +5,6 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   registerDisposableUser,
-  type DisposableUser,
 } from '../helpers/disposableAccounts';
 import { matrixFetch } from '../helpers/matrix';
 
@@ -28,7 +27,7 @@ test.beforeEach(async () => {
 });
 
 /** A disposable account with a picture, signed in here until the account avatar is kept. */
-const signInWithKeptAvatar = async (page: Page, name: string): Promise<DisposableUser> => {
+const signInWithKeptAvatar = async (page: Page, name: string): Promise<void> => {
   const user = await registerDisposableUser(`soa_${name}_${RUN}`, PASSWORD);
   const uploaded = await fetch(`${HOMESERVER}/_matrix/media/v3/upload?filename=avatar.png`, {
     method: 'POST',
@@ -44,7 +43,6 @@ const signInWithKeptAvatar = async (page: Page, name: string): Promise<Disposabl
   });
   await loginWithPassword(page, { homeserver: HOMESERVER, ...user });
   await expect.poll(() => keptAvatars(page), { timeout: 30_000 }).toBeGreaterThan(0);
-  return user;
 };
 
 /** How many avatars the page's origin keeps; -1 once the cache is gone. */
