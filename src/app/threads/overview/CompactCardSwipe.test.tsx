@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { type ReactNode, useRef } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CompactCardSwipe } from './CompactCardSwipe';
+import { CompactCardSwipe, useCompactCardSwipeList } from './CompactCardSwipe';
 
 vi.mock('folds', async (importOriginal) => {
   const actual = await importOriginal<typeof import('folds')>();
@@ -10,8 +10,8 @@ vi.mock('folds', async (importOriginal) => {
 
 vi.mock('./CompactCardSwipe.css', () => ({
   SwipeAction: 'SwipeAction',
+  SwipeList: 'SwipeList',
   SwipeTrack: 'SwipeTrack',
-  SwipeTrackEnabled: 'SwipeTrackEnabled',
   SwipeTrackSettling: 'SwipeTrackSettling',
 }));
 
@@ -22,16 +22,24 @@ type FakeTrack = {
   style: { transform: string };
   getBoundingClientRect: () => { width: number };
   setPointerCapture: ReturnType<typeof vi.fn>;
-  addEventListener: (type: string, listener: (event: unknown) => void) => void;
+  addEventListener: ReturnType<typeof vi.fn>;
   removeEventListener: () => void;
-  touchMoveListener?: (event: unknown) => void;
   ownerDocument: {
     addEventListener: (type: string, listener: (event: unknown) => void) => void;
     removeEventListener: () => void;
   };
 };
 
+/** The element that holds the cards. */
+type FakeList = {
+  addEventListener: (type: string, listener: (event: unknown) => void, options: unknown) => void;
+  removeEventListener: ReturnType<typeof vi.fn>;
+  touchMoveListener?: (event: unknown) => void;
+  touchMoveOptions?: unknown;
+};
+
 let track: FakeTrack;
+let list: FakeList;
 let documentTouchStarts: Array<(event: unknown) => void>;
 let direction: 'ltr' | 'rtl';
 let renderers: ReactTestRenderer[];
@@ -41,9 +49,7 @@ beforeEach(() => {
     style: { transform: '' },
     getBoundingClientRect: () => ({ width: CARD_WIDTH }),
     setPointerCapture: vi.fn(),
-    addEventListener: (type, listener) => {
-      if (type === 'touchmove') track.touchMoveListener = listener;
-    },
+    addEventListener: vi.fn(),
     removeEventListener: () => undefined,
     ownerDocument: {
       addEventListener: (type, listener) => {
@@ -51,6 +57,14 @@ beforeEach(() => {
       },
       removeEventListener: () => undefined,
     },
+  };
+  list = {
+    addEventListener: (type, listener, options) => {
+      if (type !== 'touchmove') return;
+      list.touchMoveListener = listener;
+      list.touchMoveOptions = options;
+    },
+    removeEventListener: vi.fn(),
   };
   documentTouchStarts = [];
   direction = 'ltr';
@@ -67,16 +81,30 @@ afterEach(() => {
 
 type Props = React.ComponentProps<typeof CompactCardSwipe>;
 
+function List({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useCompactCardSwipeList(ref);
+  return (
+    <div ref={ref} data-list="true">
+      {children}
+    </div>
+  );
+}
+
 const render = (props: Partial<Props> = {}) => {
   const onSwipe = vi.fn();
   const element = (next: Partial<Props>) => (
-    <CompactCardSwipe enabled resolved={false} label="Resolve" onSwipe={onSwipe} {...next}>
-      <button type="button">card</button>
-    </CompactCardSwipe>
+    <List>
+      <CompactCardSwipe enabled resolved={false} label="Resolve" onSwipe={onSwipe} {...next}>
+        <button type="button">card</button>
+      </CompactCardSwipe>
+    </List>
   );
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = create(element(props), { createNodeMock: () => track });
+    renderer = create(element(props), {
+      createNodeMock: (host) => (host.props['data-list'] ? list : track),
+    });
   });
   renderers.push(renderer);
   const rerender = (next: Partial<Props>) => act(() => renderer.update(element(next)));
@@ -121,7 +149,7 @@ const render = (props: Partial<Props> = {}) => {
         propertyName: 'transform',
       });
     });
-  return { onSwipe, rerender, pointer, swipe, trackElement, actionStrip, transitionEnd };
+  return { onSwipe, renderer, rerender, pointer, swipe, trackElement, actionStrip, transitionEnd };
 };
 
 describe('CompactCardSwipe', () => {
@@ -225,20 +253,38 @@ describe('CompactCardSwipe', () => {
 
   it('keeps the scroller out of a touch only once it is a sideways swipe', () => {
     const { pointer } = render();
-    const touchMove = (cancelable = true) => {
-      const event = { cancelable, preventDefault: vi.fn() };
-      track.touchMoveListener!(event);
+    // The touch started on the card's button; its events pass the track and the list.
+    const touchMove = (cancelable = true, path: unknown[] = [{}, track, list]) => {
+      const event = { cancelable, preventDefault: vi.fn(), composedPath: () => path };
+      list.touchMoveListener!(event);
       return event.preventDefault;
     };
 
+    expect(list.touchMoveOptions).toEqual({ passive: false });
     pointer('onPointerDown', 300);
     expect(touchMove()).not.toHaveBeenCalled();
     pointer('onPointerMove', 280);
     expect(touchMove()).toHaveBeenCalled();
+    // A touch on another card is not the swipe's.
+    expect(touchMove(true, [{}, {}, list])).not.toHaveBeenCalled();
     // A scroll already under way cannot be cancelled; trying only logs a warning.
     expect(touchMove(false)).not.toHaveBeenCalled();
     pointer('onPointerUp', 280);
     expect(touchMove()).not.toHaveBeenCalled();
+  });
+
+  it('leaves the touch listener and the touch-action to the element that holds the cards', () => {
+    // One of each for the whole list: a listener or a touch-action on every card costs
+    // WebKit on iOS a touch region a card, all rebuilt in every frame of a swipe.
+    const { renderer, trackElement } = render();
+
+    expect(track.addEventListener).not.toHaveBeenCalled();
+    expect(trackElement().props.className).toBe('SwipeTrack');
+    const listener = list.touchMoveListener;
+    expect(listener).toBeDefined();
+
+    act(() => renderer.unmount());
+    expect(list.removeEventListener).toHaveBeenCalledWith('touchmove', listener);
   });
 
   it('ignores a swipe toward the end', () => {
@@ -287,7 +333,7 @@ describe('CompactCardSwipe', () => {
   });
 
   it('ignores swipes while disabled', () => {
-    const { onSwipe, pointer, trackElement, actionStrip } = render({ enabled: false });
+    const { onSwipe, pointer, actionStrip } = render({ enabled: false });
 
     pointer('onPointerDown', 300);
     pointer('onPointerMove', 150);
@@ -296,7 +342,6 @@ describe('CompactCardSwipe', () => {
     pointer('onPointerUp', 150);
 
     expect(onSwipe).not.toHaveBeenCalled();
-    expect(trackElement().props.className).not.toContain('SwipeTrackEnabled');
   });
 
   it('drops the action when the card is disabled mid-swipe', () => {

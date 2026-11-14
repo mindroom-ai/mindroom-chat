@@ -15,7 +15,8 @@ import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useCompactThreadCardViewModels } from './compactThreadCardViewModel';
 import type { CompactThreadCardViewModel, ThreadRecord } from '../../event-store/threads/types';
 import { CompactThreadCard } from './CompactThreadCard';
-import { CompactCardSwipe } from './CompactCardSwipe';
+import { CompactCardSwipe, useCompactCardSwipeList } from './CompactCardSwipe';
+import { SwipeList } from './CompactCardSwipe.css';
 import * as css from './CompactRoomView.css';
 import { useToggleThreadResolution } from '../tags/useRoomThreadTags';
 import { InsetScrollbar } from '../../ui/InsetScrollbar';
@@ -239,6 +240,7 @@ export function CompactRoomView({
   const { t } = useTranslation();
   const viewRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  useCompactCardSwipeList(contentRef);
   const [menu, setMenu] = useState<ThreadActionsMenuState>();
   // While the reader points at or focuses a card, or has a card's menu open, the cards keep
   // their order so none moves under the pointer; the new order applies afterwards.
@@ -379,6 +381,7 @@ export function CompactRoomView({
     <Box ref={viewRef} className={css.View} data-compact-room-view="true" tabIndex={-1}>
       <Box
         ref={contentRef}
+        className={SwipeList}
         style={overlay.overviewInsetStop}
         direction="Column"
         gap="100"
