@@ -82,6 +82,7 @@ it('does not store or read attachment reference rows for ordinary text batches',
   let referenceReads = 0;
   const original = IDBIndex.prototype.getAll;
   vi.spyOn(IDBIndex.prototype, 'getAll').mockImplementation(function countReferenceReads(
+    this: IDBIndex,
     query,
     count
   ) {
@@ -273,7 +274,7 @@ it('retries failed capability lookup on a later explicit download', async () => 
   const versions = vi
     .spyOn(mx, 'getVersions')
     .mockRejectedValueOnce(new TypeError('transient'))
-    .mockResolvedValue({ versions: ['v1.11'] });
+    .mockResolvedValue({ versions: ['v1.11'] } as never);
   const fetched: string[] = [];
   vi.stubGlobal(
     'fetch',

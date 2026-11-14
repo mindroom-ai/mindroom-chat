@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -237,8 +236,8 @@ describe('ReplyDetails', () => {
     render(reply, '$r50', thread(Array.from({ length: 60 }, () => 0.001)));
 
     expect(bars()).toHaveLength(40);
-    expect(bars()[0].textContent).toBe('Reply 21: $0.001');
-    expect(bars()[39].textContent).toBe('Reply 60: $0.001');
+    expect(bars()[0]!.textContent).toBe('Reply 21: $0.001');
+    expect(bars()[39]!.textContent).toBe('Reply 60: $0.001');
     expect(caption()).toEqual(['This reply · 50 of 60', '21–60']);
   });
 

@@ -152,7 +152,7 @@ describe('buildCanvasPage', () => {
 /** The canvas page the wrapper carries as a script string. */
 const embeddedPage = (wrapper: string): string => {
   const literal = /frame\.srcdoc = ("(?:[^"\\]|\\.)*");/.exec(wrapper);
-  return literal ? (JSON.parse(literal[1]) as string) : '';
+  return literal ? (JSON.parse(literal[1]!) as string) : '';
 };
 
 describe('buildCanvasDocument', () => {

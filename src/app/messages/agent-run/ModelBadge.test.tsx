@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from 'react';
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { AvatarModelMark, ModelBadge } from './ModelBadge';

@@ -337,15 +337,15 @@ describe('MindroomReasoning', () => {
     // One host element holds the paragraphs and sets how they keep newlines.
     const [reasoningText] = body.children as ReactTestInstance[];
     expect(body.children).toHaveLength(1);
-    expect(reasoningText.children).toHaveLength(1);
-    expect((reasoningText.children[0] as ReactTestInstance).type).toBe('div');
+    expect(reasoningText!.children).toHaveLength(1);
+    expect((reasoningText!.children[0] as ReactTestInstance).type).toBe('div');
     expect(text(body)).toBe('First thought.Second thought.');
   });
 
   it('keeps newlines only for reasoning the Markdown renderer has not rendered', () => {
     const reasoningWrapper = (root: ReturnType<typeof render>) => {
       const [reasoningText] = blockBody(root).children as ReactTestInstance[];
-      return reasoningText.children[0] as ReactTestInstance;
+      return reasoningText!.children[0] as ReactTestInstance;
     };
     // The thinking placeholder has no HTML body, so the message body around it keeps newlines.
     const content = {

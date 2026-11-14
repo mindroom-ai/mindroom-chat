@@ -120,12 +120,12 @@ describe('VoiceWaveform', () => {
     expect(rects).toHaveLength(VOICE_WAVEFORM_BAR_COUNT);
     expect(svg.props.viewBox).toBe('0 0 143 32');
     expect(rects.slice(0, -1).every((rect) => rect.props.height === 3)).toBe(true);
-    expect(rects[0].props.className).toContain('BarCompact');
-    expect(rects[0].props.className).toContain('BarCompactUnrecorded');
-    expect(rects[45].props.className).toContain('BarCompactUnrecorded');
-    expect(rects[46].props.className).not.toContain('BarCompactUnrecorded');
-    expect(rects[47].props.height).toBeCloseTo(19.109);
-    expect(rects[47].props.y).toBeCloseTo(6.445);
+    expect(rects[0]!.props.className).toContain('BarCompact');
+    expect(rects[0]!.props.className).toContain('BarCompactUnrecorded');
+    expect(rects[45]!.props.className).toContain('BarCompactUnrecorded');
+    expect(rects[46]!.props.className).not.toContain('BarCompactUnrecorded');
+    expect(rects[47]!.props.height).toBeCloseTo(19.109);
+    expect(rects[47]!.props.y).toBeCloseTo(6.445);
 
     renderer.unmount();
   });
@@ -140,10 +140,10 @@ describe('VoiceWaveform', () => {
 
     const rects = renderer.root.findAllByType('rect');
 
-    expect(rects[45].props.height).toBe(3);
-    expect(rects[46].props.height).toBeCloseTo(8.798);
-    expect(rects[47].props.height).toBe(32);
-    expect(rects[47].props.y).toBe(0);
+    expect(rects[45]!.props.height).toBe(3);
+    expect(rects[46]!.props.height).toBeCloseTo(8.798);
+    expect(rects[47]!.props.height).toBe(32);
+    expect(rects[47]!.props.y).toBe(0);
 
     renderer.unmount();
   });
@@ -158,8 +158,8 @@ describe('VoiceWaveform', () => {
     const rects = renderer.root.findAllByType('rect');
 
     expect(rects).toHaveLength(VOICE_WAVEFORM_BAR_COUNT);
-    expect(rects[0].props.height).toBe(16);
-    expect(rects[0].props.className).not.toContain('BarCompact');
+    expect(rects[0]!.props.height).toBe(16);
+    expect(rects[0]!.props.className).not.toContain('BarCompact');
 
     renderer.unmount();
   });
