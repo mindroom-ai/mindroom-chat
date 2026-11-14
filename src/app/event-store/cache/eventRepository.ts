@@ -30,7 +30,10 @@ import {
   cachedHistoryJoinsBefore,
   loadRoomCacheGap,
 } from './db';
-import { compareCachedPaginationAnchors } from './eventCacheTokenUtils';
+import {
+  type CachedPaginationAnchor,
+  compareCachedPaginationAnchors,
+} from './eventCacheTokenUtils';
 import { hydrateCachedEvents, serializeEventsForCache } from './eventCacheEditUtils';
 import { loadCachedEventAcrossRoomScopes } from './db/cacheStoreEvents';
 import { readRoomOfflineProgress, updateRoomOfflineProgress } from './db/cacheStoreMeta';
@@ -394,6 +397,30 @@ export type ThreadCachedPaginationSnapshot = {
   status: 'cache-hit' | 'cache-miss';
 };
 
+/**
+ * A page before `anchor` read with `withBeforeMillisecond`, keeping the cache's token only when the
+ * page holds an event that sorts before the anchor in cache order. The token belongs to the page's
+ * earliest event; otherwise that is one of the anchor's millisecond, and its token would skip
+ * events between it and the anchor that the cache lacks, or end the history there: the timeline
+ * keeps its own cursor.
+ */
+const withTokenOnlyBelowAnchor = <
+  Page extends {
+    events: { origin_server_ts: number; event_id: string }[];
+    beforeToken?: string | null;
+  }
+>(
+  page: Page,
+  anchor: CachedPaginationAnchor | undefined
+): Page =>
+  anchor &&
+  page.events.some(
+    ({ origin_server_ts: ts, event_id: eventId }) =>
+      compareCachedPaginationAnchors({ eventId, ts }, anchor) < 0
+  )
+    ? page
+    : { ...page, beforeToken: undefined };
+
 export const loadThreadCachedPaginationSnapshot = async ({
   sessionId,
   roomId,
@@ -422,16 +449,7 @@ export const loadThreadCachedPaginationSnapshot = async ({
   const loadedPage = await loadBefore(sessionId, roomId, threadId, anchor, limit, {
     withBeforeMillisecond: true,
   });
-  // The page's token belongs to its earliest reply. When no reply sorts before the anchor, that is
-  // one of the millisecond's, and its token would skip replies between it and the anchor that the
-  // cache lacks: the thread keeps its own cursor.
-  const reachesBelowAnchor =
-    !!anchor &&
-    loadedPage.events.some(
-      ({ origin_server_ts: ts, event_id: eventId }) =>
-        ts < anchor.ts || (ts === anchor.ts && eventId < anchor.eventId)
-    );
-  const cachedPage = reachesBelowAnchor ? loadedPage : { ...loadedPage, beforeToken: undefined };
+  const cachedPage = withTokenOnlyBelowAnchor(loadedPage, anchor);
   const newEvents = cachedPage.events.filter((rawEvent) => !heldEventIds.has(rawEvent.event_id));
   const events = mapCachedThreadPageEvents({
     events: newEvents,
@@ -748,12 +766,10 @@ export const loadRoomCachedPaginationSnapshot = async ({
   }
 
   // The room's pager drops the events of the page it holds already (the SDK skips them).
-  const cachedPage = await loadBefore(
-    sessionId,
-    roomId,
-    getRoomCursorAnchor(earliestLoadedEvent?.event as Partial<IEvent> | undefined),
-    limit,
-    { withBeforeMillisecond: true }
+  const anchor = getRoomCursorAnchor(earliestLoadedEvent?.event as Partial<IEvent> | undefined);
+  const cachedPage = withTokenOnlyBelowAnchor(
+    await loadBefore(sessionId, roomId, anchor, limit, { withBeforeMillisecond: true }),
+    anchor
   );
   const events = normalizeCachedRoomEvents(cachedPage.events)
     .map((rawEvent) => mapEvent(rawEvent))
