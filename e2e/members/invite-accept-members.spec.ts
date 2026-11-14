@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
+import { createRoom } from '../helpers/createRoom';
 import {
   CHROMIUM_WITH_SCROLLBARS,
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -70,12 +71,7 @@ const inviteGuest = async (
     });
     return direct.room_id;
   }
-  const created = await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
-    method: 'POST',
-    accessToken: host.accessToken,
-    body: JSON.stringify({ preset: 'private_chat', name }),
-  });
-  const roomId = created.room_id;
+  const roomId = await createRoom(HOMESERVER, host.accessToken, { name });
   await sendRoomMessage(HOMESERVER, host.accessToken, roomId, { msgtype: 'm.text', body });
   await matrixFetch(HOMESERVER, `/rooms/${encodeURIComponent(roomId)}/invite`, {
     method: 'POST',

@@ -100,13 +100,15 @@ class MessageSendScheduler extends MatrixScheduler {
   }
 
   // Runs once for each send and each user retry; automatic retries do not queue again.
-  public queueEvent(event: MatrixEvent): Promise<ISendEventResponse> | null {
+  public override queueEvent(event: MatrixEvent): Promise<ISendEventResponse> | null {
     const queued = super.queueEvent(event);
     if (queued) queuedAt.set(event, Date.now());
     return queued;
   }
 
-  public setProcessFunction(send: (event: MatrixEvent) => Promise<ISendEventResponse>): void {
+  public override setProcessFunction(
+    send: (event: MatrixEvent) => Promise<ISendEventResponse>
+  ): void {
     super.setProcessFunction(async (event) => {
       // The server's copy can arrive through /sync while a retry waits or a request is in
       // flight, when an earlier attempt arrived but its response was lost. Treat the event as

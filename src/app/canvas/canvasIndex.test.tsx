@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import React, { Profiler } from 'react';
+import { Profiler } from 'react';
 import { EventEmitter } from 'events';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
@@ -700,7 +700,7 @@ describe('useOpenCanvasById', () => {
     await opener.open('$canvas');
     expect(activate).not.toHaveBeenCalled();
     const canvas = request();
-    await act(async () => pending[0]({ originalEvent: canvas, events: [] }));
+    await act(async () => pending[0]!({ originalEvent: canvas, events: [] }));
     expect(activate).toHaveBeenCalledWith(canvas);
     opener.unmount();
   });
@@ -712,12 +712,12 @@ describe('useOpenCanvasById', () => {
     const opener = mountOpener(mx, room, activate);
     await opener.open('$canvas');
     await opener.show('thread B');
-    await act(async () => pending[0]({ originalEvent: request(), events: [] }));
+    await act(async () => pending[0]!({ originalEvent: request(), events: [] }));
     expect(activate).not.toHaveBeenCalled();
     // A choice made in the new conversation opens there.
     await opener.open('$canvas');
     const canvas = request();
-    await act(async () => pending[1]({ originalEvent: canvas, events: [] }));
+    await act(async () => pending[1]!({ originalEvent: canvas, events: [] }));
     expect(activate).toHaveBeenCalledOnce();
     expect(activate).toHaveBeenCalledWith(canvas);
     opener.unmount();
@@ -730,7 +730,7 @@ describe('useOpenCanvasById', () => {
     const opener = mountOpener(mx, room, activate);
     await opener.open('$canvas');
     opener.unmount();
-    await act(async () => pending[0]({ originalEvent: request(), events: [] }));
+    await act(async () => pending[0]!({ originalEvent: request(), events: [] }));
     expect(activate).not.toHaveBeenCalled();
   });
 
@@ -742,8 +742,8 @@ describe('useOpenCanvasById', () => {
     await opener.open('$slow');
     await opener.open('$fast');
     const fast = request({ id: '$fast' });
-    await act(async () => pending[1]({ originalEvent: fast, events: [] }));
-    await act(async () => pending[0]({ originalEvent: request({ id: '$slow' }), events: [] }));
+    await act(async () => pending[1]!({ originalEvent: fast, events: [] }));
+    await act(async () => pending[0]!({ originalEvent: request({ id: '$slow' }), events: [] }));
     expect(activate).toHaveBeenCalledOnce();
     expect(activate).toHaveBeenCalledWith(fast);
     opener.unmount();
@@ -758,7 +758,7 @@ describe('useOpenCanvasById', () => {
     await opener.open('$canvas');
     await opener.show('thread A', second);
     const canvas = request();
-    await act(async () => pending[0]({ originalEvent: canvas, events: [] }));
+    await act(async () => pending[0]!({ originalEvent: canvas, events: [] }));
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenCalledWith(canvas);
     opener.unmount();

@@ -4,13 +4,13 @@ import { createClient as createSdkClient } from 'matrix-js-sdk';
 import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
+import { initClient } from './initMatrix';
 import {
   clearAllCacheAndReload,
-  initClient,
   logoutClient,
+  removeCurrentClientSessionAndReload,
   removeStoredSession,
-} from './initMatrix';
-import { removeCurrentClientSessionAndReload } from './sessionLifecycle';
+} from './sessionLifecycle';
 import {
   DeviceIdentityVerificationError,
   MissingCryptoStoreError,

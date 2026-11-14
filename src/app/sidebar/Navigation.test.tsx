@@ -311,7 +311,7 @@ describe('MindroomNavigation', () => {
 
     expectNavigationState(renderer, false);
 
-    act(() => findButtons(renderer, COLLAPSE_LABEL)[0].props.onClick());
+    act(() => findButtons(renderer, COLLAPSE_LABEL)[0]!.props.onClick());
 
     expectNavigationState(renderer, true);
     expect(localStorage.getItem(storageKey)).toBe('true');
@@ -321,7 +321,7 @@ describe('MindroomNavigation', () => {
 
     expectNavigationState(renderer, true);
 
-    act(() => findButtons(renderer, EXPAND_LABEL)[0].props.onClick());
+    act(() => findButtons(renderer, EXPAND_LABEL)[0]!.props.onClick());
 
     expectNavigationState(renderer, false);
     expect(localStorage.getItem(storageKey)).toBe('false');
@@ -343,12 +343,12 @@ describe('MindroomNavigation', () => {
     const renderer = renderNavigation(width);
     let handled: boolean | undefined;
     act(() => {
-      handled = findButtons(renderer, 'Select current section')[0].props.onClick();
+      handled = findButtons(renderer, 'Select current section')[0]!.props.onClick();
     });
     expect(handled).toBe(true);
     expectNavigationState(renderer, true);
     act(() => {
-      handled = findButtons(renderer, 'Select current section')[0].props.onClick();
+      handled = findButtons(renderer, 'Select current section')[0]!.props.onClick();
     });
     expect(handled).toBe(true);
     expectNavigationState(renderer, false);
@@ -405,9 +405,9 @@ describe('MindroomNavigation', () => {
 
   it.each([751, 1280])('reopens and persists navigation on section selection at %i px', (width) => {
     let renderer = renderNavigation(width);
-    act(() => findButtons(renderer, COLLAPSE_LABEL)[0].props.onClick());
+    act(() => findButtons(renderer, COLLAPSE_LABEL)[0]!.props.onClick());
 
-    act(() => findButtons(renderer, 'Select section')[0].props.onClick?.());
+    act(() => findButtons(renderer, 'Select section')[0]!.props.onClick?.());
 
     expectNavigationState(renderer, false);
     expect(localStorage.getItem(storageKey)).toBe('false');
@@ -421,7 +421,7 @@ describe('MindroomNavigation', () => {
     localStorage.setItem(storageKey, 'true');
     const renderer = renderNavigation(750);
 
-    act(() => findButtons(renderer, 'Select section')[0].props.onClick?.());
+    act(() => findButtons(renderer, 'Select section')[0]!.props.onClick?.());
 
     expectNavigationWithoutToggle(renderer);
     expect(localStorage.getItem(storageKey)).toBe('true');
@@ -444,7 +444,7 @@ describe('MindroomNavigation', () => {
   it('preserves the collapse choice across desktop, tablet, and mobile resizing', () => {
     const renderer = renderNavigation(1280);
 
-    act(() => findButtons(renderer, COLLAPSE_LABEL)[0].props.onClick());
+    act(() => findButtons(renderer, COLLAPSE_LABEL)[0]!.props.onClick());
 
     act(() => renderer.update(navigationAtWidth(1024)));
     expectNavigationState(renderer, true);
@@ -456,7 +456,7 @@ describe('MindroomNavigation', () => {
     act(() => renderer.update(navigationAtWidth(751)));
     expectNavigationState(renderer, true);
 
-    act(() => findButtons(renderer, EXPAND_LABEL)[0].props.onClick());
+    act(() => findButtons(renderer, EXPAND_LABEL)[0]!.props.onClick());
     expectNavigationState(renderer, false);
 
     act(() => renderer.update(navigationAtWidth(1280)));
@@ -493,7 +493,7 @@ describe('MindroomNavigation', () => {
     localStorage.setItem(storageKey, 'true');
     const renderer = renderPagePerPath('/threads/');
     // Threads is not the selected section, so its button opens the navigation it does not show.
-    act(() => findButtons(renderer, 'Select section')[0].props.onClick());
+    act(() => findButtons(renderer, 'Select section')[0]!.props.onClick());
     expect(navCount(renderer)).toBe(0);
 
     clickExplore(renderer);

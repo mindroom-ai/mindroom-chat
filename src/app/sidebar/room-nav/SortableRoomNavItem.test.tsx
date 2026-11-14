@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -88,7 +88,7 @@ function Harness({ onDragEnd }: { onDragEnd: (event: DragEndEvent) => void }) {
           <SortableRoomNavItem
             key={roomId}
             parentSpaceId={parentSpaceId}
-            room={rooms[roomId]}
+            room={rooms[roomId as keyof typeof rooms]}
             selected={false}
             linkPath={`/room/${roomId}`}
           />

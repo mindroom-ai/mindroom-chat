@@ -168,8 +168,8 @@ describe('Mac release build script', () => {
       ['xcrun', 'stapler', 'staple'],
     ]);
     expect(lifecycle[2]).toMatchObject({ appExists: true, applications: '/Applications' });
-    expect(lifecycle[0].args[2]).toMatch(/\.zip$/);
-    expect(lifecycle[4].args[2]).toMatch(/MindRoom\.dmg$/);
+    expect(lifecycle[0]!.args[2]).toMatch(/\.zip$/);
+    expect(lifecycle[4]!.args[2]).toMatch(/MindRoom\.dmg$/);
     expect(readFileSync(join(root, 'build/macos/MindRoom.dmg'), 'utf8')).toBe('fixture dmg');
   });
 

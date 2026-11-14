@@ -10,6 +10,7 @@ import { SettingTile } from '../ui/SettingTile';
 import { SettingsCard } from '../ui/settings/SettingsCard';
 import { SettingsPageFrame, type SettingsPageProps } from '../ui/settings/SettingsPageFrame';
 import { AccountBadges } from './AccountBadges';
+import { RegistrationInvites } from './RegistrationInvites';
 import * as css from './ServerAccounts.css';
 import { ServerAccountDetail } from './ServerAccountDetail';
 import {
@@ -19,6 +20,7 @@ import {
   type AccountFilter,
   type ServerAccount,
 } from './accounts';
+import { supportsRegistrationInvites } from './invites';
 
 /** How many more accounts each "Show more" adds. */
 const STEP = 100;
@@ -54,7 +56,8 @@ function AccountRow({ account, onOpen }: AccountRowProps) {
 
 /**
  * Settings → Server accounts, for the homeserver's administrators: every local account with a
- * search and filters, and each account's state, rooms and actions behind its row.
+ * search and filters, and each account's state, rooms and actions behind its row. On a
+ * homeserver with registration invites, those come first.
  */
 export function ServerAccounts({ requestClose }: SettingsPageProps) {
   const { t } = useTranslation();
@@ -81,6 +84,12 @@ export function ServerAccounts({ requestClose }: SettingsPageProps) {
   }, [mx, alive]);
   useEffect(load, [load]);
 
+  // A homeserver without registration invites, or one that cannot be asked, shows none.
+  const [hasInvites, setHasInvites] = useState(false);
+  useEffect(() => {
+    void supportsRegistrationInvites(mx).then((supported) => alive() && setHasInvites(supported));
+  }, [mx, alive]);
+
   const open = accounts?.find((account) => account.userId === openId);
   if (open) {
     return (
@@ -103,6 +112,12 @@ export function ServerAccounts({ requestClose }: SettingsPageProps) {
         <Text size="T300" priority="300">
           {t('serverAccounts.description')}
         </Text>
+        {hasInvites && <RegistrationInvites />}
+        {hasInvites && (
+          <Text size="L400" data-settings-heading="">
+            {t('serverAccounts.accounts')}
+          </Text>
+        )}
         <Input
           aria-label={t('serverAccounts.search')}
           placeholder={t('serverAccounts.search')}

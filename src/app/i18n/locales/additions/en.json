@@ -965,6 +965,30 @@
       "unsuspend": "Unsuspend {{user}}? The account can send messages and join rooms again.",
       "deactivate": "Deactivate {{user}}? The account leaves its rooms and can never sign in again. This cannot be undone."
     },
-    "protected": "Administrators and your own account cannot be changed here."
+    "protected": "Administrators and your own account cannot be changed here.",
+    "accounts": "Accounts",
+    "invites": {
+      "title": "Invites",
+      "description": "An invited email address can create one account here by signing in with it.",
+      "sendYourself": "Nothing is emailed: copy the invitation and send it yourself.",
+      "add": "Invite by email",
+      "none": "No pending invites",
+      "loadFailed": "Couldn't load the invites.",
+      "addresses": "Email addresses",
+      "addressesHint": "Separate several addresses with commas or new lines.",
+      "rooms": "Rooms the new account joins",
+      "external": "External account",
+      "invited": "Invited",
+      "replaces": "Replaces the earlier invite",
+      "copy": "Copy invitation",
+      "message": "You are invited to {{url}}. Sign in with {{providers}}, using exactly this email address: {{email}}",
+      "messagePlain": "You are invited to {{url}}. Sign in using exactly this email address: {{email}}",
+      "delete": "Delete invite",
+      "confirmDelete": "Delete the invite for {{email}}? It can no longer be used to create an account.",
+      "errors": {
+        "inUse": "{{user}} already has this address.",
+        "invalidAddress": "This is not a valid email address."
+      }
+    }
   }
 }

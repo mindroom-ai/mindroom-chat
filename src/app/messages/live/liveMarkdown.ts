@@ -67,10 +67,10 @@ const fencedCodeRanges = (text: string): [number, number][] => {
   splitLinesKeepingEnds(text).forEach((line) => {
     if (fenceCharacter === undefined) {
       const fence = FENCE_OPEN.exec(line);
-      if (fence && (fence[1][0] === '~' || !line.slice(fence[0].length).includes('`'))) {
+      if (fence && (fence[1]![0] === '~' || !line.slice(fence[0].length).includes('`'))) {
         fenceStart = offset;
-        [fenceCharacter] = fence[1];
-        openingLength = fence[1].length;
+        [fenceCharacter] = fence[1]!;
+        openingLength = fence[1]!.length;
       }
     } else if (
       fenceStart !== undefined &&
@@ -92,7 +92,7 @@ const transformOutsideFencedCode = (text: string, transform: (prose: string) => 
   fencedCodeRanges(text).forEach(([start, end]) => {
     let prose = text.slice(cursor, start);
     const lines = splitLinesKeepingEnds(prose);
-    if (prose && needsBlockHtmlBoundaryAfterLine(lines[lines.length - 1])) {
+    if (prose && needsBlockHtmlBoundaryAfterLine(lines[lines.length - 1]!)) {
       prose = prose.endsWith('\n') ? `${prose}\n` : `${prose}\n\n`;
     }
     parts.push(transform(prose), text.slice(start, end));
@@ -112,8 +112,8 @@ const escapeHtmlBlockOpeners = (text: string): string =>
         return line.slice(0, line.length - stripped.length) + escapeLikePython(stripped);
       }
       const rawTag = RAW_HTML_TAG_LINE_START.exec(line);
-      if (rawTag && !ALLOWED_TAGS.has(rawTag[3].toLowerCase())) {
-        return rawTag[1] + escapeLikePython(line.slice(rawTag[1].length));
+      if (rawTag && !ALLOWED_TAGS.has(rawTag[3]!.toLowerCase())) {
+        return rawTag[1] + escapeLikePython(line.slice(rawTag[1]!.length));
       }
       return line;
     })
@@ -175,10 +175,10 @@ const mathInline =
 
 /** `$$` blocks, which may span blank lines, as the runtime parses them. */
 const mathBlock = (state: StateBlock, startLine: number, endLine: number): boolean => {
-  if (state.sCount[startLine] - state.blkIndent >= 4) return false;
+  if (state.sCount[startLine]! - state.blkIndent >= 4) return false;
   const { src } = state;
-  const startPos = state.bMarks[startLine] + state.tShift[startLine];
-  let end = state.eMarks[startLine];
+  const startPos = state.bMarks[startLine]! + state.tShift[startLine]!;
+  let end = state.eMarks[startLine]!;
   if (startPos + 2 > end || src[startPos] !== '$' || src[startPos + 1] !== '$') return false;
   const closes = (lineText: string) => lineText.trim().endsWith('$$');
   const closingEnd = (lineEnd: number, lineText: string) =>
@@ -198,8 +198,8 @@ const mathBlock = (state: StateBlock, startLine: number, endLine: number): boole
       unclosedFrom.set(endLine, startLine);
       return false;
     }
-    end = state.eMarks[nextLine];
-    lineText = src.slice(state.bMarks[nextLine] + state.tShift[nextLine], end);
+    end = state.eMarks[nextLine]!;
+    lineText = src.slice(state.bMarks[nextLine]! + state.tShift[nextLine]!, end);
     closed = closes(lineText);
     if (closed) end = closingEnd(end, lineText);
   }
@@ -218,9 +218,10 @@ const buildRenderer = (MarkdownItConstructor: typeof MarkdownIt): MarkdownIt => 
   md.enable(['table', 'strikethrough']);
   md.inline.ruler.before('escape', 'math_inline', mathInline(md));
   md.block.ruler.before('fence', 'math_block', mathBlock);
-  md.renderer.rules.math_inline = (tokens, index) => escapeLikePython(`$${tokens[index].content}$`);
+  md.renderer.rules.math_inline = (tokens, index) =>
+    escapeLikePython(`$${tokens[index]!.content}$`);
   md.renderer.rules.math_block = (tokens, index) =>
-    `<div>${escapeLikePython(`$$\n${tokens[index].content.trim()}\n$$`)}</div>\n`;
+    `<div>${escapeLikePython(`$$\n${tokens[index]!.content.trim()}\n$$`)}</div>\n`;
   return md;
 };
 

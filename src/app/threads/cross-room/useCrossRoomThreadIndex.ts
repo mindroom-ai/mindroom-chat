@@ -500,7 +500,7 @@ export const useCrossRoomThreadIndex = () => {
         removeRoomListeners(roomId);
         bootstrapQueuedRoomIds.delete(roomId);
         for (let index = bootstrapRooms.length - 1; index >= 0; index -= 1) {
-          if (bootstrapRooms[index].roomId === roomId) bootstrapRooms.splice(index, 1);
+          if (bootstrapRooms[index]!.roomId === roomId) bootstrapRooms.splice(index, 1);
         }
         removeRoomFromIndex(roomId);
       });

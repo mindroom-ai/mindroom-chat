@@ -60,7 +60,7 @@ export const useEdgeSwipe = ({
         return;
       }
 
-      const touch = event.touches[0];
+      const touch = event.touches[0]!;
       const startsAtEdge =
         direction === 'back'
           ? touch.clientX <= EDGE_START_MAX_X
@@ -82,7 +82,7 @@ export const useEdgeSwipe = ({
         return;
       }
 
-      const touch = event.touches[0];
+      const touch = event.touches[0]!;
       const directionMultiplier = direction === 'back' ? 1 : -1;
       const distanceX = (touch.clientX - startX) * directionMultiplier;
       const driftY = Math.abs(touch.clientY - startY);

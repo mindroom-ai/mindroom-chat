@@ -988,6 +988,30 @@
       "unsuspend": "Lever la suspension de {{user}} ? Le compte peut de nouveau envoyer des messages et rejoindre des salons.",
       "deactivate": "Désactiver {{user}} ? Le compte quitte ses salons et ne pourra plus jamais se connecter. Cette action est irréversible."
     },
-    "protected": "Les administrateurs et votre propre compte ne peuvent pas être modifiés ici."
+    "protected": "Les administrateurs et votre propre compte ne peuvent pas être modifiés ici.",
+    "accounts": "Comptes",
+    "invites": {
+      "title": "Invitations",
+      "description": "Une adresse e-mail invitée peut créer un compte ici en se connectant avec elle.",
+      "sendYourself": "Aucun e-mail n'est envoyé : copiez l'invitation et envoyez-la vous-même.",
+      "add": "Inviter par e-mail",
+      "none": "Aucune invitation en attente",
+      "loadFailed": "Impossible de charger les invitations.",
+      "addresses": "Adresses e-mail",
+      "addressesHint": "Séparez plusieurs adresses par des virgules ou des retours à la ligne.",
+      "rooms": "Salons que le nouveau compte rejoint",
+      "external": "Compte externe",
+      "invited": "Invitée",
+      "replaces": "Remplace l'invitation précédente",
+      "copy": "Copier l'invitation",
+      "message": "Vous êtes invité sur {{url}}. Connectez-vous avec {{providers}}, en utilisant exactement cette adresse e-mail : {{email}}",
+      "messagePlain": "Vous êtes invité sur {{url}}. Connectez-vous en utilisant exactement cette adresse e-mail : {{email}}",
+      "delete": "Supprimer l'invitation",
+      "confirmDelete": "Supprimer l'invitation pour {{email}} ? Elle ne pourra plus servir à créer un compte.",
+      "errors": {
+        "inUse": "{{user}} a déjà cette adresse.",
+        "invalidAddress": "Ce n'est pas une adresse e-mail valide."
+      }
+    }
   }
 }

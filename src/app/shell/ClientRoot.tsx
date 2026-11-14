@@ -37,13 +37,10 @@ import {
 import type { StoredSession } from '../matrix/session/sessions';
 import { closeClient } from '../matrix/client/closeClient';
 import { clearSecretStorageKeys } from '../matrix/client/secretStorageKeys';
+import { initClient, logoutSessionWithoutStores } from '../account/lifecycle/initMatrix';
 import {
   clearAllCacheAndReload,
-  initClient,
   logoutClient,
-  logoutSessionWithoutStores,
-} from '../account/lifecycle/initMatrix';
-import {
   removeCurrentClientSessionAndReload,
   removeSessionAndReload,
 } from '../account/lifecycle/sessionLifecycle';

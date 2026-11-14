@@ -107,7 +107,7 @@ const createGateway = () => {
     const [, sessionId, suffix] = match;
     if (init?.method === 'DELETE' && suffix === '') return jsonResponse(204);
     if (init?.method === 'GET' && suffix === '') {
-      return jsonResponse(200, makeStatus(sessionId, modes.get(sessionId)));
+      return jsonResponse(200, makeStatus(sessionId!, modes.get(sessionId!)));
     }
     if (init?.method === 'POST' && suffix === '/stream-ticket') {
       return jsonResponse(200, {
@@ -118,9 +118,9 @@ const createGateway = () => {
     if (init?.method === 'POST' && suffix === '/control') {
       const action = JSON.parse(init.body as string).action as 'take' | 'release' | 'stop';
       const mode = action === 'take' ? 'control' : 'view';
-      modes.set(sessionId, mode);
+      modes.set(sessionId!, mode);
       return jsonResponse(200, {
-        ...makeStatus(sessionId, mode),
+        ...makeStatus(sessionId!, mode),
         state: action === 'stop' ? 'stopped' : 'ready',
       });
     }
@@ -251,10 +251,10 @@ describe('ComputerPanel', () => {
     await waitFor(() => expect(container.textContent).toContain('Watch mode'));
     expect(refusalAlert()).toBeUndefined();
 
-    act(() => screenConnections[0].onPaste!('too-large'));
+    act(() => screenConnections[0]!.onPaste!('too-large'));
     expect(refusalAlert()).toBeDefined();
 
-    act(() => screenConnections[0].onPaste!('sent'));
+    act(() => screenConnections[0]!.onPaste!('sent'));
     expect(refusalAlert()).toBeUndefined();
   });
 
@@ -263,14 +263,14 @@ describe('ComputerPanel', () => {
       { userId: '@mindroom_first:example.org', name: 'First' },
       { userId: '@mindroom_second:example.org', name: 'Second' },
     ];
-    renderPanel({ agents, requestedAgent: { userId: agents[0].userId } });
+    renderPanel({ agents, requestedAgent: { userId: agents[0]!.userId } });
     await waitFor(() => expect(container.textContent).toContain('Watch mode'));
-    act(() => screenConnections[0].onPaste!('too-large'));
+    act(() => screenConnections[0]!.onPaste!('too-large'));
     expect(refusalAlert()).toBeDefined();
 
     const select = container.querySelector('select')!;
     await act(async () => {
-      select.value = agents[1].userId;
+      select.value = agents[1]!.userId;
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });
     expect(refusalAlert()).toBeUndefined();
@@ -291,11 +291,11 @@ describe('ComputerPanel', () => {
     }) as unknown as typeof fetch;
     renderPanel({ request });
     await advance();
-    act(() => screenConnections[0].onPaste!('too-large'));
+    act(() => screenConnections[0]!.onPaste!('too-large'));
     expect(refusalAlert()).toBeDefined();
 
     denied = true;
-    act(() => screenConnections[0].onDisconnected());
+    act(() => screenConnections[0]!.onDisconnected());
     await advance(500);
     expect(container.textContent).toContain('Computer disconnected');
     expect(refusalAlert()).toBeDefined();
@@ -318,7 +318,7 @@ describe('ComputerPanel', () => {
       request,
     });
     await waitFor(() => expect(container.textContent).toContain('Watch mode'));
-    const [input, init] = vi.mocked(request).mock.calls[0];
+    const [input, init] = vi.mocked(request).mock.calls[0]!;
     expect(input).toBe('https://computer.example.org/api/computers/sessions');
     expect(JSON.parse(init!.body as string).agent_user_id).toBe('@mindroom_second:example.org');
     expect(container.querySelector('select')!.value).toBe('@mindroom_second:example.org');
@@ -352,7 +352,7 @@ describe('ComputerPanel', () => {
     ];
     renderPanel({
       agents,
-      requestedAgent: { userId: agents[0].userId },
+      requestedAgent: { userId: agents[0]!.userId },
       onToggleExpanded: vi.fn(),
     });
     await waitFor(() => expect(container.textContent).toContain('Watch mode'));
@@ -470,7 +470,7 @@ describe('ComputerPanel', () => {
     const request = createGateway();
     renderPanel({ mx, request, agents: [foundAgent] });
     await waitFor(() => expect(container.textContent).toContain('Watch mode'));
-    expect(vi.mocked(request).mock.calls[0][0]).toBe(
+    expect(vi.mocked(request).mock.calls[0]![0]).toBe(
       'https://found.example.org/api/computers/sessions'
     );
     // Once before the token is requested and once after it is issued.
@@ -500,14 +500,14 @@ describe('ComputerPanel', () => {
       { userId: '@mindroom_first:example.org', name: 'First' },
       { userId: '@mindroom_second:example.org', name: 'Second' },
     ];
-    const props = renderPanel({ agents, requestedAgent: { userId: agents[0].userId } });
+    const props = renderPanel({ agents, requestedAgent: { userId: agents[0]!.userId } });
     await waitFor(() => expect(container.textContent).toContain('Watch mode'));
     await click(findButton(container, 'Take control'));
-    renderPanel({ ...props, requestedAgent: { userId: agents[1].userId } });
+    renderPanel({ ...props, requestedAgent: { userId: agents[1]!.userId } });
     expect(container.textContent).toContain('You have control');
-    expect(container.querySelector('select')!.value).toBe(agents[0].userId);
+    expect(container.querySelector('select')!.value).toBe(agents[0]!.userId);
     expect(screenDisposals).not.toHaveBeenCalled();
-    renderPanel({ ...props, requestedAgent: { userId: agents[0].userId } });
+    renderPanel({ ...props, requestedAgent: { userId: agents[0]!.userId } });
     expect(container.textContent).toContain('You have control');
     expect(screenDisposals).not.toHaveBeenCalled();
   });
@@ -518,7 +518,7 @@ describe('ComputerPanel', () => {
       const props = renderPanel();
       await waitFor(() => expect(container.textContent).toContain('Watch mode'));
       if (control) await click(findButton(container, 'Take control'));
-      renderPanel({ ...props, requestedAgent: { userId: props.agents[0].userId } });
+      renderPanel({ ...props, requestedAgent: { userId: props.agents[0]!.userId } });
       expect(container.textContent).toContain(control ? 'You have control' : 'Watch mode');
       expect(screenDisposals).not.toHaveBeenCalled();
       const sessions = vi
@@ -615,13 +615,13 @@ describe('ComputerPanel', () => {
 
       // The stream drops; the automatic reconnect opens a screen that has not connected yet.
       screensConnect = false;
-      act(() => screenConnections[0].onDisconnected());
+      act(() => screenConnections[0]!.onDisconnected());
       await advance(500);
       expect(screenConnections).toHaveLength(2);
       expect(findButton(container, 'Resume agent')).toBeInstanceOf(HTMLButtonElement);
       expect(keyboardButton()).toBeUndefined();
 
-      act(() => screenConnections[1].onConnected());
+      act(() => screenConnections[1]!.onConnected());
       expect(keyboardButton()).toBeDefined();
     });
 
@@ -633,11 +633,11 @@ describe('ComputerPanel', () => {
       await waitFor(() => expect(keyboardButton()).toBeDefined());
       expect(container.textContent).toContain(hint);
 
-      act(() => screenConnections[0].onKeyboardChange!(true));
+      act(() => screenConnections[0]!.onKeyboardChange!(true));
       expect(container.textContent).not.toContain(hint);
       expect(keyboardButton()).toBeDefined();
 
-      act(() => screenConnections[0].onKeyboardChange!(false));
+      act(() => screenConnections[0]!.onKeyboardChange!(false));
       expect(container.textContent).toContain(hint);
     });
 
@@ -656,13 +656,13 @@ describe('ComputerPanel', () => {
       expect(screenKeyboard.openKeyboard).toHaveBeenCalledOnce();
       // The screen reports the keyboard from its textarea's focus.
       expect(keyboardButton()!.getAttribute('aria-pressed')).toBe('false');
-      act(() => screenConnections[0].onKeyboardChange!(true));
+      act(() => screenConnections[0]!.onKeyboardChange!(true));
       expect(keyboardButton()!.getAttribute('aria-pressed')).toBe('true');
 
       await click(keyboardButton()!);
       expect(screenKeyboard.closeKeyboard).toHaveBeenCalledOnce();
       expect(screenKeyboard.openKeyboard).toHaveBeenCalledOnce();
-      act(() => screenConnections[0].onKeyboardChange!(false));
+      act(() => screenConnections[0]!.onKeyboardChange!(false));
       expect(keyboardButton()!.getAttribute('aria-pressed')).toBe('false');
     });
 
@@ -761,9 +761,9 @@ describe('ComputerPanel', () => {
       { userId: '@mindroom_first:example.org', name: 'First' },
       { userId: '@mindroom_second:example.org', name: 'Second' },
     ];
-    const props = renderPanel({ agents, requestedAgent: { userId: agents[0].userId } });
+    const props = renderPanel({ agents, requestedAgent: { userId: agents[0]!.userId } });
     await waitFor(() => expect(container.textContent).toContain('Watch mode'));
-    renderPanel({ ...props, agents: [agents[1]] });
+    renderPanel({ ...props, agents: [agents[1]!] });
     await waitFor(() => expect(container.textContent).toContain('Choose an agent'));
     const sessions = vi
       .mocked(props.request!)
@@ -774,7 +774,7 @@ describe('ComputerPanel', () => {
     const select = container.querySelector('select')!;
     expect(select).not.toBeNull();
     await act(async () => {
-      select.value = agents[1].userId;
+      select.value = agents[1]!.userId;
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });
     await click(findButton(container, 'Watch computer'));
@@ -803,9 +803,9 @@ describe('ComputerPanel', () => {
     expect(container.textContent).toContain('Control released');
     expect(container.textContent).toContain('The agent was asked to continue.');
     expect(screenConnections).toHaveLength(2);
-    expect(screenConnections[0].protocols[1]).toBe('mindroom-ticket.ticket-1');
-    expect(screenConnections[1].protocols[1]).toBe('mindroom-ticket.ticket-2');
-    expect(screenConnections[1].url).toContain('/sessions/session-1/stream');
+    expect(screenConnections[0]!.protocols[1]).toBe('mindroom-ticket.ticket-1');
+    expect(screenConnections[1]!.protocols[1]).toBe('mindroom-ticket.ticket-2');
+    expect(screenConnections[1]!.url).toContain('/sessions/session-1/stream');
     expect(props.mx.sendMessage).toHaveBeenCalledTimes(1);
     expect(props.mx.sendMessage).toHaveBeenCalledWith(
       '!room:example.org',
@@ -846,7 +846,7 @@ describe('ComputerPanel', () => {
 
     expect(container.textContent).toContain('Control released');
     expect(container.textContent).not.toContain('The agent was asked to continue.');
-    act(() => screenConnections[0].onDisconnected('Retired control stream closed.'));
+    act(() => screenConnections[0]!.onDisconnected('Retired control stream closed.'));
 
     expect(container.textContent).not.toContain('Retired control stream closed.');
     expect(container.textContent).not.toContain('Computer disconnected');
@@ -882,7 +882,7 @@ describe('ComputerPanel', () => {
     await waitFor(() => findButton(container, 'Resume agent'));
     await click(findButton(container, 'Resume agent'));
     await waitFor(() => expect(pending.resolve).toBeDefined());
-    act(() => screenConnections[0].onDisconnected());
+    act(() => screenConnections[0]!.onDisconnected());
 
     expect(container.textContent).not.toContain('Computer disconnected');
     expect(container.textContent).not.toContain('The computer connection closed.');
@@ -910,7 +910,7 @@ describe('ComputerPanel', () => {
     expect(container.textContent).toContain('Control was not released. Control unavailable.');
     expect(container.textContent).toContain('You have control');
 
-    act(() => screenConnections[0].onDisconnected());
+    act(() => screenConnections[0]!.onDisconnected());
     expect(container.textContent).toContain('Reconnecting to computer…');
     expect(container.textContent).not.toContain('Computer disconnected');
   });
@@ -929,7 +929,7 @@ describe('ComputerPanel', () => {
       await click(findButton(container, 'Resume agent'));
     }
     await waitFor(() => expect(pending.resolve).toBeDefined());
-    act(() => screenConnections[0].onDisconnected());
+    act(() => screenConnections[0]!.onDisconnected());
     await act(async () => pending.resolve?.());
 
     await waitFor(() => expect(findButton(container, 'Reconnect').disabled).toBe(false));
@@ -957,7 +957,7 @@ describe('ComputerPanel', () => {
     await click(findButton(container, 'Resume agent'));
     await waitFor(() => expect(screenConnections).toHaveLength(2));
 
-    act(() => screenConnections[1].onDisconnected('Replacement watch stream closed.'));
+    act(() => screenConnections[1]!.onDisconnected('Replacement watch stream closed.'));
 
     await waitFor(() => findButton(container, 'Reconnect'));
     expect(container.textContent).toContain('Replacement watch stream closed.');
@@ -981,8 +981,9 @@ describe('ComputerPanel', () => {
       const url = input.toString();
       if (
         url.endsWith('/stream-ticket') &&
-        request.mock.calls.filter(([value]) => value.toString().endsWith('/stream-ticket'))
-          .length === 2
+        vi
+          .mocked(request)
+          .mock.calls.filter(([value]) => value.toString().endsWith('/stream-ticket')).length === 2
       ) {
         return jsonResponse(503, { detail: 'Computer stream is unavailable.' });
       }
@@ -1084,7 +1085,7 @@ describe('ComputerPanel', () => {
     await click(findButton(container, 'Take control'));
     await click(findButton(container, 'Resume agent'));
     await waitFor(() => expect(props.mx.sendMessage).toHaveBeenCalledOnce());
-    expect(vi.mocked(props.mx.sendMessage).mock.calls[0][1]).toMatchObject({
+    expect(vi.mocked(props.mx.sendMessage).mock.calls[0]![1]).toMatchObject({
       'm.relates_to': { event_id: '$root', 'm.in_reply_to': { event_id: '$root' } },
     });
   });
@@ -1132,7 +1133,7 @@ describe('ComputerPanel', () => {
     await click(findButton(container, 'Watch computer'));
     await waitFor(() => findButton(container, 'Take control'));
 
-    expect(JSON.parse(vi.mocked(request).mock.calls[0][1]?.body as string)).toMatchObject({
+    expect(JSON.parse(vi.mocked(request).mock.calls[0]![1]?.body as string)).toMatchObject({
       agent_user_id: '@mindroom_writer:example.org',
     });
   });
@@ -1302,7 +1303,7 @@ describe('ComputerPanel', () => {
     await advance();
     expect(container.textContent).toContain('Watch mode');
 
-    act(() => screenConnections[0].onDisconnected('The computer connection was interrupted.'));
+    act(() => screenConnections[0]!.onDisconnected('The computer connection was interrupted.'));
     expect(container.textContent).toContain('Reconnecting to computer…');
     expect(container.textContent).not.toContain('Computer disconnected');
     expect(container.textContent).not.toContain('The computer connection was interrupted.');
@@ -1311,7 +1312,7 @@ describe('ComputerPanel', () => {
     await advance(500);
     expect(container.textContent).toContain('Watch mode');
     expect(screenTickets()).toEqual(['mindroom-ticket.ticket-1', 'mindroom-ticket.ticket-2']);
-    expect(screenConnections[1].url).toContain('/sessions/session-1/stream');
+    expect(screenConnections[1]!.url).toContain('/sessions/session-1/stream');
     expect(createRequests(request)).toHaveLength(1);
   });
 
@@ -1395,7 +1396,7 @@ describe('ComputerPanel', () => {
     await advance();
 
     denied = true;
-    act(() => screenConnections[0].onDisconnected());
+    act(() => screenConnections[0]!.onDisconnected());
     await advance(500);
     expect(container.textContent).toContain('Computer disconnected');
     expect(container.textContent).toContain('Requester cannot use this agent.');
@@ -1426,7 +1427,7 @@ describe('ComputerPanel', () => {
       expect(container.textContent).toContain('You have control');
 
       revoked = true;
-      act(() => screenConnections[0].onDisconnected());
+      act(() => screenConnections[0]!.onDisconnected());
       expect(container.textContent).toContain('Reconnecting to computer…');
       await advance(500);
 
@@ -1461,7 +1462,7 @@ describe('ComputerPanel', () => {
     await advance();
 
     revoked = true;
-    act(() => screenConnections[0].onDisconnected());
+    act(() => screenConnections[0]!.onDisconnected());
     await advance(500);
     expect(createRequests(request)).toHaveLength(2);
     expect(container.textContent).toContain('Reconnecting to computer…');
@@ -1508,7 +1509,7 @@ describe('ComputerPanel', () => {
       await advance();
 
       revoked = true;
-      act(() => screenConnections[0].onDisconnected());
+      act(() => screenConnections[0]!.onDisconnected());
       await advance(500);
       expect(createRequests(request)).toHaveLength(2);
 
@@ -1554,7 +1555,7 @@ describe('ComputerPanel', () => {
     await advance();
 
     outage = true;
-    act(() => screenConnections[0].onDisconnected());
+    act(() => screenConnections[0]!.onDisconnected());
     for (const delay of [500, 1_000, 2_000, 4_000]) {
       await advance(delay);
       expect(container.textContent).toContain('Reconnecting to computer…');
@@ -1598,7 +1599,7 @@ describe('ComputerPanel', () => {
     await advance();
 
     outage = true;
-    act(() => screenConnections[0].onDisconnected());
+    act(() => screenConnections[0]!.onDisconnected());
     await advance(20_000);
     expect(container.textContent).toContain('Computer disconnected');
 
@@ -1632,13 +1633,13 @@ describe('ComputerPanel', () => {
     await advance();
 
     stalled = true;
-    act(() => screenConnections[0].onDisconnected());
+    act(() => screenConnections[0]!.onDisconnected());
     await advance(500);
     expect(pending).toHaveLength(1);
-    expect(pending[0].aborted).toBe(false);
+    expect(pending[0]!.aborted).toBe(false);
 
     act(() => root.unmount());
-    expect(pending[0].aborted).toBe(true);
+    expect(pending[0]!.aborted).toBe(true);
   });
 
   it('cancels a pending reconnect when the panel closes', async () => {
@@ -1646,7 +1647,7 @@ describe('ComputerPanel', () => {
     const request = createGateway();
     renderPanel({ request });
     await advance();
-    act(() => screenConnections[0].onDisconnected());
+    act(() => screenConnections[0]!.onDisconnected());
     expect(vi.getTimerCount()).toBe(1);
 
     act(() => root.unmount());
@@ -1695,7 +1696,7 @@ describe('ComputerPanel', () => {
     await advance();
 
     revoked = true;
-    act(() => screenConnections[0].onDisconnected());
+    act(() => screenConnections[0]!.onDisconnected());
     await advance(500);
     expect(resolveReplacement).toBeDefined();
     expect(container.textContent).toContain('Reconnecting to computer…');
@@ -1735,7 +1736,7 @@ describe('ComputerPanel', () => {
 
     act(() => root.render(<ComputerPanel {...initial} threadId="$replacement" />));
     await waitFor(() => expect(screenConnections).toHaveLength(1));
-    expect(screenConnections[0].url).toContain('/sessions/session-new/stream');
+    expect(screenConnections[0]!.url).toContain('/sessions/session-new/stream');
 
     resolveOldSession?.(jsonResponse(200, makeStatus('session-old')));
     await waitFor(() =>

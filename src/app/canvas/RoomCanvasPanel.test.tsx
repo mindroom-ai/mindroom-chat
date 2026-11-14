@@ -74,7 +74,7 @@ const VIEWER = '@alice:example.org';
 const room = Object.assign(new EventEmitter(), {
   roomId: ROOM_ID,
   getMember: (userId: string) => ({ userId, membership: 'join', rawDisplayName: 'Planner' }),
-}) as unknown as Room;
+}) as unknown as Room & EventEmitter;
 
 const metadata = (html: string) => ({
   version: 1,
@@ -417,7 +417,7 @@ describe('RoomCanvasPanel', () => {
     const invalid = edit('<p>Broken</p>', { id: '$edit-4', ts: 400 });
     (invalid.getContent()['m.new_content'] as Record<string, Record<string, unknown>>)[
       'io.mindroom.ui_action'
-    ].canvas = { title: '', html: '<p>Broken</p>' };
+    ]!.canvas = { title: '', html: '<p>Broken</p>' };
     broken.makeReplaced(invalid);
     act(() => {
       mx.emit(MatrixEventEvent.Replaced, broken);

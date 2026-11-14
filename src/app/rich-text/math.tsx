@@ -263,7 +263,7 @@ export const tokenizeTextWithLatex = (
   };
 
   while (index < text.length) {
-    while (urlMatchIndex < urlMatches.length && urlMatches[urlMatchIndex].end <= index) {
+    while (urlMatchIndex < urlMatches.length && urlMatches[urlMatchIndex]!.end <= index) {
       urlMatchIndex += 1;
     }
 

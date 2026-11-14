@@ -53,7 +53,7 @@ const tokenExpiresAt = (token: string): number | undefined => {
   const parts = token.split('.');
   if (parts.length !== 3) return undefined;
   try {
-    const { exp } = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))) as {
+    const { exp } = JSON.parse(atob(parts[1]!.replace(/-/g, '+').replace(/_/g, '/'))) as {
       exp?: unknown;
     };
     return typeof exp === 'number' ? exp * 1000 : undefined;

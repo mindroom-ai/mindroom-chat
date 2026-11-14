@@ -13,7 +13,6 @@ import { createRoom } from '../helpers/createRoom';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   seedRoomOverviewState,
   sendRoomMessage,
@@ -24,6 +23,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // Bidirectional controls (U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F, U+061C) change the
@@ -71,25 +71,13 @@ const CANVAS_TITLE = 'Quarter close checklist';
 type Account = MatrixSession & { username: string };
 
 const registerAndLogin = async (name: string, displayName: string): Promise<Account> => {
-  const username = `${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  const session = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const session = await registerDisposableUser(`${name}_${RUN}`, PASSWORD);
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(session.userId)}/displayname`, {
     method: 'PUT',
     accessToken: session.accessToken,
     body: JSON.stringify({ displayname: displayName }),
   });
-  return { ...session, username };
+  return session;
 };
 
 type World = {

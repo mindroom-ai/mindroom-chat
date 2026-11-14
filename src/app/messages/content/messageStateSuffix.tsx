@@ -1,4 +1,4 @@
-import React, { type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { MessageEditedContent } from './FallbackContent';
 import { renderFailedSendIndicator, renderPendingSendIndicator } from '../../ui/PendingSendIndicator';
 

@@ -83,8 +83,8 @@ const parseNoticeTime = (value: unknown): number | undefined | null => {
   if (!match) return null;
   // Date.parse rolls a day that doesn't exist, such as February 30, into the next month.
   const [year, month, day] = match.slice(1, 4).map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  const date = new Date(Date.UTC(year!, month! - 1, day));
+  if (date.getUTCMonth() !== month! - 1 || date.getUTCDate() !== day) return null;
   const time = Date.parse(value);
   return Number.isFinite(time) ? time : null;
 };

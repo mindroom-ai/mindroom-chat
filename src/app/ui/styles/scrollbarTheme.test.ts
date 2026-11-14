@@ -17,7 +17,7 @@ describe('scrollbar theme', () => {
 
     const darkPalette = colorsSource.slice(colorsSource.indexOf('const darkAccents'));
     const darkTracks = [...darkPalette.matchAll(/ContainerHover:\s*'(#[\da-f]{6})'/gi)].map(
-      ([, track]) => track
+      ([, track]) => track!
     );
     if (darkTracks.length === 0) throw new Error('Dark scrollbar tracks are missing.');
 

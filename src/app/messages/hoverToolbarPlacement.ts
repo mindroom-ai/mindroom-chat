@@ -35,10 +35,11 @@ export const TIMELINE_OVERLAY_ATTRIBUTE = 'data-timeline-overlay';
  */
 const FOLD_BUTTON = '[data-message-fold] > * > [data-message-disclosure] > button';
 /**
- * A code block's buttons (Wrap lines, Expand, Copy code), at the end of its top edge: under a
- * toolbar that moves down below the sender line of a message whose code block starts there.
+ * Buttons at the end side of a message's content: a code block's (Wrap lines, Expand, Copy code),
+ * at the end of its top edge, and a file card's (View, Download). They sit under a toolbar that
+ * moves down into a row whose code block or file starts at its top or below its sender line.
  */
-const CODE_BLOCK_ACTIONS = '[data-code-block-actions]';
+const CONTENT_ACTIONS = '[data-code-block-actions], [data-file-actions]';
 /**
  * The sender line at the top of a message: its name, the reply details button of an agent reply
  * and the time, which the toolbar keeps clear of once it moves down into its row.
@@ -78,8 +79,8 @@ type FoldSpan = Span & { ownRow: boolean };
  * Where the toolbar's top goes, relative to the top of its row, or `undefined` for its usual
  * place. `usual` is that place, `covered` where what floats over the top of the timeline ends,
  * `height` the toolbar's own height, `folds` the fold buttons under its span, `senderLine`
- * the row's sender line where it is under the span, and `codeActions` the buttons of the row's
- * code blocks under the span.
+ * the row's sender line where it is under the span, and `contentActions` the buttons of the row's
+ * code blocks and files under the span.
  */
 export const toolbarOffset = (
   usual: number,
@@ -88,10 +89,12 @@ export const toolbarOffset = (
   height: number,
   folds: FoldSpan[],
   senderLine?: Span,
-  codeActions: Span[] = []
+  contentActions: Span[] = []
 ): number | undefined => {
   const nearControl = (at: number, control: Span) =>
     at < control.bottom + CONTROL_GAP_PX && at + height > control.top - CONTROL_GAP_PX;
+  const clearAt = (at: number) =>
+    ![...folds, ...contentActions].some((control) => nearControl(at, control));
   // Below the header and the controls under it, but no lower than 4 px above the row's bottom.
   let top = covered > usual + 0.5 ? Math.min(covered, rowHeight - ROW_END_GAP_PX - height) : usual;
   [...folds]
@@ -103,11 +106,23 @@ export const toolbarOffset = (
         top = fold.ownRow ? fold.top - CONTROL_GAP_PX - height : fold.bottom + CONTROL_GAP_PX;
       }
     });
+  // Moved down into its row, where it would cover the buttons of a code block or a file, it goes
+  // on to the nearest spot below such buttons that ends inside the row clear of every button
+  // group and fold button, and stays where none is; up, it would go back under what floats over
+  // the timeline.
+  if (top > usual + 0.5 && contentActions.some((actions) => nearControl(top, actions))) {
+    const below = contentActions
+      .map((actions) => actions.bottom + CONTROL_GAP_PX)
+      .filter((at) => at > top)
+      .sort((a, b) => a - b)
+      .find((at) => at + height <= rowHeight - ROW_END_GAP_PX && clearAt(at));
+    if (below !== undefined) top = below;
+  }
   // Moved down into its row, it goes on below the row's sender line where that shows, so the
   // name, the time and the reply details button stay in reach, unless a fold button is there (a
-  // long row's own Show less sticks to the bottom of the view) or a code block's buttons are: then
-  // it stays over the sender line. In its usual place it ends a few pixels into the row, above the
-  // line's text.
+  // long row's own Show less sticks to the bottom of the view) or the buttons of a code block or
+  // a file are: then it stays over the sender line, unless it went below those buttons above. In
+  // its usual place it ends a few pixels into the row, above the line's text.
   if (
     senderLine &&
     senderLine.bottom > covered &&
@@ -116,7 +131,7 @@ export const toolbarOffset = (
     top + height > senderLine.top
   ) {
     const below = senderLine.bottom + CONTROL_GAP_PX;
-    if (![...folds, ...codeActions].some((control) => nearControl(below, control))) top = below;
+    if (clearAt(below)) top = below;
   }
   return Math.abs(top - usual) > 0.5 ? Math.round(top) : undefined;
 };
@@ -126,9 +141,10 @@ export const toolbarOffset = (
  * place above the row. It moves to stay clear of what floats over the top of the timeline (the
  * first row starts right under the room's `[+all]` toggle or a thread's banner, so its toolbar
  * moves down into the row instead of covering them) and of the fold buttons of long messages, so
- * it never draws over a Show less button. Moved down into its row, it also keeps below the row's
- * sender line, unless a code block's buttons are there. Measured while the toolbar shows, and
- * again as the timeline scrolls under it or the row changes size.
+ * it never draws over a Show less button. Moved down into its row, it also keeps clear of the
+ * buttons of a code block or a file where the row has room below them, and below the row's sender
+ * line unless such buttons are there. Measured while the toolbar shows, and again as the timeline
+ * scrolls under it or the row changes size.
  */
 export const useToolbarClearance = (
   rowRef: RefObject<HTMLElement>,
@@ -166,7 +182,7 @@ export const useToolbarClearance = (
       const folds = Array.from(scroller.querySelectorAll(FOLD_BUTTON)).flatMap((button) =>
         underBar(button).map((span) => ({ ...span, ownRow: row.contains(button) }))
       );
-      const codeActions = Array.from(row.querySelectorAll(CODE_BLOCK_ACTIONS)).flatMap(underBar);
+      const contentActions = Array.from(row.querySelectorAll(CONTENT_ACTIONS)).flatMap(underBar);
       const sender = row.querySelector(SENDER_LINE);
       const [senderLine] = sender ? underBar(sender) : [];
       const next = toolbarOffset(
@@ -176,7 +192,7 @@ export const useToolbarClearance = (
         bar.height,
         folds,
         senderLine,
-        codeActions
+        contentActions
       );
       if (next !== clearanceRef.current) setClearance(next);
     };

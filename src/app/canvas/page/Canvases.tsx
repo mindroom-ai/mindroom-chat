@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Box, Icon, IconButton, Icons, Text } from 'folds';
 import { KnownMembership, type Room } from 'matrix-js-sdk';

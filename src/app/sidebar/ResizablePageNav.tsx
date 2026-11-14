@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MobileFriendlyPageNav } from './MobileFriendly';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';

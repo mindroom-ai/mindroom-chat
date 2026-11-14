@@ -7,7 +7,7 @@ default:
 install:
     npm ci
 
-# Type-check the app sources (config/tsconfig.app.json: src without tests). The gate `just check` uses; must report 0 errors.
+# Type-check the app sources (config/tsconfig.app.json: src without tests) with the stricter flags of config/tsconfig.strict.json, which it extends. The gate `just check` uses; must report 0 errors.
 typecheck:
     npx tsc --noEmit -p config/tsconfig.app.json
 
@@ -58,7 +58,7 @@ release *args:
 bundle-report dist="dist" *args:
     node scripts/perf/bundle-report.mjs {{dist}} --budget scripts/perf/bundle-budget.json {{args}}
 
-# The full local check. CI (.github/workflows/ci.yml) runs typecheck, strict, lint, test and a smoke subset of the e2e specs on every push to main and every pull request.
+# The full local check. CI (.github/workflows/ci.yml) runs typecheck, strict, lint, test, the production build with the bundle size budget (scripts/perf/bundle-budget.json) and a smoke subset of the e2e specs on every push to main and every pull request.
 check: typecheck strict lint test script-tests license-check verify-ported check-holes identifier-renames
 
 # Fail when an installed package has a license outside the allowlist (also runs the script's own tests).
@@ -107,7 +107,7 @@ e2e *args:
 e2e-slot slot *args:
     bash scripts/e2e-slot.sh {{slot}} {{args}}
 
-# Start (`up`, which prints its state as JSON), stop (`down`), show (`status`) or count the model calls and tokens of (`usage`) slot N's (0-99) MindRoom backend for the e2e/<domain>/agent-*.spec.ts specs, which start it themselves. Options (the docstring of scripts/agent-stack/stack.py describes each): --model stub|real (default $E2E_AGENT_MODEL, else stub; real runs Claude Haiku 5.5 and GPT-6 Luna with the provider keys of the environment), --transcription stub|real (call transcripts with OpenAI's speech-to-text and notes by GPT-6 Luna; default $E2E_AGENT_TRANSCRIPTION, else stub, always real with --model real), --calls <MatrixRTC service URL> [--calls-profile realtime|live] (the helper answers voice calls with gpt-realtime-2.1-mini or gpt-live-1; needs OPENAI_API_KEY), --client-sessions (the slot's Chat may sign in to the backend's plugin routes; needs a homeserver that binds OpenID tokens), --computers (the helper gets a Worker Computer, in Docker workers built from the same commit) [--computer-image <image>] (the workers' image instead, default $E2E_COMPUTER_IMAGE) [--computer-tools <list>] (the tools that run in the workers, default browser_mcp), --terminals (MindRoom's terminal toolkit beside the helper's shell, in the slot's sandbox runner; implies --client-sessions, not with --computers), --checkout <MindRoom checkout> (default $E2E_MINDROOM_CHECKOUT, else /home/basnijholt/Work/dev/mindroom; only read), --ref <commit> (default $E2E_MINDROOM_REF, else its origin/main). Example: `just agent-stack 16 up`.
+# Start (`up`, which prints its state as JSON), stop (`down`), show (`status`) or count the model calls and tokens of (`usage`) slot N's (0-99) MindRoom backend for the e2e/<domain>/agent-*.spec.ts specs, which start it themselves. The docstring of scripts/agent-stack/stack.py describes its options, ports, environment variables and exit codes. Example: `just agent-stack 16 up`.
 agent-stack slot *args:
     python3 scripts/agent-stack/stack.py {{slot}} {{args}}
 
