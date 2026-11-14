@@ -26,6 +26,7 @@ const state: CaptureState = {
 
 const actions: CaptureAction[] = [
   { kind: 'send', roomId: '!a', text: 'x', images: [new File(['a'], 'a.png')], open: false },
+  { kind: 'send', roomId: '!a', text: 'x', images: [], open: false, threadId: '$t' },
   { kind: 'reply', roomId: '!a', threadId: '$t', text: 'x' },
   { kind: 'resolve', roomId: '!a', threadId: '$t', resolved: true },
   { kind: 'selectRoom', roomId: '!a' },
@@ -60,6 +61,15 @@ describe('isCaptureMessage', () => {
         id: 'i',
         hostId: 'a',
         result: { ok: false, error: 'timeout' },
+      })
+    ).toBe(true);
+    expect(
+      isCaptureMessage({
+        v: 1,
+        type: 'response',
+        id: 'i',
+        hostId: 'a',
+        result: { ok: false, error: 'send-failed', posted: { threadId: '$t', images: 1 } },
       })
     ).toBe(true);
     expect(isCaptureMessage({ v: 1, type: 'gone', hostId: 'a' })).toBe(true);
@@ -119,6 +129,26 @@ describe('isCaptureMessage', () => {
         id: 'i',
         hostId: 'a',
         result: { ok: false, error: 'bad' },
+      })
+    ).toBe(false);
+    for (const posted of [{ threadId: 3, images: 1 }, { threadId: '$t', images: -1 }, '$t']) {
+      expect(
+        isCaptureMessage({
+          v: 1,
+          type: 'response',
+          id: 'i',
+          hostId: 'a',
+          result: { ok: false, error: 'send-failed', posted },
+        })
+      ).toBe(false);
+    }
+    expect(
+      isCaptureMessage({
+        v: 1,
+        type: 'request',
+        id: 'i',
+        hostId: 'a',
+        action: { kind: 'send', roomId: '!a', text: 'x', images: [], open: false, threadId: 1 },
       })
     ).toBe(false);
     expect(

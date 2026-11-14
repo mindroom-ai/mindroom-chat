@@ -564,6 +564,56 @@ describe('QuickCapturePage attachments', () => {
     expect(screen.getByRole('button', { name: 'Remove a.png' })).toBeTruthy();
   });
 
+  it('sends the rest of an entry that failed part way into the thread it started', async () => {
+    const rig = setup();
+    const [a, b] = [png('a.png'), png('b.png')];
+    paste([a, b]);
+    type(input(), 'Look');
+    press(input(), 'Enter');
+    await rig.respond({ ok: false, error: 'send-failed', posted: { threadId: '$t', images: 1 } });
+    expect(screen.getByText('Not sent')).toBeTruthy();
+    // The image that went out is in the thread, no longer in the entry.
+    expect(screen.queryByRole('button', { name: 'Remove a.png' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Remove b.png' })).toBeTruthy();
+    press(input(), 'Enter');
+    expect(rig.actions().at(-1)).toEqual({
+      kind: 'send',
+      roomId: '!inbox',
+      text: 'Look',
+      images: [b],
+      open: false,
+      threadId: '$t',
+    });
+    await rig.respond({ ok: true, threadId: '$t' });
+    // The next entry starts its own thread.
+    type(input(), 'Next');
+    press(input(), 'Enter');
+    expect(rig.actions().at(-1)).toEqual({
+      kind: 'send',
+      roomId: '!inbox',
+      text: 'Next',
+      images: [],
+      open: false,
+    });
+  });
+
+  it('starts a new thread for an entry emptied after it failed part way', async () => {
+    const rig = setup();
+    paste([png('a.png'), png('b.png')]);
+    press(input(), 'Enter');
+    await rig.respond({ ok: false, error: 'send-failed', posted: { threadId: '$t', images: 1 } });
+    fireEvent.click(screen.getByRole('button', { name: 'Remove b.png' }));
+    type(input(), 'Something else');
+    press(input(), 'Enter');
+    expect(rig.actions().at(-1)).toEqual({
+      kind: 'send',
+      roomId: '!inbox',
+      text: 'Something else',
+      images: [],
+      open: false,
+    });
+  });
+
   it('attaches nothing pasted while an entry sends, and leaves it out of the send', async () => {
     const rig = setup();
     type(input(), 'First');
@@ -910,6 +960,17 @@ describe('QuickCapturePage Escape and focus', () => {
     expect(hideQuickCapture).not.toHaveBeenCalled();
     press(row('Why does slot 27 flake'), 'Escape');
     expect(hideQuickCapture).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives the focus to the row when Escape closes the peek from one of its buttons', () => {
+    setup();
+    press(input(), 'ArrowDown');
+    press(row('Why does slot 27 flake'), ' ');
+    const copy = screen.getByRole('button', { name: 'Copy' });
+    act(() => copy.focus());
+    press(copy, 'Escape');
+    expect(screen.queryByRole('button', { name: 'Copy' })).toBeNull();
+    expect(document.activeElement).toBe(row('Why does slot 27 flake'));
   });
 
   it('closes the picker before anything else', () => {

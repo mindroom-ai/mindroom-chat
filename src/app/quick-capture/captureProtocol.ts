@@ -29,8 +29,18 @@ export type CaptureErrorCode =
   | 'send-failed'
   | 'forbidden'
   | 'timeout';
+/** What went out of an entry that failed after it started its thread. */
+export type CapturePosted = { threadId: string; images: number };
 export type CaptureAction =
-  | { kind: 'send'; roomId: string; text: string; images: File[]; open: boolean }
+  | {
+      kind: 'send';
+      roomId: string;
+      text: string;
+      images: File[];
+      open: boolean;
+      /** The thread an earlier, partly sent try of the entry started. */
+      threadId?: string;
+    }
   | { kind: 'reply'; roomId: string; threadId: string; text: string }
   | { kind: 'resolve'; roomId: string; threadId: string; resolved: boolean }
   | { kind: 'selectRoom'; roomId: string }
@@ -38,7 +48,7 @@ export type CaptureAction =
   | { kind: 'read'; roomId: string; threadId: string };
 export type CaptureResult =
   | { ok: true; threadId?: string }
-  | { ok: false; error: CaptureErrorCode };
+  | { ok: false; error: CaptureErrorCode; posted?: CapturePosted };
 export type CaptureMessage =
   | { v: 1; type: 'hello' }
   | { v: 1; type: 'request'; id: string; hostId: string; action: CaptureAction }
@@ -102,7 +112,8 @@ const isAction = (value: unknown): boolean => {
       return (
         isString(value.text) &&
         isArrayOf(value.images, (image) => image instanceof File) &&
-        typeof value.open === 'boolean'
+        typeof value.open === 'boolean' &&
+        isOptional(value.threadId, isString)
       );
     case 'reply':
       return isString(value.threadId) && isString(value.text);
@@ -122,7 +133,18 @@ const isAction = (value: unknown): boolean => {
 const isResult = (value: unknown): boolean => {
   if (!isFields(value)) return false;
   if (value.ok === true) return isOptional(value.threadId, isString);
-  return value.ok === false && ERROR_CODES.includes(value.error);
+  return (
+    value.ok === false &&
+    ERROR_CODES.includes(value.error) &&
+    isOptional(
+      value.posted,
+      (posted) =>
+        isFields(posted) &&
+        isString(posted.threadId) &&
+        Number.isInteger(posted.images) &&
+        (posted.images as number) >= 0
+    )
+  );
 };
 
 export const isCaptureMessage = (value: unknown): value is CaptureMessage => {

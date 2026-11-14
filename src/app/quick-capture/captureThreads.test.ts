@@ -1,6 +1,12 @@
 import type { TFunction } from 'i18next';
 import { MatrixEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  buildPerTagEventContent,
+  buildPerTagStateKey,
+  MINDROOM_THREAD_TAGS_EVENT,
+  RESOLVED_TAG,
+} from '../event-store/threads/threadTags';
 import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
 import { threadActorName } from '../threads/cross-room/threadText';
@@ -38,19 +44,42 @@ const message = (
     content,
   });
 
+const stateEvent = (type: string, stateKey: string, content: object, ts = 900): MatrixEvent =>
+  new MatrixEvent({
+    event_id: `$state-${ts}`,
+    room_id: ROOM_ID,
+    sender: '@me:x',
+    type,
+    state_key: stateKey,
+    origin_server_ts: ts,
+    content,
+  });
+
+/** The room's state holding `events`, read as the SDK's room state reads them. */
+const roomState = (events: MatrixEvent[]) => ({
+  getStateEvents: (type: string, stateKey?: string) =>
+    stateKey === undefined
+      ? events.filter((event) => event.getType() === type)
+      : events.find((event) => event.getType() === type && event.getStateKey() === stateKey) ??
+        null,
+});
+
 const makeRoom = ({
   timeline = [],
   loaded = [],
-}: { timeline?: MatrixEvent[]; loaded?: MatrixEvent[] } = {}): Room =>
-  ({
+  state,
+}: { timeline?: MatrixEvent[]; loaded?: MatrixEvent[]; state?: MatrixEvent[] } = {}): Room => {
+  const live = state ? roomState(state) : undefined;
+  return {
     roomId: ROOM_ID,
-    getLiveTimeline: () => ({ getEvents: () => timeline, getState: () => undefined }),
+    getLiveTimeline: () => ({ getEvents: () => timeline, getState: () => live }),
     getUnfilteredTimelineSet: () => ({ relations: { getChildEventsForEvent: () => undefined } }),
     getThread: () => null,
     findEventById: (id: string) => loaded.find((event) => event.getId() === id),
     getMember: () => null,
     membersLoaded: () => true,
-  } as unknown as Room);
+  } as unknown as Room;
+};
 
 const makeEntry = (
   rootId: string,
@@ -273,5 +302,41 @@ describe('readCaptureThreads', () => {
       resolved: false,
       ts: 600,
     });
+  });
+
+  it("reads the resolved tags of the user's roots nobody answered, which a pin keeps open", () => {
+    const resolvedTag = (rootId: string) =>
+      stateEvent(
+        MINDROOM_THREAD_TAGS_EVENT,
+        buildPerTagStateKey(rootId, RESOLVED_TAG),
+        buildPerTagEventContent('@me:x')
+      );
+    const room = makeRoom({
+      timeline: [
+        message('$done', { msgtype: 'm.text', body: 'Done' }, 600, '@me:x'),
+        message('$pinned', { msgtype: 'm.text', body: 'Pinned' }, 610, '@me:x'),
+        message('$open', { msgtype: 'm.text', body: 'Open' }, 620, '@me:x'),
+      ],
+      state: [
+        resolvedTag('$done'),
+        resolvedTag('$pinned'),
+        stateEvent('m.room.pinned_events', '', { pinned: ['$pinned'] }, 950),
+      ],
+    });
+
+    const threads = readCaptureThreads(mx, room, [], t, NOW);
+
+    expect(
+      threads.map(({ threadId, pinned, resolved, resolvedTs }) => ({
+        threadId,
+        pinned,
+        resolved,
+        resolvedTs,
+      }))
+    ).toEqual([
+      { threadId: '$done', pinned: false, resolved: true, resolvedTs: 900 },
+      { threadId: '$pinned', pinned: true, resolved: false, resolvedTs: undefined },
+      { threadId: '$open', pinned: false, resolved: false, resolvedTs: undefined },
+    ]);
   });
 });

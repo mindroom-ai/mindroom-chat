@@ -364,6 +364,27 @@ describe('QuickCaptureHost', () => {
     expect(mocks.navigation.navigateRoomThreadDirect).not.toHaveBeenCalled();
   });
 
+  it('tells what went out of an entry that failed part way, and sends its rest into that thread', async () => {
+    const { hello, request, mx } = setup();
+    hello();
+    const posted = { threadId: '$t', images: 1 };
+    vi.mocked(sendCapture).mockRejectedValueOnce(
+      new CaptureError('send-failed', undefined, posted)
+    );
+    const send: CaptureAction = { kind: 'send', roomId: '!a', text: 'x', images: [], open: false };
+
+    expect(await request(send)).toEqual({ ok: false, error: 'send-failed', posted });
+
+    vi.mocked(sendCapture).mockResolvedValueOnce({ threadId: '$t' });
+    expect(await request({ ...send, threadId: '$t' })).toEqual({ ok: true, threadId: '$t' });
+    expect(sendCapture).toHaveBeenLastCalledWith(
+      mx,
+      roomA,
+      { text: 'x', images: [], threadId: '$t' },
+      OPTIONS
+    );
+  });
+
   it('replies and resolves in the thread', async () => {
     const { hello, request, mx } = setup();
     vi.mocked(sendCaptureReply).mockResolvedValue(undefined);

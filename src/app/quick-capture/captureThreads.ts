@@ -9,10 +9,12 @@ import {
   localizeThreadPreview,
 } from '../event-store/threads/threadMessagePreview';
 import { isThreadPinned } from '../event-store/threads/threadPinning';
+import { isThreadResolved } from '../event-store/threads/threadTags';
 import { getEditedEvent, getLatestMessageContent } from '../matrix/room';
 import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
 import { getThreadSignalsReader } from '../threads/cross-room/threadSignalsReader';
+import { getRoomThreadTagSnapshotMap } from '../threads/tags/threadTagSnapshots';
 import {
   threadActorName,
   threadIndexReplyPreview,
@@ -73,15 +75,17 @@ const readReply = (
 
 /**
  * The user's own roots in the room's live timeline that nobody answered and `known` does not
- * hold: the entries posted there. In a chat room every other message would be one too.
+ * hold: the entries posted there. In a chat room every other message would be one too. Their
+ * resolved tags are read as the index reads them: a pinned thread is never resolved.
  */
 const unansweredRoots = (
   room: Room,
   userId: string,
   known: Set<string>,
   now: number
-): CaptureThread[] =>
-  room
+): CaptureThread[] => {
+  const tags = getRoomThreadTagSnapshotMap(room);
+  return room
     .getLiveTimeline()
     .getEvents()
     .flatMap((event) => {
@@ -96,20 +100,25 @@ const unansweredRoots = (
       }
       known.add(eventId);
       const body = getCompactThreadRootPreviewInfo(event, { eventId, room })?.previewText ?? '';
+      const pinned = isThreadPinned(room, eventId);
+      const tag = tags.get(eventId);
+      const resolved = !!tag && isThreadResolved(tag.content, pinned);
       return [
         {
           threadId: eventId,
           title: revealDirectionControls(body),
           reply: () => ({}),
-          pinned: isThreadPinned(room, eventId),
+          pinned,
           streaming: false,
           needsYou: false,
           unread: false,
-          resolved: false,
+          resolved,
+          ...(resolved && tag.resolvedTs !== undefined ? { resolvedTs: tag.resolvedTs } : {}),
           ts: event.getTs(),
         },
       ];
     });
+};
 
 /**
  * The room's threads for the widget: the index's entries of the room and, from the room's live

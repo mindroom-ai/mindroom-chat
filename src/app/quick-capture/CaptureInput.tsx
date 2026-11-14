@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useRef,
   useState,
   type ClipboardEvent,
@@ -99,6 +100,12 @@ export function CaptureInput({
   const sendingRef = useRef(false);
   const [sendError, setSendError] = useState<CaptureErrorCode>();
   const [shotError, setShotError] = useState<ScreenshotErrorCode>();
+  // The thread a send that failed part way started: the entry's rest goes in it, not in a new one.
+  const [started, setStarted] = useState<{ roomId: string; threadId: string }>();
+  // An entry emptied by hand is a new one.
+  useEffect(() => {
+    if (text === '' && images.length === 0) setStarted(undefined);
+  }, [text, images]);
   const screenshots = isNativeQuickCaptureAvailable();
   const full = images.length >= MAX_CAPTURE_IMAGES;
 
@@ -115,13 +122,28 @@ export function CaptureInput({
     sendingRef.current = true;
     setSending(true);
     setSendError(undefined);
-    const result = await request({ kind: 'send', roomId, text: entry, images, open });
+    const threadId = started?.roomId === roomId ? started.threadId : undefined;
+    const result = await request({
+      kind: 'send',
+      roomId,
+      text: entry,
+      images,
+      open,
+      ...(threadId === undefined ? {} : { threadId }),
+    });
     sendingRef.current = false;
     setSending(false);
     if (!result.ok) {
       setSendError(result.error);
+      const { posted } = result;
+      if (posted) {
+        setStarted({ roomId, threadId: posted.threadId });
+        const out = images.slice(0, posted.images);
+        setImages((current) => current.filter((image) => !out.includes(image)));
+      }
       return;
     }
+    setStarted(undefined);
     onText('');
     setShotError(undefined);
     // Only what went out: a screenshot started before the send may have come in since.

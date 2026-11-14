@@ -20,13 +20,16 @@ import { getMessageRelation } from '../matrix/send/composeMessageRelation';
 import { uploadLongTextSidecar } from '../matrix/send/longTextSidecarUpload';
 import { getImageMsgContent } from '../matrix/send/msgContent';
 import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
-import type { CaptureErrorCode } from './captureProtocol';
+import type { CaptureErrorCode, CapturePosted } from './captureProtocol';
 
 export type CaptureSendOptions = { markdown: boolean; linkSchemes?: readonly string[] };
 
-/** A capture the host could not post, with the code the widget shows. */
+/**
+ * A capture the host could not post, with the code the widget shows and, when its thread was
+ * started, the thread and how many of its images went out.
+ */
 export class CaptureError extends Error {
-  constructor(readonly code: CaptureErrorCode, cause?: unknown) {
+  constructor(readonly code: CaptureErrorCode, cause?: unknown, readonly posted?: CapturePosted) {
     super(`Quick capture failed: ${code}`, { cause });
     this.name = 'CaptureError';
   }
@@ -109,23 +112,39 @@ const postText = async (mx: MatrixClient, room: Room, content: IContent): Promis
   return postMessage(mx, room, eventContent);
 };
 
-/** Posts a new thread: text alone, or the first image as its root with the rest and the text in it. */
+/**
+ * Posts a new thread: text alone, or the first image as its root with the rest and the text in it.
+ * With `threadId`, the rest of an entry that started that thread: all of it goes in the thread.
+ */
 export const sendCapture = async (
   mx: MatrixClient,
   room: Room,
-  entry: { text: string; images: File[] },
+  entry: { text: string; images: File[]; threadId?: string },
   options: CaptureSendOptions
 ): Promise<{ threadId: string }> => {
   const text = composeCaptureText(mx, entry.text, options);
-  const [rootImage, ...otherImages] = await prepareImages(mx, room, entry.images);
-  if (!rootImage) {
-    if (!text) throw new CaptureError('send-failed');
-    return { threadId: await postText(mx, room, text) };
+  const images = await prepareImages(mx, room, entry.images);
+  let { threadId } = entry;
+  let sent = 0;
+  const post = async (content: IContent, send: typeof postMessage): Promise<void> => {
+    if (threadId) await send(mx, room, inThread(content, threadId));
+    else threadId = await send(mx, room, content);
+  };
+  try {
+    // Images first and the text last: MindRoom takes the batch as one turn, closed by the text.
+    for (const image of images) {
+      await post(image, postMessage);
+      sent += 1;
+    }
+    if (text) await post(text, postText);
+  } catch (error) {
+    // The widget sends the rest into the thread, which a new thread would repeat.
+    if (threadId && error instanceof CaptureError) {
+      throw new CaptureError(error.code, error.cause, { threadId, images: sent });
+    }
+    throw error;
   }
-  const threadId = await postMessage(mx, room, rootImage);
-  // Images first and the text last: MindRoom takes the batch as one turn, closed by the text.
-  for (const image of otherImages) await postMessage(mx, room, inThread(image, threadId));
-  if (text) await postText(mx, room, inThread(text, threadId));
+  if (!threadId) throw new CaptureError('send-failed');
   return { threadId };
 };
 

@@ -284,23 +284,68 @@ describe('sendCapture', () => {
     expectUnsentCopyDropped(mx, 0);
   });
 
-  it('stops at a message in the thread that fails, leaving no unsent copy of it', async () => {
+  it('stops at a message in the thread that fails, telling what went out, leaving no unsent copy of it', async () => {
     const mx = client();
     mx.sendMessage
       .mockResolvedValueOnce({ event_id: '$root' })
       .mockRejectedValueOnce(new Error('offline'));
 
-    await expectCaptureError(
+    const error = await failure(
       sendCapture(
         mx as never,
         plainRoom as never,
         { text: 'Look at these', images: [png('a.png'), png('b.png')] },
         markdown
-      ),
-      'send-failed'
+      )
     );
+    expect(error).toBeInstanceOf(CaptureError);
+    expect(error).toMatchObject({ code: 'send-failed', posted: { threadId: '$root', images: 1 } });
     expect(mx.sendMessage).toHaveBeenCalledTimes(2);
     expectUnsentCopyDropped(mx, 1);
+  });
+
+  it('tells that every image went out when only the text fails', async () => {
+    const mx = client();
+    mx.sendMessage
+      .mockResolvedValueOnce({ event_id: '$root' })
+      .mockRejectedValueOnce(new Error('offline'));
+
+    const error = await failure(
+      sendCapture(mx as never, plainRoom as never, { text: 'hi', images: [png('a.png')] }, markdown)
+    );
+    expect(error).toMatchObject({ code: 'send-failed', posted: { threadId: '$root', images: 1 } });
+  });
+
+  it('tells nothing went out when the root fails', async () => {
+    const mx = client();
+    mx.sendMessage.mockRejectedValueOnce(new Error('offline'));
+
+    const error = await failure(
+      sendCapture(mx as never, plainRoom as never, { text: 'hi', images: [png('a.png')] }, markdown)
+    );
+    expect(error).toMatchObject({ code: 'send-failed', posted: undefined });
+  });
+
+  it('posts the rest of a partly sent entry in the thread it started', async () => {
+    const mx = client();
+    const result = await sendCapture(
+      mx as never,
+      plainRoom as never,
+      { text: 'Look at these', images: [png('b.png')], threadId: '$root' },
+      markdown
+    );
+
+    expect(result).toEqual({ threadId: '$root' });
+    const relation = getMessageRelation(undefined, undefined, '$root');
+    expect(mx.sendMessage.mock.calls.map(([, content]) => content)).toEqual([
+      {
+        msgtype: 'm.image',
+        body: 'b.png',
+        url: 'mxc://example.org/b.png',
+        'm.relates_to': relation,
+      },
+      expect.objectContaining({ body: 'Look at these', 'm.relates_to': relation }),
+    ]);
   });
 
   it('fails as send-failed with neither text nor images, sending nothing', async () => {

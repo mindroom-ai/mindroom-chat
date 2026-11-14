@@ -119,7 +119,8 @@ const runAction = async (context: HostContext, action: CaptureAction): Promise<C
   if (!room || !isListed(readCaptureRooms(context), room.roomId)) return NO_ROOM;
   switch (action.kind) {
     case 'send': {
-      const entry = { text: action.text, images: action.images };
+      const { text, images, threadId: started } = action;
+      const entry = { text, images, ...(started === undefined ? {} : { threadId: started }) };
       const { threadId } = await sendCapture(mx, room, entry, options);
       if (action.open) {
         // The entry is posted: a thread that does not open leaves the answer as it is.
@@ -153,10 +154,10 @@ const runAction = async (context: HostContext, action: CaptureAction): Promise<C
   }
 };
 
-const failureOf = (error: unknown): CaptureResult => ({
-  ok: false,
-  error: error instanceof CaptureError ? error.code : 'send-failed',
-});
+const failureOf = (error: unknown): CaptureResult =>
+  error instanceof CaptureError
+    ? { ok: false, error: error.code, ...(error.posted ? { posted: error.posted } : {}) }
+    : { ok: false, error: 'send-failed' };
 
 /**
  * Serves the quick capture widget from the signed-in app, the one Matrix client: answers its hello

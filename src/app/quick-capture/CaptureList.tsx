@@ -86,15 +86,15 @@ export function CaptureList({
   const peekedId = peekOpen ? selected?.threadId : undefined;
   const latest = useLatestRef({ items, roomId, request });
 
-  // A row or field the list moves, or takes away, loses the focus to the page: it gets it back,
-  // or the selected row takes it.
+  // A row or field the list moves, or takes away (as a peek that closes takes its buttons), loses
+  // the focus to the page: it gets it back, or the selected row takes it.
   useLayoutEffect(() => {
     const element = lastFocused.current;
     const active = document.activeElement;
     if (!element || (active && active !== document.body)) return;
     if (element.isConnected) element.focus();
     else if (tabStopId) rows.current.get(tabStopId)?.focus();
-  }, [items, tabStopId]);
+  }, [items, tabStopId, peekedId]);
 
   useLayoutEffect(() => {
     if (!focusReply.current) return;
