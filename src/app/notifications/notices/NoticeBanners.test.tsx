@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -60,7 +59,7 @@ beforeEach(() => {
   localStorage.clear();
   serve({ status: 200, body: [] });
   fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
-    const next = responses.length > 1 ? responses.shift()! : responses[0];
+    const next = responses.length > 1 ? responses.shift()! : responses[0]!;
     if (next.status === 0) throw new TypeError('Failed to fetch');
     // A request that never answers until it is aborted.
     if (next.status === -1) {
@@ -113,7 +112,7 @@ describe('NoticeBanners', () => {
     );
     expect(container.querySelector('[role="status"]')).not.toBeNull();
     expect(texts()).toEqual(['Notice now']);
-    expect(banners()[0].className).toContain('Notice-warning');
+    expect(banners()[0]!.className).toContain('Notice-warning');
   });
 
   it('renders text as text, never as HTML', async () => {
@@ -123,7 +122,7 @@ describe('NoticeBanners', () => {
     });
     await render();
 
-    const text = banners()[0].querySelector('.NoticeText')!;
+    const text = banners()[0]!.querySelector('.NoticeText')!;
     expect(text.querySelector('img')).toBeNull();
     expect(text.querySelector('a')).toBeNull();
     expect(text.querySelector('strong')?.textContent).toBe('Down');
@@ -143,7 +142,7 @@ describe('NoticeBanners', () => {
     });
     await render();
 
-    const links = [...banners()[0].querySelectorAll('a')].map((anchor) => [
+    const links = [...banners()[0]!.querySelectorAll('a')].map((anchor) => [
       anchor.textContent,
       anchor.getAttribute('href'),
       anchor.getAttribute('target'),
@@ -160,7 +159,7 @@ describe('NoticeBanners', () => {
     await render();
 
     await act(async () => {
-      dismissButton(banners()[0])!.click();
+      dismissButton(banners()[0]!)!.click();
     });
     expect(texts()).toEqual(['Notice b']);
     expect(JSON.parse(localStorage.getItem(DISMISSED_NOTICES_STORAGE_KEY)!)).toEqual(['a']);
@@ -180,10 +179,10 @@ describe('NoticeBanners', () => {
     await render();
 
     await act(async () => {
-      dismissButton(banners()[0])!.click();
+      dismissButton(banners()[0]!)!.click();
     });
     await act(async () => {
-      dismissButton(banners()[0])!.click();
+      dismissButton(banners()[0]!)!.click();
     });
     expect(texts()).toEqual(['Notice c']);
   });
@@ -193,7 +192,7 @@ describe('NoticeBanners', () => {
     await render();
 
     expect(texts()).toEqual(['Notice pinned']);
-    expect(dismissButton(banners()[0])).toBeNull();
+    expect(dismissButton(banners()[0]!)).toBeNull();
   });
 
   it('refreshes every minute and on focus, so a removed notice disappears', async () => {
@@ -288,8 +287,8 @@ describe('NoticeBanners', () => {
     serve({ status: 200, body: [notice('long'), notice('short')] });
     await render();
     const toggle = (index: number) =>
-      banners()[index].querySelector<HTMLButtonElement>('button[aria-expanded]');
-    const text = () => banners()[0].querySelector('.NoticeText')!;
+      banners()[index]!.querySelector<HTMLButtonElement>('button[aria-expanded]');
+    const text = () => banners()[0]!.querySelector('.NoticeText')!;
 
     expect(toggle(0)?.textContent).toBe('Show more');
     expect(toggle(0)?.getAttribute('aria-expanded')).toBe('false');
@@ -319,8 +318,8 @@ describe('NoticeBanners', () => {
     );
 
     const [stack, content] = [...container.children];
-    expect(stack.getAttribute('role')).toBe('status');
-    expect(content.className).toBe('NoticeLayoutContent');
-    expect(content.textContent).toBe('App');
+    expect(stack!.getAttribute('role')).toBe('status');
+    expect(content!.className).toBe('NoticeLayoutContent');
+    expect(content!.textContent).toBe('App');
   });
 });

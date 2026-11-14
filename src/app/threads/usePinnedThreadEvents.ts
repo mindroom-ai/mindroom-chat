@@ -145,8 +145,8 @@ export const usePinnedThreadEvents = (
       });
       return roots.some(
         (root, index) =>
-          root.isRedacted() !== before[index][0] ||
-          root.replacingEvent()?.getId() !== before[index][1]
+          root.isRedacted() !== before[index]![0] ||
+          root.replacingEvent()?.getId() !== before[index]![1]
       );
     };
     const handleEvent = (event: MatrixEvent) => {

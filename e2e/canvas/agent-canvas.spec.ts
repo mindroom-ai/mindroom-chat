@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { createServer } from 'node:http';
+import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { expect, test } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
@@ -11,8 +11,13 @@ import {
 } from '../helpers/disposableAccounts';
 
 test.use({ video: 'off' });
+/** The running test's exfiltration server, closed after it whether it passed or not. */
+let listener: Server | undefined;
 test.afterEach(async ({ context }) => {
   await context.unrouteAll({ behavior: 'ignoreErrors' });
+  const exfiltration = listener;
+  listener = undefined;
+  if (exfiltration) await new Promise((resolve) => exfiltration.close(resolve));
 });
 
 const STEP_ONE = `<p>Which plan?</p>
@@ -113,14 +118,15 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
 
   // Any request reaching this server would be data leaving the canvas sandbox.
   const escapes: string[] = [];
-  const listener = createServer((request, response) => {
+  const exfiltration = createServer((request, response) => {
     escapes.push(request.url ?? '');
     response.end('escaped');
   });
+  listener = exfiltration;
   await new Promise<void>((resolve) => {
-    listener.listen(0, '127.0.0.1', resolve);
+    exfiltration.listen(0, '127.0.0.1', resolve);
   });
-  const exfiltrationOrigin = `http://127.0.0.1:${(listener.address() as AddressInfo).port}`;
+  const exfiltrationOrigin = `http://127.0.0.1:${(exfiltration.address() as AddressInfo).port}`;
   test.info().attach('exfiltration-origin', { body: exfiltrationOrigin });
   // Chat's own origin and reCAPTCHA are allowed frame destinations for Chat, never for a canvas.
   const allowedOriginProbes: string[] = [];
@@ -615,10 +621,6 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
     'm.relates_to': { rel_type: 'm.reference', event_id: sharedId },
   });
   await page.screenshot({ path: testInfo.outputPath('canvas-shared-state.png') });
-
-  await new Promise((resolve) => {
-    listener.close(resolve);
-  });
 });
 
 test("the room header brings back a conversation's canvases: a menu for several, a toggle for one", async ({

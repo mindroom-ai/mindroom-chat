@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next';
-import React from 'react';
 import { Text } from 'folds';
 import { ToolApprovalData } from '../matrix/protocol/toolApproval';
 import { formatApprovalTime, scheduledScopeLabelKey } from './approvalScheduleText';

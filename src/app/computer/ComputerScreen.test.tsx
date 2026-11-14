@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import React, { createRef } from 'react';
+import { createRef } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -320,7 +320,7 @@ describe('ComputerScreen', () => {
       expect(rfb.sendKey).toHaveBeenLastCalledWith(CONTROL_L_KEYSYM, 'ControlLeft', false);
       expect(rfb.disconnect).toHaveBeenCalledOnce();
       expect(vi.mocked(rfb.sendKey).mock.invocationCallOrder.at(-1)).toBeLessThan(
-        vi.mocked(rfb.disconnect).mock.invocationCallOrder[0]
+        vi.mocked(rfb.disconnect).mock.invocationCallOrder[0]!
       );
 
       // Even with the old screen back in the page and focused, nothing is bridged.
@@ -358,7 +358,7 @@ describe('ComputerScreen', () => {
     });
     const firstUrl = 'wss://computer.example.org/api/computers/sessions/session-1/stream';
     renderScreen({ createRfb, mode: 'view', url: firstUrl });
-    const [canvas] = canvases;
+    const canvas = canvases[0]!;
 
     // Watching: the touch is kept from noVNC, as in control, and the touchpad sends nothing.
     expect(touch('touchstart', canvas, 100, 0).defaultPrevented).toBe(true);
@@ -393,8 +393,8 @@ describe('ComputerScreen', () => {
 
     // The new stream has its own touchpad, and the old one is gone.
     expect(createRfb).toHaveBeenCalledTimes(2);
-    expect(canvases[1].isConnected).toBe(true);
-    startTouchDrag(canvases[1], 5000);
+    expect(canvases[1]!.isConnected).toBe(true);
+    startTouchDrag(canvases[1]!, 5000);
     expect(mouse).toHaveBeenCalledTimes(2 * tapThenDrag.length);
 
     act(() => root.unmount());

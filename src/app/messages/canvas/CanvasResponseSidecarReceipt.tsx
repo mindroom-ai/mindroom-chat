@@ -1,4 +1,4 @@
-import React, { type ReactNode, useMemo } from 'react';
+import { type ReactNode, useMemo } from 'react';
 import {
   getLongTextSidecarFacts,
   getLongTextSourceIdentity,

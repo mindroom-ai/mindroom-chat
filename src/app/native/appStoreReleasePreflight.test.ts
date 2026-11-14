@@ -92,11 +92,11 @@ describe('validateScreenshotSet', () => {
 
   it('rejects missing, unexpected, wrong-sized, and duplicate screenshots', async () => {
     const directory = await createScreenshotSet();
-    const [iphone] = APP_STORE_SCREENSHOT_SETS;
-    await rm(join(directory, iphone.filenames[0]));
+    const iphone = APP_STORE_SCREENSHOT_SETS[0]!;
+    await rm(join(directory, iphone.filenames[0]!));
     await writeFile(join(directory, 'unexpected.png'), makePngHeader(100, 100, 200));
-    await writeFile(join(directory, iphone.filenames[1]), makePngHeader(100, 100, 201));
-    await writeFile(join(directory, iphone.filenames[3]), makePngHeader(1320, 2868, 3));
+    await writeFile(join(directory, iphone.filenames[1]!), makePngHeader(100, 100, 201));
+    await writeFile(join(directory, iphone.filenames[3]!), makePngHeader(1320, 2868, 3));
 
     expect(() => validateScreenshotSet(directory)).toThrowError(/Missing screenshots/);
     expect(() => validateScreenshotSet(directory)).toThrowError(/Unexpected screenshots/);

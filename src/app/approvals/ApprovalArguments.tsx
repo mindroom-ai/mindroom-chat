@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Icon, Icons, Text } from 'folds';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { ToolApprovalData } from '../matrix/protocol/toolApproval';

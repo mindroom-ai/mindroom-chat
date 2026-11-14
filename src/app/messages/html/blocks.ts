@@ -187,10 +187,10 @@ const preserveListContainedToolMarkers = (markdown: string): string =>
       .split('\n')
       .map((line) => {
         const listItem = line.match(MARKDOWN_LIST_ITEM_REG);
-        if (!listItem || !listItemCanFlattenToToolRefPrefix(listItem[4])) return line;
+        if (!listItem || !listItemCanFlattenToToolRefPrefix(listItem[4]!)) return line;
 
         return `${listItem[1]}${listItem[2]}${listItem[3]}${escapeMarkdownInlineSequences(
-          unescapeMarkdownInlineSequences(listItem[4])
+          unescapeMarkdownInlineSequences(listItem[4]!)
         )}`;
       })
       .join('\n')
@@ -277,8 +277,8 @@ const wrapTextBesideMarkers = (html: string, afterMarker: boolean, beforeMarker:
   const paragraph = (text: string, wanted: boolean) =>
     wanted && text && !STARTS_WITH_TOOL_ICON_REG.test(text) ? `<p>${text}</p>` : text;
   if (tags.length === 0) return paragraph(html, afterMarker || beforeMarker);
-  const firstTag = tags[0];
-  const lastTag = tags[tags.length - 1];
+  const firstTag = tags[0]!;
+  const lastTag = tags[tags.length - 1]!;
   const start = firstTag.index ?? 0;
   const end = (lastTag.index ?? 0) + lastTag[0].length;
   return (
@@ -322,8 +322,8 @@ const formatMarkdownPreviewSegment = (body: string, allowRichMarkers: boolean): 
     const separator =
       allowRichMarkers &&
       /^(?:-{3,}|\*{3,}|_{3,})[ \t]*$/.test(line) &&
-      (index === 0 || lines[index - 1].trim() === '') &&
-      (index === lines.length - 1 || lines[index + 1].trim() === '');
+      (index === 0 || lines[index - 1]!.trim() === '') &&
+      (index === lines.length - 1 || lines[index + 1]!.trim() === '');
     const markerHtml = separator
       ? '<hr/>'
       : formatStandaloneMarkerAsHtml(line, allowRichMarkers);

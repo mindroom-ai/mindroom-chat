@@ -1,4 +1,3 @@
-import React from 'react';
 import { Box, Icon, Icons, Spinner, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { IconButton } from '../../ui/glass/GlassPrimitives';

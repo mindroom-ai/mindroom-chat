@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   AutoDiscoveryAction,
   autoDiscovery,
+  freshFetch,
   isAllowedHomeserverBaseUrl,
   specVersions,
 } from './cs-api';
@@ -95,6 +96,21 @@ describe('autoDiscovery', () => {
 
     expect(error).toBeUndefined();
     expect(discovery?.['m.homeserver'].base_url).toBe('https://matrix.example.com');
+  });
+});
+
+describe('freshFetch', () => {
+  it('asks past the HTTP cache', async () => {
+    const request = vi.fn(async () => new Response('{}'));
+    vi.stubGlobal('fetch', request);
+
+    await freshFetch('https://matrix.example.com/_matrix/client/versions', { method: 'GET' });
+
+    expect(request).toHaveBeenCalledWith('https://matrix.example.com/_matrix/client/versions', {
+      method: 'GET',
+      cache: 'no-store',
+    });
+    vi.unstubAllGlobals();
   });
 });
 

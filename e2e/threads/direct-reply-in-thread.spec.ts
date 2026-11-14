@@ -1,6 +1,12 @@
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
-import { matrixFetch, sendRoomMessage, setDirectAccountData, joinRoom } from '../helpers/matrix';
+import {
+  matrixFetch,
+  sendRoomMessage,
+  sendStateEvent,
+  setDirectAccountData,
+  joinRoom,
+} from '../helpers/matrix';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -66,10 +72,8 @@ const createDirectChat = async (alice: Account, bob: Account, encrypted: boolean
     });
   }
   if (encrypted) {
-    await matrixFetch(HOMESERVER, `/rooms/${encodeURIComponent(roomId)}/state/m.room.encryption/`, {
-      method: 'PUT',
-      accessToken: alice.accessToken,
-      body: JSON.stringify({ algorithm: 'm.megolm.v1.aes-sha2' }),
+    await sendStateEvent(HOMESERVER, alice.accessToken, roomId, 'm.room.encryption', '', {
+      algorithm: 'm.megolm.v1.aes-sha2',
     });
   }
   return roomId;

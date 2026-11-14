@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { useHref } from 'react-router-dom';
 import { Page, PageContent } from '../ui/page/Page';

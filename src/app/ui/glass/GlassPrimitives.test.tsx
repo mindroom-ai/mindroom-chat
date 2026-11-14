@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React, { createRef } from 'react';
+import { createRef } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';

@@ -428,7 +428,7 @@ export function ThreadApprovalQueue() {
   const waitingText = waiting
     ? waiting.agents.length === 1
       ? t('mindroomUi.messages.threadApprovalControls.agentWaitingForYou', {
-          agent: agentDisplayName(room, waiting.agents[0]),
+          agent: agentDisplayName(room, waiting.agents[0]!),
         })
       : t('mindroomUi.messages.threadApprovalControls.agentsWaitingForYou', {
           count: waiting.agents.length,
@@ -471,7 +471,7 @@ export function ThreadApprovalQueue() {
   const reviewTitle =
     review.agents.length === 1
       ? t('mindroomUi.messages.threadApprovalControls.reviewAgentWants', {
-          agent: agentDisplayName(room, review.agents[0]),
+          agent: agentDisplayName(room, review.agents[0]!),
           count: review.count,
         })
       : review.agents.length > 1
@@ -507,7 +507,7 @@ export function ThreadApprovalQueue() {
         >
           <small className={css.BarStatus} role="status">
             {waiting?.agents.length === 1 ? (
-              <ApprovalAgentAvatar room={room} agentName={waiting.agents[0]} />
+              <ApprovalAgentAvatar room={room} agentName={waiting.agents[0]!} />
             ) : (
               pendingCount > 0 && !awaitingOnly && <Icon src={Icons.Pause} size="50" aria-hidden />
             )}
@@ -559,7 +559,7 @@ export function ThreadApprovalQueue() {
           subtitle={reviewSubtitle || undefined}
           leading={
             review.agents.length === 1 ? (
-              <ApprovalAgentAvatar room={room} agentName={review.agents[0]} size="300" />
+              <ApprovalAgentAvatar room={room} agentName={review.agents[0]!} size="300" />
             ) : undefined
           }
           onClose={() => setSelection(undefined)}
@@ -567,7 +567,7 @@ export function ThreadApprovalQueue() {
         >
           {reviewGroups.map((records) => (
             <ApprovalReviewGroup
-              key={records[0].eventId}
+              key={records[0]!.eventId}
               records={records}
               flat
               showMeta={review.agents.length > 1 || review.requester === null}
@@ -672,7 +672,8 @@ export function ApprovalHistory({ records }: { records: readonly ThreadApprovalR
   const mx = useMatrixClient();
   const room = useApprovalRoom();
   const language = useAppLanguageCode();
-  if (records.length === 0) return null;
+  const [first] = records;
+  if (!first) return null;
   const approved = records.filter((record) => record.approval.status === 'approved').length;
   const summary = describeApprovalHistory(records, mx.getUserId());
   const single =
@@ -691,11 +692,11 @@ export function ApprovalHistory({ records }: { records: readonly ThreadApprovalR
     singleLabel = t(HISTORY_LABEL_KEYS.nobody[single.status], { operation: single.operation });
   }
   const resolvedTs = single
-    ? parseToolApprovalExpiryTimestamp(records[0].approval.resolvedAt ?? '')
+    ? parseToolApprovalExpiryTimestamp(first.approval.resolvedAt ?? '')
     : undefined;
   const detail = single
     ? [
-        summarizeArguments(records[0].approval.arguments),
+        summarizeArguments(first.approval.arguments),
         resolvedTs !== undefined &&
           new Date(resolvedTs).toLocaleTimeString(language, { hour: 'numeric', minute: '2-digit' }),
       ]

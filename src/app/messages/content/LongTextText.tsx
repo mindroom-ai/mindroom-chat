@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import React, { ReactNode, useEffect, useRef, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { Box, Spinner, Text as FText, config } from 'folds';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 

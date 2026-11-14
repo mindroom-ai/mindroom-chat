@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Box, Button, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';

@@ -1,4 +1,4 @@
-import React, { useLayoutEffect } from 'react';
+import { useLayoutEffect } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createClient, MatrixEvent, MemoryStore, Room, RoomStateEvent } from 'matrix-js-sdk';
 import { afterEach, expect, it, vi } from 'vitest';

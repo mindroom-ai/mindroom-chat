@@ -1,4 +1,4 @@
-import React, { ComponentPropsWithoutRef, useEffect, useId, useRef, useState } from 'react';
+import { ComponentPropsWithoutRef, useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import * as css from './ScrollableTable.css';
 

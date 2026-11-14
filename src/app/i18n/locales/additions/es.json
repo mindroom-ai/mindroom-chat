@@ -999,6 +999,30 @@
       "unsuspend": "¿Quitar la suspensión de {{user}}? La cuenta puede volver a enviar mensajes y unirse a salas.",
       "deactivate": "¿Desactivar {{user}}? La cuenta sale de sus salas y no podrá volver a iniciar sesión nunca. Esto no se puede deshacer."
     },
-    "protected": "Los administradores y tu propia cuenta no se pueden cambiar aquí."
+    "protected": "Los administradores y tu propia cuenta no se pueden cambiar aquí.",
+    "accounts": "Cuentas",
+    "invites": {
+      "title": "Invitaciones",
+      "description": "Una dirección de correo invitada puede crear una cuenta aquí al iniciar sesión con ella.",
+      "sendYourself": "No se envía ningún correo: copia la invitación y envíala tú.",
+      "add": "Invitar por correo",
+      "none": "No hay invitaciones pendientes",
+      "loadFailed": "No se pudieron cargar las invitaciones.",
+      "addresses": "Direcciones de correo electrónico",
+      "addressesHint": "Separa varias direcciones con comas o saltos de línea.",
+      "rooms": "Salas en las que entra la cuenta nueva",
+      "external": "Cuenta externa",
+      "invited": "Invitada",
+      "replaces": "Sustituye a la invitación anterior",
+      "copy": "Copiar invitación",
+      "message": "Tienes una invitación a {{url}}. Inicia sesión con {{providers}}, usando exactamente esta dirección de correo: {{email}}",
+      "messagePlain": "Tienes una invitación a {{url}}. Inicia sesión usando exactamente esta dirección de correo: {{email}}",
+      "delete": "Eliminar invitación",
+      "confirmDelete": "¿Eliminar la invitación de {{email}}? Ya no servirá para crear una cuenta.",
+      "errors": {
+        "inUse": "{{user}} ya tiene esta dirección.",
+        "invalidAddress": "No es una dirección de correo válida."
+      }
+    }
   }
 }

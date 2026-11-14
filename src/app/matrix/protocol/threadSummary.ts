@@ -355,8 +355,7 @@ export const buildThreadSummaryMap = (
 ): Map<string, ThreadSummaryInfo> => {
   const summaries = new Map<string, ThreadSummaryInfo>();
 
-  for (let i = 0; i < events.length; i++) {
-    const event = events[i];
+  for (const event of events) {
     const { threadRootId } = event;
     const eventId = event.getId();
     if (!eventId || !threadRootId || eventId === threadRootId) continue;

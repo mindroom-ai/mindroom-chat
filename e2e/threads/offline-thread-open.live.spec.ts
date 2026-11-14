@@ -2,6 +2,7 @@ import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { getHomeserver } from '../env';
 import { readSessionStore } from '../helpers/accounts';
 import { loginWithPassword } from '../helpers/auth';
+import { createRoom } from '../helpers/createRoom';
 import { joinRoom, matrixFetch, seedRoomOverviewState, sendRoomMessage } from '../helpers/matrix';
 
 // A thread the reader opened online opens again offline from the client's caches, in a room
@@ -130,17 +131,10 @@ const createThreadRoom = async (): Promise<ThreadRoom> => {
   const viewer = await register('offline_thread_viewer', 'Thread Reader');
   const helper = await register('offline_thread_helper', 'Thread Writer');
   const run = Date.now().toString(36);
-  const roomId = (
-    await matrixFetch<{ room_id: string }>(homeserver, '/createRoom', {
-      method: 'POST',
-      accessToken: viewer.accessToken,
-      body: JSON.stringify({
-        preset: 'private_chat',
-        name: `Offline thread ${run}`,
-        invite: [helper.userId],
-      }),
-    })
-  ).room_id;
+  const roomId = await createRoom(homeserver, viewer.accessToken, {
+    name: `Offline thread ${run}`,
+    invite: [helper.userId],
+  });
   await joinRoom(homeserver, helper.accessToken, roomId);
   const rootTitle = `Harbor schedule for the week ${run}`;
   const rootId = await sendRoomMessage(homeserver, viewer.accessToken, roomId, {

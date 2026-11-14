@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React, { createRef } from 'react';
+import { createRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -63,7 +63,9 @@ describe('InsetScrollbar', () => {
     );
     trackHeight = 300;
     contentHeight = 1500;
-    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function getHeight() {
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function getHeight(
+      this: HTMLElement
+    ) {
       return this.getAttribute('role') === 'scrollbar' ? trackHeight : 500;
     });
     vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(() => contentHeight);

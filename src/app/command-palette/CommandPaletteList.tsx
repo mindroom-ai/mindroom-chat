@@ -1,5 +1,5 @@
 import { Avatar, Icon, Icons, Spinner, Text, type IconSrc } from 'folds';
-import React, { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { type TFunction } from 'i18next';
 import { UnreadBadge } from '../ui/UnreadBadge';

@@ -18,7 +18,8 @@ export const isPluginHiddenRow = (
   revealedIds?: ReadonlySet<string>
 ): boolean => {
   if (!rowHidden) return false;
-  // A redaction's row follows the timeline's own rule, and an edit or a reaction has none.
+  // A redacted event's row follows the timeline's own rule, and an edit, a reaction or an event of a
+  // type the timeline draws no row for has none.
   if (event.isRedacted() || isRowlessTimelineEvent(event)) return false;
   const eventId = event.getId();
   const sender = event.getSender();

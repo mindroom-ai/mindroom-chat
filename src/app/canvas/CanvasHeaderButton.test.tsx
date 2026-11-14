@@ -65,7 +65,7 @@ const render = (props: Partial<Props> = {}) => {
 };
 
 const trigger = (renderer: ReactTestRenderer) =>
-  renderer.root.findAll((node) => node.type === 'button' && node.props['aria-label'])[0];
+  renderer.root.findAll((node) => node.type === 'button' && node.props['aria-label'])[0]!;
 
 const menuItems = (renderer: ReactTestRenderer) =>
   renderer.root.findAll((node) => node.type === 'button' && !node.props['aria-label']);
@@ -75,7 +75,7 @@ const nodeText = (node: ReactTestInstance): string =>
 
 /** The menu's titles in order: each item's first text is the title, the second its update time. */
 const titles = (renderer: ReactTestRenderer) =>
-  menuItems(renderer).map((item) => nodeText(item.findAllByType(Text)[0]));
+  menuItems(renderer).map((item) => nodeText(item.findAllByType(Text)[0]!));
 
 const openMenu = (renderer: ReactTestRenderer) =>
   act(() => trigger(renderer).props.onClick(anchorEvent));
@@ -118,7 +118,7 @@ describe('CanvasHeaderButton', () => {
     expect(items.map((item) => item.props['aria-current'])).toEqual([undefined, 'true', undefined]);
     // The update time is there for telling same-named canvases apart.
     const time = new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' });
-    expect(nodeText(items[0])).toBe(`Budget${time.format(3_000)}`);
+    expect(nodeText(items[0]!)).toBe(`Budget${time.format(3_000)}`);
   });
 
   it('keeps a long menu inside the viewport and scrolls its choices', () => {
@@ -148,7 +148,7 @@ describe('CanvasHeaderButton', () => {
     });
 
     openMenu(renderer);
-    act(() => menuItems(renderer)[1].props.onClick());
+    act(() => menuItems(renderer)[1]!.props.onClick());
 
     expect(onOpen).toHaveBeenCalledOnce();
     expect(onOpen).toHaveBeenCalledWith('$c2');
@@ -163,7 +163,7 @@ describe('CanvasHeaderButton', () => {
     });
 
     openMenu(renderer);
-    act(() => menuItems(renderer)[0].props.onClick());
+    act(() => menuItems(renderer)[0]!.props.onClick());
 
     expect(onClose).toHaveBeenCalledOnce();
     expect(onOpen).not.toHaveBeenCalled();

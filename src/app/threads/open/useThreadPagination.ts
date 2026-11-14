@@ -110,7 +110,7 @@ export const useThreadPagination = (session: ThreadSessionCommands, route: Threa
               mx.paginateEventTimeline(first, { backwards: true, limit: THREAD_BATCH_SIZE })
             );
             if (networkError) break;
-            first = getLinkedTimelines(thread.getUnfilteredTimelineSet().getLiveTimeline())[0];
+            first = getLinkedTimelines(thread.getUnfilteredTimelineSet().getLiveTimeline())[0]!;
             // Accepted SDK work remains durable even if navigation changed ownership.
             persistThreadEventCache(
               lease.threadId,

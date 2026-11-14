@@ -156,14 +156,14 @@ const replaceToolMarkerLines = (
 ): string => {
   const output: string[] = [];
   let separateNextBlock = false;
-  const lastLineIsBlank = () => output.length === 0 || output[output.length - 1].trim() === '';
+  const lastLineIsBlank = () => output.length === 0 || output[output.length - 1]!.trim() === '';
 
   lines.forEach((line, index) => {
     const toolRef = toolRefs[index];
     if (toolRef) {
       // The backend pads markers with blank lines on top of the reply's own, so
       // the gap before a marker can be several blank lines wide.
-      while (output.length > 0 && output[output.length - 1].trim() === '') output.pop();
+      while (output.length > 0 && output[output.length - 1]!.trim() === '') output.pop();
       const replacement = visit(toolRef);
       if (replacement.length > 0) {
         if (!lastLineIsBlank()) output.push('');
@@ -182,8 +182,8 @@ const replaceToolMarkerLines = (
     output.push(line);
   });
 
-  while (output.length > 0 && output[0].trim() === '') output.shift();
-  while (output.length > 0 && output[output.length - 1].trim() === '') output.pop();
+  while (output[0]?.trim() === '') output.shift();
+  while (output.at(-1)?.trim() === '') output.pop();
   return output.join('\n');
 };
 
@@ -194,8 +194,8 @@ const stripToolMarkerLines = (scan: ToolMarkerScan): string =>
 const asTraceCodeText = (value: unknown): string | undefined => {
   if (typeof value !== 'string' || value.trim() === '') return undefined;
   const lines = splitLines(value);
-  while (lines[0].trim() === '') lines.shift();
-  while (lines[lines.length - 1].trim() === '') lines.pop();
+  while (lines[0]!.trim() === '') lines.shift();
+  while (lines[lines.length - 1]!.trim() === '') lines.pop();
   return lines.map((line) => line.trimEnd()).join('\n');
 };
 

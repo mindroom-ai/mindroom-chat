@@ -76,8 +76,8 @@ describe('saveFile', () => {
     await saveFile(new Blob(['first']), 'first.txt');
     await saveFile(new Blob(['second']), 'second.txt');
 
-    const firstPageId = nativePlugin.beginSave.mock.calls[0][0].pageId;
-    const secondPageId = nativePlugin.beginSave.mock.calls[1][0].pageId;
+    const firstPageId = nativePlugin.beginSave.mock.calls[0]![0].pageId;
+    const secondPageId = nativePlugin.beginSave.mock.calls[1]![0].pageId;
     expect(firstPageId).toMatch(/^[0-9a-f]{32}$/);
     expect(secondPageId).toBe(firstPageId);
 
@@ -85,7 +85,7 @@ describe('saveFile', () => {
     const { saveFile: saveFileAfterReload } = await import('./nativeFileSave');
     await saveFileAfterReload(new Blob(['third']), 'third.txt');
 
-    expect(nativePlugin.beginSave.mock.calls[2][0].pageId).not.toBe(firstPageId);
+    expect(nativePlugin.beginSave.mock.calls[2]![0].pageId).not.toBe(firstPageId);
   });
 
   it('reports cancellation without treating it as a failed download', async () => {
@@ -141,10 +141,10 @@ describe('saveFile', () => {
     });
     expect(uploadedBytes).toEqual(bytes);
     expect(nativePlugin.beginSave.mock.invocationCallOrder[0]).toBeLessThan(
-      nativePlugin.appendSave.mock.invocationCallOrder[0]
+      nativePlugin.appendSave.mock.invocationCallOrder[0]!
     );
     expect(nativePlugin.appendSave.mock.invocationCallOrder[1]).toBeLessThan(
-      nativePlugin.presentSave.mock.invocationCallOrder[0]
+      nativePlugin.presentSave.mock.invocationCallOrder[0]!
     );
   });
 

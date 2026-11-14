@@ -30,10 +30,10 @@ const mapPreviewLines = (
     if (fence) {
       if (
         match &&
-        match[1][0] === fence[0] &&
+        match[1]![0] === fence[0] &&
         // Backticks mirror CodeBlockRule's exact-length closing grammar;
         // tilde fences remain a conservative preview-only boundary.
-        (fence[0] === '`' ? match[1] === fence : match[1].length >= fence.length)
+        (fence[0] === '`' ? match[1] === fence : match[1]!.length >= fence.length)
       ) {
         fence = undefined;
         return mapLine(line, 'fence');

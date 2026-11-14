@@ -157,9 +157,9 @@ export function createTouchpadRecognizer(): TouchpadRecognizer {
     switch (current.kind) {
       case 'idle': {
         if (points.length === 1) {
-          beginOneFinger(points[0], time);
+          beginOneFinger(points[0]!, time);
         } else if (points.length === 2) {
-          beginTwoFingers(points[0], points[0], points[1], time);
+          beginTwoFingers(points[0]!, points[0]!, points[1]!, time);
         } else {
           lastTap = null;
           state = IGNORED;

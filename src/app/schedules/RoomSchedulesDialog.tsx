@@ -1,4 +1,4 @@
-import React, { forwardRef, useEffect, useId, useMemo, useState } from 'react';
+import { forwardRef, useEffect, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Box, Button, Icon, IconButton, Icons, Text } from 'folds';
 import { PageScroll } from '../ui/page/PageScroll';

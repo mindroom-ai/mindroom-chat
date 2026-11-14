@@ -62,7 +62,8 @@ src/
     plugins/             client plugins the build lists: the registry, their config.json sections, message
                          renderers, side panels, pages (see client-plugins.md)
     server-admin/        the homeserver's local accounts, for its administrators: the list, an account's state and
-                         rooms, lock, suspend and deactivate (Settings, Server accounts)
+                         rooms, lock, suspend and deactivate, and the invites that let an email address create
+                         an account (Settings, Server accounts)
     computer/            the worker computer panel, screen, touchpad, clipboard, API, settings, agent servers
     emoji/               emoji data, recent emoji, skin tone; board/, custom/ packs, packs/ editor, server/, settings/
     editor/              the Slate editor of the composer and of message editing; autocomplete/
@@ -188,7 +189,7 @@ A plugin imports the app only through the client SDK (`src/client-sdk/`, `@mindr
 Every file belongs to one of two lanes. [`docs/provenance.md`](provenance.md) records how each came to be, and [`AGENTS.md`](../AGENTS.md) holds the rules for editing them.
 
 - **Lane P (ported).** Files written by Bas Nijholt for the earlier MindRoom client and licensed under Apache-2.0 for this project. They are listed at the paths they were imported at in `docs/provenance/portable.tsv` (code), `portable-wave2.tsv` (other text files: native shells, locales, scripts) and `portable-wave3.tsv` (binary assets); `dropped.tsv` lists the ones deleted during the rewrite.
-- **Lane C (clean).** Everything else, written new for this repository: the app shell, client setup and sync, room list, timeline, composer editor, settings, sign-in pages, and the seams. Lane C must pass `just strict` and the type-aware ESLint rules of `just lint`.
+- **Lane C (clean).** Everything else, written new for this repository: the app shell, client setup and sync, room list, timeline, composer editor, settings, sign-in pages, and the seams. Lane C must pass `just strict`, tests and `e2e/` included, and the type-aware ESLint rules of `just lint`. The app sources of both lanes compile with the same strict flags in `just typecheck`.
 - **Seams.** Modules that Lane P files import but that were not ported, with an implementation of their own. `docs/provenance/seams.tsv` lists each one's import-time path and the names Lane P imported from it, and `seams-dropped.tsv` the ones deleted or merged during the rewrite. A seam may move, be renamed or be merged like other Lane C code; the Lane P imports of it are re-pointed with it. When a Lane P test and a seam disagree, the seam changes.
 
 `docs/provenance/moves.tsv` (old path, new path, batch) maps the files moved during the rewrite to their paths then, and `scripts/provenance-paths.cjs` folds it for the tools that sort files by lane (`strict-check.mjs`, the ESLint config, `similarity-audit.sh`, `check_holes.py`). These records are no longer kept up to date, so a Lane P file moved after the rewrite is Lane C to these tools: `just strict` and `just lint` hold it to Lane C's rules. To see which lane the tools give a file:

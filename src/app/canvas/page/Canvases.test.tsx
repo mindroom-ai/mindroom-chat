@@ -144,7 +144,7 @@ const render = async () => {
 
 const titles = () =>
   [...container.querySelectorAll('tbody tr')].map(
-    (row) => row.querySelectorAll('td')[1].querySelector('button')?.textContent
+    (row) => row.querySelectorAll('td')[1]!.querySelector('button')?.textContent
   );
 
 beforeEach(() => {
@@ -224,24 +224,24 @@ describe('Canvases', () => {
     const row = (title: string) =>
       [...container.querySelectorAll('tbody tr')].find((tr) => tr.textContent?.includes(title))!;
     act(() =>
-      (row('Plans').querySelectorAll('td')[1].querySelector('button') as HTMLElement).click()
+      (row('Plans').querySelectorAll('td')[1]!.querySelector('button') as HTMLElement).click()
     );
     expect(mocks.requestOpen).toHaveBeenCalledWith('!room:example.org', '$canvas');
     expect(mocks.navigateRoomThread).toHaveBeenCalledWith('!room:example.org', '$thread');
     act(() =>
-      (row('Plans').querySelectorAll('td')[2].querySelector('button') as HTMLElement).click()
+      (row('Plans').querySelectorAll('td')[2]!.querySelector('button') as HTMLElement).click()
     );
     expect(mocks.requestOpen).toHaveBeenCalledTimes(1);
     expect(mocks.cancelOpen).toHaveBeenCalledTimes(2);
     expect(mocks.navigateRoomThread).toHaveBeenCalledTimes(2);
     expect(mocks.navigateRoomThread).toHaveBeenLastCalledWith('!room:example.org', '$thread');
     act(() =>
-      (row('Plans').querySelectorAll('td')[3].querySelector('button') as HTMLElement).click()
+      (row('Plans').querySelectorAll('td')[3]!.querySelector('button') as HTMLElement).click()
     );
     expect(mocks.cancelOpen).toHaveBeenCalledTimes(3);
     expect(mocks.navigateRoom).toHaveBeenCalledWith('!room:example.org');
     act(() =>
-      (row('Main').querySelectorAll('td')[1].querySelector('button') as HTMLElement).click()
+      (row('Main').querySelectorAll('td')[1]!.querySelector('button') as HTMLElement).click()
     );
     expect(mocks.requestOpen).toHaveBeenLastCalledWith('!room:example.org', '$main');
     expect(mocks.navigateRoom).toHaveBeenCalledTimes(2);
@@ -297,7 +297,7 @@ describe('Canvases', () => {
     };
     await render();
     expect(mocks.load).toHaveBeenCalledTimes(1);
-    expect(mocks.load.mock.calls[0][2]).toBe('$elsewhere');
+    expect(mocks.load.mock.calls[0]![2]).toBe('$elsewhere');
     expect(mocks.recordEvent).toHaveBeenCalledWith(expect.anything(), fetched);
     await act(async () => recordCanvas(SESSION, entry({ canvasId: '$other-change' })));
     await act(async () => {

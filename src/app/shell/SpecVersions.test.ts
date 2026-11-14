@@ -1,8 +1,10 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearAllCacheAndReload } from '../account/lifecycle/initMatrix';
-import { removeSessionAndReload } from '../account/lifecycle/sessionLifecycle';
+import {
+  clearAllCacheAndReload,
+  removeSessionAndReload,
+} from '../account/lifecycle/sessionLifecycle';
 import { SpecVersions } from './SpecVersions';
 import { useActiveSession } from '../matrix/session/useSessionStore';
 import { specVersions } from '../matrix/cs-api';
@@ -88,10 +90,8 @@ vi.mock('../matrix/cs-api', () => ({
   specVersions: vi.fn(),
 }));
 
-vi.mock('../account/lifecycle/initMatrix', () => ({
-  clearAllCacheAndReload: vi.fn(() => Promise.resolve()),
-}));
 vi.mock('../account/lifecycle/sessionLifecycle', () => ({
+  clearAllCacheAndReload: vi.fn(() => Promise.resolve()),
   removeSessionAndReload: vi.fn(() => Promise.resolve()),
 }));
 

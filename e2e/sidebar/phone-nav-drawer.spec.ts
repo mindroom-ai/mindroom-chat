@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page, type TestInfo } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
+import { createRoom } from '../helpers/createRoom';
 import {
   addRoomToSpace,
   createPrivateRoom,
@@ -615,10 +616,9 @@ test('chromium: a short room link opens the room with the drawer away', async ({
         auth: { type: 'm.login.dummy' },
       }),
     });
-    const { room_id: open } = await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
-      method: 'POST',
-      accessToken: owner.access_token,
-      body: JSON.stringify({ preset: 'public_chat', name: 'Open Workshop' }),
+    const open = await createRoom(HOMESERVER, owner.access_token, {
+      name: 'Open Workshop',
+      preset: 'public_chat',
     });
     await page.goto(`/${encodeURIComponent(open)}/`);
     await expect(page.getByRole('button', { name: 'Join', exact: true })).toBeVisible({

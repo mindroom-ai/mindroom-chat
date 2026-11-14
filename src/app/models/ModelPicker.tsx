@@ -3,7 +3,7 @@ import { Scroll, Spinner, config, toRem } from 'folds';
 import { PopOut } from '../ui/directional';
 import { Room } from 'matrix-js-sdk';
 import { IconCheck, IconRotateClockwise, IconSearch } from '@tabler/icons-react';
-import React, {
+import {
   ChangeEventHandler,
   KeyboardEventHandler,
   useEffect,

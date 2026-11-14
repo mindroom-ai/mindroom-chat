@@ -34,10 +34,8 @@ vi.mock('../ui/splash/BrandedSplashScreen', () => ({
     React.createElement('div', null, children),
 }));
 
-vi.mock('../account/lifecycle/initMatrix', () => ({
-  clearAllCacheAndReload: vi.fn(() => Promise.resolve()),
-}));
 vi.mock('../account/lifecycle/sessionLifecycle', () => ({
+  clearAllCacheAndReload: vi.fn(() => Promise.resolve()),
   removeSessionAndReload: vi.fn(() => Promise.resolve()),
 }));
 

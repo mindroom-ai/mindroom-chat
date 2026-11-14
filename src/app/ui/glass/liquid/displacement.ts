@@ -32,7 +32,7 @@ export const createDisplacementMap = (
     const incident = Math.atan(slope);
     const refracted = Math.asin(Math.sin(incident) / 1.5);
     profile[index] = Math.tan(incident - refracted) * thickness * (height + 0.15);
-    maximum = Math.max(maximum, profile[index]);
+    maximum = Math.max(maximum, profile[index]!);
   }
 
   // SVG samples at position + scale * (channel - 0.5), hence twice the
@@ -51,7 +51,7 @@ export const createDisplacementMap = (
       let dx = 0;
       let dy = 0;
       if (distance >= 0 && distance < bezel && maximum > 0) {
-        const magnitude = profile[Math.min(127, Math.round((distance / bezel) * 127))];
+        const magnitude = profile[Math.min(127, Math.round((distance / bezel) * 127))]!;
         const normalX = outerLength > 0 ? outerX / outerLength : Number(qx > qy);
         const normalY = outerLength > 0 ? outerY / outerLength : Number(qy >= qx);
         dx = -Math.sign(px) * normalX * magnitude;

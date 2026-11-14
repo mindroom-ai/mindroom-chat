@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next';
-import React from 'react';
 import classNames from 'classnames';
 import { Avatar, Icon, Icons, IconSrc, Text } from 'folds';
 import { ToolApprovalData, ToolApprovalDuration } from '../matrix/protocol/toolApproval';

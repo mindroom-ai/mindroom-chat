@@ -91,7 +91,7 @@ export const deriveTimelineMinimapItems = (
   for (let index = 0; index < events.length; index += 1) {
     if (kinds[index] !== 'user') continue;
 
-    const mEvent = events[index];
+    const mEvent = events[index]!;
     const eventId = mEvent.getId();
     if (!eventId) continue;
 
@@ -99,7 +99,7 @@ export const deriveTimelineMinimapItems = (
     for (let cursor = index + 1; cursor < events.length; cursor += 1) {
       if (kinds[cursor] === 'user' || kinds[cursor] === 'redactedUser') break;
       if (kinds[cursor] === 'agent') {
-        agentText = resolveMinimapPreviewText(events[cursor], t) ?? agentText;
+        agentText = resolveMinimapPreviewText(events[cursor]!, t) ?? agentText;
       }
     }
 

@@ -4,6 +4,7 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
   createDefaultThreadFilterState,
+  joinRoom,
   loginToMatrix,
   matrixFetch,
   seedRoomOverviewState,
@@ -48,11 +49,7 @@ const checkPhone = async (browser: Browser, engine: string, baseURL?: string) =>
     name: 'Harbor planning',
     invite: [writer.userId],
   });
-  await matrixFetch(HOMESERVER, `/join/${encodeURIComponent(roomId)}`, {
-    method: 'POST',
-    accessToken: writer.accessToken,
-    body: '{}',
-  });
+  await joinRoom(HOMESERVER, writer.accessToken, roomId);
   let targetId = '';
   for (let i = 0; i < 5; i += 1) {
     // Alternating senders keep adjacent sender rows visible, even when messages are grouped.

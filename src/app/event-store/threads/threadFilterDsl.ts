@@ -50,9 +50,9 @@ export const parseThreadFilterQuery = (text: string): ParsedThreadFilterQuery =>
   let statusMode: 'and' | 'or' = 'and';
 
   for (let i = 0; i < tokens.length; ) {
-    if (i + 1 < tokens.length && isOrToken(tokens[i + 1])) {
+    if (i + 1 < tokens.length && isOrToken(tokens[i + 1]!)) {
       let end = i;
-      while (end + 2 < tokens.length && isOrToken(tokens[end + 1])) end += 2;
+      while (end + 2 < tokens.length && isOrToken(tokens[end + 1]!)) end += 2;
       if (end === i) end = Math.min(i + 1, tokens.length - 1);
       const run = tokens.slice(i, end + 1);
       const atoms = run.filter((_, index) => index % 2 === 0).map(parseAtom);
@@ -73,11 +73,12 @@ export const parseThreadFilterQuery = (text: string): ParsedThreadFilterQuery =>
       continue;
     }
 
-    const atom = parseAtom(tokens[i]);
+    const token = tokens[i]!;
+    const atom = parseAtom(token);
     if (atom?.kind === 'status') status[atom.key] = atom.state;
     else if (atom?.kind === 'tag') tags.set(atom.key, atom.state);
-    else if (isOrToken(tokens[i]) || looksLikeDslToken(tokens[i])) unsupported.push(tokens[i]);
-    else freeText.push(tokens[i]);
+    else if (isOrToken(token) || looksLikeDslToken(token)) unsupported.push(token);
+    else freeText.push(token);
     i += 1;
   }
 
