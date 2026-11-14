@@ -1479,7 +1479,10 @@ describe('useVoiceRecorder', () => {
       replacementStart = await recorderState.current?.start();
     });
     const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('initial failure'));
-    const { renderer } = await renderHarness({ onSendRecording, onSendStopFailure });
+    const { renderer } = await renderHarness({
+      onSendRecording,
+      onSendStopFailure: () => void onSendStopFailure(),
+    });
 
     await act(async () => {
       await recorderState.current?.start();

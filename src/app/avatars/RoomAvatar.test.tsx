@@ -25,10 +25,10 @@ describe('RoomAvatar', () => {
   const renderAvatar = (src: string) =>
     act(() => root.render(<RoomAvatar roomId="!room:test" src={src} renderFallback={() => 'R'} />));
 
-  it('loads a new src after the previous one failed', () => {
+  it('loads a new src after the previous one failed', async () => {
     // Media URLs switch from legacy to authenticated once the service worker takes control.
     renderAvatar('https://hs.test/_matrix/media/v3/thumbnail/hs.test/a');
-    act(() => container.querySelector('img')?.dispatchEvent(new Event('error')));
+    await act(() => container.querySelector('img')?.dispatchEvent(new Event('error')));
     expect(container.querySelector('img')).toBeNull();
 
     renderAvatar('https://hs.test/_matrix/client/v1/media/thumbnail/hs.test/a');

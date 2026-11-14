@@ -65,13 +65,13 @@ const renderBoard = () => {
 };
 
 /** A click on a board item, as the item list hands it on to the board. */
-const clickItem = (attributes: Record<string, string>) => {
+const clickItem = async (attributes: Record<string, string>) => {
   const button = {
     matches: (selector: string) => selector === 'button',
     getAttribute: (name: string) => attributes[name] ?? null,
   };
   const list = renderer!.root.findAll((node) => typeof node.props.onMouseMove === 'function')[0]!;
-  act(() =>
+  await act(() =>
     list.props.onClick({
       nativeEvent: { composedPath: () => [button] },
       altKey: false,
@@ -80,10 +80,10 @@ const clickItem = (attributes: Record<string, string>) => {
   );
 };
 
-it('records a picked custom emoji among the recent ones by its mxc URL', () => {
+it('records a picked custom emoji among the recent ones by its mxc URL', async () => {
   const onCustomEmojiSelect = renderBoard();
 
-  clickItem({
+  await clickItem({
     title: 'party-parrot',
     'data-emoji-type': 'customEmoji',
     'data-emoji-data': 'mxc://example.org/parrot',
@@ -94,12 +94,12 @@ it('records a picked custom emoji among the recent ones by its mxc URL', () => {
   expect(recentEmoji.addRecentEmoji).toHaveBeenCalledWith(mx, 'mxc://example.org/parrot');
 });
 
-it('records an emoji added from the board among the recent ones', () => {
+it('records an emoji added from the board among the recent ones', async () => {
   const onCustomEmojiSelect = renderBoard();
   const addButton = renderer!.root.find(
     (node) => node.type === 'button' && node.props['aria-label'] === 'Add custom emoji'
   );
-  act(() => addButton.props.onClick());
+  await act(() => addButton.props.onClick());
 
   act(() => addForm.onAdd!('mxc://example.org/new', 'parrot'));
 

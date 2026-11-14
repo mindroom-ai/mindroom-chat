@@ -167,7 +167,7 @@ it('removes individual actions while the submitted call awaits its Matrix decisi
   expect(renderer.root.findAllByType('button')).toHaveLength(0);
   expect(JSON.stringify(renderer.toJSON())).toContain('Submitted');
 });
-it('offers exact and any-arguments approval for a scheduled call', () => {
+it('offers exact and any-arguments approval for a scheduled call', async () => {
   const scheduled: ThreadApprovalRecord = {
     ...record('$scheduled'),
     approval: parseToolApprovalContent('io.mindroom.tool_approval', {
@@ -208,8 +208,8 @@ it('offers exact and any-arguments approval for a scheduled call', () => {
     'Deny',
     'Approve any arguments',
   ]);
-  act(() => buttons[0]!.props.onClick());
-  act(() => buttons[2]!.props.onClick());
+  await act(() => buttons[0]!.props.onClick());
+  await act(() => buttons[2]!.props.onClick());
   expect(mocks.submit.mock.calls).toEqual([
     [scheduled, { status: 'approved', scheduledScope: 'exact_arguments' }],
     [scheduled, { status: 'approved', scheduledScope: 'any_arguments' }],

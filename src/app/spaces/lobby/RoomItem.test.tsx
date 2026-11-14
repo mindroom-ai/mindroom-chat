@@ -143,7 +143,7 @@ describe('RoomItemCard room access', () => {
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
   });
 
-  it('treats an omitted child-room hierarchy rule as public', () => {
+  it('treats an omitted child-room hierarchy rule as public', async () => {
     const renderer = create(<></>);
     act(() => {
       renderer.update(
@@ -163,7 +163,7 @@ describe('RoomItemCard room access', () => {
       .findAllByType('button')
       .find((button) => button.findAll((node) => node.children.includes('Join')).length > 0);
 
-    act(() => joinButton?.props.onClick());
+    await act(() => joinButton?.props.onClick());
 
     expect(joinButton).toBeDefined();
     expect(mx.joinRoom).toHaveBeenCalledWith(roomId, { viaServers: item.content.via });
@@ -260,7 +260,7 @@ describe('RoomItemCard opening a joined room', () => {
   const openRoomButtons = (renderer: ReturnType<typeof create>) =>
     renderer.root.findAll((node) => node.children.includes('Open Room'));
 
-  it('opens on a phone by a tap anywhere on the card, or by its name button', () => {
+  it('opens on a phone by a tap anywhere on the card, or by its name button', async () => {
     const onOpen = vi.fn();
     const renderer = joinedCard(ScreenSize.Mobile, onOpen);
     expect(openRoomButtons(renderer)).toHaveLength(0);
@@ -278,9 +278,11 @@ describe('RoomItemCard opening a joined room', () => {
         })
       );
     // The card's topic, then the name's button, then the card's menu button.
-    click(null);
-    click({ hasAttribute: (name: string) => name === 'data-card-opener' } as unknown as Element);
-    click({ hasAttribute: () => false } as unknown as Element);
+    await click(null);
+    await click({
+      hasAttribute: (name: string) => name === 'data-card-opener',
+    } as unknown as Element);
+    await click({ hasAttribute: () => false } as unknown as Element);
     expect(onOpen).toHaveBeenCalledTimes(2);
     expect(onOpen).toHaveBeenCalledWith(roomId);
   });

@@ -24,7 +24,7 @@ client.sendReceipt = async () => {
   window.dispatchEvent(new Event('fixture-receipt'));
   return {};
 };
-room.addLiveEvents(
+void room.addLiveEvents(
   [
     new MatrixEvent({
       type: 'm.room.message',

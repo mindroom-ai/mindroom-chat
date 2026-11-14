@@ -24,35 +24,6 @@ function typeScriptFiles() {
   );
 }
 
-// Files written before the promise rules, which do not pass them yet. Fix a file's floating and
-// misused promises, then drop it from this list; add no file to it.
-const PROMISE_RULES_PENDING = [
-  'e2e/canvas/agent-canvas.spec.ts',
-  'e2e/event-store/gap-fill-restart.live.spec.ts',
-  'e2e/fixtures/compact-thread-cards.tsx',
-  'e2e/fixtures/room-schedules.tsx',
-  'src/app/approvals/ApprovalReviewCall.test.tsx',
-  'src/app/avatars/RoomAvatar.test.tsx',
-  'src/app/avatars/UserAvatar.test.tsx',
-  'src/app/background-jobs/BackgroundJobsBar.test.tsx',
-  'src/app/canvas/CanvasHeaderButton.test.tsx',
-  'src/app/composer/useRoomInputAttachments.test.ts',
-  'src/app/composer/voice/useVoiceRecorder.test.ts',
-  'src/app/config/ClientConfigLoader.test.ts',
-  'src/app/emoji/board/EmojiBoard.test.tsx',
-  'src/app/emoji/board/components/AddCustomEmoji.test.tsx',
-  'src/app/emoji/settings/ServerPack.test.tsx',
-  'src/app/matrix/matrix.test.ts',
-  'src/app/members/useMembersDrawer.test.tsx',
-  'src/app/models/ModelPicker.test.tsx',
-  'src/app/notifications/MarkRoomReadMenuItem.test.ts',
-  'src/app/notifications/MarkRoomsReadMenuItem.test.ts',
-  'src/app/rich-text/MessageLink.test.tsx',
-  'src/app/spaces/lobby/RoomItem.test.tsx',
-  'src/app/spaces/lobby/SpaceItem.test.tsx',
-  'src/app/ui-actions/ChatUiActionProvider.test.tsx',
-];
-
 // Menus, dialogs, modals and headers come from the glass primitives, which give every surface
 // the same material; only the adapter itself may use the raw folds components.
 const GLASS_SURFACE_MESSAGE =
@@ -195,14 +166,6 @@ module.exports = {
       files: typeScriptFiles(),
       parserOptions: { project: './config/tsconfig.strict.json', tsconfigRootDir: __dirname },
       rules: TYPE_AWARE_RULES,
-    },
-    {
-      // PROMISE_RULES_PENDING above.
-      files: PROMISE_RULES_PENDING,
-      rules: {
-        '@typescript-eslint/no-floating-promises': 'off',
-        '@typescript-eslint/no-misused-promises': 'off',
-      },
     },
     // Physical sides in styles (scripts/eslint-shared.cjs).
     ...logicalSidesOverrides('src/', TESTS),

@@ -324,7 +324,7 @@ describe('attachment staging ownership', () => {
     expect(holder.feature.access.snapshot().enrolled).toEqual([]);
   });
 
-  it('keeps a file a send claimed as the board changes it', () => {
+  it('keeps a file a send claimed as the board changes it', async () => {
     const harness = renderHarness();
     const { access } = harness.feature;
     const item = createUploadItem('photo.png');
@@ -333,7 +333,7 @@ describe('attachment staging ownership', () => {
       access.enroll([item]);
     });
     const card = harness.renderer.root.findByType(UploadCardRenderer);
-    act(() => card.props.setMetadata(item, { markedAsSpoiler: true }));
+    await act(() => card.props.setMetadata(item, { markedAsSpoiler: true }));
     expect(access.snapshot().enrolled.map((entry) => entry.metadata)).toEqual([
       { markedAsSpoiler: true },
     ]);

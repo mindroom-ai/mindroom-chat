@@ -6,7 +6,7 @@ MindRoom Chat (`mindroom-ai/mindroom-chat`) is an Apache-2.0 web client for Mind
 
 - **No copyleft code.** Never copy code from GPL or AGPL projects, which most other Matrix clients are. The MindRoom backend (`/home/basnijholt/Work/dev/mindroom/`, Apache-2.0) defines the event formats the client reads (`docs/architecture.md` "MindRoom event formats").
 - **Strict flags.** Every file, tests and `e2e/` included, compiles with the flags of `config/tsconfig.strict.json`; `just strict` and CI's "Strict check" step fail on any error. `just typecheck` and CI's "Type check" step compile the app sources on their own (`config/tsconfig.app.json`: `src/` without tests) with the same flags.
-- **Type-aware lint.** Every TypeScript file, tests and `e2e/` included, passes the type-aware ESLint rules of `just lint`. The files of `PROMISE_RULES_PENDING` in `.eslintrc.cjs` skip the two promise rules until they are fixed; no file joins that list.
+- **Type-aware lint.** Every TypeScript file, tests and `e2e/` included, passes the type-aware ESLint rules of `just lint`.
 - **Placement and layers.** A file goes where `docs/architecture.md` "Placement and naming" puts it: one folder per domain under `src/app/`, tests beside their subject, no barrel files. A domain imports only domains in a lower layer (`docs/architecture.md` "Layers"); type-only and dynamic imports count, tests are exempt, and `just lint` fails on an import that climbs. A new domain needs a place in `LAYERS` in `.eslintrc.cjs`.
 
 ## Licenses and product

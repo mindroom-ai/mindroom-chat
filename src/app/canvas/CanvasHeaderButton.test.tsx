@@ -85,12 +85,12 @@ describe('CanvasHeaderButton', () => {
     expect(render({ canvases: [] }).renderer.toJSON()).toBeNull();
   });
 
-  it('toggles a single canvas', () => {
+  it('toggles a single canvas', async () => {
     const { renderer, onOpen, onClose, update } = render({ canvases: [budget] });
 
     expect(trigger(renderer).props['aria-label']).toBe('Show Canvas');
     expect(trigger(renderer).props['aria-pressed']).toBe(false);
-    act(() => trigger(renderer).props.onClick(anchorEvent));
+    await act(() => trigger(renderer).props.onClick(anchorEvent));
     expect(onOpen).toHaveBeenCalledOnce();
     expect(onOpen).toHaveBeenCalledWith('$c1');
     expect(onClose).not.toHaveBeenCalled();
@@ -99,19 +99,19 @@ describe('CanvasHeaderButton', () => {
     update({ openCanvasId: '$c1' });
     expect(trigger(renderer).props['aria-label']).toBe('Hide Canvas');
     expect(trigger(renderer).props['aria-pressed']).toBe(true);
-    act(() => trigger(renderer).props.onClick(anchorEvent));
+    await act(() => trigger(renderer).props.onClick(anchorEvent));
     expect(onClose).toHaveBeenCalledOnce();
     expect(onOpen).toHaveBeenCalledOnce();
   });
 
-  it('lists several canvases in the given order and marks the open one', () => {
+  it('lists several canvases in the given order and marks the open one', async () => {
     const { renderer } = render({ canvases: [budget, roadmap, survey], openCanvasId: '$c2' });
 
     expect(trigger(renderer).props['aria-label']).toBe('Canvases');
     expect(trigger(renderer).props['aria-pressed']).toBe(true);
     expect(menuItems(renderer)).toHaveLength(0);
 
-    openMenu(renderer);
+    await openMenu(renderer);
     const items = menuItems(renderer);
     expect(items).toHaveLength(3);
     expect(titles(renderer)).toEqual(['Budget', 'Roadmap', 'Survey']);
@@ -121,12 +121,12 @@ describe('CanvasHeaderButton', () => {
     expect(nodeText(items[0]!)).toBe(`Budget${time.format(3_000)}`);
   });
 
-  it('keeps a long menu inside the viewport and scrolls its choices', () => {
+  it('keeps a long menu inside the viewport and scrolls its choices', async () => {
     const many = Array.from({ length: 30 }, (_, index) =>
       canvas(`$many${index}`, `Canvas ${index}`, 30_000 - index)
     );
     const { renderer } = render({ canvases: many });
-    openMenu(renderer);
+    await openMenu(renderer);
 
     // The choices sit in a scroll area, below the title, inside a menu with a viewport-bound height.
     const scroll = renderer.root.findByType(Scroll);
@@ -141,14 +141,14 @@ describe('CanvasHeaderButton', () => {
     });
   });
 
-  it('opens the chosen canvas and closes the menu', () => {
+  it('opens the chosen canvas and closes the menu', async () => {
     const { renderer, onOpen, onClose } = render({
       canvases: [budget, roadmap],
       openCanvasId: '$c1',
     });
 
-    openMenu(renderer);
-    act(() => menuItems(renderer)[1]!.props.onClick());
+    await openMenu(renderer);
+    await act(() => menuItems(renderer)[1]!.props.onClick());
 
     expect(onOpen).toHaveBeenCalledOnce();
     expect(onOpen).toHaveBeenCalledWith('$c2');
@@ -156,26 +156,26 @@ describe('CanvasHeaderButton', () => {
     expect(menuItems(renderer)).toHaveLength(0);
   });
 
-  it('closes the open canvas when it is chosen again', () => {
+  it('closes the open canvas when it is chosen again', async () => {
     const { renderer, onOpen, onClose } = render({
       canvases: [budget, roadmap],
       openCanvasId: '$c1',
     });
 
-    openMenu(renderer);
-    act(() => menuItems(renderer)[0]!.props.onClick());
+    await openMenu(renderer);
+    await act(() => menuItems(renderer)[0]!.props.onClick());
 
     expect(onClose).toHaveBeenCalledOnce();
     expect(onOpen).not.toHaveBeenCalled();
     expect(menuItems(renderer)).toHaveLength(0);
   });
 
-  it('keeps the menu and the open mark while an update reorders the list', () => {
+  it('keeps the menu and the open mark while an update reorders the list', async () => {
     const { renderer, update } = render({
       canvases: [budget, roadmap, survey],
       openCanvasId: '$c2',
     });
-    openMenu(renderer);
+    await openMenu(renderer);
 
     update({ canvases: [{ ...survey, updatedTs: 9_000, title: 'Survey v2' }, budget, roadmap] });
 
@@ -184,9 +184,9 @@ describe('CanvasHeaderButton', () => {
     expect(items.map((item) => item.props['aria-current'])).toEqual([undefined, undefined, 'true']);
   });
 
-  it('closes the menu when only one canvas is left, and does not bring it back later', () => {
+  it('closes the menu when only one canvas is left, and does not bring it back later', async () => {
     const { renderer, update } = render({ canvases: [budget, roadmap] });
-    openMenu(renderer);
+    await openMenu(renderer);
 
     update({ canvases: [budget] });
     expect(menuItems(renderer)).toHaveLength(0);

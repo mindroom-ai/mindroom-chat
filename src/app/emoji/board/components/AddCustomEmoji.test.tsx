@@ -173,7 +173,7 @@ describe('AddCustomEmoji', () => {
     mx.uploadContent.mockResolvedValue({ content_uri: 'mxc://example.org/new' });
     const { onAdd, submit } = renderForm();
 
-    typeName('parrot dance');
+    await typeName('parrot dance');
     await submit();
 
     expect(server.addToServerPack).toHaveBeenCalledWith(
@@ -282,7 +282,7 @@ describe('AddCustomEmoji', () => {
     await submit();
     expect(mx.uploadContent).not.toHaveBeenCalled();
 
-    typeName('party-parrot-2');
+    await typeName('party-parrot-2');
     expect(textNodes(nameTaken)).toHaveLength(0);
     expect(addButton().props.disabled).toBe(false);
   });
@@ -326,7 +326,7 @@ describe('AddCustomEmoji', () => {
     expect(addButton().props.disabled).toBe(true);
 
     // The error was about that name; a new one clears it without a generic error.
-    typeName('party-parrot-2');
+    await typeName('party-parrot-2');
     expect(textNodes(nameTaken)).toHaveLength(0);
     expect(textNodes("Couldn't add the emoji. Try again.")).toHaveLength(0);
     expect(addButton().props.disabled).toBe(false);
