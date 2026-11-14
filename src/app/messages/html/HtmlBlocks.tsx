@@ -569,8 +569,7 @@ const createToolTraceMarkerParserOptions = (
           }
 
           const items: ToolRefItem[] = [firstItem];
-          const trailingElements: Element[] = [];
-          if (firstItem.trailingElement) trailingElements.push(firstItem.trailingElement);
+          let { trailingElement } = firstItem;
           let boundaryFollower: Element | undefined;
 
           // A marker paragraph with trailing content is a narrative boundary.
@@ -594,7 +593,7 @@ const createToolTraceMarkerParserOptions = (
 
               items.push(item);
               if (item.trailingElement) {
-                trailingElements.push(item.trailingElement);
+                trailingElement = item.trailingElement;
                 break;
               }
               sibling = sibling.next;
@@ -613,12 +612,11 @@ const createToolTraceMarkerParserOptions = (
               parsedTools={items.map((item) => item.data)}
             />
           );
-          if (trailingElements.length === 0) return toolBlock;
+          if (!trailingElement) return toolBlock;
 
           // Each marker that starts the trailing content gets its own block, as
           // rendering that content would give it. Take them in one pass, since
           // rendering it would recurse once per marker.
-          const trailingElement = trailingElements[0]!;
           const chainedToolBlocks: ReactNode[] = [];
           const restChildren = takeLeadingToolRefs(trailingElement, (html) => {
             const toolRef = parseToolRefHtml(html);

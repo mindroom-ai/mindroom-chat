@@ -85,8 +85,8 @@ export const timeDomainDataToWaveformPoint = (data: Uint8Array): number => {
   if (data.length === 0) return 0;
 
   let squareSum = 0;
-  for (let index = 0; index < data.length; index += 1) {
-    const centered = (data[index]! - 128) / 128;
+  for (const value of data) {
+    const centered = (value - 128) / 128;
     squareSum += centered * centered;
   }
 

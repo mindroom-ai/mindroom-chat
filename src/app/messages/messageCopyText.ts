@@ -182,8 +182,8 @@ const replaceToolMarkerLines = (
     output.push(line);
   });
 
-  while (output.length > 0 && output[0]!.trim() === '') output.shift();
-  while (output.length > 0 && output[output.length - 1]!.trim() === '') output.pop();
+  while (output[0]?.trim() === '') output.shift();
+  while (output.at(-1)?.trim() === '') output.pop();
   return output.join('\n');
 };
 

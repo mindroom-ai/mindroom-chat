@@ -70,11 +70,12 @@ export const parseThreadFilterQuery = (text: string): ParsedThreadFilterQuery =>
       continue;
     }
 
-    const atom = parseAtom(tokens[i]!);
+    const token = tokens[i]!;
+    const atom = parseAtom(token);
     if (atom?.kind === 'status') status[atom.key] = atom.state;
     else if (atom?.kind === 'tag') tags.set(atom.key, atom.state);
-    else if (isOrToken(tokens[i]!) || looksLikeDslToken(tokens[i]!)) unsupported.push(tokens[i]!);
-    else freeText.push(tokens[i]!);
+    else if (isOrToken(token) || looksLikeDslToken(token)) unsupported.push(token);
+    else freeText.push(token);
     i += 1;
   }
 

@@ -116,10 +116,10 @@ export function InsetScrollbar({
         Home: 0,
         End: maximum,
       };
-      if (positions[event.key] === undefined || event.altKey || event.ctrlKey || event.metaKey)
-        return;
+      const position = positions[event.key];
+      if (position === undefined || event.altKey || event.ctrlKey || event.metaKey) return;
       event.preventDefault();
-      scroll.scrollTop = positions[event.key]!;
+      scroll.scrollTop = position;
       reveal();
     };
 

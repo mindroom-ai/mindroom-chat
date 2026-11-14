@@ -672,7 +672,8 @@ export function ApprovalHistory({ records }: { records: readonly ThreadApprovalR
   const mx = useMatrixClient();
   const room = useApprovalRoom();
   const language = useAppLanguageCode();
-  if (records.length === 0) return null;
+  const [first] = records;
+  if (!first) return null;
   const approved = records.filter((record) => record.approval.status === 'approved').length;
   const summary = describeApprovalHistory(records, mx.getUserId());
   const single =
@@ -691,11 +692,11 @@ export function ApprovalHistory({ records }: { records: readonly ThreadApprovalR
     singleLabel = t(HISTORY_LABEL_KEYS.nobody[single.status], { operation: single.operation });
   }
   const resolvedTs = single
-    ? parseToolApprovalExpiryTimestamp(records[0]!.approval.resolvedAt ?? '')
+    ? parseToolApprovalExpiryTimestamp(first.approval.resolvedAt ?? '')
     : undefined;
   const detail = single
     ? [
-        summarizeArguments(records[0]!.approval.arguments),
+        summarizeArguments(first.approval.arguments),
         resolvedTs !== undefined &&
           new Date(resolvedTs).toLocaleTimeString(language, { hour: 'numeric', minute: '2-digit' }),
       ]

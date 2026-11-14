@@ -191,14 +191,13 @@ export const toToolArgumentFields = (preview: unknown): ArgumentFields => {
     return toArgumentFields(preview);
   }
   const matches = [...preview.matchAll(TOOL_ARGUMENT_KEY)];
-  if (matches.length === 0 || matches[0]!.index !== 0) {
+  if (matches[0]?.index !== 0) {
     return { raw: revealDirectionControls(preview) };
   }
   return {
     fields: matches.map((match, index) => {
       const start = (match.index ?? 0) + match[0].length;
-      const end =
-        index + 1 < matches.length ? matches[index + 1]!.index ?? preview.length : preview.length;
+      const end = matches[index + 1]?.index ?? preview.length;
       return { key: match[1]!, value: toValue(preview.slice(start, end), false) };
     }),
   };
