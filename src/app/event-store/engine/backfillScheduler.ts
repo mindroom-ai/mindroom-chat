@@ -284,7 +284,7 @@ export const createBackfillScheduler = (
           if (byKey.get(entry.key) === entry) {
             byKey.delete(entry.key);
           }
-          // Recurse via macrotask so a synchronous resolve doesn't
+          // Recurse via microtask so a synchronous resolve doesn't
           // grow the stack when many jobs settle in a burst.
           void Promise.resolve().then(drain);
         }
