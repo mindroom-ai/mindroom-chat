@@ -206,6 +206,7 @@ const checkSameSide = async (page: Page) => {
       }),
     [OWN_SHORT, OTHER_SHORT, OWN_LONG, OTHER_LONG]
   );
+  expect(starts, 'every message shows its sender name').not.toContain(-1);
   expect(new Set(starts).size, `names start at ${starts.join(', ')}`).toBe(1);
 };
 
