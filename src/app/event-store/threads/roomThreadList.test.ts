@@ -1,3 +1,5 @@
+import { EventEmitter } from 'events';
+import { RoomEvent, type MatrixClient } from 'matrix-js-sdk';
 import { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -6,6 +8,7 @@ import {
   loadRoomThreads,
   roomThreadListIsComplete,
 } from './roomThreadList';
+import { relistThreadsAfterGaps } from '../../matrix/client/threadListGaps';
 
 const setServerSideListSupport = (enabled: boolean) => {
   Thread.hasServerSideListSupport = (enabled ? 2 : 0) as typeof Thread.hasServerSideListSupport;
@@ -650,5 +653,102 @@ describe('roomThreadListIsComplete', () => {
     const { room } = makeRoom(['page-1', null]);
 
     expect(roomThreadListIsComplete(room as never)).toBe(true);
+  });
+});
+
+describe('loadRoomThreads and the gap relist', () => {
+  /** A room whose first thread list page answers when the test says, on a client that relists after gaps. */
+  const setupGapRoom = () => {
+    const unfiltered = {};
+    let answer!: (value: void) => void;
+    let fail!: (error: unknown) => void;
+    const firstPage = new Promise<void>((resolve, reject) => {
+      answer = resolve;
+      fail = reject;
+    });
+    const requests: (string | null)[] = [];
+    const client = Object.assign(new EventEmitter(), {
+      supportsThreads: () => true,
+      getSyncState: () => null,
+      getRooms: () => [room],
+      getEventMapper: () => (event: unknown) => event,
+      createThreadListMessagesRequest: vi.fn(async (_roomId: string, from: string | null) => {
+        requests.push(from);
+        return { chunk: [] };
+      }),
+    });
+    const room = Object.assign(new EventEmitter(), {
+      roomId: '!room:example.org',
+      client,
+      threadsTimelineSets: [{}, {}],
+      getUnfilteredTimelineSet: () => unfiltered,
+      getThreads: () => [],
+      getThread: () => undefined,
+      processListedThreadRoots: vi.fn(),
+      fetchRoomThreads: vi.fn(() => firstPage),
+    });
+    const stop = relistThreadsAfterGaps(client as unknown as MatrixClient);
+    const gap = () => room.emit(RoomEvent.TimelineReset, room, unfiltered, false);
+    return { room, requests, gap, answer, fail, stop };
+  };
+
+  it('asks for the first page once when a gap comes while the first read waits for it', async () => {
+    const { room, requests, gap, answer, stop } = setupGapRoom();
+    const loading = loadRoomThreads(room as never);
+    await vi.waitFor(() => expect(room.fetchRoomThreads).toHaveBeenCalledOnce());
+    gap();
+    answer();
+    await loading;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(requests).toEqual([]);
+    stop();
+  });
+
+  it('reads the list after a gap that came during a first read that gave up', async () => {
+    const { room, requests, gap, fail, stop } = setupGapRoom();
+    const loading = loadRoomThreads(room as never);
+    await vi.waitFor(() => expect(room.fetchRoomThreads).toHaveBeenCalledOnce());
+    gap();
+    fail(Object.assign(new Error('not served'), { httpStatus: 400 }));
+    await loading;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(requests).toEqual([null]);
+    stop();
+  });
+
+  it('reads the list after a gap that comes while the first read pages back', async () => {
+    setServerSideListSupport(true);
+    const { room, requests, gap, answer, stop } = setupGapRoom();
+    let nextPage!: (more: boolean) => void;
+    Object.assign(room.threadsTimelineSets[0]!, {
+      getLiveTimeline: () => ({ getPaginationToken: () => 'older' }),
+    });
+    const paginateEventTimeline = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          nextPage = resolve;
+        })
+    );
+    Object.assign(room.client, { paginateEventTimeline });
+    const loading = loadRoomThreads(room as never);
+    answer();
+    await vi.waitFor(() => expect(paginateEventTimeline).toHaveBeenCalledOnce());
+    gap();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(requests).toEqual([null]);
+    nextPage(false);
+    await loading;
+    stop();
+  });
+
+  it('reads the list after a gap that comes once the first read answered', async () => {
+    const { room, requests, gap, answer, stop } = setupGapRoom();
+    const loading = loadRoomThreads(room as never);
+    answer();
+    await loading;
+    gap();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(requests).toEqual([null]);
+    stop();
   });
 });

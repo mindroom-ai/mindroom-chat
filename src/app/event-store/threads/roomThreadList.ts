@@ -11,6 +11,7 @@ import { isVisibleThreadReplyEvent } from './threadUtils';
 import { getThreadEventReadUpTo } from './threadEventReadUpTo';
 import { getFinishingEdit, threadReceiptNamesEvent } from './streamFinish';
 import { createThreadListRetry, type ThreadListRetry } from './threadListRetry';
+import { holdGapRelist } from '../../matrix/client/threadListGaps';
 
 /**
  * The newest reply of the thread that `matches`. A thread that has not loaded its latest page
@@ -190,6 +191,9 @@ const loadRoomThreadsOnce = async (
 ): Promise<void> => {
   // The list answers for the streaming replies of the threads it lists.
   const releaseStreamingChecks = retry.holdStreamingChecks();
+  // The first page lists the threads from the newest on, so it covers a sync gap meanwhile.
+  const releaseGapRelist = holdGapRelist(room);
+  let answered = false;
   try {
     await room.client?.threadSupportPending;
     if (!shouldContinue()) return;
@@ -208,6 +212,8 @@ const loadRoomThreadsOnce = async (
         if (!(await retrying)) return;
       }
     }
+    answered = true;
+    releaseGapRelist(true);
     listedRooms.add(room);
     onProgress?.();
 
@@ -240,6 +246,7 @@ const loadRoomThreadsOnce = async (
       }
     }
   } finally {
+    if (!answered) releaseGapRelist(false);
     releaseStreamingChecks();
     onSettled();
   }

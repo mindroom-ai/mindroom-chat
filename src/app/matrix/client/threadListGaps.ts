@@ -81,6 +81,22 @@ const relistSince = async (mx: MatrixClient, room: Room, knownTs: number): Promi
   }
 };
 
+/** The rooms whose list a read asks for from its newest thread on, and the gap that came meanwhile. */
+const heldRelists = new WeakMap<Room, { relist?: () => void }>();
+
+/**
+ * Holds a room's relist while a read of its list asks for the first page, which covers a gap
+ * meanwhile. Release with whether that page answered; if not, a gap during the hold relists then.
+ */
+export const holdGapRelist = (room: Room): ((answered: boolean) => void) => {
+  const held: { relist?: () => void } = {};
+  heldRelists.set(room, held);
+  return (answered) => {
+    if (heldRelists.get(room) === held) heldRelists.delete(room);
+    if (!answered) held.relist?.();
+  };
+};
+
 /**
  * Reads a room's thread list again after each limited sync, for the client's whole life, in the
  * rooms whose list the app read (a room's thread list view creates its thread list timelines);
@@ -119,7 +135,9 @@ export const relistThreadsAfterGaps = (mx: MatrixClient): (() => void) => {
         // The reset comes before the events after the gap, so the threads still show what the
         // room knew before it.
         const knownTs = Math.max(0, ...room.getThreads().map(threadActivityTs));
-        read(room, knownTs);
+        const held = heldRelists.get(room);
+        if (held) held.relist ??= () => read(room, knownTs);
+        else read(room, knownTs);
       };
       room.on(RoomEvent.TimelineReset, onReset);
       return () => {
