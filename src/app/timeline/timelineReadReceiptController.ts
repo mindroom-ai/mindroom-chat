@@ -45,6 +45,22 @@ const SCROLLED_AWAY_DELAY_MS = 500;
  */
 const MARKER_JUMP_RESTS = 4;
 
+/**
+ * How many times the scroll area may come to rest before the open thread has landed at the end of
+ * its scroll range when it is read (on opening, a new reply, an anchor report or coming back to
+ * the window; a landing correction can hold the view short of the end for a moment). After the
+ * last rest the thread is read with the follow threshold, so a reader who stops just above the
+ * end is still read, a few rests later.
+ */
+const THREAD_LANDING_RESTS = 4;
+
+/**
+ * How far below the scroll area's lower edge the latest-end anchor (after the newest reply and
+ * the footer padding) may sit once a thread has landed at the end of its scroll range: 1 px, not
+ * 0, as at fractional zoom the largest scroll offset can stop a fraction of a pixel short.
+ */
+const LANDED_PX = 1;
+
 /** Whether the row of `eventId` shows in the scroll area `area`. */
 const rowShown = (area: HTMLElement | null | undefined, eventId: string): boolean => {
   const row = getEventElementById(area, eventId);
@@ -128,11 +144,11 @@ const markerReachesLiveTimeline = (room: Room, markerEventId: string | undefined
 
 /**
  * Whether the reader is still where a read was decided when its frame comes: in the same room
- * and thread, at the bottom of its live end, with the window focused. A frame can come late on a
- * busy machine, and what arrived after the reader left, scrolled away or switched windows was
- * not seen.
+ * and thread, at the bottom of its live end (the latest-end anchor within `reach`, by default the
+ * follow threshold), with the window focused. A frame can come late on a busy machine, and what
+ * arrived after the reader left, scrolled away or switched windows was not seen.
  */
-type StillReading = (roomId: string, threadId: string | undefined) => boolean;
+type StillReading = (roomId: string, threadId: string | undefined, reach?: number) => boolean;
 
 /**
  * Reads the main timeline on the next frame, when the reader has seen its newest rows, and the
@@ -155,8 +171,9 @@ const readRoomOnNextFrame = (
 };
 
 /**
- * Reads the open thread once its opening scroll corrections settle, on the next frame: its
- * tail is loaded, it is past its loading render, and it has a row. It reads up to the reply it
+ * Reads the open thread on the next frame once the scroll area rests at the end of its scroll
+ * range, or after the last of `THREAD_LANDING_RESTS` rests: its tail is loaded, it is past its
+ * loading render, and it has a row. It reads up to the reply it
  * renders last (`threadEvents`): the tail can count as loaded while only the root is rendered.
  */
 const readThreadOnceLanded = (context: ReadContext, stillReading: StillReading): void => {
@@ -170,11 +187,23 @@ const readThreadOnceLanded = (context: ReadContext, stillReading: StillReading):
       void markThreadAsRead(mx, roomId, threadId, hideActivity, undefined, threadEvents);
     });
   };
-  // The first frame can still measure rows and correct the opening position after its callbacks
-  // run. Use the shared scroll-rest check so the receipt does not overtake that landing.
+  // The first frame can still measure rows and correct the position after its callbacks run,
+  // and a correction can hold the view short of the newest reply long enough for the area to
+  // rest. Wait for a rest at the end of the scroll range so the receipt does not overtake that
+  // landing; a rest elsewhere (not landed yet, or the reader left) waits for the next one, and
+  // the last one reads if `stillReading` still holds.
   const scrollArea = context.getScrollElement();
-  if (scrollArea) void waitForScrollQuiescence(scrollArea).then(read);
-  else read();
+  if (!scrollArea) {
+    read();
+    return;
+  }
+  const readOnceLanded = (rests: number) => {
+    void waitForScrollQuiescence(scrollArea).then(() => {
+      if (rests > 1 && !stillReading(roomId, threadId, LANDED_PX)) readOnceLanded(rests - 1);
+      else read();
+    });
+  };
+  readOnceLanded(THREAD_LANDING_RESTS);
 };
 
 /**
@@ -240,13 +269,13 @@ export const useTimelineReadReceiptController = ({
   // when the newest row is first).
   const latestAtTopRef = useLatestRef(latestAtTop);
   const stillReading = useCallback<StillReading>(
-    (roomId, threadId) => {
+    (roomId, threadId, reach) => {
       const context = contextRef.current;
       if (!mountedRef.current || context.room.roomId !== roomId || context.threadId !== threadId)
         return false;
       const anchor = atBottomAnchorRef.current;
       if (!anchor || !atLiveEndRef.current || !readerSees()) return false;
-      return isLatestAnchorInReach(anchor, getScrollElement(), latestAtTopRef.current);
+      return isLatestAnchorInReach(anchor, getScrollElement(), latestAtTopRef.current, reach);
     },
     [atBottomAnchorRef, atLiveEndRef, contextRef, getScrollElement, latestAtTopRef, readerSees]
   );
