@@ -1,4 +1,11 @@
-import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
+import {
+  expect,
+  test,
+  type Browser,
+  type BrowserContextOptions,
+  type Locator,
+  type Page,
+} from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { openSettingsFromAccountRail } from '../helpers/accounts';
 import { buildLoginPath } from '../env';
@@ -10,7 +17,8 @@ import {
 
 // The recovery password story in a real browser against the disposable homeserver: the start
 // prompt asks a new account for one, a fresh browser unlocks with it (or with the recovery key),
-// a change replaces it, and the secret storage the client writes is the Matrix passphrase format.
+// or puts Unlock away with a tap beside it, a change replaces it, and the secret storage the
+// client writes is the Matrix passphrase format.
 const ACCOUNT_PASSWORD = 'recovery-spec-account-password';
 const RECOVERY_PASSWORD = 'tangerine mill noon 42';
 const NEW_RECOVERY_PASSWORD = 'orange river dusk 77';
@@ -60,8 +68,12 @@ const createAccountWithEncryptedRoom = async (): Promise<Account> => {
 };
 
 /** A browser context whose served config.json asks for the recovery dialogs at start. */
-const signIn = async (browser: Browser, username: string): Promise<Page> => {
-  const context = await browser.newContext({ serviceWorkers: 'block' });
+const signIn = async (
+  browser: Browser,
+  username: string,
+  options: BrowserContextOptions = {}
+): Promise<Page> => {
+  const context = await browser.newContext({ ...options, serviceWorkers: 'block' });
   await context.route('**/config.json', async (route) => {
     const response = await route.fetch();
     const config = (await response.json()) as Record<string, unknown>;
@@ -173,6 +185,25 @@ test('a new account is asked for a recovery password and a fresh browser unlocks
   await expect(dialog).toHaveCount(0, { timeout: 60_000 });
   await openFullRoom(second, account.roomId);
   await expect(second.getByRole('main').getByText(MESSAGE)).toBeVisible({ timeout: 60_000 });
+});
+
+test('a tap beside the unlock dialog closes it and opens nothing beneath', async ({ browser }) => {
+  const account = await createAccountWithEncryptedRoom();
+  await firstSession(browser, account);
+
+  const phone = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
+  const second = await signIn(browser, account.username, phone);
+  const dialog = unlockDialog(second);
+  await expect(dialog).toBeVisible({ timeout: 90_000 });
+  await dialog.getByText('Enter your recovery password').tap();
+  await expect(dialog).toBeVisible();
+  // The tap lands on the backdrop over Join a Room, whose dialog must not open once Unlock is gone.
+  const beneath = await second.getByText('Join a Room', { exact: true }).boundingBox();
+  if (!beneath) throw new Error('Join a Room is not on the page');
+  await second.touchscreen.tap(beneath.x + beneath.width / 2, beneath.y + beneath.height / 2);
+  await expect(dialog).toHaveCount(0);
+  await second.waitForTimeout(1_000);
+  await expect(second.getByRole('dialog')).toHaveCount(0);
 });
 
 test('a changed password replaces the old one', async ({ browser }) => {
