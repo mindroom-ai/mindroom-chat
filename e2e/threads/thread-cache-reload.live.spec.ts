@@ -456,11 +456,11 @@ const check = async (page: Page, world: World, engine: string) => {
       `${engine} ${pass} reload: ${asked.length} single requests for the ${STREAMS} replies, ${lists.length} /threads requests`
     );
     expect.soft(asked, `${engine} ${pass}: replies asked about one by one`).toEqual([]);
-    // Each page of the room's list once.
+    // Each page of the room's list once: every page, and no page twice.
     const roomPages = lists.filter((request) => request.startsWith('all:'));
-    expect
-      .soft(new Set(roomPages).size, `${engine} ${pass}: room list pages`)
-      .toBe(Math.ceil(THREADS / 30));
+    const pages = Math.ceil(THREADS / 30);
+    expect.soft(new Set(roomPages).size, `${engine} ${pass}: room list pages`).toBe(pages);
+    expect.soft(roomPages.length, `${engine} ${pass}: room list requests`).toBe(pages);
   }
   expect
     .soft(ofStreams(await streamingSince(page), streams), `${engine}: ever streaming`)

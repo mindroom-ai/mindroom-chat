@@ -252,7 +252,11 @@ const checkThreadList = async (page: Page, name: string, engine: 'chromium' | 'w
 
   // Every thread is listed, promptly.
   expect(seen.at(-1), `count values: ${seen.join(' -> ')}`).toBe(String(THREADS));
-  await expect(page.getByText(`Showing ${THREADS} threads`, { exact: true })).toHaveCount(1);
+  // The room opens in Compact with resolved threads hidden (none is resolved here), so the
+  // summary names the total too.
+  await expect(
+    page.getByText(`Showing ${THREADS} of ${THREADS} threads`, { exact: true })
+  ).toHaveCount(1);
   // Every count shown on the way is a plain number, as MindRoom Chat shows it.
   expect(seen.filter((text) => !/^\d+$/.test(text))).toEqual([]);
 
