@@ -651,7 +651,6 @@ describe('composer model picker', () => {
     expect(options().every((option) => option.getAttribute('aria-disabled') === 'true')).toBe(true);
     expect(container.querySelector('[role="progressbar"]')).toBeNull();
     for (const option of options()) {
-      // eslint-disable-next-line no-await-in-loop
       await click(option);
     }
     await keyDown(list()!, 'Enter');
