@@ -16,9 +16,11 @@ on:
 permissions:
   contents: read
 
-# A newer push to the same branch or pull request replaces a run that is still going.
+# A newer push to a pull request or branch replaces its run that is still going. Each push to main
+# gets a group of its own and runs to the end, so every commit of main has a verdict: with one
+# group for main, GitHub would cancel the runs that wait behind a running one.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}${{ github.ref == 'refs/heads/main' && format('-{0}', github.sha) || '' }}
   cancel-in-progress: true
 
 jobs:
