@@ -361,7 +361,7 @@ describe('CompactCardSwipe', () => {
     const { swipe, pointer, trackElement } = render();
     const click = (detail = 1) => {
       const event = { detail, preventDefault: vi.fn(), stopPropagation: vi.fn() };
-      act(() => trackElement().props.onClickCapture(event));
+      void act(() => trackElement().props.onClickCapture(event));
       return event.stopPropagation;
     };
 

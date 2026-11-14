@@ -949,9 +949,9 @@ describe('useToolTraceMarkerParserOptions', () => {
       reply.unmount();
     });
 
-    it('closes the cog once tool calls show, so hiding them again hides the runs', () => {
+    it('closes the cog once tool calls show, so hiding them again hides the runs', async () => {
       const reply = renderReply(twoRunsHtml(false), { shownByDefault: false });
-      act(() => reply.cogButton().props.onClick());
+      await act(() => reply.cogButton().props.onClick());
       expect(reply.runLines()).toHaveLength(2);
 
       reply.showByDefault(true);
@@ -1012,12 +1012,12 @@ describe('useToolTraceMarkerParserOptions', () => {
       reply.unmount();
     });
 
-    it('shows every run where it ran, as folded lines, until the cog hides them again', () => {
+    it('shows every run where it ran, as folded lines, until the cog hides them again', async () => {
       const reply = renderReply(twoRunsHtml(false), { shownByDefault: false });
       expect(reply.cogButton().props['aria-expanded']).toBe(false);
       expect(reply.runLines()).toHaveLength(0);
 
-      act(() => reply.cogButton().props.onClick());
+      await act(() => reply.cogButton().props.onClick());
       expect(reply.cogButton().props['aria-expanded']).toBe(true);
       const text = reply.text();
       const first = text.search(toolCountLabel(1));
@@ -1030,7 +1030,7 @@ describe('useToolTraceMarkerParserOptions', () => {
       expect(lines).toHaveLength(2);
       lines.forEach((line) => expect(line.findByType('button').props['aria-expanded']).toBe(false));
 
-      act(() => reply.cogButton().props.onClick());
+      await act(() => reply.cogButton().props.onClick());
       expect(reply.runLines()).toHaveLength(0);
       expect(reply.text()).not.toContain('web_search');
       reply.unmount();

@@ -153,7 +153,7 @@ it.each(['pending', 'missed'] as const)(
       ]);
       expect(view.bodies()).toEqual(['Root', 'Reply 2', 'Reply 3']);
     } finally {
-      view?.unmount();
+      await view?.unmount();
       Thread.hasServerSideSupport = support;
       Thread.hasServerSideFwdPaginationSupport = forwardSupport;
     }

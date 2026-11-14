@@ -23,7 +23,7 @@ describe('waitForScrollQuiescence', () => {
 
   const settledFlag = (promise: Promise<void>) => {
     let settled = false;
-    promise.then(() => {
+    void promise.then(() => {
       settled = true;
     });
     return () => settled;

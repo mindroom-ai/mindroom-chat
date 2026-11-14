@@ -211,7 +211,7 @@ describe('CollapsibleMessage', () => {
     act(() => renderer.unmount());
   });
 
-  it('updates the expanded disclosure when streamed content shrinks or grows', () => {
+  it('updates the expanded disclosure when streamed content shrinks or grows', async () => {
     const contentElement = { clientHeight: 320, scrollHeight: 320 };
     const renderer = renderCollapsibleMessage(
       { collapseMode: 'initially-expanded', measurementKey: 'stream-resize' },
@@ -231,7 +231,7 @@ describe('CollapsibleMessage', () => {
       lastResizeCallback!([], {} as ResizeObserver);
     });
     expect(findCloseButtons(renderer)).toHaveLength(1);
-    act(() => getCloseButton(renderer).props.onClick({ stopPropagation: vi.fn() }));
+    await act(() => getCloseButton(renderer).props.onClick({ stopPropagation: vi.fn() }));
     expect(findExpandButtons(renderer)).toHaveLength(1);
     expect(getContentContainer(renderer).props.style.maxHeight).toBe('11em');
     act(() => renderer.unmount());
@@ -520,7 +520,7 @@ describe('CollapsibleMessage', () => {
     });
   });
 
-  it('unfolds from a click on its faded last 4em, but not on a link there or above them', () => {
+  it('unfolds from a click on its faded last 4em, but not on a link there or above them', async () => {
     // The content ends at y=200; at 16 px its last 4em start at y=136.
     const laidOut = {
       clientHeight: 72,
@@ -540,20 +540,20 @@ describe('CollapsibleMessage', () => {
     const renderer = renderCollapsibleMessage({ collapseMode: 'default' }, laidOut);
     const expanded = () => getContentContainer(renderer).props['data-expanded'];
 
-    act(() => getContainer(renderer).props.onClick(click(120)));
+    await act(() => getContainer(renderer).props.onClick(click(120)));
     expect(expanded()).toBe(false);
-    act(() => getContainer(renderer).props.onClick(click(180, true)));
+    await act(() => getContainer(renderer).props.onClick(click(180, true)));
     expect(expanded()).toBe(false);
     // A click in a portal the message opened, such as an image viewer, reaches it through React.
-    act(() => getContainer(renderer).props.onClick(click(180, false, true)));
+    await act(() => getContainer(renderer).props.onClick(click(180, false, true)));
     expect(expanded()).toBe(false);
     // A drag that selected text ends in a click too.
     vi.stubGlobal('getSelection', () => ({ isCollapsed: false }));
-    act(() => getContainer(renderer).props.onClick(click(180)));
+    await act(() => getContainer(renderer).props.onClick(click(180)));
     expect(expanded()).toBe(false);
     vi.stubGlobal('getSelection', () => ({ isCollapsed: true }));
 
-    act(() => getContainer(renderer).props.onClick(click(180)));
+    await act(() => getContainer(renderer).props.onClick(click(180)));
     expect(expanded()).toBe(true);
     // Unfolded, the lines are plain text again.
     expect(getContainer(renderer).props.onClick).toBeUndefined();
@@ -737,7 +737,7 @@ describe('CollapsibleMessage', () => {
     });
   });
 
-  it('keeps the disclosure button outside clipped content and exposes its state', () => {
+  it('keeps the disclosure button outside clipped content and exposes its state', async () => {
     const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
     const content = getContentContainer(renderer);
     const button = getExpandButton(renderer);
@@ -747,7 +747,7 @@ describe('CollapsibleMessage', () => {
     // Only the button says whether the message is open; a plain div may not (axe aria-allowed-attr).
     expect(content.props['aria-expanded']).toBeUndefined();
     expect(content.findAllByType('button')).toHaveLength(0);
-    act(() => button.props.onClick());
+    await act(() => button.props.onClick());
     const close = getCloseButton(renderer);
     expect(close.props['aria-expanded']).toBe(true);
     expect(close.props['aria-controls']).toBe(content.props.id);

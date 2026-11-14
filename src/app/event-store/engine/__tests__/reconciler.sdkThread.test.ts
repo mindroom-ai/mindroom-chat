@@ -184,7 +184,7 @@ describe('reconciler SDK thread injection', () => {
   const gappedThread = (env: ReturnType<typeof setup>, server: Partial<IEvent>[]) => {
     const sdkThread = createInitializedThreadForRoot(env.room, env.root);
     sdkThread.addEvents(server.slice(-6).map(env.mapper), false);
-    sdkThread.deferLiveTimelineReset('gap-back', 'gap-forward');
+    void sdkThread.deferLiveTimelineReset('gap-back', 'gap-forward');
     return sdkThread;
   };
   const segmentEventIds = (sdkThread: Thread) =>
