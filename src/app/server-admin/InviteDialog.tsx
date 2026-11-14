@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from 'react';
-import { Box, Button, Chip, Switch, Text, TextArea, color } from 'folds';
+import { Box, Button, Chip, Icon, Icons, Switch, Text, TextArea, color } from 'folds';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useAlive } from '../lib/hooks/useAlive';
@@ -8,6 +8,7 @@ import { mDirectAtom } from '../matrix/state/mDirectList';
 import { ActionDialog } from '../ui/ActionDialog';
 import { SettingTile } from '../ui/SettingTile';
 import { CopyInvitation } from './CopyInvitation';
+import * as css from './Invites.css';
 import {
   invitableRooms,
   inviteAddresses,
@@ -22,6 +23,8 @@ type InviteDialogProps = {
   providers: readonly string[];
   /** The addresses that have a pending invite, as the server stores them: in lowercase. */
   pending: ReadonlySet<string>;
+  /** Room IDs the server lets no external account join. */
+  externalForbidden: ReadonlySet<string>;
   onClose: () => void;
   /** Called once the server answered, so the list reads the invites again. */
   onInvited: () => void;
@@ -34,7 +37,13 @@ type Outcome = InviteResult & { replaces: boolean };
  * Invites one or more pasted email addresses with the same rooms and external mark, then says
  * what became of each address and gives the invitation to send to it.
  */
-export function InviteDialog({ providers, pending, onClose, onInvited }: InviteDialogProps) {
+export function InviteDialog({
+  providers,
+  pending,
+  externalForbidden,
+  onClose,
+  onInvited,
+}: InviteDialogProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const alive = useAlive();
@@ -55,6 +64,14 @@ export function InviteDialog({ providers, pending, onClose, onInvited }: InviteD
     </Text>
   );
 
+  // A room the server keeps every external account out of, while the new account is external.
+  const closed = (roomId: string) => external && externalForbidden.has(roomId);
+  const setExternalAndRooms = (on: boolean) => {
+    setExternal(on);
+    if (on)
+      setChosen((previous) => new Set([...previous].filter((id) => !externalForbidden.has(id))));
+  };
+
   const toggleRoom = (roomId: string) =>
     setChosen((previous) => {
       const next = new Set(previous);
@@ -64,7 +81,9 @@ export function InviteDialog({ providers, pending, onClose, onInvited }: InviteD
 
   const invite = () => {
     setBusy(true);
-    const roomIds = rooms.map(({ roomId }) => roomId).filter((roomId) => chosen.has(roomId));
+    const roomIds = rooms
+      .map(({ roomId }) => roomId)
+      .filter((roomId) => chosen.has(roomId) && !closed(roomId));
     // The invites from before this one: the list is about to read them again, with the new ones.
     const earlier = pending;
     // Each address has its own answer, so this never rejects.
@@ -84,6 +103,12 @@ export function InviteDialog({ providers, pending, onClose, onInvited }: InviteD
   if (outcomes) {
     return (
       <ActionDialog label={label} onClose={onClose} busy={false}>
+        {outcomes.some(({ invite: stored }) => stored !== undefined) && (
+          <div className={css.Notice}>
+            <Icon size="100" src={Icons.Info} aria-hidden />
+            <Text size="T300">{t('serverAccounts.invites.sendYourself')}</Text>
+          </div>
+        )}
         {/* Many addresses scroll here, so the button below them stays in view. */}
         <Box
           direction="Column"
@@ -119,9 +144,6 @@ export function InviteDialog({ providers, pending, onClose, onInvited }: InviteD
             </Box>
           ))}
         </Box>
-        <Text size="T200" priority="300">
-          {t('serverAccounts.invites.sendYourself')}
-        </Text>
         <Box justifyContent="End">
           <Button type="button" size="300" variant="Primary" radii="300" onClick={onClose}>
             <Text size="B300">{t('threadActions.done')}</Text>
@@ -182,8 +204,20 @@ export function InviteDialog({ providers, pending, onClose, onInvited }: InviteD
                 variant={chosen.has(room.roomId) ? 'Primary' : 'SurfaceVariant'}
                 radii="Pill"
                 aria-pressed={chosen.has(room.roomId)}
+                disabled={closed(room.roomId)}
+                // The lock is drawn only; its reason goes with the room's name.
+                aria-label={
+                  closed(room.roomId)
+                    ? `${roomLabel(room, rooms)}: ${t('serverAccounts.invites.externalForbidden')}`
+                    : undefined
+                }
+                before={closed(room.roomId) && <Icon size="50" src={Icons.Lock} aria-hidden />}
                 // The address tells a room from another of the same name, and from a look-alike.
-                title={room.address}
+                title={
+                  closed(room.roomId)
+                    ? `${room.address}: ${t('serverAccounts.invites.externalForbidden')}`
+                    : room.address
+                }
                 // A room ID is long: the chip ends with the row, and its text is cut there.
                 style={{ maxWidth: '100%' }}
                 data-invite-room={room.roomId}
@@ -195,20 +229,29 @@ export function InviteDialog({ providers, pending, onClose, onInvited }: InviteD
               </Chip>
             ))}
           </Box>
+          {rooms.some((room) => closed(room.roomId)) && (
+            <Text size="T200" priority="300">
+              {t('serverAccounts.invites.externalForbidden')}
+            </Text>
+          )}
         </Box>
       )}
       <SettingTile
         title={t('serverAccounts.invites.external')}
-        description={t('serverAccounts.externalNote')}
+        description={t('serverAccounts.invites.externalHint')}
         after={
           <Switch
             variant="Primary"
             aria-label={t('serverAccounts.invites.external')}
             value={external}
-            onChange={setExternal}
+            onChange={setExternalAndRooms}
           />
         }
       />
+      <div className={css.Notice} data-invite-no-email="">
+        <Icon size="100" src={Icons.Mail} aria-hidden />
+        <Text size="T300">{t('serverAccounts.invites.noEmail')}</Text>
+      </div>
       <Box justifyContent="End" gap="200">
         <Button
           type="button"

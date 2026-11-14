@@ -249,8 +249,8 @@ describe('filterAccounts', () => {
   ];
   const ids = (list: ServerAccount[]) => list.map((entry) => entry.userId.slice(1, -12));
 
-  it('sorts accounts into internal, external and deactivated, each a plain rule', () => {
-    expect(ids(filterAccounts(accounts, 'all', ''))).toEqual([
+  it('sorts accounts into internal and external, each a plain rule', () => {
+    expect(ids(filterAccounts(accounts, { type: 'all', query: '', deactivated: true }))).toEqual([
       'alice',
       'bob',
       'carol',
@@ -258,14 +258,34 @@ describe('filterAccounts', () => {
       'erin',
     ]);
     // A deactivated account stays internal or external, under its badge.
-    expect(ids(filterAccounts(accounts, 'internal', ''))).toEqual(['alice', 'bob', 'dave']);
-    expect(ids(filterAccounts(accounts, 'external', ''))).toEqual(['carol', 'erin']);
-    expect(ids(filterAccounts(accounts, 'deactivated', ''))).toEqual(['dave', 'erin']);
+    expect(
+      ids(filterAccounts(accounts, { type: 'internal', query: '', deactivated: true }))
+    ).toEqual(['alice', 'bob', 'dave']);
+    expect(
+      ids(filterAccounts(accounts, { type: 'external', query: '', deactivated: true }))
+    ).toEqual(['carol', 'erin']);
+  });
+
+  it('leaves deactivated accounts out unless they are asked for, whatever the type', () => {
+    expect(ids(filterAccounts(accounts, { type: 'all', query: '', deactivated: false }))).toEqual([
+      'alice',
+      'bob',
+      'carol',
+    ]);
+    expect(
+      ids(filterAccounts(accounts, { type: 'external', query: '', deactivated: false }))
+    ).toEqual(['carol']);
   });
 
   it('searches the Matrix ID and the display name, whatever the case', () => {
-    expect(ids(filterAccounts(accounts, 'all', ' GUEST '))).toEqual(['carol']);
-    expect(ids(filterAccounts(accounts, 'all', '@da'))).toEqual(['dave']);
-    expect(ids(filterAccounts(accounts, 'internal', 'carol'))).toEqual([]);
+    expect(
+      ids(filterAccounts(accounts, { type: 'all', query: ' GUEST ', deactivated: true }))
+    ).toEqual(['carol']);
+    expect(ids(filterAccounts(accounts, { type: 'all', query: '@da', deactivated: true }))).toEqual(
+      ['dave']
+    );
+    expect(
+      ids(filterAccounts(accounts, { type: 'internal', query: 'carol', deactivated: true }))
+    ).toEqual([]);
   });
 });

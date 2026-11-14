@@ -1016,6 +1016,8 @@
       "deactivated": "Deaktiviert"
     },
     "count": "Konten: {{shown}} von {{total}}",
+    "showDeactivated": "Deaktivierte zeigen ({{count}})",
+    "hiddenDeactivated": "Ausgeblendet: {{count}} deaktiviert",
     "noMatches": "Kein Konto passt",
     "loadFailed": "Die Konten konnten nicht geladen werden.",
     "status": {
@@ -1052,6 +1054,7 @@
       "title": "Einladungen",
       "description": "Eine eingeladene E-Mail-Adresse kann hier ein Konto erstellen, indem sie sich damit anmeldet.",
       "sendYourself": "Es wird keine E-Mail verschickt: Kopiere die Einladung und sende sie selbst.",
+      "noEmail": "Es wird keine E-Mail verschickt. Nach dem Einladen erscheint hier die Einladung: Kopiere sie und sende sie jeder Person selbst.",
       "add": "Per E-Mail einladen",
       "none": "Keine offenen Einladungen",
       "loadFailed": "Die Einladungen konnten nicht geladen werden.",
@@ -1059,6 +1062,8 @@
       "addressesHint": "Trenne mehrere Adressen mit Kommas oder Zeilenumbrüchen.",
       "rooms": "Räume, denen das neue Konto beitritt",
       "external": "Externes Konto",
+      "externalHint": "Für jemanden außerhalb deiner Organisation: Das Konto tritt nur den hier gewählten Räumen bei und Räumen, in die es später eingeladen wird, und kann keine Räume erstellen oder Leute einladen.",
+      "externalForbidden": "Externe Konten können den Räumen mit Schloss nicht beitreten.",
       "invited": "Eingeladen",
       "replaces": "Ersetzt die frühere Einladung",
       "copy": "Einladung kopieren",

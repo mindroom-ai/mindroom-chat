@@ -1039,6 +1039,8 @@
       "deactivated": "Desativadas"
     },
     "count": "Contas: {{shown}} de {{total}}",
+    "showDeactivated": "Mostrar desativadas ({{count}})",
+    "hiddenDeactivated": "Ocultas: {{count}} desativadas",
     "noMatches": "Nenhuma conta corresponde",
     "loadFailed": "Não foi possível carregar as contas.",
     "status": {
@@ -1075,6 +1077,7 @@
       "title": "Convites",
       "description": "Um endereço de e-mail convidado pode criar uma conta aqui ao entrar com ele.",
       "sendYourself": "Nenhum e-mail é enviado: copie o convite e envie você mesmo.",
+      "noEmail": "Nenhum e-mail é enviado. Depois de convidar, o convite aparece aqui: copie-o e envie-o você mesmo a cada pessoa.",
       "add": "Convidar por e-mail",
       "none": "Nenhum convite pendente",
       "loadFailed": "Não foi possível carregar os convites.",
@@ -1082,6 +1085,8 @@
       "addressesHint": "Separe vários endereços com vírgulas ou quebras de linha.",
       "rooms": "Salas em que a nova conta entra",
       "external": "Conta externa",
+      "externalHint": "Para alguém de fora da sua organização: a conta só entra nas salas escolhidas aqui e nas salas para as quais for convidada depois, e não pode criar salas nem convidar pessoas.",
+      "externalForbidden": "Contas externas não podem entrar nas salas marcadas com um cadeado.",
       "invited": "Convidado",
       "replaces": "Substitui o convite anterior",
       "copy": "Copiar convite",

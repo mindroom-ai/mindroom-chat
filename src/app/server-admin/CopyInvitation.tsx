@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Chip, Text } from 'folds';
+import { Button, Chip, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useOptionalClientConfig } from '../config/useClientConfig';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { copyToClipboard } from '../lib/dom';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import * as css from './Invites.css';
 import { invitationText, invitationUrl } from './invites';
 
 type CopyInvitationProps = {
@@ -12,7 +13,7 @@ type CopyInvitationProps = {
   email: string;
   /** The names of the providers the homeserver signs people in with. */
   providers: readonly string[];
-  /** Also shows the line, for an invite that was just made. */
+  /** Shows the line in a panel with a Copy button, for an invite that was just made. */
   showText?: boolean;
 };
 
@@ -31,6 +32,33 @@ export function CopyInvitation({ email, providers, showText = false }: CopyInvit
   const line = invitationText(t, language, { url, providers, email });
   const label = copied ? t('messageCodeBlock.copied') : t('serverAccounts.invites.copy');
 
+  const copy = () => void copyToClipboard(line).then(setCopied);
+
+  if (showText) {
+    return (
+      <div className={css.Invitation} data-invitation={email}>
+        <Text
+          className="selectable"
+          size="T300"
+          style={{ overflowWrap: 'anywhere', whiteSpace: 'pre-line' }}
+        >
+          {line}
+        </Text>
+        <Button
+          type="button"
+          size="300"
+          variant="Primary"
+          radii="300"
+          aria-label={`${label}: ${email}`}
+          data-copy-invitation={email}
+          onClick={copy}
+        >
+          <Text size="B300">{label}</Text>
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <>
       <Chip
@@ -40,11 +68,11 @@ export function CopyInvitation({ email, providers, showText = false }: CopyInvit
         // One of these stands beside every address, so its name says which.
         aria-label={`${label}: ${email}`}
         data-copy-invitation={email}
-        onClick={() => void copyToClipboard(line).then(setCopied)}
+        onClick={copy}
       >
         <Text size="T200">{label}</Text>
       </Chip>
-      {(showText || copied === false) && (
+      {copied === false && (
         <Text
           className="selectable"
           size="T200"
