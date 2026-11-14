@@ -415,6 +415,8 @@ type ScopedCursorOptions = {
   scope: string;
   limit: number;
   upperBound?: CursorAnchor;
+  /** Also the events of the bound's millisecond that sort after it (see `runScopedCursor`). */
+  withBoundMillisecond?: boolean;
   shouldSkip: (record: CachedEventRecord, rawEvent: Partial<IEvent>) => boolean;
 };
 
@@ -458,9 +460,9 @@ const runScopedCursor = async (options: ScopedCursorOptions): Promise<ScopedCurs
 
     // Inside one millisecond the index orders by event ID, not as the server does: the bound's
     // millisecond can hold events older than it that sort after it, which no other page holds.
-    // They come first (newest first, as the cursor reads), outside the limit; the caller drops
-    // the ones it holds.
-    if (options.upperBound) {
+    // Asked for, they come first (newest first, as the cursor reads), outside the limit, with
+    // the ones the caller holds already: it has to drop those.
+    if (options.upperBound && options.withBoundMillisecond) {
       const { ts, eventId } = options.upperBound;
       const sameMillisecond = index.getAll(
         IDBKeyRange.bound(
@@ -532,11 +534,17 @@ export const loadLatestCachedRoomEvents = async (
   };
 };
 
+/**
+ * The room's cached events before `before`, oldest first. With `withBeforeMillisecond`, the page
+ * also holds the events of `before`'s millisecond that sort after it, some of which are older on
+ * the server and on no other page; the caller must drop those it holds.
+ */
 export const loadCachedRoomEventsBefore = async (
   sessionId: string,
   roomId: string,
   before: CursorAnchor | undefined,
-  limit: number
+  limit: number,
+  { withBeforeMillisecond = false }: { withBeforeMillisecond?: boolean } = {}
 ): Promise<CachedRoomEventPage> => {
   if (!before) return { events: [], hasMoreBefore: false };
   const { events, hasMoreBefore, meta } = await runScopedCursor({
@@ -545,6 +553,7 @@ export const loadCachedRoomEventsBefore = async (
     scope: ROOM_SCOPE,
     limit,
     upperBound: before,
+    withBoundMillisecond: withBeforeMillisecond,
     shouldSkip: (_record, rawEvent) => isRawLocalEchoEventId(rawEvent.event_id),
   });
   const orderedEvents = events.reverse() as CachedRoomEvent[];
