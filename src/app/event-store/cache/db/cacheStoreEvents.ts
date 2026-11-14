@@ -415,7 +415,7 @@ type ScopedCursorOptions = {
   scope: string;
   limit: number;
   upperBound?: CursorAnchor;
-  /** Also the events of the bound's millisecond that sort after it (`loadCachedRoomEventsBefore`). */
+  /** Also the events of the bound's millisecond that sort after it (the room and thread pagers). */
   withBeforeMillisecond?: boolean;
   shouldSkip: (record: CachedEventRecord, rawEvent: Partial<IEvent>) => boolean;
 };
@@ -1216,12 +1216,18 @@ export const loadLatestCachedThreadEventsBatch = async (
   });
 };
 
+/**
+ * The thread's cached replies before `before`, oldest first. With `withBeforeMillisecond`, the page
+ * also holds the replies of `before`'s millisecond that sort after it, as
+ * `loadCachedRoomEventsBefore` does; the caller must drop those it holds.
+ */
 export const loadCachedThreadEventsBefore = async (
   sessionId: string,
   roomId: string,
   threadId: string,
   before: CursorAnchor | undefined,
-  limit: number
+  limit: number,
+  { withBeforeMillisecond }: { withBeforeMillisecond?: boolean } = {}
 ): Promise<CachedThreadEventPage> => {
   if (!before) return buildThreadEventPage(undefined, [], false, roomId);
   const { events, hasMoreBefore, meta } = await runScopedCursor({
@@ -1230,6 +1236,7 @@ export const loadCachedThreadEventsBefore = async (
     scope: threadId,
     limit,
     upperBound: before,
+    withBeforeMillisecond,
     shouldSkip: (record) => record.eventId === threadId,
   });
   return buildThreadEventPage(meta, events.reverse() as CachedThreadEvent[], hasMoreBefore, roomId);
