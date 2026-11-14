@@ -23,6 +23,31 @@ index 521f9bf..150f0ca 100644
  ] }
  matrix-sdk-base.workspace = true
  matrix-sdk-common.workspace = true
+diff --git a/bindings/matrix-sdk-ffi/src/encryption.rs b/bindings/matrix-sdk-ffi/src/encryption.rs
+index cf71a3a..a3e6fb8 100644
+--- a/bindings/matrix-sdk-ffi/src/encryption.rs
++++ b/bindings/matrix-sdk-ffi/src/encryption.rs
+@@ -249,6 +249,20 @@ pub struct SecretsBundleWithUserId {
+     inner: matrix_sdk_base::crypto::types::SecretsBundle,
+ }
+ 
++#[matrix_sdk_ffi_macros::export]
++impl SecretsBundleWithUserId {
++    /// A bundle another client exported as JSON, such as matrix-js-sdk's
++    /// `CryptoApi.exportSecretsBundle()`, for the user it belongs to.
++    #[uniffi::constructor]
++    pub fn from_json(user_id: String, json: String) -> Result<Arc<Self>, ClientError> {
++        let user_id = matrix_sdk::ruma::UserId::parse(user_id)
++            .map_err(|e| ClientError::Generic { msg: e.to_string(), details: None })?;
++        let inner = serde_json::from_str(&json)
++            .map_err(|e| ClientError::Generic { msg: e.to_string(), details: None })?;
++        Ok(Arc::new(Self { user_id, inner }))
++    }
++}
++
+ /// Result for the check if a store has a valid secrets bundle.
+ #[derive(uniffi::Enum)]
+ pub enum DetectedSecretsBundle {
 diff --git a/bindings/matrix-sdk-ffi/src/room/mod.rs b/bindings/matrix-sdk-ffi/src/room/mod.rs
 index ee11d99..abfb2d9 100644
 --- a/bindings/matrix-sdk-ffi/src/room/mod.rs

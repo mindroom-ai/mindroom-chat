@@ -1,7 +1,7 @@
 import type { AuthDict, MatrixClient } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { AuthenticationCancelled } from '../uia/useAuthenticatedAction';
-import type { WatchCredentials } from '../../native/nativeWatch';
+import type { WatchCredentials, WatchSecrets } from '../../native/nativeWatch';
 import { connectWatch, verifyWatch } from './connectWatch';
 
 const NOW = 1_800_000_000_000;
@@ -11,11 +11,13 @@ type GetToken = (auth?: AuthDict) => Promise<{ login_token: string; expires_in_m
 const client = (options: {
   flows?: unknown[];
   getToken?: GetToken;
-  selfSigning?: boolean;
+  crossSigningKeys?: boolean;
+  exportBundle?: () => Promise<unknown>;
   devicesAfter?: number;
 }) => {
   let polls = 0;
   const crossSignDevice = vi.fn(async () => undefined);
+  const exportSecretsBundle = vi.fn(options.exportBundle ?? (async () => ({ cross_signing: {}, backup: null })));
   const authedRequest = vi.fn(
     async (_method: string, _path: string, _query: unknown, body: { auth?: AuthDict }) =>
       (options.getToken ?? (async () => ({ login_token: 'tok', expires_in_ms: 120_000 })))(
@@ -31,8 +33,13 @@ const client = (options: {
     getSafeUserId: () => '@bas:mindroom.chat',
     getCrypto: () => ({
       getCrossSigningStatus: async () => ({
-        privateKeysCachedLocally: { selfSigningKey: options.selfSigning ?? true },
+        privateKeysCachedLocally: {
+          masterKey: options.crossSigningKeys ?? true,
+          selfSigningKey: options.crossSigningKeys ?? true,
+          userSigningKey: options.crossSigningKeys ?? true,
+        },
       }),
+      exportSecretsBundle,
       getUserDeviceInfo: async () => {
         polls += 1;
         const devices = new Map<string, unknown>();
@@ -42,7 +49,7 @@ const client = (options: {
       crossSignDevice,
     }),
   } as unknown as MatrixClient;
-  return { mx, authedRequest, crossSignDevice };
+  return { mx, authedRequest, exportSecretsBundle, crossSignDevice };
 };
 
 const directRun = <T>(request: (auth?: AuthDict) => Promise<T>) => request();
@@ -117,25 +124,47 @@ describe('connectWatch', () => {
 });
 
 describe('verifyWatch', () => {
-  it('cross-signs the watch once its keys are visible', async () => {
+  const options = { timeoutMs: 1000, pollMs: 1 };
+
+  it('cross-signs the watch once its keys are visible, then sends it the secrets bundle', async () => {
     const { mx, crossSignDevice } = client({ devicesAfter: 2 });
-    await expect(verifyWatch(mx, 'WATCH', { timeoutMs: 1000, pollMs: 1 })).resolves.toBe(
-      'verified'
-    );
+    const send = vi.fn(async (_message: WatchSecrets) => undefined);
+    await expect(verifyWatch(mx, 'WATCH', send, options)).resolves.toBe('verified');
     expect(crossSignDevice).toHaveBeenCalledWith('WATCH');
+    expect(send).toHaveBeenCalledWith({
+      v: 1,
+      kind: 'secrets',
+      userId: '@bas:mindroom.chat',
+      bundle: JSON.stringify({ cross_signing: {}, backup: null }),
+    });
   });
 
-  it('leaves the watch unverified when this device has no self-signing key', async () => {
-    const { mx, crossSignDevice } = client({ selfSigning: false });
-    await expect(verifyWatch(mx, 'WATCH', { timeoutMs: 1000, pollMs: 1 })).resolves.toBe(
-      'no-cross-signing'
-    );
+  it('leaves the watch unverified when this device has no cross-signing keys', async () => {
+    const { mx, crossSignDevice, exportSecretsBundle } = client({ crossSigningKeys: false });
+    const send = vi.fn();
+    await expect(verifyWatch(mx, 'WATCH', send, options)).resolves.toBe('no-cross-signing');
     expect(crossSignDevice).not.toHaveBeenCalled();
+    expect(exportSecretsBundle).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('still verifies the watch when there is no backup to share', async () => {
+    const { mx, crossSignDevice } = client({
+      exportBundle: async () => {
+        throw new Error('no backup key');
+      },
+    });
+    const send = vi.fn();
+    await expect(verifyWatch(mx, 'WATCH', send, options)).resolves.toBe('no-backup');
+    expect(crossSignDevice).toHaveBeenCalledWith('WATCH');
+    expect(send).not.toHaveBeenCalled();
   });
 
   it('gives up when the watch keys never show', async () => {
     const { mx, crossSignDevice } = client({ devicesAfter: Infinity });
-    await expect(verifyWatch(mx, 'WATCH', { timeoutMs: 20, pollMs: 1 })).resolves.toBe('timeout');
+    const send = vi.fn();
+    await expect(verifyWatch(mx, 'WATCH', send, { timeoutMs: 20, pollMs: 1 })).resolves.toBe('timeout');
     expect(crossSignDevice).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
   });
 });

@@ -23,6 +23,13 @@ final class WatchLinkMessageTests: XCTestCase {
         XCTAssertEqual(WatchLinkMessage(dictionary: ["v": 1, "kind": "signOut"]), .signOut)
     }
 
+    func testSecretsBundle() {
+        let message = WatchLinkMessage.secrets(userId: "@bas:x", bundle: #"{"cross_signing":{}}"#)
+        XCTAssertEqual(WatchLinkMessage(dictionary: message.dictionary), message)
+        XCTAssertNil(WatchLinkMessage(dictionary: ["v": 1, "kind": "secrets", "userId": "@bas:x"]))
+        XCTAssertNil(WatchLinkMessage(dictionary: ["v": 1, "kind": "secrets", "userId": "bas", "bundle": "{}"]))
+    }
+
     func testRejectsMalformedMessages() {
         var wrongVersion = credentials; wrongVersion["v"] = 2
         var noToken = credentials; noToken.removeValue(forKey: "loginToken")

@@ -6,12 +6,14 @@ import {
   onWatchOpenThread,
   onWatchSignedIn,
   sendWatchCredentials,
+  sendWatchSecrets,
   signOutWatch,
 } from './nativeWatch';
 
 const plugin = vi.hoisted(() => ({
   status: vi.fn(),
   sendCredentials: vi.fn(),
+  sendSecrets: vi.fn(),
   signOut: vi.fn(),
   addListener: vi.fn(),
 }));
@@ -76,6 +78,9 @@ describe('native watch plugin', () => {
     await expect(getWatchStatus()).resolves.toMatchObject({ device: { deviceId: 'WATCH' } });
     await sendWatchCredentials(credentials);
     expect(plugin.sendCredentials).toHaveBeenCalledWith(credentials);
+    const secrets = { v: 1 as const, kind: 'secrets' as const, userId: '@bas:mindroom.chat', bundle: '{}' };
+    await sendWatchSecrets(secrets);
+    expect(plugin.sendSecrets).toHaveBeenCalledWith(secrets);
     await signOutWatch();
     expect(plugin.signOut).toHaveBeenCalled();
   });

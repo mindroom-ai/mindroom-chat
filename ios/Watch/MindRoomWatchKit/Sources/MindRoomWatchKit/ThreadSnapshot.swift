@@ -69,7 +69,9 @@ public struct ThreadSnapshot: Equatable, Sendable {
             return merged
         } ?? message }
         let rootText = PlainText.of(markdown: effectiveContent(root, latestEdit: edit(root))["body"] as? String ?? "")
-        let title = ThreadSummary.title(from: notices) ?? transcript ?? (isVoiceRoot ? "Voice message" : rootText)
+        let encryptedRoot = root["type"] as? String == "m.room.encrypted"
+        let title = ThreadSummary.title(from: notices) ?? transcript
+            ?? (isVoiceRoot ? String(localized: "Voice message") : encryptedRoot ? String(localized: "Encrypted message") : rootText)
 
         // The conversation: what people and agents said, without the router's echo and titles.
         let conversation = messages.filter { message in

@@ -11,6 +11,12 @@ export type WatchCredentials = {
   expiresAt: number;
 };
 
+/**
+ * The account's secrets bundle (private cross-signing keys, the key backup's key) as JSON: importing it
+ * verifies the watch's device and turns key backup on, as a QR code sign-in does for a new device.
+ */
+export type WatchSecrets = { v: 1; kind: 'secrets'; userId: string; bundle: string };
+
 /** The watch's own Matrix device, once it signed in. */
 export type WatchDevice = { userId: string; deviceId: string };
 
@@ -32,6 +38,7 @@ export type WatchStatus = {
 type MindRoomWatchPlugin = {
   status(): Promise<WatchStatus>;
   sendCredentials(credentials: WatchCredentials): Promise<void>;
+  sendSecrets(secrets: WatchSecrets): Promise<void>;
   signOut(): Promise<void>;
   addListener(
     event: 'watchSignedIn',
@@ -63,6 +70,11 @@ export const getWatchStatus = async (): Promise<WatchStatus> =>
 export const sendWatchCredentials = async (credentials: WatchCredentials): Promise<void> => {
   if (!isNativeWatchAvailable()) return;
   await getWatchPlugin().sendCredentials(credentials);
+};
+
+export const sendWatchSecrets = async (secrets: WatchSecrets): Promise<void> => {
+  if (!isNativeWatchAvailable()) return;
+  await getWatchPlugin().sendSecrets(secrets);
 };
 
 /** Tells the watch to sign out and forgets its device here. */

@@ -80,6 +80,19 @@ final class MatrixSession: ObservableObject {
         state = .signedOut
     }
 
+    /// Imports the account's secrets bundle the iPhone sent: verifies this device and turns key backup on,
+    /// so the account's devices trust it and messages from before it signed in decrypt.
+    func importSecrets(userId: String, bundle: String) async {
+        guard let client else { return }
+        do {
+            let secrets = try SecretsBundleWithUserId.fromJson(userId: userId, json: bundle)
+            try await client.encryption().importSecretsBundle(secretsBundle: secrets)
+            log.notice("imported the secrets bundle")
+        } catch {
+            log.error("secrets import failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
     /// Starts or stops sync as the app comes forward or goes to the background.
     func setActive(_ active: Bool) async {
         guard let syncService else { return }
@@ -94,6 +107,10 @@ final class MatrixSession: ObservableObject {
             .homeserverUrl(url: session.homeserverUrl)
             .sqliteStore(config: store)
             .slidingSyncVersionBuilder(versionBuilder: .native)
+            // Turn key backup on when another device hands over its key, and fetch a room's keys from it
+            // when a message there does not decrypt.
+            .autoEnableBackups(autoEnableBackups: true)
+            .backupDownloadStrategy(backupDownloadStrategy: .afterDecryptionFailure)
             .userAgent(userAgent: "MindRoom Apple Watch")
             .build()
         try await client.restoreSession(session: session)

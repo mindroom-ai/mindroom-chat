@@ -30,6 +30,7 @@ struct HomeView: View {
             if let syncService = session.syncService { await rooms.start(syncService) }
             #if DEBUG
             if let roomId = E2EHooks.room { DefaultRoom.set(roomId, userId: userId) }
+            E2EHooks.logCrypto(client)
             #endif
             if model == nil, let roomId = DefaultRoom.get(userId: userId) { open(roomId) }
         }

@@ -15,7 +15,7 @@ const linkMessageSource = read(
 describe('MindRoomWatchPlugin native contract', () => {
   it('is the plugin the web side registers, with its methods, on every bridge', () => {
     expect(pluginSource).toContain('public let jsName = "MindRoomWatch"');
-    ['status', 'sendCredentials', 'signOut'].forEach((method) => {
+    ['status', 'sendCredentials', 'sendSecrets', 'signOut'].forEach((method) => {
       expect(pluginSource).toContain(
         `CAPPluginMethod(name: "${method}", returnType: CAPPluginReturnPromise)`
       );
@@ -34,11 +34,11 @@ describe('MindRoomWatchPlugin native contract', () => {
   });
 
   it('speaks the watch app’s link messages', () => {
-    ['credentials', 'signedIn', 'signOut'].forEach((kind) => {
+    ['credentials', 'signedIn', 'secrets', 'signOut'].forEach((kind) => {
       expect(pluginSource).toContain(`"${kind}"`);
       expect(linkMessageSource).toContain(`"${kind}"`);
     });
-    ['homeserverUrl', 'userId', 'loginToken', 'expiresAt', 'deviceId'].forEach((key) =>
+    ['homeserverUrl', 'userId', 'loginToken', 'expiresAt', 'deviceId', 'bundle'].forEach((key) =>
       expect(linkMessageSource).toContain(`"${key}"`)
     );
   });

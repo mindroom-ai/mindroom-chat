@@ -666,6 +666,7 @@
       "unsupported": "Questo homeserver non può accedere con un Apple Watch.",
       "failed": "Impossibile connettersi: {{reason}}",
       "noCrossSigning": "L’orologio è connesso ma non verificato: configura la crittografia su questo iPhone per verificarlo.",
+      "noBackup": "L’orologio è verificato, ma non può leggere i messaggi precedenti alla connessione: attiva il backup delle chiavi su questo iPhone.",
       "timeout": "L’orologio non ha completato l’accesso. Apri MindRoom sull’orologio e connettiti di nuovo."
     }
   },

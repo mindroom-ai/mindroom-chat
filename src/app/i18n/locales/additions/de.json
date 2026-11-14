@@ -657,6 +657,7 @@
       "unsupported": "Dieser Homeserver kann keine Apple Watch anmelden.",
       "failed": "Verbindung fehlgeschlagen: {{reason}}",
       "noCrossSigning": "Die Watch ist verbunden, aber nicht verifiziert: Richte auf diesem iPhone die Verschlüsselung ein, um sie zu verifizieren.",
+      "noBackup": "Die Watch ist verifiziert, kann aber Nachrichten von vor der Verbindung nicht lesen: Aktiviere die Schlüsselsicherung auf diesem iPhone.",
       "timeout": "Die Watch hat die Anmeldung nicht abgeschlossen. Öffne MindRoom auf der Watch und verbinde erneut."
     }
   },

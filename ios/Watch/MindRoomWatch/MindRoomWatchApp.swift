@@ -10,6 +10,9 @@ struct MindRoomWatchApp: App {
     private let notificationDelegate = NotificationDelegate()
 
     init() {
+        #if DEBUG
+        E2EHooks.setUpTracing()
+        #endif
         let session = MatrixSession()
         MatrixSession.shared = session
         _session = StateObject(wrappedValue: session)
@@ -50,5 +53,12 @@ struct MindRoomWatchApp: App {
         }
         #endif
         await session.restore()
+        #if DEBUG
+        // The secrets bundle the iPhone would send after the sign-in.
+        if let bundle = ProcessInfo.processInfo.environment["MINDROOM_WATCH_E2E_SECRETS"],
+           let userId = try? session.client?.userId() {
+            await session.importSecrets(userId: userId, bundle: bundle)
+        }
+        #endif
     }
 }

@@ -92,6 +92,11 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(stopped.rowState(lastSeenEventId: "$reply"), .idle(Date(timeIntervalSince1970: 0.004)))
     }
 
+    func testUndecryptableRootIsAnEncryptedMessage() {
+        let root = event("$root", 1, sender: me, type: "m.room.encrypted", ["algorithm": "m.megolm.v1.aes-sha2", "ciphertext": "x"])
+        XCTAssertEqual(ThreadSnapshot.build(root: root, related: [], ownUserId: me, now: now).title, "Encrypted message")
+    }
+
     func testUndecryptableEventsAreSkipped() {
         let encrypted = event("$enc", 4, type: "m.room.encrypted", ["algorithm": "m.megolm.v1.aes-sha2", "ciphertext": "x"])
         let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [encrypted], ownUserId: me, now: now)

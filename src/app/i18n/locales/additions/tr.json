@@ -657,6 +657,7 @@
       "unsupported": "Bu ana sunucu bir Apple Watch’ta oturum açamaz.",
       "failed": "Bağlanılamadı: {{reason}}",
       "noCrossSigning": "Saat bağlı ama doğrulanmadı: doğrulamak için bu iPhone’da şifrelemeyi ayarlayın.",
+      "noBackup": "Saat doğrulandı ama bağlanmadan önceki mesajları okuyamaz: bu iPhone’da anahtar yedeklemesini açın.",
       "timeout": "Saat oturum açmayı bitirmedi. Saatte MindRoom’u açın ve yeniden bağlayın."
     }
   },

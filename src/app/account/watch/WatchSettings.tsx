@@ -9,6 +9,7 @@ import {
   isNativeWatchAvailable,
   onWatchSignedIn,
   sendWatchCredentials,
+  sendWatchSecrets,
   signOutWatch,
   type WatchDevice,
   type WatchStatus,
@@ -45,10 +46,11 @@ function WatchSettingsSection() {
     const verify = async (device: WatchDevice) => {
       if (!alive || device.userId !== mx.getSafeUserId()) return;
       setStep({ kind: 'verifying' });
-      const result = await verifyWatch(mx, device.deviceId);
+      const result = await verifyWatch(mx, device.deviceId, sendWatchSecrets);
       if (!alive) return;
       await refresh();
       if (result === 'verified') setStep({ kind: 'idle' });
+      else if (result === 'no-backup') setStep({ kind: 'message', text: t(`${W}.noBackup`) });
       else if (result === 'no-cross-signing')
         setStep({ kind: 'message', text: t(`${W}.noCrossSigning`) });
       else setStep({ kind: 'message', text: t(`${W}.timeout`) });

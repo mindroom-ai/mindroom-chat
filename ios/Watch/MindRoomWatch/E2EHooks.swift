@@ -15,6 +15,9 @@ import os
 ///   MINDROOM_WATCH_E2E_APPROVE      `approve` or `deny`: answer the open thread's pending approval, once
 ///   MINDROOM_WATCH_E2E_ANSWER       `first`: answer the open thread's question with its first option, once
 ///   MINDROOM_WATCH_E2E_RESOLVE      `newest`: mark the newest thread done, once
+///   MINDROOM_WATCH_E2E_SECRETS      the account's secrets bundle as JSON, imported after a restored session
+///   MINDROOM_WATCH_E2E_LOG_CRYPTO   `1`: log the device's verification, backup and recovery state every 5 s,
+///                                   and the SDK's own crypto and backup tracing to stdout
 enum E2EHooks {
     static let environment = ProcessInfo.processInfo.environment
     static var room: String? { environment["MINDROOM_WATCH_E2E_ROOM"] }
@@ -42,6 +45,26 @@ enum E2EHooks {
         if let question = asked, snapshot.openQuestion?.eventId != question {
             asked = nil
             log("question \(question) answered")
+        }
+    }
+
+    /// Turns the SDK's tracing on before the first client is built (MindRoomWatchApp.init).
+    static func setUpTracing() {
+        guard environment["MINDROOM_WATCH_E2E_LOG_CRYPTO"] == "1" else { return }
+        try? initPlatform(config: TracingConfiguration(
+            logLevel: .info, traceLogPacks: [], extraTargets: ["matrix_sdk::encryption", "matrix_sdk_crypto"],
+            writeToStdoutOrSystem: true, writeToFiles: nil), useLightweightTokioRuntime: false)
+    }
+
+    @MainActor
+    static func logCrypto(_ client: Client) {
+        guard environment["MINDROOM_WATCH_E2E_LOG_CRYPTO"] == "1" else { return }
+        Task {
+            while true {
+                let encryption = client.encryption()
+                log("crypto verification=\(encryption.verificationState()) backup=\(encryption.backupState()) recovery=\(encryption.recoveryState())")
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+            }
         }
     }
 

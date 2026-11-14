@@ -28,6 +28,7 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
         Task { @MainActor in
             switch message {
             case .credentials: await session.connect(message)
+            case let .secrets(userId, bundle): await session.importSecrets(userId: userId, bundle: bundle)
             case .signOut: await session.signOut()
             case .signedIn: break
             }

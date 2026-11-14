@@ -6,6 +6,9 @@ public enum WatchLinkMessage: Equatable, Sendable {
     case credentials(homeserverUrl: URL, userId: String, loginToken: String, expiresAt: Date)
     /// The watch signed in as this device.
     case signedIn(userId: String, deviceId: String)
+    /// The account's secrets bundle (cross-signing keys, key backup key) as JSON, to verify the watch's
+    /// device and turn key backup on.
+    case secrets(userId: String, bundle: String)
     /// Sign the watch out.
     case signOut
 
@@ -24,6 +27,10 @@ public enum WatchLinkMessage: Equatable, Sendable {
             guard let userId = dictionary["userId"] as? String, Self.isUserId(userId),
                   let deviceId = dictionary["deviceId"] as? String, !deviceId.isEmpty else { return nil }
             self = .signedIn(userId: userId, deviceId: deviceId)
+        case "secrets":
+            guard let userId = dictionary["userId"] as? String, Self.isUserId(userId),
+                  let bundle = dictionary["bundle"] as? String, !bundle.isEmpty else { return nil }
+            self = .secrets(userId: userId, bundle: bundle)
         case "signOut":
             self = .signOut
         default:
@@ -38,6 +45,8 @@ public enum WatchLinkMessage: Equatable, Sendable {
                     "loginToken": token, "expiresAt": expiresAt.timeIntervalSince1970 * 1000]
         case let .signedIn(userId, deviceId):
             return ["v": 1, "kind": "signedIn", "userId": userId, "deviceId": deviceId]
+        case let .secrets(userId, bundle):
+            return ["v": 1, "kind": "secrets", "userId": userId, "bundle": bundle]
         case .signOut:
             return ["v": 1, "kind": "signOut"]
         }

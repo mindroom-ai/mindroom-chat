@@ -648,6 +648,7 @@
       "unsupported": "此主服务器无法登录 Apple Watch。",
       "failed": "无法连接：{{reason}}",
       "noCrossSigning": "手表已连接但未验证：请在此 iPhone 上设置加密以验证它。",
+      "noBackup": "手表已验证，但无法读取连接前的消息：请在此 iPhone 上打开密钥备份。",
       "timeout": "手表未完成登录。请在手表上打开 MindRoom 并重新连接。"
     }
   },

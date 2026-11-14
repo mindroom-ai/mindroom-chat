@@ -648,6 +648,7 @@
       "unsupported": "이 홈서버는 Apple Watch에 로그인할 수 없습니다.",
       "failed": "연결할 수 없음: {{reason}}",
       "noCrossSigning": "워치가 연결되었지만 확인되지 않았습니다. 확인하려면 이 iPhone에서 암호화를 설정하세요.",
+      "noBackup": "워치가 확인되었지만 연결 전 메시지는 읽을 수 없습니다. 이 iPhone에서 키 백업을 켜세요.",
       "timeout": "워치가 로그인을 마치지 못했습니다. 워치에서 MindRoom을 열고 다시 연결하세요."
     }
   },

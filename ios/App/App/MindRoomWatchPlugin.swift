@@ -15,6 +15,7 @@ public class MindRoomWatchPlugin: CAPPlugin, CAPBridgedPlugin {
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "sendCredentials", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "sendSecrets", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "signOut", returnType: CAPPluginReturnPromise)
     ]
 
@@ -59,6 +60,18 @@ public class MindRoomWatchPlugin: CAPPlugin, CAPBridgedPlugin {
             "v": 1, "kind": "credentials", "homeserverUrl": homeserverUrl, "userId": userId,
             "loginToken": loginToken, "expiresAt": expiresAt,
         ]
+        guard WatchLink.shared.send(message) else { return call.reject("No Apple Watch app to send to", "NO_WATCH") }
+        call.resolve()
+    }
+
+    /// The account's secrets bundle for the watch's device (see `WatchSecrets` in nativeWatch.ts). It travels
+    /// over WatchConnectivity, the encrypted link between this iPhone and its paired watch.
+    @objc func sendSecrets(_ call: CAPPluginCall) {
+        guard call.getInt("v") == 1, call.getString("kind") == "secrets",
+              let userId = call.getString("userId"), let bundle = call.getString("bundle") else {
+            return call.reject("Not a secrets message", "INVALID")
+        }
+        let message: [String: Any] = ["v": 1, "kind": "secrets", "userId": userId, "bundle": bundle]
         guard WatchLink.shared.send(message) else { return call.reject("No Apple Watch app to send to", "NO_WATCH") }
         call.resolve()
     }

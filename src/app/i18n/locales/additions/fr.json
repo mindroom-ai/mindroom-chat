@@ -666,6 +666,7 @@
       "unsupported": "Ce serveur ne peut pas connecter une Apple Watch.",
       "failed": "Connexion impossible : {{reason}}",
       "noCrossSigning": "La montre est connectée mais non vérifiée : configurez le chiffrement sur cet iPhone pour la vérifier.",
+      "noBackup": "La montre est vérifiée, mais ne peut pas lire les messages d’avant sa connexion : activez la sauvegarde des clés sur cet iPhone.",
       "timeout": "La montre n’a pas terminé la connexion. Ouvrez MindRoom sur la montre et reconnectez-la."
     }
   },

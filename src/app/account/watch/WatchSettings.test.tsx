@@ -11,11 +11,13 @@ const native = vi.hoisted(() => ({
   signedIn: undefined as ((device: WatchDevice) => void) | undefined,
   signOut: vi.fn(async () => undefined),
   send: vi.fn(async () => undefined),
+  sendSecrets: vi.fn(async () => undefined),
 }));
 vi.mock('../../native/nativeWatch', () => ({
   isNativeWatchAvailable: () => native.available,
   getWatchStatus: async () => native.status,
   sendWatchCredentials: native.send,
+  sendWatchSecrets: native.sendSecrets,
   signOutWatch: native.signOut,
   onWatchSignedIn: async (listener: (device: WatchDevice) => void) => {
     native.signedIn = listener;
@@ -110,7 +112,7 @@ describe('WatchSettings', () => {
     await act(async () => {
       native.signedIn?.({ userId: '@bas:mindroom.chat', deviceId: 'WATCH' });
     });
-    expect(flow.verify).toHaveBeenCalledWith(expect.anything(), 'WATCH');
+    expect(flow.verify).toHaveBeenCalledWith(expect.anything(), 'WATCH', native.sendSecrets);
     expect(screen.getByText('Connected as WATCH.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy();
   });
@@ -141,6 +143,19 @@ describe('WatchSettings', () => {
     expect(
       screen.getByText(
         'The watch is connected but unverified: set up encryption on this iPhone to verify it.'
+      )
+    ).toBeTruthy();
+  });
+
+  it('says when there is no key backup to share', async () => {
+    flow.verify.mockResolvedValue('no-backup');
+    await renderSettings();
+    await act(async () => {
+      native.signedIn?.({ userId: '@bas:mindroom.chat', deviceId: 'WATCH' });
+    });
+    expect(
+      screen.getByText(
+        'The watch is verified, but it cannot read messages from before it was connected: turn on key backup on this iPhone.'
       )
     ).toBeTruthy();
   });

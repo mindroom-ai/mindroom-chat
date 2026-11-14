@@ -666,6 +666,7 @@
       "unsupported": "Este servidor não consegue iniciar sessão num Apple Watch.",
       "failed": "Não foi possível conectar: {{reason}}",
       "noCrossSigning": "O relógio está conectado mas não verificado: configure a criptografia neste iPhone para verificá-lo.",
+      "noBackup": "O relógio está verificado, mas não consegue ler mensagens de antes da conexão: ative o backup de chaves neste iPhone.",
       "timeout": "O relógio não concluiu o início de sessão. Abra o MindRoom no relógio e conecte novamente."
     }
   },
