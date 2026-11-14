@@ -110,8 +110,8 @@ const getClosestRenderableEntryIndex = (
   if (nextIndex === 0) return 0;
 
   const previousIndex = nextIndex - 1;
-  const previousDistance = absoluteIndex - entries[previousIndex].absoluteIndex;
-  const nextDistance = entries[nextIndex].absoluteIndex - absoluteIndex;
+  const previousDistance = absoluteIndex - entries[previousIndex]!.absoluteIndex;
+  const nextDistance = entries[nextIndex]!.absoluteIndex - absoluteIndex;
 
   return nextDistance < previousDistance ? nextIndex : previousIndex;
 };

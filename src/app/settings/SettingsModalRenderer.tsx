@@ -1,4 +1,3 @@
-import React from 'react';
 import { useAtom } from 'jotai';
 import { Modal500 } from '../ui/Modal500';
 import { settingsModalAtom } from '../navigation/settingsModal';

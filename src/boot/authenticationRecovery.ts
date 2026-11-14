@@ -35,7 +35,7 @@ export function installAuthenticationRecovery(window: AuthenticationRecoveryWind
       if (code < 32 || (code >= 127 && code <= 159))
         throw new Error('Unsafe recovery URL control character');
     }
-    const path = value.trim().split(/[?#]/)[0];
+    const path = value.trim().split(/[?#]/)[0]!;
     if (
       path.includes('\\') ||
       /%2f|%5c/i.test(path) ||

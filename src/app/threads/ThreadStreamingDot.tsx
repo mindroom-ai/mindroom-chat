@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, type ComponentProps } from 'react';
+import { useEffect, useRef, type ComponentProps } from 'react';
 import * as css from '../messages/ThreadIndicator.css';
 
 // Compact rooms keep their cards mounted for fast scrolling.

@@ -1,4 +1,4 @@
-import React, { ReactNode, RefObject, useEffect, useRef } from 'react';
+import { ReactNode, RefObject, useEffect, useRef } from 'react';
 import { config } from 'folds';
 import { headerInset } from '../ui/styles/RoomOverlay.css';
 import * as css from './ThreadTimelineHeader.css';

@@ -1,7 +1,7 @@
 import { Icon, Icons } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { type TFunction } from 'i18next';
-import React, {
+import {
   ChangeEventHandler,
   KeyboardEventHandler,
   useEffect,

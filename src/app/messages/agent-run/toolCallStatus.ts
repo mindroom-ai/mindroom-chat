@@ -67,7 +67,7 @@ export const resolveToolCallStates = (
   approvals: readonly { toolName: string; status: ToolApprovalStatus; jobId?: string | null }[]
 ): ToolCallState[] => {
   const unmatched = [...approvals];
-  const take = (index: number) => (index >= 0 ? unmatched.splice(index, 1)[0].status : undefined);
+  const take = (index: number) => (index >= 0 ? unmatched.splice(index, 1)[0]!.status : undefined);
   const byJob = calls.map(({ job }) =>
     job ? take(unmatched.findIndex((approval) => approval.jobId === job.jobId)) : undefined
   );

@@ -63,7 +63,7 @@ describe('avatars while the homeserver is out of reach', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
-    clearFetchedAvatars();
+    void clearFetchedAvatars();
     Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: undefined });
     vi.unstubAllGlobals();
   });

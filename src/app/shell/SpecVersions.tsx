@@ -9,8 +9,10 @@ import { SpecVersionsProvider } from '../matrix/hooks/useSpecVersions';
 import { useActiveSession } from '../matrix/session/useSessionStore';
 import { specVersions, type SpecVersions as ServerSpecVersions } from '../matrix/cs-api';
 import { readCachedSpecVersions, writeCachedSpecVersions } from '../matrix/cachedSpecVersions';
-import { clearAllCacheAndReload } from '../account/lifecycle/initMatrix';
-import { removeSessionAndReload } from '../account/lifecycle/sessionLifecycle';
+import {
+  clearAllCacheAndReload,
+  removeSessionAndReload,
+} from '../account/lifecycle/sessionLifecycle';
 
 const EMPTY_SPEC_VERSIONS: ServerSpecVersions = { versions: [] };
 

@@ -148,7 +148,7 @@ export const resolveRoomInputSendStep = (
     !session.rootEventId &&
     pendingFiles.length > 0
   ) {
-    const rootFile = pendingFiles[0];
+    const rootFile = pendingFiles[0]!;
     const upload = uploadMap.get(rootFile);
 
     if (isUploadSuccess(upload)) {
