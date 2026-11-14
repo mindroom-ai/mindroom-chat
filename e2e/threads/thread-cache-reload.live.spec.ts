@@ -456,7 +456,8 @@ const check = async (page: Page, world: World, engine: string) => {
       `${engine} ${pass} reload: ${asked.length} single requests for the ${STREAMS} replies, ${lists.length} /threads requests`
     );
     expect.soft(asked, `${engine} ${pass}: replies asked about one by one`).toEqual([]);
-    // Every page of the room's list, to its end; a page asked for twice counts once.
+    // Every page of the room's list, to its end; a page asked for twice counts once (the first
+    // reload asks for the first page twice: #335).
     const roomPages = lists.filter((request) => request.startsWith('all:'));
     expect
       .soft(new Set(roomPages).size, `${engine} ${pass}: room list pages`)
