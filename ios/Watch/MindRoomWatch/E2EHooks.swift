@@ -2,6 +2,7 @@
 import AVFoundation
 import Foundation
 import MatrixRustSDK
+import MindRoomWatchKit
 
 /// Launch-environment hooks for the simulator runs (scripts/watch/e2e.sh); DEBUG builds only.
 ///
@@ -10,11 +11,27 @@ import MatrixRustSDK
 ///   MINDROOM_WATCH_E2E_SEND_TONE    seconds of a test tone to send as a voice message, once
 ///   MINDROOM_WATCH_E2E_SEND_TEXT    a text message to send, once (drives the stub model's hashtags)
 ///   MINDROOM_WATCH_E2E_OPEN         `newest`: open the newest thread once the list has it
+///   MINDROOM_WATCH_E2E_APPROVE      `approve` or `deny`: answer the open thread's pending approval, once
+///   MINDROOM_WATCH_E2E_ANSWER       `first`: answer the open thread's question with its first option, once
 enum E2EHooks {
     static let environment = ProcessInfo.processInfo.environment
     static var room: String? { environment["MINDROOM_WATCH_E2E_ROOM"] }
     static var openNewest: Bool { environment["MINDROOM_WATCH_E2E_OPEN"] == "newest" }
     private static var sent = false
+    private static var acted: Set<String> = []
+
+    /// Answers what the thread asks, through the same calls the buttons make.
+    @MainActor
+    static func act(on snapshot: ThreadSnapshot, model: ThreadModel) {
+        if let decision = environment["MINDROOM_WATCH_E2E_APPROVE"], let card = snapshot.pendingApproval,
+           acted.insert(card.eventId).inserted {
+            Task { await model.approve(card, decision == "approve") }
+        }
+        if environment["MINDROOM_WATCH_E2E_ANSWER"] == "first", let question = snapshot.openQuestion,
+           let option = question.options.first, acted.insert(question.eventId).inserted {
+            Task { await model.answer(question, key: option.key) }
+        }
+    }
 
     @MainActor
     static func send(on timeline: Timeline) async {

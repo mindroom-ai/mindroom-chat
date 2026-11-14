@@ -7,6 +7,7 @@ struct ThreadView: View {
     let rootId: String
     @StateObject private var model: ThreadModel
     @State private var recording = false
+    @StateObject private var speaker = Speaker()
     @Environment(\.dismiss) private var dismiss
 
     init(roomModel: RoomModel, rootId: String) {
@@ -21,6 +22,15 @@ struct ThreadView: View {
             VStack(alignment: .leading, spacing: 8) {
                 if let snapshot = model.snapshot {
                     Text(snapshot.title).font(.headline)
+                    // What waits for the person comes first.
+                    if let card = snapshot.pendingApproval {
+                        approvalView(card)
+                    }
+                    if let question = snapshot.openQuestion {
+                        QuestionView(question: question, busy: model.answered.contains(question.eventId)) { key in
+                            Task { await model.answer(question, key: key) }
+                        }
+                    }
                     if let reply = snapshot.reply {
                         HStack(spacing: 4) {
                             Text(roomModel.name(reply.sender)).font(.caption.bold()).foregroundStyle(.tint)
@@ -30,8 +40,16 @@ struct ThreadView: View {
                             if reply.run == .streaming { ProgressView().controlSize(.mini) }
                         }
                         Text(reply.text.isEmpty ? "…" : roomModel.named(reply.text)).font(.body)
+                        if !reply.text.isEmpty {
+                            Button { speaker.toggle(roomModel.named(reply.text)) } label: {
+                                Label(speaker.speaking ? "Stop" : "Listen", systemImage: speaker.speaking ? "stop.fill" : "play.fill")
+                            }
+                        }
                     } else {
                         Text("Sent").font(.footnote).foregroundStyle(.secondary)
+                    }
+                    if let card = snapshot.approvals.last, card.status != .pending {
+                        approvalView(card)
                     }
                 } else {
                     ProgressView()
@@ -65,6 +83,12 @@ struct ThreadView: View {
             activity.isEligibleForHandoff = true
             activity.title = model.snapshot?.title
             activity.userInfo = ["roomId": roomModel.room.id(), "threadId": rootId]
+        }
+    }
+
+    private func approvalView(_ card: ApprovalCard) -> some View {
+        ApprovalCardView(card: card, agent: card.agentName, busy: model.answered.contains(card.eventId)) { yes in
+            Task { await model.approve(card, yes) }
         }
     }
 }

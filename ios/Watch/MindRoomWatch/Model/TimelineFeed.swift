@@ -37,26 +37,6 @@ final class TimelineFeed: TimelineListener, @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         return items.compactMap { $0.asEvent() }
     }
-
-    /// The raw JSON of each event, its newest edit after it, and its reactions as `m.reaction` events.
-    var json: [[String: Any]] {
-        events.flatMap { item -> [[String: Any]] in
-            let info = item.lazyProvider.debugInfo()
-            var result = [info.originalJson, info.latestEditJson].compactMap(parse)
-            guard case let .eventId(eventId) = item.eventOrTransactionId,
-                  case let .msgLike(content) = item.content else { return result }
-            for reaction in content.reactions {
-                for sender in reaction.senders {
-                    result.append([
-                        "type": "m.reaction", "sender": sender.senderId,
-                        "origin_server_ts": NSNumber(value: sender.timestamp),
-                        "content": ["m.relates_to": ["rel_type": "m.annotation", "event_id": eventId, "key": reaction.key]],
-                    ])
-                }
-            }
-            return result
-        }
-    }
 }
 
 /// A timeline with MindRoom's events kept.
