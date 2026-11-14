@@ -59,9 +59,15 @@ afterEach(() => {
  * A scroller whose visible rows start at y=100 (its scroll padding), with an `[+all]`-like
  * control from y=110 to 130 at the right, and a row at `rowTop` whose toolbar normally sits 30 px
  * above it at the right edge. With `senderRight`, the row has a sender line from 4 to 26 px into it,
- * from x=60 to `senderRight`.
+ * from x=60 to `senderRight`. With `codeActionsAt`, the row holds a code block whose buttons
+ * span 24 px from that far into it, from x=900 to 980.
  */
-const renderRow = (rowTop: number, overlayLeft = 900, senderRight?: number) => {
+const renderRow = (
+  rowTop: number,
+  overlayLeft = 900,
+  senderRight?: number,
+  codeActionsAt?: number
+) => {
   const seen: Array<number | undefined> = [];
   function Row() {
     const rowRef = useRef<HTMLDivElement>(null);
@@ -74,16 +80,19 @@ const renderRow = (rowTop: number, overlayLeft = 900, senderRight?: number) => {
         <div ref={rowRef} data-testid="row">
           <div ref={toolbarRef} data-testid="toolbar" />
           {senderRight !== undefined && <div data-message-sender-line="" data-testid="sender" />}
+          {codeActionsAt !== undefined && <div data-code-block-actions="" data-testid="code" />}
         </div>
       </div>
     );
   }
+  const codeTop = rowTop + (codeActionsAt ?? 0);
   const rects: Record<string, Rect> = {
     scroller: { top: 0, bottom: 800, left: 0, right: 1000 },
     overlay: { top: 110, bottom: 130, left: overlayLeft, right: overlayLeft + 50 },
     row: { top: rowTop, bottom: rowTop + 80, left: 0, right: 1000 },
     toolbar: { top: rowTop - 30, bottom: rowTop + 6, left: 850, right: 1000 },
     sender: { top: rowTop + 4, bottom: rowTop + 26, left: 60, right: senderRight ?? 0 },
+    code: { top: codeTop, bottom: codeTop + 24, left: 900, right: 980 },
   };
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(
     this: HTMLElement
@@ -120,6 +129,16 @@ describe('useToolbarClearance', () => {
     expect(renderRow(140, 900, 1000)).toBe(34);
     // A sender line that ends before the toolbar's span starts, as in Compact, is no reason.
     expect(renderRow(140, 900, 800)).toBe(-2);
+  });
+
+  it('stays over the sender line where the buttons of a code block are under it', () => {
+    // Below the sender line (34) it would cover the code block's buttons at 46 to 70, so it stays
+    // below the toggle, over the sender line.
+    expect(renderRow(140, 900, 1000, 46)).toBe(-2);
+    // Buttons right under the sender line do not push it up under the toggle either.
+    expect(renderRow(140, 900, 1000, 30)).toBe(-2);
+    // Buttons further down leave it below the sender line.
+    expect(renderRow(140, 900, 1000, 80)).toBe(34);
   });
 
   it('places the toolbar again when the sender line changes size', () => {

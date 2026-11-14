@@ -251,13 +251,23 @@ const openRoom = async (page: Page, world: World) => {
   await expectShown(header.locator('h1'), ROOM_NAME_SHOWN);
 };
 
-/** The call panel of the member's call: its name, as its heading and its accessible name. */
+/**
+ * The call view of the member's call: its name, as its heading and as the accessible name of the
+ * call's landmark (the panel on a phone, the floating call window on a wide screen).
+ */
 const checkCallPanel = async (page: Page, label: string) => {
   await page.locator('[data-room-call-button]').first().click();
   const panel = page.getByTestId('call-panel');
   await expect(panel).toBeVisible({ timeout: 30_000 });
   await expectShown(panel.locator('h2'), ROOM_NAME_SHOWN);
-  expect(await panel.getAttribute('aria-label')).toBe(ROOM_NAME_SHOWN);
+  const landmark = page.getByRole('region', { name: ROOM_NAME_SHOWN, exact: true });
+  await expect(landmark).toBeVisible();
+  // The landmark is the call's: it holds the call view's heading.
+  expect(
+    await landmark.evaluate((element) =>
+      element.contains(document.querySelector('[data-testid="call-panel"] h2'))
+    )
+  ).toBe(true);
   await shot(page, `${label}-call-panel`);
   await panel.locator('header button').last().click();
   await expect(panel).toBeHidden();
