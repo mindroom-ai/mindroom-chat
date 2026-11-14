@@ -6,11 +6,19 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = scene as? UIWindowScene else { return }
-        // One main window: a second one closes as it connects.
+        // One main window: a second one closes as it connects, and the link it came with goes to
+        // the app, which the main window shows.
         if UIApplication.shared.connectedScenes.contains(where: { $0 !== scene && $0.delegate is SceneDelegate }) {
+            SceneDelegateProxy.shared.scene(scene, openURLContexts: connectionOptions.urlContexts)
+            connectionOptions.userActivities.forEach { SceneDelegateProxy.shared.scene(scene, continue: $0) }
             UIApplication.shared.requestSceneSessionDestruction(session, options: nil)
+#if targetEnvironment(macCatalyst)
+            QuickCapture.showMainWindow()
+#endif
             return
         }
+        // The main window takes the links and notifications.
+        windowScene.activationConditions.prefersToActivateForTargetContentIdentifierPredicate = NSPredicate(value: true)
 
         // Keep the custom bridge that registers authentication and file saving.
         window = UIWindow(windowScene: windowScene)

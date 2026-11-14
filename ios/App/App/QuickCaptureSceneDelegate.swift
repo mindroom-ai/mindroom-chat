@@ -11,6 +11,9 @@ class QuickCaptureSceneDelegate: UIResponder, UIWindowSceneDelegate {
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = scene as? UIWindowScene else { return }
         windowScene.title = NSLocalizedString("QUICK_CAPTURE", comment: "The Quick Capture window")
+        // Links and notifications go to the main window's scene, not to the widget's.
+        windowScene.activationConditions.canActivateForTargetContentIdentifierPredicate = NSPredicate(value: false)
+        windowScene.activationConditions.prefersToActivateForTargetContentIdentifierPredicate = NSPredicate(value: false)
         window = UIWindow(windowScene: windowScene)
         window?.backgroundColor = .clear
         window?.isOpaque = false
@@ -43,10 +46,39 @@ class QuickCaptureSceneDelegate: UIResponder, UIWindowSceneDelegate {
 #endif
     }
 
+    /// A link UIKit gives the widget anyway goes to the app, as the main window's would, and the
+    /// main window comes forward with it.
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        SceneDelegateProxy.shared.scene(scene, openURLContexts: URLContexts)
+#if targetEnvironment(macCatalyst)
+        QuickCapture.showMainWindow()
+#endif
+    }
+
+    func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+        SceneDelegateProxy.shared.scene(scene, continue: userActivity)
+#if targetEnvironment(macCatalyst)
+        QuickCapture.showMainWindow()
+#endif
+    }
+
 #if targetEnvironment(macCatalyst)
     /// Whether the window hides as soon as UIKit has shown it: a widget restored at launch, until
     /// the shortcut shows it.
     var startsHidden = false
+
+    /// UIKit sets its title bar again as the window changes size, as it does once it takes the
+    /// widget's size: the widget's goes back on after UIKit's.
+    func windowScene(
+        _ windowScene: UIWindowScene,
+        didUpdate previousCoordinateSpace: UICoordinateSpace,
+        interfaceOrientation previousInterfaceOrientation: UIInterfaceOrientation,
+        traitCollection previousTraitCollection: UITraitCollection
+    ) {
+        QuickCapture.whenHostWindow(of: windowScene) { host in
+            DispatchQueue.main.async { MacWindowing.styleWidgetWindow(host) }
+        }
+    }
 
     /// UIKit sets its title bar again as the scene comes forward: the widget's goes back on top.
     func sceneDidBecomeActive(_ scene: UIScene) {
@@ -63,6 +95,13 @@ class QuickCaptureSceneDelegate: UIResponder, UIWindowSceneDelegate {
 
 /// A bridge that starts at `/quick-capture/`, with a page that lets the window's material show.
 class QuickCaptureViewController: MindRoomBridgeViewController {
+    /// The main window's bridge answers notification taps: a second bridge would take them over.
+    override func instanceDescriptor() -> InstanceDescriptor {
+        let descriptor = super.instanceDescriptor()
+        descriptor.handleApplicationNotifications = false
+        return descriptor
+    }
+
     override func viewDidLoad() {
 #if targetEnvironment(macCatalyst)
         // Before the bridge's first load, which keeps the web view's opacity as it finds it.
@@ -105,8 +144,9 @@ enum QuickCapture {
         UIApplication.shared.connectedScenes.first { $0.delegate is QuickCaptureSceneDelegate } as? UIWindowScene
     }
 
+    /// The main window's scene; not a second one, which closes as it connects.
     static var mainScene: UIWindowScene? {
-        UIApplication.shared.connectedScenes.first { $0.delegate is SceneDelegate } as? UIWindowScene
+        UIApplication.shared.connectedScenes.first { ($0.delegate as? SceneDelegate)?.window != nil } as? UIWindowScene
     }
 
 #if targetEnvironment(macCatalyst)
@@ -130,6 +170,8 @@ enum QuickCapture {
 
     /// The shortcut: opens the widget, hides it while it has the keyboard, else shows it.
     static func toggle() {
+        // Before the widget brings the app forward, which would make MindRoom the app in front.
+        MacWindowing.rememberFrontProcess()
         guard let host = widgetHost else {
             if widgetScene == nil { openWidgetScene() }
             return

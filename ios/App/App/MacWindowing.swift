@@ -13,7 +13,6 @@ enum MacWindowing {
 
     private static var hotKeyAction: (() -> Void)?
     private static var hotKeyInstalled = false
-    private static var styledWindows = Set<ObjectIdentifier>()
 
     /// The process id of the app that was in front before the widget showed, for the window
     /// screenshot and to give the keyboard back when the widget hides.
@@ -82,10 +81,11 @@ enum MacWindowing {
     /// level go on again on every call, since UIKit sets its own as the scene changes.
     static func styleWidgetWindow(_ window: NSObject) {
         applyChrome(window)
-        guard styledWindows.insert(ObjectIdentifier(window)).inserted else { return }
         window.setValue(true, forKey: "movableByWindowBackground")
         addMaterial(to: window)
-        _ = window.perform(NSSelectorFromString("setFrameAutosaveName:"), with: frameName)
+        if (window.value(forKey: "frameAutosaveName") as? String) != frameName {
+            _ = window.perform(NSSelectorFromString("setFrameAutosaveName:"), with: frameName)
+        }
     }
 
     private static func applyChrome(_ window: NSObject) {
@@ -119,6 +119,8 @@ enum MacWindowing {
               let content = window.value(forKey: "contentView") as? NSObject,
               let frame = content.value(forKey: "superview") as? NSObject,
               let clear = appKitClass("NSColor")?.value(forKey: "clearColor") else { return }
+        let subviews = frame.value(forKey: "subviews") as? [NSObject] ?? []
+        guard !subviews.contains(where: { $0.isKind(of: effectClass) }) else { return }
         window.setValue(false, forKey: "opaque")
         window.setValue(clear, forKey: "backgroundColor")
         let effect = effectClass.init()
@@ -136,7 +138,6 @@ enum MacWindowing {
 
     /// The widget in front of every app, with the keyboard. The main window stays where it is.
     static func showWidget(_ window: NSObject) {
-        rememberFrontProcess()
         applyChrome(window)
         act(window, "makeKeyAndOrderFront:")
         act(window, "makeMainWindow")
@@ -168,7 +169,8 @@ enum MacWindowing {
         return (description?["NSScreenNumber"] as? NSNumber)?.uint32Value
     }
 
-    private static func rememberFrontProcess() {
+    /// Notes the app in front, for the window screenshot and to give the keyboard back to it.
+    static func rememberFrontProcess() {
         let workspace = appKitClass("NSWorkspace")?.value(forKey: "sharedWorkspace") as? NSObject
         let front = workspace?.value(forKey: "frontmostApplication") as? NSObject
         if let pid = (front?.value(forKey: "processIdentifier") as? NSNumber)?.int32Value {

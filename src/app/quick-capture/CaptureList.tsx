@@ -273,7 +273,11 @@ export function CaptureList({
           <div key={item.threadId} role="listitem" className={css.Item}>
             {/* As x does; the row keeps the keyboard, so the mark takes neither focus nor Tab. */}
             {item.pinned ? (
-              <span className={classNames(css.Mark, css.MarkPinned)}>
+              <span
+                className={classNames(css.Mark, css.MarkPinned)}
+                role="img"
+                aria-label={t('threadNav.pinned')}
+              >
                 <Icon size="Inherit" src={Icons.Pin} />
               </span>
             ) : (

@@ -73,6 +73,22 @@ describe('Mac Catalyst shell', () => {
     );
   });
 
+  it('leaves notifications and links to the main window', () => {
+    // A second Capacitor bridge would take the notification center's delegate over.
+    expect(widgetSceneSource).toMatch(
+      /override func instanceDescriptor\(\)[\s\S]*?descriptor\.handleApplicationNotifications = false/
+    );
+    expect(widgetSceneSource).toContain(
+      'canActivateForTargetContentIdentifierPredicate = NSPredicate(value: false)'
+    );
+    expect(sceneSource).toContain(
+      'prefersToActivateForTargetContentIdentifierPredicate = NSPredicate(value: true)'
+    );
+    expect(widgetSceneSource).toMatch(
+      /func scene\(_ scene: UIScene, openURLContexts[\s\S]*?SceneDelegateProxy\.shared\.scene\(scene, openURLContexts/
+    );
+  });
+
   it('serves the routes whose IDs have dots, and the widget, from the app', () => {
     const roots = bridgeSource.match(/let routeRoots: Set<Substring> = \[([\s\S]*?)\]/)?.[1];
     ['home', 'direct', 'threads', 'activity', 'quick-capture'].forEach((root) =>
