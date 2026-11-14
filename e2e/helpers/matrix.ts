@@ -43,6 +43,7 @@ type CreateThreadFixtureOptions = {
 type SerializedThreadFilterState = {
   v: 1;
   resolved: 'any' | 'include' | 'exclude';
+  snoozed?: 'any' | 'include' | 'exclude';
   streaming: 'any' | 'include' | 'exclude';
   scheduled: 'any' | 'include' | 'exclude';
   unread: 'any' | 'include' | 'exclude';
@@ -500,6 +501,7 @@ export const setDirectAccountData = async (
 export const createDefaultThreadFilterState = (): SerializedThreadFilterState => ({
   v: 1,
   resolved: 'any',
+  snoozed: 'any',
   streaming: 'any',
   scheduled: 'any',
   unread: 'any',

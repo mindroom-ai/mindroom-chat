@@ -69,12 +69,17 @@ import {
   shouldForceCollapsibleMessageOverflow,
 } from '../threadCollapsibleMessages';
 import { useTimelineBulkExpansionAnchor } from '../useTimelineBulkExpansionAnchor';
-import { isMindroomAgentUserId } from '../../matrix/protocol/agentIdentity';
+import {
+  isMindroomAgentUserId,
+  isMindroomAgentUserIdForViewer,
+} from '../../matrix/protocol/agentIdentity';
 import { FailedSendActions } from '../../messages/FailedSendActions';
 import { toggleReaction as sendReactionToggle } from '../../messages/reactions/reactionToggle';
 import { ApprovalHistory } from '../../approvals/ThreadApprovalControls';
 import { ThreadSummaryMarker } from '../../messages/thread-summary/ThreadSummaryMarker';
 import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import { readSnoozeEndedNote } from '../../matrix/protocol/threadSnooze';
+import { SnoozeEndedMarker } from '../../messages/SnoozeEndedMarker';
 import { getToolApprovalRenderContent } from '../../matrix/protocol/toolApproval';
 import { shouldShowLinkFavicons } from '../../rich-text/linkFaviconPolicy';
 import { renderThreadBadge } from '../ThreadBadge';
@@ -465,6 +470,26 @@ export const useTimelineMessageFeature = ({
             spaced
           >
             <ThreadSummaryMarker summaryInfo={summaryInfo} plan={marker} />
+          </MessageAside>
+        );
+      }
+      // Inside a thread, the backend's snooze-ended message is one quiet line, not an agent's
+      // reply: no avatar, name or toolbar. Only a MindRoom agent's counts.
+      const snoozeEndedNote =
+        threadId &&
+        kind === 'message' &&
+        isMindroomAgentUserIdForViewer(event.getSender() ?? undefined, userId ?? undefined)
+          ? readSnoozeEndedNote(content)
+          : null;
+      if (snoozeEndedNote !== null) {
+        return (
+          <MessageAside
+            key={eventId}
+            data-message-id={eventId}
+            data-message-item={row.index}
+            spaced
+          >
+            <SnoozeEndedMarker note={snoozeEndedNote} />
           </MessageAside>
         );
       }

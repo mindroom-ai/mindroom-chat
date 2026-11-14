@@ -4,6 +4,7 @@ import { parseThreadFilterQuery, serializeThreadFilterQuery } from './threadFilt
 
 const makeState = (overrides: Partial<ThreadFilterState> = {}): ThreadFilterState => ({
   resolved: 'any',
+  snoozed: 'any',
   streaming: 'any',
   scheduled: 'any',
   unread: 'any',
@@ -19,7 +20,7 @@ const makeState = (overrides: Partial<ThreadFilterState> = {}): ThreadFilterStat
 const expectParsed = (
   text: string,
   expected: {
-    status?: Partial<Record<keyof Pick<ThreadFilterState, 'resolved' | 'streaming' | 'scheduled' | 'unread' | 'idle'>, ThreadFilterState['resolved']>>;
+    status?: Partial<Record<keyof Pick<ThreadFilterState, 'resolved' | 'snoozed' | 'streaming' | 'scheduled' | 'unread' | 'idle'>, ThreadFilterState['resolved']>>;
     tags?: [string, ThreadFilterState['resolved']][];
     statusMode?: 'and' | 'or';
     freeText?: string;
@@ -49,6 +50,17 @@ describe('threadFilterDsl', () => {
     ['is:streaming OR tag:bug', { unsupportedTail: 'is:streaming OR tag:bug' }],
     ['is:streaming OR is:scheduled is:unread OR is:idle', { status: { streaming: 'include', scheduled: 'include' }, statusMode: 'or', unsupportedTail: 'is:unread OR is:idle' }],
   ])('parses %s', (text, expected) => expectParsed(text, expected));
+
+  it('parses and writes is:snoozed and -is:snoozed', () => {
+    expectParsed('is:snoozed', { status: { snoozed: 'include' } });
+    expectParsed('-is:snoozed -is:resolved', {
+      status: { snoozed: 'exclude', resolved: 'exclude' },
+    });
+    expect(serializeThreadFilterQuery(makeState({ snoozed: 'include' }))).toBe('is:snoozed');
+    expect(serializeThreadFilterQuery(makeState({ resolved: 'exclude', snoozed: 'exclude' }))).toBe(
+      '-is:resolved -is:snoozed'
+    );
+  });
 
   it('keeps colon-bearing free text searchable when it is not DSL syntax', () => {
     expectParsed('!room:server hello world', {

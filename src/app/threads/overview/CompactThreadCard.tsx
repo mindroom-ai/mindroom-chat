@@ -1,10 +1,11 @@
 import { memo, type ReactNode } from 'react';
 import { Avatar, Box, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { IconCalendarEvent } from '@tabler/icons-react';
+import { IconCalendarEvent, IconClock } from '@tabler/icons-react';
 import * as threadIndicatorCss from '../../messages/ThreadIndicator.css';
 import { UserAvatar } from '../../avatars/UserAvatar';
 import { useRelativeTime } from '../../i18n/useRelativeTime';
+import { useSnoozedUntilText } from '../tags/useSnoozedUntilText';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 import * as css from './CompactRoomView.css';
 import { FailedSendIndicator, PendingSendIndicator } from '../../ui/PendingSendIndicator';
@@ -30,8 +31,7 @@ const MOBILE_MAX_TAGS = 2;
 
 function CompactThreadCardBase({ viewModel, onClick, attachment }: CompactThreadCardProps) {
   const { t } = useTranslation();
-  const maxTags =
-    useScreenSizeContext() === ScreenSize.Mobile ? MOBILE_MAX_TAGS : DESKTOP_MAX_TAGS;
+  const maxTags = useScreenSizeContext() === ScreenSize.Mobile ? MOBILE_MAX_TAGS : DESKTOP_MAX_TAGS;
   const {
     id,
     titleText,
@@ -50,6 +50,7 @@ function CompactThreadCardBase({ viewModel, onClick, attachment }: CompactThread
     isStreaming,
     hasPendingSend,
     hasFailedSend,
+    snoozedUntilTs,
     scheduledDisplayText,
     scheduledTaskLabel,
     lastActivityTs,
@@ -57,6 +58,7 @@ function CompactThreadCardBase({ viewModel, onClick, attachment }: CompactThread
     primarySummaryText,
   } = viewModel;
   const relativeTime = useRelativeTime(lastActivityTs, 'compact');
+  const snoozedText = useSnoozedUntilText(snoozedUntilTs);
   // A thread nobody has replied to shows no count, as the Threads view shows no chip under it.
   const hasReplies = messageCount > 0;
   const resolvedByLabel =
@@ -75,6 +77,7 @@ function CompactThreadCardBase({ viewModel, onClick, attachment }: CompactThread
     isStreaming ? t('thread.aria.agentStreaming') : undefined,
     hasFailedSend ? t('thread.aria.messageFailed') : undefined,
     hasPendingSend ? t('thread.aria.messageSending') : undefined,
+    snoozedText,
     scheduledTaskLabel,
     lastActivityTitle || relativeTime
       ? t('thread.aria.lastActivity', { time: lastActivityTitle || relativeTime })
@@ -188,6 +191,28 @@ function CompactThreadCardBase({ viewModel, onClick, attachment }: CompactThread
           </Text>
         )}
         <span className={css.Stats}>
+          {snoozedText && (
+            <Box
+              as="span"
+              className={`${css.ScheduledIndicator} ${threadIndicatorCss.ThreadScheduledIndicator}`}
+              alignItems="Center"
+              gap="100"
+              role="img"
+              aria-label={snoozedText}
+              title={snoozedText}
+              data-thread-snoozed="true"
+            >
+              <IconClock
+                size={12}
+                stroke={1.8}
+                className={threadIndicatorCss.ThreadScheduledIcon}
+                aria-hidden="true"
+              />
+              <Text as="span" size="T200" priority="300" truncate>
+                {snoozedText}
+              </Text>
+            </Box>
+          )}
           {scheduledDisplayText && scheduledTaskLabel && (
             <Box
               as="span"

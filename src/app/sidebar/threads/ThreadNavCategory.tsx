@@ -8,7 +8,8 @@ import {
   type CrossRoomThreadIndexEntry,
 } from '../../threads/cross-room/crossRoomThreadIndex';
 import { archivedRoomsAtom, isRoomVisible } from '../../matrix/state/archivedRooms';
-import { buildSidebarThreadEntries } from './threadNavCategoryUtils';
+import { buildSidebarThreadEntries, MAX_SIDEBAR_THREADS } from './threadNavCategoryUtils';
+import { useSnoozeNow } from '../../threads/tags/useSnoozeNow';
 import { makeThreadSidebarPreferencesAtom } from '../../threads/cross-room/threadSidebarPreferences';
 import { ThreadNavItem } from './ThreadNavItem';
 import * as css from './threadNav.css';
@@ -32,9 +33,10 @@ type ThreadNavCategoryProps = {
 };
 
 /**
- * The sidebar's THREADS category: unresolved threads across rooms by latest activity, the
- * user's pinned ones first. Direct messages and archived rooms are left out. It collapses like
- * the ROOMS category, but starts collapsed until the person opens it (`ClientInitStorageAtom`).
+ * The sidebar's THREADS category: threads across rooms that are neither resolved nor snoozed, by
+ * latest activity, the user's pinned ones first. Direct messages and archived rooms are left out.
+ * It collapses like the ROOMS category, but starts collapsed until the person opens it
+ * (`ClientInitStorageAtom`).
  */
 export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
   const { t } = useTranslation();
@@ -54,6 +56,13 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
   const [searchParams] = useSearchParams();
   const selectedThreadId = searchParams.get('threadId') ?? undefined;
 
+  // Renewed when a snooze ends, so its thread comes back.
+  const now = useSnoozeNow(
+    useMemo(
+      () => Array.from(index.entries.values(), (entry) => entry.snoozedUntilTs),
+      [index.entries]
+    )
+  );
   const entries = useMemo(
     () =>
       buildSidebarThreadEntries(
@@ -63,12 +72,15 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
             (!spaceId || isInSpace(roomToParents, entry.roomId, spaceId))
         ),
         preferences.pinnedThreadKeys,
-        directRoomIds
+        directRoomIds,
+        MAX_SIDEBAR_THREADS,
+        now
       ),
     [
       archivedRooms,
       directRoomIds,
       index.entries,
+      now,
       preferences.pinnedThreadKeys,
       roomToParents,
       spaceId,

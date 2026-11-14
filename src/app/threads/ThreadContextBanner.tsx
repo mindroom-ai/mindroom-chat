@@ -13,12 +13,13 @@ import classNames from 'classnames';
 import { useAtomValue } from 'jotai';
 import { Box, Icon, IconButton, Icons, Text, type RectCords } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { IconCalendarEvent } from '@tabler/icons-react';
+import { IconCalendarEvent, IconClock } from '@tabler/icons-react';
 import { Room } from 'matrix-js-sdk';
 import { type Thread, ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import * as threadIndicatorCss from '../messages/ThreadIndicator.css';
 import { useThreadHeaderInfo } from './useThreadHeaderInfo';
+import { useSnoozedUntilText } from './tags/useSnoozedUntilText';
 import { buildThreadHeaderViewModelFromRecord } from './threadHeaderViewModel';
 import { buildThreadRecord } from '../event-store/threads/threadRecord';
 import { useThreadRootEvent } from './useThreadRootEvent';
@@ -276,7 +277,8 @@ export function ThreadContextBanner({
   const hasScheduled = !!(headerModel.bannerScheduledText && headerModel.scheduledLabel);
   // Without an AI summary, the start of the thread's first message is its title.
   const rootTitle = getThreadRootTitle(room, headerRecord.presentation, t);
-  const hasSubtitle = !!headerModel.summaryText || !!rootTitle || hasScheduled;
+  const snoozedText = useSnoozedUntilText(headerModel.snoozedUntilTs);
+  const hasSubtitle = !!headerModel.summaryText || !!rootTitle || hasScheduled || !!snoozedText;
   // A pinned thread shows the pin instead of the resolve chip and its byline.
   const showResolver = !isPinned && !!resolvedByDisplayName;
   // The Resolved button is described by the byline, also on short screens,
@@ -309,7 +311,11 @@ export function ThreadContextBanner({
       <div
         ref={glassRef}
         className={classNames(
-          headerModel.isResolved ? css.BannerResolved : css.Banner,
+          headerModel.isResolved
+            ? css.BannerResolved
+            : snoozedText
+            ? css.BannerSnoozed
+            : css.Banner,
           collapsed && css.Collapsed
         )}
         data-thread-context-banner="true"
@@ -332,7 +338,7 @@ export function ThreadContextBanner({
         }}
       >
         {collapsed ? (
-          // Collapsed to back and Show details; the tint still says resolved, and
+          // Collapsed to back and Show details; the tint still says resolved or snoozed, and
           // auto-approval and an active permissions grant stay in view.
           <Box alignItems="Center" gap="100">
             {backButton}
@@ -443,6 +449,38 @@ export function ThreadContextBanner({
                         />
                         <Text as="span" size="T200" priority="300" truncate>
                           {headerModel.bannerScheduledText}
+                        </Text>
+                      </Box>
+                    </Box>
+                  )}
+                  {snoozedText && (
+                    <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
+                      {(headerModel.summaryText || rootTitle || hasScheduled) && (
+                        <Text
+                          as="span"
+                          className={classNames(css.MetadataDot, css.ScheduledDot)}
+                          size="T200"
+                          priority="300"
+                          aria-hidden="true"
+                        >
+                          ·
+                        </Text>
+                      )}
+                      <Box
+                        as="span"
+                        className={`${css.ScheduledIndicator} ${threadIndicatorCss.ThreadScheduledIndicator}`}
+                        alignItems="Center"
+                        gap="100"
+                        data-thread-snoozed="true"
+                      >
+                        <IconClock
+                          size={12}
+                          stroke={1.8}
+                          className={threadIndicatorCss.ThreadScheduledIcon}
+                          aria-hidden="true"
+                        />
+                        <Text as="span" size="T200" priority="300" truncate>
+                          {snoozedText}
                         </Text>
                       </Box>
                     </Box>

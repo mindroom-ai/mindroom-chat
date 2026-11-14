@@ -30,7 +30,10 @@ import {
   type FetchedRelationOverviewUpdateOptions,
 } from './threadOverviewCacheHydration';
 import type { ThreadRecord } from '../../event-store/threads/types';
-import { buildVisibleThreadParticipantMap, buildVisibleThreadReplyCountMap } from '../../event-store/threads/threadUtils';
+import {
+  buildVisibleThreadParticipantMap,
+  buildVisibleThreadReplyCountMap,
+} from '../../event-store/threads/threadUtils';
 import {
   DIRECT_ROOM_TIMELINE_FILTER_STATE,
   THREAD_OVERVIEW_METADATA_CACHE_LIMIT,
@@ -56,6 +59,7 @@ import {
   useThreadOverviewCachedMetadata,
 } from './threadOverviewCacheMetadata';
 import { buildThreadIndexRecordMaps } from './threadIndexRecords';
+import { useSnoozeNow } from '../tags/useSnoozeNow';
 
 type ThreadResolutionLike = {
   isResolved: boolean;
@@ -124,6 +128,8 @@ export type ResolveThreadIndexSnapshotOptions = {
   threadSortControlSignature: string;
   focusedRoomOverviewRequested: boolean;
   focusedRoomOverviewRootId: string | undefined;
+  /** The clock the snoozed filter reads. */
+  now?: number;
 };
 
 /**
@@ -206,6 +212,7 @@ export const resolveThreadIndexSnapshot = ({
   threadSortControlSignature,
   focusedRoomOverviewRequested,
   focusedRoomOverviewRootId,
+  now = Date.now(),
 }: ResolveThreadIndexSnapshotOptions): ThreadIndexSnapshot => {
   const searchQuery = threadFilterState.freeText;
   const showCompactRoomView = compactViewRequested && compactThreadRootIds.length > 0;
@@ -219,6 +226,7 @@ export const resolveThreadIndexSnapshot = ({
         recordMap: normalThreadRecordMap,
         threadSortFreezeState,
         threadSortControlSignature,
+        now,
       });
 
   const focusedRoomOverviewBypass =
@@ -242,6 +250,7 @@ export const resolveThreadIndexSnapshot = ({
           recordMap: compactThreadRecordMap,
           threadSortFreezeState,
           threadSortControlSignature,
+          now,
         });
   const filteredThreadRootIds = threadId
     ? visibleThreadRootIds
@@ -275,7 +284,7 @@ export const resolveThreadIndexSnapshot = ({
     roomOverviewOrderActive,
     activeLiveOverviewThreadRootIds,
     overviewThreadRootIds,
-    statusCounts: computeThreadRecordStatusCounts(countThreadRootIds, threadRecordMap),
+    statusCounts: computeThreadRecordStatusCounts(countThreadRootIds, threadRecordMap, now),
     tagCounts: computeThreadRecordTagCounts(countThreadRootIds, threadRecordMap),
     searchQuery,
     threadSortControlSignature,
@@ -351,9 +360,7 @@ export const useThreadIndex = ({
   );
   const threadSummaryInfoMap = useMemo(
     () =>
-      threadId
-        ? new Map<string, ThreadSummaryInfo>()
-        : buildThreadSummaryMap(loadedTimelineEvents),
+      threadId ? new Map<string, ThreadSummaryInfo>() : buildThreadSummaryMap(loadedTimelineEvents),
     [threadId, loadedTimelineEvents]
   );
   const scheduledTaskEvents = useScheduledTaskEvents(room);
@@ -586,6 +593,16 @@ export const useThreadIndex = ({
     scheduledStatusMap,
     overviewRefreshCounter,
   ]);
+  // Renewed when a snooze ends, so its thread comes back into the list.
+  const snoozeNow = useSnoozeNow(
+    useMemo(
+      () =>
+        [...normalThreadRecordMap.values(), ...compactThreadRecordMap.values()].map(
+          (record) => record.status.snoozedUntilTs
+        ),
+      [normalThreadRecordMap, compactThreadRecordMap]
+    )
+  );
   const focusedRoomOverviewRootId = useMemo(
     () =>
       focusedRoomOverviewRequested && eventId
@@ -623,6 +640,7 @@ export const useThreadIndex = ({
         threadSortControlSignature,
         focusedRoomOverviewRequested,
         focusedRoomOverviewRootId,
+        now: snoozeNow,
       }),
     [
       pinnedEventIds,
@@ -637,6 +655,7 @@ export const useThreadIndex = ({
       threadSortControlSignature,
       focusedRoomOverviewRequested,
       focusedRoomOverviewRootId,
+      snoozeNow,
     ]
   );
 

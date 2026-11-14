@@ -2,7 +2,7 @@
  * The thread filter bar's Tags dropdown: the tags it lists, in which order, and its search.
  */
 import type { TriState } from '../../event-store/threads/roomThreadOverviewModel';
-import { RESOLVED_TAG } from '../../event-store/threads/threadTags';
+import { RESOLVED_TAG, SNOOZED_TAG } from '../../event-store/threads/threadTags';
 
 export type ThreadTagOption = {
   tag: string;
@@ -23,7 +23,12 @@ export const buildThreadTagOptions = (
   counts: Readonly<Record<string, number>> | undefined,
   filters: ReadonlyMap<string, TriState>
 ): ThreadTagOption[] =>
-  [...new Set([...tags.filter((tag) => tag !== RESOLVED_TAG), ...filters.keys()])]
+  [
+    ...new Set([
+      ...tags.filter((tag) => tag !== RESOLVED_TAG && tag !== SNOOZED_TAG),
+      ...filters.keys(),
+    ]),
+  ]
     .map((tag) => ({ tag, count: counts?.[tag] ?? 0, state: filters.get(tag) ?? 'any' }))
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
 

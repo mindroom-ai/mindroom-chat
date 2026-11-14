@@ -81,6 +81,7 @@ describe('pinned announcement ordering', () => {
 
 const makeDefaultState = (overrides: Partial<ThreadFilterState> = {}): ThreadFilterState => ({
   resolved: 'any',
+  snoozed: 'any',
   streaming: 'any',
   scheduled: 'any',
   unread: 'any',
@@ -253,11 +254,56 @@ describe('threadRecordOverview selectors', () => {
     ).toEqual(['$resolved-idle']);
   });
 
+  it('counts a resolved and snoozed thread as resolved, not snoozed', () => {
+    const base = makeRecord('$both');
+    const record: ThreadRecord = {
+      ...base,
+      status: { ...base.status, isResolved: true, snoozedUntilTs: 2000 },
+    };
+    expect(
+      matchesThreadRecordFilterState(record, makeDefaultState({ snoozed: 'include' }), 1000)
+    ).toBe(false);
+    expect(
+      computeThreadRecordStatusCounts(['$both'], new Map([['$both', record]]), 1000)
+    ).toMatchObject({ snoozed: 0, resolved: 1 });
+  });
+
+  it('matches the snoozed dimension by the clock', () => {
+    const base = makeRecord('$snoozed');
+    const record: ThreadRecord = { ...base, status: { ...base.status, snoozedUntilTs: 2000 } };
+    const exclude = makeDefaultState({ snoozed: 'exclude' });
+    const include = makeDefaultState({ snoozed: 'include' });
+
+    expect(matchesThreadRecordFilterState(record, exclude, 1000)).toBe(false);
+    expect(matchesThreadRecordFilterState(record, exclude, 2000)).toBe(true);
+    expect(matchesThreadRecordFilterState(record, include, 1000)).toBe(true);
+    expect(matchesThreadRecordFilterState(record, include, 2000)).toBe(false);
+    expect(matchesThreadRecordFilterState(makeRecord('$open'), exclude, 1000)).toBe(true);
+    expect(
+      computeThreadRecordStatusCounts(['$snoozed'], new Map([['$snoozed', record]]), 1000)
+    ).toMatchObject({ snoozed: 1 });
+    expect(
+      computeThreadRecordStatusCounts(['$snoozed'], new Map([['$snoozed', record]]), 2000)
+    ).toMatchObject({ snoozed: 0 });
+    expect(
+      resolveThreadRecordOverviewRootIds({
+        threadRootIds: ['$snoozed'],
+        threadFilterState: exclude,
+        searchQuery: '',
+        recordMap: new Map([['$snoozed', record]]),
+        threadSortFreezeState: null,
+        threadSortControlSignature: 'live',
+        now: 1000,
+      }).filteredIds
+    ).toEqual([]);
+  });
+
   it('computes status and tag counts from ThreadRecord status snapshots', () => {
     const threadRootIds = ['$resolved-idle', '$unresolved-unread', '$streaming', '$scheduled'];
 
     expect(computeThreadRecordStatusCounts(threadRootIds, records)).toEqual({
       resolved: 1,
+      snoozed: 0,
       streaming: 1,
       scheduled: 1,
       unread: 1,

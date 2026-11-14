@@ -46,6 +46,16 @@ const summaryEvent = (id: string) =>
       },
     },
   }) as unknown as MatrixEvent;
+const snoozeEndedEvent = (id: string, sender: string) =>
+  makeEvent(id, {
+    sender,
+    threadRootId: '$thread',
+    content: {
+      msgtype: 'm.text',
+      body: '\u23f0 Snooze ended: check CI',
+      'io.mindroom.thread_snooze': { event: 'ended', until: '2026-11-13T09:00:00Z' },
+    },
+  }) as unknown as MatrixEvent;
 const summaryMarkers = (renderer: ReturnType<typeof create>) =>
   renderer.root.findAll((node) => (node.type as unknown) === 'summary-marker');
 const renderedContent = (renderer: ReturnType<typeof create>) =>
@@ -385,6 +395,30 @@ describe('timeline message feature', () => {
     expect(marker!.props.summaryInfo.summaryText).toBe('Fixing token refresh');
     expect(marker!.props.plan).toEqual({ first: false, previousSummaryText: 'Push bug' });
     expect(renderedContent(renderer)).toHaveLength(0);
+  });
+
+  it("shows an agent's snooze-ended message in an open thread as a marker row", async () => {
+    const { Message } = await import('../../messages/Message');
+    const { SnoozeEndedMarker } = await import('../../messages/SnoozeEndedMarker');
+    const event = snoozeEndedEvent('$wake', '@mindroom_router:example.org');
+    const { renderer } = await mountFeature([rowFor(event)], '$thread');
+
+    const marker = renderer.root.findByType(SnoozeEndedMarker);
+    expect(marker.props.note).toBe('check CI');
+    // No message chrome: no avatar, sender name or toolbar.
+    expect(renderer.root.findAllByType(Message)).toHaveLength(0);
+    expect(renderedContent(renderer)).toHaveLength(0);
+  });
+
+  it("keeps a person's message with the snooze-ended key as a normal message", async () => {
+    const { Message } = await import('../../messages/Message');
+    const { SnoozeEndedMarker } = await import('../../messages/SnoozeEndedMarker');
+    const event = snoozeEndedEvent('$fake', '@bob:example.org');
+    const { renderer } = await mountFeature([rowFor(event)], '$thread');
+
+    expect(renderer.root.findAllByType(Message)).toHaveLength(1);
+    expect(renderedContent(renderer)).toHaveLength(1);
+    expect(renderer.root.findAllByType(SnoozeEndedMarker)).toHaveLength(0);
   });
 
   it('keeps the summary card for a summary outside an open thread', async () => {

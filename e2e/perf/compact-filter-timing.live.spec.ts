@@ -510,7 +510,7 @@ test.describe('compact filter timing', () => {
         };
         const clickIn = (locator: Locator) => () => locator.click();
         // A preset is chosen with the keyboard (the list's own keys), in both engines alike.
-        const PRESET_POSITIONS = { working: 1, all: 4 };
+        const PRESET_POSITIONS = { working: 1, all: 5 };
         const openPreset = async (id: keyof typeof PRESET_POSITIONS) => {
           await overview.locator('[data-preset-button]').click();
           await expect(overview.locator('[data-preset-option="all"]')).toBeVisible();

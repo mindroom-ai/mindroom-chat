@@ -53,6 +53,7 @@ function Fixture() {
   const [threadAction, setThreadAction] = useState('No filter selected');
   const threadState: ThreadFilterState = {
     resolved: 'any',
+    snoozed: 'any',
     streaming: 'any',
     scheduled: 'any',
     unread: 'any',

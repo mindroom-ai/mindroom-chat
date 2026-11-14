@@ -278,6 +278,15 @@ export const BannerResolved = style([
   { color: color.Success.OnContainer },
 ]);
 
+// Snoozed, the banner goes amber the way resolved goes green: the thread is set aside until then.
+export const BannerSnoozed = style([
+  BannerLayout,
+  glassSurface({ level: 'control', variant: 'Warning' }),
+  glassFloating,
+  glassDenseOverBackdrop,
+  { color: color.Warning.OnContainer },
+]);
+
 export const BannerDisabled = style({
   opacity: 0.6,
   pointerEvents: 'none',

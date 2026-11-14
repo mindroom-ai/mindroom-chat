@@ -697,7 +697,13 @@
         "threadFiltersActive": "討論串篩選器（已啟用）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "進階篩選器"
+        "advancedFilters": "進階篩選器",
+        "presets": {
+          "snoozed": {
+            "label": "已延後",
+            "description": "僅已延後的討論串"
+          }
+        }
       },
       "threadPeopleFilter": {
         "label": "參與者",
@@ -852,7 +858,12 @@
     "resize": "調整討論串大小",
     "showFull": "完整顯示討論串",
     "showBeside": "在訊息旁顯示討論串",
-    "notFound": "找不到該討論串"
+    "notFound": "找不到該討論串",
+    "snoozedUntil": "已延後至 {{time}}",
+    "snoozeEnded": "延後已結束",
+    "status": {
+      "snoozed": "已延後"
+    }
   },
   "activity": {
     "title": "動態",
@@ -940,7 +951,8 @@
       "unread": "未讀",
       "working": "AI 代理工作中",
       "recent": "最近",
-      "automations": "自動化"
+      "automations": "自動化",
+      "snoozed": "已延後"
     },
     "showMore": "顯示更多",
     "chips": {

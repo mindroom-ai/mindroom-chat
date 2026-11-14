@@ -50,7 +50,7 @@ import { useRoomViewMode } from '../navigation/useRoomViewMode';
 import type { RoomViewMode } from '../navigation/roomViewMode';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import {
-  hasActiveThreadFilters,
+  hasChosenThreadFilters,
   type ThreadFilterState,
 } from '../event-store/threads/roomThreadOverviewModel';
 import { RoomActionsMenu, useRoomActionDialog } from './RoomActionsMenu';
@@ -228,7 +228,7 @@ export function RoomViewHeader({
   const hasFilterBar =
     !threadId && (viewMode === 'compact' || (viewMode === 'threaded' && !!hasMindroomAgents));
   const hiddenFiltersActive =
-    filterBarHidden && !!threadFilterState && hasActiveThreadFilters(threadFilterState);
+    filterBarHidden && !!threadFilterState && hasChosenThreadFilters(threadFilterState);
   const navigate = useNavigate();
   const { navigateRoomThread } = useRoomNavigate();
   const pinnedCount = useRoomPinnedEvents(room).length;
