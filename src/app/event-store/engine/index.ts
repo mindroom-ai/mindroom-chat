@@ -7,17 +7,16 @@
 
 export { createSyncEngine } from './syncEngine';
 export type { CreateSyncEngineOptions } from './syncEngine';
-export { SyncEngineProvider, useSyncEngine, useSyncEngineOptional } from './engineContext';
+export { SyncEngineProvider, useSyncEngine } from './engineContext';
 export type { SyncEngineProviderProps } from './engineContext';
 export { createEngineWriteThrough } from './engineWriteThrough';
 export type { EngineWriteThrough, EngineWriteThroughOptions } from './engineWriteThrough';
-export { createEngineGapTracker, createInMemoryGapFillScheduler } from './engineGapTracker';
+export { createEngineGapTracker } from './engineGapTracker';
 export type {
   EngineGapTracker,
   EngineGapTrackerOptions,
   GapFillJob,
   GapFillReason,
-  GapFillScheduler,
 } from './engineGapTracker';
 export type {
   EngineLifecycle,
@@ -30,7 +29,6 @@ export type {
   EnginePersistFacade,
   PersistRoomEventCache,
   PersistThreadEventCache,
-  PersistThreadCacheFromRoomEvents,
 } from './enginePersistFacade';
 export {
   MAX_CONCURRENT_BACKFILL_JOBS,
