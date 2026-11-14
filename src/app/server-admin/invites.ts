@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { Method, type MatrixClient, type Room } from 'matrix-js-sdk';
 import type { TFunction } from 'i18next';
 import type { ClientConfig } from '../config/useClientConfig';
-import { getLoginPath, getOriginBaseUrl } from '../routes/pathUtils';
+import { getOriginBaseUrl } from '../routes/pathUtils';
 import { describeError } from '../lib/describeError';
 import { isRecord } from '../lib/isRecord';
 import { freshFetch, specVersions } from '../matrix/cs-api';
@@ -187,30 +187,16 @@ export const ssoProviderNames = (mx: MatrixClient): Promise<string[]> =>
     () => []
   );
 
-/** A server name or address as a deployment may write it: any case, a trailing slash. */
-const sameServer = (a: string, b: string): boolean => {
-  const normal = (server: string) => server.trim().toLowerCase().replace(/\/+$/, '');
-  return normal(a) === normal(b);
-};
-
 /**
- * Where an invited person signs in: this app's sign-in page for the administrator's homeserver,
- * since the invite is there and not on another server the deployment may start on. A server the
- * deployment lists goes as the list writes it, as the sign-in page only takes a listed one when
- * the deployment is locked to its list; any other by its address, which needs no discovery. The
- * native app's pages have no web address, so there the line names the homeserver itself.
+ * Where an invited person signs in: where this app is served, whose sign-in page offers the
+ * deployment's homeservers. The native app's pages have no web address, so there the line names
+ * the homeserver instead.
  */
 export const invitationUrl = (
-  server: { name: string; baseUrl: string },
-  { homeserverList = [], hashRouter }: Pick<ClientConfig, 'homeserverList' | 'hashRouter'> = {},
+  serverName: string,
+  hashRouter?: ClientConfig['hashRouter'],
   native: boolean = Capacitor.isNativePlatform()
-): string => {
-  const listed = homeserverList.find(
-    (item) => sameServer(item, server.name) || sameServer(item, server.baseUrl)
-  );
-  const signIn = listed?.trim() ?? server.baseUrl;
-  return native ? signIn : `${getOriginBaseUrl(hashRouter)}${getLoginPath(signIn)}`;
-};
+): string => (native ? serverName : `${getOriginBaseUrl(hashRouter)}/`);
 
 type Invitation = {
   /** Where to sign in. */

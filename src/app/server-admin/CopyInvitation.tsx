@@ -27,9 +27,7 @@ export function CopyInvitation({ email, providers, showText = false }: CopyInvit
   // Undefined until a copy was tried; copyToClipboard resolves false when every clipboard failed.
   const [copied, setCopied] = useState<boolean>();
   const mx = useMatrixClient();
-  const config = useOptionalClientConfig();
-  const server = { name: mx.getDomain() ?? '', baseUrl: mx.baseUrl };
-  const url = invitationUrl(server, config);
+  const url = invitationUrl(mx.getDomain() ?? '', useOptionalClientConfig()?.hashRouter);
   const line = invitationText(t, language, { url, providers, email });
   const label = copied ? t('messageCodeBlock.copied') : t('serverAccounts.invites.copy');
 

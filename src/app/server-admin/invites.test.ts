@@ -335,7 +335,6 @@ describe('ssoProviderNames', () => {
 });
 
 describe('invitationUrl', () => {
-  const server = { name: 'example.com', baseUrl: 'https://matrix.example.com' };
   beforeEach(() => {
     vi.stubGlobal('window', { location: { origin: 'https://chat.example' } });
   });
@@ -343,37 +342,16 @@ describe('invitationUrl', () => {
     vi.unstubAllGlobals();
   });
 
-  it("is this app's sign-in page for a homeserver the deployment lists, by its name", () => {
-    expect(invitationUrl(server, { homeserverList: ['other.example', 'Example.com'] }, false)).toBe(
-      'https://chat.example/login/Example.com'
-    );
-  });
-
-  it('finds a homeserver the deployment lists by its address', () => {
-    expect(
-      invitationUrl(server, { homeserverList: [' HTTPS://matrix.example.com/ '] }, false)
-    ).toBe('https://chat.example/login/HTTPS%3A%2F%2Fmatrix.example.com%2F');
-  });
-
-  it("is this app's sign-in page for any other homeserver, by its address", () => {
-    expect(invitationUrl(server, { homeserverList: ['other.example'] }, false)).toBe(
-      'https://chat.example/login/https%3A%2F%2Fmatrix.example.com'
-    );
+  it('is where this app is served', () => {
+    expect(invitationUrl('example.com', undefined, false)).toBe('https://chat.example/');
   });
 
   it('keeps the hash of a deployment that routes by it', () => {
-    expect(
-      invitationUrl(
-        server,
-        { homeserverList: ['example.com'], hashRouter: { enabled: true } },
-        false
-      )
-    ).toBe('https://chat.example/#/login/example.com');
+    expect(invitationUrl('example.com', { enabled: true }, false)).toBe('https://chat.example/#/');
   });
 
   it('names the homeserver in the native app, whose pages have no web address', () => {
-    expect(invitationUrl(server, { homeserverList: ['example.com'] }, true)).toBe('example.com');
-    expect(invitationUrl(server, {}, true)).toBe('https://matrix.example.com');
+    expect(invitationUrl('example.com', undefined, true)).toBe('example.com');
   });
 });
 
@@ -405,7 +383,7 @@ describe('invitationText', () => {
 
 describe('invitation in every language', () => {
   const ADDITIONS = fileURLToPath(new URL('../i18n/locales/additions/', import.meta.url));
-  const URL_TO_SEND = 'https://chat.example.com/login/example.com';
+  const URL_TO_SEND = 'https://chat.example.com/';
   const fill = (template: string): string =>
     template
       .replace('{{url}}', URL_TO_SEND)
