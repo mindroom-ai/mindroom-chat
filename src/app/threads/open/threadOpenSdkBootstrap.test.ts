@@ -192,7 +192,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       await flushAsyncWork();
       // A recorded sync gap is materialized first, so its conversion errors still reach the open.
       expect(thread.flushPendingTimelineReset.mock.invocationCallOrder[0]).toBeLessThan(
-        thread.initialize.mock.invocationCallOrder[0]
+        thread.initialize.mock.invocationCallOrder[0]!
       );
       expect(mx.paginateEventTimeline).not.toHaveBeenCalled();
 

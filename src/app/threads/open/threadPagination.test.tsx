@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { createClient, Direction, MatrixEvent, Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -370,7 +370,7 @@ describe('pagination boundaries and commit ordering', () => {
       await request;
     });
     expect(f.runtime.render.append).toHaveBeenCalledWith('$a', cachedPage.events);
-    expect(vi.mocked(f.runtime.render.append).mock.calls[0][1][0]).toBe(cachedPage.events[0]);
+    expect(vi.mocked(f.runtime.render.append).mock.calls[0]![1][0]).toBe(cachedPage.events[0]);
     expect(f.current().snapshot.backward).toBe('idle');
     f.unmount();
   });
@@ -479,7 +479,9 @@ describe('pagination boundaries and commit ordering', () => {
     f.unmount();
   });
   it('preserves a stale backward network result for persistence without UI publication', async () => {
-    vi.mocked(loadThreadCachedPaginationSnapshot).mockResolvedValue({ status: 'cache-miss' });
+    vi.mocked(loadThreadCachedPaginationSnapshot).mockResolvedValue({
+      status: 'cache-miss',
+    } as Page);
     const network = deferred<boolean>();
     const f = fixture();
     f.useNetwork();
@@ -527,7 +529,7 @@ describe('pagination boundaries and commit ordering', () => {
       await request;
     });
     expect(f.order).toEqual(['wait', 'append', 'invalidate']);
-    expect(vi.mocked(f.runtime.render.append).mock.calls[0][1]).toBe(cached.events);
+    expect(vi.mocked(f.runtime.render.append).mock.calls[0]![1]).toBe(cached.events);
     expect(f.runtime.beginCacheWrite()).not.toHaveBeenCalled();
     f.unmount();
   });
@@ -535,7 +537,7 @@ describe('pagination boundaries and commit ordering', () => {
     '%s pages commit once scrolling rests, whether or not a row is visible',
     async (source) => {
       vi.mocked(loadThreadCachedPaginationSnapshot).mockResolvedValue(
-        source === 'cache' ? page('$cached') : { status: 'cache-miss' }
+        source === 'cache' ? page('$cached') : ({ status: 'cache-miss' } as Page)
       );
       const f = fixture();
       if (source === 'network') f.useNetwork();

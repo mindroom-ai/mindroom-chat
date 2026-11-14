@@ -380,11 +380,11 @@ describe('SDK thread bootstrap requests', () => {
     const room = roomFor(f.client);
     room.processThreadRoots(roots.map(f.client.getEventMapper()), true);
     const [first, second] = roots.map((root) => room.getThread(root.event_id)!);
-    await first.initialize();
+    await first!.initialize();
     const before = f.requests.length;
 
     // The second thread's own timeline reset reaches every thread through the room.
-    await second.initialize();
+    await second!.initialize();
     await room.addLiveEvents([new MatrixEvent(reply(rootIdAt(1), 3, 10))], { addToState: false });
     await settle();
 
@@ -399,8 +399,8 @@ describe('SDK thread bootstrap requests', () => {
     room.processThreadRoots(roots.map(f.client.getEventMapper()), true);
     const [unopened, initialized] = roots.map((root) => room.getThread(root.event_id)!);
     // As the app's open bootstrap marks a zero-reply root it created itself.
-    initialized.initialEventsFetched = true;
-    initialized.replayEvents = null;
+    initialized!.initialEventsFetched = true;
+    initialized!.replayEvents = null;
     await room.addLiveEvents([new MatrixEvent(reply(rootIdAt(1), 3, 10))], { addToState: false });
 
     room.resetLiveTimeline('back', 'forward');
@@ -412,7 +412,7 @@ describe('SDK thread bootstrap requests', () => {
     await settle();
 
     // The unopened thread keeps its live count instead of its stored summary.
-    expect(unopened.length).toBe(4);
+    expect(unopened!.length).toBe(4);
     expect(
       f.requests
         .map((url) => decodeURIComponent(url.pathname))
@@ -708,7 +708,7 @@ describe('SDK thread bootstrap requests', () => {
         ...reply(rootId, 2, 10),
         unsigned: { 'm.relations': { 'm.replace': firstTool.event } },
       };
-      Object.assign((midStream.unsigned!['m.relations'] as Record<string, object>)['m.thread'], {
+      Object.assign((midStream.unsigned!['m.relations'] as Record<string, object>)['m.thread']!, {
         latest_event: latest,
         'io.mindroom.latest_reply': latest,
       });
@@ -744,7 +744,7 @@ describe('SDK thread bootstrap requests', () => {
       const titled = summarizedRoot(rootId, 2);
       (titled.unsigned!['m.relations'] as Record<string, { latest_event: IEvent }>)[
         'm.thread'
-      ].latest_event = title;
+      ]!.latest_event = title;
       const f = server({ roots: [titled] });
       f.client.canSupport.set(Feature.RelationsRecursion, ServerSupport.Stable);
       const room = roomFor(f.client);

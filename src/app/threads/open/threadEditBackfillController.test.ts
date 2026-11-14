@@ -180,7 +180,7 @@ describe('useThreadEditBackfillController (task #129)', () => {
         await flush();
       });
       expect(arrival.getContent().body).toBe('resolved');
-      expect(initial[0].getContent().body).toBe('Thinking...');
+      expect(initial[0]!.getContent().body).toBe('Thinking...');
     } finally {
       act(() => renderer.unmount());
       await act(async () => {
@@ -210,7 +210,7 @@ describe('useThreadEditBackfillController (task #129)', () => {
         });
         expect(harness.relations).toHaveBeenCalledTimes(4);
         await act(async () => {
-          harness.deferreds.get(initial[1].getId()!)!.resolve();
+          harness.deferreds.get(initial[1]!.getId()!)!.resolve();
           await flush();
         });
         expect(harness.relations).toHaveBeenCalledTimes(5);
@@ -219,7 +219,7 @@ describe('useThreadEditBackfillController (task #129)', () => {
           await flush();
         });
         expect(arrival.getContent().body).toBe(fails ? 'Thinking...' : 'resolved');
-        expect(initial[0].getContent().body).toBe('Thinking...');
+        expect(initial[0]!.getContent().body).toBe('Thinking...');
         expect(harness.relations).toHaveBeenCalledTimes(5);
       } finally {
         act(() => renderer.unmount());
@@ -253,11 +253,11 @@ describe('useThreadEditBackfillController (task #129)', () => {
       });
       expect(harness.relations).toHaveBeenCalledTimes(4);
       await act(async () => {
-        harness.deferreds.get(previous[0].getId()!)!.resolve();
+        harness.deferreds.get(previous[0]!.getId()!)!.resolve();
         await flush();
       });
       expect(harness.relations).toHaveBeenCalledTimes(5);
-      expect(previous[0].getContent().body).toBe('Thinking...');
+      expect(previous[0]!.getContent().body).toBe('Thinking...');
       expect(props.beginThreadCacheWrite()).not.toHaveBeenCalled();
       await act(async () => {
         harness.deferreds.get('$current')!.resolve();
@@ -365,7 +365,7 @@ describe('useThreadEditBackfillController (task #129)', () => {
       harness.deferreds.get('$same-commit')!.resolve();
       await flush();
     });
-    target.makeReplaced(null);
+    target.makeReplaced(null as never);
     await act(async () => {
       renderer.update(React.createElement(OpeningHarness, { reset: false, events: [target] }));
       await flush();
@@ -380,7 +380,7 @@ describe('useThreadEditBackfillController (task #129)', () => {
       harness.deferreds.get('$same-commit')!.resolve();
       await flush();
     });
-    target.makeReplaced(null);
+    target.makeReplaced(null as never);
     await act(async () => {
       renderer.update(React.createElement(OpeningHarness, { reset: true, events: [target] }));
       await flush();
@@ -420,7 +420,7 @@ describe('useThreadEditBackfillController (task #129)', () => {
     });
     expect(harness.relations).toHaveBeenCalledTimes(1);
     // Reset opens a fresh repair lifetime for the same hydrated instance.
-    target.makeReplaced(null);
+    target.makeReplaced(null as never);
     await act(async () => {
       renderer.update(
         React.createElement(Harness, { ...props, editResetEpoch: 1, readEditResetEpoch: () => 1 })
