@@ -32,7 +32,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-it('offers a recent custom emoji as its image and reacts with its mxc URL', () => {
+it('offers a recent custom emoji as its image and reacts with its mxc URL', async () => {
   mx.getAccountData.mockReturnValue(
     new MatrixEvent({
       type: 'io.element.recent_emoji',
@@ -79,7 +79,7 @@ it('offers a recent custom emoji as its image and reacts with its mxc URL', () =
   );
   expect(unicode!.findAllByProps({ children: '😀' })).not.toHaveLength(0);
 
-  act(() => custom!.props.onClick());
+  await act(() => custom!.props.onClick());
 
   expect(onReaction).toHaveBeenCalledWith('mxc://example.org/parrot', 'party-parrot');
 });

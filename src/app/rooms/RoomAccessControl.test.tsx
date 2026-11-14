@@ -765,19 +765,19 @@ describe('RoomAccessControl request dialog', () => {
       container.querySelector('form')?.requestSubmit();
       await Promise.resolve();
     });
-    act(() => document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })));
-    act(() => document.body.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    await act(() => document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })));
+    await act(() => document.body.dispatchEvent(new MouseEvent('click', { bubbles: true })));
 
     expect(container.querySelector('form')).not.toBeNull();
     expect(getButton(container, 'Sending request').disabled).toBe(true);
   });
 
-  it('dismisses an idle request with Escape while the message is focused', () => {
+  it('dismisses an idle request with Escape while the message is focused', async () => {
     act(() => getButton(container, 'Request to join').click());
     const message = container.querySelector<HTMLTextAreaElement>('textarea[name="reasonInput"]');
     if (!message) throw new Error('Missing request message');
     act(() => message.focus());
-    act(() =>
+    await act(() =>
       document.dispatchEvent(
         new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })
       )
@@ -800,7 +800,7 @@ describe('RoomAccessControl request dialog', () => {
       await Promise.resolve();
     });
     act(() => container.querySelector<HTMLElement>('[role="dialog"]')?.focus());
-    act(() =>
+    await act(() =>
       document.dispatchEvent(
         new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true })
       )

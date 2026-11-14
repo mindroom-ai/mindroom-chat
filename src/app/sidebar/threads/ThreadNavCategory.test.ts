@@ -171,10 +171,12 @@ describe('ThreadNavCategory', () => {
     expect(renderer!.root.findAllByProps({ 'data-testid': 'thread-nav-list' })).toHaveLength(0);
   });
 
-  it('moves a pinned thread above newer activity', () => {
+  it('moves a pinned thread above newer activity', async () => {
     renderCategory();
 
-    act(() => renderer!.root.findByProps({ 'aria-label': `pin-${older.key}` }).props.onClick());
+    await act(() =>
+      renderer!.root.findByProps({ 'aria-label': `pin-${older.key}` }).props.onClick()
+    );
 
     expect(
       renderer!.root
@@ -183,9 +185,11 @@ describe('ThreadNavCategory', () => {
     ).toEqual([older.key, newer.key]);
   });
 
-  it('hides archived threads and restores their pin preference', () => {
+  it('hides archived threads and restores their pin preference', async () => {
     renderCategory();
-    act(() => renderer!.root.findByProps({ 'aria-label': `pin-${older.key}` }).props.onClick());
+    await act(() =>
+      renderer!.root.findByProps({ 'aria-label': `pin-${older.key}` }).props.onClick()
+    );
     act(() => store.set(archivedRoomsAtom, new Set([older.roomId])));
     const visibleKeys = () =>
       renderer!.root

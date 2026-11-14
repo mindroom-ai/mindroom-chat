@@ -174,14 +174,14 @@ describe('OfflineRoomSettings', () => {
   it('sends download, include-all, cancel, and pin intents to the room controller', async () => {
     const { controller, renderer, publish } = createOfflineFixture(baseSnapshot());
 
-    act(() => switchInput(renderer, 'Include all media').props.onChange());
-    act(() => button(renderer, 'Download entire room').props.onClick());
+    await act(() => switchInput(renderer, 'Include all media').props.onChange());
+    await act(() => button(renderer, 'Download entire room').props.onClick());
     expect(controller.download).toHaveBeenCalledWith('!room:example.test', {
       includeAllMedia: true,
     });
 
     publish({ ...baseSnapshot(), downloading: true, status: 'saving' });
-    act(() => button(renderer, 'Cancel download').props.onClick());
+    await act(() => button(renderer, 'Cancel download').props.onClick());
     expect(controller.cancel).toHaveBeenCalledWith('!room:example.test');
 
     await act(async () => {
@@ -211,14 +211,14 @@ describe('OfflineRoomSettings', () => {
       saved: 2,
     });
 
-    act(() => button(renderer, 'Clear downloaded content').props.onClick());
+    await act(() => button(renderer, 'Clear downloaded content').props.onClick());
     expect(renderer.root.findByProps({ role: 'dialog' })).toBeDefined();
     expect(controller.clear).not.toHaveBeenCalled();
 
-    act(() => button(renderer, 'Cancel').props.onClick());
+    await act(() => button(renderer, 'Cancel').props.onClick());
     expect(renderer.root.findAllByProps({ role: 'dialog' })).toHaveLength(0);
 
-    act(() => button(renderer, 'Clear downloaded content').props.onClick());
+    await act(() => button(renderer, 'Clear downloaded content').props.onClick());
     await act(async () => button(renderer, 'Clear content').props.onClick());
     expect(controller.clear).toHaveBeenCalledWith('!room:example.test');
     expect(renderer.root.findAllByProps({ role: 'dialog' })).toHaveLength(0);
@@ -228,7 +228,7 @@ describe('OfflineRoomSettings', () => {
     const { controller, renderer } = createOfflineFixture(baseSnapshot());
     vi.mocked(controller.clear).mockRejectedValueOnce(new Error('failed'));
 
-    act(() => button(renderer, 'Clear downloaded content').props.onClick());
+    await act(() => button(renderer, 'Clear downloaded content').props.onClick());
     await act(async () => button(renderer, 'Clear content').props.onClick());
 
     expect(renderer.root.findByProps({ role: 'dialog' })).toBeDefined();

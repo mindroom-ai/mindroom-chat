@@ -343,7 +343,7 @@ describe('getVisibleThreadMessageCount', () => {
       expect(ids(thread)).toEqual(['$root', '$reply-1', '$reply-2', '$reply-3']);
       expect(getVisibleThreadMessageCount(thread, 5)).toBe(3);
 
-      room.addLiveEvents(
+      await room.addLiveEvents(
         [
           mx.getEventMapper()({
             ...message('$redaction', 100),

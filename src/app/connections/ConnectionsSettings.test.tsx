@@ -155,14 +155,14 @@ describe('connections settings', () => {
     expect(texts()).toContain(NO_BACKEND);
   });
 
-  it('opens the server the agents in the rooms publish when none is configured', () => {
+  it('opens the server the agents in the rooms publish when none is configured', async () => {
     mocks.discoveredUrls = ['http://localhost:8765'];
     render('');
     expect(openButton().props.disabled).toBeFalsy();
     expect(texts()).not.toContain(NO_BACKEND);
     // A found server is named, so a hostile agent cannot pass its portal off as the user's own.
     expect(texts()).toContain('http://localhost:8765');
-    click();
+    await click();
     expect(mocks.openConnectionsPortal.mock.calls[0]![0].backendUrl).toBe('http://localhost:8765');
   });
 
@@ -188,7 +188,7 @@ describe('connections settings', () => {
       mocks.authedRequest.mockResolvedValue({ access_token: 'openid-token' });
       mocks.discoveredUrls = ['http://localhost:8765'];
       render('');
-      click();
+      await click();
       const token =
         mocks.openConnectionsPortal.mock.calls[0]![0].getOpenIdToken('http://localhost:8765');
       if (binds) await expect(token).resolves.toEqual({ access_token: 'openid-token' });
@@ -203,13 +203,13 @@ describe('connections settings', () => {
     vi.stubGlobal('fetch', versions);
     mocks.authedRequest.mockResolvedValue({ access_token: 'openid-token' });
     render('https://backend.example');
-    click();
+    await click();
     await mocks.openConnectionsPortal.mock.calls[0]![0].getOpenIdToken('https://backend.example');
     expect(versions).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
 
-  it('offers each published server by its address when the agents come from several', () => {
+  it('offers each published server by its address when the agents come from several', async () => {
     mocks.discoveredUrls = ['https://mind.example.org', 'http://localhost:8765'];
     render('');
     const buttons = renderer.root
@@ -223,14 +223,14 @@ describe('connections settings', () => {
     expect(texts()).toEqual(
       expect.arrayContaining(['https://mind.example.org', 'http://localhost:8765'])
     );
-    act(() => buttons[1]!.props.onClick());
+    await act(() => buttons[1]!.props.onClick());
     expect(mocks.openConnectionsPortal.mock.calls[0]![0].backendUrl).toBe('http://localhost:8765');
   });
 
-  it('prefers the configured server, and keeps a server the user turned off off', () => {
+  it('prefers the configured server, and keeps a server the user turned off off', async () => {
     mocks.discoveredUrls = ['http://localhost:8765'];
     render('https://backend.example');
-    click();
+    await click();
     expect(mocks.openConnectionsPortal.mock.calls[0]![0].backendUrl).toBe(
       'https://backend.example'
     );
@@ -243,21 +243,21 @@ describe('connections settings', () => {
     expect(texts()).toContain(NO_BACKEND);
   });
 
-  it('opens the portal with the computers backend', () => {
+  it('opens the portal with the computers backend', async () => {
     render('https://backend.example');
-    click();
+    await click();
     expect(mocks.openConnectionsPortal).toHaveBeenCalledTimes(1);
     const options = mocks.openConnectionsPortal.mock.calls[0]![0];
     expect(options.backendUrl).toBe('https://backend.example');
     expect(alerts()).toHaveLength(0);
   });
 
-  it('opens the portal with a server the user saved under Computers', () => {
+  it('opens the portal with a server the user saved under Computers', async () => {
     act(() => {
       store.set(computerServicePreferenceAtom, 'https://custom.example');
     });
     render('https://backend.example');
-    click();
+    await click();
     expect(mocks.openConnectionsPortal.mock.calls[0]![0].backendUrl).toBe('https://custom.example');
   });
 
@@ -265,7 +265,7 @@ describe('connections settings', () => {
     const token = { access_token: 'openid-token' };
     mocks.authedRequest.mockResolvedValue(token);
     render();
-    click();
+    await click();
     const options = mocks.openConnectionsPortal.mock.calls[0]![0];
     expect(mocks.authedRequest).not.toHaveBeenCalled();
     await expect(options.getOpenIdToken('https://backend.example')).resolves.toBe(token);
@@ -275,7 +275,7 @@ describe('connections settings', () => {
   it('binds the token to the audience the portal helper asks for', async () => {
     mocks.authedRequest.mockResolvedValue({ access_token: 'openid-token' });
     render();
-    click();
+    await click();
     await mocks.openConnectionsPortal.mock.calls[0]![0].getOpenIdToken('https://custom.example');
     expect(mocks.authedRequest).toHaveBeenCalledWith(
       'POST',
@@ -288,7 +288,7 @@ describe('connections settings', () => {
   it('does not hand out a token after the Matrix client stopped', async () => {
     mocks.client.clientRunning = false;
     render();
-    click();
+    await click();
     const options = mocks.openConnectionsPortal.mock.calls[0]![0];
     await expect(options.getOpenIdToken('https://backend.example')).rejects.toThrow(
       'Matrix client stopped'
@@ -302,7 +302,7 @@ describe('connections settings', () => {
       return { access_token: 'openid-token' };
     });
     render();
-    click();
+    await click();
     const options = mocks.openConnectionsPortal.mock.calls[0]![0];
     await expect(options.getOpenIdToken('https://backend.example')).rejects.toThrow(
       'Matrix client stopped'
@@ -310,19 +310,19 @@ describe('connections settings', () => {
     expect(mocks.authedRequest).toHaveBeenCalledTimes(1);
   });
 
-  it('shows the blocked message when the window is blocked', () => {
+  it('shows the blocked message when the window is blocked', async () => {
     mocks.openConnectionsPortal.mockReturnValue('blocked');
     render();
-    click();
+    await click();
     expect(alerts().map((node) => node.children.join(''))).toEqual([BLOCKED]);
   });
 
-  it('clears the blocked message once a later attempt opens the window', () => {
+  it('clears the blocked message once a later attempt opens the window', async () => {
     mocks.openConnectionsPortal.mockReturnValueOnce('blocked').mockReturnValueOnce('opened');
     render();
-    click();
+    await click();
     expect(alerts()).toHaveLength(1);
-    click();
+    await click();
     expect(alerts()).toHaveLength(0);
     expect(mocks.openConnectionsPortal).toHaveBeenCalledTimes(2);
   });
