@@ -266,12 +266,10 @@ test('thinking marker paints its glass faces and gold core', async ({ page }) =>
         let glass = 0;
         let gold = 0;
         for (let index = 0; index < data.length; index += 4) {
-          const [red, green, blue, alpha] = data.slice(index, index + 4) as unknown as [
-            number,
-            number,
-            number,
-            number
-          ];
+          const red = data[index]!;
+          const green = data[index + 1]!;
+          const blue = data[index + 2]!;
+          const alpha = data[index + 3]!;
           if (alpha > 128 && blue > red + 20 && green > red + 15) glass += 1;
           if (alpha > 128 && red > 100 && red > green * 1.08 && green > blue * 1.15) gold += 1;
         }
