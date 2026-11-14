@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React, { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import { useVirtualizer, type Virtualizer } from '@tanstack/react-virtual';

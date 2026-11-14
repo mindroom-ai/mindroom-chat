@@ -4,6 +4,8 @@ import {
   ClientEvent,
   ConnectionError,
   createClient,
+  type IEvent,
+  type IEventRelation,
   MatrixEvent,
   MatrixEventEvent,
   Room,
@@ -106,7 +108,7 @@ describe('thread approval provider lifecycle', () => {
       decryptEvent: async () => {
         throw new Error('Missing room key');
       },
-    } as CryptoBackend);
+    } as unknown as CryptoBackend);
     expect(encrypted.isDecryptionFailure()).toBe(true);
     const unreadableMessage = new MatrixEvent({
       ...event('$unreadable').event,
@@ -117,7 +119,7 @@ describe('thread approval provider lifecycle', () => {
       decryptEvent: async () => {
         throw new Error('Missing room key');
       },
-    } as CryptoBackend);
+    } as unknown as CryptoBackend);
     mocks.backfill.mockResolvedValueOnce({
       events: [encrypted, unreadableMessage],
       repairedEventIds: [],
@@ -139,11 +141,11 @@ describe('thread approval provider lifecycle', () => {
     await act(async () => {
       await encrypted.attemptDecryption({
         decryptEvent: async () => ({ clearEvent: { type: 'io.mindroom.tool_approval', content } }),
-      } as CryptoBackend);
+      } as unknown as CryptoBackend);
     });
     expect(mocks.backfill).toHaveBeenCalledTimes(2);
-    expect(mocks.backfill.mock.calls[1][4]).toEqual([encrypted]);
-    expect(current.records[0].approval.status).toBe('approved');
+    expect(mocks.backfill.mock.calls[1]![4]).toEqual([encrypted]);
+    expect(current.records[0]!.approval.status).toBe('approved');
     // A successful targeted repair cannot conceal another unreadable event.
     expect(current.error).toContain('decrypt');
     await act(async () => {
@@ -151,7 +153,7 @@ describe('thread approval provider lifecycle', () => {
         decryptEvent: async () => ({
           clearEvent: { type: 'm.room.message', content: { body: 'Hello' } },
         }),
-      } as CryptoBackend);
+      } as unknown as CryptoBackend);
     });
     expect(current.error).toBeUndefined();
     expect(unreadableMessage.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
@@ -189,7 +191,7 @@ describe('thread approval provider lifecycle', () => {
       current.ingestTimeline([updated]);
       finish({ events: [event()], repairedEventIds: ['$approval'] });
     });
-    expect(current.records[0].approval.status).toBe('approved');
+    expect(current.records[0]!.approval.status).toBe('approved');
     expect(updated.getContent().status).toBe('approved');
     ignored = ['@mindroom_router:example.org'];
     await act(async () => {
@@ -221,11 +223,11 @@ describe('thread approval provider lifecycle', () => {
       repairedEventIds: ['$approval'],
     });
     await mount();
-    expect(current.records[0].approval.status).toBe('pending');
+    expect(current.records[0]!.approval.status).toBe('pending');
     await act(async () => {
       vi.advanceTimersByTime(2000);
     });
-    expect(current.records[0].approval.status).toBe('expired');
+    expect(current.records[0]!.approval.status).toBe('expired');
   });
 });
 
@@ -237,7 +239,7 @@ it('keeps a submitted request in review past local expiry until Matrix acknowled
   mocks.backfill.mockResolvedValue({ events: [origin], repairedEventIds: ['$approval'] });
   await mount();
   await act(async () => {
-    await current.submit(current.records[0], { status: 'approved' });
+    await current.submit(current.records[0]!, { status: 'approved' });
   });
   await act(async () => {
     vi.advanceTimersByTime(2000);
@@ -256,7 +258,7 @@ it('keeps a submitted request in review past local expiry until Matrix acknowled
       }),
     ]);
   });
-  expect(current.records[0].approval.status).toBe('approved');
+  expect(current.records[0]!.approval.status).toBe('approved');
   expect(current.actions.size).toBe(0);
   expect(current.pendingEventIds.size).toBe(0);
 });
@@ -316,14 +318,14 @@ it('keeps failed discovery visible after a successful targeted repair until full
   await act(async () => {
     await encrypted.attemptDecryption({
       decryptEvent: async () => ({ clearEvent: { type: 'io.mindroom.tool_approval', content } }),
-    } as CryptoBackend);
+    } as unknown as CryptoBackend);
   });
   expect(mocks.backfill).toHaveBeenCalledTimes(2);
-  expect(mocks.backfill.mock.calls[1][4]).toEqual([encrypted]);
+  expect(mocks.backfill.mock.calls[1]![4]).toEqual([encrypted]);
   expect(current.error).toBe(discoveryError);
   mocks.backfill.mockResolvedValueOnce({ events: [encrypted], repairedEventIds: ['$approval'] });
   await act(async () => current.refresh());
-  expect(mocks.backfill.mock.calls[2][4]).toBeUndefined();
+  expect(mocks.backfill.mock.calls[2]![4]).toBeUndefined();
   expect(current.error).toBeUndefined();
 });
 
@@ -338,7 +340,7 @@ it('asks for discovery again when the connection returns, after a targeted repai
   await mount();
   // The pending approval the failed discovery did load gets its targeted repair, which succeeds.
   expect(mocks.backfill).toHaveBeenCalledTimes(2);
-  expect(mocks.backfill.mock.calls[1][4]).toEqual([pending]);
+  expect(mocks.backfill.mock.calls[1]![4]).toEqual([pending]);
   expect(current.error).toBe('unloadable');
 
   mocks.backfill.mockResolvedValueOnce({ events: [pending], repairedEventIds: ['$approval'] });
@@ -347,7 +349,7 @@ it('asks for discovery again when the connection returns, after a targeted repai
     mx.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Error);
   });
   expect(mocks.backfill).toHaveBeenCalledTimes(3);
-  expect(mocks.backfill.mock.calls[2][4]).toBeUndefined();
+  expect(mocks.backfill.mock.calls[2]![4]).toBeUndefined();
   expect(current.error).toBeUndefined();
 });
 
@@ -373,13 +375,16 @@ it.each([
         const wrapped = new MatrixEvent({
           ...plain.event,
           type: 'm.room.encrypted',
-          content: { ciphertext: 'encrypted history', 'm.relates_to': plain.getRelation() },
+          content: {
+            ciphertext: 'encrypted history',
+            'm.relates_to': plain.getRelation() as IEventRelation,
+          },
         });
         await wrapped.attemptDecryption({
           decryptEvent: async () => ({
             clearEvent: { type: plain.getType(), content: plain.getOriginalContent() },
           }),
-        } as CryptoBackend);
+        } as unknown as CryptoBackend);
         return wrapped;
       };
       origin = await wrap(origin);
@@ -391,7 +396,7 @@ it.each([
       repairedEventIds: ['$approval'],
     });
     await mount();
-    expect(current.records[0].approval.status).toBe('approved');
+    expect(current.records[0]!.approval.status).toBe('approved');
     const removed = target === 'origin' ? origin : edit;
     const tombstone = new MatrixEvent({
       ...removed.event,
@@ -404,7 +409,7 @@ it.each([
           sender: '@mindroom_router:example.org',
           content: {},
           redacts: removed.getId(),
-        },
+        } as IEvent,
       },
     });
     mocks.backfill.mockResolvedValueOnce({ events: [tombstone], repairedEventIds: ['$approval'] });
@@ -429,7 +434,7 @@ it('preserves concurrent arrivals while a refresh learns an old origin was redac
       })
   );
   await act(async () => current.refresh());
-  expect(mocks.backfill.mock.calls[1][5]).toEqual([origin]);
+  expect(mocks.backfill.mock.calls[1]![5]).toEqual([origin]);
   await act(async () => current.ingestTimeline([event('$new')]));
   await act(async () =>
     finish({
@@ -445,7 +450,7 @@ it('preserves concurrent arrivals while a refresh learns an old origin was redac
               sender: '@mindroom_router:example.org',
               content: {},
               redacts: '$approval',
-            },
+            } as IEvent,
           },
         }),
       ],
@@ -459,7 +464,7 @@ it('includes cached approvals in the first recovery snapshot before passive inge
   const cached = event();
   room.getLiveTimeline().getEvents().push(cached);
   await mount();
-  expect(mocks.backfill.mock.calls[0][5]).toEqual([cached]);
+  expect(mocks.backfill.mock.calls[0]![5]).toEqual([cached]);
 });
 
 it('does not retain ciphertext from another thread and releases decoded non-approval events', async () => {
@@ -484,7 +489,7 @@ it('does not retain ciphertext from another thread and releases decoded non-appr
       decryptEvent: async () => ({
         clearEvent: { type: 'm.room.message', content: { body: 'Hello' } },
       }),
-    } as CryptoBackend);
+    } as unknown as CryptoBackend);
   });
   expect(relevant.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
 });
@@ -521,11 +526,13 @@ it('keeps send completion bound to committed records during a suspended transiti
     </React.Suspense>
   );
   await act(async () => {
-    renderer = create(tree(false), { unstable_isConcurrent: true } as Parameters<typeof create>[1]);
+    renderer = create(tree(false), {
+      unstable_isConcurrent: true,
+    } as unknown as Parameters<typeof create>[1]);
   });
   let sending!: Promise<void>;
   await act(async () => {
-    sending = current.submit(current.records[0], { status: 'approved' });
+    sending = current.submit(current.records[0]!, { status: 'approved' });
   });
   await act(async () => {
     React.startTransition(() => renderer.update(tree(true)));
@@ -564,7 +571,7 @@ it.each(['during', 'after'] as const)(
     await act(async () => finish({ events: [event(), edit], repairedEventIds: ['$approval'] }));
     if (timing === 'after') await act(async () => current.ingestTimeline([cached]));
     expect(cached.getContent().status).toBe('approved');
-    expect(current.records[0].approval.status).toBe('approved');
+    expect(current.records[0]!.approval.status).toBe('approved');
     const saved = mocks.persist.mock.lastCall![2] as MatrixEvent[];
     expect(saved).toContain(cached);
     const reopened = serializeEventsForCache(room, saved).map((raw) => new MatrixEvent(raw));
@@ -614,7 +621,7 @@ it('hydrates a late-decrypted edit into the same cached original', async () => {
     decryptEvent: async () => {
       throw new Error('Missing key');
     },
-  } as CryptoBackend);
+  } as unknown as CryptoBackend);
   mocks.backfill.mockResolvedValueOnce({
     events: [event(), encryptedEdit],
     repairedEventIds: ['$approval'],
@@ -633,10 +640,10 @@ it('hydrates a late-decrypted edit into the same cached original', async () => {
           },
         },
       }),
-    } as CryptoBackend);
+    } as unknown as CryptoBackend);
   });
   expect(cached.getContent().status).toBe('approved');
-  expect(current.records[0].approval.status).toBe('approved');
+  expect(current.records[0]!.approval.status).toBe('approved');
   expect(current.error).toBeUndefined();
   expect(mocks.persist.mock.lastCall![2]).toContain(cached);
 });
@@ -689,7 +696,7 @@ it('redacts an undecrypted cached original when its same-ID tombstone is recover
         type: 'm.room.redaction',
         content: {},
         redacts: '$approval',
-      },
+      } as IEvent,
     },
   });
   mocks.backfill.mockResolvedValueOnce({ events: [removed], repairedEventIds: [] });
@@ -712,7 +719,7 @@ it('repairs a plaintext origin learned after discovery omitted it', async () => 
   mocks.backfill.mockResolvedValueOnce({ events: [edit], repairedEventIds: ['$approval'] });
   await act(async () => current.ingestTimeline([cached]));
   expect(mocks.backfill).toHaveBeenCalledTimes(2);
-  expect(mocks.backfill.mock.calls[1][4]).toEqual([cached]);
+  expect(mocks.backfill.mock.calls[1]![4]).toEqual([cached]);
   expect(cached.getContent().status).toBe('approved');
 });
 
@@ -734,7 +741,7 @@ it.each(['redaction', 'tombstone'] as const)(
         : new MatrixEvent({
             ...event().event,
             content: {},
-            unsigned: { redacted_because: redaction.event },
+            unsigned: { redacted_because: redaction.event as IEvent },
           });
     room.getLiveTimeline().getEvents().push(evidence);
     await mount();
@@ -762,8 +769,10 @@ it('publishes an approved replacement attached to a later SDK original', async (
     },
   });
   newer.makeReplaced(edit);
-  await act(async () => mx.emit(MatrixEventEvent.Replaced, newer));
-  expect(current.records[0].approval.status).toBe('approved');
+  await act(async () => {
+    mx.emit(MatrixEventEvent.Replaced, newer);
+  });
+  expect(current.records[0]!.approval.status).toBe('approved');
   expect(cached.getContent().status).toBe('approved');
   const saved = serializeEventsForCache(room, mocks.persist.mock.lastCall![2]);
   const reopened = saved.map((raw) => new MatrixEvent(raw));
@@ -802,7 +811,7 @@ it.each(['bundled', 'attached'] as const)(
     else cached.makeReplaced(new MatrixEvent(ciphertext));
     await act(async () => current.ingestTimeline([cached]));
     expect(cached.getContent().status).toBe('approved');
-    expect(current.records[0].approval.status).toBe('approved');
+    expect(current.records[0]!.approval.status).toBe('approved');
     expect(current.error).toBe('undecryptable');
     const saved = serializeEventsForCache(room, mocks.persist.mock.lastCall![2]);
     expect(JSON.stringify(saved)).not.toContain('pending key');
@@ -820,7 +829,7 @@ it.each(['bundled', 'attached'] as const)(
             },
           },
         }),
-      } as CryptoBackend);
+      } as unknown as CryptoBackend);
     });
     expect(cached.getContent().status).toBe('denied');
     expect(current.error).toBeUndefined();
@@ -922,7 +931,7 @@ describe('thread approval provider rescans', () => {
     // The SDK emits one per event it adds to a thread, e.g. a reconcile's backfill.
     const thread = { events: [event()] };
     const rescans = vi.spyOn(room, 'getThread').mockReturnValue(thread as never);
-    const burst = (signal: ThreadEvent) =>
+    const burst = (signal: ThreadEvent.Update | ThreadEvent.NewReply) =>
       act(async () => {
         for (let i = 0; i < 100; i += 1) room.emit(signal, thread as never);
         await nextTask();
@@ -951,7 +960,11 @@ describe('thread approval provider rescans', () => {
     // The room's page and another view of the room (a plugin's thread view) show one thread.
     const Both = ({ page, view }: { page: boolean; view: boolean }) => (
       <>
-        {page && <ThreadApprovalProvider room={room} threadId="$thread" />}
+        {page && (
+          <ThreadApprovalProvider room={room} threadId="$thread">
+            {undefined}
+          </ThreadApprovalProvider>
+        )}
         {view && (
           <ThreadApprovalProvider room={room} threadId="$thread">
             <Probe />
@@ -985,8 +998,14 @@ describe('thread approval provider rescans', () => {
   it("cancels a thread view's discovery as it unmounts while the room page's repair of that thread runs", async () => {
     const Both = ({ view }: { view: boolean }) => (
       <>
-        <ThreadApprovalProvider room={room} threadId="$thread" />
-        {view && <ThreadApprovalProvider room={room} threadId="$thread" />}
+        <ThreadApprovalProvider room={room} threadId="$thread">
+          {undefined}
+        </ThreadApprovalProvider>
+        {view && (
+          <ThreadApprovalProvider room={room} threadId="$thread">
+            {undefined}
+          </ThreadApprovalProvider>
+        )}
       </>
     );
     // The page's discovery finds a pending approval and repairs it; later loads stay running.

@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import React from 'react';
-import { Direction, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
+import { Direction, RoomEvent, ThreadEvent, type MatrixEvent } from 'matrix-js-sdk';
 import { Editor } from 'slate';
 import { act, create as baseCreate } from 'react-test-renderer';
 import { afterEach, beforeEach, vi } from 'vitest';
@@ -63,20 +63,24 @@ const {
   pluginRowHiddenMock,
 } = vi.hoisted(() => ({
   passthrough: 'div',
-  scrollType: 'room-timeline-scroll',
-  roomThreadOverviewType: 'room-thread-overview',
-  roomIntroType: 'room-intro',
-  compactPlaceholderType: 'compact-placeholder',
+  // The mocked components render as these host tags, which React's element types don't list.
+  scrollType: 'room-timeline-scroll' as React.ElementType,
+  roomThreadOverviewType: 'room-thread-overview' as React.ElementType,
+  roomIntroType: 'room-intro' as React.ElementType,
+  compactPlaceholderType: 'compact-placeholder' as React.ElementType,
   directRoomState: { value: false },
   aliveFn: () => true,
-  reactionOrEditEventMock: vi.fn(() => false),
-  inSameDayMock: vi.fn(() => true),
-  timeDayMonthYearMock: vi.fn(() => 'time'),
+  reactionOrEditEventMock: vi.fn<(event: MatrixEvent) => boolean>(() => false),
+  inSameDayMock: vi.fn<(ts1: number, ts2: number) => boolean>(() => true),
+  timeDayMonthYearMock: vi.fn<(ts: number) => string>(() => 'time'),
   isMembershipChangedMock: vi.fn(() => false),
   matrixClientMock: {
     fetchRelations: vi.fn(),
     fetchRoomEvent: vi.fn(),
-    getEventMapper: vi.fn(() => (rawEvent: unknown) => rawEvent),
+    // Each test's event mapper reads the raw event shape it feeds the mapper.
+    getEventMapper: vi.fn<() => (rawEvent: never) => unknown>(
+      () => (rawEvent: unknown) => rawEvent
+    ),
     getEventTimeline: vi.fn(),
     getHomeserverUrl: vi.fn(() => 'https://example.org'),
     getRoom: vi.fn(() => null),
@@ -94,7 +98,7 @@ const {
   navigateRoomThreadMock: vi.fn(),
   threadRenderStateMock: {
     threadEventIndexMapRef: { current: new Map() },
-    threadEvents: [],
+    threadEvents: [] as unknown[],
     threadInitialRenderMode: 'live',
     setSupplementalThreadEvents: vi.fn(),
     resetThreadRenderState: vi.fn(),
@@ -112,9 +116,15 @@ const {
   scrollToItemMock: vi.fn(),
   scrollToElementMock: vi.fn(),
   retryPaginationMock: vi.fn(),
-  loadCachedRoomEventsBeforeMock: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
-  loadCachedRoomPaginationTokenMock: vi.fn(async () => undefined),
-  loadLatestCachedRoomEventsMock: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
+  loadCachedRoomEventsBeforeMock: vi.fn<
+    () => Promise<{ events: unknown[]; hasMoreBefore: boolean; beforeToken?: string | null }>
+  >(async () => ({ events: [], hasMoreBefore: false })),
+  loadCachedRoomPaginationTokenMock: vi.fn<() => Promise<string | null | undefined>>(
+    async () => undefined
+  ),
+  loadLatestCachedRoomEventsMock: vi.fn<
+    () => Promise<{ events: unknown[]; hasMoreBefore: boolean; beforeToken?: string | null }>
+  >(async () => ({ events: [], hasMoreBefore: false })),
   loadCachedThreadSummariesMock: vi.fn(async () => new Map()),
   saveRoomEventsToCacheMock: vi.fn(async () => undefined),
   saveCachedThreadSummaryMock: vi.fn(async () => undefined),
@@ -598,7 +608,7 @@ vi.mock('../../matrix/room', () => ({
     editedEvent?: { getContent?: () => Record<string, unknown> | undefined }
   ) => editedEvent?.getContent?.() ?? event?.getContent?.(),
   getLatestEdit: (_target: unknown, edits: Array<{ getTs: () => number }>) =>
-    edits.reduce((latest, edit) => (edit.getTs() >= latest.getTs() ? edit : latest), edits[0]),
+    edits.reduce((latest, edit) => (edit.getTs() >= latest!.getTs() ? edit : latest), edits[0]),
   getMemberDisplayName: () => 'Alice',
   hasUndecryptedNewerEdit: () => false,
   getPendingEdits: () => [],
@@ -866,7 +876,7 @@ vi.mock('../../event-store/threads/threadUtils', () => ({
     }>
   ) => {
     for (let i = replyEvents.length - 1; i >= 0; i -= 1) {
-      const body = replyEvents[i].getContent?.()?.body;
+      const body = replyEvents[i]!.getContent?.()?.body;
       if (typeof body === 'string' && body.trim().length > 0) {
         return replyEvents[i];
       }
@@ -968,7 +978,7 @@ vi.mock('../../event-store/threads/threadUtils', () => ({
       i >= 0 && participantIds.length < maxParticipants;
       i -= 1
     ) {
-      const event = replyEvents[i];
+      const event = replyEvents[i]!;
       const senderId = event.getSender?.();
       if (
         !event.getId() ||
@@ -1374,7 +1384,7 @@ const makeRoom = ({
       getUserId: () => '@alice:example.org',
     },
     findEventById: findEventById ?? ((eventId: string) => getEventFromTimelines(eventId)),
-    getEventReadUpTo: () => undefined,
+    getEventReadUpTo: (): string | null | undefined => undefined,
     getLiveTimeline: () => roomLiveTimeline,
     getMember: (userId: string) => ({ name: userId }),
     getThread: (threadId: string) => threads.find((thread) => thread.id === threadId) ?? null,
