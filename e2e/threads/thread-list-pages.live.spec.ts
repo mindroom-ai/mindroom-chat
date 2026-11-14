@@ -253,7 +253,8 @@ const checkThreadList = async (page: Page, name: string, engine: 'chromium' | 'w
   // Every thread is listed, promptly.
   expect(seen.at(-1), `count values: ${seen.join(' -> ')}`).toBe(String(THREADS));
   // The room opens in Compact with resolved threads hidden (none is resolved here), so the
-  // summary names the total too.
+  // summary names the total too: the filter seeded above does not reach the app, whose key
+  // `seedRoomOverviewState` does not write.
   await expect(
     page.getByText(`Showing ${THREADS} of ${THREADS} threads`, { exact: true })
   ).toHaveCount(1);

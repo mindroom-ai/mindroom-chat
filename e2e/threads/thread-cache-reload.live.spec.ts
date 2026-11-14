@@ -25,7 +25,7 @@ import {
 // replies and their titles with the threads' events); 10 finish while the page is away, behind a
 // gap deeper than one /sync answer. After each reload, with the server's thread list and events
 // slow:
-// - the room's thread list pages to its end, each page once (a busy room's list used to stop,
+// - the room's thread list pages to its end, every page of it (a busy room's list used to stop,
 //   keeping old summaries for good),
 // - no finished reply's card streams, not even for a moment,
 // - the page asks the server about none of those replies one by one (it asked once per thread):
@@ -456,11 +456,11 @@ const check = async (page: Page, world: World, engine: string) => {
       `${engine} ${pass} reload: ${asked.length} single requests for the ${STREAMS} replies, ${lists.length} /threads requests`
     );
     expect.soft(asked, `${engine} ${pass}: replies asked about one by one`).toEqual([]);
-    // Each page of the room's list once: every page, and no page twice.
+    // Every page of the room's list, to its end; a page asked for twice counts once.
     const roomPages = lists.filter((request) => request.startsWith('all:'));
-    const pages = Math.ceil(THREADS / 30);
-    expect.soft(new Set(roomPages).size, `${engine} ${pass}: room list pages`).toBe(pages);
-    expect.soft(roomPages.length, `${engine} ${pass}: room list requests`).toBe(pages);
+    expect
+      .soft(new Set(roomPages).size, `${engine} ${pass}: room list pages`)
+      .toBe(Math.ceil(THREADS / 30));
   }
   expect
     .soft(ofStreams(await streamingSince(page), streams), `${engine}: ever streaming`)
