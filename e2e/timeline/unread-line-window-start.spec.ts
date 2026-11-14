@@ -2,7 +2,6 @@ import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
-import { roomViewSwitch } from '../helpers/roomViewSwitch';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -74,13 +73,17 @@ test('the first row of a window that starts after an unread event without a row 
     localStorage.setItem('settings', JSON.stringify({ ...stored, showHiddenEvents: true }));
   });
   await loginWithPassword(page, { homeserver: HOMESERVER, ...reader });
-  await page.goto(`/home/${encodeURIComponent(roomId)}/`);
-  await expect(roomViewSwitch(page)).toBeVisible({ timeout: 60_000 });
-  // The Compact view, oldest row first: the Threads view puts the newest first and draws no line.
-  if ((await roomViewSwitch(page).getAttribute('aria-pressed')) !== 'true') {
-    await roomViewSwitch(page).click();
-  }
-  await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'true');
+  // The Classic view, oldest row first: the Compact and Threads views put the newest first and
+  // draw no line.
+  await page.evaluate((room) => {
+    const store = JSON.parse(localStorage.getItem('mindroom_multi_account_store') ?? '{}') as {
+      activeSessionId?: string;
+    };
+    localStorage.setItem(
+      `roomViewMode:${store.activeSessionId}:${room}`,
+      JSON.stringify('classic')
+    );
+  }, roomId);
 
   // Open the message 200 rows below the first one after the poll: the window starts there.
   await page.goto(`/home/${encodeURIComponent(roomId)}/${encodeURIComponent(entries[WINDOW]!)}/`);
