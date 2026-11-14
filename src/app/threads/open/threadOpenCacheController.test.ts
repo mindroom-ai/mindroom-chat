@@ -117,7 +117,7 @@ describe('refreshLatestThreadSlice', () => {
 
     expect(paginateEventTimeline).toHaveBeenCalledTimes(1);
     expect(persistThreadEventCache).toHaveBeenCalledTimes(1);
-    const [, , , beforeToken, tailLoaded, snapshotComplete] = persistThreadEventCache.mock.calls[0];
+    const [, , , beforeToken, tailLoaded, snapshotComplete] = persistThreadEventCache.mock.calls[0]!;
     expect(beforeToken).toBeNull();
     expect(tailLoaded).toBe(true);
     expect(snapshotComplete).toBe(true);
