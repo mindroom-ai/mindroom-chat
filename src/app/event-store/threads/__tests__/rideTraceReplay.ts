@@ -104,8 +104,8 @@ export const deriveClientHeightFromBottomRest = (
   let run = 0;
   let best: number | undefined;
   for (let index = 1; index < frames.length; index += 1) {
-    const frame = frames[index];
-    const previous = frames[index - 1];
+    const frame = frames[index]!;
+    const previous = frames[index - 1]!;
     const stable =
       frame.st === previous.st && frame.sh === previous.sh && !frame.touch && frame.tc > 0;
     run = stable ? run + 1 : 0;
@@ -177,8 +177,8 @@ export const extractLedgerSettles = (
 ): LedgerSettleObservation[] => {
   const settles: LedgerSettleObservation[] = [];
   for (let index = 1; index < frames.length; index += 1) {
-    const frame = frames[index];
-    const previous = frames[index - 1];
+    const frame = frames[index]!;
+    const previous = frames[index - 1]!;
     const boundary = frame.lb !== previous.lb;
     const quiescence = frame.lq !== previous.lq;
     if (!boundary && !quiescence) continue;
@@ -238,8 +238,8 @@ export const extractDiscardedSettleWrites = (
 ): DiscardedSettleWriteObservation[] => {
   const discards: DiscardedSettleWriteObservation[] = [];
   for (let index = 1; index < frames.length; index += 1) {
-    const frame = frames[index];
-    const previous = frames[index - 1];
+    const frame = frames[index]!;
+    const previous = frames[index - 1]!;
     const boundary = frame.lb !== previous.lb;
     const quiescence = frame.lq !== previous.lq;
     if (!boundary && !quiescence) continue;
@@ -250,11 +250,11 @@ export const extractDiscardedSettleWrites = (
     let previousScrollTop = settledScrollTop;
     for (
       let watch = index;
-      watch < frames.length && frames[watch].t - frames[index].t <= SETTLE_DISCARD_WINDOW_MS;
+      watch < frames.length && frames[watch]!.t - frames[index]!.t <= SETTLE_DISCARD_WINDOW_MS;
       watch += 1
     ) {
-      if (watch > index && frames[watch].touch) break;
-      const currentScrollTop = frames[watch].st;
+      if (watch > index && frames[watch]!.touch) break;
+      const currentScrollTop = frames[watch]!.st;
       if (isDiscardedSettleWrite({ px, preSettleScrollTop, previousScrollTop, currentScrollTop })) {
         discards.push({
           settleFrameIndex: index,
@@ -295,8 +295,8 @@ export const replayLedgerBoundaryGuard = (
 ): BoundaryGuardReplayFiring[] => {
   const firings: BoundaryGuardReplayFiring[] = [];
   for (let index = 1; index < frames.length; index += 1) {
-    const frame = frames[index];
-    const previous = frames[index - 1];
+    const frame = frames[index]!;
+    const previous = frames[index - 1]!;
     const ledgerPx = getLedgerPx(frame, index);
     const innerTop = frame.tr - frame.st;
     const fired = shouldSettleLedgerAtBoundary({

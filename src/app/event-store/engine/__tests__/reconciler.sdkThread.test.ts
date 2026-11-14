@@ -89,7 +89,11 @@ const reconcile = async (
     roomId: room.roomId,
     room,
     threadId: ROOT,
-    cachedPage: { events: [], hasMoreBefore: true, tailLoaded: true } as HydratedThreadCachePage,
+    cachedPage: {
+      events: [],
+      hasMoreBefore: true,
+      tailLoaded: true,
+    } as unknown as HydratedThreadCachePage,
     persistRepair: () => ({ rawEvents: [], loadedReplyCount: 0, write: Promise.resolve(true) }),
     onRepaired,
   });

@@ -198,7 +198,7 @@ const createContinuationStore = () => {
     }),
     checkpoint: vi.fn(async (_sessionId, _roomId, _threadId, expectedGeneration, nextToken) => {
       if (marker?.generation !== expectedGeneration) return undefined;
-      marker = { ...marker, nextToken };
+      marker = { ...marker!, nextToken };
       return true;
     }),
     clear: vi.fn(async (_sessionId, _roomId, _threadId, expectedGeneration) => {
@@ -209,13 +209,13 @@ const createContinuationStore = () => {
     restartFromHead: vi.fn(
       async (_sessionId, _roomId, _threadId, expectedGeneration, nextGeneration) => {
         if (marker?.generation !== expectedGeneration) return false;
-        const { nextToken: _drop, ...current } = marker;
+        const { nextToken: _drop, ...current } = marker!;
         marker = { ...current, generation: nextGeneration, validatingHead: true };
         return marker;
       }
     ),
     getMarker: () => marker,
-  } satisfies NonNullable<Parameters<typeof scheduleReconcile>[0]['continuationStore']> & {
+  } as NonNullable<Parameters<typeof scheduleReconcile>[0]['continuationStore']> & {
     getMarker: () => typeof marker;
   };
 };
@@ -485,7 +485,9 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     expect(fetchRelations).toHaveBeenCalledTimes(1);
     expect(staleViewCallback).toHaveBeenCalledTimes(1);
     expect(currentViewCallback).toHaveBeenCalledTimes(1);
-    expect(currentViewCallback.mock.calls[0][0].map((event) => event.getId())).toContain('$new');
+    expect(
+      currentViewCallback.mock.calls[0]![0].map((event: MatrixEvent) => event.getId())
+    ).toContain('$new');
     const probe = getCacheProbeSnapshot();
     expect(probe.reconcilesRepaired).toBe(1);
     expect(probe.reconcilesOnRepairedFired).toBe(2);
@@ -595,7 +597,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     cachedPage.events = [targetWithEdit, redaction] as never;
     const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
       vi.fn(({ events }) => ({
-        rawEvents: events.map((event) => event.event as Partial<IEvent>),
+        rawEvents: events.map((event: MatrixEvent) => event.event),
         loadedReplyCount: 0,
         write: Promise.resolve(true),
       }));
@@ -627,7 +629,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
           type: 'm.room.redaction',
           sender: '@moderator:example',
           origin_server_ts: 200,
-        },
+        } as IEvent,
       },
     };
     const mx = makeMockClient({
@@ -914,7 +916,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     const continuationStore = createContinuationStore();
     const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
       vi.fn(({ events }) => ({
-        rawEvents: events.map((event) => event.event as Partial<IEvent>),
+        rawEvents: events.map((event: MatrixEvent) => event.event),
         loadedReplyCount: 0,
         write: Promise.resolve(true),
       }));
@@ -966,12 +968,14 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
       continuationStore,
     });
 
-    expect(secondFetch.mock.calls[0][4]).toMatchObject({ from: 'page-2' });
-    expect(secondFetch.mock.calls[1][4]).not.toHaveProperty('from');
+    expect(secondFetch.mock.calls[0]![4]).toMatchObject({ from: 'page-2' });
+    expect(secondFetch.mock.calls[1]![4]).not.toHaveProperty('from');
     expect(secondResult).toMatchObject({ repaired: true, durable: true, iterations: 2 });
     expect(continuationStore.getMarker()).toBeUndefined();
     expect(persistRepair).toHaveBeenCalledTimes(2);
-    const secondPersistedIds = persistRepair.mock.calls[1][0].events.map((event) => event.getId());
+    const secondPersistedIds = vi
+      .mocked(persistRepair)
+      .mock.calls[1]![0].events.map((event) => event.getId());
     expect(secondPersistedIds).toContain('$new-head');
   });
 
@@ -980,12 +984,12 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     const continuationStore = createContinuationStore();
     const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
       vi.fn(({ events }) => ({
-        rawEvents: events.map((event) => event.event as Partial<IEvent>),
+        rawEvents: events.map((event: MatrixEvent) => event.event),
         loadedReplyCount: 0,
         write: Promise.resolve(true),
       }));
     const firstFetch = vi.fn(async (_roomId, _threadId, _relType, _eventType, options) => {
-      const page = firstFetch.mock.calls.length;
+      const page: number = firstFetch.mock.calls.length;
       return {
         chunk: [{ event_id: `$page-${page}` }],
         next_batch: `page-${page + 1}`,
@@ -1014,7 +1018,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     expect(firstFetch).toHaveBeenCalledTimes(25);
     expect(continuationStore.getMarker()?.nextToken).toBe('page-26');
 
-    const secondFetch = vi.fn(async () => ({
+    const secondFetch = vi.fn(async (..._args: unknown[]) => ({
       chunk: [{ event_id: '$known' }, { event_id: '$after-cap' }],
       next_batch: undefined,
     }));
@@ -1035,7 +1039,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
       continuationStore,
     });
 
-    expect(secondFetch.mock.calls[0][4]).toMatchObject({ from: 'page-26' });
+    expect(secondFetch.mock.calls[0]![4]).toMatchObject({ from: 'page-26' });
     expect(continuationStore.getMarker()).toBeUndefined();
     expect(persistRepair).toHaveBeenCalledTimes(2);
   });
@@ -1045,7 +1049,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     const continuationStore = createContinuationStore();
     const persistRepair = vi.fn();
     const fetchRelations = vi.fn(async () => {
-      const page = fetchRelations.mock.calls.length;
+      const page: number = fetchRelations.mock.calls.length;
       return { chunk: [], next_batch: `page-${page + 1}` };
     });
     const mx = {
@@ -1082,7 +1086,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     });
     const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
       vi.fn(({ events }) => ({
-        rawEvents: events.map((event) => event.event as Partial<IEvent>),
+        rawEvents: events.map((event: MatrixEvent) => event.event),
         loadedReplyCount: 0,
         write: Promise.resolve(true),
       }));
@@ -1142,10 +1146,13 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     });
 
     expect(secondFetch).toHaveBeenCalledTimes(1);
-    expect(secondFetch.mock.calls[0][4]).toMatchObject({ from: 'head-26' });
+    expect(secondFetch.mock.calls[0]![4]).toMatchObject({ from: 'head-26' });
     expect(result).toMatchObject({ repaired: true, durable: true });
     expect(continuationStore.getMarker()).toBeUndefined();
-    const persistedIds = persistRepair.mock.calls.at(-1)?.[0].events.map((event) => event.getId());
+    const persistedIds = vi
+      .mocked(persistRepair)
+      .mock.calls.at(-1)?.[0]
+      .events.map((event) => event.getId());
     expect(persistedIds).toContain('$validation-tail');
   });
 
@@ -1179,7 +1186,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
       threadId: '$thread',
       cachedPage: makeCachedPage(['$persisted-from-earlier-pass']),
       persistRepair: vi.fn(({ events }) => ({
-        rawEvents: events.map((event) => event.event as Partial<IEvent>),
+        rawEvents: events.map((event: MatrixEvent) => event.event),
         loadedReplyCount: 0,
         write: Promise.resolve(true),
       })),
@@ -1187,8 +1194,8 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     });
 
     expect(fetchRelations).toHaveBeenCalledTimes(2);
-    expect(fetchRelations.mock.calls[0][4]).toMatchObject({ from: 'older-cursor' });
-    expect(fetchRelations.mock.calls[1][4]).not.toHaveProperty('from');
+    expect(fetchRelations.mock.calls[0]![4]).toMatchObject({ from: 'older-cursor' });
+    expect(fetchRelations.mock.calls[1]![4]).not.toHaveProperty('from');
     expect(continuationStore.getMarker()).toBeUndefined();
   });
 
@@ -1231,8 +1238,8 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
         continuationStore,
       });
 
-      expect(fetchRelations.mock.calls[0][4]).toMatchObject({ from: 'stale-token' });
-      expect(fetchRelations.mock.calls[1][4]).not.toHaveProperty('from');
+      expect(fetchRelations.mock.calls[0]![4]).toMatchObject({ from: 'stale-token' });
+      expect(fetchRelations.mock.calls[1]![4]).not.toHaveProperty('from');
       expect(continuationStore.restartFromHead).toHaveBeenCalledTimes(1);
       expect(continuationStore.getMarker()).toBeUndefined();
     }
@@ -1271,8 +1278,8 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     // One retry of the same cursor, then give up WITHOUT discarding durable
     // scan progress — the next online open resumes from the saved token.
     expect(fetchRelations).toHaveBeenCalledTimes(2);
-    expect(fetchRelations.mock.calls[0][4]).toMatchObject({ from: 'saved-token' });
-    expect(fetchRelations.mock.calls[1][4]).toMatchObject({ from: 'saved-token' });
+    expect(fetchRelations.mock.calls[0]![4]).toMatchObject({ from: 'saved-token' });
+    expect(fetchRelations.mock.calls[1]![4]).toMatchObject({ from: 'saved-token' });
     expect(continuationStore.restartFromHead).not.toHaveBeenCalled();
     expect(continuationStore.getMarker()).toMatchObject({ nextToken: 'saved-token' });
   });
@@ -1300,7 +1307,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     } as unknown as MatrixClient;
     const persistRepair: NonNullable<Parameters<typeof scheduleReconcile>[0]['persistRepair']> =
       vi.fn(({ events }) => ({
-        rawEvents: events.map((event) => event.event as Partial<IEvent>),
+        rawEvents: events.map((event: MatrixEvent) => event.event),
         loadedReplyCount: 0,
         write: Promise.resolve(true),
       }));
@@ -1318,9 +1325,9 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     });
 
     expect(fetchRelations).toHaveBeenCalledTimes(3);
-    expect(fetchRelations.mock.calls[0][4]).toMatchObject({ from: 'expired-token' });
-    expect(fetchRelations.mock.calls[1][4]).not.toHaveProperty('from');
-    expect(fetchRelations.mock.calls[2][4]).toMatchObject({ from: 'head-2' });
+    expect(fetchRelations.mock.calls[0]![4]).toMatchObject({ from: 'expired-token' });
+    expect(fetchRelations.mock.calls[1]![4]).not.toHaveProperty('from');
+    expect(fetchRelations.mock.calls[2]![4]).toMatchObject({ from: 'head-2' });
     expect(continuationStore.getMarker()).toBeUndefined();
   });
 
@@ -1404,7 +1411,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     // Injection call — the stub thread's window is empty, so the whole
     // batch is backfill, prepended newest first.
     expect(addEvents).toHaveBeenCalledTimes(1);
-    const [injectedEvents, toStartOfTimeline] = addEvents.mock.calls[0];
+    const [injectedEvents, toStartOfTimeline] = addEvents.mock.calls[0]!;
     const injectedTs = (injectedEvents as MatrixEvent[]).map((mEvent) => mEvent.getTs());
     expect(injectedTs).toEqual([300, 200, 100, 50]);
     expect(toStartOfTimeline).toBe(true);
@@ -1536,7 +1543,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     // (`toStartOfTimeline` true): appended, the SDK would announce each
     // one as a new reply or a live event.
     expect(addEvents).toHaveBeenCalledTimes(1);
-    const [injectedEvents, toStartOfTimeline] = addEvents.mock.calls[0];
+    const [injectedEvents, toStartOfTimeline] = addEvents.mock.calls[0]!;
     expect(toStartOfTimeline).toBe(true);
     // All fetched, mapped events flow through — both the new id and
     // the already-cached one; the SDK's own dedup on event_id handles
@@ -1730,7 +1737,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
     // hydrated in place. Under the pre-fix wiring
     // (`onRepaired(allMapped)`) the cached-snapshot instances never
     // reached the sink — the RG5-fix seam.
-    const [batchArg] = onRepaired.mock.calls[0];
+    const [batchArg] = onRepaired.mock.calls[0]!;
     expect(Array.isArray(batchArg)).toBe(true);
     const batchIds = (batchArg as MatrixEvent[]).map((mEvent) => mEvent.getId());
     // Shape assertion (F8 restore): the batch's minimum size is 2
@@ -1807,7 +1814,7 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
 
     expect(result.repaired).toBe(true);
     expect(onRepaired).toHaveBeenCalledTimes(1);
-    const [batchArg] = onRepaired.mock.calls[0];
+    const [batchArg] = onRepaired.mock.calls[0]!;
     expect(Array.isArray(batchArg)).toBe(true);
     // RG5-fix: onRepaired now hands the hydrated view (cached snapshot
     // + fetched), so the payload includes both the fetched $edit-v2
@@ -2052,7 +2059,9 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
 
     expect(result).toMatchObject({ repaired: true, durable: false });
     expect(onRepaired).toHaveBeenCalledTimes(1);
-    expect(onRepaired.mock.calls[0][0].map((event) => event.getId())).toContain('$new');
+    expect(onRepaired.mock.calls[0]![0].map((event: MatrixEvent) => event.getId())).toContain(
+      '$new'
+    );
   });
 
   it('detects SDK-vs-cache timing race and STILL persists + injects — P5-GATE-FIX v4 final: cache is what next open paints', async () => {
@@ -2305,8 +2314,8 @@ describe('scheduleReconcile (ISSUE-207 P5.1)', () => {
         event_id: '$reply-1',
         type: 'm.room.message',
       });
-      expect(triples[2].rel_type).toBeUndefined();
-      expect(triples[2].bundled_relations).toBeUndefined();
+      expect(triples[2]!.rel_type).toBeUndefined();
+      expect(triples[2]!.bundled_relations).toBeUndefined();
     } finally {
       Object.defineProperty(globalThis, 'localStorage', {
         configurable: true,

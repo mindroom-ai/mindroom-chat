@@ -56,8 +56,8 @@ const makeRoom = (
       getState: () => ({
         getStateEvents: (eventType: StateEvent) => {
           if (eventType !== StateEvent.RoomCreate) return undefined;
-          return { getSender: () => createSender } as unknown as ReturnType<
-            ReturnType<Room['getLiveTimeline']>['getState']
+          return { getSender: () => createSender } as unknown as NonNullable<
+            ReturnType<ReturnType<Room['getLiveTimeline']>['getState']>
           >['getStateEvents'];
         },
       }),
