@@ -3,6 +3,7 @@ import AVFoundation
 import Foundation
 import MatrixRustSDK
 import MindRoomWatchKit
+import os
 
 /// Launch-environment hooks for the simulator runs (scripts/watch/e2e.sh); DEBUG builds only.
 ///
@@ -13,12 +14,16 @@ import MindRoomWatchKit
 ///   MINDROOM_WATCH_E2E_OPEN         `newest`: open the newest thread once the list has it
 ///   MINDROOM_WATCH_E2E_APPROVE      `approve` or `deny`: answer the open thread's pending approval, once
 ///   MINDROOM_WATCH_E2E_ANSWER       `first`: answer the open thread's question with its first option, once
+///   MINDROOM_WATCH_E2E_RESOLVE      `newest`: mark the newest thread done, once
 enum E2EHooks {
     static let environment = ProcessInfo.processInfo.environment
     static var room: String? { environment["MINDROOM_WATCH_E2E_ROOM"] }
     static var openNewest: Bool { environment["MINDROOM_WATCH_E2E_OPEN"] == "newest" }
+    static var resolveNewest: Bool { environment["MINDROOM_WATCH_E2E_RESOLVE"] == "newest" }
+    static var resolved = false
     private static var sent = false
     private static var acted: Set<String> = []
+    private static var asked: String?
 
     /// Answers what the thread asks, through the same calls the buttons make.
     @MainActor
@@ -29,8 +34,18 @@ enum E2EHooks {
         }
         if environment["MINDROOM_WATCH_E2E_ANSWER"] == "first", let question = snapshot.openQuestion,
            let option = question.options.first, acted.insert(question.eventId).inserted {
+            asked = question.eventId
             Task { await model.answer(question, key: option.key) }
         }
+        if let question = asked, snapshot.openQuestion?.eventId != question {
+            asked = nil
+            log("question \(question) answered")
+        }
+    }
+
+    /// A line the e2e script reads from the simulator's log.
+    static func log(_ line: String) {
+        Logger(subsystem: "chat.mindroom.app.watchkitapp", category: "e2e").notice("\(line, privacy: .public)")
     }
 
     @MainActor

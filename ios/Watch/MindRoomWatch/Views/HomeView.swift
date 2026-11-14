@@ -83,9 +83,6 @@ private struct RoomHome: View {
     @State private var recording = false
     @State private var sendError: String?
 
-    private var needsYou: Int { model.rows.filter { $0.state == .needsYou }.count }
-    private var running: Int { model.rows.filter { $0.state == .running }.count }
-
     var body: some View {
         List {
             Section {
@@ -143,15 +140,17 @@ private struct RoomHome: View {
         #if DEBUG
         .onChange(of: model.rows) { _, rows in
             if E2EHooks.openNewest, path.isEmpty, let rootId = rows.first?.rootId { path = [rootId] }
+            if E2EHooks.resolveNewest, !E2EHooks.resolved, let rootId = rows.first(where: { $0.state != .queued })?.rootId {
+                E2EHooks.resolved = true
+                Task { await model.resolve(rootId); E2EHooks.log("resolved \(rootId)") }
+            }
         }
         #endif
     }
 
     private var summary: String {
-        if model.rows.isEmpty { return String(localized: "Tap to talk") }
-        if needsYou > 0 { return String(localized: "\(needsYou) need you") }
-        if running > 0 { return String(localized: "\(running) running") }
-        return String(localized: "Tap to talk")
+        let counts = WidgetSnapshot(roomName: model.roomName, states: model.rows.map(\.state), at: Date())
+        return counts.needsYou + counts.running == 0 ? String(localized: "Tap to talk") : counts.summary
     }
 
     private func takeRequest() {

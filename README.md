@@ -93,6 +93,8 @@ cd dist && python3 ../scripts/serve.py 8090   # plain HTTP on every interface: f
 
 The iOS, iPadOS, Mac Catalyst and Android apps wrap the same build with [Capacitor](https://capacitorjs.com) (app ID `chat.mindroom.app`; on Android `com.mindroom_ai.app`). [`docs/development.md`](docs/development.md#native-shells) shows how to build them, and [`docs/ios-release.md`](docs/ios-release.md) how releases reach the App Store.
 
+On the Apple Watch, MindRoom records a voice message into a room you pick with one tap, from the app, a complication or Siri, shows that room's threads with their answers, and lets you approve an agent's tool call or answer its question from your wrist, in end-to-end encrypted rooms too. Connect it from the iPhone app: Settings, Privacy, Apple Watch.
+
 On the Mac, Control+Option+Space opens Quick Capture over any app: a small window that posts a note or a question, with a screenshot if you like, as a new thread in a room you pick, and lists that room's threads with their answers.
 
 ## Development

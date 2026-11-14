@@ -42,7 +42,8 @@ struct ThreadView: View {
                         Text(reply.text.isEmpty ? "…" : roomModel.named(reply.text)).font(.body)
                         if !reply.text.isEmpty {
                             Button { speaker.toggle(roomModel.named(reply.text)) } label: {
-                                Label(speaker.speaking ? "Stop" : "Listen", systemImage: speaker.speaking ? "stop.fill" : "play.fill")
+                                Label(speaker.speaking ? LocalizedStringKey("Stop") : LocalizedStringKey("Listen"),
+                                      systemImage: speaker.speaking ? "stop.fill" : "play.fill")
                             }
                         }
                     } else {
