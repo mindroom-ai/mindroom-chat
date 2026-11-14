@@ -146,9 +146,9 @@ describe('attachComputerTouchpad', () => {
     const first = 210 + 15 * pointerGain(1.5);
     expect(recorded).toHaveLength(1);
     expect(recorded[0]).toMatchObject({ type: 'mousemove', x: first, y: 145, buttons: 0 });
-    expect(recorded[0].event).toBeInstanceOf(MouseEvent);
-    expect(recorded[0].event.bubbles).toBe(true);
-    expect(recorded[0].event.cancelable).toBe(true);
+    expect(recorded[0]!.event).toBeInstanceOf(MouseEvent);
+    expect(recorded[0]!.event.bubbles).toBe(true);
+    expect(recorded[0]!.event.cancelable).toBe(true);
 
     // 1 px down in 20 ms: slow, so the base gain.
     touch('touchmove', canvas, [finger(120, 101)], 40);
@@ -315,7 +315,7 @@ describe('attachComputerTouchpad', () => {
     touch('touchend', canvas, [], 190, [finger(130, 100)]);
     expect(captured()).toBeNull();
     expect(types()).toEqual(['mousemove', 'mousedown', 'mousemove', 'mouseup']);
-    expect(recorded[3]).toMatchObject({ x: recorded[2].x, buttons: 0 });
+    expect(recorded[3]).toMatchObject({ x: recorded[2]!.x, buttons: 0 });
 
     // A two-finger tap's right click too.
     touch('touchstart', canvas, [finger(100, 100, 1), finger(160, 100, 2)], 2000);
@@ -368,9 +368,9 @@ describe('attachComputerTouchpad', () => {
     expect(types()).toEqual(['mousemove', 'mousedown', 'mousemove', 'mousemove', 'mouseup']);
     expect(recorded[0]).toMatchObject({ x: 210, y: 145, buttons: 0 });
     expect(recorded[1]).toMatchObject({ x: 210, y: 145, button: 0, buttons: 1 });
-    expect(recorded[2].x).toBeGreaterThan(210);
-    expect(recorded[3].x).toBeGreaterThan(recorded[2].x);
-    expect(recorded[4]).toMatchObject({ x: recorded[3].x, button: 0, buttons: 0 });
+    expect(recorded[2]!.x).toBeGreaterThan(210);
+    expect(recorded[3]!.x).toBeGreaterThan(recorded[2]!.x);
+    expect(recorded[4]).toMatchObject({ x: recorded[3]!.x, button: 0, buttons: 0 });
 
     // The next touch only moves the pointer.
     recorded.length = 0;
@@ -390,7 +390,7 @@ describe('attachComputerTouchpad', () => {
     expect(recorded[0]).toMatchObject({ x: 210, y: 145, buttons: 0 });
     const wheels = recorded.filter((entry) => entry.type === 'wheel');
     expect(wheels).toHaveLength(1);
-    expect(wheels[0].event).toBeInstanceOf(WheelEvent);
+    expect(wheels[0]!.event).toBeInstanceOf(WheelEvent);
     expect(wheels[0]).toMatchObject({
       x: 210,
       y: 145,
@@ -398,8 +398,8 @@ describe('attachComputerTouchpad', () => {
       deltaY: 30 * SCROLL_GAIN,
       deltaMode: 0,
     });
-    expect(wheels[0].event.bubbles).toBe(true);
-    expect(wheels[0].event.cancelable).toBe(true);
+    expect(wheels[0]!.event.bubbles).toBe(true);
+    expect(wheels[0]!.event.cancelable).toBe(true);
   });
 
   it('keeps touches on the canvas from noVNC while watching', () => {

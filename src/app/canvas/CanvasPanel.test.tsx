@@ -165,7 +165,7 @@ const canvasWindow = () => {
 /** The canvas page, which the wrapper document carries as a script string. */
 const page = () => {
   const literal = /frame\.srcdoc = ("(?:[^"\\]|\\.)*");/.exec(frame().getAttribute('srcdoc') ?? '');
-  return literal ? (JSON.parse(literal[1]) as string) : '';
+  return literal ? (JSON.parse(literal[1]!) as string) : '';
 };
 /** The local echo of the last answer, held before the SDK forgets its transaction ID. */
 const lastEcho = (): MatrixEvent => {
@@ -325,7 +325,7 @@ describe('CanvasPanel', () => {
     await arm();
     await clickSend();
     expect(sendMessage).toHaveBeenCalledTimes(1);
-    const [roomId, content] = sendMessage.mock.calls[0];
+    const [roomId, content] = sendMessage.mock.calls[0]!;
     expect(roomId).toBe('!room:example.org');
     expect(content[CANVAS_RESPONSE_KEY]).toMatchObject({
       canvas_event_id: '$canvas',
@@ -372,7 +372,7 @@ describe('CanvasPanel', () => {
     expect(sendMessage).not.toHaveBeenCalled();
     await arm();
     await clickSend();
-    expect(sendMessage.mock.calls[0][1][CANVAS_RESPONSE_KEY].label).toBe('Pro plan');
+    expect(sendMessage.mock.calls[0]![1][CANVAS_RESPONSE_KEY].label).toBe('Pro plan');
     delete (navigator as { userActivation?: unknown }).userActivation;
   });
 
@@ -420,13 +420,13 @@ describe('CanvasPanel', () => {
           type: 'm.room.message',
           origin_server_ts: 1,
           content: echo.getContent(),
-          unsigned: { transaction_id: sendMessage.mock.calls[0][2] as string },
+          unsigned: { transaction_id: sendMessage.mock.calls[0]![2] as string },
         }),
         echo
       );
     });
     expect(echo.status).toBeNull();
-    expect(room.getEventForTxnId(sendMessage.mock.calls[0][2] as string)).toBeUndefined();
+    expect(room.getEventForTxnId(sendMessage.mock.calls[0]![2] as string)).toBeUndefined();
     expect(status()).toContain('Sent to Planner: Pro plan');
   });
 
@@ -552,7 +552,7 @@ describe('CanvasPanel', () => {
     expect(button('[data-canvas-send]').disabled).toBe(true);
     await act(async () => finishUpload());
     expect(sendMessage).toHaveBeenCalledTimes(1);
-    const preview = sendMessage.mock.calls[0][1];
+    const preview = sendMessage.mock.calls[0]![1];
     expect(preview).toMatchObject({
       msgtype: 'm.file',
       url: 'mxc://example.org/answer',
@@ -594,7 +594,7 @@ describe('CanvasPanel', () => {
       vi.advanceTimersByTime(100);
     });
     await post(largeAnswer('Second'));
-    await act(async () => uploads[0].finish());
+    await act(async () => uploads[0]!.finish());
     expect(sendMessage).not.toHaveBeenCalled();
     expect(container.textContent).toContain('Send to Planner: Second');
     expect(button('[data-canvas-send]')).not.toBeNull();
@@ -611,9 +611,9 @@ describe('CanvasPanel', () => {
     expect(page()).toContain('<button>Pro</button>');
     expect(container.textContent).toContain('Planner updated this panel.');
     expect(container.textContent).toContain('Send to Planner: First');
-    await act(async () => uploads[0].finish());
+    await act(async () => uploads[0]!.finish());
     expect(sendMessage).toHaveBeenCalledTimes(1);
-    expect(sendMessage.mock.calls[0][1][CANVAS_RESPONSE_KEY].label).toBe('First');
+    expect(sendMessage.mock.calls[0]![1][CANVAS_RESPONSE_KEY].label).toBe('First');
     expect(button('[data-canvas-send]')).toBeNull();
     await act(async () => buttonNamed('Load update')?.click());
     expect(page()).toContain('<p>Step 2</p>');
@@ -626,7 +626,7 @@ describe('CanvasPanel', () => {
     await arm();
     await clickSend();
     update();
-    await act(async () => uploads[0].fail());
+    await act(async () => uploads[0]!.fail());
     expect(sendMessage).not.toHaveBeenCalled();
     expect(status()).toContain('Could not send your response');
     expect(page()).toContain('<button>Pro</button>');
@@ -646,9 +646,9 @@ describe('CanvasPanel', () => {
     // The user committed the first answer; discarding one on the new page leaves it alone.
     await post(largeAnswer('Second'));
     await act(async () => button('[data-canvas-discard]').click());
-    await act(async () => uploads[0].finish());
+    await act(async () => uploads[0]!.finish());
     expect(sendMessage).toHaveBeenCalledTimes(1);
-    expect(sendMessage.mock.calls[0][1][CANVAS_RESPONSE_KEY].label).toBe('First');
+    expect(sendMessage.mock.calls[0]![1][CANVAS_RESPONSE_KEY].label).toBe('First');
   });
 
   it('keeps a large answer for another try when its upload fails', async () => {
@@ -726,7 +726,7 @@ describe('CanvasPanel', () => {
     expect(container.textContent).toContain('TypeError: boom');
     await act(async () => reportButton().click());
     expect(sendMessage).toHaveBeenCalledTimes(1);
-    expect((sendMessage.mock.calls[0][1] as { body: string }).body).toBe(
+    expect((sendMessage.mock.calls[0]![1] as { body: string }).body).toBe(
       `${AGENT} Canvas error ($canvas, revision $canvas):\nTypeError: boom\nBlocked https://cdn.example/x.js (script-src-elem)`
     );
     expect(reportButton()).toBeNull();
@@ -738,7 +738,7 @@ describe('CanvasPanel', () => {
     expect(reportButton()).toBeNull();
     await reportError('RangeError: later');
     await act(async () => reportButton().click());
-    expect((sendMessage.mock.calls[1][1] as { body: string }).body).toBe(
+    expect((sendMessage.mock.calls[1]![1] as { body: string }).body).toBe(
       `${AGENT} Canvas error ($canvas, revision $canvas):\nRangeError: later`
     );
   });
@@ -781,7 +781,7 @@ describe('CanvasPanel', () => {
     await accept();
     expect(container.textContent).toContain('Sent the errors to Planner.');
     await act(async () => reportButton().click());
-    expect((sendMessage.mock.calls[1][1] as { body: string }).body).toBe(
+    expect((sendMessage.mock.calls[1]![1] as { body: string }).body).toBe(
       `${AGENT} Canvas error ($canvas, revision $canvas):\nTypeError: second`
     );
   });

@@ -108,7 +108,7 @@ describe('attachComputerClipboard', () => {
 
   const writtenItem = (index = 0) => {
     const [items] = clipboard.write.mock.calls[index] as [FakeClipboardItem[]];
-    return items[0].items['text/plain'];
+    return items[0]!.items['text/plain']!;
   };
 
   beforeEach(() => {
@@ -1047,7 +1047,7 @@ describe('attachComputerClipboard', () => {
     key('keydown', { key: 'c', code: 'KeyC', metaKey: true });
     const pending = writtenItem();
     const state = settled(pending);
-    const [, clipboardListener] = rfb.addEventListener.mock.calls[0];
+    const [, clipboardListener] = rfb.addEventListener.mock.calls[0]!;
 
     detach?.();
     detach = undefined;

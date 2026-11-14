@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import React from 'react';
-import { act, create } from 'react-test-renderer';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   disableIOSPushPusher,
@@ -49,7 +49,15 @@ vi.mock('../../config/useClientConfig', () => ({ useClientConfig: () => state.cl
 vi.mock('../../matrix/session/useSessionStore', () => ({ useActiveSession: () => ({ sessionId: 's1' }) }));
 vi.mock('../../i18n/useAppLanguageCode', () => ({ useAppLanguageCode: () => 'en' }));
 
-const rerender = (renderer: ReturnType<typeof create>) =>
+const mount = async () => {
+  let renderer!: ReactTestRenderer;
+  await act(async () => {
+    renderer = create(React.createElement(NativeIOSPushFeature));
+  });
+  return renderer;
+};
+
+const rerender = (renderer: ReactTestRenderer) =>
   act(async () => renderer.update(React.createElement(NativeIOSPushFeature)));
 
 describe('NativeIOSPushFeature', () => {
@@ -61,9 +69,7 @@ describe('NativeIOSPushFeature', () => {
   });
 
   it('waits for the Cloudflare Access sign-in instead of turning push off', async () => {
-    const renderer = await act(async () =>
-      create(React.createElement(NativeIOSPushFeature))
-    );
+    const renderer = await mount();
     expect(registerIOSPush).not.toHaveBeenCalled();
 
     state.signInRequired = false;
@@ -88,9 +94,7 @@ describe('NativeIOSPushFeature', () => {
         rejectUpsert = reject;
       })
     );
-    const renderer = await act(async () =>
-      create(React.createElement(NativeIOSPushFeature))
-    );
+    const renderer = await mount();
     await act(async () => state.onRegistration?.({ value: 'apns-token' }));
 
     state.signInRequired = true;
@@ -105,9 +109,7 @@ describe('NativeIOSPushFeature', () => {
     state.signInRequired = false;
     state.pushAllowed = false;
     vi.mocked(disableIOSPushPusher).mockRejectedValueOnce(new TypeError('Load failed'));
-    const renderer = await act(async () =>
-      create(React.createElement(NativeIOSPushFeature))
-    );
+    const renderer = await mount();
     // A token from a registration started earlier, for instance by another account.
     await act(async () => state.onRegistration?.({ value: 'apns-token' }));
 

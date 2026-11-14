@@ -34,10 +34,10 @@ type MockRoomViewProps = {
  * is out of sight then).
  */
 const conversationShownIn = (renderer: ReactTestRenderer): boolean => {
-  expect(renderer.root.findAllByType('mock-room-view')).toHaveLength(1);
+  expect(renderer.root.findAllByType('mock-room-view' as never)).toHaveLength(1);
   return !renderer.root
     .findAll((node) => node.type === 'div' && node.props.style?.contentVisibility === 'hidden')
-    .some((node) => node.findAllByType('mock-room-view').length === 1);
+    .some((node) => node.findAllByType('mock-room-view' as never).length === 1);
 };
 
 type MockComputerPanelProps = {
@@ -903,7 +903,7 @@ describe('Room', { timeout: 30_000 }, () => {
         roomState.search = '?threadId=%24other';
         roomState.routedEvent = { getId: () => '$other', isSending: () => false };
         await view.rerender();
-        await act(async () => pending[0]({ originalEvent: listedCanvas(), events: [] }));
+        await act(async () => pending[0]!({ originalEvent: listedCanvas(), events: [] }));
 
         expect(view.canvasOpen()).toBe(false);
         expect(roomState.roomViewProps?.openCanvasId).toBeUndefined();
@@ -931,7 +931,7 @@ describe('Room', { timeout: 30_000 }, () => {
           expect(pending).toHaveLength(1);
           await act(async () => close());
           expect(view.canvasOpen()).toBe(false);
-          await act(async () => pending[0]({ originalEvent: olderCanvas(), events: [] }));
+          await act(async () => pending[0]!({ originalEvent: olderCanvas(), events: [] }));
 
           expect(view.canvasOpen()).toBe(false);
           expect(roomState.roomViewProps?.openCanvasId).toBeUndefined();
@@ -946,7 +946,7 @@ describe('Room', { timeout: 30_000 }, () => {
         await act(async () => roomState.roomViewProps?.onCanvasOpen?.('$older'));
         roomState.drawer = true;
         await view.rerender();
-        await act(async () => pending[0]({ originalEvent: olderCanvas(), events: [] }));
+        await act(async () => pending[0]!({ originalEvent: olderCanvas(), events: [] }));
 
         expect(view.canvasOpen()).toBe(false);
         expect(roomState.setPeopleDrawer).not.toHaveBeenCalled();
@@ -962,7 +962,7 @@ describe('Room', { timeout: 30_000 }, () => {
         await act(async () => roomState.roomViewProps?.onCanvasOpen?.('$older'));
         await act(async () => roomState.roomViewProps?.onComputerToggle?.());
         expect(roomState.roomViewProps?.computerOpen).toBe(true);
-        await act(async () => pending[0]({ originalEvent: olderCanvas(), events: [] }));
+        await act(async () => pending[0]!({ originalEvent: olderCanvas(), events: [] }));
 
         expect(view.canvasOpen()).toBe(false);
         expect(roomState.roomViewProps?.computerOpen).toBe(true);
@@ -979,9 +979,9 @@ describe('Room', { timeout: 30_000 }, () => {
         await act(async () => roomState.roomViewProps?.onCanvasOpen?.('$slow'));
         await act(async () => roomState.roomViewProps?.onCanvasOpen?.('$fast'));
         expect(pending).toHaveLength(2);
-        await act(async () => pending[1]({ originalEvent: fast, events: [] }));
+        await act(async () => pending[1]!({ originalEvent: fast, events: [] }));
         expect(roomState.canvasPanelProps?.event).toBe(fast);
-        await act(async () => pending[0]({ originalEvent: slow, events: [] }));
+        await act(async () => pending[0]!({ originalEvent: slow, events: [] }));
 
         expect(roomState.canvasPanelProps?.event).toBe(fast);
         expect(roomState.roomViewProps?.openCanvasId).toBe('$fast');
@@ -1135,7 +1135,7 @@ describe('Room', { timeout: 30_000 }, () => {
 
     await act(async () => roomState.roomViewProps?.onComputerToggle?.());
 
-    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
+    expect(renderer!.root.findAllByType('mock-computer-panel' as never)).toHaveLength(1);
     expect(roomState.setPeopleDrawer).toHaveBeenCalledWith(false);
     expect(roomState.computerPanelProps).toMatchObject({
       agents: [{ userId: '@mindroom_helper:example.org', name: 'Helper' }],
@@ -1157,7 +1157,7 @@ describe('Room', { timeout: 30_000 }, () => {
       renderer = create(React.createElement(Room));
     });
     await act(async () => roomState.roomViewProps?.onComputerToggle?.());
-    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
+    expect(renderer!.root.findAllByType('mock-computer-panel' as never)).toHaveLength(1);
 
     const json = JSON.stringify(renderer!.toJSON());
     expect(json).toContain('"data-testid":"resizable-computer-panel"');
@@ -1171,7 +1171,7 @@ describe('Room', { timeout: 30_000 }, () => {
     // screen stays connected (the panel is not remounted) as the viewport changes.
     roomState.screenSize = 'Mobile';
     await act(async () => renderer.update(React.createElement(Room)));
-    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
+    expect(renderer!.root.findAllByType('mock-computer-panel' as never)).toHaveLength(1);
     expect(JSON.stringify(renderer!.toJSON())).not.toContain('"role":"separator"');
     expect(roomState.panelDisposals).toBe(0);
 
@@ -1292,7 +1292,7 @@ describe('Room', { timeout: 30_000 }, () => {
     // The phone's computer covers the conversation, which must not mark messages read unseen,
     // on Escape either.
     await act(async () => roomState.roomViewProps?.onComputerToggle?.());
-    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
+    expect(renderer!.root.findAllByType('mock-computer-panel' as never)).toHaveLength(1);
     expect(roomViewShown()).toBe(false);
     expect(roomState.panelDisposals).toBe(0);
     const marked = () =>
@@ -1307,18 +1307,18 @@ describe('Room', { timeout: 30_000 }, () => {
     roomState.screenSize = 'Desktop';
     await act(async () => renderer.update(React.createElement(Room)));
     expect(roomViewShown()).toBe(true);
-    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
+    expect(renderer!.root.findAllByType('mock-computer-panel' as never)).toHaveLength(1);
     expect(roomState.panelDisposals).toBe(0);
 
     roomState.screenSize = 'Mobile';
     await act(async () => renderer.update(React.createElement(Room)));
     expect(roomViewShown()).toBe(false);
-    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
+    expect(renderer!.root.findAllByType('mock-computer-panel' as never)).toHaveLength(1);
     expect(roomState.panelDisposals).toBe(0);
 
     // Closing the computer brings the conversation back, and Escape marks it read again.
     await act(async () => roomState.computerPanelProps?.onClose?.());
-    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(0);
+    expect(renderer!.root.findAllByType('mock-computer-panel' as never)).toHaveLength(0);
     expect(roomViewShown()).toBe(true);
     pressEscape();
     expect(marked()).toBe(1);
@@ -1435,12 +1435,12 @@ describe('Room', { timeout: 30_000 }, () => {
       renderer = create(React.createElement(Room));
     });
     await act(async () => roomState.roomViewProps?.onComputerToggle?.());
-    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
+    expect(renderer!.root.findAllByType('mock-computer-panel' as never)).toHaveLength(1);
 
     roomState.search = '?threadId=%24new-thread';
     await act(async () => renderer!.update(React.createElement(Room)));
 
-    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(0);
+    expect(renderer!.root.findAllByType('mock-computer-panel' as never)).toHaveLength(0);
     expect(roomState.computerPanelThreads).toEqual([undefined]);
     await act(async () => renderer!.unmount());
   });
@@ -1574,7 +1574,7 @@ describe('Room', { timeout: 30_000 }, () => {
       renderer = create(React.createElement(Room));
     });
 
-    expect(renderer!.root.findAllByType('mock-room-view')).toHaveLength(1);
-    expect(renderer!.root.findAllByType('mock-room-view-header')).toHaveLength(0);
+    expect(renderer!.root.findAllByType('mock-room-view' as never)).toHaveLength(1);
+    expect(renderer!.root.findAllByType('mock-room-view-header' as never)).toHaveLength(0);
   });
 });

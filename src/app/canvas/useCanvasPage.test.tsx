@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 
-import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import type { MatrixClient } from 'matrix-js-sdk';
@@ -101,6 +100,6 @@ describe('useCanvasPage', () => {
     await render({ title: 'T', document: { mxcUrl: 'mxc://example.org/two', size: 10 } });
     await act(async () => finishFirst({ text: async () => '<p>first</p>' }));
     expect(page).toEqual({ status: 'ready', html: '<p>second</p>' });
-    expect(download.mock.calls[0][2].signal.aborted).toBe(true);
+    expect(download.mock.calls[0]![2].signal.aborted).toBe(true);
   });
 });
