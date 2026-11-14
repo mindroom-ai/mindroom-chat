@@ -38,11 +38,27 @@
     "themeName": {
       "light": "라이트",
       "silver": "실버",
+      "sakura": "벚꽃",
+      "matcha": "말차",
+      "catppuccinLatte": "Catppuccin Latte",
+      "gruvboxLight": "Gruvbox Light",
+      "solarizedLight": "Solarized Light",
       "dark": "다크",
       "midnight": "미드나이트",
       "butter": "버터",
       "green": "그린",
-      "orange": "오렌지"
+      "orange": "오렌지",
+      "black": "블랙",
+      "ocean": "오션",
+      "wine": "와인",
+      "synthwave": "Synthwave",
+      "catppuccinMocha": "Catppuccin Mocha",
+      "dracula": "Dracula",
+      "gruvboxDark": "Gruvbox Dark",
+      "nord": "Nord",
+      "rosePine": "Rosé Pine",
+      "solarizedDark": "Solarized Dark",
+      "tokyoNight": "Tokyo Night"
     },
     "prefetchScope": {
       "allRooms": "모든 방",

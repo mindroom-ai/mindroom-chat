@@ -190,7 +190,7 @@ for (const theme of THEME_NAMES) {
       await expect(surface).toBeInViewport({ ratio: 1 });
       await expectVerticalGlassRim(page, surface);
     }
-    if (theme === 'light' || theme === 'silver') {
+    if (LIGHT_THEME_NAMES.some((name) => name === theme)) {
       const top = await page.getByTestId('thread-banner').evaluate((element) => {
         const box = element.getBoundingClientRect();
         return { x: box.x + box.width / 2 + window.scrollX, y: box.y + window.scrollY };

@@ -38,11 +38,27 @@
     "themeName": {
       "light": "Claro",
       "silver": "Plateado",
+      "sakura": "Sakura",
+      "matcha": "Matcha",
+      "catppuccinLatte": "Catppuccin Latte",
+      "gruvboxLight": "Gruvbox Light",
+      "solarizedLight": "Solarized Light",
       "dark": "Oscuro",
       "midnight": "Medianoche",
       "butter": "Mantequilla",
       "green": "Verde",
-      "orange": "Naranja"
+      "orange": "Naranja",
+      "black": "Negro",
+      "ocean": "Océano",
+      "wine": "Vino",
+      "synthwave": "Synthwave",
+      "catppuccinMocha": "Catppuccin Mocha",
+      "dracula": "Dracula",
+      "gruvboxDark": "Gruvbox Dark",
+      "nord": "Nord",
+      "rosePine": "Rosé Pine",
+      "solarizedDark": "Solarized Dark",
+      "tokyoNight": "Tokyo Night"
     },
     "prefetchScope": {
       "allRooms": "Todas las salas",

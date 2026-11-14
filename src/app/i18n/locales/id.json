@@ -38,11 +38,27 @@
     "themeName": {
       "light": "Terang",
       "silver": "Perak",
+      "sakura": "Sakura",
+      "matcha": "Matcha",
+      "catppuccinLatte": "Catppuccin Latte",
+      "gruvboxLight": "Gruvbox Light",
+      "solarizedLight": "Solarized Light",
       "dark": "Gelap",
       "midnight": "Tengah malam",
       "butter": "Mentega",
       "green": "Hijau",
-      "orange": "Oranye"
+      "orange": "Oranye",
+      "black": "Hitam",
+      "ocean": "Samudra",
+      "wine": "Anggur",
+      "synthwave": "Synthwave",
+      "catppuccinMocha": "Catppuccin Mocha",
+      "dracula": "Dracula",
+      "gruvboxDark": "Gruvbox Dark",
+      "nord": "Nord",
+      "rosePine": "Rosé Pine",
+      "solarizedDark": "Solarized Dark",
+      "tokyoNight": "Tokyo Night"
     },
     "prefetchScope": {
       "allRooms": "Semua ruang",

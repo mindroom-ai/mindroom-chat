@@ -148,6 +148,21 @@ Sign-in marks
     GitHub: https://github.com/logos
     Google: https://developers.google.com/identity/branding-guidelines
 
+Colour schemes
+  Seven themes in src/app/theme/colors.css.ts take the surface, text and
+  accent colours that published colour schemes define. Only those colour
+  values are used; each scheme is under the MIT License:
+    Catppuccin (Latte and Mocha), https://catppuccin.com, Copyright (c) 2021
+      Catppuccin
+    Dracula, https://draculatheme.com, Copyright (c) 2023 Dracula Theme
+    Gruvbox, https://github.com/morhetz/gruvbox, by morhetz (MIT/X11)
+    Nord, https://www.nordtheme.com, Copyright (c) 2016-present Sven Greb
+    Rosé Pine, https://rosepinetheme.com, Copyright (c) 2023 Rosé Pine
+    Solarized, https://ethanschoonover.com/solarized, Copyright (c) 2011
+      Ethan Schoonover
+    Tokyo Night, https://github.com/tokyo-night/tokyo-night-vscode-theme,
+      Copyright (c) 2018-present Enkia
+
 The build output carries LICENSE, this NOTICE and licenses/ in
 public/licenses/ (vite.config.js), beside the bundled code they describe,
 with THIRD_PARTY_NOTICES.txt: the declared license and the license and notice

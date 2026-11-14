@@ -38,11 +38,27 @@
     "themeName": {
       "light": "فاتح",
       "silver": "فضي",
+      "sakura": "ساكورا",
+      "matcha": "ماتشا",
+      "catppuccinLatte": "Catppuccin Latte",
+      "gruvboxLight": "Gruvbox Light",
+      "solarizedLight": "Solarized Light",
       "dark": "داكن",
       "midnight": "منتصف الليل",
       "butter": "زبدة",
       "green": "أخضر",
-      "orange": "برتقالي"
+      "orange": "برتقالي",
+      "black": "أسود",
+      "ocean": "محيط",
+      "wine": "نبيذي",
+      "synthwave": "Synthwave",
+      "catppuccinMocha": "Catppuccin Mocha",
+      "dracula": "Dracula",
+      "gruvboxDark": "Gruvbox Dark",
+      "nord": "Nord",
+      "rosePine": "Rosé Pine",
+      "solarizedDark": "Solarized Dark",
+      "tokyoNight": "Tokyo Night"
     },
     "prefetchScope": {
       "allRooms": "كل الغرف",

@@ -1854,13 +1854,29 @@
       "currentRoomOnly": "শুধুমাত্র বর্তমান রুম"
     },
     "themeName": {
+      "black": "কালো",
       "butter": "মাখন",
+      "catppuccinLatte": "Catppuccin Latte",
+      "catppuccinMocha": "Catppuccin Mocha",
       "dark": "গাঢ়",
+      "dracula": "Dracula",
       "green": "সবুজ",
+      "gruvboxDark": "Gruvbox Dark",
+      "gruvboxLight": "Gruvbox Light",
       "light": "হালকা",
+      "matcha": "মাচা",
       "midnight": "মধ্যরাত",
+      "nord": "Nord",
+      "ocean": "মহাসাগর",
       "orange": "কমলা",
-      "silver": "সিলভার"
+      "rosePine": "Rosé Pine",
+      "sakura": "সাকুরা",
+      "silver": "সিলভার",
+      "solarizedDark": "Solarized Dark",
+      "solarizedLight": "Solarized Light",
+      "synthwave": "Synthwave",
+      "tokyoNight": "Tokyo Night",
+      "wine": "ওয়াইন"
     }
   },
   "Organisms": {

@@ -3,8 +3,33 @@
  * class the document carries while the theme shows, is `<name>-theme`; `theme/colors.css.ts` holds
  * each one's palette.
  */
-export const LIGHT_THEME_NAMES = ['light', 'silver'] as const;
-export const DARK_THEME_NAMES = ['dark', 'midnight', 'butter', 'green', 'orange'] as const;
+export const LIGHT_THEME_NAMES = [
+  'light',
+  'silver',
+  'sakura',
+  'matcha',
+  'catppuccinLatte',
+  'gruvboxLight',
+  'solarizedLight',
+] as const;
+export const DARK_THEME_NAMES = [
+  'dark',
+  'midnight',
+  'butter',
+  'green',
+  'orange',
+  'black',
+  'ocean',
+  'wine',
+  'synthwave',
+  'catppuccinMocha',
+  'dracula',
+  'gruvboxDark',
+  'nord',
+  'rosePine',
+  'solarizedDark',
+  'tokyoNight',
+] as const;
 
 export type ThemeName = (typeof LIGHT_THEME_NAMES)[number] | (typeof DARK_THEME_NAMES)[number];
 
