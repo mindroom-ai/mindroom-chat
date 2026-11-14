@@ -7,9 +7,9 @@ default:
 install:
     npm ci
 
-# Type-check the app sources (tsconfig.app.json: src without tests). The gate `just check` uses; must report 0 errors.
+# Type-check the app sources (config/tsconfig.app.json: src without tests). The gate `just check` uses; must report 0 errors.
 typecheck:
-    npx tsc --noEmit -p tsconfig.app.json
+    npx tsc --noEmit -p config/tsconfig.app.json
 
 # Type-check everything, tests and e2e included (tsconfig.json). Reports the errors without failing; docs/provenance/m1-baseline.txt records the count.
 typecheck-tests:
@@ -23,7 +23,7 @@ typecheck-tests:
 typecheck-all:
     node scripts/typecheck-all.mjs
 
-# Type-check everything with the stricter flags of tsconfig.strict.json (unused names, implicit returns, unchecked index access, ...). Fails on errors in Lane C files only and prints how many Lane P errors it ignored.
+# Type-check everything with the stricter flags of config/tsconfig.strict.json (unused names, implicit returns, unchecked index access, ...). Fails on errors in Lane C files only and prints how many Lane P errors it ignored.
 strict:
     node --test scripts/strict-check.test.mjs scripts/provenance-paths.test.mjs
     node scripts/strict-check.mjs
@@ -32,7 +32,7 @@ strict:
 test *args:
     bash scripts/with-fhs-bin.sh npx vitest run {{args}}
 
-# Lint with ESLint (rules: .eslintrc.cjs): src, e2e, scripts and the config files (package.json "lint" names them). Lane C TypeScript also gets type-aware rules (floating and misused promises, `await` of non-promises, exhaustive switches, needless assertions, enum comparisons) with the types of tsconfig.strict.json. Every file takes `PopOut` and `TooltipProvider` from src/app/ui/directional.tsx rather than folds (that module and the glass adapter excepted), and every TypeScript file of src but the tests writes styles with logical sides (`paddingInlineStart`, `insetInlineEnd`, `textAlign: 'start'`, no four-part `margin` or `padding`) so they mirror in right-to-left languages; a side that must stay physical takes a disable comment with its reason (safe-area insets are allowed).
+# Lint with ESLint (rules: .eslintrc.cjs): src, e2e, scripts and the config files (package.json "lint" names them). Lane C TypeScript also gets type-aware rules (floating and misused promises, `await` of non-promises, exhaustive switches, needless assertions, enum comparisons) with the types of config/tsconfig.strict.json. Every file takes `PopOut` and `TooltipProvider` from src/app/ui/directional.tsx rather than folds (that module and the glass adapter excepted), and every TypeScript file of src but the tests writes styles with logical sides (`paddingInlineStart`, `insetInlineEnd`, `textAlign: 'start'`, no four-part `margin` or `padding`) so they mirror in right-to-left languages; a side that must stay physical takes a disable comment with its reason (safe-area insets are allowed).
 lint:
     npm run lint
 

@@ -16,7 +16,7 @@
 #   build     the production build (`e2e-slot.sh <slot> --preview --snapshot=<rev>`, kept per commit),
 #             and what a first visit downloads before the app runs, against the commit's
 #             scripts/perf/bundle-budget.json (scripts/perf/bundle-report.mjs)
-#   tsc       tsc --noEmit -p tsconfig.app.json
+#   tsc       tsc --noEmit -p config/tsconfig.app.json
 #   strict    node scripts/strict-check.mjs
 #   lint      ESLint on the files base...rev changes (on every file when .eslintrc.cjs changes)
 #   vitest    the full unit suite; the files that fail run once more on their own, and only a
@@ -217,7 +217,7 @@ check_build() {
 
 check_tsc() {
   local rc=0
-  (cd "$tree" && npx tsc --noEmit -p tsconfig.app.json) >"$logs/tsc.log" 2>&1 || rc=$?
+  (cd "$tree" && npx tsc --noEmit -p config/tsconfig.app.json) >"$logs/tsc.log" 2>&1 || rc=$?
   echo "$(grep -c 'error TS' "$logs/tsc.log") errors, exit $rc"
   return "$rc"
 }

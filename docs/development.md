@@ -31,7 +31,7 @@ The dev server answers `/config.json` with `config/mindroom.json`, so the sign-i
 |---|---|
 | `just check` | The full local check (CI, `.github/workflows/ci.yml`, runs `typecheck`, `strict`, `lint`, `test` and a smoke subset of the end-to-end specs): `typecheck`, `strict`, `lint`, `test`, `script-tests`, `license-check`, and the provenance checks (`verify-ported`, `check-holes`, `identifier-renames` and the overlap check of `docs/provenance.md`; the ones that need an outside checkout skip without it) |
 | `just typecheck` | `tsc` over the app sources without tests; must report 0 errors |
-| `just strict` | `tsc` with `tsconfig.strict.json`; fails on errors in Lane C files only |
+| `just strict` | `tsc` with `config/tsconfig.strict.json`; fails on errors in Lane C files only |
 | `just lint` | ESLint, with type-aware rules for Lane C TypeScript |
 | `just test [files]` | Vitest unit tests (next to the code as `*.test.ts(x)`; DOM tests opt in with `// @vitest-environment jsdom`) |
 | `just typecheck-tests` | `tsc` over everything, tests and `e2e/` included; reports its errors without failing |
@@ -40,7 +40,7 @@ The dev server answers `/config.json` with `config/mindroom.json`, so the sign-i
 
 A client plugin ([client-plugins.md](client-plugins.md)) can live in a repository of its own and build, typecheck, lint and run its unit tests against a checkout of this app, with no file of the app changed. The plugin's repository holds the checkout at its top as `.mindroom-chat`, a git-ignored link or a submodule, with its dependencies installed (`just install`); the plugin lists the packages the app shares with plugins under `peerDependencies`, which every build, test and config here takes from the app (with `legacy-peer-deps=true` in its `.npmrc`, npm does not install them in the plugin's directory). The configs below resolve their paths from the checkout's directory, so they work wherever the link points.
 
-- **Typecheck.** The plugin's `tsconfig.json` extends `tsconfig.plugin.json`, and its `tsconfig.strict.json` adds `tsconfig.plugin.strict.json`, the flags of the app's `tsconfig.strict.json`:
+- **Typecheck.** The plugin's `tsconfig.json` extends `tsconfig.plugin.json`, and its `tsconfig.strict.json` adds `tsconfig.plugin.strict.json`, the flags of the app's `config/tsconfig.strict.json`:
 
   ```json
   { "extends": "./.mindroom-chat/tsconfig.plugin.json", "include": ["src", "e2e"] }

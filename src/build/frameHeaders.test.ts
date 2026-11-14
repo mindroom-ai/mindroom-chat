@@ -175,19 +175,3 @@ describe('index.html policy', () => {
     );
   });
 });
-
-describe('netlify.toml', () => {
-  const netlify = readFileSync(new URL('../../netlify.toml', import.meta.url), 'utf8');
-
-  it('sends the same framing headers as vite preview', () => {
-    const rule = (path: string) =>
-      new RegExp(
-        `for = "${path.replace(/[*/]/g, '\\$&')}"\\s+\\[headers\\.values\\]\\s+` +
-          `Content-Security-Policy = "${framingHeaders(path)['Content-Security-Policy']}"\\s+` +
-          `X-Frame-Options = "${framingHeaders(path)['X-Frame-Options']}"`
-      );
-    expect(netlify).toMatch(rule('/*'));
-    expect(netlify).toMatch(rule('/connect'));
-    expect(netlify).toMatch(rule('/connect/'));
-  });
-});

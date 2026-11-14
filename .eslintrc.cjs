@@ -126,7 +126,7 @@ const LAYER_ZONES = LAYERS.flatMap((layer, index) =>
     message: `${domain} (layer ${index}) may import only lower layers; see docs/architecture.md "Layers".`,
   }))
 );
-// Tests and their helpers (the files tsconfig.app.json leaves out) may import any layer.
+// Tests and their helpers (the files config/tsconfig.app.json leaves out) may import any layer.
 const LAYERS_EXEMPT = [...TESTS, '**/*.test.shared.ts', '**/test-utils/**', '**/testUtils.ts'];
 
 module.exports = {
@@ -170,9 +170,9 @@ module.exports = {
     },
     {
       // Type-aware rules for Lane C TypeScript: the files tsconfig.json compiles, minus Lane P.
-      // Types come from tsconfig.strict.json, whose unchecked index access `just strict` enforces.
+      // Types come from config/tsconfig.strict.json, whose unchecked index access `just strict` enforces.
       files: laneCTypeScriptFiles(),
-      parserOptions: { project: './tsconfig.strict.json', tsconfigRootDir: __dirname },
+      parserOptions: { project: './config/tsconfig.strict.json', tsconfigRootDir: __dirname },
       rules: TYPE_AWARE_RULES,
     },
     // Physical sides in styles (scripts/eslint-shared.cjs).
