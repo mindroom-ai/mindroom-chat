@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
+import { createRoom } from '../helpers/createRoom';
 import { matrixFetch } from '../helpers/matrix';
 import {
   bodyOf,
@@ -290,26 +291,11 @@ test('the agent hears a spoken question in a call from a thread and answers it a
 });
 
 test('a call about an encrypted conversation is encrypted end to end', async ({ page, stack }) => {
-  const { room_id: roomId } = await matrixFetch<{ room_id: string }>(
-    stack.homeserver,
-    '/createRoom',
-    {
-      method: 'POST',
-      accessToken: stack.tester.accessToken,
-      body: JSON.stringify({
-        name: `Secret plans ${uniqueWord('e')}`,
-        preset: 'private_chat',
-        invite: [stack.agents.helper],
-        initial_state: [
-          {
-            type: 'm.room.encryption',
-            state_key: '',
-            content: { algorithm: 'm.megolm.v1.aes-sha2' },
-          },
-        ],
-      }),
-    }
-  );
+  const roomId = await createRoom(stack.homeserver, stack.tester.accessToken, {
+    name: `Secret plans ${uniqueWord('e')}`,
+    invite: [stack.agents.helper],
+    encrypted: true,
+  });
   // The agent takes the invitation (accept_invites) and so answers calls about the room.
   await expect
     .poll(

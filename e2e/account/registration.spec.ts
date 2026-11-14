@@ -1,5 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
-import { readSessionStore } from '../helpers/accounts';
+import { expectActiveStoredUsername } from '../helpers/accounts';
 import { activeAccountButtonNamePattern, waitForLoggedInShell } from '../helpers/auth';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -24,15 +24,6 @@ const waitForShell = async (page: Page) => {
     timeout: 90_000,
   });
   await waitForLoggedInShell(page);
-};
-
-const expectActiveUser = async (page: Page, username: string) => {
-  await expect
-    .poll(async () => {
-      const store = await readSessionStore(page);
-      return store.sessions.find((session) => session.sessionId === store.activeSessionId)?.userId;
-    })
-    .toMatch(new RegExp(`^@${username}:`));
 };
 
 const fillAccount = async (page: Page, username: string) => {
@@ -124,10 +115,10 @@ test('creates an account with a password and keeps it after a reload', async ({ 
   await page.getByRole('button', { name: 'Register' }).click();
 
   await waitForShell(page);
-  await expectActiveUser(page, username);
+  await expectActiveStoredUsername(page, username);
   await page.reload();
   await waitForShell(page);
-  await expectActiveUser(page, username);
+  await expectActiveStoredUsername(page, username);
 });
 
 test('tells a taken username apart and keeps the form', async ({ page }) => {
@@ -178,7 +169,7 @@ test('asks for the registration token and the terms the server requires', async 
   await tokenInput.fill(GOOD_TOKEN);
   await page.getByRole('button', { name: 'Register' }).click();
   await waitForShell(page);
-  await expectActiveUser(page, username);
+  await expectActiveStoredUsername(page, username);
   expect(gate.tokensTried).toEqual(['wrong-token', GOOD_TOKEN]);
 });
 

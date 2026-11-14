@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { getHomeserver } from '../env';
 import { readSessionStore } from '../helpers/accounts';
 import { loginWithPassword } from '../helpers/auth';
+import { createRoom } from '../helpers/createRoom';
 import { joinRoom, matrixFetch, seedRoomOverviewState } from '../helpers/matrix';
 
 // Rooms this account was invited to, removed from, or moderates show the names the client knows:
@@ -36,15 +37,6 @@ const register = async (prefix: string, displayname: string): Promise<Account> =
     body: JSON.stringify({ displayname }),
   });
   return { username, userId: body.user_id, accessToken: body.access_token };
-};
-
-const createRoom = async (owner: Account, name: string, invite: string[]): Promise<string> => {
-  const body = await matrixFetch<{ room_id: string }>(getHomeserver(), '/createRoom', {
-    method: 'POST',
-    accessToken: owner.accessToken,
-    body: JSON.stringify({ name, preset: 'private_chat', invite }),
-  });
-  return body.room_id;
 };
 
 const moderate = (
@@ -116,7 +108,10 @@ test('an invite is titled by its room name, offline too, and refreshes when the 
   const inviter = await register('identity_inviter', 'Invite Sender');
   const invitee = await register('identity_invitee', 'Invite Reader');
   const roomName = `Invite identity ${Date.now().toString(36)}`;
-  const roomId = await createRoom(inviter, roomName, [invitee.userId]);
+  const roomId = await createRoom(homeserver, inviter.accessToken, {
+    name: roomName,
+    invite: [invitee.userId],
+  });
 
   await signIn(page, invitee);
   await page.goto(roomPath(roomId));
@@ -157,7 +152,10 @@ test('a person removed from a room still sees its name in the header @webkit', a
   const owner = await register('identity_owner', 'Room Keeper');
   const member = await register('identity_member', 'Removed Reader');
   const roomName = `Removal identity ${Date.now().toString(36)}`;
-  const roomId = await createRoom(owner, roomName, [member.userId]);
+  const roomId = await createRoom(getHomeserver(), owner.accessToken, {
+    name: roomName,
+    invite: [member.userId],
+  });
   await joinRoom(getHomeserver(), member.accessToken, roomId);
 
   await signIn(page, member);
@@ -180,7 +178,10 @@ test('after an unban the person keeps their name and is not called kicked @webki
   const owner = await register('identity_mod', 'Room Moderator');
   const member = await register('identity_banned', 'Banned Person');
   const roomName = `Unban identity ${Date.now().toString(36)}`;
-  const roomId = await createRoom(owner, roomName, [member.userId]);
+  const roomId = await createRoom(getHomeserver(), owner.accessToken, {
+    name: roomName,
+    invite: [member.userId],
+  });
   // The sequence of the live finding: an invite withdrawn, then a ban, then an unban.
   await moderate(owner, roomId, 'kick', member.userId);
   await moderate(owner, roomId, 'ban', member.userId, 'Ban reason for the test');
@@ -220,17 +221,11 @@ test('a space opened by link is titled by its name before joining @webkit', asyn
   const owner = await register('identity_space_owner', 'Space Keeper');
   const visitor = await register('identity_space_visitor', 'Space Visitor');
   const spaceName = `Linked space ${Date.now().toString(36)}`;
-  const spaceId = (
-    await matrixFetch<{ room_id: string }>(getHomeserver(), '/createRoom', {
-      method: 'POST',
-      accessToken: owner.accessToken,
-      body: JSON.stringify({
-        name: spaceName,
-        preset: 'public_chat',
-        creation_content: { type: 'm.space' },
-      }),
-    })
-  ).room_id;
+  const spaceId = await createRoom(getHomeserver(), owner.accessToken, {
+    name: spaceName,
+    preset: 'public_chat',
+    space: true,
+  });
 
   await signIn(page, visitor);
   await page.goto(`/${encodeURIComponent(spaceId)}/lobby/`);

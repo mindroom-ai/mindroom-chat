@@ -878,11 +878,9 @@ describe('useThreadRenderState', () => {
   // of the fallback instance whose replacingEvent is set, the render
   // shows v1.
   // ISSUE-207 AC2 render-gap RG3 (2026-07-04): reproduces the actual
-  // failing docker AC2 scenario. RG2 counters proved
-  // `renderTargetHadReplacement` flatlines at 5 while
-  // `renderTargetLackedReplacement` grows to 410+ over a 30s window —
-  // subsequent re-renders (triggered by SDK sync bursts, ThreadEvent
-  // updates, etc.) receive a target instance without the repair.
+  // failing docker AC2 scenario: subsequent re-renders (triggered by
+  // SDK sync bursts, ThreadEvent updates, etc.) received a target
+  // instance without the repair.
   //
   // Mechanism this test exercises: after the sink lands the
   // fallback state's target-with-replacement, the SDK's

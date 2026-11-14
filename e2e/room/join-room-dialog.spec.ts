@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
-import { matrixFetch } from '../helpers/matrix';
+import { joinRoom, matrixFetch } from '../helpers/matrix';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -182,11 +182,7 @@ test('Open goes to a joined room and the Explore link to Explore', async ({ page
   test.slow();
   const { viewer, listed } = await seed();
   const [garden] = listed;
-  await matrixFetch(HOMESERVER, `/join/${encodeURIComponent(`#${garden.alias}:${SERVER_NAME}`)}`, {
-    method: 'POST',
-    accessToken: viewer.accessToken,
-    body: '{}',
-  });
+  await joinRoom(HOMESERVER, viewer.accessToken, `#${garden.alias}:${SERVER_NAME}`);
   await page.setViewportSize({ width: 1280, height: 800 });
   let dialog = await openDialog(page, viewer);
 
@@ -207,11 +203,7 @@ test('saves the dialog in dark and light themes and at a phone width', async ({ 
   test.slow();
   const { viewer, listed } = await seed();
   const [garden] = listed;
-  await matrixFetch(HOMESERVER, `/join/${encodeURIComponent(`#${garden.alias}:${SERVER_NAME}`)}`, {
-    method: 'POST',
-    accessToken: viewer.accessToken,
-    body: '{}',
-  });
+  await joinRoom(HOMESERVER, viewer.accessToken, `#${garden.alias}:${SERVER_NAME}`);
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
     username: viewer.username,

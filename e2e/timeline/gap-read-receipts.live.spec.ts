@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Request } from '@playwright/test';
 import { getHomeserver } from '../env';
 import { loginWithPassword } from '../helpers/auth';
+import { createRoom } from '../helpers/createRoom';
 import { joinRoom, matrixFetch, seedRoomOverviewState, sendRoomMessage } from '../helpers/matrix';
 
 // A reader follows a room at its live end while the connection drops; meanwhile someone else
@@ -74,17 +75,10 @@ test('a gappy sync is read with one receipt on its newest message @webkit', asyn
   const reader = await register('gap_receipt_reader', 'Dock Reader');
   const writer = await register('gap_receipt_writer', 'Dock Writer');
   const run = Date.now().toString(36);
-  const roomId = (
-    await matrixFetch<{ room_id: string }>(homeserver, '/createRoom', {
-      method: 'POST',
-      accessToken: reader.accessToken,
-      body: JSON.stringify({
-        preset: 'private_chat',
-        name: `Gap receipts ${run}`,
-        invite: [writer.userId],
-      }),
-    })
-  ).room_id;
+  const roomId = await createRoom(homeserver, reader.accessToken, {
+    name: `Gap receipts ${run}`,
+    invite: [writer.userId],
+  });
   await joinRoom(homeserver, writer.accessToken, roomId);
   for (let index = 0; index < 5; index += 1) {
     // eslint-disable-next-line no-await-in-loop
