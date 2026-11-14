@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Spinner, Text, color } from 'folds';
 import type { VerificationRequest } from 'matrix-js-sdk/lib/crypto-api';
@@ -39,6 +39,10 @@ export function RecoveryUnlockDialog({
   const [requesting, setRequesting] = useState(false);
   const [error, setError] = useState<{ failure: unknown }>();
 
+  // Escape or a press beside the dialog closes it without its own Close: a request still in flight
+  // ends for the other device too.
+  useEffect(() => (request ? () => cancelPendingVerification(request) : undefined), [request]);
+
   const verifyWithDevice = () => {
     const crypto = client.getCrypto();
     if (!crypto || requesting) return;
@@ -46,7 +50,7 @@ export function RecoveryUnlockDialog({
     setError(undefined);
     crypto
       .requestOwnUserVerification()
-      .then((own) => alive() && setRequest(own))
+      .then((own) => (alive() ? setRequest(own) : cancelPendingVerification(own)))
       .catch((failure: unknown) => alive() && setError({ failure }))
       .finally(() => alive() && setRequesting(false));
   };
