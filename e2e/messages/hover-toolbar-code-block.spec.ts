@@ -47,13 +47,18 @@ const signIn = async (page: Page, username: string) => {
   });
 };
 
-/** Whether a click at the middle of `button` reaches it, not something drawn over it. */
-const takesClick = (button: Locator): Promise<boolean> =>
-  button.evaluate((element) => {
-    const rect = element.getBoundingClientRect();
-    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-    return !!hit && element.contains(hit);
-  });
+/**
+ * Whether something else in the button's row, its hover toolbar, lies over the middle of `button`
+ * and takes its click. The room header and the thread's banner are outside the row.
+ */
+const coveredInRow = async (button: Locator, row: Locator): Promise<boolean> => {
+  const box = await button.boundingBox();
+  if (!box) return false;
+  const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const hits = (element: Element, at: typeof point) =>
+    element.contains(document.elementFromPoint(at.x, at.y));
+  return (await row.evaluate(hits, point)) && !(await button.evaluate(hits, point));
+};
 
 test('the hover toolbar keeps off the code block buttons of a row without a sender line', async ({
   page,
@@ -164,9 +169,7 @@ test('the hover toolbar keeps off the code block buttons of a row without a send
     expect(bar, `the toolbar's top at ${under} px`).toBeGreaterThanOrEqual(covered - 1);
     for (const name of BUTTONS) {
       const button = block.getByRole('button', { name, exact: true });
-      // Buttons scrolled under the header are not the toolbar's to keep clear of.
-      if (((await button.boundingBox())?.y ?? 0) < covered) continue;
-      if (!(await takesClick(button))) blocked.push(`${name} at ${under} px`);
+      if (await coveredInRow(button, row)) blocked.push(`${name} at ${under} px`);
     }
     if (SCREENSHOT) {
       await page.screenshot({
