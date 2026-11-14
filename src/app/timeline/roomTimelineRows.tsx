@@ -324,8 +324,12 @@ export const renderTimelineTiles = ({
   ledgerPxAtRender: number;
 }): ReactNode[] => {
   const { approvalTimeline, threadSummaryTimeline } = messageData;
-  const getRowEvent = (index: number): MatrixEvent | undefined =>
-    threadId ? threadEvents[index] : roomWindowRows[index];
+  // Room indexes count from the window's first row; the rows before it (negative indexes) give
+  // the fold the row above the window.
+  const getRowEvent = (index: number): MatrixEvent | undefined => {
+    if (threadId) return threadEvents[index];
+    return index >= 0 ? roomWindowRows[index] : roomRowEntries[windowStart + index]?.event;
+  };
   const isRowHidden = (event: MatrixEvent): boolean => {
     const id = event.getId() ?? '';
     if (approvalTimeline.hiddenEventIds.has(id) || threadSummaryTimeline.hiddenEventIds.has(id)) {

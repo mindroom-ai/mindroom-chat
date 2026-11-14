@@ -112,7 +112,7 @@ const primeReplyRun = (
 ): ReplyRun => {
   let rowId: string | undefined;
   let targetId: string | undefined;
-  for (let above = index - 1; above >= 0; above -= 1) {
+  for (let above = index - 1; getEvent(above); above -= 1) {
     const event = getEvent(above);
     if (showsRow(event, isSkipped)) {
       if (rowId === undefined) {
@@ -132,6 +132,7 @@ const primeReplyRun = (
 type FoldOptions = {
   /** The virtual indexes that render, ascending. */
   indexes: readonly number[];
+  /** An index's event; below the window's first index, the rows before it (negative indexes). */
   getEvent: (index: number) => MatrixEvent | undefined;
   /** Events that render nothing and do not count as the row above the next one. */
   isSkipped: (event: MatrixEvent) => boolean;
@@ -160,17 +161,17 @@ export const foldTimelineRowContexts = ({
   const firstIndex = indexes[0];
   const lastIndex = indexes.at(-1);
   if (firstIndex === undefined || lastIndex === undefined) return contexts;
-  // The last row with output above the window. Without one (-1), the row before these rows stands
-  // for it: a read marker above that row puts no unread divider over the first row here.
+  // The last row with output above the window, read past the window's own first index into the
+  // rows before it; without one, the index before the first event.
   let before = firstIndex - 1;
-  while (before >= 0 && !showsRow(getEvent(before), isSkipped)) before -= 1;
+  while (getEvent(before) && !showsRow(getEvent(before), isSkipped)) before -= 1;
   let lastRowAbsoluteIndex = getAbsoluteIndex?.(before);
   let above: MatrixEvent | undefined;
   let aboveHasRow = false;
   let dayChanged = false;
   let replyRun = primeReplyRun(getEvent, before, isSkipped);
 
-  for (let index = Math.max(before, 0); index <= lastIndex; index += 1) {
+  for (let index = before; index <= lastIndex; index += 1) {
     const event = getEvent(index);
     if (event?.getId() && !isSkipped(event)) {
       if (above && !inSameDay(above.getTs(), event.getTs())) dayChanged = true;

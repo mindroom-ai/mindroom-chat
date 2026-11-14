@@ -25,16 +25,30 @@ const event = (id: string, type: string, ts: number, stateKey?: string) =>
     ...(stateKey === undefined ? {} : { state_key: stateKey }),
   });
 
+/** The message each drawn row needs no reply quote for (`previousEventId`), by its event. */
+const quoteless = new Map<string, string | undefined>();
+
 /** Draws every event it is given: the tiles ask it only about events with a row. */
-const renderEvent = ({ eventId }: TimelineMessageRow) => <p>{eventId}</p>;
+const renderEvent = ({ eventId, previousEventId }: TimelineMessageRow) => {
+  quoteless.set(eventId, previousEventId);
+  return <p>{eventId}</p>;
+};
 
 const messageData = {
   approvalTimeline: { hiddenEventIds: new Set<string>() },
   threadSummaryTimeline: { hiddenEventIds: new Set<string>() },
 } as unknown as TimelineMessageData;
 
-/** Each mounted tile's event and the dividers above its row: `unread`, or the date. */
-const mount = (events: MatrixEvent[], indexes: number[], readUptoAbsoluteIndex: number) => {
+/**
+ * Each mounted tile's event and the dividers above its row: `unread`, or the date. The room's row
+ * window starts at `windowStart`; `indexes` count from there.
+ */
+const mount = (
+  events: MatrixEvent[],
+  indexes: number[],
+  readUptoAbsoluteIndex: number,
+  windowStart = 0
+) => {
   const tiles = renderTimelineTiles({
     virtualItems: indexes.map(
       (index) =>
@@ -49,9 +63,9 @@ const mount = (events: MatrixEvent[], indexes: number[], readUptoAbsoluteIndex: 
     ),
     threadId: undefined,
     threadEvents: [],
-    roomWindowRows: events,
+    roomWindowRows: events.slice(windowStart),
     roomRowEntries: events.map((rowEvent, absoluteIndex) => ({ event: rowEvent, absoluteIndex })),
-    windowStart: 0,
+    windowStart,
     readUptoAbsoluteIndex,
     ignoredUsersSet: new Set(),
     showHiddenEvents: true,
@@ -76,7 +90,7 @@ const mount = (events: MatrixEvent[], indexes: number[], readUptoAbsoluteIndex: 
     .map((tile) => {
       const separators = tile.findAll((node) => node.props.role === 'separator');
       return [
-        events[tile.props['data-index'] as number]!.getId(),
+        events[windowStart + (tile.props['data-index'] as number)]!.getId(),
         separators.map((node) => (/new ?messages/i.test(text(node)) ? 'unread' : 'date')),
         tile.findAll((node) => node.type === 'p').length > 0,
       ];
@@ -105,6 +119,40 @@ describe('the dividers above a row that renders nothing', () => {
       ]);
       expect(mount(events, [1, 2], 0)).toEqual([['$hidden', [], false], next]);
       expect(mount(events, [2], 0)).toEqual([next]);
+      // The room's row window starts right after the event without a row.
+      expect(mount(events, [0], 0, 2)).toEqual([next]);
     }
   );
+});
+
+const replyTo = (id: string, target: string) =>
+  new MatrixEvent({
+    event_id: id,
+    room_id: ROOM,
+    sender: '@maya:x',
+    type: 'm.room.message',
+    origin_server_ts: START + 60_000,
+    content: {
+      body: id,
+      msgtype: 'm.text',
+      'm.relates_to': { 'm.in_reply_to': { event_id: target } },
+    },
+  });
+
+describe('a reply right below the start of the row window', () => {
+  const question = event('$question', 'm.room.message', START);
+  const hidden = event('$hidden', 'm.room.power_levels', START, '');
+
+  it('needs no quote of the message above it', () => {
+    quoteless.clear();
+    mount([question, hidden, replyTo('$answer', '$question')], [0], 0, 2);
+    expect(quoteless.get('$answer')).toBe('$question');
+  });
+
+  it('needs no quote of the message that the rows above it all answer', () => {
+    quoteless.clear();
+    const answers = [replyTo('$first', '$question'), replyTo('$second', '$question')];
+    mount([question, answers[0]!, hidden, answers[1]!], [0], 0, 3);
+    expect(quoteless.get('$second')).toBe('$question');
+  });
 });
