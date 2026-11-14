@@ -101,17 +101,28 @@ describe('Mac Catalyst shell', () => {
     );
   });
 
-  it("stops a closed main window's page on the Mac, which closes the widget with it", () => {
-    const disconnect =
-      sceneSource.match(/func sceneDidDisconnect\(_ scene: UIScene\) \{[\s\S]*?\n {4}\}/)?.[0] ??
-      '';
-    const macOnly = disconnect.match(/#if targetEnvironment\(macCatalyst\)([\s\S]*?)#endif/)?.[1];
-    expect(macOnly).toMatch(/if let window \{/);
-    expect(macOnly).toContain('requestSceneSessionDestruction(widget.session');
-    expect(macOnly).toMatch(
-      /webView\.navigationDelegate = nil\s*webView\.load\(URLRequest\(url: blank\)\)[\s\S]*self\.window = nil/
+  it('stops the page of a closed main window, and of a closed widget, on the Mac', () => {
+    const stopPage =
+      widgetSceneSource.match(
+        /static func stopPage\(of window: UIWindow\) \{[\s\S]*?\n {4}\}/
+      )?.[0] ?? '';
+    expect(stopPage).toMatch(
+      /webView\.navigationDelegate = nil\s*webView\.load\(URLRequest\(url: blank\)\)/
     );
-    expect(outsideMacOnly(disconnect)).not.toContain('about:blank');
+    const disconnect = (source: string) =>
+      source.match(/func sceneDidDisconnect\(_ scene: UIScene\) \{[\s\S]*?\n {4}\}/)?.[0] ?? '';
+    const main = disconnect(sceneSource).match(
+      /#if targetEnvironment\(macCatalyst\)([\s\S]*?)#endif/
+    )?.[1];
+    expect(main).toMatch(/if let window \{/);
+    expect(main).toContain('requestSceneSessionDestruction(widget.session');
+    expect(main).toMatch(/QuickCapture\.stopPage\(of: window\)\s*self\.window = nil/);
+    expect(outsideMacOnly(disconnect(sceneSource))).not.toContain('stopPage');
+    expect(disconnect(widgetSceneSource)).toMatch(
+      /QuickCapture\.stopPage\(of: window\) \}\s*window = nil/
+    );
+    // The widget's delegate stops its page on the Mac only, where the widget opens.
+    expect(outsideMacOnly(widgetSceneSource)).not.toContain('stopPage');
   });
 
   it('follows every other app that comes forward, for a widget a click brought forward', () => {

@@ -430,6 +430,8 @@ function PeekButton({ keyCap, disabled, onClick, children }: PeekButtonProps) {
       className={css.SmallButton}
       title={`${children} (${keyCap})`}
       disabled={disabled}
+      // A click leaves the focus on the row or the reply field, where the keys go on.
+      onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
     >
       {children}

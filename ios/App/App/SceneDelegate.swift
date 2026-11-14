@@ -64,13 +64,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
                 UIApplication.shared.requestSceneSessionDestruction(widget.session, options: nil)
             }
             // A closed window's page would live on unseen: its client syncing beside the next
-            // window's, and serving the widget a room nobody sees. It stops, which tells the widget;
-            // without the bridge's navigation policy, which would hand the blank page to a browser.
-            if let webView = (window.rootViewController as? CAPBridgeViewController)?.webView,
-               let blank = URL(string: "about:blank") {
-                webView.navigationDelegate = nil
-                webView.load(URLRequest(url: blank))
-            }
+            // window's, and serving the widget a room nobody sees. It stops, which tells the widget.
+            QuickCapture.stopPage(of: window)
             self.window = nil
         }
 #endif

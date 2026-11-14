@@ -80,6 +80,12 @@ class QuickCaptureSceneDelegate: UIResponder, UIWindowSceneDelegate {
         }
     }
 
+    /// A closed widget's page would live on unseen, one more for each time the widget opens again.
+    func sceneDidDisconnect(_ scene: UIScene) {
+        if let window { QuickCapture.stopPage(of: window) }
+        window = nil
+    }
+
     /// UIKit sets its title bar again as the scene comes forward: the widget's goes back on top.
     func sceneDidBecomeActive(_ scene: UIScene) {
         guard let windowScene = scene as? UIWindowScene else { return }
@@ -210,6 +216,15 @@ enum QuickCapture {
 
     static func hide() {
         if let host = widgetHost { MacWindowing.hideWidget(host) }
+    }
+
+    /// Blanks the page of a window whose scene closed, which UIKit keeps alive unseen; past the
+    /// bridge's navigation policy, which would hand the blank page to a browser.
+    static func stopPage(of window: UIWindow) {
+        guard let webView = (window.rootViewController as? CAPBridgeViewController)?.webView,
+              let blank = URL(string: "about:blank") else { return }
+        webView.navigationDelegate = nil
+        webView.load(URLRequest(url: blank))
     }
 
     /// The display the widget is on, for the screen screenshot.

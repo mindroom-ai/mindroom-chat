@@ -709,6 +709,26 @@ describe('QuickCapturePage attachments', () => {
     expect(captureScreenshot).toHaveBeenLastCalledWith('screen');
   });
 
+  it("keeps the caret in the input when the entry's buttons and the peek's are clicked", () => {
+    vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
+    setup();
+    paste([png('a.png')]);
+    // A mouse down whose default is prevented moves no focus, in WebKit as in Chromium.
+    for (const name of [
+      'Screenshot of the front window',
+      'Screenshot of the whole screen',
+      'Send',
+      'Remove a.png',
+    ]) {
+      expect(fireEvent.mouseDown(screen.getByRole('button', { name })), name).toBe(false);
+    }
+    press(input(), 'ArrowDown');
+    press(row('Why does slot 27 flake'), ' ');
+    for (const name of ['Copy', 'Open']) {
+      expect(fireEvent.mouseDown(screen.getByRole('button', { name })), name).toBe(false);
+    }
+  });
+
   it('asks for the Screen Recording permission when it is refused', async () => {
     vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
     vi.mocked(captureScreenshot).mockRejectedValue(new ScreenshotError('PERMISSION_DENIED'));

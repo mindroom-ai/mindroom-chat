@@ -4,6 +4,7 @@ import {
   type ClipboardEvent,
   type Dispatch,
   type KeyboardEvent,
+  type MouseEvent,
   type RefObject,
   type SetStateAction,
 } from 'react';
@@ -58,6 +59,9 @@ const pastedImages = (event: ClipboardEvent<HTMLTextAreaElement>): File[] =>
  */
 const caretAtEnd = (field: HTMLTextAreaElement): boolean =>
   field.selectionStart === field.value.length && field.selectionEnd === field.value.length;
+
+/** A click on the entry's buttons leaves the caret in the input, where typing and Enter go on. */
+const keepFocus = (event: MouseEvent) => event.preventDefault();
 
 type ToolProps = { label: string; icon: IconSrc; disabled: boolean; onClick: () => void };
 
@@ -207,6 +211,7 @@ export function CaptureInput({
       aria-label={label}
       title={label}
       disabled={disabled}
+      onMouseDown={keepFocus}
       onClick={onClick}
     >
       <Icon size="100" src={icon} />
@@ -228,6 +233,7 @@ export function CaptureInput({
                   className={css.AttachmentRemove}
                   aria-label={t('featureUi.quickCapture.attach.remove', { name: image.name })}
                   disabled={sending}
+                  onMouseDown={keepFocus}
                   onClick={() => setImages((current) => current.filter((kept) => kept !== image))}
                 >
                   <Icon size="50" src={Icons.Cross} />
@@ -274,6 +280,7 @@ export function CaptureInput({
               title={t('featureUi.quickCapture.input.send')}
               disabled={sending}
               data-ready={ready}
+              onMouseDown={keepFocus}
               onClick={() => void send(false)}
             >
               <Icon size="50" src={Icons.ArrowTop} />
