@@ -161,6 +161,9 @@ export const bindRoamingSettings = (mx: MatrixClient, store: Store): (() => void
         migrated = true;
         if (written) recent = [...recent, { ...written, patch, at: Date.now() }];
         confirm(sent);
+        // The write resolves on the sync after it, which may carry another device's write from
+        // the same content instead: that content arrived before this write was recorded.
+        if (written) redoUndoneEdits(contentOf(mx));
       })
       .catch(() => undefined)
       .finally(() => {

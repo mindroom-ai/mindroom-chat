@@ -60,7 +60,9 @@ type Homeserver = ReturnType<typeof homeserver>;
 
 /**
  * A Matrix client of one login: what sync delivered, the sync state, and writes that reach the
- * homeserver only while connected, resolving after the echo, as the SDK's `setAccountData` does.
+ * homeserver only while connected. As the SDK's `setAccountData` does, a write resolves once sync
+ * delivers the next account data after it, whoever wrote that, and after the listeners the app
+ * bound before the write; it resolves at once when the content is already held.
  */
 const login = (
   server: Homeserver,
@@ -78,6 +80,7 @@ const login = (
     data = nextData;
     emitter.emit(ClientEvent.Sync, next, previous, nextData);
   };
+  let echoed: (() => void)[] = [];
   const client = {
     connected: true,
     receive(next: Content) {
@@ -87,12 +90,20 @@ const login = (
         getType: () => ROAMING_SETTINGS_EVENT_TYPE,
         getContent: () => next,
       });
+      const waiting = echoed;
+      echoed = [];
+      waiting.forEach((resolve) => resolve());
     },
   };
   server.attach(client);
   const setAccountData = vi.fn(async (_type: string, next: Record<string, unknown>) => {
     if (!client.connected) throw new Error('ConnectionError: offline');
+    if (JSON.stringify(held) === JSON.stringify(next)) return {};
+    const echo = new Promise<void>((resolve) => {
+      echoed.push(resolve);
+    });
     server.put(next);
+    await echo;
     return {};
   });
   const mx = {
