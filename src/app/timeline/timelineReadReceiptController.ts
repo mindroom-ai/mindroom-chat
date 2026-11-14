@@ -46,13 +46,17 @@ const SCROLLED_AWAY_DELAY_MS = 500;
 const MARKER_JUMP_RESTS = 4;
 
 /**
- * How many times the scroll area may come to rest while an opening thread's newest reply is in
- * reach but not yet in view (a landing correction can hold the view short of it for a moment)
- * before the thread is read anyway, so a reader who stops just above the bottom is still read.
+ * How many times the scroll area may come to rest before an opening thread has landed at the end
+ * of its scroll range (a landing correction can hold the view short of it for a moment). After
+ * the last rest the thread is read as at any other time, with the follow threshold, so a reader
+ * who stops just above the end is still read.
  */
 const THREAD_LANDING_RESTS = 4;
 
-/** How far the newest reply may still sit outside the view once a thread has landed. */
+/**
+ * How far below the scroll area's lower edge the latest-end anchor (after the newest reply and
+ * the footer padding) may sit once a thread has landed at the end of its scroll range.
+ */
 const LANDED_PX = 1;
 
 /** Whether the row of `eventId` shows in the scroll area `area`. */
@@ -138,9 +142,9 @@ const markerReachesLiveTimeline = (room: Room, markerEventId: string | undefined
 
 /**
  * Whether the reader is still where a read was decided when its frame comes: in the same room
- * and thread, at the bottom of its live end, with the window focused. A frame can come late on a
- * busy machine, and what arrived after the reader left, scrolled away or switched windows was
- * not seen.
+ * and thread, at the bottom of its live end (the latest-end anchor within `reach`, by default the
+ * follow threshold), with the window focused. A frame can come late on a busy machine, and what
+ * arrived after the reader left, scrolled away or switched windows was not seen.
  */
 type StillReading = (roomId: string, threadId: string | undefined, reach?: number) => boolean;
 
@@ -182,8 +186,9 @@ const readThreadOnceLanded = (context: ReadContext, stillReading: StillReading):
   };
   // The first frame can still measure rows and correct the opening position after its callbacks
   // run, and a correction can hold the view short of the newest reply long enough for the area to
-  // rest. Wait for the area to rest with the newest reply in view so the receipt does not overtake
-  // that landing.
+  // rest. Wait for a rest at the end of the scroll range so the receipt does not overtake that
+  // landing; a rest elsewhere (not landed yet, or the reader left) waits for the next one, and
+  // the last one reads if `stillReading` still holds.
   const scrollArea = context.getScrollElement();
   if (!scrollArea) {
     read();
