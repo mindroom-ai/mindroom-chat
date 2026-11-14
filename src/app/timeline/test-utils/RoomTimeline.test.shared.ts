@@ -584,7 +584,9 @@ vi.mock('../TimelineMinimap.css', () => ({
 }));
 
 vi.mock('../../matrix/matrix', () => ({
-  getMxIdLocalPart: (userId: string) => userId,
+  getMxIdLocalPart: (userId: string) => userId.match(/^@([^:]+):/)?.[1] ?? userId,
+  // Agent checks compare the server part of a sender's ID with the reader's.
+  getMxIdServer: (userId: string) => userId.match(/^@[^:]+:(.+)$/)?.[1],
 }));
 
 vi.mock('../../matrix/room', () => ({
@@ -1087,7 +1089,9 @@ vi.mock('../../event-store/cache/eventCacheEditUtils', () => ({
 }));
 
 vi.mock('../../event-store/timeline/timelineScrollUtils', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../event-store/timeline/timelineScrollUtils')>();
+  const actual = await importOriginal<
+    typeof import('../../event-store/timeline/timelineScrollUtils')
+  >();
   return {
     ...actual,
     isScrollNearBottom: () => true,

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SnoozeEndedMarker } from './SnoozeEndedMarker';
 
 vi.mock('react-i18next', async () => {
-  const { translateFromEn } = await import('../../../test/utils/i18n');
+  const { translateFromEn } = await import('../../test/utils/i18n');
   return { useTranslation: () => ({ t: translateFromEn }) };
 });
 vi.mock('./SnoozeEndedMarker.css', () => ({ Marker: 'Marker', Note: 'Note' }));

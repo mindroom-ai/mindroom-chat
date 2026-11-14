@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Text } from 'folds';
 import { IconClock } from '@tabler/icons-react';
-import { revealDirectionControls } from '../../ui/directional';
+import { revealDirectionControls } from '../ui/directional';
 import * as css from './SnoozeEndedMarker.css';
 
 type SnoozeEndedMarkerProps = {

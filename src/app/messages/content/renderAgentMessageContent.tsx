@@ -36,7 +36,7 @@ import {
 } from '../../matrix/protocol/toolApproval';
 import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { readSnoozeEndedNote } from '../../matrix/protocol/threadSnooze';
-import { SnoozeEndedMarker } from '../thread-snooze/SnoozeEndedMarker';
+import { SnoozeEndedMarker } from '../SnoozeEndedMarker';
 import { getMessageStateSuffixRenderer } from './messageStateSuffix';
 import { ChatUiActionButton } from '../../ui-actions/ChatUiActionButton';
 import { CHAT_UI_ACTION_KEY, readCanvasNoticeTitle } from '../../matrix/protocol/chatUiProtocol';
@@ -281,7 +281,9 @@ export const renderAgentMessageContent = ({
     );
   }
 
-  const snoozeEndedNote = readSnoozeEndedNote(content);
+  // An open thread shows this as a marker row of its own (useTimelineMessageFeature); other
+  // views, such as threads shown in the room, keep the message row with the marker as its body.
+  const snoozeEndedNote = fromMindroomAgent ? readSnoozeEndedNote(content) : null;
   if (snoozeEndedNote !== null) return <SnoozeEndedMarker note={snoozeEndedNote} />;
 
   if (eventType === MINDROOM_TOOL_APPROVAL_EVENT) {
