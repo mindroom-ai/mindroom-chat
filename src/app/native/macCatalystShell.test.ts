@@ -5,6 +5,12 @@ const readSource = (path: string) => readFileSync(new URL(path, import.meta.url)
 const bridgeSource = readSource('../../../ios/App/App/MindRoomBridgeViewController.swift');
 const sceneSource = readSource('../../../ios/App/App/SceneDelegate.swift');
 const capacitorConfigSource = readSource('../../../capacitor.config.ts');
+const appDelegateSource = readSource('../../../ios/App/App/AppDelegate.swift');
+const widgetSceneSource = readSource('../../../ios/App/App/QuickCaptureSceneDelegate.swift');
+
+/** The source outside every `#if targetEnvironment(macCatalyst)` block (and its `#else`). */
+const outsideMacOnly = (source: string) =>
+  source.replace(/#if targetEnvironment\(macCatalyst\)[\s\S]*?#endif/g, '');
 
 describe('Mac Catalyst shell', () => {
   it('loads the app as a desktop page on Mac only', () => {
@@ -38,6 +44,39 @@ describe('Mac Catalyst shell', () => {
     )?.[0];
     expect(appleMethod).toMatch(
       /#if targetEnvironment\(macCatalyst\)\s*authenticate\(call\)\s*#else[\s\S]*ASAuthorizationAppleIDProvider[\s\S]*#endif/
+    );
+  });
+
+  it('keeps AppKit, Carbon and ScreenCaptureKit inside Mac-only blocks', () => {
+    // The iOS routing test host compiles every file of ios/App/App.
+    ['MacWindowing.swift', 'MacScreenshot.swift'].forEach((name) => {
+      const source = readSource(`../../../ios/App/App/${name}`);
+      expect(outsideMacOnly(source).trim(), name).toBe('import UIKit');
+    });
+    [appDelegateSource, widgetSceneSource, sceneSource].forEach((source) => {
+      expect(outsideMacOnly(source)).not.toMatch(
+        /MacWindowing|MacScreenshot|NSClassFromString|dlsym|buildMenu/
+      );
+    });
+  });
+
+  it('opens the Quick Capture scene by its activity type and has one main window', () => {
+    expect(appDelegateSource).toMatch(
+      /options\.userActivities\.contains \{ \$0\.activityType == QuickCapture\.activityType \}/
+    );
+    expect(widgetSceneSource).toContain('static let activityType = "chat.mindroom.quick-capture"');
+    expect(widgetSceneSource).toContain('static let configurationName = "Quick Capture"');
+    expect(appDelegateSource).toContain('builder.remove(menu: .newScene)');
+    expect(appDelegateSource).toMatch(/input: " ",\s*modifierFlags: \[\.control, \.alternate\]/);
+    expect(sceneSource).toMatch(
+      /\$0 !== scene && \$0\.delegate is SceneDelegate[\s\S]*?requestSceneSessionDestruction\(session/
+    );
+  });
+
+  it('serves the routes whose IDs have dots, and the widget, from the app', () => {
+    const roots = bridgeSource.match(/let routeRoots: Set<Substring> = \[([\s\S]*?)\]/)?.[1];
+    ['home', 'direct', 'threads', 'activity', 'quick-capture'].forEach((root) =>
+      expect(roots).toContain(`"${root}"`)
     );
   });
 });

@@ -225,6 +225,34 @@ describe('QuickCapturePage without a host', () => {
   });
 });
 
+describe('QuickCapturePage in the Mac window', () => {
+  it('marks itself as native, so the window material shows, only with the native plugin', () => {
+    const { unmount } = render(<QuickCapturePage channel={makeChannel().channel} />);
+    expect(document.querySelector('[data-native]')).toBeNull();
+    unmount();
+    vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
+    setup();
+    expect(document.querySelector('[data-native]')).toBeTruthy();
+  });
+
+  it('opens no web menu on a right click, except in a field or on selected text', () => {
+    vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
+    setup();
+    const rightClick = (target: Element) => !fireEvent.contextMenu(target);
+    expect(rightClick(item('Idea: default room per app'))).toBe(true);
+    expect(rightClick(input())).toBe(false);
+    const selection = { isCollapsed: false } as Selection;
+    const getSelection = vi.spyOn(window, 'getSelection').mockReturnValue(selection);
+    expect(rightClick(item('Idea: default room per app'))).toBe(false);
+    getSelection.mockRestore();
+  });
+
+  it('leaves the right click alone in a browser', () => {
+    setup();
+    expect(fireEvent.contextMenu(item('Idea: default room per app'))).toBe(true);
+  });
+});
+
 describe('QuickCapturePage and its host', () => {
   it('says no hello while hidden, and hello when it shows again or the window gets the focus', () => {
     vi.useFakeTimers();

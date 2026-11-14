@@ -261,6 +261,9 @@ export function QuickCapturePage({ channel }: { channel?: CaptureChannel }) {
   const { t } = useTranslation();
   const { client, snapshot } = useQuickCapture(channel);
   const signedIn = !!useActiveSession();
+  // In the Mac's window the page is a panel: the window's material shows through it, and a right
+  // click outside a field or a selection opens no web menu.
+  const [native] = useState(isNativeQuickCaptureAvailable);
   // The entry, its images too, outlives a host that goes away and comes back.
   const [text, setText] = useState('');
   const [images, setImages] = useState<File[]>([]);
@@ -269,8 +272,20 @@ export function QuickCapturePage({ channel }: { channel?: CaptureChannel }) {
     document.title = t('featureUi.quickCapture.title');
   }, [t]);
 
+  useEffect(() => {
+    if (!native) return undefined;
+    const onContextMenu = (event: MouseEvent) => {
+      const field =
+        event.target instanceof Element &&
+        event.target.closest('input, textarea, [contenteditable="true"]');
+      if (!field && window.getSelection()?.isCollapsed !== false) event.preventDefault();
+    };
+    window.addEventListener('contextmenu', onContextMenu);
+    return () => window.removeEventListener('contextmenu', onContextMenu);
+  }, [native]);
+
   return (
-    <div className={css.Page}>
+    <div className={css.Page} data-native={native || undefined}>
       {client && snapshot.status === 'connected' && snapshot.state && (
         <CaptureWidget
           state={snapshot.state}

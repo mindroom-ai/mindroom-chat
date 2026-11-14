@@ -10,3 +10,4 @@
 "VIDEO_CALL_FROM_USER" = "%1$@님의 영상 통화";
 "USER_INVITE_TO_NAMED_ROOM" = "%1$@님이 %2$@에 초대했습니다";
 "USER_INVITE_TO_CHAT" = "%1$@님이 채팅에 초대했습니다";
+"QUICK_CAPTURE" = "빠른 캡처";

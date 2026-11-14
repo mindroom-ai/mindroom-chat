@@ -1,4 +1,4 @@
-import { createVar, keyframes, style } from '@vanilla-extract/css';
+import { createVar, globalStyle, keyframes, style } from '@vanilla-extract/css';
 import { toRem } from 'folds';
 
 /**
@@ -98,6 +98,28 @@ export const Page = style({
   '@media': { '(prefers-color-scheme: dark)': { vars: darkColors } },
 });
 
+/**
+ * In the Mac's window the system's material is the background, behind a web view that draws none:
+ * neither the page nor the document the theme paints (applyThemeToDom, inline) covers it.
+ */
+globalStyle(
+  `${Page}[data-native], html:has(${Page}[data-native]), html:has(${Page}[data-native]) body`,
+  {
+    backgroundColor: 'transparent !important',
+  }
+);
+
+/**
+ * The window has no title bar: its header is the page's, from the window's top edge. An app
+ * scaled to match iPad draws a CSS pixel at 0.77 of the Mac's point; the window says by how much
+ * to scale the rem (`--mac-point-scale`), which every size here is in, so the text is the size of
+ * other apps' text whatever page zoom the app has.
+ */
+globalStyle(`html:has(${Page}[data-native])`, {
+  fontSize: 'calc(var(--mac-point-scale, 1) * 100%) !important',
+});
+globalStyle(`html:has(${Page}[data-native]) #root`, { paddingBlockStart: 0 });
+
 export const Muted = style({ color: dim });
 
 export const Failure = style({ color: alert });
@@ -123,10 +145,10 @@ export const NoticeText = style({ marginBlock: 0 });
  */
 export const Header = style({
   ...strip,
-  flexShrink: 0,
-  justifyContent: 'center',
   blockSize: toRem(34),
+  justifyContent: 'center',
   paddingInline: toRem(12),
+  flexShrink: 0,
 });
 
 /** The room, as a title that opens a menu: its sigil, its name and a chevron. */
@@ -253,11 +275,11 @@ export const AttachmentRemove = style([
 /** The keys of the part of the widget that has the focus, at the window's foot. */
 export const Footer = style({
   ...strip,
-  flexShrink: 0,
+  color: dim,
   flexWrap: 'wrap',
   gap: `${toRem(4)} ${toRem(12)}`,
+  flexShrink: 0,
   paddingBlock: toRem(7),
-  color: dim,
   paddingInline: toRem(14),
   fontSize: toRem(11),
   borderBlockStart: hairline,

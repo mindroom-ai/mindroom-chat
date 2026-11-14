@@ -6,6 +6,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = scene as? UIWindowScene else { return }
+        // One main window: a second one closes as it connects.
+        if UIApplication.shared.connectedScenes.contains(where: { $0 !== scene && $0.delegate is SceneDelegate }) {
+            UIApplication.shared.requestSceneSessionDestruction(session, options: nil)
+            return
+        }
 
         // Keep the custom bridge that registers authentication and file saving.
         window = UIWindow(windowScene: windowScene)
@@ -44,6 +49,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     func sceneDidDisconnect(_ scene: UIScene) {
+#if targetEnvironment(macCatalyst)
+        // The widget closes with the main window, so that the Dock opens the main window again.
+        if window != nil, let widget = QuickCapture.widgetScene {
+            UIApplication.shared.requestSceneSessionDestruction(widget.session, options: nil)
+        }
+#endif
         MindRoomDiagnosticsRecorder.shared.recordScene(.sceneDisconnected, scene: scene)
     }
 }

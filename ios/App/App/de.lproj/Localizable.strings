@@ -10,3 +10,4 @@
 "VIDEO_CALL_FROM_USER" = "Videoanruf von %1$@";
 "USER_INVITE_TO_NAMED_ROOM" = "%1$@ hat dich in %2$@ eingeladen";
 "USER_INVITE_TO_CHAT" = "%1$@ hat dich zu einem Chat eingeladen";
+"QUICK_CAPTURE" = "Schnellerfassung";
