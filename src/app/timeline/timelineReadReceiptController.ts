@@ -46,16 +46,18 @@ const SCROLLED_AWAY_DELAY_MS = 500;
 const MARKER_JUMP_RESTS = 4;
 
 /**
- * How many times the scroll area may come to rest before an opening thread has landed at the end
- * of its scroll range (a landing correction can hold the view short of it for a moment). After
- * the last rest the thread is read as at any other time, with the follow threshold, so a reader
- * who stops just above the end is still read.
+ * How many times the scroll area may come to rest before the open thread has landed at the end of
+ * its scroll range when it is read (on opening, a new reply, an anchor report or coming back to
+ * the window; a landing correction can hold the view short of the end for a moment). After the
+ * last rest the thread is read with the follow threshold, so a reader who stops just above the
+ * end is still read, a few rests later.
  */
 const THREAD_LANDING_RESTS = 4;
 
 /**
  * How far below the scroll area's lower edge the latest-end anchor (after the newest reply and
- * the footer padding) may sit once a thread has landed at the end of its scroll range.
+ * the footer padding) may sit once a thread has landed at the end of its scroll range: 1 px, not
+ * 0, as at fractional zoom the largest scroll offset can stop a fraction of a pixel short.
  */
 const LANDED_PX = 1;
 
@@ -184,8 +186,8 @@ const readThreadOnceLanded = (context: ReadContext, stillReading: StillReading):
       void markThreadAsRead(mx, roomId, threadId, hideActivity, undefined, threadEvents);
     });
   };
-  // The first frame can still measure rows and correct the opening position after its callbacks
-  // run, and a correction can hold the view short of the newest reply long enough for the area to
+  // The first frame can still measure rows and correct the position after its callbacks run,
+  // and a correction can hold the view short of the newest reply long enough for the area to
   // rest. Wait for a rest at the end of the scroll range so the receipt does not overtake that
   // landing; a rest elsewhere (not landed yet, or the reader left) waits for the next one, and
   // the last one reads if `stillReading` still holds.
