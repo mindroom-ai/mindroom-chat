@@ -42,15 +42,22 @@ const signInWithKeptAvatar = async (page: Page, name: string): Promise<void> => 
     body: JSON.stringify({ avatar_url: avatarUrl }),
   });
   await loginWithPassword(page, { homeserver: HOMESERVER, ...user });
-  await expect.poll(() => keptAvatars(page), { timeout: 30_000 }).toBeGreaterThan(0);
+  await expect
+    .poll(async () => (await keptAvatars(page)) ?? 0, { timeout: 30_000 })
+    .toBeGreaterThan(0);
 };
 
-/** How many avatars the page's origin keeps; -1 once the cache is gone. */
-const keptAvatars = (page: Page): Promise<number> =>
-  page.evaluate(async (name) => {
-    if (!(await caches.has(name))) return -1;
-    return (await (await caches.open(name)).keys()).length;
-  }, AVATAR_CACHE);
+/**
+ * How many avatars the page's origin keeps; -1 once the cache is gone, and undefined while the
+ * page navigates (the app reloads as the account leaves), so a poll asks again.
+ */
+const keptAvatars = (page: Page): Promise<number | undefined> =>
+  page
+    .evaluate(async (name) => {
+      if (!(await caches.has(name))) return -1;
+      return (await (await caches.open(name)).keys()).length;
+    }, AVATAR_CACHE)
+    .catch(() => undefined);
 
 /** The access token of the device this page signed in. */
 const pageAccessToken = (page: Page): Promise<string> =>
