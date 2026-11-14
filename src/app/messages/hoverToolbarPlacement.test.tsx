@@ -60,13 +60,15 @@ afterEach(() => {
  * control from y=110 to 130 at the right, and a row at `rowTop` whose toolbar normally sits 30 px
  * above it at the right edge. With `senderRight`, the row has a sender line from 4 to 26 px into it,
  * from x=60 to `senderRight`. With `codeActionsAt`, the row holds a code block whose buttons
- * span 24 px from that far into it, from x=900 to 980.
+ * span 24 px from that far into it, from x=900 to 980; `actionsAttribute` marks them as another
+ * kind of content's buttons instead, such as a file card's.
  */
 const renderRow = (
   rowTop: number,
   overlayLeft = 900,
   senderRight?: number,
-  codeActionsAt?: number
+  codeActionsAt?: number,
+  actionsAttribute = 'data-code-block-actions'
 ) => {
   const seen: Array<number | undefined> = [];
   function Row() {
@@ -80,7 +82,9 @@ const renderRow = (
         <div ref={rowRef} data-testid="row">
           <div ref={toolbarRef} data-testid="toolbar" />
           {senderRight !== undefined && <div data-message-sender-line="" data-testid="sender" />}
-          {codeActionsAt !== undefined && <div data-code-block-actions="" data-testid="code" />}
+          {codeActionsAt !== undefined && (
+            <div {...{ [actionsAttribute]: '' }} data-testid="code" />
+          )}
         </div>
       </div>
     );
@@ -139,6 +143,11 @@ describe('useToolbarClearance', () => {
     expect(renderRow(140, 900, 1000, 30)).toBe(-2);
     // Buttons further down leave it below the sender line.
     expect(renderRow(140, 900, 1000, 80)).toBe(34);
+  });
+
+  it('stays over the sender line where the buttons of a file card are under it', () => {
+    // A file card right under the sender line has its View and Download buttons at its end.
+    expect(renderRow(140, 900, 1000, 46, 'data-file-actions')).toBe(-2);
   });
 
   it('places the toolbar again when the sender line changes size', () => {
