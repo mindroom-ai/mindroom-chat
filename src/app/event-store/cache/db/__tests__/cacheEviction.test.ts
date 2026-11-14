@@ -326,7 +326,9 @@ it('reads the attachment total once more after the freed bytes reach the target'
   expect(result.evictedRoomIds).toHaveLength(5);
   // Admission, the media phase and one final total, not one total per room.
   expect(
-    keyCursor.mock.contexts.filter((index) => index.objectStore.name === 'attachments')
+    (keyCursor.mock.contexts as IDBIndex[]).filter(
+      (index) => index.objectStore.name === 'attachments'
+    )
   ).toHaveLength(3);
 });
 
@@ -355,5 +357,7 @@ it('admits under-budget work without reading raw blobs, references or protection
     underPressure: false,
   });
   expect(rawCursor).not.toHaveBeenCalled();
-  expect(all.mock.contexts.map((context) => context.name)).toEqual(['room_ledger']);
+  expect((all.mock.contexts as IDBObjectStore[]).map((context) => context.name)).toEqual([
+    'room_ledger',
+  ]);
 });

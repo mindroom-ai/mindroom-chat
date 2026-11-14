@@ -174,7 +174,10 @@ describe('prependCachedRoomTimeline', () => {
     const firstTimeline = room.getLiveTimeline();
     const neighbor = timelineSet.addTimeline();
     const overlap = makeEvent('$overlap', 2);
-    timelineSet.addEventToTimeline(overlap, neighbor, { toStartOfTimeline: false });
+    timelineSet.addEventToTimeline(overlap, neighbor, {
+      toStartOfTimeline: false,
+      addToState: false,
+    });
     const oldest = makeEvent('$oldest', 1);
 
     const result = await prependCachedRoomTimeline({

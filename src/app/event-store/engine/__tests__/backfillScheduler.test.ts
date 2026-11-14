@@ -368,14 +368,14 @@ describe('BackfillScheduler (ISSUE-207 P4.1)', () => {
       expect(inFlight).toBe(2);
 
       // Release two — the next two should start; peak must stay at 2.
-      resolvers[0]();
-      resolvers[1]();
+      resolvers[0]!();
+      resolvers[1]!();
       await flushMicrotasks();
       expect(inFlight).toBe(2);
-      resolvers[2]();
-      resolvers[3]();
+      resolvers[2]!();
+      resolvers[3]!();
       await flushMicrotasks();
-      resolvers[4]();
+      resolvers[4]!();
       await Promise.all(promises);
       expect(peak).toBe(2);
     });
@@ -391,7 +391,7 @@ describe('BackfillScheduler (ISSUE-207 P4.1)', () => {
         kind: 'thread-backfill',
         priority: 3,
         execute: (signal) =>
-          new Promise<string>((resolve, reject) => {
+          new Promise<string>((_resolve, reject) => {
             signal.addEventListener('abort', () => {
               observedAbort = true;
               reject(signal.reason);
