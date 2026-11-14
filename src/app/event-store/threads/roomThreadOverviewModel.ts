@@ -436,7 +436,8 @@ export const FILTER_PRESETS: FilterPreset[] = [
     id: 'snoozed',
     label: 'Snoozed',
     description: 'Snoozed threads only',
-    apply: { snoozed: 'include' },
+    // A resolved thread shows as resolved even while snoozed, so it belongs to Archived.
+    apply: { resolved: 'exclude', snoozed: 'include' },
   },
   {
     id: 'archived',

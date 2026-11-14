@@ -302,11 +302,12 @@ describe('roomThreadOverviewModel', () => {
       expect(preset('snoozed')).toMatchObject({
         label: 'Snoozed',
         description: 'Snoozed threads only',
-        apply: { snoozed: 'include' },
+        apply: { resolved: 'exclude', snoozed: 'include' },
       });
+      // A resolved and snoozed thread shows as resolved, so the preset leaves it to Archived.
       expect(
         applyPreset(makeDefaultState({ resolved: 'include' }), preset('snoozed'))
-      ).toMatchObject({ resolved: 'any', snoozed: 'include' });
+      ).toMatchObject({ resolved: 'exclude', snoozed: 'include' });
       expect(applyPreset(makeDefaultState(), preset('needs-attention')).snoozed).toBe('exclude');
       expect(applyPreset(makeDefaultState(), preset('review-queue')).snoozed).toBe('exclude');
       expect(
