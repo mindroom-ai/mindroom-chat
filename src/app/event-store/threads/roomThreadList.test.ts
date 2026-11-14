@@ -660,7 +660,7 @@ describe('loadRoomThreads and the gap relist', () => {
   /** A room whose first thread list page answers when the test says, on a client that relists after gaps. */
   const setupGapRoom = () => {
     const unfiltered = {};
-    let answer!: (value: void) => void;
+    let answer!: () => void;
     let fail!: (error: unknown) => void;
     const firstPage = new Promise<void>((resolve, reject) => {
       answer = resolve;
@@ -668,7 +668,6 @@ describe('loadRoomThreads and the gap relist', () => {
     });
     const requests: (string | null)[] = [];
     const client = Object.assign(new EventEmitter(), {
-      getSyncState: () => null,
       getRooms: () => [room],
       getEventMapper: () => (event: unknown) => event,
       createThreadListMessagesRequest: async (_roomId: string, from: string | null) => {
