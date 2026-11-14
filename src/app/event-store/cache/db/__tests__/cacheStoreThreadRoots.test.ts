@@ -228,6 +228,28 @@ describe('a cached thread whose root is another room’s', () => {
     expect(await loadCachedEventAcrossRoomScopes(SESSION_ID, ROOM_ID, ROOT_ID)).toBeUndefined();
   });
 
+  it('lets no copy that names another room lend its edit to one without a room', async () => {
+    const { room_id: _roomId, ...rootWithoutRoom } = root(reply('completed'), 1);
+    const rootEdit = {
+      ...edit('$root-edit', 'completed', 4_000),
+      sender: PERSON,
+      content: { body: '* other', 'm.relates_to': { rel_type: 'm.replace', event_id: ROOT_ID } },
+    };
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [
+      { ...otherRoot(), unsigned: { 'm.relations': { 'm.replace': rootEdit } } },
+    ]);
+    await save([], rootWithoutRoom);
+    const replacementOf = (event: Partial<IEvent> | undefined) =>
+      event?.unsigned?.['m.relations']?.['m.replace'];
+
+    const [cached] = await loadCachedThreadRootsForRoom(SESSION_ID, ROOM_ID);
+    expect(cached?.rootEvent.event_id).toBe(ROOT_ID);
+    expect(replacementOf(cached?.rootEvent)).toBeUndefined();
+    const found = await loadCachedEventAcrossRoomScopes(SESSION_ID, ROOM_ID, ROOT_ID);
+    expect(found?.event_id).toBe(ROOT_ID);
+    expect(replacementOf(found)).toBeUndefined();
+  });
+
   it('keeps a root saved without its room, as older rows were', async () => {
     const { room_id: _roomId, ...withoutRoom } = root(reply('completed'), 1);
     await save([], withoutRoom);

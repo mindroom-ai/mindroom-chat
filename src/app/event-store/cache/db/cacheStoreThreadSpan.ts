@@ -17,7 +17,8 @@ import { isOtherRoomEvent, type CursorAnchor } from './cacheStoreNormalize';
  * Every event the cache holds in a room's thread scopes from `from` (inclusive) to `before`
  * (exclusive) in cache order (sent time, then event ID): the thread replies, edits and reactions of
  * a span of the room's history. Without `before`, everything from `from` on. Thread roots, which
- * the room's own scope holds, are left out, and so are events that name another room.
+ * the room's own scope holds, are left out, and so are events that name another room and every
+ * event of a thread whose root does.
  */
 export const loadCachedThreadEventsInSpan = async (
   sessionId: string,

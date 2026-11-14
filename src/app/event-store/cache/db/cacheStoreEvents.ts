@@ -628,12 +628,12 @@ export const loadCachedEventAcrossRoomScopes = async (
     transaction.oncomplete = () => {
       const rootEvent = (root.result as CachedMetaRecord | undefined)?.rootEvent;
       let merged: Partial<IEvent> | undefined = rootEvent;
+      // A copy that names another room lends nothing, and a thread root that does hides every copy.
       (request.result as CachedEventRecord[]).forEach((row) => {
-        merged = mergeRawEventRevisions(merged, row.rawEvent);
+        if (!isOtherRoomEvent(row.rawEvent, roomId))
+          merged = mergeRawEventRevisions(merged, row.rawEvent);
       });
-      // A copy without a room must not hide a thread root that names another room.
-      const otherRoom = isOtherRoomEvent(rootEvent, roomId) || isOtherRoomEvent(merged, roomId);
-      resolve(otherRoom ? undefined : merged);
+      resolve(isOtherRoomEvent(rootEvent, roomId) ? undefined : merged);
     };
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
@@ -1048,9 +1048,10 @@ export const loadCachedThreadRootsForRoom = async (
         copies.onsuccess = () => {
           let root = meta.rootEvent;
           (copies.result as CachedEventRecord[]).forEach((row) => {
-            root = mergeRawEventRevisions(root, row.rawEvent);
+            if (!isOtherRoomEvent(row.rawEvent, roomId))
+              root = mergeRawEventRevisions(root, row.rawEvent);
           });
-          if (root?.event_id !== meta.scope || isOtherRoomEvent(root, roomId)) return;
+          if (root?.event_id !== meta.scope) return;
           const rootEvent = root;
           const entry: CachedThreadRoot = { rootEvent };
           roots.push(entry);

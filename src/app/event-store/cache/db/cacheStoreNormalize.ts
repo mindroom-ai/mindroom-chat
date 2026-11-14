@@ -6,7 +6,8 @@ import { compareCachedPaginationAnchors } from '../eventCacheTokenUtils';
 // separate — the thread version has txn-id dedup and local-echo
 // preference logic that the room version does not, and unifying them
 // would be a behavior change out of scope for this step (see plan §5
-// P2.1: pure port).
+// P2.1: pure port). Pure event helpers added later (cache order, the
+// room check) live here too.
 
 export type CachedRoomEvent = Partial<IEvent> & {
   event_id: string;
