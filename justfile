@@ -134,3 +134,7 @@ script-tests:
 # Build the watch app's Rust SDK (matrix-sdk-ffi) into ios/Watch/MatrixRustSDK/ on a Mac with rustup; `--fetch` downloads the published build instead. Options: the scripts/watch/build-sdk.sh header.
 watch-sdk *args:
     bash scripts/watch/build-sdk.sh {{args}}
+
+# Unit tests of the watch app's pure Swift package (ios/Watch/MindRoomWatchKit: MindRoom's event formats, the WatchConnectivity messages, plain text, waveform); macOS with Xcode only.
+watch-kit-test:
+    swift test --package-path ios/Watch/MindRoomWatchKit
