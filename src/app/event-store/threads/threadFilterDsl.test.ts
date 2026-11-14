@@ -35,7 +35,7 @@ const expectParsed = (
   expect(parsed.unsupportedTail).toBe(expected.unsupportedTail ?? '');
 };
 describe('threadFilterDsl', () => {
-  it.each([
+  it.each<[string, Parameters<typeof expectParsed>[1]]>([
     ['', {}],
     ['is:streaming', { status: { streaming: 'include' } }],
     ['is:streaming OR is:scheduled', { status: { streaming: 'include', scheduled: 'include' }, statusMode: 'or' }],

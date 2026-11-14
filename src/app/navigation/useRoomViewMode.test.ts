@@ -84,7 +84,7 @@ describe('useRoomViewMode', () => {
         MatrixClientProvider,
         { value: mx as unknown as MatrixClient },
         probes.map((probe) =>
-          React.createElement(Probe, { key: probe, roomId: probe.split('#')[0] })
+          React.createElement(Probe, { key: probe, roomId: probe.split('#')[0]! })
         )
       )
     );

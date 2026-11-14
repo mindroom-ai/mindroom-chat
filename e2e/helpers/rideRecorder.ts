@@ -310,10 +310,7 @@ const recordFlickRide = (
         window.requestAnimationFrame(() => resolve());
       });
     const readThreadCount = () =>
-      Number(
-        (scroller.querySelector('[data-thread-count]') as HTMLElement | null)?.dataset
-          .threadCount ?? -1
-      );
+      Number(scroller.querySelector<HTMLElement>('[data-thread-count]')?.dataset.threadCount ?? -1);
     const readProbes = (): Record<string, number> => {
       const snapshot = w.__MINDROOM_CACHE_PROBE__?.snapshot() ?? {};
       return Object.fromEntries(
@@ -393,6 +390,7 @@ const recordFlickRide = (
       driven: number;
       threadCount: number;
       distFromBottom: number;
+      ledgerPx: number;
     }[] = [];
     const jumpEvents: { t: number; jump: number; before: TileSnap[]; after: TileSnap[] }[] = [];
     let jumpAnchor: Element | null = null;
@@ -453,7 +451,7 @@ const recordFlickRide = (
     const startTop = scroller.scrollTop;
     let cycles = rideOpts.cycles;
     if (rideOpts.reachTop) {
-      const cycle = cycles[0];
+      const cycle = cycles[0]!;
       const count = Math.max(cycles.length, Math.ceil(startTop / (cycle.steps * cycle.stepPx)) + 1);
       if (count > rideOpts.reachTop.maxCycles)
         throw new Error(`Boundary ride requires ${count} cycles`);
@@ -608,10 +606,7 @@ export const startRideSampling = (
     if (!scroller) return;
     scroller.dataset.e2eScroller = '1';
     const readThreadCount = () =>
-      Number(
-        (scroller.querySelector('[data-thread-count]') as HTMLElement | null)?.dataset
-          .threadCount ?? -1
-      );
+      Number(scroller.querySelector<HTMLElement>('[data-thread-count]')?.dataset.threadCount ?? -1);
     type Span = { top: number; bottom: number };
     // A row covers only if its message element (or the row, if it has
     // none) is not hidden there or above by visibility, opacity or display;
@@ -959,7 +954,7 @@ export const analyzeBlankBands = (
         for (let colIndex = 0; colIndex < regionWidth; colIndex += 2) {
           const offset = (rowIndex * regionWidth + colIndex) * 4;
           // Luma approximation; JPEG noise tolerated by the spread bound.
-          const luma = (pixels[offset] + pixels[offset + 1] + pixels[offset + 2]) / 3;
+          const luma = (pixels[offset]! + pixels[offset + 1]! + pixels[offset + 2]!) / 3;
           if (luma < min) min = luma;
           if (luma > max) max = luma;
         }
@@ -1014,10 +1009,7 @@ export const recordOpenSettle = (
         window.requestAnimationFrame(() => resolve());
       });
     const readThreadCount = () =>
-      Number(
-        (scroller.querySelector('[data-thread-count]') as HTMLElement | null)?.dataset
-          .threadCount ?? -1
-      );
+      Number(scroller.querySelector<HTMLElement>('[data-thread-count]')?.dataset.threadCount ?? -1);
     const samples: {
       t: number;
       distFromBottom: number;

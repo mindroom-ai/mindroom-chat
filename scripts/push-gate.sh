@@ -16,7 +16,7 @@
 #             and what a first visit downloads before the app runs, against the commit's
 #             scripts/perf/bundle-budget.json (scripts/perf/bundle-report.mjs)
 #   tsc       tsc --noEmit -p config/tsconfig.app.json
-#   strict    node scripts/strict-check.mjs
+#   strict    tsc --noEmit -p config/tsconfig.strict.json (tests and e2e included)
 #   lint      ESLint on the files base...rev changes (on every file when the ESLint config or a file
 #             it reads changes: scripts/eslint-shared.cjs, scripts/provenance-paths.cjs, the
 #             docs/provenance lists, the tsconfigs)
@@ -219,8 +219,8 @@ check_tsc() {
 
 check_strict() {
   local rc=0
-  (cd "$tree" && node scripts/strict-check.mjs) >"$logs/strict.log" 2>&1 || rc=$?
-  tail -n 1 "$logs/strict.log" | sed 's/^strict-check: //'
+  (cd "$tree" && npx tsc --noEmit -p config/tsconfig.strict.json) >"$logs/strict.log" 2>&1 || rc=$?
+  echo "$(grep -c 'error TS' "$logs/strict.log") errors, exit $rc"
   return "$rc"
 }
 

@@ -301,7 +301,7 @@ describe('useRoomPaginationCommandController', () => {
     const root = makeRoomEvent('$root');
     const reply = makeRoomEvent('$reply', '$root');
     const older = makeRoomEvent('$older');
-    const timelineEvents = [root, reply];
+    const timelineEvents: unknown[] = [root, reply];
     const timeline = makeTimeline(timelineEvents);
     const initialTimeline: Timeline = {
       linkedTimelines: [timeline],
@@ -388,7 +388,7 @@ describe('useRoomPaginationCommandController', () => {
     const root = makeRoomEvent('$root');
     const olderRoot = makeRoomEvent('$older-root');
     const olderReply = makeRoomEvent('$older-reply', '$older-root');
-    const timelineEvents = [root];
+    const timelineEvents: unknown[] = [root];
     const timeline = makeTimeline(timelineEvents);
     const initialTimeline: Timeline = {
       linkedTimelines: [timeline],
@@ -415,7 +415,7 @@ describe('useRoomPaginationCommandController', () => {
       processThreadRoots: vi.fn(),
       hasEncryptionStateEvent: () => false,
       relations: {},
-    } as never;
+    } as unknown as Room;
     const mx = {
       getEventMapper: () => (rawEvent: unknown) => rawEvent,
       processAggregatedTimelineEvents: vi.fn(),
@@ -680,7 +680,7 @@ describe('network back-pagination persist point (ISSUE-207 P3.3)', () => {
 
     expect(handleTimelinePagination).toHaveBeenCalledWith(true);
     expect(persistRoomEventCache).toHaveBeenCalledTimes(1);
-    const [persisted, token] = persistRoomEventCache.mock.calls[0];
+    const [persisted, token] = persistRoomEventCache.mock.calls[0]!;
     // Oldest -> newest, only the newly fetched slice.
     expect((persisted as Array<{ getId: () => string }>).map((e) => e.getId())).toEqual([
       '$old-1',

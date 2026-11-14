@@ -162,7 +162,7 @@ const createOfflineFixture = async (homeserver: string): Promise<OfflineFixture>
     const initialSync = await matrixFetch<{
       rooms: { join: Record<string, { timeline: { events: Array<{ event_id: string }> } }> };
     }>(homeserver, `/sync?timeout=0&filter=${filter}`, { accessToken: session.accessToken });
-    const initialTailIds = initialSync.rooms.join[roomId].timeline.events.map(
+    const initialTailIds = initialSync.rooms.join[roomId]!.timeline.events.map(
       (event) => event.event_id
     );
     expect(initialTailIds).toHaveLength(20);
@@ -346,7 +346,7 @@ const warmHistoricalContent = async (
   }>(homeserver, `/sync?timeout=0&filter=${filter}`, {
     accessToken: fixture.session.accessToken,
   });
-  const savedTailIds = sync.rooms.join[fixture.roomId].timeline.events.map(
+  const savedTailIds = sync.rooms.join[fixture.roomId]!.timeline.events.map(
     (event) => event.event_id
   );
   expect(savedTailIds).toHaveLength(1);
@@ -648,7 +648,7 @@ test.describe('persisted historical room content', () => {
         const reopened = await context.newPage();
         await reopened.goto(threadUrl);
         // A new page starts with the edited long text folded again.
-        if (change === 'edit') await expandFullBody(reopened, fixture!);
+        if (change === 'edit') await expandFullBody(reopened, fixture);
         await expectCurrent(reopened);
         await expect
           .poll(() =>

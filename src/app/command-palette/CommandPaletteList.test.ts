@@ -114,7 +114,7 @@ describe('CommandPaletteList', () => {
           id: 'rooms',
           title: 'Rooms',
           items: [
-            ROOM_SECTION.items[0],
+            ROOM_SECTION.items[0]!,
             {
               id: '!ops:example.org',
               kind: 'room',
@@ -149,7 +149,7 @@ describe('CommandPaletteList', () => {
           id: 'rooms',
           title: 'Rooms',
           items: [
-            ROOM_SECTION.items[0],
+            ROOM_SECTION.items[0]!,
             { id: '!garden:example.org', kind: 'space', name: 'Garden' },
           ],
         },

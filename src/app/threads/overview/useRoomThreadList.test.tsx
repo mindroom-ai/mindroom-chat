@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { MatrixClient, MatrixEvent, type Thread } from 'matrix-js-sdk';
@@ -144,13 +143,13 @@ describe('useRoomThreadList', () => {
       retry = snapshot?.retry();
     });
     expect(pendingLoads).toHaveLength(2);
-    expect(pendingLoads[0].signal).toBe(pendingLoads[1].signal);
-    expect(pendingLoads[0].signal?.aborted).toBe(false);
+    expect(pendingLoads[0]!.signal).toBe(pendingLoads[1]!.signal);
+    expect(pendingLoads[0]!.signal?.aborted).toBe(false);
 
     await act(async () => {
       renderer.update(render(false));
     });
-    expect(pendingLoads[0].signal?.aborted).toBe(true);
+    expect(pendingLoads[0]!.signal?.aborted).toBe(true);
 
     await act(async () => {
       pendingLoads.forEach(({ reject }) => reject(new Error('late failure')));

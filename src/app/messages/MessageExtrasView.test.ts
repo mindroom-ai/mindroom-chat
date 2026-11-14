@@ -67,7 +67,7 @@ const section = (
 
 const getNodeText = (value: ReactTestInstance | string | number): string => {
   if (typeof value === 'string' || typeof value === 'number') return `${value}`;
-  return value.children.map((child) => getNodeText(child as ReactTestInstance | string)).join('');
+  return value.children.map(getNodeText).join('');
 };
 
 describe('MessageExtras', () => {
@@ -110,8 +110,8 @@ describe('MessageExtras', () => {
 
     const details = container.querySelectorAll('details');
 
-    expect(details[0].open).toBe(false);
-    expect(details[1].open).toBe(true);
+    expect(details[0]!.open).toBe(false);
+    expect(details[1]!.open).toBe(true);
 
     act(() => {
       root?.unmount();
@@ -462,7 +462,7 @@ describe('MessageExtras', () => {
 
     expect(renderer.root.findAllByType('script')).toHaveLength(0);
     expect(renderer.root.findAllByType('img')).toHaveLength(0);
-    expect(renderer.root.findAllByType('p')[0].props.onclick).toBeUndefined();
+    expect(renderer.root.findAllByType('p')[0]!.props.onclick).toBeUndefined();
     expect(renderer.root.findByType('a').props.href).toBeUndefined();
     expect(getNodeText(renderer.root)).toContain('safe');
     expect(getNodeText(renderer.root)).toContain('<strong>literal</strong>');
@@ -501,7 +501,7 @@ describe('MessageExtras', () => {
 
     const links = renderer.root.findAllByType('a');
     expect(links).toHaveLength(1);
-    expect(links[0].props.href).toBe('mailto:user@example.test');
+    expect(links[0]!.props.href).toBe('mailto:user@example.test');
     expect(getNodeText(renderer.root)).toContain('magnet:?xt=urn:btih:abc');
     expect(getNodeText(renderer.root)).toContain('ftp://example.test/file');
     expect(getNodeText(renderer.root)).toContain('https://example.test');

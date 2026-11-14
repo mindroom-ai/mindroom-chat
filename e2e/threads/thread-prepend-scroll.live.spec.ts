@@ -107,7 +107,7 @@ const runReleaseFirstCleanup = async (
   );
   results.forEach((result, index) => {
     if (result.status === 'rejected') {
-      failures.push({ name: steps[index].name, reason: result.reason });
+      failures.push({ name: steps[index]!.name, reason: result.reason });
     }
   });
 

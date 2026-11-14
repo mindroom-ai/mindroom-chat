@@ -10,3 +10,4 @@
 "VIDEO_CALL_FROM_USER" = "Video-oproep van %1$@";
 "USER_INVITE_TO_NAMED_ROOM" = "%1$@ heeft je uitgenodigd voor %2$@";
 "USER_INVITE_TO_CHAT" = "%1$@ heeft je uitgenodigd voor een chat";
+"QUICK_CAPTURE" = "Snelle invoer";

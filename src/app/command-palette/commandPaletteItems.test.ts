@@ -70,7 +70,7 @@ describe('collectCommandPaletteUserCandidates', () => {
       orderedRoomIds: rooms.map((room) => room.roomId),
     });
     expect(roomCapped.candidates).toHaveLength(COMMAND_PALETTE_USER_ROOM_LIMIT);
-    expect(rooms[COMMAND_PALETTE_USER_ROOM_LIMIT].getJoinedMembers).not.toHaveBeenCalled();
+    expect(rooms[COMMAND_PALETTE_USER_ROOM_LIMIT]!.getJoinedMembers).not.toHaveBeenCalled();
 
     const userCapped = collectCommandPaletteUserCandidates({
       directUsers: [],

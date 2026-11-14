@@ -571,6 +571,76 @@
       "description": "Members of {{name}} can join it, and the agents in {{name}} join it on their own.",
       "noPermission": "You can't change the rooms listed under {{name}}",
       "takeOff": "Remove from {{name}}"
+    },
+    "quickCapture": {
+      "title": "Quick Capture",
+      "input": {
+        "placeholder": "Note or question",
+        "label": "New entry",
+        "send": "Send",
+        "sending": "Sending"
+      },
+      "attach": {
+        "window": "Screenshot of the front window",
+        "screen": "Screenshot of the whole screen",
+        "remove": "Remove {{name}}"
+      },
+      "room": {
+        "choose": "Choose a room",
+        "change": "Posting to {{room}}. Change room",
+        "search": "Search rooms",
+        "none": "No rooms match"
+      },
+      "list": {
+        "label": "Threads in {{room}}",
+        "empty": "Nothing open here",
+        "sent": "Sent",
+        "resolved": "Resolved"
+      },
+      "chip": {
+        "working": "Working",
+        "needsYou": "Needs you",
+        "new": "New"
+      },
+      "peek": {
+        "copy": "Copy",
+        "copied": "Copied",
+        "open": "Open",
+        "done": "Done",
+        "reopen": "Reopen",
+        "reply": "Reply in this thread"
+      },
+      "hint": {
+        "send": "Send",
+        "sendOpen": "Send and Open",
+        "room": "Room",
+        "list": "List",
+        "move": "Move",
+        "peek": "Peek",
+        "done": "Done",
+        "reply": "Reply",
+        "open": "Open"
+      },
+      "absent": {
+        "title": "MindRoom is not open",
+        "open": "Open MindRoom"
+      },
+      "signedOut": {
+        "title": "Sign in to MindRoom"
+      },
+      "error": {
+        "noRoom": "This room is no longer available",
+        "uploadFailed": "The image could not be uploaded",
+        "sendFailed": "Not sent",
+        "forbidden": "You cannot resolve threads in this room",
+        "timeout": "MindRoom did not answer"
+      },
+      "screenshot": {
+        "denied": "MindRoom needs the Screen Recording permission to take screenshots",
+        "openSettings": "Open System Settings",
+        "noWindow": "The app in front has no window",
+        "failed": "The screenshot failed"
+      }
     }
   },
   "mindroomUi": {

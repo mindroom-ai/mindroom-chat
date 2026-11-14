@@ -31,7 +31,7 @@ it('delivers discovery to a healthy device when another signed device has no Olm
   let sending: Promise<void> | undefined;
   try {
     const upload = async (machine: rust.OlmMachine) => {
-      const request = (await machine.outgoingRequests())!.find(
+      const request = (await machine.outgoingRequests()).find(
         (item) => item.type === rust.RequestType.KeysUpload
       ) as rust.KeysUploadRequest;
       return JSON.parse(request.body);
@@ -50,7 +50,7 @@ it('delivers discovery to a healthy device when another signed device has no Olm
         failures: {},
       })
     );
-    const [keyName, keyValue] = Object.entries(healthyKeys.one_time_keys)[0];
+    const [keyName, keyValue] = Object.entries(healthyKeys.one_time_keys)[0]!;
     // Only the homeserver is simulated: old devices can exhaust their one-time keys.
     const keyClaimManager = new KeyClaimManager(viewer, {
       async makeOutgoingRequest(request: rust.KeysClaimRequest) {
@@ -84,7 +84,7 @@ it('delivers discovery to a healthy device when another signed device has no Olm
               userId,
               deviceId: keys.device_keys.device_id,
               algorithms: keys.device_keys.algorithms,
-              keys: new Map(Object.entries(keys.device_keys.keys) as [string, string][]),
+              keys: new Map(Object.entries(keys.device_keys.keys)),
             }),
           ])
         ),
@@ -119,8 +119,8 @@ it('delivers discovery to a healthy device when another signed device has no Olm
     expect(queued.flatMap((batch) => batch.batch.map((recipient) => recipient.deviceId))).toEqual([
       'HEALTHY',
     ]);
-    expect(queued[0].eventType).toBe('m.room.encrypted');
-    expect(queued[0].batch[0].payload).toHaveProperty('ciphertext');
+    expect(queued[0]!.eventType).toBe('m.room.encrypted');
+    expect(queued[0]!.batch[0]!.payload).toHaveProperty('ciphertext');
     expect(JSON.stringify(queued)).not.toContain('discovery');
   } finally {
     controller.abort();

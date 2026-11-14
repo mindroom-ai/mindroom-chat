@@ -57,7 +57,7 @@ describe('thread approval collection', () => {
       '$thread'
     );
     expect(result).toHaveLength(1);
-    expect(result[0].approval.status).toBe('approved');
+    expect(result[0]!.approval.status).toBe('approved');
   });
   it('groups only the same canonical permission and keeps exact individual targets', () => {
     const records = collectThreadApprovals(
@@ -76,7 +76,7 @@ describe('thread approval collection', () => {
 
 it('deduplicates republished automatic receipts while retaining alias event IDs', () => {
   const first = make('$first');
-  Object.assign(first.event.content, {
+  Object.assign(first.event.content!, {
     status: 'approved',
     approvable: false,
     approval_id: 'shared',
@@ -85,7 +85,7 @@ it('deduplicates republished automatic receipts while retaining alias event IDs'
   const alias = new MatrixEvent({ ...first.event, event_id: '$alias' });
   const records = collectThreadApprovals([first, alias], '!room:example.org', '$thread');
   expect(records).toHaveLength(1);
-  expect(records[0].aliasEventIds).toEqual(['$alias']);
+  expect(records[0]!.aliasEventIds).toEqual(['$alias']);
 });
 
 it('orders requests chronologically across different timezone offsets', () => {

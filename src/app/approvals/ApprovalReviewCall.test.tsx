@@ -133,11 +133,11 @@ it('lets the same review approve one call and deny another with its own reason',
   const first = renderer.root.findByProps({ 'data-approval-id': '$one' });
   const second = renderer.root.findByProps({ 'data-approval-id': '$two' });
   act(() => {
-    first.findAllByType('button')[0].props.onClick();
+    first.findAllByType('button')[0]!.props.onClick();
   });
   expect(mocks.submit).toHaveBeenNthCalledWith(1, one, { status: 'approved' });
   act(() => {
-    second.findAllByType('button')[1].props.onClick();
+    second.findAllByType('button')[1]!.props.onClick();
   });
   act(() => {
     second.findByType('input').props.onChange({ currentTarget: { value: 'Wrong workspace' } });
@@ -208,8 +208,8 @@ it('offers exact and any-arguments approval for a scheduled call', () => {
     'Deny',
     'Approve any arguments',
   ]);
-  act(() => buttons[0].props.onClick());
-  act(() => buttons[2].props.onClick());
+  act(() => buttons[0]!.props.onClick());
+  act(() => buttons[2]!.props.onClick());
   expect(mocks.submit.mock.calls).toEqual([
     [scheduled, { status: 'approved', scheduledScope: 'exact_arguments' }],
     [scheduled, { status: 'approved', scheduledScope: 'any_arguments' }],

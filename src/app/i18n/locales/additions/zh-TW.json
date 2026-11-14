@@ -562,6 +562,76 @@
       "description": "{{name}} 的成員可以加入，{{name}} 中的代理程式會自行加入。",
       "noPermission": "您無法變更 {{name}} 下列出的房間",
       "takeOff": "從 {{name}} 移除"
+    },
+    "quickCapture": {
+      "title": "快速擷取",
+      "input": {
+        "placeholder": "筆記或問題",
+        "label": "新項目",
+        "send": "傳送",
+        "sending": "傳送中"
+      },
+      "attach": {
+        "window": "最前方視窗的截圖",
+        "screen": "整個螢幕的截圖",
+        "remove": "移除 {{name}}"
+      },
+      "room": {
+        "choose": "選擇聊天室",
+        "change": "正在發佈到 {{room}}。更換聊天室",
+        "search": "搜尋聊天室",
+        "none": "沒有符合的聊天室"
+      },
+      "list": {
+        "label": "{{room}} 中的討論串",
+        "empty": "這裡沒有未結事項",
+        "sent": "已傳送",
+        "resolved": "已解決"
+      },
+      "chip": {
+        "working": "處理中",
+        "needsYou": "需要你",
+        "new": "新"
+      },
+      "peek": {
+        "copy": "拷貝",
+        "copied": "已拷貝",
+        "open": "打開",
+        "done": "完成",
+        "reopen": "重新開啟",
+        "reply": "在此討論串中回覆"
+      },
+      "hint": {
+        "send": "傳送",
+        "sendOpen": "傳送並打開",
+        "room": "聊天室",
+        "list": "列表",
+        "move": "移動",
+        "peek": "預覽",
+        "done": "完成",
+        "reply": "回覆",
+        "open": "打開"
+      },
+      "absent": {
+        "title": "MindRoom 未開啟",
+        "open": "打開 MindRoom"
+      },
+      "signedOut": {
+        "title": "登入 MindRoom"
+      },
+      "error": {
+        "noRoom": "此聊天室已無法使用",
+        "uploadFailed": "無法上傳影像",
+        "sendFailed": "未傳送",
+        "forbidden": "你無法解決此聊天室中的討論串",
+        "timeout": "MindRoom 沒有回應"
+      },
+      "screenshot": {
+        "denied": "MindRoom 需要「螢幕錄製」權限才能截圖",
+        "openSettings": "打開系統設定",
+        "noWindow": "最前方的 App 沒有視窗",
+        "failed": "截圖失敗"
+      }
     }
   },
   "mindroomUi": {

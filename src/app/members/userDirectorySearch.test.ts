@@ -1,3 +1,4 @@
+import type { Room } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 
 import { Membership } from '../matrix/types/room';
@@ -287,7 +288,7 @@ describe('filterInviteUserCandidates', () => {
 
         return memberships[userId] ? { membership: memberships[userId] } : undefined;
       },
-    };
+    } as unknown as Pick<Room, 'getMember'>;
 
     expect(
       filterInviteUserCandidates(users, room, '@ally:example.org').map((user) => user.userId)

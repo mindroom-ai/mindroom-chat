@@ -165,11 +165,11 @@ describe('VoiceRecordingCapsule', () => {
     );
 
     const buttons = renderer.root.findAllByType('button');
-    expect(buttons[1].props['aria-label']).toBe('Resume voice recording');
+    expect(buttons[1]!.props['aria-label']).toBe('Resume voice recording');
 
     act(() => {
-      buttons[0].props.onClick();
-      buttons[1].props.onClick();
+      buttons[0]!.props.onClick();
+      buttons[1]!.props.onClick();
     });
 
     expect(onDiscard).toHaveBeenCalledOnce();
@@ -221,11 +221,11 @@ describe('VoiceRecordingCapsule', () => {
       'Discard voice recording',
       'Pause voice recording',
     ]);
-    expect(buttons[1].props.disabled).toBe(true);
+    expect(buttons[1]!.props.disabled).toBe(true);
     expect(JSON.stringify(renderer.toJSON())).toContain('Voice recording ready to retry');
 
     act(() => {
-      buttons[0].props.onClick();
+      buttons[0]!.props.onClick();
     });
 
     expect(onDiscard).toHaveBeenCalledOnce();

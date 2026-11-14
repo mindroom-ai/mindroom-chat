@@ -341,10 +341,10 @@ describe('MindRoom agent calls', () => {
       await settle();
 
       expect(pending).toHaveLength(1);
-      pending[0].land();
+      pending[0]!.land();
       await settle();
       expect(pending).toHaveLength(2);
-      pending[1].land();
+      pending[1]!.land();
       await prepared;
 
       expect(serverState).toEqual(agentCallState({ origin }));
@@ -355,9 +355,9 @@ describe('MindRoom agent calls', () => {
       const prepared = prepare();
       await settle();
 
-      pending[0].fail(new Error('clear failed'));
+      pending[0]!.fail(new Error('clear failed'));
       await settle();
-      pending[1].land();
+      pending[1]!.land();
       await prepared;
 
       expect(serverState).toEqual(agentCallState({ origin }));

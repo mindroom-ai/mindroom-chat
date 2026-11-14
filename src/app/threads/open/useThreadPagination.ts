@@ -146,6 +146,7 @@ export const useThreadPagination = (session: ThreadSessionCommands, route: Threa
               threadEvents,
               lease.threadId
             ),
+            heldEventIds: new Set(threadEvents.flatMap((mEvent) => mEvent.getId() ?? [])),
             limit: THREAD_BATCH_SIZE,
             mapEvent: createPreferLiveEventMapper(room, mx.getEventMapper()),
           }).catch(() => undefined);

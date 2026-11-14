@@ -127,7 +127,7 @@ for (const serverInfoCached of [true, false]) {
       next_batch: string;
       rooms: { join: Record<string, { timeline: { events: Array<{ event_id: string }> } }> };
     }>(homeserver, `/sync?timeout=0&filter=${filter}`, { accessToken: session.accessToken });
-    expect(sync.rooms.join[roomId].timeline.events.map((event) => event.event_id)).toEqual([
+    expect(sync.rooms.join[roomId]!.timeline.events.map((event) => event.event_id)).toEqual([
       rootIds[2],
     ]);
     await page.evaluate(

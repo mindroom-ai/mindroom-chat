@@ -1,4 +1,3 @@
-import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import { useToolTraceMarkerParserOptions } from '../../app/messages/html/HtmlBlocks';

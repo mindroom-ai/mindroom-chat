@@ -39,6 +39,7 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(MindRoomAuthPlugin())
         bridge?.registerPluginInstance(MindRoomFileSavePlugin())
         bridge?.registerPluginInstance(MindRoomDiagnosticsPlugin())
+        bridge?.registerPluginInstance(MindRoomQuickCapturePlugin())
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -102,7 +103,9 @@ private struct MindRoomRouter: Router {
         // BrowserRouter parameters include Matrix IDs/aliases and server names.
         // Their dots are part of a route, even when WebKit reloads after a crash.
         // Native CI checks these against routes generated from pages/paths.ts.
-        let routeRoots: Set<Substring> = ["home", "direct", "explore", "login", "register", "reset-password"]
+        let routeRoots: Set<Substring> = [
+            "home", "direct", "explore", "threads", "activity", "quick-capture", "login", "register", "reset-password"
+        ]
         if routeRoots.contains(firstComponent) || firstComponent.hasPrefix("!") || firstComponent.hasPrefix("#") {
             return bundleRouter.route(for: "/")
         }

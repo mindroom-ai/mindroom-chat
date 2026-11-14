@@ -34,7 +34,7 @@ describe('large room thread ordering', () => {
     expect(sorted.map((thread) => thread.id)).toEqual(
       Array.from({ length: 40 }, (_, index) => `$root-${39 - index}`)
     );
-    expect(threads[0].id).toBe('$root-0');
+    expect(threads[0]!.id).toBe('$root-0');
     expect(historyReads).toBe(40);
   });
 

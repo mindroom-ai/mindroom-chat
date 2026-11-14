@@ -562,6 +562,76 @@
       "description": "Anggota {{name}} dapat bergabung, dan agen di {{name}} bergabung dengan sendirinya.",
       "noPermission": "Anda tidak dapat mengubah ruang yang tercantum di bawah {{name}}",
       "takeOff": "Hapus dari {{name}}"
+    },
+    "quickCapture": {
+      "title": "Tangkapan Cepat",
+      "input": {
+        "placeholder": "Catatan atau pertanyaan",
+        "label": "Entri baru",
+        "send": "Kirim",
+        "sending": "Mengirim"
+      },
+      "attach": {
+        "window": "Tangkapan layar jendela terdepan",
+        "screen": "Tangkapan layar seluruh layar",
+        "remove": "Hapus {{name}}"
+      },
+      "room": {
+        "choose": "Pilih ruang",
+        "change": "Memposting ke {{room}}. Ganti ruang",
+        "search": "Cari ruang",
+        "none": "Tidak ada ruang yang cocok"
+      },
+      "list": {
+        "label": "Utas di {{room}}",
+        "empty": "Tidak ada yang terbuka di sini",
+        "sent": "Terkirim",
+        "resolved": "Selesai"
+      },
+      "chip": {
+        "working": "Bekerja",
+        "needsYou": "Perlu Anda",
+        "new": "Baru"
+      },
+      "peek": {
+        "copy": "Salin",
+        "copied": "Tersalin",
+        "open": "Buka",
+        "done": "Selesai",
+        "reopen": "Buka kembali",
+        "reply": "Balas di utas ini"
+      },
+      "hint": {
+        "send": "Kirim",
+        "sendOpen": "Kirim dan buka",
+        "room": "Ruang",
+        "list": "Daftar",
+        "move": "Pindah",
+        "peek": "Intip",
+        "done": "Selesai",
+        "reply": "Balas",
+        "open": "Buka"
+      },
+      "absent": {
+        "title": "MindRoom tidak terbuka",
+        "open": "Buka MindRoom"
+      },
+      "signedOut": {
+        "title": "Masuk ke MindRoom"
+      },
+      "error": {
+        "noRoom": "Ruang ini sudah tidak tersedia",
+        "uploadFailed": "Gambar tidak dapat diunggah",
+        "sendFailed": "Tidak terkirim",
+        "forbidden": "Anda tidak dapat menyelesaikan utas di ruang ini",
+        "timeout": "MindRoom tidak menjawab"
+      },
+      "screenshot": {
+        "denied": "MindRoom memerlukan izin Perekaman Layar untuk mengambil tangkapan layar",
+        "openSettings": "Buka Pengaturan Sistem",
+        "noWindow": "App terdepan tidak memiliki jendela",
+        "failed": "Tangkapan layar gagal"
+      }
     }
   },
   "mindroomUi": {

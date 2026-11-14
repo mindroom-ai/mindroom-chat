@@ -30,18 +30,19 @@ const deferred = <T>() => {
 const settle = async () => {
   for (let i = 0; i < 100; i += 1) await Promise.resolve();
 };
-const event = (id: string, timestamp: number, reply = false): IEvent => ({
-  event_id: id,
-  room_id: roomId,
-  sender: userId,
-  type: 'm.room.message',
-  origin_server_ts: timestamp,
-  content: {
-    msgtype: 'm.text',
-    body: id,
-    ...(reply ? { 'm.relates_to': { rel_type: 'm.thread', event_id: '$root' } } : {}),
-  },
-});
+const event = (id: string, timestamp: number, reply = false): IEvent =>
+  ({
+    event_id: id,
+    room_id: roomId,
+    sender: userId,
+    type: 'm.room.message',
+    origin_server_ts: timestamp,
+    content: {
+      msgtype: 'm.text',
+      body: id,
+      ...(reply ? { 'm.relates_to': { rel_type: 'm.thread', event_id: '$root' } } : {}),
+    },
+  } as unknown as IEvent);
 const reply = event('$cached-reply', 2, true);
 const root = {
   ...event('$root', 1),
@@ -51,7 +52,7 @@ const root = {
     },
   },
 };
-const savedSync: ISavedSync = {
+const savedSync = {
   nextBatch: 'cached-token',
   accountData: [],
   roomsData: {
@@ -77,7 +78,7 @@ const savedSync: ISavedSync = {
     leave: {},
     knock: {},
   },
-};
+} as unknown as ISavedSync;
 const clients: MatrixClient[] = [];
 const threadNamespaces = [
   FILTER_RELATED_BY_REL_TYPES,
@@ -171,7 +172,7 @@ describe('cached Matrix startup before server discovery', () => {
       Thread.hasServerSideFwdPaginationSupport,
     ] = previousSupport;
     threadNamespaces.forEach((value, index) =>
-      value.setPreferUnstable(previousNamespacePreferences[index])
+      value.setPreferUnstable(previousNamespacePreferences[index]!)
     );
     vi.restoreAllMocks();
   });
@@ -217,7 +218,7 @@ describe('cached Matrix startup before server discovery', () => {
   it('applies buffered cached edits when discovery removes prior server thread support', async () => {
     Thread.hasServerSideSupport = FeatureSupport.Stable;
     const snapshot = structuredClone(savedSync);
-    snapshot.roomsData.join[roomId].timeline.events.push({
+    snapshot.roomsData.join[roomId]!.timeline.events.push({
       ...event('$cached-edit', 3),
       content: {
         msgtype: 'm.text',

@@ -257,7 +257,7 @@ describe('buildBugReport', () => {
     expect(report.target.permalink).toContain('$reply');
     expect(report.events.map((e) => e.eventId)).toEqual(['$root', '$reply']);
     expect(report.omittedEventCount).toBe(0);
-    expect(report.events[1].latestEdit).toEqual({
+    expect(report.events[1]!.latestEdit).toEqual({
       event_id: '$edit',
       content: { 'm.new_content': { body: 'final' } },
     });
@@ -282,12 +282,12 @@ describe('buildBugReport', () => {
     const reply = fakeEvent('$reply', 2, { threadRootId: '$root', body: 'draft', edit });
     const room = fakeRoom({ live: [root, reply], thread: { id: '$root', root, events: [reply] } });
     const report = await buildBugReport(mx as never, room as never, reply as never);
-    expect(report.events[1].event).toMatchObject({ event_id: '$reply', origin_server_ts: 2 });
-    expect(report.events[1].event.content).toEqual({
+    expect(report.events[1]!.event).toMatchObject({ event_id: '$reply', origin_server_ts: 2 });
+    expect(report.events[1]!.event.content).toEqual({
       body: 'draft',
       'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
     });
-    expect(report.events[1].latestEdit).toEqual(edit);
+    expect(report.events[1]!.latestEdit).toEqual(edit);
   });
 
   it('keeps the wire relation of an encrypted event without its ciphertext', async () => {
@@ -299,7 +299,7 @@ describe('buildBugReport', () => {
     });
     const room = fakeRoom({ live: [root, reply], thread: { id: '$root', root, events: [reply] } });
     const report = await buildBugReport(mx as never, room as never, reply as never);
-    expect(report.events[1].event.content).toEqual({
+    expect(report.events[1]!.event.content).toEqual({
       body: 'secret',
       'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
     });

@@ -94,7 +94,7 @@ describe('threadBootstrapSdk', () => {
       expect(getThreadTimelineEvents(thread)).toEqual([older, middle, newer]);
       expect(thread.lastReply()).toBe(newer);
       expect(
-        getLinkedTimelines(thread.liveTimeline)[0].getPaginationToken(Direction.Backward)
+        getLinkedTimelines(thread.liveTimeline)[0]!.getPaginationToken(Direction.Backward)
       ).toBe('before-older');
     } finally {
       Thread.hasServerSideSupport = previousSupport;
@@ -111,7 +111,7 @@ describe('threadBootstrapSdk', () => {
       expect(thread.rootEvent).toBe(root);
       expect(room.getThread('$root')).toBe(thread);
 
-      await thread.addEvent(reply, false);
+      thread.addEvent(reply, false);
       await settleMetadata();
 
       expect(thread.events).toContain(reply);
@@ -149,10 +149,10 @@ describe('threadBootstrapSdk', () => {
     expect(result.chunk).toEqual(chunk);
     expect(result.next_batch).toBe('older');
     expect(requests).toHaveLength(1);
-    expect(decodeURIComponent(requests[0].pathname)).toBe(
+    expect(decodeURIComponent(requests[0]!.pathname)).toBe(
       '/_matrix/client/v1/rooms/!room:example.org/relations/$root/m.thread'
     );
-    expect(Object.fromEntries(requests[0].searchParams)).toEqual({ dir: 'b', limit: '50' });
+    expect(Object.fromEntries(requests[0]!.searchParams)).toEqual({ dir: 'b', limit: '50' });
   });
 
   it.each(['older', undefined])(

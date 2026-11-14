@@ -10,8 +10,8 @@ const { mx } = vi.hoisted(() => ({ mx: { getUrlPreview: vi.fn() } }));
 
 vi.mock('folds', () => {
   const tag = (name: string, extra = {}) =>
-    React.forwardRef<HTMLElement, Record<string, unknown>>(({ children, style }, ref) =>
-      React.createElement(name, { ref, style, ...extra }, children)
+    React.forwardRef<HTMLElement, Record<string, unknown> & { children?: React.ReactNode }>(
+      ({ children, style }, ref) => React.createElement(name, { ref, style, ...extra }, children)
     );
   return {
     Box: tag('div'),
@@ -144,7 +144,7 @@ describe('UrlPreviewHolder', () => {
     await flushPreviews();
     expect(buttons()).toEqual([]);
     expect(container.firstElementChild?.getAttribute('style')).toContain('margin-top: 8px');
-    expect(observers[0].observe.mock.calls.map(([element]) => element)).toEqual([
+    expect(observers[0]!.observe.mock.calls.map(([element]) => element)).toEqual([
       viewport(),
       viewport().firstElementChild,
     ]);
@@ -159,10 +159,10 @@ describe('UrlPreviewHolder', () => {
     // Keyboard order stays back control, cards, forward control.
     const [back, forward] = Array.from(container.querySelectorAll('button'));
     expect(
-      back.compareDocumentPosition(viewport()) & Node.DOCUMENT_POSITION_FOLLOWING
+      back!.compareDocumentPosition(viewport()) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
     expect(
-      forward.compareDocumentPosition(viewport()) & Node.DOCUMENT_POSITION_PRECEDING
+      forward!.compareDocumentPosition(viewport()) & Node.DOCUMENT_POSITION_PRECEDING
     ).toBeTruthy();
     moveTo(contentWidth(viewport()) - viewportWidth);
     expect(buttons()).toEqual(['ArrowLeft']);
@@ -177,12 +177,12 @@ describe('UrlPreviewHolder', () => {
     const sign = direction === 'rtl' ? -1 : 1;
     moveTo(sign * 200);
     const [previous, next] = Array.from(container.querySelectorAll('button'));
-    next.click();
+    next!.click();
     expect(scrollTo).toHaveBeenLastCalledWith({
       left: sign * (200 + 600 / 1.3),
       behavior: 'smooth',
     });
-    previous.click();
+    previous!.click();
     expect(scrollTo).toHaveBeenLastCalledWith({
       left: sign * (200 - 600 / 1.3),
       behavior: 'smooth',
@@ -274,7 +274,7 @@ describe('UrlPreviewHolder', () => {
     const remove = vi.spyOn(viewport(), 'removeEventListener');
     const observer = observers[0];
     act(() => root.unmount());
-    expect(observer.disconnect).toHaveBeenCalledOnce();
+    expect(observer!.disconnect).toHaveBeenCalledOnce();
     expect(remove).toHaveBeenCalledWith('scroll', expect.any(Function));
     root = createRoot(container);
   });

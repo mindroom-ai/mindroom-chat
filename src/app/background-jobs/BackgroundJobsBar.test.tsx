@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { getDefaultStore } from 'jotai';
@@ -372,10 +371,10 @@ it('keeps the error of a job still listed when a cancel of a job that ended fail
   expand();
   await click(cancelA);
   await click(cancelB);
-  await act(async () => fails[1](new Error('offline')));
+  await act(async () => fails[1]!(new Error('offline')));
   state.jobs = [job('b')];
   render();
-  await act(async () => fails[0](new Error('offline')));
+  await act(async () => fails[0]!(new Error('offline')));
   expect(container.querySelector('[role="alert"]')?.textContent).toContain('"tool":"tool_b"');
 });
 

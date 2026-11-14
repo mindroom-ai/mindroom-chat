@@ -32,7 +32,7 @@ const measureCoverage = (
   const Harness = () => {
     const controller = useTimelineScrollLedgerController({
       alive: () => true,
-      estimateSize: (index = 0) => sizes[index],
+      estimateSize: (index = 0) => sizes[index]!,
       getItemKey: (index) => index,
       getScrollElement: () => null,
       itemCount: sizes.length,
@@ -58,8 +58,8 @@ const measureCoverage = (
     instance!.setOptions({ ...instance!.options, scrollMargin: margin });
     const items = instance!.getVirtualItems();
     return {
-      before: offset - items[0].start,
-      after: items[items.length - 1].end - (offset + height),
+      before: offset - items[0]!.start,
+      after: items[items.length - 1]!.end - (offset + height),
       indexes: items.map((item) => item.index),
     };
   });
@@ -115,7 +115,7 @@ describe('thread scroll coverage with real virtual-core ranges', () => {
         renders += 1;
         const controller = useTimelineScrollLedgerController({
           alive: () => true,
-          estimateSize: (index = 0) => sizes[index],
+          estimateSize: (index = 0) => sizes[index]!,
           getItemKey: (index) => index,
           getScrollElement,
           itemCount: sizes.length,
@@ -128,7 +128,7 @@ describe('thread scroll coverage with real virtual-core ranges', () => {
           threadInitialRenderMode: 'live',
         });
         instance = controller.virtualizer;
-        renderedBefore = 6000 - instance.getVirtualItems()[0].start;
+        renderedBefore = 6000 - instance.getVirtualItems()[0]!.start;
         return null;
       };
       let renderer: ReturnType<typeof create> | undefined;
@@ -167,25 +167,25 @@ describe('thread scroll coverage with real virtual-core ranges', () => {
 
   it('keeps two screens of messages ready across dense invisible streaming edits', () => {
     const sizes = Array.from({ length: 200 }, () => [100, ...Array<number>(80).fill(0)]).flat();
-    const [coverage] = measureCoverage(sizes);
+    const coverage = measureCoverage(sizes)[0]!;
     expect(coverage.before).toBeGreaterThanOrEqual(1200);
     expect(coverage.after).toBeGreaterThanOrEqual(1200);
     expect(coverage.before).toBeLessThanOrEqual(1400);
     expect(coverage.after).toBeLessThanOrEqual(1400);
     // Preserve sequential render context and the original event indices.
     expect(
-      coverage.indexes.every((index, i) => i === 0 || index === coverage.indexes[i - 1] + 1)
+      coverage.indexes.every((index, i) => i === 0 || index === coverage.indexes[i - 1]! + 1)
     ).toBe(true);
   });
 
   it('keeps short messages buffered by distance instead of ten row indices', () => {
-    const [coverage] = measureCoverage(Array<number>(1000).fill(24));
+    const coverage = measureCoverage(Array<number>(1000).fill(24))[0]!;
     expect(coverage.before).toBeGreaterThanOrEqual(1200);
     expect(coverage.after).toBeGreaterThanOrEqual(1200);
   });
 
   it('preserves the existing room timeline range', () => {
-    const [coverage] = measureCoverage(Array<number>(1000).fill(24), null);
+    const coverage = measureCoverage(Array<number>(1000).fill(24), null)[0]!;
     expect(coverage.before).toBe(240);
     expect(coverage.after).toBeLessThanOrEqual(264);
   });
@@ -203,10 +203,10 @@ describe('thread scroll coverage with real virtual-core ranges', () => {
       { offset: 16000, height: 800, margin: -3400 },
     ];
     measureCoverage(sizes, '$thread', steps).forEach((coverage, index) => {
-      expect(coverage.before).toBeGreaterThanOrEqual(steps[index].height * 2);
-      expect(coverage.after).toBeGreaterThanOrEqual(steps[index].height * 2);
-      expect(coverage.before).toBeLessThan(steps[index].height * 2 + 360);
-      expect(coverage.after).toBeLessThan(steps[index].height * 2 + 360);
+      expect(coverage.before).toBeGreaterThanOrEqual(steps[index]!.height * 2);
+      expect(coverage.after).toBeGreaterThanOrEqual(steps[index]!.height * 2);
+      expect(coverage.before).toBeLessThan(steps[index]!.height * 2 + 360);
+      expect(coverage.after).toBeLessThan(steps[index]!.height * 2 + 360);
     });
   });
 
@@ -216,9 +216,9 @@ describe('thread scroll coverage with real virtual-core ranges', () => {
       { offset: 0, height: 600, margin: 0 },
       { offset: 3400, height: 600, margin: 0 },
     ]);
-    expect(start.indexes[0]).toBe(0);
-    expect(start.before).toBe(0);
-    expect(end.indexes.at(-1)).toBe(sizes.length - 1);
-    expect(end.after).toBe(0);
+    expect(start!.indexes[0]).toBe(0);
+    expect(start!.before).toBe(0);
+    expect(end!.indexes.at(-1)).toBe(sizes.length - 1);
+    expect(end!.after).toBe(0);
   });
 });

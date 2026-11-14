@@ -353,7 +353,7 @@ describe('RoomThreadOverview', () => {
     );
     expect(freezeButton.props['aria-pressed']).toBe(false);
     expect(freezeButton.props['aria-label']).toBe('Lock sort order (currently Last Reply)');
-    expect(freezeButton.findAllByType('icon-lock')).toHaveLength(1);
+    expect(freezeButton.findAllByType('icon-lock' as never)).toHaveLength(1);
 
     renderer.unmount();
   });
@@ -373,7 +373,7 @@ describe('RoomThreadOverview', () => {
     expect(freezeButton.props.className).toContain('PauseButtonActive');
     expect(freezeButton.props['aria-pressed']).toBe(true);
     expect(freezeButton.props['aria-label']).toBe('Unlock sort order (currently Last Reply)');
-    expect(freezeButton.findAllByType('icon-lock-open')).toHaveLength(1);
+    expect(freezeButton.findAllByType('icon-lock-open' as never)).toHaveLength(1);
 
     renderer.unmount();
   });
@@ -575,7 +575,7 @@ describe('RoomThreadOverview', () => {
     });
 
     expect(onApplyPreset).toHaveBeenCalledTimes(1);
-    expect(onApplyPreset.mock.calls[0][0].id).toBe('needs-attention');
+    expect(onApplyPreset.mock.calls[0]![0].id).toBe('needs-attention');
 
     renderer.unmount();
   });

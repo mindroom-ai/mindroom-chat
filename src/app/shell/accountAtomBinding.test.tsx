@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { createStore, Provider } from 'jotai';
 import { enableMapSet } from 'immer';

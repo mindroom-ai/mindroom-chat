@@ -571,6 +571,76 @@
       "description": "Leden van {{name}} kunnen erin, en de agents in {{name}} komen er vanzelf bij.",
       "noPermission": "Je kunt de kamers onder {{name}} niet wijzigen",
       "takeOff": "Verwijderen uit {{name}}"
+    },
+    "quickCapture": {
+      "title": "Snelle invoer",
+      "input": {
+        "placeholder": "Notitie of vraag",
+        "label": "Nieuw bericht",
+        "send": "Verstuur",
+        "sending": "Versturen"
+      },
+      "attach": {
+        "window": "Schermafbeelding van het voorste venster",
+        "screen": "Schermafbeelding van het hele scherm",
+        "remove": "{{name}} verwijderen"
+      },
+      "room": {
+        "choose": "Kies een kamer",
+        "change": "Plaatsen in {{room}}. Kamer wijzigen",
+        "search": "Kamers zoeken",
+        "none": "Geen kamers gevonden"
+      },
+      "list": {
+        "label": "Threads in {{room}}",
+        "empty": "Hier staat niets open",
+        "sent": "Verstuurd",
+        "resolved": "Opgelost"
+      },
+      "chip": {
+        "working": "Bezig",
+        "needsYou": "Heeft jou nodig",
+        "new": "Nieuw"
+      },
+      "peek": {
+        "copy": "Kopieer",
+        "copied": "Gekopieerd",
+        "open": "Open",
+        "done": "Klaar",
+        "reopen": "Heropen",
+        "reply": "Antwoord in deze thread"
+      },
+      "hint": {
+        "send": "Verstuur",
+        "sendOpen": "Verstuur en open",
+        "room": "Kamer",
+        "list": "Lijst",
+        "move": "Verplaats",
+        "peek": "Voorbeeld",
+        "done": "Klaar",
+        "reply": "Antwoord",
+        "open": "Open"
+      },
+      "absent": {
+        "title": "MindRoom is niet geopend",
+        "open": "MindRoom openen"
+      },
+      "signedOut": {
+        "title": "Log in bij MindRoom"
+      },
+      "error": {
+        "noRoom": "Deze kamer is niet meer beschikbaar",
+        "uploadFailed": "De afbeelding kon niet worden geüpload",
+        "sendFailed": "Niet verstuurd",
+        "forbidden": "Je kunt in deze kamer geen threads oplossen",
+        "timeout": "MindRoom antwoordde niet"
+      },
+      "screenshot": {
+        "denied": "MindRoom heeft toegang tot Schermopname nodig om schermafbeeldingen te maken",
+        "openSettings": "Systeeminstellingen openen",
+        "noWindow": "De voorste app heeft geen venster",
+        "failed": "De schermafbeelding is mislukt"
+      }
     }
   },
   "mindroomUi": {

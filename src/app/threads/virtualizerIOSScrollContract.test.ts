@@ -497,7 +497,7 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
 
       // A fully-above row shrinks by 100 mid-scroll; the hook drops the
       // correction (no write) and reports the delta.
-      const aboveIndex = before[0].index - 5;
+      const aboveIndex = before[0]!.index - 5;
       virtualizer.resizeItem(aboveIndex, ROW_ESTIMATE - SHRINK);
       expect(droppedDeltas).toEqual([-SHRINK]);
       expect(adjustmentWrites(scrollToFn)).toHaveLength(0);

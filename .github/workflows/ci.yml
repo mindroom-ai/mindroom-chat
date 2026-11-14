@@ -1,4 +1,4 @@
-# Every push to main and every pull request: the type check, the strict Lane C check, ESLint and
+# Every push to main and every pull request: the type check, the strict check, ESLint and
 # the unit suite in one job, and in another the production build, its bundle size budget and a smoke
 # subset of the end-to-end specs against a disposable Tuwunel homeserver.
 name: CI
@@ -44,6 +44,10 @@ jobs:
         if: steps.modules.outputs.cache-hit != 'true'
         run: npm ci
       # Each check runs even when one before it failed, so one run reports all of them.
+      # The app sources alone (config/tsconfig.app.json: src without tests), as the build ships them.
+      # The strict check below covers these files too, but with the tests and e2e/ in the same program;
+      # this step fails on app code that compiles only with a declaration a test or spec adds (a
+      # `declare global` or a module augmentation).
       - name: Type check
         run: npx tsc --noEmit -p config/tsconfig.app.json
       - name: Strict check
@@ -51,7 +55,7 @@ jobs:
         # config/tsconfig.strict.json covers the tests too; tsc needs more than Node's default heap on a runner.
         env:
           NODE_OPTIONS: --max-old-space-size=6144
-        run: node scripts/strict-check.mjs
+        run: npx tsc --noEmit -p config/tsconfig.strict.json
       - name: Lint
         if: ${{ !cancelled() }}
         run: npm run lint

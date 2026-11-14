@@ -255,7 +255,7 @@ describe('CompactRoomView', () => {
     const [firstShell, secondShell] = renderer.root.findAllByProps({ className: 'CardShell' });
 
     await act(async () => {
-      firstShell.props.onContextMenu({
+      firstShell!.props.onContextMenu({
         preventDefault: vi.fn(),
         stopPropagation: vi.fn(),
         clientX: 10,
@@ -266,7 +266,7 @@ describe('CompactRoomView', () => {
     const firstMenu = menuProps.mock.calls.at(-1)![0];
 
     act(() => {
-      secondShell.props.onContextMenu({
+      secondShell!.props.onContextMenu({
         preventDefault: vi.fn(),
         stopPropagation: vi.fn(),
         clientX: 30,
@@ -529,12 +529,12 @@ describe('CompactRoomView', () => {
     );
     const [open, done] = renderer.root.findAllByType(CompactCardSwipe);
 
-    expect(open.props).toMatchObject({ enabled: true, resolved: false, label: 'Resolve' });
-    expect(done.props).toMatchObject({ enabled: true, resolved: true, label: 'Reopen thread' });
-    act(() => open.props.onSwipe(false));
-    act(() => done.props.onSwipe(true));
+    expect(open!.props).toMatchObject({ enabled: true, resolved: false, label: 'Resolve' });
+    expect(done!.props).toMatchObject({ enabled: true, resolved: true, label: 'Reopen thread' });
+    act(() => open!.props.onSwipe(false));
+    act(() => done!.props.onSwipe(true));
     // The swipe acts on the state it started from, even if the thread changed since.
-    act(() => done.props.onSwipe(false));
+    act(() => done!.props.onSwipe(false));
 
     expect(setResolvedMock.mock.calls).toEqual([
       ['$open', true],

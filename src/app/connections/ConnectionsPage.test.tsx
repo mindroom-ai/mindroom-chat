@@ -44,9 +44,9 @@ describe('ConnectionsPage', () => {
     mocks.urls = ['https://backend.example.org'];
     await render();
     expect(mocks.handOff).toHaveBeenCalledOnce();
-    expect(mocks.handOff.mock.calls[0][0]).toBe('https://backend.example.org');
-    expect(mocks.handOff.mock.calls[0][1].aborted).toBe(false);
-    expect(mocks.handOff.mock.calls[0][2]).toBe('/base/');
+    expect(mocks.handOff.mock.calls[0]![0]).toBe('https://backend.example.org');
+    expect(mocks.handOff.mock.calls[0]![1].aborted).toBe(false);
+    expect(mocks.handOff.mock.calls[0]![2]).toBe('/base/');
   });
 
   it('cancels the hand-off when the page goes away before the token arrives', async () => {
@@ -55,7 +55,7 @@ describe('ConnectionsPage', () => {
     await act(async () => {
       page.unmount();
     });
-    expect(mocks.handOff.mock.calls[0][1].aborted).toBe(true);
+    expect(mocks.handOff.mock.calls[0]![1].aborted).toBe(true);
   });
 
   it.each([

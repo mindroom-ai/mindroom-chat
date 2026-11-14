@@ -76,7 +76,7 @@ describe('requestAudienceOpenIdToken', () => {
       });
       await expect(request).rejects.toThrow(errorType);
       await expect(request).rejects.toSatisfy(
-        (error: Error) => error instanceof ConnectionError === (errorType === ConnectionError)
+        (error: unknown) => error instanceof ConnectionError === (errorType === ConnectionError)
       );
       expect(authedRequest).not.toHaveBeenCalled();
       vi.unstubAllGlobals();
@@ -104,7 +104,7 @@ describe('requestAudienceOpenIdToken', () => {
       });
       await expect(request).rejects.toThrow(errorType);
       await expect(request).rejects.toSatisfy(
-        (error: Error) => error instanceof ConnectionError === (errorType === ConnectionError)
+        (error: unknown) => error instanceof ConnectionError === (errorType === ConnectionError)
       );
       expect(authedRequest).toHaveBeenCalledTimes(1);
       vi.unstubAllGlobals();

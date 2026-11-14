@@ -10,7 +10,7 @@ import {
   createBackfillScheduler,
   SyncEngineProvider,
 } from '../../event-store/engine';
-import type { SyncEngine } from '../../event-store/engine';
+import type { SyncEngine, SyncEngineProviderProps } from '../../event-store/engine';
 import { resetCacheStoreForTesting, saveThreadEventsToCache } from '../../event-store/cache/db';
 import {
   clearThreadOpenSeedSnapshotsForTests,
@@ -72,7 +72,7 @@ const renderPrewarm = async (mx: MatrixClient, room: Room, engine: SyncEngine) =
     harnessRenderer = create(
       React.createElement(
         SyncEngineProvider,
-        { engine },
+        { engine } as SyncEngineProviderProps,
         React.createElement(Harness, { mx, room })
       )
     );
@@ -239,7 +239,11 @@ it('does not publish a held seed read after room clear', async () => {
   let renderer!: ReactTestRenderer;
   await act(async () => {
     renderer = create(
-      React.createElement(SyncEngineProvider, { engine }, React.createElement(HeldHarness))
+      React.createElement(
+        SyncEngineProvider,
+        { engine } as SyncEngineProviderProps,
+        React.createElement(HeldHarness)
+      )
     );
   });
   await vi.waitFor(() => expect(load).toHaveBeenCalledOnce());

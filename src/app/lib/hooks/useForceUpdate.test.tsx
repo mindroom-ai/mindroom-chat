@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it } from 'vitest';
 import { useForceUpdate } from './useForceUpdate';
@@ -20,8 +19,8 @@ describe('useForceUpdate', () => {
     act(() => {
       renderer = create(<Probe />);
     });
-    act(() => seen[0][1]());
-    act(() => seen[1][1]());
+    act(() => seen[0]![1]());
+    act(() => seen[1]![1]());
 
     expect(seen.map(([version]) => version)).toEqual([0, 1, 2]);
     // Callers list the function in effect and memo dependencies, so a new one each render

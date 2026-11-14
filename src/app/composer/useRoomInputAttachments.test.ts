@@ -13,6 +13,7 @@ import {
 } from './roomInputDrafts';
 import { TUploadItem, UploadStatus } from '../matrix/state/upload';
 import { toMatrixUploadError } from '../matrix/matrix';
+import type { PasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
 import { UploadBoardHeader } from './upload/UploadBoard';
 import { UploadCardRenderer } from './upload/UploadCardRenderer';
 import { createRoomInputPasteMarkerElement } from './RoomInputExtensions';
@@ -56,7 +57,11 @@ const createUploadItem = (name: string): TUploadItem => {
   const file = new File(['content'], name, { type: 'text/plain' });
   return { file, originalFile: file, encInfo: undefined, metadata: { markedAsSpoiler: false } };
 };
-const pasteMarker = { id: 'paste-a3f19c', chars: 11, fileName: 'mindroom-paste-a3f19c.txt' };
+const pasteMarker = {
+  id: 'paste-a3f19c',
+  chars: 11,
+  fileName: 'mindroom-paste-a3f19c.txt',
+} as PasteMarker;
 const createPasteItem = (): TUploadItem => ({
   ...createUploadItem(pasteMarker.fileName),
   metadata: { markedAsSpoiler: false, mindroomPasteAttachment: pasteMarker },
@@ -221,7 +226,7 @@ describe('attachment staging ownership', () => {
         prepared.map((item) => item.file)
       );
       expect(JSON.stringify(harness.editor.children)).toContain(
-        fails ? 'large paste' : prepared[0].metadata.mindroomPasteAttachment!.fileName
+        fails ? 'large paste' : prepared[0]!.metadata.mindroomPasteAttachment!.fileName
       );
     }
   );
@@ -302,7 +307,7 @@ describe('attachment staging ownership', () => {
     const card = harness.renderer.root.findByType(UploadCardRenderer);
     act(() => {
       card.props.setMetadata(item, { markedAsSpoiler: true });
-      expect(access.snapshot().staged[0].metadata).toEqual({ markedAsSpoiler: true });
+      expect(access.snapshot().staged[0]!.metadata).toEqual({ markedAsSpoiler: true });
       access.remove(ROOM_ID, [item.file]);
       expect(access.snapshot().staged).toEqual([]);
     });

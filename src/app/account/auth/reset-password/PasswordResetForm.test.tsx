@@ -67,9 +67,6 @@ vi.mock('../../../lib/hooks/useAsyncCallback', async () => {
     ],
   };
 });
-vi.mock('../../../ui/PasswordInput', () => ({
-  PasswordInput: React.forwardRef((props, ref) => <input ref={ref} {...props} />),
-}));
 vi.mock('../FiledError', () => ({
   FieldError: ({ message }: { message: string }) => <div data-field-error={message} />,
 }));

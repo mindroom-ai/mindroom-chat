@@ -47,12 +47,12 @@ const SESSION_SCOPED_LEGACY_NAMES = [
   getLegacyRoomEventCacheDbName(SESSION_ID),
   getLegacyThreadEventCacheDbName(SESSION_ID),
   getLegacyThreadSummaryCacheDbName(SESSION_ID),
-];
+] as const;
 const SINGLETON_LEGACY_NAMES = [
   LEGACY_MINDROOM_ROOM_EVENT_CACHE_DB_NAME,
   LEGACY_MINDROOM_THREAD_EVENT_CACHE_DB_NAME,
   LEGACY_MINDROOM_THREAD_SUMMARY_CACHE_DB_NAME,
-];
+] as const;
 
 const openLegacyRoomDb = (dbName: string): Promise<void> =>
   new Promise<void>((resolve, reject) => {

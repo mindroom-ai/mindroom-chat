@@ -203,7 +203,7 @@ const readPersistedFailure = (storage: Storage | undefined): DeepTraceFailure | 
     }
     const sanitizedName = sanitizeFailureName({ name: errorName });
     return {
-      at: at as number,
+      at,
       stage,
       errorName: sanitizedName,
     };

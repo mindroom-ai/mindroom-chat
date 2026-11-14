@@ -41,7 +41,7 @@ describe('RoomTimeline layout', () => {
       await flushAsyncWork(1);
     });
 
-    expect(findTimelineContentBox(renderer!).props.justifyContent).toBe('Start');
+    expect(findTimelineContentBox(renderer!)!.props.justifyContent).toBe('Start');
   });
 
   it('keeps normal room timelines bottom-aligned', async () => {
@@ -60,6 +60,6 @@ describe('RoomTimeline layout', () => {
       await flushAsyncWork(1);
     });
 
-    expect(findTimelineContentBox(renderer!).props.justifyContent).toBe('End');
+    expect(findTimelineContentBox(renderer!)!.props.justifyContent).toBe('End');
   });
 });

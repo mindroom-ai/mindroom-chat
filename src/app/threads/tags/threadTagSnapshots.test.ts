@@ -122,15 +122,15 @@ describe('getRoomThreadTagSnapshotMap', () => {
     const { room, setEvents } = makeRoom(tagEvents);
     const first = getRoomThreadTagSnapshotMap(room);
 
-    setEvents([blocked(ISO_1), tagEvents[1]]);
+    setEvents([blocked(ISO_1), tagEvents[1]!]);
     const replaced = getRoomThreadTagSnapshotMap(room);
     expect(replaced).not.toBe(first);
     expect(replaced.get('$root')?.content.tags.blocked?.set_at).toBe(ISO_1);
 
-    setEvents([tagEvents[0]]);
+    setEvents([tagEvents[0]!]);
     expect(getRoomThreadTagSnapshotMap(room).has('$other')).toBe(false);
 
-    setEvents([tagEvents[1], tagEvents[0]]);
+    setEvents([tagEvents[1]!, tagEvents[0]!]);
     const reordered = getRoomThreadTagSnapshotMap(room);
     expect(reordered).toEqual(first);
     expect(reordered).not.toBe(first);
@@ -142,7 +142,7 @@ describe('getRoomThreadTagSnapshotMap', () => {
     const first = getRoomThreadTagSnapshotMap(room);
 
     // The SDK keeps the event and its content object, stripping the keys.
-    tagEvents[0].makeRedacted(makeRedaction(tagEvents[0]), room);
+    tagEvents[0]!.makeRedacted(makeRedaction(tagEvents[0]!), room);
     const redacted = getRoomThreadTagSnapshotMap(room);
 
     expect(redacted).not.toBe(first);
@@ -155,14 +155,14 @@ describe('getRoomThreadTagSnapshotMap', () => {
     const { room } = makeRoom(tagEvents);
     const first = getRoomThreadTagSnapshotMap(room);
 
-    tagEvents[0].markLocallyRedacted(makeRedaction(tagEvents[0]));
+    tagEvents[0]!.markLocallyRedacted(makeRedaction(tagEvents[0]!));
     const redacted = getRoomThreadTagSnapshotMap(room);
     // A pending local redaction reads a fresh `{}` each time, yet still reuses the map.
     expect(redacted).not.toBe(first);
     expect(redacted.has('$root')).toBe(false);
     expect(getRoomThreadTagSnapshotMap(room)).toBe(redacted);
 
-    tagEvents[0].unmarkLocallyRedacted();
+    tagEvents[0]!.unmarkLocallyRedacted();
     const restored = getRoomThreadTagSnapshotMap(room);
     expect(restored).not.toBe(redacted);
     expect(restored.get('$root')?.displayTags).toEqual(['blocked']);

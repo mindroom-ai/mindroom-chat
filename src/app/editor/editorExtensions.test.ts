@@ -25,7 +25,7 @@ const getText = (node: ChildNode): string => {
 
 const parseSingleTag = (html: string) => {
   const [node] = parse(html);
-  if (!isTag(node)) throw new Error('Expected one tag node.');
+  if (!isTag(node!)) throw new Error('Expected one tag node.');
   return node;
 };
 

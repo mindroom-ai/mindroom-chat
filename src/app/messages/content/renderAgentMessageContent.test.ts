@@ -10,7 +10,9 @@ const toolApprovalCardMock = vi.hoisted(() => vi.fn());
 const longTextTextMock = vi.hoisted(() => vi.fn());
 const resolvedLongText = vi.hoisted(() => new Map<string, Record<string, unknown>>());
 const pasteAttachmentContentMock = vi.hoisted(() => vi.fn());
-const toolTraceParserOptionsMock = vi.hoisted(() => vi.fn((options: unknown) => options));
+const toolTraceParserOptionsMock = vi.hoisted(() =>
+  vi.fn((options: unknown, _content?: unknown) => options)
+);
 
 vi.mock('./MsgTypeRenderers', () => ({
   MEmote: ({ content, displayName, renderAfterBody, renderBody }: any) =>

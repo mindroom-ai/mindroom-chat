@@ -143,11 +143,11 @@ const openThread = async (mx: MatrixClient, room: Room) => {
   return {
     replies: events.filter((event) => event.isRelation('m.thread')).length,
     root: events.some((event) => event.getId() === rootId),
-    backward: getLinkedTimelines(thread.liveTimeline)[0].getPaginationToken(Direction.Backward),
+    backward: getLinkedTimelines(thread.liveTimeline)[0]!.getPaginationToken(Direction.Backward),
   };
 };
 
-let support: FeatureSupport[];
+let support: [FeatureSupport, FeatureSupport];
 beforeEach(() => {
   support = [Thread.hasServerSideSupport, Thread.hasServerSideFwdPaginationSupport];
   Thread.hasServerSideSupport = FeatureSupport.Stable;
@@ -238,7 +238,7 @@ it.each(['streamed', 'quiet'] as const)(
     const timelineSet = thread.getUnfilteredTimelineSet();
     // The thread view pages the first segment linked to the live one while it has a cursor.
     const paginateHistory = async () => {
-      const [first] = getLinkedTimelines(timelineSet.getLiveTimeline());
+      const first = getLinkedTimelines(timelineSet.getLiveTimeline())[0]!;
       if (!first.getPaginationToken(Direction.Backward)) return;
       await server.client.paginateEventTimeline(first, { backwards: true, limit: 30 });
     };
@@ -257,7 +257,11 @@ it.each(['streamed', 'quiet'] as const)(
       roomId,
       room: server.room,
       threadId: rootId,
-      cachedPage: { events: [], hasMoreBefore: true, tailLoaded: true } as HydratedThreadCachePage,
+      cachedPage: {
+        events: [],
+        hasMoreBefore: true,
+        tailLoaded: true,
+      } as unknown as HydratedThreadCachePage,
       persistRepair: () => ({ rawEvents: [], loadedReplyCount: 0, write: Promise.resolve(true) }),
       onRepaired: vi.fn(),
     });

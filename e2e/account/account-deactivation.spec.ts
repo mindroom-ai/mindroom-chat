@@ -41,15 +41,15 @@ test('deactivating the active account removes only that account and leaves the o
   await chooseFromAccountMenu(page, 'Add Account');
   await loginWithPassword(page, {
     homeserver,
-    username: deactivationCredentials.username,
-    password: deactivationCredentials.password,
+    username: deactivationCredentials!.username,
+    password: deactivationCredentials!.password,
     addAccount: true,
   });
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
-  await expectActiveStoredUsername(page, deactivationCredentials.username);
+  await expectActiveStoredUsername(page, deactivationCredentials!.username);
   await expectAccountRailCount(page, 3);
 
-  await deactivateActiveAccount(page, deactivationCredentials.password);
+  await deactivateActiveAccount(page, deactivationCredentials!.password);
 
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
   await expectActiveStoredUsername(page, primaryCredentials.username);
@@ -64,8 +64,8 @@ test('deactivating the active account removes only that account and leaves the o
 
   await chooseFromAccountMenu(page, 'Add Account');
   await expect(page.locator('input[name="serverInput"]')).toHaveValue(homeserver);
-  await page.locator('input[name="usernameInput"]').fill(deactivationCredentials.username);
-  await page.locator('input[name="passwordInput"]').fill(deactivationCredentials.password);
+  await page.locator('input[name="usernameInput"]').fill(deactivationCredentials!.username);
+  await page.locator('input[name="passwordInput"]').fill(deactivationCredentials!.password);
   await page.getByRole('button', { name: 'Login' }).click();
 
   await expect(page.getByText('This account has been deactivated.')).toBeVisible();

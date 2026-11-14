@@ -571,6 +571,76 @@
       "description": "{{name}}-এর সদস্যরা এতে যোগ দিতে পারেন, আর {{name}}-এর এজেন্টরা নিজে থেকেই যোগ দেয়।",
       "noPermission": "আপনি {{name}}-এর অধীনে তালিকাভুক্ত রুম বদলাতে পারবেন না",
       "takeOff": "{{name}} থেকে সরান"
+    },
+    "quickCapture": {
+      "title": "কুইক ক্যাপচার",
+      "input": {
+        "placeholder": "নোট বা প্রশ্ন",
+        "label": "নতুন এন্ট্রি",
+        "send": "পাঠান",
+        "sending": "পাঠানো হচ্ছে"
+      },
+      "attach": {
+        "window": "সামনের উইন্ডোর স্ক্রিনশট",
+        "screen": "পুরো স্ক্রিনের স্ক্রিনশট",
+        "remove": "{{name}} সরান"
+      },
+      "room": {
+        "choose": "একটি রুম বেছে নিন",
+        "change": "{{room}}-এ পোস্ট হচ্ছে। রুম বদলান",
+        "search": "রুম খুঁজুন",
+        "none": "কোনো রুম মেলেনি"
+      },
+      "list": {
+        "label": "{{room}}-এর থ্রেড",
+        "empty": "এখানে কিছু খোলা নেই",
+        "sent": "পাঠানো হয়েছে",
+        "resolved": "সমাধান করা হয়েছে"
+      },
+      "chip": {
+        "working": "চলছে",
+        "needsYou": "আপনাকে দরকার",
+        "new": "নতুন"
+      },
+      "peek": {
+        "copy": "কপি করুন",
+        "copied": "কপি হয়েছে",
+        "open": "খুলুন",
+        "done": "শেষ",
+        "reopen": "আবার খুলুন",
+        "reply": "এই থ্রেডে উত্তর দিন"
+      },
+      "hint": {
+        "send": "পাঠান",
+        "sendOpen": "পাঠিয়ে খুলুন",
+        "room": "রুম",
+        "list": "তালিকা",
+        "move": "সরান",
+        "peek": "ঝলক",
+        "done": "শেষ",
+        "reply": "উত্তর",
+        "open": "খুলুন"
+      },
+      "absent": {
+        "title": "MindRoom খোলা নেই",
+        "open": "MindRoom খুলুন"
+      },
+      "signedOut": {
+        "title": "MindRoom-এ সাইন ইন করুন"
+      },
+      "error": {
+        "noRoom": "এই রুম আর পাওয়া যাচ্ছে না",
+        "uploadFailed": "ছবি আপলোড করা যায়নি",
+        "sendFailed": "পাঠানো হয়নি",
+        "forbidden": "আপনি এই রুমে থ্রেড সমাধান করতে পারবেন না",
+        "timeout": "MindRoom উত্তর দেয়নি"
+      },
+      "screenshot": {
+        "denied": "স্ক্রিনশট নিতে MindRoom-এর Screen Recording অনুমতি লাগবে",
+        "openSettings": "System Settings খুলুন",
+        "noWindow": "সামনের অ্যাপের কোনো উইন্ডো নেই",
+        "failed": "স্ক্রিনশট ব্যর্থ হয়েছে"
+      }
     }
   },
   "mindroomUi": {

@@ -468,7 +468,7 @@ describe('initClient', () => {
     expect(initRustCrypto).toHaveBeenCalledTimes(1);
     expect(startup).toHaveBeenCalledTimes(1);
     expect(setMaxListeners).toHaveBeenCalledWith(50);
-    expect(getSessionStore(storage).sessions[0].cryptoStoreInitialized).toBe(true);
+    expect(getSessionStore(storage).sessions[0]!.cryptoStoreInitialized).toBe(true);
   });
 
   it('rejects a missing local store before Rust initialization when server keys already exist', async () => {
@@ -915,7 +915,7 @@ describe('startClient', () => {
       versions: ['v1.4'],
       unstable_features: {},
     });
-    const fetchFn = vi.fn(
+    const fetchFn = vi.fn<typeof fetch>(
       () =>
         new Promise<Response>(() => {
           // Keep unrelated startup requests pending until the client stops.
@@ -952,7 +952,7 @@ describe('startClient', () => {
     await startClient(mx);
 
     expect(matrixStartClient).toHaveBeenCalledTimes(1);
-    const startOptions = matrixStartClient.mock.calls[0][0];
+    const startOptions = matrixStartClient.mock.calls[0]![0];
 
     expect(startOptions).toMatchObject({
       lazyLoadMembers: true,
@@ -1739,7 +1739,7 @@ describe('logoutClient', () => {
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
-  it("deletes the account's saved canvas state when the client has no device ID", async () => {
+  it("deletes the account's saved canvas state, event cache and native state when the client has no device ID", async () => {
     const { storage: localStorageMock } = createStorageMock();
     const deleteDatabase = createDeleteDatabaseMock();
     const reload = vi.fn();
@@ -1770,9 +1770,10 @@ describe('logoutClient', () => {
       stopClient: vi.fn(),
     } as never);
 
-    expect(deleteDatabase).toHaveBeenCalledWith(
-      getCanvasStateDbName(createSessionId('https://example.com', '@alice:example.com'))
-    );
+    const sessionId = createSessionId('https://example.com', '@alice:example.com');
+    expect(deleteDatabase).toHaveBeenCalledWith(getCanvasStateDbName(sessionId));
+    expect(vi.mocked(deleteCacheStoreDb)).toHaveBeenCalledWith(sessionId);
+    expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(sessionId);
     expect(reload).toHaveBeenCalledTimes(1);
   });
 

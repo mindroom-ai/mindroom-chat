@@ -1,4 +1,3 @@
-import React from 'react';
 import { enableMapSet } from 'immer';
 import { act, create } from 'react-test-renderer';
 import { MemoryRouter, useNavigate } from 'react-router-dom';

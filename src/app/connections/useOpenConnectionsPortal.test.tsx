@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from 'react';
 import { act, create } from 'react-test-renderer';
 import type { IOpenIDToken } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';

@@ -122,7 +122,7 @@ const matrixClientMock = {
 };
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => matrixClientMock }));
 
-const pendingApproval: ToolApprovalData = {
+const pendingApproval = {
   approvalId: 'approval-1',
   toolName: 'web_search',
   toolCallId: 'approval-1',
@@ -148,7 +148,7 @@ const pendingApproval: ToolApprovalData = {
   argumentsTruncated: false,
   fullArguments: null,
   argumentSource: null,
-};
+} as unknown as ToolApprovalData;
 
 const timedPendingApproval: ToolApprovalData = {
   ...pendingApproval,
@@ -183,7 +183,7 @@ const renderCard = (
 
 const getNodeText = (value: ReactTestInstance | string): string => {
   if (typeof value === 'string') return value;
-  return value.children.map((child) => getNodeText(child as ReactTestInstance | string)).join('');
+  return value.children.map(getNodeText).join('');
 };
 
 // Matches a button by its visible text or its accessible name, as a screen reader would.
@@ -830,7 +830,7 @@ describe('ToolApprovalCard', () => {
     });
 
     expect(sendEventMock).toHaveBeenCalledTimes(2);
-    expect(sendEventMock.mock.calls[1][2]).toMatchObject({
+    expect(sendEventMock.mock.calls[1]![2]).toMatchObject({
       action: 'revoke_auto_approval',
       grant_id: 'grant-1',
     });
@@ -875,7 +875,7 @@ describe('ToolApprovalCard', () => {
     });
 
     expect(sendEventMock).toHaveBeenCalledTimes(2);
-    expect(sendEventMock.mock.calls[1][2]).toMatchObject({ action: 'revoke_auto_approval' });
+    expect(sendEventMock.mock.calls[1]![2]).toMatchObject({ action: 'revoke_auto_approval' });
 
     deferred.resolve();
     renderer.unmount();
@@ -1312,7 +1312,7 @@ describe('ToolApprovalCard', () => {
       denyTrigger?: { focus: ReturnType<typeof vi.fn> };
     } = {};
 
-    const createNodeMock = (element: { props: { [key: string]: unknown }; type: string }) => {
+    const createNodeMock = (element: React.ReactElement) => {
       if (element.type === 'button') {
         const label = getReactNodeText(element.props.children as React.ReactNode);
         const node = { focus: vi.fn() };

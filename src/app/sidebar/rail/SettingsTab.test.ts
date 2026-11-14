@@ -226,7 +226,7 @@ const inactiveSession = {
 };
 
 const findButtonByAriaLabel = (renderer: ReturnType<typeof create>, label: string) =>
-  renderer.root.findAll((node) => node.type === 'button' && node.props['aria-label'] === label)[0]!;
+  renderer.root.findAll((node) => node.type === 'button' && node.props['aria-label'] === label)[0];
 
 // The rail's account button opens the account menu, which holds Settings and the accounts.
 const openAccountMenu = (renderer: ReturnType<typeof create>, name = 'Alice') => {
@@ -267,7 +267,7 @@ describe('SettingsTab', () => {
     openAccountMenu(renderer);
 
     await act(async () => {
-      findButtonByAriaLabel(renderer, 'Settings').props.onClick();
+      findButtonByAriaLabel(renderer, 'Settings')!.props.onClick();
     });
 
     expect(store.get(settingsModalAtom)).toEqual({});
@@ -293,7 +293,7 @@ describe('SettingsTab', () => {
     openAccountMenu(renderer);
 
     await act(async () => {
-      findButtonByAriaLabel(renderer, 'Manage accounts').props.onClick();
+      findButtonByAriaLabel(renderer, 'Manage accounts')!.props.onClick();
     });
 
     expect(
@@ -307,7 +307,7 @@ describe('SettingsTab', () => {
     openAccountMenu(renderer);
 
     await act(async () => {
-      findButtonByAriaLabel(renderer, 'Switch to account Bob (@bob:matrix.org)').props.onClick();
+      findButtonByAriaLabel(renderer, 'Switch to account Bob (@bob:matrix.org)')!.props.onClick();
     });
 
     expect(vi.mocked(setActiveSession)).toHaveBeenCalledWith('session-b');
@@ -320,7 +320,7 @@ describe('SettingsTab', () => {
     openAccountMenu(renderer);
 
     await act(async () => {
-      findButtonByAriaLabel(renderer, 'Switch to account Bob (@bob:matrix.org)').props.onClick();
+      findButtonByAriaLabel(renderer, 'Switch to account Bob (@bob:matrix.org)')!.props.onClick();
     });
 
     expect(navigate).not.toHaveBeenCalled();
@@ -340,7 +340,7 @@ describe('SettingsTab', () => {
     openAccountMenu(renderer);
 
     await act(async () => {
-      findButtonByAriaLabel(renderer, 'Switch to account Bob (@bob:matrix.org)').props.onClick();
+      findButtonByAriaLabel(renderer, 'Switch to account Bob (@bob:matrix.org)')!.props.onClick();
     });
 
     expect(navigate).not.toHaveBeenCalled();
@@ -353,7 +353,7 @@ describe('SettingsTab', () => {
     const { renderer } = renderSettingsTab();
     openAccountMenu(renderer);
     await act(async () => {
-      findButtonByAriaLabel(renderer, 'Manage accounts').props.onClick();
+      findButtonByAriaLabel(renderer, 'Manage accounts')!.props.onClick();
     });
     const dialogs = () =>
       renderer.root.findAll(
@@ -383,7 +383,7 @@ describe('SettingsTab', () => {
     openAccountMenu(renderer);
 
     await act(async () => {
-      findButtonByAriaLabel(renderer, 'Switch to account Bob (@bob:matrix.org)').props.onClick();
+      findButtonByAriaLabel(renderer, 'Switch to account Bob (@bob:matrix.org)')!.props.onClick();
     });
 
     expect(vi.mocked(setActiveSession)).toHaveBeenCalledWith('session-b');
@@ -407,7 +407,7 @@ describe('SettingsTab', () => {
     openAccountMenu(renderer);
 
     await act(async () => {
-      findButtonByAriaLabel(renderer, 'Add account').props.onClick();
+      findButtonByAriaLabel(renderer, 'Add account')!.props.onClick();
     });
 
     expect(navigate).toHaveBeenCalledWith(

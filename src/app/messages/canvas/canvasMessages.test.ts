@@ -218,7 +218,7 @@ describe('readCanvasResponse', () => {
     });
     expect(content.body).toContain('{"apple":{"a":1,"b":2},"zebra":1}');
     const stored = JSON.parse(JSON.stringify(content)) as Record<string, Record<string, unknown>>;
-    stored[CANVAS_RESPONSE_KEY].data = { apple: { a: 1, b: 2 }, zebra: 1 };
+    stored[CANVAS_RESPONSE_KEY]!.data = { apple: { a: 1, b: 2 }, zebra: 1 };
     expect(readCanvasResponse(stored)?.json).toBe('{"apple":{"a":1,"b":2},"zebra":1}');
   });
 

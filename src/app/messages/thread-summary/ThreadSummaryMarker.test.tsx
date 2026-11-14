@@ -28,9 +28,7 @@ vi.mock('./ThreadSummaryMarker.css', () => ({
 }));
 
 const text = (value: ReactTestInstance | string): string =>
-  typeof value === 'string'
-    ? value
-    : value.children.map((child) => text(child as ReactTestInstance | string)).join('');
+  typeof value === 'string' ? value : value.children.map(text).join('');
 
 const summaryInfo = { summaryText: 'Fixing token refresh', messageCount: 21 };
 const triggerRect = { x: 10, y: 20, width: 100, height: 16 };
@@ -102,7 +100,7 @@ describe('ThreadSummaryMarker', () => {
 
     act(() => trigger(renderer).props.onClick());
 
-    const details = text(popout(renderer)[0]);
+    const details = text(popout(renderer)[0]!);
     expect(details).toContain('AI summary of last 21 messages');
     expect(details).toContain('Fixing token refresh');
     expect(details).toContain('Was: Push bug');
@@ -119,7 +117,7 @@ describe('ThreadSummaryMarker', () => {
 
     // folds' PopOut layer covers the screen; a tooltip must not take input.
     const [layer] = popout(renderer);
-    expect(layer.props.style).toEqual({ pointerEvents: 'none' });
+    expect(layer!.props.style).toEqual({ pointerEvents: 'none' });
     // The tooltip inside has the role, not the layer in the body, which index.css hides on
     // touch screens.
     expect(layer?.props.role).toBeUndefined();
@@ -172,14 +170,14 @@ describe('ThreadSummaryMarker', () => {
     const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
 
     act(() => trigger(renderer).props.onClick());
-    expect(popout(renderer)[0].props['data-top']).toBe(20);
+    expect(popout(renderer)[0]!.props['data-top']).toBe(20);
     triggerRect.y = 140;
     act(() => {
       window.dispatchEvent(new Event('scroll'));
     });
 
     expect(popout(renderer)).toHaveLength(1);
-    expect(popout(renderer)[0].props['data-top']).toBe(140);
+    expect(popout(renderer)[0]!.props['data-top']).toBe(140);
     triggerRect.y = 20;
   });
 

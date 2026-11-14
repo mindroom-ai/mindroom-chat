@@ -54,7 +54,7 @@ const makeEvent = (
     isRedaction: () => false,
     replacingEvent: () => undefined,
     getThread: () => undefined,
-  } as MatrixEvent);
+  } as unknown as MatrixEvent);
 
 const makeRoom = (events: MatrixEvent[] = []): Room =>
   ({
@@ -78,7 +78,7 @@ const mapRawCachedEvent = (rawEvent: IEvent): MatrixEvent => {
     sender: raw.sender,
     threadRootId: raw.threadRootId,
     ts: raw.origin_server_ts,
-  }) as MatrixEvent;
+  });
 };
 
 const makeRecord = (overrides: Partial<ThreadRecord> = {}): ThreadRecord => ({
@@ -264,7 +264,7 @@ describe('resolveCachedOverviewUpdate', () => {
             content: { body: 'older cached reply', msgtype: 'm.text' },
             threadRootId,
             relation: { rel_type: 'm.thread', event_id: threadRootId },
-          },
+          } as RawCachedEvent,
         ],
         hasMoreBefore: false,
       },
@@ -368,7 +368,7 @@ describe('resolveCachedOverviewUpdate', () => {
           lastActivityTs: 10,
           replyCount: 0,
         },
-      }),
+      } as Partial<ThreadRecord>),
       beforeToken: null,
       expectedReplyCount: 1,
       relationSnapshotComplete: true,

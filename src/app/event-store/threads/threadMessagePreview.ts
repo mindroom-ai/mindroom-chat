@@ -147,7 +147,25 @@ type ThreadPreview = {
 
 const NO_PREVIEW: ThreadPreview = { text: undefined, localization: undefined };
 
-const computeBodyPreview = (body: string): ThreadPreview => {
+/** The text on one line, its runs of white space as one space. */
+const toOneLine = (text: string): string => text.replace(/\s+/g, ' ').trim();
+
+/**
+ * The text's lines, each on one line, with one blank line at most between them: the lines the
+ * markers and fences leave blank go with the others.
+ */
+const toTidyLines = (text: string): string =>
+  text
+    .split('\n')
+    .map(toOneLine)
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+const computeBodyPreview = (
+  body: string,
+  tidy: (text: string) => string = toOneLine
+): ThreadPreview => {
   const withoutReply = trimReplyFromBody(body);
   const { body: withoutToolMarkers, toolCallCount } = extractPreviewTools(withoutReply);
   const boundedSource =
@@ -155,7 +173,7 @@ const computeBodyPreview = (body: string): ThreadPreview => {
       ? // Drop a split-off lone high surrogate at the cut point.
         withoutToolMarkers.slice(0, PREVIEW_SOURCE_MAX_LENGTH).replace(/[\uD800-\uDBFF]$/, '')
       : withoutToolMarkers;
-  const prose = stripPreviewMath(boundedSource, stripPreviewMarkdown).replace(/\s+/g, ' ').trim();
+  const prose = tidy(stripPreviewMath(boundedSource, stripPreviewMarkdown));
 
   if (toolCallCount > 0) {
     const cleanedProse = prose.replace(ORPHAN_SEPARATOR_EDGE_REGEX, '');
@@ -234,9 +252,7 @@ const resolveThreadPreview = (
 ): ThreadPreview => {
   if (!content || !isRecord(content)) return NO_PREVIEW;
 
-  const newContent = isRecord(content['m.new_content'])
-    ? (content['m.new_content'] as Record<string, unknown>)
-    : undefined;
+  const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
   const previewContent = newContent ? { ...content, ...newContent } : content;
 
   // The SDK leaves its error text as the body of an event it cannot decrypt.
@@ -258,6 +274,14 @@ const resolveThreadPreview = (
 
   return getMediaFallbackPreview(previewContent) ?? NO_PREVIEW;
 };
+
+/**
+ * A message body cleaned as its preview is (the reply quote, Markdown and math syntax dropped, the
+ * tool calls counted into a badge), with its lines kept: for a view that shows a whole reply.
+ * `localizeThreadPreview` gives the text to show.
+ */
+export const getThreadMessageBodyPreview = (body: string): ThreadPreview =>
+  computeBodyPreview(body, toTidyLines);
 
 export const getThreadMessagePreviewText = (
   content: Record<string, unknown> | null | undefined

@@ -1,4 +1,3 @@
-import React from 'react';
 import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -61,9 +60,9 @@ it('offers a recent custom emoji as its image and reacts with its mxc URL', () =
 
   expect(imagePacks.useRelevantImagePacks).toHaveBeenCalledWith(ImageUsage.Emoticon, rooms);
   const [custom, unicode] = renderer!.root.findAllByType('button');
-  expect(custom.props['aria-label']).toBe('party-parrot');
+  expect(custom!.props['aria-label']).toBe('party-parrot');
   expect(renderer!.root.findAllByProps({ label: 'party-parrot' })).not.toHaveLength(0);
-  const image = custom.findByType('img');
+  const image = custom!.findByType('img');
   expect(image.props.alt).toBe('party-parrot');
   expect(image.props.src).toBe(
     'https://example.org/_matrix/client/v1/media/download/example.org/parrot'
@@ -78,9 +77,9 @@ it('offers a recent custom emoji as its image and reacts with its mxc URL', () =
     undefined,
     true
   );
-  expect(unicode.findAllByProps({ children: '😀' })).not.toHaveLength(0);
+  expect(unicode!.findAllByProps({ children: '😀' })).not.toHaveLength(0);
 
-  act(() => custom.props.onClick());
+  act(() => custom!.props.onClick());
 
   expect(onReaction).toHaveBeenCalledWith('mxc://example.org/parrot', 'party-parrot');
 });

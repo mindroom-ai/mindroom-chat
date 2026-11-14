@@ -580,6 +580,76 @@
       "description": "Les membres de {{name}} peuvent le rejoindre, et les agents de {{name}} le rejoignent d’eux-mêmes.",
       "noPermission": "Vous ne pouvez pas modifier les salons listés sous {{name}}",
       "takeOff": "Retirer de {{name}}"
+    },
+    "quickCapture": {
+      "title": "Capture rapide",
+      "input": {
+        "placeholder": "Note ou question",
+        "label": "Nouvelle entrée",
+        "send": "Envoyer",
+        "sending": "Envoi en cours"
+      },
+      "attach": {
+        "window": "Capture d’écran de la fenêtre au premier plan",
+        "screen": "Capture d’écran de tout l’écran",
+        "remove": "Retirer {{name}}"
+      },
+      "room": {
+        "choose": "Choisir un salon",
+        "change": "Publication dans {{room}}. Changer de salon",
+        "search": "Rechercher des salons",
+        "none": "Aucun salon ne correspond"
+      },
+      "list": {
+        "label": "Fils dans {{room}}",
+        "empty": "Rien d’ouvert ici",
+        "sent": "Envoyé",
+        "resolved": "Résolu"
+      },
+      "chip": {
+        "working": "En cours",
+        "needsYou": "Vous attend",
+        "new": "Nouveau"
+      },
+      "peek": {
+        "copy": "Copier",
+        "copied": "Copié",
+        "open": "Ouvrir",
+        "done": "Terminé",
+        "reopen": "Rouvrir",
+        "reply": "Répondre dans ce fil"
+      },
+      "hint": {
+        "send": "Envoyer",
+        "sendOpen": "Envoyer et ouvrir",
+        "room": "Salon",
+        "list": "Liste",
+        "move": "Déplacer",
+        "peek": "Aperçu",
+        "done": "Terminé",
+        "reply": "Répondre",
+        "open": "Ouvrir"
+      },
+      "absent": {
+        "title": "MindRoom n’est pas ouvert",
+        "open": "Ouvrir MindRoom"
+      },
+      "signedOut": {
+        "title": "Se connecter à MindRoom"
+      },
+      "error": {
+        "noRoom": "Ce salon n’est plus disponible",
+        "uploadFailed": "L’image n’a pas pu être téléversée",
+        "sendFailed": "Non envoyé",
+        "forbidden": "Vous ne pouvez pas résoudre les fils dans ce salon",
+        "timeout": "MindRoom n’a pas répondu"
+      },
+      "screenshot": {
+        "denied": "MindRoom a besoin de l’autorisation « Enregistrement de l’écran » pour faire des captures d’écran",
+        "openSettings": "Ouvrir Réglages Système",
+        "noWindow": "L’app au premier plan n’a aucune fenêtre",
+        "failed": "La capture d’écran a échoué"
+      }
     }
   },
   "mindroomUi": {

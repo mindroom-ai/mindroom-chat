@@ -19,6 +19,13 @@ import {
 
 type MockContentElement = Pick<HTMLDivElement, 'clientHeight' | 'scrollHeight'>;
 
+// React's createElement typings require `children` in the props object; tests pass it as the third argument.
+const createCollapsibleElement = React.createElement as unknown as (
+  type: typeof CollapsibleMessage,
+  props: Omit<React.ComponentProps<typeof CollapsibleMessage>, 'children'>,
+  children: React.ComponentProps<typeof CollapsibleMessage>['children']
+) => React.ReactElement;
+
 let resizeObserverConstructed: ReturnType<typeof vi.fn>;
 let lastResizeCallback: ResizeObserverCallback | null;
 let intersectionObserverConstructed: ReturnType<typeof vi.fn>;
@@ -80,13 +87,17 @@ const renderCollapsibleMessage = (
     clientHeight: 72,
     scrollHeight: 320,
   },
-  children: React.ReactNode = React.createElement('span', undefined, 'message'),
+  children: React.ComponentProps<typeof CollapsibleMessage>['children'] = React.createElement(
+    'span',
+    undefined,
+    'message'
+  ),
   expandAllInit: boolean | undefined = undefined,
   manualExpansionState: Map<string, boolean> | undefined = undefined
 ) => {
   let renderer!: ReactTestRenderer;
 
-  const element = React.createElement(CollapsibleMessage as never, props as never, children);
+  const element = createCollapsibleElement(CollapsibleMessage, props, children);
   // Only wrap when an override is provided; an undefined provider is equivalent
   // to the default context, and leaving the element unwrapped keeps the root
   // type stable for tests that drive their own renderer.update(...).
@@ -182,7 +193,7 @@ describe('CollapsibleMessage', () => {
 
     act(() => {
       renderer.update(
-        React.createElement(
+        createCollapsibleElement(
           CollapsibleMessage,
           { collapseMode: 'initially-expanded', measurementKey: 'stream-after' },
           'updated streaming text'
@@ -234,7 +245,7 @@ describe('CollapsibleMessage', () => {
     const previousCallback = lastResizeCallback;
     act(() => {
       renderer.update(
-        React.createElement(
+        createCollapsibleElement(
           CollapsibleMessage,
           { collapseMode: 'initially-expanded', measurementKey: 'same-height-after' },
           'another short response'
@@ -265,7 +276,7 @@ describe('CollapsibleMessage', () => {
     const initialReads = measured.getScrollHeightReads();
     act(() => {
       renderer.update(
-        React.createElement(
+        createCollapsibleElement(
           CollapsibleMessage,
           { collapseMode: 'initially-expanded', measurementKey: 'fallback-after' },
           'updated streaming text'
@@ -717,7 +728,7 @@ describe('CollapsibleMessage', () => {
 
   it('does not disable scroll anchoring on the wrapper', () => {
     const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
-    const wrapper = renderer.root.findAllByType('div')[0];
+    const wrapper = renderer.root.findAllByType('div')[0]!;
 
     expect(wrapper.props.style?.overflowAnchor).toBeUndefined();
 
@@ -771,7 +782,7 @@ describe('CollapsibleMessage', () => {
         node.props.className === 'collapsible-sticky-footer'
     );
     expect(stickyFooters).toHaveLength(1);
-    const stickyFooter = stickyFooters[0];
+    const stickyFooter = stickyFooters[0]!;
     const buttonInsideFooter = stickyFooter.find(
       (node) => node.type === 'button' && node.props['aria-label'] === 'Show less'
     );
@@ -814,7 +825,7 @@ describe('CollapsibleMessage', () => {
       React.createElement(
         ExpandAllInitContext.Provider,
         { value: expanded },
-        React.createElement(
+        createCollapsibleElement(
           CollapsibleMessage,
           { collapseMode: 'default', expansionKey: '$default-baseline' },
           React.createElement('span', undefined, 'message')
