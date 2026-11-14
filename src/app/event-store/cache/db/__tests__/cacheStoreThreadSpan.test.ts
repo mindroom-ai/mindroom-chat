@@ -51,4 +51,24 @@ describe('loadCachedThreadEventsInSpan', () => {
     // An empty span reads nothing.
     expect(await loadCachedThreadEventsInSpan(SESSION_ID, ROOM_ID, from, from)).toEqual([]);
   });
+
+  it("leaves out another room's reply saved under this room's thread, and keeps one without a room", async () => {
+    // An older build could save room A's replies under a thread scope of room B.
+    const { room_id: _roomId, ...noRoom } = rawEvent('$no-room', 20);
+    await saveThreadEventsToCache(
+      SESSION_ID,
+      ROOM_ID,
+      '$a',
+      [
+        rawEvent('$a1', 10),
+        { ...rawEvent('$elsewhere', 15), room_id: '!other:example.org' },
+        noRoom,
+      ],
+      rawEvent('$a', 1)
+    );
+
+    expect(
+      ids(await loadCachedThreadEventsInSpan(SESSION_ID, ROOM_ID, { eventId: '$a1', ts: 10 }))
+    ).toEqual(['$a1', '$no-room']);
+  });
 });
