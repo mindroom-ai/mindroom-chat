@@ -3,7 +3,7 @@ import { Direction, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import type { CachedThreadEvent } from '../../event-store/cache/db';
+import type { CachedThreadEventPage } from '../../event-store/cache/db';
 import type { ThreadRecord } from '../../event-store/threads/types';
 
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from '../../event-store/cache/threadOpenSeedCache';
@@ -2562,9 +2562,9 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       ];
       const room = makeRoom({
         liveEvents: [firstThread, secondThread],
-        threads: roomThreads as never,
+        threads: roomThreads,
       });
-      roomThreadListThreadsMock.push(...(roomThreads as never[]));
+      roomThreadListThreadsMock.push(...roomThreads);
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
       threadLastActivityTsMapMock.set(firstThread.getId(), 100);
       threadLastActivityTsMapMock.set(secondThread.getId(), 200);
@@ -2814,13 +2814,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         liveTimeline: makeTimeline([secondReply, threadedEdit, rootEvent, firstReply]),
       });
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
-      let resolveCacheLoad:
-        | ((value: {
-            events: CachedThreadEvent[];
-            hasMoreBefore: boolean;
-            beforeToken?: string | null;
-          }) => void)
-        | undefined;
+      let resolveCacheLoad: ((value: CachedThreadEventPage) => void) | undefined;
       vi.mocked(loadLatestCachedThreadEvents).mockImplementation(
         () =>
           new Promise((resolve) => {
@@ -3097,13 +3091,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         secondReply,
         thirdReply,
       ] as never);
-      let resolveCacheLoad:
-        | ((value: {
-            events: CachedThreadEvent[];
-            hasMoreBefore: boolean;
-            beforeToken?: string | null;
-          }) => void)
-        | undefined;
+      let resolveCacheLoad: ((value: CachedThreadEventPage) => void) | undefined;
       vi.mocked(loadLatestCachedThreadEvents).mockImplementation(
         () =>
           new Promise((resolve) => {
@@ -3195,13 +3183,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       room.getThread = (eventId: string) => (eventId === threadId ? (threadModel as never) : null);
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
 
-      let resolveCacheLoad:
-        | ((value: {
-            events: CachedThreadEvent[];
-            hasMoreBefore: boolean;
-            beforeToken?: string | null;
-          }) => void)
-        | undefined;
+      let resolveCacheLoad: ((value: CachedThreadEventPage) => void) | undefined;
       vi.mocked(loadLatestCachedThreadEvents).mockImplementation(
         () =>
           new Promise((resolve) => {
@@ -3258,13 +3240,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       });
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
 
-      let resolveCacheLoad:
-        | ((value: {
-            events: CachedThreadEvent[];
-            hasMoreBefore: boolean;
-            beforeToken?: string | null;
-          }) => void)
-        | undefined;
+      let resolveCacheLoad: ((value: CachedThreadEventPage) => void) | undefined;
       vi.mocked(loadLatestCachedThreadEvents).mockImplementation(
         () =>
           new Promise((resolve) => {
@@ -3417,13 +3393,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         getThreadOpenSeedSnapshot(room as never, threadId).map((mEvent) => mEvent.getId())
       ).toEqual(['$thread-reply-1', '$thread-reply-2']);
 
-      let resolveCacheLoad:
-        | ((value: {
-            events: CachedThreadEvent[];
-            hasMoreBefore: boolean;
-            beforeToken?: string | null;
-          }) => void)
-        | undefined;
+      let resolveCacheLoad: ((value: CachedThreadEventPage) => void) | undefined;
       vi.mocked(loadLatestCachedThreadEvents).mockImplementation(
         () =>
           new Promise((resolve) => {

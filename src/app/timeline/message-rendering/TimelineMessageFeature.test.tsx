@@ -360,10 +360,7 @@ describe('timeline message feature', () => {
       content: { body: 'First', msgtype: 'm.text' },
     }) as unknown as MatrixEvent;
     const { renderer, update } = await mountFeature([rowFor(event)]);
-    event.getContent = (() => ({
-      body: 'Stream update',
-      msgtype: 'm.text',
-    })) as MatrixEvent['getContent'];
+    Object.assign(event, { getContent: () => ({ body: 'Stream update', msgtype: 'm.text' }) });
     update();
     const message = renderer.root.findByProps({ 'data-message-id': '$mutable' });
     expect(message.props.resolvedMessageContent.body).toBe('Stream update');
