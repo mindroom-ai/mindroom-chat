@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { createClient, MatrixEvent, MemoryStore, MsgType } from 'matrix-js-sdk';
@@ -170,7 +170,7 @@ function Fixture() {
                         data-testid="settings-menu"
                         aria-label="Settings actions"
                         style={{ position: 'fixed', top: 20, left: 20, zIndex: 1000 }}
-                        onKeyDown={(event) => {
+                        onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
                           if (event.key === 'Escape') setMenuOpen(false);
                         }}
                       >

@@ -115,12 +115,12 @@ test('the compact overview keeps its cards in place when threads re-sort during 
   // replies in it and in the thread at the bottom of the list, so both sort
   // above the cards in view. Leaving the thread, the cards below the opened
   // one, most of the view, must be exactly where they were.
-  const visitThreadAndReturn = async (scrollTop: number, leave: () => Promise<void>) => {
+  const visitThreadAndReturn = async (scrollTop: number, leave: () => Promise<unknown>) => {
     await scrollOverviewTo(page, scrollTop);
     const { offsets: before, headerHeight } = await settledCardLayout(page);
     const inView = Object.keys(before);
-    const openedIndex = inView.findIndex((rootId) => before[rootId] >= headerHeight);
-    const opened = inView[openedIndex];
+    const openedIndex = inView.findIndex((rootId) => before[rootId]! >= headerHeight);
+    const opened = inView[openedIndex]!;
     const below = inView.slice(openedIndex + 1);
     expect(below.length).toBeGreaterThan(openedIndex + 1);
     const lastRootId = await page
@@ -150,7 +150,7 @@ test('the compact overview keeps its cards in place when threads re-sort during 
     const { offsets: after } = await settledCardLayout(page);
     for (const rootId of below) {
       expect(
-        Math.abs(after[rootId] - before[rootId]),
+        Math.abs(after[rootId]! - before[rootId]!),
         `card ${roots.indexOf(rootId)} moved from ${before[rootId]} to ${after[rootId]}`
       ).toBeLessThanOrEqual(1);
     }

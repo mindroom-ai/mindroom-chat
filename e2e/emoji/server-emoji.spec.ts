@@ -179,7 +179,7 @@ test("an emoji one user adds is in everyone's picker without setup", async ({ br
         timeout: 30_000,
       })
       .toMatch(/^mxc:\/\//);
-    const emojiUrl = (await readPack()).images!['party-parrot'].url;
+    const emojiUrl = (await readPack()).images!['party-parrot']!.url;
 
     // The secondary user has done nothing: their client joins the room and the emoji is in
     // their picker.

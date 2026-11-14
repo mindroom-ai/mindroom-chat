@@ -160,7 +160,7 @@ test('preserves authored summaries across room overview and thread banner in Ara
   for (const [code, direction] of [
     ['ar', 'rtl'],
     ['ja', 'ltr'],
-  ]) {
+  ] as const) {
     await page.evaluate((language) => localStorage.setItem('i18nextLng', language), code);
     await page.goto('/home/' + encodeURIComponent(roomId));
     await page.reload();

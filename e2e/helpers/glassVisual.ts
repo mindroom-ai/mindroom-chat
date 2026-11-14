@@ -57,7 +57,7 @@ const luminance = ([red, green, blue]: Rgba) => {
     const value = channel / 255;
     return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
   });
-  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+  return 0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]!;
 };
 
 export const contrastRatio = (foreground: Rgba, background: Rgba) => {
@@ -70,7 +70,9 @@ export const contrastRatio = (foreground: Rgba, background: Rgba) => {
 };
 
 export const pixelDifference = (first: Rgba, second: Rgba) =>
-  first.slice(0, 3).reduce((total, channel, index) => total + Math.abs(channel - second[index]), 0);
+  first
+    .slice(0, 3)
+    .reduce((total, channel, index) => total + Math.abs(channel - second[index]!), 0);
 
 export const sampleScreenshot = async (
   page: Page,
@@ -95,7 +97,7 @@ export const sampleScreenshot = async (
           1,
           1
         ).data;
-        return [pixel[0], pixel[1], pixel[2], pixel[3] / 255] as Rgba;
+        return [pixel[0], pixel[1], pixel[2], pixel[3]! / 255] as Rgba;
       });
     },
     {
@@ -140,7 +142,10 @@ export const expectVerticalGlassRim = async (page: Page, surface: Locator) => {
   const brightness = (pixel: Rgba) => (pixel[0] + pixel[1] + pixel[2]) / 3;
   // Compare only the rim's added light, independent of underlying fills.
   const contribution = (a: number, b: number) =>
-    brightness(painted[a]) - brightness(plain[a]) + brightness(painted[b]) - brightness(plain[b]);
+    brightness(painted[a]!) -
+    brightness(plain[a]!) +
+    brightness(painted[b]!) -
+    brightness(plain[b]!);
   // WebKit can clip away part of a fractional outer edge; use the more
   // completely painted side as the reference, in either light or dark themes.
   const left = contribution(4, 5);

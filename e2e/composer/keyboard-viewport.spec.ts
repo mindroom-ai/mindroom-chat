@@ -90,7 +90,7 @@ test('fills a keyboard-panned visual viewport while keeping root in normal flow'
       editor.focus();
       window.__setVisualViewport?.(height, offsetTop, 'scroll');
     },
-    [KEYBOARD_HEIGHT, KEYBOARD_OFFSET]
+    [KEYBOARD_HEIGHT, KEYBOARD_OFFSET] as const
   );
 
   await expect
@@ -118,7 +118,7 @@ test('does nothing when the browser resizes both viewports', async ({ page }) =>
       editor.focus();
       window.__setVisualViewport?.(height, offsetTop, 'scroll');
     },
-    [KEYBOARD_HEIGHT, KEYBOARD_OFFSET]
+    [KEYBOARD_HEIGHT, KEYBOARD_OFFSET] as const
   );
 
   await expect

@@ -73,7 +73,7 @@ const sendLargeRoomMessages = async (
     { accessToken }
   );
   expect(tail.chunk).toHaveLength(2);
-  return { latestEventId: tail.chunk[0].event_id, anchorEventId: tail.chunk[1].event_id };
+  return { latestEventId: tail.chunk[0]!.event_id, anchorEventId: tail.chunk[1]!.event_id };
 };
 
 test.describe('ISSUE-077: classic large room loading scroll stability', () => {
@@ -127,7 +127,7 @@ test.describe('ISSUE-077: classic large room loading scroll stability', () => {
     });
     await page.addInitScript(
       ({ latestId, anchorId }) => {
-        const recorder = window as RecorderWindow;
+        const recorder = window as unknown as RecorderWindow;
         recorder.classicSamples = [];
         recorder.classicStop = false;
         let root: HTMLElement | null = null;
@@ -226,7 +226,7 @@ test.describe('ISSUE-077: classic large room loading scroll stability', () => {
     });
     await page.waitForTimeout(12_000);
     const samples = await page.evaluate(() => {
-      const recorder = window as RecorderWindow;
+      const recorder = window as unknown as RecorderWindow;
       recorder.classicStop = true;
       return recorder.classicSamples;
     });
@@ -258,9 +258,9 @@ test.describe('ISSUE-077: classic large room loading scroll stability', () => {
         for (let y = 0; y < image.height; y += 1) {
           for (let x = 0; x < image.width; x += 1) {
             const offset = (y * image.width + x) * 4;
-            const r = pixels[offset];
-            const g = pixels[offset + 1];
-            const b = pixels[offset + 2];
+            const r = pixels[offset]!;
+            const g = pixels[offset + 1]!;
+            const b = pixels[offset + 2]!;
             if (r > 245 && g < 10 && b > 245) {
               latestTop ??= y;
               latestBottom = y;
@@ -289,7 +289,7 @@ test.describe('ISSUE-077: classic large room loading scroll stability', () => {
     const trackedFrames = painted.slice(Math.max(0, firstMarker));
     const taskSamples = samples.filter((sample) => sample.phase === 'task');
     const taskDrifts = taskSamples.slice(1).map((sample, index) => {
-      const previous = taskSamples[index];
+      const previous = taskSamples[index]!;
       if (!sample.latest || !previous.latest) return Infinity;
       const topMove = sample.latest.top - previous.latest.top;
       const resize = sample.rootBottom - previous.rootBottom;
@@ -297,7 +297,7 @@ test.describe('ISSUE-077: classic large room loading scroll stability', () => {
       return Math.min(Math.abs(topMove - resize), Math.abs(topMove - resize + ownResize));
     });
     const paintDrifts = trackedFrames.slice(1).map((frame, index) => {
-      const previous = trackedFrames[index];
+      const previous = trackedFrames[index]!;
       if (
         frame.latestTop === null ||
         frame.latestBottom === null ||
@@ -372,7 +372,7 @@ test.describe('ISSUE-077: classic large room loading scroll stability', () => {
     const badFrame = paintDrifts.findIndex((drift) => drift > 2);
     if (badFrame >= 0)
       await testInfo.attach('classic-bad-painted-frame', {
-        body: Buffer.from(frames[firstMarker + badFrame + 1].data, 'base64'),
+        body: Buffer.from(frames[firstMarker + badFrame + 1]!.data, 'base64'),
         contentType: 'image/png',
       });
     expect(firstMarker, 'Latest marker never reached compositor').toBeGreaterThanOrEqual(0);
@@ -381,13 +381,13 @@ test.describe('ISSUE-077: classic large room loading scroll stability', () => {
     expect(taskSamples.length, 'Missing post-rAF samples').toBeGreaterThan(100);
     expect(backfillReleases.length, 'Fixture must exercise real backward fill').toBeGreaterThan(0);
     expect(
-      baseline.timestamp * 1000,
+      baseline!.timestamp * 1000,
       'Original visible anchor must precede first backfill release'
-    ).toBeLessThan(backfillReleases[0]);
+    ).toBeLessThan(backfillReleases[0]!);
     expect(
-      trackedFrames[trackedFrames.length - 1].timestamp * 1000,
+      trackedFrames[trackedFrames.length - 1]!.timestamp * 1000,
       'Missing compositor coverage after backfill'
-    ).toBeGreaterThan(backfillReleases[backfillReleases.length - 1]);
+    ).toBeGreaterThan(backfillReleases[backfillReleases.length - 1]!);
     expect(
       Math.max(...paintDrifts, ...totalPaintDrifts, ...anchorPaintDrifts),
       'Painted latest-event displacement, corrected for viewport and own row resize'
