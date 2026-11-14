@@ -311,7 +311,11 @@ export function ThreadContextBanner({
       <div
         ref={glassRef}
         className={classNames(
-          headerModel.isResolved ? css.BannerResolved : css.Banner,
+          headerModel.isResolved
+            ? css.BannerResolved
+            : snoozedText
+            ? css.BannerSnoozed
+            : css.Banner,
           collapsed && css.Collapsed
         )}
         data-thread-context-banner="true"
@@ -334,7 +338,7 @@ export function ThreadContextBanner({
         }}
       >
         {collapsed ? (
-          // Collapsed to back and Show details; the tint still says resolved, and
+          // Collapsed to back and Show details; the tint still says resolved or snoozed, and
           // auto-approval and an active permissions grant stay in view.
           <Box alignItems="Center" gap="100">
             {backButton}

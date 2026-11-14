@@ -164,6 +164,7 @@ vi.mock('./tags/ThreadTagPicker', () => ({
 vi.mock('./ThreadContextBanner.css', () => ({
   Banner: 'Banner',
   BannerResolved: 'BannerResolved',
+  BannerSnoozed: 'BannerSnoozed',
   Collapsed: 'Collapsed',
   CompactHidden: 'CompactHidden',
   DesktopOnlyTags: 'DesktopOnlyTags',
@@ -1215,13 +1216,17 @@ describe('ThreadContextBanner rendering', () => {
       vi.setSystemTime(Date.parse('2026-11-13T10:00:00Z'));
       withSnooze('2026-11-13T10:30:00Z');
       const renderer = renderBanner();
+      const bannerClass = () =>
+        renderer.root.findByProps({ 'data-thread-context-banner': 'true' }).props.className;
       expect(JSON.stringify(renderer.toJSON())).toContain('Snoozed until in 30m');
       expect(snoozedRows(renderer)).toHaveLength(1);
+      expect(bannerClass()).toBe('BannerSnoozed');
       act(() => {
         vi.advanceTimersByTime(30 * 60_000);
       });
       expect(JSON.stringify(renderer.toJSON())).not.toContain('Snoozed until');
       expect(snoozedRows(renderer)).toHaveLength(0);
+      expect(bannerClass()).toBe('Banner');
     });
 
     it('shows a resolved and snoozed thread as resolved only', () => {
@@ -1229,6 +1234,9 @@ describe('ThreadContextBanner rendering', () => {
       const renderer = renderBanner();
       expect(JSON.stringify(renderer.toJSON())).not.toContain('Snoozed until');
       expect(snoozedRows(renderer)).toHaveLength(0);
+      expect(
+        renderer.root.findByProps({ 'data-thread-context-banner': 'true' }).props.className
+      ).toBe('BannerResolved');
     });
   });
 
