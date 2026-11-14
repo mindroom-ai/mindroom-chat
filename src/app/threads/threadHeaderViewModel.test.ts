@@ -28,7 +28,12 @@ const baseStatus: ThreadRecord['status'] = {
   tags: [],
 };
 
-const makeRecord = (overrides: Partial<ThreadRecord> = {}): ThreadRecord => ({
+const makeRecord = (
+  overrides: Omit<Partial<ThreadRecord>, 'presentation' | 'status'> & {
+    presentation?: Partial<ThreadRecord['presentation']>;
+    status?: Partial<ThreadRecord['status']>;
+  } = {}
+): ThreadRecord => ({
   roomId: '!room:example.org',
   threadRootId: '$thread',
   rootEventId: '$thread',

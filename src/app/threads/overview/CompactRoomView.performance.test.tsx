@@ -162,7 +162,7 @@ describe('CompactRoomView row rendering', () => {
 
     const firstMoreButton = renderer.root
       .findAllByType('button')
-      .filter((button) => button.props['aria-haspopup'] === 'menu')[0];
+      .filter((button) => button.props['aria-haspopup'] === 'menu')[0]!;
     await act(async () => {
       firstMoreButton.props.onClick({
         currentTarget: {
@@ -177,8 +177,8 @@ describe('CompactRoomView row rendering', () => {
     expect(state.actionRenderProps).toHaveBeenCalledTimes(17);
 
     state.models = [
-      state.models[0],
-      state.models[1],
+      state.models[0]!,
+      state.models[1]!,
       makeViewModel('$third', { isResolved: true }),
     ];
     act(() => renderer.update(<CompactRoomView {...props} />));

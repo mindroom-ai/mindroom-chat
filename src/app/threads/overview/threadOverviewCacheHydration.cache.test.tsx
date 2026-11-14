@@ -1,5 +1,4 @@
 import 'fake-indexeddb/auto';
-import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { MatrixClient, Room } from 'matrix-js-sdk';
 import { expect, it, vi } from 'vitest';

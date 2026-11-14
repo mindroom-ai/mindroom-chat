@@ -60,6 +60,7 @@ describe('cross-room Threads architecture', () => {
         }
         if (
           ts.isJsxAttribute(node) &&
+          ts.isIdentifier(node.name) &&
           node.name.text === 'type' &&
           node.initializer &&
           ts.isStringLiteral(node.initializer) &&

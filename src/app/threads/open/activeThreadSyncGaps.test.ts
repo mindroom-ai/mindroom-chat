@@ -21,7 +21,10 @@ const fixture = () => {
     start: 'converted:' + token,
     end: 'converted:' + token,
   }));
-  const threads = [0, 1].map((i) => room.createThread('$root-' + i, undefined, [], false));
+  const threads = [0, 1].map((i) => room.createThread('$root-' + i, undefined, [], false)) as [
+    Thread,
+    Thread
+  ];
   return { client, room, threads };
 };
 describe('active thread sync gaps', () => {

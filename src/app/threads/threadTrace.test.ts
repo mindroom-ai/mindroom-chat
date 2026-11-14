@@ -113,8 +113,8 @@ describe('anonymous thread diagnostics', () => {
         .filter((event) => event.name === 'thread.reconcile.delivery')
         .map((event) => event.data)
     ).toEqual([
-      { trace_id: Number(ids[0].split('#')[1]), current: false, mapped_count: 0 },
-      { trace_id: Number(ids[1].split('#')[1]), current: true, mapped_count: 0 },
+      { trace_id: Number(ids[0]!.split('#')[1]), current: false, mapped_count: 0 },
+      { trace_id: Number(ids[1]!.split('#')[1]), current: true, mapped_count: 0 },
     ]);
     expect(append).not.toHaveBeenCalled();
   });
@@ -164,7 +164,7 @@ describe('anonymous thread diagnostics', () => {
                 continuationStore: {
                   load: async () => undefined,
                   begin: async (_session, _room, _thread, candidate) => candidate,
-                  checkpoint: async () => undefined,
+                  checkpoint: async () => undefined as never,
                   clear: async () => true,
                   restartFromHead: async () => undefined,
                 },

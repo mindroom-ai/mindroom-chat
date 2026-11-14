@@ -49,7 +49,7 @@ describe('pending thread replies across navigation', () => {
       userId: '@alice:example.org',
       timelineSupport: true,
       threadSupport: true,
-    });
+    } as Parameters<typeof createClient>[0]);
     // startClient normally enables this; keep networking stopped in this test.
     mx.supportsThreads = () => true;
     const room = new Room('!room:example.org', mx, '@alice:example.org', {
@@ -104,7 +104,7 @@ describe('pending thread replies across navigation', () => {
     expect(room.getLiveTimeline().getEvents()).not.toContain(reply);
     close();
     expect(open().threadEvents).toContain(reply);
-    expect(state().threadEvents[0].status).toBe(EventStatus.SENDING);
+    expect(state().threadEvents[0]!.status).toBe(EventStatus.SENDING);
     expect(state().threadInitialRenderMode).not.toBe('loading');
     act(() => {
       room.updatePendingEvent(reply, EventStatus.NOT_SENT);
@@ -183,6 +183,6 @@ describe('pending thread replies across navigation', () => {
     expect(state().threadEvents).toHaveLength(1);
     act(() => room.handleRemoteEcho(confirmed, reply));
     expect(state().threadEvents).toHaveLength(1);
-    expect(state().threadEvents[0].status).toBeNull();
+    expect(state().threadEvents[0]!.status).toBeNull();
   });
 });
