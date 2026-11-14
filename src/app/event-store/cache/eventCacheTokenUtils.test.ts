@@ -94,6 +94,12 @@ describe('compareCachedPaginationAnchors', () => {
     ).toBeLessThan(0);
   });
 
+  it('orders event IDs of one millisecond by code unit, as the cache does', () => {
+    expect(
+      compareCachedPaginationAnchors({ eventId: '$a', ts: 200 }, { eventId: '$B', ts: 200 })
+    ).toBeGreaterThan(0);
+  });
+
   it('handles missing anchors deterministically', () => {
     expect(compareCachedPaginationAnchors(undefined, { eventId: '$a', ts: 100 })).toBeLessThan(0);
     expect(compareCachedPaginationAnchors({ eventId: '$a', ts: 100 }, undefined)).toBeGreaterThan(0);
