@@ -210,8 +210,7 @@ export const createBackfillScheduler = (
     let bestIndex = -1;
     let bestPriority: BackfillJobPriority | undefined;
     let bestActivity = 0;
-    for (let i = 0; i < queue.length; i += 1) {
-      const entry = queue[i];
+    for (const [i, entry] of queue.entries()) {
       // A replacement for an aborting/running request must not overlap the
       // SDK request it supersedes. It becomes eligible in finally.
       if (running.has(entry.key)) continue;
@@ -241,7 +240,7 @@ export const createBackfillScheduler = (
     while (running.size < maxConcurrent && queue.length > 0) {
       const index = pickNextIndex();
       if (index < 0) return;
-      const entry = queue.splice(index, 1)[0];
+      const entry = queue.splice(index, 1)[0]!;
       // Queued aborts (`abort()`/`abortAll()`) settle the caller promise and
       // splice the entry out of `queue` synchronously, so an aborted entry
       // can never reach this point via a supported code path.
