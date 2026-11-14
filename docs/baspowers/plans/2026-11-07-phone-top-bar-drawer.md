@@ -17,7 +17,6 @@
 - Phones only: `useScreenSizeContext() === ScreenSize.Mobile`; Tablet and Desktop render as before (same DOM boxes: the page wrapper is `display: contents` there).
 - Code rules: `just strict`, type-aware ESLint, logical CSS sides (`insetInlineStart`, `paddingInline`), `PopOut`/`TooltipProvider` from `ui/directional.tsx`.
 - Layers: the atom lives in `navigation/` (layer 4); top bar and drawer in `sidebar/` (13); `shell/` places them.
-- No upstream lines: `scripts/upstream-overlap/check.py` reports 0 findings for every commit.
 - No em dashes; unsigned commits by explicit path.
 - Tests run on a runner (`~/repos/dev/scripts/mac-runner/remote-test.sh`), not on pc.
 
@@ -50,7 +49,7 @@
 
 **Files:**
 - Create: `src/app/sidebar/PhoneNavDrawer.tsx`, `src/app/sidebar/PhoneNavDrawer.css.ts`
-- Modify: `src/app/sidebar/MobileFriendly.tsx` (keep `MobileFriendlyPageNav`, a seam name; drop `MobileFriendlyClientNav`), `src/app/sidebar/Navigation.tsx`, `src/app/shell/ClientLayout.tsx`, `src/app/shell/Router.tsx` (index routes get `handle={SECTION_ROOT_HANDLE}` and render their pages directly), `src/app/shell/clientPages.tsx` (delete `SectionIndex`), `src/app/ui/page/Page.tsx` (no divider logic change needed; check)
+- Modify: `src/app/sidebar/MobileFriendly.tsx` (keep `MobileFriendlyPageNav`; drop `MobileFriendlyClientNav`), `src/app/sidebar/Navigation.tsx`, `src/app/shell/ClientLayout.tsx`, `src/app/shell/Router.tsx` (index routes get `handle={SECTION_ROOT_HANDLE}` and render their pages directly), `src/app/shell/clientPages.tsx` (delete `SectionIndex`), `src/app/ui/page/Page.tsx` (no divider logic change needed; check)
 
 **Interfaces:**
 - Produces: `PhoneNavDrawer({ nav }: { nav: ReactNode })`; `PhoneNavSlotContext: Context<HTMLElement | null>`; `usePhoneNavDrawerRule(): void` (inside the drawer: `useLocation().key`, `useNavigationType()`, `useMatches()`).
@@ -94,4 +93,4 @@
 
 - [ ] Step 1: spec at 390 by 844 with touch: top bar visible in a room; menu opens the drawer (rail and list visible, panel `transform` animates, room still in the DOM behind); room pick closes and shows that room; tapping the open room closes; space pick keeps it open with that space's list and the lobby behind; scrim, Escape and menu close; Escape with a rail context menu open only closes the menu; edge swipe opens; reduced motion: no transition; `dir=rtl`: panel at the right; search opens the palette and shows the shortcut; resizing to 844 by 390 keeps the room mounted.
 - [ ] Step 2: full e2e suite at the base commit and at the branch tip on gce; fix or update every new failure.
-- [ ] Step 3: overlap check (0 findings), gate, commit.
+- [ ] Step 3: gate, commit.

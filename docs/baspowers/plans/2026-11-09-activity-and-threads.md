@@ -18,7 +18,6 @@
 - Layers: `activity` at layer 10 in `.eslintrc.cjs` `LAYERS` and in `docs/architecture.md` "Layers"; no import climbs.
 - New strings only in `src/app/i18n/locales/additions/<code>.json`, English plus the 16 others with the same keys.
 - No em dashes in docs, comments or commit messages. Commits unsigned (`git -c commit.gpgsign=false commit`), files added by path.
-- `just upstream-overlap` must report 0 findings for every commit before push; the pre-push hook checks it.
 - Thread events read for signals: the SDK thread's last 40 events. Activity window for read rows: 7 days. "Finished" threshold: 60 s from a reply to its last edit. Threads Recent: 50 at a time.
 
 ## Review Focus
@@ -239,7 +238,7 @@ export const threadsScopeAtom: WritableAtom<ThreadsScope, ...>; // per account, 
 
 ### Task 11: Verification, screenshots, pull request
 
-- [ ] **Step 1: Run** `just typecheck`, `just strict`, `just lint`, `just test`, `just license-check`, `just upstream-overlap <corpus>` (via the installed hook on push); all pass.
+- [ ] **Step 1: Run** `just typecheck`, `just strict`, `just lint`, `just test`, `just license-check`; all pass.
 - [ ] **Step 2: Screenshots** at the branch head on a slot (throwaway Playwright spec, not committed): desktop popover, Activity page with thread, Threads page, phone sheet, phone Threads list.
 - [ ] **Step 3: Review** the whole branch with a fresh reviewer (baspowers:requesting-code-review); fix findings.
 - [ ] **Step 4: Push** the branch and `gh pr create` with the screenshots attached (`--attach '<file>#<alt>'`).

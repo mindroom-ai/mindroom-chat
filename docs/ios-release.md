@@ -48,7 +48,7 @@ The notes list the commits since the previous release, newest first, up to 200, 
 - `"autoRelease": true` (as it is): the job cuts the release as `just release --yes` would, with the job's `GITHUB_TOKEN` (`contents: write`), and hands its tag to the `image` job, which publishes the release's container image (`.github/workflows/image.yml`, [`deployment.md`](deployment.md#container-image)).
 - `"autoRelease": false`: the job logs `Automatic releases are off: package.json has "autoRelease": false. Nothing to do.` and succeeds.
 
-A push whose CI failed, or was cancelled by a newer push, gets no release; the next green push releases its commits too. Runs never overlap, and a run whose commit no longer contains the newest release (one that lost a race) does nothing. Pushes that change only `docs/design/` or `docs/provenance.md` do not run CI, so they release nothing either.
+A push whose CI failed, or was cancelled by a newer push, gets no release; the next green push releases its commits too. Runs never overlap, and a run whose commit no longer contains the newest release (one that lost a race) does nothing. Pushes that change only `docs/design/` do not run CI, so they release nothing either.
 
 Releases follow every green push rather than a daily batch: a burst of pushes still makes one release at a time (a waiting run gives way to the newest), a deployment can take a fix as soon as CI passes, and Xcode Cloud builds move to a new version with each release instead of sharing one for a day, which App Store review may close for uploads once it approves a build of it.
 
