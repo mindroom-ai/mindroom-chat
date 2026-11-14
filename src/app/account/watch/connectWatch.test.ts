@@ -17,7 +17,9 @@ const client = (options: {
 }) => {
   let polls = 0;
   const crossSignDevice = vi.fn(async () => undefined);
-  const exportSecretsBundle = vi.fn(options.exportBundle ?? (async () => ({ cross_signing: {}, backup: null })));
+  const exportSecretsBundle = vi.fn(
+    options.exportBundle ?? (async () => ({ cross_signing: {}, backup: null }))
+  );
   const authedRequest = vi.fn(
     async (_method: string, _path: string, _query: unknown, body: { auth?: AuthDict }) =>
       (options.getToken ?? (async () => ({ login_token: 'tok', expires_in_ms: 120_000 })))(
@@ -163,7 +165,9 @@ describe('verifyWatch', () => {
   it('gives up when the watch keys never show', async () => {
     const { mx, crossSignDevice } = client({ devicesAfter: Infinity });
     const send = vi.fn();
-    await expect(verifyWatch(mx, 'WATCH', send, { timeoutMs: 20, pollMs: 1 })).resolves.toBe('timeout');
+    await expect(verifyWatch(mx, 'WATCH', send, { timeoutMs: 20, pollMs: 1 })).resolves.toBe(
+      'timeout'
+    );
     expect(crossSignDevice).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();
   });

@@ -39,9 +39,9 @@ struct RecordingView: View {
             guard await Recorder.requestPermission() else { denied = true; return }
             do { try recorder.start() } catch { denied = true }
         }
-        .onChange(of: recorder.isRecording) { wasRecording, isRecording in
+        .onChange(of: recorder.reachedLimit) { _, reached in
             // The 5 minutes ran out: send what there is.
-            if wasRecording, !isRecording, let take = recorder.stop() { send(take); dismiss() }
+            if reached, let take = recorder.stop() { send(take); dismiss() }
         }
     }
 }

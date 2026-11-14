@@ -10,14 +10,21 @@ struct HomeView: View {
     @StateObject private var rooms = RoomList()
     @State private var model: RoomModel?
     @State private var picking = false
-    @State private var path: [String] = []
+    @State private var path: [ThreadTarget] = []
+    /// Rooms other than the default one whose thread a notification opened.
+    @State private var otherRooms: [String: RoomModel] = [:]
     @ObservedObject private var openThread = OpenThreadRequest.shared
 
     var body: some View {
         NavigationStack(path: $path) {
             Group {
                 if let model {
-                    RoomHome(model: model, path: $path, pick: { picking = true })
+                    RoomHome(model: model, path: $path, pick: { picking = true }, roomGone: roomGone)
+                        .navigationDestination(for: ThreadTarget.self) { target in
+                            if let roomModel = roomModel(target.roomId) {
+                                ThreadView(roomModel: roomModel, rootId: target.rootId)
+                            }
+                        }
                 } else {
                     RoomPickerView(rooms: rooms, selected: nil, pick: select)
                 }
@@ -38,16 +45,11 @@ struct HomeView: View {
             // At launch the default room may reach the room list only after the first sync.
             if model == nil, let roomId = DefaultRoom.get(userId: userId) { open(roomId) }
         }
-        .onChange(of: openThread.target?.threadId) { _, _ in
-            // A tapped notification: its room becomes the default and its thread opens.
-            guard let target = openThread.target else { return }
+        .onChange(of: openThread.target?.threadId, initial: true) { _, _ in
+            // A tapped notification opens its thread; another room's thread opens without making it the default.
+            guard model != nil, let target = openThread.target else { return }
             openThread.target = nil
-            if model?.room.id() != target.roomId { select(target.roomId) }
-            if !target.threadId.isEmpty { path = [target.threadId] }
-        }
-        .onChange(of: model?.gone ?? false) { _, gone in
-            // The room was left or replaced: choose another.
-            if gone { DefaultRoom.set(nil, userId: userId); model = nil }
+            if !target.threadId.isEmpty { path = [ThreadTarget(roomId: target.roomId, rootId: target.threadId)] }
         }
         .onOpenURL { url in
             // The complication opens the app recording (`mindroom-watch://record`).
@@ -59,6 +61,22 @@ struct HomeView: View {
         DefaultRoom.set(roomId, userId: userId)
         picking = false
         open(roomId)
+    }
+
+    private func roomGone() {
+        // The room was left or replaced: choose another.
+        DefaultRoom.set(nil, userId: userId)
+        path = []
+        model = nil
+    }
+
+    private func roomModel(_ roomId: String) -> RoomModel? {
+        if model?.room.id() == roomId { return model }
+        if let other = otherRooms[roomId] { return other }
+        guard let room = try? client.getRoom(roomId: roomId) else { return nil }
+        let other = RoomModel(room: room, userId: userId, session: try? client.session())
+        otherRooms[roomId] = other
+        return other
     }
 
     private func open(_ roomId: String) {
@@ -76,10 +94,17 @@ final class RecordRequest: ObservableObject {
     @Published var pending = false
 }
 
+/// A thread to show: its room (the default one, or another a notification named) and its root.
+struct ThreadTarget: Hashable {
+    let roomId: String
+    let rootId: String
+}
+
 private struct RoomHome: View {
     @ObservedObject var model: RoomModel
-    @Binding var path: [String]
+    @Binding var path: [ThreadTarget]
     let pick: () -> Void
+    let roomGone: () -> Void
     @ObservedObject private var request = RecordRequest.shared
     @State private var recording = false
     @State private var sendError: String?
@@ -106,16 +131,27 @@ private struct RoomHome: View {
             }
             Section {
                 ForEach(model.rows) { row in
-                    NavigationLink(value: row.rootId ?? row.id) { ThreadRowView(row: row) }
-                        .disabled(row.rootId == nil)
-                        .swipeActions {
-                            if let rootId = row.rootId {
-                                Button { Task { await model.resolve(rootId) } } label: {
-                                    Label("Done", systemImage: "checkmark")
-                                }
-                                .tint(.green)
+                    NavigationLink(value: ThreadTarget(roomId: model.room.id(), rootId: row.rootId ?? row.id)) {
+                        ThreadRowView(row: row)
+                    }
+                    .disabled(row.rootId == nil)
+                    .swipeActions {
+                        if let rootId = row.rootId {
+                            Button { Task { await model.resolve(rootId) } } label: {
+                                Label("Done", systemImage: "checkmark")
+                            }
+                            .tint(.green)
+                        } else if row.state == .failed {
+                            // A message that could not be sent: send it again, or drop it.
+                            Button { Task { await model.retry() } } label: {
+                                Label("Retry", systemImage: "arrow.clockwise")
+                            }
+                            .tint(.accentColor)
+                            Button(role: .destructive) { Task { await model.discard(transactionId: row.id) } } label: {
+                                Label("Delete", systemImage: "trash")
                             }
                         }
+                    }
                 }
             }
         }
@@ -126,9 +162,6 @@ private struct RoomHome: View {
                     .accessibilityLabel(Text("Rooms"))
             }
         }
-        .navigationDestination(for: String.self) { rootId in
-            ThreadView(roomModel: model, rootId: rootId)
-        }
         .fullScreenCover(isPresented: $recording) {
             RecordingView { take in
                 Task {
@@ -138,11 +171,14 @@ private struct RoomHome: View {
         }
         .onAppear { takeRequest() }
         .onChange(of: request.pending) { _, _ in takeRequest() }
+        .onChange(of: model.gone, initial: true) { _, gone in if gone { roomGone() } }
         #if DEBUG
         .onChange(of: model.rows) { _, rows in
             // The thread of the message the hooks just sent: the newest root, once it has an event id.
             if E2EHooks.openNewest, path.isEmpty, let row = rows.max(by: { $0.rootTs < $1.rootTs }),
-               row.rootTs >= E2EHooks.launchedAt, let rootId = row.rootId { path = [rootId] }
+               row.rootTs >= E2EHooks.launchedAt, let rootId = row.rootId {
+                path = [ThreadTarget(roomId: model.room.id(), rootId: rootId)]
+            }
             if E2EHooks.resolveNewest, !E2EHooks.resolved, let rootId = rows.first(where: { $0.state != .queued })?.rootId {
                 E2EHooks.resolved = true
                 Task { await model.resolve(rootId); E2EHooks.log("resolved \(rootId)") }

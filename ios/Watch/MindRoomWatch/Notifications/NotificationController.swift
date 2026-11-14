@@ -54,8 +54,8 @@ enum NotificationActions {
     static func actions(for event: PushedEvent?) -> [UNNotificationAction] {
         switch event {
         case let .approval(card, _) where card.status == .pending:
-            return [UNNotificationAction(identifier: "approve", title: String(localized: "Approve")),
-                    UNNotificationAction(identifier: "deny", title: String(localized: "Deny"), options: [.destructive])]
+            let deny = UNNotificationAction(identifier: "deny", title: String(localized: "Deny"), options: [.destructive])
+            return card.approvable ? [UNNotificationAction(identifier: "approve", title: String(localized: "Approve")), deny] : [deny]
         case let .question(question, _):
             return question.options.map { UNNotificationAction(identifier: "option:\($0.key)", title: "\($0.key) \($0.label)") }
         case .message:
@@ -71,7 +71,7 @@ enum NotificationActions {
         guard let session = MatrixSession.shared, let event = await PushedEvent.load(userInfo: userInfo, session: session),
               let client = session.client else { return }
         switch event {
-        case let .approval(card, roomId) where card.status == .pending && (identifier == "approve" || identifier == "deny"):
+        case let .approval(card, roomId) where card.status == .pending && ((identifier == "approve" && card.approvable) || identifier == "deny"):
             let content = approvalResponseContent(cardId: card.eventId, threadId: card.threadId, approve: identifier == "approve")
             guard let room = try? client.getRoom(roomId: roomId),
                   let data = try? JSONSerialization.data(withJSONObject: content) else { return }

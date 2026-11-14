@@ -31,32 +31,37 @@ final class ThreadModel: ObservableObject {
     }
 
     func start() async {
-        guard timeline == nil else { return }
-        do {
-            let timeline = try await mindroomTimeline(room, focus: .thread(rootEventId: rootId))
-            handle = await timeline.addListener(listener: feed)
-            // A thread-focused timeline starts empty: load the thread.
-            _ = try? await timeline.paginateBackwards(numEvents: 50)
-            // Cards and their outcomes may come with no other change in the thread: look again every 5 s.
-            update()
-            poll = Task { [weak self] in
-                while !Task.isCancelled {
-                    try? await Task.sleep(nanoseconds: 5_000_000_000)
-                    self?.update()
-                }
+        if timeline == nil {
+            do {
+                let timeline = try await mindroomTimeline(room, focus: .thread(rootEventId: rootId))
+                self.timeline = timeline
+                handle = await timeline.addListener(listener: feed)
+                // A thread-focused timeline starts empty: load the thread.
+                _ = try? await timeline.paginateBackwards(numEvents: 50)
+            } catch {
+                log.error("thread timeline failed: \(String(describing: type(of: error)), privacy: .public)")
             }
-            self.timeline = timeline
-        } catch {
-            log.error("thread timeline failed: \(String(describing: error), privacy: .public)")
+        }
+        update()
+        guard poll == nil else { return }
+        // Cards and their outcomes may come with no other change in the thread: look again every 5 s.
+        poll = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                self?.update()
+            }
         }
     }
 
+    /// Stops polling while the thread is not on screen; the timeline stays for replies sent meanwhile.
     func stop() {
         poll?.cancel()
         poll = nil
+    }
+
+    deinit {
+        poll?.cancel()
         handle?.cancel()
-        handle = nil
-        timeline = nil
     }
 
     private var fetching = false
@@ -97,7 +102,8 @@ final class ThreadModel: ObservableObject {
     /// Approve or deny a tool call, as the web client does. A card answered elsewhere first is not pending
     /// any more, so the buttons are gone and nothing is sent.
     func approve(_ card: ApprovalCard, _ yes: Bool) async {
-        guard snapshot?.pendingApproval?.eventId == card.eventId, !answered.contains(card.eventId) else { return }
+        guard snapshot?.pendingApproval?.eventId == card.eventId, !answered.contains(card.eventId),
+              card.approvable || !yes else { return }
         answered.insert(card.eventId)
         let content = approvalResponseContent(cardId: card.eventId, threadId: card.threadId, approve: yes)
         do {
@@ -126,7 +132,10 @@ final class ThreadModel: ObservableObject {
     }
 
     func replyVoice(_ take: Take) async {
-        guard let timeline else { return }
+        guard let timeline else {
+            error = String(localized: "Not sent")
+            return
+        }
         do {
             try await sendVoiceMessage(take, on: timeline)
         } catch {

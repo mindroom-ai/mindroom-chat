@@ -55,10 +55,10 @@ final class RoomModel: ObservableObject {
         guard timeline == nil else { return }
         do {
             let timeline = try await mindroomTimeline(room, focus: .live(hideThreadedEvents: true))
+            self.timeline = timeline
             // Thread replies change their root's summary in this timeline, so it also signals thread changes.
             handles.append(await timeline.addListener(listener: feed))
             _ = try? await timeline.paginateBackwards(numEvents: 30)
-            self.timeline = timeline
             #if DEBUG
             Task { await E2EHooks.send(on: timeline) }
             #endif
@@ -69,8 +69,20 @@ final class RoomModel: ObservableObject {
     }
 
     func sendVoice(_ take: Take) async throws {
-        guard let timeline else { return }
+        guard let timeline else { throw RoomModelError.notReady }
         try await sendVoiceMessage(take, on: timeline)
+    }
+
+    /// Sends the room's failed messages again.
+    func retry() async {
+        room.enableSendQueue(enable: true)
+        scheduleRefresh()
+    }
+
+    /// Drops a message that could not be sent.
+    func discard(transactionId: String) async {
+        try? await timeline?.redactEvent(eventOrTransactionId: .transactionId(transactionId: transactionId), reason: nil)
+        scheduleRefresh()
     }
 
     func resolve(_ rootId: String) async {
@@ -117,7 +129,8 @@ final class RoomModel: ObservableObject {
     func refreshNow() async { await refresh() }
 
     private func refresh() async {
-        if room.membership() != .joined { gone = true; return }
+        // Left, or replaced by a new version of the room: the person picks another.
+        if room.membership() != .joined || room.successorRoom() != nil { gone = true; return }
         await threads.reset()
         try? await threads.paginate()
         let resolved = await resolvedRoots()
@@ -134,6 +147,9 @@ final class RoomModel: ObservableObject {
         rows += ownUnansweredRoots(excluding: Set(roots).union(resolved))
         self.rows = rows.sorted { $0.ts > $1.ts }
         publishWidgetSnapshot()
+        #if DEBUG
+        for row in self.rows.prefix(3) { E2EHooks.log("row \(row.rootId ?? row.id) \(String(describing: row.state))") }
+        #endif
     }
 
     private func row(_ snapshot: ThreadSnapshot) -> ThreadRow {
@@ -188,4 +204,8 @@ final class RoomModel: ObservableObject {
               let state = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
         return ThreadTags.resolvedRoots(state: state)
     }
+}
+
+enum RoomModelError: Error {
+    case notReady
 }

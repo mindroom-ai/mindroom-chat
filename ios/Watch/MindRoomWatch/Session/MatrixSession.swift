@@ -34,11 +34,13 @@ final class MatrixSession: ObservableObject {
 
     func connect(_ message: WatchLinkMessage) async {
         guard case let .credentials(homeserverUrl, _, token, _) = message else { return }
+        // A live session stays until the new one works: stale or repeated credentials must not sign the watch out.
+        let signedIn = client != nil
         if TokenLoginRequest.isExpired(message, now: Date()) {
-            state = .expired
+            if !signedIn { state = .expired }
             return
         }
-        state = .connecting
+        if !signedIn { state = .connecting }
         do {
             let (data, response) = try await URLSession.shared.data(for: TokenLoginRequest.make(homeserverUrl: homeserverUrl, token: token))
             let result = try TokenLoginRequest.parse(data: data, status: (response as? HTTPURLResponse)?.statusCode ?? 0)
@@ -51,10 +53,10 @@ final class MatrixSession: ObservableObject {
             SessionStore.save(session)
             onSignedIn?(result.userId, result.deviceId)
         } catch TokenLoginError.expired {
-            state = .expired
+            if !signedIn { state = .expired }
         } catch {
-            log.error("connect failed: \(String(describing: error), privacy: .public)")
-            state = .failed(String(describing: error))
+            log.error("connect failed: \(String(describing: type(of: error)), privacy: .public)")
+            if !signedIn { state = .failed(String(localized: "Could not connect")) }
         }
     }
 
@@ -89,14 +91,19 @@ final class MatrixSession: ObservableObject {
             try await client.encryption().importSecretsBundle(secretsBundle: secrets)
             log.notice("imported the secrets bundle")
         } catch {
-            log.error("secrets import failed: \(String(describing: error), privacy: .public)")
+            log.error("secrets import failed: \(String(describing: type(of: error)), privacy: .public)")
         }
     }
 
     /// Starts or stops sync as the app comes forward or goes to the background.
     func setActive(_ active: Bool) async {
         guard let syncService else { return }
-        if active { await syncService.start() } else { await syncService.stop() }
+        if active {
+            await syncService.start()
+            await client?.enableAllSendQueues(enable: true)
+        } else {
+            await syncService.stop()
+        }
     }
 
     private func start(_ session: Session) async throws {
@@ -120,7 +127,11 @@ final class MatrixSession: ObservableObject {
         let syncService = try await client.syncService().finish()
         handles.append(syncService.state(listener: SyncStateListener { [weak self] state in
             log.notice("sync \(String(describing: state), privacy: .public)")
-            Task { @MainActor in self?.syncState = state }
+            Task { @MainActor in
+                self?.syncState = state
+                // A send that failed for want of a network stops the room's queue until it is turned on again.
+                if state == .running { await client.enableAllSendQueues(enable: true) }
+            }
         }))
         self.syncService = syncService
         state = .signedIn(client)

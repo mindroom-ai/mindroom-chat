@@ -14,14 +14,27 @@ public struct Question: Equatable, Sendable {
     public static func parse(_ event: JSON, latestEdit: JSON?) -> Question? {
         guard let eventId = event.eventId,
               let interactive = effectiveContent(event, latestEdit: latestEdit)["io.mindroom.interactive"] as? JSON,
-              let options = interactive["options"] as? [String: String] else { return nil }
-        let labels = interactive["option_labels"] as? [String: String] ?? [:]
-        let buttons = options.keys
-            .filter { !$0.allSatisfy(\.isNumber) }
-            .sorted()
-            .map { Option(key: $0, label: labels[$0] ?? options[$0] ?? $0) }
+              let options = interactive["options"] as? JSON,
+              let text = interactive["question_text"] as? String, !text.isEmpty else { return nil }
+        let labels = interactive["option_labels"] as? JSON ?? [:]
+        // The number keys (typed answers) carry the agent's order; the emoji keys are the buttons.
+        let numbered = options.compactMap { key, value -> (Int, String)? in
+            guard let number = Int(key), let value = value as? String else { return nil }
+            return (number, value)
+        }
+        let order = { (key: String) -> Int in
+            numbered.filter { $0.1 == options[key] as? String }.map(\.0).min() ?? Int.max
+        }
+        let buttons = options
+            .filter { key, value in !key.allSatisfy(\.isNumber) && value is String }
+            .map(\.key)
+            .sorted { (order($0), $0) < (order($1), $1) }
+            .map { key -> Option in
+                let label = labels[key] as? String
+                return Option(key: key, label: label?.isEmpty == false ? label! : options[key] as? String ?? key)
+            }
         guard !buttons.isEmpty else { return nil }
-        return Question(eventId: eventId, text: interactive["question_text"] as? String ?? "", options: buttons)
+        return Question(eventId: eventId, text: text, options: buttons)
     }
 }
 
@@ -39,7 +52,7 @@ public enum RunState: Equatable, Sendable {
             }
         }
         switch content["io.mindroom.stream_status"] as? String {
-        case "pending", "streaming": return .streaming
+        case "pending", "streaming", "active", "running": return .streaming
         case "completed": return .finished
         case "cancelled", "interrupted", "error": return .stopped
         default: return .none

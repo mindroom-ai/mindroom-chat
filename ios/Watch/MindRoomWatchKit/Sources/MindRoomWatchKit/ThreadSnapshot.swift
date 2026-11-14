@@ -19,6 +19,8 @@ public struct ThreadSnapshot: Equatable, Sendable {
     /// The newest agent (anyone else's) reply.
     public let reply: Reply?
     public let approvals: [ApprovalCard]
+    /// The newest card from an agent that waits for this person's decision.
+    public let pendingApproval: ApprovalCard?
     public let openQuestion: Question?
     public let latestEventId: String
     /// Milliseconds since the epoch of the newest message.
@@ -26,7 +28,6 @@ public struct ThreadSnapshot: Equatable, Sendable {
     private let latestFromMe: Bool
     private let latestRun: RunState
 
-    public var pendingApproval: ApprovalCard? { approvals.last { $0.status == .pending } }
 
     public func rowState(lastSeenEventId: String?, sendFailed: Bool = false, queued: Bool = false) -> ThreadRowState {
         if sendFailed { return .failed }
@@ -85,18 +86,35 @@ public struct ThreadSnapshot: Equatable, Sendable {
                              tools: plain.tools, run: RunState.of(message, latestEdit: edit(message)))
             }
         let approvals = conversation.compactMap(ApprovalCard.parse).map { $0.applying(edits: cardEdits, now: now) }
-        let openQuestion = conversation.reversed().lazy.compactMap { message -> Question? in
-            guard let question = Question.parse(message, latestEdit: edit(message)) else { return nil }
+        let isAgent = { (userId: String?) in MindRoomAgent.isAgent(userId, viewer: ownUserId) }
+        let pendingApproval = approvals.last {
+            $0.status == .pending && isAgent($0.sender) && ($0.approverUserId == nil || $0.approverUserId == ownUserId)
+        }
+        // As the web client: only the newest agent reply asks (not the router's relay of a message), until
+        // the person writes or reacts, for 7 days, and only when it answers this person.
+        var openQuestion: Question?
+        if let asking = conversation.last(where: {
+            isAgent($0["sender"] as? String) && $0["type"] as? String == "m.room.message"
+                && $0.content["com.mindroom.original_sender"] == nil
+        }), let question = Question.parse(asking, latestEdit: edit(asking)) {
+            let askedAt = edit(asking)?.timestamp ?? asking.timestamp
+            let wroteSince = conversation.contains { ($0["sender"] as? String) == ownUserId && $0.timestamp > askedAt }
+            let keys = Set(question.options.map(\.key))
             let reacted = reactions.contains {
                 ($0["sender"] as? String) == ownUserId && ($0.relation?["event_id"] as? String) == question.eventId
+                    && keys.contains($0.relation?["key"] as? String ?? "")
             }
-            let answered = conversation.contains { ($0["sender"] as? String) == ownUserId && $0.timestamp > message.timestamp }
-            return reacted || answered ? nil : question
-        }.first
+            let sourceId = (effectiveContent(asking, latestEdit: edit(asking))["io.mindroom.interactive"] as? JSON)?["source_event_id"] as? String
+            let source = ([root] + messages).first { $0.eventId == sourceId }
+            let asker = source.flatMap { ($0.content["com.mindroom.original_sender"] as? String) ?? $0["sender"] as? String }
+            let askedSomeoneElse = asker.map { $0 != ownUserId && !isAgent($0) } ?? false
+            let stale = Double(askedAt) / 1000 < now.timeIntervalSince1970 - 7 * 24 * 3600
+            if !wroteSince && !reacted && !askedSomeoneElse && !stale { openQuestion = question }
+        }
         let latest = conversation.last ?? root
         return ThreadSnapshot(
             rootId: rootId, rootTs: root.timestamp, title: title, isVoiceRoot: isVoiceRoot, reply: reply, approvals: approvals,
-            openQuestion: openQuestion, latestEventId: latest.eventId ?? rootId, latestTs: latest.timestamp,
+            pendingApproval: pendingApproval, openQuestion: openQuestion, latestEventId: latest.eventId ?? rootId, latestTs: latest.timestamp,
             latestFromMe: (latest["sender"] as? String) == ownUserId,
             latestRun: RunState.of(latest, latestEdit: edit(latest)))
     }

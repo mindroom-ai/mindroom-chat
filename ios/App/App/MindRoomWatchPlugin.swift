@@ -128,13 +128,12 @@ final class WatchLink: NSObject {
 #endif
     }
 
-    /// Queues the message for the watch app (and sends it at once when the app runs); false without one.
+    /// Queues the message for the watch app, which gets it once, in order, as soon as it runs; false without one.
     func send(_ message: [String: Any]) -> Bool {
 #if canImport(WatchConnectivity) && !targetEnvironment(macCatalyst)
         let session = WCSession.default
         guard WCSession.isSupported(), session.activationState == .activated, session.isWatchAppInstalled else { return false }
         session.transferUserInfo(message)
-        if session.isReachable { session.sendMessage(message, replyHandler: nil, errorHandler: nil) }
         return true
 #else
         return false

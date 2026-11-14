@@ -63,7 +63,7 @@ iPhone (existing Capacitor app)                       Apple Watch (new, native S
 
 ### The Matrix SDK on the watch
 
-- The SDK is patched by `ios/Watch/sdk/matrix-rust-sdk.patch`: a timeline filter `DefaultAndEventTypes` that keeps MindRoom's custom event types (the default filter drops them, and the FFI's `All` still applies it); `Room.load_or_fetch_event_json_with_relations`, an event and its relations as raw JSON (the typed FFI events drop MindRoom's content keys); `Encryption.request_missing_secrets`, which asks the account's other devices for the backup key once this device is verified (being cross-signed by another device does not trigger it); no full-text search index (`experimental-search`) and no Sentry; and a size profile (`opt-level = "z"`). The watch app must stay under Apple's 75 MB limit: the untrimmed SDK was 110 MB, the trimmed app 45 MB.
+- The SDK is patched by `ios/Watch/sdk/matrix-rust-sdk.patch`: a timeline filter `DefaultAndEventTypes` that keeps MindRoom's custom event types (the default filter drops them, and the FFI's `All` still applies it); `Room.load_or_fetch_event_json_with_relations`, an event and its relations as raw JSON (the typed FFI events drop MindRoom's content keys; the relations always come from the homeserver, since the event cache misses those that arrived while the watch did not sync); `SecretsBundleWithUserId.from_json`, to import the secrets bundle the iPhone sends; no full-text search index (`experimental-search`) and no Sentry; and a size profile (`opt-level = "z"`). The watch app must stay under Apple's 75 MB limit: the untrimmed SDK was 110 MB, the trimmed app 45 MB.
 - `matrix-sdk-ffi` from matrix-rust-sdk (Apache-2.0), built by its own `cargo xtask swift build-framework` for `aarch64-apple-watchos` and `aarch64-apple-watchos-sim`; the app targets watchOS 11. `arm64_32` (Series 6 to 8, SE) is left out: aws-lc-sys, rustls' crypto, does not compile for it. Pinned to one SDK tag in `ios/Watch/sdk/version`.
 - `scripts/watch/build-sdk.sh` clones the pinned tag, applies the patch, checks the linked crates' licenses (`scripts/watch/check_sdk_licenses.py`; `xxhash-rust`, BSL-1.0, allowed by name), builds the XCFramework and the generated Swift sources into `ios/Watch/MatrixRustSDK/` (a local Swift package; the build is git-ignored), and writes a checksum. The XCFramework is too large for git; CI and Xcode Cloud download it from a GitHub release asset named after the SDK tag (`ci_post_clone.sh`), which `scripts/watch/build-sdk.sh --publish` uploads. Publishing it is a release step the coordinator runs.
 - Store: SQLite in the watch app's container (the SDK's `session_paths`), with a passphrase in the watch's Keychain.
@@ -77,7 +77,7 @@ iPhone (existing Capacitor app)                       Apple Watch (new, native S
 4. The watch posts `{ type: 'm.login.token', token, initial_device_display_name: 'MindRoom Apple Watch' }` to `/login`, then hands the access token and device id to the SDK's `restore_session`, which uploads the device's keys on first sync.
 5. The watch answers `{ v: 1, kind: 'signedIn', userId, deviceId }`; the plugin raises a `watchSignedIn` event; the web app waits until the device's keys are visible (`getUserDeviceInfo`, up to 30 s) and cross-signs it (`crypto.crossSignDevice(deviceId)`), so the account's other devices and other people trust it. The iPhone needs its own cross-signing keys for this; when it has none, the page says to set up encryption first and leaves the watch unverified (it still works; other clients show it as unverified).
 6. Then the web app sends `{ v: 1, kind: 'secrets', userId, bundle }`: the account's secrets bundle (`crypto.exportSecretsBundle()`: the private cross-signing keys and the key backup's key), as a QR-code sign-in hands a new device. The watch imports it (`SecretsBundleWithUserId.fromJson`, `importSecretsBundle`): it now trusts the account's identity and its other devices, and key backup turns on, so messages from before it signed in decrypt. Without a key backup there is no bundle; the page says so and the watch reads only what arrives after it signed in. (Asking the other devices for the backup key with `m.secret.request` does not work here: a device that was only cross-signed by another one does not trust the account's identity, so it refuses the answers.) 🔒 The bundle travels over WatchConnectivity, the encrypted link between the iPhone and its paired watch, and the watch keeps it in its passphrase-encrypted store.
-7. Disconnect on the iPhone sends `{ kind: 'signOut' }`; the watch logs out its device (`/logout`) and clears its store. The watch's own Settings has Sign out too.
+7. Disconnect on the iPhone deletes the watch's device on the server (through interactive auth, as the Devices page does), so a lost watch keeps no session, and sends `{ kind: 'signOut' }`; the watch clears its store when it reads it. Only a sign-in this iPhone started (Connect) gets verified and the bundle.
 
 A login token is valid for minutes and once; a credentials message the watch reads after `expiresAt` is ignored, and the watch says "Connect again from your iPhone".
 
@@ -98,7 +98,7 @@ Bundle ids: `chat.mindroom.app.watchkitapp` (app), `chat.mindroom.app.watchkitap
 
 - A voice message: `Recorder` writes `voice-message-<ISO time>.m4a`; the room's live timeline sends it with the SDK's `send_voice_message` (it encrypts the file in an encrypted room and writes `org.matrix.msc3245.voice`, `org.matrix.msc1767.audio` with duration in ms and the waveform), as a new root in the room, or into the thread's timeline as a reply.
 - Approve or deny: `room.send_raw('io.mindroom.tool_approval_response', { status, reason: null, m.relates_to: thread relation with m.in_reply_to the card })`, the same content the web client sends.
-- An answer: `toggle_reaction` with the option's key on the question event.
+- An answer: an `m.reaction` with the option's key on the question event (`room.send_raw`, the web client's content).
 - Resolve: `send_state_event_raw('com.mindroom.thread.tags', JSON.stringify([rootId, 'resolved']), { set_by, set_at })`; reopening sends `{}`.
 
 ### Reading
@@ -110,7 +110,7 @@ Bundle ids: `chat.mindroom.app.watchkitapp` (app), `chat.mindroom.app.watchkitap
 
 ### Notifications
 
-- The iPhone pusher's `default_payload` gains `aps.category: 'MINDROOM_EVENT'` (`src/app/notifications/push/iosPush.ts`), so the iPhone and the watch both know the category. The iPhone registers the category with no actions.
+- The iPhone pusher's `default_payload` gains `aps.category: 'MINDROOM_EVENT'` (`src/app/notifications/push/iosPush.ts`); the iPhone needs no registration for it, and the watch app provides the category's long look.
 - The watch's `NotificationController` (`WKUserNotificationHostingController`) reads `room_id` and `event_id` from the payload, loads the event with `load_or_fetch_event` in its own client and shows the approval card, the question or the reply as plain text, and sets `notificationActions` to Approve/Deny, the options, or Listen/Reply.
 - An action on a forwarded notification reaches the watch app's `UNUserNotificationCenterDelegate`, which sends the response. Which app receives actions on forwarded notifications is checked on the device first (plan task 1); if it is the iPhone app, the long look keeps only the default action (open the thread in the watch app), where the same buttons are.
 - An agent's streamed reply pushes once, when it starts (edits do not notify); the long look shows the reply as far as it has come.
@@ -120,7 +120,7 @@ Bundle ids: `chat.mindroom.app.watchkitapp` (app), `chat.mindroom.app.watchkitap
 
 - Not connected, or the session revoked (`M_UNKNOWN_TOKEN` from the SDK): the watch clears its store and shows Connect.
 - No network: home shows "No connection"; recording still works and sending queues in the SDK's send queue ("Queued" on the row), which retries when the network returns.
-- A failed upload or send that the SDK gives up on: the thread row shows "Not sent" with Retry and Delete.
+- A failed upload or send that the SDK gives up on: the thread row shows "Not sent", with Retry and Delete as swipe actions. A send that failed for want of a network stays "Queued": the room's send queue is turned on again when sync runs and when the app comes forward.
 - The microphone refused: home says so with the path to Settings on the watch.
 - An approval answered elsewhere first (the card's status is no longer `pending`): the card shows the outcome and no buttons.
 - Decryption failures show "Encrypted message" in place of text; the thread still opens.

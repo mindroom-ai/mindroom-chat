@@ -33,11 +33,18 @@ const flow = vi.hoisted(() => ({
 }));
 vi.mock('./connectWatch', () => ({ connectWatch: flow.connect, verifyWatch: flow.verify }));
 
+const server = vi.hoisted(() => ({ deleteMultipleDevices: vi.fn(async () => ({})) }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getSafeUserId: () => '@bas:mindroom.chat' }),
+  useMatrixClient: () => ({
+    getSafeUserId: () => '@bas:mindroom.chat',
+    deleteMultipleDevices: server.deleteMultipleDevices,
+  }),
 }));
 vi.mock('../uia/useAuthenticatedAction', () => ({
-  useAuthenticatedAction: () => ({ run: vi.fn(), prompt: null }),
+  useAuthenticatedAction: () => ({
+    run: <T,>(request: () => Promise<T>) => request(),
+    prompt: null,
+  }),
 }));
 vi.mock('../../ui/SettingTile', () => ({
   SettingTile: ({
@@ -60,6 +67,15 @@ vi.mock('../../ui/SettingTile', () => ({
 const renderSettings = async () => {
   render(<WatchSettings />);
   await act(async () => undefined);
+};
+
+const connectThenSignIn = async (device = { userId: '@bas:mindroom.chat', deviceId: 'WATCH' }) => {
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+  });
+  await act(async () => {
+    native.signedIn?.(device);
+  });
 };
 
 describe('WatchSettings', () => {
@@ -119,10 +135,27 @@ describe('WatchSettings', () => {
 
   it('ignores a sign-in of another account', async () => {
     await renderSettings();
+    await connectThenSignIn({ userId: '@other:mindroom.chat', deviceId: 'X' });
+    expect(flow.verify).not.toHaveBeenCalled();
+  });
+
+  it('ignores a sign-in it did not start', async () => {
+    // A fresh module: the connects other tests started do not count here.
+    vi.resetModules();
+    const { WatchSettings: FreshSettings } = await import('./WatchSettings');
+    render(<FreshSettings />);
+    await act(async () => undefined);
     await act(async () => {
-      native.signedIn?.({ userId: '@other:mindroom.chat', deviceId: 'X' });
+      native.signedIn?.({ userId: '@bas:mindroom.chat', deviceId: 'WATCH' });
     });
     expect(flow.verify).not.toHaveBeenCalled();
+  });
+
+  it('says when verifying fails', async () => {
+    flow.verify.mockRejectedValue(new Error('NO_WATCH'));
+    await renderSettings();
+    await connectThenSignIn();
+    expect(screen.getByText('Could not connect: NO_WATCH')).toBeTruthy();
   });
 
   it('shows why connecting failed', async () => {
@@ -137,9 +170,7 @@ describe('WatchSettings', () => {
   it('says the watch stays unverified without cross-signing keys', async () => {
     flow.verify.mockResolvedValue('no-cross-signing');
     await renderSettings();
-    await act(async () => {
-      native.signedIn?.({ userId: '@bas:mindroom.chat', deviceId: 'WATCH' });
-    });
+    await connectThenSignIn();
     expect(
       screen.getByText(
         'The watch is connected but unverified: set up encryption on this iPhone to verify it.'
@@ -150,9 +181,7 @@ describe('WatchSettings', () => {
   it('says when there is no key backup to share', async () => {
     flow.verify.mockResolvedValue('no-backup');
     await renderSettings();
-    await act(async () => {
-      native.signedIn?.({ userId: '@bas:mindroom.chat', deviceId: 'WATCH' });
-    });
+    await connectThenSignIn();
     expect(
       screen.getByText(
         'The watch is verified, but it cannot read messages from before it was connected: turn on key backup on this iPhone.'
@@ -172,6 +201,7 @@ describe('WatchSettings', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }));
     });
+    expect(server.deleteMultipleDevices).toHaveBeenCalledWith(['WATCH'], undefined);
     expect(native.signOut).toHaveBeenCalled();
     expect(screen.getByText('Not connected.')).toBeTruthy();
   });

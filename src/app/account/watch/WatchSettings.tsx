@@ -14,10 +14,20 @@ import {
   type WatchDevice,
   type WatchStatus,
 } from '../../native/nativeWatch';
-import { useAuthenticatedAction } from '../uia/useAuthenticatedAction';
+import { AuthenticationCancelled, useAuthenticatedAction } from '../uia/useAuthenticatedAction';
 import { connectWatch, verifyWatch } from './connectWatch';
 
 const W = 'featureUi.watch';
+
+/**
+ * The accounts this app sent a watch a login token for, until the watch reports in: only a sign-in
+ * this iPhone started gets verified and the account's secrets. Kept outside the component, so a
+ * report that arrives while Settings was closed (the plugin keeps it) still counts when it reopens.
+ */
+const pendingConnects = new Set<string>();
+
+const describeError = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
 
 type Step =
   | { kind: 'idle' }
@@ -44,9 +54,18 @@ function WatchSettingsSection() {
     let stop: (() => void) | undefined;
     let alive = true;
     const verify = async (device: WatchDevice) => {
-      if (!alive || device.userId !== mx.getSafeUserId()) return;
+      if (!alive || device.userId !== mx.getSafeUserId() || !pendingConnects.has(device.userId))
+        return;
+      pendingConnects.delete(device.userId);
       setStep({ kind: 'verifying' });
-      const result = await verifyWatch(mx, device.deviceId, sendWatchSecrets);
+      let result: Awaited<ReturnType<typeof verifyWatch>>;
+      try {
+        result = await verifyWatch(mx, device.deviceId, sendWatchSecrets);
+      } catch (error) {
+        if (alive)
+          setStep({ kind: 'message', text: t(`${W}.failed`, { reason: describeError(error) }) });
+        return;
+      }
       if (!alive) return;
       await refresh();
       if (result === 'verified') setStep({ kind: 'idle' });
@@ -70,6 +89,7 @@ function WatchSettingsSection() {
   const connect = async () => {
     setStep({ kind: 'connecting' });
     const result = await connectWatch(mx, sendWatchCredentials, run);
+    if (result.kind === 'sent') pendingConnects.add(mx.getSafeUserId());
     if (result.kind === 'sent') setStep({ kind: 'waiting' });
     else if (result.kind === 'cancelled') setStep({ kind: 'idle' });
     else if (result.kind === 'unsupported')
@@ -77,7 +97,18 @@ function WatchSettingsSection() {
     else setStep({ kind: 'message', text: t(`${W}.failed`, { reason: result.reason }) });
   };
 
-  const disconnect = async () => {
+  /**
+   * Signs the watch's device out on the server too, so a lost or unpaired watch, which never reads
+   * the sign-out message, keeps no session (it holds the account's cross-signing and backup keys).
+   */
+  const disconnect = async (deviceId: string) => {
+    try {
+      await run((auth) => mx.deleteMultipleDevices([deviceId], auth));
+    } catch (error) {
+      if (error instanceof AuthenticationCancelled) return;
+      setStep({ kind: 'message', text: t(`${W}.failed`, { reason: describeError(error) }) });
+      return;
+    }
     await signOutWatch();
     setStep({ kind: 'idle' });
     await refresh();
@@ -104,7 +135,7 @@ function WatchSettingsSection() {
         radii="300"
         variant="Secondary"
         fill="Soft"
-        onClick={() => void disconnect()}
+        onClick={() => void disconnect(device.deviceId)}
       >
         <Text size="B300">{t(`${W}.disconnect`)}</Text>
       </Button>

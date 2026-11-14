@@ -72,6 +72,52 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.approvals.first?.status, .approved)
     }
 
+    private func card(_ id: String, _ ts: Int, sender: String = "@mindroom_router:x", extra: JSON = [:]) -> JSON {
+        var content: JSON = ["msgtype": "io.mindroom.tool_approval", "body": "approval", "tool_name": "send_email", "status": "pending",
+                             "arguments": ["to": "a"] as JSON, "thread_id": "$root"]
+        extra.forEach { content[$0.key] = $0.value }
+        return event(id, ts, sender: sender, type: "io.mindroom.tool_approval", inThread(content))
+    }
+
+    func testCardsForSomeoneElseOrFromPeopleDoNotNeedYou() {
+        XCTAssertNil(ThreadSnapshot.build(root: voiceRoot, related: [card("$c", 3, extra: ["approver_user_id": "@anna:x"])], ownUserId: me, now: now).pendingApproval)
+        XCTAssertNil(ThreadSnapshot.build(root: voiceRoot, related: [card("$c", 3, sender: "@anna:x")], ownUserId: me, now: now).pendingApproval)
+        XCTAssertNil(ThreadSnapshot.build(root: voiceRoot, related: [card("$c", 3, sender: "@mindroom_router:other.server")], ownUserId: me, now: now).pendingApproval)
+        XCTAssertEqual(ThreadSnapshot.build(root: voiceRoot, related: [card("$c", 3, extra: ["approver_user_id": me])], ownUserId: me, now: now).pendingApproval?.eventId, "$c")
+    }
+
+    func testUnreviewableCardIsNotApprovable() throws {
+        let parsed = try XCTUnwrap(ApprovalCard.parse(card("$c", 3, extra: ["approvable": false])))
+        XCTAssertFalse(parsed.approvable)
+        XCTAssertTrue(try XCTUnwrap(ApprovalCard.parse(card("$c", 3))).approvable)
+    }
+
+    private func question(_ id: String, _ ts: Int, text: String = "Which flight?", source: String? = nil) -> JSON {
+        var interactive: JSON = ["question_text": text, "options": ["✈️": "a", "🌙": "b", "1": "b", "2": "a"] as JSON,
+                                 "option_labels": ["✈️": "07:10", "🌙": "21:35"] as JSON]
+        if let source { interactive["source_event_id"] = source }
+        return event(id, ts, inThread(["msgtype": "m.text", "body": "Which?", "io.mindroom.interactive": interactive]))
+    }
+
+    func testOptionsKeepTheAgentsOrder() {
+        // The number keys give the order: 1 is 🌙's value, 2 is ✈️'s.
+        XCTAssertEqual(ThreadSnapshot.build(root: voiceRoot, related: [question("$q", 3)], ownUserId: me, now: now).openQuestion?.options.map(\.key), ["🌙", "✈️"])
+    }
+
+    func testOnlyTheNewestAgentReplyAsks() {
+        let later = event("$later", 5, inThread(["msgtype": "m.text", "body": "Booked it anyway."]))
+        XCTAssertNil(ThreadSnapshot.build(root: voiceRoot, related: [question("$q", 3), later], ownUserId: me, now: now).openQuestion)
+    }
+
+    func testQuestionsForSomeoneElseOrStaleOrEmptyAreNotOpen() {
+        let annasMessage = event("$anna", 2, sender: "@anna:x", inThread(["msgtype": "m.text", "body": "book it"]))
+        XCTAssertNil(ThreadSnapshot.build(root: voiceRoot, related: [annasMessage, question("$q", 3, source: "$anna")], ownUserId: me, now: now).openQuestion)
+        XCTAssertEqual(ThreadSnapshot.build(root: voiceRoot, related: [question("$q", 3, source: "$root")], ownUserId: me, now: now).openQuestion?.eventId, "$q")
+        let eightDaysLater = Date(timeIntervalSince1970: 8 * 24 * 3600)
+        XCTAssertNil(ThreadSnapshot.build(root: voiceRoot, related: [question("$q", 3)], ownUserId: me, now: eightDaysLater).openQuestion)
+        XCTAssertNil(ThreadSnapshot.build(root: voiceRoot, related: [question("$q", 3, text: "")], ownUserId: me, now: now).openQuestion)
+    }
+
     func testQuestionOpenUntilAnswered() {
         let question = event("$q", 3, inThread(["msgtype": "m.text", "body": "Which?", "io.mindroom.interactive": [
             "question_text": "Which flight?", "options": ["✈️": "a", "🌙": "b", "1": "a", "2": "b"] as JSON,

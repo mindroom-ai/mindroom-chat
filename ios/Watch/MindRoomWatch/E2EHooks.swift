@@ -5,7 +5,7 @@ import MatrixRustSDK
 import MindRoomWatchKit
 import os
 
-/// Launch-environment hooks for the simulator runs (scripts/watch/e2e.sh); DEBUG builds only.
+/// Launch-environment hooks for the simulator runs (scripts/watch/e2e.py); DEBUG builds only.
 ///
 ///   MINDROOM_WATCH_E2E_CREDENTIALS  the iPhone's credentials message, as JSON (MindRoomWatchApp)
 ///   MINDROOM_WATCH_E2E_ROOM         the room to make the default

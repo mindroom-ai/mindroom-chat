@@ -23,9 +23,17 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
         WCSession.default.transferUserInfo(message.dictionary)
     }
 
+    /// The message being handled: each waits for the one before, so a sign-out and a new sign-in never interleave.
+    private var last: Task<Void, Never>?
+    private let lock = NSLock()
+
     private func receive(_ dictionary: [String: Any]) {
         guard let message = WatchLinkMessage(dictionary: dictionary) else { return }
-        Task { @MainActor in
+        lock.lock()
+        let previous = last
+        let session = session
+        last = Task { @MainActor in
+            await previous?.value
             switch message {
             case .credentials: await session.connect(message)
             case let .secrets(userId, bundle): await session.importSecrets(userId: userId, bundle: bundle)
@@ -33,6 +41,7 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
             case .signedIn: break
             }
         }
+        lock.unlock()
     }
 
     func session(_ session: WCSession, activationDidCompleteWith state: WCSessionActivationState, error: Error?) {

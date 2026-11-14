@@ -49,7 +49,7 @@ index cf71a3a..a3e6fb8 100644
  #[derive(uniffi::Enum)]
  pub enum DetectedSecretsBundle {
 diff --git a/bindings/matrix-sdk-ffi/src/room/mod.rs b/bindings/matrix-sdk-ffi/src/room/mod.rs
-index ee11d99..abfb2d9 100644
+index ee11d99..e7a622e 100644
 --- a/bindings/matrix-sdk-ffi/src/room/mod.rs
 +++ b/bindings/matrix-sdk-ffi/src/room/mod.rs
 @@ -275,6 +275,14 @@ impl Room {
@@ -67,25 +67,37 @@ index ee11d99..abfb2d9 100644
              TimelineFilter::EventFilter { filter: event_filter } => {
                  builder = builder.event_filter(move |event, room_version_id| {
                      // Always perform the default filter first
-@@ -1343,6 +1351,23 @@ impl Room {
+@@ -1343,6 +1351,35 @@ impl Room {
              .into())
      }
  
 +    /// The event as JSON (its decrypted form when it was encrypted), followed by
-+    /// the events related to it (edits, reactions), each as JSON, loaded from
-+    /// the event cache or fetched from the homeserver. Keeps the fields that
-+    /// the typed events drop, such as an application's own content keys.
++    /// the events related to it (edits, reactions, thread replies, recursively),
++    /// each as JSON. The event may come from the event cache; its relations
++    /// always come from the homeserver, since the cache may miss those that
++    /// arrived while the client did not sync. Keeps the fields that the typed
++    /// events drop, such as an application's own content keys.
 +    pub async fn load_or_fetch_event_json_with_relations(
 +        &self,
 +        event_id: String,
 +    ) -> Result<Vec<String>, ClientError> {
 +        let event_id = EventId::parse(event_id)?;
-+        let (event, related_events) =
-+            self.inner.load_or_fetch_event_with_relations(&event_id, None, None).await?;
-+        Ok(std::iter::once(event)
-+            .chain(related_events)
-+            .map(|event| event.kind.into_raw().json().get().to_owned())
-+            .collect())
++        let event = self.inner.load_or_fetch_event(&event_id, None).await?;
++        let mut options = matrix_sdk::room::RelationsOptions {
++            recurse: true,
++            limit: Some(matrix_sdk::ruma::uint!(256)),
++            ..Default::default()
++        };
++        let mut events = vec![event];
++        loop {
++            let relations = self.inner.relations(event_id.clone(), options.clone()).await?;
++            events.extend(relations.chunk);
++            match relations.next_batch_token {
++                Some(token) => options.from = Some(token),
++                None => break,
++            }
++        }
++        Ok(events.into_iter().map(|event| event.kind.into_raw().json().get().to_owned()).collect())
 +    }
 +
      /// Either loads the event associated with the `event_id` from the event

@@ -18,6 +18,8 @@ final class Recorder: ObservableObject {
     @Published private(set) var levels: [Float] = []
     @Published private(set) var elapsed: TimeInterval = 0
     @Published private(set) var isRecording = false
+    /// The 5 minutes ran out and the recorder stopped by itself.
+    @Published private(set) var reachedLimit = false
     private var recorder: AVAudioRecorder?
     private var timer: Timer?
 
@@ -41,14 +43,17 @@ final class Recorder: ObservableObject {
         levels = []
         elapsed = 0
         isRecording = true
+        reachedLimit = false
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
     }
 
     /// Stops and returns the take (also when the 5 minutes ran out).
+    /// Returns the take once; later calls (and calls after cancel) return nil.
     func stop() -> Take? {
         guard let recorder else { return nil }
+        self.recorder = nil
         let duration = recorder.isRecording ? recorder.currentTime : elapsed
         recorder.stop()
         finish()
@@ -59,6 +64,7 @@ final class Recorder: ObservableObject {
     func cancel() {
         recorder?.stop()
         recorder?.deleteRecording()
+        recorder = nil
         finish()
     }
 
@@ -70,6 +76,7 @@ final class Recorder: ObservableObject {
             elapsed = recorder.currentTime
         } else {
             isRecording = false
+            reachedLimit = true
         }
     }
 

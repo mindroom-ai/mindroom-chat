@@ -27,9 +27,13 @@ struct ApprovalCardView: View {
             }
             switch card.status {
             case .pending:
-                Button { decide(true) } label: { Text("Approve").frame(maxWidth: .infinity) }
-                    .tint(.green)
-                    .disabled(busy)
+                if card.approvable {
+                    Button { decide(true) } label: { Text("Approve").frame(maxWidth: .infinity) }
+                        .tint(.green)
+                        .disabled(busy)
+                } else {
+                    Text("Review it on the iPhone to approve.").font(.caption2).foregroundStyle(.secondary)
+                }
                 Button(role: .destructive) { decide(false) } label: { Text("Deny").frame(maxWidth: .infinity) }
                     .disabled(busy)
             case .approved:

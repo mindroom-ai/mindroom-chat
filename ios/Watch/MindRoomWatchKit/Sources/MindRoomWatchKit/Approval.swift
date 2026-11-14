@@ -10,6 +10,7 @@ public struct ApprovalCard: Equatable, Sendable {
     public static let responseEventType = "io.mindroom.tool_approval_response"
 
     public let eventId: String
+    public let sender: String
     public let threadId: String
     public let toolName: String
     public let agentName: String?
@@ -18,6 +19,10 @@ public struct ApprovalCard: Equatable, Sendable {
     public let argumentsTruncated: Bool
     public let status: ApprovalStatus
     public let expiresAt: Date?
+    /// The one person who may decide, when the backend names one.
+    public let approverUserId: String?
+    /// False when the backend could not show every argument for review: then only Deny is offered.
+    public let approvable: Bool
 
     public struct Argument: Equatable, Sendable {
         public let key: String
@@ -38,10 +43,11 @@ public struct ApprovalCard: Equatable, Sendable {
             .map { Argument(key: $0.key, value: text(of: $0.value)) }
             .sorted { $0.key < $1.key }
         return ApprovalCard(
-            eventId: eventId, threadId: threadId, toolName: toolName,
+            eventId: eventId, sender: event["sender"] as? String ?? "", threadId: threadId, toolName: toolName,
             agentName: content["agent_name"] as? String, arguments: arguments,
             argumentsTruncated: content["arguments_truncated"] as? Bool ?? false,
-            status: status, expiresAt: (content["expires_at"] as? String).flatMap(parseDate))
+            status: status, expiresAt: (content["expires_at"] as? String).flatMap(parseDate),
+            approverUserId: content["approver_user_id"] as? String, approvable: content["approvable"] as? Bool ?? true)
     }
 
     /// The id of the card an `m.replace` edit of a card changes.
@@ -56,8 +62,9 @@ public struct ApprovalCard: Equatable, Sendable {
             .max { $0.timestamp < $1.timestamp }
         var status = (newest?.newContent?["status"] as? String).flatMap(ApprovalStatus.init(rawValue:)) ?? self.status
         if status == .pending, let expiresAt, expiresAt <= now { status = .expired }
-        return ApprovalCard(eventId: eventId, threadId: threadId, toolName: toolName, agentName: agentName,
-                            arguments: arguments, argumentsTruncated: argumentsTruncated, status: status, expiresAt: expiresAt)
+        return ApprovalCard(eventId: eventId, sender: sender, threadId: threadId, toolName: toolName, agentName: agentName,
+                            arguments: arguments, argumentsTruncated: argumentsTruncated, status: status, expiresAt: expiresAt,
+                            approverUserId: approverUserId, approvable: approvable)
     }
 }
 
@@ -88,4 +95,18 @@ private func parseDate(_ value: String) -> Date? {
     let fractional = ISO8601DateFormatter()
     fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     return fractional.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+}
+
+/// MindRoom's agents: accounts whose localpart starts with `mindroom_`, on the person's own homeserver
+/// (as the web client's `isMindroomAgentUserIdForViewer`).
+public enum MindRoomAgent {
+    public static func isAgent(_ userId: String?, viewer: String) -> Bool {
+        guard let userId, let local = userId.dropFirst().split(separator: ":").first,
+              local.lowercased().hasPrefix("mindroom_") else { return false }
+        return server(userId) != nil && server(userId) == server(viewer)
+    }
+
+    private static func server(_ userId: String) -> Substring? {
+        userId.firstIndex(of: ":").map { userId[userId.index(after: $0)...] }
+    }
 }
