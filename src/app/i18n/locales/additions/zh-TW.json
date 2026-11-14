@@ -993,6 +993,8 @@
       "deactivated": "已停用"
     },
     "count": "帳號：{{shown}} / {{total}}",
+    "showDeactivated": "顯示已停用的帳號（{{count}}）",
+    "hiddenDeactivated": "已隱藏：{{count}} 個已停用",
     "noMatches": "沒有符合的帳號",
     "loadFailed": "無法載入帳號。",
     "status": {
@@ -1029,6 +1031,7 @@
       "title": "邀請",
       "description": "受邀的電子郵件地址使用該地址登入後，可在此建立一個帳號。",
       "sendYourself": "不會寄出任何郵件：請複製邀請內容並自行傳送。",
+      "noEmail": "不會寄出任何電子郵件。邀請後，要傳送的邀請會顯示在這裡：請複製並自行傳給每個人。",
       "add": "透過電子郵件邀請",
       "none": "沒有待處理的邀請",
       "loadFailed": "無法載入邀請。",
@@ -1036,6 +1039,8 @@
       "addressesHint": "多個地址請用逗號或換行分隔。",
       "rooms": "新帳號將加入的聊天室",
       "external": "外部帳號",
+      "externalHint": "適用於組織外部的人：此帳號只會加入這裡選擇的聊天室，以及之後受邀的聊天室，無法建立聊天室或邀請他人。",
+      "externalForbidden": "外部帳號無法加入有鎖頭標記的聊天室。",
       "invited": "已邀請",
       "replaces": "取代先前的邀請",
       "copy": "複製邀請內容",

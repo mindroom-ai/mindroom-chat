@@ -1016,6 +1016,8 @@
       "deactivated": "Devre dışı"
     },
     "count": "Hesaplar: {{shown}} / {{total}}",
+    "showDeactivated": "Devre dışı olanları göster ({{count}})",
+    "hiddenDeactivated": "Gizli: {{count}} devre dışı",
     "noMatches": "Eşleşen hesap yok",
     "loadFailed": "Hesaplar yüklenemedi.",
     "status": {
@@ -1052,6 +1054,7 @@
       "title": "Davetler",
       "description": "Davet edilen bir e-posta adresi, o adresle oturum açarak burada bir hesap oluşturabilir.",
       "sendYourself": "E-posta gönderilmez: daveti kopyalayıp kendiniz gönderin.",
+      "noEmail": "E-posta gönderilmez. Davetten sonra gönderilecek davet burada görünür: kopyalayıp her kişiye kendiniz gönderin.",
       "add": "E-postayla davet et",
       "none": "Bekleyen davet yok",
       "loadFailed": "Davetler yüklenemedi.",
@@ -1059,6 +1062,8 @@
       "addressesHint": "Birden çok adresi virgülle veya yeni satırla ayırın.",
       "rooms": "Yeni hesabın katılacağı odalar",
       "external": "Harici hesap",
+      "externalHint": "Kuruluşunuzun dışından biri için: hesap yalnızca burada seçilen odalara ve daha sonra davet edildiği odalara katılır; oda oluşturamaz ve kimseyi davet edemez.",
+      "externalForbidden": "Harici hesaplar kilit işaretli odalara katılamaz.",
       "invited": "Davet edildi",
       "replaces": "Önceki davetin yerini alır",
       "copy": "Daveti kopyala",

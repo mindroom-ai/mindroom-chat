@@ -1016,6 +1016,8 @@
       "deactivated": "Gedeactiveerd"
     },
     "count": "Accounts: {{shown}} van {{total}}",
+    "showDeactivated": "Gedeactiveerde tonen ({{count}})",
+    "hiddenDeactivated": "Verborgen: {{count}} gedeactiveerd",
     "noMatches": "Geen account gevonden",
     "loadFailed": "De accounts konden niet worden geladen.",
     "status": {
@@ -1052,6 +1054,7 @@
       "title": "Uitnodigingen",
       "description": "Een uitgenodigd e-mailadres kan hier één account aanmaken door ermee in te loggen.",
       "sendYourself": "Er wordt niets gemaild: kopieer de uitnodiging en verstuur die zelf.",
+      "noEmail": "Er wordt niets gemaild. Na het uitnodigen verschijnt de uitnodiging hier: kopieer die en stuur hem zelf naar elke persoon.",
       "add": "Uitnodigen per e-mail",
       "none": "Geen openstaande uitnodigingen",
       "loadFailed": "De uitnodigingen konden niet worden geladen.",
@@ -1059,6 +1062,8 @@
       "addressesHint": "Scheid meerdere adressen met komma's of nieuwe regels.",
       "rooms": "Kamers waaraan het nieuwe account deelneemt",
       "external": "Extern account",
+      "externalHint": "Voor iemand buiten je organisatie: het account komt alleen in de ruimtes die je hier kiest en in ruimtes waarvoor het later wordt uitgenodigd, en kan geen ruimtes maken of mensen uitnodigen.",
+      "externalForbidden": "Externe accounts kunnen niet in de ruimtes met een slot.",
       "invited": "Uitgenodigd",
       "replaces": "Vervangt de eerdere uitnodiging",
       "copy": "Uitnodiging kopiëren",
