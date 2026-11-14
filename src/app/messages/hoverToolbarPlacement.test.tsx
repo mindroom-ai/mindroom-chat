@@ -135,13 +135,13 @@ describe('useToolbarClearance', () => {
     expect(renderRow(140, 900, 800)).toBe(-2);
   });
 
-  it('stays over the sender line where the buttons of a code block are under it', () => {
+  it('stays over the sender line where the buttons of a code block are further down', () => {
     // Below the sender line (34) it would cover the code block's buttons at 46 to 70, so it stays
     // below the toggle, over the sender line.
     expect(renderRow(140, 900, 1000, 46)).toBe(-2);
-    // Buttons right under the sender line, where it would cover them, push it on below them
-    // (30 + 24 + 8), never up under the toggle.
-    expect(renderRow(140, 900, 1000, 30)).toBe(62);
+    // Buttons right under the sender line, with no room below them in the 80 px row, do not push
+    // it up under the toggle either.
+    expect(renderRow(140, 900, 1000, 30)).toBe(-2);
     // Buttons further down leave it below the sender line.
     expect(renderRow(140, 900, 1000, 80)).toBe(34);
   });
@@ -187,6 +187,11 @@ describe('useToolbarClearance', () => {
 });
 
 describe('toolbarOffset', () => {
+  it('stays below what floats over the timeline in a row too short to go below the buttons', () => {
+    // A file card's buttons from 18 to 50 px in a 68 px row without a sender line.
+    expect(toolbarOffset(-36, 10, 68, 42, [], undefined, [{ top: 18, bottom: 50 }])).toBe(10);
+  });
+
   // A 42 px toolbar that usually sits 36 px above a 60 px row.
   const place = (covered: number, folds: Parameters<typeof toolbarOffset>[4] = []) =>
     toolbarOffset(-36, covered, 60, 42, folds);
@@ -229,6 +234,25 @@ describe('toolbarOffset', () => {
 
     it('ignores a sender line hidden under the header', () => {
       expect(placeWithSender(40)).toBe(14);
+    });
+
+    it('moves below the buttons right under the sender line where it would cover them', () => {
+      // Over the sender line it would reach the buttons at 30 to 54; it goes 8 px below them.
+      expect(toolbarOffset(-36, 0, 400, 42, [], sender, [{ top: 30, bottom: 54 }])).toBe(62);
+    });
+
+    it('stays over the sender line where there is no room below the buttons under it', () => {
+      // A file card's View and Download buttons from 42 to 74 px in a 92 px row: below them the
+      // 42 px toolbar would reach into the next row.
+      expect(toolbarOffset(-36, 0, 92, 42, [], sender, [{ top: 42, bottom: 74 }])).toBe(0);
+    });
+
+    it('stays under the fold button above when below the buttons is its own Show less', () => {
+      const folds = [
+        { top: -46, bottom: -14, ownRow: false },
+        { top: 60, bottom: 92, ownRow: true },
+      ];
+      expect(toolbarOffset(-36, -200, 400, 42, folds, sender, [{ top: 30, bottom: 54 }])).toBe(-6);
     });
 
     it('stays under the fold button above when its own Show less is below the sender line', () => {

@@ -105,17 +105,24 @@ export const toolbarOffset = (
       }
     });
   // Moved down into its row, it goes on below the buttons of a code block or a file it would
-  // cover there (they come top to bottom); up, it would go back under what floats over the
-  // timeline.
+  // cover there (they come top to bottom), where it still ends inside the row clear of a fold
+  // button; up, it would go back under what floats over the timeline.
   if (top > usual + 0.5) {
     contentActions.forEach((actions) => {
-      if (nearControl(top, actions)) top = actions.bottom + CONTROL_GAP_PX;
+      const below = actions.bottom + CONTROL_GAP_PX;
+      if (
+        nearControl(top, actions) &&
+        below + height <= rowHeight - ROW_END_GAP_PX &&
+        !folds.some((fold) => nearControl(below, fold))
+      ) {
+        top = below;
+      }
     });
   }
   // Moved down into its row, it goes on below the row's sender line where that shows, so the
   // name, the time and the reply details button stay in reach, unless a fold button is there (a
   // long row's own Show less sticks to the bottom of the view) or the buttons of a code block or
-  // a file are: then it stays over the sender line. In its usual place it ends a few pixels into the row, above the
+  // a file are: then it stays over the sender line, unless it went below those buttons above. In its usual place it ends a few pixels into the row, above the
   // line's text.
   if (
     senderLine &&

@@ -47,18 +47,9 @@ const signIn = async (page: Page, username: string) => {
   });
 };
 
-/**
- * Whether something else in the button's row, its hover toolbar, lies over the middle of `button`
- * and takes its click. The room header and the thread's banner are outside the row.
- */
-const coveredInRow = async (button: Locator, row: Locator): Promise<boolean> => {
-  const box = await button.boundingBox();
-  if (!box) return false;
-  const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-  const hits = (element: Element, at: typeof point) =>
-    element.contains(document.elementFromPoint(at.x, at.y));
-  return (await row.evaluate(hits, point)) && !(await button.evaluate(hits, point));
-};
+type Box = { x: number; y: number; width: number; height: number };
+const overlaps = (a: Box, b: Box) =>
+  a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 
 test('the hover toolbar keeps off the code block buttons of a row without a sender line', async ({
   page,
@@ -163,14 +154,20 @@ test('the hover toolbar keeps off the code block buttons of a row without a send
     await page.evaluate(
       () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     );
-    // The toolbar stays below the header.
-    const bar = await reply.evaluate(
-      (element) => element.parentElement!.getBoundingClientRect().top
+    // The toolbar's pill (around the row of its buttons) stays below the header and inside its
+    // row's bottom, and touches none of the code block's buttons.
+    const bar = await reply.evaluate((element) => {
+      const { x, y, width, height } = element.parentElement!.parentElement!.getBoundingClientRect();
+      return { x, y, width, height };
+    });
+    const rowBox = await row.boundingBox();
+    expect(bar.y, `the toolbar's top at ${under} px`).toBeGreaterThanOrEqual(covered - 1);
+    expect(bar.y + bar.height, `the toolbar's bottom at ${under} px`).toBeLessThanOrEqual(
+      (rowBox?.y ?? 0) + (rowBox?.height ?? 0)
     );
-    expect(bar, `the toolbar's top at ${under} px`).toBeGreaterThanOrEqual(covered - 1);
     for (const name of BUTTONS) {
-      const button = block.getByRole('button', { name, exact: true });
-      if (await coveredInRow(button, row)) blocked.push(`${name} at ${under} px`);
+      const button = await block.getByRole('button', { name, exact: true }).boundingBox();
+      if (button && overlaps(bar, button)) blocked.push(`${name} at ${under} px`);
     }
     if (SCREENSHOT) {
       await page.screenshot({
