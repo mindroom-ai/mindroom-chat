@@ -124,22 +124,30 @@ test('the hover toolbar keeps off the code block buttons of a row without a send
   // The row's top 10 to 50 px under the header's lower edge (the timeline's scroll padding).
   const blocked: string[] = [];
   for (const under of [10, 20, 30, 40, 50]) {
-    const covered = await row.evaluate((element, by) => {
-      let scroller = element.parentElement;
-      while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) {
-        scroller = scroller.parentElement;
-      }
-      if (!scroller) throw new Error('The row has no scroller');
-      const line =
-        scroller.getBoundingClientRect().top +
-        Number.parseFloat(getComputedStyle(scroller).scrollPaddingTop);
-      scroller.scrollBy(0, element.getBoundingClientRect().top - line + by);
-      return line;
-    }, under);
-    expect(
-      Math.round((await row.boundingBox())?.y ?? 0),
-      'the timeline scrolls the row under the header'
-    ).toBe(Math.round(covered - under));
+    // Scrolled until the row is there: the timeline may still settle after a jump.
+    let covered = 0;
+    await expect(async () => {
+      covered = await row.evaluate((element, by) => {
+        let scroller = element.parentElement;
+        while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) {
+          scroller = scroller.parentElement;
+        }
+        if (!scroller) throw new Error('The row has no scroller');
+        const line =
+          scroller.getBoundingClientRect().top +
+          Number.parseFloat(getComputedStyle(scroller).scrollPaddingTop);
+        scroller.scrollBy({
+          top: element.getBoundingClientRect().top - line + by,
+          behavior: 'instant',
+        });
+        return line;
+      }, under);
+      await page.evaluate(
+        () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      );
+      const rowTop = (await row.boundingBox())?.y ?? 0;
+      expect(Math.abs(rowTop - (covered - under))).toBeLessThan(1);
+    }, 'the timeline scrolls the row under the header').toPass({ timeout: 15_000 });
     const box = await block.boundingBox();
     if (!box) throw new Error('The code block has no box');
     await page.mouse.move(box.x + box.width / 2, box.y + Math.min(box.height / 2, 200));
