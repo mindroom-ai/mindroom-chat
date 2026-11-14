@@ -17,10 +17,11 @@ The lists keep import-time paths, and `docs/provenance/moves.tsv` (old path, new
 
 - **Lane C rules (spec section 2; where the spec, written before the move, names MindRoom Chat or `mindroom-ai/mindroom-chat`, it means the legacy client).** Never open, search, fetch, or install as source: the upstream client named in `docs/provenance.md` (its GitHub organization, any fork or mirror), the legacy MindRoom Chat client (`mindroom-ai/mindroom-chat-legacy`, which was `mindroom-ai/mindroom-chat` until 2026-11-07 UTC, when that name passed to this repository; `/home/basnijholt/Work/dev/mindroom-chat`, `/tmp/chat-ref`, any other checkout), Element Web, Element X, Element Call, FluffyChat, Nheko, Fractal, NeoChat, SchildiChat, and `mindroom/docs/baspowers/`, `mindroom/docs/dev/`. `folds` may be installed and its published API docs and type definitions read.
 - Allowed inputs: this repository (including Lane P files, but not `FORK_CHANGES.md`), `docs/provenance/seams.tsv`, `docs/design/reference/`, the Matrix specification, library documentation and type definitions, `/home/basnijholt/Work/dev/mindroom/docs/` (other pages) and `/home/basnijholt/Work/dev/mindroom/src/`.
-- Lane C code must pass `just strict` (`config/tsconfig.strict.json`) and the type-aware ESLint rules that `just lint` applies to Lane C TypeScript.
+- Lane C code, tests and `e2e/` included, must pass `just strict` (`config/tsconfig.strict.json`) and the type-aware ESLint rules that `just lint` applies to Lane C TypeScript.
 
 ### Both lanes
 
+- **Strict flags.** The app sources of both lanes (`config/tsconfig.app.json`: `src/` without tests) compile with the flags of `config/tsconfig.strict.json`; `just typecheck` and CI's "Type check" step fail on any error.
 - **Placement and layers.** A file goes where `docs/architecture.md` "Placement and naming" puts it: one folder per domain under `src/app/`, tests beside their subject, no barrel files. A domain imports only domains in a lower layer (`docs/architecture.md` "Layers"); type-only and dynamic imports count, tests are exempt, and `just lint` fails on an import that climbs. A new domain needs a place in `LAYERS` in `.eslintrc.cjs`.
 
 ### Lane P files
@@ -40,10 +41,10 @@ Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, 
 | Recipe | What it does |
 |---|---|
 | `just install` | `npm ci` |
-| `just typecheck` | `tsc --noEmit -p config/tsconfig.app.json`: the app sources under `src/` without tests; must report 0 errors |
+| `just typecheck` | `tsc --noEmit -p config/tsconfig.app.json`: the app sources under `src/` without tests, with the stricter flags of `config/tsconfig.strict.json`, which it extends; must report 0 errors |
 | `just typecheck-tests` | `tsc --noEmit -p .`: everything, tests and `e2e/` included; reports its errors without failing |
 | `just typecheck-all` | `scripts/typecheck-all.mjs`: syntax and semantic errors together over `tsconfig.json` |
-| `just strict` | `scripts/strict-check.mjs`: `tsc` with the stricter flags of `config/tsconfig.strict.json`; fails on Lane C errors only and prints the count of Lane P errors it ignores |
+| `just strict` | `scripts/strict-check.mjs`: `tsc` with the stricter flags of `config/tsconfig.strict.json` over everything, tests and `e2e/` included; fails on Lane C errors only and prints the count of Lane P errors it ignores |
 | `just test [args]` | `vitest run`; DOM tests opt in with `// @vitest-environment jsdom` |
 | `just lint` | ESLint over `src`, `e2e`, `scripts` and the config files, with type-aware rules for Lane C TypeScript, `PopOut` and `TooltipProvider` from `src/app/ui/directional.tsx`, and logical sides in styles (the files each rule covers and its exceptions: the `justfile` comment) |
 | `just format <paths>` | Prettier (2.8.8, matches the Lane P style) on the files you changed |

@@ -7,7 +7,7 @@ default:
 install:
     npm ci
 
-# Type-check the app sources (config/tsconfig.app.json: src without tests). The gate `just check` uses; must report 0 errors.
+# Type-check the app sources (config/tsconfig.app.json: src without tests) with the stricter flags of config/tsconfig.strict.json, which it extends. The gate `just check` uses; must report 0 errors.
 typecheck:
     npx tsc --noEmit -p config/tsconfig.app.json
 
