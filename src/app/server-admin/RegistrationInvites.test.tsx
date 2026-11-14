@@ -393,6 +393,29 @@ describe('RegistrationInvites', () => {
     );
   });
 
+  it("gives the server's reason when every address is refused, without a reminder to copy", async () => {
+    const refused = Object.assign(new Error('refused'), {
+      errcode: 'M_FORBIDDEN',
+      httpStatus: 403,
+      data: {
+        errcode: 'M_FORBIDDEN',
+        error: 'An external account may not join !staff:example.com.',
+      },
+    });
+    mocks.invite.mockResolvedValue([{ address: 'bob@example.com', error: refused }]);
+    const root = await render([]);
+
+    await click(withProp(root, 'data-invite-add'));
+    const dialog = dialogs(root)[0]!;
+    await type(dialog, 'bob@example.com');
+    await click(withProp(dialog, 'data-invite-send'));
+
+    expect(text(withProp(dialog, 'data-invite-result', 'bob@example.com'))).toContain(
+      'An external account may not join !staff:example.com.'
+    );
+    expect(text(dialog)).not.toContain('Nothing is emailed');
+  });
+
   it('closes the rooms an external account may never join while External is on', async () => {
     mocks.invite.mockResolvedValue([{ address: 'bob@example.com', invite: BOB }]);
     const root = await render([], ['!lobby:example.com']);
@@ -406,6 +429,8 @@ describe('RegistrationInvites', () => {
       });
 
     expect(lobby().props.disabled).toBe(true);
+    // A screen reader hears why, where a sighted person sees the lock.
+    expect(lobby().props['aria-label']).toContain("External accounts can't join");
     expect(withProp(dialog, 'data-invite-room', '!class:example.com').props.disabled).toBe(false);
     expect(text(dialog)).toContain("External accounts can't join the rooms marked with a lock.");
 

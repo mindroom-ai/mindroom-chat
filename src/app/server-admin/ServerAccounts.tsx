@@ -155,7 +155,8 @@ export function ServerAccounts({ requestClose }: SettingsPageProps) {
               <Text size="T200">{t(`serverAccounts.filters.${entry}`)}</Text>
             </Chip>
           ))}
-          {accounts && accounts.some((account) => account.deactivated) && (
+          {/* Only where it would add or take away accounts. */}
+          {(deactivated > 0 || showDeactivated) && (
             <Chip
               type="button"
               variant={showDeactivated ? 'Primary' : 'SurfaceVariant'}

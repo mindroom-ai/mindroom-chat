@@ -103,10 +103,12 @@ export function InviteDialog({
   if (outcomes) {
     return (
       <ActionDialog label={label} onClose={onClose} busy={false}>
-        <div className={css.Notice}>
-          <Icon size="100" src={Icons.Info} aria-hidden />
-          <Text size="T300">{t('serverAccounts.invites.sendYourself')}</Text>
-        </div>
+        {outcomes.some(({ invite: stored }) => stored !== undefined) && (
+          <div className={css.Notice}>
+            <Icon size="100" src={Icons.Info} aria-hidden />
+            <Text size="T300">{t('serverAccounts.invites.sendYourself')}</Text>
+          </div>
+        )}
         {/* Many addresses scroll here, so the button below them stays in view. */}
         <Box
           direction="Column"
@@ -203,6 +205,12 @@ export function InviteDialog({
                 radii="Pill"
                 aria-pressed={chosen.has(room.roomId)}
                 disabled={closed(room.roomId)}
+                // The lock is drawn only; its reason goes with the room's name.
+                aria-label={
+                  closed(room.roomId)
+                    ? `${roomLabel(room, rooms)}: ${t('serverAccounts.invites.externalForbidden')}`
+                    : undefined
+                }
                 before={closed(room.roomId) && <Icon size="50" src={Icons.Lock} aria-hidden />}
                 // The address tells a room from another of the same name, and from a look-alike.
                 title={

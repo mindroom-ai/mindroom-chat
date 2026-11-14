@@ -185,6 +185,16 @@ describe('ServerAccounts', () => {
     expect(text(root)).toContain('No account matches');
   });
 
+  it('offers no switch for deactivated accounts where the kind or search has none', async () => {
+    mocks.supports.mockResolvedValue(true);
+    const root = await render([ALICE, BOB, DAVE]);
+
+    await click(button(root, 'External'));
+    expect(filterLabels(root)).toEqual(['All', 'Internal', 'External']);
+    await click(button(root, 'All'));
+    expect(filterLabels(root)).toContain('Show deactivated (1)');
+  });
+
   it('marks external accounts and filters by them when the server says which they are', async () => {
     const root = await render([ALICE, BOB, CAROL, DAVE]);
 
