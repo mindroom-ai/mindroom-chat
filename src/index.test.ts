@@ -186,6 +186,21 @@ describe('application bootstrap', () => {
     expect(mocks.forgetAvatars).toHaveBeenCalledTimes(deletes);
   });
 
+  it("leaves the recorders to the main web view in the quick capture widget's", async () => {
+    mocks.isNativeIOS.mockReturnValue(true);
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, '', '/quick-capture/');
+    try {
+      await import('./index');
+    } finally {
+      window.history.replaceState(null, '', originalUrl);
+    }
+
+    expect(mocks.installFlightRecorder).not.toHaveBeenCalled();
+    expect(mocks.initializeDeepTraceRecorder).not.toHaveBeenCalled();
+    expect(mocks.createRoot).toHaveBeenCalledOnce();
+  });
+
   it('continues boot when recorder route classification throws', async () => {
     mocks.isNativeIOS.mockReturnValue(true);
     mocks.installFlightRecorder.mockImplementationOnce(() => {

@@ -10,3 +10,4 @@
 "VIDEO_CALL_FROM_USER" = "來自 %1$@ 的視訊通話";
 "USER_INVITE_TO_NAMED_ROOM" = "%1$@ 邀請你加入 %2$@";
 "USER_INVITE_TO_CHAT" = "%1$@ 邀請你聊天";
+"QUICK_CAPTURE" = "快速擷取";

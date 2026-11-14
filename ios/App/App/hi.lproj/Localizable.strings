@@ -10,3 +10,4 @@
 "VIDEO_CALL_FROM_USER" = "%1$@ की वीडियो कॉल";
 "USER_INVITE_TO_NAMED_ROOM" = "%1$@ ने आपको %2$@ में आमंत्रित किया";
 "USER_INVITE_TO_CHAT" = "%1$@ ने आपको चैट के लिए आमंत्रित किया";
+"QUICK_CAPTURE" = "क्विक कैप्चर";

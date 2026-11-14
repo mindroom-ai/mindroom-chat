@@ -92,6 +92,7 @@ src/
                          settings/, devices/, encryption/, verification/, uia/, onboarding/
     activity/            the Activity bell: rows from thread signals and invites, inline answers, the popover, the
                          phone sheet and the Activity section's list
+    quick-capture/       the floating note widget's page and its host in the signed-in app
     spaces/              spaces: rail order, leave, add existing; lobby/, create/
     timeline/            the room and thread timeline: RoomTimeline, rows, scrolling, pagination, minimap, collapsing,
                          room intro, thread badge; typing/, jump-to-time/, message-rendering/
@@ -163,7 +164,7 @@ A domain imports only domains in a strictly lower layer. Runtime, type-only and 
 | 7 | `background-jobs`, `members`, `messages` |
 | 8 | `canvas`, `composer`, `notifications`, `schedules`, `search`, `subagents` |
 | 9 | `rooms`, `threads` |
-| 10 | `account`, `activity`, `spaces`, `timeline` |
+| 10 | `account`, `activity`, `quick-capture`, `spaces`, `timeline` |
 | 11 | `command-palette`, `local-mindroom`, `room` |
 | 12 | `settings` |
 | 13 | `sidebar` |
