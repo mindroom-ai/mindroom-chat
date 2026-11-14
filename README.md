@@ -93,6 +93,8 @@ cd dist && python3 ../scripts/serve.py 8090   # plain HTTP on every interface: f
 
 The iOS, iPadOS, Mac Catalyst and Android apps wrap the same build with [Capacitor](https://capacitorjs.com) (app ID `chat.mindroom.app`; on Android `com.mindroom_ai.app`). [`docs/development.md`](docs/development.md#native-shells) shows how to build them, and [`docs/ios-release.md`](docs/ios-release.md) how releases reach the App Store.
 
+On the Mac, Control+Option+Space opens Quick Capture over any app: a small window that posts a note or a question, with a screenshot if you like, as a new thread in a room you pick, and lists that room's threads with their answers.
+
 ## Development
 
 | Command | What it does |

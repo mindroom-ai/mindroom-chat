@@ -580,6 +580,76 @@
       "description": "I membri di {{name}} possono entrarvi, e gli agenti in {{name}} vi entrano da soli.",
       "noPermission": "Non puoi modificare le stanze elencate sotto {{name}}",
       "takeOff": "Rimuovi da {{name}}"
+    },
+    "quickCapture": {
+      "title": "Cattura rapida",
+      "input": {
+        "placeholder": "Nota o domanda",
+        "label": "Nuova voce",
+        "send": "Invia",
+        "sending": "Invio in corso"
+      },
+      "attach": {
+        "window": "Screenshot della finestra in primo piano",
+        "screen": "Screenshot dell’intero schermo",
+        "remove": "Rimuovi {{name}}"
+      },
+      "room": {
+        "choose": "Scegli una stanza",
+        "change": "Pubblicazione in {{room}}. Cambia stanza",
+        "search": "Cerca stanze",
+        "none": "Nessuna stanza corrisponde"
+      },
+      "list": {
+        "label": "Thread in {{room}}",
+        "empty": "Niente di aperto qui",
+        "sent": "Inviato",
+        "resolved": "Risolto"
+      },
+      "chip": {
+        "working": "In corso",
+        "needsYou": "Da gestire",
+        "new": "Nuovo"
+      },
+      "peek": {
+        "copy": "Copia",
+        "copied": "Copiato",
+        "open": "Apri",
+        "done": "Fatto",
+        "reopen": "Riapri",
+        "reply": "Rispondi in questo thread"
+      },
+      "hint": {
+        "send": "Invia",
+        "sendOpen": "Invia e apri",
+        "room": "Stanza",
+        "list": "Elenco",
+        "move": "Sposta",
+        "peek": "Anteprima",
+        "done": "Fatto",
+        "reply": "Rispondi",
+        "open": "Apri"
+      },
+      "absent": {
+        "title": "MindRoom non è aperto",
+        "open": "Apri MindRoom"
+      },
+      "signedOut": {
+        "title": "Accedi a MindRoom"
+      },
+      "error": {
+        "noRoom": "Questa stanza non è più disponibile",
+        "uploadFailed": "Non è stato possibile caricare l’immagine",
+        "sendFailed": "Non inviato",
+        "forbidden": "Non puoi risolvere i thread in questa stanza",
+        "timeout": "MindRoom non ha risposto"
+      },
+      "screenshot": {
+        "denied": "MindRoom richiede il permesso di Registrazione schermo per fare screenshot",
+        "openSettings": "Apri Impostazioni di Sistema",
+        "noWindow": "L’app in primo piano non ha finestre",
+        "failed": "Lo screenshot non è riuscito"
+      }
     }
   },
   "mindroomUi": {
