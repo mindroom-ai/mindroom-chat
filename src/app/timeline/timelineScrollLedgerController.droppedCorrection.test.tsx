@@ -3,26 +3,15 @@ import { useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
+import type { buildMeasurementScrollCorrectionHook } from '../event-store/threads/threadRenderUtils';
 import { useTimelineScrollLedgerController } from './timelineScrollLedgerController';
 import { listShrinkNotRendered } from './useListEndClamp';
 
-type CorrectionHook = (
-  item: { end: number; index?: number },
-  delta: number,
-  instance: {
-    scrollOffset: number | null;
-    scrollDirection: 'forward' | 'backward' | null;
-    scrollElement?: { scrollTop: number } | null;
-  }
-) => boolean;
+type CorrectionHook = ReturnType<typeof buildMeasurementScrollCorrectionHook>;
 
 const virtualizer = vi.hoisted(() => ({
   itemSizeCache: new Map<string, number>(),
-  measurementsCache: [] as { index: number; size: number }[],
-  options: {},
-  setOptions: () => {},
   shouldAdjustScrollPositionOnItemSizeChange: undefined as unknown,
-  getVirtualItems: () => [],
   getVirtualItemForOffset: () => undefined,
 }));
 
@@ -77,34 +66,40 @@ const shrinkAfterDroppedCorrection = (threadId: string | undefined): number => {
   }
   const container = document.createElement('div');
   const root = createRoot(container);
-  flushSync(() => root.render(<Harness />));
+  try {
+    flushSync(() => root.render(<Harness />));
+    const inner = container.firstElementChild as HTMLElement;
 
-  const hook = virtualizer.shouldAdjustScrollPositionOnItemSizeChange as CorrectionHook;
-  const applied = hook({ end: 100, index: 0 }, 62, {
-    scrollOffset: 400,
-    scrollDirection: 'backward',
-    scrollElement,
-  });
-  flushSync(() => root.render(<Harness />));
-  const inner = container.firstElementChild as HTMLElement;
-  expect(applied).toBe(false);
-  expect(inner.style.marginTop).toBe('-62px');
+    const hook = virtualizer.shouldAdjustScrollPositionOnItemSizeChange as CorrectionHook;
+    expect(
+      hook({ end: 100, index: 0 }, 62, {
+        scrollOffset: 400,
+        scrollDirection: 'backward',
+        scrollElement,
+      })
+    ).toBe(false);
+    // The margin and the part of it the rows bring change in the same render.
+    expect(inner.style.marginTop).toBe('');
+    expect(readRowFoldPx()).toBe(0);
+    flushSync(() => root.render(<Harness />));
+    expect(inner.style.marginTop).toBe('-62px');
 
-  // The newest row ends where the list ends.
-  const box = (bottom: number, height: number) => () => ({ bottom, height } as DOMRect);
-  inner.getBoundingClientRect = box(800, 400);
-  inner.querySelectorAll<HTMLElement>('[data-index]').forEach((tile, index) => {
-    Object.defineProperty(tile, 'offsetHeight', { value: 200 });
-    tile.getBoundingClientRect = box(600 + index * 200, 200);
-  });
-  const rows = [
-    { index: 0, size: 200 },
-    { index: 1, size: 200 },
-  ];
-  const shrink = listShrinkNotRendered(inner, rows, readRowFoldPx());
-  flushSync(() => root.unmount());
-  rect.mockRestore();
-  return shrink;
+    // The newest row ends where the list ends.
+    const box = (bottom: number, height: number) => () => ({ bottom, height } as DOMRect);
+    inner.getBoundingClientRect = box(800, 400);
+    inner.querySelectorAll<HTMLElement>('[data-index]').forEach((tile, index) => {
+      Object.defineProperty(tile, 'offsetHeight', { value: 200 });
+      tile.getBoundingClientRect = box(600 + index * 200, 200);
+    });
+    const rows = [
+      { index: 0, size: 200 },
+      { index: 1, size: 200 },
+    ];
+    return listShrinkNotRendered(inner, rows, readRowFoldPx());
+  } finally {
+    flushSync(() => root.unmount());
+    rect.mockRestore();
+  }
 };
 
 it('reads no shrink in a thread whose row above the reader grew and moved into the ledger', () => {

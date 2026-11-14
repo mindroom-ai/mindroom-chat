@@ -219,8 +219,12 @@ export const useTimelineScrollLedgerController = ({
   // holds all its rows too. So do the rows a room window's page mounts above the reader: rows it
   // drops below the reader leave a list its render already ends higher, and counting the fold as
   // shrink threw a reader at the newest row to the top when a page landed a screen above them.
-  // The content above a thread's rows is left out: it is outside the list.
+  // The content above a thread's rows is left out: it is outside the list. So do the corrections
+  // the ledger takes for a thread's rows that changed size above the reader: the list's next
+  // render takes their new size. Until the render that paints their margin they wait in
+  // `droppedRowFoldPxRef`, so the margin and this part change together.
   const rowFoldPxRef = useRef(0);
+  const droppedRowFoldPxRef = useRef(0);
   // Fold pricing must use the previous committed cache. Reading the current
   // virtualizer during render would create a TDZ and couple planning to a
   // mutable instance.
@@ -288,6 +292,11 @@ export const useTimelineScrollLedgerController = ({
       leadingFoldPx +
       roomFoldPxAtRender +
       roomLedgerFoldPx;
+  const droppedRowFoldPxAtRender = resettingLedgerView ? 0 : droppedRowFoldPxRef.current;
+  useInsertionEffect(() => {
+    rowFoldPxRef.current += droppedRowFoldPxAtRender;
+    droppedRowFoldPxRef.current -= droppedRowFoldPxAtRender;
+  });
 
   useLayoutEffect(() => {
     if (resettingLedgerView) return;
@@ -639,16 +648,12 @@ export const useTimelineScrollLedgerController = ({
   const handleDroppedCorrection = useCallback(
     (deltaPx: number) => {
       scrollCompensationPxRef.current += deltaPx;
-      // A thread's list holds all its rows: the next render takes the row's new size, so this
-      // margin is no room the list will give up, as for a fold (`rowFoldPxRef`). Counted, the end
-      // clamp pulled a reader at the newest reply up by the correction until the next landing.
-      if (threadId) rowFoldPxRef.current += deltaPx;
       // react-virtual can skip its own update when the visible range is
       // unchanged, so the ledger must force the coherent paint itself.
       setLedgerCommitTick((tick) => tick + 1);
       armSettleAtRest();
     },
-    [armSettleAtRest, threadId]
+    [armSettleAtRest]
   );
 
   // virtual-core writes an applied correction at once, in a ResizeObserver
@@ -867,6 +872,7 @@ export const useTimelineScrollLedgerController = ({
       isIOSWebKitDevice,
       onDroppedCorrection: (deltaPx) => {
         dropped = true;
+        if (threadId) droppedRowFoldPxRef.current += deltaPx;
         handleDroppedCorrection(deltaPx);
       },
       shouldDeferAutomaticFillCorrection: (item) =>
@@ -902,6 +908,7 @@ export const useTimelineScrollLedgerController = ({
     itemCount,
     readerTopOffset,
     renderRowMoveBeforePaint,
+    threadId,
     unrenderedCorrectionPx,
     unrenderedEndCorrectionPx,
     virtualizer,
@@ -938,6 +945,7 @@ export const useTimelineScrollLedgerController = ({
       compensationResetKeyRef.current = ledgerViewKey;
       scrollCompensationPxRef.current = 0;
       rowFoldPxRef.current = 0;
+      droppedRowFoldPxRef.current = 0;
       pendingRoomFoldPxRef.current = 0;
       ledgerGenerationRef.current += 1;
       compensationSettleArmedRef.current = false;
