@@ -78,6 +78,8 @@ type CaptureInputProps = {
   onImages: Dispatch<SetStateAction<File[]>>;
   started: CaptureStarted | undefined;
   onStarted: (started: CaptureStarted | undefined) => void;
+  /** The account the entry belongs to, as the page keeps it. */
+  entryOwner: RefObject<string | undefined>;
   request: CaptureClient['request'];
   apple: boolean;
   inputRef: RefObject<HTMLTextAreaElement>;
@@ -100,6 +102,7 @@ export function CaptureInput({
   onImages: setImages,
   started,
   onStarted: setStarted,
+  entryOwner,
   request,
   apple,
   inputRef,
@@ -163,8 +166,11 @@ export function CaptureInput({
     // The entry is frozen while it sends.
     if (full || sendingRef.current) return;
     setShotError(undefined);
+    const owner = entryOwner.current;
     try {
-      attach([await captureScreenshot(target)]);
+      const shot = await captureScreenshot(target);
+      // Another account's host came while it captured: the entry it was for is gone.
+      if (entryOwner.current === owner) attach([shot]);
     } catch (error) {
       setShotError(error instanceof ScreenshotError ? error.code : 'CAPTURE_FAILED');
     }

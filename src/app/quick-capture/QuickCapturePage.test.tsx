@@ -294,6 +294,25 @@ describe('QuickCapturePage and its host', () => {
     expect(screen.queryByRole('button', { name: 'Remove a.png' })).toBeNull();
   });
 
+  it("drops a screenshot that finishes after another account's host came", async () => {
+    vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
+    let finish: (file: File) => void = () => undefined;
+    vi.mocked(captureScreenshot).mockReturnValueOnce(
+      new Promise<File>((resolve) => {
+        finish = resolve;
+      })
+    );
+    const rig = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Screenshot of the front window' }));
+    rig.deliver({ v: 1, type: 'gone', hostId: HOST });
+    rig.pushState({ ...roomState(), userId: '@other:x' });
+    await act(async () => finish(png('Window.png')));
+    expect(screen.queryByRole('button', { name: 'Remove Window.png' })).toBeNull();
+    type(input(), 'For the other account');
+    press(input(), 'Enter');
+    expect(rig.actions().at(-1)).toMatchObject({ kind: 'send', images: [] });
+  });
+
   it('keeps the text and the images of the entry while the host goes and comes back', () => {
     const rig = setup();
     paste([png('a.png')]);

@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type Dispatch,
+  type RefObject,
   type SetStateAction,
 } from 'react';
 import { Icon, Icons } from 'folds';
@@ -102,6 +103,7 @@ type CaptureWidgetProps = {
   onImages: Dispatch<SetStateAction<File[]>>;
   started: CaptureStarted | undefined;
   onStarted: (started: CaptureStarted | undefined) => void;
+  entryOwner: RefObject<string | undefined>;
 };
 
 /** The connected widget: the room, the entry, and the room's threads or the room picker. */
@@ -114,6 +116,7 @@ function CaptureWidget({
   onImages,
   started,
   onStarted,
+  entryOwner,
 }: CaptureWidgetProps) {
   const { t } = useTranslation();
   const [apple] = useState(usesCommandKey);
@@ -201,6 +204,7 @@ function CaptureWidget({
         onImages={onImages}
         started={started}
         onStarted={onStarted}
+        entryOwner={entryOwner}
         request={request}
         apple={apple}
         inputRef={inputRef}
@@ -331,6 +335,7 @@ export function QuickCapturePage({ channel }: { channel?: CaptureChannel }) {
           onImages={setImages}
           started={started}
           onStarted={setStarted}
+          entryOwner={entryOwner}
         />
       )}
       {snapshot.status === 'absent' && <CaptureNotice signedIn={signedIn} />}
