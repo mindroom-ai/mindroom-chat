@@ -74,18 +74,24 @@ const pageAccessToken = (page: Page): Promise<string> =>
     return active.accessToken;
   });
 
-test('the homeserver ending the device deletes the kept avatars', async ({ page }) => {
-  await signInWithKeptAvatar(page, 'server');
-
-  // Outside the app: the next request the app makes is refused, and it removes the account.
+/**
+ * Logs the page's device out on the homeserver, outside the app: the next request the app makes
+ * is refused, it removes the account and lands on the login page, and the kept avatars are gone.
+ */
+const endDeviceOnServer = async (page: Page) => {
   await matrixFetch(HOMESERVER, '/logout', {
     method: 'POST',
     accessToken: await pageAccessToken(page),
     body: '{}',
   });
-
   await expect(page).toHaveURL(/\/login\b/, { timeout: 60_000 });
   await expect.poll(() => keptAvatars(page)).toBe(-1);
+};
+
+test('the homeserver ending the device deletes the kept avatars', async ({ page }) => {
+  await signInWithKeptAvatar(page, 'server');
+
+  await endDeviceOnServer(page);
 });
 
 test('deactivating the account deletes the kept avatars', async ({ page }) => {
@@ -101,13 +107,7 @@ test('an avatar kept after the last account left is deleted at the next start', 
   page,
 }) => {
   await signInWithKeptAvatar(page, 'late');
-  await matrixFetch(HOMESERVER, '/logout', {
-    method: 'POST',
-    accessToken: await pageAccessToken(page),
-    body: '{}',
-  });
-  await expect(page).toHaveURL(/\/login\b/, { timeout: 60_000 });
-  await expect.poll(() => keptAvatars(page)).toBe(-1);
+  await endDeviceOnServer(page);
 
   // A download that was still under way when the account left writes its avatar afterwards.
   await page.evaluate(
