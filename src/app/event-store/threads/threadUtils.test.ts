@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createClient, Room } from 'matrix-js-sdk';
+import { createClient, type MatrixEvent, Room } from 'matrix-js-sdk';
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import { Direction } from 'matrix-js-sdk/lib/models/event-timeline';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
@@ -28,16 +28,17 @@ const makeEvent = (
   senderId?: string,
   isThreadRoot = false,
   type = 'm.room.message'
-) => ({
-  getId: () => eventId,
-  threadRootId,
-  getRelation: () => (relationType ? { rel_type: relationType } : undefined),
-  getSender: () => senderId,
-  getType: () => type,
-  isThreadRoot,
-  isRedacted: () => false,
-  isRedaction: () => false,
-});
+) =>
+  ({
+    getId: () => eventId,
+    threadRootId,
+    getRelation: () => (relationType ? { rel_type: relationType } : undefined),
+    getSender: () => senderId,
+    getType: () => type,
+    isThreadRoot,
+    isRedacted: () => false,
+    isRedaction: () => false,
+  } as unknown as MatrixEvent);
 
 describe('eventBelongsToThread', () => {
   it('matches thread root events by event id', () => {

@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from 'react';
 import { EventEmitter } from 'events';
 import { MatrixEvent, MatrixEventEvent } from 'matrix-js-sdk';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
