@@ -159,23 +159,21 @@ const deleteSessionLocalData = async (
   await clearFetchedAvatars(session.userId);
 };
 
-/**
- * Removes the session from the registry; true when no other login of its account is left. Read
- * after the removal, so a shared MXID (the same account on another base URL) keeps its per-user
- * UI state.
- */
-const removeSessionRecord = ({
-  sessionId,
-  userId,
-}: Pick<SessionCleanupContext, 'sessionId' | 'userId'>): boolean =>
-  !removeSession(sessionId).sessions.some((storedSession) => storedSession.userId === userId);
-
-// Removes the session from the registry, then its local data.
+// Removes the session from the registry then runs local-data teardown,
+// wrapped in the legacy-storage finalizer the SDK expects after any
+// credential-store mutation. Deriving `clearUserScopedState` from the
+// post-removal registry keeps shared-MXID sessions (e.g. same account on a
+// different base URL) from losing per-user UI state.
 const removeSessionRecordAndLocalData = async (
   session: SessionCleanupContext,
   mx?: MatrixClient
 ): Promise<void> => {
-  await deleteSessionLocalData(session, mx, removeSessionRecord(session));
+  const nextStore = removeSession(session.sessionId);
+  await deleteSessionLocalData(
+    session,
+    mx,
+    !nextStore.sessions.some((storedSession) => storedSession.userId === session.userId)
+  );
 };
 
 export const removeSessionAndReload = async (
@@ -225,7 +223,10 @@ export const removeCurrentClientSessionAndReload = async (
   // identity derived from the live client names the session, which is all the
   // cache, canvas and native teardown needs.
   const identity = getMatrixClientSessionIdentity(mx);
-  const clearUserScopedState = removeSessionRecord(identity);
+  const nextStore = removeSession(identity.sessionId);
+  const clearUserScopedState = !nextStore.sessions.some(
+    (storedSession) => storedSession.userId === identity.userId
+  );
   try {
     await Promise.all([
       clearMatrixClientStores(mx),
