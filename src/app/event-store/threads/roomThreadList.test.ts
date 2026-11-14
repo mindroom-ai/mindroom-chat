@@ -668,23 +668,21 @@ describe('loadRoomThreads and the gap relist', () => {
     });
     const requests: (string | null)[] = [];
     const client = Object.assign(new EventEmitter(), {
-      supportsThreads: () => true,
       getSyncState: () => null,
       getRooms: () => [room],
       getEventMapper: () => (event: unknown) => event,
-      createThreadListMessagesRequest: vi.fn(async (_roomId: string, from: string | null) => {
+      createThreadListMessagesRequest: async (_roomId: string, from: string | null) => {
         requests.push(from);
         return { chunk: [] };
-      }),
+      },
     });
     const room = Object.assign(new EventEmitter(), {
       roomId: '!room:example.org',
       client,
-      threadsTimelineSets: [{}, {}],
+      threadsTimelineSets: [{}],
       getUnfilteredTimelineSet: () => unfiltered,
       getThreads: () => [],
-      getThread: () => undefined,
-      processListedThreadRoots: vi.fn(),
+      processListedThreadRoots: () => undefined,
       fetchRoomThreads: vi.fn(() => firstPage),
     });
     const stop = relistThreadsAfterGaps(client as unknown as MatrixClient);

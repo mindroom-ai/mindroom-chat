@@ -194,7 +194,6 @@ const loadRoomThreadsOnce = async (
   // The first page lists the threads from the newest on, so it covers a sync gap meanwhile. A room
   // listed before asks for no first page again (the SDK reads it once).
   const releaseGapRelist = listedRooms.has(room) ? undefined : holdGapRelist(room);
-  let answered = false;
   try {
     await room.client?.threadSupportPending;
     if (!shouldContinue()) return;
@@ -213,7 +212,6 @@ const loadRoomThreadsOnce = async (
         if (!(await retrying)) return;
       }
     }
-    answered = true;
     releaseGapRelist?.(true);
     listedRooms.add(room);
     onProgress?.();
@@ -247,7 +245,7 @@ const loadRoomThreadsOnce = async (
       }
     }
   } finally {
-    if (!answered) releaseGapRelist?.(false);
+    if (!listedRooms.has(room)) releaseGapRelist?.(false);
     releaseStreamingChecks();
     onSettled();
   }
