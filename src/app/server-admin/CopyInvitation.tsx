@@ -47,7 +47,12 @@ export function CopyInvitation({ email, providers, showText = false }: CopyInvit
         <Text size="T200">{label}</Text>
       </Chip>
       {(showText || copied === false) && (
-        <Text className="selectable" size="T200" priority="300" style={{ flexBasis: '100%' }}>
+        <Text
+          className="selectable"
+          size="T200"
+          priority="300"
+          style={{ flexBasis: '100%', overflowWrap: 'anywhere' }}
+        >
           {line}
         </Text>
       )}
