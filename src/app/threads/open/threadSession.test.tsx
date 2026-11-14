@@ -1,11 +1,21 @@
-import React, { useLayoutEffect } from 'react';
-import { createClient, Direction, EventStatus, MatrixEvent, Room } from 'matrix-js-sdk';
+import { useLayoutEffect } from 'react';
+import {
+  createClient,
+  Direction,
+  EventStatus,
+  MatrixEvent,
+  Room,
+  type Thread,
+} from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type MockInstance } from 'vitest';
 import { useThreadSession } from './useThreadSession';
 import type { ThreadOpenRuntime, ThreadRoute, ThreadSession } from './threadSessionTypes';
 import { useThreadOpenLifecycleController } from './threadOpenLifecycleController';
-import { loadThreadCachedSnapshot } from '../../event-store/cache/eventRepository';
+import {
+  loadThreadCachedSnapshot,
+  type ThreadCachedSnapshot,
+} from '../../event-store/cache/eventRepository';
 import * as timelineDebug from '../../diagnostics/timelineDebug';
 
 vi.mock('../../event-store/cache/eventRepository', async (original) => ({
@@ -53,7 +63,11 @@ const openFixture = () => {
     initialize: () => undefined,
     getUnfilteredTimelineSet: () => room.getUnfilteredTimelineSet(),
   };
-  vi.spyOn(room, 'getThread').mockImplementation(() => thread as never);
+  // The thread lookup is stubbed to return `undefined` where the SDK says `Thread | null`.
+  const getThread = vi.spyOn(room, 'getThread') as unknown as MockInstance<
+    (threadId: string) => Thread | null | undefined
+  >;
+  getThread.mockImplementation(() => thread as never);
   vi.spyOn(room, 'findEventById').mockImplementation((id) => (id === '$a' ? root : undefined));
   const bootstrap = vi.spyOn(mx, 'paginateEventTimeline').mockResolvedValue(false);
   const context = vi.spyOn(mx, 'getEventTimeline').mockResolvedValue(timeline);
@@ -74,27 +88,28 @@ const openFixture = () => {
     seed: { waitForExistingOrQueued: () => undefined },
     render: {
       reset: vi.fn(() => rendered.clear()),
-      append: vi.fn((_id, events) =>
+      append: vi.fn((_id, events: MatrixEvent[]) =>
         events.forEach((event) => rendered.set(event.getId()!, event))
       ),
       invalidateTimeline: vi.fn(),
     },
     viewport: { resetForOpen: vi.fn(), resetAfterLeave: vi.fn(), requestLatestPin: vi.fn() },
   };
-  const cache = (complete = true) => ({
-    events: [root, reply],
-    cachedPage: {
-      events: [reply.event],
-      rootEvent: root.event,
-      hasMoreBefore: !complete,
-      beforeToken: complete ? null : 'older',
-      tailLoaded: complete,
-      snapshotComplete: complete,
-      relationSnapshotComplete: complete,
-      expectedReplyCount: 1,
-    },
-  });
-  return { runtime, root, reply, timeline, bootstrap, context, rendered, cache };
+  const cache = (complete = true) =>
+    ({
+      events: [root, reply],
+      cachedPage: {
+        events: [reply.event],
+        rootEvent: root.event,
+        hasMoreBefore: !complete,
+        beforeToken: complete ? null : 'older',
+        tailLoaded: complete,
+        snapshotComplete: complete,
+        relationSnapshotComplete: complete,
+        expectedReplyCount: 1,
+      },
+    } as unknown as ThreadCachedSnapshot);
+  return { runtime, root, reply, timeline, bootstrap, context, rendered, cache, getThread };
 };
 
 /** With `concurrent`, React renders state updates later, batched, as the app's root does. */
@@ -118,7 +133,7 @@ const renderOpen = (runtime: ThreadOpenRuntime, initialRoute: ThreadRoute, concu
   act(() => {
     renderer = create(<Harness route={initialRoute} />, {
       unstable_isConcurrent: concurrent,
-    } as Parameters<typeof create>[1]);
+    } as unknown as Parameters<typeof create>[1]);
   });
   return {
     get session() {
@@ -214,7 +229,7 @@ describe('thread session targets', () => {
 describe('thread session opening', () => {
   it('rejects SDK publication after route ownership changes before cleanup', async () => {
     const fixture = openFixture();
-    vi.mocked(fixture.runtime.room.getThread).mockReturnValue(undefined);
+    fixture.getThread.mockReturnValue(undefined);
     vi.mocked(fixture.runtime.room.findEventById).mockReturnValue(undefined);
     const context = deferred<typeof fixture.timeline>();
     fixture.context.mockReturnValue(context.promise);
@@ -305,7 +320,7 @@ describe('thread session opening', () => {
 
   it('reports server failure while storage remains pending', async () => {
     const fixture = openFixture();
-    vi.mocked(fixture.runtime.room.getThread).mockReturnValue(undefined);
+    fixture.getThread.mockReturnValue(undefined);
     vi.mocked(fixture.runtime.room.findEventById).mockReturnValue(undefined);
     fixture.context.mockRejectedValue(new Error('server unavailable'));
     vi.mocked(loadThreadCachedSnapshot)
@@ -552,7 +567,7 @@ describe('thread session opening', () => {
   it('reports a missing SDK context and settles latest-open loading after cache miss', async () => {
     vi.mocked(loadThreadCachedSnapshot).mockReset().mockResolvedValue(undefined);
     const fixture = openFixture();
-    vi.mocked(fixture.runtime.room.getThread).mockReturnValue(undefined);
+    fixture.getThread.mockReturnValue(undefined);
     vi.mocked(fixture.runtime.room.findEventById).mockReturnValue(undefined);
     fixture.context.mockRejectedValue(new Error('context unavailable'));
     const view = renderOpen(fixture.runtime, {
@@ -635,7 +650,7 @@ describe('thread session opening', () => {
     expect(view.session.snapshot.history).toEqual({ hasMoreCachedBack: false, tailLoaded: true });
     expect(fixture.rendered.get('$reply')).toBe(fixture.reply);
     expect(fixture.runtime.reconcile).toHaveBeenCalledTimes(1);
-    const args = vi.mocked(fixture.runtime.reconcile).mock.calls[0][0];
+    const args = vi.mocked(fixture.runtime.reconcile).mock.calls[0]![0];
     expect(args.cachedPage?.hydratedEvents?.[1]).toBe(fixture.reply);
     expect(fixture.bootstrap).toHaveBeenCalledTimes(1);
     expect(fixture.runtime.viewport.requestLatestPin).toHaveBeenCalled();

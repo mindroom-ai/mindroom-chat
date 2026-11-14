@@ -1,5 +1,4 @@
 import 'fake-indexeddb/auto';
-import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { Direction, MatrixClient, MatrixEvent, Room, type IEvent } from 'matrix-js-sdk';
 import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
@@ -314,7 +313,7 @@ it('saves only changed listed roots when the overview is shown again', async () 
   await showOverview();
   expect(saveRoot).not.toHaveBeenCalled();
 
-  roots[1].makeReplaced(
+  roots[1]!.makeReplaced(
     new MatrixEvent({
       event_id: '$edit',
       room_id: roomId,

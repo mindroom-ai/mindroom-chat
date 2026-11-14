@@ -374,7 +374,7 @@ describe('mounted thread gap recovery', () => {
       return null;
     }
     const first = vi.fn();
-    const second = vi.fn();
+    const second = vi.fn<(threadId: string, events: MatrixEvent[]) => void>();
     const missed = { ...message('$missed', 'Missed reply'), origin_server_ts: 30 };
     const { engine, room, renderer, recover, fetchFn } = setup([], undefined, [missed], (e, r) => (
       <AppendHarness engine={e} room={r} append={first} />

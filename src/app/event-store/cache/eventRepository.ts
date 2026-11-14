@@ -49,7 +49,10 @@ import {
   mergeThreadBackfillEvents,
 } from './threadCacheSnapshot';
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
-import { forgetRedactedThreadSummaries, storeThreadSummaryInState } from '../threads/threadSummaryState';
+import {
+  forgetRedactedThreadSummaries,
+  storeThreadSummaryInState,
+} from '../threads/threadSummaryState';
 import { countCacheProbe } from './cacheProbe';
 import {
   collectExplicitRedactedEventIds,
@@ -731,11 +734,13 @@ export const loadRoomCachedPaginationSnapshot = async ({
     return { cachedBeforeToken, events: [], hasMoreCachedBack: false, status: 'cache-miss' };
   }
 
+  // The room's pager drops the events of the page it holds already (the SDK skips them).
   const cachedPage = await loadBefore(
     sessionId,
     roomId,
     getRoomCursorAnchor(earliestLoadedEvent?.event as Partial<IEvent> | undefined),
-    limit
+    limit,
+    { withBeforeMillisecond: true }
   );
   const events = normalizeCachedRoomEvents(cachedPage.events)
     .map((rawEvent) => mapEvent(rawEvent))
