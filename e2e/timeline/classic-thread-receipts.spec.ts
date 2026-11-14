@@ -11,11 +11,10 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { roomMoreOptions } from '../helpers/roomMenu';
 import { expectRoomCompact, setRoomCompact } from '../helpers/roomViewSwitch';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   registerAgentAccount,
   seedRoomOverviewState,
@@ -23,6 +22,12 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { openThreadsCategory } from '../helpers/threadsCategory';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // The Classic view shows each thread's replies among the room's rows. A reply the reader sees
 // there is read, as it is in the open thread: at the bottom of the live end, with the window
@@ -38,10 +43,8 @@ import { openThreadsCategory } from '../helpers/threadsCategory';
 // - a streamed reply that finishes in view: a receipt on the finishing edit.
 // Set CLASSIC_RECEIPT_SHOTS=<directory> for screenshots of the room after each read.
 
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'classic-thread-receipts-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.CLASSIC_RECEIPT_SHOTS;
 const ROOM_NAME = 'Ops Desk';
 const OTHER_ROOM_NAME = 'Design Desk';
@@ -57,34 +60,7 @@ const PHONE: BrowserContextOptions = {
 };
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 type Account = MatrixSession & { username: string };
-
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `ctr_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
 
 const inThread = (rootId: string) => ({
   'm.relates_to': {
@@ -103,7 +79,7 @@ type World = {
 };
 
 const seed = async (engine: string): Promise<World> => {
-  const reader = await registerAndLogin(engine);
+  const reader = await registerDisposableUser(`ctr_${engine}_${RUN}`, PASSWORD);
   const teammate = await registerAgentAccount(HOMESERVER, `ops_${engine}`);
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(teammate.userId)}/displayname`, {
     method: 'PUT',
@@ -521,15 +497,11 @@ const run = async (
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 for (const engine of ['chromium', 'webkit'] as const) {
@@ -539,7 +511,7 @@ for (const engine of ['chromium', 'webkit'] as const) {
         browser,
         baseURL,
       }) => {
-        test.skip(engine === 'webkit' && !WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+        test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
         test.setTimeout(180_000);
         const host = engine === 'webkit' ? await launchWebKit() : undefined;
         try {
@@ -555,7 +527,7 @@ for (const engine of ['chromium', 'webkit'] as const) {
       browser,
       baseURL,
     }) => {
-      test.skip(engine === 'webkit' && !WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+      test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
       test.setTimeout(180_000);
       const host = engine === 'webkit' ? await launchWebKit() : undefined;
       try {

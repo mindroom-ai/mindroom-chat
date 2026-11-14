@@ -10,8 +10,8 @@ import {
   sendRoomMessage,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { DISPOSABLE_HOMESERVER as HOMESERVER } from '../helpers/disposableAccounts';
 
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'sender-touch-spec-password';
 const SHOTS = process.env.SENDER_TOUCH_SHOTS;
 

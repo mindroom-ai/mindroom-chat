@@ -16,7 +16,7 @@ import {
   sendRoomMessage,
   sendStateEvent,
 } from '../helpers/matrix';
-import { onWebKitPage } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A thread tag is room state, and the server reads nothing for a member's own state event: the
 // room's unread messages stay unread. The client must count them too, when the reader's tag,
@@ -26,7 +26,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // disposable homeserver of `just hs-up` (or a slot of scripts/e2e-slot.sh).
 const PASSWORD = 'own-state-event-unread-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.OWN_STATE_UNREAD_SHOTS;
 
 test.use({ viewport: { width: 1280, height: 800 }, launchOptions: CHROMIUM_WITH_SCROLLBARS });
@@ -166,7 +165,7 @@ test('the reader’s own thread tag leaves the room’s unread messages counted 
 test('the reader’s own thread tag leaves the room’s unread messages counted (WebKit phone)', async ({
   baseURL,
 }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
   await onWebKitPage(
     { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, baseURL },
@@ -250,7 +249,7 @@ test('the reader’s own rename and pin leave the room’s unread messages count
 test('the reader’s own rename and pin leave the room’s unread messages counted after a reload (WebKit phone)', async ({
   baseURL,
 }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
   await onWebKitPage(
     { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, baseURL },

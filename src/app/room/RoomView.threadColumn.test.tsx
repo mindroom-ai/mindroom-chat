@@ -33,6 +33,8 @@ const state = vi.hoisted(() => ({
   approvalThread: 'unset' as string | undefined,
   columnLoadError: undefined as ((threadId: string) => void) | undefined,
   rootDeleted: () => undefined as void,
+  threadNotFound: false,
+  threadLoadError: (() => undefined) as (threadId: string) => void,
   resized: [] as (() => void)[],
   canMessage: true,
   read: [] as string[],
@@ -71,7 +73,13 @@ vi.mock('./useRoomViewThreadState', () => ({
   useRoomViewThreadState: () => ({
     viewMode: 'compact',
     effectiveThreadId: state.thread,
+    handleExitThread: () => undefined,
     handleThreadRootDeleted: state.rootDeleted,
+    threadNotFound: state.threadNotFound,
+    handleThreadLoadError: (threadId: string) => state.threadLoadError(threadId),
+    storeThreadSummary: () => undefined,
+    summaryMap: new Map(),
+    threadSortFreezeState: null,
     // A Compact send opens its root's thread.
     handleRoomMessageSent: (eventId: string) => {
       state.thread = eventId;
@@ -246,6 +254,7 @@ beforeEach(() => {
   state.main = undefined;
   state.focused = [];
   state.rootDeleted = () => undefined;
+  state.threadNotFound = false;
   state.resized = [];
   state.canMessage = true;
   state.read = [];
@@ -512,11 +521,36 @@ it.each([
   expect(screen.queryByRole('button', { name: 'Beside' })).toBeNull();
 });
 
+it('shows a thread that is not found as such, with the way back, instead of its view', () => {
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  state.threadNotFound = true;
+  const back = vi.fn();
+  state.rootDeleted = back;
+  renderView();
+  expect(column()).toBeNull();
+  const notice = within(screen.getByTestId('thread-column'));
+  expect(notice.getByRole('heading', { name: 'Thread not found' })).toBeDefined();
+  fireEvent.click(notice.getByRole('button', { name: 'Back' }));
+  expect(back).toHaveBeenCalledOnce();
+});
+
+it("keeps the room's header over a thread that is not found as the column fills the page", () => {
+  state.threadNotFound = true;
+  renderView({}, ScreenSize.Mobile);
+  const filled = within(screen.getByTestId('thread-column'));
+  expect(filled.getByTestId('room-header')).toBeDefined();
+  expect(filled.getByRole('heading', { name: 'Thread not found' })).toBeDefined();
+});
+
 it('passes a thread that does not load to the page', () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   const onLoadError = vi.fn();
+  const ownLoadError = vi.fn();
+  state.threadLoadError = ownLoadError;
   renderView({ onThreadLoadError: onLoadError });
-  expect(state.columnLoadError).toBe(onLoadError);
+  state.columnLoadError?.('$thread');
+  expect(onLoadError).toHaveBeenCalledWith('$thread');
+  expect(ownLoadError).toHaveBeenCalledWith('$thread');
 });
 
 it.each([

@@ -2257,7 +2257,6 @@
         "noMicrophone": "Tidak ditemukan mikrofon di perangkat ini.",
         "microphoneUnavailable": "Mikrofon saat ini tidak tersedia (mungkin sedang digunakan aplikasi lain).",
         "microphoneFailed": "Gagal mengakses mikrofon.",
-        "microphoneUnsupported": "Akses mikrofon tidak didukung di perangkat ini.",
         "recordingStopped": "Perekaman suara berhenti secara tak terduga. Rekam ulang.",
         "noAudio": "Tidak ada data audio yang direkam.",
         "recordingUnsupported": "Perekaman suara tidak didukung di browser ini.",
@@ -2761,9 +2760,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "Tandai dibaca"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "Tandai dibaca"
       },

@@ -15,7 +15,7 @@ import {
   seedRoomOverviewState,
   sendRoomMessage,
 } from '../helpers/matrix';
-import { onWebKitPage } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Mark as Read sends one unthreaded receipt, which reads the room and every thread up to the
 // newest event. Here that event is a reply the reader had read on their phone, so they hold a
@@ -25,7 +25,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // homeserver of `just hs-up` (or a slot of scripts/e2e-slot.sh).
 const PASSWORD = 'mark-read-reload-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.THREAD_READ_RELOAD_SHOTS;
 
 test.use({ viewport: { width: 1280, height: 800 }, launchOptions: CHROMIUM_WITH_SCROLLBARS });
@@ -237,7 +236,7 @@ test('threads read by Mark as Read stay read through reloads (Chromium)', async 
 });
 
 test('threads read by Mark as Read stay read through reloads (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
   await onWebKitPage({ viewport: { width: 1280, height: 800 }, baseURL }, (page) =>
     threadsStayReadThroughReloads(page, 'webkit')

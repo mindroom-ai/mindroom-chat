@@ -1,6 +1,10 @@
 import { expect, test, type BrowserContext, type Frame, type Page } from '@playwright/test';
 import { waitForLoggedInShell } from '../helpers/auth';
 import { buildLoginPath } from '../env';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // What a first visit downloads for offline use, on a production build (`scripts/e2e-slot.sh
 // --preview`; the dev server's worker precaches nothing and the spec skips there). The worker
@@ -11,22 +15,10 @@ import { buildLoginPath } from '../env';
 // Set LAZY_RETRY_SHOTS=<directory> to also save the board's Retry view on a desktop and a phone, in
 // light and dark.
 const SHOTS = process.env.LAZY_RETRY_SHOTS;
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'first-visit-precache-password';
 const GREETING = 'Offline starts need no more than this';
 
 test.use({ serviceWorkers: 'allow' });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const matrixPost = async <T>(path: string, body: unknown, token?: string): Promise<T> => {
   const response = await fetch(`${HOMESERVER}/_matrix/client/v3${path}`, {
@@ -116,7 +108,10 @@ test(
   { tag: '@webkit' },
   async ({ browserName, context, page }) => {
     test.setTimeout(240_000);
-    test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+    test.skip(
+      !(await disposableHomeserverIsUp()),
+      `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+    );
     const username = `precache_${Date.now().toString(36)}`;
     const roomId = await accountWithRoom(username);
 

@@ -866,7 +866,8 @@
     "back": "Geri",
     "resize": "Konuyu yeniden boyutlandır",
     "showFull": "Konuyu tam göster",
-    "showBeside": "Konuyu mesajların yanında göster"
+    "showBeside": "Konuyu mesajların yanında göster",
+    "notFound": "Konu bulunamadı"
   },
   "activity": {
     "title": "Etkinlik",

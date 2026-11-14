@@ -7,7 +7,7 @@ import {
   disposableHomeserverIsUp,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
-import { onWebKitPage } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // The spaces nobody arranged show oldest first, so a new space goes to the end of the rail and
 // stays there after a reload and on another device. The rail showed them in the order the client
@@ -19,7 +19,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // for screenshots.
 const PASSWORD = 'rail-new-space-order-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.RAIL_ORDER_SHOTS;
 const SPACES = ['Sales', 'Finance', 'Platform', 'Research', 'Partners', 'Support'];
 
@@ -81,7 +80,7 @@ test('a new space stays at the end of the rail after a reload (Chromium)', async
 });
 
 test('a new space stays at the end of the rail after a reload (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
   await onWebKitPage({ viewport: { width: 1280, height: 800 }, baseURL }, (page) =>
     newSpaceStaysLast(page, 'webkit', async () =>

@@ -10,7 +10,6 @@ import {
 } from '../matrix/hooks/useRoomsNotificationPreferences';
 import { SettingsModalRenderer } from '../settings/SettingsModalRenderer';
 import { RoomSettingsRenderer } from '../rooms/settings/RoomSettingsRenderer';
-import { SpaceSettingsRenderer } from '../spaces/SpaceSettingsRenderer';
 import { CreateRoomModalRenderer } from '../rooms/create/CreateRoomModal';
 import { CreateSpaceModalRenderer } from '../spaces/create/CreateSpaceModal';
 import { UserRoomProfileRenderer } from '../members/profile/UserRoomProfileRenderer';
@@ -64,7 +63,6 @@ export function ClientShell({ children }: { children: ReactNode }) {
           {children}
           <SettingsModalRenderer />
           <RoomSettingsRenderer />
-          <SpaceSettingsRenderer />
           <CreateRoomModalRenderer />
           <CreateSpaceModalRenderer />
           <CommandPaletteRenderer />

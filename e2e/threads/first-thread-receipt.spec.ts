@@ -3,7 +3,6 @@ import { loginWithPassword } from '../helpers/auth';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   registerAgentAccount,
   seedRoomOverviewState,
@@ -11,6 +10,12 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // The reader's first thread receipt in a room, against the disposable homeserver of a slot
 // (scripts/e2e-slot.sh). The reader asked four questions, each the root of a thread, and Alice
@@ -18,7 +23,6 @@ import { createRoom } from '../helpers/createRoom';
 // server counts all of Alice's answers. Opening one thread must leave each other thread unread on
 // the client for as long as the server counts it, also after a reload, and opening another one
 // later must send that thread's receipt. Each run registers its own accounts.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'first-thread-receipt-spec-password';
 const RUN = Date.now().toString(36);
 const OLDER_MESSAGES = 24;
@@ -32,43 +36,14 @@ const QUESTIONS = [
 
 test.use({
   viewport: { width: 1600, height: 1000 },
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 test.describe.configure({ timeout: 240_000 });
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 type Account = MatrixSession & { username: string };
 
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `ftr_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<Account> =>
+  registerDisposableUser(`ftr_${name}_${RUN}`, PASSWORD);
 
 const answerIn = (rootId: string, body: string) => ({
   msgtype: 'm.text',
@@ -188,7 +163,7 @@ const readThread = async (page: Page, rootId: string, index: number) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('the first thread receipt in a room leaves every other thread unread until it is opened', async ({

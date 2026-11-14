@@ -1,4 +1,4 @@
-import React, { type ComponentProps, type ReactNode } from 'react';
+import { type ComponentProps, type ReactNode } from 'react';
 import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { Box, Icon, Icons } from 'folds';
 import type { HTMLReactParserOptions } from 'html-react-parser';
@@ -63,22 +63,6 @@ export type RenderAgentMessageContentOptions = {
   showMessageExtras?: boolean;
   hydrateLongText?: boolean;
 };
-
-type MessageExtrasRenderNoticeProps = {
-  children: React.ReactNode;
-  onRendered?: () => void;
-};
-
-function MessageExtrasRenderNotice({
-  children,
-  onRendered,
-}: MessageExtrasRenderNoticeProps) {
-  React.useEffect(() => {
-    onRendered?.();
-  }, [onRendered]);
-
-  return <>{children}</>;
-}
 
 type AgentRenderBodyProps = Omit<ComponentProps<typeof RenderBody>, 'htmlReactParserOptions'> & {
   htmlReactParserOptions: HTMLReactParserOptions;
@@ -243,50 +227,22 @@ export const renderAgentMessageContent = ({
 
   const renderMessageExtras = (
     extrasContent: Record<string, unknown>,
-    fallbackContents: Record<string, unknown>[] = [],
-    onFallbackExtrasRendered?: (fallbackIndex: number) => void
+    fallbackContents: Record<string, unknown>[] = []
   ) => {
     if (!showMessageExtras) return undefined;
 
-    const getExtrasRenderSource = () => {
-      if (MINDROOM_MESSAGE_EXTRAS_KEY in extrasContent) {
-        return {
-          content: extrasContent,
-          extras: parseMessageExtras(extrasContent),
-          fallbackIndex: undefined,
-        };
-      }
-
-      const fallbackIndex = fallbackContents.findIndex(
-        (candidate) => MINDROOM_MESSAGE_EXTRAS_KEY in candidate
-      );
-      if (fallbackIndex >= 0) {
-        const fallbackContent = fallbackContents[fallbackIndex];
-        return {
-          content: fallbackContent,
-          extras: parseMessageExtras(fallbackContent),
-          fallbackIndex,
-        };
-      }
-
-      return { content: extrasContent, extras: null, fallbackIndex: undefined };
-    };
-
-    const { content: parserOptionsContent, extras, fallbackIndex } = getExtrasRenderSource();
-    if (!extras) return undefined;
+    const extrasSource = [extrasContent, ...fallbackContents].find(
+      (candidate) => MINDROOM_MESSAGE_EXTRAS_KEY in candidate
+    );
+    const extras = extrasSource && parseMessageExtras(extrasSource);
+    if (!extrasSource || !extras) return undefined;
 
     return (
-      <MessageExtrasRenderNotice
-        onRendered={
-          fallbackIndex === undefined ? undefined : () => onFallbackExtrasRendered?.(fallbackIndex)
-        }
-      >
-        <MessageExtras
-          extras={extras}
-          htmlReactParserOptions={htmlReactParserOptions}
-          markerContent={parserOptionsContent}
-        />
-      </MessageExtrasRenderNotice>
+      <MessageExtras
+        extras={extras}
+        htmlReactParserOptions={htmlReactParserOptions}
+        markerContent={extrasSource}
+      />
     );
   };
 
@@ -418,7 +374,7 @@ export const renderAgentMessageContent = ({
           )}
           content={renderableContent}
           renderBody={renderBody(renderableContent)}
-          renderAfterBody={renderMessageExtras(renderableContent, [content])}
+          renderAfterBody={renderMessageExtras(renderableContent)}
           renderUrlsPreview={renderUrlsPreview}
         />
       );
@@ -459,7 +415,7 @@ export const renderAgentMessageContent = ({
         )}
         content={renderableContent}
         renderBody={renderBody(renderableContent)}
-        renderAfterBody={renderMessageExtras(renderableContent, [content])}
+        renderAfterBody={renderMessageExtras(renderableContent)}
         renderUrlsPreview={renderUrlsPreview}
       />
     );
@@ -523,7 +479,7 @@ export const renderAgentMessageContent = ({
         )}
         content={renderableContent}
         renderBody={renderBody(renderableContent)}
-        renderAfterBody={renderMessageExtras(renderableContent, [content])}
+        renderAfterBody={renderMessageExtras(renderableContent)}
         renderUrlsPreview={renderUrlsPreview}
       />
     );

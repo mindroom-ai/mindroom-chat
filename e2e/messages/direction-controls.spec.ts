@@ -13,12 +13,16 @@ import { openMessageMenu } from '../helpers/messageMenu';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   seedRoomOverviewState,
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+} from '../helpers/disposableAccounts';
 
 // Bidirectional controls (U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F, U+061C) change the
 // order text shows in without showing themselves: `invoice<U+202E>fdp.exe` reads as a PDF. A
@@ -28,7 +32,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // (390 by 844, touch) and a desktop (1280 by 800), in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
 // DIRECTION_CONTROLS_SHOTS=<directory> to save each view.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'direction-controls-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.DIRECTION_CONTROLS_SHOTS;
@@ -55,34 +58,10 @@ const FILE_NAME_SHOWN = 'quarterly-report<U+202E>fdp.exe';
 const FILE_TEXT = 'Quarterly notes\nCommand: echo ok ‮; rm -rf data #‬ done\n';
 const FILE_TEXT_SHOWN = 'Command: echo ok <U+202E>; rm -rf data #<U+202C> done';
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 type Account = MatrixSession & { username: string };
 
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `bidi_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<Account> =>
+  registerDisposableUser(`bidi_${name}_${RUN}`, PASSWORD);
 
 const upload = async (accessToken: string, text: string): Promise<string> => {
   const response = await fetch(`${HOMESERVER}/_matrix/media/v3/upload`, {
@@ -237,7 +216,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('direction controls show as code points in messages, files and sources (Chromium)', async ({

@@ -1,4 +1,4 @@
-# The container image: the web client behind nginx (Dockerfile, docs/deployment.md "Container
+# The container image: the web client behind nginx (docker/Dockerfile, docs/deployment.md "Container
 # image"). Every release publishes it to ghcr.io/mindroom-ai/mindroom-chat for linux/amd64 and
 # linux/arm64, tagged YYYY.M.N, vYYYY.M.N and sha-<commit>, built as that release, and points `latest`
 # at it while it is the newest release:
@@ -21,10 +21,7 @@ on:
     types: [published]
   pull_request:
     paths:
-      - Dockerfile
-      - .dockerignore
       - docker/**
-      - docker-entrypoint.d/**
       - scripts/image-smoke-test.sh
       - .github/workflows/image.yml
   workflow_dispatch:
@@ -85,6 +82,7 @@ jobs:
           tags: mindroom-chat:check-amd64
           # The checkout, not the Git context of the event: a release builds its tag.
           context: .
+          file: docker/Dockerfile
           build-args: |
             MINDROOM_BUILD_VERSION=${{ steps.names.outputs.tag }}
             MINDROOM_RELEASE_VERSION=${{ steps.names.outputs.tag }}
@@ -97,6 +95,7 @@ jobs:
           platforms: linux/arm64
           tags: mindroom-chat:check-arm64
           context: .
+          file: docker/Dockerfile
           build-args: |
             MINDROOM_BUILD_VERSION=${{ steps.names.outputs.tag }}
             MINDROOM_RELEASE_VERSION=${{ steps.names.outputs.tag }}
@@ -119,6 +118,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.names.outputs.tags }}
           context: .
+          file: docker/Dockerfile
           build-args: |
             MINDROOM_BUILD_VERSION=${{ steps.names.outputs.tag }}
             MINDROOM_RELEASE_VERSION=${{ steps.names.outputs.tag }}

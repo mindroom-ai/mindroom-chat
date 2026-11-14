@@ -6,8 +6,9 @@ import {
   disposableHomeserverIsUp,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
-import { joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
-import { onWebKitPage } from '../helpers/webkit';
+import { joinRoom, sendRoomMessage } from '../helpers/matrix';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { createRoom } from '../helpers/createRoom';
 
 // A room joined on another device while this one was closed, in which more than a timeline's
 // worth of messages came after the join, among them a late edit of an older message: the first
@@ -18,7 +19,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // disposable homeserver.
 const PASSWORD = 'room-joined-elsewhere-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 /** More than the 20 events a /sync timeline carries, so the join is not among them. */
 const MESSAGES_AFTER_JOIN = 25;
 
@@ -34,20 +34,10 @@ const joinedRoomShowsAfterResume = async (page: Page, browserName: string) => {
   const sharedName = `Shared group ${browserName} ${RUN}`;
   // Encrypted, as the group's rooms are: the client then sets the room up in its crypto store
   // while the first sync is processed.
-  const { room_id: shared } = await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
-    method: 'POST',
-    accessToken: writer.accessToken,
-    body: JSON.stringify({
-      name: sharedName,
-      preset: 'public_chat',
-      initial_state: [
-        {
-          type: 'm.room.encryption',
-          state_key: '',
-          content: { algorithm: 'm.megolm.v1.aes-sha2' },
-        },
-      ],
-    }),
+  const shared = await createRoom(HOMESERVER, writer.accessToken, {
+    name: sharedName,
+    preset: 'public_chat',
+    encrypted: true,
   });
   // An account without rooms yet.
   await loginWithPassword(page, { homeserver: HOMESERVER, ...reader });
@@ -110,7 +100,7 @@ test('a room joined on another device shows after the session resumes (Chromium)
 test('a room joined on another device shows after the session resumes (WebKit)', async ({
   baseURL,
 }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
   await onWebKitPage({ viewport: { width: 1280, height: 800 }, baseURL }, (page) =>
     joinedRoomShowsAfterResume(page, 'webkit')

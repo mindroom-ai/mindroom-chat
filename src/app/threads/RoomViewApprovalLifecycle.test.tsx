@@ -91,7 +91,6 @@ vi.mock('../ui/page/Page', () => ({ Page: 'div' }));
 vi.mock('../timeline/typing/RoomViewTyping', () => ({ RoomViewTyping: () => null }));
 vi.mock('../timeline/RoomViewFollowing', () => ({
   RoomViewFollowing: () => null,
-  RoomViewFollowingPlaceholder: () => null,
 }));
 vi.mock('../room/RoomTombstone', () => ({ RoomTombstone: () => null }));
 vi.mock('../room/RoomViewHeader', () => ({ RoomViewHeader: () => null }));
@@ -113,6 +112,13 @@ vi.mock('../room/useRoomViewThreadState', () => ({
   useRoomViewThreadState: ({ threadId }: { threadId?: string }) => ({
     effectiveThreadId: threadId,
     viewMode: 'compact',
+    handleExitThread: noop,
+    handleThreadLoadError: noop,
+    handleThreadRootDeleted: noop,
+    storeThreadSummary: noop,
+    summaryMap: new Map(),
+    threadNotFound: false,
+    threadSortFreezeState: null,
     // As the room's handler, it says whether it opened the sent message's thread.
     handleRoomMessageSent: (id: string) => {
       if (threadId) return false;

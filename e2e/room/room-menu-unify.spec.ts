@@ -14,14 +14,11 @@ import { createRoom } from '../helpers/createRoom';
 import { addRoomToSpace, matrixFetch, setDirectAccountData } from '../helpers/matrix';
 import {
   DESKTOP,
-  HOMESERVER,
-  LAUNCH,
   PASSWORD,
   PHONE,
   RUN,
   SCHEMES,
   createOtherRooms,
-  homeserverIsUp,
   join,
   register,
   say,
@@ -31,7 +28,12 @@ import {
   type Account,
 } from '../helpers/designChoices';
 import { roomMoreOptions } from '../helpers/roomMenu';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  CHROMIUM_WITH_SCROLLBARS,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A room's menu offers the same entries, in the same order, with the same labels, wherever it
 // opens: the More Options button of its sidebar row, a right-click on the row (a long press's
@@ -43,15 +45,14 @@ import { launchWebKit } from '../helpers/webkit';
 // space; 28 rooms in all. Desktop (1440 by 900) and phone (390 by 844, touch), light and dark,
 // Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. Set
 // DESIGN_CHOICES_SHOTS to save the screenshots.
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
-const ENGINES = ['chromium', ...(WEBKIT ? ['webkit'] : [])] as const;
+const ENGINES = ['chromium', ...(WEBKIT_EXECUTABLE ? ['webkit'] : [])] as const;
 type Engine = (typeof ENGINES)[number];
 /** A message menu's row (MenuEntry: folds' MenuItem, size 300), which a room menu's rows match. */
 const MENU_ROW = 32;
 const NO_INVITE = "You don't have permission to invite";
 const NO_SEARCH = 'Not available in encrypted rooms';
 
-test.use({ launchOptions: LAUNCH });
+test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
 type Item = { name: string; role: string; disabled: boolean; reason: string };
 
@@ -462,7 +463,7 @@ for (const engine of ENGINES) {
     test(`a room's menu is the same from its row, a right-click and its header: ${engine} ${layout}`, async ({
       browser,
     }, testInfo) => {
-      test.skip(!(await homeserverIsUp()), 'Test homeserver is not running.');
+      test.skip(!(await disposableHomeserverIsUp()), 'Test homeserver is not running.');
       test.setTimeout(420_000);
       const phone = layout === 'phone';
       const data = await seed(`${engine.slice(0, 2)}${layout.slice(0, 2)}`);

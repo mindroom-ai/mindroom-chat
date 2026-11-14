@@ -15,8 +15,9 @@ import {
   test,
   uniqueWord,
   type AgentStack,
+  createAgentRoom,
 } from '../helpers/agentStack';
-import { matrixFetch, redactEvent } from '../helpers/matrix';
+import { redactEvent } from '../helpers/matrix';
 import { isPhoneLayout, roomMoreOptions } from '../helpers/roomMenu';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
@@ -58,50 +59,6 @@ const attachIndex = async (page: Page, name: string) => {
     body: JSON.stringify(await listedCanvases(page).catch(String), null, 2),
     contentType: 'application/json',
   });
-};
-
-/** A room of the tester with the helper and the router, once both joined it. */
-const createAgentRoom = async (
-  stack: AgentStack,
-  name: string,
-  encrypted: boolean
-): Promise<string> => {
-  const { room_id: roomId } = await matrixFetch<{ room_id: string }>(
-    stack.homeserver,
-    '/createRoom',
-    {
-      method: 'POST',
-      accessToken: stack.tester.accessToken,
-      body: JSON.stringify({
-        name,
-        preset: 'private_chat',
-        invite: [stack.agents.helper, stack.agents.router],
-        initial_state: encrypted
-          ? [
-              {
-                type: 'm.room.encryption',
-                state_key: '',
-                content: { algorithm: 'm.megolm.v1.aes-sha2' },
-              },
-            ]
-          : [],
-      }),
-    }
-  );
-  await expect
-    .poll(
-      async () => {
-        const { joined } = await matrixFetch<{ joined: Record<string, unknown> }>(
-          stack.homeserver,
-          `/rooms/${encodeURIComponent(roomId)}/joined_members`,
-          { accessToken: stack.tester.accessToken }
-        );
-        return !!joined[stack.agents.helper] && !!joined[stack.agents.router];
-      },
-      { timeout: 90_000, intervals: [500, 1000], message: 'the agents join the room' }
-    )
-    .toBe(true);
-  return roomId;
 };
 
 /** The thread mode the backend keeps for `roomId` (`!thread_mode`), if any. */

@@ -3,6 +3,11 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // The Settings dialog keeps one inset. Every box of the menu column (the search field, the rows,
 // the search results and Logout) stays that far from the dialog's edges and from the divider, and
@@ -14,7 +19,6 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 // checked at 1280x800, 1440x900 and 390x844, in dark and light themes, left to right and in Arabic.
 // SETTINGS_SPACING_OUT=<directory> also writes every measurement as JSON and screenshots of the
 // dialog there.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'settings-spacing-spec-password';
 const OUT = process.env.SETTINGS_SPACING_OUT;
 const ROOM_COUNT = 26;
@@ -37,23 +41,8 @@ const SIZES: Record<string, Viewport> = {
 test.use({
   // The routed configuration (Local MindRoom) reaches the page only without the service worker.
   serviceWorkers: 'block',
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 /** The deployment offers Local MindRoom to this homeserver's accounts; the slot has no service. */
 const routeLocalMindroom = async (page: Page) => {
@@ -612,7 +601,10 @@ const walkRoomSettings = async (page: Page, size: string, roomId: string, out: R
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 for (const size of Object.keys(SIZES)) {

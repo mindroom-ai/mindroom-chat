@@ -8,6 +8,11 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // A room row whose name is cut off shows the whole name in a tooltip while a mouse rests on it,
 // as the rail's space buttons do. A tap on a touch screen opens the room and shows no tooltip.
@@ -15,7 +20,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // touch tablet and a phone (390 by 844), in English and Arabic, in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
 // ROOM_NAME_TOOLTIP_SHOTS=<directory> for screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'room-name-tooltip-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SHOTS = process.env.ROOM_NAME_TOOLTIP_SHOTS;
@@ -41,19 +45,6 @@ const PHONE: BrowserContextOptions = {
   hasTouch: true,
   isMobile: true,
 };
-const LAUNCH_ARGS = ['--disable-features=IsolateSandboxedIframes'];
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 let seeded: Promise<string> | undefined;
 
 const seed = async (): Promise<string> => {
@@ -192,17 +183,14 @@ const inWebKit = async (check: (browser: Browser) => Promise<void>) => {
 };
 
 test.use({
-  launchOptions: {
-    // Classic scrollbars, as desktop browsers show them. The other options repeat
-    // playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: LAUNCH_ARGS,
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(180_000);
 });
 

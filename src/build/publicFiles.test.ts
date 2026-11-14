@@ -10,7 +10,7 @@ import { withServePy } from './test-utils/servePy';
 const SHELL = '<!doctype html><title>app</title>';
 const CATALOG = '{"nav":{"home":"Startseite"}}';
 
-describe('serve.py', () => {
+describe('scripts/serve.py', () => {
   // Starts Python and serve.py (test-utils/servePy.ts), so this test gets 30 s.
   it('answers a missing file under /public/ with 404, and the files there and app routes as before', async () => {
     await withServePy(

@@ -1,50 +1,24 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
-import {
-  addRoomToSpace,
-  loginToMatrix,
-  matrixFetch,
-  setAccountData,
-  type MatrixSession,
-} from '../helpers/matrix';
+import { addRoomToSpace, matrixFetch, setAccountData, type MatrixSession } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
 import { defined } from '../../src/test/utils/defined';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+} from '../helpers/disposableAccounts';
 
 // Spaces against the disposable homeserver of `just hs-up` (or a slot of scripts/e2e-slot.sh):
 // creating a space and filling it from the lobby, its hierarchy as another member sees it,
 // joining from a link, invites, and the rail's order. Each run registers its own accounts, so the
 // lobby and the rail hold only what the run made.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const SERVER_NAME = 'matrix.localhost';
 const PASSWORD = 'spaces-spec-password';
 const RUN = Date.now().toString(36);
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `f6_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`f6_${name}_${RUN}`, PASSWORD);
 
 const signIn = (page: Page, username: string) =>
   loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
@@ -63,7 +37,7 @@ const lobbyCard = (page: Page, name: string) =>
   page.locator('[data-lobby-entry]').filter({ has: page.getByText(name, { exact: true }) });
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('a space is created from the rail and filled from its lobby', async ({ page }, testInfo) => {

@@ -2257,7 +2257,6 @@
         "noMicrophone": "No microphone was found on this device.",
         "microphoneUnavailable": "Microphone is unavailable right now (it may be in use by another app).",
         "microphoneFailed": "Failed to access microphone.",
-        "microphoneUnsupported": "Microphone access is not supported on this device.",
         "recordingStopped": "Voice recording stopped unexpectedly. Please record again.",
         "noAudio": "No audio data was captured.",
         "recordingUnsupported": "Voice recording is not supported in this browser.",
@@ -2774,9 +2773,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "Mark as Read"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "Mark as Read"
       },

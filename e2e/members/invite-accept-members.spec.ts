@@ -8,7 +8,7 @@ import {
   type DisposableUser,
 } from '../helpers/disposableAccounts';
 import { matrixFetch, sendRoomMessage } from '../helpers/matrix';
-import { onWebKitPage } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // An invite accepted in the app (Join on its Activity row, or on the room's invite page): the
 // room then knows its members as a room opened any other way does. The inviter is listed under
@@ -18,7 +18,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // room after the accept.
 const PASSWORD = 'invite-accept-members-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.INVITE_ACCEPT_SHOTS;
 const HOST_NAME = 'Ari Host';
 const GUEST_NAME = 'Noa Guest';
@@ -220,7 +219,7 @@ for (const [title, run] of cases) {
   });
 
   test(`${title} (WebKit)`, async ({ baseURL }) => {
-    test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
     test.setTimeout(180_000);
     await onWebKitPage({ viewport: { width: 1280, height: 800 }, baseURL }, (page) =>
       run(page, 'webkit')

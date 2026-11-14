@@ -11,7 +11,7 @@ vi.mock('../config/appVersion', () => ({
 }));
 
 import {
-  buildFlightRecorderExport,
+  buildFlightRecorderPayload,
   classifyFlightRecorderRoute,
   FLIGHT_RECORDER_ABNORMAL_KEY,
   FLIGHT_RECORDER_CURRENT_KEY,
@@ -152,10 +152,10 @@ describe('iOS freeze flight recorder', () => {
     ]);
   });
 
-  it('uses one normalized bounded build version for storage and export metadata', async () => {
+  it('uses one normalized bounded build version for storage and export metadata', () => {
     dispose = installFlightRecorder(storage);
     const expected = normalizeFlightRecorderBuildVersion(buildVersionMock.value);
-    const payload = JSON.parse(await buildFlightRecorderExport().blob.text());
+    const payload = buildFlightRecorderPayload();
 
     expect(expected).toHaveLength(128);
     expect(expected).toMatch(/^[A-Za-z0-9._+-]+$/);
@@ -563,7 +563,7 @@ describe('iOS freeze flight recorder', () => {
     expect(readCurrent(storage).expectedEndAt).toBeNull();
   });
 
-  it('preserves old current bytes and disables later writes when abnormal copy fails', async () => {
+  it('preserves old current bytes and disables later writes when abnormal copy fails', () => {
     const prior = makePriorSession();
     const priorBytes = JSON.stringify(prior);
     storage.values.set(FLIGHT_RECORDER_CURRENT_KEY, priorBytes);
@@ -575,11 +575,11 @@ describe('iOS freeze flight recorder', () => {
     expect(storage.getItem(FLIGHT_RECORDER_CURRENT_KEY)).toBe(priorBytes);
     expect(storage.writes).toEqual([FLIGHT_RECORDER_ABNORMAL_KEY]);
     expect(getFlightRecorderStatus()).toBe('unavailable');
-    const exported = JSON.parse(await buildFlightRecorderExport().blob.text());
+    const exported = buildFlightRecorderPayload();
     expect(exported.currentOrPreservedSession).toEqual(prior);
   });
 
-  it('prioritizes retained abnormal evidence when the replacement write fails', async () => {
+  it('prioritizes retained abnormal evidence when the replacement write fails', () => {
     const prior = makePriorSession();
     storage.values.set(FLIGHT_RECORDER_CURRENT_KEY, JSON.stringify(prior));
     storage.failWriteNumber = 2;
@@ -587,7 +587,7 @@ describe('iOS freeze flight recorder', () => {
     dispose = installFlightRecorder(storage);
 
     expect(getFlightRecorderStatus()).toBe('unexpected');
-    const exported = JSON.parse(await buildFlightRecorderExport().blob.text());
+    const exported = buildFlightRecorderPayload();
     expect(exported.abnormalSession).toMatchObject({ sessionId: prior.sessionId });
     expect(exported.currentOrPreservedSession).toBeNull();
   });
@@ -608,7 +608,7 @@ describe('iOS freeze flight recorder', () => {
     expect(readCurrent(storage).voiceCapture).toBe('inactive');
   });
 
-  it('never replaces prior bytes when the startup read fails', async () => {
+  it('never replaces prior bytes when the startup read fails', () => {
     const prior = makePriorSession();
     const priorBytes = JSON.stringify(prior);
     storage.values.set(FLIGHT_RECORDER_CURRENT_KEY, priorBytes);
@@ -621,7 +621,7 @@ describe('iOS freeze flight recorder', () => {
     expect(getFlightRecorderStatus()).toBe('unavailable');
 
     storage.failReadKey = undefined;
-    const exported = JSON.parse(await buildFlightRecorderExport().blob.text());
+    const exported = buildFlightRecorderPayload();
     expect(exported.currentOrPreservedSession).toEqual(prior);
   });
 
@@ -743,29 +743,28 @@ describe('iOS freeze flight recorder', () => {
     });
   });
 
-  it('exports abnormal and current sessions without deleting retained data', async () => {
+  it('builds the abnormal and current sessions without deleting retained data', () => {
     const prior = makePriorSession();
     storage.values.set(FLIGHT_RECORDER_CURRENT_KEY, JSON.stringify(prior));
     dispose = installFlightRecorder(storage);
     const before = new Map(storage.values);
 
-    const { fileName, blob } = buildFlightRecorderExport();
-    const payload = JSON.parse(await blob.text());
+    const payload = buildFlightRecorderPayload();
 
-    expect(fileName).toMatch(/^mindroom-diagnostics-.*Z\.json$/);
     expect(payload.metadata).toMatchObject({
       exportSchemaVersion: 1,
       flightRecorderSchemaVersion: 1,
       buildVersion: expect.any(String),
       exportedAt: 1000,
     });
-    expect(payload.abnormalSession.sessionId).toBe(prior.sessionId);
-    expect(payload.currentOrPreservedSession.sessionId).not.toBe(payload.abnormalSession.sessionId);
+    expect(payload.abnormalSession?.sessionId).toBe(prior.sessionId);
+    expect(payload.currentOrPreservedSession?.sessionId).toEqual(expect.any(String));
+    expect(payload.currentOrPreservedSession?.sessionId).not.toBe(prior.sessionId);
     expect(storage.values).toEqual(before);
 
     storage.failReadKey = FLIGHT_RECORDER_ABNORMAL_KEY;
     expect(getFlightRecorderStatus()).toBe('unavailable');
-    expect(() => buildFlightRecorderExport()).toThrow('Diagnostics storage unavailable');
+    expect(() => buildFlightRecorderPayload()).toThrow('Diagnostics storage unavailable');
   });
 
   it('keeps both diagnostic keys outside Clear Cache and logout ownership', () => {

@@ -4,9 +4,11 @@ import { loginWithPassword } from '../helpers/auth';
 import { alignUiActionSync } from '../helpers/uiActionSync';
 import { createThreadFixture, joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { expectRoomCompact } from '../helpers/roomViewSwitch';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
-// Explicit opt-in to an isolated, disposable local Matrix server with open registration.
-const homeserver = process.env.E2E_UI_ACTIONS_HOMESERVER;
 const computerApi = 'http://127.0.0.1:28179';
 test.use({ video: 'off' });
 test.afterEach(async ({ context }) => {
@@ -17,14 +19,14 @@ test('agent requests open the active conversation and leave passive history butt
   page,
   context,
 }, testInfo) => {
-  test.skip(!homeserver, 'Set E2E_UI_ACTIONS_HOMESERVER to a disposable local Matrix server.');
-  const origin = new URL(homeserver!);
-  expect(origin.protocol).toBe('http:');
-  expect(['127.0.0.1', 'localhost', '[::1]']).toContain(origin.hostname);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
   const password = randomUUID();
   const register = (username: string) =>
-    matrixFetch<{ access_token: string; user_id: string }>(homeserver!, '/register', {
+    matrixFetch<{ access_token: string; user_id: string }>(HOMESERVER, '/register', {
       method: 'POST',
       body: JSON.stringify({ username, password, auth: { type: 'm.login.dummy' } }),
     });
@@ -33,20 +35,20 @@ test('agent requests open the active conversation and leave passive history butt
   const agent = await register(`mindroom_ui_${suffix}`);
   const otherAgent = await register(`mindroom_other_${suffix}`);
   let autoOpenFromHomeservers = [viewer.user_id.slice(viewer.user_id.indexOf(':') + 1)];
-  const fixture = await createThreadFixture(homeserver!, viewer.access_token, {
+  const fixture = await createThreadFixture(HOMESERVER, viewer.access_token, {
     name: 'Agent UI requests',
     topic: 'Local UI action regression',
     rootBody: 'Show the browser while working',
     replyBody: 'The active conversation',
     invite: [agent.user_id, otherAgent.user_id],
   });
-  await joinRoom(homeserver!, agent.access_token, fixture.roomId);
-  await joinRoom(homeserver!, otherAgent.access_token, fixture.roomId);
-  const otherRoot = await sendRoomMessage(homeserver!, viewer.access_token, fixture.roomId, {
+  await joinRoom(HOMESERVER, agent.access_token, fixture.roomId);
+  await joinRoom(HOMESERVER, otherAgent.access_token, fixture.roomId);
+  const otherRoot = await sendRoomMessage(HOMESERVER, viewer.access_token, fixture.roomId, {
     msgtype: 'm.text',
     body: 'Another conversation',
   });
-  await sendRoomMessage(homeserver!, viewer.access_token, fixture.roomId, {
+  await sendRoomMessage(HOMESERVER, viewer.access_token, fixture.roomId, {
     msgtype: 'm.text',
     body: 'Another conversation reply',
     'm.relates_to': { rel_type: 'm.thread', event_id: otherRoot },
@@ -57,7 +59,7 @@ test('agent requests open the active conversation and leave passive history butt
     body: string,
     sender = agent
   ) =>
-    sendRoomMessage(homeserver!, sender.access_token, fixture.roomId, {
+    sendRoomMessage(HOMESERVER, sender.access_token, fixture.roomId, {
       msgtype: 'm.notice',
       body,
       ...(threadId ? { 'm.relates_to': { rel_type: 'm.thread', event_id: threadId } } : {}),
@@ -79,14 +81,14 @@ test('agent requests open the active conversation and leave passive history butt
     // A nonretryable error settles immediately instead of exercising the startup retry window.
     return route.fulfill({ status: 400, json: { detail: 'Local fixture computer unavailable' } });
   });
-  await alignUiActionSync(context, page, homeserver!);
+  await alignUiActionSync(context, page, HOMESERVER);
   await context.route('**/config.json', async (route) => {
     const response = await route.fetch();
     const config = await response.json();
     await route.fulfill({
       json: {
         ...config,
-        homeserverList: [homeserver],
+        homeserverList: [HOMESERVER],
         defaultHomeserver: 0,
         allowCustomHomeservers: true,
         hashRouter: { enabled: false },
@@ -100,7 +102,7 @@ test('agent requests open the active conversation and leave passive history butt
     });
   });
   await page.setViewportSize({ width: 1600, height: 1000 });
-  await loginWithPassword(page, { homeserver: homeserver!, username, password });
+  await loginWithPassword(page, { homeserver: HOMESERVER, username, password });
   const threadPath = (id: string) =>
     `/home/${encodeURIComponent(fixture.roomId)}?threadId=${encodeURIComponent(id)}`;
   const waitForLiveSync = () =>
@@ -130,7 +132,7 @@ test('agent requests open the active conversation and leave passive history butt
 
   // A request in a different thread cannot steal this conversation's UI.
   await sendAction(otherRoot, { action: 'show_computer' }, 'Watch the other conversation');
-  await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+  await sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
     msgtype: 'm.text',
     body: 'Sync reached the passive request',
     'm.relates_to': { rel_type: 'm.thread', event_id: fixture.rootId },
@@ -219,7 +221,7 @@ test('agent requests open the active conversation and leave passive history butt
   await page.reload();
   await restoredSync;
   await sendAction(null, { action: 'show_computer' }, 'Historical room computer');
-  await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+  await sendRoomMessage(HOMESERVER, agent.access_token, fixture.roomId, {
     msgtype: 'm.text',
     body: 'Sync reached the room request',
     'm.relates_to': { rel_type: 'm.thread', event_id: otherRoot },

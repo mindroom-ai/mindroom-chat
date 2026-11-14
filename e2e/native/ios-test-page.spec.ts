@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { sampleScreenshot } from '../helpers/glassVisual';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // The page that the native iOS tests load in place of the web bundle (ios/Tests/public/; see
 // ios/Tests/RoomRouteReloadTests.swift and ios/Tests/UI/NativeDiagnosticsTests.swift), served as
@@ -11,7 +11,6 @@ import { launchWebKit } from '../helpers/webkit';
 const ORIGIN = 'http://ios-test-page.localhost';
 const PUBLIC = new URL('../../ios/Tests/public/', import.meta.url);
 const ASSETS: Record<string, string> = { '/boot.js': 'text/javascript', '/style.css': 'text/css' };
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
 // A room route whose last segment looks like a file to the native asset handler.
 const DEEP_ROUTE = '/home/!room%3Aexample.mp4';
@@ -180,7 +179,7 @@ test('the native test page reports a missing or failing diagnostics plugin', asy
 });
 
 test('the native test page works the same in WebKit', async () => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
   const browser = await launchWebKit();
   try {

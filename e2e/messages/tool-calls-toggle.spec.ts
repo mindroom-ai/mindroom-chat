@@ -3,14 +3,18 @@ import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { joinRoom, loginToMatrix, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
+import { joinRoom, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+} from '../helpers/disposableAccounts';
 
 // Agent replies hide their tool calls by default: a faint cog at the top of the reply, on the line
 // of its reasoning when it has some, counts them and turns while one runs, and shows each run of
 // calls where it ran, folded as when tool calls show. The thread menu shows them in its thread,
 // the room menu in the whole room, and each choice stays after a reload.
 // Set TOOL_CALLS_SHOTS=<directory> to save the cog, the open cog, the thread and both menus.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'tool-calls-toggle-spec-password';
 const RUN = Date.now().toString(36);
 const ANSWER = 'Q3 monthly churn came in at 2.9%, down from 3.4% in Q2.';
@@ -21,17 +25,6 @@ const shot = async (page: Page, name: string) => {
   if (!SHOTS) return;
   mkdirSync(SHOTS, { recursive: true });
   await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
-};
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
 };
 
 const threadReply = (rootId: string, content: Record<string, unknown>) => ({
@@ -52,18 +45,7 @@ const threadReply = (rootId: string, content: Record<string, unknown>) => ({
  */
 const seed = async () => {
   const username = `tct_reader_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  const reader = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const reader = await registerDisposableUser(username, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, 'research');
   const roomId = await createRoom(HOMESERVER, reader.accessToken, {
     name: 'Churn report',
@@ -136,7 +118,7 @@ const chooseShowToolCalls = async (
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('agent replies hide their tool calls until a thread or room shows them', async ({ page }) => {

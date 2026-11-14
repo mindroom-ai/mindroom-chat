@@ -2,6 +2,10 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
 import { matrixFetch } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Dialogs and menus around a room, used from the keyboard and in a right-to-left language, in
 // Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit:
@@ -10,23 +14,11 @@ import { launchWebKit } from '../helpers/webkit';
 // - the arrow keys move between the entries of the room header's menu;
 // - the Leave Room confirmation takes focus as it opens, so a screen reader announces it;
 // - a long Latin name in a right-to-left list loses its end to the ellipsis, not its start.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'dialog-keyboard-paths-spec-password';
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const LONG_NAME = 'Sam Taylor with a considerably longer display name than usual';
 
 type Account = { username: string; userId: string; accessToken: string };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (prefix: string, displayName: string): Promise<Account> => {
   const run = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
@@ -80,7 +72,7 @@ const isFocused = (locator: Locator) =>
   locator.evaluate((element) => element === document.activeElement);
 
 test.beforeAll(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 const DESKTOP = { width: 1280, height: 800 };
@@ -142,8 +134,10 @@ const longLatinNameKeepsItsStart = async (page: Page) => {
   const { viewer, member, roomId } = await seed();
   await openRoom(page, viewer, roomId, 'ar');
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-  const name = page.locator(`button[data-user-id="${member.userId}"] > span`).last();
-  await expect(name).toHaveText(LONG_NAME, { timeout: 30_000 });
+  const name = page
+    .locator(`button[data-user-id="${member.userId}"]`)
+    .getByText(LONG_NAME, { exact: true });
+  await expect(name).toHaveCount(1, { timeout: 30_000 });
 
   // Where the name's first letters sit, against the box that clips the name.
   const { firstLeft, firstRight, boxLeft, boxRight, clipped } = await name.evaluate((element) => {

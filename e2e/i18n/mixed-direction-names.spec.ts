@@ -12,15 +12,19 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A name or message in another direction than the interface keeps one order and its own side, on
 // a real homeserver. The Arabic name "المستخدم E" reads right to left, so its Latin E shows at
-// its left wherever it appears: the sender line (as in the members panel), the typing strip and
-// the approval review's "Requested by". A short plain message sits at its own start, as a long
-// or formatted one does: Arabic and Hebrew at the right in the English interface, English at the
-// left in the Arabic interface. Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
-// WebKit, WebKit; English and Arabic. MIXED_DIRECTION_SHOTS names a directory for screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
+// its left wherever it appears: the sender line (as in the members panel), the approval review's
+// "Requested by" and the room view's typing strip. A short plain message sits at its own start, as
+// a long or formatted one does: Arabic and Hebrew at the right in the English interface, English
+// at the left in the Arabic interface. Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
+// Playwright's WebKit, WebKit; English and Arabic. MIXED_DIRECTION_SHOTS names a directory for
+// screenshots.
 const PASSWORD = 'mixed-direction-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.MIXED_DIRECTION_SHOTS;
@@ -39,17 +43,6 @@ test.use({
   },
 });
 test.describe.configure({ timeout: 180_000 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const registerAndLogin = async (
   name: string,
@@ -224,19 +217,6 @@ const check = async (browser: Browser, engine: string, language: 'en' | 'ar', ba
   await expectAtOwnStart(page, world.hebrewId, HEBREW, true);
   await expectAtOwnStart(page, world.englishId, ENGLISH, false);
 
-  // The typing strip.
-  await matrixFetch(
-    HOMESERVER,
-    `/rooms/${encodeURIComponent(world.roomId)}/typing/${encodeURIComponent(world.arabic.userId)}`,
-    {
-      method: 'PUT',
-      accessToken: world.arabic.accessToken,
-      body: JSON.stringify({ typing: true, timeout: 60_000 }),
-    }
-  );
-  const strip = page.getByRole('status').filter({ hasText: ARABIC_NAME });
-  await expect(strip).toBeVisible({ timeout: 30_000 });
-  expect(await latinLetterOnLeft(strip), 'typing strip').toBe(true);
   if (SHOTS) {
     mkdirSync(SHOTS, { recursive: true });
     await page.screenshot({ path: join(SHOTS, `thread-${engine}-${language}.png`) });
@@ -250,6 +230,26 @@ const check = async (browser: Browser, engine: string, language: 'en' | 'ar', ba
   await expect(dialog).toContainText(ARABIC_NAME);
   expect(await latinLetterOnLeft(dialog), 'requested by').toBe(true);
   if (SHOTS) await page.screenshot({ path: join(SHOTS, `review-${engine}-${language}.png`) });
+
+  // The typing strip, in the room view: a typing notice names no thread, so a thread view names
+  // no person typing.
+  await page.goto(`/home/${encodeURIComponent(world.roomId)}/`);
+  await expect(page.locator('h1').filter({ hasText: 'Mixed direction room' })).toBeVisible({
+    timeout: 60_000,
+  });
+  await matrixFetch(
+    HOMESERVER,
+    `/rooms/${encodeURIComponent(world.roomId)}/typing/${encodeURIComponent(world.arabic.userId)}`,
+    {
+      method: 'PUT',
+      accessToken: world.arabic.accessToken,
+      body: JSON.stringify({ typing: true, timeout: 60_000 }),
+    }
+  );
+  const strip = page.getByRole('status').filter({ hasText: ARABIC_NAME });
+  await expect(strip).toBeVisible({ timeout: 30_000 });
+  expect(await latinLetterOnLeft(strip), 'typing strip').toBe(true);
+  if (SHOTS) await page.screenshot({ path: join(SHOTS, `typing-${engine}-${language}.png`) });
   await context.close();
 };
 
@@ -258,7 +258,7 @@ for (const language of ['en', 'ar'] as const) {
     browser,
     baseURL,
   }) => {
-    test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+    test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
     await check(browser, 'chromium', language, baseURL);
   });
 
@@ -266,7 +266,7 @@ for (const language of ['en', 'ar'] as const) {
     baseURL,
   }) => {
     test.skip(!WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE not set');
-    test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+    test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
     const browser = await launchWebKit();
     try {
       await check(browser, 'webkit', language, baseURL);

@@ -2,10 +2,10 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { createInsideUrlTest, execOutsideUrl, JUMBO_EMOJI_REG, URL_REG } from './regex';
+import { createInsideUrlTest, JUMBO_EMOJI_REG } from './regex';
 import { cpuNow } from '../../test/utils/cpuNow';
 
-// The lookbehind these helpers replace; V8 evaluates it in linear time, so it is the oracle.
+// The lookbehind this helper replaces; V8 evaluates it in linear time, so it is the oracle.
 const FORMER_URL_LOOKBEHIND = /(?<!(https?|ftp|mailto|magnet):\/\/\S*)/y;
 const followsUrlScheme = (text: string, index: number): boolean => {
   FORMER_URL_LOOKBEHIND.lastIndex = index;
@@ -75,27 +75,6 @@ describe('createInsideUrlTest', () => {
   });
 });
 
-describe('execOutsideUrl', () => {
-  it('returns the first match that does not start inside a URL', () => {
-    const match = execOutsideUrl(/_(.+?)_/g, 'https://a.b/c_d_ e _f_');
-    expect(match?.index).toBe(19);
-    expect(match?.[1]).toBe('f');
-  });
-
-  it('returns null when every match starts inside a URL', () => {
-    expect(execOutsideUrl(/_/g, 'https://a.b/c_d_e')).toBeNull();
-    expect(execOutsideUrl(/_/g, 'https://a.b/c_d_e\n')).toBeNull();
-  });
-
-  it('does not retry every position of a URL', () => {
-    // Retrying each position of the run rescans the rest of it for the closing marker.
-    const text = `https://x.y/${'_'.repeat(40_000)} _a_`;
-    const start = cpuNow();
-    expect(execOutsideUrl(/_(.+?)_(?!_)/g, text)?.index).toBe(text.length - 3);
-    expect(cpuNow() - start).toBeLessThan(1_000);
-  });
-});
-
 describe('JUMBO_EMOJI_REG', () => {
   it.each(['👍', '👍\uFE0F 😀', ':a:', ':party-parrot: 😀 :b_c:', Array(10).fill(':a:').join(' ')])(
     'matches %j',
@@ -118,25 +97,6 @@ describe('JUMBO_EMOJI_REG', () => {
     expect(JUMBO_EMOJI_REG.test(`${':rocket: :white_check_mark: :tada: '.repeat(10)}ok`)).toBe(
       false
     );
-    expect(cpuNow() - start).toBeLessThan(100);
-  });
-});
-
-describe('URL_REG', () => {
-  it('drops trailing punctuation without rescanning it at every position', () => {
-    const text =
-      'See https://e.org/a_(b), http://x.y/z... (https://www.q.r/?s=t!) or https://a.b/c/';
-    expect(text.match(URL_REG)).toEqual([
-      'https://e.org/a_(b',
-      'http://x.y/z',
-      'https://www.q.r/?s=t',
-      'https://a.b/c',
-    ]);
-
-    // A lookbehind that repeated the punctuation class read the whole run back from every
-    // position the URL could end at, so a link followed by many dots froze the timeline.
-    const start = cpuNow();
-    expect(`http://${'.'.repeat(100_000)}`.match(URL_REG)).toBeNull();
     expect(cpuNow() - start).toBeLessThan(100);
   });
 });

@@ -144,28 +144,8 @@ export const runThreadOpenCacheFirst = async ({
         current: isCurrentThreadOpen(),
         mappedCount: repairedEvents.length,
       });
-      // ISSUE-207 AC2 render-gap RG1 (2026-07-04): sink counters.
-      // These three counters partition the outcomes of the
-      // component-side onRepaired callback so a docker probe snapshot
-      // can name which seam the render-gap lives at without another
-      // blind cycle. Invariant asserted by the render-gap
-      // instrumentation:
-      //   reconcilesOnRepairedFired ==
-      //     onRepairedGuardBailed +
-      //     supplementalEventsExecuted +
-      //     supplementalEventsSkippedEmpty
-      // (reconcilesOnRepairedFired is bumped in reconciler.ts AFTER
-      // this callback returns normally.)
-      if (!isCurrentThreadOpen()) {
-        countCacheProbe('onRepairedGuardBailed');
-        return;
-      }
-      if (repairedEvents.length > 0) {
-        setSupplementalThreadEvents(threadId, [...repairedEvents]);
-        countCacheProbe('supplementalEventsExecuted');
-      } else {
-        countCacheProbe('supplementalEventsSkippedEmpty');
-      }
+      if (!isCurrentThreadOpen()) return;
+      if (repairedEvents.length > 0) setSupplementalThreadEvents(threadId, [...repairedEvents]);
       notifyEventsChanged();
     },
   })

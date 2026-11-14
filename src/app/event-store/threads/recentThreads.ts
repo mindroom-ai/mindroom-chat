@@ -206,8 +206,6 @@ const recentThreadsRegistry = createUserScopedAtomRegistry<RecentThreadsAtom>({
 
 export const makeRecentThreadsAtom = recentThreadsRegistry.getOrCreate;
 
-export const registerRecentThreadsAtom = recentThreadsRegistry.registerActive;
-
 const getResolvedRecentThreadsAtom = (): RecentThreadsAtom | undefined => {
   const userId = getActiveSession()?.userId;
   return recentThreadsRegistry.resolveActiveOrCreate(userId);

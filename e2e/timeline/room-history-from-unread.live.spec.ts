@@ -11,6 +11,7 @@ import {
   sendRoomMessage,
 } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
+import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
 /**
  * A long room that opens at the reader's first unread message loads its older history as the
@@ -267,13 +268,7 @@ const readUpTo = async (page: Page, device: Device, selector: string, label: str
 let fixture: Fixture;
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    // Classic scrollbars, as desktop readers without overlay scrollbars have them.
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.describe('a long room opened at its first unread message reads back to its start', () => {

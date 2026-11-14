@@ -54,9 +54,6 @@ const renderRow = async (event: MatrixEvent, threadId?: string) => {
       messageLayout: MessageLayout.Compact,
       messageSpacing: '400' as MessageSpacing,
       hideActivity: false,
-      hideMembershipEvents: false,
-      hideNickAvatarEvents: false,
-      showHiddenEvents: false,
     });
     return feature.wrapExpansion(<>{feature.renderEvent(row, data)}</>);
   }

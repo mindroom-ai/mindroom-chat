@@ -8,8 +8,13 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
-import { joinRoom, loginToMatrix, matrixFetch, type MatrixSession } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
+  registerDisposableUser,
+} from '../helpers/disposableAccounts';
+import { joinRoom, matrixFetch, type MatrixSession, setDirectAccountData } from '../helpers/matrix';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
@@ -20,7 +25,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // Runs in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit,
 // against the disposable homeserver of `just hs-up` or of a slot of scripts/e2e-slot.sh. Set
 // PEOPLE_RANK_SHOTS=<directory> to save screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'palette-people-ranking-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.PEOPLE_RANK_SHOTS;
@@ -28,37 +32,15 @@ const FILLER_ROOMS = 25;
 
 test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 const registerPerson = async (localpart: string, displayName: string) => {
   const username = `${localpart}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  const session = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const session = await registerDisposableUser(username, PASSWORD);
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(session.userId)}/displayname`, {
     method: 'PUT',
     accessToken: session.accessToken,
     body: JSON.stringify({ displayname: displayName }),
   });
-  return { ...session, username, displayName };
+  return { ...session, displayName };
 };
 
 /** A direct chat of `owner` with `other`, listed in the owner's m.direct. */
@@ -73,11 +55,7 @@ const createDirectChat = async (owner: MatrixSession, other: MatrixSession) => {
     }),
   });
   await joinRoom(HOMESERVER, other.accessToken, roomId);
-  await matrixFetch(HOMESERVER, `/user/${encodeURIComponent(owner.userId)}/account_data/m.direct`, {
-    method: 'PUT',
-    accessToken: owner.accessToken,
-    body: JSON.stringify({ [other.userId]: [roomId] }),
-  });
+  await setDirectAccountData(HOMESERVER, owner.accessToken, owner.userId, other.userId, roomId);
   return roomId;
 };
 
@@ -105,7 +83,7 @@ let seeded: Awaited<ReturnType<typeof seed>> | undefined;
 
 test.beforeAll(async () => {
   test.setTimeout(120_000);
-  if (!(await homeserverIsUp())) return;
+  if (!(await disposableHomeserverIsUp())) return;
   seeded = await seed();
 });
 

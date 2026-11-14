@@ -881,7 +881,8 @@
     "back": "Retour",
     "resize": "Redimensionner le fil",
     "showFull": "Afficher le fil en entier",
-    "showBeside": "Afficher le fil à côté des messages"
+    "showBeside": "Afficher le fil à côté des messages",
+    "notFound": "Fil introuvable"
   },
   "activity": {
     "title": "Activité",

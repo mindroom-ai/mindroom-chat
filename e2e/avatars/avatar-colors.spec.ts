@@ -18,13 +18,15 @@ import {
 } from '../helpers/matrix';
 import { roomViewSwitch } from '../helpers/roomViewSwitch';
 import { defined } from '../../src/test/utils/defined';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Avatars without a picture take one color per user or room ID, on every screen: the room header
 // tile, the lobby, the room intro, Activity, the Direct list, the Compact bars, the members and
 // the messages. A direct chat takes the color of the person it is with.
 
-// A disposable local Matrix server with open registration (`just hs-up` or scripts/e2e-slot.sh).
-const homeserver = process.env.E2E_UI_ACTIONS_HOMESERVER;
 test.use({ video: 'off' });
 
 type Account = { access_token: string; user_id: string };
@@ -44,11 +46,11 @@ const seed = async (): Promise<Seeded> => {
   const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
   const password = randomUUID();
   const register = async (username: string, displayname: string): Promise<Account> => {
-    const account = await matrixFetch<Account>(homeserver!, '/register', {
+    const account = await matrixFetch<Account>(HOMESERVER, '/register', {
       method: 'POST',
       body: JSON.stringify({ username, password, auth: { type: 'm.login.dummy' } }),
     });
-    await matrixFetch(homeserver!, `/profile/${encodeURIComponent(account.user_id)}/displayname`, {
+    await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(account.user_id)}/displayname`, {
       method: 'PUT',
       accessToken: account.access_token,
       body: JSON.stringify({ displayname }),
@@ -60,18 +62,18 @@ const seed = async (): Promise<Seeded> => {
   const viewer = await register(username, 'Olive Viewer');
   const peer = await register(`colors_peer_${suffix}`, 'Pat Peer');
 
-  const spaceId = await createPrivateSpace(homeserver!, viewer.access_token, {
+  const spaceId = await createPrivateSpace(HOMESERVER, viewer.access_token, {
     name: 'Color Space',
     topic: 'Rooms without pictures',
   });
-  const roomId = await createPrivateRoom(homeserver!, viewer.access_token, {
+  const roomId = await createPrivateRoom(HOMESERVER, viewer.access_token, {
     name: 'Color Room',
     topic: 'No picture here',
     invite: [peer.user_id],
   });
-  await addRoomToSpace(homeserver!, viewer.access_token, spaceId, roomId);
-  await joinRoom(homeserver!, peer.access_token, roomId);
-  const rootId = await sendRoomMessage(homeserver!, peer.access_token, roomId, {
+  await addRoomToSpace(HOMESERVER, viewer.access_token, spaceId, roomId);
+  await joinRoom(HOMESERVER, peer.access_token, roomId);
+  const rootId = await sendRoomMessage(HOMESERVER, peer.access_token, roomId, {
     msgtype: 'm.text',
     body: 'Which color is the launch room?',
   });
@@ -83,19 +85,19 @@ const seed = async (): Promise<Seeded> => {
       'm.in_reply_to': { event_id: rootId },
     },
   };
-  await sendRoomMessage(homeserver!, viewer.access_token, roomId, {
+  await sendRoomMessage(HOMESERVER, viewer.access_token, roomId, {
     msgtype: 'm.text',
     body: 'The same one everywhere',
     ...inThread,
   });
   // The peer answers last, so Activity's row for the thread shows the peer.
-  await sendRoomMessage(homeserver!, peer.access_token, roomId, {
+  await sendRoomMessage(HOMESERVER, peer.access_token, roomId, {
     msgtype: 'm.text',
     body: 'Teal, then',
     ...inThread,
   });
 
-  const directId = await createPrivateRoom(homeserver!, viewer.access_token, {
+  const directId = await createPrivateRoom(HOMESERVER, viewer.access_token, {
     name: '',
     topic: '',
     preset: 'trusted_private_chat',
@@ -103,14 +105,14 @@ const seed = async (): Promise<Seeded> => {
     isDirect: true,
   });
   await setDirectAccountData(
-    homeserver!,
+    HOMESERVER,
     viewer.access_token,
     viewer.user_id,
     peer.user_id,
     directId
   );
-  await joinRoom(homeserver!, peer.access_token, directId);
-  await sendRoomMessage(homeserver!, peer.access_token, directId, {
+  await joinRoom(HOMESERVER, peer.access_token, directId);
+  await sendRoomMessage(HOMESERVER, peer.access_token, directId, {
     msgtype: 'm.text',
     body: 'Just us two',
   });
@@ -134,7 +136,7 @@ const routeConfig = (context: BrowserContext) =>
     await route.fulfill({
       json: {
         ...config,
-        homeserverList: [homeserver],
+        homeserverList: [HOMESERVER],
         defaultHomeserver: 0,
         allowCustomHomeservers: true,
         hashRouter: { enabled: false },
@@ -182,14 +184,17 @@ test('a user or room without a picture has one color on every screen', async ({
   page,
   context,
 }, testInfo) => {
-  test.skip(!homeserver, 'Set E2E_UI_ACTIONS_HOMESERVER to a disposable local Matrix server.');
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.slow();
   const seeded = await seed();
   await routeConfig(context);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.emulateMedia({ colorScheme: 'light' });
   await loginWithPassword(page, {
-    homeserver: homeserver!,
+    homeserver: HOMESERVER,
     username: seeded.username,
     password: seeded.password,
   });

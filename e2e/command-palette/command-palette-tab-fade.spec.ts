@@ -9,13 +9,16 @@ import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch } from '../helpers/matrix';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // On a phone the palette's tab row is wider than the screen and scrolls sideways. It fades out
 // at each edge it has more tabs beyond: the end at first, both edges in the middle, the start at
 // the end. In Arabic the row and its fades are mirrored. Phone 390 by 844 with touch, Chromium
 // and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit; a desktop row that
 // fits shows no fade. Set COMMAND_PALETTE_TAB_FADE_SHOTS=<directory> for screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'command-palette-tab-fade-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SHOTS = process.env.COMMAND_PALETTE_TAB_FADE_SHOTS;
@@ -25,17 +28,6 @@ const PHONE: BrowserContextOptions = {
   isMobile: true,
 };
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 let seeded: Promise<string> | undefined;
 
@@ -152,7 +144,10 @@ const inWebKit = async (check: (browser: Browser) => Promise<void>) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(120_000);
 });
 

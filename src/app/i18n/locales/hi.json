@@ -1494,9 +1494,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "पढ़ा हुआ चिह्नित करें"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "पढ़ा हुआ चिह्नित करें"
       },
@@ -1688,7 +1685,6 @@
         "microphoneBlockedIos": "माइक्रोफ़ोन पहुंच अवरुद्ध है. iPhone सेटिंग्स में MindRoom के लिए माइक्रोफ़ोन एक्सेस की अनुमति दें और पुनः प्रयास करें।",
         "microphoneFailed": "माइक्रोफ़ोन तक पहुंचने में विफल.",
         "microphoneUnavailable": "माइक्रोफ़ोन अभी उपलब्ध नहीं है (यह किसी अन्य ऐप द्वारा उपयोग में हो सकता है)।",
-        "microphoneUnsupported": "इस डिवाइस पर माइक्रोफ़ोन एक्सेस समर्थित नहीं है.",
         "noAudio": "कोई ऑडियो डेटा कैप्चर नहीं किया गया.",
         "noMicrophone": "इस डिवाइस पर कोई माइक्रोफ़ोन नहीं मिला.",
         "recordingStopped": "वॉइस रिकॉर्डिंग अप्रत्याशित रूप से रुक गई। कृपया दोबारा रिकॉर्ड करें।",

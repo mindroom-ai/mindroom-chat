@@ -3,49 +3,24 @@ import { loginWithPassword } from '../helpers/auth';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   registerAgentAccount,
   seedRoomOverviewState,
   sendRoomMessage,
-  type MatrixSession,
 } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+} from '../helpers/disposableAccounts';
 
 // The room list's unread mark and the room's unread thread filter agree, against the disposable
 // homeserver of `just hs-up` (or a slot of scripts/e2e-slot.sh): a root an agent posted keeps the
 // room unread and the filter finds it, also once the reader answered it in its thread, since that
 // reply reads only the thread and the server keeps counting the root (mindroom-tuwunel #139). A
 // main receipt reads it. Each run registers its own reader and agent.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'room-unread-filter-spec-password';
 const RUN = Date.now().toString(36);
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `ruf_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
 
 const inThread = (rootId: string, content: Record<string, unknown>) => ({
   ...content,
@@ -79,14 +54,14 @@ const openUnreadThreads = async (page: Page, roomId: string, title: string) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('the room list marks a room unread only for threads its unread filter finds', async ({
   page,
 }) => {
   test.setTimeout(240_000);
-  const reader = await registerAndLogin('reader');
+  const reader = await registerDisposableUser(`ruf_reader_${RUN}`, PASSWORD);
   // An agent, so the rooms show the agent rooms' thread filters, Unread among them.
   const writer = await registerAgentAccount(HOMESERVER, 'router');
   const makeRoom = async (name: string) => {

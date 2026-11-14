@@ -130,8 +130,8 @@ describe('scripts/frame_headers.py (serve.py)', () => {
   }, 30_000);
 });
 
-describe('docker-entrypoint.d/40-frame-headers.sh (nginx)', () => {
-  const script = readFileSync(repoFile('docker-entrypoint.d/40-frame-headers.sh'), 'utf8');
+describe('docker/entrypoint.d/40-frame-headers.sh (nginx)', () => {
+  const script = readFileSync(repoFile('docker/entrypoint.d/40-frame-headers.sh'), 'utf8');
 
   /** The nginx map on `variable`: its case-insensitive pattern, match value and default. */
   const nginxMap = (variable: string) => {

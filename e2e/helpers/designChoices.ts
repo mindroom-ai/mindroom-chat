@@ -1,12 +1,12 @@
 import { mkdirSync } from 'node:fs';
 import { expect, type BrowserContextOptions, type Page, type TestInfo } from '@playwright/test';
 import { createRoom } from './createRoom';
+import { DISPOSABLE_HOMESERVER as HOMESERVER } from './disposableAccounts';
 import { matrixFetch, sendRoomMessage } from './matrix';
 
 // Shared setup of the design-choice specs (model badge, phone header, Bubble layout, thread
 // mode): accounts on the test homeserver, messages, the look of the page and screenshots.
 
-export const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 export const PASSWORD = 'design-choices-spec-password';
 export const RUN = Date.now().toString(36);
 /** Set DESIGN_CHOICES_SHOTS=<directory> to save every screenshot there too. */
@@ -20,24 +20,6 @@ export const PHONE: BrowserContextOptions = {
 };
 export const SCHEMES = ['light', 'dark'] as const;
 export type Scheme = (typeof SCHEMES)[number];
-
-/** The launch options of playwright.config.ts, with classic scrollbars shown. */
-export const LAUNCH = {
-  executablePath: process.env.CHROMIUM_PATH || undefined,
-  args: ['--disable-features=IsolateSandboxedIframes'],
-  ignoreDefaultArgs: ['--hide-scrollbars'],
-};
-
-export const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 /** Retries what the server refuses with 429. */
 export const withRetry = async <T>(run: () => Promise<T>): Promise<T> => {

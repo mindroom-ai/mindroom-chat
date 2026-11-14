@@ -72,7 +72,7 @@ const speechModelFiles = () => ({
 export const copyFiles = {
   targets: [
     // The MindRoom defaults are served as the runtime client config.
-    { src: 'config.mindroom.json', dest: '', rename: 'config.json' },
+    { src: 'config/mindroom.json', dest: '', rename: 'config.json' },
     // Non-English catalogs load on demand from `public/locales/<code>.json` (src/app/i18n/i18n.ts).
     // English ships in the bundle, with its overlay in src/app/i18n/locales/additions/en.json; the other
     // languages' overlays in that directory load as chunks (src/app/i18n/localeAdditions.ts).
@@ -202,7 +202,7 @@ export default defineConfig({
     e2eClientConfig(process.env.MINDROOM_E2E_PROVISIONING_URL),
     // runtime-config.js, authentication-recovery.js, version.json and the build version constants.
     mindroomBuildAssets(),
-    // The client plugins MINDROOM_CLIENT_PLUGINS lists (docs/architecture.md "Client plugins").
+    // The client plugins MINDROOM_CLIENT_PLUGINS lists (docs/client-plugins.md).
     clientPlugins(),
     // `vite preview` says who may frame the app (frame-ancestors works only as a header).
     frameHeaders(),

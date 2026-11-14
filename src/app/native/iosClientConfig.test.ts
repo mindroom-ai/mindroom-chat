@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { iosClientConfig } from '../../../scripts/ios-client-config.mjs';
 import { resolveComputerApiUrl } from '../computer/api';
 
-const source = readFileSync(new URL('../../../config.mindroom.json', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../../../config/mindroom.json', import.meta.url), 'utf8');
 const settings = JSON.parse(
-  readFileSync(new URL('../../../config.mindroom.ios.json', import.meta.url), 'utf8')
+  readFileSync(new URL('../../../config/mindroom.ios.json', import.meta.url), 'utf8')
 );
 
 describe('bundled iOS client config', () => {

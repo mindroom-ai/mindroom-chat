@@ -5,7 +5,10 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useCloseRoomSettings, useRoomSettingsState } from '../../navigation/useRoomSettingsState';
 import { RoomSettings } from './RoomSettings';
 
-/** Shows the room settings dialog while a room asked for it and this client knows the room. */
+/**
+ * Shows the settings dialog of the room or space that asked for it, while this client knows it.
+ * Each request opens the dialog afresh on its page, even when it was open already.
+ */
 export function RoomSettingsRenderer() {
   const requested = useRoomSettingsState();
   const close = useCloseRoomSettings();
@@ -20,7 +23,12 @@ export function RoomSettingsRenderer() {
       fillPhoneScreen
       className={phone ? undefined : RoomSettingsDialog}
     >
-      <RoomSettings key={room.roomId} room={room} openOn={requested.page} requestClose={close} />
+      <RoomSettings
+        key={requested.request}
+        room={room}
+        openOn={requested.page}
+        requestClose={close}
+      />
     </Modal500>
   );
 }

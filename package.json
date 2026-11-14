@@ -8,6 +8,7 @@
   "engines": {
     "node": ">=24"
   },
+  "autoRelease": true,
   "scripts": {
     "dev": "vite",
     "start": "vite",
@@ -149,5 +150,12 @@
     "@vanilla-extract/vite-plugin": {
       "vite": "$vite"
     }
+  },
+  "prettier": {
+    "singleQuote": true,
+    "printWidth": 100,
+    "trailingComma": "es5",
+    "semi": true,
+    "tabWidth": 2
   }
 }

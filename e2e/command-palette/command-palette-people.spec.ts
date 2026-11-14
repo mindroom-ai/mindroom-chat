@@ -2,8 +2,13 @@ import { crc32, deflateSync } from 'node:zlib';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { matrixFetch } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // Cmd+K's People against a real homeserver and its real `POST /user_directory/search`: people the
 // account shares no room with come from the server below the ones it knows, Enter asks before it
@@ -14,26 +19,13 @@ import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 // Harper, Quinn Lindqvist and Lena Reyes are in public rooms of their own, which is what lets the
 // server's directory list them (Tuwunel's default), and Dana Whitfield is in no room at all.
 // Set PEOPLE_SHOTS=<directory> to also save the L26 screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const SERVER_NAME = 'matrix.localhost';
 const PASSWORD = 'command-palette-people-spec-password';
 const SHOTS = process.env.PEOPLE_SHOTS;
 const DIRECTORY_DELAY_MS = 3_000;
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit (the iPhone engine), for its own test.
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 
 type Account = { username: string; userId: string; accessToken: string; name: string };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 /** Retries what the server refuses with 429, after a growing wait. */
 const withRetry = async <T>(run: () => Promise<T>): Promise<T> => {
@@ -320,20 +312,18 @@ const shoot = async (target: Page | Locator, name: string) => {
   if (SHOTS) await target.screenshot({ path: `${SHOTS}/L26-palette-people-${name}.png` });
 };
 
-// Headless Chromium hides scrollbars; desktop browsers with classic scrollbars show them. The
-// other launch options repeat playwright.config.ts.
+// Headless Chromium hides scrollbars; desktop browsers with classic scrollbars show them.
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.describe.configure({ mode: 'serial', timeout: 180_000 });
 
 test.beforeAll(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   const started = Date.now();
   seeded = await seed();
   console.log(`seeded ${ROOM_NAMES.length + 3} rooms and 8 people in ${Date.now() - started} ms`);
@@ -580,7 +570,7 @@ test.describe('on a phone', () => {
 });
 
 test('People rows and the question lay out the same in WebKit', async ({ baseURL }) => {
-  test.skip(!WEBKIT, "Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright's WebKit");
+  test.skip(!WEBKIT_EXECUTABLE, "Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright's WebKit");
   const { okafor, lindqvist } = seeded!;
   // The file's launch options carry a Chromium flag WebKit refuses.
   const browser = await launchWebKit();

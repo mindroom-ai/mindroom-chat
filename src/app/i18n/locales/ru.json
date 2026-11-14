@@ -2313,7 +2313,6 @@
         "noMicrophone": "На устройстве не найден микрофон.",
         "microphoneUnavailable": "Микрофон сейчас недоступен (возможно, его использует другое приложение).",
         "microphoneFailed": "Не удалось получить доступ к микрофону.",
-        "microphoneUnsupported": "Устройство не поддерживает доступ к микрофону.",
         "recordingStopped": "Запись неожиданно остановилась. Запишите сообщение снова.",
         "noAudio": "Звуковые данные не записаны.",
         "recordingUnsupported": "Браузер не поддерживает запись голоса.",
@@ -2890,9 +2889,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "Отметить прочитанным"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "Отметить прочитанным"
       },

@@ -13,14 +13,11 @@ import { createRoom } from '../helpers/createRoom';
 import { sendStateEvent } from '../helpers/matrix';
 import {
   AI_RUN,
-  HOMESERVER,
-  LAUNCH,
   PASSWORD,
   PHONE,
   RUN,
   SCHEMES,
   createOtherRooms,
-  homeserverIsUp,
   join,
   register,
   say,
@@ -28,7 +25,12 @@ import {
   shot,
   withRetry,
 } from '../helpers/designChoices';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  CHROMIUM_WITH_SCROLLBARS,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A phone's room header keeps the back button, the room's name and the room menu, so a long name
 // keeps its room (L8-F025, design decision #10); the menu offers first what the header leaves out:
@@ -39,8 +41,7 @@ import { launchWebKit } from '../helpers/webkit';
 // and a desktop (1280 by 800), light and dark, in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
 // DESIGN_CHOICES_SHOTS=<directory> to save screenshots.
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
-const ENGINES = ['chromium', ...(WEBKIT ? ['webkit'] : [])] as const;
+const ENGINES = ['chromium', ...(WEBKIT_EXECUTABLE ? ['webkit'] : [])] as const;
 const ROOM_NAME = 'Customer Escalations and Renewals';
 const PINNED = 'Escalation playbook: page the on-call lead first, then the account owner.';
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
@@ -49,7 +50,7 @@ const TARGET = 44;
 /** A message menu's row (MenuEntry: folds' MenuItem, size 300), which a room menu's rows match. */
 const MENU_ROW = 32;
 
-test.use({ launchOptions: LAUNCH });
+test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
 type Seed = { username: string; roomId: string };
 
@@ -243,7 +244,7 @@ for (const engine of ENGINES) {
   test(`a phone's room header keeps the name and moves the rest into the room menu: ${engine}`, async ({
     browser,
   }, testInfo) => {
-    test.skip(!(await homeserverIsUp()), 'Test homeserver is not running.');
+    test.skip(!(await disposableHomeserverIsUp()), 'Test homeserver is not running.');
     test.setTimeout(240_000);
     const data = await seed(engine);
     const phone = await newPage(engine, browser, PHONE);

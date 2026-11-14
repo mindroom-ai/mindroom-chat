@@ -6,6 +6,10 @@ import { getStoredSessionByUsername } from '../helpers/accounts';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { buildLoginPath } from '../env';
 import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Error reports against the disposable homeserver of `just hs-up` (or a slot of
 // scripts/e2e-slot.sh): a forced error in a room with private data must reach the collector with
@@ -14,7 +18,6 @@ import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matr
 // to the collector; this spec plays that server and forwards to a stand-in collector of its own.
 // Set E2E_ERROR_REPORTING_DSN to a real collector (GlitchTip) to forward there instead, then read
 // the stored events by the IDs this spec attaches.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const REAL_DSN = process.env.E2E_ERROR_REPORTING_DSN;
 const MADE_UP_DSN = 'https://e2ekey@errors.e2e.invalid/1';
 const DSN = REAL_DSN ?? MADE_UP_DSN;
@@ -61,17 +64,6 @@ const parseEnvelope = (body: string) => {
     item: JSON.parse(item) as { type?: string },
     event: JSON.parse(event) as Report,
   };
-};
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
 };
 
 /** Records the reports the page posts: to the tunnel, or to a collector's host. */
@@ -167,7 +159,10 @@ const forceError = (page: Page, message: string) =>
 test('reports a forced error through the tunnel without private data, and stops when switched off', async ({
   page,
 }, testInfo) => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
   const username = `reporter_${suffix}`;
   const password = randomUUID();

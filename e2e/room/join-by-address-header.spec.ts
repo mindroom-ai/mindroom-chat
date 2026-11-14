@@ -7,8 +7,14 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { loginToMatrix, matrixFetch, type MatrixSession } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { matrixFetch, type MatrixSession } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // A room the reader has not joined, opened by its address (`/home/#alias:server`), shows a page
 // whose header names the room by that address, not by the room ID the address resolves to. Opened
@@ -16,10 +22,8 @@ import { launchWebKit } from '../helpers/webkit';
 // name. Join then opens the room. On a desktop (1280 by 800) and a phone (390 by 844, touch), in
 // Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit; the reader
 // has 25 rooms. Set JOIN_HEADER_SHOTS=<directory> to save each page.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'join-by-address-header-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.JOIN_HEADER_SHOTS;
 
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
@@ -32,39 +36,8 @@ const ALIASED_ROOM = 'Harbor operations';
 const UNNAMED_ADDRESS_ROOM = 'Quay notes';
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
-const register = async (username: string): Promise<MatrixSession> => {
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return loginToMatrix(HOMESERVER, username, PASSWORD);
-};
 
 const createPublicRoom = async (owner: MatrixSession, name: string, aliasName?: string) =>
   (
@@ -81,9 +54,9 @@ const createPublicRoom = async (owner: MatrixSession, name: string, aliasName?: 
   ).room_id;
 
 const seed = async (name: string) => {
-  const owner = await register(`jbh_${name}_owner_${RUN}`);
+  const owner = await registerDisposableUser(`jbh_${name}_owner_${RUN}`, PASSWORD);
   const username = `jbh_${name}_${RUN}`;
-  const reader = await register(username);
+  const reader = await registerDisposableUser(username, PASSWORD);
   await Promise.all(
     Array.from({ length: 25 }, (_, index) =>
       createRoom(HOMESERVER, reader.accessToken, { name: `Project room ${index + 1}` })
@@ -148,7 +121,7 @@ const check = async (page: Page, engine: string, form: 'desktop' | 'phone', info
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 for (const [form, options] of [
@@ -165,7 +138,7 @@ for (const [form, options] of [
     });
 
     test(`${title} (WebKit, ${form})`, async ({ baseURL }, testInfo) => {
-      test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+      test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
       test.setTimeout(180_000);
       // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
       const browser = await launchWebKit();

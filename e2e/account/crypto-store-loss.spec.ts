@@ -8,7 +8,11 @@ import {
 } from '@playwright/test';
 import { loginWithPassword, waitForLoggedInShell } from '../helpers/auth';
 import { readSessionStore } from '../helpers/accounts';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A session whose Rust crypto store is gone while its access token stays (site data cleared in
 // part, a browser that evicted IndexedDB) must not make up new identity keys for its device: the
@@ -23,10 +27,8 @@ import { launchWebKit } from '../helpers/webkit';
 // - it is still there when the page checks for it, and gone a moment later, when the crypto
 //   machine opens it: another tab held it open while the deletion waited (the live finding).
 // Needs the slot homeserver: scripts/e2e-slot.sh <slot> --preview npx playwright test <this file>
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'crypto-store-loss-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 // Set CRYPTO_STORE_LOSS_SHOTS=<directory> to save the screen on a desktop and a phone, light and dark.
 const SHOTS = process.env.CRYPTO_STORE_LOSS_SHOTS;
 // A same-origin page that runs no app code: the deletion happens there, as a person clearing
@@ -37,17 +39,6 @@ const NO_APP_PAGE = '/pdf-frame.html';
 const openNoAppPage = async (page: Page) => {
   await page.goto(NO_APP_PAGE);
   await expect(page).toHaveTitle('PDF');
-};
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
 };
 
 const api = async <T>(path: string, token?: string, body?: unknown): Promise<T> => {
@@ -287,7 +278,10 @@ const inWebKit = async (
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(240_000);
 });
 
@@ -296,7 +290,7 @@ test('a store lost before the page loads asks to sign in again (Chromium)', asyn
 });
 
 test('a store lost before the page loads asks to sign in again (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   await inWebKit(baseURL, lostStoreAtLoad);
 });
 
@@ -305,6 +299,6 @@ test('a store deleted after the check makes no new device keys (Chromium)', asyn
 });
 
 test('a store deleted after the check makes no new device keys (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   await inWebKit(baseURL, storeRecreatedBehindTheCheck);
 });

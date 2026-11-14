@@ -14,14 +14,11 @@ import { roomViewSwitch } from '../helpers/roomViewSwitch';
 import {
   AI_RUN,
   DESKTOP,
-  HOMESERVER,
-  LAUNCH,
   PASSWORD,
   PHONE,
   RUN,
   SCHEMES,
   createOtherRooms,
-  homeserverIsUp,
   join,
   register,
   say,
@@ -30,7 +27,12 @@ import {
   withRetry,
   type Account,
 } from '../helpers/designChoices';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  CHROMIUM_WITH_SCROLLBARS,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // MindRoom publishes a room's effective thread mode as room state `io.mindroom.thread_mode`
 // (state key "", content {"mode": "room" | "thread" | "mixed"}). A room whose agents answer in
@@ -42,14 +44,13 @@ import { launchWebKit } from '../helpers/webkit';
 // MindRoom does. Among 25 rooms, on a desktop (1440 by 900) and a phone (390 by 844, touch),
 // light and dark, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit,
 // in WebKit. Set DESIGN_CHOICES_SHOTS=<directory> to save screenshots.
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
-const ENGINES = ['chromium', ...(WEBKIT ? ['webkit'] : [])] as const;
+const ENGINES = ['chromium', ...(WEBKIT_EXECUTABLE ? ['webkit'] : [])] as const;
 const ROOM_MODE_ROOM = 'Support desk';
 const MIXED_ROOM = 'Release desk';
 const PLAIN_ROOM = 'Planning desk';
 const THREAD_MODE = 'io.mindroom.thread_mode';
 
-test.use({ launchOptions: LAUNCH });
+test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
 type Seed = {
   reader: Account;
@@ -204,7 +205,7 @@ for (const engine of ENGINES) {
     test(`a room whose agents answer in the main timeline opens in Threads: ${engine} ${form}`, async ({
       browser,
     }, testInfo) => {
-      test.skip(!(await homeserverIsUp()), 'Test homeserver is not running.');
+      test.skip(!(await disposableHomeserverIsUp()), 'Test homeserver is not running.');
       test.setTimeout(240_000);
       const data = await seed(`${engine}_${form}`);
       const { page, close } = await newPage(engine, browser, form === 'phone' ? PHONE : DESKTOP);

@@ -13,6 +13,7 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
 // Compact cards sorted by last reply keep their order while the reader points at a card, has a
 // card's menu open, or has keyboard focus on a card (Chromium): replies to threads further down do
@@ -31,12 +32,7 @@ const TOPICS = [
 
 test.use({
   viewport: DESKTOP,
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const threadRelation = (rootId: string) => ({

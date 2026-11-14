@@ -65,7 +65,7 @@ describe('getServiceWorkerNavigationFallbackExcludePaths', () => {
 
 describe('MindRoom runtime client config defaults', () => {
   it('keeps MindRoom defaults in a fork-owned config copied to the runtime config path', () => {
-    const mindroomConfigPath = path.join(repoRoot, 'config.mindroom.json');
+    const mindroomConfigPath = path.join(repoRoot, 'config/mindroom.json');
     expect(fs.existsSync(mindroomConfigPath)).toBe(true);
 
     const mindroomConfig = JSON.parse(fs.readFileSync(mindroomConfigPath, 'utf8'));
@@ -91,7 +91,7 @@ describe('MindRoom runtime client config defaults', () => {
 
     expect(copyFiles.targets).toContainEqual(
       expect.objectContaining({
-        src: 'config.mindroom.json',
+        src: 'config/mindroom.json',
         dest: '',
         rename: 'config.json',
       })

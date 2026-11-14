@@ -23,7 +23,7 @@ export const getRequiredEnv = (name: string): string => {
 };
 
 const readDefaultHomeserverFromConfig = (): string | undefined => {
-  for (const fileName of ['config.mindroom.json', 'config.json']) {
+  for (const fileName of ['config/mindroom.json', 'config.json']) {
     try {
       const configPath = resolve(process.cwd(), fileName);
       const rawConfig = readFileSync(configPath, 'utf8');

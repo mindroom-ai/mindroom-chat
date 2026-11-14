@@ -10,13 +10,18 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import {
   createDefaultThreadFilterState,
-  loginToMatrix,
   matrixFetch,
   seedRoomOverviewState,
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { leaveCompactView } from '../helpers/roomViewSwitch';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+} from '../helpers/disposableAccounts';
+import { createRoom } from '../helpers/createRoom';
 
 // "Report a bug" on a message of an end-to-end encrypted room, against the slot's homeserver.
 // The report room is unencrypted (bug report agents read it without E2EE), so the menu entry
@@ -25,7 +30,6 @@ import { leaveCompactView } from '../helpers/roomViewSwitch';
 // warning. Checked by the uploads the browser makes and the files the server keeps: Chromium at
 // desktop size, WebKit on a phone.
 // Set BUG_REPORT_PRIVACY_SHOTS=<directory> to save the dialog on each engine.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'bug-report-privacy-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.BUG_REPORT_PRIVACY_SHOTS;
@@ -43,32 +47,8 @@ type UploadedReport = {
   events: Array<{ eventId: string | null; event: { content: Record<string, unknown> } }>;
 };
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
-const register = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `brp_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`brp_${name}_${RUN}`, PASSWORD);
 
 const isUpload = (request: Request) =>
   request.method() === 'POST' &&
@@ -121,20 +101,9 @@ const check = async (
 ) => {
   const reporter = await register(`reporter_${engine}`);
   const admin = await register(`admin_${engine}`);
-  const { room_id: roomId } = await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
-    method: 'POST',
-    accessToken: reporter.accessToken,
-    body: JSON.stringify({
-      name: 'Harbor Survey',
-      preset: 'private_chat',
-      initial_state: [
-        {
-          type: 'm.room.encryption',
-          state_key: '',
-          content: { algorithm: 'm.megolm.v1.aes-sha2' },
-        },
-      ],
-    }),
+  const roomId = await createRoom(HOMESERVER, reporter.accessToken, {
+    name: 'Harbor Survey',
+    encrypted: true,
   });
 
   const context = await browser.newContext({ ...options, baseURL });
@@ -256,7 +225,10 @@ const check = async (
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(240_000);
 });
 

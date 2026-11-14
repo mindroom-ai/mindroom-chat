@@ -2285,7 +2285,6 @@
         "noMicrophone": "Aucun microphone n’a été détecté sur cet appareil.",
         "microphoneUnavailable": "Le microphone est actuellement indisponible ; il est peut-être utilisé par une autre application.",
         "microphoneFailed": "Impossible d’accéder au microphone.",
-        "microphoneUnsupported": "L’accès au microphone n’est pas pris en charge sur cet appareil.",
         "recordingStopped": "L’enregistrement vocal s’est arrêté de manière inattendue. Recommencez l’enregistrement.",
         "noAudio": "Aucune donnée audio n’a été enregistrée.",
         "recordingUnsupported": "L’enregistrement vocal n’est pas pris en charge par ce navigateur.",
@@ -2832,9 +2831,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "Marquer comme lu"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "Marquer comme lu"
       },

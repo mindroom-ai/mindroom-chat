@@ -8,14 +8,13 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 import {
-  joinRoom,
-  loginToMatrix,
-  matrixFetch,
-  sendRoomMessage,
-  type MatrixSession,
-} from '../helpers/matrix';
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
+  registerDisposableUser,
+} from '../helpers/disposableAccounts';
+import { joinRoom, matrixFetch, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A member who copies the display name of another member, or of an agent, must not read as them
@@ -28,7 +27,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit, against the disposable
 // homeserver of `just hs-up` or of a slot of scripts/e2e-slot.sh. Set IMPOSTOR_NOTIFY_SHOTS to a
 // directory to save screenshots and the recorded notifications.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'impostor-notify-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.IMPOSTOR_NOTIFY_SHOTS;
@@ -43,17 +41,6 @@ test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
 type ShownNotification = { title: string; body?: string; tag?: string };
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 const setDisplayName = (session: MatrixSession, displayName: string) =>
   matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(session.userId)}/displayname`, {
     method: 'PUT',
@@ -63,20 +50,9 @@ const setDisplayName = (session: MatrixSession, displayName: string) =>
 
 const registerPerson = async (localpart: string, displayName: string) => {
   const username = `${localpart}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  const session = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const session = await registerDisposableUser(username, PASSWORD);
   await setDisplayName(session, displayName);
-  return { ...session, username };
+  return session;
 };
 
 const mention = (userId: string, text: string) => ({
@@ -191,7 +167,7 @@ let seeded: Awaited<ReturnType<typeof seed>> | undefined;
 
 test.beforeAll(async () => {
   test.setTimeout(240_000);
-  if (!(await homeserverIsUp())) return;
+  if (!(await disposableHomeserverIsUp())) return;
   seeded = await seed();
 });
 

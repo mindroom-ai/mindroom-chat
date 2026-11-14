@@ -9,11 +9,9 @@ import type { Room } from 'matrix-js-sdk';
 import { Menu } from '../../ui/glass/GlassPrimitives';
 import { InviteUserPrompt } from '../../members/invite/InviteUserPrompt';
 import { LeaveRoomPrompt } from '../../rooms/LeaveRoomPrompt';
-import { LeaveSpacePrompt } from '../LeaveSpacePrompt';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import type { HierarchyItem } from '../useSpaceHierarchy';
 import { useOpenRoomSettings } from '../../navigation/useRoomSettingsState';
-import { useOpenSpaceSettings } from '../../navigation/useSpaceSettingsState';
 import { stopPropagation } from '../../lib/keyboard';
 import {
   isSpaceInSidebar,
@@ -76,7 +74,6 @@ export function HierarchyItemMenu({ item, parent, joinedRoom }: HierarchyItemMen
   const pinnedSpaces = useSavedSidebarItems();
   const topLevelSpaces = useTopLevelSpaceIds();
   const showRoomSettings = useOpenRoomSettings();
-  const showSpaceSettings = useOpenSpaceSettings();
   const { roomId } = item;
   const isSpaceItem = !!item.space;
 
@@ -98,8 +95,7 @@ export function HierarchyItemMenu({ item, parent, joinedRoom }: HierarchyItemMen
       key: 'settings',
       label: t('featureUi.lobby.hierarchyItemMenu.settings'),
       icon: Icons.Setting,
-      run: () =>
-        isSpaceItem ? showSpaceSettings(roomId) : showRoomSettings(roomId, parent?.roomId),
+      run: () => showRoomSettings(roomId),
     });
   }
   if (canEditParent && parent) {
@@ -206,14 +202,7 @@ export function HierarchyItemMenu({ item, parent, joinedRoom }: HierarchyItemMen
       {dialog === 'invite' && joinedRoom && (
         <InviteUserPrompt room={joinedRoom} requestClose={() => setDialog(undefined)} />
       )}
-      {dialog === 'leave' && isSpaceItem && (
-        <LeaveSpacePrompt
-          roomId={roomId}
-          onLeft={() => setDialog(undefined)}
-          requestClose={() => setDialog(undefined)}
-        />
-      )}
-      {dialog === 'leave' && !isSpaceItem && (
+      {dialog === 'leave' && (
         <LeaveRoomPrompt
           roomId={roomId}
           onLeft={() => setDialog(undefined)}

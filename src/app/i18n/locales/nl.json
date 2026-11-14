@@ -2257,7 +2257,6 @@
         "noMicrophone": "Er is geen microfoon gevonden op dit apparaat.",
         "microphoneUnavailable": "De microfoon is momenteel niet beschikbaar (mogelijk wordt deze door een andere app gebruikt).",
         "microphoneFailed": "Kan geen toegang krijgen tot de microfoon.",
-        "microphoneUnsupported": "Microfoontoegang wordt niet ondersteund op dit apparaat.",
         "recordingStopped": "De spraakopname is onverwacht gestopt. Neem opnieuw op.",
         "noAudio": "Er zijn geen audiogegevens opgenomen.",
         "recordingUnsupported": "Spraakopname wordt niet ondersteund in deze browser.",
@@ -2774,9 +2773,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "Markeren als gelezen"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "Markeren als gelezen"
       },

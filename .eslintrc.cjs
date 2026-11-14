@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 // Lane P: the files of every docs/provenance/portable*.tsv list, at the paths
-// docs/provenance/moves.tsv gives them now, whose code keeps its ported logic.
+// docs/provenance/moves.tsv gives them, which the type-aware rules leave out.
 const provenancePaths = require('./scripts/provenance-paths.cjs');
 const {
   COMMON,
@@ -52,9 +52,9 @@ const GLASS_RESTRICTIONS = {
   ],
 };
 
-// Lane C makes its module-level atoms with jotai's own `atom`, which the account state test
-// follows to find account state an account would leave behind (shell/accountState.test.ts);
-// these entry points and factories make atoms past it.
+// Module-level atoms come from jotai's own `atom`, which the account state test follows to find
+// account state an account would leave behind (shell/accountState.test.ts); these entry points and
+// factories make atoms past it.
 const FOLLOWED_ATOM_MESSAGE =
   "Make the atom with `atom` from 'jotai', which the account state test follows (src/app/shell/accountState.test.ts).";
 const ATOM_FACTORIES = [
@@ -66,11 +66,12 @@ const ATOM_FACTORIES = [
   'atomWithReset',
   'atomWithStorage',
 ];
-// Lane C code places pop-outs and tooltips in reading order through the directional wrappers,
-// which mirror folds' physical sides in a right-to-left interface; only the wrapper module itself
-// uses folds' own components. ESLint keys `paths` by module name, so this second restriction on
-// `folds` is a pattern.
-const DIRECTIONAL_RESTRICTIONS = {
+// Every file takes its surfaces from the glass primitives above, makes its atoms where the account
+// state test follows them, and places pop-outs and tooltips in reading order through the directional
+// wrappers, which mirror folds' physical sides in a right-to-left interface; only the wrapper module
+// itself uses folds' own components. ESLint keys `paths` by module name, so this second restriction
+// on `folds` is a pattern.
+const IMPORT_RESTRICTIONS = {
   paths: [
     ...GLASS_RESTRICTIONS.paths,
     { name: 'jotai/vanilla', message: FOLLOWED_ATOM_MESSAGE },
@@ -88,11 +89,7 @@ const DIRECTIONAL_RESTRICTIONS = {
   ],
 };
 
-const LOGICAL_SIDES_EXCLUDED = [
-  ...lanePPaths().filter((file) => file.startsWith('src/')),
-  '**/*.test.{ts,tsx}',
-  '**/__tests__/**',
-];
+const TESTS = ['**/*.test.{ts,tsx}', '**/__tests__/**'];
 
 // Domain layers, lowest first (docs/architecture.md "Layers"). A domain imports only domains of a
 // lower layer: static, type-only and dynamic imports and re-exports count (the rule does not see an
@@ -130,13 +127,7 @@ const LAYER_ZONES = LAYERS.flatMap((layer, index) =>
   }))
 );
 // Tests and their helpers (the files tsconfig.app.json leaves out) may import any layer.
-const LAYERS_EXEMPT = [
-  '**/*.test.{ts,tsx}',
-  '**/*.test.shared.ts',
-  '**/__tests__/**',
-  '**/test-utils/**',
-  '**/testUtils.ts',
-];
+const LAYERS_EXEMPT = [...TESTS, '**/*.test.shared.ts', '**/test-utils/**', '**/testUtils.ts'];
 
 module.exports = {
   root: true,
@@ -144,7 +135,7 @@ module.exports = {
   ignorePatterns: ['node_modules/', 'dist/', 'test-results/', 'playwright-report/', '.baspowers/'],
   rules: {
     ...COMMON.rules,
-    'no-restricted-imports': ['error', GLASS_RESTRICTIONS],
+    'no-restricted-imports': ['error', IMPORT_RESTRICTIONS],
   },
   overrides: [
     {
@@ -182,13 +173,10 @@ module.exports = {
       // Types come from tsconfig.strict.json, whose unchecked index access `just strict` enforces.
       files: laneCTypeScriptFiles(),
       parserOptions: { project: './tsconfig.strict.json', tsconfigRootDir: __dirname },
-      rules: {
-        ...TYPE_AWARE_RULES,
-        'no-restricted-imports': ['error', DIRECTIONAL_RESTRICTIONS],
-      },
+      rules: TYPE_AWARE_RULES,
     },
-    // Physical sides in Lane C styles (scripts/eslint-shared.cjs).
-    ...logicalSidesOverrides('src/', LOGICAL_SIDES_EXCLUDED),
+    // Physical sides in styles (scripts/eslint-shared.cjs).
+    ...logicalSidesOverrides('src/', TESTS),
     {
       // Domain layers (LAYERS above), in both lanes. Zones resolve from this directory, so the
       // rule does not depend on the directory ESLint runs in.
@@ -198,12 +186,15 @@ module.exports = {
         'import/no-restricted-paths': ['error', { basePath: __dirname, zones: LAYER_ZONES }],
       },
     },
-    // The two wrappers come after the Lane C block, whose import rule they relax.
+    // The two wrappers relax the import rule that every other file has.
     {
       // The directional wrappers place folds' own pop-outs and tooltips.
       files: ['src/app/ui/directional.tsx'],
       rules: {
-        'no-restricted-imports': ['error', GLASS_RESTRICTIONS],
+        'no-restricted-imports': [
+          'error',
+          { paths: IMPORT_RESTRICTIONS.paths, patterns: GLASS_RESTRICTIONS.patterns },
+        ],
       },
     },
     {

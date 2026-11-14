@@ -881,7 +881,8 @@
     "back": "Voltar",
     "resize": "Redimensionar o tópico",
     "showFull": "Mostrar o tópico inteiro",
-    "showBeside": "Mostrar o tópico ao lado das mensagens"
+    "showBeside": "Mostrar o tópico ao lado das mensagens",
+    "notFound": "Tópico não encontrado"
   },
   "activity": {
     "title": "Atividade",

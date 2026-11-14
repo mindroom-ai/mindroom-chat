@@ -2,29 +2,22 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { addRoomToSpace, matrixFetch } from '../helpers/matrix';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 
 // The command palette as one search: tabs over rooms, threads, people, messages and actions,
 // local results at the first keystroke, and real server message search (`POST /search`) that
 // arrives below them. The account sits in 32 rooms, 2 spaces and threads with 5 other people
 // and a few hundred messages; one made-up word appears in 3 rooms, once in a thread.
 // Set PALETTE_SHOTS=<directory> to also save the L22 screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'command-palette-search-spec-password';
 const SHOTS = process.env.PALETTE_SHOTS;
 const SEARCH_DELAY_MS = 3_000;
 
 type Account = { username: string; userId: string; accessToken: string; name: string };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 /** Retries what the server refuses with 429, after the wait it asks for. */
 const withRetry = async <T>(run: () => Promise<T>): Promise<T> => {
@@ -314,19 +307,18 @@ const shoot = async (target: Page | Locator, name: string) => {
 };
 
 // Headless Chromium hides scrollbars; desktop browsers with classic scrollbars show them, and the
-// tab row and the results must still fit. The other launch options repeat playwright.config.ts.
+// tab row and the results must still fit.
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.describe.configure({ mode: 'serial', timeout: 180_000 });
 
 test.beforeAll(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   const started = Date.now();
   seeded = await seed();
   console.log(

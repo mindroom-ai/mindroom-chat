@@ -3,6 +3,10 @@ import { loginWithPassword } from '../helpers/auth';
 import { openSettingsFromAccountRail } from '../helpers/accounts';
 import { buildLoginPath } from '../env';
 import { setUpRecoveryPassword } from '../helpers/recovery';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A second, fresh session of an account that already has cross-signing, secret storage and a
 // key backup, against the disposable homeserver of `just hs-up`. Neither "Enable" nor the
@@ -11,20 +15,8 @@ import { setUpRecoveryPassword } from '../helpers/recovery';
 //   `/keys/query` is held back here). It must ask the server and show the reset warning.
 // - A recovery key whose secret storage holds no cross-signing keys must stop with an error,
 //   not create new keys and write them into secret storage.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'existing-account-spec-password';
 const RECOVERY_PASSWORD = 'e2e recovery password 1';
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 type Call = { method?: 'GET' | 'POST' | 'PUT'; token?: string; body?: unknown };
 
@@ -111,7 +103,10 @@ const holdOwnKeyQueries = (page: Page) => {
 test('a second session never replaces an account that already has its encryption set up', async ({
   browser,
 }) => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(300_000);
 
   const username = `existing_${Date.now().toString(36)}`;

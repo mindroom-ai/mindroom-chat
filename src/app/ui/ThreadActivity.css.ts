@@ -159,7 +159,8 @@ export const Row = style({
   columnGap: toRem(10),
   rowGap: toRem(4),
   alignItems: 'start',
-  padding: `${toRem(10)} ${toRem(14)} ${toRem(10)} ${toRem(12)}`,
+  paddingBlock: toRem(10),
+  paddingInline: `${toRem(12)} ${toRem(14)}`,
   selectors: {
     '& + &': {
       borderTop: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,

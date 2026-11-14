@@ -1,21 +1,20 @@
 /**
- * ISSUE-207 P3.1: SyncEngine core (Commit 1 — skeleton).
+ * ISSUE-207 P3.1: SyncEngine core.
  *
  * The engine is the client-level owner of Tier-1 cache writes (plan
  * decision D2). It attaches SDK listeners at the client scope so live
  * events reach the cache regardless of which room is mounted in the
  * UI — the fix for finding F1 (background room cache freshness).
  *
- * Commit 1 delivers the plumbing only:
+ * Lifecycle:
  *   - `start()` / `stop()` are idempotent and listener-symmetric.
  *   - `liveMode` flips true the first time the sync state reaches
  *     Prepared, Syncing, or Catchup. It deliberately does NOT flip
  *     back false on Reconnecting/Error — mid-session reconnect events
  *     are exactly the ones we want to keep persisting. Only `stop()`
  *     resets it.
- *   - Live events (and redactions) are dispatched to the write-through
- *     layer, which for Commit 1 only bumps `engineLiveWrites` on the
- *     probe. Real persistence lands in Commit 3.
+ *   - Live events (and redactions) are dispatched to the write-through,
+ *     which persists them.
  *
  * Verified against SDK 41.7.0: `ClientNonUIFeatures.tsx` (mx.on
  * RoomEvent.Timeline at client scope) is the reference precedent for
@@ -36,7 +35,6 @@ import type {
 } from 'matrix-js-sdk';
 import { createSessionId } from '../../matrix/session/sessions';
 import {
-  noteRoomFederated,
   noteRoomOpened,
   noteThreadOpened,
   setEvictionProtectedRoomIds,
@@ -48,11 +46,7 @@ import { createEngineGapTracker, type EngineGapTracker } from './engineGapTracke
 import { createEnginePersistFacade, type EnginePersistFacade } from './enginePersistFacade';
 import { createBackfillScheduler, type BackfillScheduler } from './backfillScheduler';
 import { createGapFillExecutor } from './gapFillExecutor';
-import {
-  DEFAULT_PREFETCH_SCOPE,
-  resolveRoomPrefetchTier,
-  type PrefetchConfig,
-} from './prefetchPolicy';
+import { DEFAULT_PREFETCH_SCOPE, type PrefetchConfig } from './prefetchPolicy';
 import type { EngineLiveEventMeta, SyncEngine } from './types';
 import { trackPendingThreadEvent } from '../cache/pendingThreadEvents';
 import {
@@ -114,14 +108,13 @@ export type CreateSyncEngineOptions = {
   scheduler?: BackfillScheduler;
   /**
    * ISSUE-207 P7.2 audit finding #5 — supplies the live user
-   * `PrefetchConfig` (scope + depth) to the engine on every check.
+   * `PrefetchConfig` (scope) to the engine on every check.
    * Snapshot-per-call rather than snapshot-at-construction so a
    * mid-session scope change picks up on the next enqueue.
    *
    * ClientRoot wires this to a jotai store read of
-   * `prefetchSettingsAtom` (non-React accessor); tests default to
-   * `{ scope: 'my-server', ... }` so behavior is unchanged from the
-   * pre-#5 hardcoded policy.
+   * `prefetchSettingsAtom` (non-React accessor); without it the engine
+   * uses `DEFAULT_PREFETCH_SCOPE`.
    */
   getPrefetchConfig?: () => PrefetchConfig;
   /** Notify the engine when the live prefetch scope changes. */
@@ -145,7 +138,6 @@ export const createSyncEngine = ({
   const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
 
   const effectiveScheduler = scheduler ?? createBackfillScheduler({ mx });
-  const effectiveGapTracker = gapTracker ?? createEngineGapTracker({ mx, sessionId });
   const effectivePersist = persist ?? createEnginePersistFacade({ sessionId });
   const recoveryListeners = new Map<string, Set<() => void>>();
   const subscribeRoomRecovery = (roomId: string, listener: () => void): (() => void) => {
@@ -158,8 +150,6 @@ export const createSyncEngine = ({
     };
   };
 
-  // Focus lifecycle also drives the shared offline controller policy.
-  let focusedRoomId: string | undefined;
   const effectiveGetPrefetchConfig = getPrefetchConfig ?? (() => DEFAULT_PREFETCH_CONFIG);
   const offline = createRoomOfflineController({
     mx,
@@ -168,7 +158,7 @@ export const createSyncEngine = ({
     connection,
     getPrefetchConfig: effectiveGetPrefetchConfig,
     onChanged: (roomId) => recoveryListeners.get(roomId)?.forEach((notify) => notify()),
-    onPolicyChange: () => gapFillExecutor?.recheckDeferred(),
+    onPolicyChange: () => gapFillExecutor.recheckDeferred(),
   });
 
   const effectiveWriteThrough =
@@ -192,35 +182,35 @@ export const createSyncEngine = ({
       },
     });
 
-  // ISSUE-207 P4.2: wire the executor over the gap tracker's queue so
-  // limited-sync / startup jobs actually drain. Test overrides can pass
-  // a stub `gapTracker` — in that case skip the executor (the stub
-  // controls its own queue).
-  const gapFillExecutor = gapTracker
-    ? undefined
-    : createGapFillExecutor(
-        {
-          mx,
-          sessionId,
-          scheduler: effectiveScheduler,
-          // One controller owns automatic and explicit-download eligibility.
-          pageAllowance: offline.allowance,
-          reservePage: offline.reservePage,
-          canSavePage: offline.canSavePage,
-          onRoomRecovered: (roomId) => {
-            offline.recheck();
-            Array.from(recoveryListeners.get(roomId) ?? []).forEach((notify) => {
-              try {
-                notify();
-              } catch {
-                // A reader must not prevent another reader's refresh or undo
-                // the executor's successful cache commit and cursor advance.
-              }
-            });
-          },
-        },
-        effectiveGapTracker.scheduler
-      );
+  // ISSUE-207 P4.2: the executor runs every limited-sync / startup job the
+  // gap tracker enqueues. A test's stub `gapTracker` enqueues none.
+  const gapFillExecutor = createGapFillExecutor({
+    mx,
+    sessionId,
+    scheduler: effectiveScheduler,
+    // One controller owns automatic and explicit-download eligibility.
+    pageAllowance: offline.allowance,
+    reservePage: offline.reservePage,
+    canSavePage: offline.canSavePage,
+    onRoomRecovered: (roomId) => {
+      offline.recheck();
+      Array.from(recoveryListeners.get(roomId) ?? []).forEach((notify) => {
+        try {
+          notify();
+        } catch {
+          // A reader must not prevent another reader's refresh or undo
+          // the executor's successful cache commit and cursor advance.
+        }
+      });
+    },
+  });
+  const effectiveGapTracker =
+    gapTracker ??
+    createEngineGapTracker({
+      mx,
+      sessionId,
+      enqueueGapFill: gapFillExecutor.enqueue,
+    });
 
   let started = false;
   let liveMode = false;
@@ -229,10 +219,8 @@ export const createSyncEngine = ({
   const bindableWindow = getBindableWindow();
   const bindableDocument = getBindableDocument();
 
+  // Drain the edit compaction debounce before the page freezes.
   const flushForVisibility = () => {
-    // Commit 1 has nothing to flush. Once Commit 3 moves the edit
-    // compaction scheduler in, this is where the trailing debounce
-    // gets drained before the page freezes.
     effectiveWriteThrough.flush();
   };
 
@@ -415,7 +403,7 @@ export const createSyncEngine = ({
     bindableWindow?.addEventListener('pagehide', handlePageHide);
     bindableDocument?.addEventListener('visibilitychange', handleVisibilityChange);
     unsubscribePrefetchConfig = subscribePrefetchConfig?.(() => {
-      gapFillExecutor?.recheckDeferred();
+      gapFillExecutor.recheckDeferred();
       offline.recheck();
     });
   };
@@ -448,7 +436,7 @@ export const createSyncEngine = ({
       unsubscribePrefetchConfig = undefined;
 
       effectiveGapTracker.stop();
-      gapFillExecutor?.stop();
+      gapFillExecutor.stop();
 
       // Abort every queued/in-flight backfill job. Callers receive a
       // rejection so their finally-blocks can release local state.
@@ -467,36 +455,20 @@ export const createSyncEngine = ({
    * the currently-open thread) changes. Idempotent per-call.
    *
    * Bookkeeping performed:
-   *   - Resolve the room's prefetch tier via `resolveRoomPrefetchTier`
-   *     (D3, homeserver-domain comparison; never parses room ids).
-   *   - `noteRoomFederated` — stamp the ledger attribution.
    *   - `setEvictionProtectedRoomIds([roomId])` — single-element v1
    *     (Deviations §8): only the currently focused room is protected
    *     in memory.
+   *   - `offline.focus` and a recheck of the room's deferred gap-fill.
    *   - `noteRoomOpened` / `noteThreadOpened` — bump the meta
    *     `lastOpenedTs`, which protects the room from eviction until the
    *     window rolls past and then orders it by when it was last opened.
    */
   const noteRoomFocused = (roomId: string, threadId?: string): void => {
-    const room = mx.getRoom?.(roomId);
-    if (!room) return;
-    // ISSUE-207 P7.2 audit finding #5: record the focus so scope-aware
-    // gates in the gap-fill executor and any other consumer can honor
-    // `current-room-only`. The band-0 (foreground) pathways below run
-    // unconditionally — a room the user actively opens is always
-    // eligible for a foreground fetch.
-    focusedRoomId = roomId;
+    if (!mx.getRoom?.(roomId)) return;
     // Protect the room before its offline work can ask for space.
     setEvictionProtectedRoomIds([roomId]);
     offline.focus(roomId);
-    gapFillExecutor?.recheckDeferred(roomId);
-    const tier = resolveRoomPrefetchTier(mx, room);
-    // `background` (create event missing) is treated as federated for
-    // eligibility, but we don't stamp the ledger flag since we don't
-    // yet know the truth — leaves the flag at its previous value.
-    if (tier !== 'background') {
-      noteRoomFederated(sessionId, roomId, tier !== 'own').catch(() => undefined);
-    }
+    gapFillExecutor.recheckDeferred(roomId);
     noteRoomOpened(sessionId, roomId).catch(() => undefined);
     if (threadId) {
       noteThreadOpened(sessionId, roomId, threadId).catch(() => undefined);
@@ -516,7 +488,6 @@ export const createSyncEngine = ({
     offline: offline.controller,
     backgroundPageAllowance: offline.allowance,
     clearRoomFocus: (roomId) => {
-      if (focusedRoomId === roomId) focusedRoomId = undefined;
       offline.blur(roomId);
       setEvictionProtectedRoomIds([]);
     },

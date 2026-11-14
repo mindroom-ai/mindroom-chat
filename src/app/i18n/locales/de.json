@@ -2257,7 +2257,6 @@
         "noMicrophone": "Auf diesem Gerät wurde kein Mikrofon gefunden.",
         "microphoneUnavailable": "Das Mikrofon ist derzeit nicht verfügbar (möglicherweise wird es von einer anderen App verwendet).",
         "microphoneFailed": "Zugriff auf das Mikrofon fehlgeschlagen.",
-        "microphoneUnsupported": "Der Mikrofonzugriff wird auf diesem Gerät nicht unterstützt.",
         "recordingStopped": "Die Sprachaufnahme wurde unerwartet beendet. Bitte nimm sie erneut auf.",
         "noAudio": "Es wurden keine Audiodaten aufgenommen.",
         "recordingUnsupported": "Sprachaufnahmen werden in diesem Browser nicht unterstützt.",
@@ -2774,9 +2773,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "Als gelesen markieren"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "Als gelesen markieren"
       },

@@ -3,20 +3,34 @@ import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
+import {
+  SyncEngineProvider,
+  type SyncEngineProviderProps,
+} from '../../event-store/engine/engineContext';
+import type { SyncEngine } from '../../event-store/engine/types';
 import { ThreadNavItem } from './ThreadNavItem';
 
 const {
   buildViewModelMock,
   navigateRoomMock,
   navigateRoomThreadDirectMock,
+  requestCachedThreadRootMock,
   roomViewModeState,
+  saveThreadRootMock,
   setResolvedMock,
 } = vi.hoisted(() => ({
   buildViewModelMock: vi.fn(),
   navigateRoomMock: vi.fn(),
   navigateRoomThreadDirectMock: vi.fn(),
+  requestCachedThreadRootMock: vi.fn(),
   roomViewModeState: { value: 'compact' },
+  saveThreadRootMock: vi.fn(),
   setResolvedMock: vi.fn(),
+}));
+
+vi.mock('../../event-store/sdk/cachedThreadRoots', () => ({
+  requestCachedThreadRoot: requestCachedThreadRootMock,
+  saveThreadRoot: saveThreadRootMock,
 }));
 
 vi.mock('folds', async () => {
@@ -95,13 +109,16 @@ const syncPins = (pinned: string[]) =>
       content: { pinned },
     }),
   ]);
+const engine = { sessionId: 'session', persist: {} } as unknown as SyncEngine;
 const mxMock = {
   getRoom: vi.fn(() => room),
   getUserId: vi.fn(() => '@me:example.org'),
 };
 
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mxMock }));
-vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
+vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
+  useMediaAuthentication: () => false,
+}));
 vi.mock('../../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({
     navigateRoom: navigateRoomMock,
@@ -193,12 +210,16 @@ describe('ThreadNavItem', () => {
   const renderItem = (pinned = false, onTogglePin = vi.fn()) => {
     act(() => {
       renderer = create(
-        React.createElement(ThreadNavItem, {
-          entry,
-          onTogglePin,
-          pinned,
-          selected: false,
-        })
+        React.createElement(
+          SyncEngineProvider,
+          { engine } as SyncEngineProviderProps,
+          React.createElement(ThreadNavItem, {
+            entry,
+            onTogglePin,
+            pinned,
+            selected: false,
+          })
+        )
       );
     });
     return onTogglePin;
@@ -230,6 +251,36 @@ describe('ThreadNavItem', () => {
     expect(
       renderer!.root.findByProps({ className: 'EntryActions rowControlsShift' })
     ).toBeDefined();
+  });
+
+  it('asks the event cache for the root of a thread the SDK holds none of', () => {
+    renderItem();
+
+    expect(requestCachedThreadRootMock).toHaveBeenCalledWith(
+      mxMock,
+      'session',
+      room,
+      entry.threadRootId
+    );
+    expect(saveThreadRootMock).not.toHaveBeenCalled();
+  });
+
+  it('saves the root the SDK holds through the engine', () => {
+    const rootEvent = new MatrixEvent({ event_id: entry.threadRootId, room_id: room.roomId });
+    const findEventById = vi.spyOn(room, 'findEventById').mockReturnValue(rootEvent);
+    try {
+      renderItem();
+    } finally {
+      findEventById.mockRestore();
+    }
+
+    expect(saveThreadRootMock).toHaveBeenCalledWith(
+      engine.persist,
+      room,
+      entry.threadRootId,
+      rootEvent
+    );
+    expect(requestCachedThreadRootMock).not.toHaveBeenCalled();
   });
 
   it('uses room navigation in classic mode', () => {

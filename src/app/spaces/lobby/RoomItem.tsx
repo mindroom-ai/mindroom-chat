@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { Avatar, Badge, Box, Button, Icon, Icons, Text, color } from 'folds';
+import React, { useState } from 'react';
+import { Avatar, Badge, Box, Button, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import type { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
@@ -17,35 +17,21 @@ import { pressCardAction } from '../../lib/cardAction';
 import { resolveLobbyItemAccess } from './access';
 import { LobbyAccessButton } from './LobbyAccessButton';
 import { JoinFailure } from '../../rooms/JoinFailure';
-import { useDraggableItem } from './DnD';
 import * as css from './RoomItem.css';
 import * as styleCss from './style.css';
 
-/** What the lobby knows about the room: its fetched summary, or why there is none. */
-type RoomSummaryState = {
-  /** The summary is still being fetched; the card shows placeholders. */
-  loading: boolean;
-  /** Why the summary could not be fetched, if it could not. */
-  error: Error | null;
+type RoomItemCardProps = {
+  item: HierarchyItem;
   /** The hierarchy entry; a join rule the client does not know arrives as a plain string. */
   summary: (Omit<IHierarchyRoom, 'join_rule'> & { join_rule?: string }) | undefined;
+  /** The summary is still being fetched; the card shows placeholders. */
+  loading: boolean;
   /** The client's copy of a room, for rooms the summary does not describe yet. */
   getRoom: (roomId: string) => Room | undefined;
+  onOpen: (roomId: string) => void;
+  /** Extra controls after the open or join button. */
+  options?: React.ReactNode;
 };
-
-/** Reordering the card among its siblings by drag and drop. */
-type RoomItemDragProps = {
-  onDragging: (item?: HierarchyItem) => void;
-  canReorder: boolean;
-};
-
-type RoomItemCardProps = RoomSummaryState &
-  RoomItemDragProps & {
-    item: HierarchyItem;
-    onOpen: (roomId: string) => void;
-    /** Extra controls after the open or join button. */
-    options?: React.ReactNode;
-  };
 
 /**
  * A room in a space's lobby: open it when joined, otherwise join or ask to join, by its button or
@@ -54,20 +40,15 @@ type RoomItemCardProps = RoomSummaryState &
 export function RoomItemCard({
   item,
   loading,
-  error,
   summary,
   onOpen,
-  onDragging,
-  canReorder,
   getRoom,
   options,
 }: RoomItemCardProps) {
-  const cardRef = useRef<HTMLDivElement>(null);
   const authenticated = useMediaAuthentication();
   const client = useMatrixClient();
   const { t } = useTranslation();
   const [joinFailure, setJoinFailure] = useState<unknown>();
-  useDraggableItem(item, cardRef, canReorder ? onDragging : undefined);
 
   const { roomId } = item;
   const localRoom = getRoom(roomId) ?? client.getRoom(roomId) ?? undefined;
@@ -105,7 +86,6 @@ export function RoomItemCard({
 
   return (
     <SequenceCard
-      ref={cardRef}
       className={css.RoomItemCard}
       data-opens-by-card={opensByCard || undefined}
       onClick={onCardClick}
@@ -131,7 +111,7 @@ export function RoomItemCard({
         {loading ? (
           <div className={styleCss.LinePlaceholder} />
         ) : (
-          <Box className={css.ErrorNameContainer} alignItems="Center" gap="100">
+          <Box className={css.RoomNameRow} alignItems="Center">
             {opensByCard ? (
               <button type="button" className={css.CardOpener} data-card-opener>
                 <Text as="span" className={css.RoomName} size="T400" {...ownDirectionLine}>
@@ -143,12 +123,9 @@ export function RoomItemCard({
                 {roomName}
               </Text>
             )}
-            {error && !summary && (
-              <Icon size="50" src={Icons.Warning} style={{ color: color.Warning.Main }} />
-            )}
           </Box>
         )}
-        {topic && (
+        {!!topic && (
           <Text
             className={css.RoomProfileTopic}
             size="T200"

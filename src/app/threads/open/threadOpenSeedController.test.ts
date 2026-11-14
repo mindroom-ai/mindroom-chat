@@ -1,8 +1,16 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RelationType } from 'matrix-js-sdk';
 import { makeEvent, makeRoom } from '../../timeline/test-utils/RoomTimeline.test.shared';
 import { createThreadOpenSeedSession } from './threadOpenSeedController';
 import { saveThreadOpenSeedSnapshot } from '../../event-store/cache/threadOpenSeedCache';
+import { hydrateCachedEvents } from '../../event-store/cache/eventCacheEditUtils';
+
+vi.mock('../../event-store/cache/eventCacheEditUtils', async (importOriginal) => {
+  const original = await importOriginal<
+    typeof import('../../event-store/cache/eventCacheEditUtils')
+  >();
+  return { ...original, hydrateCachedEvents: vi.fn(original.hydrateCachedEvents) };
+});
 
 const makeRefs = (threadId = '$root') => ({
   seed: { waitForExistingOrQueued: vi.fn<() => Promise<void> | undefined>(() => undefined) },
@@ -10,6 +18,10 @@ const makeRefs = (threadId = '$root') => ({
 });
 
 describe('createThreadOpenSeedSession', () => {
+  beforeEach(() => {
+    vi.mocked(hydrateCachedEvents).mockClear();
+  });
+
   it('applies visible room thread events immediately for targeted opens', () => {
     const root = makeEvent('$root', { isThreadRoot: true, ts: 1 });
     const reply = makeEvent('$reply', { threadRootId: '$root', ts: 2 });
@@ -34,11 +46,13 @@ describe('createThreadOpenSeedSession', () => {
 
     expect(session.applyInitialRoomThreadSeed()).toBe(true);
     expect(supplemental).toHaveBeenCalledWith('$root', [root, reply]);
-    expect(session.initialRoomThreadSeedEvents.map((event) => event.getId())).toEqual([
-      '$root',
-      '$reply',
-      '$edit',
-    ]);
+    // The edit is hydrated into the room's timeline set with the visible events.
+    expect(vi.mocked(hydrateCachedEvents)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        events: [root, reply, edit],
+        timelineSets: [room.getUnfilteredTimelineSet()],
+      })
+    );
   });
 
   it('merges cached memory, thread model seed, and room seed for untargeted opens', () => {
@@ -65,7 +79,6 @@ describe('createThreadOpenSeedSession', () => {
       '$root',
       expect.arrayContaining([cached, root, reply])
     );
-    expect(session.initialThreadMemorySeedEvents).toEqual([cached]);
   });
 
   // ISSUE-207 P7.2 audit finding #2 — `void p.finally(cb)` re-rejects.

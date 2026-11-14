@@ -102,11 +102,6 @@ export const CodeBlock = style({
   whiteSpace: 'normal',
 });
 
-/** A code block inside a message bubble, which has its own padding. */
-export const MessageCodeBlock = style({
-  width: '100%',
-});
-
 export const CodeBlockHeader = style({
   ...centeredRow(config.space.S200),
   justifyContent: 'space-between',

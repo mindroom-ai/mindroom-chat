@@ -1,5 +1,5 @@
 /* eslint-disable react/prop-types */
-import React, { createRef } from 'react';
+import React from 'react';
 import { Direction, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
 import { Editor } from 'slate';
 import { act, create as baseCreate } from 'react-test-renderer';
@@ -252,8 +252,6 @@ vi.mock('../../preferences/useSetting', () => ({
         return ['MMM D'];
       case 'prefetchDepth':
         return [settingsState.prefetchDepth];
-      case 'prefetchScope':
-        return ['my-server'];
       case 'showHiddenEvents':
         return [settingsState.showHiddenEvents];
       default:
@@ -648,33 +646,6 @@ vi.mock('../../messages/reactions/Reactions', () => ({
   Reactions: passthrough,
 }));
 
-vi.mock('../../messages/content/EncryptedContent', () => ({
-  EncryptedContent: ({
-    mEvent,
-    children,
-  }: {
-    mEvent: {
-      __renderInsideEncryptedContentAs?: string;
-      getType: () => string;
-    };
-    children: (() => React.ReactNode) | React.ReactNode;
-  }) => {
-    if (typeof children !== 'function') return React.createElement(React.Fragment, null, children);
-
-    const renderType = mEvent.__renderInsideEncryptedContentAs;
-    if (!renderType) return React.createElement(React.Fragment, null, children());
-
-    const getType = mEvent.getType;
-    mEvent.getType = () => renderType;
-
-    try {
-      return React.createElement(React.Fragment, null, children());
-    } finally {
-      mEvent.getType = getType;
-    }
-  },
-}));
-
 vi.mock('../../messages/Message', () => ({
   Message: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) =>
     React.createElement(
@@ -707,7 +678,6 @@ vi.mock('../CollapsibleMessage', async () => {
   const ReactImport = await import('react');
 
   return {
-    ExpandAllInitContext: ReactImport.createContext<boolean | undefined>(undefined),
     CollapsibleMessageStateProvider: passthrough,
     CollapsibleMessage: ({
       children,
@@ -776,45 +746,6 @@ vi.mock('../../matrix/state/roomToUnread', () => ({
 vi.mock('../../event-store/threads/threadUtils', () => ({
   findThreadRootEvent: (room: { findEventById?: (id: string) => unknown }, id: string) =>
     room.findEventById?.(id),
-  buildThreadParticipantMap: (
-    events: Array<{
-      getId(): string | undefined;
-      threadRootId?: string;
-      getSender?(): string | undefined;
-      getRelation?(): { rel_type?: string } | null | undefined;
-    }>,
-    maxParticipants = 3
-  ) => {
-    const participants = new Map<string, string[]>();
-    const seenEventIds = new Set<string>();
-    const participantSets = new Map<string, Set<string>>();
-
-    [...events].reverse().forEach((event) => {
-      const eventId = event.getId();
-      const { threadRootId } = event;
-      if (!eventId || !threadRootId || eventId === threadRootId || seenEventIds.has(eventId)) {
-        return;
-      }
-
-      if (event.getRelation?.()?.rel_type === 'm.replace') return;
-
-      seenEventIds.add(eventId);
-      const senderId = event.getSender?.();
-      if (!senderId) return;
-
-      const threadParticipants = participants.get(threadRootId) ?? [];
-      if (threadParticipants.length >= maxParticipants) return;
-
-      const threadParticipantSet = participantSets.get(threadRootId) ?? new Set<string>();
-      if (threadParticipantSet.has(senderId)) return;
-
-      threadParticipantSet.add(senderId);
-      participantSets.set(threadRootId, threadParticipantSet);
-      participants.set(threadRootId, [...threadParticipants, senderId]);
-    });
-
-    return participants;
-  },
   buildThreadReplyCountMap: (
     events: Array<{ getId(): string | undefined; threadRootId?: string }>
   ) => {
@@ -1073,7 +1004,6 @@ vi.mock('../../matrix/protocol/threadSummary', async (importOriginal) => {
   return {
     ...actual,
     buildThreadSummaryMap: () => new Map(),
-    findLatestThreadSummaryEvent: () => undefined,
     getThreadSummaryEventInfo: () => undefined,
   };
 });
@@ -1128,19 +1058,9 @@ vi.mock('../../event-store/cache/db', async (importOriginal) => {
 });
 
 vi.mock('../../event-store/timeline/threadPaginationUtils', () => ({
-  computeReconciliationToken: () => undefined,
   findEarliestLoadedThreadReplyByCacheOrder: () => undefined,
   reconcileThreadBackwardPagination: vi.fn(),
 }));
-
-vi.mock('../../event-store/cache/eventCacheTokenUtils', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../event-store/cache/eventCacheTokenUtils')>();
-  return actual;
-});
-
-// ISSUE-207 P2.3: legacy `threadSummaryCache` / `roomEventCache` shim
-// mocks are folded into the `../cacheStore` mock above (single choke
-// point).
 
 vi.mock('../../event-store/cache/eventCacheEditUtils', () => ({
   aggregateCachedRelationEvents: vi.fn(),
@@ -1172,17 +1092,9 @@ vi.mock('../../event-store/timeline/timelineScrollUtils', async (importOriginal)
     ...actual,
     isScrollNearBottom: () => true,
     isTimelineAtLiveEnd: isTimelineAtLiveEndMock,
-    shouldAutoScrollRoomOnLiveEvent: () => false,
     shouldAutoScrollThreadOnLiveEvent: () => false,
   };
 });
-
-vi.mock('../../event-store/threads/threadEditBackfill', () => ({
-  hasLikelyIncompleteStreamingBody: (value: unknown) =>
-    typeof value === 'string' && /^thinking(?:\.{3}|…)(?:\s*⋯)?$/i.test(value.trim()),
-  markThreadEditBackfillAttempted: vi.fn(),
-  shouldFetchThreadEditBackfill: () => false,
-}));
 
 vi.mock('../../event-store/threads/threadEditBackfill', () => ({
   hasLikelyIncompleteStreamingBody: (value: unknown) =>
@@ -1271,7 +1183,8 @@ const makeEvent = (
     relation?: { rel_type?: string; event_id?: string };
     /** The event it genuinely replies to (`m.in_reply_to`). */
     replyTo?: string;
-    renderInsideEncryptedContentAs?: string;
+    /** Decrypted: its type is the clear one, but it came encrypted. */
+    encrypted?: boolean;
     associatedId?: string;
     stateKey?: string;
     unsigned?: Record<string, unknown>;
@@ -1283,7 +1196,6 @@ const makeEvent = (
 ) => {
   let unsigned: Record<string, unknown> = opts.unsigned ?? {};
   return {
-    __renderInsideEncryptedContentAs: opts.renderInsideEncryptedContentAs,
     event: { event_id: eventId, origin_server_ts: opts.ts ?? 0 },
     isThreadRoot: opts.isThreadRoot ?? false,
     threadRootId: opts.threadRootId,
@@ -1301,7 +1213,7 @@ const makeEvent = (
     getTs: () => opts.ts ?? 0,
     getTxnId: () => opts.txnId,
     getType: () => opts.type ?? 'm.room.message',
-    isEncrypted: () => opts.type === 'm.room.encrypted',
+    isEncrypted: () => opts.encrypted ?? opts.type === 'm.room.encrypted',
     getUnsigned: () => unsigned,
     setUnsigned: (next: Record<string, unknown>) => {
       unsigned = next;
@@ -1717,10 +1629,14 @@ const wrapWithSyncEngine = (element: React.ReactElement): React.ReactElement => 
   return React.createElement(SyncEngineProvider, props);
 };
 
+/** Receives the harness's view mode setter, which stands in for the header's view switch. */
+export type ViewModeControl = {
+  setViewMode?: (viewMode: 'threaded' | 'compact' | 'classic') => void;
+};
+
 const createControlledRoomTimelineHarness = (
   RoomTimelineComponent: (props: Record<string, unknown>) => React.ReactElement | null
 ) => {
-  const roomInputRef = createRef<HTMLElement>();
   const compactRoomScrollStateRef: { current: ScrollAnchorMemory } = { current: new Map() };
   const editor = {} as Editor;
   const defaultSummaryMap = new Map();
@@ -1737,6 +1653,7 @@ const createControlledRoomTimelineHarness = (
     initialThreadFilterState,
     initialViewMode = 'threaded',
     initialThreadSortFrozen = false,
+    viewModeControl,
   }: {
     room: ReturnType<typeof makeRoom>;
     eventId?: string;
@@ -1748,6 +1665,7 @@ const createControlledRoomTimelineHarness = (
     initialThreadFilterState?: import('../../event-store/threads/roomThreadOverviewModel').ThreadFilterState;
     initialViewMode?: 'threaded' | 'compact' | 'classic';
     initialThreadSortFrozen?: boolean;
+    viewModeControl?: ViewModeControl;
   }) {
     const [threadFilterState, setThreadFilterState] = React.useState<
       import('../../event-store/threads/roomThreadOverviewModel').ThreadFilterState
@@ -1755,6 +1673,7 @@ const createControlledRoomTimelineHarness = (
     const [viewMode, setViewMode] = React.useState<'threaded' | 'compact' | 'classic'>(
       initialViewMode
     );
+    if (viewModeControl) viewModeControl.setViewMode = setViewMode;
     const [threadSortFreezeState, setThreadSortFreezeState] = React.useState<
       import('../../event-store/threads/roomThreadOverviewModel').ThreadSortFreezeState | null
     >(
@@ -1819,8 +1738,6 @@ const createControlledRoomTimelineHarness = (
         onRemoveTag: vi.fn(),
         onReset,
         viewMode,
-        onViewModeChange: setViewMode,
-        roomInputRef,
         compactRoomScrollStateRef,
         editor,
       }),
@@ -1850,18 +1767,15 @@ export {
   getClickableByText,
   getRenderedEventIds,
   getThreadOpenSeedSnapshot,
-  ignoredUsersMock,
   isMembershipChangedMock,
   loadCachedRoomEventsBeforeMock,
   loadCachedRoomPaginationTokenMock,
-  loadCachedThreadSummariesMock,
   loadLatestCachedRoomEventsMock,
   makeCachedRoomEvent,
   makeEvent,
   makeRoom,
   makeTimeline,
   matrixClientMock,
-  navigateRoomMock,
   navigateRoomThreadMock,
   reactionOrEditEventMock,
   inSameDayMock,

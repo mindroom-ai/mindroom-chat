@@ -82,10 +82,10 @@ The sign-in page offers `mindroom.chat` and `matrix.org`, and takes any other ho
 
 ```bash
 just build
-cd dist && python3 ../serve.py 8090   # plain HTTP on every interface: for trying a build
+cd dist && python3 ../scripts/serve.py 8090   # plain HTTP on every interface: for trying a build
 ```
 
-`serve.py` adds the `index.html` fallback and the framing headers but no HTTPS; keep its port off untrusted networks and put an HTTPS server in front of any deployment.
+`scripts/serve.py` adds the `index.html` fallback and the framing headers but no HTTPS; keep its port off untrusted networks and put an HTTPS server in front of any deployment.
 
 [`docs/deployment.md`](docs/deployment.md) covers the build output, the service worker, framing headers and the nginx start scripts; [`docs/configuration.md`](docs/configuration.md) lists every `config.json` key.
 
@@ -119,6 +119,7 @@ This MindRoom Chat replaces the legacy MindRoom Chat client ([`mindroom-chat-leg
 | [`docs/deployment.md`](docs/deployment.md) | the build, serving it, homeserver and MindRoom backend |
 | [`docs/configuration.md`](docs/configuration.md) | `config.json`, `runtime-config.js` and build variables |
 | [`docs/architecture.md`](docs/architecture.md) | folders, layers, the two code lanes, and the MindRoom event formats |
+| [`docs/client-plugins.md`](docs/client-plugins.md) | the client plugin API: the declaration, the client SDK, each kind of contribution, tests |
 | [`docs/ios-release.md`](docs/ios-release.md) | calendar versions `vYYYY.M.N`, `just release`, Xcode Cloud and the App Store app |
 | [`docs/provenance.md`](docs/provenance.md) | where the code came from |
 | [`docs/design/reference/`](docs/design/reference/) | the screenshots the app is compared with |

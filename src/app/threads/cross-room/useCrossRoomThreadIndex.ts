@@ -8,7 +8,6 @@ import { ThreadEvent, type Thread } from 'matrix-js-sdk/lib/models/thread';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useActiveSession } from '../../matrix/session/useSessionStore';
 import { allRoomsAtom } from '../../matrix/state/roomList';
-import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { makeRecentThreadsAtom } from '../../event-store/threads/recentThreads';
 import {
   ensureThreadSummaryStateLoaded,
@@ -175,11 +174,9 @@ export const useCrossRoomThreadIndex = () => {
   const activeSession = useActiveSession();
   const userId = mx.getUserId() ?? activeSession?.userId;
   const joinedRoomIds = useAtomValue(allRoomsAtom);
-  const roomToParents = useAtomValue(roomToParentsAtom);
   const recentThreads = useAtomValue(useMemo(() => makeRecentThreadsAtom(userId ?? ''), [userId]));
   const snapshot = useAtomValue(crossRoomThreadIndexAtom);
   const setSnapshot = useSetAtom(crossRoomThreadIndexAtom);
-  const parentMapRef = useRef(roomToParents);
   const recentThreadsRef = useRef(recentThreads);
   const sessionIdRef = useRef(activeSession?.sessionId);
   const userIdRef = useRef(userId);
@@ -188,7 +185,6 @@ export const useCrossRoomThreadIndex = () => {
   const roomDisposersRef = useRef(new Map<string, RoomListenerDisposer>());
   const controllerRef = useRef<CrossRoomThreadIndexController | undefined>();
 
-  parentMapRef.current = roomToParents;
   recentThreadsRef.current = recentThreads;
   sessionIdRef.current = activeSession?.sessionId;
   userIdRef.current = userId;
@@ -236,7 +232,6 @@ export const useCrossRoomThreadIndex = () => {
 
       const sessionId = sessionIdRef.current;
       const summaryMap = getThreadSummaryStateSnapshot(sessionId, roomId);
-      const parents = Array.from(parentMapRef.current.get(roomId) ?? []);
       let tagSnapshots = roomTagSnapshots.get(roomId);
       if (!tagSnapshots) {
         tagSnapshots = getRoomThreadTagSnapshotMap(room);
@@ -248,7 +243,6 @@ export const useCrossRoomThreadIndex = () => {
         threadRootId,
         summaryInfo: summaryMap.get(threadRootId),
         currentUserId: userIdRef.current,
-        parentSpaceIds: parents,
         tagSnapshot: tagSnapshots.get(threadRootId) ?? null,
       });
     };

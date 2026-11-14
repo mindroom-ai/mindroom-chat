@@ -881,7 +881,8 @@
     "back": "Indietro",
     "resize": "Ridimensiona il thread",
     "showFull": "Mostra il thread a tutta larghezza",
-    "showBeside": "Mostra il thread accanto ai messaggi"
+    "showBeside": "Mostra il thread accanto ai messaggi",
+    "notFound": "Thread non trovato"
   },
   "activity": {
     "title": "Attività",

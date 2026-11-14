@@ -8,7 +8,7 @@
 // The values live in frame-headers.json, which serve.py reads too (scripts/frame_headers.py).
 // `vite preview` sends them through `frameHeaders()`, the service worker gives the pairing page
 // its own when it answers with the cached app shell (src/sw/serviceWorkerFraming.ts), and
-// netlify.toml and the nginx start script (docker-entrypoint.d/40-frame-headers.sh) repeat them;
+// netlify.toml and the nginx start script (docker/entrypoint.d/40-frame-headers.sh) repeat them;
 // src/build/frameHeaders.test.ts checks that every copy agrees.
 // Vite, Vitest and the service worker build bundle the JSON; plain Node never loads this file.
 import policy from './frame-headers.json';
