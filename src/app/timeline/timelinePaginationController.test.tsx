@@ -419,25 +419,34 @@ const mountLoader = ({
 }) => {
   const view: { load: (eventId: string) => Promise<void> } = { load: () => Promise.resolve() };
   const filterOptsRef = { current: filterOpts };
-  const Host = (handlers: { onLoad: typeof onLoad; onError: typeof onError }) => {
+  type HostProps = { room: Room; onLoad: typeof onLoad; onError: typeof onError };
+  const Host = (props: HostProps) => {
     view.load = useEventTimelineLoader(
       client,
-      room,
-      handlers.onLoad,
-      handlers.onError,
+      props.room,
+      props.onLoad,
+      props.onError,
       filterOptsRef
     );
     return null;
   };
   let renderer: ReactTestRenderer | undefined;
   act(() => {
-    renderer = create(<Host onLoad={onLoad} onError={onError} />);
+    renderer = create(<Host room={room} onLoad={onLoad} onError={onError} />);
   });
   return {
     view,
-    rerender: (handlers: { onLoad: typeof onLoad; onError: typeof onError }) =>
+    rerender: (handlers: {
+      room?: Room;
+      onLoad: typeof onLoad;
+      onError: typeof onError;
+      filterOpts?: RecalibrateFilterOpts;
+    }) =>
       act(() => {
-        renderer?.update(<Host onLoad={handlers.onLoad} onError={handlers.onError} />);
+        if (handlers.filterOpts) filterOptsRef.current = handlers.filterOpts;
+        renderer?.update(
+          <Host room={handlers.room ?? room} onLoad={handlers.onLoad} onError={handlers.onError} />
+        );
       }),
   };
 };
@@ -581,6 +590,85 @@ describe('useEventTimelineLoader', () => {
     });
     expect(firstOnLoad).not.toHaveBeenCalled();
     expect(newestOnLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops a room's timeline that arrives after the view moved to another room", async () => {
+    vi.mocked(paginateRoomHistory).mockClear();
+    // The server sends the room's creation alone, which makes no row: a load would page around it.
+    const holder = makeTimeline('holder', [roomCreation()], { back: 'before', forward: 'after' });
+    const { client, getEventTimeline } = makeClient();
+    const answer = defer();
+    getEventTimeline.mockImplementation(async () => {
+      await answer.promise;
+      return sdk(holder);
+    });
+    const { room } = makeRoom(false);
+    const { view, rerender } = mountLoader({
+      client,
+      room,
+      onLoad: vi.fn(),
+      onError: vi.fn(),
+      filterOpts: fullViewFilters(room),
+    });
+
+    let load: Promise<void> | undefined;
+    await act(async () => {
+      load = view.load('$create');
+    });
+    // The reader opens another room before the first room's timeline arrives.
+    const next = makeRoom(false).room;
+    const nextOnLoad = vi.fn();
+    const nextOnError = vi.fn();
+    rerender({
+      room: next,
+      onLoad: nextOnLoad,
+      onError: nextOnError,
+      filterOpts: fullViewFilters(next),
+    });
+
+    await act(async () => {
+      answer.resolve();
+      await load;
+    });
+    expect(paginateRoomHistory).not.toHaveBeenCalled();
+    expect(nextOnLoad).not.toHaveBeenCalled();
+    expect(nextOnError).not.toHaveBeenCalled();
+  });
+
+  it("drops a room's load that completes after the view moved to another room", async () => {
+    const holder = makeTimeline('holder', [roomCreation()], { back: 'before' });
+    const { client, getEventTimeline, paginateEventTimeline } = makeClient();
+    getEventTimeline.mockResolvedValue(sdk(holder));
+    const page = defer();
+    paginateEventTimeline.mockImplementation(async () => {
+      await page.promise;
+      holder.backToken = null;
+      return true;
+    });
+    const { room } = makeRoom(false);
+    const { view, rerender } = mountLoader({
+      client,
+      room,
+      onLoad: vi.fn(),
+      onError: vi.fn(),
+      filterOpts: fullViewFilters(room),
+    });
+
+    let load: Promise<void> | undefined;
+    await act(async () => {
+      load = view.load('$create');
+    });
+    expect(paginateEventTimeline).toHaveBeenCalledTimes(1);
+    // The reader opens another room while the page around the event is out.
+    const next = makeRoom(false).room;
+    const nextOnLoad = vi.fn();
+    rerender({ room: next, onLoad: nextOnLoad, onError: vi.fn(), filterOpts: fullViewFilters(next) });
+
+    await act(async () => {
+      page.resolve();
+      await load;
+    });
+    expect(nextOnLoad).not.toHaveBeenCalled();
   });
 
   it('brings a page on each side of an event without a row before it reports the load', async () => {
