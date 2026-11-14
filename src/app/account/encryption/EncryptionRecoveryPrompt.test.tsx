@@ -19,6 +19,7 @@ import {
   snoozeRecoveryPrompt,
 } from './recoveryDialog';
 import { useRecoveryState, type RecoveryState } from './recoveryState';
+import { recoveryPromptSnoozeStorageKey } from '../../preferences/accountStorageKeys';
 
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: vi.fn() }));
 vi.mock('./recoveryState', () => ({ useRecoveryState: vi.fn() }));
@@ -298,6 +299,14 @@ describe('EncryptionRecoveryPrompt', () => {
     snoozeRecoveryPrompt('@alice:example.org');
     setup({ kind: 'ready', key: KEY });
     await act(async () => {});
+    expect(isRecoveryPromptSnoozed('@alice:example.org')).toBe(false);
+  });
+
+  it('a snooze that ends further away than a week, from a clock set ahead, is ignored', () => {
+    localStorage.setItem(
+      recoveryPromptSnoozeStorageKey('@alice:example.org'),
+      String(Date.now() + 2 * RECOVERY_PROMPT_SNOOZE_MS)
+    );
     expect(isRecoveryPromptSnoozed('@alice:example.org')).toBe(false);
   });
 

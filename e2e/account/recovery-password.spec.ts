@@ -222,14 +222,15 @@ test('Not now keeps the start prompt closed after a reload, and the banner still
   await expect(dialog).toHaveCount(0);
 
   await second.reload();
-  // The banner shows the session is locked, and the room list the encrypted room: the start
-  // prompt has had what it opens on.
+  // The banner's Unlock shows the session is locked, with the key the start prompt reads, and the
+  // room list the encrypted room: the start prompt has had what it opens on.
   const banner = second.getByRole('region', { name: 'Unverified Device' });
-  await expect(banner).toBeVisible({ timeout: 90_000 });
+  const unlock = banner.getByRole('button', { name: 'Unlock with recovery password' });
+  await expect(unlock).toBeVisible({ timeout: 90_000 });
   await expect(second.getByText('Secret Plans').first()).toBeVisible({ timeout: 60_000 });
   await expect(dialog).toHaveCount(0);
 
-  await banner.getByRole('button', { name: 'Unlock with recovery password' }).click();
+  await unlock.click();
   await unlockWithRecovery(dialog, RECOVERY_PASSWORD);
 });
 

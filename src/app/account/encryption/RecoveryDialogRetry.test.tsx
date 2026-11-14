@@ -5,26 +5,47 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { hasServerEncryptionSetup } from '../devices/serverEncryptionSetup';
 import { isRecoveryPromptSnoozed, recoveryDialogAtom } from './recoveryDialog';
 import { RecoveryDialogRenderer } from './RecoveryDialogRenderer';
+import type { DefaultSecretStorageKey, RecoveryState } from './recoveryState';
 
 const client = vi.hoisted(() => ({ getSafeUserId: () => '@alice:example.org' }));
+const recovery = vi.hoisted(() => ({ state: { kind: 'none' } as RecoveryState }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));
-vi.mock('./recoveryState', () => ({ useRecoveryState: () => ({ kind: 'none' }) }));
+vi.mock('./recoveryState', () => ({ useRecoveryState: () => recovery.state }));
+vi.mock('./RecoveryUnlockDialog', () => ({ RecoveryUnlockDialog: () => <div>unlock-dialog</div> }));
 // jsdom has no layout, so the real trap finds nothing tabbable. This stand-in keeps what matters
-// here: focus-trap-react runs `onDeactivate` when the trap unmounts, which closes the overlay.
+// here, as focus-trap-react does it: the trap keeps the options of its first render and runs their
+// `onDeactivate` once, on Escape (the `trap-escape` button) or, still active, when it unmounts.
 vi.mock('focus-trap-react', async () => {
-  const { useEffect, useRef } = await import('react');
+  const { Component } = await import('react');
   return {
-    default: function FocusTrap({
-      children,
-      focusTrapOptions,
-    }: {
+    default: class FocusTrap extends Component<{
       children: React.ReactNode;
       focusTrapOptions: { onDeactivate: () => void };
-    }) {
-      const options = useRef(focusTrapOptions);
-      options.current = focusTrapOptions;
-      useEffect(() => () => options.current.onDeactivate(), []);
-      return children;
+    }> {
+      private readonly options = this.props.focusTrapOptions;
+
+      private active = true;
+
+      private readonly deactivate = () => {
+        if (!this.active) return;
+        this.active = false;
+        this.options.onDeactivate();
+      };
+
+      override componentWillUnmount() {
+        this.deactivate();
+      }
+
+      override render() {
+        return (
+          <>
+            {this.props.children}
+            <button type="button" onClick={this.deactivate}>
+              trap-escape
+            </button>
+          </>
+        );
+      }
     },
   };
 });
@@ -38,9 +59,12 @@ vi.mock('../verification/DeviceVerificationSetup', () => ({
   ),
 }));
 
+const KEY: DefaultSecretStorageKey = { keyId: 'key1', keyContent: {}, hasPassphrase: true };
+
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();
+  recovery.state = { kind: 'none' };
 });
 
 // The real SecurityOverlay closes the dialog when it unmounts, so Retry must not unmount it.
@@ -81,6 +105,48 @@ describe('RecoveryDialogRenderer with the real overlay', () => {
     expect(screen.getByText('setup-dialog')).toBeTruthy();
     await act(async () => store.set(recoveryDialogAtom, undefined));
     expect(screen.queryByText('setup-dialog')).toBeNull();
+    expect(isRecoveryPromptSnoozed('@alice:example.org')).toBe(false);
+  });
+  it("the account's pages leaving with the dialog open, as on an account switch, snooze nothing", async () => {
+    localStorage.clear();
+    vi.mocked(hasServerEncryptionSetup).mockResolvedValue(false);
+    const store = createStore();
+    store.set(recoveryDialogAtom, 'setup');
+    const { unmount } = await act(async () =>
+      render(
+        <Provider store={store}>
+          <RecoveryDialogRenderer />
+        </Provider>
+      )
+    );
+    expect(screen.getByText('setup-dialog')).toBeTruthy();
+    unmount();
+    expect(isRecoveryPromptSnoozed('@alice:example.org')).toBe(false);
+  });
+
+  it('Escape snoozes while the session is locked, and not once it has turned ready', async () => {
+    localStorage.clear();
+    recovery.state = { kind: 'locked', key: KEY };
+    const store = createStore();
+    store.set(recoveryDialogAtom, 'unlock');
+    const tree = () => (
+      <Provider store={store}>
+        <RecoveryDialogRenderer />
+      </Provider>
+    );
+    const { rerender } = render(tree());
+    fireEvent.click(screen.getByRole('button', { name: 'trap-escape' }));
+    expect(store.get(recoveryDialogAtom)).toBeUndefined();
+    expect(isRecoveryPromptSnoozed('@alice:example.org')).toBe(true);
+
+    localStorage.clear();
+    act(() => store.set(recoveryDialogAtom, 'unlock'));
+    expect(screen.getByText('unlock-dialog')).toBeTruthy();
+    // Unlocked in the dialog: the trap still holds the close of the render that saw it locked.
+    recovery.state = { kind: 'ready', key: KEY };
+    rerender(tree());
+    fireEvent.click(screen.getByRole('button', { name: 'trap-escape' }));
+    expect(store.get(recoveryDialogAtom)).toBeUndefined();
     expect(isRecoveryPromptSnoozed('@alice:example.org')).toBe(false);
   });
 });

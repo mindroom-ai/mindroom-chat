@@ -27,9 +27,13 @@ export const snoozeRecoveryPrompt = (userId: string): void => {
   );
 };
 
-export const isRecoveryPromptSnoozed = (userId: string): boolean =>
-  Number(getStorageItemSafe(getSafeLocalStorage(), recoveryPromptSnoozeStorageKey(userId))) >
-  Date.now();
+/** A snooze ending further away than one snooze lasts was written by a clock set ahead: ignored. */
+export const isRecoveryPromptSnoozed = (userId: string): boolean => {
+  const left =
+    Number(getStorageItemSafe(getSafeLocalStorage(), recoveryPromptSnoozeStorageKey(userId))) -
+    Date.now();
+  return left > 0 && left <= RECOVERY_PROMPT_SNOOZE_MS;
+};
 
 export const endRecoveryPromptSnooze = (userId: string): void => {
   removeStorageItemSafe(getSafeLocalStorage(), recoveryPromptSnoozeStorageKey(userId));
