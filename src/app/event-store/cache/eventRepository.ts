@@ -390,7 +390,6 @@ export const loadThreadCachedSnapshot = async ({
 export type ThreadCachedPaginationSnapshot = {
   cachedPage: CachedThreadEventPage;
   events: MatrixEvent[];
-  beforeToken?: string | null;
   hasMoreCachedBack: boolean;
   status: 'cache-hit' | 'cache-miss';
 };
@@ -400,6 +399,7 @@ export const loadThreadCachedPaginationSnapshot = async ({
   roomId,
   threadId,
   earliestLoadedReply,
+  heldEventIds,
   limit,
   mapEvent,
   loadBefore = loadCachedThreadEventsBeforeFromCache,
@@ -408,19 +408,33 @@ export const loadThreadCachedPaginationSnapshot = async ({
   roomId: string;
   threadId: string;
   earliestLoadedReply?: MatrixEvent;
+  /** The replies the thread holds: the page drops them. */
+  heldEventIds: ReadonlySet<string>;
   limit: number;
   mapEvent: (rawEvent: Partial<IEvent>) => MatrixEvent;
   loadBefore?: LoadCachedThreadEventsBefore;
 }): Promise<ThreadCachedPaginationSnapshot> => {
-  const cachedPage = await loadBefore(
-    sessionId,
-    roomId,
-    threadId,
-    getCachedThreadCursorAnchor(earliestLoadedReply?.event as Partial<IEvent> | undefined),
-    limit
+  // The page also holds the replies of the earliest loaded reply's millisecond that sort after it:
+  // some are older on the server and on no other page. Those the thread holds are dropped.
+  const anchor = getCachedThreadCursorAnchor(
+    earliestLoadedReply?.event as Partial<IEvent> | undefined
   );
+  const loadedPage = await loadBefore(sessionId, roomId, threadId, anchor, limit, {
+    withBeforeMillisecond: true,
+  });
+  // The page's token belongs to its earliest reply. When no reply sorts before the anchor, that is
+  // one of the millisecond's, and its token would skip replies between it and the anchor that the
+  // cache lacks: the thread keeps its own cursor.
+  const reachesBelowAnchor =
+    !!anchor &&
+    loadedPage.events.some(
+      ({ origin_server_ts: ts, event_id: eventId }) =>
+        ts < anchor.ts || (ts === anchor.ts && eventId < anchor.eventId)
+    );
+  const cachedPage = reachesBelowAnchor ? loadedPage : { ...loadedPage, beforeToken: undefined };
+  const newEvents = cachedPage.events.filter((rawEvent) => !heldEventIds.has(rawEvent.event_id));
   const events = mapCachedThreadPageEvents({
-    events: cachedPage.events,
+    events: newEvents,
     rootEvent: cachedPage.rootEvent,
     mapEvent,
   });
@@ -428,7 +442,6 @@ export const loadThreadCachedPaginationSnapshot = async ({
   return {
     cachedPage,
     events,
-    beforeToken: cachedPage.beforeToken,
     hasMoreCachedBack: cachedPage.hasMoreBefore || typeof cachedPage.beforeToken === 'string',
     // Hit/miss is judged on the RAW older-reply page, not the mapped list:
     // `normalizeCachedThreadEvents` folds the thread root into `events`,
@@ -436,8 +449,8 @@ export const loadThreadCachedPaginationSnapshot = async ({
     // would otherwise report an eternal barren "cache-hit" — committing
     // nothing new on every gesture while the network leg (the only source
     // of genuinely older events) never runs, leaving a partially-opened
-    // thread permanently un-paginatable.
-    status: cachedPage.events.length > 0 ? 'cache-hit' : 'cache-miss',
+    // thread permanently un-paginatable. A page of only held replies is a miss the same way.
+    status: newEvents.length > 0 ? 'cache-hit' : 'cache-miss',
   };
 };
 

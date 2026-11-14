@@ -243,6 +243,43 @@ describe('thread pagination request ownership', () => {
     }
   });
 
+  it('asks the cache with the replies the thread holds', async () => {
+    vi.mocked(loadThreadCachedPaginationSnapshot).mockResolvedValueOnce(page('$cached'));
+    const f = fixture([new MatrixEvent({ event_id: '$r1' }), new MatrixEvent({ event_id: '$r2' })]);
+    try {
+      await act(async () => {
+        await f.current().paginateBack();
+      });
+      const options = vi.mocked(loadThreadCachedPaginationSnapshot).mock.calls[0]![0];
+      expect([...options.heldEventIds]).toEqual(['$r1', '$r2']);
+    } finally {
+      f.unmount();
+    }
+  });
+
+  it('keeps the server cursor after a cache miss when the server request fails', async () => {
+    vi.mocked(loadThreadCachedPaginationSnapshot).mockResolvedValueOnce({
+      status: 'cache-miss',
+      events: [],
+      cachedPage: { events: [], hasMoreBefore: false, beforeToken: 'cached-token' },
+      hasMoreCachedBack: true,
+    });
+    const f = fixture();
+    f.useNetwork();
+    f.paginate.mockRejectedValueOnce(new Error('Offline'));
+    const exhausted = vi.spyOn(f.current().commands, 'markBackwardExhausted');
+    try {
+      await act(async () => {
+        await f.current().paginateBack();
+      });
+      expect(exhausted).not.toHaveBeenCalled();
+      expect(f.runtime.render.append).not.toHaveBeenCalled();
+      expect(f.room.getLiveTimeline().getPaginationToken(Direction.Backward)).toBe('older');
+    } finally {
+      f.unmount();
+    }
+  });
+
   it('loads a cached page when the server request fails', async () => {
     const cached = page('$offline-reply');
     vi.mocked(loadThreadCachedPaginationSnapshot).mockResolvedValueOnce(cached);
