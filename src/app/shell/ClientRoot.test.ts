@@ -9,8 +9,11 @@ import { SpecVersions } from './SpecVersions';
 import { useActiveSession } from '../matrix/session/useSessionStore';
 import { useClientConfig } from '../config/useClientConfig';
 import { StoredSession } from '../matrix/session/sessions';
-import { clearAllCacheAndReload, initClient } from '../account/lifecycle/initMatrix';
-import { removeCurrentClientSessionAndReload } from '../account/lifecycle/sessionLifecycle';
+import { initClient } from '../account/lifecycle/initMatrix';
+import {
+  clearAllCacheAndReload,
+  removeCurrentClientSessionAndReload,
+} from '../account/lifecycle/sessionLifecycle';
 import { startClient } from '../matrix/client/clientSyncPolicy';
 import { clearSecretStorageKeys } from '../matrix/client/secretStorageKeys';
 
@@ -58,11 +61,11 @@ vi.mock('focus-trap-react', () => ({
 }));
 
 vi.mock('../account/lifecycle/initMatrix', () => ({
-  clearAllCacheAndReload: vi.fn().mockResolvedValue(undefined),
   initClient: vi.fn(),
-  logoutClient: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('../account/lifecycle/sessionLifecycle', () => ({
+  clearAllCacheAndReload: vi.fn().mockResolvedValue(undefined),
+  logoutClient: vi.fn().mockResolvedValue(undefined),
   removeCurrentClientSessionAndReload: vi.fn().mockResolvedValue(undefined),
   removeSessionAndReload: vi.fn().mockResolvedValue(undefined),
 }));

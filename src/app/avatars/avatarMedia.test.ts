@@ -115,7 +115,7 @@ describe('fetchAvatar', () => {
   });
 
   afterEach(() => {
-    clearFetchedAvatars();
+    void clearFetchedAvatars();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -195,7 +195,7 @@ describe('fetchAvatar', () => {
     await fetchAvatar(client('@alice:hs.test'), AUTHED);
     await fetchAvatar(client('@bob:hs.test', HS, 'bob-token'), AUTHED);
 
-    clearFetchedAvatars('@alice:hs.test');
+    void clearFetchedAvatars('@alice:hs.test');
 
     expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:avatar-1');
@@ -212,7 +212,7 @@ describe('fetchAvatar', () => {
         })
     );
     const pending = fetchAvatar(client(), AUTHED);
-    clearFetchedAvatars('@alice:hs.test');
+    void clearFetchedAvatars('@alice:hs.test');
     finish(new Response(new Blob(['png']), { status: 200 }));
 
     expect(await pending).toBe('blob:avatar-1');

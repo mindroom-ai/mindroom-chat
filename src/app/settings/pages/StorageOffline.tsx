@@ -2,7 +2,7 @@ import { Button, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { SettingTile } from '../../ui/SettingTile';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { clearAllCacheAndReload } from '../../account/lifecycle/initMatrix';
+import { clearAllCacheAndReload } from '../../account/lifecycle/sessionLifecycle';
 import { PrefetchSettings } from './PrefetchSettings';
 import { SettingsPageFrame, type SettingsPageProps } from '../../ui/settings/SettingsPageFrame';
 import { SettingsSection } from '../../ui/settings/SettingsSection';
