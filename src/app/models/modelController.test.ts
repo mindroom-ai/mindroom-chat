@@ -9,6 +9,7 @@ import {
   RoomMemberEvent,
   RoomEvent,
   SyncState,
+  type IStateEventWithRoomId,
 } from 'matrix-js-sdk';
 import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { CryptoEvent, type CryptoApi } from 'matrix-js-sdk/lib/crypto-api';
@@ -197,7 +198,7 @@ describe('shared model discovery', () => {
         sender: id,
         state_key: id,
         content: { membership: 'join' },
-      })),
+      })) as IStateEventWithRoomId[],
     });
     h.controller.subscribe(h.room, '$root', () => {});
     await flush();
@@ -211,7 +212,7 @@ describe('shared model discovery', () => {
     const h = setup();
     await h.discover();
     const oldCount = h.queued.length;
-    h.mx.emit(CryptoEvent.DevicesUpdated, [router]);
+    h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
     expect(h.snapshot().eligible).toBe(false);
     await flush();
     expect(h.queued.length).toBeGreaterThan(oldCount);
@@ -335,7 +336,7 @@ describe('shared model discovery', () => {
     await vi.advanceTimersByTimeAsync(12000);
     expect(h.snapshot().runtimes).toHaveLength(2);
     expect(h.snapshot().runtime).toBeUndefined();
-    h.controller.chooseRuntime(h.room, '$root', h.snapshot().runtimes[1].id);
+    h.controller.chooseRuntime(h.room, '$root', h.snapshot().runtimes[1]!.id);
     expect(h.snapshot().runtime?.deviceId).toBe('SECOND');
   });
   it('does not silently retain an automatic choice when a second runtime appears', async () => {
@@ -370,7 +371,7 @@ describe('shared model discovery', () => {
         h.controller.getSnapshot(new Room('!cache' + index + ':test', h.mx, viewer), '$root');
       }
       if (cause === 'logout') disposeModelController(h.mx);
-      else h.mx.emit(CryptoEvent.DevicesUpdated, [router]);
+      else h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
       expect(h.snapshot().eligible).toBe(false);
     }
   );
@@ -408,7 +409,7 @@ describe('shared model discovery', () => {
     h.response(h.request());
     await flush();
     await vi.advanceTimersByTimeAsync(12000);
-    h.mx.emit(CryptoEvent.DevicesUpdated, [router]);
+    h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
     expect(h.snapshot().eligible).toBe(false);
   });
   it('retries omitted encrypted recipients without dropping or widening target set', async () => {
@@ -531,7 +532,7 @@ describe('model mutation acknowledgement', () => {
       const initialRequestId = h.request().request_id;
       if (cause === 'timeout') await vi.advanceTimersByTimeAsync(12000);
       else {
-        h.mx.emit(CryptoEvent.DevicesUpdated, [router]);
+        h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
         await flush();
       }
       expect(h.request().request_id).not.toBe(initialRequestId);
@@ -645,7 +646,7 @@ describe('model mutation acknowledgement', () => {
             senderCurve25519Key: kind === 'wrong-key' ? 'other' : 'curve',
             claimedEd25519Key: 'edkey',
           }),
-        } as CryptoBackend);
+        } as unknown as CryptoBackend);
         expect(encrypted.getType()).toBe('m.room.message');
         expect(encrypted.getRelation()?.event_id).toBe('$root');
         if (kind === 'unsigned')
@@ -685,7 +686,11 @@ describe('model mutation acknowledgement', () => {
     await flush();
     h.controller.resetToRoomDefault(h.room, '$root');
     await flush();
-    expect(h.send.mock.calls[1][2]['io.mindroom.model_selection']).toEqual({
+    expect(
+      (h.send.mock.calls[1]![2] as unknown as Record<string, unknown>)[
+        'io.mindroom.model_selection'
+      ]
+    ).toEqual({
       version: 1,
       runtime_user_id: router,
       runtime_device_id: 'DEVICE',

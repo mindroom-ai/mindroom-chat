@@ -293,7 +293,7 @@ describe('useRoomNavigate', () => {
           getSnapshot()[method]('!room:example.org', '$thread', '$reply');
         });
 
-        expect(mocks.navigate.mock.calls[0][0]).toBe(
+        expect(mocks.navigate.mock.calls[0]![0]).toBe(
           '/!space%3Aexample.org/!room%3Aexample.org/%24reply?threadId=%24thread'
         );
         renderer.unmount();
@@ -311,7 +311,7 @@ describe('useRoomNavigate', () => {
         getSnapshot().navigateRoomThreadDirect('!room:example.org', '$thread');
       });
 
-      expect(mocks.navigate.mock.calls[0][0]).toBe(
+      expect(mocks.navigate.mock.calls[0]![0]).toBe(
         '/!nested%3Aexample.org/!room%3Aexample.org?threadId=%24thread'
       );
       renderer.unmount();
@@ -331,7 +331,7 @@ describe('useRoomNavigate', () => {
         '/!space%3Aexample.org/!room%3Aexample.org/%24reply',
         { replace: true },
       ]);
-      expect(mocks.navigate.mock.calls[1][0]).toBe(
+      expect(mocks.navigate.mock.calls[1]![0]).toBe(
         '/!space%3Aexample.org/!room%3Aexample.org/%24reply?focusEvent=1'
       );
       renderer.unmount();
@@ -348,7 +348,7 @@ describe('useRoomNavigate', () => {
       getSnapshot().navigateRoomThreadDirect('!direct:example.org', '$thread');
     });
 
-    expect(mocks.navigate.mock.calls[0][0]).toBe(
+    expect(mocks.navigate.mock.calls[0]![0]).toBe(
       '/!space%3Aexample.org/!direct%3Aexample.org?threadId=%24thread'
     );
     renderer.unmount();
@@ -401,7 +401,7 @@ describe('useRoomNavigate', () => {
           getSnapshot()[method](roomId, '$thread', '$reply');
         });
 
-        expect(mocks.navigate.mock.calls[0][0]).toBe(
+        expect(mocks.navigate.mock.calls[0]![0]).toBe(
           withSearchParam(getHomeRoomPath(roomId, '$reply'), { threadId: '$thread' })
         );
         renderer.unmount();
@@ -418,8 +418,8 @@ describe('useRoomNavigate', () => {
         getSnapshot().navigateRoomFocusEvent(roomId, '$reply');
       });
 
-      expect(mocks.navigate.mock.calls[0][0]).toBe(getHomeRoomPath(roomId, '$reply'));
-      expect(mocks.navigate.mock.calls[1][0]).toBe(
+      expect(mocks.navigate.mock.calls[0]![0]).toBe(getHomeRoomPath(roomId, '$reply'));
+      expect(mocks.navigate.mock.calls[1]![0]).toBe(
         withSearchParam(getHomeRoomPath(roomId, '$reply'), { focusEvent: '1' })
       );
       renderer.unmount();
@@ -435,7 +435,7 @@ describe('useRoomNavigate', () => {
         getSnapshot().navigateRoomThreadDirect(roomId, '$thread');
       });
 
-      expect(mocks.navigate.mock.calls[0][0]).toBe(
+      expect(mocks.navigate.mock.calls[0]![0]).toBe(
         withSearchParam(getHomeRoomPath(roomId), { threadId: '$thread' })
       );
       renderer.unmount();
@@ -452,10 +452,10 @@ describe('useRoomNavigate', () => {
         getSnapshot().navigateRoomFocusEvent(roomId, '$reply');
       });
 
-      expect(mocks.navigate.mock.calls[0][0]).toBe(
+      expect(mocks.navigate.mock.calls[0]![0]).toBe(
         withSearchParam(getActivityRoomPath(roomId), { threadId: '$thread' })
       );
-      expect(mocks.navigate.mock.calls[1][0]).toBe(
+      expect(mocks.navigate.mock.calls[1]![0]).toBe(
         withSearchParam(getActivityRoomPath(roomId, '$reply'), { focusEvent: '1' })
       );
       renderer.unmount();
@@ -472,7 +472,7 @@ describe('useRoomNavigate', () => {
         getSnapshot().navigateRoomThreadDirect(roomId, '$thread');
       });
 
-      expect(mocks.navigate.mock.calls[0][0]).toBe(
+      expect(mocks.navigate.mock.calls[0]![0]).toBe(
         withSearchParam(getThreadsRoomPath(roomId), { threadId: '$thread' })
       );
       renderer.unmount();
@@ -487,7 +487,7 @@ describe('useRoomNavigate', () => {
         getSnapshot().navigateRoomThreadDirect(roomId, '$thread');
       });
 
-      expect(mocks.navigate.mock.calls[0][0]).toBe(
+      expect(mocks.navigate.mock.calls[0]![0]).toBe(
         withSearchParam(getHomeRoomPath(roomId), { threadId: '$thread' })
       );
       renderer.unmount();
@@ -503,7 +503,7 @@ describe('useRoomNavigate', () => {
         getSnapshot().navigateRoomThreadDirect(roomId, '$thread');
       });
 
-      expect(mocks.navigate.mock.calls[0][0]).toBe(
+      expect(mocks.navigate.mock.calls[0]![0]).toBe(
         withSearchParam(getDirectRoomPath(roomId), { threadId: '$thread' })
       );
       renderer.unmount();
@@ -519,7 +519,7 @@ describe('useRoomNavigate', () => {
         getSnapshot().navigateRoomThreadDirect(roomId, '$thread');
       });
 
-      expect(mocks.navigate.mock.calls[0][0]).toBe(
+      expect(mocks.navigate.mock.calls[0]![0]).toBe(
         withSearchParam(getSpaceRoomPath('!elsewhere:example.org', roomId), { threadId: '$thread' })
       );
       renderer.unmount();

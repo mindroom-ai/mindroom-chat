@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { MatrixEvent, Room, RoomState, RoomStateEvent } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
@@ -89,7 +88,7 @@ describe('useRoomAvatar', () => {
       }),
     } as unknown as Room;
 
-    let renderer: ReactTestRenderer;
+    let renderer!: ReactTestRenderer;
     act(() => {
       renderer = create(<AvatarHarness room={room} dm />);
     });

@@ -292,11 +292,7 @@ const keyDown = (renderer: ReactTestRenderer, key: string, event: Partial<Keyboa
   return { preventDefault, stopPropagation };
 };
 
-const optionKeyDown = (
-  renderer: ReactTestRenderer,
-  option: ReturnType<typeof getOptions>[number],
-  key: string
-) => {
+const optionKeyDown = (option: ReturnType<typeof getOptions>[number], key: string) => {
   let defaultPrevented = false;
   const preventDefault = vi.fn(() => {
     defaultPrevented = true;
@@ -310,7 +306,7 @@ const optionKeyDown = (
     shiftKey: false,
     preventDefault,
     stopPropagation,
-  } as KeyboardEvent;
+  } as unknown as KeyboardEvent;
   Object.defineProperty(keyboardEvent, 'defaultPrevented', {
     get: () => defaultPrevented,
   });
@@ -387,8 +383,8 @@ describe('InviteUserAutocomplete', () => {
 
     const [option] = getOptions(renderer);
 
-    expect(option.props.id).toBe('invite-autocomplete-option-_40alice_3Aexample.org');
-    expect(option.props['data-focus']).toBe(true);
+    expect(option!.props.id).toBe('invite-autocomplete-option-_40alice_3Aexample.org');
+    expect(option!.props['data-focus']).toBe(true);
     expect(renderer.root.findByProps({ 'data-user-id': '@alice:example.org' }).props).toMatchObject(
       {
         'data-src': 'https://example.org/media/mxc://example.org/alice',
@@ -423,8 +419,8 @@ describe('InviteUserAutocomplete', () => {
     const displayNameNode = renderer.root.findByProps({ title: displayName });
     const userIdNode = renderer.root.findByProps({ title: userId });
 
-    expect(option.props['aria-label']).toBe(`${displayName}, ${userId}`);
-    expect(option.props['data-ui-after']).toBeUndefined();
+    expect(option!.props['aria-label']).toBe(`${displayName}, ${userId}`);
+    expect(option!.props['data-ui-after']).toBeUndefined();
     expect(displayNameNode.props.children).toBe(displayName);
     expect(userIdNode.props.children).toBe(userId);
     expect(userIdNode.props.truncate).toBeUndefined();
@@ -444,7 +440,7 @@ describe('InviteUserAutocomplete', () => {
 
     const [option] = getOptions(renderer);
 
-    expect(option.props['aria-label']).toBe(userId);
+    expect(option!.props['aria-label']).toBe(userId);
   });
 
   it('falls back from a whitespace-only display name before labeling the option', () => {
@@ -462,7 +458,7 @@ describe('InviteUserAutocomplete', () => {
     const [option] = getOptions(renderer);
     const displayNameNode = renderer.root.findByProps({ title: 'space' });
 
-    expect(option.props['aria-label']).toBe(`space, ${userId}`);
+    expect(option!.props['aria-label']).toBe(`space, ${userId}`);
     expect(displayNameNode.props.children).toBe('space');
   });
 
@@ -477,7 +473,7 @@ describe('InviteUserAutocomplete', () => {
     const displayNameNode = renderer.root.findByProps({ title: 'Quinn relyat' });
     const avatar = renderer.root.findByProps({ 'data-user-id': userId });
 
-    expect(option.props['aria-label']).toBe(`Quinn relyat, ${userId}`);
+    expect(option!.props['aria-label']).toBe(`Quinn relyat, ${userId}`);
     expect(displayNameNode.props.children).toBe('Quinn relyat');
     expect(avatar.props['data-alt']).toBe('Quinn relyat');
   });
@@ -610,7 +606,7 @@ describe('InviteUserAutocomplete', () => {
     });
 
     keyDown(renderer, 'ArrowDown');
-    optionKeyDown(renderer, getOptions(renderer)[0], 'Enter');
+    optionKeyDown(getOptions(renderer)[0]!, 'Enter');
 
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith('@alpha:example.org');
@@ -722,13 +718,13 @@ describe('InviteUserAutocomplete', () => {
     });
 
     expect(getOptions(renderer)).toHaveLength(1);
-    expect(getOptions(renderer)[0].props['aria-selected']).toBe(false);
+    expect(getOptions(renderer)[0]!.props['aria-selected']).toBe(false);
     expect(getInput(renderer).props['aria-activedescendant']).toBeUndefined();
 
     keyDown(renderer, 'ArrowDown');
     const { preventDefault } = keyDown(renderer, 'Enter');
 
-    expect(getOptions(renderer)[0].props['aria-selected']).toBe(false);
+    expect(getOptions(renderer)[0]!.props['aria-selected']).toBe(false);
     expect(preventDefault).not.toHaveBeenCalled();
     expect(onSelect).not.toHaveBeenCalled();
   });

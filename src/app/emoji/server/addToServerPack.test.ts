@@ -95,9 +95,9 @@ describe('addToServerPack', () => {
     await addToServerPack(client, roomWith(), 'party-parrot', image);
 
     expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
-    const [roomId, type, content, stateKey] = mx.sendStateEvent.mock.calls[0];
+    const [roomId, type, content, stateKey] = mx.sendStateEvent.mock.calls[0]!;
     expect([roomId, type, stateKey]).toEqual(['!emoji', EMOTES, '']);
-    expect(content.images?.['party-parrot'].url).toBe('mxc://example.org/new');
+    expect(content.images?.['party-parrot']!.url).toBe('mxc://example.org/new');
   });
 
   it('refuses a shortcode another pack has, before reading or writing', async () => {
@@ -182,7 +182,7 @@ describe('addToServerPack', () => {
     await addToServerPack(client, roomWithPacks({ '': first }), 'later', image);
 
     expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
-    expect(mx.sendStateEvent.mock.calls[0][3]).toBe('3');
+    expect(mx.sendStateEvent.mock.calls[0]![3]).toBe('3');
   });
 
   it('moves on to the next pack that has room', async () => {
@@ -212,7 +212,7 @@ describe('addToServerPack', () => {
       const pack = { pack: { display_name: 'x'.repeat(nameLength) }, images: {} };
       const { mx, client } = clientHolding({ '': pack });
       await addToServerPack(client, roomWithPacks({ '': pack }), 'party-parrot', image);
-      return mx.sendStateEvent.mock.calls[0][3];
+      return mx.sendStateEvent.mock.calls[0]![3];
     };
 
     await expect(writeKeyFor(padding)).resolves.toBe('');

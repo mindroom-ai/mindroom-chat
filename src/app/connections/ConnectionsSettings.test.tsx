@@ -147,7 +147,9 @@ describe('connections settings', () => {
   });
 
   it('treats a server the user turned off under Computers as not configured', () => {
-    act(() => store.set(computerServicePreferenceAtom, ''));
+    act(() => {
+      store.set(computerServicePreferenceAtom, '');
+    });
     render('https://backend.example');
     expect(openButton().props.disabled).toBe(true);
     expect(texts()).toContain(NO_BACKEND);
@@ -161,7 +163,7 @@ describe('connections settings', () => {
     // A found server is named, so a hostile agent cannot pass its portal off as the user's own.
     expect(texts()).toContain('http://localhost:8765');
     click();
-    expect(mocks.openConnectionsPortal.mock.calls[0][0].backendUrl).toBe('http://localhost:8765');
+    expect(mocks.openConnectionsPortal.mock.calls[0]![0].backendUrl).toBe('http://localhost:8765');
   });
 
   it.each([
@@ -188,7 +190,7 @@ describe('connections settings', () => {
       render('');
       click();
       const token =
-        mocks.openConnectionsPortal.mock.calls[0][0].getOpenIdToken('http://localhost:8765');
+        mocks.openConnectionsPortal.mock.calls[0]![0].getOpenIdToken('http://localhost:8765');
       if (binds) await expect(token).resolves.toEqual({ access_token: 'openid-token' });
       else await expect(token).rejects.toThrow('does not bind sign-in tokens');
       expect(mocks.authedRequest).toHaveBeenCalledTimes(requests);
@@ -202,7 +204,7 @@ describe('connections settings', () => {
     mocks.authedRequest.mockResolvedValue({ access_token: 'openid-token' });
     render('https://backend.example');
     click();
-    await mocks.openConnectionsPortal.mock.calls[0][0].getOpenIdToken('https://backend.example');
+    await mocks.openConnectionsPortal.mock.calls[0]![0].getOpenIdToken('https://backend.example');
     expect(versions).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
@@ -221,17 +223,21 @@ describe('connections settings', () => {
     expect(texts()).toEqual(
       expect.arrayContaining(['https://mind.example.org', 'http://localhost:8765'])
     );
-    act(() => buttons[1].props.onClick());
-    expect(mocks.openConnectionsPortal.mock.calls[0][0].backendUrl).toBe('http://localhost:8765');
+    act(() => buttons[1]!.props.onClick());
+    expect(mocks.openConnectionsPortal.mock.calls[0]![0].backendUrl).toBe('http://localhost:8765');
   });
 
   it('prefers the configured server, and keeps a server the user turned off off', () => {
     mocks.discoveredUrls = ['http://localhost:8765'];
     render('https://backend.example');
     click();
-    expect(mocks.openConnectionsPortal.mock.calls[0][0].backendUrl).toBe('https://backend.example');
+    expect(mocks.openConnectionsPortal.mock.calls[0]![0].backendUrl).toBe(
+      'https://backend.example'
+    );
     act(() => renderer.unmount());
-    act(() => store.set(computerServicePreferenceAtom, ''));
+    act(() => {
+      store.set(computerServicePreferenceAtom, '');
+    });
     render('');
     expect(openButton().props.disabled).toBe(true);
     expect(texts()).toContain(NO_BACKEND);
@@ -241,16 +247,18 @@ describe('connections settings', () => {
     render('https://backend.example');
     click();
     expect(mocks.openConnectionsPortal).toHaveBeenCalledTimes(1);
-    const options = mocks.openConnectionsPortal.mock.calls[0][0];
+    const options = mocks.openConnectionsPortal.mock.calls[0]![0];
     expect(options.backendUrl).toBe('https://backend.example');
     expect(alerts()).toHaveLength(0);
   });
 
   it('opens the portal with a server the user saved under Computers', () => {
-    act(() => store.set(computerServicePreferenceAtom, 'https://custom.example'));
+    act(() => {
+      store.set(computerServicePreferenceAtom, 'https://custom.example');
+    });
     render('https://backend.example');
     click();
-    expect(mocks.openConnectionsPortal.mock.calls[0][0].backendUrl).toBe('https://custom.example');
+    expect(mocks.openConnectionsPortal.mock.calls[0]![0].backendUrl).toBe('https://custom.example');
   });
 
   it('hands the portal the signed-in client token request', async () => {
@@ -258,7 +266,7 @@ describe('connections settings', () => {
     mocks.authedRequest.mockResolvedValue(token);
     render();
     click();
-    const options = mocks.openConnectionsPortal.mock.calls[0][0];
+    const options = mocks.openConnectionsPortal.mock.calls[0]![0];
     expect(mocks.authedRequest).not.toHaveBeenCalled();
     await expect(options.getOpenIdToken('https://backend.example')).resolves.toBe(token);
     expect(mocks.authedRequest).toHaveBeenCalledTimes(1);
@@ -268,7 +276,7 @@ describe('connections settings', () => {
     mocks.authedRequest.mockResolvedValue({ access_token: 'openid-token' });
     render();
     click();
-    await mocks.openConnectionsPortal.mock.calls[0][0].getOpenIdToken('https://custom.example');
+    await mocks.openConnectionsPortal.mock.calls[0]![0].getOpenIdToken('https://custom.example');
     expect(mocks.authedRequest).toHaveBeenCalledWith(
       'POST',
       '/user/%40alice%3Aexample.org/openid/request_token',
@@ -281,7 +289,7 @@ describe('connections settings', () => {
     mocks.client.clientRunning = false;
     render();
     click();
-    const options = mocks.openConnectionsPortal.mock.calls[0][0];
+    const options = mocks.openConnectionsPortal.mock.calls[0]![0];
     await expect(options.getOpenIdToken('https://backend.example')).rejects.toThrow(
       'Matrix client stopped'
     );
@@ -295,7 +303,7 @@ describe('connections settings', () => {
     });
     render();
     click();
-    const options = mocks.openConnectionsPortal.mock.calls[0][0];
+    const options = mocks.openConnectionsPortal.mock.calls[0]![0];
     await expect(options.getOpenIdToken('https://backend.example')).rejects.toThrow(
       'Matrix client stopped'
     );

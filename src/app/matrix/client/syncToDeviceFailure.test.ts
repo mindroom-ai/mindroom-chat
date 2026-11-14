@@ -84,14 +84,14 @@ const createServer = (responses: Record<string, SyncBody>) => {
 
 // The default scenario: an initial sync, then a thread reply sharing its
 // response with a to-device message.
-const replyAfterInitial: Record<string, SyncBody> = {
+const replyAfterInitial = {
   'initial-request': { next_batch: 'initial', rooms: initialRoom },
   initial: {
     next_batch: 'after-reply',
     to_device: { events: [toDevice(1)] },
     rooms: joinedRoom([message('$reply', 'Reply')]),
   },
-};
+} satisfies Record<string, SyncBody>;
 
 describe('Matrix sync when the crypto store cannot take to-device messages', () => {
   const clients: MatrixClient[] = [];

@@ -38,7 +38,7 @@ describe('runtime configuration bootstrap', () => {
       { cwd: new URL('../', import.meta.url), encoding: 'utf8' }
     );
     const { scripts } = load({}, '/chat', script);
-    expect(scripts[0].src).toBe('https://chat.example/chat/authentication-recovery.js');
+    expect(scripts[0]!.src).toBe('https://chat.example/chat/authentication-recovery.js');
   });
 
   it('preserves deployment settings while loading recovery from the script directory', () => {
@@ -51,7 +51,7 @@ describe('runtime configuration bootstrap', () => {
     const { window, scripts } = load(settings, '/chat');
     expect(window).toMatchObject(settings);
     expect(scripts).toHaveLength(1);
-    expect(scripts[0].src).toBe('https://chat.example/chat/authentication-recovery.js');
+    expect(scripts[0]!.src).toBe('https://chat.example/chat/authentication-recovery.js');
   });
 
   it('supplies standalone defaults', () => {
@@ -62,7 +62,7 @@ describe('runtime configuration bootstrap', () => {
       __SERVICE_WORKER_NAVIGATION_FALLBACK_EXCLUDE_PATHS__: [],
       __AUTHENTICATION_RECOVERY_CONFIG__: null,
     });
-    expect(scripts[0].src).toBe('https://chat.example/authentication-recovery.js');
+    expect(scripts[0]!.src).toBe('https://chat.example/authentication-recovery.js');
   });
 
   it.each(['onload', 'onerror'] as const)('settles readiness after %s', async (event) => {
@@ -73,7 +73,7 @@ describe('runtime configuration bootstrap', () => {
     });
     await Promise.resolve();
     expect(settled).toBe(false);
-    (scripts[0][event] as () => void)();
+    (scripts[0]![event] as () => void)();
     await ready;
     expect(settled).toBe(true);
   });

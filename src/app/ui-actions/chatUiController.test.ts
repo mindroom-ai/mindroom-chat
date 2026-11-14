@@ -155,7 +155,7 @@ describe('live Chat UI action delivery', () => {
     vi.spyOn(fixture.mx, 'decryptEventIfNeeded').mockResolvedValue();
     fixture.emit(encrypted);
     await Promise.resolve();
-    encrypted.setClearData({
+    encrypted['setClearData']({
       clearEvent: { type: 'm.room.message', content: makeUiEvent().getContent() },
     });
     fixture.mx.emit(MatrixEventEvent.Decrypted, encrypted);
