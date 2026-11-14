@@ -61,8 +61,8 @@ type Homeserver = ReturnType<typeof homeserver>;
 /**
  * A Matrix client of one login: what sync delivered, the sync state, and writes that reach the
  * homeserver only while connected. As the SDK's `setAccountData` does, a write resolves once sync
- * delivers the next account data after it, whoever wrote that, and after the listeners the app
- * bound before the write; it resolves at once when the content is already held.
+ * delivers the next roaming settings account data after the call, whoever wrote it, and after
+ * the listeners the app bound before the write; it resolves at once when the content is held.
  */
 const login = (
   server: Homeserver,
@@ -409,6 +409,29 @@ describe('bindRoamingSettings', () => {
       }
       expect(server.content?.isMarkdown).toBe(round < 3 ? false : undefined);
     }
+    laptop.unbind();
+  });
+
+  it('keeps changes another device made after seeing this write, though sync brings them first', async () => {
+    logins.stored = [{ userId: ALICE, deviceId: 'LAPTOP' }];
+    const server = homeserver({ lag: true });
+    const laptop = open(login(server, ALICE, 'LAPTOP'));
+    await settle();
+    laptop.change('isMarkdown', false);
+    await settle();
+    // Before the laptop's sync catches up, the phone sees its write and changes the setting back,
+    // then changes another one.
+    const seen = server.raw?.rev;
+    server.put({ version: 1, rev: 'b1', base_rev: seen, isMarkdown: true });
+    server.put({ version: 1, rev: 'b2', base_rev: 'b1', isMarkdown: true, hour24Clock: true });
+    server.deliver();
+    await settle();
+    server.deliver();
+    await settle();
+
+    expect(server.content).toEqual({ version: 1, isMarkdown: true, hour24Clock: true });
+    expect(laptop.shown().isMarkdown).toBe(true);
+    expect(laptop.pending()).toEqual({});
     laptop.unbind();
   });
 
