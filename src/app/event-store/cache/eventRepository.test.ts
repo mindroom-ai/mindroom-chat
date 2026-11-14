@@ -1,4 +1,4 @@
-import { MatrixEvent, RelationType, type IEvent } from 'matrix-js-sdk';
+import { MatrixEvent, RelationType, type IEvent, type Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetCacheHealthForTesting } from './cacheHealth';
 import {
@@ -17,13 +17,23 @@ import {
   serializeRoomCacheEvents,
   serializeThreadCacheEvents,
 } from './eventRepository';
-import { makeEvent, makeRoom } from '../../timeline/test-utils/RoomTimeline.test.shared';
+import type { CachedRoomEvent } from './db/cacheStoreNormalize';
+import {
+  makeEvent as makeMockEvent,
+  makeRoom as makeMockRoom,
+} from '../../timeline/test-utils/RoomTimeline.test.shared';
+
+// The shared helpers build partial mocks; type them once as the SDK objects they stand in for.
+const makeEvent = makeMockEvent as unknown as (
+  ...args: Parameters<typeof makeMockEvent>
+) => MatrixEvent;
+const makeRoom = makeMockRoom as unknown as (options: { liveEvents: MatrixEvent[] }) => Room;
 
 const makeRawMessage = (
   eventId: string,
   body: string,
   opts: { sender?: string; ts?: number; replacement?: Partial<IEvent> } = {}
-): Partial<IEvent> => ({
+): CachedRoomEvent => ({
   event_id: eventId,
   room_id: '!room:example.org',
   sender: opts.sender ?? '@alice:example.org',
@@ -185,7 +195,7 @@ describe('eventRepository same-id revision merge', () => {
           origin_server_ts: 300,
           redacts: '$edit-v2',
           content: {},
-        },
+        } as IEvent,
       },
     } satisfies Partial<IEvent>;
     const room = {
@@ -319,7 +329,7 @@ describe('eventRepository same-id revision merge', () => {
       type: 'm.room.redaction',
       redacts: '$target',
       content: {},
-    };
+    } as IEvent;
     const rawEvent = {
       ...makeRawMessage('$target', 'plaintext that must not be cached'),
       unsigned: { redacted_because: redactedBecause },
@@ -533,17 +543,17 @@ describe('eventRepository cache persistence snapshots', () => {
     });
 
     expect(snapshots).toHaveLength(1);
-    expect(snapshots[0].threadId).toBe('$root');
-    expect(snapshots[0].nextSeedEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
-    expect(snapshots[0].roomDerivedSnapshot).toMatchObject({
+    expect(snapshots[0]!.threadId).toBe('$root');
+    expect(snapshots[0]!.nextSeedEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
+    expect(snapshots[0]!.roomDerivedSnapshot).toMatchObject({
       beforeTokenForEarliest: null,
       expectedReplyCount: 1,
       loadedReplyCount: 1,
       snapshotComplete: true,
       tailLoaded: true,
     });
-    expect(snapshots[0].cacheSnapshot.expectedReplyCount).toBe(1);
-    expect(savedSeeds[0].map((event) => event.getId())).toEqual(['$root', '$reply']);
+    expect(snapshots[0]!.cacheSnapshot.expectedReplyCount).toBe(1);
+    expect(savedSeeds[0]!.map((event) => event.getId())).toEqual(['$root', '$reply']);
     expect(writes).toHaveLength(1);
     expect(writes[0]).toMatchObject([
       'session',
@@ -592,7 +602,7 @@ describe('eventRepository cached thread snapshots', () => {
     const olderReply = { event_id: '$older', origin_server_ts: 20 };
     const loadedPageIndexes: number[] = [];
 
-    const snapshot = await loadCachedThreadSnapshot({
+    const snapshot = (await loadCachedThreadSnapshot({
       sessionId: 'session',
       roomId: '!room:example.org',
       threadId: '$root',
@@ -619,7 +629,7 @@ describe('eventRepository cached thread snapshots', () => {
       onPage: (_page, pageIndex) => {
         loadedPageIndexes.push(pageIndex);
       },
-    });
+    }))!;
 
     expect(snapshot.events.map((event) => event.event_id)).toEqual(['$older', '$newer']);
     expect(snapshot.rootEvent).toBe(rootEvent);
