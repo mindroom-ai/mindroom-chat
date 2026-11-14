@@ -379,6 +379,7 @@ export function CompactRoomView({
     <Box ref={viewRef} className={css.View} data-compact-room-view="true" tabIndex={-1}>
       <Box
         ref={contentRef}
+        style={overlay.overviewInsetStop}
         direction="Column"
         gap="100"
         shrink="No"
