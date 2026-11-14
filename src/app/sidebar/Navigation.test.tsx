@@ -411,13 +411,14 @@ describe('MindroomNavigation', () => {
 
       await act(() => findButtons(renderer, 'Select section')[0]!.props.onClick?.());
 
-    expectNavigationState(renderer, false);
-    expect(localStorage.getItem(storageKey)).toBe('false');
-    act(() => renderer.unmount());
-    renderer = renderNavigation(width);
-    expectNavigationState(renderer, false);
-    act(() => renderer.unmount());
-  });
+      expectNavigationState(renderer, false);
+      expect(localStorage.getItem(storageKey)).toBe('false');
+      act(() => renderer.unmount());
+      renderer = renderNavigation(width);
+      expectNavigationState(renderer, false);
+      act(() => renderer.unmount());
+    }
+  );
 
   it('keeps the saved split-layout collapse choice when selecting a section on mobile', async () => {
     localStorage.setItem(storageKey, 'true');
