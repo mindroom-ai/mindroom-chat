@@ -59,9 +59,15 @@ test('the first row of a window that starts after an unread event without a row 
         ).then(({ event_id: id }) => id)
       : sendRoomMessage(HOMESERVER, accessToken, roomId, content, 'ulws');
 
+  let lastRead = '';
   for (let index = 0; index < 3; index += 1) {
-    await send(reader.accessToken, { msgtype: 'm.text', body: `Read ${index}` });
+    lastRead = await send(reader.accessToken, { msgtype: 'm.text', body: `Read ${index}` });
   }
+  await matrixFetch(HOMESERVER, `/rooms/${encodeURIComponent(roomId)}/read_markers`, {
+    method: 'POST',
+    accessToken: reader.accessToken,
+    body: JSON.stringify({ 'm.fully_read': lastRead, 'm.read': lastRead }),
+  });
   await send(writer.accessToken, { body: 'A poll' }, 'org.example.poll');
   const entries: string[] = [];
   for (let index = 0; index < ENTRIES; index += 1) {
@@ -92,7 +98,7 @@ test('the first row of a window that starts after an unread event without a row 
   });
   // Scroll up a step at a time until the window's first row mounts.
   let top = await windowTop(page);
-  for (let step = 0; step < 200 && !top?.message; step += 1) {
+  for (let step = 0; step < 200 && !top; step += 1) {
     await page.evaluate(() => {
       let element = document.querySelector<HTMLElement>('[data-room-row-index]')?.parentElement;
       while (element && !/auto|scroll/.test(getComputedStyle(element).overflowY)) {
