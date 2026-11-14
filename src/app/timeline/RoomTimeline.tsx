@@ -1162,6 +1162,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     eventId,
     eventsLength: renderableEvents.length,
     room,
+    roomDebugTraceId,
     roomIdRef,
     sessionId,
     setRoomHasMoreCachedBack,
