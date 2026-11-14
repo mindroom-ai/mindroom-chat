@@ -446,24 +446,50 @@ const runScopedCursor = async (options: ScopedCursorOptions): Promise<ScopedCurs
 
     const events: (Partial<IEvent> & { event_id: string; origin_server_ts: number })[] = [];
     let hasMoreBefore = false;
+    let counted = 0;
+    const take = (record: CachedEventRecord) => {
+      const normalized = toRawEventInternal(record.rawEvent);
+      return normalized &&
+        !isOtherRoomEvent(normalized, options.roomId) &&
+        !options.shouldSkip(record, normalized)
+        ? normalized
+        : undefined;
+    };
+
+    // Inside one millisecond the index orders by event ID, not as the server does: the bound's
+    // millisecond can hold events older than it that sort after it, which no other page holds.
+    // They come first (newest first, as the cursor reads), outside the limit; the caller drops
+    // the ones it holds.
+    if (options.upperBound) {
+      const { ts, eventId } = options.upperBound;
+      const sameMillisecond = index.getAll(
+        IDBKeyRange.bound(
+          [options.roomId, options.scope, ts, eventId],
+          [options.roomId, options.scope, ts, MAX_EVENT_ID],
+          true
+        )
+      );
+      sameMillisecond.onsuccess = () => {
+        (sameMillisecond.result as CachedEventRecord[]).reverse().forEach((record) => {
+          const normalized = take(record);
+          if (normalized) events.push(normalized);
+        });
+      };
+    }
 
     const cursorRequest = index.openCursor(range, 'prev');
     cursorRequest.onsuccess = () => {
       const cursor = cursorRequest.result;
       if (!cursor) return;
 
-      const record = cursor.value as CachedEventRecord;
-      const normalized = toRawEventInternal(record.rawEvent);
+      const normalized = take(cursor.value as CachedEventRecord);
       if (!normalized) {
         cursor.continue();
         return;
       }
-      if (isOtherRoomEvent(normalized, options.roomId) || options.shouldSkip(record, normalized)) {
-        cursor.continue();
-        return;
-      }
 
-      if (events.length < options.limit) {
+      if (counted < options.limit) {
+        counted += 1;
         events.push(normalized);
         cursor.continue();
         return;
