@@ -14,7 +14,7 @@ import { getStateEvent } from '../../matrix/room';
 import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../../matrix/protocol/backgroundJobsContract';
 import { setRoomArchived } from '../../matrix/state/archivedRooms';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
-import { matchesEnum } from '../../lib/matchesEnum';
+import { isJoined } from '../../matrix/state/roomList';
 
 export const MINDROOM_VOICE_CALLS_PRESENCE = '📞 Voice calls';
 
@@ -106,7 +106,7 @@ export const findAgentCallRoom = (mx: MatrixClient, agentUserId: string): Room |
   mx
     .getRooms()
     .filter((room) => {
-      if (!matchesEnum(room.getMyMembership(), Membership.Join) || !room.isCallRoom()) return false;
+      if (!isJoined(room) || !room.isCallRoom()) return false;
       const call = getOwnAgentCall(mx, room);
       return call?.ephemeral === false && call.agent_user_id === agentUserId;
     })

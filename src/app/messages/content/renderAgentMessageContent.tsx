@@ -255,9 +255,9 @@ export const renderAgentMessageContent = ({
       renderStateSuffix,
     });
 
-  const canvasReceipt = matchesEnum(msgType, MsgType.Text)
-    ? readCanvasResponse(content)
-    : undefined;
+  const isTextMessage = matchesEnum(msgType, MsgType.Text);
+  const isFileMessage = matchesEnum(msgType, MsgType.File);
+  const canvasReceipt = isTextMessage ? readCanvasResponse(content) : undefined;
   if (canvasReceipt) {
     return (
       <CanvasResponseReceipt
@@ -294,8 +294,8 @@ export const renderAgentMessageContent = ({
     );
   }
 
-  if (matchesEnum(msgType, MsgType.Text) || matchesEnum(msgType, MsgType.File)) {
-    if (matchesEnum(msgType, MsgType.Text) && isTranscribingPlaceholder(content)) {
+  if (isTextMessage || isFileMessage) {
+    if (isTextMessage && isTranscribingPlaceholder(content)) {
       return (
         <MText
           content={content}
@@ -307,7 +307,7 @@ export const renderAgentMessageContent = ({
     }
 
     const isStreaming = isAiRunStreaming(content);
-    if (matchesEnum(msgType, MsgType.Text) && isStreaming && isThinkingPlaceholderBody(content)) {
+    if (isTextMessage && isStreaming && isThinkingPlaceholderBody(content)) {
       return (
         <MText
           content={content}
@@ -340,7 +340,7 @@ export const renderAgentMessageContent = ({
         />
       );
       // A canvas answer too large for one event arrives as a sidecar; its receipt waits for the file.
-      if (matchesEnum(msgType, MsgType.File) && content[CANVAS_RESPONSE_KEY]) {
+      if (isFileMessage && content[CANVAS_RESPONSE_KEY]) {
         return (
           <CanvasResponseSidecarReceipt
             source={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
@@ -355,7 +355,7 @@ export const renderAgentMessageContent = ({
       return longText;
     }
 
-    if (matchesEnum(msgType, MsgType.File)) {
+    if (isFileMessage) {
       const pasteAttachment = getPasteAttachmentFile(content);
       if (pasteAttachment) {
         return (
@@ -367,7 +367,7 @@ export const renderAgentMessageContent = ({
       }
     }
 
-    if (matchesEnum(msgType, MsgType.Text)) {
+    if (isTextMessage) {
       const renderableContent = withToolRefFormattedBodyFallback(content);
       return (
         <MText

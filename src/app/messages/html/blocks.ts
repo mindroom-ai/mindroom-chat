@@ -1,4 +1,5 @@
-import { Element, Text as DOMText, htmlToDOM } from 'html-react-parser';
+import { Element, htmlToDOM } from 'html-react-parser';
+import { isText } from 'domhandler';
 import type { DOMNode } from 'html-react-parser';
 import { parseInlineMD } from '../../rich-text/markdown/inline/parser';
 import { parseBlockMD } from '../../rich-text/markdown/block/parser';
@@ -146,14 +147,12 @@ const normalizeMarkdownDashLists = (markdown: string): string =>
       .join('\n')
   );
 
-const isDomTextNode = (node: DOMNode): node is DOMText => matchesEnum(node.type, 'text');
-
 const isDomElementNode = (node: DOMNode): node is Element => matchesEnum(node.type, 'tag');
 
 const extractDomText = (nodes: DOMNode[]): string =>
   nodes
     .map((node) => {
-      if (isDomTextNode(node)) return node.data;
+      if (isText(node)) return node.data;
       if (isDomElementNode(node)) return extractDomText(node.children as DOMNode[]);
       return '';
     })
@@ -165,7 +164,7 @@ const listItemCanFlattenToToolRefPrefix = (markdown: string): boolean => {
   const parsedInline = parseInlineMD(sanitizeMarkdownText(markdown.trimStart()));
   let flattenedInline = '';
   for (const node of htmlToDOM(parsedInline)) {
-    if (isDomTextNode(node)) {
+    if (isText(node)) {
       flattenedInline += node.data;
     } else if (isDomElementNode(node) && node.name === 'code') {
       flattenedInline += `<code>${extractDomText(node.children as DOMNode[])}</code>`;

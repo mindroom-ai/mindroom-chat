@@ -32,7 +32,6 @@ import {
   getMatrixUploadOriginalName,
   toMatrixUploadError,
 } from '../matrix/matrix';
-import { Membership } from '../matrix/types/room';
 import {
   confirmedVoiceThreadId,
   getRoomInputVoiceSendContext,
@@ -50,7 +49,7 @@ import { ComposerIconButton } from './RoomInput.css';
 import { revealDirectionControls } from '../ui/directional';
 import { ConversationViewContext } from '../navigation/conversationView';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
-import { matchesEnum } from '../lib/matchesEnum';
+import { isJoined } from '../matrix/state/roomList';
 
 type VoiceComposerAdapter = {
   getContext: () => Pick<
@@ -218,7 +217,7 @@ export const useRoomInputVoice = ({
       return;
     }
     const sourceRoom = mx.getRoom(pendingVoiceSendDraft.context.roomId);
-    if (!sourceRoom || !matchesEnum(sourceRoom.getMyMembership(), Membership.Join)) {
+    if (!sourceRoom || !isJoined(sourceRoom)) {
       setPendingVoiceSendDraft(undefined);
     }
   }, [draftBelongsToCurrentSession, mx, pendingVoiceSendDraft, setPendingVoiceSendDraft]);
