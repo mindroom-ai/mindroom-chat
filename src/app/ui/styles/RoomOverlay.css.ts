@@ -12,7 +12,9 @@ export const overviewInset = 'var(--room-overview-height, 0px)';
 /**
  * For the container of a room's rows or cards, which reads no inset. The room's box sets the
  * overview inset for its whole view, and a custom property is inherited: without a fixed value
- * here, every change of the filter bar's height would restyle each row and card below.
+ * here, every change of the filter bar's height would restyle each row and card below. A new
+ * reader of the inset must not render inside the Compact card list or the room's virtual inner
+ * list, where it would read this constant (RoomOverlay.readers.test.ts lists the readers).
  */
 export const overviewInsetStop = { '--room-overview-height': '0px' } as CSSProperties;
 export const topInset = `calc(${headerInset} + ${overviewInset})`;
