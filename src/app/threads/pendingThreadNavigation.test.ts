@@ -48,8 +48,7 @@ describe('pending thread replies across navigation', () => {
       baseUrl: 'https://example.org',
       userId: '@alice:example.org',
       timelineSupport: true,
-      threadSupport: true,
-    } as Parameters<typeof createClient>[0]);
+    });
     // startClient normally enables this; keep networking stopped in this test.
     mx.supportsThreads = () => true;
     const room = new Room('!room:example.org', mx, '@alice:example.org', {

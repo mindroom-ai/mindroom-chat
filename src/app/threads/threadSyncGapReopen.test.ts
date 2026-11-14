@@ -238,9 +238,9 @@ it.each(['streamed', 'quiet'] as const)(
     const timelineSet = thread.getUnfilteredTimelineSet();
     // The thread view pages the first segment linked to the live one while it has a cursor.
     const paginateHistory = async () => {
-      const [first] = getLinkedTimelines(timelineSet.getLiveTimeline());
-      if (!first!.getPaginationToken(Direction.Backward)) return;
-      await server.client.paginateEventTimeline(first!, { backwards: true, limit: 30 });
+      const first = getLinkedTimelines(timelineSet.getLiveTimeline())[0]!;
+      if (!first.getPaginationToken(Direction.Backward)) return;
+      await server.client.paginateEventTimeline(first, { backwards: true, limit: 30 });
     };
 
     if (firstGap === 'streamed') {

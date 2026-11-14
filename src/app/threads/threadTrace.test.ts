@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient, Room, type IEvent } from 'matrix-js-sdk';
 import { createBackfillScheduler } from '../event-store/engine/backfillScheduler';
 import { scheduleReconcile } from '../event-store/engine/reconciler';
+import type { ThreadReconcileContinuationStore } from '../event-store/engine/reconcilerScan';
 import {
   clearDeepTrace,
   initializeDeepTraceRecorder,
@@ -164,7 +165,8 @@ describe('anonymous thread diagnostics', () => {
                 continuationStore: {
                   load: async () => undefined,
                   begin: async (_session, _room, _thread, candidate) => candidate,
-                  checkpoint: async () => undefined as never,
+                  checkpoint: (async () =>
+                    undefined) as unknown as ThreadReconcileContinuationStore['checkpoint'],
                   clear: async () => true,
                   restartFromHead: async () => undefined,
                 },
