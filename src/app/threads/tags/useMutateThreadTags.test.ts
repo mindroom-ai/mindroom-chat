@@ -428,6 +428,56 @@ describe('useMutateThreadTags', () => {
     renderer.unmount();
   });
 
+  it('ends a snooze when resolving, so reopening does not bring it back', async () => {
+    const room = makeRoom([
+      makePerTagEvent('$root', 'snoozed', {
+        set_by: '@alice:example.org',
+        set_at: ISO_1,
+        data: { until: '2099-01-01T00:00:00.000Z' },
+      }),
+    ]);
+    let snapshot: ReturnType<typeof useMutateThreadTags> | undefined;
+    const renderer = create(
+      React.createElement(Harness, {
+        room,
+        onRender: (value) => {
+          snapshot = value;
+        },
+      })
+    );
+
+    await act(async () => {
+      await snapshot?.setResolved('$root', true);
+    });
+    expect(sendStateEvent.mock.calls.map((call) => [call[3], call[2]])).toEqual([
+      ['["$root","resolved"]', expect.objectContaining({ set_by: '@alice:example.org' })],
+      ['["$root","snoozed"]', {}],
+    ]);
+
+    // Without a snooze, or when reopening, only the resolved tag is written.
+    sendStateEvent.mockClear();
+    const plain = makeRoom([]);
+    renderer.update(
+      React.createElement(Harness, {
+        room: plain,
+        onRender: (value) => {
+          snapshot = value;
+        },
+      })
+    );
+    await act(async () => {
+      await snapshot?.setResolved('$root', true);
+    });
+    await act(async () => {
+      await snapshot?.setResolved('$root', false);
+    });
+    expect(sendStateEvent.mock.calls.map((call) => call[3])).toEqual([
+      '["$root","resolved"]',
+      '["$root","resolved"]',
+    ]);
+    renderer.unmount();
+  });
+
   it('resolves a standalone zero-reply root without requiring an SDK thread model', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(ISO_2));

@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
-import { Room } from 'matrix-js-sdk';
+import { EventTimeline, Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import {
+  aggregateThreadTagEvents,
   buildPerTagEventContent,
   buildPerTagStateKey,
   MINDROOM_THREAD_TAGS_EVENT,
@@ -117,9 +118,20 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
 
   const setResolved = useCallback(
     async (threadRootId: string, resolved: boolean) => {
-      await sendUpdate(threadRootId, RESOLVED_TAG, resolved);
+      const written = await sendUpdate(threadRootId, RESOLVED_TAG, resolved);
+      if (!written || !resolved) return;
+      // Resolving ends a snooze, as the backend's resolve does; left set, reopening would bring
+      // it back and the backend would still clear it at its time.
+      const events =
+        room
+          .getLiveTimeline()
+          .getState(EventTimeline.FORWARDS)
+          ?.getStateEvents(MINDROOM_THREAD_TAGS_EVENT) ?? [];
+      if (aggregateThreadTagEvents(events).get(threadRootId)?.tags[SNOOZED_TAG]) {
+        await sendUpdate(threadRootId, SNOOZED_TAG, false);
+      }
     },
-    [sendUpdate]
+    [room, sendUpdate]
   );
 
   const snooze = useCallback(
