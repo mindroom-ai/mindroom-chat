@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Spinner, Text } from 'folds';
-import { useAtom } from 'jotai';
+import { useAtom, useStore } from 'jotai';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { hasServerEncryptionSetup } from '../devices/serverEncryptionSetup';
 import { DeviceVerificationSetup } from '../verification/DeviceVerificationSetup';
@@ -9,7 +9,7 @@ import { ResetVerificationDialog } from '../verification/ResetVerificationDialog
 import { SecurityDialog } from '../verification/SecurityDialog';
 import { SecurityOverlay } from '../verification/SecurityOverlay';
 import { ChangeRecoveryPassword } from './ChangeRecoveryPassword';
-import { recoveryDialogAtom, type RecoveryDialog } from './recoveryDialog';
+import { recoveryDialogAtom, snoozeRecoveryPrompt, type RecoveryDialog } from './recoveryDialog';
 import { RecoveryUnlockDialog } from './RecoveryUnlockDialog';
 import {
   useRecoveryState,
@@ -56,12 +56,25 @@ type OpenDialogProps = { dialog: RecoveryDialog; onChange: (dialog?: RecoveryDia
  */
 function OpenRecoveryDialog({ dialog, onChange }: OpenDialogProps) {
   const { t } = useTranslation();
+  const client = useMatrixClient();
+  const store = useStore();
   const state = useRecoveryState();
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const [secretStorageKey, setSecretStorageKey] = useState<DefaultSecretStorageKey>();
   const [keepOpen, setKeepOpen] = useState(false);
   const [resetConfirmed, setResetConfirmed] = useState(false);
   const [check, retry, foundExisting] = useServerCheck(dialog === 'setup');
-  const close = () => onChange(undefined);
+  // Closed by the person before this session is verified (Not now, the close button, Escape): the
+  // start prompt waits a while before it asks again. The overlay keeps the close of the first
+  // render and calls it once more when it unmounts, so it reads the live state, and a dialog that
+  // is already gone (closed, or cleared from outside) snoozes nothing.
+  const close = () => {
+    if (store.get(recoveryDialogAtom) !== undefined && stateRef.current.kind !== 'ready') {
+      snoozeRecoveryPrompt(client.getSafeUserId());
+    }
+    onChange(undefined);
+  };
 
   // A Set up that sits open, as the start prompt leaves it, gives way once the account is set up
   // on another device meanwhile: this session's state turns locked (or ready), and the welcome

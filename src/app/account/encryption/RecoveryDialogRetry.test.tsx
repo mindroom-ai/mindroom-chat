@@ -3,10 +3,10 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Provider, createStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { hasServerEncryptionSetup } from '../devices/serverEncryptionSetup';
-import { recoveryDialogAtom } from './recoveryDialog';
+import { isRecoveryPromptSnoozed, recoveryDialogAtom } from './recoveryDialog';
 import { RecoveryDialogRenderer } from './RecoveryDialogRenderer';
 
-const client = vi.hoisted(() => ({}));
+const client = vi.hoisted(() => ({ getSafeUserId: () => '@alice:example.org' }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));
 vi.mock('./recoveryState', () => ({ useRecoveryState: () => ({ kind: 'none' }) }));
 // jsdom has no layout, so the real trap finds nothing tabbable. This stand-in keeps what matters
@@ -64,5 +64,23 @@ describe('RecoveryDialogRenderer with the real overlay', () => {
     });
     expect(store.get(recoveryDialogAtom)).toBe('setup');
     expect(screen.getByText('setup-dialog')).toBeTruthy();
+  });
+
+  it('a dialog cleared from outside, as when the account is set up elsewhere, snoozes nothing', async () => {
+    localStorage.clear();
+    vi.mocked(hasServerEncryptionSetup).mockResolvedValue(false);
+    const store = createStore();
+    store.set(recoveryDialogAtom, 'setup');
+    await act(async () => {
+      render(
+        <Provider store={store}>
+          <RecoveryDialogRenderer />
+        </Provider>
+      );
+    });
+    expect(screen.getByText('setup-dialog')).toBeTruthy();
+    await act(async () => store.set(recoveryDialogAtom, undefined));
+    expect(screen.queryByText('setup-dialog')).toBeNull();
+    expect(isRecoveryPromptSnoozed('@alice:example.org')).toBe(false);
   });
 });

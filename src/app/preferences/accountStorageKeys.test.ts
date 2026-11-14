@@ -11,6 +11,7 @@ it('builds the keys under the names the app has always used', () => {
     'mindroom.sidebar.spaceOrder:@alice:example.org',
     'mindroom.pageNav.desktopCollapsed:@alice:example.org',
     'mindroom_welcome_setup_first_seen_at::@alice:example.org',
+    'mindroom.recoveryPrompt.snoozedUntil:@alice:example.org',
     'mindroom.pageNav.width:@alice:example.org',
     'mindroom.members.width:@alice:example.org',
     'mindroom.canvas.width:@alice:example.org',
