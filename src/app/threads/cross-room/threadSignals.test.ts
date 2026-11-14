@@ -188,7 +188,7 @@ describe('readThreadSignals', () => {
     expect(signals.newsTs).toBe(2000);
   });
 
-  it("keeps people's newest message apart from agents'", async () => {
+  it("keeps other people's newest message apart from agents' and the reader's own", async () => {
     const { room } = await setup(ME, [
       event({ id: '$person', ts: 1000, sender: '@other:example.org', content: { body: 'hi' } }),
       event({ id: '$agent', ts: 2000, sender: AGENT, content: { body: 'Snoozed it.' } }),
@@ -197,6 +197,11 @@ describe('readThreadSignals', () => {
       newsTs: 2000,
       personNewsTs: 1000,
     });
+    // The reader's own message is not news from people: a note to self keeps a snooze.
+    const { room: own } = await setup(ME, [
+      event({ id: '$mine', ts: 3000, sender: ME, content: { body: 'note to self' } }),
+    ]);
+    expect(readThreadSignals(own, ROOT, ME, NOW).personNewsTs).toBeUndefined();
   });
 
   it('previews an agent reply by its words, its tool calls counted, not written out', async () => {

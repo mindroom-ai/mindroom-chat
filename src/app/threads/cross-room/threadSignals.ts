@@ -70,7 +70,7 @@ export type ThreadSignals = {
   waitsUntil?: number;
   /** When the newest of what it counts came: a message, by its newest edit, or the approval. */
   newsTs?: number;
-  /** The same for messages from people only, not agents. */
+  /** The same for messages from other people only: not agents, not the reader. */
   personNewsTs?: number;
 };
 
@@ -391,7 +391,7 @@ export const readThreadSignals = (
   const personNewsTs = Math.max(
     0,
     ...counted
-      .filter(({ event }) => !isAgent(event.getSender()))
+      .filter(({ event }) => event.getSender() !== userId && !isAgent(event.getSender()))
       .map(({ event, editTs }) => editTs ?? event.getTs())
   );
 

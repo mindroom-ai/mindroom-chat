@@ -35,6 +35,11 @@ describe('parseThreadSnooze', () => {
       Date.UTC(2026, 10, 14, 8)
     ));
 
+  it('reads set_at without a zone as UTC too', () =>
+    expect(
+      parseThreadSnooze({ ...meta('2026-11-14T08:00:00Z'), set_at: '2026-11-13T10:00:00' })?.setAtTs
+    ).toBe(Date.UTC(2026, 10, 13, 10)));
+
   it('has no snooze without metadata', () => expect(parseThreadSnooze(undefined)).toBeUndefined());
 
   it('carries who, when and the note', () =>
