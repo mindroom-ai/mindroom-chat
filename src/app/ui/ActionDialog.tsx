@@ -2,6 +2,7 @@ import { type ReactNode, useRef } from 'react';
 import { Box, Text } from 'folds';
 import { Dialog } from './glass/GlassPrimitives';
 import { ModalLayer, type ModalLayerFocus } from './ModalLayer';
+import * as css from './ActionDialog.css';
 
 type ActionDialogProps = {
   /** The dialog's heading and accessible name. */
@@ -14,7 +15,11 @@ type ActionDialogProps = {
   children: ReactNode;
 };
 
-/** A small titled dialog for an action that needs a confirmation, a reason or a text. */
+/**
+ * A small titled dialog for an action that needs a confirmation, a reason or a text. It is never
+ * taller than the window: what does not fit scrolls, first a part of the content that scrolls on
+ * its own.
+ */
 export function ActionDialog({ label, onClose, busy, initialFocus, children }: ActionDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   return (
@@ -33,9 +38,15 @@ export function ActionDialog({ label, onClose, busy, initialFocus, children }: A
         aria-modal="true"
         aria-label={label}
         tabIndex={-1}
-        style={{ width: 'min(28rem, calc(100vw - 2rem))', padding: '1rem' }}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          width: 'min(28rem, calc(100vw - 2rem))',
+          maxHeight: 'calc(100dvh - 2rem)',
+          padding: '1rem',
+        }}
       >
-        <Box direction="Column" gap="300">
+        <Box className={css.Body} direction="Column" gap="300">
           <Text size="H4">{label}</Text>
           {children}
         </Box>

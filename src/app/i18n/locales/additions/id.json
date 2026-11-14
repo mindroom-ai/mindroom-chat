@@ -930,6 +930,30 @@
       "unsuspend": "Cabut penangguhan {{user}}? Akun dapat kembali mengirim pesan dan bergabung ke ruang.",
       "deactivate": "Nonaktifkan {{user}}? Akun keluar dari ruang-ruangnya dan tidak akan pernah bisa masuk lagi. Tindakan ini tidak dapat dibatalkan."
     },
-    "protected": "Administrator dan akun Anda sendiri tidak dapat diubah di sini."
+    "protected": "Administrator dan akun Anda sendiri tidak dapat diubah di sini.",
+    "accounts": "Akun",
+    "invites": {
+      "title": "Undangan",
+      "description": "Alamat email yang diundang dapat membuat satu akun di sini dengan masuk memakai alamat itu.",
+      "sendYourself": "Tidak ada email yang dikirim: salin undangan dan kirimkan sendiri.",
+      "add": "Undang lewat email",
+      "none": "Tidak ada undangan tertunda",
+      "loadFailed": "Tidak dapat memuat undangan.",
+      "addresses": "Alamat email",
+      "addressesHint": "Pisahkan beberapa alamat dengan koma atau baris baru.",
+      "rooms": "Ruang yang diikuti akun baru",
+      "external": "Akun eksternal",
+      "invited": "Diundang",
+      "replaces": "Menggantikan undangan sebelumnya",
+      "copy": "Salin undangan",
+      "message": "Anda diundang ke {{url}}. Masuk dengan {{providers}}, memakai persis alamat email ini: {{email}}",
+      "messagePlain": "Anda diundang ke {{url}}. Masuk memakai persis alamat email ini: {{email}}",
+      "delete": "Hapus undangan",
+      "confirmDelete": "Hapus undangan untuk {{email}}? Undangan itu tidak dapat lagi dipakai untuk membuat akun.",
+      "errors": {
+        "inUse": "{{user}} sudah memiliki alamat ini.",
+        "invalidAddress": "Ini bukan alamat email yang valid."
+      }
+    }
   }
 }
