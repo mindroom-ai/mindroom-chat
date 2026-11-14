@@ -1,6 +1,9 @@
 import { Direction, EventTimeline, MatrixEvent } from 'matrix-js-sdk';
 import { eventBelongsToThread } from '../threads/threadUtils';
-import { compareCachedPaginationAnchors } from '../cache/eventCacheTokenUtils';
+import {
+  type CachedPaginationAnchor,
+  compareCachedPaginationAnchors,
+} from '../cache/eventCacheTokenUtils';
 
 /**
  * Find the earliest reply in a thread's loaded events, using timestamp + event ID
@@ -11,7 +14,7 @@ export const findEarliestLoadedThreadReplyByCacheOrder = (
   threadId: string
 ): MatrixEvent | undefined => {
   let earliest: MatrixEvent | undefined;
-  let earliestAnchor: { eventId: string; ts: number } | undefined;
+  let earliestAnchor: CachedPaginationAnchor | undefined;
 
   for (const mEvent of events) {
     const eventId = mEvent.getId();

@@ -30,7 +30,10 @@ import {
   cachedHistoryJoinsBefore,
   loadRoomCacheGap,
 } from './db';
-import { compareCachedPaginationAnchors } from './eventCacheTokenUtils';
+import {
+  type CachedPaginationAnchor,
+  compareCachedPaginationAnchors,
+} from './eventCacheTokenUtils';
 import { hydrateCachedEvents, serializeEventsForCache } from './eventCacheEditUtils';
 import { loadCachedEventAcrossRoomScopes } from './db/cacheStoreEvents';
 import { readRoomOfflineProgress, updateRoomOfflineProgress } from './db/cacheStoreMeta';
@@ -408,7 +411,7 @@ const withTokenOnlyBelowAnchor = <
   }
 >(
   page: Page,
-  anchor: { eventId: string; ts: number } | undefined
+  anchor: CachedPaginationAnchor | undefined
 ): Page =>
   anchor &&
   page.events.some(
