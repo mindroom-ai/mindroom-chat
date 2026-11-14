@@ -400,7 +400,7 @@ describe('timeline message feature', () => {
     const event = snoozeEndedEvent('$wake', '@mindroom_router:example.org');
     const { renderer } = await mountFeature([rowFor(event)], '$thread');
 
-    const [marker] = renderer.root.findAllByType(SnoozeEndedMarker);
+    const marker = renderer.root.findByType(SnoozeEndedMarker);
     expect(marker.props.note).toBe('check CI');
     // No message chrome: no avatar, sender name or toolbar.
     expect(renderer.root.findAllByType(Message)).toHaveLength(0);
