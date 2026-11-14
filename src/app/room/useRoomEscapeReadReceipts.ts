@@ -52,10 +52,10 @@ export const useRoomEscapeReadReceipts = ({
           .get(shownConversationViewsAtom)
           .some((place) => place.roomId === roomId && place.view === ROOM_MESSAGES_VIEW);
         if (threadId && (!messagesBeside || threadColumnKeys.has(evt))) {
-          markThreadAsRead(mx, roomId, threadId, hideActivity);
+          void markThreadAsRead(mx, roomId, threadId, hideActivity);
           return;
         }
-        markMainTimelineAsRead(mx, roomId, hideActivity);
+        void markMainTimelineAsRead(mx, roomId, hideActivity);
       },
       [hideActivity, mx, roomId, store, threadId]
     )

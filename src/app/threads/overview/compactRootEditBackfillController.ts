@@ -173,7 +173,7 @@ export const useCompactRootEditBackfillController = ({
       });
     };
 
-    loadMissingCompactRootEdits();
+    void loadMissingCompactRootEdits();
 
     return () => {
       cancelled = true;

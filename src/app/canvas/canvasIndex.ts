@@ -366,7 +366,7 @@ export function useOpenCanvasById(
     (canvasId: string) => {
       choice.current += 1;
       const mine = choice.current;
-      loadCanvasEvent(mx, room, canvasId).then((event) => {
+      void loadCanvasEvent(mx, room, canvasId).then((event) => {
         if (event && choice.current === mine) latestActivate.current(event);
       });
     },

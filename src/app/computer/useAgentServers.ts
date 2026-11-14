@@ -53,7 +53,7 @@ export const useOpenIdBinding = (): boolean | undefined => {
     let current = true;
     const binding = bindingChecks.get(mx) ?? { check: readOpenIdBinding(mx) };
     bindingChecks.set(mx, binding);
-    binding.check.then((value) => {
+    void binding.check.then((value) => {
       if (value === undefined) bindingChecks.delete(mx);
       else binding.binds = value;
       if (current) setBinds(value === true);

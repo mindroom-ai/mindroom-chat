@@ -72,7 +72,7 @@ export function useCanvasStateShare(
         .then(publish)
         .catch(() => undefined);
       queues.set(canvasId, queued);
-      queued.then(() => {
+      void queued.then(() => {
         if (queues.get(canvasId) === queued) queues.delete(canvasId);
       });
     };
