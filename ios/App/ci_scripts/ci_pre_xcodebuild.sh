@@ -59,8 +59,12 @@ if [[ -n "$CURRENT_PROJECT_VERSION" ]]; then
     const marketingVersion = process.env.MARKETING_VERSION;
     const buildNumber = process.env.CURRENT_PROJECT_VERSION;
     const original = fs.readFileSync(projectPath, 'utf8');
-    let updated = replaceAppTargetBuildSetting(original, 'MARKETING_VERSION', marketingVersion);
-    updated = replaceAppTargetBuildSetting(updated, 'CURRENT_PROJECT_VERSION', buildNumber);
+    // The watch app and its widgets must carry the iPhone app's version and build number.
+    let updated = original;
+    for (const target of ['App', 'MindRoomWatch', 'MindRoomWatchWidgets']) {
+      updated = replaceAppTargetBuildSetting(updated, 'MARKETING_VERSION', marketingVersion, target);
+      updated = replaceAppTargetBuildSetting(updated, 'CURRENT_PROJECT_VERSION', buildNumber, target);
+    }
 
     fs.writeFileSync(projectPath, updated);
 NODE

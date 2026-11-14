@@ -6,8 +6,9 @@
 #   scripts/watch/build-sdk.sh            build on this Mac (rustup; the xtask runs watchOS targets
 #                                         with the nightly toolchain and rust-src), write the zip's
 #                                         sha256 to ios/Watch/sdk/checksum
-#   scripts/watch/build-sdk.sh --fetch    download the zip from the GitHub release named below and
-#                                         unpack it, refusing a checksum other than the recorded one
+#   scripts/watch/build-sdk.sh --fetch    download the zip from this repository's GitHub release named
+#                                         below (no sign-in) and unpack it, refusing a checksum other
+#                                         than the recorded one; Xcode Cloud runs this
 #   scripts/watch/build-sdk.sh --publish  build, then upload the zip to that release (creating it);
 #                                         a release step for the coordinator only
 #
@@ -27,6 +28,7 @@ RELEASE="watch-sdk-$TAG-$PATCH_ID"
 OUT=ios/Watch/MatrixRustSDK
 ZIP_NAME=MatrixSDKFFI.xcframework.zip
 SDK_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/mindroom-watch-sdk/$COMMIT"
+REPO_SLUG=mindroom-ai/mindroom-chat
 
 unpack() {
   rm -rf "$OUT/MatrixSDKFFI.xcframework" "$OUT/Sources"
@@ -36,7 +38,7 @@ unpack() {
 if [[ "${1:-}" == "--fetch" ]]; then
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' EXIT
-  gh release download "$RELEASE" --pattern "$ZIP_NAME" --dir "$tmp"
+  curl -fsSL --retry 3 -o "$tmp/$ZIP_NAME" "https://github.com/$REPO_SLUG/releases/download/$RELEASE/$ZIP_NAME"
   actual=$(shasum -a 256 "$tmp/$ZIP_NAME" | cut -d' ' -f1)
   expected=$(cat ios/Watch/sdk/checksum)
   if [[ "$actual" != "$expected" ]]; then
@@ -80,8 +82,8 @@ shasum -a 256 "$OUT/$ZIP_NAME" | cut -d' ' -f1 > ios/Watch/sdk/checksum
 echo "Built $RELEASE into $OUT ($(cat ios/Watch/sdk/checksum))"
 
 if [[ "${1:-}" == "--publish" ]]; then
-  gh release view "$RELEASE" >/dev/null 2>&1 ||
-    gh release create "$RELEASE" --prerelease --title "$RELEASE" \
+  gh release view "$RELEASE" --repo "$REPO_SLUG" >/dev/null 2>&1 ||
+    gh release create "$RELEASE" --repo "$REPO_SLUG" --prerelease --title "$RELEASE" \
       --notes "matrix-sdk-ffi $TAG ($COMMIT) for watchOS, built by scripts/watch/build-sdk.sh with ios/Watch/sdk/matrix-rust-sdk.patch."
-  gh release upload "$RELEASE" "$OUT/$ZIP_NAME" --clobber
+  gh release upload "$RELEASE" "$OUT/$ZIP_NAME" --repo "$REPO_SLUG" --clobber
 fi

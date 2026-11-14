@@ -39,3 +39,6 @@ npm --version
 pod --version
 
 npm ci
+
+# The Apple Watch app links matrix-rust-sdk, built once and published as a release asset.
+bash scripts/watch/build-sdk.sh --fetch
