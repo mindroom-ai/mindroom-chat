@@ -417,14 +417,20 @@ export const loadThreadCachedPaginationSnapshot = async ({
 }): Promise<ThreadCachedPaginationSnapshot> => {
   // The page also holds the replies of the earliest loaded reply's millisecond that sort after it:
   // some are older on the server and on no other page. Those the thread holds are dropped.
-  const cachedPage = await loadBefore(
-    sessionId,
-    roomId,
-    threadId,
-    getCachedThreadCursorAnchor(earliestLoadedReply?.event as Partial<IEvent> | undefined),
-    limit,
-    { withBeforeMillisecond: true }
+  const anchor = getCachedThreadCursorAnchor(
+    earliestLoadedReply?.event as Partial<IEvent> | undefined
   );
+  const loadedPage = await loadBefore(sessionId, roomId, threadId, anchor, limit, {
+    withBeforeMillisecond: true,
+  });
+  // The page's token belongs to its earliest reply. When no reply sorts before the anchor, that is
+  // one of the millisecond's, and its token would skip replies between it and the anchor that the
+  // cache lacks: the thread keeps its own cursor.
+  const reachesBelowAnchor = loadedPage.events.some(
+    ({ origin_server_ts: ts, event_id: eventId }) =>
+      !!anchor && (ts < anchor.ts || (ts === anchor.ts && eventId < anchor.eventId))
+  );
+  const cachedPage = reachesBelowAnchor ? loadedPage : { ...loadedPage, beforeToken: undefined };
   const newEvents = cachedPage.events.filter((rawEvent) => !heldEventIds.has(rawEvent.event_id));
   const events = mapCachedThreadPageEvents({
     events: newEvents,

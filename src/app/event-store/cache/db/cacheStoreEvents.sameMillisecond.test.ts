@@ -189,6 +189,40 @@ describe('thread replies of one millisecond', () => {
     expect(snapshot.events).toEqual([]);
   });
 
+  it.each([null, 'cached-token'])(
+    "keeps the server's cursor when only replies of the millisecond are new (saved token %s)",
+    async (token) => {
+      // A separate thread: $zzz was saved as the earliest of its page, with a backward token; no
+      // reply before $aaa's millisecond is cached, so the page reaches no further back than $aaa.
+      await saveThreadEventsToCache(
+        'session',
+        ROOM,
+        '$other',
+        [message('$zzz', 1000, '$other')],
+        undefined,
+        token
+      );
+      await saveThreadEventsToCache('session', ROOM, '$other', [message('$aaa', 1000, '$other')]);
+
+      const snapshot = await loadThreadCachedPaginationSnapshot({
+        sessionId: 'session',
+        roomId: ROOM,
+        threadId: '$other',
+        earliestLoadedReply: new MatrixEvent(message('$aaa', 1000, '$other')),
+        heldEventIds: new Set(['$aaa']),
+        limit: 10,
+        mapEvent: (raw) => new MatrixEvent(raw),
+      });
+
+      expect(snapshot.status).toBe('cache-hit');
+      expect(snapshot.events.map((event) => event.getId())).toEqual(['$zzz']);
+      // $zzz's token says what lies before $zzz, not before $aaa: replies between them that the
+      // cache lacks would be lost behind it.
+      expect(snapshot.cachedPage.beforeToken).toBeUndefined();
+      expect(snapshot.beforeToken).toBeUndefined();
+    }
+  );
+
   // The thread's snapshot pages from its own earliest cached reply, so its pages run on in cache
   // order and no reply of a millisecond falls between them, whatever the page size.
   it.each([1, 2, 3])('reads every reply in the thread snapshot with pages of %i', async (limit) => {
@@ -203,9 +237,9 @@ describe('thread replies of one millisecond', () => {
     expect(ids(snapshot?.events ?? [])).toEqual(['$older', '$aaa', '$zzz', '$newer']);
   });
 
-  // Classic's spans of a room's history run from a page's oldest event up to the next newer
-  // page's oldest event, so a millisecond's replies fall in one span or the next; a span whose
-  // start lies after its end (a page of only events of the millisecond) holds nothing.
+  // A span is exact in cache order: two spans that meet at a room event split a millisecond's
+  // replies between them, and a span whose start lies after its end (a room page of only events of
+  // the millisecond) holds nothing. Classic reads such meeting spans once the newer one was read.
   it('splits the replies of a millisecond between two spans that meet at a room event', async () => {
     const roomEvent = { eventId: '$raaa', ts: 1000 };
 
