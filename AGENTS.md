@@ -49,7 +49,7 @@ Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, 
 | `just format <paths>` | Prettier (2.8.8, matches the Lane P style) on the files you changed |
 | `just dev` | Vite on `http://127.0.0.1:4200`; also serves `/runtime-config.js`, `/authentication-recovery.js` and a development `/sw.js` |
 | `just build` | production build into `dist/`; `docs/deployment.md` "Build" and the `justfile` comment list what it holds |
-| `just bundle-report [<dist>] [args]` | what a first visit to a build downloads, its largest chunks, and the size budget `scripts/perf/bundle-budget.json`. Options: the `scripts/perf/bundle-report.mjs` header |
+| `just bundle-report [<dist>] [args]` | what a first visit to a build downloads, its largest chunks, and the size budget `scripts/perf/bundle-budget.json`, which CI checks after its build. Options: the `scripts/perf/bundle-report.mjs` header |
 | `just release [<commit>] [--dry-run] [--yes]` | tags GitHub main with the next calendar version `vYYYY.M.N` and publishes its release and container image; shows the plan and asks first. Options: the `justfile` comment; automatic releases: `docs/ios-release.md`; the image: `docs/deployment.md` |
 | `just license-check` | `scripts/license-check.mjs`: fails on any installed package outside the license allowlist; runs its `node --test` suite first |
 | `just verify-ported [legacy chat checkout]` | recomputes both Lane P import waves (`port_files.py --wave N --verify`); prints a notice and passes when no path is given |
