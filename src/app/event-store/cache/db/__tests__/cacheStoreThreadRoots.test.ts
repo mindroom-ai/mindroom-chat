@@ -203,7 +203,7 @@ describe('a cached thread whose root is another room’s', () => {
   });
 
   it('keeps another room’s reply out of a thread’s latest reply and summary', async () => {
-    const own = { ...notice('$own', 3_000) };
+    const own = notice('$own', 3_000);
     const foreign = { ...notice('$foreign', 4_000), room_id: OTHER_ROOM_ID };
     // A plain root takes the newest reply it holds; a summarized one, the newer replies.
     await save([own, foreign], { ...root(reply('pending'), 1), unsigned: {} });

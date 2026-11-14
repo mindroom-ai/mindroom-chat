@@ -53,6 +53,7 @@ import {
 } from './cacheStoreSchema';
 import {
   filterPageableCachedThreadEvents,
+  isOtherRoomEvent,
   isRawLocalEchoEventPublic,
   mergeThreadCacheFlag,
   mergeThreadExpectedReplyCount,
@@ -400,14 +401,6 @@ const toRawEventInternal = (
         : 0,
   };
 };
-
-/**
- * Whether `raw` names a room other than `roomId`. An event is its room's: one saved under a room
- * it does not name (an earlier version could do that) reads as absent there, and so does a thread
- * whose root does. Rows saved without a room ID read as the room's they were saved under.
- */
-export const isOtherRoomEvent = (raw: Partial<IEvent> | undefined, roomId: string): boolean =>
-  typeof raw?.room_id === 'string' && raw.room_id !== roomId;
 
 type ScopedCursorOptions = {
   sessionId: string;

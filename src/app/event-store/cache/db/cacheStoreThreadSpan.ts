@@ -11,8 +11,7 @@ import {
   type CachedEventRecord,
   type CachedMetaRecord,
 } from './cacheStoreSchema';
-import type { CursorAnchor } from './cacheStoreNormalize';
-import { isOtherRoomEvent } from './cacheStoreEvents';
+import { isOtherRoomEvent, type CursorAnchor } from './cacheStoreNormalize';
 
 /**
  * Every event the cache holds in a room's thread scopes from `from` (inclusive) to `before`
@@ -42,9 +41,10 @@ export const loadCachedThreadEventsInSpan = async (
       );
     metas.onsuccess = () => {
       (metas.result as CachedMetaRecord[]).forEach(({ roomId: metaRoomId, scope, rootEvent }) => {
-        // A thread whose root names another room is that room's, as the other thread readers hold.
-        if (metaRoomId !== roomId || !scope.startsWith('$') || isOtherRoomEvent(rootEvent, roomId))
-          return;
+        // Rows written before relations were checked can hold a scope of any type. A thread whose
+        // root names another room is that room's, as the other thread readers hold.
+        if (metaRoomId !== roomId || typeof scope !== 'string' || !scope.startsWith('$')) return;
+        if (isOtherRoomEvent(rootEvent, roomId)) return;
         const span = IDBKeyRange.bound(
           [roomId, scope, from.ts, from.eventId],
           before

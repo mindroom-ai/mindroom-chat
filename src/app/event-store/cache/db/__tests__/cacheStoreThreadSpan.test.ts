@@ -2,6 +2,8 @@ import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { deleteCacheStoreDb, saveRoomEventsToCache, saveThreadEventsToCache } from '../index';
 import { loadCachedThreadEventsInSpan } from '../cacheStoreThreadSpan';
+import { openCacheStore } from '../cacheStoreDb';
+import { META_STORE } from '../cacheStoreSchema';
 
 const SESSION_ID = 'cache-thread-span-session';
 const ROOM_ID = '!room:example.org';
@@ -86,5 +88,28 @@ describe('loadCachedThreadEventsInSpan', () => {
     expect(
       ids(await loadCachedThreadEventsInSpan(SESSION_ID, ROOM_ID, { eventId: '$x1', ts: 10 }))
     ).toEqual(['$y1']);
+  });
+
+  it('skips a meta row whose scope is not a string, as rows written before relations were checked', async () => {
+    await saveThreadEventsToCache(
+      SESSION_ID,
+      ROOM_ID,
+      '$a',
+      [rawEvent('$a1', 10)],
+      rawEvent('$a', 1)
+    );
+    const db = await openCacheStore(SESSION_ID);
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db!.transaction(META_STORE, 'readwrite');
+      transaction
+        .objectStore(META_STORE)
+        .put({ metaKey: `${ROOM_ID}|~`, roomId: ROOM_ID, scope: 7 });
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+
+    expect(
+      ids(await loadCachedThreadEventsInSpan(SESSION_ID, ROOM_ID, { eventId: '$a1', ts: 10 }))
+    ).toEqual(['$a1']);
   });
 });
