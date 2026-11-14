@@ -1,4 +1,4 @@
-import { type ComponentType, lazy, useState } from 'react';
+import { type ComponentType, lazy, Suspense, useState } from 'react';
 import {
   Navigate,
   Route,
@@ -36,6 +36,7 @@ import {
   ACTIVITY_ROOM_PATH,
   LOGIN_PATH,
   PLUGIN_ROOT_PATH,
+  QUICK_CAPTURE_PATH,
   REGISTER_PATH,
   RESET_PASSWORD_PATH,
   ROOT_PATH,
@@ -136,6 +137,19 @@ const Room = fromModule(
   (room) => room.Room
 );
 
+// The quick capture widget runs no Matrix client, so it loads on its own, outside ClientRoot.
+type QuickCaptureModule = typeof import('../quick-capture/QuickCapturePage');
+let quickCaptureModule: QuickCaptureModule | undefined;
+const QuickCapturePage = fromModule(
+  () => quickCaptureModule,
+  () =>
+    import('../quick-capture/QuickCapturePage').then((page) => {
+      quickCaptureModule = page;
+      return page;
+    }),
+  (page) => page.QuickCapturePage
+);
+
 const currentHref = (): string => (typeof window !== 'undefined' ? window.location.href : '');
 
 /** A room address: the MindRoom room view once joined, else its summary. */
@@ -199,6 +213,16 @@ export const createRouter = (clientConfig: ClientConfig) => {
       <Route
         path={CONNECT_PATH}
         element={localMindroomOffered ? <ConnectPage /> : <Navigate to={ROOT_PATH} replace />}
+      />
+      {/* The widget a signed-in app serves over a BroadcastChannel; signed out, it says so. Its
+          own route, or it would open as a space named "quick-capture" behind sign-in. */}
+      <Route
+        path={QUICK_CAPTURE_PATH}
+        element={
+          <Suspense fallback={null}>
+            <QuickCapturePage />
+          </Suspense>
+        }
       />
       <Route element={<AuthLayout />}>
         <Route path={LOGIN_PATH} Component={Login} />

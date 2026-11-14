@@ -205,8 +205,8 @@ describe('Explore room access wiring', () => {
   beforeEach(() => {
     mocks.roomCardProps.length = 0;
     mocks.failFeaturedSummary = false;
-    mocks.publicRooms.chunk[0].canonical_alias = '#server-room:example.org';
-    mocks.publicRooms.chunk[0].join_rule = JoinRule.Knock;
+    mocks.publicRooms.chunk[0]!.canonical_alias = '#server-room:example.org';
+    mocks.publicRooms.chunk[0]!.join_rule = JoinRule.Knock;
   });
 
   it('keeps a verified Featured alias target when its summary fails', () => {
@@ -320,7 +320,7 @@ describe('Explore room access wiring', () => {
   });
 
   it('keeps legacy public-directory rooms joinable when their rule is omitted', () => {
-    mocks.publicRooms.chunk[0].join_rule = undefined;
+    mocks.publicRooms.chunk[0]!.join_rule = undefined;
     const mx = makeMx();
     let renderer: ReturnType<typeof create>;
 
@@ -344,7 +344,7 @@ describe('Explore room access wiring', () => {
   });
 
   it('uses the explored server to route an aliasless remote knock', () => {
-    mocks.publicRooms.chunk[0].canonical_alias = undefined;
+    mocks.publicRooms.chunk[0]!.canonical_alias = undefined;
     const mx = makeMx();
 
     act(() => {

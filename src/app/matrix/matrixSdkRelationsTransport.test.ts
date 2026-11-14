@@ -60,7 +60,7 @@ describe('relations HTTP cancellation', () => {
       from: 'page',
       limit: 200,
     });
-    const url = new URL(fetchFn.mock.calls[0][0] as string);
+    const url = new URL(fetchFn.mock.calls[0]![0] as string);
     expect(url.pathname).toBe('/_matrix/client/v1/rooms/!room%3Aexample.org/relations/%24root');
     expect(Object.fromEntries(url.searchParams)).toEqual({
       dir: 'b',

@@ -34,7 +34,7 @@ const client = () => {
   return {
     calls,
     getUser: () => ({ displayName: 'Alice' }),
-    sendMessage: vi.fn(async (_roomId: string, threadIdOrContent: unknown) => {
+    sendMessage: vi.fn(async (_roomId: string, threadIdOrContent: unknown, _content?: unknown) => {
       const isRoot = !!threadIdOrContent && typeof threadIdOrContent === 'object';
       calls.push(isRoot ? 'send summary' : 'send file');
       return isRoot ? { event_id: '$summary' } : { event_id: '$file' };
@@ -65,7 +65,7 @@ describe('sendBugReport', () => {
     const result = await sendBugReport(mx as never, plainRoom as never, report);
     expect(result).toEqual({ roomId: '!reports:example.com', threadRootId: '$summary' });
 
-    const [summaryRoomId, summaryContent] = mx.sendMessage.mock.calls[0];
+    const [summaryRoomId, summaryContent] = mx.sendMessage.mock.calls[0]!;
     expect(summaryRoomId).toBe('!reports:example.com');
     expect(summaryContent).toMatchObject({
       msgtype: 'm.text',
@@ -77,7 +77,7 @@ describe('sendBugReport', () => {
       },
     });
 
-    const [fileRoomId, fileThreadId, fileContent] = mx.sendMessage.mock.calls[1];
+    const [fileRoomId, fileThreadId, fileContent] = mx.sendMessage.mock.calls[1]!;
     expect(fileRoomId).toBe('!reports:example.com');
     expect(fileThreadId).toBe('$summary');
     expect(fileContent).toMatchObject({
@@ -92,7 +92,7 @@ describe('sendBugReport', () => {
     const mx = client();
     const reportRoom = { roomId: '!reports:example.com', hasEncryptionStateEvent: () => true };
     await sendBugReport(mx as never, reportRoom as never, report);
-    const fileContent = mx.sendMessage.mock.calls[1][2] as Record<string, unknown>;
+    const fileContent = mx.sendMessage.mock.calls[1]![2] as Record<string, unknown>;
     expect(fileContent.url).toBeUndefined();
     expect(fileContent.file).toMatchObject({ url: 'mxc://example.com/abc', iv: 'iv' });
   });
@@ -101,7 +101,7 @@ describe('sendBugReport', () => {
     const mx = client();
     await sendBugReport(mx as never, plainRoom as never, report);
     expect(mx.calls).toEqual(['upload', 'send summary', 'send file']);
-    const uploaded = mx.uploadContent.mock.calls[0][0];
+    const uploaded = mx.uploadContent.mock.calls[0]![0];
     expect(await uploaded.text()).toBe(JSON.stringify(report));
   });
 

@@ -1,4 +1,3 @@
-import React from 'react';
 import { create } from 'react-test-renderer';
 import { createInstance } from 'i18next';
 import { I18nextProvider, Trans } from 'react-i18next';
@@ -10,7 +9,7 @@ describe('auth account links', () => {
     ['sharedUi.login.accountLink', 'Register'],
     ['sharedUi.register.accountLink', 'Login'],
     ['sharedUi.resetPassword.accountLink', 'Login'],
-  ])('renders the translated %s action inside its anchor', async (i18nKey, action) => {
+  ] as const)('renders the translated %s action inside its anchor', async (i18nKey, action) => {
     const language = createInstance();
     await language.init({
       lng: 'en',

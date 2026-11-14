@@ -475,7 +475,7 @@ describe('deep diagnostic trace storage failure', () => {
         [1_000, 2],
         [2_000, 3],
         [4_000, 4],
-      ]) {
+      ] as const) {
         expect(trace.getDeepTraceRuntimeStatus()).toBe('recording');
         await vi.advanceTimersByTimeAsync(delay - 50);
         expect(mocks.openDB).toHaveBeenCalledTimes(opens - 1);
@@ -528,7 +528,7 @@ describe('deep diagnostic trace storage failure', () => {
         );
         expect(snapshot.stats.droppedEventCount).toBeGreaterThan(0);
         expect(snapshot.events.at(-1)?.sequence).toBe(1202);
-        expect(snapshot.stats.oldestAt).toBe(snapshot.events[0].at);
+        expect(snapshot.stats.oldestAt).toBe(snapshot.events[0]!.at);
         expect(snapshot.stats.newestAt).toBe(snapshot.events.at(-1)?.at);
         expect(mocks.openDB).toHaveBeenCalledTimes(1);
       } finally {

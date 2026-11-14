@@ -10,3 +10,4 @@
 "VIDEO_CALL_FROM_USER" = "%1$@ kişisinden görüntülü arama";
 "USER_INVITE_TO_NAMED_ROOM" = "%1$@ sizi %2$@ odasına davet etti";
 "USER_INVITE_TO_CHAT" = "%1$@ sizi bir sohbete davet etti";
+"QUICK_CAPTURE" = "Hızlı Yakalama";

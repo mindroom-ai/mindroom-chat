@@ -432,7 +432,7 @@ describe('MembersDrawer', () => {
     expect(invitedButtons).toHaveLength(1);
 
     act(() => {
-      invitedButtons[0].props.onClick();
+      invitedButtons[0]!.props.onClick();
     });
 
     expect(hasVisibleFilterLabel(renderer, 'Invited')).toBe(true);
@@ -446,7 +446,7 @@ describe('MembersDrawer', () => {
       renderer = create(React.createElement(MembersDrawer, { room, members: [] }));
     });
     act(() => {
-      findButtonsWithLabel(renderer, '2 Invited')[0].props.onClick();
+      findButtonsWithLabel(renderer, '2 Invited')[0]!.props.onClick();
     });
     expect(hasVisibleFilterLabel(renderer, 'Invited')).toBe(true);
 

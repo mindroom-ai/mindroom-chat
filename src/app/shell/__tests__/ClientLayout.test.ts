@@ -44,7 +44,7 @@ describe('ClientLayout', () => {
       getRooms: () => [],
       getSyncState: () => null,
       getRoomIdForAlias: vi.fn().mockRejectedValue(new Error('alias not found')),
-    } as ReturnType<typeof useMatrixClient>);
+    } as unknown as ReturnType<typeof useMatrixClient>);
   });
 
   afterEach(() => {
@@ -146,7 +146,7 @@ describe('ClientLayout', () => {
           }),
         },
       ],
-    } as ReturnType<typeof useMatrixClient>);
+    } as unknown as ReturnType<typeof useMatrixClient>);
     vi.mocked(useActiveSession).mockReturnValue({
       sessionId: 'session-a',
       baseUrl: 'https://chat.mindroom.chat',
@@ -191,7 +191,7 @@ describe('ClientLayout', () => {
       getRooms: () => [],
       getSyncState: () => null,
       getRoomIdForAlias,
-    } as ReturnType<typeof useMatrixClient>);
+    } as unknown as ReturnType<typeof useMatrixClient>);
     vi.mocked(useActiveSession).mockReturnValue({
       sessionId: 'session-a',
       baseUrl: 'https://chat.mindroom.chat',

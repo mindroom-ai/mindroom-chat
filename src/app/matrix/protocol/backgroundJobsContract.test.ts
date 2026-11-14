@@ -62,7 +62,7 @@ describe('parseBackgroundJobsStateEvent', () => {
 
   it('maps a missing thread to the main timeline', () => {
     const [parsed] = parseBackgroundJobsStateEvent(jobsEvent([job('job_1', { thread_id: null })]));
-    expect(parsed.threadId).toBeNull();
+    expect(parsed!.threadId).toBeNull();
   });
 });
 

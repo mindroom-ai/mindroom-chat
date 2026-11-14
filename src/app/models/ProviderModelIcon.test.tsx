@@ -1,4 +1,3 @@
-import React from 'react';
 import { create } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
 import { ProviderModelIcon } from './ProviderModelIcon';

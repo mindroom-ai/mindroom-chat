@@ -3,6 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import {
   EventStatus,
   MatrixEvent,
+  MsgType,
   PendingEventOrdering,
   Room,
   type MatrixClient,
@@ -85,10 +86,10 @@ describe('createMatrixFetchFn', () => {
     });
     await fetchFn('https://other.example/_matrix/client/v3/sync', { method: 'GET' });
 
-    const headers = new Headers(baseFetch.mock.calls[0][1].headers);
+    const headers = new Headers(baseFetch.mock.calls[0]![1].headers);
     expect(headers.get('cf-access-token')).toBe('access-token');
     expect(headers.get('authorization')).toBe('Bearer matrix-token');
-    expect(baseFetch.mock.calls[1][1]).toEqual({ method: 'GET' });
+    expect(baseFetch.mock.calls[1]![1]).toEqual({ method: 'GET' });
   });
 
   it('refuses redirects for requests carrying the Cloudflare Access token', async () => {
@@ -99,7 +100,7 @@ describe('createMatrixFetchFn', () => {
 
     await fetchFn('https://hs.example/_matrix/client/v3/sync');
 
-    expect(baseFetch.mock.calls[0][1].redirect).toBe('error');
+    expect(baseFetch.mock.calls[0]![1].redirect).toBe('error');
     mocks.getCloudflareAccessToken.mockReset();
   });
 
@@ -186,7 +187,7 @@ describe('createMatrixClient message sends', () => {
     });
     mx.store.storeRoom(room);
     const send = (txnId = 'txn-1') => {
-      const sending = mx.sendMessage(room.roomId, { msgtype: 'm.text', body: 'hello' }, txnId);
+      const sending = mx.sendMessage(room.roomId, { msgtype: MsgType.Text, body: 'hello' }, txnId);
       // Attach immediately: the send can reject while timers advance.
       const outcome = sending.catch((error: Error) => error);
       return { outcome, event: room.getEventForTxnId(txnId)! };

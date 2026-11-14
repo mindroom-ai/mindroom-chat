@@ -156,6 +156,21 @@ describe('application bootstrap', () => {
     expect(mocks.createRoot).toHaveBeenCalledOnce();
   });
 
+  it("leaves the recorders to the main web view in the quick capture widget's", async () => {
+    mocks.isNativeIOS.mockReturnValue(true);
+    const originalUrl = window.location.href;
+    window.history.replaceState(null, '', '/quick-capture/');
+    try {
+      await import('./index');
+    } finally {
+      window.history.replaceState(null, '', originalUrl);
+    }
+
+    expect(mocks.installFlightRecorder).not.toHaveBeenCalled();
+    expect(mocks.initializeDeepTraceRecorder).not.toHaveBeenCalled();
+    expect(mocks.createRoot).toHaveBeenCalledOnce();
+  });
+
   it('continues boot when recorder route classification throws', async () => {
     mocks.isNativeIOS.mockReturnValue(true);
     mocks.installFlightRecorder.mockImplementationOnce(() => {
@@ -205,7 +220,7 @@ describe('application bootstrap', () => {
     });
     // Recorded earlier, the event would be dropped silently.
     expect(mocks.initializeDeepTraceRecorder.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.recordDeepTraceEvent.mock.invocationCallOrder[0]
+      mocks.recordDeepTraceEvent.mock.invocationCallOrder[0]!
     );
     expect(mocks.installIndexedDbLossRecovery).toHaveBeenCalledOnce();
   });
@@ -309,7 +324,7 @@ describe('application bootstrap', () => {
         }
         await vi.waitFor(() => expect(navigationUrls).toHaveLength(1));
 
-        const destination = new URL(navigationUrls[0]);
+        const destination = new URL(navigationUrls[0]!);
         expect(destination.pathname + destination.search + destination.hash).toBe(
           '/home/room?threadId=reply&authentication-recovery-navigation=1#event'
         );
