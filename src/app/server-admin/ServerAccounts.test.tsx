@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   rooms: vi.fn(),
   run: vi.fn(),
+  supports: vi.fn(),
   client: { getUserId: () => '@alice:example.com' },
 }));
 
@@ -65,6 +66,11 @@ vi.mock('./accounts', async (original) => ({
   runAccountAction: mocks.run,
 }));
 
+vi.mock('./invites', () => ({ supportsRegistrationInvites: mocks.supports }));
+vi.mock('./RegistrationInvites', () => ({
+  RegistrationInvites: () => React.createElement('aside', null, 'Invites'),
+}));
+
 const account = (userId: string, fields: Partial<ServerAccount> = {}): ServerAccount => ({
   userId,
   admin: false,
@@ -116,6 +122,7 @@ const filterLabels = (root: ReactTestInstance) =>
 beforeEach(() => {
   mocks.rooms.mockResolvedValue([{ roomId: '!lobby:example.com', name: 'Lobby' }]);
   mocks.run.mockResolvedValue(undefined);
+  mocks.supports.mockResolvedValue(false);
 });
 
 afterEach(() => {
@@ -125,6 +132,24 @@ afterEach(() => {
 });
 
 describe('ServerAccounts', () => {
+  it('shows no invites, and no error, on a homeserver without registration invites', async () => {
+    const root = await render([ALICE, BOB]);
+
+    expect(mocks.supports).toHaveBeenCalledWith(mocks.client);
+    expect(root.findAllByType('aside')).toEqual([]);
+    expect(root.findAllByProps({ role: 'alert' })).toEqual([]);
+    expect(rowIds(root)).toEqual(['@alice:example.com', '@bob:example.com']);
+  });
+
+  it('shows the invites above the accounts on a homeserver that has them', async () => {
+    mocks.supports.mockResolvedValue(true);
+    const root = await render([ALICE, BOB]);
+
+    expect(root.findAllByType('aside')).toHaveLength(1);
+    expect(text(root).indexOf('Invites')).toBeLessThan(text(root).indexOf('Accounts'));
+    expect(rowIds(root)).toEqual(['@alice:example.com', '@bob:example.com']);
+  });
+
   it('lists every account, without the external badge and filters when the server marks none', async () => {
     const root = await render([ALICE, BOB, DAVE]);
 

@@ -5,11 +5,8 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { Dialog, Header, IconButton } from '../ui/glass/GlassPrimitives';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useAlive } from '../lib/hooks/useAlive';
-import {
-  createSessionRequestClient,
-  logoutClient,
-  logoutStoredSession,
-} from './lifecycle/initMatrix';
+import { createSessionRequestClient, logoutStoredSession } from './lifecycle/initMatrix';
+import { logoutClient } from './lifecycle/sessionLifecycle';
 import type { StoredSession } from '../matrix/session/sessions';
 import { ContainerColor } from '../ui/styles/ContainerColor.css';
 import { describeKnownError } from '../lib/describeError';

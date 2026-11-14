@@ -976,6 +976,30 @@
       "unsuspend": "Revocare la sospensione di {{user}}? L'account può di nuovo inviare messaggi ed entrare nelle stanze.",
       "deactivate": "Disattivare {{user}}? L'account lascia le sue stanze e non potrà mai più accedere. L'operazione non può essere annullata."
     },
-    "protected": "Gli amministratori e il tuo account non possono essere modificati qui."
+    "protected": "Gli amministratori e il tuo account non possono essere modificati qui.",
+    "accounts": "Account",
+    "invites": {
+      "title": "Inviti",
+      "description": "Un indirizzo email invitato può creare un account qui accedendo con quell'indirizzo.",
+      "sendYourself": "Non viene inviata alcuna email: copia l'invito e invialo tu.",
+      "add": "Invita via email",
+      "none": "Nessun invito in sospeso",
+      "loadFailed": "Impossibile caricare gli inviti.",
+      "addresses": "Indirizzi email",
+      "addressesHint": "Separa più indirizzi con virgole o a capo.",
+      "rooms": "Stanze in cui entra il nuovo account",
+      "external": "Account esterno",
+      "invited": "Invitato",
+      "replaces": "Sostituisce l'invito precedente",
+      "copy": "Copia invito",
+      "message": "Hai ricevuto un invito a {{url}}. Accedi con {{providers}}, usando esattamente questo indirizzo email: {{email}}",
+      "messagePlain": "Hai ricevuto un invito a {{url}}. Accedi usando esattamente questo indirizzo email: {{email}}",
+      "delete": "Elimina invito",
+      "confirmDelete": "Eliminare l'invito per {{email}}? Non potrà più essere usato per creare un account.",
+      "errors": {
+        "inUse": "{{user}} ha già questo indirizzo.",
+        "invalidAddress": "Non è un indirizzo email valido."
+      }
+    }
   }
 }

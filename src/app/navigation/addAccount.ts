@@ -28,7 +28,7 @@ export const resolveAddAccountReturnPath = (
 
 export const withAddAccountSearch = (path: string): string => {
   const [pathWithSearch, hash = ''] = path.split('#', 2);
-  const [pathname, search = ''] = pathWithSearch.split('?', 2);
+  const [pathname, search = ''] = pathWithSearch!.split('?', 2);
   const searchParams = new URLSearchParams(search);
 
   searchParams.set(ADD_ACCOUNT_SEARCH_PARAM, ADD_ACCOUNT_SEARCH_VALUE);

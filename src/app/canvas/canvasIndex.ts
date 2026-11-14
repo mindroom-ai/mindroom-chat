@@ -211,10 +211,10 @@ const sameCanvases = (held: CanvasListEntry[], read: CanvasListEntry[]): boolean
   held.length === read.length &&
   held.every(
     (entry, index) =>
-      entry.canvasId === read[index].canvasId &&
-      entry.revisionId === read[index].revisionId &&
-      entry.updatedTs === read[index].updatedTs &&
-      entry.title === read[index].title
+      entry.canvasId === read[index]!.canvasId &&
+      entry.revisionId === read[index]!.revisionId &&
+      entry.updatedTs === read[index]!.updatedTs &&
+      entry.title === read[index]!.title
   );
 
 /** This conversation's canvases (`threadId` undefined: the room's main timeline), newest update first. */

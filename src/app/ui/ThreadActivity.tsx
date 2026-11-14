@@ -1,4 +1,4 @@
-import React, { ReactNode, useId, useState } from 'react';
+import { ReactNode, useId, useState } from 'react';
 import { Icon, Icons, IconSrc, Spinner } from 'folds';
 import * as css from './ThreadActivity.css';
 import { IsolatedText, ownDirectionLine } from './directional';

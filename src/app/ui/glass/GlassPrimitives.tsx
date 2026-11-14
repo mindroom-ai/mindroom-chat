@@ -1,4 +1,4 @@
-import React, { ComponentProps, Ref } from 'react';
+import { ComponentProps, Ref } from 'react';
 import classNames from 'classnames';
 import {
   ContainerColor,

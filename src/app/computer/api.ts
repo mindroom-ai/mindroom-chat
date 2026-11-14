@@ -38,7 +38,7 @@ const isLocalComputerHost = (hostname: string): boolean => {
   return (
     octets.every((octet) => Number.isInteger(octet) && octet >= 0 && octet <= 255) &&
     (octets[0] === 10 ||
-      (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+      (octets[0] === 172 && octets[1]! >= 16 && octets[1]! <= 31) ||
       (octets[0] === 192 && octets[1] === 168))
   );
 };

@@ -44,11 +44,11 @@ vi.mock('matrix-js-sdk/lib/http-api/interface', () => ({
   HttpApiEvent: { SessionLoggedOut: 'Session.logged_out' },
 }));
 vi.mock('../account/lifecycle/initMatrix', () => ({
-  clearAllCacheAndReload: vi.fn(),
   initClient: vi.fn(),
-  logoutClient: vi.fn(),
 }));
 vi.mock('../account/lifecycle/sessionLifecycle', () => ({
+  clearAllCacheAndReload: vi.fn(),
+  logoutClient: vi.fn(),
   removeCurrentClientSessionAndReload: vi.fn(),
   removeSessionAndReload: vi.fn(),
 }));

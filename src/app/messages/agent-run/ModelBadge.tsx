@@ -1,4 +1,4 @@
-import React, { type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AiRunInfo } from '../../matrix/protocol/aiRun';
 import { getAiRunCompactModelLabel, getAiRunModelLabel } from './aiRunDisplay';

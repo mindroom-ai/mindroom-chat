@@ -1,4 +1,4 @@
-import React, { type ReactNode, type RefCallback } from 'react';
+import { type ReactNode, type RefCallback } from 'react';
 import { Box, Text, Tooltip, type Align, type Position } from 'folds';
 import { TooltipProvider } from './directional';
 import { ShortcutLabel } from '../shortcuts/ShortcutKeys';

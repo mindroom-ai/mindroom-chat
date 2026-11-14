@@ -351,7 +351,7 @@ export function BackgroundJobsBar({
                   <Text size="B300">{t('mindroomUi.backgroundJobs.stopAll')}</Text>
                 </Chip>
               )
-            : !single.stopping && stop(single, false)}
+            : !single!.stopping && stop(single!, false)}
         </div>
         {shownFailures.length > 0 && (
           <Text as="small" size="T200" role="alert" className={css.Alert}>

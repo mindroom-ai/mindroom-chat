@@ -33,7 +33,7 @@ export const formatVoicePlaybackRate = (rate: VoicePlaybackRate): string => `${r
 
 export const cycleVoicePlaybackRate = (rate: VoicePlaybackRate): VoicePlaybackRate => {
   const currentIndex = VOICE_PLAYBACK_RATES.indexOf(rate);
-  return VOICE_PLAYBACK_RATES[(currentIndex + 1) % VOICE_PLAYBACK_RATES.length];
+  return VOICE_PLAYBACK_RATES[(currentIndex + 1) % VOICE_PLAYBACK_RATES.length]!;
 };
 
 const getStoredVoicePlaybackRate = (key: string): VoicePlaybackRate =>

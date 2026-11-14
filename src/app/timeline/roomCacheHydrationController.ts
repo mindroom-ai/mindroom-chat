@@ -147,7 +147,7 @@ export const useRoomCacheHydrationController = ({
           mx,
           room,
           events: [...prependEvents].reverse(),
-          firstTimeline: currentLinkedTimelines[0],
+          firstTimeline: currentLinkedTimelines[0]!,
           beforeToken: hydrationSnapshot.cachedPage.beforeToken,
           showThreadRepliesInRoom: false,
         });

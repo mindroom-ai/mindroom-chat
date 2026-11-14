@@ -107,17 +107,10 @@ export const getVisibleThreadEventBodyPreviewText = (
 export const getLatestRenderableVisibleThreadReplyEvent = (
   replyEvents: MatrixEvent[]
 ): MatrixEvent | undefined => {
-  for (let i = replyEvents.length - 1; i >= 0; i -= 1) {
-    const event = replyEvents[i];
-    if (!getVisibleThreadEventBodyPreviewText(event)) continue;
-
-    // A title notice is never a reply preview: the card's title line already shows it.
-    if (isThreadSummaryEvent(event)) continue;
-
-    return event;
-  }
-
-  return undefined;
+  // A title notice is never a reply preview: the card's title line already shows it.
+  return replyEvents.findLast(
+    (event) => !!getVisibleThreadEventBodyPreviewText(event) && !isThreadSummaryEvent(event)
+  );
 };
 
 export const getPreferredVisibleThreadReplyEvents = (
@@ -180,7 +173,7 @@ export const getVisibleThreadParticipantIds = (
   const seenParticipantIds = new Set<string>();
 
   for (let i = replyEvents.length - 1; i >= 0 && participantIds.length < maxParticipants; i -= 1) {
-    const senderId = replyEvents[i].getSender?.();
+    const senderId = replyEvents[i]!.getSender?.();
     if (!senderId || seenParticipantIds.has(senderId)) continue;
 
     seenParticipantIds.add(senderId);

@@ -65,9 +65,9 @@ export const presentBackgroundJobs = (
         : t('mindroomUi.backgroundJobs.jobCount', { count: jobs.length });
     return { title, items };
   }
-  const tool = items[0].name;
+  const tool = items[0]!.name;
   if (finished) return { title: t('mindroomUi.backgroundJobs.finished', { tool }), items };
-  if (items[0].stopping)
+  if (items[0]!.stopping)
     return { title: t('mindroomUi.backgroundJobs.stoppingJob', { tool }), items };
   if (awaitingApproval(first))
     return { title: t('mindroomUi.backgroundJobs.awaitingApproval', { tool }), items };
