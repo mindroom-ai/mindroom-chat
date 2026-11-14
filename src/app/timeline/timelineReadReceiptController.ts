@@ -171,8 +171,9 @@ const readRoomOnNextFrame = (
 };
 
 /**
- * Reads the open thread once its opening scroll corrections settle, on the next frame: its
- * tail is loaded, it is past its loading render, and it has a row. It reads up to the reply it
+ * Reads the open thread on the next frame once the scroll area rests at the end of its scroll
+ * range, or after the last of `THREAD_LANDING_RESTS` rests: its tail is loaded, it is past its
+ * loading render, and it has a row. It reads up to the reply it
  * renders last (`threadEvents`): the tail can count as loaded while only the root is rendered.
  */
 const readThreadOnceLanded = (context: ReadContext, stillReading: StillReading): void => {
