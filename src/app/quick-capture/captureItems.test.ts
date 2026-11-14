@@ -117,13 +117,15 @@ describe('buildCaptureItems', () => {
     expect(item?.lineSender).toBe('Ada');
   });
 
-  it('cuts replyText to 600 characters without splitting a surrogate pair', () => {
+  it('cuts replyText to 600 characters and an ellipsis without splitting a surrogate pair', () => {
     const plain = buildCaptureItems([withReply({ replyText: 'x'.repeat(900) })], NOW)[0];
-    expect(plain?.replyText).toHaveLength(MAX_REPLY_TEXT);
+    expect(plain?.replyText).toBe(`${'x'.repeat(MAX_REPLY_TEXT)}…`);
+    const fits = buildCaptureItems([withReply({ replyText: 'x'.repeat(MAX_REPLY_TEXT) })], NOW)[0];
+    expect(fits?.replyText).toBe('x'.repeat(MAX_REPLY_TEXT));
 
     const emoji = `${'x'.repeat(MAX_REPLY_TEXT - 1)}😀tail`;
     const cut = buildCaptureItems([withReply({ replyText: emoji })], NOW)[0];
-    expect(cut?.replyText).toBe('x'.repeat(MAX_REPLY_TEXT - 1));
+    expect(cut?.replyText).toBe(`${'x'.repeat(MAX_REPLY_TEXT - 1)}…`);
   });
 
   it('gives an empty line and no replyText without a reply', () => {
@@ -142,7 +144,7 @@ describe('buildCaptureItems', () => {
     expect(reply).not.toHaveBeenCalled();
   });
 
-  it('carries the reply as written where it differs, cut as the cleaned one', () => {
+  it('carries the reply as written where it differs, whole where the cleaned one is cut', () => {
     const [own] = buildCaptureItems(
       [withReply({ replyText: 'Tool: 1 call. Done', copyText: '**Done**' })],
       NOW
@@ -151,10 +153,11 @@ describe('buildCaptureItems', () => {
     const [same] = buildCaptureItems([withReply({ replyText: 'Done', copyText: 'Done' })], NOW);
     expect(same).not.toHaveProperty('copyText');
     const [long] = buildCaptureItems(
-      [withReply({ replyText: 'x', copyText: 'y'.repeat(900) })],
+      [withReply({ replyText: 'y'.repeat(900), copyText: 'y'.repeat(900) })],
       NOW
     );
-    expect(long?.copyText).toHaveLength(MAX_REPLY_TEXT);
+    expect(long?.replyText).toBe(`${'y'.repeat(MAX_REPLY_TEXT)}…`);
+    expect(long?.copyText).toBe('y'.repeat(900));
   });
 
   it('marks a pinned thread, and only that one', () => {

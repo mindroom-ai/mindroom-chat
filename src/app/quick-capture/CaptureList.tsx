@@ -50,6 +50,9 @@ type CaptureListProps = {
  * The room's threads. The selected row is the one with the focus, followed by its thread id, so a
  * new state that reorders the list keeps it; the peek shows under it with the reply field.
  */
+
+/** What Copy puts on the clipboard: the reply as written, else as the peek shows it. */
+const copyTextOf = (item: CaptureItem): string => item.copyText ?? item.replyText ?? item.line;
 export function CaptureList({
   roomId,
   roomName,
@@ -67,7 +70,8 @@ export function CaptureList({
   const baseId = useId();
   const [selectedId, setSelectedId] = useState<string>();
   const [rowError, setRowError] = useState<{ threadId: string; code: CaptureErrorCode }>();
-  const [copiedId, setCopiedId] = useState<string>();
+  // What was copied, so "Copied" goes once the reply changes.
+  const [copied, setCopied] = useState<{ threadId: string; text: string }>();
   const [draft, setDraft] = useState({ threadId: '', text: '' });
   const [replying, setReplying] = useState(false);
   const replyingRef = useRef(false);
@@ -146,9 +150,9 @@ export function CaptureList({
   };
 
   const copy = async (item: CaptureItem) => {
-    const text = item.copyText ?? item.replyText ?? item.line;
+    const text = copyTextOf(item);
     if (text === '') return;
-    if (await copyToClipboard(text)) setCopiedId(item.threadId);
+    if (await copyToClipboard(text)) setCopied({ threadId: item.threadId, text });
   };
 
   const startReply = (item: CaptureItem) => {
@@ -365,7 +369,7 @@ export function CaptureList({
                 <div className={css.PeekActions}>
                   {answer !== '' && (
                     <PeekButton keyCap="C" onClick={() => void copy(item)}>
-                      {copiedId === item.threadId
+                      {copied?.threadId === item.threadId && copied.text === copyTextOf(item)
                         ? t('featureUi.quickCapture.peek.copied')
                         : t('featureUi.quickCapture.peek.copy')}
                     </PeekButton>

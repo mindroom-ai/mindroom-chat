@@ -1,5 +1,4 @@
 import {
-  useEffect,
   useRef,
   useState,
   type ClipboardEvent,
@@ -59,6 +58,9 @@ const caretOnLastLine = (field: HTMLTextAreaElement): boolean =>
 
 type ToolProps = { label: string; icon: IconSrc; disabled: boolean; onClick: () => void };
 
+/** The thread a send that failed part way started: the entry's rest goes in it, not in a new one. */
+export type CaptureStarted = { roomId: string; threadId: string };
+
 type CaptureInputProps = {
   /** Null while no room is chosen: a send opens the picker instead. */
   roomId: string | null;
@@ -67,6 +69,8 @@ type CaptureInputProps = {
   /** The attached images, held with the text above the widget. */
   images: File[];
   onImages: Dispatch<SetStateAction<File[]>>;
+  started: CaptureStarted | undefined;
+  onStarted: (started: CaptureStarted | undefined) => void;
   request: CaptureClient['request'];
   apple: boolean;
   inputRef: RefObject<HTMLTextAreaElement>;
@@ -87,6 +91,8 @@ export function CaptureInput({
   onText,
   images,
   onImages: setImages,
+  started,
+  onStarted: setStarted,
   request,
   apple,
   inputRef,
@@ -100,12 +106,6 @@ export function CaptureInput({
   const sendingRef = useRef(false);
   const [sendError, setSendError] = useState<CaptureErrorCode>();
   const [shotError, setShotError] = useState<ScreenshotErrorCode>();
-  // The thread a send that failed part way started: the entry's rest goes in it, not in a new one.
-  const [started, setStarted] = useState<{ roomId: string; threadId: string }>();
-  // An entry emptied by hand is a new one.
-  useEffect(() => {
-    if (text === '' && images.length === 0) setStarted(undefined);
-  }, [text, images]);
   const screenshots = isNativeQuickCaptureAvailable();
   const full = images.length >= MAX_CAPTURE_IMAGES;
 

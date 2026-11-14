@@ -109,6 +109,12 @@ const showsClassic = ({ mx, store }: HostContext, roomId: string): boolean => {
   );
 };
 
+/** Opens the thread as the sidebar's thread entries do: Classic shows its replies in the room. */
+const openThread = (context: HostContext, roomId: string, threadId: string): void => {
+  if (showsClassic(context, roomId)) context.navigation.navigateRoom(roomId, threadId);
+  else context.navigation.navigateRoomThreadDirect(roomId, threadId);
+};
+
 /**
  * Runs one of the widget's requests on the client; a failure throws. A room the widget does not
  * list (left, archived, replaced) is no room, even while the client still has it.
@@ -125,7 +131,7 @@ const runAction = async (context: HostContext, action: CaptureAction): Promise<C
       if (action.open) {
         // The entry is posted: a thread that does not open leaves the answer as it is.
         try {
-          navigation.navigateRoomThreadDirect(room.roomId, threadId);
+          openThread(context, room.roomId, threadId);
         } catch (error) {
           console.warn('[quick-capture] could not open the new thread', error);
         }
@@ -142,11 +148,8 @@ const runAction = async (context: HostContext, action: CaptureAction): Promise<C
       store.set(roomAtom, room.roomId);
       return OK;
     case 'open':
-      // As the sidebar's thread entries open a thread: Classic shows its replies in the room.
       if (action.threadId === undefined) navigation.navigateRoom(room.roomId);
-      else if (showsClassic(context, room.roomId)) {
-        navigation.navigateRoom(room.roomId, action.threadId);
-      } else navigation.navigateRoomThreadDirect(room.roomId, action.threadId);
+      else openThread(context, room.roomId, action.threadId);
       return OK;
     case 'read':
       await markThreadAsRead(mx, room.roomId, action.threadId, hideActivity);

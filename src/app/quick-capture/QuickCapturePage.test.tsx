@@ -273,6 +273,17 @@ describe('QuickCapturePage and its host', () => {
     expect(rig.hellos()).toBe(3);
   });
 
+  it('sends the rest of an entry that failed part way into its thread after the host comes back', async () => {
+    const rig = setup();
+    paste([png('a.png'), png('b.png')]);
+    press(input(), 'Enter');
+    await rig.respond({ ok: false, error: 'send-failed', posted: { threadId: '$t', images: 1 } });
+    rig.deliver({ v: 1, type: 'gone', hostId: HOST });
+    rig.pushState(roomState());
+    press(input(), 'Enter');
+    expect(rig.actions().at(-1)).toMatchObject({ kind: 'send', threadId: '$t' });
+  });
+
   it('keeps the text and the images of the entry while the host goes and comes back', () => {
     const rig = setup();
     paste([png('a.png')]);
@@ -809,6 +820,16 @@ describe('QuickCapturePage list', () => {
     expect(await screen.findByRole('button', { name: 'Copied' })).toBeTruthy();
   });
 
+  it('says Copied until the reply changes', async () => {
+    const rig = setup();
+    press(input(), 'ArrowDown');
+    press(row('Why does slot 27 flake'), ' ');
+    press(row('Why does slot 27 flake'), 'c');
+    expect(await screen.findByRole('button', { name: 'Copied' })).toBeTruthy();
+    rig.pushState(roomState([{ ...ITEMS[0]!, replyText: 'Running the suite again, traces on.' }]));
+    expect(screen.getByRole('button', { name: 'Copy' })).toBeTruthy();
+  });
+
   it('copies the reply as its sender wrote it, where the item has that', () => {
     setup(
       roomState([
@@ -971,6 +992,17 @@ describe('QuickCapturePage Escape and focus', () => {
     press(copy, 'Escape');
     expect(screen.queryByRole('button', { name: 'Copy' })).toBeNull();
     expect(document.activeElement).toBe(row('Why does slot 27 flake'));
+  });
+
+  it('closes the peek as the picker opens, so the next Escape hides the widget', () => {
+    setup();
+    press(input(), 'ArrowDown');
+    press(row('Why does slot 27 flake'), ' ');
+    fireEvent.click(screen.getByRole('button', { name: /Change room/ }));
+    press(document.activeElement ?? document.body, 'Escape');
+    expect(hideQuickCapture).not.toHaveBeenCalled();
+    press(input(), 'Escape');
+    expect(hideQuickCapture).toHaveBeenCalledTimes(1);
   });
 
   it('closes the picker before anything else', () => {

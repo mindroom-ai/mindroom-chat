@@ -24,11 +24,12 @@ export type CaptureThread = {
 
 const isHighSurrogate = (code: number): boolean => code >= 0xd800 && code <= 0xdbff;
 
-/** Cuts text to the limit, backing up one unit rather than leaving half a surrogate pair. */
+/** Cuts text to the limit, with an ellipsis, backing up one unit rather than leaving half a surrogate pair. */
 const cutReplyText = (text: string): string => {
   if (text.length <= MAX_REPLY_TEXT) return text;
   const lastKept = text.charCodeAt(MAX_REPLY_TEXT - 1);
-  return text.slice(0, isHighSurrogate(lastKept) ? MAX_REPLY_TEXT - 1 : MAX_REPLY_TEXT);
+  const kept = text.slice(0, isHighSurrogate(lastKept) ? MAX_REPLY_TEXT - 1 : MAX_REPLY_TEXT);
+  return `${kept.trimEnd()}…`;
 };
 
 const chipOf = (thread: CaptureThread): CaptureChip | undefined => {
@@ -42,7 +43,8 @@ const chipOf = (thread: CaptureThread): CaptureChip | undefined => {
 const toItem = (thread: CaptureThread): CaptureItem => {
   const reply = thread.reply();
   const replyText = reply.replyText ? cutReplyText(reply.replyText) : undefined;
-  const copyText = reply.copyText ? cutReplyText(reply.copyText) : undefined;
+  // Copied whole: a Matrix event holds at most 64 KiB.
+  const copyText = reply.copyText || undefined;
   const chip = chipOf(thread);
   return {
     threadId: thread.threadId,

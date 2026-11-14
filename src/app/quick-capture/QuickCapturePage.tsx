@@ -19,7 +19,7 @@ import {
 import { keyCapsOf, usesCommandKey } from '../shortcuts/shortcuts';
 import { ownDirectionLine } from '../ui/directional';
 import type { CaptureChannel, CaptureClient } from './captureChannel';
-import { CaptureInput } from './CaptureInput';
+import { CaptureInput, type CaptureStarted } from './CaptureInput';
 import type { CaptureZone } from './captureKeys';
 import { CaptureList } from './CaptureList';
 import type { CaptureState } from './captureProtocol';
@@ -100,10 +100,21 @@ type CaptureWidgetProps = {
   onText: (text: string) => void;
   images: File[];
   onImages: Dispatch<SetStateAction<File[]>>;
+  started: CaptureStarted | undefined;
+  onStarted: (started: CaptureStarted | undefined) => void;
 };
 
 /** The connected widget: the room, the entry, and the room's threads or the room picker. */
-function CaptureWidget({ state, request, text, onText, images, onImages }: CaptureWidgetProps) {
+function CaptureWidget({
+  state,
+  request,
+  text,
+  onText,
+  images,
+  onImages,
+  started,
+  onStarted,
+}: CaptureWidgetProps) {
   const { t } = useTranslation();
   const [apple] = useState(usesCommandKey);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -118,6 +129,11 @@ function CaptureWidget({ state, request, text, onText, images, onImages }: Captu
   const pickerOpen = state.roomId === null || pickerAsked;
   // The entry's field keeps its own keys while the picker is open under it.
   const hintPart = zone === 'input' ? 'input' : pickerOpen ? 'picker' : 'list';
+
+  // The picker takes the list's place, and its peek with it.
+  useEffect(() => {
+    if (pickerOpen) setPeekOpen(false);
+  }, [pickerOpen]);
 
   // The caret is in the input whenever the widget shows, or in the picker's field while it is open.
   useEffect(() => {
@@ -183,6 +199,8 @@ function CaptureWidget({ state, request, text, onText, images, onImages }: Captu
         onText={onText}
         images={images}
         onImages={onImages}
+        started={started}
+        onStarted={onStarted}
         request={request}
         apple={apple}
         inputRef={inputRef}
@@ -267,6 +285,11 @@ export function QuickCapturePage({ channel }: { channel?: CaptureChannel }) {
   // The entry, its images too, outlives a host that goes away and comes back.
   const [text, setText] = useState('');
   const [images, setImages] = useState<File[]>([]);
+  const [started, setStarted] = useState<CaptureStarted>();
+  // An entry emptied by hand is a new one.
+  useEffect(() => {
+    if (text === '' && images.length === 0) setStarted(undefined);
+  }, [text, images]);
 
   useEffect(() => {
     document.title = t('featureUi.quickCapture.title');
@@ -294,6 +317,8 @@ export function QuickCapturePage({ channel }: { channel?: CaptureChannel }) {
           onText={setText}
           images={images}
           onImages={setImages}
+          started={started}
+          onStarted={setStarted}
         />
       )}
       {snapshot.status === 'absent' && <CaptureNotice signedIn={signedIn} />}

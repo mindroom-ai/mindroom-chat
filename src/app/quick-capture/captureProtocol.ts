@@ -7,9 +7,9 @@ export type CaptureItem = {
   /** The newest reply on one line; empty for a root nobody answered. */
   line: string;
   lineSender?: string;
-  /** The newest reply's plain text, at most 600 characters. */
+  /** The newest reply's plain text, at most 600 characters and an ellipsis where it is cut. */
   replyText?: string;
-  /** The newest reply as its sender wrote it, at most 600 characters, where it differs. */
+  /** The newest reply as its sender wrote it, whole, where it differs. */
   copyText?: string;
   chip?: CaptureChip;
   /** A pinned thread, which cannot be resolved. */

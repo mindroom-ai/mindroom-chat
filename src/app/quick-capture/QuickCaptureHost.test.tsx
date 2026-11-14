@@ -438,6 +438,13 @@ describe('QuickCaptureHost', () => {
     expect(await request({ kind: 'open', roomId: '!b' })).toEqual({ ok: true });
     expect(mocks.navigation.navigateRoom).toHaveBeenLastCalledWith('!b');
     expect(mocks.navigation.navigateRoomThreadDirect).toHaveBeenCalledTimes(1);
+
+    // An entry sent and opened opens the same way.
+    vi.mocked(sendCapture).mockResolvedValueOnce({ threadId: '$new' });
+    const send: CaptureAction = { kind: 'send', roomId: '!c', text: 'x', images: [], open: true };
+    expect(await request(send)).toEqual({ ok: true, threadId: '$new' });
+    expect(mocks.navigation.navigateRoom).toHaveBeenLastCalledWith('!c', '$new');
+    expect(mocks.navigation.navigateRoomThreadDirect).toHaveBeenCalledTimes(1);
   });
 
   it('pushes a state on a change while a widget listens, at most every 250 ms', () => {
