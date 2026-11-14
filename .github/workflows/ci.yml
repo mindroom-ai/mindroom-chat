@@ -93,12 +93,13 @@ jobs:
         id: build
         run: npx vite build
       # What a first visit downloads before the app runs must stay within scripts/perf/bundle-budget.json,
-      # as scripts/push-gate.sh checks it. The smoke specs still run when only this step fails.
+      # as scripts/push-gate.sh checks it.
       - name: Bundle size budget
         run: node scripts/perf/bundle-report.mjs dist --budget scripts/perf/bundle-budget.json
       # The production build through `vite preview`, as `scripts/e2e-slot.sh --preview` serves it.
       # Playwright retries a failed test once on CI (playwright.config.ts). The specs share one
       # homeserver and run in path order, so none of them looks for its room in a long room list.
+      # They run whenever the build succeeded, so a failed bundle size budget alone still reports them.
       - name: Smoke specs
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         env:
