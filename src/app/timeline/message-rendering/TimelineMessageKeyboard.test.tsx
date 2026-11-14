@@ -1,4 +1,4 @@
-import React, { createRef } from 'react';
+import { createRef } from 'react';
 import { EventTimelineSet, MatrixEvent, type Room } from 'matrix-js-sdk';
 import { createEditor } from 'slate';
 import { ReactEditor } from 'slate-react';
@@ -76,7 +76,7 @@ const mountKeyboard = async (
     pressUp: () => {
       const event = { key: 'ArrowUp', preventDefault: vi.fn() } as unknown as KeyboardEvent;
       const calls = vi.mocked(useKeyDown).mock.calls;
-      act(() => calls[calls.length - 1][1](event));
+      act(() => calls[calls.length - 1]![1](event));
       return { editingEventId: feature.editingEventId, prevented: event.preventDefault };
     },
   };
