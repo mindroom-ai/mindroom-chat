@@ -306,12 +306,12 @@ describe('MindroomNavigation', () => {
     storageState.clear();
   });
 
-  it.each([751, 1124, 1125])('persists page navigation collapse at %i px', (width) => {
+  it.each([751, 1124, 1125])('persists page navigation collapse at %i px', async (width) => {
     let renderer = renderNavigation(width);
 
     expectNavigationState(renderer, false);
 
-    act(() => findButtons(renderer, COLLAPSE_LABEL)[0]!.props.onClick());
+    await act(() => findButtons(renderer, COLLAPSE_LABEL)[0]!.props.onClick());
 
     expectNavigationState(renderer, true);
     expect(localStorage.getItem(storageKey)).toBe('true');
@@ -321,7 +321,7 @@ describe('MindroomNavigation', () => {
 
     expectNavigationState(renderer, true);
 
-    act(() => findButtons(renderer, EXPAND_LABEL)[0]!.props.onClick());
+    await act(() => findButtons(renderer, EXPAND_LABEL)[0]!.props.onClick());
 
     expectNavigationState(renderer, false);
     expect(localStorage.getItem(storageKey)).toBe('false');
@@ -403,11 +403,13 @@ describe('MindroomNavigation', () => {
     }
   );
 
-  it.each([751, 1280])('reopens and persists navigation on section selection at %i px', (width) => {
-    let renderer = renderNavigation(width);
-    act(() => findButtons(renderer, COLLAPSE_LABEL)[0]!.props.onClick());
+  it.each([751, 1280])(
+    'reopens and persists navigation on section selection at %i px',
+    async (width) => {
+      let renderer = renderNavigation(width);
+      await act(() => findButtons(renderer, COLLAPSE_LABEL)[0]!.props.onClick());
 
-    act(() => findButtons(renderer, 'Select section')[0]!.props.onClick?.());
+      await act(() => findButtons(renderer, 'Select section')[0]!.props.onClick?.());
 
     expectNavigationState(renderer, false);
     expect(localStorage.getItem(storageKey)).toBe('false');
@@ -417,11 +419,11 @@ describe('MindroomNavigation', () => {
     act(() => renderer.unmount());
   });
 
-  it('keeps the saved split-layout collapse choice when selecting a section on mobile', () => {
+  it('keeps the saved split-layout collapse choice when selecting a section on mobile', async () => {
     localStorage.setItem(storageKey, 'true');
     const renderer = renderNavigation(750);
 
-    act(() => findButtons(renderer, 'Select section')[0]!.props.onClick?.());
+    await act(() => findButtons(renderer, 'Select section')[0]!.props.onClick?.());
 
     expectNavigationWithoutToggle(renderer);
     expect(localStorage.getItem(storageKey)).toBe('true');
@@ -441,10 +443,10 @@ describe('MindroomNavigation', () => {
     }
   );
 
-  it('preserves the collapse choice across desktop, tablet, and mobile resizing', () => {
+  it('preserves the collapse choice across desktop, tablet, and mobile resizing', async () => {
     const renderer = renderNavigation(1280);
 
-    act(() => findButtons(renderer, COLLAPSE_LABEL)[0]!.props.onClick());
+    await act(() => findButtons(renderer, COLLAPSE_LABEL)[0]!.props.onClick());
 
     act(() => renderer.update(navigationAtWidth(1024)));
     expectNavigationState(renderer, true);
@@ -456,7 +458,7 @@ describe('MindroomNavigation', () => {
     act(() => renderer.update(navigationAtWidth(751)));
     expectNavigationState(renderer, true);
 
-    act(() => findButtons(renderer, EXPAND_LABEL)[0]!.props.onClick());
+    await act(() => findButtons(renderer, EXPAND_LABEL)[0]!.props.onClick());
     expectNavigationState(renderer, false);
 
     act(() => renderer.update(navigationAtWidth(1280)));
@@ -489,11 +491,11 @@ describe('MindroomNavigation', () => {
     act(() => renderer.unmount());
   });
 
-  it('moves the navigation in on the next page after it opens on a page without one', () => {
+  it('moves the navigation in on the next page after it opens on a page without one', async () => {
     localStorage.setItem(storageKey, 'true');
     const renderer = renderPagePerPath('/threads/');
     // Threads is not the selected section, so its button opens the navigation it does not show.
-    act(() => findButtons(renderer, 'Select section')[0]!.props.onClick());
+    await act(() => findButtons(renderer, 'Select section')[0]!.props.onClick());
     expect(navCount(renderer)).toBe(0);
 
     clickExplore(renderer);
