@@ -44,7 +44,7 @@ Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, 
 | `just typecheck` | `tsc --noEmit -p config/tsconfig.app.json`: the app sources under `src/` without tests, with the stricter flags of `config/tsconfig.strict.json`, which it extends; must report 0 errors |
 | `just typecheck-tests` | `tsc --noEmit -p .`: everything, tests and `e2e/` included; reports its errors without failing |
 | `just typecheck-all` | `scripts/typecheck-all.mjs`: syntax and semantic errors together over `tsconfig.json` |
-| `just strict` | `scripts/strict-check.mjs`: `tsc` with the stricter flags of `config/tsconfig.strict.json` over everything, tests and `e2e/` included; fails on Lane C errors only and prints the count of Lane P errors it ignores, all in tests and `e2e/` since `just typecheck` holds the app sources to the same flags |
+| `just strict` | `scripts/strict-check.mjs`: `tsc` with the stricter flags of `config/tsconfig.strict.json` over everything, tests and `e2e/` included; fails on Lane C errors only and prints the count of Lane P errors it ignores |
 | `just test [args]` | `vitest run`; DOM tests opt in with `// @vitest-environment jsdom` |
 | `just lint` | ESLint over `src`, `e2e`, `scripts` and the config files, with type-aware rules for Lane C TypeScript, `PopOut` and `TooltipProvider` from `src/app/ui/directional.tsx`, and logical sides in styles (the files each rule covers and its exceptions: the `justfile` comment) |
 | `just format <paths>` | Prettier (2.8.8, matches the Lane P style) on the files you changed |
