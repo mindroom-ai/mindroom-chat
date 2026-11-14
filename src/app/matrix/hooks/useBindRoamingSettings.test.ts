@@ -80,7 +80,7 @@ const login = (
     data = nextData;
     emitter.emit(ClientEvent.Sync, next, previous, nextData);
   };
-  let echoed: (() => void)[] = [];
+  const echoed: (() => void)[] = [];
   const client = {
     connected: true,
     receive(next: Content) {
@@ -90,9 +90,7 @@ const login = (
         getType: () => ROAMING_SETTINGS_EVENT_TYPE,
         getContent: () => next,
       });
-      const waiting = echoed;
-      echoed = [];
-      waiting.forEach((resolve) => resolve());
+      echoed.splice(0).forEach((resolve) => resolve());
     },
   };
   server.attach(client);
@@ -337,10 +335,8 @@ describe('bindRoamingSettings', () => {
     laptop.unbind();
   });
 
-  // Known failure, #328: both writes patch the content from before either. The phone's write
-  // resolves on the next roaming settings sync delivers, the laptop's write that undid it, and
-  // that content arrives before the phone records its write, so the phone's edit is not sent
-  // again. `it.fails` reports a failure once this passes.
+  // Known failure, #328: the known limit in the doc of `bindRoamingSettings`. `it.fails` reports a
+  // failure once this passes.
   it.fails(
     'keeps both changes when two devices change different settings at the same moment (#328)',
     async () => {
