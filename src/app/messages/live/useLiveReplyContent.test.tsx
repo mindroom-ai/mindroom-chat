@@ -1,10 +1,9 @@
 // @vitest-environment jsdom
 
-import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { MatrixEvent, type IContent, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LiveFrame } from '../../matrix/protocol/liveFrame';
+import type { LiveDocs, LiveFrame } from '../../matrix/protocol/liveFrame';
 import { loadLiveMarkdown } from './liveMarkdown';
 import { getLiveReplyStore, LIVE_REPLY_FRESHNESS_MS } from './liveReplyStore';
 import { useLiveReplyContent } from './useLiveReplyContent';
@@ -20,7 +19,7 @@ const snapshot = (
   seq: number,
   md = 'Live **text**',
   reasoning = 'Weighing options'
-): LiveFrame => ({
+): LiveFrame & { snapshot: LiveDocs } => ({
   reply: REPLY,
   sid: SID,
   seq,

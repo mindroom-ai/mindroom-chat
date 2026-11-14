@@ -121,9 +121,9 @@ const toolTrace = (...toolNames: string[]) => ({
 
 const agentReply = (text: string, trace: ReturnType<typeof toolTrace>) => ({
   msgtype: 'm.text',
-  body: `${text}\n\n🔧 \`${trace.events[0].tool_name}\` [1]`,
+  body: `${text}\n\n🔧 \`${trace.events[0]!.tool_name}\` [1]`,
   format: 'org.matrix.custom.html',
-  formatted_body: `<p>${text}</p><p>🔧 <code>${trace.events[0].tool_name}</code> [1]</p>`,
+  formatted_body: `<p>${text}</p><p>🔧 <code>${trace.events[0]!.tool_name}</code> [1]</p>`,
   'io.mindroom.tool_trace': trace,
 });
 

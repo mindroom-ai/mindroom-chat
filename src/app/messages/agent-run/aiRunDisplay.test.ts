@@ -255,7 +255,7 @@ describe('getAiRunTokenParts', () => {
       ['newInput', 'New input', 266],
       ['output', 'Output', 31],
     ]);
-    expect(tokens?.parts[0].percentage).toBeCloseTo((1408 / 1705) * 100);
+    expect(tokens?.parts[0]!.percentage).toBeCloseTo((1408 / 1705) * 100);
   });
 
   it('keeps input whole for replies recorded before the split was sent', () => {

@@ -10,7 +10,7 @@ vi.mock('folds', async () => {
   const reactModule = await import('react');
 
   const forwardTag = (tag: string) =>
-    reactModule.forwardRef<HTMLElement, Record<string, unknown>>(({ children, ...props }, ref) =>
+    reactModule.forwardRef<HTMLElement, Record<string, unknown> & { children?: React.ReactNode }>(({ children, ...props }, ref) =>
       reactModule.createElement(tag, { ...props, ref }, children)
     );
 

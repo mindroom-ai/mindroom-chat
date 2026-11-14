@@ -59,7 +59,7 @@ describe('useRoomInputUploadTransport voice sends', () => {
       )
     ).rejects.toBe(failure);
 
-    expect(mx.sendMessage.mock.calls[0][2]).toBe('txn-voice');
+    expect(mx.sendMessage.mock.calls[0]![2]).toBe('txn-voice');
     expect(mx.cancelPendingEvent).toHaveBeenCalledWith(localEvents.get('txn-voice'));
   });
 });

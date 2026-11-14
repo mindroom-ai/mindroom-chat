@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import React, { useLayoutEffect } from 'react';
+import { useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { EventStatus, MatrixEvent, MatrixEventEvent } from 'matrix-js-sdk';

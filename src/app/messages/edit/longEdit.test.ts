@@ -50,7 +50,7 @@ describe('buildEditContent', () => {
 
     // The file holds the whole edit, as MindRoom uploads its own: MindRoom reads the file in place
     // of the event and takes the edited message from its `m.new_content`.
-    const uploaded = await (mx.uploadContent.mock.calls[0][0] as Blob).text();
+    const uploaded = await (mx.uploadContent.mock.calls[0]![0] as Blob).text();
     expect(JSON.parse(uploaded)).toEqual({
       ...longContent,
       body: `* ${longContent.body}`,
@@ -91,10 +91,12 @@ describe('loadEditableContent', () => {
   });
 
   it('returns the whole content of a long-text message', async () => {
-    const hydrate = vi.fn(async () => longContent);
+    const hydrate = vi.fn(
+      async (_source: NonNullable<ReturnType<typeof getLongTextSource>>) => longContent
+    );
 
     expect(await loadEditableContent(longTextFile, hydrate)).toBe(longContent);
-    expect(hydrate.mock.calls[0][0]).toMatchObject({ mxcUri: 'mxc://example.org/earlier' });
+    expect(hydrate.mock.calls[0]![0]).toMatchObject({ mxcUri: 'mxc://example.org/earlier' });
   });
 
   it('returns nothing when the whole content cannot be loaded', async () => {

@@ -23,6 +23,7 @@ import {
   getMatrixUploadErrorStage,
   toMatrixUploadError,
 } from '../../matrix/matrix';
+import type { PendingVoiceSendContext } from '../roomInputDrafts';
 
 const ROOM_ID = '!room:example.org';
 const OTHER_ROOM_ID = '!other:example.org';
@@ -85,7 +86,7 @@ const {
     // orphan-room cleanup useEffect treats drafts as live and the retry-time
     // re-resolve in handleVoiceSend gets a usable Room. Tests that need to
     // exercise the unreachable / non-joined path override per-call.
-    getRoom: vi.fn(
+    getRoom: vi.fn<(roomId: string) => Room | undefined>(
       (roomId: string) =>
         ({
           roomId,
@@ -98,14 +99,20 @@ const {
         } as unknown as Room)
     ),
     makeTxnId: vi.fn(() => 'txn-room-input'),
-    sendMessage: vi.fn(async () => ({ event_id: '$sent' })),
-    uploadContent: vi.fn(async () => ({ content_uri: 'mxc://mindroom/voice' })),
+    sendMessage: vi.fn<(roomId: string, content: unknown) => Promise<{ event_id: string }>>(
+      async () => ({ event_id: '$sent' })
+    ),
+    uploadContent: vi.fn<(file: unknown, opts?: unknown) => Promise<{ content_uri: string }>>(
+      async () => ({ content_uri: 'mxc://mindroom/voice' })
+    ),
   },
   typingState: {
     sendTypingStatus: vi.fn(),
   },
   encryptionState: {
-    encryptAttachment: vi.fn(async (data: ArrayBuffer) => ({
+    encryptAttachment: vi.fn<
+      (data: ArrayBuffer) => Promise<{ data: ArrayBuffer; info: Record<string, unknown> }>
+    >(async (data: ArrayBuffer) => ({
       data,
       info: {
         v: 'v2',
@@ -143,7 +150,7 @@ const {
             waveform?: number[],
             context?: unknown
           ) => Promise<void>;
-          getSendContext: () => unknown;
+          getSendContext: () => PendingVoiceSendContext;
         }
       | undefined,
     // The mounted recorders, by the conversation view of their composer (none: the room page's).
@@ -581,7 +588,7 @@ vi.mock('../voice/VoiceRecorderDialog', async () => {
             waveform: number[] | undefined,
             context: unknown
           ) => Promise<void>;
-          getSendContext: () => unknown;
+          getSendContext: () => PendingVoiceSendContext;
         },
         ref
       ) => {
@@ -1102,13 +1109,13 @@ describe('RoomInput', () => {
       (node) => node.type === 'button' && node.props['aria-label'] === 'Send message'
     );
     expect(primarySendButtons).toHaveLength(1);
-    expect(primarySendButtons[0].props.variant).toBe('Primary');
+    expect(primarySendButtons[0]!.props.variant).toBe('Primary');
     await act(async () => {
-      await primarySendButtons[0].props.onClick();
+      await primarySendButtons[0]!.props.onClick();
     });
 
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
       body: 'sendable.txt',
       url: 'mxc://mindroom/sendable',
     });
@@ -1200,8 +1207,8 @@ describe('RoomInput', () => {
       'file-2',
     ]);
     expect(uploadItems.map((item) => item.prepError !== undefined)).toEqual([false, true, false]);
-    expect(getMatrixUploadErrorStage(uploadItems[1].prepError)).toBe('create');
-    expect(getMatrixUploadErrorMessage(uploadItems[1].prepError)).toBe(
+    expect(getMatrixUploadErrorStage(uploadItems[1]!.prepError)).toBe('create');
+    expect(getMatrixUploadErrorMessage(uploadItems[1]!.prepError)).toBe(
       "Couldn't prepare file for upload."
     );
   });
@@ -1263,16 +1270,16 @@ describe('RoomInput', () => {
     expect(mxState.sendMessage).not.toHaveBeenCalled();
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toHaveLength(1);
 
-    const pasteFile = store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))[0].file;
+    const pasteFile = store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))[0]!.file;
     await act(async () => {
       store.set(roomUploadAtomFamily(pasteFile), { mxc: 'mxc://mindroom/paste' });
     });
 
     expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
       url: 'mxc://mindroom/paste',
     });
-    expect(mxState.sendMessage.mock.calls[1][1]).toMatchObject({
+    expect(mxState.sendMessage.mock.calls[1]![1]).toMatchObject({
       msgtype: 'm.text',
       body: `${marker}\n\ntest testing`,
       'm.relates_to': {
@@ -1567,7 +1574,7 @@ describe('RoomInput', () => {
       }),
       'txn-room-input'
     );
-    const sentContent = mxState.sendMessage.mock.calls[0][1] as Record<string, unknown>;
+    const sentContent = mxState.sendMessage.mock.calls[0]![1] as Record<string, unknown>;
     expect(
       (sentContent[MATRIX_AUDIO_DETAILS_PROPERTY_NAME] as { waveform: number[] }).waveform
     ).toHaveLength(VOICE_WAVEFORM_BAR_COUNT);
@@ -1589,14 +1596,14 @@ describe('RoomInput', () => {
     await submitComposer();
 
     expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
       body: 'attachment.txt',
       url: 'mxc://mindroom/attachment.txt',
     });
-    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
+    expect(mxState.sendMessage.mock.calls[0]![1]).not.toHaveProperty('m.relates_to');
     expect(onRoomMessageSent).toHaveBeenCalledWith('$sent');
 
-    expect(mxState.sendMessage.mock.calls[1][1]).toMatchObject({
+    expect(mxState.sendMessage.mock.calls[1]![1]).toMatchObject({
       body: 'voice.m4a',
       msgtype: 'm.audio',
       url: 'mxc://mindroom/voice',
@@ -1643,7 +1650,7 @@ describe('RoomInput', () => {
     expect(
       mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
     ).toEqual(['first.txt', 'second.txt', 'voice.m4a', 'bundle caption']);
-    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
+    expect(mxState.sendMessage.mock.calls[0]![1]).not.toHaveProperty('m.relates_to');
     mxState.sendMessage.mock.calls.slice(1).forEach((call) => {
       expect(call[1]).toMatchObject({
         'm.relates_to': expect.objectContaining({
@@ -1705,7 +1712,7 @@ describe('RoomInput', () => {
     await submitComposer();
 
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
+    expect(mxState.sendMessage.mock.calls[0]![1]).not.toHaveProperty('m.relates_to');
 
     renderer.unmount();
   });
@@ -1734,7 +1741,7 @@ describe('RoomInput', () => {
     expect(
       mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
     ).toEqual(['attachment.txt', 'voice.m4a', 'bundle caption']);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
       'm.relates_to': {
         'm.in_reply_to': { event_id: '$reply-current' },
       },
@@ -1864,7 +1871,7 @@ describe('RoomInput', () => {
 
     expect(sendSettled).toBe(true);
     expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
-    expect(mxState.sendMessage.mock.calls[1][1]).toMatchObject({
+    expect(mxState.sendMessage.mock.calls[1]![1]).toMatchObject({
       body: 'voice.m4a',
       url: 'mxc://mindroom/voice',
       'm.relates_to': expect.objectContaining({
@@ -1957,14 +1964,14 @@ describe('RoomInput', () => {
     expect(
       mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
     ).toEqual(['first.txt', 'second.txt', 'voice.m4a']);
-    expect(mxState.sendMessage.mock.calls[1][1]).toMatchObject({
+    expect(mxState.sendMessage.mock.calls[1]![1]).toMatchObject({
       'm.relates_to': expect.objectContaining({
         event_id: '$sent',
         rel_type: RelationType.Thread,
       }),
     });
 
-    expect(mxState.sendMessage.mock.calls[2][1]).toMatchObject({
+    expect(mxState.sendMessage.mock.calls[2]![1]).toMatchObject({
       'm.relates_to': expect.objectContaining({
         event_id: '$sent',
         rel_type: RelationType.Thread,
@@ -2024,8 +2031,8 @@ describe('RoomInput', () => {
       await sendPromise;
     });
     expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
-    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
-    expect(mxState.sendMessage.mock.calls[1][1]).toMatchObject({
+    expect(mxState.sendMessage.mock.calls[0]![1]).not.toHaveProperty('m.relates_to');
+    expect(mxState.sendMessage.mock.calls[1]![1]).toMatchObject({
       'm.relates_to': expect.objectContaining({ event_id: '$sent' }),
     });
 
@@ -2060,8 +2067,8 @@ describe('RoomInput', () => {
     expect(
       mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
     ).toEqual(['ready-root.txt', 'voice.m4a']);
-    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
-    expect(mxState.sendMessage.mock.calls[1][1]).toMatchObject({
+    expect(mxState.sendMessage.mock.calls[0]![1]).not.toHaveProperty('m.relates_to');
+    expect(mxState.sendMessage.mock.calls[1]![1]).toMatchObject({
       'm.relates_to': expect.objectContaining({
         event_id: '$sent',
         rel_type: RelationType.Thread,
@@ -2123,7 +2130,7 @@ describe('RoomInput', () => {
     });
 
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({ body: 'voice.m4a' });
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({ body: 'voice.m4a' });
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file.name)).toEqual(
       [added.name]
     );
@@ -2152,11 +2159,11 @@ describe('RoomInput', () => {
     await submitComposer();
 
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
       body: 'voice.m4a',
       file: expect.any(Object),
     });
-    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('url');
+    expect(mxState.sendMessage.mock.calls[0]![1]).not.toHaveProperty('url');
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file)).toEqual([
       companion,
     ]);
@@ -2247,7 +2254,7 @@ describe('RoomInput', () => {
       mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
     ).toEqual(['retry-completed.txt', 'voice.m4a']);
     expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
-    expect(mxState.uploadContent.mock.calls[0][0]).toBe(voice);
+    expect(mxState.uploadContent.mock.calls[0]![0]).toBe(voice);
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
 
     renderer.unmount();
@@ -2274,9 +2281,9 @@ describe('RoomInput', () => {
     await submitComposer();
 
     expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
-    expect(mxState.uploadContent.mock.calls[0][0]).toBe(voice);
+    expect(mxState.uploadContent.mock.calls[0]![0]).toBe(voice);
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({ body: 'voice.m4a' });
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({ body: 'voice.m4a' });
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
 
     renderer.unmount();
@@ -2384,10 +2391,10 @@ describe('RoomInput', () => {
     await submitComposer();
 
     expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({ body: 'ready-root.txt' });
-    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({ body: 'ready-root.txt' });
+    expect(mxState.sendMessage.mock.calls[0]![1]).not.toHaveProperty('m.relates_to');
 
-    expect(mxState.sendMessage.mock.calls[1][1]).toMatchObject({
+    expect(mxState.sendMessage.mock.calls[1]![1]).toMatchObject({
       body: 'voice.m4a',
       'm.relates_to': expect.objectContaining({
         event_id: '$sent',
@@ -2414,7 +2421,7 @@ describe('RoomInput', () => {
 
     expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({ body: 'oversized-voice.m4a' });
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({ body: 'oversized-voice.m4a' });
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((item) => item.file)).toEqual([
       companion,
     ]);
@@ -2441,7 +2448,7 @@ describe('RoomInput', () => {
     });
 
     await vi.waitFor(() => expect(mxState.sendMessage).toHaveBeenCalledTimes(1));
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
       body: 'reply-root.txt',
       'm.relates_to': {
         'm.in_reply_to': { event_id: '$reply-target' },
@@ -2575,8 +2582,8 @@ describe('RoomInput', () => {
     expect(
       mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
     ).toEqual(['failed.txt', 'later.txt', 'voice.m4a', 'fresh composer text']);
-    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
-    expect(mxState.sendMessage.mock.calls[3][1]).toMatchObject({
+    expect(mxState.sendMessage.mock.calls[0]![1]).not.toHaveProperty('m.relates_to');
+    expect(mxState.sendMessage.mock.calls[3]![1]).toMatchObject({
       'm.relates_to': expect.objectContaining({ event_id: '$sent' }),
     });
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
@@ -2616,9 +2623,9 @@ describe('RoomInput', () => {
     });
 
     expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({ body: 'surviving-root.txt' });
-    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
-    expect(mxState.sendMessage.mock.calls[1][1]).toMatchObject({
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({ body: 'surviving-root.txt' });
+    expect(mxState.sendMessage.mock.calls[0]![1]).not.toHaveProperty('m.relates_to');
+    expect(mxState.sendMessage.mock.calls[1]![1]).toMatchObject({
       body: 'voice.m4a',
       'm.relates_to': expect.objectContaining({ event_id: '$sent' }),
     });
@@ -2657,7 +2664,7 @@ describe('RoomInput', () => {
     expect(
       mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
     ).toEqual(['root.txt', 'voice.m4a']);
-    expect(mxState.sendMessage.mock.calls[1][1]).toMatchObject({
+    expect(mxState.sendMessage.mock.calls[1]![1]).toMatchObject({
       'm.relates_to': expect.objectContaining({ event_id: '$root' }),
     });
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
@@ -2762,7 +2769,7 @@ describe('RoomInput', () => {
     await submitComposer();
 
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
       'm.relates_to': expect.objectContaining({
         event_id: '$thread-after-open',
         rel_type: RelationType.Thread,
@@ -2789,7 +2796,7 @@ describe('RoomInput', () => {
     await submitComposer();
 
     expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
-    expect(mxState.sendMessage.mock.calls[0][1]).not.toHaveProperty('m.relates_to');
+    expect(mxState.sendMessage.mock.calls[0]![1]).not.toHaveProperty('m.relates_to');
     expect(onRoomMessageSent).toHaveBeenCalledWith('$sent');
     expect(notificationState).toEqual([{ pending: false, uploads: [] }]);
 
@@ -2807,7 +2814,7 @@ describe('RoomInput', () => {
     queuePrimaryVoiceSend(file, 900, undefined, capturedContext);
     await submitComposer();
 
-    expect(mxState.sendMessage.mock.calls[0][1]).toMatchObject({
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
       'm.relates_to': expect.objectContaining({
         event_id: '$thread-b',
         rel_type: RelationType.Thread,

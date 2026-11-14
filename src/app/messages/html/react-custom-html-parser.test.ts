@@ -10,6 +10,7 @@ import {
   ReactTestInstance,
   ReactTestRenderer,
   ReactTestRendererJSON,
+  ReactTestRendererNode,
 } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -66,7 +67,7 @@ vi.mock('folds', async () => {
   const ReactLib = ReactModule.default;
   const passthrough =
     (tag: string) =>
-    ({ children, ...props }: Record<string, unknown>) =>
+    ({ children, ...props }: Record<string, unknown> & { children?: React.ReactNode }) =>
       ReactLib.createElement(tag, props, children);
 
   return {
@@ -74,11 +75,16 @@ vi.mock('folds', async () => {
     Chip: passthrough('span'),
     Spinner: passthrough('span'),
     Header: passthrough('div'),
-    Icon: ({ children, ...props }: Record<string, unknown>) =>
+    Icon: ({ children, ...props }: Record<string, unknown> & { children?: React.ReactNode }) =>
       ReactLib.createElement('span', props, children),
     IconButton: passthrough('button'),
     Scroll: passthrough('div'),
-    Text: ({ as = 'div', children, truncate, ...props }: Record<string, unknown>) =>
+    Text: ({
+      as = 'div',
+      children,
+      truncate,
+      ...props
+    }: Record<string, unknown> & { children?: React.ReactNode }) =>
       ReactLib.createElement(
         typeof as === 'string' ? as : 'div',
         {
@@ -213,7 +219,7 @@ const renderTreeWithToolTrace = (
 };
 
 const collectTextContent = (
-  node: ReactTestRendererJSON | ReactTestRendererJSON[] | string | null
+  node: ReactTestRendererJSON | ReactTestRendererNode[] | string | null
 ): string => {
   if (!node) return '';
   if (typeof node === 'string') return node;
@@ -536,7 +542,7 @@ describe('inline website favicons', () => {
 });
 
 const collectStructuralTableWhitespace = (
-  node: ReactTestRendererJSON | ReactTestRendererJSON[] | string | null,
+  node: ReactTestRendererJSON | ReactTestRendererNode[] | string | null,
   tags = new Set(['table', 'thead', 'tbody', 'tfoot', 'tr', 'colgroup'])
 ): string[] => {
   if (!node || typeof node === 'string') return [];
@@ -1090,14 +1096,14 @@ describe('useToolTraceMarkerParserOptions', () => {
         .findAll(() => true)
         .flatMap((node) => node.children.filter((child) => typeof child === 'string'))
         .join(' ');
-    expect(rows[0].findAllByType('dt').map((node) => node.children.join(''))).toEqual([
+    expect(rows[0]!.findAllByType('dt').map((node) => node.children.join(''))).toEqual([
       'query',
       'max_results',
     ]);
-    expect(textOf(rows[0])).toContain('MindRoom release notes');
-    expect(textOf(rows[0])).toContain('5 results');
-    expect(rows[1].findAll((node) => node.props.variant === 'Secondary')).not.toHaveLength(0);
-    expect(rows[1].findByType('pre').children.join('')).toBe('reading the changelog');
+    expect(textOf(rows[0]!)).toContain('MindRoom release notes');
+    expect(textOf(rows[0]!)).toContain('5 results');
+    expect(rows[1]!.findAll((node) => node.props.variant === 'Secondary')).not.toHaveLength(0);
+    expect(rows[1]!.findByType('pre').children.join('')).toBe('reading the changelog');
   });
 
   it('shows the last lines of a running call output under the collapsed tool calls', () => {
@@ -1133,7 +1139,7 @@ describe('useToolTraceMarkerParserOptions', () => {
     });
 
     const [output] = renderer.root.findAll((node) => node.props.className === 'activity-output');
-    expect(output.children.join('')).toBe('  root:\n    child: 1');
+    expect(output!.children.join('')).toBe('  root:\n    child: 1');
   });
 
   it('drops leading blank lines of a running call output', () => {
@@ -1152,7 +1158,7 @@ describe('useToolTraceMarkerParserOptions', () => {
     });
 
     const [output] = renderer.root.findAll((node) => node.props.className === 'activity-output');
-    expect(output.children.join('')).toBe('Calling write_report\n  writing');
+    expect(output!.children.join('')).toBe('Calling write_report\n  writing');
   });
 
   it('names the call whose output shows only while several calls run', () => {

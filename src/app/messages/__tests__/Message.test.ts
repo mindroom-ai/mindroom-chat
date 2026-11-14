@@ -1,6 +1,10 @@
 import React from 'react';
 import { act, create, ReactTestInstance, ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MatrixEvent, Room } from 'matrix-js-sdk';
+import type { getLongTextSource } from '../../matrix/protocol/longText';
+import type { useLongTextResolvedContent } from '../content/LongTextText';
+import { MessageLayout } from '../../preferences/settings';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
 type HostNodeMock = {
@@ -16,8 +20,8 @@ const domMocks = vi.hoisted(() => ({
   copyToClipboard: vi.fn(),
 }));
 const longTextMocks = vi.hoisted(() => ({
-  getMindroomLongTextSource: vi.fn(() => undefined),
-  useMindroomLongTextResolvedContent: vi.fn(() => undefined),
+  getMindroomLongTextSource: vi.fn<typeof getLongTextSource>(() => undefined),
+  useMindroomLongTextResolvedContent: vi.fn<typeof useLongTextResolvedContent>(() => undefined),
 }));
 
 // These renderer/UI mocks should move into shared Vitest setup once the repo adds one.
@@ -382,13 +386,13 @@ const createMessageEvent = (content: Record<string, unknown>, eventId = '$event'
     getSender: () => '@alice:example.org',
     getTs: () => 1,
     isRedacted: () => false,
-  } as const);
+  } as unknown as MatrixEvent);
 
 const createRoom = () =>
   ({
     roomId: '!room:example.org',
     getTimelineForEvent: () => undefined,
-  } as const);
+  } as unknown as Room);
 
 type RenderedMessage = {
   renderer: ReactTestRenderer;
@@ -426,7 +430,7 @@ const renderMessage = async (
           canPinEvent: serverActions,
           canSendReaction: serverActions,
           resolvedMessageContent,
-          messageLayout: 'Modern',
+          messageLayout: MessageLayout.Modern,
           messageSpacing: '400',
           onUserClick: vi.fn(),
           onUsernameClick: vi.fn(),
@@ -474,7 +478,7 @@ const getButtonByIcon = (
 
 const getDialogFocusTrapOptions = (renderer: ReactTestRenderer): Record<string, unknown> => {
   const dialogFocusTrap = renderer.root
-    .findAllByType('focus-trap')
+    .findAllByType('focus-trap' as never)
     .find((node) => typeof node.props.focusTrapOptions?.setReturnFocus === 'function');
 
   if (!dialogFocusTrap) {
@@ -602,10 +606,10 @@ describe('Message local-echo actions', () => {
     expect(getButtonByIcon(renderer, 'ThreadPlus')).toBeDefined();
     expect(getButtonByIcon(renderer, 'SmilePlus')).toBeDefined();
     // The hover toolbar's icons name themselves, as the menu items do.
-    expect(getButtonByIcon(renderer, 'SmilePlus').props['aria-label']).toBe('Add Reaction');
-    expect(getButtonByIcon(renderer, 'ReplyArrow').props['aria-label']).toBe('Reply');
-    expect(getButtonByIcon(renderer, 'ThreadPlus').props['aria-label']).toBe('Reply in Thread');
-    expect(getButtonByIcon(renderer, 'VerticalDots').props['aria-label']).toBe('More Options');
+    expect(getButtonByIcon(renderer, 'SmilePlus')!.props['aria-label']).toBe('Add Reaction');
+    expect(getButtonByIcon(renderer, 'ReplyArrow')!.props['aria-label']).toBe('Reply');
+    expect(getButtonByIcon(renderer, 'ThreadPlus')!.props['aria-label']).toBe('Reply in Thread');
+    expect(getButtonByIcon(renderer, 'VerticalDots')!.props['aria-label']).toBe('More Options');
 
     await openContextMenu(renderer);
 
