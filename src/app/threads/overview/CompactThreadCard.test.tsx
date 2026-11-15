@@ -7,6 +7,7 @@ import type { CompactThreadCardViewModel } from '../../event-store/threads/types
 vi.mock('./CompactRoomView.css', () => ({
   Card: 'Card',
   CardResolved: 'CardResolved',
+  CardSnoozed: 'CardSnoozed',
   CardUnread: 'CardUnread',
   MessagePreview: 'MessagePreview',
   MessageText: 'MessageText',
@@ -18,6 +19,8 @@ vi.mock('./CompactRoomView.css', () => ({
   ResolutionBylineLabel: 'ResolutionBylineLabel',
   ResolvedBadge: 'ResolvedBadge',
   ScheduledIndicator: 'ScheduledIndicator',
+  SnoozedBadge: 'SnoozedBadge',
+  SnoozedIndicator: 'SnoozedIndicator',
   Stats: 'Stats',
   StreamingStatus: 'StreamingStatus',
   TimeText: 'TimeText',
@@ -123,6 +126,39 @@ describe('CompactThreadCard', () => {
         vi.advanceTimersByTime(30 * 60_000);
       });
       expect(JSON.stringify(renderer.toJSON())).not.toContain('Snoozed until');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('tints a snoozed card amber and leads its title with the clock badge until the snooze ends', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 10, 14, 12, 0));
+    try {
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          <CompactThreadCard
+            viewModel={makeViewModel({ snoozedUntilTs: Date.now() + 30 * 60_000 })}
+            onClick={vi.fn()}
+          />
+        );
+      });
+      const className = () => renderer.root.findByType('button').props.className as string;
+      const badges = () =>
+        renderer.root
+          .findByProps({ className: 'TitleText' })
+          .findAll((node) => node.type === 'span' && node.props.className === 'SnoozedBadge');
+
+      expect(className()).toBe('Card CardSnoozed');
+      expect(badges()).toHaveLength(1);
+
+      act(() => {
+        vi.advanceTimersByTime(30 * 60_000);
+      });
+      expect(className()).toBe('Card');
+      expect(badges()).toHaveLength(0);
+      renderer.unmount();
     } finally {
       vi.useRealTimers();
     }

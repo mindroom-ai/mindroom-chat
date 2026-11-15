@@ -189,10 +189,18 @@ export const CardResolved = style({
   color: color.Success.OnContainer,
 });
 
-// A filled check at the start of a resolved card's title. The card's tint alone can sit close to
-// the surface's own hue (the green theme's cards are green too); the success colour on a solid
-// disc stands out from both the tint and the plain cards in every theme.
-export const ResolvedBadge = style({
+// A snoozed card goes amber the way a resolved one goes green, as the thread's banner does: the
+// thread is set aside until its snooze ends.
+export const CardSnoozed = style({
+  borderColor: color.Warning.ContainerLine,
+  backgroundColor: color.Warning.Container,
+  color: color.Warning.OnContainer,
+});
+
+// A filled disc at the start of a resolved or snoozed card's title. The card's tint alone can sit
+// close to the surface's own hue (the green theme's cards are green too); the tint's own colour on
+// a solid disc stands out from both the tint and the plain cards in every theme.
+const TitleBadge = style({
   display: 'inline-grid',
   inlineSize: toRem(16),
   placeItems: 'center',
@@ -200,9 +208,17 @@ export const ResolvedBadge = style({
   marginInlineEnd: config.space.S200,
   borderRadius: '50%',
   verticalAlign: toRem(-3),
-  backgroundColor: color.Success.Main,
-  color: color.Success.OnMain,
 });
+
+export const ResolvedBadge = style([
+  TitleBadge,
+  { backgroundColor: color.Success.Main, color: color.Success.OnMain },
+]);
+
+export const SnoozedBadge = style([
+  TitleBadge,
+  { backgroundColor: color.Warning.Main, color: color.Warning.OnMain },
+]);
 
 export const TitleRow = style({
   display: 'flex',
@@ -238,6 +254,12 @@ export const TimeTextUnread = style({
   opacity: 1,
 });
 
+// On a tinted card MainActive can fall under 4.5:1 (4.4:1 on the orange theme's amber, 4.2:1 on
+// its green); MainLine, a step further from the tints, keeps it in every theme.
+globalStyle(`${CardResolved} ${TimeTextUnread}, ${CardSnoozed} ${TimeTextUnread}`, {
+  color: color.Primary.MainLine,
+});
+
 export const MessagePreview = style({
   display: 'flex',
   alignItems: 'center',
@@ -248,12 +270,6 @@ export const MessageText = style({
   minWidth: 0,
   flex: 1,
 });
-
-// Secondary text on a resolved card's green keeps 4.5:1 at the lighter of the two quiet levels.
-globalStyle(
-  `${CardResolved} ${MessageText}, ${CardResolved} ${TimeText}:not(${TimeTextUnread})`,
-  { opacity: config.opacity.P400 }
-);
 
 // One line, so every card keeps one height: the byline and tags end in an ellipsis instead of
 // wrapping.
@@ -326,9 +342,31 @@ export const ScheduledIndicator = style({
   whiteSpace: 'nowrap',
 });
 
+// When the snooze ends, in the card's amber as the resolver's byline is in its green; the badge
+// before the title carries the icon, and the scheduled task beside it keeps the quiet colour.
+export const SnoozedIndicator = style({
+  maxWidth: toRem(180),
+  color: color.Warning.OnContainer,
+  fontWeight: 500,
+});
+
 export const ReplyCount = style({
   display: 'inline-flex',
   alignItems: 'center',
   gap: toRem(3),
   whiteSpace: 'nowrap',
 });
+
+// Secondary text on a resolved card's green or a snoozed card's amber keeps 4.5:1 at the lighter
+// of the two quiet levels (the quieter one has 3.8:1 and 4.2:1 on the light palette).
+globalStyle(
+  [CardResolved, CardSnoozed]
+    .flatMap((tint) => [
+      `${tint} ${MessageText}`,
+      `${tint} ${TimeText}:not(${TimeTextUnread})`,
+      `${tint} ${StreamingStatus}`,
+      `${tint} ${ReplyCount}`,
+    ])
+    .join(', '),
+  { opacity: config.opacity.P400 }
+);
