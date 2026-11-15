@@ -1,9 +1,13 @@
 import { CSSProperties, ReactNode, useRef } from 'react';
 import FocusTrap from 'focus-trap-react';
-import { Overlay, OverlayBackdrop, OverlayCenter, toRem } from 'folds';
+import { Overlay, OverlayBackdrop, OverlayCenter, config, toRem } from 'folds';
 import { stopPropagation } from '../../lib/keyboard';
 
-const DIALOG_WIDTH: CSSProperties = { width: `min(${toRem(420)}, calc(100vw - ${toRem(32)}))` };
+// The dialog fills the box, so the box is no wider than a folds dialog may grow: a wider one left
+// the dialog at its start, off the middle of the screen.
+const DIALOG_WIDTH: CSSProperties = {
+  width: `min(${config.size.DialogWidth}, calc(100vw - ${toRem(32)}))`,
+};
 
 type SecurityOverlayProps = {
   onClose: () => void;

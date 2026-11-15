@@ -190,14 +190,22 @@ test('a new account is asked for a recovery password and a fresh browser unlocks
   await expect(second.getByRole('main').getByText(MESSAGE)).toBeVisible({ timeout: 60_000 });
 });
 
-test('a tap beside the unlock dialog closes it and opens nothing beneath', async ({ browser }) => {
+test('the unlock dialog sits in the middle of a phone, and a tap beside it closes it and opens nothing beneath', async ({
+  browser,
+}) => {
   const account = await createAccountWithEncryptedRoom();
   await firstSession(browser, account);
 
-  const phone = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
+  // As wide as the widest phones, where the dialog is narrower than the screen less its margins.
+  const width = 440;
+  const phone = { viewport: { width, height: 956 }, hasTouch: true, isMobile: true };
   const second = await signIn(browser, account.username, phone);
   const dialog = unlockDialog(second);
   await expect(dialog).toBeVisible({ timeout: 90_000 });
+  const box = await dialog.boundingBox();
+  if (!box) throw new Error('The unlock dialog has no box');
+  expect(box.width).toBeLessThan(width - 32);
+  expect(box.x + box.width / 2).toBeCloseTo(width / 2, 0);
   await dialog.getByText('Enter your recovery password').tap();
   await expect(dialog).toBeVisible();
   // The tap lands on the backdrop over Join a Room, whose dialog must not open once Unlock is gone.
