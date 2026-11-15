@@ -384,6 +384,21 @@ class CommandLineTests(unittest.TestCase):
         self.assertIn("the sandbox runner exited while starting", self.stderr.getvalue())
         self.assertIn("Address already in use", self.stderr.getvalue())
 
+    def config_of_a_start(self, has_shell_setting: bool) -> str:
+        """The config a start writes for a commit with or without the setting that allows shells outside a worker."""
+        with self.starting(), mock.patch.object(stack, "commit_mentions", return_value=has_shell_setting) as mentions:
+            self.assertEqual(self.main("7", "up"), 0)
+        mentions.assert_called_once_with(
+            Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "allow_shell_without_worker"
+        )
+        return (self.slot_dir / "config.yaml").read_text()
+
+    def test_a_commit_with_the_shell_setting_lets_shells_run_outside_a_worker(self) -> None:
+        self.assertIn("  allow_shell_without_worker: true\n", self.config_of_a_start(True))
+
+    def test_a_commit_without_the_shell_setting_gets_a_config_it_accepts(self) -> None:
+        self.assertNotIn("allow_shell_without_worker", self.config_of_a_start(False))
+
     def test_terminals_refuse_a_commit_without_the_terminal_toolkit(self) -> None:
         with self.starting(), mock.patch.object(stack, "commit_has", return_value=False):
             self.assertEqual(self.main("7", "up", "--terminals"), stack.EXIT_NO_TERMINALS)
@@ -745,7 +760,7 @@ class OptionTests(unittest.TestCase):
         helper, scout = config.split("  helper:\n", 1)[1].split("  scout:\n", 1)
         self.assertIn("      - browser_mcp\n", helper)
         self.assertIn("    tools: [shell]\n", scout)
-        self.assertIn('defaults:\n  markdown: true\n  allow_shell_without_worker: true\n  worker_tools: ["browser_mcp"]\n  worker_scope: user_agent\n', config)
+        self.assertIn('defaults:\n  markdown: true\n  worker_tools: ["browser_mcp"]\n  worker_scope: user_agent\n', config)
         # A shell beside the browser, which can open what the shell serves.
         computers["tools"] = ["browser_mcp", "shell"]
         config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, computers=computers)
@@ -754,11 +769,16 @@ class OptionTests(unittest.TestCase):
         self.assertNotIn("browser_mcp", plain)
         self.assertNotIn("worker_", plain)
 
-    def test_a_shell_outside_a_worker_runs_in_the_backend_process(self) -> None:
-        # MindRoom refuses shell calls outside a worker unless the config allows them (MindRoom #3923).
+    def test_the_config_allows_shells_outside_a_worker_only_where_the_commit_has_the_setting(self) -> None:
+        computers = {"image": "worker:given", "tools": ["browser_mcp"]}
         for mode in ("stub", "real"):
-            config = stack.config_yaml(mode, TESTER, STUB_URL, 0.0003)
-            self.assertIn("\ndefaults:\n  markdown: true\n  allow_shell_without_worker: true\n", config, mode)
+            for options in ({}, {"computers": computers}, {"terminals": True}):
+                allowed = stack.config_yaml(mode, TESTER, STUB_URL, 0.0003, shell_without_worker=True, **options)
+                self.assertIn("\ndefaults:\n  markdown: true\n  allow_shell_without_worker: true\n", allowed, mode)
+                # The worker settings stay as they were.
+                plain = stack.config_yaml(mode, TESTER, STUB_URL, 0.0003, **options)
+                self.assertEqual(allowed.replace("  allow_shell_without_worker: true\n", ""), plain, mode)
+                self.assertNotIn("allow_shell_without_worker", plain, mode)
 
     def test_terminals_give_the_helper_a_terminal_it_types_in_beside_its_shell_in_the_runner(self) -> None:
         for mode in ("stub", "real"):
@@ -767,7 +787,7 @@ class OptionTests(unittest.TestCase):
             self.assertIn("      - shell\n", helper, mode)
             self.assertIn("      - terminal\n", helper, mode)
             self.assertIn("    terminals: type\n", helper, mode)
-            self.assertIn("defaults:\n  markdown: true\n  allow_shell_without_worker: true\n  worker_tools: [shell]\n", config, mode)
+            self.assertIn("defaults:\n  markdown: true\n  worker_tools: [shell]\n", config, mode)
             # The helper types only while no approval rule may ask for its shell calls.
             self.assertNotIn("match: run_shell_command", config, mode)
             self.assertNotIn("shell_review", config, mode)

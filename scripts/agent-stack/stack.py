@@ -170,6 +170,9 @@ PLUGIN_SCENARIO_MODULE = "e2e/stub_scenarios.py"
 # What a commit has when it transcribes calls between people, and when it has persistent terminals (--terminals).
 CALL_TRANSCRIPTS = "src/mindroom/call_transcripts"
 TERMINAL_TOOLKIT = "src/mindroom/tools/terminal.py"
+# The setting a commit has when its shell refuses commands outside a worker unless the config allows them
+# (MindRoom #3923); an older commit refuses the setting as an unknown key.
+SHELL_WITHOUT_WORKER = ("src/mindroom/config/models.py", "allow_shell_without_worker")
 TRANSCRIPTION_MODES = ("stub", "real")
 # The model that writes a call's notes when a stub-model stack transcribes with OpenAI. With the stand-in the stub
 # model writes them, and a real-model stack has its own GPT-6 Luna write them.
@@ -313,6 +316,14 @@ def resolve_commit(checkout: Path, ref: str | None) -> str:
 def commit_has(checkout: Path, sha: str, path: str) -> bool:
     """Whether the commit has the file or directory `path`."""
     found = subprocess.run(["git", "-C", str(checkout), "cat-file", "-e", f"{sha}:{path}"], capture_output=True)
+    return found.returncode == 0
+
+
+def commit_mentions(checkout: Path, sha: str, path: str, text: str) -> bool:
+    """Whether the commit's file `path` holds `text`."""
+    found = subprocess.run(
+        ["git", "-C", str(checkout), "grep", "-q", "-F", text, sha, "--", path], capture_output=True
+    )
     return found.returncode == 0
 
 
@@ -708,6 +719,7 @@ def config_yaml(
     plugin_dirs: list[dict] | None = None,
     transcription: dict | None = None,
     terminals: bool = False,
+    shell_without_worker: bool = False,
 ) -> str:
     plugin_dirs = plugin_dirs or []
     agent_tools = """      - shell
@@ -722,9 +734,11 @@ def config_yaml(
     agent_tools += "".join(f"\n      - {tool}" for directory in plugin_dirs for tool in directory["tools"])
     plugin_paths = "".join(f"  - path: {json.dumps(d['dir'])}\n" for d in plugin_dirs if d["plugin"])
     plugins = f"plugins:\n{plugin_paths}" if plugin_paths else ""
+    # A shell that runs in the backend needs `allow_shell_without_worker` where the commit has it (MindRoom #3923
+    # refuses its calls otherwise); the setting leaves `worker_tools` deciding where tools run.
+    shell_default = "  allow_shell_without_worker: true\n" if shell_without_worker else ""
     # A Worker Computer is a browser in a worker of one person and agent; the tools that share it run there too, and
-    # every other tool stays in the backend. A shell that runs in the backend needs `allow_shell_without_worker`
-    # (MindRoom #3923 refuses its calls otherwise); the flag leaves `worker_tools` deciding where tools run.
+    # every other tool stays in the backend.
     worker_defaults = ""
     if computers:
         worker_defaults = f"  worker_tools: {json.dumps(computers['tools'])}\n  worker_scope: user_agent\n"
@@ -798,8 +812,7 @@ background_tool_jobs:
 
 defaults:
   markdown: true
-  allow_shell_without_worker: true
-{worker_defaults}{summary_model}
+{shell_default}{worker_defaults}{summary_model}
 administrators:
   - "{tester_id}"
 room_defaults:
@@ -1189,6 +1202,7 @@ def start(
             plugin_dirs,
             transcription,
             args.terminals,
+            commit_mentions(checkout, sha, *SHELL_WITHOUT_WORKER),
         )
     )
     api_url = f"http://127.0.0.1:{port['api']}"
