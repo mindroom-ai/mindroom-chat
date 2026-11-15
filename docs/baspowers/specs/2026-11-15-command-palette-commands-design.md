@@ -39,7 +39,7 @@ Out:
 
 An action row keeps its icon, title and description, and gains at its end, before the Enter mark:
 
-- **State:** `On` or `Off`, for a row that flips something. Enter flips it, the palette stays open and the row shows the new state.
+- **State:** `On` or `Off`, for a row that flips something. Enter flips it. A setting's row keeps the palette open and shows the new state; a room command closes it, as every other action does.
 - **Current choice:** a check mark on the choice in effect.
 - **Page:** a chevron. Enter opens the page.
 - **Keys:** the keyboard shortcut of the same action, as the app's tooltips write it.
@@ -103,12 +103,12 @@ Action rows get an icon of their own in place of the one terminal icon they shar
 
 | File | What it does |
 |---|---|
-| `command-palette/commandPaletteTypes.ts` | `CommandPaletteActionItem` gains `icon`, `tag`, `shortcut`, `state` (`'on' \| 'off'`), `current` (boolean) and `page` (a page id). `CommandPalettePageId` is `'theme' \| 'message-layout' \| 'language'`. |
+| `command-palette/commandPaletteTypes.ts` | `CommandPaletteActionItem` gains `icon`, `tag`, `shortcut`, `state` (`'on' \| 'off'`), `current` (boolean), `page` (a page id) and `keepOpen`. `CommandPalettePageId` is `'theme' \| 'message-layout' \| 'language'`. |
 | `command-palette/commandPaletteSettings.ts` (new) | Pure: the registry's shown settings to action rows (title, location, search words, tag, state for the switch settings). Holds the map of switch settings to their `settingsAtom` key and whether the switch is inverted. |
 | `command-palette/commandPalettePages.ts` (new) | Pure: the rows of the three pages from the themes, layouts and languages, with the current one marked, and their tagged copies for the first list's search. |
 | `command-palette/useCommandPaletteCommands.ts` (new) | The hook that makes those rows executable and adds the agent calls, room commands and shortcut commands. Returns `actions` (extra rows for the first list), `searchOnly` (settings and page choices) and `pages`. |
 | `command-palette/commandPaletteItems.ts` | `CommandPaletteSource` gains `searchActions` (all action rows, for typed text) and `pages`; `actions` gains the extra rows. |
-| `command-palette/CommandPalette.tsx` | The open page with the text and highlight to return to; a row with a state keeps the palette open, a choice does inside its page; typed text searches `searchActions`. |
+| `command-palette/CommandPalette.tsx` | The open page with the text and highlight to return to; a `keepOpen` row keeps the palette open, a choice does inside its page; typed text searches `searchActions`. |
 | `command-palette/CommandPaletteList.tsx` | Draws the row's icon, tag and end (state, check, chevron, keys). |
 | `navigation/roomCommands.ts` (new) | A module-level registration like `useShortcut`'s: `useRoomCommands(commands)` for the header that is mounted, `getRoomCommands()` for the palette, which reads once as it opens. |
 | `room/RoomViewHeader.tsx` | Publishes its header-drawn actions without a `popup`. |
