@@ -1,7 +1,19 @@
 import { keyframes, style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 
-const turn = keyframes({ to: { transform: 'rotate(360deg)' } });
+const glow = (of: string) =>
+  `drop-shadow(0 0 ${toRem(1.5)} color-mix(in srgb, ${of} 75%, transparent))`;
+
+const turnBack = keyframes({ to: { transform: 'rotate(-360deg)' } });
+// The outline is 100 long (its pathLength in ToolCallsFold.tsx), so this is one lap of it.
+const lap = keyframes({ to: { strokeDashoffset: '-100' } });
+const breathe = keyframes({
+  '50%': { color: color.Warning.MainLine, filter: glow(color.Warning.Main) },
+});
+const spread = keyframes({
+  from: { opacity: 0.9, transform: 'scale(1)' },
+  to: { opacity: 0, transform: 'scale(2.4)' },
+});
 
 export const Fold = style([DefaultReset, { display: 'inline-flex' }]);
 
@@ -44,20 +56,106 @@ export const Cog = style([
         },
       },
       '(prefers-reduced-motion: no-preference)': {
-        transition: 'opacity 150ms ease, color 300ms ease',
+        transition: 'opacity 150ms ease, color 300ms ease, scale 120ms ease',
+        selectors: { '&:active': { scale: '0.93' } },
       },
     },
   },
 ]);
 
+// The gear and its light turn as one: slowly backwards while a call runs, against the comet, and
+// by one of the gear's six teeth under the pointer.
 export const CogIcon = style({
+  position: 'relative',
+  display: 'flex',
   flexShrink: 0,
   fontSize: toRem(14),
   '@media': {
     '(prefers-reduced-motion: no-preference)': {
+      transition: 'rotate 550ms cubic-bezier(0.34, 1.56, 0.64, 1)',
       selectors: {
-        [`${Fold}[data-state="running"] &`]: { animation: `${turn} 2.4s linear infinite` },
+        [`${Fold}[data-state="running"] &`]: { animation: `${turnBack} 7s linear infinite` },
+      },
+    },
+    '(hover: hover) and (prefers-reduced-motion: no-preference)': {
+      selectors: { [`${Cog}:hover &`]: { rotate: '60deg' } },
+    },
+  },
+});
+
+// Dim while a call runs, so the comet on its outline stands out; its glow comes and goes while one
+// waits for approval. Under the pointer it lights up.
+export const CogGear = style({
+  '@media': {
+    '(prefers-reduced-motion: no-preference)': {
+      transition: 'opacity 300ms ease, color 300ms ease, filter 300ms ease',
+      selectors: {
+        [`${Fold}[data-state="running"] &`]: { opacity: 0.42 },
+        [`${Fold}[data-state="waiting"] &`]: {
+          animation: `${breathe} 2.4s ease-in-out infinite`,
+        },
+      },
+    },
+    '(hover: hover)': {
+      selectors: {
+        [`${Fold} ${Cog}:hover &`]: {
+          color: color.Primary.MainLine,
+          filter: glow(color.Primary.Main),
+          opacity: 1,
+          animation: 'none',
+        },
+        [`${Fold}[data-state="waiting"] ${Cog}:hover &`]: {
+          color: color.Warning.MainLine,
+          filter: glow(color.Warning.Main),
+        },
       },
     },
   },
+});
+
+// The comet's glow. It is on this box, not on the comet: WebKit applies a filter to no shape inside
+// an SVG, and clips what an SVG draws outside a filtered box, as the ripple does.
+export const CogGlow = style({
+  position: 'absolute',
+  inset: 0,
+  filter: glow(color.Primary.Main),
+  pointerEvents: 'none',
+});
+
+// A drawing over the gear, in the gear's own units: what moves on its outline, which is all motion.
+export const CogOutline = style({
+  display: 'none',
+  '@media': {
+    '(prefers-reduced-motion: no-preference)': {
+      position: 'absolute',
+      inset: 0,
+      display: 'block',
+      inlineSize: '100%',
+      blockSize: '100%',
+      // The ripple grows past the icon's box.
+      overflow: 'visible',
+      pointerEvents: 'none',
+    },
+  },
+});
+
+// Three dashes that end at one point, the longer the fainter: a comet that laps the outline.
+export const CogComet = style({
+  stroke: color.Primary.Main,
+  strokeWidth: '1.62',
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+  animation: `${lap} 2.4s linear infinite`,
+});
+
+export const CogCometHead = style({ stroke: color.Primary.MainLine });
+
+// A click sheds the gear's outline, which grows and fades.
+export const CogRipple = style({
+  stroke: color.Primary.Main,
+  strokeWidth: '1.3',
+  strokeLinejoin: 'round',
+  transformOrigin: '12px 12px',
+  animation: `${spread} 650ms cubic-bezier(0.2, 0.7, 0.3, 1) both`,
+  selectors: { [`${Fold}[data-state="waiting"] &`]: { stroke: color.Warning.Main } },
 });

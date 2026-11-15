@@ -26,10 +26,7 @@ import { ToolCallsFold } from '../agent-run/ToolCallsFold';
 import { withReasoning } from '../agent-run/Reasoning';
 import backendToolMarkerBodies from '../__fixtures__/backendToolMarkerBodies.json';
 import { getRenderedToolRefs } from '../agent-run/toolRefDom';
-import {
-  getMessageCopyTexts,
-  scanToolMarkerLines,
-} from '../messageCopyText';
+import { getMessageCopyTexts, scanToolMarkerLines } from '../messageCopyText';
 import { formatMessageTextBodyAsHtml } from './blocks';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
@@ -113,7 +110,19 @@ vi.mock('folds', async () => {
 
 // The folds stand-in above has no colors, which these styles read; their class names will do.
 vi.mock('../agent-run/ToolCallsFold.css', () =>
-  Object.fromEntries(['Fold', 'Cog', 'CogIcon'].map((name) => [name, name]))
+  Object.fromEntries(
+    [
+      'Fold',
+      'Cog',
+      'CogIcon',
+      'CogGear',
+      'CogGlow',
+      'CogOutline',
+      'CogComet',
+      'CogCometHead',
+      'CogRipple',
+    ].map((name) => [name, name])
+  )
 );
 vi.mock('../agent-run/Reasoning.css', () =>
   Object.fromEntries(
@@ -922,6 +931,23 @@ describe('useToolTraceMarkerParserOptions', () => {
       reply.unmount();
     });
 
+    it('draws the comet on the cog only while a call runs, and a ripple after each click', async () => {
+      const reply = renderReply(twoRunsHtml(true), { shownByDefault: false });
+      const drawn = (className: string) =>
+        reply.cog().findAll((node) => node.props.className === className);
+      expect(drawn('CogComet')).toHaveLength(1);
+      expect(drawn('CogRipple')).toHaveLength(0);
+
+      reply.update(twoRunsHtml(false));
+      expect(drawn('CogOutline')).toHaveLength(0);
+
+      await act(() => reply.cogButton().props.onClick());
+      expect(reply.cogButton().props['aria-expanded']).toBe(true);
+      expect(drawn('CogRipple')).toHaveLength(1);
+      expect(drawn('CogComet')).toHaveLength(0);
+      reply.unmount();
+    });
+
     it("puts the cog on the line of the reply's reasoning, after its toggle", () => {
       const reply = renderReply(twoRunsHtml(false), {
         shownByDefault: false,
@@ -1091,7 +1117,7 @@ describe('useToolTraceMarkerParserOptions', () => {
       (node) => typeof node.type === 'string' && node.props['data-tool-index'] !== undefined
     );
     expect(rows.map((row) => row.props['data-tool-index'])).toEqual([1, 2]);
-    const textOf = (row: typeof rows[number]) =>
+    const textOf = (row: (typeof rows)[number]) =>
       row
         .findAll(() => true)
         .flatMap((node) => node.children.filter((child) => typeof child === 'string'))
@@ -1685,9 +1711,7 @@ describe('copy stripping matches the app renderer', () => {
 
     // Repeated indexes render once as a block and again as text, so compare sets.
     const plainBodyFallback = formattedBody === undefined;
-    const detected = new Set(
-      getRenderedToolRefs(html).toolBlocks.map(({ index }) => index)
-    );
+    const detected = new Set(getRenderedToolRefs(html).toolBlocks.map(({ index }) => index));
     const rendered = new Set(renderedToolIndexes);
     detected.forEach((index) => expect(rendered.has(index)).toBe(true));
     if (knownDetectionGaps.has(name) || (!plainBodyFallback && knownFormattedBodyGaps.has(name))) {
@@ -1798,9 +1822,7 @@ describe('direction controls in tool calls and code', () => {
     );
 
     const formatted = renderCustomHtmlMarkup(`<p>Rename <b>${text}</b> first</p>`);
-    expect(formatted).toContain(
-      `<b>${shown.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</b>`
-    );
+    expect(formatted).toContain(`<b>${shown.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</b>`);
     expect(formatted).not.toMatch(CONTROL);
   });
 });
