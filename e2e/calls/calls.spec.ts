@@ -351,6 +351,20 @@ test.describe('calls', () => {
       await expect(devices.getByRole('menuitemradio').first()).toBeVisible();
       await bobPage.keyboard.press('Escape');
 
+      // In a short window the devices scroll inside the menu, whose glass rim stays put.
+      const size = bobPage.viewportSize();
+      await bobPage.setViewportSize({ width: 1280, height: 260 });
+      await callPanel(bobPage).getByRole('button', { name: 'Settings' }).click();
+      const lastDevice = devices.getByRole('menuitemradio').last();
+      await lastDevice.scrollIntoViewIfNeeded();
+      await expect(lastDevice).toBeInViewport();
+      expect(
+        await devices.evaluate((menu) => menu.scrollHeight - menu.clientHeight)
+      ).toBeLessThanOrEqual(1);
+      expect(await devices.evaluate((menu) => menu.scrollTop)).toBe(0);
+      await bobPage.keyboard.press('Escape');
+      if (size) await bobPage.setViewportSize(size);
+
       // Alice reloads: her page takes the call up again, still muted, and Bob hears her again
       // once she unmutes.
       await alicePage.reload();
