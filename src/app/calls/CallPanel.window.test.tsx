@@ -23,7 +23,6 @@ import {
   CallWindowSizeContext,
   type CallWindowFrame,
 } from './window/callWindowFrame';
-import type { TranscriptLine } from './transcription/api';
 import { callTranscriptionAtom, liveTranscriptAtom } from './transcription/transcriptionState';
 import { transcriptPanelAtom } from './transcription/transcriptPanel';
 import { hasShortcutHandler, runShortcut } from '../shortcuts/useShortcut';
@@ -1093,11 +1092,8 @@ describe('the minimized bar', () => {
 });
 
 describe('the live transcript in the window', () => {
-  /**
-   * MindRoom transcribes the call in `roomId` (the room's own), nothing said yet unless `lines`,
-   * and the account shows the transcript.
-   */
-  const transcribed = (roomId = room.roomId, lines: TranscriptLine[] = []) => {
+  /** MindRoom transcribes the call in `roomId`, nothing said yet, and the account shows the transcript. */
+  const transcribed = (roomId = room.roomId) => {
     store.set(callTranscriptionAtom, { roomId, status: 'transcribing' });
     store.set(liveTranscriptAtom, {
       roomId,
@@ -1110,20 +1106,10 @@ describe('the live transcript in the window', () => {
         members: [USER, '@ana:panel.test'],
         pausedBy: null,
       },
-      lines,
+      lines: [],
       names: {},
     });
     store.set(getCallWindowSettingsAtom(USER), { mode: 'floating', transcript: true });
-  };
-  /** The agent's answer, as MindRoom posts it once its turn is over. */
-  const answer: TranscriptLine = {
-    id: 'turn-1',
-    callId: 'call-1',
-    userId: '@mindroom_helper:panel.test',
-    saidAt: '2026-11-07T09:30:00Z',
-    seconds: 0,
-    kind: 'speech',
-    text: 'The plan has three steps.',
   };
   const transcript = () => document.querySelector('[data-call-window-transcript]');
 
@@ -1176,9 +1162,9 @@ describe('the live transcript in the window', () => {
 
   it('shows with the stage in a call with an agent too, with no Pause', () => {
     agentCall({ roomId: room.roomId });
-    transcribed(callRoom.roomId, [answer]);
+    transcribed(callRoom.roomId);
     renderPanel({ frame: frame() });
-    expect(transcript()?.textContent).toContain('The plan has three steps.');
+    expect(transcript()?.textContent).toContain('Nothing has been said yet.');
     expect(
       screen.getByRole('button', { name: 'Live transcript' }).getAttribute('aria-pressed')
     ).toBe('true');
@@ -1194,7 +1180,7 @@ describe('the live transcript in the window', () => {
     agentCall({ roomId: room.roomId });
     store.set(activeCallAtom, calls.active);
     store.set(callPanelRoomAtom, room.roomId);
-    transcribed(callRoom.roomId, [answer]);
+    transcribed(callRoom.roomId);
     store.set(getCallWindowSettingsAtom(USER), { mode: 'docked' });
     renderPanel();
     expect(transcript()).toBeNull();

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Icon, IconButton, Icons, Text } from 'folds';
-import { isActiveCallShownIn, useActiveCall } from '../callStore';
+import { useActiveCall } from '../callStore';
 import { LiveTranscriptBody } from './LiveTranscriptBody';
 import { PauseControl } from './PauseControl';
 import { useLiveTranscript } from './useLiveTranscript';
@@ -20,7 +20,7 @@ const READ_MS = 2_000;
 export function LiveTranscriptPanel({ room, onClose }: { room: Room; onClose: () => void }) {
   const { t } = useTranslation();
   const active = useActiveCall();
-  const callRoom = active && isActiveCallShownIn(active, room.roomId) ? active.call.room : room;
+  const callRoom = active?.origin?.roomId === room.roomId ? active.call.room : room;
   const view = useLiveTranscript(callRoom, READ_MS);
   const { state } = view;
   const pausable = view.ownCall && active?.kind === 'room';
