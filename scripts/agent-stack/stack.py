@@ -723,7 +723,8 @@ def config_yaml(
     plugin_paths = "".join(f"  - path: {json.dumps(d['dir'])}\n" for d in plugin_dirs if d["plugin"])
     plugins = f"plugins:\n{plugin_paths}" if plugin_paths else ""
     # A Worker Computer is a browser in a worker of one person and agent; the tools that share it run there too, and
-    # every other tool stays in the backend.
+    # every other tool stays in the backend. A shell that runs in the backend needs `allow_shell_without_worker`
+    # (MindRoom #3923 refuses its calls otherwise); the flag leaves `worker_tools` deciding where tools run.
     worker_defaults = ""
     if computers:
         worker_defaults = f"  worker_tools: {json.dumps(computers['tools'])}\n  worker_scope: user_agent\n"
@@ -797,6 +798,7 @@ background_tool_jobs:
 
 defaults:
   markdown: true
+  allow_shell_without_worker: true
 {worker_defaults}{summary_model}
 administrators:
   - "{tester_id}"

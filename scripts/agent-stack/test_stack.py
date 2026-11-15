@@ -745,7 +745,7 @@ class OptionTests(unittest.TestCase):
         helper, scout = config.split("  helper:\n", 1)[1].split("  scout:\n", 1)
         self.assertIn("      - browser_mcp\n", helper)
         self.assertIn("    tools: [shell]\n", scout)
-        self.assertIn('defaults:\n  markdown: true\n  worker_tools: ["browser_mcp"]\n  worker_scope: user_agent\n', config)
+        self.assertIn('defaults:\n  markdown: true\n  allow_shell_without_worker: true\n  worker_tools: ["browser_mcp"]\n  worker_scope: user_agent\n', config)
         # A shell beside the browser, which can open what the shell serves.
         computers["tools"] = ["browser_mcp", "shell"]
         config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, computers=computers)
@@ -754,6 +754,12 @@ class OptionTests(unittest.TestCase):
         self.assertNotIn("browser_mcp", plain)
         self.assertNotIn("worker_", plain)
 
+    def test_a_shell_outside_a_worker_runs_in_the_backend_process(self) -> None:
+        # MindRoom refuses shell calls outside a worker unless the config allows them (MindRoom #3923).
+        for mode in ("stub", "real"):
+            config = stack.config_yaml(mode, TESTER, STUB_URL, 0.0003)
+            self.assertIn("\ndefaults:\n  markdown: true\n  allow_shell_without_worker: true\n", config, mode)
+
     def test_terminals_give_the_helper_a_terminal_it_types_in_beside_its_shell_in_the_runner(self) -> None:
         for mode in ("stub", "real"):
             config = stack.config_yaml(mode, TESTER, STUB_URL, 0.0003, terminals=True)
@@ -761,7 +767,7 @@ class OptionTests(unittest.TestCase):
             self.assertIn("      - shell\n", helper, mode)
             self.assertIn("      - terminal\n", helper, mode)
             self.assertIn("    terminals: type\n", helper, mode)
-            self.assertIn("defaults:\n  markdown: true\n  worker_tools: [shell]\n", config, mode)
+            self.assertIn("defaults:\n  markdown: true\n  allow_shell_without_worker: true\n  worker_tools: [shell]\n", config, mode)
             # The helper types only while no approval rule may ask for its shell calls.
             self.assertNotIn("match: run_shell_command", config, mode)
             self.assertNotIn("shell_review", config, mode)
