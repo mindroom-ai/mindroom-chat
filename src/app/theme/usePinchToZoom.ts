@@ -426,9 +426,12 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
     window.addEventListener('touchend', handleFingersChange, { passive: true });
     window.addEventListener('touchcancel', handleFingersChange, { passive: true });
-    document.addEventListener('gesturestart', handleGestureStart, { passive: false });
-    document.addEventListener('gesturechange', handleGestureChange, { passive: false });
-    document.addEventListener('gestureend', handleGestureEnd, { passive: true });
+    // On the window, as the rest: a gesture listener on the document makes WebKit on iOS build
+    // three regions out of every element of the page, on each frame anything moves, which is
+    // 45 ms a frame beside 500 Compact cards.
+    window.addEventListener('gesturestart', handleGestureStart, { passive: false });
+    window.addEventListener('gesturechange', handleGestureChange, { passive: false });
+    window.addEventListener('gestureend', handleGestureEnd, { passive: true });
     window.addEventListener('pointerdown', handlePointerDown, { passive: true });
     window.addEventListener('pointerup', handlePointerEnd, { passive: true });
     window.addEventListener('pointercancel', handlePointerEnd, { passive: true });
@@ -449,9 +452,9 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleFingersChange);
       window.removeEventListener('touchcancel', handleFingersChange);
-      document.removeEventListener('gesturestart', handleGestureStart);
-      document.removeEventListener('gesturechange', handleGestureChange);
-      document.removeEventListener('gestureend', handleGestureEnd);
+      window.removeEventListener('gesturestart', handleGestureStart);
+      window.removeEventListener('gesturechange', handleGestureChange);
+      window.removeEventListener('gestureend', handleGestureEnd);
       window.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('pointerup', handlePointerEnd);
       window.removeEventListener('pointercancel', handlePointerEnd);

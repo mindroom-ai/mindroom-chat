@@ -4,6 +4,7 @@ import { deleteCacheStoreDb, saveRoomEventsToCache, saveThreadEventsToCache } fr
 import { loadCachedThreadEventsInSpan } from '../cacheStoreThreadSpan';
 import { openCacheStore } from '../cacheStoreDb';
 import { META_STORE } from '../cacheStoreSchema';
+import { putLegacyRows } from './legacyRows';
 
 const SESSION_ID = 'cache-thread-span-session';
 const ROOM_ID = '!room:example.org';
@@ -61,13 +62,14 @@ describe('loadCachedThreadEventsInSpan', () => {
       SESSION_ID,
       ROOM_ID,
       '$a',
-      [
-        rawEvent('$a1', 10),
-        { ...rawEvent('$elsewhere', 15), room_id: '!other:example.org' },
-        noRoom,
-      ],
+      [rawEvent('$a1', 10), noRoom],
       rawEvent('$a', 1)
     );
+    await putLegacyRows(SESSION_ID, ROOM_ID, {
+      events: [
+        { scope: '$a', rawEvent: { ...rawEvent('$elsewhere', 15), room_id: '!other:example.org' } },
+      ],
+    });
 
     expect(
       ids(await loadCachedThreadEventsInSpan(SESSION_ID, ROOM_ID, { eventId: '$a1', ts: 10 }))
@@ -79,9 +81,9 @@ describe('loadCachedThreadEventsInSpan', () => {
       const { room_id: _roomId, ...event } = rawEvent(eventId, ts);
       return event;
     };
-    await saveThreadEventsToCache(SESSION_ID, ROOM_ID, '$x', [withoutRoom('$x1', 10)], {
-      ...rawEvent('$x', 1),
-      room_id: '!other:example.org',
+    await saveThreadEventsToCache(SESSION_ID, ROOM_ID, '$x', [withoutRoom('$x1', 10)]);
+    await putLegacyRows(SESSION_ID, ROOM_ID, {
+      roots: [{ scope: '$x', rootEvent: { ...rawEvent('$x', 1), room_id: '!other:example.org' } }],
     });
     await saveThreadEventsToCache(SESSION_ID, ROOM_ID, '$y', [withoutRoom('$y1', 12)]);
 
