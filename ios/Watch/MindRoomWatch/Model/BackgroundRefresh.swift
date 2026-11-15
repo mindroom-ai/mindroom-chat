@@ -31,6 +31,8 @@ enum BackgroundRefresh {
 extension RoomModel {
     /// Writes what the complications show when it changed, and asks them to redraw.
     func publishWidgetSnapshot() {
+        // The complications show the default room; a room a notification opened has a model too.
+        guard DefaultRoom.get(userId: userId) == room.id() else { return }
         let snapshot = WidgetSnapshot(roomName: roomName, states: rows.map(\.state), at: Date())
         let old = WidgetSnapshot.read()
         guard old?.roomName != snapshot.roomName || old?.needsYou != snapshot.needsYou || old?.running != snapshot.running else { return }

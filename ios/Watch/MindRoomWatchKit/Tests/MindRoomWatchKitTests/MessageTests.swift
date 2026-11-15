@@ -26,6 +26,12 @@ final class QuestionTests: XCTestCase {
         XCTAssertEqual(q.options.first { $0.key == "📄" }?.label, "v4 draft")
     }
 
+    func testKeycapEmojiAreButtonsNotTypedNumbers() throws {
+        let keycaps: JSON = ["question_text": "Which?", "options": ["1️⃣": "a", "2️⃣": "b", "1": "a", "2": "b"]]
+        let q = try XCTUnwrap(Question.parse(message(["body": "Which?", "io.mindroom.interactive": keycaps], id: "$q"), latestEdit: nil))
+        XCTAssertEqual(q.options.map(\.key), ["1️⃣", "2️⃣"])
+    }
+
     func testReadsTheQuestionFromTheLatestEdit() throws {
         let q = Question.parse(message(["body": "Thinking…"], id: "$q"), latestEdit: edit(of: "$q", ["body": "Which?", "io.mindroom.interactive": interactive]))
         XCTAssertEqual(q?.options.count, 2)

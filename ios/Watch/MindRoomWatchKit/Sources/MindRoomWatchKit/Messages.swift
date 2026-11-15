@@ -17,7 +17,8 @@ public struct Question: Equatable, Sendable {
               let options = interactive["options"] as? JSON,
               let text = interactive["question_text"] as? String, !text.isEmpty else { return nil }
         let labels = interactive["option_labels"] as? JSON ?? [:]
-        // The number keys (typed answers) carry the agent's order; the emoji keys are the buttons.
+        // The number keys (typed answers, ASCII digits only as in the web client: a keycap emoji is a
+        // button) carry the agent's order; the other keys are the buttons.
         let numbered = options.compactMap { key, value -> (Int, String)? in
             guard let number = Int(key), let value = value as? String else { return nil }
             return (number, value)
@@ -26,7 +27,7 @@ public struct Question: Equatable, Sendable {
             numbered.filter { $0.1 == options[key] as? String }.map(\.0).min() ?? Int.max
         }
         let buttons = options
-            .filter { key, value in !key.allSatisfy(\.isNumber) && value is String }
+            .filter { key, value in key.unicodeScalars.contains { !("0"..."9").contains($0) } && value is String }
             .map(\.key)
             .sorted { (order($0), $0) < (order($1), $1) }
             .map { key -> Option in

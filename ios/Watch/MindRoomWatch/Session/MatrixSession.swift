@@ -61,8 +61,12 @@ final class MatrixSession: ObservableObject {
         do {
             let (data, response) = try await URLSession.shared.data(for: TokenLoginRequest.make(homeserverUrl: homeserverUrl, token: token))
             let result = try TokenLoginRequest.parse(data: data, status: (response as? HTTPURLResponse)?.statusCode ?? 0)
-            // Connecting again replaces the old device.
-            if SessionStore.load() != nil { await signOutNow() }
+            // Connecting again replaces the old device, which is logged out on the server: its client is
+            // opened first when the credentials came before the app restored it.
+            if SessionStore.load() != nil {
+                if client == nil { await restoreNow() }
+                await signOutNow()
+            }
             let session = Session(accessToken: result.accessToken, refreshToken: nil, userId: result.userId,
                                   deviceId: result.deviceId, homeserverUrl: homeserverUrl.absoluteString,
                                   oauthData: nil, slidingSyncVersion: .native)

@@ -1,6 +1,7 @@
 import MatrixRustSDK
 import MindRoomWatchKit
 import SwiftUI
+import UserNotifications
 
 /// The signed-in watch: the default room's mic and its threads, or the room picker when there is none.
 struct HomeView: View {
@@ -40,6 +41,14 @@ struct HomeView: View {
             E2EHooks.logCrypto(client)
             #endif
             if model == nil, let roomId = DefaultRoom.get(userId: userId) { open(roomId) }
+        }
+        // The watch's own "Not sent" notice needs the permission; a push the iPhone forwards does not.
+        .task {
+            #if DEBUG
+            // No prompt over the simulator run's screenshots.
+            if E2EHooks.room != nil { return }
+            #endif
+            _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
         }
         .onChange(of: rooms.rooms) { _, _ in
             // At launch the default room may reach the room list only after the first sync.
