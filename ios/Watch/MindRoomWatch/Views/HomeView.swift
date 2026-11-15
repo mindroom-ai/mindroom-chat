@@ -23,7 +23,9 @@ struct HomeView: View {
                     RoomHome(model: model, path: $path, pick: { picking = true }, roomGone: roomGone)
                         .navigationDestination(for: ThreadTarget.self) { target in
                             if let roomModel = roomModel(target.roomId) {
-                                ThreadView(roomModel: roomModel, rootId: target.rootId)
+                                // A notification can replace the open thread: each thread is a view of its own,
+                                // or the new one would keep the old one's model.
+                                ThreadView(roomModel: roomModel, rootId: target.rootId).id(target)
                             }
                         }
                 } else {

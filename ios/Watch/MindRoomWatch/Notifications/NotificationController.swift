@@ -129,12 +129,16 @@ final class OpenThreadRequest: ObservableObject {
 
 /// Delivers the notification's actions to `NotificationActions`.
 final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    // On the main actor: the system's completion handler, which runs when this returns, must be called on the
+    // main thread (it aborts the app otherwise).
+    @MainActor
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let identifier = response.actionIdentifier == UNNotificationDefaultActionIdentifier ? "open" : response.actionIdentifier
         let userInfo = response.notification.request.content.userInfo
         await NotificationActions.perform(identifier, userInfo: userInfo)
     }
 
+    @MainActor
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         [.banner, .sound]
     }
