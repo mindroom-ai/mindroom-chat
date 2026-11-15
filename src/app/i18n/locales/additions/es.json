@@ -1129,7 +1129,7 @@
     "steps": {
       "conversation": {
         "title": "Un hilo es una conversación",
-        "text": "Las salas con agentes se abren en la vista compacta. Cada tarjeta es un hilo: un solo tema con todas sus respuestas juntas. En una sala caben tantos como necesites."
+        "text": "La mayoría de las salas con agentes se abren en la vista compacta. Cada tarjeta es un hilo: un solo tema con todas sus respuestas juntas. En una sala caben tantos como necesites."
       },
       "start": {
         "title": "Escribe para empezar un hilo nuevo",

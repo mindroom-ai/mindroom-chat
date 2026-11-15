@@ -1083,7 +1083,7 @@
     "steps": {
       "conversation": {
         "title": "Satu utas adalah satu percakapan",
-        "text": "Ruang yang berisi agen terbuka dalam tampilan Ringkas. Setiap kartu adalah satu utas: satu topik beserta semua balasannya. Satu ruang bisa memuat utas sebanyak yang Anda perlukan."
+        "text": "Sebagian besar ruang yang berisi agen terbuka dalam tampilan Ringkas. Setiap kartu adalah satu utas: satu topik beserta semua balasannya. Satu ruang bisa memuat utas sebanyak yang Anda perlukan."
       },
       "start": {
         "title": "Ketik untuk memulai utas baru",

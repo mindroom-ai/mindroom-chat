@@ -83,7 +83,7 @@ Chapter **The basics** (the Quick tour):
 
 | # | Step | Title | Text | Scene and spotlight |
 |---|---|---|---|---|
-| 1 | `conversation` | A thread is one conversation | Rooms with agents open in Compact view. Each card is one thread: a single topic with all its replies together. A room holds as many as you need. | Four cards. Spotlight: the first card. |
+| 1 | `conversation` | A thread is one conversation | Most rooms with agents open in Compact view. Each card is one thread: a single topic with all its replies together. A room holds as many as you need. | Four cards. Spotlight: the first card. |
 | 2 | `start` | Type to start a new thread | Write in the box at the bottom of the room and send. That starts a new thread, and it opens right away. | A message is typed into the composer and sent; the new thread opens with the message and an agent answering. Spotlight: the composer, then the open thread. |
 | 3 | `reply` | Inside a thread, you reply | What you write in an open thread is a reply there, not a new thread. Back returns to the list, where any card opens its thread again. | The open thread: the reply box, then Back, then the list with the new card on top. Spotlight: the reply box, Back, the new card. |
 | 4 | `title` | AI writes the titles | A new card shows your first message. After an agent replies, MindRoom's AI gives the thread a short title. Edit summary in Thread options changes it. | The new card's title changes from the typed message to a short title. Spotlight: the title. |

@@ -1129,7 +1129,7 @@
     "steps": {
       "conversation": {
         "title": "Un thread è una conversazione",
-        "text": "Le stanze con agenti si aprono nella vista Compatto. Ogni scheda è un thread: un solo argomento con tutte le sue risposte. Una stanza ne contiene quanti te ne servono."
+        "text": "La maggior parte delle stanze con agenti si apre nella vista Compatto. Ogni scheda è un thread: un solo argomento con tutte le sue risposte. Una stanza ne contiene quanti te ne servono."
       },
       "start": {
         "title": "Scrivi per iniziare un nuovo thread",

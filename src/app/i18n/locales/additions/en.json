@@ -1106,7 +1106,7 @@
     "steps": {
       "conversation": {
         "title": "A thread is one conversation",
-        "text": "Rooms with agents open in Compact view. Each card is one thread: a single topic with all its replies together. A room holds as many as you need."
+        "text": "Most rooms with agents open in Compact view. Each card is one thread: a single topic with all its replies together. A room holds as many as you need."
       },
       "start": {
         "title": "Type to start a new thread",

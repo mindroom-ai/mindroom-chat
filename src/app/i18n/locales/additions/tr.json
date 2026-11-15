@@ -1106,7 +1106,7 @@
     "steps": {
       "conversation": {
         "title": "Bir konu, tek bir konuşmadır",
-        "text": "Ajanların olduğu odalar Kompakt görünümde açılır. Her kart bir konudur: ilk mesaj ve ona gelen tüm yanıtlar bir arada. Bir odada dilediğiniz kadar konu olabilir."
+        "text": "Ajanların olduğu odaların çoğu Kompakt görünümde açılır. Her kart bir konudur: ilk mesaj ve ona gelen tüm yanıtlar bir arada. Bir odada dilediğiniz kadar konu olabilir."
       },
       "start": {
         "title": "Yeni bir konu başlatmak için yazın",

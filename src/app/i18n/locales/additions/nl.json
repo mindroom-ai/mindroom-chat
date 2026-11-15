@@ -1106,7 +1106,7 @@
     "steps": {
       "conversation": {
         "title": "Een thread is één gesprek",
-        "text": "Kamers met agents openen in de Compacte weergave. Elke kaart is één thread: één onderwerp met alle antwoorden bij elkaar. In een kamer passen er zoveel als je nodig hebt."
+        "text": "De meeste kamers met agents openen in de Compacte weergave. Elke kaart is één thread: één onderwerp met alle antwoorden bij elkaar. In een kamer passen er zoveel als je nodig hebt."
       },
       "start": {
         "title": "Typ om een nieuwe thread te starten",

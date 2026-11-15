@@ -1129,7 +1129,7 @@
     "steps": {
       "conversation": {
         "title": "Um tópico é uma conversa",
-        "text": "As salas com agentes abrem na Vista compacta. Cada cartão é um tópico: um único assunto com todas as respostas juntas. Uma sala pode ter tantos quantos precisar."
+        "text": "A maioria das salas com agentes abre na Vista compacta. Cada cartão é um tópico: um único assunto com todas as respostas juntas. Uma sala pode ter tantos quantos precisar."
       },
       "start": {
         "title": "Escreva para iniciar um novo tópico",

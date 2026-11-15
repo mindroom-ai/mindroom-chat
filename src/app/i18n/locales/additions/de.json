@@ -1106,7 +1106,7 @@
     "steps": {
       "conversation": {
         "title": "Ein Thread ist ein Gespräch",
-        "text": "Räume mit Agenten öffnen sich in der Kompaktansicht. Jede Karte ist ein Thread: ein einzelnes Thema mit all seinen Antworten. Ein Raum fasst so viele, wie du brauchst."
+        "text": "Die meisten Räume mit Agenten öffnen sich in der Kompaktansicht. Jede Karte ist ein Thread: ein einzelnes Thema mit all seinen Antworten. Ein Raum fasst so viele, wie du brauchst."
       },
       "start": {
         "title": "Schreibe, um einen neuen Thread zu starten",

@@ -67,6 +67,20 @@ const frameOf = (page: Page): Promise<Box> =>
     return { x, y, width, height };
   });
 
+/**
+ * Opens the fixture page and waits for the dialog in its own fonts: the page says it is ready
+ * before the dialog has asked for them, and a font arriving between two steps would move what
+ * the steps are compared by.
+ */
+const openTour = async (page: Page, query: string) => {
+  await page.goto(`/e2e/fixtures/tour.html?${query}`);
+  await page.locator('body[data-fixture-ready="true"]').waitFor();
+  const dialog = page.locator('[data-tour-dialog]');
+  await expect(dialog).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  return dialog;
+};
+
 const SCREENS = [
   { name: 'a wide screen', viewport: { width: 1280, height: 800 }, query: 'level=full' },
   { name: 'a small phone', viewport: { width: 375, height: 667 }, query: 'level=full' },
@@ -92,10 +106,7 @@ SCREENS.forEach(({ name, viewport, query }) => {
   test(`every step of the tour fits ${name}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto(`/e2e/fixtures/tour.html?${query}`);
-    await page.locator('body[data-fixture-ready="true"]').waitFor();
-    const dialog = page.locator('[data-tour-dialog]');
-    await expect(dialog).toBeVisible();
+    const dialog = await openTour(page, query);
     const screen: Box = { x: 0, y: 0, ...viewport };
 
     const mainButtons: Box[] = [];
@@ -161,15 +172,21 @@ test('the spotlight is on the check of a card while the scene of Resolve plays',
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto('/e2e/fixtures/tour.html?level=full');
-  await page.locator('body[data-fixture-ready="true"]').waitFor();
-  const dialog = page.locator('[data-tour-dialog]');
-  await expect(dialog).toBeVisible();
+  // The page's clock stands still, so a scene stays in its first phase however long the
+  // measuring takes, and goes on only when the test says so.
+  await page.clock.install({ time: 0 });
+  await page.clock.pauseAt(1_000);
+  const dialog = await openTour(page, 'level=full');
+  const stage = page.locator('[data-tour-stage]');
   // Straight to the seventh step, whose first phase shows the card's buttons.
   for (let at = 1; at < 7; at += 1) await page.locator('[data-tour-action="next"]').click();
   await expect(dialog).toHaveAttribute('data-tour-step', 'resolve');
-  await expect(page.locator('[data-tour-stage]')).toHaveAttribute('data-tour-phase', '0');
+  await expect(stage).toHaveAttribute('data-tour-phase', '0');
   // The buttons sit over the card's end, centered on it, and the ring has to find them there.
   await expectSpotlightOn(page, 'resolveButton', 'resolve');
-  await expect(page.locator('[data-tour-stage]')).toHaveAttribute('data-tour-phase', '0');
+
+  // The scene goes on: the card is marked resolved, with the ring around the whole card.
+  await page.clock.runFor(2_000);
+  await expect(stage).toHaveAttribute('data-tour-phase', '1');
+  await expectSpotlightOn(page, 'card:vendor', 'resolve');
 });

@@ -1129,7 +1129,7 @@
     "steps": {
       "conversation": {
         "title": "Un fil, c’est une conversation",
-        "text": "Les salles avec des agents s’ouvrent dans la vue Compact. Chaque carte est un fil : un seul sujet avec toutes ses réponses. Une salle en contient autant qu’il vous en faut."
+        "text": "La plupart des salles avec des agents s’ouvrent dans la vue Compact. Chaque carte est un fil : un seul sujet avec toutes ses réponses. Une salle en contient autant qu’il vous en faut."
       },
       "start": {
         "title": "Écrivez pour démarrer un nouveau fil",
