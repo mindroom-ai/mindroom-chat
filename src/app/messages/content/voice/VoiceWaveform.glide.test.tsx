@@ -21,7 +21,12 @@ vi.mock('./VoiceWaveform.css', () => ({
   SeekInput: 'SeekInput',
 }));
 
-type FakeAnimation = { target: Element; keyframes: Keyframe[]; cancel: ReturnType<typeof vi.fn> };
+type FakeAnimation = {
+  target: Element;
+  keyframes: Keyframe[];
+  cancel: ReturnType<typeof vi.fn>;
+  handle: { startTime: CSSNumberish | null };
+};
 
 let host: HTMLDivElement;
 let root: Root;
@@ -43,12 +48,14 @@ beforeEach(() => {
     options: KeyframeAnimationOptions
   ) {
     expect(options).toEqual({ duration: 80, easing: 'linear' });
-    const animation: FakeAnimation = { target: this, keyframes, cancel: vi.fn() };
-    animations.push(animation);
-    return {
-      cancel: animation.cancel,
+    const cancel = vi.fn();
+    const handle = {
+      cancel,
       effect: { getComputedTiming: () => ({ progress }) },
-    } as unknown as Animation;
+      startTime: null,
+    };
+    animations.push({ target: this, keyframes, cancel, handle });
+    return handle as unknown as Animation;
   }) as unknown as HTMLElement['animate'];
   host = document.createElement('div');
   document.body.append(host);
@@ -59,6 +66,8 @@ afterEach(() => {
   act(() => root.unmount());
   host.remove();
   delete (HTMLElement.prototype as Partial<HTMLElement>).animate;
+  vi.unstubAllGlobals();
+  Reflect.deleteProperty(document, 'timeline');
 });
 
 describe('VoiceWaveform live glide', () => {
@@ -70,22 +79,42 @@ describe('VoiceWaveform live glide', () => {
     expect(animations).toHaveLength(1);
     expect(animations[0]!.target.className).toBe('CompactStrip');
     expect(animations[0]!.keyframes).toEqual([
-      { transform: 'translateX(3px)' },
+      { transform: 'translateX(0.1875rem)' },
       { transform: 'none' },
     ]);
 
     progress = 0.5;
     render(3);
     expect(animations[0]!.cancel).toHaveBeenCalled();
-    expect(animations[1]!.keyframes[0]).toEqual({ transform: 'translateX(4.5px)' });
+    expect(animations[1]!.keyframes[0]).toEqual({ transform: 'translateX(0.2813rem)' });
 
     // Never farther than the strip reaches past its start: many samples at once jump the rest.
     render(13);
-    expect(animations[2]!.keyframes[0]).toEqual({ transform: 'translateX(6px)' });
+    expect(animations[2]!.keyframes[0]).toEqual({ transform: 'translateX(0.375rem)' });
 
     render(0);
     expect(animations[2]!.cancel).toHaveBeenCalled();
     expect(animations).toHaveLength(3);
+  });
+
+  it('starts each glide at the frame on screen', () => {
+    Object.defineProperty(document, 'timeline', {
+      configurable: true,
+      value: { currentTime: 1234 },
+    });
+    render(1);
+    render(2);
+    expect(animations[0]!.handle.startTime).toBe(1234);
+  });
+
+  it('steps without gliding when reduced motion is asked for', () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn((query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)' }))
+    );
+    render(1);
+    render(2);
+    expect(animations).toHaveLength(0);
   });
 
   it('stays still without a live sample count', () => {

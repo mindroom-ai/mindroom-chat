@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { KeyboardEventHandler, RefObject, useLayoutEffect, useRef } from 'react';
 import classNames from 'classnames';
+import { toRem } from 'folds';
 import {
   clampWaveformPoint,
   createFallbackWaveform,
@@ -82,7 +83,7 @@ const useLiveGlide = (stripRef: RefObject<HTMLDivElement>, sampleCount: number |
       added + (running && typeof progress === 'number' ? running.fromSteps * (1 - progress) : 0)
     );
     const animation = strip.animate(
-      [{ transform: `translateX(${fromSteps * BAR_STEP}px)` }, { transform: 'none' }],
+      [{ transform: `translateX(${toRem(fromSteps * BAR_STEP)})` }, { transform: 'none' }],
       { duration: VOICE_WAVEFORM_SAMPLE_INTERVAL_MS, easing: 'linear' }
     );
     // Start at the frame on screen rather than the next one, which would hold the bars still

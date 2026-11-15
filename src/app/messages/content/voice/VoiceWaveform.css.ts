@@ -47,18 +47,20 @@ export const WaveformCompact = style({
 });
 
 // The recording's bars and the dotted line before them, which glide left together as samples
-// come in (VoiceWaveform.tsx). The dots repeat at the bars' px step, so a glide of whole steps
+// come in (VoiceWaveform.tsx). The dots repeat at the bars' step, so a glide of whole steps
 // ends where it began; the strip reaches past its start as far as a glide can begin.
 export const CompactStrip = style({
   position: 'absolute',
   insetBlock: 0,
   insetInlineEnd: 0,
-  inlineSize: `calc(100% + ${GLIDE_MAX_STEPS * BAR_STEP}px)`,
-  backgroundImage: `linear-gradient(to right, transparent 0 ${BAR_GAP}px, ${color.SurfaceVariant.ContainerLine} ${BAR_GAP}px ${BAR_STEP}px)`,
+  inlineSize: `calc(100% + ${toRem(GLIDE_MAX_STEPS * BAR_STEP)})`,
+  backgroundImage: `linear-gradient(to right, transparent 0 ${toRem(BAR_GAP)}, ${
+    color.SurfaceVariant.ContainerLine
+  } ${toRem(BAR_GAP)} ${toRem(BAR_STEP)})`,
   // eslint-disable-next-line no-restricted-syntax -- Waveform lays out left to right in every language, so the bars sit at the right
   backgroundPosition: 'right center',
   backgroundRepeat: 'repeat-x',
-  backgroundSize: `${BAR_STEP}px ${toRem(3)}`,
+  backgroundSize: `${toRem(BAR_STEP)} ${toRem(3)}`,
 });
 
 export const Svg = style({
