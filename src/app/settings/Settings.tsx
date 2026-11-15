@@ -38,7 +38,7 @@ import { SettingsTargetContext, type SettingsTarget } from '../preferences/setti
 import { revealSetting } from './revealSetting';
 import { SettingsSearch } from './SettingsSearch';
 import { isMacOS } from '../lib/user-agent';
-import { getCommandPaletteShortcutLabel } from '../command-palette/commandPaletteShortcut';
+import { getCommandPaletteShortcutLabel } from '../shortcuts/paletteShortcut';
 import type { SettingsPage } from '../navigation/settingsPages';
 import { useSettingsContext } from './useSettingsContext';
 import { About } from './pages/About';

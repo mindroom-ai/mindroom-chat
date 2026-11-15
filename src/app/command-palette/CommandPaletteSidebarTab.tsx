@@ -6,7 +6,7 @@ import { commandPaletteOpenAtom } from './commandPaletteState';
 import {
   getCommandPaletteAriaKeyShortcuts,
   getCommandPaletteShortcutLabel,
-} from './commandPaletteShortcut';
+} from '../shortcuts/paletteShortcut';
 
 /** The sidebar's search button: opens the command palette and teaches its shortcut. */
 export function CommandPaletteSidebarTab() {

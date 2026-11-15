@@ -10,7 +10,10 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { getCommandPaletteSectionLimit, getCommandPaletteSectionOrder } from './commandPaletteQuery';
+import {
+  getCommandPaletteSectionLimit,
+  getCommandPaletteSectionOrder,
+} from './commandPaletteQuery';
 import type {
   CommandPaletteSource,
   ExecutableCommandPaletteItem,
@@ -32,7 +35,7 @@ import {
   getCommandPaletteTabStep,
   getNextCommandPaletteTab,
 } from './commandPaletteNavigation';
-import { getCommandPaletteShortcutLabel } from './commandPaletteShortcut';
+import { getCommandPaletteShortcutLabel } from '../shortcuts/paletteShortcut';
 import {
   COMMAND_PALETTE_TABS,
   type CommandPaletteRoomItem,
@@ -518,7 +521,10 @@ export function CommandPalette({
           onHighlight={(itemId) => {
             // The question's row must not take the person's highlight away.
             if (chatStart) return;
-            setHighlight({ id: itemId, index: visibleItems.findIndex((item) => item.id === itemId) });
+            setHighlight({
+              id: itemId,
+              index: visibleItems.findIndex((item) => item.id === itemId),
+            });
           }}
           onSelect={handleSelect}
         />
