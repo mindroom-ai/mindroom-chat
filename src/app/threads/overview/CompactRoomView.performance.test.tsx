@@ -44,6 +44,7 @@ vi.mock('../useInitializeShownThread', () => ({ useInitializeShownThread: () => 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
+
 // The plugin registry loads the app's i18n, which the react-i18next stand-in above cannot set up;
 // unit tests build no plugins anyway.
 vi.mock('../../plugins/registry', () => ({ registeredPlugins: [] }));
