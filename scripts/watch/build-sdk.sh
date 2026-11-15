@@ -17,7 +17,9 @@
 # its own. The checkout lives in ${XDG_CACHE_HOME:-~/.cache}/mindroom-watch-sdk/<commit>.
 #
 # arm64 only: aws-lc-sys (rustls' crypto) does not compile for arm64_32, the 32-bit pointer
-# architecture of Series 6 to 8 and SE watches, so those cannot run the app yet.
+# architecture of Series 6 to 8 and SE watches, so those cannot run the app yet. App Store Connect
+# takes a watch app without arm64_32 only when watchOS 27 is its minimum, which is why it is
+# (`npm run appstore:preflight` checks it).
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."

@@ -17,7 +17,7 @@ end
 
 app = project.targets.find { |target| target.name == 'App' }
 app_settings = app.build_configurations.first.build_settings
-WATCHOS = '26.0'
+WATCHOS = '27.0'
 
 # Synchronized folders need the Xcode 16 project format.
 project.root_object.compatibility_version = 'Xcode 16.0'
