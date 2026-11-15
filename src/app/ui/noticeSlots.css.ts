@@ -1,6 +1,8 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
-import { config } from 'folds';
+import { color, config, toRem } from 'folds';
+import { noticeMotionFromAbove, noticeMotionFromBelow } from './noticeMotion.css';
+import { glassShadow } from './styles/Glass.css';
 
 // Empty, the places have no size or take no clicks, so they cover nothing.
 
@@ -60,3 +62,58 @@ export const PageSlot = recipe({
     },
   },
 });
+
+// What the cards of the places share (the new version notice and the tour's offer), for their
+// own styles to build on.
+
+/** A notice card: its padding and corners, and the clicks its place leaves to it. */
+export const noticeCard = {
+  gap: config.space.S300,
+  padding: config.space.S300,
+  pointerEvents: 'auto',
+  borderRadius: config.radii.R500,
+} as const;
+
+const listEndGap = `max(${config.space.S200}, var(--mr-panel-handle-inset, 0px))`;
+
+/** A card in the room list's place: as wide as the list's content, coming in from below. */
+export const noticeCardInList = {
+  ...noticeMotionFromBelow,
+  flexShrink: 0,
+  // Clear of the splitter, which reaches --mr-panel-handle-inset at most into the list.
+  inlineSize: `calc(var(--mr-panel-content-width, 100%) - ${config.space.S200} - ${listEndGap})`,
+  marginInlineStart: config.space.S200,
+  marginInlineEnd: listEndGap,
+  // Its place clips it at the list's sides, S200 away: a shadow that ends within them.
+  selectors: {
+    ...noticeMotionFromBelow.selectors,
+    '&&&': { vars: { [glassShadow]: `0 ${toRem(2)} ${toRem(6)} ${color.Other.Shadow}` } },
+  },
+} as const;
+
+/**
+ * A card in the page's place, coming in from above: as wide as it needs up to a width of its own
+ * (`maxInlineSize`), and across the page on a phone.
+ */
+export const noticeCardOnPage = {
+  ...noticeMotionFromAbove,
+  // A phone's place has no height of its own: the card keeps the height of its content.
+  flexShrink: 0,
+  selectors: {
+    ...noticeMotionFromAbove.selectors,
+    // A phone's place spans the page, and so does the card.
+    '[data-phone] > &': { maxInlineSize: 'none' },
+  },
+} as const;
+
+/** A card's mark, in an accent tile. */
+export const noticeMark = {
+  flexShrink: 0,
+  display: 'grid',
+  placeItems: 'center',
+  inlineSize: toRem(28),
+  blockSize: toRem(28),
+  borderRadius: config.radii.R400,
+  backgroundColor: color.Primary.Container,
+  color: color.Primary.Main,
+} as const;

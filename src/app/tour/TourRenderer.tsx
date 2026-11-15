@@ -23,7 +23,6 @@ export function TourRenderer() {
         onLevelChange={(level) => setTour({ level })}
         onClose={(how) => {
           setTour(undefined);
-          // The dialog also reports its own unmounting as dismissed, which takes nothing back.
           if (how === 'done') setHandoff(true);
         }}
       />

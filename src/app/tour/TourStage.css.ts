@@ -423,14 +423,13 @@ export const ActivitySheet = style([
   },
 ]);
 
-/** The bar at a sheet's top that says it can be dragged. */
-export const SheetHandle = style({
-  inlineSize: toRem(36),
-  blockSize: toRem(4),
-  marginInline: 'auto',
-  marginBlock: config.space.S200,
-  borderRadius: config.radii.Pill,
-  backgroundColor: color.Background.ContainerLine,
+/** A phone's sheet starts with its title and a close button. */
+export const SheetHeader = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  paddingInlineEnd: config.space.S200,
+  paddingBlockStart: config.space.S100,
 });
 
 export const ActivityTitle = style({

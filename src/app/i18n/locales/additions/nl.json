@@ -1145,7 +1145,7 @@
       },
       "filters": {
         "title": "Filteren en sorteren",
-        "text": "Threadfilters, in de kopbalk van de kamer of in het kamermenu, toont deze balk. Onopgelost verbergt wat klaar is, Laatste antwoord verandert de volgorde en met Geavanceerde filters vind je de rest, ook gesnoozede threads."
+        "text": "Threadfilters, in de kopbalk van de kamer of in het kamermenu, toont en verbergt deze balk. Onopgelost verbergt wat klaar is, Laatste antwoord verandert de volgorde en het filterpictogram aan het eind van de balk opent Geavanceerde filters, waarmee je de rest vindt, ook gesnoozede threads."
       },
       "views": {
         "title": "Twee weergaven van een kamer",

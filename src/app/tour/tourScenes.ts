@@ -9,6 +9,7 @@ export type TourPart =
   | 'back'
   | `card:${SampleThreadId}`
   | `title:${SampleThreadId}`
+  | `options:${SampleThreadId}`
   | 'resolveButton'
   | 'menuSnooze'
   | 'filterButton'
@@ -194,7 +195,10 @@ const scenesOf = (step: TourStepId, phone: boolean, typedLength: number): TourSc
       // A phone's cards always show their Thread options button; a wider screen's show it with
       // the card's other buttons while the pointer is on the card.
       const pointed: TourScene = { ...room(TIDY), actionsOn: phone ? undefined : 'launch' };
-      return [pointed, { ...pointed, menuOn: 'launch', spotlight: 'menuSnooze' }];
+      return [
+        { ...pointed, spotlight: 'options:launch' },
+        { ...pointed, menuOn: 'launch', spotlight: 'menuSnooze' },
+      ];
     }
     case 'pinAndTag':
       return [

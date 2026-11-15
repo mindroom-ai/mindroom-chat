@@ -1145,7 +1145,7 @@
       },
       "filters": {
         "title": "Filtern und sortieren",
-        "text": "„Thread-Filter“, in der Kopfzeile des Raums oder in seinem Menü, zeigt diese Leiste. „Ungelöst“ blendet Erledigtes aus, „Letzte Antwort“ ändert die Reihenfolge, und „Erweiterte Filter“ findet den Rest, auch zurückgestellte Threads."
+        "text": "„Thread-Filter“, in der Kopfzeile des Raums oder in seinem Menü, blendet diese Leiste ein und aus. „Ungelöst“ blendet Erledigtes aus, „Letzte Antwort“ ändert die Reihenfolge, und das Filtersymbol am Ende der Leiste öffnet „Erweiterte Filter“, die den Rest finden, auch zurückgestellte Threads."
       },
       "views": {
         "title": "Zwei Ansichten eines Raums",

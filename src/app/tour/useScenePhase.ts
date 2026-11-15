@@ -44,12 +44,16 @@ export const useScenePhase = (
   return { phase: Math.min(phase, last), settled: phase >= last, replay };
 };
 
-/** How many ms the composer takes for each character it types. */
-export const TYPING_INTERVAL_MS = 28;
+/** How long the composer takes to type its whole text, in ms: within the phase that types it. */
+export const TYPING_MS = 1000;
+
+/** How many ms the composer takes for each of a text's `total` characters, a longer text less. */
+export const typingInterval = (total: number): number =>
+  Math.min(45, Math.max(8, Math.floor(TYPING_MS / Math.max(1, total))));
 
 /**
- * How many of a text's `total` characters show: while `typing`, one more every few ms from none;
- * otherwise all of them.
+ * How many of a text's `total` characters show: while `typing`, one more every few ms from none,
+ * all of them within `TYPING_MS`; otherwise all of them.
  */
 export const useTypedLength = (total: number, typing: boolean): number => {
   const [typed, setTyped] = useState({ typing, count: 0 });
@@ -64,7 +68,7 @@ export const useTypedLength = (total: number, typing: boolean): number => {
     if (!typing) return undefined;
     const timer = setInterval(
       () => setTyped((now) => (now.count >= total ? now : { ...now, count: now.count + 1 })),
-      TYPING_INTERVAL_MS
+      typingInterval(total)
     );
     return () => clearInterval(timer);
   }, [typing, total]);

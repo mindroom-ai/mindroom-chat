@@ -8,6 +8,7 @@ import type { TourLevel } from '../navigation/tourState';
 import { mockMedia, restoreMedia } from './__tests__/media';
 import { TourDialog } from './TourDialog';
 import { SCENE_START_DELAY_MS, TOUR_STEPS } from './tourSteps';
+import { typingInterval } from './useScenePhase';
 
 // jsdom lays nothing out, so every element counts as shown for the dialog's focus trap.
 vi.mock('focus-trap-react', async (original) => {
@@ -146,6 +147,14 @@ describe('TourDialog', () => {
     expect(onClose.mock.calls).toEqual([['done']]);
   });
 
+  it('reports its closing once, though its focus trap asks again as the dialog goes', () => {
+    const { unmount } = render(<Tour />);
+    goTo('states');
+    press('done');
+    unmount();
+    expect(onClose.mock.calls).toEqual([['done']]);
+  });
+
   it('goes on with the Full tour from Keep going', () => {
     render(<Tour />);
     goTo('states');
@@ -256,6 +265,8 @@ describe('TourDialog', () => {
       within(region).getByRole('heading', { name: 'A thread is one conversation' })
     ).toBeTruthy();
     expect(region.textContent).toContain('Each card is one thread');
+    // Where this is in the tour comes first, for a reader that does not see the title row.
+    expect(region.textContent?.startsWith('Step 1 of 6. The basics.')).toBe(true);
 
     press('next');
     // The same region with the next step's text, so a screen reader announces it.
@@ -355,7 +366,7 @@ describe('TourDialog', () => {
       vi.advanceTimersByTime(SCENE_START_DELAY_MS + 350);
     });
     act(() => {
-      vi.advanceTimersByTime(28 * 5);
+      vi.advanceTimersByTime(typingInterval('Draft the spring launch email'.length) * 5);
     });
     expect(typed()).toBe('Draft');
     act(() => {

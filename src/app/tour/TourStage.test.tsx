@@ -156,6 +156,16 @@ describe('TourStage', () => {
     expect(stage().querySelector('[data-tour-swipe]')?.textContent).toBe('Resolve');
   });
 
+  it('marks the Thread options button of the card whose menu `snooze` opens', () => {
+    [false, true].forEach((phone) => {
+      show('snooze', 0, phone);
+      const button = parts('options:launch');
+      expect(button).toHaveLength(1);
+      expect(button[0]?.getAttribute('aria-label')).toBe('Thread options');
+      cleanup();
+    });
+  });
+
   it("opens the card's menu with the app's entries", () => {
     show('snooze');
     const menu = stage().querySelector('[data-tour-card-menu]');

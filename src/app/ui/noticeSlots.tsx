@@ -116,10 +116,12 @@ export const useNoticePresence = (due: boolean, phoneLayer: PhoneLayer): NoticeP
   }
   const { slideOutMs } = phoneLayer;
   useEffect(() => {
-    if (!heldBack || covered || cameIn) return undefined;
+    // Only a card that is still wanted: one that stopped being due while it waited would
+    // otherwise show at once, covered or not, when it is due again.
+    if (!wanted || !heldBack || covered || cameIn) return undefined;
     const timer = window.setTimeout(() => setCameIn(true), slideOutMs);
     return () => window.clearTimeout(timer);
-  }, [heldBack, covered, cameIn, slideOutMs]);
+  }, [wanted, heldBack, covered, cameIn, slideOutMs]);
 
   useEffect(() => {
     if (!leaving) return undefined;

@@ -1145,7 +1145,7 @@
       },
       "filters": {
         "title": "Filtreleyin ve sıralayın",
-        "text": "Odanın üst çubuğundaki veya menüsündeki “Konu filtreleri” bu çubuğu gösterir. “Çözülmemiş” bitenleri gizler, “Son yanıt” sıralamayı değiştirir, “Gelişmiş filtreler” ise ertelenen konular dahil geri kalanını bulur."
+        "text": "Odanın üst çubuğundaki veya menüsündeki “Konu filtreleri” bu çubuğu gösterir ve gizler. “Çözülmemiş” bitenleri gizler, “Son yanıt” sıralamayı değiştirir, çubuğun sonundaki filtre simgesiyle açılan “Gelişmiş filtreler” ise ertelenen konular dahil geri kalanını bulur."
       },
       "views": {
         "title": "Bir odanın iki görünümü",

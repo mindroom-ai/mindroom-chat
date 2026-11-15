@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { type MatrixClient, SyncState } from 'matrix-js-sdk';
 import { useSyncState } from './useSyncState';
 
@@ -16,5 +16,9 @@ export const useSyncedWithServer = (mx: MatrixClient): boolean => {
       if (state === SyncState.Syncing) setSynced(true);
     }, [])
   );
+  // The first answer may come between the render that read the state and the subscription.
+  useEffect(() => {
+    if (mx.getSyncState() === SyncState.Syncing) setSynced(true);
+  }, [mx]);
   return synced;
 };

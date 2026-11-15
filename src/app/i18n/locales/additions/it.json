@@ -1168,7 +1168,7 @@
       },
       "filters": {
         "title": "Filtra e ordina",
-        "text": "Filtri dei thread, nell’intestazione della stanza o nel suo menu, mostra questa barra. Irrisolto nasconde ciò che è concluso, Ultima risposta cambia l’ordine e Filtri avanzati trova il resto, anche i thread posticipati."
+        "text": "Filtri dei thread, nell’intestazione della stanza o nel suo menu, mostra e nasconde questa barra. Irrisolto nasconde ciò che è concluso, Ultima risposta cambia l’ordine e l’icona del filtro alla fine della barra apre Filtri avanzati, che trovano il resto, anche i thread posticipati."
       },
       "views": {
         "title": "Due viste di una stanza",

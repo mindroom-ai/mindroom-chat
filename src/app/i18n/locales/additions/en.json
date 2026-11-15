@@ -1145,7 +1145,7 @@
       },
       "filters": {
         "title": "Filter and sort",
-        "text": "Thread filters, in the room’s header or its menu, shows this bar. Unresolved hides what is done, Last Reply changes the order, and Advanced filters finds the rest, snoozed threads too."
+        "text": "Thread filters, in the room’s header or its menu, shows and hides this bar. Unresolved hides what is done, Last Reply changes the order, and the filter icon at the bar’s end opens Advanced filters, which find the rest, snoozed threads too."
       },
       "views": {
         "title": "Two views of a room",

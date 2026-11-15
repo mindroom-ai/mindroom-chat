@@ -2,8 +2,8 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mockMedia, restoreMedia } from './__tests__/media';
-import { SCENE_START_DELAY_MS, type TourStep } from './tourSteps';
-import { TYPING_INTERVAL_MS, useScenePhase, useTypedLength } from './useScenePhase';
+import { SCENE_START_DELAY_MS, TOUR_STEPS, type TourStep } from './tourSteps';
+import { TYPING_MS, typingInterval, useScenePhase, useTypedLength } from './useScenePhase';
 
 const THREE: TourStep = { id: 'reply', chapter: 'basics', phases: [1000, 500, 0] };
 const TWO: TourStep = { id: 'title', chapter: 'basics', phases: [300, 0] };
@@ -116,11 +116,11 @@ describe('useTypedLength', () => {
 
     rerender({ typing: true });
     expect(result.current).toBe(0);
-    advance(TYPING_INTERVAL_MS);
+    advance(typingInterval(5));
     expect(result.current).toBe(1);
-    advance(TYPING_INTERVAL_MS * 2);
+    advance(typingInterval(5) * 2);
     expect(result.current).toBe(3);
-    advance(TYPING_INTERVAL_MS * 10);
+    advance(typingInterval(5) * 10);
     expect(result.current).toBe(5);
 
     rerender({ typing: false });
@@ -128,5 +128,17 @@ describe('useTypedLength', () => {
     // Typing again starts from nothing.
     rerender({ typing: true });
     expect(result.current).toBe(0);
+  });
+
+  it('types a text of any length within the phase of `start` that types it', () => {
+    const typingPhase = TOUR_STEPS.find((step) => step.id === 'start')?.phases[1] ?? 0;
+    expect(TYPING_MS).toBeLessThanOrEqual(typingPhase);
+    // A short message, the English one, and translations twice and four times as long.
+    [5, 29, 60, 120].forEach((total) => {
+      const { result, unmount } = renderHook(() => useTypedLength(total, true));
+      advance(typingPhase);
+      expect(result.current, `${total} characters`).toBe(total);
+      unmount();
+    });
   });
 });

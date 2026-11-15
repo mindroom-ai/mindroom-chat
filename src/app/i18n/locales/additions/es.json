@@ -1168,7 +1168,7 @@
       },
       "filters": {
         "title": "Filtrar y ordenar",
-        "text": "«Filtros de hilos», en la cabecera de la sala o en su menú, muestra esta barra. «No resueltos» oculta lo terminado, «Última respuesta» cambia el orden y «Filtros avanzados» encuentra el resto, también los hilos pospuestos."
+        "text": "«Filtros de hilos», en la cabecera de la sala o en su menú, muestra y oculta esta barra. «No resueltos» oculta lo terminado, «Última respuesta» cambia el orden y el icono de filtro al final de la barra abre «Filtros avanzados», que encuentran el resto, también los hilos pospuestos."
       },
       "views": {
         "title": "Dos vistas de una sala",

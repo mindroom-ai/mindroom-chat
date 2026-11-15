@@ -12,7 +12,9 @@ import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon, IconButton, Icons, Text } from 'folds';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
 import type { TourLevel } from '../navigation/tourState';
+import { ThreadStreamingDot } from '../threads/ThreadStreamingDot';
 import { documentIsRightToLeft } from '../ui/directional';
 import { Modal500 } from '../ui/Modal500';
 import * as css from './TourDialog.css';
@@ -30,13 +32,19 @@ type StepTextProps = {
   step: TourStep;
   /** Whether the title is a heading: only the step that shows is, not the copies that hold room. */
   heading?: boolean;
+  /**
+   * Which step of how many this is and its chapter, said before the title for a screen reader,
+   * which hears the title row and the chapter's name only when it goes looking for them.
+   */
+  place?: string;
 };
 
 /** A step's title over its text; the `states` step has a row per state instead of a text. */
-function StepText({ step, heading = false }: StepTextProps) {
+function StepText({ step, heading = false, place }: StepTextProps) {
   const { t } = useTranslation();
   return (
     <>
+      {place && <span className={css.Unseen}>{place}</span>}
       <Text as={heading ? 'h3' : 'span'} size="H4">
         {t(`tour.steps.${step.id}.title`)}
       </Text>
@@ -45,7 +53,11 @@ function StepText({ step, heading = false }: StepTextProps) {
           {STATES.map((state) => (
             <Fragment key={state}>
               <Text as="span" size="L400" className={css.StatePill[state]} data-tour-state={state}>
+                {/* The mark its card has on the stage. */}
+                {state === 'streaming' && <ThreadStreamingDot aria-hidden="true" />}
                 {t(`thread.status.${state}`)}
+                {/* Read out, the name and its line would run together. */}
+                <span className={css.Unseen}>: </span>
               </Text>
               <Text as="span" size="T300" priority="400">
                 {t(`tour.steps.states.${state}`)}
@@ -116,7 +128,22 @@ export function TourDialog({ level, onLevelChange, onClose }: TourDialogProps) {
     mainRef.current?.focus();
   }, [step.id]);
 
-  const dismiss = () => onClose('dismissed');
+  // The dialog's focus trap also asks to close as it is taken off the page, which a tour that
+  // was closed with Done is by then: only the first way of closing counts.
+  const closed = useRef(false);
+  const latestOnClose = useLatestRef(onClose);
+  const close = (how: 'done' | 'dismissed') => {
+    if (closed.current) return;
+    closed.current = true;
+    latestOnClose.current(how);
+  };
+  const dismiss = () => close('dismissed');
+
+  // A phone's text scrolls where the screen is too short for it: each step starts at its top.
+  const textRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (textRef.current) textRef.current.scrollTop = 0;
+  }, [step.id]);
   const goOn = () => setPosition(nextStep(level, index));
   const goBack = () => setPosition(previousStep(index));
   const keepGoing = () => {
@@ -188,7 +215,7 @@ export function TourDialog({ level, onLevelChange, onClose }: TourDialogProps) {
           settled={settled}
         />
 
-        <div className={classNames(css.TextBlock, phone && css.PhoneTextBlock)}>
+        <div ref={textRef} className={classNames(css.TextBlock, phone && css.PhoneTextBlock)}>
           <div className={css.ChapterRow}>
             <Text as="span" size="L400" className={css.Chapter}>
               {t(`tour.chapters.${step.chapter}`)}
@@ -220,7 +247,14 @@ export function TourDialog({ level, onLevelChange, onClose }: TourDialogProps) {
               </div>
             ))}
             <div id={textId} className={css.StepText} aria-live="polite" aria-atomic="true">
-              <StepText step={step} heading />
+              <StepText
+                step={step}
+                heading
+                place={`${t('tour.dialog.stepOf', {
+                  current: index + 1,
+                  total: steps.length,
+                })}. ${t(`tour.chapters.${step.chapter}`)}.`}
+              />
             </div>
           </div>
         </div>
@@ -280,7 +314,7 @@ export function TourDialog({ level, onLevelChange, onClose }: TourDialogProps) {
             variant="Primary"
             fill="Solid"
             data-tour-action={last ? 'done' : 'next'}
-            onClick={last ? () => onClose('done') : goOn}
+            onClick={last ? () => close('done') : goOn}
           >
             <Text size="B400">{t(last ? 'tour.dialog.done' : 'tour.dialog.next')}</Text>
           </Button>

@@ -133,8 +133,12 @@ describe('tourScenes', () => {
   });
 
   it("opens the card's menu on Snooze for `snooze`", () => {
-    expect(sceneOf('snooze', 0, false, TYPED).menuOn).toBeUndefined();
     [false, true].forEach((phone) => {
+      // First the button that opens the menu, on the card the menu will be of.
+      const closed = sceneOf('snooze', 0, phone, TYPED);
+      expect(closed.menuOn).toBeUndefined();
+      expect(closed.spotlight).toBe(`options:${closed.cards[0]?.id}`);
+
       const scene = lastScene('snooze', phone);
       expect(scene.menuOn).toBe(scene.cards[0]?.id);
       expect(scene.spotlight).toBe('menuSnooze');
@@ -225,6 +229,19 @@ describe('tourScenes', () => {
           if (!phone) expect(scene.roomMenu, step.id).toBe(false);
           expect(scene.view === 'thread', step.id).toBe(scene.thread !== undefined);
         });
+      });
+    });
+  });
+
+  it('has a scene for each phase a step is timed for, and none beyond', () => {
+    TOUR_STEPS.forEach((step) => {
+      [false, true].forEach((phone) => {
+        const last = step.phases.length - 1;
+        const at = (phase: number) => sceneOf(step.id, phase, phone, TYPED);
+        // A scene short of the step's phases would repeat its last one; a scene too many would
+        // never be reached, and shows here as a phase after the last.
+        if (last > 0) expect(at(last), `${step.id}: a scene of its own`).not.toEqual(at(last - 1));
+        expect(at(last + 1), `${step.id}: no scene beyond`).toEqual(at(last));
       });
     });
   });

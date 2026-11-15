@@ -1,13 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
-import { color, config, toRem } from 'folds';
-import { glassShadow } from '../ui/styles/Glass.css';
-import { noticeMotionFromAbove, noticeMotionFromBelow } from '../ui/noticeMotion.css';
-
-const listMotion = noticeMotionFromBelow;
-const listEndGap = `max(${config.space.S200}, var(--mr-panel-handle-inset, 0px))`;
-const pageMotion = noticeMotionFromAbove;
-const markSize = toRem(28);
+import { config, toRem } from 'folds';
+import { noticeCard, noticeCardInList, noticeCardOnPage, noticeMark } from '../ui/noticeSlots.css';
 
 /**
  * The offer's card, placed as the new version notice's is (shell/NewVersionNotice.css.ts): in the
@@ -18,38 +12,11 @@ const markSize = toRem(28);
  * page, the buttons follow the words and go under them only when the row is too narrow.
  */
 export const Card = recipe({
-  base: {
-    gap: config.space.S300,
-    padding: config.space.S300,
-    pointerEvents: 'auto',
-    borderRadius: config.radii.R500,
-  },
+  base: noticeCard,
   variants: {
     placement: {
-      list: {
-        ...listMotion,
-        flexShrink: 0,
-        // Clear of the splitter, which reaches --mr-panel-handle-inset at most into the list.
-        inlineSize: `calc(var(--mr-panel-content-width, 100%) - ${config.space.S200} - ${listEndGap})`,
-        marginInlineStart: config.space.S200,
-        marginInlineEnd: listEndGap,
-        // Its place clips it at the list's sides, S200 away: a shadow that ends within them.
-        selectors: {
-          ...listMotion.selectors,
-          '&&&': { vars: { [glassShadow]: `0 ${toRem(2)} ${toRem(6)} ${color.Other.Shadow}` } },
-        },
-      },
-      page: {
-        ...pageMotion,
-        // A phone's place has no height of its own: the card keeps the height of its content.
-        flexShrink: 0,
-        maxInlineSize: toRem(640),
-        selectors: {
-          ...pageMotion.selectors,
-          // A phone's place spans the page, and so does the card.
-          '[data-phone] > &': { maxInlineSize: 'none' },
-        },
-      },
+      list: noticeCardInList,
+      page: { ...noticeCardOnPage, maxInlineSize: toRem(640) },
     },
     layout: {
       stacked: {
@@ -65,16 +32,7 @@ export const Card = recipe({
 
 /** The tour's mark, in an accent tile. */
 export const Mark = recipe({
-  base: {
-    flexShrink: 0,
-    display: 'grid',
-    placeItems: 'center',
-    inlineSize: markSize,
-    blockSize: markSize,
-    borderRadius: config.radii.R400,
-    backgroundColor: color.Primary.Container,
-    color: color.Primary.Main,
-  },
+  base: noticeMark,
   variants: { layout: { stacked: { gridArea: 'mark' }, row: {} } },
 });
 
@@ -106,7 +64,7 @@ export const Words = recipe({
     display: 'flex',
     flexDirection: 'column',
     gap: toRem(2),
-    paddingBlockStart: `calc((${markSize} - ${config.lineHeight.T300}) / 2)`,
+    paddingBlockStart: `calc((${noticeMark.blockSize} - ${config.lineHeight.T300}) / 2)`,
     overflowWrap: 'anywhere',
   },
   variants: {

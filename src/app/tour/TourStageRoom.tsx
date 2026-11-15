@@ -347,6 +347,7 @@ function SampleCardRow({ card, scene, phone, live, now, pinned, arriving }: Samp
             fill="None"
             radii="300"
             aria-label={moreLabel}
+            {...mark(live, `options:${id}`)}
           >
             <Icon size="100" src={Icons.HorizontalDots} />
           </IconButton>
@@ -381,6 +382,7 @@ function SampleCardRow({ card, scene, phone, live, now, pinned, arriving }: Samp
               fill="None"
               radii="300"
               aria-label={moreLabel}
+              {...mark(live, `options:${id}`)}
             >
               <Icon size="100" src={Icons.HorizontalDots} />
             </IconButton>
@@ -752,6 +754,9 @@ function ActivityRowItem({ row, now }: { row: ActivityRow; now: number }) {
             <Button size="300" variant="Secondary" fill="Soft" radii="300">
               <Text size="B300">{t('activity.actions.deny')}</Text>
             </Button>
+            <Button size="300" variant="Secondary" fill="None" radii="300">
+              <Text size="B300">{t('activity.actions.details')}</Text>
+            </Button>
           </div>
         )}
       </div>
@@ -765,30 +770,39 @@ function ActivityRowItem({ row, now }: { row: ActivityRow; now: number }) {
  */
 export function TourStageActivity({ phone, now }: Pick<RoomProps, 'phone' | 'now'>) {
   const { t } = useTranslation();
-  const list = (
-    <>
-      <Text as="span" size="H5" className={css.ActivityTitle}>
-        {t('activity.title')}
-      </Text>
-      <div className={activityCss.Rows}>
-        {ACTIVITY_ROWS.map((row) => (
-          <ActivityRowItem key={row.kind} row={row} now={now} />
-        ))}
-      </div>
-    </>
+  const title = (
+    <Text as="span" size="H5" className={css.ActivityTitle}>
+      {t('activity.title')}
+    </Text>
+  );
+  const rows = (
+    <div className={activityCss.Rows}>
+      {ACTIVITY_ROWS.map((row) => (
+        <ActivityRowItem key={row.kind} row={row} now={now} />
+      ))}
+    </div>
   );
   if (phone) {
+    // A phone's Activity is a sheet with its title and a close button at the top.
     return (
       <div className={css.ActivitySheet} data-tour-activity="">
-        <div className={css.SheetHandle} />
-        <Box direction="Column">{list}</Box>
+        <div className={css.SheetHeader}>
+          {title}
+          <IconButton size="300" radii="300" variant="Background" fill="None">
+            <Icon size="100" src={Icons.Cross} />
+          </IconButton>
+        </div>
+        {rows}
       </div>
     );
   }
   return (
     <div className={css.ActivityPanel} data-tour-activity="">
       <Menu className={glassDenseOverBackdrop}>
-        <Box direction="Column">{list}</Box>
+        <Box direction="Column">
+          {title}
+          {rows}
+        </Box>
       </Menu>
     </div>
   );

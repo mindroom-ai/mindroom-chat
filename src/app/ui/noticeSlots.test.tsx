@@ -14,9 +14,17 @@ import {
 const store = getDefaultStore();
 
 /** A notice card of the smallest kind: it shows in the place it is given and can be dismissed. */
-function Card({ name, due = true }: { name: string; due?: boolean }) {
+function Card({
+  name,
+  due = true,
+  layerOpen = false,
+}: {
+  name: string;
+  due?: boolean;
+  layerOpen?: boolean;
+}) {
   const { shown, slot, placement, leaving, dismiss } = useNoticePresence(due, {
-    open: false,
+    open: layerOpen,
     slideOutMs: 320,
   });
   if (!shown || !slot) return null;
@@ -135,6 +143,38 @@ describe('useNoticePresence', () => {
     rerender(ui(false));
     expect(cardsIn(page)).toEqual([]);
     rerender(ui(true));
+    expect(cardsIn(page)).toEqual(['only']);
+  });
+
+  it("holds a card back under a phone's drawer, also one that stopped being due meanwhile", () => {
+    vi.useFakeTimers();
+    const ui = (due: boolean, layerOpen: boolean) => (
+      <>
+        <NoticeSlot place="page" phone covered={layerOpen} />
+        <Card name="only" due={due} layerOpen={layerOpen} />
+      </>
+    );
+    const slide = () =>
+      act(() => {
+        vi.advanceTimersByTime(320);
+      });
+    // The place is offered first, as the layout offers it before a notice is due.
+    const { rerender } = render(ui(false, true));
+    const page = store.get(pageNoticeSlotAtom);
+    rerender(ui(true, true));
+    expect(cardsIn(page)).toEqual([]);
+
+    // Due no longer when the drawer closes: it does not count as come in.
+    rerender(ui(false, true));
+    rerender(ui(false, false));
+    slide();
+    // Due again under the drawer, it waits for the drawer to slide away, as the first time.
+    rerender(ui(true, true));
+    slide();
+    expect(cardsIn(page)).toEqual([]);
+    rerender(ui(true, false));
+    expect(cardsIn(page)).toEqual([]);
+    slide();
     expect(cardsIn(page)).toEqual(['only']);
   });
 });

@@ -1168,7 +1168,7 @@
       },
       "filters": {
         "title": "Filtrer et trier",
-        "text": "Filtres de fils, dans l’en-tête de la salle ou dans son menu, affiche cette barre. Non résolus masque ce qui est terminé, Dernière réponse change l’ordre, et Filtres avancés trouve le reste, y compris les fils reportés."
+        "text": "Filtres de fils, dans l’en-tête de la salle ou dans son menu, affiche et masque cette barre. Non résolus masque ce qui est terminé, Dernière réponse change l’ordre, et l’icône de filtre au bout de la barre ouvre Filtres avancés, qui trouvent le reste, y compris les fils reportés."
       },
       "views": {
         "title": "Deux vues d’une salle",

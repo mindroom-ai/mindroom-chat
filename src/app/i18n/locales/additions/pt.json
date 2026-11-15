@@ -1168,7 +1168,7 @@
       },
       "filters": {
         "title": "Filtrar e ordenar",
-        "text": "A opção Filtros de tópicos, no cabeçalho da sala ou no menu da sala, mostra esta barra. Não resolvidos oculta o que está concluído, Última resposta altera a ordem e Filtros avançados encontra o resto, incluindo os tópicos adiados."
+        "text": "A opção Filtros de tópicos, no cabeçalho da sala ou no menu da sala, mostra e oculta esta barra. Não resolvidos oculta o que está concluído, Última resposta altera a ordem e o ícone de filtro no fim da barra abre Filtros avançados, que encontram o resto, incluindo os tópicos adiados."
       },
       "views": {
         "title": "Duas vistas de uma sala",

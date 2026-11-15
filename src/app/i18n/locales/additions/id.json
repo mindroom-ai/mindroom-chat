@@ -1122,7 +1122,7 @@
       },
       "filters": {
         "title": "Filter dan urutkan",
-        "text": "Filter utas, di header ruang atau menunya, menampilkan bilah ini. Belum selesai menyembunyikan yang sudah tuntas, Balasan terakhir mengubah urutan, dan Filter lanjutan menemukan sisanya, termasuk utas yang ditunda."
+        "text": "Filter utas, di header ruang atau menunya, menampilkan dan menyembunyikan bilah ini. Belum selesai menyembunyikan yang sudah tuntas, Balasan terakhir mengubah urutan, dan ikon filter di ujung bilah membuka Filter lanjutan, yang menemukan sisanya, termasuk utas yang ditunda."
       },
       "views": {
         "title": "Dua tampilan untuk satu ruang",

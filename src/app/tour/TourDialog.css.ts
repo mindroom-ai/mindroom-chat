@@ -53,14 +53,16 @@ export const Title = style({
  */
 export const Stage = style({
   flex: `0 1 ${toRem(432)}`,
-  minHeight: toRem(220),
+  // The room is not drawn below 0.6 of its size (TourStage.tsx): a lower stage would cut it off.
+  minHeight: toRem(294),
   marginInline: space.S400,
 });
 
 /** A phone's stage takes the height the text and the buttons leave. */
 export const PhoneStage = style({
   flex: '1 1 0',
-  minHeight: toRem(176),
+  // As above, for a phone's lower room.
+  minHeight: toRem(236),
   marginInline: space.S300,
 });
 
@@ -144,10 +146,23 @@ export const States = style({
   paddingBlockStart: space.S100,
 });
 
+/** Text for a screen reader only. */
+export const Unseen = style({
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+});
+
 const StatePillBase = style({
   justifySelf: 'start',
   display: 'inline-flex',
   alignItems: 'center',
+  columnGap: space.S100,
   paddingInline: space.S200,
   paddingBlock: toRem(1),
   borderRadius: config.radii.Pill,
