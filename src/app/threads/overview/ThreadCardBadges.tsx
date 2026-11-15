@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useOptionalClientConfig } from '../../config/useClientConfig';
 import { reportBoundaryError } from '../../bug-reports/error-reporting/errorReporting';
@@ -15,8 +16,9 @@ const reportFailure = (tag: string, thrown: unknown, componentStack?: string | n
  * The marks client plugins draw on a thread's card (docs/client-plugins.md "Thread card badges"):
  * the badges of each plugin config.json leaves on, in build order, each given the thread's room and
  * the ID of its root event, and nothing at all while there is none. A badge that throws shows
- * nothing and is reported under its plugin's tag, and the card keeps the others. `plugins` defaults
- * to the plugins of this build.
+ * nothing and is reported under its plugin's tag, and one that waits for its code shows nothing
+ * until it has loaded; the card keeps the others either way. `plugins` defaults to the plugins of
+ * this build.
  */
 export function ThreadCardBadges({
   room,
@@ -34,7 +36,10 @@ export function ThreadCardBadges({
           fallback={null}
           onError={(thrown: unknown, info) => reportFailure(tag, thrown, info.componentStack)}
         >
-          <Component room={room} threadId={threadId} />
+          {/* A badge that loads its code waits here, not in place of the page. */}
+          <Suspense fallback={null}>
+            <Component room={room} threadId={threadId} />
+          </Suspense>
         </ErrorBoundary>
       ))}
     </>
