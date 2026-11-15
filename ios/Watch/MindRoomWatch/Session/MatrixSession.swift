@@ -2,6 +2,7 @@ import Foundation
 import MatrixRustSDK
 import MindRoomWatchKit
 import os
+import WatchKit
 
 private let log = Logger(subsystem: "chat.mindroom.app.watchkitapp", category: "session")
 
@@ -17,7 +18,8 @@ final class MatrixSession: ObservableObject {
         /// The login token ran out or was used: connect again from the iPhone.
         case expired
         case signedIn(Client)
-        case failed
+        /// With what went wrong, for the person to pass on: a watch's log is out of reach.
+        case failed(String)
     }
 
     @Published private(set) var state: State = .signedOut
@@ -46,7 +48,16 @@ final class MatrixSession: ObservableObject {
         await task.value
     }
 
+    /// Credentials that came while the app was not in front. WatchConnectivity delivers them in the
+    /// background too, where URLSession sends no request (Apple, "Making default and ephemeral requests"),
+    /// so the sign-in waits until the person opens the app.
+    private var waiting: WatchLinkMessage?
+
     func connect(_ message: WatchLinkMessage) async {
+        guard WKApplication.shared().applicationState == .active else {
+            waiting = message
+            return
+        }
         await serially { await self.connectNow(message) }
     }
 
@@ -94,7 +105,7 @@ final class MatrixSession: ObservableObject {
             if !signedIn { state = .expired }
         } catch {
             log.error("connect failed: \(String(describing: type(of: error)), privacy: .public)")
-            if !signedIn { state = .failed }
+            if !signedIn { state = .failed(Self.describe(error)) }
         }
     }
 
@@ -118,12 +129,18 @@ final class MatrixSession: ObservableObject {
             try await start(session)
         } catch {
             log.error("restore failed: \(String(describing: error), privacy: .public)")
-            state = .failed
+            state = .failed(Self.describe(error))
         }
+    }
+
+    /// The system's words for a network error, the error's own name for the rest.
+    private static func describe(_ error: Error) -> String {
+        error is URLError ? error.localizedDescription : String(describing: error)
     }
 
     /// Logs the device out on the server when it can, then forgets everything on the watch.
     func signOut() async {
+        waiting = nil
         await serially { await self.signOutNow() }
     }
 
@@ -159,6 +176,10 @@ final class MatrixSession: ObservableObject {
 
     /// Starts or stops sync as the app comes forward or goes to the background.
     func setActive(_ active: Bool) async {
+        if active, let message = waiting {
+            waiting = nil
+            await connect(message)
+        }
         guard let syncService else { return }
         if active {
             await syncService.start()
@@ -172,15 +193,22 @@ final class MatrixSession: ObservableObject {
         let paths = SessionStore.paths(session)
         let store = SqliteStoreBuilder(dataPath: paths.data.path, cachePath: paths.cache.path)
             .passphrase(passphrase: try SessionStore.passphrase())
-        let client = try await ClientBuilder()
+        let builder = ClientBuilder()
             .homeserverUrl(url: session.homeserverUrl)
             .sqliteStore(config: store)
             .slidingSyncVersionBuilder(versionBuilder: .native)
             // Fetch a room's keys from the account's key backup when a message there does not decrypt. The
             // iPhone's secrets bundle turns that backup on here; the watch never creates one of its own.
             .backupDownloadStrategy(backupDownloadStrategy: .afterDecryptionFailure)
-            .userAgent(userAgent: "MindRoom Apple Watch")
-            .build()
+            // A watch gives an app no sockets: the SDK's requests go out through URLSession instead.
+            .httpTransport(transport: URLSessionTransport.shared)
+        #if DEBUG
+        // The simulator allows the sockets a watch refuses, so there a request that went around the transport
+        // would pass every run and fail on the wrist. Behind this dead proxy it fails in the simulator too.
+        let client = try await builder.proxy(url: "http://127.0.0.1:9").build()
+        #else
+        let client = try await builder.build()
+        #endif
         try await client.restoreSession(session: session)
         let deviceId = session.deviceId
         if let handle = try client.setDelegate(delegate: AuthErrorDelegate { [weak self] in

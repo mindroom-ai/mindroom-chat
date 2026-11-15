@@ -23,6 +23,129 @@ index 521f9bf..150f0ca 100644
  ] }
  matrix-sdk-base.workspace = true
  matrix-sdk-common.workspace = true
+diff --git a/bindings/matrix-sdk-ffi/src/client_builder.rs b/bindings/matrix-sdk-ffi/src/client_builder.rs
+index 31fadbb..5a936bc 100644
+--- a/bindings/matrix-sdk-ffi/src/client_builder.rs
++++ b/bindings/matrix-sdk-ffi/src/client_builder.rs
+@@ -17,7 +17,7 @@
+ 
+ #[cfg(feature = "experimental-search")]
+ use std::{fs, path::PathBuf};
+-use std::{num::NonZeroUsize, sync::Arc, time::Duration};
++use std::{collections::HashMap, num::NonZeroUsize, sync::Arc, time::Duration};
+ 
+ #[cfg(feature = "experimental-x509-identity-verification")]
+ use matrix_sdk::encryption::SignatureError;
+@@ -148,6 +148,67 @@ impl From<ClientError> for ClientBuildError {
+     }
+ }
+ 
++/// A request the SDK hands to an [`HttpTransport`].
++#[derive(uniffi::Record)]
++pub struct HttpTransportRequest {
++    pub method: String,
++    /// The absolute URL.
++    pub url: String,
++    pub headers: HashMap<String, String>,
++    /// Empty when the request has no body.
++    pub body: Vec<u8>,
++}
++
++/// What an [`HttpTransport`] made of a request.
++#[derive(uniffi::Enum)]
++pub enum HttpTransportResult {
++    Response { status: u16, headers: HashMap<String, String>, body: Vec<u8> },
++    /// The request did not reach the server, or no response came back.
++    Failure { message: String },
++}
++
++/// Sends the SDK's requests for it. watchOS allows an app no sockets, which
++/// the SDK's own HTTP client needs (Apple TN3135), so there the app sends them
++/// with URLSession.
++#[matrix_sdk_ffi_macros::export(callback_interface)]
++#[async_trait::async_trait]
++pub trait HttpTransport: Send + Sync {
++    async fn send(&self, request: HttpTransportRequest) -> HttpTransportResult;
++}
++
++struct HttpTransportWrap(Arc<dyn HttpTransport>);
++
++impl std::fmt::Debug for HttpTransportWrap {
++    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        formatter.write_str("HttpTransport")
++    }
++}
++
++#[async_trait::async_trait]
++impl matrix_sdk::HttpTransport for HttpTransportWrap {
++    async fn send(
++        &self,
++        request: matrix_sdk::HttpTransportRequest,
++    ) -> Result<matrix_sdk::HttpTransportResponse, String> {
++        let request = HttpTransportRequest {
++            method: request.method,
++            url: request.url,
++            headers: request.headers.into_iter().collect(),
++            body: request.body,
++        };
++        match self.0.send(request).await {
++            HttpTransportResult::Response { status, headers, body } => {
++                Ok(matrix_sdk::HttpTransportResponse {
++                    status,
++                    headers: headers.into_iter().collect(),
++                    body,
++                })
++            }
++            HttpTransportResult::Failure { message } => Err(message),
++        }
++    }
++}
++
+ #[derive(Clone, uniffi::Object)]
+ pub struct ClientBuilder {
+     store: Option<StoreBuilder>,
+@@ -171,6 +232,7 @@ pub struct ClientBuilder {
+     user_agent: Option<String>,
+     #[cfg(not(target_family = "wasm"))]
+     proxy: Option<String>,
++    http_transport: Option<Arc<dyn HttpTransport>>,
+     #[cfg(not(target_family = "wasm"))]
+     disable_ssl_verification: bool,
+     #[cfg(not(target_family = "wasm"))]
+@@ -208,6 +270,7 @@ impl ClientBuilder {
+             sliding_sync_version_builder: SlidingSyncVersionBuilder::None,
+             #[cfg(not(target_family = "wasm"))]
+             proxy: None,
++            http_transport: None,
+             #[cfg(not(target_family = "wasm"))]
+             disable_ssl_verification: false,
+             disable_automatic_token_refresh: false,
+@@ -597,6 +660,10 @@ impl ClientBuilder {
+                 inner_builder = inner_builder.proxy(proxy);
+             }
+ 
++            if let Some(transport) = builder.http_transport {
++                inner_builder = inner_builder.http_transport(Arc::new(HttpTransportWrap(transport)));
++            }
++
+             if builder.disable_ssl_verification {
+                 inner_builder = inner_builder.disable_ssl_verification();
+             }
+@@ -795,6 +862,14 @@ impl ClientBuilder {
+ 
+ #[matrix_sdk_ffi_macros::export]
+ impl ClientBuilder {
++    /// Send every request through `transport` in place of the SDK's own HTTP
++    /// client.
++    pub fn http_transport(self: Arc<Self>, transport: Box<dyn HttpTransport>) -> Arc<Self> {
++        let mut builder = unwrap_or_clone_arc(self);
++        builder.http_transport = Some(transport.into());
++        Arc::new(builder)
++    }
++
+     pub fn proxy(self: Arc<Self>, url: String) -> Arc<Self> {
+         let mut builder = unwrap_or_clone_arc(self);
+         #[cfg(not(target_family = "wasm"))]
 diff --git a/bindings/matrix-sdk-ffi/src/encryption.rs b/bindings/matrix-sdk-ffi/src/encryption.rs
 index cf71a3a..a3e6fb8 100644
 --- a/bindings/matrix-sdk-ffi/src/encryption.rs
@@ -117,6 +240,269 @@ index 09d20bd..686ac7c 100644
  }
  
  /// Various options used to configure the timeline's behavior.
+diff --git a/crates/matrix-sdk/src/client/builder/mod.rs b/crates/matrix-sdk/src/client/builder/mod.rs
+index c01dbc1..48ee4a7 100644
+--- a/crates/matrix-sdk/src/client/builder/mod.rs
++++ b/crates/matrix-sdk/src/client/builder/mod.rs
+@@ -120,6 +120,8 @@ pub struct ClientBuilder {
+     homeserver_cfg: Option<HomeserverConfig>,
+     sliding_sync_version_builder: SlidingSyncVersionBuilder,
+     http_cfg: Option<HttpConfig>,
++    #[cfg(not(target_family = "wasm"))]
++    http_transport: Option<Arc<dyn crate::HttpTransport>>,
+     store_config: BuilderStoreConfig,
+     request_config: RequestConfig,
+     respect_login_well_known: bool,
+@@ -156,6 +158,8 @@ impl ClientBuilder {
+             homeserver_cfg: None,
+             sliding_sync_version_builder: SlidingSyncVersionBuilder::Native,
+             http_cfg: None,
++            #[cfg(not(target_family = "wasm"))]
++            http_transport: None,
+             store_config: BuilderStoreConfig::Custom(StoreConfig::new(
+                 CrossProcessLockConfig::multi_process(
+                     Self::DEFAULT_CROSS_PROCESS_STORE_LOCKS_HOLDER_NAME,
+@@ -496,6 +500,14 @@ impl ClientBuilder {
+         self
+     }
+ 
++    /// Send every request through `transport` in place of reqwest, which needs
++    /// sockets (see [`HttpTransport`][crate::HttpTransport]).
++    #[cfg(not(target_family = "wasm"))]
++    pub fn http_transport(mut self, transport: Arc<dyn crate::HttpTransport>) -> Self {
++        self.http_transport = Some(transport);
++        self
++    }
++
+     /// Specify the Matrix versions supported by the homeserver manually, rather
+     /// than `build()` doing it using a `get_supported_versions` request.
+     ///
+@@ -694,6 +706,8 @@ impl ClientBuilder {
+         };
+ 
+         let http_client = HttpClient::new(inner_http_client.clone(), self.request_config);
++        #[cfg(not(target_family = "wasm"))]
++        let http_client = http_client.with_transport(self.http_transport);
+ 
+         #[allow(unused_variables)]
+         let HomeserverDiscoveryResult { server, homeserver, supported_versions, well_known } =
+diff --git a/crates/matrix-sdk/src/error.rs b/crates/matrix-sdk/src/error.rs
+index 5722d06..c3afc02 100644
+--- a/crates/matrix-sdk/src/error.rs
++++ b/crates/matrix-sdk/src/error.rs
+@@ -68,6 +68,11 @@ pub enum HttpError {
+     #[error(transparent)]
+     Reqwest(#[from] ReqwestError),
+ 
++    /// The transport that sends requests in place of reqwest did not reach the
++    /// server, or got no response.
++    #[error("{0}")]
++    Transport(String),
++
+     /// API response error (deserialization, or a Matrix-specific error).
+     // `Box` its inner value to reduce the enum size.
+     #[error(transparent)]
+@@ -142,7 +147,7 @@ impl HttpError {
+         match self {
+             // If it was a plain network error, it's either that we're disconnected from the
+             // internet, or that the remote is, so retry a few times.
+-            HttpError::Reqwest(_) => RetryKind::NetworkFailure,
++            HttpError::Reqwest(_) | HttpError::Transport(_) => RetryKind::NetworkFailure,
+ 
+             HttpError::Api(error) => match error.as_ref() {
+                 FromHttpResponseError::Server(api_error) => RetryKind::from_api_error(api_error),
+diff --git a/crates/matrix-sdk/src/http_client/mod.rs b/crates/matrix-sdk/src/http_client/mod.rs
+index e9718f3..52b578d 100644
+--- a/crates/matrix-sdk/src/http_client/mod.rs
++++ b/crates/matrix-sdk/src/http_client/mod.rs
+@@ -50,6 +50,44 @@ pub(crate) use native::HttpSettings;
+ 
+ pub(crate) const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+ 
++/// A request for an [`HttpTransport`].
++#[cfg(not(target_family = "wasm"))]
++#[derive(Clone, Debug)]
++pub struct HttpTransportRequest {
++    /// The HTTP method.
++    pub method: String,
++    /// The absolute URL.
++    pub url: String,
++    /// The headers, as name and value.
++    pub headers: Vec<(String, String)>,
++    /// The body, empty when the request has none.
++    pub body: Vec<u8>,
++}
++
++/// The response an [`HttpTransport`] got.
++#[cfg(not(target_family = "wasm"))]
++#[derive(Clone, Debug)]
++pub struct HttpTransportResponse {
++    /// The HTTP status code.
++    pub status: u16,
++    /// The headers, as name and value.
++    pub headers: Vec<(String, String)>,
++    /// The body.
++    pub body: Vec<u8>,
++}
++
++/// Sends the client's requests in place of reqwest.
++///
++/// watchOS allows an app no sockets, which reqwest needs (Apple TN3135), so
++/// there the app sends every request with URLSession.
++#[cfg(not(target_family = "wasm"))]
++#[async_trait::async_trait]
++pub trait HttpTransport: Debug + Send + Sync {
++    /// Sends the request. The error says why it did not reach the server, or
++    /// why no response came back.
++    async fn send(&self, request: HttpTransportRequest) -> Result<HttpTransportResponse, String>;
++}
++
+ #[derive(Clone, Debug)]
+ struct MaybeSemaphore(Arc<Option<Semaphore>>);
+ 
+@@ -77,6 +115,9 @@ impl MaybeSemaphore {
+ #[derive(Clone, Debug)]
+ pub(crate) struct HttpClient {
+     pub(crate) inner: reqwest::Client,
++    /// What sends the requests when it is not `inner`.
++    #[cfg(not(target_family = "wasm"))]
++    pub(crate) transport: Option<Arc<dyn HttpTransport>>,
+     pub(crate) request_config: RequestConfig,
+     concurrent_request_semaphore: MaybeSemaphore,
+     next_request_id: Arc<AtomicU64>,
+@@ -86,6 +127,8 @@ impl HttpClient {
+     pub(crate) fn new(inner: reqwest::Client, request_config: RequestConfig) -> Self {
+         HttpClient {
+             inner,
++            #[cfg(not(target_family = "wasm"))]
++            transport: None,
+             request_config,
+             concurrent_request_semaphore: MaybeSemaphore::new(
+                 request_config.max_concurrent_requests,
+@@ -94,6 +137,13 @@ impl HttpClient {
+         }
+     }
+ 
++    /// Sends every request through `transport` in place of reqwest.
++    #[cfg(not(target_family = "wasm"))]
++    pub(crate) fn with_transport(mut self, transport: Option<Arc<dyn HttpTransport>>) -> Self {
++        self.transport = transport;
++        self
++    }
++
+     fn get_request_id(&self) -> String {
+         let request_id = self.next_request_id.fetch_add(1, Ordering::SeqCst);
+         format!("REQ-{request_id}")
+diff --git a/crates/matrix-sdk/src/http_client/native.rs b/crates/matrix-sdk/src/http_client/native.rs
+index b64f057..c0cee3c 100644
+--- a/crates/matrix-sdk/src/http_client/native.rs
++++ b/crates/matrix-sdk/src/http_client/native.rs
+@@ -30,7 +30,10 @@ use reqwest::tls;
+ use ruma::api::{IncomingResponseExt as _, OutgoingRequest, error::FromHttpResponseError};
+ use tracing::{debug, info, warn};
+ 
+-use super::{DEFAULT_REQUEST_TIMEOUT, HttpClient, TransmissionProgress, response_to_http_response};
++use super::{
++    DEFAULT_REQUEST_TIMEOUT, HttpClient, HttpTransport, HttpTransportRequest,
++    TransmissionProgress, response_to_http_response,
++};
+ use crate::{
+     HttpResult,
+     config::RequestConfig,
+@@ -73,7 +76,7 @@ impl HttpClient {
+             backoff
+         }
+         async fn send_request_inner(
+-            http_client: &reqwest::Client,
++            http_client: &HttpClient,
+             request: &http::Request<Bytes>,
+             timeout: Option<Duration>,
+             retry_count: &AtomicU64,
+@@ -83,7 +86,14 @@ impl HttpClient {
+             debug!(num_attempt, "Sending request");
+             let before = ruma::time::Instant::now();
+ 
+-            let response = execute_request(http_client, request, timeout, send_progress).await?;
++            let response = match &http_client.transport {
++                Some(transport) => {
++                    send_through_transport(transport.as_ref(), request, timeout).await?
++                }
++                None => {
++                    execute_request(&http_client.inner, request, timeout, send_progress).await?
++                }
++            };
+ 
+             let request_duration = ruma::time::Instant::now().saturating_duration_since(before);
+ 
+@@ -145,7 +155,7 @@ impl HttpClient {
+             let send_progress = send_progress.clone();
+             async {
+                 let response = send_request_inner(
+-                    &self.inner,
++                    self,
+                     &request,
+                     config.timeout,
+                     &retry_count,
+@@ -236,6 +246,46 @@ impl HttpSettings {
+     }
+ }
+ 
++/// Sends the request through the transport that stands in for reqwest, within
++/// `timeout`.
++async fn send_through_transport(
++    transport: &dyn HttpTransport,
++    request: &http::Request<Bytes>,
++    timeout: Option<Duration>,
++) -> Result<http::Response<Bytes>, HttpError> {
++    let request = HttpTransportRequest {
++        method: request.method().to_string(),
++        url: request.uri().to_string(),
++        headers: request
++            .headers()
++            .iter()
++            .filter_map(|(name, value)| Some((name.to_string(), value.to_str().ok()?.to_owned())))
++            .collect(),
++        body: request.body().to_vec(),
++    };
++    let sending = transport.send(request);
++    let response = match timeout {
++        Some(timeout) => matrix_sdk_common::timeout::timeout(sending, timeout)
++            .await
++            .map_err(|_| HttpError::Transport("the request timed out".to_owned()))?,
++        None => sending.await,
++    }
++    .map_err(HttpError::Transport)?;
++
++    let mut http_response = http::Response::new(Bytes::from(response.body));
++    *http_response.status_mut() = http::StatusCode::from_u16(response.status)
++        .map_err(|error| HttpError::Transport(error.to_string()))?;
++    for (name, value) in response.headers {
++        // A header the `http` crate does not take is left out.
++        if let (Ok(name), Ok(value)) =
++            (http::HeaderName::try_from(name), http::HeaderValue::try_from(value))
++        {
++            http_response.headers_mut().insert(name, value);
++        }
++    }
++    Ok(http_response)
++}
++
+ pub(super) async fn execute_request(
+     client: &reqwest::Client,
+     request: &http::Request<Bytes>,
+diff --git a/crates/matrix-sdk/src/lib.rs b/crates/matrix-sdk/src/lib.rs
+index 77da77e..d006252 100644
+--- a/crates/matrix-sdk/src/lib.rs
++++ b/crates/matrix-sdk/src/lib.rs
+@@ -81,6 +81,8 @@ pub use error::{
+     Result, RumaApiError,
+ };
+ pub use http_client::{SupportedAuthScheme, SupportedPathBuilder, TransmissionProgress};
++#[cfg(not(target_family = "wasm"))]
++pub use http_client::{HttpTransport, HttpTransportRequest, HttpTransportResponse};
+ #[cfg(all(feature = "e2e-encryption", feature = "sqlite"))]
+ pub use matrix_sdk_sqlite::SqliteCryptoStore;
+ #[cfg(feature = "sqlite")]
 diff --git a/xtask/src/swift.rs b/xtask/src/swift.rs
 index f30f695..7af1aa9 100644
 --- a/xtask/src/swift.rs
