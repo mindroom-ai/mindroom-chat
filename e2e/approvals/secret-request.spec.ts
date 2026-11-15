@@ -25,9 +25,6 @@ import {
 
 const MINDROOM_API = 'http://127.0.0.1:29597';
 const CORS = { 'Access-Control-Allow-Origin': '*' };
-const SESSION_TOKEN = `session-${randomUUID()}`;
-const KEY = `ghp_${randomUUID().replaceAll('-', '')}`;
-const RUN = randomUUID().replaceAll('-', '').slice(0, 10);
 const PASSWORD = 'secret-request-spec-password';
 
 test.beforeEach(async () => {
@@ -35,11 +32,11 @@ test.beforeEach(async () => {
 });
 
 /** The card's content as the agent posts it, and as each of its edits sets the status. */
-const cardContent = (requesterId: string, status: 'pending' | 'saved') => ({
+const cardContent = (requesterId: string, requestId: string, status: 'pending' | 'saved') => ({
   msgtype: 'm.notice',
   body: '🔑 assistant asks for your GitHub key. Open MindRoom Chat to enter it.',
   'io.mindroom.secret_request': {
-    request_id: `req-${RUN}`,
+    request_id: requestId,
     requester_id: requesterId,
     service: 'github',
     display_name: 'GitHub',
@@ -96,11 +93,16 @@ test('the requester saves a key to the MindRoom server only, and another member 
   page,
 }) => {
   test.slow();
-  const requester = await registerDisposableUser(`secret_req_${RUN}`, PASSWORD);
-  const other = await registerDisposableUser(`secret_other_${RUN}`, PASSWORD);
+  // Fresh for each run, so a repeat in the same worker registers its own accounts.
+  const run = randomUUID().replaceAll('-', '').slice(0, 10);
+  const key = `ghp_${randomUUID().replaceAll('-', '')}`;
+  const sessionToken = `session-${randomUUID()}`;
+  const requestId = `req-${run}`;
+  const requester = await registerDisposableUser(`secret_req_${run}`, PASSWORD);
+  const other = await registerDisposableUser(`secret_other_${run}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, 'assistant');
   const room = await createThreadFixture(HOMESERVER, requester.accessToken, {
-    name: `Key request ${RUN}`,
+    name: `Key request ${run}`,
     rootBody: 'Open a pull request for the fix',
     replyBody: 'Use the GitHub account of the team',
     invite: [agent.userId, other.userId],
@@ -108,7 +110,7 @@ test('the requester saves a key to the MindRoom server only, and another member 
   await joinRoom(HOMESERVER, agent.accessToken, room.roomId);
   await joinRoom(HOMESERVER, other.accessToken, room.roomId);
   const cardId = await sendRoomMessage(HOMESERVER, agent.accessToken, room.roomId, {
-    ...cardContent(requester.userId, 'pending'),
+    ...cardContent(requester.userId, requestId, 'pending'),
     'm.relates_to': {
       rel_type: 'm.thread',
       event_id: room.rootId,
@@ -125,7 +127,7 @@ test('the requester saves a key to the MindRoom server only, and another member 
     await route.fulfill({
       headers: CORS,
       json: {
-        session_token: SESSION_TOKEN,
+        session_token: sessionToken,
         user_id: requester.userId,
         expires_at: Math.floor(Date.now() / 1000) + 3600,
       },
@@ -140,12 +142,12 @@ test('the requester saves a key to the MindRoom server only, and another member 
     });
     await route.fulfill({ status: 204, headers: CORS });
   });
-  const answerUrl = `${MINDROOM_API}/api/rooms/${encodeURIComponent(room.roomId)}/secret-requests/req-${RUN}`;
+  const answerUrl = `${MINDROOM_API}/api/rooms/${encodeURIComponent(room.roomId)}/secret-requests/${requestId}`;
   // Every request of the requester's page but the answer, the homeserver's included.
   const leaks: string[] = [];
   context.on('request', (request) => {
     if (request.url() === answerUrl) return;
-    if (`${request.url()}\n${request.postData() ?? ''}`.includes(KEY)) leaks.push(request.url());
+    if (`${request.url()}\n${request.postData() ?? ''}`.includes(key)) leaks.push(request.url());
   });
 
   // Another member sees the pending card with whom it waits for, and no field.
@@ -170,7 +172,7 @@ test('the requester saves a key to the MindRoom server only, and another member 
   await expect(card).toContainText('api.github.com');
   const field = card.getByLabel('GitHub key', { exact: true });
   await expect(field).toHaveAttribute('type', 'password');
-  await field.fill(KEY);
+  await field.fill(key);
   await card.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(card.getByRole('status')).toHaveText('Saved, waiting for the agent');
   await expect(card.locator('input')).toHaveCount(0);
@@ -179,11 +181,11 @@ test('the requester saves a key to the MindRoom server only, and another member 
   expect(signIns[0]).toMatchObject({ openid_token: { access_token: expect.any(String) } });
   expect(answers).toHaveLength(1);
   expect(answers[0]?.url).toBe(answerUrl);
-  expect(JSON.parse(answers[0]?.body ?? 'null')).toEqual({ secret: KEY });
-  expect(answers[0]?.authorization).toBe(`Bearer ${SESSION_TOKEN}`);
+  expect(JSON.parse(answers[0]?.body ?? 'null')).toEqual({ secret: key });
+  expect(answers[0]?.authorization).toBe(`Bearer ${sessionToken}`);
 
   // The agent edits the card to saved; both people see it so, and neither gets a field.
-  const saved = cardContent(requester.userId, 'saved');
+  const saved = cardContent(requester.userId, requestId, 'saved');
   await sendRoomMessage(HOMESERVER, agent.accessToken, room.roomId, {
     ...saved,
     body: `* ${saved.body}`,
@@ -198,12 +200,12 @@ test('the requester saves a key to the MindRoom server only, and another member 
   expect(answers).toHaveLength(1);
   expect(leaks).toEqual([]);
   const keyInPage = await page.evaluate(
-    (key) =>
-      document.documentElement.outerHTML.includes(key) ||
+    (value) =>
+      document.documentElement.outerHTML.includes(value) ||
       [...document.querySelectorAll('input, textarea')].some((element) =>
-        (element as HTMLInputElement).value.includes(key)
+        (element as HTMLInputElement).value.includes(value)
       ),
-    KEY
+    key
   );
   expect(keyInPage).toBe(false);
   await otherContext.close();
