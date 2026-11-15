@@ -100,6 +100,14 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(stale.pushed(eventId: "$q"), .message)
     }
 
+    func testAPushedEditIsAboutTheMessageItFinished() {
+        // The homeserver pushes the edit that finished an agent's reply, not the reply.
+        let edit = event("$edit", 5, ["body": "* done", "m.new_content": ["msgtype": "m.text", "body": "done"],
+                                      "m.relates_to": ["rel_type": "m.replace", "event_id": "$reply"]])
+        XCTAssertEqual(ThreadSnapshot.pushedEventId(of: edit), "$reply")
+        XCTAssertEqual(ThreadSnapshot.pushedEventId(of: question("$q", 3)), "$q")
+    }
+
     func testThreadRootOfAPushedEvent() {
         XCTAssertEqual(ThreadSnapshot.threadRootId(of: question("$q", 3)), "$root")
         XCTAssertEqual(ThreadSnapshot.threadRootId(of: voiceRoot), "$root")

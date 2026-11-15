@@ -17,11 +17,11 @@ enum PushedEvent {
 
     @MainActor
     static func load(userInfo: [AnyHashable: Any], session: MatrixSession) async -> PushedEvent? {
-        guard let roomId = userInfo["room_id"] as? String, let eventId = userInfo["event_id"] as? String else { return nil }
+        guard let roomId = userInfo["room_id"] as? String, let pushedId = userInfo["event_id"] as? String else { return nil }
         if session.client == nil { await session.restore() }
         guard let client = session.client, let userId = try? client.userId(),
               let room = try? client.getRoom(roomId: roomId) else { return nil }
-        var read = try? await room.loadOrFetchEventJsonWithRelations(eventId: eventId)
+        var read = try? await room.loadOrFetchEventJsonWithRelations(eventId: pushedId)
         // A room's newer keys reach the watch only through sync, which runs while the app is in front: when
         // the event does not decrypt, sync for a few seconds and read it again.
         let locked = { (jsons: [String]?) in jsons?.first.flatMap(parse)?["type"] as? String == "m.room.encrypted" }
@@ -29,11 +29,18 @@ enum PushedEvent {
             await session.setActive(true)
             for _ in 0..<5 where locked(read) {
                 try? await Task.sleep(for: .seconds(1))
-                read = try? await room.loadOrFetchEventJsonWithRelations(eventId: eventId)
+                read = try? await room.loadOrFetchEventJsonWithRelations(eventId: pushedId)
             }
             if WKApplication.shared().applicationState != .active { await session.setActive(false) }
         }
-        guard let jsons = read, let event = jsons.first.flatMap(parse) else { return nil }
+        guard var jsons = read, var event = jsons.first.flatMap(parse) else { return nil }
+        // A finished agent reply is pushed as the edit that finished it: the push is about the reply.
+        var eventId = pushedId
+        let subject = ThreadSnapshot.pushedEventId(of: event)
+        if subject != pushedId, let original = try? await room.loadOrFetchEventJsonWithRelations(eventId: subject),
+           let originalEvent = original.first.flatMap(parse) {
+            (eventId, jsons, event) = (subject, original, originalEvent)
+        }
         let rootId = ThreadSnapshot.threadRootId(of: event)
         let threadJsons = rootId == eventId ? jsons : (try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId)) ?? []
         if let root = threadJsons.first.flatMap(parse) {

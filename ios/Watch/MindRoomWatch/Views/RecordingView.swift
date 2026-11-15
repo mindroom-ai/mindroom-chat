@@ -43,6 +43,8 @@ struct RecordingView: View {
             guard await Recorder.requestPermission() else { denied = true; return }
             start()
         }
+        // The screen can go without a button: a tapped notification replaces the thread under it.
+        .onDisappear { recorder.cancel() }
         .onChange(of: recorder.reachedLimit) { _, reached in
             // The 5 minutes ran out: send what there is.
             if reached, let take = recorder.stop() { send(take); dismiss() }

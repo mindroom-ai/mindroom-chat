@@ -148,6 +148,12 @@ extension ThreadSnapshot {
         return .message
     }
 
+    /// The event a push is about: the message an edit replaces, else the event itself. The homeserver names the
+    /// edit that finished an agent's reply (it does not notify for the unfinished reply), not the reply.
+    public static func pushedEventId(of event: JSON) -> String {
+        event.replacedEventId ?? event.eventId ?? ""
+    }
+
     /// The root of the thread an event belongs to: its `m.thread` relation, a card's `thread_id`, else itself.
     public static func threadRootId(of event: JSON) -> String {
         if event.relation?["rel_type"] as? String == "m.thread", let root = event.relation?["event_id"] as? String { return root }

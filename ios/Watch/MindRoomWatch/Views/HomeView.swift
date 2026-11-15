@@ -21,6 +21,8 @@ struct HomeView: View {
             Group {
                 if let model {
                     RoomHome(model: model, path: $path, pick: { picking = true }, roomGone: roomGone)
+                        // Another default room starts without the last one's "Not sent".
+                        .id(model.room.id())
                         .navigationDestination(for: ThreadTarget.self) { target in
                             if let roomModel = roomModel(target.roomId) {
                                 // A notification can replace the open thread: each thread is a view of its own,

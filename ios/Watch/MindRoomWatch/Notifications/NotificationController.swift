@@ -46,12 +46,13 @@ struct NotificationView: View {
                 Text(question.text).font(.headline)
                 ForEach(question.options, id: \.key) { option in Text("\(option.key) \(option.label)") }
             }
-        case let .message(sender, text, _, _):
+        // A message whose text cannot be read (no key for it yet) keeps the push's own text, with Reply.
+        case let .message(sender, text, _, _) where !text.isEmpty:
             VStack(alignment: .leading, spacing: 4) {
                 Text(agentName(sender)).font(.caption.bold()).foregroundStyle(.tint)
                 Text(text)
             }
-        case nil:
+        case .message, nil:
             VStack(alignment: .leading, spacing: 4) {
                 if !model.title.isEmpty { Text(model.title).font(.caption.bold()) }
                 Text(model.text.isEmpty ? String(localized: "New message") : model.text)

@@ -104,12 +104,14 @@ if (command === 'hdiutil') fs.writeFileSync(args[args.length - 1], 'fixture dmg'
 };
 
 describe('Mac release build script', () => {
-  it('fetches the watch SDK the Xcode project references before archiving', () => {
+  it('fetches the watch SDK the Xcode project references before Capacitor syncs', () => {
     const { run } = fixture();
     const result = run([]);
     expect(result.status, result.stderr).toBe(0);
     const order = result.commands.map(({ command }) => command);
     expect(order.indexOf('build-sdk.sh')).toBeGreaterThan(-1);
+    // `npx cap sync ios` runs `pod install`, which resolves the project's packages already.
+    expect(order.indexOf('build-sdk.sh')).toBeLessThan(order.indexOf('npx'));
     expect(order.indexOf('build-sdk.sh')).toBeLessThan(order.indexOf('xcodebuild'));
     expect(result.commands.find(({ command }) => command === 'build-sdk.sh')?.args).toEqual([
       '--fetch',
