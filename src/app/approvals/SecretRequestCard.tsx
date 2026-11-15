@@ -108,10 +108,10 @@ function SecretRequestAnswer({
         return;
       }
       const detail =
-        response.status === 403 || response.status === 422
-          ? await readDetail(response)
-          : undefined;
-      setError(detail ?? t(response.status >= 500 ? 'errors.serverProblem' : 'errors.serverRefused'));
+        response.status === 403 || response.status === 422 ? await readDetail(response) : undefined;
+      setError(
+        detail ?? t(response.status >= 500 ? 'errors.serverProblem' : 'errors.serverRefused')
+      );
     } catch (caught) {
       // No answer may come next time; a refused sign-in (a homeserver that does not bind tokens
       // to this server, or a server that does not take them) will not.
