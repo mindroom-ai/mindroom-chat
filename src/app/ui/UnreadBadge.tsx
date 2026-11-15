@@ -1,7 +1,8 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Box, Text, toRem } from 'folds';
 import { localDigits } from '../lib/localDigits';
+import { playsMotion } from './listMotion';
 
 type UnreadBadgeProps = {
   /** Mentions and keywords: the badge stands out. */
@@ -16,12 +17,29 @@ type UnreadBadgeProps = {
 const formatCount = (count: number, language: string): string =>
   localDigits(count > 99 ? '99+' : `${count}`, language);
 
+/** A badge whose count grew while it showed pops once, so what just came catches the eye. */
+const usePopOnGrowth = (count: number) => {
+  const badgeRef = useRef<HTMLDivElement>(null);
+  const shownRef = useRef(count);
+  useEffect(() => {
+    const grew = count > shownRef.current;
+    shownRef.current = count;
+    const badge = badgeRef.current;
+    if (grew && badge && playsMotion(badge)) {
+      badge.animate([{ scale: 1 }, { scale: 1.25 }, { scale: 1 }], { duration: 240 });
+    }
+  }, [count]);
+  return badgeRef;
+};
+
 export function UnreadBadge({ highlight, count, dm }: UnreadBadgeProps) {
   const { i18n } = useTranslation();
+  const badgeRef = usePopOnGrowth(count);
   const stressed = highlight || dm;
   if (count <= 0) {
     return (
       <Badge
+        ref={badgeRef}
         variant={stressed ? 'Primary' : 'Secondary'}
         fill="Solid"
         radii="Pill"
@@ -35,6 +53,7 @@ export function UnreadBadge({ highlight, count, dm }: UnreadBadgeProps) {
   // stay solid so they stand out (docs/design/reference/home.png).
   return (
     <Badge
+      ref={badgeRef}
       variant={stressed ? 'Primary' : 'Secondary'}
       fill={stressed ? 'Solid' : 'Soft'}
       outlined={!stressed}
