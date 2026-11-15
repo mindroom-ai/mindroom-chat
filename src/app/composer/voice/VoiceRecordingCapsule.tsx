@@ -12,6 +12,8 @@ type VoiceRecordingCapsuleProps = {
   phase: VoiceRecorderPhase;
   elapsedMs: number;
   waveform: number[];
+  /** Samples of the live recording so far; the bars glide left as it grows. */
+  sampleCount?: number;
   canPause: boolean;
   hasPendingSend?: boolean;
   onDiscard: () => void;
@@ -34,6 +36,7 @@ export function VoiceRecordingCapsule({
   phase,
   elapsedMs,
   waveform,
+  sampleCount,
   canPause,
   hasPendingSend,
   onDiscard,
@@ -68,7 +71,12 @@ export function VoiceRecordingCapsule({
           </IconButton>
         )}
       </IconTooltip>
-      <VoiceWaveform waveform={waveform} dimmed={paused || busy} compact />
+      <VoiceWaveform
+        waveform={waveform}
+        liveSampleCount={sampleCount}
+        dimmed={paused || busy}
+        compact
+      />
       <Text className={css.Timer} size="B300" aria-live="polite">
         {millisecondsToMinutesAndSeconds(elapsedMs)}
       </Text>

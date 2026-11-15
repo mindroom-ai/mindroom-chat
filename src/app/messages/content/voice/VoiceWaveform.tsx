@@ -1,18 +1,19 @@
 import { useTranslation } from 'react-i18next';
-import { KeyboardEventHandler } from 'react';
+import { KeyboardEventHandler, RefObject, useLayoutEffect, useRef } from 'react';
 import classNames from 'classnames';
+import { toRem } from 'folds';
 import {
   clampWaveformPoint,
   createFallbackWaveform,
   VOICE_WAVEFORM_BAR_COUNT,
   VOICE_WAVEFORM_MAX,
+  VOICE_WAVEFORM_SAMPLE_INTERVAL_MS,
   normalizeMatrixWaveform,
 } from '../../../lib/audioWaveform';
 import * as css from './VoiceWaveform.css';
+import { BAR_GAP, BAR_STEP, BAR_WIDTH, GLIDE_MAX_STEPS } from './waveformGeometry';
 
 const SVG_HEIGHT = 32;
-const BAR_WIDTH = 2;
-const BAR_GAP = 1;
 const RECORDING_WAVEFORM_SPEECH_BOOST_START = 0.12;
 const RECORDING_WAVEFORM_SPEECH_BOOST = 0.9;
 const getSvgWidth = (barCount: number): number =>
@@ -50,11 +51,56 @@ const getBarHeight = (point: number, compact?: boolean): number => {
   return Math.max(3, Math.min(SVG_HEIGHT, scaledPoint * SVG_HEIGHT));
 };
 
+const prefersReducedMotion = (): boolean =>
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+type Glide = { animation: Animation; fromSteps: number };
+
+// Each new sample moves the bars a step left. Rather than jump, the strip starts that far to
+// the right and glides back over one sample interval, from wherever a glide still running left it.
+const useLiveGlide = (stripRef: RefObject<HTMLDivElement>, sampleCount: number | undefined) => {
+  const lastCountRef = useRef(sampleCount);
+  const glideRef = useRef<Glide>();
+
+  useLayoutEffect(() => {
+    const added =
+      sampleCount !== undefined && lastCountRef.current !== undefined
+        ? sampleCount - lastCountRef.current
+        : 0;
+    lastCountRef.current = sampleCount;
+    const running = glideRef.current;
+    glideRef.current = undefined;
+    const progress = running?.animation.effect?.getComputedTiming().progress;
+    running?.animation.cancel();
+
+    const strip = stripRef.current;
+    if (added <= 0 || !strip || typeof strip.animate !== 'function' || prefersReducedMotion()) {
+      return;
+    }
+    const fromSteps = Math.min(
+      GLIDE_MAX_STEPS,
+      added + (running && typeof progress === 'number' ? running.fromSteps * (1 - progress) : 0)
+    );
+    const animation = strip.animate(
+      [{ transform: `translateX(${toRem(fromSteps * BAR_STEP)})` }, { transform: 'none' }],
+      { duration: VOICE_WAVEFORM_SAMPLE_INTERVAL_MS, easing: 'linear' }
+    );
+    // Start at the frame on screen rather than the next one, which would hold the bars still
+    // for a frame on every sample.
+    const frameTime = strip.ownerDocument.timeline?.currentTime;
+    if (frameTime !== undefined && frameTime !== null) animation.startTime = frameTime;
+    glideRef.current = { fromSteps, animation };
+  }, [sampleCount, stripRef]);
+};
+
 type VoiceWaveformProps = {
   waveform?: number[];
   progress?: number;
   dimmed?: boolean;
   compact?: boolean;
+  /** Compact only: the live recording's sample count, whose growth glides the bars left. */
+  liveSampleCount?: number;
   label?: string;
   valueText?: string;
   disabled?: boolean;
@@ -66,12 +112,15 @@ export function VoiceWaveform({
   progress = 0,
   dimmed,
   compact,
+  liveSampleCount,
   label,
   valueText,
   disabled,
   onSeekProgress,
 }: VoiceWaveformProps) {
   const { t } = useTranslation();
+  const stripRef = useRef<HTMLDivElement>(null);
+  useLiveGlide(stripRef, compact ? liveSampleCount : undefined);
   const bars = compact ? normalizeRecordingWaveform(waveform) : normalizeMatrixWaveform(waveform);
   const compactUnrecordedBarCount = compact ? getCompactUnrecordedBarCount(waveform) : 0;
   const svgWidth = getSvgWidth(bars.length || VOICE_WAVEFORM_BAR_COUNT);
@@ -103,7 +152,7 @@ export function VoiceWaveform({
     }
   };
 
-  const content = (
+  const svg = (
     <svg
       className={classNames(css.Svg, compact && css.SvgCompact)}
       viewBox={`0 0 ${svgWidth} ${SVG_HEIGHT}`}
@@ -142,6 +191,13 @@ export function VoiceWaveform({
         );
       })}
     </svg>
+  );
+  const content = compact ? (
+    <div ref={stripRef} className={css.CompactStrip}>
+      {svg}
+    </div>
+  ) : (
+    svg
   );
 
   if (onSeekProgress) {
