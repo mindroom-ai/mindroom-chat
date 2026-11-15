@@ -23,4 +23,20 @@ final class RequestURLTests: XCTestCase {
     func testRefusesWhatIsNotAURL() {
         XCTAssertNil(RequestURL.make("not a URL"))
     }
+
+    func testSameOrigin() {
+        let request = URL(string: "https://matrix.example/_matrix/client/v3/sync")
+        XCTAssertTrue(RequestURL.sameOrigin(request, URL(string: "https://matrix.example/other/path?x=1")))
+        XCTAssertTrue(RequestURL.sameOrigin(request, URL(string: "HTTPS://MATRIX.example:443/other")))
+        XCTAssertTrue(RequestURL.sameOrigin(URL(string: "http://127.0.0.1:8008/a"), URL(string: "http://127.0.0.1:8008/b")))
+    }
+
+    func testAnotherOrigin() {
+        let request = URL(string: "https://matrix.example/_matrix/client/v3/sync")
+        XCTAssertFalse(RequestURL.sameOrigin(request, URL(string: "https://media.example/file")))
+        XCTAssertFalse(RequestURL.sameOrigin(request, URL(string: "http://matrix.example/_matrix/client/v3/sync")))
+        XCTAssertFalse(RequestURL.sameOrigin(request, URL(string: "https://matrix.example:8448/_matrix/client/v3/sync")))
+        XCTAssertFalse(RequestURL.sameOrigin(request, nil))
+        XCTAssertFalse(RequestURL.sameOrigin(URL(string: "/relative"), URL(string: "/relative")))
+    }
 }

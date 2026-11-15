@@ -5,6 +5,9 @@ import MindRoomWatchKit
 /// Sends the Matrix SDK's requests with URLSession. A watch gives an app no sockets, which the SDK's own HTTP
 /// client needs, so its requests would never leave the watch (Apple TN3135, "Low-level networking on watchOS").
 /// The simulator allows them: only a real watch shows the difference.
+///
+/// It sends what the SDK built (method, URL, headers, body) and hands back the status, headers and body. It
+/// keeps no cache and no cookies, follows redirects, and reports no upload progress.
 final class URLSessionTransport: HttpTransport, @unchecked Sendable {
     static let shared = URLSessionTransport()
 
@@ -19,7 +22,7 @@ final class URLSessionTransport: HttpTransport, @unchecked Sendable {
         // Two syncs wait on the server at once, and over HTTP/1.1 each holds a connection of its own.
         configuration.httpMaximumConnectionsPerHost = 8
         configuration.httpAdditionalHeaders = ["User-Agent": "MindRoom Apple Watch"]
-        session = URLSession(configuration: configuration)
+        session = URLSession(configuration: configuration, delegate: KeepAuthorization(), delegateQueue: nil)
     }
 
     func send(request: HttpTransportRequest) async -> HttpTransportResult {
@@ -44,5 +47,19 @@ final class URLSessionTransport: HttpTransport, @unchecked Sendable {
             if Task.isCancelled { return .failure(message: "") }
             return .failure(message: error.localizedDescription)
         }
+    }
+}
+
+/// URLSession leaves Authorization out of a request it redirects. The SDK's own client kept it on the same origin,
+/// which a reverse proxy that moves a path relies on; another origin (a media host) still gets none.
+private final class KeepAuthorization: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        var request = request
+        if let authorization = task.originalRequest?.value(forHTTPHeaderField: "Authorization"),
+           RequestURL.sameOrigin(task.originalRequest?.url, request.url) {
+            request.setValue(authorization, forHTTPHeaderField: "Authorization")
+        }
+        completionHandler(request)
     }
 }

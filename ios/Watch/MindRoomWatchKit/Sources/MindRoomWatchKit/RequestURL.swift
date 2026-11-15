@@ -15,4 +15,15 @@ public enum RequestURL {
         guard let escaped = string[path...].addingPercentEncoding(withAllowedCharacters: allowed) else { return nil }
         return URL(string: string[..<path] + escaped)
     }
+
+    /// Whether two URLs share scheme, host and port: where a redirected request may keep its Authorization.
+    public static func sameOrigin(_ first: URL?, _ second: URL?) -> Bool {
+        guard let first = origin(first), let second = origin(second) else { return false }
+        return first == second
+    }
+
+    private static func origin(_ url: URL?) -> String? {
+        guard let url, let scheme = url.scheme?.lowercased(), let host = url.host?.lowercased() else { return nil }
+        return "\(scheme)://\(host):\(url.port ?? (scheme == "https" ? 443 : 80))"
+    }
 }
