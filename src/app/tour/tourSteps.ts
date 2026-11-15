@@ -9,9 +9,9 @@ export type TourStepId =
   | 'order'
   | 'states'
   | 'resolve'
+  | 'filters'
   | 'snooze'
   | 'pinAndTag'
-  | 'filters'
   | 'views'
   | 'activity';
 

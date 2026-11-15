@@ -2,6 +2,7 @@
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
+import * as overviewCss from '../threads/overview/RoomThreadOverview.css';
 import { mockLayout, restoreLayout } from './__tests__/layout';
 import { mockMedia, restoreMedia } from './__tests__/media';
 import { VIEW_FADE_MS } from './tourMotion';
@@ -220,7 +221,7 @@ describe('TourStage', () => {
     const unresolved = parts('filterUnresolved')[0];
     expect(unresolved?.textContent).toBe('Unresolved');
     expect(unresolved?.closest('[data-tour-part="filterBar"]')).toBe(bar);
-    expect(unresolved?.getAttribute('data-tour-filter')).toBe('on');
+    expect(unresolved?.classList.contains(overviewCss.SortButtonActive)).toBe(true);
     cleanup();
 
     show('filters', 0, true);
@@ -245,14 +246,18 @@ describe('TourStage', () => {
     try {
       const at = (phase: number) => stageOf(sceneOf('filters', phase, false, TYPED));
       const count = () => parts('filterBar')[0]?.querySelector('span')?.textContent;
+      const isOn = () =>
+        parts('filterUnresolved')[0]?.classList.contains(overviewCss.SortButtonActive);
       const { rerender } = render(at(1));
+      expect(isOn()).toBe(true);
       expect(cardIds()).toEqual(['launch', 'budget', 'website']);
       expect(count()).toBe('3');
       // The cards the list starts with do not fade in.
       expect(fadedIn()).toEqual([]);
 
       rerender(at(2));
-      expect(parts('filterUnresolved')[0]?.getAttribute('data-tour-filter')).toBe('off');
+      // Off, the control looks like the bar's other controls.
+      expect(isOn()).toBe(false);
       expect(cardIds()).toEqual(['vendor', 'launch', 'budget', 'website']);
       expect(count()).toBe('4');
       const vendor = stage().querySelector('[data-tour-card="vendor"]');
@@ -266,7 +271,7 @@ describe('TourStage', () => {
       expect(animate).not.toHaveBeenCalled();
 
       rerender(at(4));
-      expect(parts('filterUnresolved')[0]?.getAttribute('data-tour-filter')).toBe('on');
+      expect(isOn()).toBe(true);
       expect(cardIds()).toEqual(['launch', 'budget', 'website']);
       expect(count()).toBe('3');
       expect(fadedIn()).toEqual([]);

@@ -252,7 +252,6 @@ function FilterBar({ count, unresolvedOnly, live }: FilterBarProps) {
             overviewCss.SortButton,
             unresolvedOnly && overviewCss.SortButtonActive
           )}
-          data-tour-filter={unresolvedOnly ? 'on' : 'off'}
           {...mark(live, 'filterUnresolved')}
         >
           <Text size="T200">{t('thread.simpleFilter.unresolved')}</Text>

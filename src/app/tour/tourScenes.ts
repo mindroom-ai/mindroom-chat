@@ -200,6 +200,19 @@ const scenesOf = (step: TourStepId, phone: boolean, typedLength: number): TourSc
         { ...room(WITH_RESOLVED), spotlight: 'card:vendor' },
         room(TIDY),
       ];
+    case 'filters': {
+      const bar: TourScene = { ...room(TIDY), filterBar: true };
+      // With Unresolved off, the thread the step before resolved is in the list again.
+      const all: TourScene = { ...bar, cards: WITH_RESOLVED, unresolvedOnly: false };
+      return [
+        // A phone keeps the button in its room menu.
+        { ...room(TIDY), roomMenu: phone, spotlight: 'filterButton' },
+        { ...bar, spotlight: 'filterBar' },
+        { ...all, spotlight: 'filterUnresolved' },
+        { ...all, spotlight: 'card:vendor' },
+        { ...bar, spotlight: 'filterUnresolved' },
+      ];
+    }
     case 'snooze': {
       // A phone's cards always show their Thread options button; a wider screen's show it with
       // the card's other buttons while the pointer is on the card.
@@ -214,19 +227,6 @@ const scenesOf = (step: TourStepId, phone: boolean, typedLength: number): TourSc
         { ...room(TAGGED), spotlight: 'card:budget' },
         { ...room(toTop(TAGGED, 'budget')), pinned: ['budget'], spotlight: 'card:budget' },
       ];
-    case 'filters': {
-      const bar: TourScene = { ...room(TIDY), filterBar: true };
-      // With Unresolved off, the thread the step before resolved is in the list again.
-      const all: TourScene = { ...bar, cards: WITH_RESOLVED, unresolvedOnly: false };
-      return [
-        // A phone keeps the button in its room menu.
-        { ...room(TIDY), roomMenu: phone, spotlight: 'filterButton' },
-        { ...bar, spotlight: 'filterBar' },
-        { ...all, spotlight: 'filterUnresolved' },
-        { ...all, spotlight: 'card:vendor' },
-        { ...bar, spotlight: 'filterUnresolved' },
-      ];
-    }
     case 'views':
       return [
         { ...room(TIDY), roomMenu: phone, spotlight: 'viewSwitch' },
