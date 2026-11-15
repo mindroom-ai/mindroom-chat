@@ -37,13 +37,17 @@ export const EmptyState = style({
  * of threads, a filter change that shows them all again drew every card (#350). A card not drawn
  * yet counts at an estimate and takes its real height when it first draws, which only the
  * browser's scroll anchoring keeps from moving the cards in view, so engines without it (WebKit)
- * draw every card as before.
+ * draw every card as before. While the list puts its cards back where the reader left them
+ * (`data-restoring-place`), every card draws, so the restore measures real heights; the sizes
+ * they drew at are remembered (`auto`), so skipping them afterwards moves nothing.
  */
 export const offscreenCardSkip: StyleRule = {
   '@supports': {
     '(overflow-anchor: auto)': {
-      contentVisibility: 'auto',
       containIntrinsicSize: 'auto 80px',
+      selectors: {
+        [`${View}:not([data-restoring-place]) &`]: { contentVisibility: 'auto' },
+      },
     },
   },
 };

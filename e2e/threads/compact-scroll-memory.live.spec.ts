@@ -154,6 +154,22 @@ test('the compact overview keeps its cards in place when threads re-sort during 
         `card ${roots.indexOf(rootId)} moved from ${before[rootId]} to ${after[rootId]}`
       ).toBeLessThanOrEqual(1);
     }
+
+    // The reader's scroll ends the restore. Off-screen cards may skip drawing from then on, at the
+    // size they drew at, so the list moves by the reader's scroll and nothing else: no card changes
+    // height, and the browser has nothing to anchor.
+    const view = page.locator(COMPACT_VIEW);
+    const restoredTop = await view.evaluate((element) => element.scrollTop);
+    await scrollOverviewTo(page, restoredTop + 45);
+    await expect(view).not.toHaveAttribute('data-restoring-place');
+    const { offsets: scrolled } = await settledCardLayout(page);
+    expect(await view.evaluate((element) => element.scrollTop)).toBe(restoredTop + 45);
+    for (const rootId of below.filter((id) => scrolled[id] !== undefined)) {
+      expect(
+        Math.abs(scrolled[rootId]! - (after[rootId]! - 45)),
+        `card ${roots.indexOf(rootId)} after the reader's scroll`
+      ).toBeLessThanOrEqual(1);
+    }
   };
 
   await page.goto(`/home/${encodeURIComponent(roomId)}`);

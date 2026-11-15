@@ -46,6 +46,9 @@ const createLayout = (keys: string[], viewportHeight = VIEWPORT_HEIGHT) => {
 
 type Layout = ReturnType<typeof createLayout>;
 
+/** What the hook returned at the last render: whether it follows a remembered place. */
+let following: boolean | undefined;
+
 function AnchoredList({
   memory,
   memoryKey,
@@ -57,7 +60,7 @@ function AnchoredList({
   layout: { scrollRef: { current: HTMLElement }; contentRef: { current: HTMLElement } };
   ready: boolean;
 }) {
-  useScrollAnchorMemory({
+  following = useScrollAnchorMemory({
     memory,
     memoryKey,
     scrollRef: layout.scrollRef,
@@ -311,6 +314,32 @@ describe('useScrollAnchorMemory', () => {
 
     expect(layout.view.scrollTop).toBe(300);
     expect(observers.size).toBe(0);
+  });
+
+  it('says it follows a remembered place until it stops', () => {
+    const memory: ScrollAnchorMemory = new Map();
+    const keys = rowKeys(20);
+    leaveAt(memory, keys, 300);
+
+    const layout = createLayout(keys);
+    const { setReady } = mount(memory, layout, false);
+    // From the first render, before the rows are there to restore against.
+    expect(following).toBe(true);
+    setReady(true);
+    expect(following).toBe(true);
+    act(() => scrollReaderTo(layout, 340));
+    expect(following).toBe(false);
+  });
+
+  it('says it follows nothing without a remembered place, or at the top', () => {
+    const memory: ScrollAnchorMemory = new Map();
+    mount(memory, createLayout(rowKeys(20)));
+    expect(following).toBe(false);
+    unmount();
+
+    leaveAt(memory, rowKeys(20), 0);
+    mount(memory, createLayout(rowKeys(20)));
+    expect(following).toBe(false);
   });
 
   it('stops following once rows in view move apart', () => {

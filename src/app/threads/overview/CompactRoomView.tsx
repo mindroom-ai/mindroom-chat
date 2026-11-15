@@ -326,7 +326,7 @@ export function CompactRoomView({
 
   // Opening a card remounts this view, and threads that got replies meanwhile
   // sort above the cards that were in view, so restore by those cards.
-  useScrollAnchorMemory({
+  const restoringPlace = useScrollAnchorMemory({
     memory: compactRoomScrollStateRef.current,
     memoryKey: room.roomId,
     scrollRef: viewRef,
@@ -378,7 +378,13 @@ export function CompactRoomView({
   };
 
   return (
-    <Box ref={viewRef} className={css.View} data-compact-room-view="true" tabIndex={-1}>
+    <Box
+      ref={viewRef}
+      className={css.View}
+      data-compact-room-view="true"
+      data-restoring-place={restoringPlace || undefined}
+      tabIndex={-1}
+    >
       <Box
         ref={contentRef}
         className={SwipeList}
