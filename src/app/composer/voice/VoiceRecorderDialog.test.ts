@@ -175,6 +175,7 @@ vi.mock('../../messages/content/voice/VoiceWaveform.css', () => ({
   BarActive: 'BarActive',
   BarCompact: 'BarCompact',
   BarCompactUnrecorded: 'BarCompactUnrecorded',
+  CompactStrip: 'CompactStrip',
   Svg: 'Svg',
   SvgCompact: 'SvgCompact',
   Waveform: 'Waveform',

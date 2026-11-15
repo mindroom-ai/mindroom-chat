@@ -158,6 +158,7 @@ describe('voice capture session', () => {
     vi.advanceTimersByTime(80);
     expect(recording.waveform).toEqual(retained);
     expect(session.getSnapshot().waveform).toHaveLength(2);
+    expect(session.getSnapshot().sampleCount).toBe(recording.sampleCount + 1);
     unsubscribe();
     listener.mockClear();
     vi.advanceTimersByTime(80);
