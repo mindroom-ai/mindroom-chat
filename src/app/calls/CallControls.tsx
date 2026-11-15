@@ -14,7 +14,6 @@ import {
   IconButton,
   Icons,
   Line,
-  Scroll,
   Text,
   Tooltip,
   type IconSrc,
@@ -159,7 +158,7 @@ const DeviceMenu = forwardRef<HTMLDivElement, DeviceMenuProps>(function DeviceMe
       className={css.DeviceMenu}
       aria-label={t('featureUi.calls.devices.title')}
     >
-      <Scroll size="300" hideTrack visibility="Hover" style={{ overflowY: 'auto' }}>
+      <div style={{ minHeight: 0, overflowY: 'auto' }}>
         {kinds.map((kind, kindIndex) => {
           // The system default comes first; a device not chosen yet follows it.
           const selected = chosen[kind] ?? devices[kind][0]?.deviceId;
@@ -215,7 +214,7 @@ const DeviceMenu = forwardRef<HTMLDivElement, DeviceMenuProps>(function DeviceMe
             </Box>
           );
         })}
-      </Scroll>
+      </div>
     </Menu>
   );
 });

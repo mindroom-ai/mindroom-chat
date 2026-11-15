@@ -1,5 +1,5 @@
 import { type MouseEvent, useMemo, useState } from 'react';
-import { Box, Chip, Icon, Icons, Scroll, Text, config, toRem } from 'folds';
+import { Box, Chip, Icon, Icons, Text, config, toRem } from 'folds';
 import type { RectCords } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
@@ -118,13 +118,13 @@ export function MutualRoomsChip({ userId, onOpen }: { userId: string; onOpen: ()
       trigger={trigger}
       menuStyle={LIST_STYLE}
     >
-      <Scroll size="300" hideTrack visibility="Hover" style={{ overflowY: 'auto' }}>
+      <div style={{ minHeight: 0, overflowY: 'auto' }}>
         <Box direction="Column" gap="200" style={{ padding: config.space.S100 }}>
           {group(t(`${KEY}.spaces`), shared.spaces)}
           {group(t(`${KEY}.rooms`), shared.rooms)}
           {group(t(`${KEY}.directMessages`), shared.directs)}
         </Box>
-      </Scroll>
+      </div>
     </ProfilePopMenu>
   );
 }
