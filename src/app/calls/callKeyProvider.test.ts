@@ -68,6 +68,18 @@ describe('sendCallKey', () => {
     expect(sendToDevice).not.toHaveBeenCalled();
   });
 
+  it('sends nothing when the batch holds only another device of the user', async () => {
+    const { mx, encryptToDeviceMessages, getUserDeviceInfo, sendToDevice } = clientKnowing();
+    encryptToDeviceMessages.mockResolvedValue({
+      eventType: 'm.room.encrypted',
+      batch: [{ userId: agent.userId, deviceId: 'OTHERDEVICE', payload: { ciphertext: 'olm' } }],
+    });
+
+    await expect(sendCallKey(mx, delivery)).rejects.toThrow('AGENTDEVICE');
+    expect(getUserDeviceInfo).toHaveBeenCalledTimes(1);
+    expect(sendToDevice).not.toHaveBeenCalled();
+  });
+
   it('rejects when the server refuses the send', async () => {
     const { mx, sendToDevice } = clientKnowing(true);
     sendToDevice.mockRejectedValueOnce(new Error('M_LIMIT_EXCEEDED'));

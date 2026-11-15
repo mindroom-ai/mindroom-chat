@@ -38,10 +38,11 @@ export type CallKeyDelivery = {
  * that device or sent.
  *
  * matrix-js-sdk's `encryptAndSendToDevice` would resolve without sending anything for a device its
- * crypto does not know (it only logs a warning), and its send queue keeps failures to itself, so
- * the other side never gets the key and nothing tries again. Here the key is encrypted and sent
- * directly: a device missing from the encrypted batch has its user's device list fetched once, and
- * when it is still missing, or the send fails, the promise rejects.
+ * crypto does not know (it only logs a warning), and it hands the message to a send queue whose
+ * failures never reach the caller, so `RoomCall` could not tell that the key did not go and would
+ * not send it again. Here the key is encrypted and sent directly. When the encrypted batch lacks
+ * the device, an untracked user is tracked and their key query awaited once; when the device is
+ * still missing, or the send fails, the promise rejects.
  */
 export const sendCallKey = async (
   mx: MatrixClient,
@@ -68,7 +69,8 @@ export const sendCallKey = async (
 
   let encrypted = await encrypt();
   if (!encrypted) {
-    // Tracks the user when this device did not, and fetches a device list it has none of.
+    // Tracks an untracked user and awaits their key query through the Rust crypto
+    // (patches/matrix-js-sdk+41.7.0.patch); a tracked user's cached list is kept as it is.
     await cryptoApi.getUserDeviceInfo([to.userId], true);
     encrypted = await encrypt();
   }
