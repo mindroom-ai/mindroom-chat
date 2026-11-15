@@ -1308,6 +1308,36 @@ describe('CommandPalette pages and rows that keep it open', () => {
     expect(footerText(renderer)).not.toContain('Tab');
   });
 
+  it('Tab does nothing in a page, so the field keeps the focus', async () => {
+    const renderer = renderPalette({ initialTab: 'actions' });
+    await openThemePage(renderer);
+    for (const shiftKey of [false, true]) {
+      const tab = await press(renderer, 'Tab', { shiftKey });
+      expect(tab.preventDefault).toHaveBeenCalled();
+      // The dialog's focus containment must not see the key.
+      expect(tab.stopPropagation).toHaveBeenCalled();
+      expect(findChips(renderer)).toHaveLength(1);
+    }
+    expect(selectedTab(renderer)).toBeUndefined();
+    await press(renderer, 'Escape');
+    expect(selectedTab(renderer)).toBe('actions');
+  });
+
+  it('the close button shows a cross instead of esc in a page', async () => {
+    const requestClose = vi.fn();
+    const renderer = renderPalette({ initialTab: 'actions', mobileSheet: false, requestClose });
+    const close = () =>
+      renderer.root.find(
+        (node) => node.type === 'button' && node.props['aria-label'] === 'Close command palette'
+      );
+    expect(textOf(close())).toContain('esc');
+    await openThemePage(renderer);
+    expect(close().findAllByProps({ 'data-icon-src': 'cross' })).toHaveLength(1);
+    expect(textOf(close())).not.toContain('esc');
+    await act(async () => close().props.onClick());
+    expect(requestClose).toHaveBeenCalledOnce();
+  });
+
   it('messages and people are not asked in a page', async () => {
     const renderer = renderPalette();
     await type(renderer, 'theme');

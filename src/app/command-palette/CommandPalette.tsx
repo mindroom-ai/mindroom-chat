@@ -515,8 +515,16 @@ export function CommandPalette({
       return;
     }
 
+    if (page && event.key === 'Tab' && !event.altKey && !event.ctrlKey && !event.metaKey) {
+      // A page has no tabs. Tab does nothing there, so the field keeps the focus and Escape
+      // always goes back; the dialog's focus containment moves focus from a document listener.
+      event.preventDefault();
+      event.stopPropagation?.();
+      return;
+    }
+
     const input = event.currentTarget;
-    // A page has no tabs, so Tab and the arrows do what they do in any field.
+    // A page has no tabs, so the arrows move the caret there.
     const tabStep = page
       ? 0
       : getCommandPaletteTabStep({
@@ -599,7 +607,12 @@ export function CommandPalette({
           aria-label={t('commandPalette.closeAria')}
           onClick={requestClose}
         >
-          {mobileSheet ? <Icon src={Icons.Cross} size="200" /> : <kbd className={css.Key}>esc</kbd>}
+          {/* In a page Escape goes back, so the button does not name it. */}
+          {mobileSheet || page ? (
+            <Icon src={Icons.Cross} size="200" />
+          ) : (
+            <kbd className={css.Key}>esc</kbd>
+          )}
         </button>
       </div>
       {!page && (
