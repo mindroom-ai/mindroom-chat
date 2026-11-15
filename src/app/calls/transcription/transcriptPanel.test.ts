@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createStore } from 'jotai';
-import { callPanelRoomAtom } from '../callStore';
+import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from '../callStore';
 import {
   closeTranscriptPanel,
   dismissTranscriptPanel,
   openTranscriptPanel,
   transcriptPanelAtom,
+  transcriptRoomId,
 } from './transcriptPanel';
 
 const ROOM = '!room:example.org';
@@ -72,5 +73,36 @@ describe('the live transcript panel', () => {
     closeTranscriptPanel(store, ROOM);
     dismissTranscriptPanel(store, ROOM);
     expect(store.get(transcriptPanelAtom)?.roomId).toBe(OTHER);
+  });
+});
+
+describe("the room a call's transcript shows in", () => {
+  const CALL_ROOM = '!agent-call:example.org';
+  const inCall = (kind: ActiveCall['kind'], origin?: string) => {
+    const store = createStore();
+    store.set(activeCallAtom, {
+      kind,
+      origin: origin && { roomId: origin },
+      call: { room: { roomId: CALL_ROOM } },
+    } as unknown as ActiveCall);
+    return store;
+  };
+
+  it("is the conversation of this device's agent call, or the call room while its panel is there", () => {
+    const store = inCall('agent', ROOM);
+    expect(transcriptRoomId(store, CALL_ROOM)).toBe(ROOM);
+    store.set(callPanelRoomAtom, ROOM);
+    expect(transcriptRoomId(store, CALL_ROOM)).toBe(ROOM);
+    store.set(callPanelRoomAtom, CALL_ROOM);
+    expect(transcriptRoomId(store, CALL_ROOM)).toBe(CALL_ROOM);
+    // A panel on another room's call is not this call's.
+    store.set(callPanelRoomAtom, OTHER);
+    expect(transcriptRoomId(store, CALL_ROOM)).toBe(ROOM);
+  });
+
+  it("is the call's own room for a room call and for a call this device is not in", () => {
+    expect(transcriptRoomId(inCall('room'), CALL_ROOM)).toBe(CALL_ROOM);
+    expect(transcriptRoomId(inCall('agent', ROOM), OTHER)).toBe(OTHER);
+    expect(transcriptRoomId(createStore(), OTHER)).toBe(OTHER);
   });
 });

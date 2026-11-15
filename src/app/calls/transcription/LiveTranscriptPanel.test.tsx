@@ -172,6 +172,47 @@ describe('LiveTranscriptPanel', () => {
     expect(header?.querySelector('[aria-label="Pause transcription"]')).not.toBeNull();
   });
 
+  it('shows the call with an agent started from this conversation, as its reader has it, without Pause', () => {
+    state.apiUrl = 'https://mindroom.example.org';
+    const AGENT = '@mindroom_helper:example.org';
+    const callRoom = {
+      ...room,
+      roomId: '!agent-call:example.org',
+      getMember: (userId: string) => {
+        const name = { [ANN]: 'Ann', [AGENT]: 'Helper' }[userId];
+        return name ? { userId, name, rawDisplayName: name, getMxcAvatarUrl: () => null } : null;
+      },
+    } as unknown as Room;
+    const store = createStore();
+    store.set(activeCallAtom, {
+      kind: 'agent',
+      agentUserId: AGENT,
+      origin: { roomId: ROOM_ID },
+      call: { room: callRoom },
+    } as unknown as ActiveCall);
+    store.set(callTranscriptionAtom, { roomId: callRoom.roomId, status: 'transcribing' });
+    store.set(liveTranscriptAtom, {
+      roomId: callRoom.roomId,
+      call: { ...CALL, roomId: callRoom.roomId, rowEventId: null, members: [ANN, AGENT] },
+      lines: [
+        line('a1', ANN, '2026-11-07T09:30:00Z', { text: 'What is on today?' }),
+        line('a2', AGENT, '2026-11-07T09:30:04Z', { text: 'Two meetings this afternoon.' }),
+      ],
+      names: {},
+    });
+    render(store);
+
+    expect(text('[data-live-transcript-name]')).toEqual(['Ann', 'Helper']);
+    expect(text('[data-live-transcript-text]')).toEqual([
+      'What is on today?',
+      'Two meetings this afternoon.',
+    ]);
+    expect(text('[data-live-transcript-member]')).toEqual(['Ann', 'Helper']);
+    // The agent must keep hearing the call, and the reader reads it: the panel reads nothing.
+    expect(container.querySelector('header [aria-label="Pause transcription"]')).toBeNull();
+    expect(state.polls).toHaveLength(0);
+  });
+
   it("reads the room's live call every 2 seconds itself when this device is not in it, without Pause", () => {
     state.apiUrl = 'https://mindroom.example.org';
     render();

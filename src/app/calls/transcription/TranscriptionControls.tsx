@@ -5,6 +5,7 @@ import { Icons, Text } from 'folds';
 import { getSenderName } from '../../matrix/room';
 import { NameWithUserId } from '../../matrix/NameWithUserId';
 import { CallControl } from '../CallControls';
+import { useActiveCall } from '../callStore';
 import { callTranscriptionAtom } from './transcriptionState';
 import { PauseControl, usePausedBy } from './PauseControl';
 import { useCallTranscript } from './transcriptPanel';
@@ -20,17 +21,19 @@ const useRoomTranscription = (room: Room) => {
  * Pause and Transcript in the call's controls, while MindRoom transcribes the call. In the
  * floating window Transcript is a switch that shows the transcript inside it; elsewhere it opens
  * the room's side panel. While MindRoom cannot be reached the window keeps showing what it read,
- * so its switch stays to hide it; there is nothing to pause then.
+ * so its switch stays to hide it; there is nothing to pause then. A call with an agent has no
+ * Pause: the agent must keep hearing it.
  */
 export function TranscriptionControls({ room }: { room: Room }) {
   const { t } = useTranslation();
   const transcript = useCallTranscript(room.roomId);
   const status = useRoomTranscription(room);
+  const pausable = useActiveCall()?.kind !== 'agent';
   const transcribing = status === 'transcribing';
   if (!transcribing && !(status === 'unavailable' && transcript.inWindow)) return null;
   return (
     <>
-      {transcribing && <PauseControl room={room} />}
+      {transcribing && pausable && <PauseControl room={room} />}
       <CallControl
         label={t('featureUi.calls.transcription.liveTranscript')}
         icon={Icons.Message}

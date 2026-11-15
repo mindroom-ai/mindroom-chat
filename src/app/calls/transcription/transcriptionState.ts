@@ -2,16 +2,18 @@ import { atom } from 'jotai';
 import type { LiveCall, TranscriptCall, TranscriptLine } from './api';
 
 /**
- * How this device's call is transcribed: `joining` until MindRoom first answers, `transcribing`,
- * or `unavailable` while MindRoom cannot be reached or fails (the call goes on).
+ * How this device's call is transcribed: `joining` until MindRoom first answers (a room call's
+ * transcriber only), `transcribing`, or `unavailable` while MindRoom cannot be reached or fails
+ * (the call goes on).
  */
 export type TranscriptionStatus = 'joining' | 'transcribing' | 'unavailable';
 
 export type CallTranscription = { roomId: string; status: TranscriptionStatus };
 
 /**
- * The transcription of the call this device is in; none without a call, in a call with an agent,
- * and in a room MindRoom does not transcribe.
+ * The transcription of the call this device is in: a room call's as its transcriber has it, an
+ * agent call's as its reader reads it (`AgentCallTranscript`). None without a call, and in a room
+ * MindRoom does not transcribe.
  */
 export const callTranscriptionAtom = atom<CallTranscription | undefined>(undefined);
 

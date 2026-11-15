@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import type { IconTooltipProps } from '../ui/IconTooltip';
 import {
+  activeCallAtom,
   callPanelRoomAtom,
   callStartProblemAtom,
   callViewStateAtom,
@@ -1091,14 +1092,14 @@ describe('the minimized bar', () => {
 });
 
 describe('the live transcript in the window', () => {
-  /** MindRoom transcribes the room's call, nothing said yet, and the account shows the transcript. */
-  const transcribed = () => {
-    store.set(callTranscriptionAtom, { roomId: room.roomId, status: 'transcribing' });
+  /** MindRoom transcribes the call in `roomId`, nothing said yet, and the account shows the transcript. */
+  const transcribed = (roomId = room.roomId) => {
+    store.set(callTranscriptionAtom, { roomId, status: 'transcribing' });
     store.set(liveTranscriptAtom, {
-      roomId: room.roomId,
+      roomId,
       call: {
         id: 'call-1',
-        roomId: room.roomId,
+        roomId,
         rowEventId: '$row',
         startedAt: '2026-11-07T09:29:00Z',
         endedAt: null,
@@ -1157,6 +1158,37 @@ describe('the live transcript in the window', () => {
     press('Live transcript');
     expect(settings().transcript).toBe(false);
     expect(store.get(transcriptPanelAtom)).toEqual(side);
+  });
+
+  it('shows with the stage in a call with an agent too, with no Pause', () => {
+    agentCall({ roomId: room.roomId });
+    transcribed(callRoom.roomId);
+    renderPanel({ frame: frame() });
+    expect(transcript()?.textContent).toContain('Nothing has been said yet.');
+    expect(
+      screen.getByRole('button', { name: 'Live transcript' }).getAttribute('aria-pressed')
+    ).toBe('true');
+    expect(button('Pause transcription')).toBeNull();
+
+    // The controls' status line says so, as in a call between people.
+    act(() => store.set(callTranscriptionAtom, { roomId: callRoom.roomId, status: 'unavailable' }));
+    const controlBar = screen.getByRole('toolbar', { name: 'Standup' }).parentElement;
+    expect(controlBar?.textContent).toContain('Transcripts are unavailable');
+  });
+
+  it("opens a docked agent call's transcript in its conversation's side panel", () => {
+    agentCall({ roomId: room.roomId });
+    store.set(activeCallAtom, calls.active);
+    store.set(callPanelRoomAtom, room.roomId);
+    transcribed(callRoom.roomId);
+    store.set(getCallWindowSettingsAtom(USER), { mode: 'docked' });
+    renderPanel();
+    expect(transcript()).toBeNull();
+    expect(button('Pause transcription')).toBeNull();
+
+    press('Live transcript');
+    expect(store.get(transcriptPanelAtom)).toEqual({ roomId: room.roomId, replacedCall: true });
+    expect(store.get(callPanelRoomAtom)).toBeUndefined();
   });
 
   it('shows neither in the bar nor in the docked panel', () => {

@@ -243,7 +243,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
   ) : (
     <div className={css.ControlBar}>
       {/* Who paused the transcript, or that transcripts are unavailable (the call goes on). */}
-      {!agentCall && <TranscriptionStatus room={call.room} />}
+      <TranscriptionStatus room={call.room} />
       <div className={css.Controls} role="toolbar" aria-label={title}>
         <CallControl
           label={microphoneLabel}
@@ -282,7 +282,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
           off={!state.sound}
           onClick={() => call.setSound(!state.sound)}
         />
-        {!agentCall && <TranscriptionControls room={call.room} />}
+        <TranscriptionControls room={call.room} />
         <DeviceControl
           chosen={state.devices}
           onChoose={(kind, id) => void call.setDevice(kind, id)}
@@ -317,13 +317,9 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
       onViewChange={setStageView}
     />
   );
-  // In the floating window the live transcript can show with the stage; agent calls have none.
-  const transcribable = stage && inWindow && !agentCall;
-  const stageArea = transcribable ? (
-    <WindowTranscript room={call.room}>{stage}</WindowTranscript>
-  ) : (
-    stage
-  );
+  // In the floating window the live transcript can show with the stage.
+  const stageArea =
+    stage && inWindow ? <WindowTranscript room={call.room}>{stage}</WindowTranscript> : stage;
   const problem = state.problem && t(PROBLEM_KEYS[state.problem]);
   const bar: BarContent = {
     faces: <BarFaces room={call.room} people={shownPeople} />,

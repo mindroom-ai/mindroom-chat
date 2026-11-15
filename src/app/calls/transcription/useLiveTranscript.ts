@@ -24,7 +24,7 @@ export type LiveTranscriptState = 'loading' | 'live' | 'unavailable' | 'not-tran
 export type LiveTranscriptView = {
   state: LiveTranscriptState;
   live?: LiveTranscript;
-  /** It is the call this device is in, transcribed here. */
+  /** It is the call this device is in, as this device's transcriber or reader has it. */
   ownCall: boolean;
   /** This device knows the room's MindRoom server, so it can read the live call. */
   serverKnown: boolean;
@@ -110,8 +110,8 @@ const useLiveCallReads = (
 };
 
 /**
- * The room's live call: this device's own call as its transcriber reads it, or else one read here
- * every `everyMs` while `reading`.
+ * The room's live call: this device's own call as its transcriber (or, with an agent, its reader)
+ * reads it, or else one read here every `everyMs` while `reading`.
  */
 export const useLiveTranscript = (
   room: Room,
@@ -123,9 +123,7 @@ export const useLiveTranscript = (
   const shared = useAtomValue(liveTranscriptAtom);
   const { roomId } = room;
   const ownStatus =
-    active?.kind === 'room' &&
-    active.call.room.roomId === roomId &&
-    transcription?.roomId === roomId
+    active?.call.room.roomId === roomId && transcription?.roomId === roomId
       ? transcription.status
       : undefined;
   const read = useLiveCallReads(room, everyMs, reading && !ownStatus);
