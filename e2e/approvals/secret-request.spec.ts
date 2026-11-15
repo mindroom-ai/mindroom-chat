@@ -142,7 +142,8 @@ test('the requester saves a key to the MindRoom server only, and another member 
     });
     await route.fulfill({ status: 204, headers: CORS });
   });
-  const answerUrl = `${MINDROOM_API}/api/rooms/${encodeURIComponent(room.roomId)}/secret-requests/${requestId}`;
+  const roomPath = encodeURIComponent(room.roomId);
+  const answerUrl = `${MINDROOM_API}/api/rooms/${roomPath}/secret-requests/${requestId}`;
   // Every request of the requester's page but the answer, the homeserver's included.
   const leaks: string[] = [];
   context.on('request', (request) => {
