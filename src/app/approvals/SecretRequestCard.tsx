@@ -324,7 +324,8 @@ export function SecretRequestCard({
               />
             )}
             {request.hosts.length > 0 && timeLeft && ' · '}
-            {timeLeft && t('mindroomUi.messages.threadApprovalControls.expires', { time: timeLeft })}
+            {timeLeft &&
+              t('mindroomUi.messages.threadApprovalControls.expires', { time: timeLeft })}
           </Text>
         )}
         {isRequester && waitingForEdit && (open || answer) && (
