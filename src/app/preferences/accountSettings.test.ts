@@ -24,6 +24,14 @@ describe('sanitizeAccountSettings', () => {
     ).toBe(false);
   });
 
+  it('reads whether the tour was offered, which it was not unless a boolean says so', () => {
+    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.tourOffered).toBe(false);
+    expect(sanitizeAccountSettings({}).tourOffered).toBe(false);
+    expect(sanitizeAccountSettings({ tourOffered: true }).tourOffered).toBe(true);
+    expect(sanitizeAccountSettings({ tourOffered: 'yes' }).tourOffered).toBe(false);
+    expect(sanitizeAccountSettings({ tourOffered: 1 }).tourOffered).toBe(false);
+  });
+
   it('ignores unknown keys when reading', () => {
     expect(
       sanitizeAccountSettings({
@@ -54,6 +62,15 @@ describe('mergeAccountSettings', () => {
         { showCanvasesInSidebar: true }
       )
     ).toEqual({ showCanvasesInSidebar: true, futureKey: { nested: 1 } });
+  });
+
+  it('records the tour as offered beside the switches and the keys of other clients', () => {
+    expect(
+      mergeAccountSettings(
+        { showThreadsInSidebar: true, futureKey: 'x' },
+        { tourOffered: true }
+      )
+    ).toEqual({ showThreadsInSidebar: true, futureKey: 'x', tourOffered: true });
   });
 
   it('treats malformed stored content as empty', () => {

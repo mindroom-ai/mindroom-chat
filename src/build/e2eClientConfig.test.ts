@@ -35,14 +35,18 @@ describe('e2e client config', () => {
     expect(served.sidebar.mindRoomProvisioningUrl).toBe('http://127.0.0.1:4173');
     // The start prompt is off for the specs, which ask for it where they test it.
     expect(served.encryptionRecovery.promptAtStart).toBe(false);
+    // So is the offer of the interface tour, a card no other spec expects.
+    expect(served.tour.offerAtStart).toBe(false);
     expect({
       ...served,
       sidebar: { ...served.sidebar, mindRoomProvisioningUrl: undefined },
       encryptionRecovery: undefined,
+      tour: undefined,
     }).toEqual({
       ...hosted,
       sidebar: { ...hosted.sidebar, mindRoomProvisioningUrl: undefined },
       encryptionRecovery: undefined,
+      tour: undefined,
     });
   });
 

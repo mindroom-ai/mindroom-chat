@@ -101,7 +101,7 @@ const LAYERS = [
   ['rooms', 'threads'],
   ['account', 'activity', 'quick-capture', 'spaces', 'timeline'],
   ['command-palette', 'local-mindroom', 'room'],
-  ['settings'],
+  ['settings', 'tour'],
   ['sidebar'],
   ['shell'],
   ['src/index.tsx', 'src/client-sdk'],

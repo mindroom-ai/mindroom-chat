@@ -1053,5 +1053,118 @@
         "invalidAddress": "Ini bukan alamat email yang valid."
       }
     }
+  },
+  "tour": {
+    "levels": {
+      "quick": "Quick tour",
+      "full": "Full tour"
+    },
+    "offer": {
+      "title": "Take a tour of MindRoom",
+      "text": "See how threads, titles and states work.",
+      "quick": "Quick tour (1 min)",
+      "full": "Full tour (5 min)",
+      "dismiss": "Dismiss"
+    },
+    "dialog": {
+      "stepOf": "Step {{current}} of {{total}}",
+      "close": "Close tour",
+      "back": "Back",
+      "next": "Next",
+      "done": "Done",
+      "keepGoing": "Keep going (6 more steps)",
+      "replay": "Replay"
+    },
+    "chapters": {
+      "basics": "The basics",
+      "tidy": "Keeping the list tidy",
+      "finding": "Finding your way"
+    },
+    "steps": {
+      "conversation": {
+        "title": "A thread is one conversation",
+        "text": "Rooms with agents open in Compact view. Each card is one thread: a single topic with all its replies together. A room holds as many as you need."
+      },
+      "start": {
+        "title": "Type to start a new thread",
+        "text": "Write in the box at the bottom of the room and send. That starts a new thread, and it opens right away."
+      },
+      "reply": {
+        "title": "Inside a thread, you reply",
+        "text": "What you write in an open thread is a reply there, not a new thread. Back returns to the list, where any card opens its thread again."
+      },
+      "title": {
+        "title": "AI writes the titles",
+        "text": "A new card shows your first message. After an agent replies, MindRoom’s AI gives the thread a short title. Edit summary in Thread options changes it."
+      },
+      "order": {
+        "title": "The latest activity comes first",
+        "text": "A thread moves to the top when it gets a new message, so what is active comes first. Pinned threads stay above the rest."
+      },
+      "states": {
+        "title": "A card shows where its thread stands",
+        "streaming": "An agent is replying now.",
+        "unread": "New replies, with a colored edge and time.",
+        "resolved": "Done. Compact hides it.",
+        "snoozed": "Hidden until its time, then back by itself."
+      },
+      "resolve": {
+        "title": "Resolve what is done",
+        "text": "Press Resolve, the check on a card, or swipe the card on a touch screen. The thread leaves the list, and you can reopen it at any time."
+      },
+      "snooze": {
+        "title": "Snooze what can wait",
+        "text": "In Thread options (⋯), pick Snooze. The thread hides until the time you choose, then returns with a note that the snooze ended."
+      },
+      "pinAndTag": {
+        "title": "Pin and tag",
+        "text": "Pin keeps a thread at the top of the list. Edit tags in Thread options labels a thread, and you can filter by tag."
+      },
+      "filters": {
+        "title": "Filter and sort",
+        "text": "Thread filters, in the room’s header or its menu, shows this bar. Unresolved hides what is done, Last Reply changes the order, and Advanced filters finds the rest, snoozed threads too."
+      },
+      "views": {
+        "title": "Two views of a room",
+        "text": "Compact shows one card per thread. Threads shows each thread’s first message with its reply count under it. Compact view, in the room’s header or its menu, switches."
+      },
+      "activity": {
+        "title": "Activity collects what needs you",
+        "text": "The bell opens Activity: mentions, replies in your threads and agent runs that finished. Approvals, questions and invites are answered right there."
+      }
+    },
+    "sample": {
+      "room": "Marketing",
+      "ana": "Ana",
+      "writer": "Writer",
+      "analyst": "Analyst",
+      "typed": "Draft the spring launch email",
+      "launchTitle": "Spring launch email",
+      "launchReply": "Here is a first draft with three subject lines.",
+      "budgetTitle": "Q3 budget review",
+      "budgetReply": "Totals are up 4% on last quarter.",
+      "websiteTitle": "Website redesign feedback",
+      "websiteReply": "The new homepage tests well.",
+      "vendorTitle": "Vendor contract renewal",
+      "vendorReply": "Let’s look again after the call.",
+      "vendorNewReply": "The contract is signed.",
+      "surveyTitle": "Customer survey results",
+      "surveyReply": "212 answers so far.",
+      "preview": "{{name}}: {{text}}",
+      "tagLaunch": "launch",
+      "tagFinance": "finance",
+      "approval": "Send the report to the team"
+    },
+    "entries": {
+      "paletteQuick": "Take the quick tour",
+      "paletteFull": "Take the full tour",
+      "paletteDescription": "See how threads work",
+      "settingsSection": "Tour",
+      "settingsTitle": "See how threads work",
+      "settingsDescription": "A short tour of threads: starting one, titles, order and states.",
+      "settingsKeywords": "tour tutorial guide help onboarding threads",
+      "howThreadsWork": "How threads work",
+      "noThreadsHint": "Send a message below to start one."
+    }
   }
 }

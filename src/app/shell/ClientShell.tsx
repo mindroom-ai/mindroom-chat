@@ -19,6 +19,8 @@ import { EncryptionRecoveryPrompt } from '../account/encryption/EncryptionRecove
 import { RecoveryDialogRenderer } from '../account/encryption/RecoveryDialogRenderer';
 import { IncomingVerificationRequests } from '../account/verification/IncomingVerificationRequests';
 import { CallFeatures } from '../calls/CallFeatures';
+import { TourOffer } from '../tour/TourOffer';
+import { TourRenderer } from '../tour/TourRenderer';
 import { ClientInitStorageAtom } from './ClientInitStorageAtom';
 import { ClientNonUIFeatures } from './ClientNonUIFeatures';
 import { SkipToContent } from './SkipToContent';
@@ -71,6 +73,8 @@ export function ClientShell({ children }: { children: ReactNode }) {
           <IncomingVerificationRequests />
           <RecoveryDialogRenderer />
           <EncryptionRecoveryPrompt />
+          <TourOffer />
+          <TourRenderer />
           <CallFeatures />
         </RoomsNotificationPreferencesProvider>
       </ClientInitStorageAtom>

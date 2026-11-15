@@ -23,6 +23,8 @@ export type AccountSettings = {
   showSearchInSidebar: boolean;
   /** Show the sidebar's Local MindRoom button where the account can pair one. */
   showLocalMindroomInSidebar: boolean;
+  /** The account answered the offer of the interface tour (src/app/tour/TourOffer.tsx). */
+  tourOffered: boolean;
 };
 
 export const DEFAULT_MINDROOM_ACCOUNT_SETTINGS: AccountSettings = {
@@ -32,6 +34,7 @@ export const DEFAULT_MINDROOM_ACCOUNT_SETTINGS: AccountSettings = {
   showCreateSpaceInSidebar: false,
   showSearchInSidebar: false,
   showLocalMindroomInSidebar: false,
+  tourOffered: false,
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -63,6 +66,7 @@ export const sanitizeAccountSettings = (content: unknown): AccountSettings => {
     showCreateSpaceInSidebar: storedSwitch(content, 'showCreateSpaceInSidebar'),
     showSearchInSidebar: storedSwitch(content, 'showSearchInSidebar'),
     showLocalMindroomInSidebar: storedSwitch(content, 'showLocalMindroomInSidebar'),
+    tourOffered: storedSwitch(content, 'tourOffered'),
   };
 };
 
