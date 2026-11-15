@@ -28,16 +28,20 @@ export const playsMotion = (element: HTMLElement): boolean =>
   document.visibilityState !== 'hidden' &&
   !(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
 
-/** Every row of the list, and those in view by key. */
+/**
+ * Every row of the list, and by key those in view or within half a page of it: the rows that
+ * close a gap, or make room, come into view from there.
+ */
 const readRows = (list: HTMLElement): { all: HTMLElement[]; inView: Map<string, Place> } => {
   const all = [...list.querySelectorAll<HTMLElement>(`[${ROW}]`)];
+  const past = window.innerHeight / 2;
   // The rows stack in one column: find the first one in view by halving, so a long list costs a
   // few layout reads rather than one per row above the view.
   let low = 0;
   let high = all.length;
   while (low < high) {
     const middle = Math.floor((low + high) / 2);
-    if ((all[middle]?.getBoundingClientRect().bottom ?? 0) > 0) high = middle;
+    if ((all[middle]?.getBoundingClientRect().bottom ?? 0) > -past) high = middle;
     else low = middle + 1;
   }
   const inView = new Map<string, Place>();
@@ -45,7 +49,7 @@ const readRows = (list: HTMLElement): { all: HTMLElement[]; inView: Map<string, 
     const row = all[index];
     const key = row?.getAttribute(ROW);
     const rect = row?.getBoundingClientRect();
-    if (!row || !rect || rect.top >= window.innerHeight) break;
+    if (!row || !rect || rect.top >= window.innerHeight + past) break;
     if (key) inView.set(key, { row, rect });
   }
   return { all, inView };
@@ -185,8 +189,9 @@ class BeforeChange extends PureComponent<BeforeChangeProps> {
  * what the hook returns inside the list's component, and give the list a `position`, which a
  * leaving row is placed against.
  *
- * Only rows in view play, read once before and once after a change of `order`, so a long list
- * costs what its screenful does and a render that keeps the order costs nothing. Rows play by
+ * Only rows in view or within half a page of it play, read once before and once after a change
+ * of `order`, so a long list costs what two screenfuls do and a render that keeps the order
+ * costs nothing. Rows play by
  * `translate`, `scale` and `opacity`, which no layout follows; a row is read while it plays, so
  * keep code that measures rows off the row element itself. Nothing plays when no row in view
  * stays, with reduced motion, in a page nobody sees, or without Web Animations. Call it after a

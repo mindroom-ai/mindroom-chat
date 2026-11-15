@@ -112,13 +112,22 @@ describe('useListMotion', () => {
     expect(screen.getByTestId('list').querySelectorAll('[aria-hidden]')).toHaveLength(0);
   });
 
-  it('leaves rows out of view alone', () => {
-    // The page is 768 pixels high: the ninth row and those after it are below it.
-    const rows = Array.from({ length: 12 }, (_, index) => `row${index}`);
+  it('leaves rows far out of view alone', () => {
+    // The page is 768 pixels high: rows play up to half a page past it, the first twelve.
+    const rows = Array.from({ length: 16 }, (_, index) => `row${index}`);
     const { rerender } = render(<List order={rows} />);
-    rerender(<List order={[...rows.slice(0, 10), 'row11', 'row10']} />);
+    rerender(<List order={[...rows.slice(0, 14), 'row15', 'row14']} />);
 
     expect(motion.plays).toEqual([]);
+  });
+
+  it('glides a row in from just past the view, where the rows that close a gap come from', () => {
+    const rows = Array.from({ length: 16 }, (_, index) => `row${index}`);
+    const { rerender } = render(<List order={rows} />);
+    // The first row leaves: the ninth, which stood right under the view, moves up into it.
+    rerender(<List order={rows.slice(1)} />);
+
+    expect(playedByRow().row8).toEqual([glide(100)]);
   });
 
   it('measures nothing while the order stays', () => {
