@@ -20,10 +20,10 @@ struct ConnectView: View {
                     Text("Open MindRoom on your iPhone: Settings, Apple Watch.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                case let .failed(reason):
+                case .failed:
                     Text("Could not connect")
                         .font(.headline)
-                    Text(reason)
+                    Text("Connect again from your iPhone")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 default:

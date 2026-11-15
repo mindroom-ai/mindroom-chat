@@ -21,7 +21,8 @@ public struct ApprovalCard: Equatable, Sendable {
     public let expiresAt: Date?
     /// The one person who may decide, when the backend names one.
     public let approverUserId: String?
-    /// False when the backend could not show every argument for review: then only Deny is offered.
+    /// False when the watch cannot show all there is to review (cut-short arguments, the time a scheduled
+    /// call will run): then only Deny is offered.
     public let approvable: Bool
 
     public struct Argument: Equatable, Sendable {
@@ -43,6 +44,8 @@ public struct ApprovalCard: Equatable, Sendable {
         // then the watch cannot show everything, so the card can only be denied here.
         let fullArguments = content["full_arguments"] as? JSON
         let truncated = content["arguments_truncated"] as? Bool == true && fullArguments == nil
+        // A scheduled call's card says when it will run (`scheduled_for`), which the watch does not show.
+        let scheduled = content["approval_target"] as? String == "scheduled_call"
         let arguments = (fullArguments ?? content["arguments"] as? JSON ?? [:])
             .map { Argument(key: $0.key, value: text(of: $0.value)) }
             .sorted { $0.key < $1.key }
@@ -51,7 +54,7 @@ public struct ApprovalCard: Equatable, Sendable {
             agentName: content["agent_name"] as? String, arguments: arguments,
             argumentsTruncated: truncated,
             status: status, expiresAt: (content["expires_at"] as? String).flatMap(parseDate),
-            approverUserId: content["approver_user_id"] as? String, approvable: (content["approvable"] as? Bool ?? true) && !truncated)
+            approverUserId: content["approver_user_id"] as? String, approvable: (content["approvable"] as? Bool ?? true) && !truncated && !scheduled)
     }
 
     /// The id of the card an `m.replace` edit of a card changes.

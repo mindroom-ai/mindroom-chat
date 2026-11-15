@@ -12,7 +12,12 @@ final class NotificationController: WKUserNotificationHostingController<Notifica
 
     override func didReceive(_ notification: UNNotification) {
         let userInfo = notification.request.content.userInfo
+        let title = notification.request.content.title, text = notification.request.content.body
         Task { @MainActor in
+            // Until the event is read, and when it cannot be (no account on the watch, a room it is not in),
+            // the push's own text shows, as it would without this screen.
+            model.title = title
+            model.text = text
             guard let session = MatrixSession.shared else { return }
             let event = await PushedEvent.load(userInfo: userInfo, session: session)
             model.event = event
@@ -24,6 +29,9 @@ final class NotificationController: WKUserNotificationHostingController<Notifica
 @MainActor
 final class NotificationModel: ObservableObject {
     @Published var event: PushedEvent?
+    /// The push's own title and text.
+    @Published var title = ""
+    @Published var text = ""
 }
 
 struct NotificationView: View {
@@ -44,7 +52,10 @@ struct NotificationView: View {
                 Text(text)
             }
         case nil:
-            Text("New message")
+            VStack(alignment: .leading, spacing: 4) {
+                if !model.title.isEmpty { Text(model.title).font(.caption.bold()) }
+                Text(model.text.isEmpty ? String(localized: "New message") : model.text)
+            }
         }
     }
 }

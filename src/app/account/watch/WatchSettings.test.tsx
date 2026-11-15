@@ -184,6 +184,33 @@ describe('AppleWatch', () => {
     expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy();
   });
 
+  it('offers no Verify after connecting while this device has not heard of its own signature', async () => {
+    // The homeserver announces the new signature a sync later: until then the local record says unsigned.
+    server.crossSigned = false;
+    await renderSettings();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+    });
+    native.status = { ...native.status, device: WATCH };
+    await act(async () => {
+      native.signedIn?.(WATCH);
+    });
+    expect(screen.getByText('Connected as WATCH.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Verify' })).toBeNull();
+  });
+
+  it('reads the watch again when the app comes back to the front', async () => {
+    native.status = { paired: true, installed: false, reachable: false };
+    await renderSettings();
+    expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull();
+    // The person installed the watch app from the Watch app and came back.
+    native.status = { paired: true, installed: true, reachable: true };
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(screen.getByRole('button', { name: 'Connect' })).toBeTruthy();
+  });
+
   it('offers no second Connect while the watch signs in', async () => {
     await renderSettings();
     await act(async () => {

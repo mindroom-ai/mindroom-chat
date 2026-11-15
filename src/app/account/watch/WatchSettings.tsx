@@ -49,6 +49,11 @@ function WatchSettingsSection() {
 
   /** Whether the account has cross-signed the connected watch; a watch it has not gets Verify. */
   const [crossSigned, setCrossSigned] = useState<boolean>();
+  /**
+   * The device `verify` cross-signed from this page. This device hears of its own signature only
+   * when the homeserver announces it, a sync later, so its record still says unsigned until then.
+   */
+  const [signedDeviceId, setSignedDeviceId] = useState<string>();
   const mounted = useRef(true);
 
   const refresh = useCallback(() => getWatchStatus().then(setStatus), []);
@@ -56,8 +61,14 @@ function WatchSettingsSection() {
   useEffect(() => {
     mounted.current = true;
     void refresh();
+    // The person may have installed the watch app, or paired a watch, while the app was in the back.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       mounted.current = false;
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [refresh]);
 
@@ -97,7 +108,7 @@ function WatchSettingsSection() {
         setStep({ kind: 'message', text: t(`${W}.noCrossSigning`) });
         return;
       }
-      if (result !== 'timeout') setCrossSigned(true);
+      if (result !== 'timeout') setSignedDeviceId(watch.deviceId);
       if (result === 'verified') setStep({ kind: 'idle' });
       else if (result === 'no-backup')
         setStep({ kind: 'message', text: t(`${W}.noBackup`), retry: true });
@@ -182,7 +193,8 @@ function WatchSettingsSection() {
   if (device) {
     action = (
       <Box gap="200">
-        {(crossSigned === false || (step.kind === 'message' && step.retry)) && (
+        {((crossSigned === false && signedDeviceId !== deviceId) ||
+          (step.kind === 'message' && step.retry)) && (
           <Button
             size="300"
             radii="300"

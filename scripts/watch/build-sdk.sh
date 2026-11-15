@@ -58,6 +58,13 @@ if [[ "${1:-}" == "--fetch" ]]; then
   exit 0
 fi
 
+# Commits name the published zip's checksum, and two builds are not byte for byte the same.
+if [[ "${1:-}" == "--publish" ]] &&
+  gh release view "$RELEASE" --repo "$REPO_SLUG" --json assets -q '.assets[].name' 2>/dev/null | grep -qx "$ZIP_NAME"; then
+  echo "$RELEASE already has $ZIP_NAME, which is not replaced: a new build needs a new patch or tag." >&2
+  exit 1
+fi
+
 if [[ ! -d "$SDK_DIR/.git" ]]; then
   rm -rf "$SDK_DIR"
   git clone --quiet --depth 1 --branch "$TAG" https://github.com/matrix-org/matrix-rust-sdk.git "$SDK_DIR"
@@ -94,5 +101,5 @@ if [[ "${1:-}" == "--publish" ]]; then
   gh release view "$RELEASE" --repo "$REPO_SLUG" >/dev/null 2>&1 ||
     gh release create "$RELEASE" --repo "$REPO_SLUG" --prerelease --title "$RELEASE" \
       --notes "matrix-sdk-ffi $TAG ($COMMIT) for watchOS, built by scripts/watch/build-sdk.sh with ios/Watch/sdk/matrix-rust-sdk.patch."
-  gh release upload "$RELEASE" "$OUT/$ZIP_NAME" --repo "$REPO_SLUG" --clobber
+  gh release upload "$RELEASE" "$OUT/$ZIP_NAME" --repo "$REPO_SLUG"
 fi

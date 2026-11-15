@@ -10,6 +10,8 @@ public struct TokenLoginResult: Equatable, Sendable {
 public enum TokenLoginError: Error, Equatable {
     /// The token was used, or ran out before the watch read it: connect again from the iPhone.
     case expired
+    /// The homeserver signed in another account than the one the iPhone named.
+    case wrongAccount
     case failed(String)
 }
 
@@ -27,10 +29,12 @@ public enum TokenLoginRequest {
         return request
     }
 
-    public static func parse(data: Data, status: Int) throws -> TokenLoginResult {
+    /// The session of a successful login, which must be the account the iPhone named (`userId`).
+    public static func parse(data: Data, status: Int, userId expected: String) throws -> TokenLoginResult {
         let json = (try? JSONSerialization.jsonObject(with: data)) as? JSON ?? [:]
         if status == 200, let accessToken = json["access_token"] as? String,
            let deviceId = json["device_id"] as? String, let userId = json["user_id"] as? String {
+            guard userId == expected else { throw TokenLoginError.wrongAccount }
             return TokenLoginResult(accessToken: accessToken, deviceId: deviceId, userId: userId)
         }
         if status == 403 || json["errcode"] as? String == "M_FORBIDDEN" { throw TokenLoginError.expired }

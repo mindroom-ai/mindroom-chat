@@ -71,6 +71,12 @@ final class ApprovalTests: XCTestCase {
         XCTAssertFalse(parsed.approvable)
     }
 
+    func testAScheduledCallCannotBeApprovedOnTheWatch() throws {
+        // Its card says when the call will run, which the watch does not show: Deny only.
+        let parsed = try XCTUnwrap(ApprovalCard.parse(card(["approval_target": "scheduled_call", "scheduled_for": "2026-11-16T09:00:00Z"])))
+        XCTAssertFalse(parsed.approvable)
+    }
+
     func testInlineFullArgumentsAreShownAndApprovable() throws {
         let parsed = try XCTUnwrap(ApprovalCard.parse(card(["arguments_truncated": true,
                                                             "full_arguments": ["to": "anna@example.com", "body": "the whole text"]])))

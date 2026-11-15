@@ -17,7 +17,7 @@ final class MatrixSession: ObservableObject {
         /// The login token ran out or was used: connect again from the iPhone.
         case expired
         case signedIn(Client)
-        case failed(String)
+        case failed
     }
 
     @Published private(set) var state: State = .signedOut
@@ -51,7 +51,7 @@ final class MatrixSession: ObservableObject {
     }
 
     private func connectNow(_ message: WatchLinkMessage) async {
-        guard case let .credentials(homeserverUrl, _, token, _) = message else { return }
+        guard case let .credentials(homeserverUrl, userId, token, _) = message else { return }
         // A live session stays until the new one works: stale or repeated credentials must not sign the watch out.
         let signedIn = client != nil
         if TokenLoginRequest.isExpired(message, now: Date()) {
@@ -61,7 +61,7 @@ final class MatrixSession: ObservableObject {
         if !signedIn { state = .connecting }
         do {
             let (data, response) = try await URLSession.shared.data(for: TokenLoginRequest.make(homeserverUrl: homeserverUrl, token: token))
-            let result = try TokenLoginRequest.parse(data: data, status: (response as? HTTPURLResponse)?.statusCode ?? 0)
+            let result = try TokenLoginRequest.parse(data: data, status: (response as? HTTPURLResponse)?.statusCode ?? 0, userId: userId)
             // Connecting again replaces the old device, which is logged out on the server: its client is
             // opened first when the credentials came before the app restored it.
             if SessionStore.load() != nil {
@@ -94,7 +94,7 @@ final class MatrixSession: ObservableObject {
             if !signedIn { state = .expired }
         } catch {
             log.error("connect failed: \(String(describing: type(of: error)), privacy: .public)")
-            if !signedIn { state = .failed(String(localized: "Could not connect")) }
+            if !signedIn { state = .failed }
         }
     }
 
@@ -118,7 +118,7 @@ final class MatrixSession: ObservableObject {
             try await start(session)
         } catch {
             log.error("restore failed: \(String(describing: error), privacy: .public)")
-            state = .failed(String(localized: "Could not connect"))
+            state = .failed
         }
     }
 
