@@ -125,6 +125,8 @@ jobs:
           # YYYY.M.N for both: the build number only has to grow from one release to the next.
           MARKETING_VERSION: ${{ steps.release.outputs.version }}
           CURRENT_PROJECT_VERSION: ${{ steps.release.outputs.version }}
+          # As image.yml does: GITHUB_SHA, the fallback, is main's head or the dispatching branch's.
+          MINDROOM_BUILD_VERSION: ${{ env.RELEASE_TAG }}
           MINDROOM_RELEASE_VERSION: ${{ env.RELEASE_TAG }}
           NODE_OPTIONS: --max-old-space-size=6144
         run: scripts/build-macos-app.sh --sign
