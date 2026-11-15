@@ -57,10 +57,13 @@ function AgentCallReads({ active }: { active: ActiveCall }) {
     };
   }, [apiUrl, mx, roomId, store]);
 
-  // Once the call is over here its transcript leaves the conversation's side panel, as its call
-  // panel does: the panel would go on to that room's own call.
+  // Once the call is over here, ended or failed, its transcript leaves the conversation's side
+  // panel, as its call panel does: the panel would go on reading that room's own call.
   const homeRoomId = callHomeRoomId(active);
-  useEffect(() => () => dismissTranscriptPanel(store, homeRoomId), [homeRoomId, store]);
+  useEffect(() => {
+    if (!connected) return undefined;
+    return () => dismissTranscriptPanel(store, homeRoomId);
+  }, [connected, homeRoomId, store]);
   return null;
 }
 

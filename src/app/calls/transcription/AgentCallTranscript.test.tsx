@@ -181,16 +181,30 @@ describe('AgentCallTranscript', () => {
     expect(store.get(callTranscriptionAtom)).toBeUndefined();
   });
 
-  it('stops reading once the call is over, and closes its transcript in the conversation', async () => {
+  it.each(['ended', 'failed'] as const)(
+    'stops reading once the call has %s, and closes its transcript in the conversation',
+    async (over) => {
+      const { store, set } = mount();
+      set('connected');
+      lastRead().answer({ call: CALL, lines: [], names: {} });
+      await settle();
+      store.set(transcriptPanelAtom, { roomId: ORIGIN, replacedCall: true });
+
+      set('reconnecting');
+      expect(store.get(transcriptPanelAtom)).toEqual({ roomId: ORIGIN, replacedCall: true });
+
+      // A failed call stays on screen until it is dismissed; its transcript closes at once.
+      set(over);
+      expect(store.get(callTranscriptionAtom)).toBeUndefined();
+      expect(store.get(liveTranscriptAtom)).toBeUndefined();
+      expect(store.get(transcriptPanelAtom)).toBeUndefined();
+    }
+  );
+
+  it('closes its transcript in the conversation when the call goes away while connected', () => {
     const { store, set } = mount();
     set('connected');
-    lastRead().answer({ call: CALL, lines: [], names: {} });
-    await settle();
     store.set(transcriptPanelAtom, { roomId: ORIGIN, replacedCall: true });
-
-    set('ended');
-    expect(store.get(callTranscriptionAtom)).toBeUndefined();
-    expect(store.get(liveTranscriptAtom)).toBeUndefined();
 
     act(() => store.set(activeCallAtom, undefined));
     expect(store.get(transcriptPanelAtom)).toBeUndefined();
