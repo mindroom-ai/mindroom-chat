@@ -111,6 +111,18 @@ describe('TourHandoff', () => {
     expect(onEnd).toHaveBeenCalledOnce();
   });
 
+  it('does nothing under a dialog that was open under the tour', () => {
+    // The command palette opens the tour over Settings, which is still there after Done.
+    const composer = addComposer();
+    const settings = document.body.appendChild(document.createElement('div'));
+    settings.setAttribute('role', 'dialog');
+    render(<TourHandoff onEnd={onEnd} />);
+    tick(HANDOFF_LENGTH_MS);
+    expect(ring()).toBeNull();
+    expect(document.activeElement).not.toBe(composer);
+    expect(onEnd).toHaveBeenCalledOnce();
+  });
+
   it('does nothing without a room on the page', () => {
     const other = document.body.appendChild(document.createElement('button'));
     other.focus();

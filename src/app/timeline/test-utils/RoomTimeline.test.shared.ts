@@ -546,6 +546,9 @@ vi.mock('../../lib/hooks/useDocumentFocusChange', () => ({
 vi.mock('../../matrix/hooks/useStateEvents', () => ({
   useStateEvents: (_room: unknown, eventType: string) => stateEventsByTypeMock.get(eventType) ?? [],
 }));
+vi.mock('../../matrix/hooks/useStateEvent', () => ({
+  useStateEvent: (_room: unknown, eventType: string) => stateEventsByTypeMock.get(eventType)?.[0],
+}));
 vi.mock('../../threads/usePinnedThreadEvents', () => ({ usePinnedThreadEvents: () => [] }));
 
 vi.mock('../../lib/hooks/useKeyDown', () => ({

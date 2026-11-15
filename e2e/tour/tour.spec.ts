@@ -15,6 +15,26 @@ import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 // the tour at any time.
 const PASSWORD = 'tour-spec-account-password';
 
+/**
+ * Waits until the account's settings on the server say the offer was answered. The card shows
+ * only after a start has synced, later than the shell a spec waits for, so "no card" after a
+ * reload proves nothing without this.
+ */
+const expectAnswerStored = (account: { userId: string; accessToken: string }) =>
+  expect
+    .poll(async () => {
+      const response = await fetch(
+        `${HOMESERVER}/_matrix/client/v3/user/${encodeURIComponent(
+          account.userId
+        )}/account_data/io.mindroom.settings`,
+        { headers: { Authorization: `Bearer ${account.accessToken}` } }
+      );
+      return response.ok
+        ? ((await response.json()) as { tourOffered?: boolean }).tourOffered
+        : null;
+    })
+    .toBe(true);
+
 const newAccount = async (roomName: string) => {
   const username = `tour_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const user = await registerDisposableUser(username, PASSWORD);
@@ -98,19 +118,7 @@ test('a new account is offered the tour, takes it, and is not asked again', asyn
   await expect(composer).toBeFocused();
 
   // The answer went to the account: another start does not ask again.
-  await expect
-    .poll(async () => {
-      const response = await fetch(
-        `${HOMESERVER}/_matrix/client/v3/user/${encodeURIComponent(
-          account.userId
-        )}/account_data/io.mindroom.settings`,
-        { headers: { Authorization: `Bearer ${account.accessToken}` } }
-      );
-      return response.ok
-        ? ((await response.json()) as { tourOffered?: boolean }).tourOffered
-        : null;
-    })
-    .toBe(true);
+  await expectAnswerStored(account);
   await page.reload();
   await waitForLoggedInShell(page);
   await expect(composer).toBeVisible({ timeout: 60_000 });
@@ -126,6 +134,7 @@ test('the card is dismissed for good, and the command palette still opens the to
   await expect(offer(page)).toBeVisible({ timeout: 60_000 });
   await page.locator('[data-tour-offer-action="dismiss"]').click();
   await expect(offer(page)).toHaveCount(0);
+  await expectAnswerStored(account);
 
   await pressPaletteShortcut(page);
   const palette = page.getByRole('dialog').filter({ has: page.getByRole('combobox') });

@@ -40,6 +40,7 @@ const account = (userId: string, stored?: unknown) => {
   const client = Object.assign(new EventEmitter(), {
     getSafeUserId: () => userId,
     getSyncState: () => syncState,
+    getSyncStateData: () => (syncState === SyncState.Prepared ? { fromCache: true } : undefined),
     getAccountData: (type: string) =>
       type === MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE ? held : undefined,
     setAccountData,

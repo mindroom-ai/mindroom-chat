@@ -4,11 +4,10 @@ import { useTranslation } from 'react-i18next';
 import { useAtom, useAtomValue } from 'jotai';
 import { Button, Icon, IconButton, Icons, Text } from 'folds';
 import { useClientConfig } from '../config/useClientConfig';
-import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import { useAccountData } from '../matrix/hooks/useAccountData';
 import { useSetAccountSettings } from '../matrix/hooks/useAccountSettings';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { useSyncedWithServer } from '../matrix/hooks/useSyncedWithServer';
+import { useServerSyncApplied } from '../matrix/hooks/useServerSyncApplied';
 import { PHONE_SLIDE_OUT_MS, phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
 import { tourAtom, type TourLevel } from '../navigation/tourState';
 import {
@@ -41,7 +40,7 @@ export function TourOffer() {
   const userId = mx.getSafeUserId();
   // Not the stored copy of the last session, which a start shows first: its account data may
   // lack the answer another device gave since, or the settings a write here would replace.
-  const synced = useSyncedWithServer(mx);
+  const synced = useServerSyncApplied(mx);
   const offerAtStart = useClientConfig().tour?.offerAtStart !== false;
   // The event itself, which the client holds from the start, so no render is without it.
   const settings = useAccountData(MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE);
@@ -49,7 +48,6 @@ export function TourOffer() {
   const setAccountSettings = useSetAccountSettings();
   const [tour, setTour] = useAtom(tourAtom);
   const tourOpen = tour !== undefined;
-  const [, refresh] = useForceUpdate();
   const answered = tourOpen || answeredAccounts.has(userId);
 
   // The tour opened from anywhere, the card or another entry, is an answer.
@@ -81,7 +79,7 @@ export function TourOffer() {
   /** Answers the offer and plays the card out; with a level, opens the tour. */
   const answer = (level?: TourLevel) => {
     answeredAccounts.add(userId);
-    refresh();
+    // Leaving is a change of state, so the render that follows reads the answer.
     dismiss();
     if (level) setTour({ level });
   };
