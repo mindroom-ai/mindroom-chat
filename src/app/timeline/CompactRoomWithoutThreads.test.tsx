@@ -7,13 +7,18 @@ import { tourAtom } from '../navigation/tourState';
 import { EmptyState } from '../threads/overview/CompactRoomView.css';
 import { CompactRoomWithoutThreads } from './CompactRoomWithoutThreads';
 
-// Whether the person may send the event asked about, which the test sets.
-const may = vi.hoisted(() => ({ send: true, asked: [] as string[] }));
+// Whether the person may send the event asked about and whether the room was upgraded, which
+// the test sets.
+const may = vi.hoisted(() => ({ send: true, upgraded: false, asked: [] as string[] }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org' }),
 }));
 vi.mock('../matrix/hooks/usePowerLevels', () => ({ usePowerLevelsContext: () => ({}) }));
 vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
+vi.mock('../matrix/hooks/useStateEvent', () => ({
+  useStateEvent: (_room: unknown, type: string) =>
+    type === 'm.room.tombstone' && may.upgraded ? {} : undefined,
+}));
 vi.mock('../matrix/hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({
     event: (type: string, userId: string) => {
@@ -41,6 +46,7 @@ const follows = (earlier: Element, later: Element): boolean =>
 afterEach(() => {
   cleanup();
   may.send = true;
+  may.upgraded = false;
   may.asked = [];
 });
 
@@ -66,6 +72,14 @@ describe('CompactRoomWithoutThreads', () => {
     expect(screen.getByText('No threads')).toBeTruthy();
     expect(screen.queryByText('Send a message below to start one.')).toBeNull();
     // How threads work is worth knowing all the same.
+    expect(screen.getByRole('button', { name: 'How threads work' })).toBeTruthy();
+  });
+
+  it('does not point at the composer of an upgraded room, which shows none', () => {
+    may.upgraded = true;
+    showRoomStart();
+    expect(screen.getByText('No threads')).toBeTruthy();
+    expect(screen.queryByText('Send a message below to start one.')).toBeNull();
     expect(screen.getByRole('button', { name: 'How threads work' })).toBeTruthy();
   });
 

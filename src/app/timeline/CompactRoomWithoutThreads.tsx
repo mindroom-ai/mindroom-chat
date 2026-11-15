@@ -6,25 +6,28 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
+import { useStateEvent } from '../matrix/hooks/useStateEvent';
+import { StateEvent } from '../matrix/types/room';
 import { tourAtom } from '../navigation/tourState';
 import { EmptyState } from '../threads/overview/CompactRoomView.css';
 
 /**
  * The start of a Compact room that has no thread at all, where its cards would begin: the same
  * "No threads" box the cards show when a filter hides them all, which here also says how to start
- * a thread, to someone who may send messages in the room, and opens the Quick tour. It stands in
- * for the room's intro, whose name and topic the header above already shows.
+ * a thread, to someone the room shows a composer to, and opens the Quick tour. It stands in for
+ * the room's intro, whose name and topic the header above already shows.
  */
 export function CompactRoomWithoutThreads({ room }: { room: Room }) {
   const { t } = useTranslation();
   const setTour = useSetAtom(tourAtom);
-  // The hint points at the composer, which a room that takes no messages from this person
-  // does not show.
+  // The hint points at the composer, which a room that takes no messages from this person, or
+  // none at all since it was upgraded, does not show (RoomView).
   const myUserId = useMatrixClient().getSafeUserId();
   const canSend = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext()).event(
     'm.room.message',
     myUserId
   );
+  const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
   return (
     <div data-compact-room-without-threads="" style={{ paddingInline: config.space.S300 }}>
       <Box className={EmptyState}>
@@ -32,7 +35,7 @@ export function CompactRoomWithoutThreads({ room }: { room: Room }) {
           <Text size="T300" priority="300" align="Center">
             {t('mindroomUi.threads.compactRoomView.noThreads')}
           </Text>
-          {canSend && (
+          {canSend && !tombstone && (
             <Text size="T300" priority="300" align="Center">
               {t('tour.entries.noThreadsHint')}
             </Text>
