@@ -696,7 +696,27 @@
         "tooLargeToApprove": "인수가 너무 커서 검토할 수 없으므로 이 요청은 거부만 할 수 있습니다."
       },
       "showToolCalls": "도구 호출 표시",
-      "showToolCallsDescription": "모든 방의 기본값입니다. 에이전트 답장에 실행한 도구를 표시하거나, 답장 위쪽에 도구 수를 세는 작은 톱니바퀴만 표시하고 누르면 도구를 보여 줍니다. 방이나 스레드 메뉴에서 그곳만 바꿀 수 있습니다."
+      "showToolCallsDescription": "모든 방의 기본값입니다. 에이전트 답장에 실행한 도구를 표시하거나, 답장 위쪽에 도구 수를 세는 작은 톱니바퀴만 표시하고 누르면 도구를 보여 줍니다. 방이나 스레드 메뉴에서 그곳만 바꿀 수 있습니다.",
+      "secretRequestCard": {
+        "label": "키 요청",
+        "title": "{{name}} 키",
+        "usedOnlyFor": "{{hosts}}에만 사용됩니다",
+        "waitingFor": "{{name}} 님의 응답 대기 중",
+        "placeholder": "키를 붙여넣거나 입력하세요",
+        "save": "저장",
+        "decline": "거절",
+        "savedWaiting": "저장됨, 에이전트를 기다리는 중",
+        "declinedWaiting": "거절됨, 에이전트를 기다리는 중",
+        "noLongerActive": "이 요청은 더 이상 활성 상태가 아닙니다. 에이전트에게 다시 요청하세요.",
+        "unavailable": "이 서버에서는 키를 입력할 수 없습니다.",
+        "status": {
+          "waitingForYou": "내 응답 대기 중",
+          "pending": "대기 중",
+          "saved": "저장됨",
+          "declined": "거절됨",
+          "expired": "만료됨"
+        }
+      }
     },
     "message-search": {
       "messageSearch": {

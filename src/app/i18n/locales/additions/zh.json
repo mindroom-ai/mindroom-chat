@@ -696,7 +696,27 @@
         "tooLargeToApprove": "参数太大，无法审阅，因此此请求只能拒绝。"
       },
       "showToolCalls": "显示工具调用",
-      "showToolCallsDescription": "所有房间的默认设置：智能体的回复会列出运行过的工具，或只在顶部显示一个小齿轮，它会统计这些工具，点击后显示它们。房间或讨论串的菜单可在该处更改。"
+      "showToolCallsDescription": "所有房间的默认设置：智能体的回复会列出运行过的工具，或只在顶部显示一个小齿轮，它会统计这些工具，点击后显示它们。房间或讨论串的菜单可在该处更改。",
+      "secretRequestCard": {
+        "label": "密钥请求",
+        "title": "{{name}} 密钥",
+        "usedOnlyFor": "仅用于 {{hosts}}",
+        "waitingFor": "等待 {{name}} 处理",
+        "placeholder": "粘贴或输入密钥",
+        "save": "保存",
+        "decline": "拒绝",
+        "savedWaiting": "已保存，等待智能体",
+        "declinedWaiting": "已拒绝，等待智能体",
+        "noLongerActive": "此请求已失效。请再次向智能体请求。",
+        "unavailable": "此服务器不支持输入密钥。",
+        "status": {
+          "waitingForYou": "等您处理",
+          "pending": "待处理",
+          "saved": "已保存",
+          "declined": "已拒绝",
+          "expired": "已到期"
+        }
+      }
     },
     "message-search": {
       "messageSearch": {

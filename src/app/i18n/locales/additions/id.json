@@ -696,7 +696,27 @@
         "tooLargeToApprove": "Argumen terlalu besar untuk ditinjau, jadi permintaan ini hanya dapat ditolak."
       },
       "showToolCalls": "Tampilkan panggilan alat",
-      "showToolCallsDescription": "Bawaan untuk setiap ruangan: balasan agen mencantumkan alat yang mereka jalankan, atau hanya menampilkan roda gigi kecil di atas balasan yang menghitungnya dan menampilkannya saat diklik. Menu ruangan atau utas mengubahnya di sana."
+      "showToolCallsDescription": "Bawaan untuk setiap ruangan: balasan agen mencantumkan alat yang mereka jalankan, atau hanya menampilkan roda gigi kecil di atas balasan yang menghitungnya dan menampilkannya saat diklik. Menu ruangan atau utas mengubahnya di sana.",
+      "secretRequestCard": {
+        "label": "Permintaan kunci",
+        "title": "Kunci {{name}}",
+        "usedOnlyFor": "Hanya digunakan untuk {{hosts}}",
+        "waitingFor": "Menunggu {{name}}",
+        "placeholder": "Tempel atau ketik kunci",
+        "save": "Simpan",
+        "decline": "Tolak",
+        "savedWaiting": "Tersimpan, menunggu agen",
+        "declinedWaiting": "Ditolak, menunggu agen",
+        "noLongerActive": "Permintaan ini sudah tidak aktif. Minta lagi kepada agen.",
+        "unavailable": "Memasukkan kunci tidak tersedia di server ini.",
+        "status": {
+          "waitingForYou": "Menunggu Anda",
+          "pending": "Menunggu",
+          "saved": "Tersimpan",
+          "declined": "Ditolak",
+          "expired": "Kedaluwarsa"
+        }
+      }
     },
     "message-search": {
       "messageSearch": {

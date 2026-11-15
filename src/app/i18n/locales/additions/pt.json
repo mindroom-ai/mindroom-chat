@@ -714,7 +714,27 @@
         "tooLargeToApprove": "Os argumentos são grandes demais para rever, por isso este pedido só pode ser recusado."
       },
       "showToolCalls": "Mostrar chamadas de ferramentas",
-      "showToolCallsDescription": "O padrão de todas as salas: as respostas dos agentes listam as ferramentas que executaram, ou mostram no topo apenas uma pequena engrenagem que as conta e as mostra com um clique. O menu de uma sala ou de um tópico muda isso ali."
+      "showToolCallsDescription": "O padrão de todas as salas: as respostas dos agentes listam as ferramentas que executaram, ou mostram no topo apenas uma pequena engrenagem que as conta e as mostra com um clique. O menu de uma sala ou de um tópico muda isso ali.",
+      "secretRequestCard": {
+        "label": "Pedido de chave",
+        "title": "Chave de {{name}}",
+        "usedOnlyFor": "Usada apenas para {{hosts}}",
+        "waitingFor": "A aguardar {{name}}",
+        "placeholder": "Cole ou escreva a chave",
+        "save": "Guardar",
+        "decline": "Recusar",
+        "savedWaiting": "Guardada, a aguardar o agente",
+        "declinedWaiting": "Recusada, a aguardar o agente",
+        "noLongerActive": "Este pedido já não está ativo. Peça novamente ao agente.",
+        "unavailable": "Não é possível introduzir chaves neste servidor.",
+        "status": {
+          "waitingForYou": "À sua espera",
+          "pending": "Pendente",
+          "saved": "Guardada",
+          "declined": "Recusada",
+          "expired": "Expirada"
+        }
+      }
     },
     "message-search": {
       "messageSearch": {
