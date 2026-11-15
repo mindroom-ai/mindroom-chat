@@ -23,13 +23,19 @@ export type CompactThreadCardProps = {
    * the card then holds the button that opens the thread, beside it.
    */
   attachment?: ReactNode;
+  /**
+   * Shown in the metadata row after the thread's tags, inside the button: marks with no control of
+   * their own, such as client plugins' thread card badges. Keep the node the same across renders,
+   * or the memoized card renders again for it.
+   */
+  badges?: ReactNode;
 };
 
 // As many whole tags as the thread banner shows, then a count of the rest.
 const DESKTOP_MAX_TAGS = 3;
 const MOBILE_MAX_TAGS = 2;
 
-function CompactThreadCardBase({ viewModel, onClick, attachment }: CompactThreadCardProps) {
+function CompactThreadCardBase({ viewModel, onClick, attachment, badges }: CompactThreadCardProps) {
   const { t } = useTranslation();
   const maxTags = useScreenSizeContext() === ScreenSize.Mobile ? MOBILE_MAX_TAGS : DESKTOP_MAX_TAGS;
   const {
@@ -194,6 +200,7 @@ function CompactThreadCardBase({ viewModel, onClick, attachment }: CompactThread
             +{tags.length - maxTags}
           </span>
         )}
+        {badges}
         {isStreaming && (
           <Text as="span" className={css.StreamingStatus} size="T200" priority="300">
             <ThreadStreamingDot aria-hidden="true" />

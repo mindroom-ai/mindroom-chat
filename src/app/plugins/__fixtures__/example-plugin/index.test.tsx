@@ -871,4 +871,47 @@ describe('example plugin', () => {
     );
     expect(view.getByText('Example item 7')).toBeTruthy();
   });
+
+  it('marks the card of a thread a greeting begins, and no other thread', async () => {
+    const [badge] = plugin.threadCardBadges ?? [];
+    if (!badge) throw new Error('the example plugin has no thread card badge');
+    const root = (eventId: string, content: Record<string, unknown>) =>
+      new MatrixEvent({
+        event_id: eventId,
+        room_id: '!lobby:example.org',
+        type: 'm.room.message',
+        sender: greeting.sender,
+        content,
+      });
+    const roots = new Map([
+      ['$greeting', root('$greeting', { ...greeting.content })],
+      ['$plain', root('$plain', { body: 'Plain' })],
+    ]);
+    // The room as far as the badge reads it: the thread roots it has loaded.
+    const room = {
+      roomId: '!lobby:example.org',
+      getThread: () => null,
+      findEventById: (eventId: string) => roots.get(eventId),
+    } as unknown as Room;
+    const view = await renderPluginComponent(
+      <>
+        {['$greeting', '$plain', '$unknown'].map((threadId) => (
+          <div key={threadId} data-card={threadId}>
+            <badge.Component room={room} threadId={threadId} />
+          </div>
+        ))}
+      </>,
+      { id: 'example', plugin }
+    );
+    expect(
+      Array.from(view.container.querySelectorAll('[data-card]'), (card) => [
+        card.getAttribute('data-card'),
+        card.textContent,
+      ])
+    ).toEqual([
+      ['$greeting', 'Greeting'],
+      ['$plain', ''],
+      ['$unknown', ''],
+    ]);
+  });
 });

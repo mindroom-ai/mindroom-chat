@@ -1,6 +1,8 @@
+// @vitest-environment jsdom
 import React from 'react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { act, create } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CompactThreadCard } from './CompactThreadCard';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 
@@ -51,7 +53,7 @@ vi.mock('../../i18n/useRelativeTime', () => ({
 
 vi.mock('../tags/ThreadTagPill', () => ({
   ThreadTagPill: ({ name }: { name: string }) =>
-    React.createElement('span', { 'data-tag-pill': name }, name),
+    React.createElement('span', { className: 'thread-tag-pill', 'data-tag-pill': name }, name),
 }));
 
 vi.mock('../../avatars/UserAvatar', () => ({
@@ -404,5 +406,70 @@ describe('CompactThreadCard', () => {
 
     expect(badges(true)).toBe(1);
     expect(badges(false)).toBe(0);
+  });
+});
+
+describe("CompactThreadCard's badges", () => {
+  afterEach(cleanup);
+
+  /** A card with replies, these tags and a running agent, whose badge keeps a click to itself. */
+  const renderCard = (tags = ['blog', 'bug']) => {
+    const onClick = vi.fn();
+    const { container } = render(
+      <CompactThreadCard
+        viewModel={makeViewModel({
+          messageCount: 2,
+          messageCountLabel: '2 msgs',
+          messageCountText: '2',
+          tags,
+          isStreaming: true,
+        })}
+        onClick={onClick}
+        badges={
+          // A badge is no control, so it takes no key; a plugin's may still keep a click to itself.
+          // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+          <span data-testid="badge" onClick={(event) => event.stopPropagation()} />
+        }
+      />
+    );
+    return { container, onClick };
+  };
+
+  it("draws them inside the card's button, in the metadata row after the tags and before the count", () => {
+    const { container } = renderCard();
+    const badge = screen.getByTestId('badge');
+    const metadata = container.querySelector('[data-compact-card-metadata]');
+    const pills = [...container.querySelectorAll('.thread-tag-pill')];
+    const lastPill = pills[pills.length - 1];
+    const streaming = container.querySelector('.StreamingStatus');
+    const replyCount = container.querySelector('[data-compact-card-reply-count]');
+
+    expect(container.querySelector('button')?.contains(badge)).toBe(true);
+    expect(metadata?.contains(badge)).toBe(true);
+    expect(pills).toHaveLength(2);
+    expect(lastPill?.compareDocumentPosition(badge)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(badge.compareDocumentPosition(streaming!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(badge.compareDocumentPosition(replyCount!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it('draws them after the count of the tags the card leaves out', () => {
+    const { container } = renderCard(['blog', 'bug', 'docs', 'ideas', 'later']);
+    const badge = screen.getByTestId('badge');
+    const overflow = screen.getByText('+2');
+
+    expect(container.querySelectorAll('.thread-tag-pill')).toHaveLength(3);
+    expect(overflow.title).toBe('ideas, later');
+    expect(overflow.compareDocumentPosition(badge)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it('opens the thread on a click anywhere on the card but a badge that stops the click', () => {
+    const { container, onClick } = renderCard();
+
+    fireEvent.click(screen.getByTestId('badge'));
+    expect(onClick).not.toHaveBeenCalled();
+
+    fireEvent.click(container.querySelector('[data-compact-card-reply-count]')!);
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(onClick).toHaveBeenCalledWith('$thread', undefined);
   });
 });

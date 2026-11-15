@@ -31,6 +31,7 @@ const plugin = (id: string, roomActions: PluginRoomAction[]): RegisteredPlugin =
   slashCommands: [],
   roomActions,
   messageLinks: [],
+  threadCardBadges: [],
 });
 
 const room = { roomId: '!room:example.org', isSpaceRoom: () => false } as unknown as Room;

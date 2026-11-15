@@ -30,6 +30,7 @@ const plugin = (id: string, ...messageRenderers: MessageRenderer[]): RegisteredP
   slashCommands: [],
   roomActions: [],
   messageLinks: [],
+  threadCardBadges: [],
 });
 
 const renderer = (overrides: Partial<MessageRenderer> = {}): MessageRenderer => ({

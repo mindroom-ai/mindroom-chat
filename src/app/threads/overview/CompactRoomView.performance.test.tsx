@@ -7,6 +7,8 @@ import { CompactRoomView, type CompactRoomViewProps } from './CompactRoomView';
 
 const state = vi.hoisted(() => ({
   actionRenderProps: vi.fn(),
+  // The thread root of each card render.
+  cardRenders: vi.fn(),
   canPin: true,
   canToggle: true,
   models: [] as CompactThreadCardViewModel[],
@@ -42,6 +44,10 @@ vi.mock('../useInitializeShownThread', () => ({ useInitializeShownThread: () => 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
+
+// The plugin registry loads the app's i18n, which the react-i18next stand-in above cannot set up;
+// unit tests build no plugins anyway.
+vi.mock('../../plugins/registry', () => ({ registeredPlugins: [] }));
 
 vi.mock('../../ui/InsetScrollbar', () => ({
   InsetScrollbar: () => null,
@@ -92,11 +98,14 @@ vi.mock('../../event-store/threads/useThreadPinning', () => ({
 }));
 
 vi.mock('./CompactThreadCard', () => ({
-  CompactThreadCard: React.memo(({ viewModel }: { viewModel: CompactThreadCardViewModel }) => (
-    <button type="button" data-thread-root-id={viewModel.id.threadRootId}>
-      {viewModel.titleText}
-    </button>
-  )),
+  CompactThreadCard: React.memo(({ viewModel }: { viewModel: CompactThreadCardViewModel }) => {
+    state.cardRenders(viewModel.id.threadRootId);
+    return (
+      <button type="button" data-thread-root-id={viewModel.id.threadRootId}>
+        {viewModel.titleText}
+      </button>
+    );
+  }),
 }));
 
 const makeViewModel = (
@@ -183,6 +192,20 @@ describe('CompactRoomView row rendering', () => {
     ];
     act(() => renderer.update(<CompactRoomView {...props} />));
     expect(state.actionRenderProps).toHaveBeenCalledTimes(19);
+
+    renderer.unmount();
+  });
+
+  it("does not render a row's card again when only the row's actions change", () => {
+    const props = makeProps();
+    const renderer = create(<CompactRoomView {...props} />);
+    expect(state.cardRenders).toHaveBeenCalledTimes(3);
+
+    state.updatingThreadRootIds = new Set(['$first']);
+    act(() => renderer.update(<CompactRoomView {...props} />));
+    // The first row rendered again for its disabled actions; its card, badges included, did not.
+    expect(state.actionRenderProps).toHaveBeenCalledTimes(12);
+    expect(state.cardRenders).toHaveBeenCalledTimes(3);
 
     renderer.unmount();
   });
