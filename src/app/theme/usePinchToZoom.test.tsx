@@ -228,6 +228,24 @@ describe('usePinchToZoom', () => {
     expect(setPageZoom).toHaveBeenCalledWith(90);
   });
 
+  it("listens for Safari's gesture events on the window, never on the document", () => {
+    // On the document they cost WebKit on iOS three regions over every element of the page, on
+    // each frame anything moves (usePinchToZoom.ts).
+    const onDocument = vi.spyOn(document, 'addEventListener');
+    const onWindow = vi.spyOn(window, 'addEventListener');
+    const offWindow = vi.spyOn(window, 'removeEventListener');
+    const gestures = ['gesturestart', 'gesturechange', 'gestureend'];
+    const gestureTypes = (spy: { mock: { calls: unknown[][] } }) =>
+      spy.mock.calls.map(([type]) => type).filter((type) => gestures.includes(String(type)));
+
+    const { unmount } = mount(100);
+    expect(gestureTypes(onDocument)).toEqual([]);
+    expect(gestureTypes(onWindow)).toEqual(gestures);
+
+    unmount();
+    expect(gestureTypes(offWindow)).toEqual(gestures);
+  });
+
   it('does not compound when iOS sends both the touches and the gesture of one pinch', () => {
     const { setPageZoom } = mount(100);
 
