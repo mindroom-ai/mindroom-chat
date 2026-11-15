@@ -254,6 +254,12 @@ export const TimeTextUnread = style({
   opacity: 1,
 });
 
+// On a tinted card MainActive can fall under 4.5:1 (4.4:1 on the orange theme's amber, 4.2:1 on
+// its green); MainLine, a step further from the tints, keeps it in every theme.
+globalStyle(`${CardResolved} ${TimeTextUnread}, ${CardSnoozed} ${TimeTextUnread}`, {
+  color: color.Primary.MainLine,
+});
+
 export const MessagePreview = style({
   display: 'flex',
   alignItems: 'center',
