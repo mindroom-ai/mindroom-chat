@@ -1035,6 +1035,8 @@
       "deactivated": "Devre dışı"
     },
     "count": "Hesaplar: {{shown}} / {{total}}",
+    "showDeactivated": "Devre dışı olanları göster ({{count}})",
+    "hiddenDeactivated": "Gizli: {{count}} devre dışı",
     "noMatches": "Eşleşen hesap yok",
     "loadFailed": "Hesaplar yüklenemedi.",
     "status": {
@@ -1071,6 +1073,7 @@
       "title": "Davetler",
       "description": "Davet edilen bir e-posta adresi, o adresle oturum açarak burada bir hesap oluşturabilir.",
       "sendYourself": "E-posta gönderilmez: daveti kopyalayıp kendiniz gönderin.",
+      "noEmail": "E-posta gönderilmez. Davetten sonra gönderilecek davet burada görünür: kopyalayıp her kişiye kendiniz gönderin.",
       "add": "E-postayla davet et",
       "none": "Bekleyen davet yok",
       "loadFailed": "Davetler yüklenemedi.",
@@ -1078,6 +1081,8 @@
       "addressesHint": "Birden çok adresi virgülle veya yeni satırla ayırın.",
       "rooms": "Yeni hesabın katılacağı odalar",
       "external": "Harici hesap",
+      "externalHint": "Kuruluşunuzun dışından biri için: hesap yalnızca burada seçilen odalara ve daha sonra davet edildiği odalara katılır; oda oluşturamaz ve kimseyi davet edemez.",
+      "externalForbidden": "Harici hesaplar kilit işaretli odalara katılamaz.",
       "invited": "Davet edildi",
       "replaces": "Önceki davetin yerini alır",
       "copy": "Daveti kopyala",
@@ -1089,6 +1094,119 @@
         "inUse": "{{user}} bu adrese zaten sahip.",
         "invalidAddress": "Bu geçerli bir e-posta adresi değil."
       }
+    }
+  },
+  "tour": {
+    "levels": {
+      "quick": "Hızlı tur",
+      "full": "Tam tur"
+    },
+    "offer": {
+      "title": "MindRoom turuna çıkın",
+      "text": "Konuların, başlıkların ve durumların nasıl çalıştığını görün.",
+      "quick": "Hızlı tur (1 dk)",
+      "full": "Tam tur (5 dk)",
+      "dismiss": "Kapat"
+    },
+    "dialog": {
+      "stepOf": "Adım {{current}}/{{total}}",
+      "close": "Turu kapat",
+      "back": "Geri",
+      "next": "İleri",
+      "done": "Bitti",
+      "keepGoing": "Devam et (6 adım daha)",
+      "replay": "Yeniden oynat"
+    },
+    "chapters": {
+      "basics": "Temel bilgiler",
+      "tidy": "Listeyi düzenli tutma",
+      "finding": "Yolunuzu bulma"
+    },
+    "steps": {
+      "conversation": {
+        "title": "Bir konu, tek bir konuşmadır",
+        "text": "Ajanların olduğu odaların çoğu Kompakt görünümde açılır. Her kart bir konudur: ilk mesaj ve ona gelen tüm yanıtlar bir arada. Bir odada dilediğiniz kadar konu olabilir."
+      },
+      "start": {
+        "title": "Yeni bir konu başlatmak için yazın",
+        "text": "Odanın altındaki mesaj kutusuna yazıp gönderin. Böylece yeni bir konu başlar ve hemen açılır."
+      },
+      "reply": {
+        "title": "Konunun içinde yanıt yazarsınız",
+        "text": "Açık bir konuda yazdığınız şey yeni bir konu değil, o konuya bir yanıttır. “Geri” sizi listeye döndürür; oradaki her kart kendi konusunu yeniden açar."
+      },
+      "title": {
+        "title": "Başlıkları yapay zekâ yazar",
+        "text": "Yeni bir kart ilk mesajınızı gösterir. Bir ajan yanıt verdikten sonra MindRoom'un yapay zekâsı konuya kısa bir başlık verir. “Konu seçenekleri” menüsündeki “Özeti düzenle” ile bunu değiştirebilirsiniz."
+      },
+      "order": {
+        "title": "En güncel konu en üstte",
+        "text": "Bir konu yeni bir mesaj aldığında en üste çıkar; böylece etkin olanlar önce gelir. Sabitlenmiş konular diğerlerinin üstünde kalır."
+      },
+      "states": {
+        "title": "Kart, konusunun durumunu gösterir",
+        "streaming": "Bir ajan şu anda yanıt veriyor.",
+        "unread": "Yeni yanıtlar var: kenar ve saat renklenir.",
+        "resolved": "Tamamlandı. “Kompakt” onu gizler.",
+        "snoozed": "Zamanı gelene kadar gizlenir, sonra kendiliğinden geri gelir."
+      },
+      "resolve": {
+        "title": "Bitenleri çözüldü işaretleyin",
+        "text": "Karttaki “Çözüldü işaretle” onay işaretine basın ya da dokunmatik ekranda kartı kaydırın. Konu listeden çıkar; dilediğiniz zaman yeniden açabilirsiniz."
+      },
+      "snooze": {
+        "title": "Bekleyebilecekleri erteleyin",
+        "text": "“Konu seçenekleri” (⋯) menüsünden “Ertele” öğesini seçin. Konu, seçtiğiniz zamana kadar gizlenir; sonra ertelemenin sona erdiğini belirten bir notla geri döner."
+      },
+      "pinAndTag": {
+        "title": "Sabitleyin ve etiketleyin",
+        "text": "“Konuyu sabitle” bir konuyu listenin en üstünde tutar. “Konu seçenekleri” menüsündeki “Etiketleri düzenle” konuya etiket ekler; etikete göre filtreleyebilirsiniz."
+      },
+      "filters": {
+        "title": "Filtreleyin ve sıralayın",
+        "text": "Odanın üst çubuğundaki veya menüsündeki “Konu filtreleri” bu çubuğu gösterir ve gizler. “Çözülmemiş” bitenleri gizler, “Son yanıt” sıralamayı değiştirir, çubuğun sonundaki filtre simgesiyle açılan “Gelişmiş filtreler” ise ertelenen konular dahil geri kalanını bulur."
+      },
+      "views": {
+        "title": "Bir odanın iki görünümü",
+        "text": "“Kompakt” her konu için bir kart gösterir. “Konular” her konunun ilk mesajını, altında yanıt sayısıyla gösterir. Odanın üst çubuğundaki veya menüsündeki “Kompakt görünüm” ikisi arasında geçiş yapar."
+      },
+      "activity": {
+        "title": "“Etkinlik” sizi bekleyenleri toplar",
+        "text": "Zil “Etkinlik” bölümünü açar: bahsetmeler, konularınızdaki yanıtlar ve tamamlanan ajan çalıştırmaları. Onaylar, sorular ve davetler doğrudan orada yanıtlanır."
+      }
+    },
+    "sample": {
+      "room": "Pazarlama",
+      "ana": "Aylin",
+      "writer": "Yazar",
+      "analyst": "Analist",
+      "typed": "Bahar lansmanı e-postası için taslak hazırla",
+      "launchTitle": "Bahar lansmanı e-postası",
+      "launchReply": "İşte üç başlık seçeneğiyle ilk taslak.",
+      "budgetTitle": "Q3 bütçe değerlendirmesi",
+      "budgetReply": "Toplamlar geçen çeyreğe göre %4 arttı.",
+      "websiteTitle": "Yeni web sitesi tasarımına geri bildirim",
+      "websiteReply": "Yeni ana sayfa testlerde iyi sonuç veriyor.",
+      "vendorTitle": "Tedarikçi sözleşmesinin yenilenmesi",
+      "vendorReply": "Görüşmeden sonra tekrar bakalım.",
+      "vendorNewReply": "Sözleşme imzalandı.",
+      "surveyTitle": "Müşteri anketi sonuçları",
+      "surveyReply": "Şimdiye kadar 212 yanıt.",
+      "preview": "{{name}}: {{text}}",
+      "tagLaunch": "lansman",
+      "tagFinance": "finans",
+      "approval": "Raporu ekibe gönder"
+    },
+    "entries": {
+      "paletteQuick": "Hızlı turu başlat",
+      "paletteFull": "Tam turu başlat",
+      "paletteDescription": "Konuların nasıl çalıştığını gör",
+      "settingsSection": "Tur",
+      "settingsTitle": "Konuların nasıl çalıştığını görün",
+      "settingsDescription": "Konular hakkında kısa bir tur: konu başlatma, başlıklar, sıralama ve durumlar.",
+      "settingsKeywords": "tur, eğitim, kılavuz, rehber, yardım, tanıtım, konular",
+      "howThreadsWork": "Konular nasıl çalışır",
+      "noThreadsHint": "Bir konu başlatmak için aşağıdan mesaj gönderin."
     }
   }
 }

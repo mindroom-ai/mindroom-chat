@@ -215,7 +215,7 @@ describe('m.direct updates', () => {
     const setAccountData = vi.fn(async () => {});
     const other = { getAccountData: () => undefined, setAccountData } as unknown as MatrixClient;
 
-    addRoomIdToMDirect(stuck, '!stuck:example.org', '@friend:example.org');
+    void addRoomIdToMDirect(stuck, '!stuck:example.org', '@friend:example.org');
     await addRoomIdToMDirect(other, '!other:example.org', '@friend:example.org');
 
     expect(setAccountData).toHaveBeenCalledWith('m.direct', {

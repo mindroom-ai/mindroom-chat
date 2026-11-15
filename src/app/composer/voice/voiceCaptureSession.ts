@@ -3,6 +3,7 @@ import {
   createFallbackWaveform,
   normalizeMatrixWaveform,
   timeDomainDataToWaveformPoint,
+  VOICE_WAVEFORM_SAMPLE_INTERVAL_MS,
 } from '../../lib/audioWaveform';
 import { pauseAllMediaElements } from '../../lib/dom';
 import {
@@ -57,6 +58,8 @@ export type VoiceCaptureSnapshot = {
   phase: VoiceCapturePhase;
   elapsedMs: number;
   waveform: number[];
+  /** Grows by one with each waveform sample, also once `waveform` stops growing; only its changes matter. */
+  sampleCount: number;
   canPause: boolean;
   errorMessage: string | undefined;
 };
@@ -100,6 +103,7 @@ const idleSnapshot = (): VoiceCaptureSnapshot =>
     phase: 'idle',
     elapsedMs: 0,
     waveform: createFallbackWaveform(),
+    sampleCount: 0,
     canPause: true,
     errorMessage: undefined,
   });
@@ -202,7 +206,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     generation.samples.push(timeDomainDataToWaveformPoint(generation.buffer));
     if (generation.samples.length > 1200)
       generation.samples.splice(0, generation.samples.length - 1200);
-    publish({ waveform: generation.samples });
+    publish({ waveform: generation.samples, sampleCount: snapshot.sampleCount + 1 });
   };
   const startTimers = (generation: Generation) => {
     clearTimers(generation);
@@ -211,7 +215,10 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
         publish({ elapsedMs: Math.max(0, Math.round(elapsed(generation))) });
     }, 200);
     if (generation.analyser && generation.buffer) {
-      generation.sampleTimer = setInterval(() => sample(generation), 80);
+      generation.sampleTimer = setInterval(
+        () => sample(generation),
+        VOICE_WAVEFORM_SAMPLE_INTERVAL_MS
+      );
       sample(generation);
     }
   };

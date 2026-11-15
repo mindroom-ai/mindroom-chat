@@ -55,7 +55,7 @@ export function useVoiceRecorder({
   const pendingDraft = useAtomValue(pendingVoiceSendDraftAtom);
   const phase: VoiceRecorderPhase =
     pendingDraft?.inFlight || sending ? 'sending' : captureSnapshot.phase;
-  const { elapsedMs, waveform, canPause } = captureSnapshot;
+  const { elapsedMs, waveform, sampleCount, canPause } = captureSnapshot;
   const hasPendingSend = !!pendingDraft;
   const pendingDuration = pendingDraft?.duration ?? 0;
   const pendingWaveform = pendingDraft?.waveform ?? createFallbackWaveform();
@@ -213,6 +213,7 @@ export function useVoiceRecorder({
     phase,
     elapsedMs,
     waveform,
+    sampleCount,
     errorMessage,
     canPause,
     hasPendingSend,

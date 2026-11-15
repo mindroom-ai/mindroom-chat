@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Provider, createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { hasServerEncryptionSetup } from '../devices/serverEncryptionSetup';
-import { recoveryDialogAtom } from './recoveryDialog';
+import { isRecoveryPromptSnoozed, recoveryDialogAtom } from './recoveryDialog';
 import { RecoveryDialogRenderer } from './RecoveryDialogRenderer';
 import {
   useRecoveryState,
@@ -11,7 +11,7 @@ import {
   type RecoveryState,
 } from './recoveryState';
 
-const client = vi.hoisted(() => ({}));
+const client = vi.hoisted(() => ({ getSafeUserId: () => '@alice:example.org' }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));
 vi.mock('./recoveryState', () => ({ useRecoveryState: vi.fn() }));
 vi.mock('../devices/serverEncryptionSetup', () => ({ hasServerEncryptionSetup: vi.fn() }));
@@ -170,6 +170,7 @@ const click = async (name: string) => {
 };
 
 beforeEach(() => {
+  localStorage.clear();
   recoveryState.mockReturnValue(LOCKED);
   serverHasSetup.mockResolvedValue(false);
 });
@@ -210,6 +211,24 @@ describe('RecoveryDialogRenderer', () => {
     expect(screen.getByText(/change-dialog key1 ask-current-false/)).toBeTruthy();
     await click('change-close');
     expect(store.get(recoveryDialogAtom)).toBeUndefined();
+  });
+
+  it('closing Unlock or Set up unfinished snoozes the start prompt; a verified session does not', async () => {
+    await renderRenderer('unlock');
+    await click('unlock-close');
+    expect(isRecoveryPromptSnoozed('@alice:example.org')).toBe(true);
+    cleanup();
+    localStorage.clear();
+    recoveryState.mockReturnValue(NONE);
+    await renderRenderer('setup');
+    await click('setup-cancel');
+    expect(isRecoveryPromptSnoozed('@alice:example.org')).toBe(true);
+    cleanup();
+    localStorage.clear();
+    recoveryState.mockReturnValue(READY);
+    await renderRenderer('change');
+    await click('change-close');
+    expect(isRecoveryPromptSnoozed('@alice:example.org')).toBe(false);
   });
 
   it('shows the reset warning first and the setup after confirming', async () => {

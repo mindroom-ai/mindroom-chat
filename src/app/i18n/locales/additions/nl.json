@@ -1035,6 +1035,8 @@
       "deactivated": "Gedeactiveerd"
     },
     "count": "Accounts: {{shown}} van {{total}}",
+    "showDeactivated": "Gedeactiveerde tonen ({{count}})",
+    "hiddenDeactivated": "Verborgen: {{count}} gedeactiveerd",
     "noMatches": "Geen account gevonden",
     "loadFailed": "De accounts konden niet worden geladen.",
     "status": {
@@ -1071,6 +1073,7 @@
       "title": "Uitnodigingen",
       "description": "Een uitgenodigd e-mailadres kan hier één account aanmaken door ermee in te loggen.",
       "sendYourself": "Er wordt niets gemaild: kopieer de uitnodiging en verstuur die zelf.",
+      "noEmail": "Er wordt niets gemaild. Na het uitnodigen verschijnt de uitnodiging hier: kopieer die en stuur hem zelf naar elke persoon.",
       "add": "Uitnodigen per e-mail",
       "none": "Geen openstaande uitnodigingen",
       "loadFailed": "De uitnodigingen konden niet worden geladen.",
@@ -1078,6 +1081,8 @@
       "addressesHint": "Scheid meerdere adressen met komma's of nieuwe regels.",
       "rooms": "Kamers waaraan het nieuwe account deelneemt",
       "external": "Extern account",
+      "externalHint": "Voor iemand buiten je organisatie: het account komt alleen in de ruimtes die je hier kiest en in ruimtes waarvoor het later wordt uitgenodigd, en kan geen ruimtes maken of mensen uitnodigen.",
+      "externalForbidden": "Externe accounts kunnen niet in de ruimtes met een slot.",
       "invited": "Uitgenodigd",
       "replaces": "Vervangt de eerdere uitnodiging",
       "copy": "Uitnodiging kopiëren",
@@ -1089,6 +1094,119 @@
         "inUse": "{{user}} heeft dit adres al.",
         "invalidAddress": "Dit is geen geldig e-mailadres."
       }
+    }
+  },
+  "tour": {
+    "levels": {
+      "quick": "Korte rondleiding",
+      "full": "Volledige rondleiding"
+    },
+    "offer": {
+      "title": "Volg een rondleiding door MindRoom",
+      "text": "Bekijk hoe threads, titels en statussen werken.",
+      "quick": "Korte rondleiding (1 min)",
+      "full": "Volledige rondleiding (5 min)",
+      "dismiss": "Sluiten"
+    },
+    "dialog": {
+      "stepOf": "Stap {{current}} van {{total}}",
+      "close": "Rondleiding sluiten",
+      "back": "Terug",
+      "next": "Volgende",
+      "done": "Klaar",
+      "keepGoing": "Doorgaan (nog 6 stappen)",
+      "replay": "Opnieuw afspelen"
+    },
+    "chapters": {
+      "basics": "De basis",
+      "tidy": "De lijst netjes houden",
+      "finding": "Je weg vinden"
+    },
+    "steps": {
+      "conversation": {
+        "title": "Een thread is één gesprek",
+        "text": "De meeste kamers met agents openen in de Compacte weergave. Elke kaart is één thread: één onderwerp met alle antwoorden bij elkaar. In een kamer passen er zoveel als je nodig hebt."
+      },
+      "start": {
+        "title": "Typ om een nieuwe thread te starten",
+        "text": "Schrijf in het invoerveld onderaan de kamer en verstuur je bericht. Daarmee start je een nieuwe thread, die meteen opent."
+      },
+      "reply": {
+        "title": "In een thread antwoord je",
+        "text": "Wat je in een open thread schrijft, is daar een antwoord en geen nieuwe thread. Terug brengt je naar de lijst, waar elke kaart zijn thread weer opent."
+      },
+      "title": {
+        "title": "AI schrijft de titels",
+        "text": "Een nieuwe kaart toont je eerste bericht. Zodra een agent heeft geantwoord, geeft de AI van MindRoom de thread een korte titel. Met Samenvatting bewerken in Threadopties pas je die aan."
+      },
+      "order": {
+        "title": "De nieuwste activiteit staat bovenaan",
+        "text": "Een thread schuift naar boven zodra er een nieuw bericht in komt, zodat wat actief is bovenaan staat. Vastgemaakte threads blijven boven de rest staan."
+      },
+      "states": {
+        "title": "Een kaart toont hoe de thread ervoor staat",
+        "streaming": "Een agent is nu aan het antwoorden.",
+        "unread": "Nieuwe antwoorden, met een gekleurde rand en de tijd.",
+        "resolved": "Klaar. Compact verbergt hem.",
+        "snoozed": "Verborgen tot de gekozen tijd, daarna vanzelf terug."
+      },
+      "resolve": {
+        "title": "Los op wat klaar is",
+        "text": "Druk op Oplossen, het vinkje op een kaart, of veeg de kaart opzij op een aanraakscherm. De thread verdwijnt uit de lijst, en je kunt hem altijd weer heropenen."
+      },
+      "snooze": {
+        "title": "Snooze wat kan wachten",
+        "text": "Kies in Threadopties (⋯) voor Snoozen. De thread blijft verborgen tot het tijdstip dat je kiest en komt dan terug met de melding dat de snooze is afgelopen."
+      },
+      "pinAndTag": {
+        "title": "Vastmaken en taggen",
+        "text": "Thread vastmaken houdt een thread bovenaan de lijst. Met Tags bewerken in Threadopties geef je een thread tags, en je kunt op tag filteren."
+      },
+      "filters": {
+        "title": "Filteren en sorteren",
+        "text": "Threadfilters, in de kopbalk van de kamer of in het kamermenu, toont en verbergt deze balk. Onopgelost verbergt wat klaar is, Laatste antwoord verandert de volgorde en het filterpictogram aan het eind van de balk opent Geavanceerde filters, waarmee je de rest vindt, ook gesnoozede threads."
+      },
+      "views": {
+        "title": "Twee weergaven van een kamer",
+        "text": "Compact toont één kaart per thread. Threads toont van elke thread het eerste bericht, met het aantal antwoorden eronder. Met Compacte weergave, in de kopbalk van de kamer of in het kamermenu, wissel je tussen de twee."
+      },
+      "activity": {
+        "title": "Activiteit verzamelt wat op jou wacht",
+        "text": "De bel opent Activiteit: vermeldingen, antwoorden in je threads en runs van agents die klaar zijn. Goedkeuringen, vragen en uitnodigingen beantwoord je daar meteen."
+      }
+    },
+    "sample": {
+      "room": "Marketing",
+      "ana": "Ana",
+      "writer": "Schrijver",
+      "analyst": "Analist",
+      "typed": "Schrijf de e-mail voor de voorjaarslancering",
+      "launchTitle": "E-mail voorjaarslancering",
+      "launchReply": "Hier is een eerste versie met drie onderwerpregels.",
+      "budgetTitle": "Budgetoverzicht Q3",
+      "budgetReply": "De totalen liggen 4% hoger dan vorig kwartaal.",
+      "websiteTitle": "Feedback herontwerp website",
+      "websiteReply": "De nieuwe homepage scoort goed in tests.",
+      "vendorTitle": "Verlenging leverancierscontract",
+      "vendorReply": "Laten we er na de call nog eens naar kijken.",
+      "vendorNewReply": "Het contract is getekend.",
+      "surveyTitle": "Resultaten klantenenquête",
+      "surveyReply": "Tot nu toe 212 antwoorden.",
+      "preview": "{{name}}: {{text}}",
+      "tagLaunch": "lancering",
+      "tagFinance": "financiën",
+      "approval": "Het rapport naar het team sturen"
+    },
+    "entries": {
+      "paletteQuick": "Korte rondleiding volgen",
+      "paletteFull": "Volledige rondleiding volgen",
+      "paletteDescription": "Bekijk hoe threads werken",
+      "settingsSection": "Rondleiding",
+      "settingsTitle": "Bekijk hoe threads werken",
+      "settingsDescription": "Een korte rondleiding over threads: starten, titels, volgorde en statussen.",
+      "settingsKeywords": "rondleiding, tour, uitleg, handleiding, gids, hulp, introductie, threads",
+      "howThreadsWork": "Hoe threads werken",
+      "noThreadsHint": "Stuur hieronder een bericht om er een te starten."
     }
   }
 }

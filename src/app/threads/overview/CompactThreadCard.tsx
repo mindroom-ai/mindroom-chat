@@ -88,7 +88,12 @@ function CompactThreadCardBase({ viewModel, onClick, attachment }: CompactThread
 
   // Unread threads carry an accent edge and an accented time rather than a
   // dot, so no card reserves a leading gutter that most of them never use.
-  const cardClassName = [css.Card, isResolved && css.CardResolved, isUnread && css.CardUnread]
+  const cardClassName = [
+    css.Card,
+    isResolved && css.CardResolved,
+    snoozedText && css.CardSnoozed,
+    isUnread && css.CardUnread,
+  ]
     .filter(Boolean)
     .join(' ');
 
@@ -107,6 +112,11 @@ function CompactThreadCardBase({ viewModel, onClick, attachment }: CompactThread
           {isResolved && (
             <span className={css.ResolvedBadge} data-compact-card-resolved-badge="true">
               <Icon size="50" src={Icons.Check} aria-hidden="true" />
+            </span>
+          )}
+          {snoozedText && (
+            <span className={css.SnoozedBadge}>
+              <IconClock size={12} stroke={2.2} aria-hidden="true" />
             </span>
           )}
           {displayTitleText}
@@ -192,26 +202,16 @@ function CompactThreadCardBase({ viewModel, onClick, attachment }: CompactThread
         )}
         <span className={css.Stats}>
           {snoozedText && (
-            <Box
+            <Text
               as="span"
-              className={`${css.ScheduledIndicator} ${threadIndicatorCss.ThreadScheduledIndicator}`}
-              alignItems="Center"
-              gap="100"
-              role="img"
-              aria-label={snoozedText}
+              className={`${css.ScheduledIndicator} ${css.SnoozedIndicator}`}
+              size="T200"
               title={snoozedText}
+              truncate
               data-thread-snoozed="true"
             >
-              <IconClock
-                size={12}
-                stroke={1.8}
-                className={threadIndicatorCss.ThreadScheduledIcon}
-                aria-hidden="true"
-              />
-              <Text as="span" size="T200" priority="300" truncate>
-                {snoozedText}
-              </Text>
-            </Box>
+              {snoozedText}
+            </Text>
           )}
           {scheduledDisplayText && scheduledTaskLabel && (
             <Box

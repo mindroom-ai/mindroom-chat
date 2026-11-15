@@ -98,6 +98,7 @@ export function RegistrationInvites() {
   const mx = useMatrixClient();
   const alive = useAlive();
   const [invites, setInvites] = useState<RegistrationInvite[]>();
+  const [externalForbidden, setExternalForbidden] = useState<ReadonlySet<string>>(new Set());
   const [error, setError] = useState<unknown>();
   const [providers, setProviders] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
@@ -128,7 +129,11 @@ export function RegistrationInvites() {
     const current = () => alive() && request === latestLoad.current;
     setError(undefined);
     listInvites(mx).then(
-      (loaded) => current() && setInvites(loaded),
+      (loaded) => {
+        if (!current()) return;
+        setInvites(loaded.invites);
+        setExternalForbidden(new Set(loaded.externalForbiddenRooms));
+      },
       (reason: unknown) => current() && setError(reason ?? new Error('unknown'))
     );
   }, [mx, alive]);
@@ -225,6 +230,7 @@ export function RegistrationInvites() {
         <InviteDialog
           providers={providers}
           pending={pending}
+          externalForbidden={externalForbidden}
           onClose={() => setAdding(false)}
           onInvited={load}
         />

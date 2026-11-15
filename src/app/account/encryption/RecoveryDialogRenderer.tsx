@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Spinner, Text } from 'folds';
 import { useAtom } from 'jotai';
@@ -9,7 +9,7 @@ import { ResetVerificationDialog } from '../verification/ResetVerificationDialog
 import { SecurityDialog } from '../verification/SecurityDialog';
 import { SecurityOverlay } from '../verification/SecurityOverlay';
 import { ChangeRecoveryPassword } from './ChangeRecoveryPassword';
-import { recoveryDialogAtom, type RecoveryDialog } from './recoveryDialog';
+import { recoveryDialogAtom, snoozeRecoveryPrompt, type RecoveryDialog } from './recoveryDialog';
 import { RecoveryUnlockDialog } from './RecoveryUnlockDialog';
 import {
   useRecoveryState,
@@ -56,12 +56,34 @@ type OpenDialogProps = { dialog: RecoveryDialog; onChange: (dialog?: RecoveryDia
  */
 function OpenRecoveryDialog({ dialog, onChange }: OpenDialogProps) {
   const { t } = useTranslation();
+  const client = useMatrixClient();
   const state = useRecoveryState();
+  const stateRef = useRef(state);
+  const mounted = useRef(true);
+  useLayoutEffect(() => {
+    stateRef.current = state;
+  });
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const [secretStorageKey, setSecretStorageKey] = useState<DefaultSecretStorageKey>();
   const [keepOpen, setKeepOpen] = useState(false);
   const [resetConfirmed, setResetConfirmed] = useState(false);
   const [check, retry, foundExisting] = useServerCheck(dialog === 'setup');
-  const close = () => onChange(undefined);
+  // Closed by the person before this session is verified (Not now, the close button, Escape): the
+  // start prompt waits a while before it asks again. The overlay keeps the close of the first
+  // render and calls it once more when it unmounts, so it reads the live state from refs. This
+  // component's layout cleanup runs before that call, so an unmount (the dialog closed or cleared
+  // from outside, the account's pages leaving on an account switch) snoozes nothing.
+  const close = () => {
+    if (mounted.current && stateRef.current.kind !== 'ready') {
+      snoozeRecoveryPrompt(client.getSafeUserId());
+    }
+    onChange(undefined);
+  };
 
   // A Set up that sits open, as the start prompt leaves it, gives way once the account is set up
   // on another device meanwhile: this session's state turns locked (or ready), and the welcome

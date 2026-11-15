@@ -102,6 +102,8 @@ src/
     room/                the open room screen: Room, RoomView, RoomViewHeader, header actions and menu, route, topic viewer,
                          tombstone
     settings/            the Settings dialog: frame, search, menu, deep link, rail buttons; pages/ (app-wide preferences)
+    tour/                the interface tour: its steps, the sample room and each step's scene, the stage and its
+                         spotlight, the dialog, the offer card after sign-in, the handoff to the room's composer
     sidebar/             the left navigation: rail/, home/, direct/, space/, room-nav/, threads/ (recent threads)
     shell/               app composition: App, Router, client pages, ClientRoot, layout, startup features, welcome page,
                          sync status, error boundary, update notice; shortcuts/ (global handler, hints, help)
@@ -167,7 +169,7 @@ A domain imports only domains in a strictly lower layer. Runtime, type-only and 
 | 9 | `rooms`, `threads` |
 | 10 | `account`, `activity`, `quick-capture`, `spaces`, `timeline` |
 | 11 | `command-palette`, `local-mindroom`, `room` |
-| 12 | `settings` |
+| 12 | `settings`, `tour` |
 | 13 | `sidebar` |
 | 14 | `shell` |
 | 15 | `src/index.tsx`, `src/client-sdk` |

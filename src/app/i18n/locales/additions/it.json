@@ -1058,6 +1058,8 @@
       "deactivated": "Disattivati"
     },
     "count": "Account: {{shown}} di {{total}}",
+    "showDeactivated": "Mostra disattivati ({{count}})",
+    "hiddenDeactivated": "Nascosti: {{count}} disattivati",
     "noMatches": "Nessun account corrisponde",
     "loadFailed": "Impossibile caricare gli account.",
     "status": {
@@ -1094,6 +1096,7 @@
       "title": "Inviti",
       "description": "Un indirizzo email invitato può creare un account qui accedendo con quell'indirizzo.",
       "sendYourself": "Non viene inviata alcuna email: copia l'invito e invialo tu.",
+      "noEmail": "Non viene inviata nessuna email. Dopo l’invito, l’invito da mandare compare qui: copialo e mandalo tu a ogni persona.",
       "add": "Invita via email",
       "none": "Nessun invito in sospeso",
       "loadFailed": "Impossibile caricare gli inviti.",
@@ -1101,6 +1104,8 @@
       "addressesHint": "Separa più indirizzi con virgole o a capo.",
       "rooms": "Stanze in cui entra il nuovo account",
       "external": "Account esterno",
+      "externalHint": "Per qualcuno esterno alla tua organizzazione: l’account entra solo nelle stanze scelte qui e in quelle a cui verrà invitato in seguito, e non può creare stanze né invitare persone.",
+      "externalForbidden": "Gli account esterni non possono entrare nelle stanze con il lucchetto.",
       "invited": "Invitato",
       "replaces": "Sostituisce l'invito precedente",
       "copy": "Copia invito",
@@ -1112,6 +1117,119 @@
         "inUse": "{{user}} ha già questo indirizzo.",
         "invalidAddress": "Non è un indirizzo email valido."
       }
+    }
+  },
+  "tour": {
+    "levels": {
+      "quick": "Tour rapido",
+      "full": "Tour completo"
+    },
+    "offer": {
+      "title": "Fai un tour di MindRoom",
+      "text": "Scopri come funzionano thread, titoli e stati.",
+      "quick": "Tour rapido (1 min)",
+      "full": "Tour completo (5 min)",
+      "dismiss": "Ignora"
+    },
+    "dialog": {
+      "stepOf": "Passaggio {{current}} di {{total}}",
+      "close": "Chiudi il tour",
+      "back": "Indietro",
+      "next": "Avanti",
+      "done": "Fine",
+      "keepGoing": "Continua (altri 6 passaggi)",
+      "replay": "Rivedi"
+    },
+    "chapters": {
+      "basics": "Le basi",
+      "tidy": "Tenere in ordine l’elenco",
+      "finding": "Orientarsi"
+    },
+    "steps": {
+      "conversation": {
+        "title": "Un thread è una conversazione",
+        "text": "La maggior parte delle stanze con agenti si apre nella vista Compatto. Ogni scheda è un thread: un solo argomento con tutte le sue risposte. Una stanza ne contiene quanti te ne servono."
+      },
+      "start": {
+        "title": "Scrivi per iniziare un nuovo thread",
+        "text": "Scrivi nella casella in fondo alla stanza e invia. Così inizia un nuovo thread, che si apre subito."
+      },
+      "reply": {
+        "title": "Dentro un thread, rispondi",
+        "text": "Quello che scrivi in un thread aperto è una risposta in quel thread, non un nuovo thread. Indietro riporta all’elenco, dove ogni scheda riapre il suo thread."
+      },
+      "title": {
+        "title": "L’IA scrive i titoli",
+        "text": "Una nuova scheda mostra il tuo primo messaggio. Dopo la risposta di un agente, l’IA di MindRoom dà al thread un titolo breve. Modifica riepilogo, in Opzioni del thread, lo cambia."
+      },
+      "order": {
+        "title": "L’attività più recente viene prima",
+        "text": "Un thread sale in cima quando riceve un nuovo messaggio, così ciò che è attivo viene prima. I thread fissati restano sopra gli altri."
+      },
+      "states": {
+        "title": "Una scheda mostra a che punto è il suo thread",
+        "streaming": "Un agente sta rispondendo ora.",
+        "unread": "Nuove risposte, con bordo e ora colorati.",
+        "resolved": "Concluso. La vista Compatto lo nasconde.",
+        "snoozed": "Nascosto fino all’ora stabilita, poi torna da solo."
+      },
+      "resolve": {
+        "title": "Risolvi ciò che è concluso",
+        "text": "Premi Risolvi, il segno di spunta su una scheda, oppure fai scorrere la scheda su un touch screen. Il thread esce dall’elenco e puoi riaprirlo in qualsiasi momento."
+      },
+      "snooze": {
+        "title": "Posticipa ciò che può aspettare",
+        "text": "In Opzioni del thread (⋯), scegli Posticipa. Il thread resta nascosto fino all’ora che scegli, poi torna con una nota che segnala che il posticipo è terminato."
+      },
+      "pinAndTag": {
+        "title": "Fissa e aggiungi tag",
+        "text": "Fissa thread tiene un thread in cima all’elenco. Modifica tag, in Opzioni del thread, assegna tag a un thread, e puoi filtrare per tag."
+      },
+      "filters": {
+        "title": "Filtra e ordina",
+        "text": "Filtri dei thread, nell’intestazione della stanza o nel suo menu, mostra e nasconde questa barra. Irrisolto nasconde ciò che è concluso, Ultima risposta cambia l’ordine e l’icona del filtro alla fine della barra apre Filtri avanzati, che trovano il resto, anche i thread posticipati."
+      },
+      "views": {
+        "title": "Due viste di una stanza",
+        "text": "Compatto mostra una scheda per thread. Thread mostra il primo messaggio di ogni thread, con sotto il numero di risposte. Vista compatta, nell’intestazione della stanza o nel suo menu, passa dall’una all’altra."
+      },
+      "activity": {
+        "title": "Attività raccoglie ciò che ti aspetta",
+        "text": "La campanella apre Attività: menzioni, risposte nei tuoi thread ed esecuzioni degli agenti terminate. Ad approvazioni, domande e inviti rispondi direttamente lì."
+      }
+    },
+    "sample": {
+      "room": "Marketing",
+      "ana": "Ana",
+      "writer": "Redattore",
+      "analyst": "Analista",
+      "typed": "Prepara una bozza dell’email per il lancio di primavera",
+      "launchTitle": "Email per il lancio di primavera",
+      "launchReply": "Ecco una prima bozza con tre proposte di oggetto.",
+      "budgetTitle": "Revisione del budget Q3",
+      "budgetReply": "I totali sono in crescita del 4% rispetto allo scorso trimestre.",
+      "websiteTitle": "Feedback sul restyling del sito web",
+      "websiteReply": "La nuova home page ottiene buoni risultati nei test.",
+      "vendorTitle": "Rinnovo del contratto con il fornitore",
+      "vendorReply": "Riguardiamolo dopo la chiamata.",
+      "vendorNewReply": "Il contratto è firmato.",
+      "surveyTitle": "Risultati del sondaggio tra i clienti",
+      "surveyReply": "212 risposte finora.",
+      "preview": "{{name}}: {{text}}",
+      "tagLaunch": "lancio",
+      "tagFinance": "finanza",
+      "approval": "Invia il report al team"
+    },
+    "entries": {
+      "paletteQuick": "Fai il tour rapido",
+      "paletteFull": "Fai il tour completo",
+      "paletteDescription": "Scopri come funzionano i thread",
+      "settingsSection": "Tour",
+      "settingsTitle": "Scopri come funzionano i thread",
+      "settingsDescription": "Un breve tour dei thread: come iniziarne uno, titoli, ordine e stati.",
+      "settingsKeywords": "tour, tutorial, guida, aiuto, introduzione, primi passi, thread",
+      "howThreadsWork": "Come funzionano i thread",
+      "noThreadsHint": "Invia un messaggio qui sotto per iniziarne uno."
     }
   }
 }

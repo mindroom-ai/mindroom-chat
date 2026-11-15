@@ -1058,6 +1058,8 @@
       "deactivated": "Desactivadas"
     },
     "count": "Cuentas: {{shown}} de {{total}}",
+    "showDeactivated": "Mostrar desactivadas ({{count}})",
+    "hiddenDeactivated": "Ocultas: {{count}} desactivadas",
     "noMatches": "Ninguna cuenta coincide",
     "loadFailed": "No se pudieron cargar las cuentas.",
     "status": {
@@ -1094,6 +1096,7 @@
       "title": "Invitaciones",
       "description": "Una dirección de correo invitada puede crear una cuenta aquí al iniciar sesión con ella.",
       "sendYourself": "No se envía ningún correo: copia la invitación y envíala tú.",
+      "noEmail": "No se envía ningún correo. Después de invitar, la invitación aparece aquí: cópiala y envíasela tú a cada persona.",
       "add": "Invitar por correo",
       "none": "No hay invitaciones pendientes",
       "loadFailed": "No se pudieron cargar las invitaciones.",
@@ -1101,6 +1104,8 @@
       "addressesHint": "Separa varias direcciones con comas o saltos de línea.",
       "rooms": "Salas en las que entra la cuenta nueva",
       "external": "Cuenta externa",
+      "externalHint": "Para alguien de fuera de tu organización: la cuenta solo se une a las salas elegidas aquí y a las salas a las que se la invite después, y no puede crear salas ni invitar a nadie.",
+      "externalForbidden": "Las cuentas externas no pueden unirse a las salas marcadas con un candado.",
       "invited": "Invitada",
       "replaces": "Sustituye a la invitación anterior",
       "copy": "Copiar invitación",
@@ -1112,6 +1117,119 @@
         "inUse": "{{user}} ya tiene esta dirección.",
         "invalidAddress": "No es una dirección de correo válida."
       }
+    }
+  },
+  "tour": {
+    "levels": {
+      "quick": "Recorrido rápido",
+      "full": "Recorrido completo"
+    },
+    "offer": {
+      "title": "Haz un recorrido por MindRoom",
+      "text": "Descubre cómo funcionan los hilos, los títulos y los estados.",
+      "quick": "Recorrido rápido (1 min)",
+      "full": "Recorrido completo (5 min)",
+      "dismiss": "Descartar"
+    },
+    "dialog": {
+      "stepOf": "Paso {{current}} de {{total}}",
+      "close": "Cerrar recorrido",
+      "back": "Atrás",
+      "next": "Siguiente",
+      "done": "Listo",
+      "keepGoing": "Seguir (6 pasos más)",
+      "replay": "Repetir"
+    },
+    "chapters": {
+      "basics": "Lo básico",
+      "tidy": "Mantener la lista ordenada",
+      "finding": "Orientarse"
+    },
+    "steps": {
+      "conversation": {
+        "title": "Un hilo es una conversación",
+        "text": "La mayoría de las salas con agentes se abren en la vista compacta. Cada tarjeta es un hilo: un solo tema con todas sus respuestas juntas. En una sala caben tantos como necesites."
+      },
+      "start": {
+        "title": "Escribe para empezar un hilo nuevo",
+        "text": "Escribe en el cuadro de la parte inferior de la sala y envíalo. Así empieza un hilo nuevo, que se abre al momento."
+      },
+      "reply": {
+        "title": "Dentro de un hilo, respondes",
+        "text": "Lo que escribes en un hilo abierto es una respuesta en ese hilo, no un hilo nuevo. «Atrás» vuelve a la lista, donde cualquier tarjeta abre de nuevo su hilo."
+      },
+      "title": {
+        "title": "La IA escribe los títulos",
+        "text": "Una tarjeta nueva muestra tu primer mensaje. Cuando un agente responde, la IA de MindRoom le pone al hilo un título corto. «Editar resumen», en «Opciones del hilo», lo cambia."
+      },
+      "order": {
+        "title": "La actividad más reciente va primero",
+        "text": "Un hilo sube al principio de la lista cuando recibe un mensaje nuevo, así que lo activo va primero. Los hilos fijados se quedan por encima del resto."
+      },
+      "states": {
+        "title": "Una tarjeta muestra cómo va su hilo",
+        "streaming": "Un agente está respondiendo ahora.",
+        "unread": "Respuestas nuevas, con el borde y la hora en color.",
+        "resolved": "Terminado. «Compacto» lo oculta.",
+        "snoozed": "Oculto hasta su hora; luego vuelve solo."
+      },
+      "resolve": {
+        "title": "Resuelve lo que está terminado",
+        "text": "Pulsa «Resolver», la marca de verificación de una tarjeta, o desliza la tarjeta en una pantalla táctil. El hilo sale de la lista y puedes reabrirlo en cualquier momento."
+      },
+      "snooze": {
+        "title": "Pospón lo que puede esperar",
+        "text": "En «Opciones del hilo» (⋯), elige «Posponer». El hilo se oculta hasta la hora que elijas y luego vuelve con una nota de que el aplazamiento terminó."
+      },
+      "pinAndTag": {
+        "title": "Fijar y etiquetar",
+        "text": "«Fijar hilo» mantiene un hilo al principio de la lista. «Editar etiquetas», en «Opciones del hilo», etiqueta un hilo, y puedes filtrar por etiqueta."
+      },
+      "filters": {
+        "title": "Filtrar y ordenar",
+        "text": "«Filtros de hilos», en la cabecera de la sala o en su menú, muestra y oculta esta barra. «No resueltos» oculta lo terminado, «Última respuesta» cambia el orden y el icono de filtro al final de la barra abre «Filtros avanzados», que encuentran el resto, también los hilos pospuestos."
+      },
+      "views": {
+        "title": "Dos vistas de una sala",
+        "text": "«Compacto» muestra una tarjeta por hilo. «Hilos» muestra el primer mensaje de cada hilo con su número de respuestas debajo. «Vista compacta», en la cabecera de la sala o en su menú, cambia entre las dos."
+      },
+      "activity": {
+        "title": "Actividad reúne lo que te espera",
+        "text": "La campana abre «Actividad»: menciones, respuestas en tus hilos y agentes que terminaron su tarea. Las aprobaciones, preguntas e invitaciones se responden ahí mismo."
+      }
+    },
+    "sample": {
+      "room": "Marketing",
+      "ana": "Ana",
+      "writer": "Redactor",
+      "analyst": "Analista",
+      "typed": "Redacta el correo del lanzamiento de primavera",
+      "launchTitle": "Correo del lanzamiento de primavera",
+      "launchReply": "Aquí tienes un primer borrador con tres asuntos.",
+      "budgetTitle": "Revisión del presupuesto del Q3",
+      "budgetReply": "Los totales suben un 4 % respecto al trimestre anterior.",
+      "websiteTitle": "Comentarios sobre el rediseño de la web",
+      "websiteReply": "La nueva página de inicio da buenos resultados en las pruebas.",
+      "vendorTitle": "Renovación del contrato con el proveedor",
+      "vendorReply": "Volvamos a verlo después de la llamada.",
+      "vendorNewReply": "El contrato está firmado.",
+      "surveyTitle": "Resultados de la encuesta a clientes",
+      "surveyReply": "212 respuestas hasta ahora.",
+      "preview": "{{name}}: {{text}}",
+      "tagLaunch": "lanzamiento",
+      "tagFinance": "finanzas",
+      "approval": "Enviar el informe al equipo"
+    },
+    "entries": {
+      "paletteQuick": "Hacer el recorrido rápido",
+      "paletteFull": "Hacer el recorrido completo",
+      "paletteDescription": "Ver cómo funcionan los hilos",
+      "settingsSection": "Recorrido",
+      "settingsTitle": "Ver cómo funcionan los hilos",
+      "settingsDescription": "Un recorrido breve por los hilos: cómo empezar uno, los títulos, el orden y los estados.",
+      "settingsKeywords": "recorrido, tour, tutorial, guía, ayuda, introducción, hilos",
+      "howThreadsWork": "Cómo funcionan los hilos",
+      "noThreadsHint": "Envía un mensaje abajo para empezar uno."
     }
   }
 }

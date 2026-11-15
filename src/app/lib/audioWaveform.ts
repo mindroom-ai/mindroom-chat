@@ -1,6 +1,8 @@
 export const VOICE_WAVEFORM_BAR_COUNT = 48;
 export const VOICE_WAVEFORM_MAX = 1024;
 export const VOICE_WAVEFORM_MIN = 0;
+// A live recording takes one waveform sample this often.
+export const VOICE_WAVEFORM_SAMPLE_INTERVAL_MS = 80;
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));

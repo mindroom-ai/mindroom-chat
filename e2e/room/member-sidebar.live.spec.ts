@@ -25,6 +25,30 @@ const openRoom = async (page: Page) => {
   return { roomId, userId: session.userId };
 };
 
+/** Opens the lobby of a new private space; resolves its address. */
+const openSpaceLobby = async (page: Page) => {
+  const homeserver = getHomeserver();
+  const credentials = getPrimaryCredentials();
+  const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
+  const spaceId = await createPrivateSpace(homeserver, session.accessToken, {
+    name: `Member sidebar space ${Date.now()}`,
+  });
+  await loginWithPassword(page, { homeserver, ...credentials });
+  await page.goto(`/${encodeURIComponent(spaceId)}/lobby/`);
+  return page.url();
+};
+
+/**
+ * A phone's members sheet is out (a frame after it mounts) and holds the focus; only then does it
+ * take Escape and taps on the dimmed page. It stays mounted while it slides away.
+ */
+const expectSheetOut = async (sheet: Locator) => {
+  await expect(sheet).toHaveAttribute('data-open', 'true');
+  await expect
+    .poll(() => sheet.evaluate((element) => element.contains(document.activeElement)))
+    .toBe(true);
+};
+
 const widthOf = async (panel: Locator) => Math.round((await panel.boundingBox())?.width ?? 0);
 
 const startDrag = async (page: Page, handle: Locator) => {
@@ -35,35 +59,6 @@ const startDrag = async (page: Page, handle: Locator) => {
   await page.mouse.move(x, y);
   await page.mouse.down();
   return { x, y };
-};
-
-const dragOnPhone = async (page: Page, handle: Locator, delta: number) => {
-  if (page.context().browser()?.browserType().name() !== 'chromium') {
-    const start = await startDrag(page, handle);
-    await page.mouse.move(start.x + delta, start.y, { steps: 8 });
-    await page.mouse.up();
-    return;
-  }
-  const bounds = await handle.boundingBox();
-  if (!bounds) throw new Error('Missing member resize handle');
-  const x = bounds.x + bounds.width / 2;
-  const y = bounds.y + 240;
-  const session = await page.context().newCDPSession(page);
-  try {
-    await session.send('Input.dispatchTouchEvent', {
-      type: 'touchStart',
-      touchPoints: [{ x, y }],
-    });
-    for (let step = 1; step <= 8; step += 1) {
-      await session.send('Input.dispatchTouchEvent', {
-        type: 'touchMove',
-        touchPoints: [{ x: x + (delta * step) / 8, y }],
-      });
-    }
-    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  } finally {
-    await session.detach();
-  }
 };
 
 test('members stay beside a wide enough room and resize, collapse, and reopen', async ({
@@ -133,138 +128,116 @@ test('members stay beside a wide enough room and resize, collapse, and reopen', 
   expect(errors).toEqual([]);
 });
 
-test.describe('phone member overlay', () => {
+test.describe('phone member sheet', () => {
   const { defaultBrowserType: _browserType, ...phone } = devices['iPhone 13'];
   test.use(phone);
 
-  test('opens over the conversation, resizes, and closes without changing the room', async ({
-    page,
-    browserName,
-  }) => {
+  test('opens over the conversation and closes without changing the room', async ({ page }) => {
     await openRoom(page);
     const roomUrl = page.url();
-    const panel = page.getByTestId('resizable-members-panel');
     const dialog = page.getByRole('dialog', { name: 'Members', exact: true });
+    const sheet = page.getByTestId('phone-members-sheet');
     // A phone's header leaves Members to the room menu, whose button gets focus back.
     const show = roomMoreOptions(page);
     const showEntry = page.getByRole('menuitem', { name: 'Show Members', exact: true });
+    const expectGone = async () => {
+      await expect(sheet).toHaveCount(0);
+      await expect(page).toHaveURL(roomUrl);
+      await expect(show).toBeFocused();
+    };
     const openWithKeyboard = async () => {
       await show.focus();
       await page.keyboard.press('Enter');
       await showEntry.focus();
       await page.keyboard.press('Enter');
+      await expectSheetOut(sheet);
     };
     const openWithTap = async () => {
       await show.tap();
       await showEntry.tap();
+      await expectSheetOut(sheet);
     };
     await expect(show).toBeVisible();
-    await expect(dialog).toHaveCount(0);
+    await expect(sheet).toHaveCount(0);
     const editor = page.locator('[data-slate-editor="true"]').first();
     const editorWidth = await widthOf(editor);
 
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
 
+    // A phone's members are a sheet over the page: nothing to resize, and the room keeps its width.
     await openWithKeyboard();
-    await expect(dialog).toBeVisible();
-    await expect
-      .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
-      .toBe(true);
+    await expect(dialog.getByRole('separator', { name: 'Resize member panel' })).toHaveCount(0);
     await expect.poll(() => widthOf(editor)).toBe(editorWidth);
-    const handle = dialog.getByRole('separator', { name: 'Resize member panel' });
-    await dragOnPhone(page, handle, -50);
-    await expect.poll(() => widthOf(panel)).toBe(316);
-    await page.screenshot({ path: test.info().outputPath('members-phone-overlay.png') });
-
-    await dragOnPhone(page, handle, 166);
-    await expect(dialog).toHaveCount(0);
-    await expect(page).toHaveURL(roomUrl);
-    await expect(show).toBeFocused();
-    // CDP touch injection can swallow the next tap even on plain HTML; reopen with the keyboard.
-    await openWithKeyboard();
-    await expect.poll(() => widthOf(panel)).toBe(316);
+    // Its slide ends at once for the picture.
+    await page.screenshot({
+      path: test.info().outputPath('members-phone-sheet.png'),
+      animations: 'disabled',
+    });
     await dialog.getByRole('button', { name: 'Close', exact: true }).tap();
-    await expect(dialog).toHaveCount(0);
-    await expect(show).toBeFocused();
+    await expectGone();
+
+    await openWithKeyboard();
+    await page.keyboard.press('Escape');
+    await expectGone();
 
     await openWithTap();
     await page.keyboard.press('Escape');
-    await expect(dialog).toHaveCount(0);
+    await expectGone();
     await openWithTap();
+    // The dimmed page beside the sheet puts it away.
     await page.touchscreen.tap(20, 350);
-    await expect(dialog).toHaveCount(0);
+    await expectGone();
     await expect.poll(() => widthOf(editor)).toBe(editorWidth);
-    await expect(page).toHaveURL(roomUrl);
     await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 390);
-    if (browserName === 'chromium') {
-      const session = await page.context().newCDPSession(page);
-      try {
-        await session.send('Emulation.setSafeAreaInsetsOverride', {
-          insets: { left: 44, right: 32 },
-        });
-        for (const direction of ['ltr', 'rtl']) {
-          await page.evaluate(
-            (dir) => document.documentElement.setAttribute('dir', dir),
-            direction
-          );
-          await openWithKeyboard();
-          await expect(dialog).toHaveCSS('padding-left', '44px');
-          await expect(dialog).toHaveCSS('padding-right', '32px');
-          await handle.focus();
-          await page.keyboard.press('End');
-          await expect(handle).toHaveAttribute('aria-valuemax', '314');
-          await expect.poll(() => widthOf(panel)).toBe(314);
-          expect(Math.round((await panel.boundingBox())!.x)).toBe(44);
-          await page.keyboard.press('Home');
-          await expect.poll(() => widthOf(panel)).toBe(200);
-          expect(Math.round((await panel.boundingBox())!.x)).toBe(direction === 'ltr' ? 158 : 44);
-          await page.keyboard.press('Escape');
-          await expect(dialog).toHaveCount(0);
-        }
-      } finally {
-        await session.send('Emulation.setSafeAreaInsetsOverride', { insets: {} });
-        await session.detach();
-      }
-    }
     expect(errors).toEqual([]);
   });
 });
 
-for (const width of [390, 1000]) {
-  test(`space members resize and reopen at ${width}px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 850 });
-    const homeserver = getHomeserver();
-    const credentials = getPrimaryCredentials();
-    const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
-    const spaceId = await createPrivateSpace(homeserver, session.accessToken, {
-      name: `Member sidebar space ${Date.now()}`,
-    });
-    await loginWithPassword(page, { homeserver, ...credentials });
-    await page.goto(`/${encodeURIComponent(spaceId)}/lobby/`);
-    const lobbyUrl = page.url();
-    const panel = page.getByTestId('resizable-members-panel');
-    const members = page.getByRole('button', { name: 'Members', exact: true });
-    await expect(members).toBeVisible();
-    if (width < 751) {
-      await expect(panel).toHaveCount(0);
-      await members.click();
-      await expect(page.getByRole('dialog', { name: 'Members', exact: true })).toBeVisible();
-    }
-    await expect(panel).toBeVisible();
-    const handle = panel.getByRole('separator', { name: 'Resize member panel' });
-    await handle.focus();
-    await page.keyboard.press('ArrowLeft');
-    await expect.poll(() => widthOf(panel)).toBe(286);
-    const collapse = await startDrag(page, handle);
-    await page.mouse.move(collapse.x + 140, collapse.y, { steps: 8 });
-    await page.mouse.up();
-    await expect(panel).toHaveCount(0);
+test('space members open as a sheet and close at 390px', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 850 });
+  const lobbyUrl = await openSpaceLobby(page);
+  const dialog = page.getByRole('dialog', { name: 'Members', exact: true });
+  const sheet = page.getByTestId('phone-members-sheet');
+  const members = page.getByRole('button', { name: 'Members', exact: true });
+  const openAndExpectOut = async () => {
     await members.click();
-    await expect.poll(() => widthOf(panel)).toBe(286);
-    await panel.getByRole('button', { name: 'Close', exact: true }).click();
-    await expect(panel).toHaveCount(0);
-    await expect(page).toHaveURL(lobbyUrl);
-    await expect(page.locator('body')).toHaveJSProperty('scrollWidth', width);
-  });
-}
+    await expectSheetOut(sheet);
+  };
+  await expect(members).toBeVisible();
+  await expect(sheet).toHaveCount(0);
+  await openAndExpectOut();
+  await expect(page.getByTestId('resizable-members-panel')).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(sheet).toHaveCount(0);
+  await expect(members).toBeFocused();
+  await openAndExpectOut();
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await expect(members).toBeFocused();
+  await expect(page).toHaveURL(lobbyUrl);
+  await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 390);
+});
+
+test('space members resize and reopen at 1000px', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 850 });
+  const lobbyUrl = await openSpaceLobby(page);
+  const panel = page.getByTestId('resizable-members-panel');
+  const members = page.getByRole('button', { name: 'Members', exact: true });
+  await expect(members).toBeVisible();
+  await expect(panel).toBeVisible();
+  const handle = panel.getByRole('separator', { name: 'Resize member panel' });
+  await handle.focus();
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(() => widthOf(panel)).toBe(286);
+  const collapse = await startDrag(page, handle);
+  await page.mouse.move(collapse.x + 140, collapse.y, { steps: 8 });
+  await page.mouse.up();
+  await expect(panel).toHaveCount(0);
+  await members.click();
+  await expect.poll(() => widthOf(panel)).toBe(286);
+  await panel.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(panel).toHaveCount(0);
+  await expect(page).toHaveURL(lobbyUrl);
+  await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 1000);
+});

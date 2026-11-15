@@ -180,19 +180,19 @@ describe('BackfillScheduler (ISSUE-207 P4.1)', () => {
       };
 
       // Enqueue high-band first so we prove it doesn't run first.
-      scheduler.enqueue({
+      void scheduler.enqueue({
         roomId: '!r-band4',
         kind: 'room-deep-history',
         priority: 4,
         execute: push('band4'),
       });
-      scheduler.enqueue({
+      void scheduler.enqueue({
         roomId: '!r-band0',
         kind: 'gap-fill',
         priority: 0,
         execute: push('band0'),
       });
-      scheduler.enqueue({
+      await scheduler.enqueue({
         roomId: '!r-band2',
         kind: 'gap-fill',
         priority: 2,
@@ -239,7 +239,7 @@ describe('BackfillScheduler (ISSUE-207 P4.1)', () => {
           order.push('thread-backfill');
         },
       });
-      scheduler.enqueue({
+      void scheduler.enqueue({
         roomId: '!other',
         kind: 'gap-fill',
         priority: 2,
@@ -326,9 +326,24 @@ describe('BackfillScheduler (ISSUE-207 P4.1)', () => {
       const push = (roomId: string) => async () => {
         order.push(roomId);
       };
-      scheduler.enqueue({ roomId: '!old', kind: 'gap-fill', priority: 2, execute: push('!old') });
-      scheduler.enqueue({ roomId: '!new', kind: 'gap-fill', priority: 2, execute: push('!new') });
-      scheduler.enqueue({ roomId: '!mid', kind: 'gap-fill', priority: 2, execute: push('!mid') });
+      void scheduler.enqueue({
+        roomId: '!old',
+        kind: 'gap-fill',
+        priority: 2,
+        execute: push('!old'),
+      });
+      void scheduler.enqueue({
+        roomId: '!new',
+        kind: 'gap-fill',
+        priority: 2,
+        execute: push('!new'),
+      });
+      await scheduler.enqueue({
+        roomId: '!mid',
+        kind: 'gap-fill',
+        priority: 2,
+        execute: push('!mid'),
+      });
 
       for (let i = 0; i < 6; i += 1) {
         // eslint-disable-next-line no-await-in-loop
@@ -614,7 +629,7 @@ describe('BackfillScheduler (ISSUE-207 P4.1)', () => {
       const scheduler = createBackfillScheduler({ mx, maxConcurrent: 1 });
 
       let releaseR1: () => void = () => undefined;
-      scheduler.enqueue({
+      void scheduler.enqueue({
         roomId: '!r1',
         kind: 'gap-fill',
         priority: 1,
@@ -623,7 +638,7 @@ describe('BackfillScheduler (ISSUE-207 P4.1)', () => {
             releaseR1 = resolve;
           }),
       });
-      scheduler.enqueue({
+      void scheduler.enqueue({
         roomId: '!r2',
         kind: 'gap-fill',
         priority: 1,

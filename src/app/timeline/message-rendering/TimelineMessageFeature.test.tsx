@@ -150,7 +150,7 @@ describe('timeline message feature', () => {
     expect(messages.map((message) => !!message.props.reply)).toEqual([true, true, false]);
     expect(messages.map((message) => !!message.props.reactions)).toEqual([true, true, false]);
     expect(messages.map((message) => message.props.highlight)).toEqual([true, true, true]);
-    act(() => messages[0]!.props.onEditId('$0'));
+    await act(() => messages[0]!.props.onEditId('$0'));
     expect(renderer.root.findByProps({ 'data-message-id': '$0' }).props.edit).toBe(true);
     expect(messages[1]!.props.edit).toBeUndefined();
     expect(messages[2]!.props.edit).toBeUndefined();
@@ -262,7 +262,7 @@ describe('timeline message feature', () => {
     update();
     const expanded = renderer.root.find((node) => node.props.expansionKey === '$live');
     expect(expanded.props.collapseMode).toBe('initially-expanded');
-    act(() => expanded.props.onInitialExpandConsumed());
+    await act(() => expanded.props.onInitialExpandConsumed());
     update();
     expect(
       renderer.root.find((node) => node.props.expansionKey === '$live').props.collapseMode

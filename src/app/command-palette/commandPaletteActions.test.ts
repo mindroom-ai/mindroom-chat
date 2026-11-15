@@ -6,6 +6,7 @@ import {
   getCommandPaletteSearchPagePath,
   getCommandPaletteQuickActions,
 } from './commandPaletteActions';
+import { commandPaletteSearchConfig, searchCommandPaletteSection } from './commandPaletteSearch';
 
 const t = translateFromEn as unknown as TFunction;
 
@@ -19,6 +20,8 @@ describe('getCommandPaletteQuickActions', () => {
       'create-room',
       'create-space',
       'toggle-theme',
+      'take-quick-tour',
+      'take-full-tour',
       'logout',
     ]);
   });
@@ -83,6 +86,44 @@ describe('getCommandPaletteQuickActions', () => {
     ).map((item) => item.id);
     expect(ids).not.toContain('resolve-current-thread');
     expect(ids).not.toContain('unresolve-current-thread');
+  });
+
+  it('lists the actions in the order their ranks show them, each rank once', () => {
+    const ranks = getCommandPaletteQuickActions(
+      { currentRoomName: 'General', currentThreadId: '$thread' },
+      t
+    ).map((item) => item.sortRank ?? 0);
+    expect(ranks).toEqual([...ranks].sort((left, right) => right - left));
+    expect(new Set(ranks).size).toBe(ranks.length);
+  });
+
+  it('offers the interface tour in both levels, found by help, tutorial and guide too', () => {
+    const actions = getCommandPaletteQuickActions({}, t);
+    const keywords = ['help', 'tutorial', 'guide', 'threads', 'onboarding'];
+    expect(actions.find((item) => item.id === 'take-quick-tour')).toMatchObject({
+      kind: 'action',
+      title: 'Take the quick tour',
+      description: 'See how threads work',
+      keywords,
+    });
+    expect(actions.find((item) => item.id === 'take-full-tour')).toMatchObject({
+      kind: 'action',
+      title: 'Take the full tour',
+      description: 'See how threads work',
+      keywords,
+    });
+  });
+
+  it('keeps the tour below the everyday actions, and finds both levels by "tutorial"', () => {
+    const items = getCommandPaletteQuickActions({}, t);
+    const shown = (query: string) =>
+      searchCommandPaletteSection({ items, query, config: commandPaletteSearchConfig.actions }).map(
+        (item) => item.id
+      );
+    expect(shown('').slice(0, 3)).toEqual(['open-settings', 'go-home', 'go-direct']);
+    expect(shown('tutorial')).toEqual(['take-quick-tour', 'take-full-tour']);
+    expect(shown('quick tour')[0]).toBe('take-quick-tour');
+    expect(shown('full tour')[0]).toBe('take-full-tour');
   });
 
   it('describes Go to Activity, found by invites, notifications and the old Inbox too', () => {

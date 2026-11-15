@@ -87,7 +87,7 @@ describe('MessageLink', () => {
     renderer.unmount();
   });
 
-  it('hides broken icons, backs off across remounts, and recovers for an edited URL', () => {
+  it('hides broken icons, backs off across remounts, and recovers for an edited URL', async () => {
     vi.useFakeTimers();
     const link = (href: string) =>
       allowed(
@@ -96,7 +96,7 @@ describe('MessageLink', () => {
         </MessageLink>
       );
     const renderer = create(link('https://failed-site.com/one'));
-    act(() => renderer.root.findByType('img').props.onError());
+    await act(() => renderer.root.findByType('img').props.onError());
     expect(renderer.root.findAllByType('img')).toHaveLength(0);
     expect(renderer.toJSON()).toMatchObject({ children: ['Docs'] });
     renderer.unmount();

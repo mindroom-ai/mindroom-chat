@@ -127,7 +127,7 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
     exfiltration.listen(0, '127.0.0.1', resolve);
   });
   const exfiltrationOrigin = `http://127.0.0.1:${(exfiltration.address() as AddressInfo).port}`;
-  test.info().attach('exfiltration-origin', { body: exfiltrationOrigin });
+  await testInfo.attach('exfiltration-origin', { body: exfiltrationOrigin });
   // Chat's own origin and reCAPTCHA are allowed frame destinations for Chat, never for a canvas.
   const allowedOriginProbes: string[] = [];
   await context.route('**/canvas-escape-probe**', async (route) => {

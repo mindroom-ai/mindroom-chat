@@ -90,7 +90,7 @@ describe('ThreadSummaryMarker', () => {
     expect(trigger(renderer).props['aria-expanded']).toBe(false);
   });
 
-  it('shows the new title, its provenance and the old title when tapped', () => {
+  it('shows the new title, its provenance and the old title when tapped', async () => {
     const renderer = render(
       <ThreadSummaryMarker
         summaryInfo={summaryInfo}
@@ -98,7 +98,7 @@ describe('ThreadSummaryMarker', () => {
       />
     );
 
-    act(() => trigger(renderer).props.onClick());
+    await act(() => trigger(renderer).props.onClick());
 
     const details = text(popout(renderer)[0]!);
     expect(details).toContain('AI summary of last 21 messages');
@@ -106,14 +106,14 @@ describe('ThreadSummaryMarker', () => {
     expect(details).toContain('Was: Push bug');
     expect(trigger(renderer).props['aria-expanded']).toBe(true);
 
-    act(() => trigger(renderer).props.onClick());
+    await act(() => trigger(renderer).props.onClick());
     expect(popout(renderer)).toHaveLength(0);
   });
 
-  it('lets the pointer through to the marker and timeline while open', () => {
+  it('lets the pointer through to the marker and timeline while open', async () => {
     const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
 
-    act(() => trigger(renderer).props.onClick());
+    await act(() => trigger(renderer).props.onClick());
 
     // folds' PopOut layer covers the screen; a tooltip must not take input.
     const [layer] = popout(renderer);
@@ -124,52 +124,52 @@ describe('ThreadSummaryMarker', () => {
     expect(layer?.findByProps({ 'data-tooltip': true }).props.role).toBe('tooltip');
   });
 
-  it('opens while a mouse hovers and closes when it leaves', () => {
+  it('opens while a mouse hovers and closes when it leaves', async () => {
     const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
 
-    act(() => trigger(renderer).props.onPointerEnter({ pointerType: 'mouse' }));
+    await act(() => trigger(renderer).props.onPointerEnter({ pointerType: 'mouse' }));
     expect(popout(renderer)).toHaveLength(1);
 
-    act(() => trigger(renderer).props.onPointerLeave({ pointerType: 'mouse' }));
+    await act(() => trigger(renderer).props.onPointerLeave({ pointerType: 'mouse' }));
     expect(popout(renderer)).toHaveLength(0);
   });
 
-  it('does not open from a touch pointer entering, only from the tap', () => {
+  it('does not open from a touch pointer entering, only from the tap', async () => {
     const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
 
-    act(() => trigger(renderer).props.onPointerEnter({ pointerType: 'touch' }));
+    await act(() => trigger(renderer).props.onPointerEnter({ pointerType: 'touch' }));
     expect(popout(renderer)).toHaveLength(0);
   });
 
-  it('closes on Escape and on a tap elsewhere', () => {
+  it('closes on Escape and on a tap elsewhere', async () => {
     const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
 
-    act(() => trigger(renderer).props.onClick());
+    await act(() => trigger(renderer).props.onClick());
     act(() => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     });
     expect(popout(renderer)).toHaveLength(0);
 
-    act(() => trigger(renderer).props.onClick());
+    await act(() => trigger(renderer).props.onClick());
     act(() => {
       document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
     });
     expect(popout(renderer)).toHaveLength(0);
   });
 
-  it('closes when keyboard focus moves on', () => {
+  it('closes when keyboard focus moves on', async () => {
     const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
 
-    act(() => trigger(renderer).props.onClick());
-    act(() => trigger(renderer).props.onBlur());
+    await act(() => trigger(renderer).props.onClick());
+    await act(() => trigger(renderer).props.onBlur());
 
     expect(popout(renderer)).toHaveLength(0);
   });
 
-  it('stays open and follows the marker when the timeline scrolls', () => {
+  it('stays open and follows the marker when the timeline scrolls', async () => {
     const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
 
-    act(() => trigger(renderer).props.onClick());
+    await act(() => trigger(renderer).props.onClick());
     expect(popout(renderer)[0]!.props['data-top']).toBe(20);
     triggerRect.y = 140;
     act(() => {

@@ -12,6 +12,7 @@ import {
   type SettingsContext,
 } from './settingsRegistry';
 import { ROAMING_SETTINGS } from './roamingSettings';
+import { searchSettings } from '../settings/settingsSearchIndex';
 
 const WEB: SettingsContext = {
   native: false,
@@ -114,6 +115,17 @@ describe('settings registry', () => {
     expect(getShownSettings({ ...WEB, errorReporting: true }).map((s) => s.id)).toContain(
       'errorReports'
     );
+  });
+
+  it('lists the interface tour on About, where Settings search finds it by "tour" and "tutorial"', () => {
+    const found = (query: string) =>
+      searchSettings(query, getShownSettings(WEB), (key, values) => translateFromEn(key, values));
+    const [tour, ...others] = found('tour');
+    expect(tour?.setting).toMatchObject({ id: 'tour', page: 'about', scope: 'device' });
+    expect(tour?.label).toBe('See how threads work');
+    expect(tour?.location).toEqual(['About', 'Tour']);
+    expect(others).toEqual([]);
+    expect(found('tutorial').map(({ setting }) => setting.id)).toEqual(['tour']);
   });
 
   it('labels the roaming settings with the account and keeps every other app setting on the device', () => {

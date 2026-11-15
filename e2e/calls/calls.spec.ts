@@ -348,8 +348,33 @@ test.describe('calls', () => {
       // The device menu lists the fake devices.
       await callPanel(bobPage).getByRole('button', { name: 'Settings' }).click();
       const devices = bobPage.getByRole('menu', { name: 'Devices' });
-      await expect(devices.getByRole('menuitemradio').first()).toBeVisible();
+      const firstDevice = devices.getByRole('menuitemradio').first();
+      await expect(firstDevice).toBeVisible();
+      // Its rows sit as far from the menu's end edge as from its start edge.
+      const gaps = await firstDevice.evaluate((element) => {
+        const rowBox = element.getBoundingClientRect();
+        const menuBox = element.closest('[role="menu"]')?.getBoundingClientRect() ?? rowBox;
+        return { start: rowBox.left - menuBox.left, end: menuBox.right - rowBox.right };
+      });
+      expect(Math.abs(gaps.end - gaps.start)).toBeLessThanOrEqual(1);
       await bobPage.keyboard.press('Escape');
+
+      // In a short window the devices scroll inside the menu, whose glass rim stays put.
+      const size = bobPage.viewportSize();
+      await bobPage.setViewportSize({ width: 1280, height: 260 });
+      await callPanel(bobPage).getByRole('button', { name: 'Settings' }).click();
+      const lastDevice = devices.getByRole('menuitemradio').last();
+      // The devices come in after the menu opens, and a row that is not there is out of view too.
+      await expect(lastDevice).toBeAttached();
+      await expect(lastDevice).not.toBeInViewport();
+      await lastDevice.scrollIntoViewIfNeeded();
+      await expect(lastDevice).toBeInViewport();
+      expect(
+        await devices.evaluate((menu) => menu.scrollHeight - menu.clientHeight)
+      ).toBeLessThanOrEqual(1);
+      expect(await devices.evaluate((menu) => menu.scrollTop)).toBe(0);
+      await bobPage.keyboard.press('Escape');
+      if (size) await bobPage.setViewportSize(size);
 
       // Alice reloads: her page takes the call up again, still muted, and Bob hears her again
       // once she unmutes.

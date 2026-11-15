@@ -187,20 +187,20 @@ describe('HomeTab', () => {
     expect(navigate).toHaveBeenCalledWith('/home/%23room%3Amindroom.chat?threadId=%24thread');
   });
 
-  it('preserves the current route when the navigation panel handles the click', () => {
+  it('preserves the current route when the navigation panel handles the click', async () => {
     const renderer = create(React.createElement(HomeTab, { onSelect: () => true }));
-    act(() => renderer.root.findByType('button').props.onClick());
+    await act(() => renderer.root.findByType('button').props.onClick());
     expect(navigate).not.toHaveBeenCalled();
     act(() => renderer.unmount());
   });
 
   it.each([false, true])(
     'shows the home list on mobile unless already selected: %s',
-    (selected) => {
+    async (selected) => {
       state.mobile = true;
       state.selected = selected;
       const renderer = create(React.createElement(HomeTab));
-      act(() => renderer.root.findByType('button').props.onClick());
+      await act(() => renderer.root.findByType('button').props.onClick());
       expect(navigate).toHaveBeenCalledWith(
         selected ? '/home/%23room%3Amindroom.chat?threadId=%24thread' : '/home/'
       );

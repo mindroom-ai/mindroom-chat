@@ -190,14 +190,22 @@ test('a new account is asked for a recovery password and a fresh browser unlocks
   await expect(second.getByRole('main').getByText(MESSAGE)).toBeVisible({ timeout: 60_000 });
 });
 
-test('a tap beside the unlock dialog closes it and opens nothing beneath', async ({ browser }) => {
+test('the unlock dialog sits in the middle of a phone, and a tap beside it closes it and opens nothing beneath', async ({
+  browser,
+}) => {
   const account = await createAccountWithEncryptedRoom();
   await firstSession(browser, account);
 
-  const phone = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
+  // As wide as the widest phones, where the dialog is narrower than the screen less its margins.
+  const width = 440;
+  const phone = { viewport: { width, height: 956 }, hasTouch: true, isMobile: true };
   const second = await signIn(browser, account.username, phone);
   const dialog = unlockDialog(second);
   await expect(dialog).toBeVisible({ timeout: 90_000 });
+  const box = await dialog.boundingBox();
+  if (!box) throw new Error('The unlock dialog has no box');
+  expect(box.width).toBeLessThan(width - 32);
+  expect(box.x + box.width / 2).toBeCloseTo(width / 2, 0);
   await dialog.getByText('Enter your recovery password').tap();
   await expect(dialog).toBeVisible();
   // The tap lands on the backdrop over Join a Room, whose dialog must not open once Unlock is gone.
@@ -207,6 +215,31 @@ test('a tap beside the unlock dialog closes it and opens nothing beneath', async
   await expect(dialog).toHaveCount(0);
   await second.waitForTimeout(1_000);
   await expect(second.getByRole('dialog')).toHaveCount(0);
+});
+
+test('Not now keeps the start prompt closed after a reload, and the banner still unlocks', async ({
+  browser,
+}) => {
+  const account = await createAccountWithEncryptedRoom();
+  await firstSession(browser, account);
+
+  const second = await signIn(browser, account.username);
+  const dialog = unlockDialog(second);
+  await expect(dialog).toBeVisible({ timeout: 90_000 });
+  await dialog.getByRole('button', { name: 'Not now' }).click();
+  await expect(dialog).toHaveCount(0);
+
+  await second.reload();
+  // The banner's Unlock shows the session is locked, with the key the start prompt reads, and the
+  // room list the encrypted room: the start prompt has had what it opens on.
+  const banner = second.getByRole('region', { name: 'Unverified Device' });
+  const unlock = banner.getByRole('button', { name: 'Unlock with recovery password' });
+  await expect(unlock).toBeVisible({ timeout: 90_000 });
+  await expect(second.getByText('Secret Plans').first()).toBeVisible({ timeout: 60_000 });
+  await expect(dialog).toHaveCount(0);
+
+  await unlock.click();
+  await unlockWithRecovery(dialog, RECOVERY_PASSWORD);
 });
 
 test('a changed password replaces the old one', async ({ browser }) => {

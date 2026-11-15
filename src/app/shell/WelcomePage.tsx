@@ -20,6 +20,7 @@ import { KeyBackupNudge } from '../account/onboarding/KeyBackupNudge';
 import { UnverifiedDeviceCard } from '../account/verification/UnverifiedDeviceCard';
 import type { PoweredByLink } from '../ui/branding/branding';
 import { settingsModalAtom } from '../navigation/settingsModal';
+import { tourAtom } from '../navigation/tourState';
 
 const SETUP_COMMAND =
   'uvx mindroom config init --provider <anthropic|codex|llama.cpp|ollama|openai|openrouter|vertexai_claude>';
@@ -128,25 +129,43 @@ function LocalMindroomSetup() {
 /** The welcome column's width in home.png: links, cards and credits all share it. */
 const WELCOME_COLUMN_WIDTH = toRem(360);
 
-type WelcomeLinkProps = { href: string; icon: IconSrc; children: ReactNode };
+type WelcomeLinkProps = { icon: IconSrc; children: ReactNode } & (
+  | { href: string }
+  | { onClick: () => void }
+);
 
-/** A full-width link button of the welcome column, opened in a new tab. */
-function WelcomeLink({ href, icon, children }: WelcomeLinkProps) {
+/**
+ * A full-width link button of the welcome column: with `href` a link opened in a new tab, with
+ * `onClick` a button that acts in the app.
+ */
+function WelcomeLink({ icon, children, ...target }: WelcomeLinkProps) {
+  const look = {
+    size: '400',
+    radii: '300',
+    variant: 'Primary',
+    fill: 'Soft',
+    outlined: true,
+    before: <Icon size="100" src={icon} />,
+  } as const;
+  const label = <Text size="B400">{children}</Text>;
+
+  if ('onClick' in target) {
+    return (
+      <Button type="button" onClick={target.onClick} {...look}>
+        {label}
+      </Button>
+    );
+  }
   return (
     <Button
       as="a"
-      href={href}
+      href={target.href}
       target="_blank"
       rel="noreferrer noopener"
-      size="400"
-      radii="300"
-      variant="Primary"
-      fill="Soft"
-      outlined
-      before={<Icon size="100" src={icon} />}
       style={{ textDecoration: 'none' }}
+      {...look}
     >
-      <Text size="B400">{children}</Text>
+      {label}
     </Button>
   );
 }
@@ -172,12 +191,16 @@ function PoweredByLine({ links }: { links: readonly PoweredByLink[] }) {
   );
 }
 
-/** Shown when no room is open: the app's name, links to source and docs, backup and setup help. */
+/**
+ * Shown when no room is open: the app's name, links to source and docs, the way into the interface
+ * tour, backup and setup help.
+ */
 export function WelcomePage() {
   const { t } = useTranslation();
   const { welcome } = useClientConfig();
   const content = getWelcomePageContent(welcome as never, t);
   const showSetup = useWelcomeSetupPrompt();
+  const setTour = useSetAtom(tourAtom);
 
   return (
     <Page>
@@ -215,6 +238,9 @@ export function WelcomePage() {
                   {content.docsLabel}
                 </WelcomeLink>
               )}
+              <WelcomeLink onClick={() => setTour({ level: 'quick' })} icon={Icons.Play}>
+                {t('tour.entries.howThreadsWork')}
+              </WelcomeLink>
               <UnverifiedDeviceCard />
               <KeyBackupNudge />
               {Array.isArray(content.poweredBy) && <PoweredByLine links={content.poweredBy} />}

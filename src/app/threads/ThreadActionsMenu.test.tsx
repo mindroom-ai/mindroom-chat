@@ -218,7 +218,7 @@ describe('ThreadActionsMenu', () => {
     click(renderer, 'editSummary');
     const input = renderer.root.findByType('textarea');
     expect(input.props.value).toBe('Old summary');
-    act(() => input.props.onChange({ target: { value: 'My new summary' } }));
+    await act(() => input.props.onChange({ target: { value: 'My new summary' } }));
     await act(async () => {
       await renderer.root.findByType('form').props.onSubmit({ preventDefault: vi.fn() });
     });

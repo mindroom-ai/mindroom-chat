@@ -153,7 +153,13 @@ With `showEncryptionOption: false` and `defaultEncryption: false` together, the 
 
 | Key | Type | Default | Effect |
 |---|---|---|---|
-| `encryptionRecovery.promptAtStart` | boolean | `true` | The app opens the recovery password Set up or Unlock dialog by itself once per app start, as soon as the user has joined an encrypted room (at start, or once a room is joined or turns encryption on); `false` stops it. The welcome page cards and Settings still offer them. |
+| `encryptionRecovery.promptAtStart` | boolean | `true` | The app opens the recovery password Set up or Unlock dialog by itself once per app start, as soon as the user has joined an encrypted room (at start, or once a room is joined or turns encryption on); `false` stops it. Closing either one before the session is verified (Not now, the close button, Escape) keeps it from opening by itself for that account on that browser for 7 days; verifying the session or signing out ends that. The welcome page cards and Settings still offer them. |
+
+### Tour
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `tour.offerAtStart` | boolean | `true` | The app offers the interface tour (how threads work, in a Quick and a Full level) on a card until the account answers it: once the first sync of a start has completed, to an account whose `io.mindroom.settings` account data has no `tourOffered: true`. Either tour button, the dismiss button, or opening the tour from elsewhere answers it for the account on every device; `false` stops the offer. The tour stays in the command palette, in Settings (About), on the welcome page and in a Compact room that has no thread. |
 
 ### Copy and branding
 

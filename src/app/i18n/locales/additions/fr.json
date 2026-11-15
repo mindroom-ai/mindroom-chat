@@ -1058,6 +1058,8 @@
       "deactivated": "Désactivés"
     },
     "count": "Comptes : {{shown}} sur {{total}}",
+    "showDeactivated": "Afficher les désactivés ({{count}})",
+    "hiddenDeactivated": "Masqués : {{count}} désactivés",
     "noMatches": "Aucun compte ne correspond",
     "loadFailed": "Impossible de charger les comptes.",
     "status": {
@@ -1094,6 +1096,7 @@
       "title": "Invitations",
       "description": "Une adresse e-mail invitée peut créer un compte ici en se connectant avec elle.",
       "sendYourself": "Aucun e-mail n'est envoyé : copiez l'invitation et envoyez-la vous-même.",
+      "noEmail": "Aucun e-mail n’est envoyé. Après l’invitation, le message à envoyer s’affiche ici : copiez-le et envoyez-le vous-même à chaque personne.",
       "add": "Inviter par e-mail",
       "none": "Aucune invitation en attente",
       "loadFailed": "Impossible de charger les invitations.",
@@ -1101,6 +1104,8 @@
       "addressesHint": "Séparez plusieurs adresses par des virgules ou des retours à la ligne.",
       "rooms": "Salons que le nouveau compte rejoint",
       "external": "Compte externe",
+      "externalHint": "Pour une personne extérieure à votre organisation : le compte ne rejoint que les salons choisis ici et ceux où il sera invité plus tard, et ne peut ni créer de salons ni inviter quelqu’un.",
+      "externalForbidden": "Les comptes externes ne peuvent pas rejoindre les salons marqués d’un cadenas.",
       "invited": "Invitée",
       "replaces": "Remplace l'invitation précédente",
       "copy": "Copier l'invitation",
@@ -1112,6 +1117,119 @@
         "inUse": "{{user}} a déjà cette adresse.",
         "invalidAddress": "Ce n'est pas une adresse e-mail valide."
       }
+    }
+  },
+  "tour": {
+    "levels": {
+      "quick": "Visite rapide",
+      "full": "Visite complète"
+    },
+    "offer": {
+      "title": "Faites une visite guidée de MindRoom",
+      "text": "Découvrez comment fonctionnent les fils, les titres et les états.",
+      "quick": "Visite rapide (1 min)",
+      "full": "Visite complète (5 min)",
+      "dismiss": "Ignorer"
+    },
+    "dialog": {
+      "stepOf": "Étape {{current}} sur {{total}}",
+      "close": "Fermer la visite",
+      "back": "Précédent",
+      "next": "Suivant",
+      "done": "Terminé",
+      "keepGoing": "Continuer (6 étapes de plus)",
+      "replay": "Rejouer"
+    },
+    "chapters": {
+      "basics": "Les bases",
+      "tidy": "Garder la liste en ordre",
+      "finding": "S’y retrouver"
+    },
+    "steps": {
+      "conversation": {
+        "title": "Un fil, c’est une conversation",
+        "text": "La plupart des salles avec des agents s’ouvrent dans la vue Compact. Chaque carte est un fil : un seul sujet avec toutes ses réponses. Une salle en contient autant qu’il vous en faut."
+      },
+      "start": {
+        "title": "Écrivez pour démarrer un nouveau fil",
+        "text": "Écrivez dans la zone en bas de la salle, puis envoyez. Un nouveau fil démarre et s’ouvre aussitôt."
+      },
+      "reply": {
+        "title": "Dans un fil, vous répondez",
+        "text": "Ce que vous écrivez dans un fil ouvert est une réponse dans ce fil, pas un nouveau fil. Retour ramène à la liste, où chaque carte rouvre son fil."
+      },
+      "title": {
+        "title": "L’IA écrit les titres",
+        "text": "Une nouvelle carte affiche votre premier message. Après la réponse d’un agent, l’IA de MindRoom donne au fil un titre court. Modifier le résumé, dans Options du fil, permet de le changer."
+      },
+      "order": {
+        "title": "L’activité la plus récente en premier",
+        "text": "Un fil remonte en tête de liste quand il reçoit un nouveau message : ce qui est actif vient donc en premier. Les fils épinglés restent au-dessus des autres."
+      },
+      "states": {
+        "title": "Une carte montre où en est son fil",
+        "streaming": "Un agent est en train de répondre.",
+        "unread": "Nouvelles réponses, avec un bord et une heure en couleur.",
+        "resolved": "Terminé. La vue Compact le masque.",
+        "snoozed": "Masqué jusqu’à l’heure prévue, puis de retour tout seul."
+      },
+      "resolve": {
+        "title": "Résolvez ce qui est terminé",
+        "text": "Appuyez sur Résoudre, la coche sur une carte, ou faites glisser la carte sur un écran tactile. Le fil quitte la liste, et vous pouvez le rouvrir à tout moment."
+      },
+      "snooze": {
+        "title": "Reportez ce qui peut attendre",
+        "text": "Dans Options du fil (⋯), choisissez Reporter. Le fil reste masqué jusqu’à l’heure choisie, puis revient avec une note indiquant que le report est terminé."
+      },
+      "pinAndTag": {
+        "title": "Épingler et étiqueter",
+        "text": "Épingler le fil garde un fil en haut de la liste. Modifier les étiquettes, dans Options du fil, ajoute des étiquettes à un fil, et vous pouvez filtrer par étiquette."
+      },
+      "filters": {
+        "title": "Filtrer et trier",
+        "text": "Filtres de fils, dans l’en-tête de la salle ou dans son menu, affiche et masque cette barre. Non résolus masque ce qui est terminé, Dernière réponse change l’ordre, et l’icône de filtre au bout de la barre ouvre Filtres avancés, qui trouvent le reste, y compris les fils reportés."
+      },
+      "views": {
+        "title": "Deux vues d’une salle",
+        "text": "Compact affiche une carte par fil. Fils affiche le premier message de chaque fil, avec le nombre de réponses en dessous. Vue compacte, dans l’en-tête de la salle ou dans son menu, passe de l’une à l’autre."
+      },
+      "activity": {
+        "title": "Activité rassemble ce qui vous attend",
+        "text": "La cloche ouvre Activité : les mentions, les réponses dans vos fils et les exécutions d’agents terminées. Vous répondez sur place aux approbations, aux questions et aux invitations."
+      }
+    },
+    "sample": {
+      "room": "Marketing",
+      "ana": "Ana",
+      "writer": "Rédacteur",
+      "analyst": "Analyste",
+      "typed": "Rédige l’e-mail du lancement de printemps",
+      "launchTitle": "E-mail du lancement de printemps",
+      "launchReply": "Voici un premier jet avec trois propositions d’objet.",
+      "budgetTitle": "Revue du budget T3",
+      "budgetReply": "Les totaux sont en hausse de 4 % par rapport au trimestre dernier.",
+      "websiteTitle": "Retours sur la refonte du site web",
+      "websiteReply": "La nouvelle page d’accueil obtient de bons résultats aux tests.",
+      "vendorTitle": "Renouvellement du contrat fournisseur",
+      "vendorReply": "Revoyons cela après l’appel.",
+      "vendorNewReply": "Le contrat est signé.",
+      "surveyTitle": "Résultats de l’enquête clients",
+      "surveyReply": "212 réponses pour l’instant.",
+      "preview": "{{name}} : {{text}}",
+      "tagLaunch": "lancement",
+      "tagFinance": "finances",
+      "approval": "Envoyer le rapport à l’équipe"
+    },
+    "entries": {
+      "paletteQuick": "Suivre la visite rapide",
+      "paletteFull": "Suivre la visite complète",
+      "paletteDescription": "Découvrir comment fonctionnent les fils",
+      "settingsSection": "Visite guidée",
+      "settingsTitle": "Découvrir comment fonctionnent les fils",
+      "settingsDescription": "Une courte visite des fils : en démarrer un, les titres, l’ordre et les états.",
+      "settingsKeywords": "visite, visite guidée, tutoriel, guide, aide, introduction, prise en main, fils",
+      "howThreadsWork": "Comment fonctionnent les fils",
+      "noThreadsHint": "Envoyez un message ci-dessous pour en démarrer un."
     }
   }
 }

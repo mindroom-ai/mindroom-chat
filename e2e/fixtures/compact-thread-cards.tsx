@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Box, Icon, IconButton, Icons } from 'folds';
 import 'folds/dist/style.css';
@@ -8,7 +8,11 @@ import i18n from '../../src/app/i18n/i18n';
 import { LightTheme, THEMES } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
 import { CompactThreadCard } from '../../src/app/threads/overview/CompactThreadCard';
-import { CompactCardSwipe } from '../../src/app/threads/overview/CompactCardSwipe';
+import {
+  CompactCardSwipe,
+  useCompactCardSwipeList,
+} from '../../src/app/threads/overview/CompactCardSwipe';
+import { SwipeList } from '../../src/app/threads/overview/CompactCardSwipe.css';
 import {
   formatCompactThreadMessageCount,
   getCompactThreadMessageCountLabel,
@@ -158,6 +162,8 @@ const openThread = (threadRootId: string) => {
 
 function Fixture() {
   const [items, setItems] = useState(samples);
+  const listRef = useRef<HTMLDivElement>(null);
+  useCompactCardSwipeList(listRef);
   const setResolved = (index: number, isResolved: boolean) =>
     setItems((current) =>
       current.map((item, itemIndex) => (itemIndex === index ? { ...item, isResolved } : item))
@@ -165,7 +171,7 @@ function Fixture() {
 
   return (
     <Box className={css.View} data-compact-room-view="true" style={{ flex: 'none' }}>
-      <Box direction="Column" gap="100" shrink="No">
+      <Box ref={listRef} className={SwipeList} direction="Column" gap="100" shrink="No">
         {items.map(toViewModel).map((viewModel, index) => (
           <div key={viewModel.id.threadRootId} className={css.CardShell}>
             <CompactCardSwipe
@@ -215,7 +221,7 @@ function Fixture() {
   );
 }
 
-i18n.changeLanguage(params.get('lang') ?? 'en').then(async () => {
+void i18n.changeLanguage(params.get('lang') ?? 'en').then(async () => {
   createRoot(document.getElementById('root')!).render(<Fixture />);
   await document.fonts.ready;
   document.body.dataset.fixtureReady = 'true';

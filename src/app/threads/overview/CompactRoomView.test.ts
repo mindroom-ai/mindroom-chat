@@ -170,8 +170,8 @@ vi.mock('./CompactRoomView.css', () => ({
 
 vi.mock('./CompactCardSwipe.css', () => ({
   SwipeAction: 'SwipeAction',
+  SwipeList: 'SwipeList',
   SwipeTrack: 'SwipeTrack',
-  SwipeTrackEnabled: 'SwipeTrackEnabled',
   SwipeTrackSettling: 'SwipeTrackSettling',
 }));
 
@@ -213,7 +213,7 @@ describe('CompactRoomView', () => {
     const selectedMenu = menuProps.mock.calls.at(-1)![0];
     expect(selectedMenu.rootId).toBe('$context');
     expect(selectedMenu.anchor).toEqual({ x: 123, y: 234, width: 0, height: 0 });
-    act(() => selectedMenu.onOpenThread());
+    await act(() => selectedMenu.onOpenThread());
     expect(onThreadClick).toHaveBeenCalledWith('$context', 'Recent summary');
     renderer.unmount();
   });
@@ -276,15 +276,15 @@ describe('CompactRoomView', () => {
     });
     const secondMenu = menuProps.mock.calls.at(-1)![0];
 
-    act(() => firstMenu.onClose());
+    await act(() => firstMenu.onClose());
     expect(firstTrigger.focus).not.toHaveBeenCalled();
     expect(menuProps.mock.calls.at(-1)![0].rootId).toBe('$second');
 
-    act(() => firstMenu.onOpenThread());
+    await act(() => firstMenu.onOpenThread());
     expect(onThreadClick).not.toHaveBeenCalled();
     expect(menuProps.mock.calls.at(-1)![0].rootId).toBe('$second');
 
-    act(() => secondMenu.onClose());
+    await act(() => secondMenu.onClose());
     expect(secondTrigger.focus).toHaveBeenCalledOnce();
     renderer.unmount();
   });
@@ -327,7 +327,7 @@ describe('CompactRoomView', () => {
     });
   });
 
-  it('lets admins pin a card without opening the thread', () => {
+  it('lets admins pin a card without opening the thread', async () => {
     pinningMocks.canPin = true;
     useCompactThreadCardViewModelsMock.mockReturnValue([makeViewModel('$announcement')]);
     const onThreadClick = vi.fn();
@@ -341,7 +341,7 @@ describe('CompactRoomView', () => {
       })
     );
     const button = renderer.root.findByProps({ 'data-compact-thread-pin': 'true' });
-    act(() => button.props.onClick());
+    await act(() => button.props.onClick());
     expect(pinningMocks.setPinned).toHaveBeenCalledWith('$announcement', true);
     expect(onThreadClick).not.toHaveBeenCalled();
     renderer.unmount();
@@ -512,7 +512,7 @@ describe('CompactRoomView', () => {
     expect(actions.map((action) => action.props.disabled)).toEqual([true, false]);
   });
 
-  it('resolves a card swiped on a touch screen and reopens a resolved one', () => {
+  it('resolves a card swiped on a touch screen and reopens a resolved one', async () => {
     const onThreadClick = vi.fn();
     useCompactThreadCardViewModelsMock.mockReturnValue([
       makeViewModel('$open'),
@@ -531,10 +531,10 @@ describe('CompactRoomView', () => {
 
     expect(open!.props).toMatchObject({ enabled: true, resolved: false, label: 'Resolve' });
     expect(done!.props).toMatchObject({ enabled: true, resolved: true, label: 'Reopen thread' });
-    act(() => open!.props.onSwipe(false));
-    act(() => done!.props.onSwipe(true));
+    await act(() => open!.props.onSwipe(false));
+    await act(() => done!.props.onSwipe(true));
     // The swipe acts on the state it started from, even if the thread changed since.
-    act(() => done!.props.onSwipe(false));
+    await act(() => done!.props.onSwipe(false));
 
     expect(setResolvedMock.mock.calls).toEqual([
       ['$open', true],
@@ -689,8 +689,42 @@ describe('CompactRoomView', () => {
     (scrollElement: ReturnType<typeof createScrollElement>) => (element: React.ReactElement) =>
       element.props['data-compact-room-view'] === 'true'
         ? scrollElement
-        : // The card swipe track listens for touchmove.
+        : // The cards' container listens for touchmove.
           { addEventListener: () => undefined, removeEventListener: () => undefined };
+
+  it('gives the cards one touch-action and one touchmove listener, on their container', () => {
+    // One on every card costs WebKit on iOS a touch region a card (CompactCardSwipe.css.ts).
+    const listening: string[] = [];
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(
+        renderOverview(makeRoom(), ['$thread-1', '$thread-2'], { current: new Map() }),
+        {
+          createNodeMock: (element: React.ReactElement) =>
+            element.props['data-compact-room-view'] === 'true'
+              ? createScrollElement()
+              : {
+                  addEventListener: (type: string, _listener: unknown, options: unknown) => {
+                    if (type !== 'touchmove') return;
+                    expect(options).toEqual({ passive: false });
+                    listening.push(String(element.props.className));
+                  },
+                  removeEventListener: () => undefined,
+                },
+        }
+      );
+    });
+
+    expect(listening).toHaveLength(1);
+    expect(listening[0]).toContain('SwipeList');
+    // The container and one track a card.
+    expect(
+      renderer?.root.findAll(
+        (node) => typeof node.type === 'string' && String(node.props.className).includes('Swipe')
+      )
+    ).toHaveLength(3);
+    act(() => renderer?.unmount());
+  });
 
   it('marks each card as a scroll anchor by its thread root', () => {
     let renderer: ReturnType<typeof create> | undefined;

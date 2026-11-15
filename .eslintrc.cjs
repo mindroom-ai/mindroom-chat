@@ -24,67 +24,6 @@ function typeScriptFiles() {
   );
 }
 
-// Files written before the promise rules, which do not pass them yet. Fix a file's floating and
-// misused promises, then drop it from this list; add no file to it.
-const PROMISE_RULES_PENDING = [
-  'e2e/canvas/agent-canvas.spec.ts',
-  'e2e/event-store/gap-fill-restart.live.spec.ts',
-  'e2e/fixtures/compact-thread-cards.tsx',
-  'e2e/fixtures/room-schedules.tsx',
-  'src/app/approvals/ApprovalReviewCall.test.tsx',
-  'src/app/avatars/RoomAvatar.test.tsx',
-  'src/app/avatars/UserAvatar.test.tsx',
-  'src/app/background-jobs/BackgroundJobsBar.test.tsx',
-  'src/app/canvas/CanvasHeaderButton.test.tsx',
-  'src/app/composer/useRoomInputAttachments.test.ts',
-  'src/app/composer/voice/useVoiceRecorder.test.ts',
-  'src/app/computer/ComputerSettings.test.tsx',
-  'src/app/config/ClientConfigLoader.test.ts',
-  'src/app/connections/ConnectionsSettings.test.tsx',
-  'src/app/emoji/board/EmojiBoard.test.tsx',
-  'src/app/emoji/board/components/AddCustomEmoji.test.tsx',
-  'src/app/emoji/settings/ServerPack.test.tsx',
-  'src/app/event-store/cache/db/__tests__/cacheEviction.test.ts',
-  'src/app/event-store/engine/__tests__/backfillScheduler.test.ts',
-  'src/app/event-store/engine/__tests__/reconciler.sdkThread.test.ts',
-  'src/app/event-store/threads/threadUtils.test.ts',
-  'src/app/matrix/matrix.test.ts',
-  'src/app/members/useMembersDrawer.test.tsx',
-  'src/app/messages/FailedSendActions.test.tsx',
-  'src/app/messages/MessageInspectionActions.test.tsx',
-  'src/app/messages/agent-run/Reasoning.test.tsx',
-  'src/app/messages/html/react-custom-html-parser.test.ts',
-  'src/app/messages/reactions/MessageReactionActions.test.tsx',
-  'src/app/messages/thread-summary/ThreadSummaryMarker.test.tsx',
-  'src/app/models/ModelPicker.test.tsx',
-  'src/app/notifications/MarkRoomReadMenuItem.test.ts',
-  'src/app/notifications/MarkRoomsReadMenuItem.test.ts',
-  'src/app/rich-text/MessageLink.test.tsx',
-  'src/app/rooms/RoomAccessControl.test.tsx',
-  'src/app/rooms/RoomCard.test.tsx',
-  'src/app/rooms/explore/ExploreRoomAccess.test.tsx',
-  'src/app/rooms/join/JoinBeforeNavigate.test.tsx',
-  'src/app/rooms/settings/general/OfflineRoomSettings.test.tsx',
-  'src/app/rooms/settings/permissions/PowersEditor.test.tsx',
-  'src/app/sidebar/Navigation.test.tsx',
-  'src/app/sidebar/ResizablePageNav.test.tsx',
-  'src/app/sidebar/rail/HomeTab.test.ts',
-  'src/app/sidebar/threads/ThreadNavCategory.test.ts',
-  'src/app/sidebar/threads/ThreadNavItem.test.ts',
-  'src/app/spaces/lobby/RoomItem.test.tsx',
-  'src/app/spaces/lobby/SpaceItem.test.tsx',
-  'src/app/threads/ThreadActionsMenu.test.tsx',
-  'src/app/threads/ThreadContextBanner.test.ts',
-  'src/app/threads/open/threadSession.render.test.tsx',
-  'src/app/threads/overview/CompactCardSwipe.test.tsx',
-  'src/app/threads/overview/CompactRoomView.test.ts',
-  'src/app/timeline/CollapsibleMessage.test.ts',
-  'src/app/timeline/message-rendering/TimelineMessageFeature.test.tsx',
-  'src/app/timeline/scrollQuiescence.test.ts',
-  'src/app/timeline/useRoomCachedBackState.ts',
-  'src/app/ui-actions/ChatUiActionProvider.test.tsx',
-];
-
 // Menus, dialogs, modals and headers come from the glass primitives, which give every surface
 // the same material; only the adapter itself may use the raw folds components.
 const GLASS_SURFACE_MESSAGE =
@@ -162,7 +101,7 @@ const LAYERS = [
   ['rooms', 'threads'],
   ['account', 'activity', 'quick-capture', 'spaces', 'timeline'],
   ['command-palette', 'local-mindroom', 'room'],
-  ['settings'],
+  ['settings', 'tour'],
   ['sidebar'],
   ['shell'],
   ['src/index.tsx', 'src/client-sdk'],
@@ -227,14 +166,6 @@ module.exports = {
       files: typeScriptFiles(),
       parserOptions: { project: './config/tsconfig.strict.json', tsconfigRootDir: __dirname },
       rules: TYPE_AWARE_RULES,
-    },
-    {
-      // PROMISE_RULES_PENDING above.
-      files: PROMISE_RULES_PENDING,
-      rules: {
-        '@typescript-eslint/no-floating-promises': 'off',
-        '@typescript-eslint/no-misused-promises': 'off',
-      },
     },
     // Physical sides in styles (scripts/eslint-shared.cjs).
     ...logicalSidesOverrides('src/', TESTS),

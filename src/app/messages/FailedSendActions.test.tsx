@@ -50,10 +50,10 @@ describe('FailedSendActions', () => {
     expect(mx.resendEvent).toHaveBeenCalledWith(event, room);
   });
 
-  it('deletes the failed event', () => {
+  it('deletes the failed event', async () => {
     const { event, remove } = renderActions();
 
-    act(() => remove.props.onClick());
+    await act(() => remove.props.onClick());
 
     expect(mx.cancelPendingEvent).toHaveBeenCalledWith(event);
   });

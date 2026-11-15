@@ -1058,6 +1058,8 @@
       "deactivated": "Desativadas"
     },
     "count": "Contas: {{shown}} de {{total}}",
+    "showDeactivated": "Mostrar desativadas ({{count}})",
+    "hiddenDeactivated": "Ocultas: {{count}} desativadas",
     "noMatches": "Nenhuma conta corresponde",
     "loadFailed": "Não foi possível carregar as contas.",
     "status": {
@@ -1094,6 +1096,7 @@
       "title": "Convites",
       "description": "Um endereço de e-mail convidado pode criar uma conta aqui ao entrar com ele.",
       "sendYourself": "Nenhum e-mail é enviado: copie o convite e envie você mesmo.",
+      "noEmail": "Nenhum e-mail é enviado. Depois de convidar, o convite aparece aqui: copie-o e envie-o você mesmo a cada pessoa.",
       "add": "Convidar por e-mail",
       "none": "Nenhum convite pendente",
       "loadFailed": "Não foi possível carregar os convites.",
@@ -1101,6 +1104,8 @@
       "addressesHint": "Separe vários endereços com vírgulas ou quebras de linha.",
       "rooms": "Salas em que a nova conta entra",
       "external": "Conta externa",
+      "externalHint": "Para alguém de fora da sua organização: a conta só entra nas salas escolhidas aqui e nas salas para as quais for convidada depois, e não pode criar salas nem convidar pessoas.",
+      "externalForbidden": "Contas externas não podem entrar nas salas marcadas com um cadeado.",
       "invited": "Convidado",
       "replaces": "Substitui o convite anterior",
       "copy": "Copiar convite",
@@ -1112,6 +1117,119 @@
         "inUse": "{{user}} já tem este endereço.",
         "invalidAddress": "Este não é um endereço de e-mail válido."
       }
+    }
+  },
+  "tour": {
+    "levels": {
+      "quick": "Visita rápida",
+      "full": "Visita completa"
+    },
+    "offer": {
+      "title": "Faça uma visita guiada ao MindRoom",
+      "text": "Veja como funcionam os tópicos, os títulos e os estados.",
+      "quick": "Visita rápida (1 min)",
+      "full": "Visita completa (5 min)",
+      "dismiss": "Ignorar"
+    },
+    "dialog": {
+      "stepOf": "Passo {{current}} de {{total}}",
+      "close": "Fechar a visita guiada",
+      "back": "Voltar",
+      "next": "Seguinte",
+      "done": "Concluir",
+      "keepGoing": "Continuar (mais 6 passos)",
+      "replay": "Repetir"
+    },
+    "chapters": {
+      "basics": "O essencial",
+      "tidy": "Manter a lista arrumada",
+      "finding": "Orientar-se"
+    },
+    "steps": {
+      "conversation": {
+        "title": "Um tópico é uma conversa",
+        "text": "A maioria das salas com agentes abre na Vista compacta. Cada cartão é um tópico: um único assunto com todas as respostas juntas. Uma sala pode ter tantos quantos precisar."
+      },
+      "start": {
+        "title": "Escreva para iniciar um novo tópico",
+        "text": "Escreva na caixa de mensagem ao fundo da sala e envie. Isso inicia um novo tópico, que abre de imediato."
+      },
+      "reply": {
+        "title": "Dentro de um tópico, está a responder",
+        "text": "O que escreve num tópico aberto é uma resposta nesse tópico, não um tópico novo. Voltar regressa à lista, onde qualquer cartão volta a abrir o seu tópico."
+      },
+      "title": {
+        "title": "A IA escreve os títulos",
+        "text": "Um cartão novo mostra a sua primeira mensagem. Depois de um agente responder, a IA do MindRoom dá ao tópico um título curto. Editar resumo, em Opções do tópico, permite alterá-lo."
+      },
+      "order": {
+        "title": "A atividade mais recente aparece primeiro",
+        "text": "Um tópico sobe para o topo quando recebe uma mensagem nova, para que o que está ativo apareça primeiro. Os tópicos fixados ficam acima dos restantes."
+      },
+      "states": {
+        "title": "Um cartão mostra o estado do seu tópico",
+        "streaming": "Um agente está a responder agora.",
+        "unread": "Respostas novas, com um rebordo colorido e a hora.",
+        "resolved": "Concluído. A vista Compacto oculta-o.",
+        "snoozed": "Oculto até à hora definida; depois volta sozinho."
+      },
+      "resolve": {
+        "title": "Resolva o que está concluído",
+        "text": "Prima Resolver, o visto num cartão, ou deslize o cartão num ecrã tátil. O tópico sai da lista e pode reabri-lo em qualquer altura."
+      },
+      "snooze": {
+        "title": "Adie o que pode esperar",
+        "text": "Em Opções do tópico (⋯), escolha Adiar. O tópico fica oculto até à hora que escolher e depois regressa com uma nota a indicar que o adiamento terminou."
+      },
+      "pinAndTag": {
+        "title": "Fixar e etiquetar",
+        "text": "Fixar tópico mantém um tópico no topo da lista. Editar etiquetas, em Opções do tópico, atribui etiquetas a um tópico, e pode filtrar por etiqueta."
+      },
+      "filters": {
+        "title": "Filtrar e ordenar",
+        "text": "A opção Filtros de tópicos, no cabeçalho da sala ou no menu da sala, mostra e oculta esta barra. Não resolvidos oculta o que está concluído, Última resposta altera a ordem e o ícone de filtro no fim da barra abre Filtros avançados, que encontram o resto, incluindo os tópicos adiados."
+      },
+      "views": {
+        "title": "Duas vistas de uma sala",
+        "text": "A vista Compacto mostra um cartão por tópico. A vista Tópicos mostra a primeira mensagem de cada tópico, com o número de respostas por baixo. Vista compacta, no cabeçalho da sala ou no menu da sala, alterna entre as duas."
+      },
+      "activity": {
+        "title": "A Atividade reúne o que está à sua espera",
+        "text": "O sino abre a Atividade: menções, respostas nos seus tópicos e execuções de agentes que terminaram. As aprovações, as perguntas e os convites respondem-se ali mesmo."
+      }
+    },
+    "sample": {
+      "room": "Marketing",
+      "ana": "Ana",
+      "writer": "Redator",
+      "analyst": "Analista",
+      "typed": "Redige o e-mail do lançamento da primavera",
+      "launchTitle": "E-mail do lançamento da primavera",
+      "launchReply": "Aqui está um primeiro rascunho com três linhas de assunto.",
+      "budgetTitle": "Revisão do orçamento do Q3",
+      "budgetReply": "Os totais subiram 4% face ao trimestre anterior.",
+      "websiteTitle": "Feedback sobre o novo design do site",
+      "websiteReply": "A nova página inicial está a ter bons resultados nos testes.",
+      "vendorTitle": "Renovação do contrato com o fornecedor",
+      "vendorReply": "Vamos rever isto depois da chamada.",
+      "vendorNewReply": "O contrato está assinado.",
+      "surveyTitle": "Resultados do inquérito a clientes",
+      "surveyReply": "212 respostas até agora.",
+      "preview": "{{name}}: {{text}}",
+      "tagLaunch": "lançamento",
+      "tagFinance": "finanças",
+      "approval": "Enviar o relatório à equipa"
+    },
+    "entries": {
+      "paletteQuick": "Fazer a visita rápida",
+      "paletteFull": "Fazer a visita completa",
+      "paletteDescription": "Ver como funcionam os tópicos",
+      "settingsSection": "Visita guiada",
+      "settingsTitle": "Ver como funcionam os tópicos",
+      "settingsDescription": "Uma visita rápida aos tópicos: como iniciar um, títulos, ordem e estados.",
+      "settingsKeywords": "visita guiada, tour, tutorial, guia, ajuda, introdução, tópicos",
+      "howThreadsWork": "Como funcionam os tópicos",
+      "noThreadsHint": "Envie uma mensagem abaixo para iniciar um."
     }
   }
 }

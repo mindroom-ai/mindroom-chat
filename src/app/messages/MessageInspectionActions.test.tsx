@@ -63,7 +63,7 @@ describe('MessageSourceCodeItem', () => {
       </I18nextProvider>
     );
 
-    act(() => renderer.root.findByType('button').props.onClick());
+    await act(() => renderer.root.findByType('button').props.onClick());
     expect(renderer.root.findByProps({ 'data-viewer-name': 'Source Code' })).toBeDefined();
     await act(async () => {
       await language.changeLanguage('es');

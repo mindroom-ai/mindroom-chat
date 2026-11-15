@@ -73,7 +73,7 @@ describe('MarkRoomReadMenuItem', () => {
       const renderer = create(React.createElement(MarkRoomReadMenuItem, { room, onClose }));
       const button = renderer.root.findByType('button');
 
-      act(() => button.props.onClick());
+      await act(() => button.props.onClick());
 
       expect(button.props.disabled).toBeUndefined();
       expect(button.props['aria-disabled']).not.toBe(true);

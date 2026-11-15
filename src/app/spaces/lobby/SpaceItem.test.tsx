@@ -297,7 +297,7 @@ describe('SpaceItemCard room access', () => {
     expect(renderer.root.findAll((node) => node.children.includes('Request sent'))).toHaveLength(0);
   });
 
-  it('treats an omitted child-space hierarchy rule as public', () => {
+  it('treats an omitted child-space hierarchy rule as public', async () => {
     const renderer = create(<></>);
     act(() => {
       renderer.update(
@@ -318,7 +318,7 @@ describe('SpaceItemCard room access', () => {
       (node) => node.props.className === 'HeaderChip' && typeof node.props.onClick === 'function'
     )[0];
 
-    act(() => joinButton?.props.onClick());
+    await act(() => joinButton?.props.onClick());
 
     expect(joinButton).toBeDefined();
     expect(mx.joinRoom).toHaveBeenCalledWith(roomId, { viaServers: item.content.via });
@@ -382,7 +382,7 @@ describe('SpaceItemCard room access', () => {
     ).toHaveLength(0);
   });
 
-  it('uses a refreshed hierarchy rule for a cached knocked space', () => {
+  it('uses a refreshed hierarchy rule for a cached knocked space', async () => {
     const knockedSpace = {
       roomId,
       getMyMembership: () => Membership.Knock,
@@ -413,7 +413,7 @@ describe('SpaceItemCard room access', () => {
         node.props.disabled === false
     )[0];
 
-    act(() => joinButton?.props.onClick());
+    await act(() => joinButton?.props.onClick());
 
     expect(joinButton).toBeDefined();
     expect(mx.joinRoom).toHaveBeenCalledWith(roomId, { viaServers: item.content.via });

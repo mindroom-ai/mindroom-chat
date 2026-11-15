@@ -19,7 +19,7 @@ strict:
 test *args:
     bash scripts/with-fhs-bin.sh npx vitest run {{args}}
 
-# Lint with ESLint (rules: .eslintrc.cjs): src, e2e, scripts and the config files (package.json "lint" names them). TypeScript also gets type-aware rules (floating and misused promises, `await` of non-promises, exhaustive switches, needless assertions, enum comparisons) with the types of config/tsconfig.strict.json; the files of PROMISE_RULES_PENDING in .eslintrc.cjs skip the two promise rules until they are fixed. Every file takes `PopOut` and `TooltipProvider` from src/app/ui/directional.tsx rather than folds (that module and the glass adapter excepted), and every TypeScript file of src but the tests writes styles with logical sides (`paddingInlineStart`, `insetInlineEnd`, `textAlign: 'start'`, no four-part `margin` or `padding`) so they mirror in right-to-left languages; a side that must stay physical takes a disable comment with its reason (safe-area insets are allowed).
+# Lint with ESLint (rules: .eslintrc.cjs): src, e2e, scripts and the config files (package.json "lint" names them). TypeScript also gets type-aware rules (floating and misused promises, `await` of non-promises, exhaustive switches, needless assertions, enum comparisons) with the types of config/tsconfig.strict.json. Every file takes `PopOut` and `TooltipProvider` from src/app/ui/directional.tsx rather than folds (that module and the glass adapter excepted), and every TypeScript file of src but the tests writes styles with logical sides (`paddingInlineStart`, `insetInlineEnd`, `textAlign: 'start'`, no four-part `margin` or `padding`) so they mirror in right-to-left languages; a side that must stay physical takes a disable comment with its reason (safe-area insets are allowed).
 lint:
     npm run lint
 
@@ -35,7 +35,7 @@ dev *args:
 build:
     npx vite build
 
-# Cut a release by hand: tag GitHub main (or the commit of main you name) with the next calendar version vYYYY.M.N and publish its GitHub release, with notes from the commits since the last release; the release event then publishes its container image (.github/workflows/image.yml). Shows the plan and asks before it creates anything; --dry-run only shows it, --yes does not ask. Needs `gh` signed in with write access. docs/ios-release.md describes the scheme; .github/workflows/release.yml does the same after CI while package.json says "autoRelease": true.
+# Cut a release by hand: tag GitHub main (or the commit of main you name) with the next calendar version vYYYY.M.N and publish its GitHub release, with notes from the commits since the last release; the release event then publishes its container image (.github/workflows/image.yml) and its Mac DMG (.github/workflows/macos.yml). Shows the plan and asks before it creates anything; --dry-run only shows it, --yes does not ask. Needs `gh` signed in with write access. docs/ios-release.md describes the scheme; .github/workflows/release.yml does the same after CI while package.json says "autoRelease": true.
 release *args:
     git fetch --quiet --tags https://github.com/mindroom-ai/mindroom-chat.git
     git fetch --quiet https://github.com/mindroom-ai/mindroom-chat.git main

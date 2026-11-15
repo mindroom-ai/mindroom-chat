@@ -17,6 +17,10 @@ export const getDesktopPageNavCollapsedStorageKey = (userId: string): string =>
 export const getWelcomeSetupFirstSeenStorageKey = (userId: string): string =>
   `mindroom_welcome_setup_first_seen_at::${userId}`;
 
+/** Until when the start prompt for the recovery password stays closed, after Not now. */
+export const recoveryPromptSnoozeStorageKey = (userId: string): string =>
+  `mindroom.recoveryPrompt.snoozedUntil:${userId}`;
+
 /** The widths of the account's resizable panels. */
 export const pageNavWidthStorageKey = (userId: string): string =>
   `mindroom.pageNav.width:${userId}`;
@@ -42,6 +46,7 @@ export const accountStorageKeys = (userId: string): string[] => [
   spaceOrderStorageKey(userId),
   getDesktopPageNavCollapsedStorageKey(userId),
   getWelcomeSetupFirstSeenStorageKey(userId),
+  recoveryPromptSnoozeStorageKey(userId),
   pageNavWidthStorageKey(userId),
   membersWidthStorageKey(userId),
   canvasWidthStorageKey(userId),

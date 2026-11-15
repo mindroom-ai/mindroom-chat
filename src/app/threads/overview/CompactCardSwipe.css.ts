@@ -8,9 +8,15 @@ export const SwipeTrack = style({
   minWidth: 0,
 });
 
-// The browser keeps vertical scrolling and pinch zoom; horizontal movement
-// reaches the swipe handlers instead of panning anything.
-export const SwipeTrackEnabled = style({
+// For the element that holds the cards (`useCompactCardSwipeList`): the browser
+// keeps vertical scrolling and pinch zoom; horizontal movement reaches the
+// swipe handlers instead of panning anything. Set once there, not on each
+// card: WebKit on iOS keeps a touch region for every element with a
+// touch-action or a touch listener of its own, and builds them all again
+// whenever the list repaints, which a swiped card does every frame. With both
+// on each of 500 cards, a swipe ran at 20 frames a second in the iOS
+// simulator; with one of each on this element, at 60.
+export const SwipeList = style({
   touchAction: 'pan-y pinch-zoom',
 });
 
