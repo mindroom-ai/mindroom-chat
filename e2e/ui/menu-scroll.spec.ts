@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom } from '../helpers/matrix';
 import { roomMoreOptions } from '../helpers/roomMenu';
@@ -31,20 +31,36 @@ const expectRowsScrollInside = async (menu: Locator, reveal: (last: Locator) => 
   await reveal(last);
   await expect(last).toBeInViewport();
   expect(await menu.evaluate((element) => element.scrollTop)).toBe(0);
+  expect(
+    await menu.evaluate((element) => element.scrollHeight - element.clientHeight)
+  ).toBeLessThanOrEqual(1);
 };
 
-test('a long settings picker scrolls its rows inside a menu that stays put', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 600 });
-  await page.emulateMedia({ colorScheme: 'dark' });
-  const user = await registerDisposableUser(`choice_menu_${RUN}`, PASSWORD);
-  await loginWithPassword(page, { homeserver: HOMESERVER, ...user });
+/** How far `row` sits from the start and the end edge of its menu, in pixels. */
+const edgeGaps = (row: Locator) =>
+  row.evaluate((element) => {
+    const rowBox = element.getBoundingClientRect();
+    const menuBox = element.closest('[role="menu"]')?.getBoundingClientRect() ?? rowBox;
+    return { start: rowBox.left - menuBox.left, end: menuBox.right - rowBox.right };
+  });
 
+/** Signs a new account in and opens Settings at Appearance. */
+const openAppearance = async (page: Page, name: string) => {
+  const user = await registerDisposableUser(`${name}_${RUN}`, PASSWORD);
+  await loginWithPassword(page, { homeserver: HOMESERVER, ...user });
   await chooseFromAccountMenu(page, 'Settings');
   const dialog = page.getByRole('dialog', { name: 'Settings' });
   await dialog
     .getByRole('navigation', { name: 'Settings' })
     .getByRole('button', { name: 'Appearance', exact: true })
     .click();
+  return dialog;
+};
+
+test('a long settings picker scrolls its rows inside a menu that stays put', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await page.emulateMedia({ colorScheme: 'dark' });
+  const dialog = await openAppearance(page, 'choice_menu');
   await dialog.locator('[data-setting-id="darkTheme"]').getByRole('button').click();
 
   const menu = page.getByRole('menu');
@@ -52,6 +68,30 @@ test('a long settings picker scrolls its rows inside a menu that stays put', asy
     await menu.hover();
     await page.mouse.wheel(0, 2000);
   });
+
+  // Home and End reach both ends of the list the same way.
+  const rows = menu.getByRole('menuitemradio');
+  await page.keyboard.press('Home');
+  await expect(rows.first()).toBeFocused();
+  await expect(rows.last()).not.toBeInViewport();
+  await page.keyboard.press('End');
+  await expect(rows.last()).toBeFocused();
+  await expect(rows.last()).toBeInViewport();
+  expect(await menu.evaluate((element) => element.scrollTop)).toBe(0);
+});
+
+test('a settings picker that fits keeps its rows as far from both edges of the menu', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const dialog = await openAppearance(page, 'choice_fit');
+  await dialog.locator('[data-setting-id="lightTheme"]').getByRole('button').click();
+
+  const menu = page.getByRole('menu');
+  await expect(menu).toBeVisible();
+  expect(await menu.evaluate((element) => element.scrollHeight - element.clientHeight)).toBe(0);
+  const { start, end } = await edgeGaps(menu.getByRole('menuitemradio').first());
+  expect(Math.abs(end - start)).toBeLessThanOrEqual(1);
 });
 
 test('a phone room menu taller than the screen scrolls its rows inside the menu', async ({
