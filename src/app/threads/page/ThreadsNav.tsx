@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import classNames from 'classnames';
 import { useAtom, useAtomValue } from 'jotai';
 import { Badge, Button, Icon, Icons, Input, Spinner, Text } from 'folds';
@@ -13,6 +13,7 @@ import { getViewedPlace, type ViewedPlace } from '../../navigation/viewedPlace';
 import { useMessagePreview } from '../../plugins/messageRenderers';
 import { getThreadsRoomPath, withSearchParam } from '../../routes/pathUtils';
 import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
+import { useListMotion } from '../../ui/listMotion';
 import { PageNav, PageNavContent } from '../../ui/page/Page';
 import { UnreadBadge } from '../../ui/UnreadBadge';
 import {
@@ -86,6 +87,7 @@ const ThreadRow = memo(function ThreadRow({ item, selected, onOpen }: ThreadRowP
     <button
       type="button"
       className={classNames(css.Row, read && css.RowRead)}
+      data-motion-row={entry.key}
       aria-current={selected ? 'page' : undefined}
       onClick={() => onOpen(item)}
     >
@@ -212,6 +214,23 @@ export function ThreadsNav() {
     />
   );
   const groupName = (id: ThreadGroupId) => t(`threadsPage.groups.${id}`);
+  /** The rows a group shows: all of them, the first pages of Recent, none of a folded group. */
+  const shownItems = (id: ThreadGroupId, groupItems: ThreadListItem[]) => {
+    if (id === 'automations') return automationsOpen ? groupItems : [];
+    if (id === 'snoozed') return snoozedOpen ? groupItems : [];
+    return id === 'recent' ? groupItems.slice(0, recentLimit) : groupItems;
+  };
+  // A row that changed group glides there, one a search or a scope leaves out fades, and the
+  // rows of a group that unfolds fade in.
+  const groupsRef = useRef<HTMLDivElement>(null);
+  const listMotion = useListMotion(
+    groupsRef,
+    groups
+      .map(({ id, items: groupItems }) =>
+        [id, ...shownItems(id, groupItems).map((it) => it.entry.key)].join(',')
+      )
+      .join('|')
+  );
 
   return (
     <PageNav label={t('threadsPage.title')}>
@@ -267,52 +286,62 @@ export function ThreadsNav() {
             )}
           </div>
         )}
-        {groups.map(({ id, items: groupItems }) => {
-          if (id === 'automations' || id === 'snoozed') {
-            // Folded until opened, each on its own.
-            const expanded = id === 'automations' ? automationsOpen : snoozedOpen;
-            const setExpanded = id === 'automations' ? setAutomationsOpen : setSnoozedOpen;
+        <div ref={groupsRef} className={css.Groups}>
+          {listMotion}
+          {groups.map(({ id, items: groupItems }) => {
+            const visible = shownItems(id, groupItems);
+            if (id === 'automations' || id === 'snoozed') {
+              // Folded until opened, each on its own.
+              const expanded = id === 'automations' ? automationsOpen : snoozedOpen;
+              const setExpanded = id === 'automations' ? setAutomationsOpen : setSnoozedOpen;
+              return (
+                <section key={id} aria-label={groupName(id)}>
+                  <Button
+                    size="300"
+                    variant="Secondary"
+                    fill="None"
+                    radii="300"
+                    data-motion-row={`group:${id}`}
+                    aria-expanded={expanded}
+                    onClick={() => setExpanded(!expanded)}
+                    before={
+                      <Icon size="100" src={expanded ? Icons.ChevronBottom : Icons.ChevronRight} />
+                    }
+                  >
+                    <Text size="B300">{`${groupName(id)} · ${groupItems.length}`}</Text>
+                  </Button>
+                  {visible.map(row)}
+                </section>
+              );
+            }
             return (
               <section key={id} aria-label={groupName(id)}>
-                <Button
-                  size="300"
-                  variant="Secondary"
-                  fill="None"
-                  radii="300"
-                  aria-expanded={expanded}
-                  onClick={() => setExpanded(!expanded)}
-                  before={
-                    <Icon size="100" src={expanded ? Icons.ChevronBottom : Icons.ChevronRight} />
-                  }
+                <Text
+                  as="h3"
+                  size="L400"
+                  priority="300"
+                  className={css.GroupHeading}
+                  data-motion-row={`group:${id}`}
                 >
-                  <Text size="B300">{`${groupName(id)} · ${groupItems.length}`}</Text>
-                </Button>
-                {expanded && groupItems.map(row)}
+                  {id === 'working' && <span className={css.LiveDot} aria-hidden />}
+                  {`${groupName(id)} · ${groupItems.length}`}
+                </Text>
+                {visible.map(row)}
+                {visible.length < groupItems.length && (
+                  <Button
+                    size="300"
+                    variant="Secondary"
+                    fill="None"
+                    radii="300"
+                    onClick={() => setRecentLimit(recentLimit + RECENT_PAGE)}
+                  >
+                    <Text size="B300">{t('threadsPage.showMore')}</Text>
+                  </Button>
+                )}
               </section>
             );
-          }
-          const visible = id === 'recent' ? groupItems.slice(0, recentLimit) : groupItems;
-          return (
-            <section key={id} aria-label={groupName(id)}>
-              <Text as="h3" size="L400" priority="300" className={css.GroupHeading}>
-                {id === 'working' && <span className={css.LiveDot} aria-hidden />}
-                {`${groupName(id)} · ${groupItems.length}`}
-              </Text>
-              {visible.map(row)}
-              {visible.length < groupItems.length && (
-                <Button
-                  size="300"
-                  variant="Secondary"
-                  fill="None"
-                  radii="300"
-                  onClick={() => setRecentLimit(recentLimit + RECENT_PAGE)}
-                >
-                  <Text size="B300">{t('threadsPage.showMore')}</Text>
-                </Button>
-              )}
-            </section>
-          );
-        })}
+          })}
+        </div>
       </PageNavContent>
     </PageNav>
   );

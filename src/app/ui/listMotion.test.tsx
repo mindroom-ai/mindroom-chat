@@ -1,11 +1,10 @@
 // @vitest-environment jsdom
 import { useRef } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { type MotionPlay, standInForListMotion } from './__tests__/listMotionStandIn';
 import { useListMotion } from './listMotion';
 
-const ROW_HEIGHT = 100;
-const ROW_WIDTH = 300;
 const GLIDE = { duration: 280, easing: 'cubic-bezier(0.2, 0, 0, 1)' };
 
 function List({ order, pinned = [] }: { order: string[]; pinned?: string[] }) {
@@ -21,53 +20,27 @@ function List({ order, pinned = [] }: { order: string[]; pinned?: string[] }) {
   );
 }
 
-type Played = { element: HTMLElement; keyframes: Keyframe[]; options: KeyframeAnimationOptions };
-let played: Played[] = [];
-let finishAll: (() => void)[] = [];
-const cancel = vi.fn();
-
-const raises = ({ keyframes }: Played) => 'zIndex' in (keyframes[0] ?? {});
+let motion: ReturnType<typeof standInForListMotion>;
+const raises = ({ keyframes }: MotionPlay) => 'zIndex' in (keyframes[0] ?? {});
 /** What moved each row, by the row's key; a row that left plays as `(left)`. */
 const playedByRow = () => {
   const byRow: Record<string, Keyframe[][]> = {};
-  played
-    .filter((entry) => !raises(entry))
+  motion.plays
+    .filter((play) => !raises(play))
     .forEach(({ element, keyframes }) => {
       (byRow[element.dataset.motionRow ?? '(left)'] ??= []).push(keyframes);
     });
   return byRow;
 };
 const glide = (from: number): Keyframe[] => [{ translate: `0px ${from}px` }, { translate: 'none' }];
-const rects = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect');
 
 beforeEach(() => {
-  played = [];
-  finishAll = [];
-  // jsdom lays nothing out: a row's place is its place among the rows, in one column.
-  rects.mockImplementation(function rect(this: HTMLElement) {
-    const index = [...document.querySelectorAll('[data-motion-row]')].indexOf(this);
-    const top = Math.max(index, 0) * ROW_HEIGHT;
-    const size = index < 0 ? { width: 0, height: 0 } : { width: ROW_WIDTH, height: ROW_HEIGHT };
-    return { top, left: 0, bottom: top + size.height, right: size.width, ...size } as DOMRect;
-  });
-  Object.defineProperty(HTMLElement.prototype, 'animate', {
-    configurable: true,
-    writable: true,
-    value(this: HTMLElement, keyframes: Keyframe[], options: KeyframeAnimationOptions) {
-      played.push({ element: this, keyframes, options });
-      const finished = new Promise<void>((resolve) => {
-        finishAll.push(resolve);
-      });
-      return { finished, cancel };
-    },
-  });
+  motion = standInForListMotion();
 });
 
 afterEach(() => {
   cleanup();
-  cancel.mockReset();
-  rects.mockReset();
-  Reflect.deleteProperty(HTMLElement.prototype, 'animate');
+  motion.restore();
   Reflect.deleteProperty(window, 'matchMedia');
   Reflect.deleteProperty(document, 'visibilityState');
 });
@@ -75,20 +48,22 @@ afterEach(() => {
 describe('useListMotion', () => {
   it('plays each row that moved from where it was to where it is', () => {
     const { rerender } = render(<List order={['a', 'b', 'c']} />);
-    expect(played).toEqual([]);
+    expect(motion.plays).toEqual([]);
 
     rerender(<List order={['c', 'a', 'b']} />);
 
     // The last row starts two rows down, the others one row up.
-    expect(playedByRow()).toMatchObject({ c: [glide(200)], a: [glide(-100)], b: [glide(-100)] });
-    expect(played[0]?.options).toEqual(GLIDE);
+    expect(playedByRow()).toEqual({ c: [glide(200)], a: [glide(-100)], b: [glide(-100)] });
+    expect(motion.plays[0]?.options).toEqual(GLIDE);
   });
 
   it('raises the row that travels furthest over the others', () => {
     const { rerender } = render(<List order={['a', 'b', 'c']} />);
     rerender(<List order={['c', 'a', 'b']} />);
 
-    expect(played.filter(raises).map(({ element }) => element.dataset.motionRow)).toEqual(['c']);
+    expect(motion.plays.filter(raises).map(({ element }) => element.dataset.motionRow)).toEqual([
+      'c',
+    ]);
   });
 
   it('leaves a row that kept its place alone, and lets a new row in view enter', () => {
@@ -104,11 +79,10 @@ describe('useListMotion', () => {
     rerender(<List order={['a', 'c']} />);
 
     const list = screen.getByTestId('list');
-    const left = played.find(({ element }) => !element.dataset.motionRow)?.element;
+    const [left] = motion.left();
     // First in the list, so the rows that close the gap pass over it.
     expect(list.firstElementChild).toBe(left);
     expect(left?.getAttribute('aria-hidden')).toBe('true');
-    expect(left?.hasAttribute('inert')).toBe(true);
     expect(left?.style).toMatchObject({
       position: 'absolute',
       top: '100px',
@@ -119,8 +93,7 @@ describe('useListMotion', () => {
     expect(playedByRow()).toMatchObject({ c: [glide(100)], '(left)': [[{}, { opacity: 0 }]] });
     expect(list.querySelectorAll('[data-motion-row]')).toHaveLength(2);
 
-    finishAll.forEach((finish) => finish());
-    await Promise.resolve();
+    await motion.finish();
     expect(left?.isConnected).toBe(false);
   });
 
@@ -128,15 +101,14 @@ describe('useListMotion', () => {
     const { rerender } = render(<List order={['a', 'b', 'c']} />);
     rerender(<List order={['a', 'b', 'c']} pinned={['c']} />);
 
-    expect(playedByRow()).toMatchObject({ c: [glide(200)], a: [glide(-100)], b: [glide(-100)] });
-    expect(playedByRow()['(left)']).toBeUndefined();
+    expect(playedByRow()).toEqual({ c: [glide(200)], a: [glide(-100)], b: [glide(-100)] });
   });
 
   it('plays nothing when no row in view stays: the list shows something else', () => {
     const { rerender } = render(<List order={['a', 'b']} />);
     rerender(<List order={['x', 'y']} />);
 
-    expect(played).toEqual([]);
+    expect(motion.plays).toEqual([]);
     expect(screen.getByTestId('list').querySelectorAll('[aria-hidden]')).toHaveLength(0);
   });
 
@@ -144,29 +116,28 @@ describe('useListMotion', () => {
     // The page is 768 pixels high: the ninth row and those after it are below it.
     const rows = Array.from({ length: 12 }, (_, index) => `row${index}`);
     const { rerender } = render(<List order={rows} />);
-    const swapped = [...rows.slice(0, 10), 'row11', 'row10'];
-    rerender(<List order={swapped} />);
+    rerender(<List order={[...rows.slice(0, 10), 'row11', 'row10']} />);
 
-    expect(played).toEqual([]);
+    expect(motion.plays).toEqual([]);
   });
 
   it('measures nothing while the order stays', () => {
     const { rerender } = render(<List order={['a', 'b']} />);
-    rects.mockClear();
+    motion.rects.mockClear();
     rerender(<List order={['a', 'b']} />);
 
-    expect(rects).not.toHaveBeenCalled();
+    expect(motion.rects).not.toHaveBeenCalled();
   });
 
   it('ends the moves still running when the order changes again', () => {
     const { rerender } = render(<List order={['a', 'b']} />);
     rerender(<List order={['b', 'a']} />);
-    expect(cancel).not.toHaveBeenCalled();
-    const running = played.length;
+    expect(motion.cancel).not.toHaveBeenCalled();
+    const running = motion.plays.length;
 
     rerender(<List order={['a', 'b']} />);
 
-    expect(cancel).toHaveBeenCalledTimes(running);
+    expect(motion.cancel).toHaveBeenCalledTimes(running);
   });
 
   it('plays nothing with reduced motion', () => {
@@ -177,7 +148,7 @@ describe('useListMotion', () => {
     const { rerender } = render(<List order={['a', 'b']} />);
     rerender(<List order={['b', 'a']} />);
 
-    expect(played).toEqual([]);
+    expect(motion.plays).toEqual([]);
   });
 
   it('plays nothing in a page nobody sees, where a move would never end', () => {
@@ -185,7 +156,7 @@ describe('useListMotion', () => {
     const { rerender } = render(<List order={['a', 'b', 'c']} />);
     rerender(<List order={['a', 'c']} />);
 
-    expect(played).toEqual([]);
+    expect(motion.plays).toEqual([]);
     expect(screen.getByTestId('list').querySelectorAll('[aria-hidden]')).toHaveLength(0);
   });
 

@@ -18,6 +18,7 @@ import { allInvitesAtom } from '../matrix/state/inviteList';
 import type { ActivityRow, ActivityRowsResult } from './activityRows';
 import { activityRowsAtom, activityShowAutomationsAtom } from './activityState';
 import { ActivityList } from './ActivityList';
+import { standInForListMotion } from '../ui/__tests__/listMotionStandIn';
 import * as css from './ActivityList.css';
 
 const NAMES: Record<string, string> = {
@@ -250,6 +251,26 @@ const greetingRow = (key: string, sender: string) =>
   });
 
 describe('ActivityList', () => {
+  it('fades a row that left where it stood while the rows under it close the gap', () => {
+    const motion = standInForListMotion();
+    try {
+      const store = renderList({ rows: ROWS, hiddenAutomations: 0 });
+      act(() =>
+        store.set(activityRowsAtom, {
+          rows: ROWS.filter((row) => row.key !== 'q'),
+          hiddenAutomations: 0,
+        })
+      );
+
+      expect(motion.left().map((row) => row.textContent)).toEqual([
+        expect.stringContaining('Mind asked you'),
+      ]);
+      expect(motion.glided()).toContain('m');
+    } finally {
+      motion.restore();
+    }
+  });
+
   it('says what happened, in which thread and room', () => {
     renderList({ rows: ROWS, hiddenAutomations: 0 });
     expect(screen.getByText('Code needs approval')).toBeTruthy();
