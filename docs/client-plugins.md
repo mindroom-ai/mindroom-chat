@@ -446,9 +446,16 @@ A `Component` that throws closes the card, logged and reported with `[plugin <id
 
 Thread card badges (`src/app/plugins/threadCardBadges.ts`) are the tenth kind: `ClientPlugin.threadCardBadges`, a list of `{ Component }`.
 `Component` gets `{ room, threadId }`: the thread's room (matrix-js-sdk's `Room`) and the ID of its root event, and draws a small mark for that thread, such as the state of a pull request it works on, or nothing.
-The Compact view draws the badges of the enabled plugins, in build order, on each thread's card, in the card's metadata row after the thread's tags.
+`src/app/threads/overview/ThreadCardBadges.tsx` draws the badges of the enabled plugins, in build order, on each thread's card in the Compact view, in the card's metadata row after the thread's tags.
+Only the Compact view's cards draw them: the Threads page, the sidebar's thread rows and the timeline's thread badge do not.
+A thread whose first message is still sending has no badges until the server has confirmed it, so `threadId` is always the ID the server gave the root.
 They are drawn inside the card's button, so a badge renders no control of its own: no button, no link and nothing that takes the focus, and a click on it opens the thread as a click anywhere on the card does.
 A click handler on the badge's element may stop the click (`event.stopPropagation()`) to keep the thread closed.
+The card's button has its own accessible name, so assistive technology does not read a badge, and a badge's click is for the pointer only: what a badge shows or opens must also be reachable elsewhere, such as in the open thread.
+One instance of each badge mounts on every card, so a badge stays cheap, and it is one short line that does not wrap (`white-space: nowrap`), since the card's metadata row keeps one height.
+The app does not render a badge again after it mounts, so a badge that shows the room's state subscribes to that state itself.
+A badge renders inside the room's page, so `useRoomSidePanel` and `useRoomNavigate` work in it.
+A badge that loads its code (a `lazy` component) shows nothing until the code has loaded, while the card and the other badges show.
 A badge that throws shows nothing, and the failure is logged and reported with `[plugin <id>@<version>]`.
 
 ## Turning plugins off
