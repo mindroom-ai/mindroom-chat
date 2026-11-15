@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import {
@@ -307,12 +307,10 @@ function CardMenu({ phone, live }: Pick<RoomProps, 'phone' | 'live'>) {
 type SampleCardRowProps = RoomProps & {
   card: SceneCard;
   pinned: boolean;
-  /** Whether the card came into a list that was already there, and so fades in. */
-  joined: boolean;
 };
 
 /** One thread: the app's card with sample data, and around it the card's buttons and menu. */
-function SampleCardRow({ card, scene, phone, live, now, pinned, joined }: SampleCardRowProps) {
+function SampleCardRow({ card, scene, phone, live, now, pinned }: SampleCardRowProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const shellRef = useRef<HTMLDivElement>(null);
@@ -336,14 +334,12 @@ function SampleCardRow({ card, scene, phone, live, now, pinned, joined }: Sample
       ref={shellRef}
       className={classNames(
         css.CardShell,
-        joined && css.Arriving,
         phone && css.PhoneCardShell,
         pointed && css.CardShellHovered,
         menuOpen && css.CardShellRaised
       )}
       data-flip-key={id}
       data-tour-card={id}
-      data-tour-joined={joined ? '' : undefined}
       {...mark(live, `card:${id}`)}
     >
       {swiped && (
@@ -409,40 +405,18 @@ function SampleCardRow({ card, scene, phone, live, now, pinned, joined }: Sample
   );
 }
 
-/**
- * The cards that came into a list which was already on the stage, for as long as they stay in
- * it: a thread the filters bring back. The cards a list starts with are none of them.
- */
-const useJoinedCards = (ids: readonly SampleThreadId[]): readonly SampleThreadId[] => {
-  const shown = useRef<{ ids: readonly SampleThreadId[]; joined: readonly SampleThreadId[] }>();
-  const before = shown.current;
-  const joined = before
-    ? ids.filter((id) => before.joined.includes(id) || !before.ids.includes(id))
-    : [];
-  useEffect(() => {
-    shown.current = { ids, joined };
-  });
-  return joined;
-};
-
 /** The Compact view: the filter bar when it shows, the Pinned section, then the other cards. */
 function CardList(props: RoomProps) {
   const { scene, live } = props;
   const { t } = useTranslation();
   const paneRef = useRef<HTMLDivElement>(null);
   const ids = scene.cards.map(({ id }) => id);
-  // The cards glide when their order changes, a card is pinned, or the bar moves them down.
+  // The cards glide when their order changes, a card is pinned, or the bar moves them down; a
+  // card the filters bring back fades in among them.
   useFlipList(paneRef, [ids.join(','), scene.pinned.join(','), scene.filterBar].join('|'));
-  const joined = useJoinedCards(ids);
   const isPinned = (id: SampleThreadId) => scene.pinned.includes(id);
   const renderCard = (card: SceneCard) => (
-    <SampleCardRow
-      key={card.id}
-      {...props}
-      card={card}
-      pinned={isPinned(card.id)}
-      joined={joined.includes(card.id)}
-    />
+    <SampleCardRow key={card.id} {...props} card={card} pinned={isPinned(card.id)} />
   );
   const pinnedCards = scene.cards.filter(({ id }) => isPinned(id));
 

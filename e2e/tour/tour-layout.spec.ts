@@ -38,7 +38,7 @@ const SPOTLIGHT: Record<string, string | undefined> = {
   resolve: undefined,
   snooze: 'menuSnooze',
   pinAndTag: 'card:budget',
-  filters: 'filterBar',
+  filters: 'filterUnresolved',
   views: 'viewSwitch',
   activity: 'bell',
 };

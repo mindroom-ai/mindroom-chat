@@ -68,10 +68,35 @@ describe('useFlipList', () => {
     expect(animate.mock.calls[0]?.[1]).toEqual({ duration: GLIDE_MS, easing: GLIDE_EASING });
   });
 
-  it('leaves a row that stays, and a row that is new, where they are', () => {
+  it('leaves a row that stays where it is, and fades in a row that joins the others', () => {
     const { rerender } = render(<List order={['a', 'b']} />);
     rerender(<List order={['a', 'new', 'b']} />);
-    expect(Object.keys(animated())).toEqual(['b']);
+    expect(animated()).toEqual({
+      // At its place from the start, so the ring around it does not have to follow it.
+      new: [
+        { opacity: 0, transform: 'translateY(6px)' },
+        { opacity: 1, transform: 'none' },
+      ],
+      b: [{ transform: 'translateY(-100px)' }, { transform: 'translateY(0)' }],
+    });
+    expect(animate.mock.calls[0]?.[1]).toEqual({ duration: GLIDE_MS, easing: GLIDE_EASING });
+  });
+
+  it('fades a row in once: not again when the rows move later', () => {
+    const { rerender } = render(<List order={['a', 'b']} />);
+    rerender(<List order={['new', 'a', 'b']} />);
+    animate.mockClear();
+    rerender(<List order={['a', 'new', 'b']} />);
+    expect(animated()).toEqual({
+      a: [{ transform: 'translateY(100px)' }, { transform: 'translateY(0)' }],
+      new: [{ transform: 'translateY(-100px)' }, { transform: 'translateY(0)' }],
+    });
+  });
+
+  it('shows the rows a list starts with at once', () => {
+    const { rerender } = render(<List order={[]} />);
+    rerender(<List order={['a', 'b']} />);
+    expect(animate).not.toHaveBeenCalled();
   });
 
   it('closes the gap a removed row leaves', () => {
@@ -90,6 +115,7 @@ describe('useFlipList', () => {
     mockMedia({ reducedMotion: true });
     const { rerender } = render(<List order={['a', 'b']} />);
     rerender(<List order={['b', 'a']} />);
+    rerender(<List order={['new', 'b', 'a']} />);
     expect(animate).not.toHaveBeenCalled();
   });
 

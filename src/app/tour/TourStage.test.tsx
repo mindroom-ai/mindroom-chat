@@ -231,37 +231,48 @@ describe('TourStage', () => {
   });
 
   it('brings the resolved thread back while Unresolved is off, and counts it', () => {
-    const at = (phase: number) => stageOf(sceneOf('filters', phase, false, TYPED));
-    const count = () => parts('filterBar')[0]?.querySelector('span')?.textContent;
-    const joined = () =>
-      Array.from(
-        stage().querySelectorAll<HTMLElement>('[data-tour-joined]'),
-        (card) => card.dataset.tourCard
-      );
-    const { rerender } = render(at(1));
-    expect(cardIds()).toEqual(['launch', 'budget', 'website']);
-    expect(count()).toBe('3');
-    // The cards the list starts with do not fade in.
-    expect(joined()).toEqual([]);
+    const animate = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'animate', {
+      configurable: true,
+      writable: true,
+      value: animate,
+    });
+    /** The cards that fade in, by the first keyframe of what each plays. */
+    const fadedIn = () =>
+      animate.mock.contexts
+        .filter((_, call) => (animate.mock.calls[call]?.[0] as Keyframe[])[0]?.opacity === 0)
+        .map((card) => (card as HTMLElement).dataset.tourCard);
+    try {
+      const at = (phase: number) => stageOf(sceneOf('filters', phase, false, TYPED));
+      const count = () => parts('filterBar')[0]?.querySelector('span')?.textContent;
+      const { rerender } = render(at(1));
+      expect(cardIds()).toEqual(['launch', 'budget', 'website']);
+      expect(count()).toBe('3');
+      // The cards the list starts with do not fade in.
+      expect(fadedIn()).toEqual([]);
 
-    rerender(at(2));
-    expect(parts('filterUnresolved')[0]?.getAttribute('data-tour-filter')).toBe('off');
-    expect(cardIds()).toEqual(['vendor', 'launch', 'budget', 'website']);
-    expect(count()).toBe('4');
-    const vendor = stage().querySelector('[data-tour-card="vendor"]');
-    expect(vendor?.querySelector('[data-compact-card-resolved-badge]')).toBeTruthy();
-    expect(joined()).toEqual(['vendor']);
+      rerender(at(2));
+      expect(parts('filterUnresolved')[0]?.getAttribute('data-tour-filter')).toBe('off');
+      expect(cardIds()).toEqual(['vendor', 'launch', 'budget', 'website']);
+      expect(count()).toBe('4');
+      const vendor = stage().querySelector('[data-tour-card="vendor"]');
+      expect(vendor?.querySelector('[data-compact-card-resolved-badge]')).toBeTruthy();
+      expect(fadedIn()).toEqual(['vendor']);
 
-    // The card keeps its place and its fade while the ring moves to it.
-    rerender(at(3));
-    expect(stage().querySelector('[data-tour-card="vendor"]')).toBe(vendor);
-    expect(joined()).toEqual(['vendor']);
+      // The card stays as it is while the ring moves to it.
+      animate.mockClear();
+      rerender(at(3));
+      expect(stage().querySelector('[data-tour-card="vendor"]')).toBe(vendor);
+      expect(animate).not.toHaveBeenCalled();
 
-    rerender(at(4));
-    expect(parts('filterUnresolved')[0]?.getAttribute('data-tour-filter')).toBe('on');
-    expect(cardIds()).toEqual(['launch', 'budget', 'website']);
-    expect(count()).toBe('3');
-    expect(joined()).toEqual([]);
+      rerender(at(4));
+      expect(parts('filterUnresolved')[0]?.getAttribute('data-tour-filter')).toBe('on');
+      expect(cardIds()).toEqual(['launch', 'budget', 'website']);
+      expect(count()).toBe('3');
+      expect(fadedIn()).toEqual([]);
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, 'animate');
+    }
   });
 
   it("shows each thread's first message with its reply count in the Threads view", () => {
