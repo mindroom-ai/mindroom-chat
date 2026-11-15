@@ -9,6 +9,12 @@
 // - Each has one value in every build configuration of the target.
 // - The target's Info.plist takes both from those build settings instead of hard-coding them.
 //
+// And App Store Connect must take the watch app the archive embeds; it refused the first two
+// builds that had one (ITMS-90733, ITMS-90362):
+//
+// - A watch target built without arm64_32 has watchOS 27.0 or newer as its minimum.
+// - WKBackgroundModes in the watch app's Info.plist holds only Apple's values for that key.
+//
 // `node scripts/appstore-preflight.mjs [checkout]` checks the checkout (default: this one),
 // prints the versions it accepted and exits 1 with every problem it found otherwise.
 import { readFileSync } from 'node:fs';
@@ -17,6 +23,18 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { getSingleAppTargetBuildSettingValue } from './ios-xcode-project.mjs';
 
 export const XCODE_PROJECT_PATH = 'ios/App/App.xcodeproj/project.pbxproj';
+export const WATCH_INFO_PLIST_PATH = 'ios/Watch/MindRoomWatch/Info.plist';
+
+const WATCH_TARGETS = ['MindRoomWatch', 'MindRoomWatchWidgets'];
+// Every value Apple documents for WKBackgroundModes.
+const WATCH_BACKGROUND_MODES = [
+  'workout-processing',
+  'self-care',
+  'mindfulness',
+  'physical-therapy',
+  'alarm',
+  'underwater-depth',
+];
 
 const APPLE_VERSION = /^\d+\.\d+\.\d+$/;
 const BUILD_NUMBER = /^[1-9]\d*$/;
@@ -40,11 +58,12 @@ const plistString = (plistText, key) =>
  * @param {string} projectText
  * @param {string} setting
  * @param {string[]} problems collects the reason when the setting cannot be read
+ * @param {string} [target] the App target when left out
  * @returns {string | undefined}
  */
-const readSetting = (projectText, setting, problems) => {
+const readSetting = (projectText, setting, problems, target) => {
   try {
-    return unquote(getSingleAppTargetBuildSettingValue(projectText, setting));
+    return unquote(getSingleAppTargetBuildSettingValue(projectText, setting, target));
   } catch (error) {
     problems.push(messageOf(error));
     return undefined;
@@ -84,6 +103,42 @@ export const appStoreVersionProblems = ({ projectText, infoPlistText }) => {
   return problems;
 };
 
+/**
+ * Every reason App Store Connect refuses an upload over the watch app it embeds; empty when it
+ * takes it.
+ * @param {{ projectText: string; watchInfoPlistText: string }} input
+ * @returns {string[]}
+ */
+export const watchAppUploadProblems = ({ projectText, watchInfoPlistText }) => {
+  /** @type {string[]} */
+  const problems = [];
+  // The watch SDK has no arm64_32 build (scripts/watch/build-sdk.sh), so both targets set ARCHS.
+  WATCH_TARGETS.forEach((target) => {
+    const archs = readSetting(projectText, 'ARCHS', problems, target);
+    const minimum = readSetting(projectText, 'WATCHOS_DEPLOYMENT_TARGET', problems, target);
+    if (archs === undefined || minimum === undefined) return;
+    if (!archs.split(/\s+/).includes('arm64_32') && Number.parseFloat(minimum) < 27) {
+      problems.push(
+        `Target ${target} is built without arm64_32, which App Store Connect takes only from watchOS 27.0 on, but its WATCHOS_DEPLOYMENT_TARGET is ${minimum}.`
+      );
+    }
+  });
+
+  const modes =
+    /<key>WKBackgroundModes<\/key>\s*<array>([\s\S]*?)<\/array>/.exec(watchInfoPlistText)?.[1] ??
+    '';
+  [...modes.matchAll(/<string>([^<]*)<\/string>/g)]
+    .map((match) => match[1] ?? '')
+    .filter((mode) => !WATCH_BACKGROUND_MODES.includes(mode))
+    .forEach((mode) => {
+      problems.push(
+        `The watch app's Info.plist has '${mode}' in WKBackgroundModes, which is not one of its values; background audio is 'audio' in UIBackgroundModes.`
+      );
+    });
+
+  return problems;
+};
+
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
   const root = path.resolve(process.argv[2] ?? fileURLToPath(new URL('..', import.meta.url)));
@@ -94,7 +149,10 @@ if (isMain) {
   const infoPlistText = read(
     path.join(path.dirname(path.dirname(XCODE_PROJECT_PATH)), infoPlistFile)
   );
-  const problems = appStoreVersionProblems({ projectText, infoPlistText });
+  const problems = [
+    ...appStoreVersionProblems({ projectText, infoPlistText }),
+    ...watchAppUploadProblems({ projectText, watchInfoPlistText: read(WATCH_INFO_PLIST_PATH) }),
+  ];
   if (problems.length > 0) {
     process.stderr.write(
       `App Store preflight failed:\n${problems.map((problem) => `- ${problem}`).join('\n')}\n`

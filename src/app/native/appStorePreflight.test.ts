@@ -7,8 +7,10 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  WATCH_INFO_PLIST_PATH,
   XCODE_PROJECT_PATH,
   appStoreVersionProblems,
+  watchAppUploadProblems,
 } from '../../../scripts/appstore-preflight.mjs';
 import { replaceAppTargetBuildSetting } from '../../../scripts/ios-xcode-project.mjs';
 
@@ -17,6 +19,7 @@ const scriptPath = join(repoRoot, 'scripts/appstore-preflight.mjs');
 const INFO_PLIST_PATH = 'ios/App/App/Info.plist';
 const checkedInProject = readFileSync(join(repoRoot, XCODE_PROJECT_PATH), 'utf8');
 const checkedInInfoPlist = readFileSync(join(repoRoot, INFO_PLIST_PATH), 'utf8');
+const checkedInWatchInfoPlist = readFileSync(join(repoRoot, WATCH_INFO_PLIST_PATH), 'utf8');
 
 const project = (marketingVersion: string, buildNumber: string) =>
   replaceAppTargetBuildSetting(
@@ -75,6 +78,43 @@ describe('appStoreVersionProblems', () => {
   });
 });
 
+describe('watchAppUploadProblems', () => {
+  const watchProblems = (
+    overrides: Partial<Parameters<typeof watchAppUploadProblems>[0]> = {}
+  ): string[] =>
+    watchAppUploadProblems({
+      projectText: checkedInProject,
+      watchInfoPlistText: checkedInWatchInfoPlist,
+      ...overrides,
+    });
+
+  it('accepts the checked-in watch app', () => {
+    expect(watchProblems()).toEqual([]);
+  });
+
+  it('rejects a watch target without arm64_32 that runs on a watchOS older than 27 (ITMS-90733)', () => {
+    const projectText = replaceAppTargetBuildSetting(
+      checkedInProject,
+      'WATCHOS_DEPLOYMENT_TARGET',
+      '26.0',
+      'MindRoomWatchWidgets'
+    );
+    expect(watchProblems({ projectText })).toEqual([
+      'Target MindRoomWatchWidgets is built without arm64_32, which App Store Connect takes only from watchOS 27.0 on, but its WATCHOS_DEPLOYMENT_TARGET is 26.0.',
+    ]);
+  });
+
+  it('rejects a WKBackgroundModes value that Apple does not list (ITMS-90362)', () => {
+    const watchInfoPlistText = checkedInWatchInfoPlist.replace(
+      '<key>UIBackgroundModes</key>',
+      '<key>WKBackgroundModes</key>'
+    );
+    expect(watchProblems({ watchInfoPlistText })).toEqual([
+      "The watch app's Info.plist has 'audio' in WKBackgroundModes, which is not one of its values; background audio is 'audio' in UIBackgroundModes.",
+    ]);
+  });
+});
+
 describe('appstore-preflight.mjs', () => {
   const checkouts: string[] = [];
   afterEach(() => {
@@ -87,6 +127,7 @@ describe('appstore-preflight.mjs', () => {
     const files = {
       [XCODE_PROJECT_PATH]: projectText,
       [INFO_PLIST_PATH]: checkedInInfoPlist,
+      [WATCH_INFO_PLIST_PATH]: checkedInWatchInfoPlist,
     };
     Object.entries(files).forEach(([path, content]) => {
       mkdirSync(dirname(join(root, path)), { recursive: true });
