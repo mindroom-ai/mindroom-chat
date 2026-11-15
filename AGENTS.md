@@ -29,7 +29,7 @@ Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, 
 | `just dev` | Vite on `http://127.0.0.1:4200`; also serves `/runtime-config.js`, `/authentication-recovery.js` and a development `/sw.js` |
 | `just build` | production build into `dist/`; `docs/deployment.md` "Build" and the `justfile` comment list what it holds |
 | `just bundle-report [<dist>] [args]` | what a first visit to a build downloads, its largest chunks, and the size budget `scripts/perf/bundle-budget.json`, which CI checks after its build. Options: the `scripts/perf/bundle-report.mjs` header |
-| `just release [<commit>] [--dry-run] [--yes]` | tags GitHub main with the next calendar version `vYYYY.M.N` and publishes its release and container image; shows the plan and asks first. Options: the `justfile` comment; automatic releases: `docs/ios-release.md`; the image: `docs/deployment.md` |
+| `just release [<commit>] [--dry-run] [--yes]` | tags GitHub main with the next calendar version `vYYYY.M.N` and publishes its release, container image and Mac DMG; shows the plan and asks first. Options: the `justfile` comment; automatic releases: `docs/ios-release.md`; the image: `docs/deployment.md` |
 | `just license-check` | `scripts/license-check.mjs`: fails on any installed package outside the license allowlist; runs its `node --test` suite first |
 | `just hs-up` | starts the disposable Tuwunel test homeserver (`e2e/docker-compose.yaml`, `http://127.0.0.1:28008`) and waits until it is healthy |
 | `just hs-down` | stops the test homeserver and deletes its data |
