@@ -92,26 +92,41 @@ describe('watchAppUploadProblems', () => {
     expect(watchProblems()).toEqual([]);
   });
 
-  it('rejects a watch target without arm64_32 that runs on a watchOS older than 27 (ITMS-90733)', () => {
-    const projectText = replaceAppTargetBuildSetting(
-      checkedInProject,
-      'WATCHOS_DEPLOYMENT_TARGET',
-      '26.0',
-      'MindRoomWatchWidgets'
-    );
-    expect(watchProblems({ projectText })).toEqual([
-      'Target MindRoomWatchWidgets is built without arm64_32, which App Store Connect takes only from watchOS 27.0 on, but its WATCHOS_DEPLOYMENT_TARGET is 26.0.',
-    ]);
-  });
+  it.each(['26.0', '"$(WATCH_MINIMUM)"'])(
+    'rejects a watch target whose minimum watchOS is %s (ITMS-90733)',
+    (minimum) => {
+      const projectText = replaceAppTargetBuildSetting(
+        checkedInProject,
+        'WATCHOS_DEPLOYMENT_TARGET',
+        minimum,
+        'MindRoomWatchWidgets'
+      );
+      expect(watchProblems({ projectText })).toEqual([
+        `Target MindRoomWatchWidgets is built without arm64_32, which App Store Connect takes only from watchOS 27.0 on, but its WATCHOS_DEPLOYMENT_TARGET is ${minimum.replace(
+          /"/g,
+          ''
+        )}.`,
+      ]);
+    }
+  );
 
-  it('rejects a WKBackgroundModes value that Apple does not list (ITMS-90362)', () => {
-    const watchInfoPlistText = checkedInWatchInfoPlist.replace(
-      '<key>UIBackgroundModes</key>',
-      '<key>WKBackgroundModes</key>'
-    );
-    expect(watchProblems({ watchInfoPlistText })).toEqual([
-      "The watch app's Info.plist has 'audio' in WKBackgroundModes, which is not one of its values; background audio is 'audio' in UIBackgroundModes.",
+  it('rejects WKBackgroundModes in the watch app (ITMS-90362), but not in a comment', () => {
+    const key = '<key>UIBackgroundModes</key>';
+    expect(
+      watchProblems({
+        watchInfoPlistText: checkedInWatchInfoPlist.replace(key, '<key>WKBackgroundModes</key>'),
+      })
+    ).toEqual([
+      "The watch app's Info.plist has WKBackgroundModes, none of whose services the app uses; background audio is 'audio' in UIBackgroundModes.",
     ]);
+    expect(
+      watchProblems({
+        watchInfoPlistText: checkedInWatchInfoPlist.replace(
+          key,
+          `<!-- <key>WKBackgroundModes</key> -->${key}`
+        ),
+      })
+    ).toEqual([]);
   });
 });
 

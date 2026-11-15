@@ -12,8 +12,9 @@
 // And App Store Connect must take the watch app the archive embeds; it refused the first two
 // builds that had one (ITMS-90733, ITMS-90362):
 //
-// - A watch target built without arm64_32 has watchOS 27.0 or newer as its minimum.
-// - WKBackgroundModes in the watch app's Info.plist holds only Apple's values for that key.
+// - The watch targets, which are built without arm64_32, have watchOS 27.0 or newer as their
+//   minimum.
+// - The watch app's Info.plist has no WKBackgroundModes.
 //
 // `node scripts/appstore-preflight.mjs [checkout]` checks the checkout (default: this one),
 // prints the versions it accepted and exits 1 with every problem it found otherwise.
@@ -26,15 +27,6 @@ export const XCODE_PROJECT_PATH = 'ios/App/App.xcodeproj/project.pbxproj';
 export const WATCH_INFO_PLIST_PATH = 'ios/Watch/MindRoomWatch/Info.plist';
 
 const WATCH_TARGETS = ['MindRoomWatch', 'MindRoomWatchWidgets'];
-// Every value Apple documents for WKBackgroundModes.
-const WATCH_BACKGROUND_MODES = [
-  'workout-processing',
-  'self-care',
-  'mindfulness',
-  'physical-therapy',
-  'alarm',
-  'underwater-depth',
-];
 
 const APPLE_VERSION = /^\d+\.\d+\.\d+$/;
 const BUILD_NUMBER = /^[1-9]\d*$/;
@@ -112,29 +104,21 @@ export const appStoreVersionProblems = ({ projectText, infoPlistText }) => {
 export const watchAppUploadProblems = ({ projectText, watchInfoPlistText }) => {
   /** @type {string[]} */
   const problems = [];
-  // The watch SDK has no arm64_32 build (scripts/watch/build-sdk.sh), so both targets set ARCHS.
+  // The watch SDK has no arm64_32 build (scripts/watch/build-sdk.sh).
   WATCH_TARGETS.forEach((target) => {
-    const archs = readSetting(projectText, 'ARCHS', problems, target);
     const minimum = readSetting(projectText, 'WATCHOS_DEPLOYMENT_TARGET', problems, target);
-    if (archs === undefined || minimum === undefined) return;
-    if (!archs.split(/\s+/).includes('arm64_32') && Number.parseFloat(minimum) < 27) {
+    if (minimum !== undefined && !(Number.parseFloat(minimum) >= 27)) {
       problems.push(
         `Target ${target} is built without arm64_32, which App Store Connect takes only from watchOS 27.0 on, but its WATCHOS_DEPLOYMENT_TARGET is ${minimum}.`
       );
     }
   });
 
-  const modes =
-    /<key>WKBackgroundModes<\/key>\s*<array>([\s\S]*?)<\/array>/.exec(watchInfoPlistText)?.[1] ??
-    '';
-  [...modes.matchAll(/<string>([^<]*)<\/string>/g)]
-    .map((match) => match[1] ?? '')
-    .filter((mode) => !WATCH_BACKGROUND_MODES.includes(mode))
-    .forEach((mode) => {
-      problems.push(
-        `The watch app's Info.plist has '${mode}' in WKBackgroundModes, which is not one of its values; background audio is 'audio' in UIBackgroundModes.`
-      );
-    });
+  if (watchInfoPlistText.replace(/<!--[\s\S]*?-->/g, '').includes('<key>WKBackgroundModes</key>')) {
+    problems.push(
+      "The watch app's Info.plist has WKBackgroundModes, none of whose services the app uses; background audio is 'audio' in UIBackgroundModes."
+    );
+  }
 
   return problems;
 };
