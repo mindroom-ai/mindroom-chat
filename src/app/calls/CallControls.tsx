@@ -158,56 +158,63 @@ const DeviceMenu = forwardRef<HTMLDivElement, DeviceMenuProps>(function DeviceMe
       className={css.DeviceMenu}
       aria-label={t('featureUi.calls.devices.title')}
     >
-      {kinds.map((kind, kindIndex) => {
-        // The system default comes first; a device not chosen yet follows it.
-        const selected = chosen[kind] ?? devices[kind][0]?.deviceId;
-        return (
-          <Box key={kind} direction="Column" role="group" aria-labelledby={`call-devices-${kind}`}>
-            {kindIndex > 0 && <Line size="300" />}
-            <Text
-              id={`call-devices-${kind}`}
-              className={css.DeviceGroupLabel}
-              size="L400"
-              priority="300"
+      <div style={{ minHeight: 0, overflowY: 'auto' }}>
+        {kinds.map((kind, kindIndex) => {
+          // The system default comes first; a device not chosen yet follows it.
+          const selected = chosen[kind] ?? devices[kind][0]?.deviceId;
+          return (
+            <Box
+              key={kind}
+              direction="Column"
+              role="group"
+              aria-labelledby={`call-devices-${kind}`}
             >
-              {t(DEVICE_LABEL_KEYS[kind])}
-            </Text>
-            <Box direction="Column" gap="100" style={{ padding: '0 4px 4px' }}>
-              {devices[kind].map((device, index) => {
-                const checked = device.deviceId === selected;
-                const name =
-                  device.label ||
-                  (device.deviceId === 'default'
-                    ? t('featureUi.calls.devices.systemDefault')
-                    : t('featureUi.calls.devices.unnamed', {
-                        kind: t(DEVICE_LABEL_KEYS[kind]),
-                        number: index + 1,
-                      }));
-                return (
-                  <MenuItem
-                    key={device.deviceId || `${kind}-${index}`}
-                    size="300"
-                    radii="300"
-                    role="menuitemradio"
-                    aria-checked={checked}
-                    variant={checked ? 'Primary' : 'Surface'}
-                    fill={checked ? 'Soft' : 'None'}
-                    after={checked ? <Icon size="100" src={Icons.Check} /> : undefined}
-                    onClick={() => {
-                      onChoose(kind, device.deviceId);
-                      requestClose();
-                    }}
-                  >
-                    <Text as="span" size="T300" align="Left" truncate style={{ flexGrow: 1 }}>
-                      {name}
-                    </Text>
-                  </MenuItem>
-                );
-              })}
+              {kindIndex > 0 && <Line size="300" />}
+              <Text
+                id={`call-devices-${kind}`}
+                className={css.DeviceGroupLabel}
+                size="L400"
+                priority="300"
+              >
+                {t(DEVICE_LABEL_KEYS[kind])}
+              </Text>
+              <Box direction="Column" gap="100" style={{ padding: '0 4px 4px' }}>
+                {devices[kind].map((device, index) => {
+                  const checked = device.deviceId === selected;
+                  const name =
+                    device.label ||
+                    (device.deviceId === 'default'
+                      ? t('featureUi.calls.devices.systemDefault')
+                      : t('featureUi.calls.devices.unnamed', {
+                          kind: t(DEVICE_LABEL_KEYS[kind]),
+                          number: index + 1,
+                        }));
+                  return (
+                    <MenuItem
+                      key={device.deviceId || `${kind}-${index}`}
+                      size="300"
+                      radii="300"
+                      role="menuitemradio"
+                      aria-checked={checked}
+                      variant={checked ? 'Primary' : 'Surface'}
+                      fill={checked ? 'Soft' : 'None'}
+                      after={checked ? <Icon size="100" src={Icons.Check} /> : undefined}
+                      onClick={() => {
+                        onChoose(kind, device.deviceId);
+                        requestClose();
+                      }}
+                    >
+                      <Text as="span" size="T300" align="Left" truncate style={{ flexGrow: 1 }}>
+                        {name}
+                      </Text>
+                    </MenuItem>
+                  );
+                })}
+              </Box>
             </Box>
-          </Box>
-        );
-      })}
+          );
+        })}
+      </div>
     </Menu>
   );
 });
