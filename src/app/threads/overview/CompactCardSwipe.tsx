@@ -1,4 +1,11 @@
-import React, { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { Icon, Icons, Text } from 'folds';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
 import { EDGE_START_MAX_X } from '../../navigation/useEdgeSwipe';
@@ -36,6 +43,32 @@ type Gesture = {
 
 type Strip = { resolved: boolean; label: string };
 
+// Every card's track, and whether its touch is a sideways swipe now.
+const swipingByTrack = new WeakMap<EventTarget, () => boolean>();
+
+/**
+ * For the element that holds the swipeable cards, rendered for the caller's
+ * whole lifetime, which also carries `SwipeList` (CompactCardSwipe.css.ts).
+ * `touch-action: pan-y` alone may let iOS start a vertical pan once a sideways
+ * swipe drifts; this keeps the scroller out of a touch a card's swipe owns.
+ * React registers touchmove passively, so the listener is native, and there is
+ * one for all cards: one on every card costs WebKit on iOS a touch region a
+ * card, as a touch-action on every card does.
+ */
+export const useCompactCardSwipeList = (listRef: RefObject<HTMLElement>): void => {
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return undefined;
+    const handleTouchMove = (event: TouchEvent) => {
+      if (!event.cancelable) return;
+      const swiping = event.composedPath().some((target) => swipingByTrack.get(target)?.());
+      if (swiping) event.preventDefault();
+    };
+    list.addEventListener('touchmove', handleTouchMove, { passive: false });
+    return () => list.removeEventListener('touchmove', handleTouchMove);
+  }, [listRef]);
+};
+
 export type CompactCardSwipeProps = {
   enabled: boolean;
   resolved: boolean;
@@ -48,7 +81,8 @@ export type CompactCardSwipeProps = {
 /**
  * Lets a touch swipe a compact card toward the inline start to run its
  * resolve (or reopen) action, revealing the action under the card. Mouse and
- * keyboard users keep the hover buttons and the actions menu.
+ * keyboard users keep the hover buttons and the actions menu. The element that
+ * holds the cards calls `useCompactCardSwipeList` and carries `SwipeList`.
  */
 export function CompactCardSwipe({
   enabled,
@@ -76,17 +110,14 @@ export function CompactCardSwipe({
 
   useEffect(() => () => clearTimeout(settleTimerRef.current), []);
 
-  // `touch-action: pan-y` alone may let iOS start a vertical pan once a
-  // sideways swipe drifts; keep the scroller out of a touch the swipe owns.
-  // React registers touchmove passively, so this listener is native.
+  // The cards' container asks this on every touchmove (`useCompactCardSwipeList`).
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return undefined;
-    const handleTouchMove = (event: TouchEvent) => {
-      if (gestureRef.current?.swipe && event.cancelable) event.preventDefault();
+    swipingByTrack.set(track, () => !!gestureRef.current?.swipe);
+    return () => {
+      swipingByTrack.delete(track);
     };
-    track.addEventListener('touchmove', handleTouchMove, { passive: false });
-    return () => track.removeEventListener('touchmove', handleTouchMove);
   }, []);
 
   // A second finger makes the touch a pinch, which changes the page zoom
@@ -186,11 +217,7 @@ export function CompactCardSwipe({
     finish(commit);
   };
 
-  const trackClassName = [
-    css.SwipeTrack,
-    enabled && css.SwipeTrackEnabled,
-    settling && css.SwipeTrackSettling,
-  ]
+  const trackClassName = [css.SwipeTrack, settling && css.SwipeTrackSettling]
     .filter(Boolean)
     .join(' ');
 

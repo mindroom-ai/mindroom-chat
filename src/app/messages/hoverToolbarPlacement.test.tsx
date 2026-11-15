@@ -48,10 +48,15 @@ const rectOf = ({ top, bottom, left, right }: Rect) =>
 let root: Root | undefined;
 let host: HTMLDivElement | undefined;
 
-afterEach(() => {
+const unmountRow = () => {
   act(() => root?.unmount());
   host?.remove();
   root = undefined;
+  host = undefined;
+};
+
+afterEach(() => {
+  unmountRow();
   vi.restoreAllMocks();
 });
 
@@ -70,6 +75,7 @@ const renderRow = (
   codeActionsAt?: number,
   actionsAttribute = 'data-code-block-actions'
 ) => {
+  unmountRow();
   const seen: Array<number | undefined> = [];
   function Row() {
     const rowRef = useRef<HTMLDivElement>(null);
@@ -119,6 +125,13 @@ const renderRow = (
 };
 
 describe('useToolbarClearance', () => {
+  it('renders one row at a time', () => {
+    renderRow(400);
+    renderRow(140);
+    expect(document.querySelectorAll('[data-testid="row"]')).toHaveLength(1);
+    expect(document.body.childElementCount).toBe(1);
+  });
+
   it('keeps the usual place above a row with room above it', () => {
     expect(renderRow(400)).toBeUndefined();
   });

@@ -391,7 +391,7 @@ describe('client configuration loading', () => {
       }),
       __AUTHENTICATION_RECOVERY__: { navigate },
     });
-    recoverAuthentication();
+    void recoverAuthentication();
     expect(navigate).not.toHaveBeenCalled();
     ready();
     await Promise.resolve();

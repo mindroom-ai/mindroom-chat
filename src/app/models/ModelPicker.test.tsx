@@ -205,8 +205,8 @@ const longCatalog = (): ModelCatalogEntry[] => [
   })),
 ];
 
-const click = (element: Element) => {
-  act(() => element.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+const click = async (element: Element) => {
+  await act(() => element.dispatchEvent(new MouseEvent('click', { bubbles: true })));
 };
 
 const input = (element: HTMLInputElement, value: string) => {
@@ -217,8 +217,8 @@ const input = (element: HTMLInputElement, value: string) => {
   });
 };
 
-const keyDown = (element: Element, key: string) => {
-  act(() => element.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })));
+const keyDown = async (element: Element, key: string) => {
+  await act(() => element.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })));
 };
 
 describe('composer model picker', () => {
@@ -231,9 +231,9 @@ describe('composer model picker', () => {
   const options = () => [...container.querySelectorAll('[role="option"]')];
   const optionNamed = (title: string) =>
     options().find((row) => row.querySelector('.OptionTitle')?.textContent === title)!;
-  const open = (state: ModelPickerState) => {
+  const open = async (state: ModelPickerState) => {
     act(() => root.render(<ModelPicker state={state} />));
-    click(trigger());
+    await click(trigger());
   };
 
   beforeEach(() => {
@@ -323,8 +323,8 @@ describe('composer model picker', () => {
     expect(tooltip.getAttribute('data-tooltip-hint')).toBe('Deep reasoning');
   });
 
-  it('opens a glass menu named for the thread, with no filter field for a short catalog', () => {
-    open(createState());
+  it('opens a glass menu named for the thread, with no filter field for a short catalog', async () => {
+    await open(createState());
 
     const menu = container.querySelector('[role="dialog"]')!;
     expect(menu.getAttribute('aria-label')).toBe('Model for this thread');
@@ -334,8 +334,8 @@ describe('composer model picker', () => {
     expect(trigger().getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('lists each model by name over its model ID, under its provider, and checks the current one', () => {
-    open(createState({ override: 'reset' }));
+  it('lists each model by name over its model ID, under its provider, and checks the current one', async () => {
+    await open(createState({ override: 'reset' }));
 
     const reasoning = optionNamed('Deep reasoning');
     expect(reasoning.querySelector('.OptionDetail')?.textContent).toBe('reasoning-model');
@@ -345,8 +345,8 @@ describe('composer model picker', () => {
     expect(optionNamed('Quick helper').querySelector('.Check')).toBeNull();
   });
 
-  it('says under "Room default" which model each agent falls back to', () => {
-    open(
+  it('says under "Room default" which model each agent falls back to', async () => {
+    await open(
       createState({
         override: 'reset',
         inherited: [
@@ -361,77 +361,77 @@ describe('composer model picker', () => {
     );
   });
 
-  it('explains "Room default" before the router names the fallback models', () => {
-    open(createState({ inherited: [] }));
+  it('explains "Room default" before the router names the fallback models', async () => {
+    await open(createState({ inherited: [] }));
 
     expect(optionNamed('Room default').querySelector('.RoomDefaultDetail')?.textContent).toBe(
       'Let each agent use its configured model.'
     );
   });
 
-  it('opens on the current model, where Enter only closes the menu', () => {
+  it('opens on the current model, where Enter only closes the menu', async () => {
     const state = createState({ override: 'reset' });
-    open(state);
+    await open(state);
     expect(list()?.getAttribute('aria-activedescendant')).toBe(optionNamed('Deep reasoning').id);
 
-    keyDown(list()!, 'Enter');
+    await keyDown(list()!, 'Enter');
 
     expect(state.selectModel).not.toHaveBeenCalled();
     expect(list()).toBeNull();
     expect(trigger()).toBe(document.activeElement);
   });
 
-  it('moves the highlight to the current model once a late catalog lists it', () => {
+  it('moves the highlight to the current model once a late catalog lists it', async () => {
     const state = createState({ override: 'fast' });
-    open({ ...state, models: [] });
+    await open({ ...state, models: [] });
 
     act(() => root.render(<ModelPicker state={state} />));
     expect(list()?.getAttribute('aria-activedescendant')).toBe(optionNamed('Quick helper').id);
-    keyDown(list()!, 'Enter');
+    await keyDown(list()!, 'Enter');
 
     expect(state.resetToRoomDefault).not.toHaveBeenCalled();
     expect(list()).toBeNull();
   });
 
-  it('keeps a highlight the user moved when the selection changes', () => {
+  it('keeps a highlight the user moved when the selection changes', async () => {
     const state = createState();
-    open(state);
-    keyDown(list()!, 'ArrowDown');
+    await open(state);
+    await keyDown(list()!, 'ArrowDown');
 
     act(() => root.render(<ModelPicker state={{ ...state, override: 'reset' }} />));
 
     expect(list()?.getAttribute('aria-activedescendant')).toBe(optionNamed('Quick helper').id);
   });
 
-  it('supports arrow selection, Enter, and Escape from the list', () => {
+  it('supports arrow selection, Enter, and Escape from the list', async () => {
     const state = createState();
-    open(state);
+    await open(state);
 
-    keyDown(list()!, 'ArrowDown');
-    keyDown(list()!, 'Enter');
+    await keyDown(list()!, 'ArrowDown');
+    await keyDown(list()!, 'Enter');
     expect(state.selectModel).toHaveBeenCalledWith('fast');
 
-    keyDown(list()!, 'Escape');
+    await keyDown(list()!, 'Escape');
     expect(list()).toBeNull();
     expect(trigger()).toBe(document.activeElement);
   });
 
-  it('keeps room reset distinct from selecting a model whose stable key is default', () => {
+  it('keeps room reset distinct from selecting a model whose stable key is default', async () => {
     const state = createState();
-    open(state);
+    await open(state);
 
-    click(optionNamed('Named default'));
+    await click(optionNamed('Named default'));
     expect(state.selectModel).toHaveBeenCalledWith('default');
     expect(state.resetToRoomDefault).not.toHaveBeenCalled();
 
     act(() => root.render(<ModelPicker state={{ ...state, override: 'default' }} />));
     expect(optionNamed('Room default').getAttribute('aria-selected')).toBe('false');
     expect(optionNamed('Named default').getAttribute('aria-selected')).toBe('true');
-    click(optionNamed('Room default'));
+    await click(optionNamed('Room default'));
     expect(state.resetToRoomDefault).toHaveBeenCalledOnce();
   });
 
-  it('sets a configured model whose key matches the room-default DOM identity', () => {
+  it('sets a configured model whose key matches the room-default DOM identity', async () => {
     const state = createState({
       models: [
         {
@@ -442,15 +442,15 @@ describe('composer model picker', () => {
         },
       ],
     });
-    open(state);
+    await open(state);
 
-    click(optionNamed('Configured fallback'));
+    await click(optionNamed('Configured fallback'));
 
     expect(state.selectModel).toHaveBeenCalledWith('room-default');
     expect(state.resetToRoomDefault).not.toHaveBeenCalled();
   });
 
-  it('moves through options in the same order as interleaved provider groups render', () => {
+  it('moves through options in the same order as interleaved provider groups render', async () => {
     const state = createState({
       models: [
         { key: 'a', display_name: 'Alpha', provider: 'OpenAI', id: 'a-model' },
@@ -458,21 +458,21 @@ describe('composer model picker', () => {
         { key: 'c', display_name: 'Charlie', provider: 'OpenAI', id: 'c-model' },
       ],
     });
-    open(state);
+    await open(state);
 
     const rendered = options().map((option) => option.textContent);
     expect(rendered[1]).toContain('Alpha');
     expect(rendered[2]).toContain('Charlie');
 
-    keyDown(list()!, 'ArrowDown');
-    keyDown(list()!, 'ArrowDown');
-    keyDown(list()!, 'Enter');
+    await keyDown(list()!, 'ArrowDown');
+    await keyDown(list()!, 'ArrowDown');
+    await keyDown(list()!, 'Enter');
 
     expect(state.selectModel).toHaveBeenCalledWith('c');
   });
 
-  it('adds a filter field past eight models, matching name, key, provider and model ID', () => {
-    open(createState({ models: longCatalog() }));
+  it('adds a filter field past eight models, matching name, key, provider and model ID', async () => {
+    await open(createState({ models: longCatalog() }));
 
     expect(search()).toBe(document.activeElement);
     expect(search().getAttribute('placeholder')).toBe('Search models');
@@ -497,40 +497,40 @@ describe('composer model picker', () => {
     expect(container.textContent).toContain('No matching models');
   });
 
-  it('picks the first match with Enter and moves with the arrows from the filter field', () => {
+  it('picks the first match with Enter and moves with the arrows from the filter field', async () => {
     const state = createState({ models: longCatalog() });
-    open(state);
+    await open(state);
 
     input(search(), 'studio');
     expect(search().getAttribute('aria-activedescendant')).toBe(options()[0]?.id);
-    keyDown(search(), 'ArrowDown');
+    await keyDown(search(), 'ArrowDown');
     expect(search().getAttribute('aria-activedescendant')).toBe(options()[1]?.id);
-    keyDown(search(), 'ArrowUp');
-    keyDown(search(), 'Enter');
+    await keyDown(search(), 'ArrowUp');
+    await keyDown(search(), 'Enter');
     expect(state.selectModel).toHaveBeenCalledWith('studio-1');
 
-    keyDown(search(), 'Escape');
+    await keyDown(search(), 'Escape');
     expect(search()).toBeNull();
     expect(trigger()).toBe(document.activeElement);
   });
 
-  it('keeps the keys working when a refresh adds the filter field under the focused list', () => {
+  it('keeps the keys working when a refresh adds the filter field under the focused list', async () => {
     const state = createState({ models: longCatalog().slice(0, 8) });
-    open(state);
+    await open(state);
     expect(list()).toBe(document.activeElement);
 
     act(() => root.render(<ModelPicker state={{ ...state, models: longCatalog() }} />));
     expect(search()).not.toBeNull();
     expect(list()).toBe(document.activeElement);
-    keyDown(list()!, 'ArrowDown');
-    keyDown(list()!, 'Enter');
+    await keyDown(list()!, 'ArrowDown');
+    await keyDown(list()!, 'Enter');
 
     expect(state.selectModel).toHaveBeenCalledWith('fast');
   });
 
-  it('drops the filter and gives the list focus when the catalog shrinks under the field', () => {
+  it('drops the filter and gives the list focus when the catalog shrinks under the field', async () => {
     const state = createState({ models: longCatalog() });
-    open(state);
+    await open(state);
     input(search(), 'studio');
     expect(search()).toBe(document.activeElement);
 
@@ -546,26 +546,26 @@ describe('composer model picker', () => {
     expect(list()).toBe(document.activeElement);
   });
 
-  it('shows no filter field for exactly eight models', () => {
-    open(createState({ models: longCatalog().slice(0, 8) }));
+  it('shows no filter field for exactly eight models', async () => {
+    await open(createState({ models: longCatalog().slice(0, 8) }));
 
     expect(search()).toBeNull();
     expect(list()).toBe(document.activeElement);
   });
 
-  it('focuses the list, not the filter field, on a touch device, and the list takes the keys', () => {
+  it('focuses the list, not the filter field, on a touch device, and the list takes the keys', async () => {
     mocks.touch = true;
     const state = createState({ models: longCatalog() });
-    open(state);
+    await open(state);
 
     expect(search()).not.toBeNull();
     expect(list()).toBe(document.activeElement);
-    keyDown(list()!, 'ArrowDown');
-    keyDown(list()!, 'Enter');
+    await keyDown(list()!, 'ArrowDown');
+    await keyDown(list()!, 'Enter');
     expect(state.selectModel).toHaveBeenCalledWith('fast');
   });
 
-  it('measures its button again once the page changes size while it is open', () => {
+  it('measures its button again once the page changes size while it is open', async () => {
     const resized: Array<() => void> = [];
     const observed: Element[] = [];
     const disconnect = vi.fn();
@@ -584,7 +584,7 @@ describe('composer model picker', () => {
       }
     );
     try {
-      open(createState());
+      await open(createState());
       expect(observed).toEqual([document.body]);
       const moved = { x: 16, y: 300, width: 32, height: 32, top: 300, left: 16, right: 48 };
       trigger().getBoundingClientRect = () => ({ ...moved, bottom: 332, toJSON: () => moved });
@@ -592,14 +592,14 @@ describe('composer model picker', () => {
       act(() => resized.forEach((callback) => callback()));
 
       expect(mocks.anchors.at(-1)).toMatchObject({ y: 300 });
-      keyDown(list()!, 'Escape');
+      await keyDown(list()!, 'Escape');
       expect(disconnect).toHaveBeenCalledOnce();
     } finally {
       vi.unstubAllGlobals();
     }
   });
 
-  it('shows an explicit readable chooser when multiple runtimes answer', () => {
+  it('shows an explicit readable chooser when multiple runtimes answer', async () => {
     const secondRuntime = {
       ...runtime,
       id: 'runtime-two',
@@ -612,7 +612,7 @@ describe('composer model picker', () => {
       canMutate: false,
       models: [],
     });
-    open(state);
+    await open(state);
 
     const chooser = container.querySelector('select[aria-label="Runtime"]') as HTMLSelectElement;
     expect(chooser.textContent).toContain('@runtime:example.org on DESKTOP');
@@ -625,9 +625,9 @@ describe('composer model picker', () => {
     expect(state.chooseRuntime).toHaveBeenCalledWith('runtime-two');
   });
 
-  it('refreshes on opening and keeps dismissal available while a command is pending', () => {
+  it('refreshes on opening and keeps dismissal available while a command is pending', async () => {
     const state = createState({ pending: true, loading: true, canMutate: false });
-    open(state);
+    await open(state);
 
     expect(state.refresh).toHaveBeenCalledOnce();
     expect(container.querySelector('[role="status"]')?.textContent).toContain(
@@ -636,31 +636,33 @@ describe('composer model picker', () => {
     expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
     expect(options()[0]?.getAttribute('aria-disabled')).toBe('true');
 
-    keyDown(list()!, 'Escape');
+    await keyDown(list()!, 'Escape');
     expect(list()).toBeNull();
   });
 
-  it('uses controller availability for model and reset activation while recovery is blocked', () => {
+  it('uses controller availability for model and reset activation while recovery is blocked', async () => {
     const state = createState({
       canMutate: false,
       pending: false,
       loading: false,
       error: 'Recovery unavailable.',
     });
-    open(state);
+    await open(state);
     expect(options().every((option) => option.getAttribute('aria-disabled') === 'true')).toBe(true);
     expect(container.querySelector('[role="progressbar"]')).toBeNull();
-    options().forEach(click);
-    keyDown(list()!, 'Enter');
-    keyDown(list()!, 'ArrowDown');
-    keyDown(list()!, 'Enter');
+    for (const option of options()) {
+      await click(option);
+    }
+    await keyDown(list()!, 'Enter');
+    await keyDown(list()!, 'ArrowDown');
+    await keyDown(list()!, 'Enter');
     expect(state.selectModel).not.toHaveBeenCalled();
     expect(state.resetToRoomDefault).not.toHaveBeenCalled();
-    click(container.querySelector('button[aria-label="Retry"]')!);
+    await click(container.querySelector('button[aria-label="Retry"]')!);
     expect(state.refresh).toHaveBeenCalledTimes(2);
-    keyDown(list()!, 'Escape');
+    await keyDown(list()!, 'Escape');
     expect(list()).toBeNull();
-    click(trigger());
+    await click(trigger());
     act(() =>
       root.render(<ModelPicker state={{ ...state, canMutate: true, override: 'reset' }} />)
     );
@@ -668,17 +670,17 @@ describe('composer model picker', () => {
       true
     );
     // The highlight starts on the current model, Deep reasoning.
-    keyDown(list()!, 'ArrowUp');
-    keyDown(list()!, 'Enter');
-    keyDown(list()!, 'ArrowUp');
-    keyDown(list()!, 'Enter');
+    await keyDown(list()!, 'ArrowUp');
+    await keyDown(list()!, 'Enter');
+    await keyDown(list()!, 'ArrowUp');
+    await keyDown(list()!, 'Enter');
     expect(state.resetToRoomDefault).toHaveBeenCalledOnce();
     expect(state.selectModel).toHaveBeenCalledWith('fast');
   });
 
-  it('gives the list focus when Retry goes while it has focus', () => {
+  it('gives the list focus when Retry goes while it has focus', async () => {
     const state = createState({ error: 'Model discovery unavailable.' });
-    open(state);
+    await open(state);
     const retry = container.querySelector<HTMLButtonElement>('button[aria-label="Retry"]')!;
     retry.focus();
 
@@ -688,22 +690,22 @@ describe('composer model picker', () => {
     expect(list()).toBe(document.activeElement);
   });
 
-  it('keeps an error open with retry and readable command fallback', () => {
+  it('keeps an error open with retry and readable command fallback', async () => {
     const state = createState({ error: 'Model discovery unavailable.' });
-    open(state);
+    await open(state);
 
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       'Model discovery unavailable.'
     );
     expect(container.textContent).toContain('You can still send !model with a model key');
-    click(container.querySelector('button[aria-label="Retry"]')!);
+    await click(container.querySelector('button[aria-label="Retry"]')!);
     expect(state.refresh).toHaveBeenCalledTimes(2);
   });
 
-  it('closes once the router applies the chosen model', () => {
+  it('closes once the router applies the chosen model', async () => {
     const state = createState();
-    open(state);
-    click(optionNamed('Quick helper'));
+    await open(state);
+    await click(optionNamed('Quick helper'));
 
     act(() => root.render(<ModelPicker state={{ ...state, pending: true, canMutate: false }} />));
     expect(list()).not.toBeNull();
@@ -713,42 +715,42 @@ describe('composer model picker', () => {
     expect(trigger()).toBe(document.activeElement);
   });
 
-  it('does not steal focus when a dismissed pending command later succeeds', () => {
+  it('does not steal focus when a dismissed pending command later succeeds', async () => {
     const state = createState();
     const outside = document.createElement('input');
     document.body.append(outside);
-    open(state);
-    click(optionNamed('Quick helper'));
+    await open(state);
+    await click(optionNamed('Quick helper'));
 
     act(() => root.render(<ModelPicker state={{ ...state, pending: true, canMutate: false }} />));
-    keyDown(list()!, 'Escape');
+    await keyDown(list()!, 'Escape');
     outside.focus();
     act(() => root.render(<ModelPicker state={{ ...state, pending: false }} />));
 
     expect(document.activeElement).toBe(outside);
   });
 
-  it('does not let a command acknowledged while dismissed close a later opening', () => {
+  it('does not let a command acknowledged while dismissed close a later opening', async () => {
     const state = createState();
-    open(state);
-    click(optionNamed('Quick helper'));
+    await open(state);
+    await click(optionNamed('Quick helper'));
 
     act(() => root.render(<ModelPicker state={{ ...state, pending: true, canMutate: false }} />));
-    keyDown(list()!, 'Escape');
+    await keyDown(list()!, 'Escape');
     act(() => root.render(<ModelPicker state={{ ...state, pending: false }} />));
-    click(trigger());
+    await click(trigger());
 
     expect(list()).not.toBeNull();
   });
 
-  it('does not let a dismissed command close a reopening when its acknowledgement arrives', () => {
+  it('does not let a dismissed command close a reopening when its acknowledgement arrives', async () => {
     const state = createState();
-    open(state);
-    click(optionNamed('Quick helper'));
+    await open(state);
+    await click(optionNamed('Quick helper'));
 
     act(() => root.render(<ModelPicker state={{ ...state, pending: true, canMutate: false }} />));
-    keyDown(list()!, 'Escape');
-    click(trigger());
+    await keyDown(list()!, 'Escape');
+    await click(trigger());
     expect(list()).not.toBeNull();
 
     act(() => root.render(<ModelPicker state={{ ...state, pending: false }} />));
@@ -756,9 +758,9 @@ describe('composer model picker', () => {
     expect(list()).not.toBeNull();
   });
 
-  it('closes as the conversation it is in hides', () => {
+  it('closes as the conversation it is in hides', async () => {
     const state = createState();
-    open(state);
+    await open(state);
     expect(list()).not.toBeNull();
 
     act(() => root.render(<ModelPicker state={state} conversationHidden />));
@@ -766,7 +768,7 @@ describe('composer model picker', () => {
     expect(list()).toBeNull();
   });
 
-  it('loads custom icons through authenticated Matrix media and falls back on image error', () => {
+  it('loads custom icons through authenticated Matrix media and falls back on image error', async () => {
     act(() =>
       root.render(
         <ModelIcon provider="OpenAI" id="fast-model" iconUrl="mxc://example.org/fast" size={24} />
@@ -784,7 +786,7 @@ describe('composer model picker', () => {
       'scale'
     );
 
-    act(() => image.dispatchEvent(new Event('error')));
+    await act(() => image.dispatchEvent(new Event('error')));
     expect(container.querySelector('img')).toBeNull();
     expect(container.querySelector('svg')).not.toBeNull();
   });
