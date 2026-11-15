@@ -32,10 +32,20 @@ export const EmptyState = style({
   color: color.SurfaceVariant.OnContainer,
 });
 
+// The cards' list: a card that left fades at its old place in it (`useListMotion`).
+export const Cards = style({
+  position: 'relative',
+});
+
 export const CardShell = style({
   position: 'relative',
   width: '100%',
   minWidth: 0,
+});
+
+// A card's moving part: positioned, so a card that travels far passes over the others.
+export const CardMotion = style({
+  position: 'relative',
 });
 
 export const PinnedSection = style({
