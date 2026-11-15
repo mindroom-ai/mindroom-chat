@@ -266,11 +266,13 @@ export const ControlsPaused = style([
   },
 ]);
 
+// The groups scroll inside the menu's glass rim, which stays put around them.
 export const DeviceMenu = style({
+  display: 'flex',
+  flexDirection: 'column',
   minWidth: toRem(240),
   maxWidth: toRem(320),
   maxHeight: '60vh',
-  overflowY: 'auto',
 });
 
 export const DeviceGroupLabel = style({
