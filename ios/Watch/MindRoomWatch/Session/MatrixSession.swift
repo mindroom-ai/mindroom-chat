@@ -76,7 +76,13 @@ final class MatrixSession: ObservableObject {
                 SessionStore.removeStore(session)
                 throw error
             }
-            SessionStore.save(session)
+            do { try SessionStore.save(session) } catch {
+                // A session the Keychain did not keep could not be opened again: the sign-in is undone
+                // (its device logged out) before the iPhone hears of it.
+                await signOutNow()
+                SessionStore.removeStore(session)
+                throw error
+            }
             // The iPhone verifies the device by the key the watch names here, not by what the server lists.
             if let deviceKey = await client?.encryption().ed25519Key() {
                 log.notice("reporting the device with key \(deviceKey, privacy: .public)")

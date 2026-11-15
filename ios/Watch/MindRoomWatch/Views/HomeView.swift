@@ -202,7 +202,7 @@ private struct RoomHome: View {
         }
         // A reply in a thread whose root the room's timeline has not loaded changes nothing there: read the
         // list each time the room comes on screen, and every 30 s while it stays.
-        .task(id: scenePhase) {
+        .task(id: "\(scenePhase == .active) \(model.room.id())") {
             guard scenePhase == .active else { return }
             while !Task.isCancelled {
                 model.scheduleRefresh()

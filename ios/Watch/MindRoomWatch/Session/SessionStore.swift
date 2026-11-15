@@ -15,10 +15,10 @@ enum SessionStore {
         let homeserverUrl: String
     }
 
-    static func save(_ session: Session) {
+    static func save(_ session: Session) throws {
         let saved = Saved(accessToken: session.accessToken, userId: session.userId,
                           deviceId: session.deviceId, homeserverUrl: session.homeserverUrl)
-        if let data = try? JSONEncoder().encode(saved) { write(sessionItem, data) }
+        try write(sessionItem, try JSONEncoder().encode(saved))
     }
 
     static func load() -> Session? {
@@ -28,7 +28,8 @@ enum SessionStore {
     }
 
     /// The SQLite store's passphrase: 32 random bytes made once per install. A Keychain that cannot be read
-    /// right now (before the first unlock) throws: a new passphrase would lock the store out for good.
+    /// right now (before the first unlock), or that does not keep a new one, throws: another passphrase
+    /// next time would lock the store out for good.
     static func passphrase() throws -> String {
         var item = query(passphraseItem)
         item[kSecReturnData as String] = true
@@ -37,7 +38,7 @@ enum SessionStore {
         if status == errSecSuccess, let data = result as? Data { return String(decoding: data, as: UTF8.self) }
         guard status == errSecItemNotFound else { throw SessionStoreError.keychain(status) }
         let value = SymmetricKey(size: .bits256).withUnsafeBytes { Data($0).base64EncodedString() }
-        write(passphraseItem, Data(value.utf8))
+        try write(passphraseItem, Data(value.utf8))
         return value
     }
 
@@ -79,13 +80,14 @@ enum SessionStore {
          kSecAttrAccount as String: account]
     }
 
-    private static func write(_ account: String, _ data: Data) {
+    private static func write(_ account: String, _ data: Data) throws {
         delete(account)
         var item = query(account)
         item[kSecValueData as String] = data
         // Background refresh syncs while the watch is locked on the wrist.
         item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        SecItemAdd(item as CFDictionary, nil)
+        let status = SecItemAdd(item as CFDictionary, nil)
+        guard status == errSecSuccess else { throw SessionStoreError.keychain(status) }
     }
 
     private static func read(_ account: String) -> Data? {
