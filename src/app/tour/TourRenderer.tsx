@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useAtom } from 'jotai';
+import { useAtom, useAtomValue } from 'jotai';
+import { recoveryDialogAtom } from '../account/encryption/recoveryDialog';
 import { tourAtom, type TourLevel } from '../navigation/tourState';
 import { TourDialog } from './TourDialog';
 import { TourHandoff } from './TourHandoff';
@@ -21,10 +22,13 @@ type Opening = {
 export function TourRenderer() {
   const [tour, setTour] = useAtom(tourAtom);
   const [handoff, setHandoff] = useState(false);
-  // A tour that opens while a handoff still plays ends that handoff: only its own Done hands over.
+  // A tour that opens while a handoff still plays ends that handoff: only its own Done hands
+  // over. So does the recovery password dialog, which waits for the tour to close and then opens
+  // over the room: the ring would pulse on top of it, and the composer under it takes no typing.
+  const recoveryOpen = useAtomValue(recoveryDialogAtom) !== undefined;
   useEffect(() => {
-    if (tour) setHandoff(false);
-  }, [tour]);
+    if (tour || recoveryOpen) setHandoff(false);
+  }, [tour, recoveryOpen]);
 
   // The opening follows the atom in the render that brings a new one, so no step of the tour
   // before it shows under the new level.
@@ -49,5 +53,5 @@ export function TourRenderer() {
       />
     );
   }
-  return handoff ? <TourHandoff onEnd={() => setHandoff(false)} /> : null;
+  return handoff && !recoveryOpen ? <TourHandoff onEnd={() => setHandoff(false)} /> : null;
 }

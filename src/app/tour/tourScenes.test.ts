@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { sampleActivityTs } from './tourSample';
 import { START_TYPING_PHASE, sceneOf, type TourScene } from './tourScenes';
 import { TOUR_STEPS, type TourStepId } from './tourSteps';
 
@@ -107,6 +108,9 @@ describe('tourScenes', () => {
         ['resolved'],
         ['snoozed'],
       ]);
+      // In the order the step before taught: the latest activity first.
+      const ages = scene.cards.map(({ id, state }) => -sampleActivityTs(id, state, 0));
+      expect(ages).toEqual([...ages].sort((a, b) => a - b));
     });
   });
 

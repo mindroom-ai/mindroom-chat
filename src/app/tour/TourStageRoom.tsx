@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import {
@@ -293,12 +293,10 @@ function CardMenu({ phone, live }: Pick<RoomProps, 'phone' | 'live'>) {
 type SampleCardRowProps = RoomProps & {
   card: SceneCard;
   pinned: boolean;
-  /** Fades in and settles: a card of the list as it first shows. */
-  arriving: boolean;
 };
 
 /** One thread: the app's card with sample data, and around it the card's buttons and menu. */
-function SampleCardRow({ card, scene, phone, live, now, pinned, arriving }: SampleCardRowProps) {
+function SampleCardRow({ card, scene, phone, live, now, pinned }: SampleCardRowProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const shellRef = useRef<HTMLDivElement>(null);
@@ -324,8 +322,7 @@ function SampleCardRow({ card, scene, phone, live, now, pinned, arriving }: Samp
         css.CardShell,
         phone && css.PhoneCardShell,
         pointed && css.CardShellHovered,
-        menuOpen && css.CardShellRaised,
-        arriving && css.Arriving
+        menuOpen && css.CardShellRaised
       )}
       data-flip-key={id}
       data-tour-card={id}
@@ -402,21 +399,9 @@ function CardList(props: RoomProps) {
   const ids = scene.cards.map(({ id }) => id);
   // The cards glide when their order changes, a card is pinned, or the bar moves them down.
   useFlipList(paneRef, [ids.join(','), scene.pinned.join(','), scene.filterBar].join('|'));
-  // Only the cards the list first shows arrive; one that changes its section just moves.
-  const arriving = useRef(true);
-  useEffect(() => {
-    arriving.current = false;
-  }, []);
-
   const isPinned = (id: SampleThreadId) => scene.pinned.includes(id);
   const renderCard = (card: SceneCard) => (
-    <SampleCardRow
-      key={card.id}
-      {...props}
-      card={card}
-      pinned={isPinned(card.id)}
-      arriving={arriving.current}
-    />
+    <SampleCardRow key={card.id} {...props} card={card} pinned={isPinned(card.id)} />
   );
   const pinnedCards = scene.cards.filter(({ id }) => isPinned(id));
 

@@ -1,8 +1,7 @@
 import React from 'react';
 import { act } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
-import { CompactRoomWithoutThreads } from '../CompactRoomWithoutThreads';
-import { EmptyState } from '../../threads/overview/CompactRoomView.css';
+// First, for the doubles it puts in place of the hooks the modules below read.
 import {
   compactPlaceholderType,
   create,
@@ -13,6 +12,8 @@ import {
   roomIntroType,
   roomThreadOverviewType,
 } from '../test-utils/RoomTimeline.test.shared';
+import { CompactRoomWithoutThreads } from '../CompactRoomWithoutThreads';
+import { EmptyState } from '../../threads/overview/CompactRoomView.css';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
 const renderRoom = async (

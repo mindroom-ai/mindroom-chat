@@ -1633,7 +1633,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // history is at the bottom. The sentinel above the rows sits inside the list, at its top, where
   // its first row is: rows the offset ledger holds above the reader count as loaded.
   const roomIntro =
-    showRoomIntro && (compactCards ? <CompactRoomWithoutThreads /> : <RoomIntro room={room} />);
+    showRoomIntro &&
+    (compactCards ? <CompactRoomWithoutThreads room={room} /> : <RoomIntro room={room} />);
   const backSentinel = showRoomBackSentinel && (
     <div
       ref={paginator.observeBackAnchor}

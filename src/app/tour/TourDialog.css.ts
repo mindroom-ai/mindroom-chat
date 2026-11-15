@@ -20,12 +20,16 @@ export const Dialog = style({
   },
 });
 
-/** The dialog's content, top to bottom: title row, stage, text, progress, buttons. */
+/**
+ * The dialog's content, top to bottom: title row, stage, text, progress, buttons. A window too
+ * low even for the stage at its least height and the buttons scrolls the whole of it.
+ */
 export const Content = style({
   display: 'flex',
   flexDirection: 'column',
   flex: '1 1 auto',
   minHeight: 0,
+  overflowY: 'auto',
 });
 
 /** The level's name and the step's number, then the close button. */
@@ -49,11 +53,12 @@ export const Title = style({
 
 /**
  * The stage on a wider screen: one height for every step, which only a window too short for the
- * dialog makes smaller.
+ * dialog makes smaller. It gives way before the text does.
  */
 export const Stage = style({
-  flex: `0 1 ${toRem(432)}`,
+  flex: `0 1000 ${toRem(432)}`,
   // The room is not drawn below 0.6 of its size (TourStage.tsx): a lower stage would cut it off.
+  // In rem, like the room, so the page zoom keeps the two in step.
   minHeight: toRem(294),
   marginInline: space.S400,
 });
@@ -66,21 +71,22 @@ export const PhoneStage = style({
   marginInline: space.S300,
 });
 
-/** The chapter's name over the step's title and text. */
+/**
+ * The chapter's name over the step's title and text. Where the window is too low for it beside
+ * the stage at its least height, it scrolls, so the stage and the buttons stay.
+ */
 export const TextBlock = style({
   display: 'flex',
   flexDirection: 'column',
-  flexShrink: 0,
+  flexShrink: 1,
+  minHeight: 0,
+  overflowY: 'auto',
   rowGap: space.S100,
   paddingInline: space.S400,
   paddingBlockStart: space.S400,
 });
 
-/** On a phone a text too long for the screen scrolls, so the stage and the buttons stay. */
 export const PhoneTextBlock = style({
-  flexShrink: 1,
-  minHeight: 0,
-  overflowY: 'auto',
   paddingInline: space.S300,
   paddingBlockStart: space.S300,
 });

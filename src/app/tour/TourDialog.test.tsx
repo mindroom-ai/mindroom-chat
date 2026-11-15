@@ -147,6 +147,20 @@ describe('TourDialog', () => {
     expect(onClose.mock.calls).toEqual([['done']]);
   });
 
+  it('keeps the focus on the main button when the sample room or the text is clicked', () => {
+    render(<Tour />);
+    const main = action('next');
+    // A click beside the controls takes the focus off them, as a browser does.
+    [stage().parentElement as HTMLElement, liveRegion()].forEach((beside) => {
+      (document.activeElement as HTMLElement).blur();
+      fireEvent.click(beside);
+      expect(document.activeElement).toBe(main);
+    });
+    // A click on a control is that control's own.
+    press('next');
+    expect(stepId()).toBe('start');
+  });
+
   it('reports its closing once, though its focus trap asks again as the dialog goes', () => {
     const { unmount } = render(<Tour />);
     goTo('states');

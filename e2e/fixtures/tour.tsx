@@ -13,10 +13,14 @@ import { TourDialog } from '../../src/app/tour/TourDialog';
 // The interface tour's dialog on a page of its own, so a spec can measure and picture every step
 // without a homeserver. It records how the tour was closed in `body[data-tour-closed]`.
 // Query parameters: `level` (quick or full; default full), `lang` (default en, which also sets
-// the page's direction) and `theme` (a theme name such as dark or green; default light).
+// the page's direction), `theme` (a theme name such as dark or green; default light) and `zoom`
+// (the app's page zoom in percent, which scales the root font size; default 100).
 
 const params = new URLSearchParams(window.location.search);
 applyThemeToDom(THEMES.find((theme) => theme.id === `${params.get('theme')}-theme`) ?? LightTheme);
+
+const zoom = Number(params.get('zoom'));
+if (zoom > 0 && zoom !== 100) document.documentElement.style.fontSize = `${zoom}%`;
 
 function Fixture() {
   const [level, setLevel] = useState<TourLevel>(params.get('level') === 'quick' ? 'quick' : 'full');

@@ -17,9 +17,14 @@ import { TourStageActivity, TourStageRoom } from './TourStageRoom';
 /**
  * How tall the room is drawn before it is scaled to the frame: on a wider screen the header,
  * four cards and the composer; on a phone four cards alone, or the header, three cards and the
- * composer.
+ * composer. In rem, as the room's parts are sized: the app's page zoom scales the root font
+ * size, and the room grows with it.
  */
-const ROOM_HEIGHT = { wide: 490, phone: 392 };
+const ROOM_HEIGHT_REM = { wide: 30.625, phone: 24.5 };
+
+/** The root font size in px, which the page zoom changes; a browser's default where unknown. */
+const rootFontSize = (): number =>
+  Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
 
 /** The room is never drawn smaller than this share of its size: below it the text cannot be read. */
 const SMALLEST_SCALE = 0.6;
@@ -32,7 +37,8 @@ const useStageScale = (frameRef: RefObject<HTMLElement>, phone: boolean): number
     if (!frame) return undefined;
     const measure = () => {
       const height = frame.clientHeight;
-      const fit = height / (phone ? ROOM_HEIGHT.phone : ROOM_HEIGHT.wide);
+      const room = (phone ? ROOM_HEIGHT_REM.phone : ROOM_HEIGHT_REM.wide) * rootFontSize();
+      const fit = height / room;
       // A frame without a height is not laid out (a test, a hidden page): the room keeps its size.
       const next = height > 0 ? Math.min(1, Math.max(SMALLEST_SCALE, fit)) : 1;
       setScale(Math.round(next * 1000) / 1000);

@@ -42,7 +42,18 @@ afterEach(() => {
   cleanup();
   restoreLayout();
   restoreMedia();
+  Reflect.deleteProperty(HTMLElement.prototype, 'clientHeight');
+  document.documentElement.style.fontSize = '';
 });
+
+/** Gives every element this height, as a frame that is laid out has one. */
+const layOutAt = (height: number) =>
+  Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+    configurable: true,
+    get: () => height,
+  });
+/** How much the stage scales its room down. */
+const scale = () => stage().parentElement?.style.getPropertyValue('--tour-stage-scale');
 
 describe('TourStage', () => {
   it('is inert and hidden from assistive technology, and says its phase', () => {
@@ -97,6 +108,31 @@ describe('TourStage', () => {
     expect(pinned && cardIds(pinned)).toEqual(['budget']);
     expect(cardIds()).toEqual(['budget', 'launch', 'website']);
     expect(stage().textContent).toContain('finance');
+  });
+
+  it('scales the room down to a frame lower than it, by the page zoom too, and not below 0.6', () => {
+    // A wide room is 490 px tall at the browser's font size.
+    layOutAt(441);
+    show('conversation');
+    expect(scale()).toBe('0.9');
+    cleanup();
+
+    // The page zoomed to 150 %: the room is 735 px tall, and the same frame holds less of it.
+    document.documentElement.style.fontSize = '24px';
+    show('conversation');
+    expect(scale()).toBe('0.6');
+    cleanup();
+
+    // A frame lower still cuts the room off rather than making it unreadable.
+    layOutAt(200);
+    show('conversation');
+    expect(scale()).toBe('0.6');
+    cleanup();
+
+    // A frame with room to spare leaves the room at its size.
+    layOutAt(900);
+    show('conversation');
+    expect(scale()).toBe('1');
   });
 
   it('shows the four states, on a phone without a header or a composer', () => {

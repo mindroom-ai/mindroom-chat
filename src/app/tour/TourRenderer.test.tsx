@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import type FocusTrap from 'focus-trap-react';
 import { getDefaultStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { recoveryDialogAtom } from '../account/encryption/recoveryDialog';
 import { tourAtom } from '../navigation/tourState';
 import { TourRenderer } from './TourRenderer';
 import { QUICK_STEP_COUNT } from './tourSteps';
@@ -61,6 +62,7 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   store.set(tourAtom, undefined);
+  store.set(recoveryDialogAtom, undefined);
   document.body.innerHTML = '';
 });
 
@@ -94,6 +96,25 @@ describe('TourRenderer', () => {
     if (!ring) throw new Error('no ring');
     fireEvent.animationEnd(ring);
     expect(document.querySelector('[data-tour-handoff]')).toBeNull();
+  });
+
+  it('does not hand over under the recovery password dialog, which opens as the tour closes', () => {
+    const { composer } = page({ room: true });
+    render(<TourRenderer />);
+    open('quick');
+    for (let step = 1; step < QUICK_STEP_COUNT; step += 1) press('next');
+    press('done');
+    // The prompt that waited for the tour opens its dialog in the same moment.
+    act(() => store.set(recoveryDialogAtom, 'setup'));
+    tick();
+    expect(document.querySelector('[data-tour-handoff]')).toBeNull();
+    expect(document.activeElement).not.toBe(composer);
+
+    // Nor later, once that dialog has closed: the moment has passed.
+    act(() => store.set(recoveryDialogAtom, undefined));
+    tick();
+    expect(document.querySelector('[data-tour-handoff]')).toBeNull();
+    expect(document.activeElement).not.toBe(composer);
   });
 
   it('does not hand over when the tour is closed another way', () => {

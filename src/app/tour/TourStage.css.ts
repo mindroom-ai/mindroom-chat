@@ -19,12 +19,14 @@ const scale = `var(${STAGE_SCALE}, 1)`;
 /** How far the room reaches past each edge of the frame before it is scaled: nothing at 1. */
 const outset = `calc((1 - 1 / ${scale}) * 50%)`;
 
-/** The stage's frame: the dialog sizes it, and it clips the room and the spotlight's shade. */
+/**
+ * The stage's frame: the dialog sizes it, also its least height, and it clips the room and the
+ * spotlight's shade.
+ */
 export const Frame = style({
   position: 'relative',
   overflow: 'hidden',
   isolation: 'isolate',
-  minHeight: 0,
   borderRadius: config.radii.R500,
   border: hairline,
   backgroundColor: color.Surface.Container,

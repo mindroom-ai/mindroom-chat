@@ -183,8 +183,10 @@ export function TourDialog({ level, onLevelChange, onClose }: TourDialogProps) {
       fitContent
       className={phone ? undefined : css.Dialog}
     >
-      {/* The arrow keys reach this element from whichever of its controls has the focus. */}
-      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+      {/* The arrow keys reach this element from whichever of its controls has the focus. A click
+          beside the controls, on the sample room or the text, would take the focus off them all,
+          and Enter and the arrow keys with it: the main button keeps it. */}
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */}
       <div
         ref={contentRef}
         className={css.Content}
@@ -192,6 +194,9 @@ export function TourDialog({ level, onLevelChange, onClose }: TourDialogProps) {
         data-tour-level={level}
         data-tour-step={step.id}
         onKeyDown={onKeyDown}
+        onClick={(event) => {
+          if (!(event.target as Element).closest('button')) mainRef.current?.focus();
+        }}
       >
         <div className={css.TitleRow}>
           <div className={css.Title}>

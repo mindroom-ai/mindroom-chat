@@ -1,17 +1,34 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
-import { afterEach, describe, expect, it } from 'vitest';
+import type { Room } from 'matrix-js-sdk';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { tourAtom } from '../navigation/tourState';
 import { EmptyState } from '../threads/overview/CompactRoomView.css';
 import { CompactRoomWithoutThreads } from './CompactRoomWithoutThreads';
+
+// Whether the person may send the event asked about, which the test sets.
+const may = vi.hoisted(() => ({ send: true, asked: [] as string[] }));
+vi.mock('../matrix/hooks/useMatrixClient', () => ({
+  useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org' }),
+}));
+vi.mock('../matrix/hooks/usePowerLevels', () => ({ usePowerLevelsContext: () => ({}) }));
+vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
+vi.mock('../matrix/hooks/useRoomPermissions', () => ({
+  useRoomPermissions: () => ({
+    event: (type: string, userId: string) => {
+      may.asked.push(`${type} ${userId}`);
+      return may.send;
+    },
+  }),
+}));
 
 /** The start of a Compact room without threads, and the store its button writes to. */
 const showRoomStart = () => {
   const store = createStore();
   const { container } = render(
     <Provider store={store}>
-      <CompactRoomWithoutThreads />
+      <CompactRoomWithoutThreads room={{ roomId: '!room:example.org' } as Room} />
     </Provider>
   );
   return { store, root: container.firstElementChild };
@@ -21,7 +38,11 @@ const showRoomStart = () => {
 const follows = (earlier: Element, later: Element): boolean =>
   (earlier.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  may.send = true;
+  may.asked = [];
+});
 
 describe('CompactRoomWithoutThreads', () => {
   it('says there is no thread, how to start one, and offers the tour, in that order', () => {
@@ -36,6 +57,16 @@ describe('CompactRoomWithoutThreads', () => {
     expect(follows(none, hint)).toBe(true);
     expect(follows(hint, tour)).toBe(true);
     expect(tour.getAttribute('data-tour-entry')).toBe('empty-room');
+  });
+
+  it('does not point someone who may not send messages at the composer', () => {
+    may.send = false;
+    showRoomStart();
+    expect(may.asked).toEqual(['m.room.message @me:example.org']);
+    expect(screen.getByText('No threads')).toBeTruthy();
+    expect(screen.queryByText('Send a message below to start one.')).toBeNull();
+    // How threads work is worth knowing all the same.
+    expect(screen.getByRole('button', { name: 'How threads work' })).toBeTruthy();
   });
 
   it('opens the Quick tour from its button', () => {

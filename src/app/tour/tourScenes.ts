@@ -166,10 +166,11 @@ const scenesOf = (step: TourStepId, phone: boolean, typedLength: number): TourSc
       return [
         {
           ...room([
+            // In the list's order, the latest activity first, as the step before said.
             card('launch', { streaming: true }),
             card('budget', { unread: true }),
-            card('website', { resolved: true }),
-            card('vendor', { snoozed: true }),
+            card('vendor', { resolved: true }),
+            card('website', { snoozed: true }),
           ]),
           // Four cards and the room around them do not fit a phone's stage: the cards alone do.
           header: !phone,

@@ -84,6 +84,21 @@ const openTour = async (page: Page, query: string) => {
 const SCREENS = [
   { name: 'a wide screen', viewport: { width: 1280, height: 800 }, query: 'level=full' },
   { name: 'a small phone', viewport: { width: 375, height: 667 }, query: 'level=full' },
+  // Windows too low for the dialog at its full height: the stage gives way first, down to the
+  // height of the room at its smallest scale, then the text scrolls.
+  { name: 'a low wide window', viewport: { width: 1280, height: 600 }, query: 'level=full' },
+  { name: 'a low phone', viewport: { width: 375, height: 550 }, query: 'level=full' },
+  // The app's page zoom scales the root font size, and the room with it.
+  {
+    name: 'a page zoomed to 150 %',
+    viewport: { width: 1280, height: 1000 },
+    query: 'level=full&zoom=150',
+  },
+  {
+    name: 'a phone zoomed to 150 %',
+    viewport: { width: 375, height: 667 },
+    query: 'level=full&zoom=150',
+  },
   // Languages whose texts run longer than the English ones.
   {
     name: 'a small phone in German',
