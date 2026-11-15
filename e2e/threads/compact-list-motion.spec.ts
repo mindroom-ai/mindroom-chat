@@ -20,7 +20,7 @@ import {
 // (a thread resolved while the filter hides resolved ones) fades where it stood while the cards
 // under it close the gap. Each card moves by the element inside the one the scroll position is
 // measured on, so that one stays at rest. The card of a thread that just got a reply also tints
-// once. Set LIST_MOTION_SHOTS=<dir> to save a frame of each change with the motion slowed to a
+// once, and hiding the filter bar glides every card up to where that leaves it. Set LIST_MOTION_SHOTS=<dir> to save a frame of each change with the motion slowed to a
 // tenth.
 const PASSWORD = 'compact-list-motion-password';
 const RUN = Date.now().toString(36);
@@ -203,5 +203,21 @@ test.describe('the Compact cards in motion', () => {
     await slow?.send('Animation.setPlaybackRate', { playbackRate: 1 });
     await expect(page.locator('[data-compact-room-view] [inert]')).toHaveCount(0);
     expect(await cardOrder(page)).not.toContain(resolved);
+
+    // 4. The header's filter button hides the bar: the cards glide up to where that leaves them.
+    await slow?.send('Animation.setPlaybackRate', { playbackRate: 0.1 });
+    await takePlays(page);
+    await page.locator('[data-thread-filter-bar-toggle]').first().click();
+    const lifted: Play[] = [];
+    await expect
+      .poll(
+        async () => {
+          lifted.push(...(await takePlays(page)));
+          return glidesOf(lifted, fresh).length;
+        },
+        { message: 'the first card glides up', timeout: 10_000 }
+      )
+      .toBe(1);
+    await shot('4-filter-bar-hides');
   });
 });
