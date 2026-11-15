@@ -7,6 +7,7 @@ import { MINDROOM_MESSAGE_EXTRAS_KEY } from '../../matrix/protocol/messageExtras
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
 const toolApprovalCardMock = vi.hoisted(() => vi.fn());
+const secretRequestCardMock = vi.hoisted(() => vi.fn());
 const longTextTextMock = vi.hoisted(() => vi.fn());
 const resolvedLongText = vi.hoisted(() => new Map<string, Record<string, unknown>>());
 const pasteAttachmentContentMock = vi.hoisted(() => vi.fn());
@@ -71,6 +72,17 @@ vi.mock('../../approvals/ToolApprovalCard', () => ({
   }) => {
     toolApprovalCardMock({ approval, eventId, roomId, threadId });
     return React.createElement('div', { 'data-renderer': 'tool-approval' }, approval.toolName);
+  },
+}));
+
+vi.mock('../../approvals/SecretRequestCard', () => ({
+  SecretRequestCard: (props: { request: { displayName: string }; roomId: string }) => {
+    secretRequestCardMock(props);
+    return React.createElement(
+      'div',
+      { 'data-renderer': 'secret-request' },
+      props.request.displayName
+    );
   },
 }));
 
@@ -618,6 +630,56 @@ describe('renderAgentMessageContent', () => {
     const personRow = JSON.stringify((await render(false)).toJSON());
     expect(personRow).not.toContain('data-thread-snooze-ended');
     expect(personRow).toContain('Snooze ended: check CI');
+  });
+
+  describe('a secret request card', () => {
+    const content = {
+      msgtype: 'm.notice',
+      body: '🔑 assistant asks for your GitHub key. Open MindRoom Chat to enter it.',
+      'io.mindroom.secret_request': {
+        request_id: 'req-1',
+        requester_id: '@alice:example.org',
+        service: 'github',
+        display_name: 'GitHub',
+        hosts: ['api.github.com'],
+        reason: 'To open the pull request.',
+        status: 'pending',
+        expires_at: 4_102_444_800_000,
+      },
+    };
+    const render = (fromMindroomAgent: boolean) =>
+      renderNode({
+        fromMindroomAgent,
+        roomId: '!room:example.org',
+        eventId: '$card',
+        msgType: 'm.notice',
+        content,
+      });
+
+    it('renders from a MindRoom agent', async () => {
+      secretRequestCardMock.mockReset();
+
+      const rendered = JSON.stringify((await render(true)).toJSON());
+
+      expect(rendered).toContain('secret-request');
+      expect(rendered).not.toContain('Open MindRoom Chat to enter it.');
+      expect(secretRequestCardMock).toHaveBeenCalledWith({
+        request: expect.objectContaining({ requestId: 'req-1', displayName: 'GitHub' }),
+        roomId: '!room:example.org',
+      });
+    });
+
+    it('renders no card and no field from anyone else', async () => {
+      secretRequestCardMock.mockReset();
+
+      // Any member can write the content key; a person's message renders as written.
+      const rendered = JSON.stringify((await render(false)).toJSON());
+
+      expect(secretRequestCardMock).not.toHaveBeenCalled();
+      expect(rendered).not.toContain('secret-request');
+      expect(rendered).not.toContain('"input"');
+      expect(rendered).toContain('Open MindRoom Chat to enter it.');
+    });
   });
 
   it('renders extras for MindRoom long-text text paths', async () => {
