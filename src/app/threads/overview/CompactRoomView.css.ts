@@ -1,4 +1,4 @@
-import { globalStyle, style } from '@vanilla-extract/css';
+import { globalStyle, style, type StyleRule } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 import { footerInset, topInset, Scroll } from '../../ui/styles/RoomOverlay.css';
 import { transition } from '../../ui/styles/transition';
@@ -32,11 +32,30 @@ export const EmptyState = style({
   color: color.SurfaceVariant.OnContainer,
 });
 
-export const CardShell = style({
-  position: 'relative',
-  width: '100%',
-  minWidth: 0,
-});
+/**
+ * Off-screen cards skip style, layout and paint until they near the view: in a room with hundreds
+ * of threads, a filter change that shows them all again drew every card (#350). A card not drawn
+ * yet counts at an estimate and takes its real height when it first draws, which only the
+ * browser's scroll anchoring keeps from moving the cards in view, so engines without it (WebKit)
+ * draw every card as before.
+ */
+export const offscreenCardSkip: StyleRule = {
+  '@supports': {
+    '(overflow-anchor: auto)': {
+      contentVisibility: 'auto',
+      containIntrinsicSize: 'auto 80px',
+    },
+  },
+};
+
+export const CardShell = style([
+  {
+    position: 'relative',
+    width: '100%',
+    minWidth: 0,
+  },
+  offscreenCardSkip,
+]);
 
 export const PinnedSection = style({
   paddingBlockEnd: config.space.S300,
