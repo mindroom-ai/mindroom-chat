@@ -3,6 +3,8 @@
 // section (`plugins.example.label`), else from its strings: English here, German in locales/de.json,
 // and "From <sender>" after the sender's avatar in the room, with ", a MindRoom agent" for an agent.
 // Activity and the Threads page preview such a message as "Greeting: <text>" ("Gruß: <text>").
+// In the Compact view, the card of a thread such a message begins shows its thread card badge,
+// "Greeting", after the thread's tags.
 // A side panel, "Example panel", names the room it is open in, counts its joined members and says
 // whether a MindRoom agent has joined or is invited, through the account's client, and whether the
 // account may post there, which it says again when the room's levels change. Under "Example rows"
@@ -121,6 +123,7 @@ import {
   type MessageLinkCardProps,
   type PluginEvent,
   type PluginPageProps,
+  type ThreadCardBadgeProps,
 } from '@mindroom/client-sdk/core';
 import {
   getMemberDisplayName,
@@ -1092,6 +1095,29 @@ function ItemCard({ href, close }: MessageLinkCardProps) {
   );
 }
 
+/**
+ * Its thread card badge: "Greeting" on the card of a thread a greeting begins, on one line and with
+ * no control of its own, so a click on it opens the thread as a click on the card does. A greeting
+ * stays as it was sent, so the badge reads the thread's root once, as the card shows it.
+ */
+function GreetingBadge({ room, threadId }: ThreadCardBadgeProps) {
+  const root = room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId);
+  if (!root || greetingText(root.getContent()) === undefined) return null;
+  return (
+    <span
+      data-example-plugin-badge
+      style={{
+        whiteSpace: 'nowrap',
+        paddingInline: 6,
+        borderRadius: 8,
+        border: `1px solid ${color.Surface.ContainerLine}`,
+      }}
+    >
+      Greeting
+    </span>
+  );
+}
+
 const plugin: ClientPlugin = {
   conversationCovers: [
     {
@@ -1189,6 +1215,7 @@ const plugin: ClientPlugin = {
       Component: ItemCard,
     },
   ],
+  threadCardBadges: [{ Component: GreetingBadge }],
   roomActions: [
     {
       id: 'info',
