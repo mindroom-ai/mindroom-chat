@@ -22,24 +22,30 @@ describe('tourSteps', () => {
       'order',
       'states',
       'resolve',
+      'filters',
       'snooze',
       'pinAndTag',
-      'filters',
       'views',
       'activity',
     ]);
     expect(TOUR_STEPS.map((step) => step.chapter)).toEqual([
       ...Array<string>(6).fill('basics'),
-      ...Array<string>(3).fill('tidy'),
-      ...Array<string>(3).fill('finding'),
+      ...Array<string>(4).fill('tidy'),
+      ...Array<string>(2).fill('finding'),
     ]);
     expect(new Set(TOUR_STEPS.map((step) => step.id)).size).toBe(TOUR_STEPS.length);
   });
 
-  it("makes the Quick tour the Full tour's first six steps", () => {
-    expect(QUICK_STEP_COUNT).toBe(6);
+  it("makes the Quick tour the Full tour's first eight steps, ending with the filters", () => {
+    expect(QUICK_STEP_COUNT).toBe(8);
     expect(stepsOf('full')).toEqual(TOUR_STEPS);
     expect(stepsOf('quick')).toEqual(TOUR_STEPS.slice(0, QUICK_STEP_COUNT));
+    // A thread is resolved before the filters show where it went.
+    expect(
+      stepsOf('quick')
+        .slice(-2)
+        .map((step) => step.id)
+    ).toEqual(['resolve', 'filters']);
   });
 
   it('has an English title and text for each step', () => {
@@ -75,7 +81,7 @@ describe('tourSteps', () => {
 
   it('gives the nearest step for an index past either end', () => {
     expect(stepAt('quick', 2).id).toBe('reply');
-    expect(stepAt('quick', 99).id).toBe('states');
+    expect(stepAt('quick', 99).id).toBe('filters');
     expect(stepAt('full', 99).id).toBe('activity');
     expect(stepAt('full', -1).id).toBe('conversation');
   });

@@ -1114,7 +1114,7 @@
       "back": "Back",
       "next": "Next",
       "done": "Done",
-      "keepGoing": "Keep going (6 more steps)",
+      "keepGoing": "Keep going (4 more steps)",
       "replay": "Replay"
     },
     "chapters": {
@@ -1163,8 +1163,8 @@
         "text": "Pin keeps a thread at the top of the list. Edit tags in Thread options labels a thread, and you can filter by tag."
       },
       "filters": {
-        "title": "Filter and sort",
-        "text": "Thread filters, in the room’s header or its menu, shows and hides this bar. Unresolved hides what is done, Last Reply changes the order, and the filter icon at the bar’s end opens Advanced filters, which find the rest, snoozed threads too."
+        "title": "Filters hide resolved threads",
+        "text": "Thread filters, in the room’s header or its menu, shows and hides this bar. Unresolved hides resolved threads: turn it off to see them again. Last Reply changes the order, and the filter icon at the bar’s end opens Advanced filters, which find the rest, snoozed threads too."
       },
       "views": {
         "title": "Two views of a room",

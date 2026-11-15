@@ -1137,7 +1137,7 @@
       "back": "Atrás",
       "next": "Siguiente",
       "done": "Listo",
-      "keepGoing": "Seguir (6 pasos más)",
+      "keepGoing": "Seguir (4 pasos más)",
       "replay": "Repetir"
     },
     "chapters": {
@@ -1186,8 +1186,8 @@
         "text": "«Fijar hilo» mantiene un hilo al principio de la lista. «Editar etiquetas», en «Opciones del hilo», etiqueta un hilo, y puedes filtrar por etiqueta."
       },
       "filters": {
-        "title": "Filtrar y ordenar",
-        "text": "«Filtros de hilos», en la cabecera de la sala o en su menú, muestra y oculta esta barra. «No resueltos» oculta lo terminado, «Última respuesta» cambia el orden y el icono de filtro al final de la barra abre «Filtros avanzados», que encuentran el resto, también los hilos pospuestos."
+        "title": "Los filtros ocultan los hilos resueltos",
+        "text": "«Filtros de hilos», en la cabecera de la sala o en su menú, muestra y oculta esta barra. «No resueltos» oculta los hilos resueltos: desactívalo para volver a verlos. «Última respuesta» cambia el orden y el icono de filtro al final de la barra abre «Filtros avanzados», que encuentran el resto, también los hilos pospuestos."
       },
       "views": {
         "title": "Dos vistas de una sala",

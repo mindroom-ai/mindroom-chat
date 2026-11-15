@@ -52,6 +52,36 @@ describe('TourSpotlight', () => {
     });
   });
 
+  it('counts the border of a box the part lies in, which a layout offset leaves out', () => {
+    // jsdom draws no borders: each box says its own in `data-border`.
+    (['clientLeft', 'clientTop'] as const).forEach((name) =>
+      Object.defineProperty(HTMLElement.prototype, name, {
+        configurable: true,
+        get(this: HTMLElement) {
+          return Number(this.dataset.border ?? 0);
+        },
+      })
+    );
+    try {
+      render(
+        <div data-stage data-border="5">
+          <div data-box="20,60,500,40" data-border="1">
+            <span data-box="10,4,90,32" data-tour-part="filterUnresolved" />
+          </div>
+          <TourSpotlight part="filterUnresolved" />
+        </div>
+      );
+      // 20 + 1 + 10 and 60 + 1 + 4. The stage's own border is not on the way: the ring is placed
+      // inside it too.
+      expect(ring()?.style.transform).toBe(
+        `translate(${31 - SPOTLIGHT_GAP}px, ${65 - SPOTLIGHT_GAP}px)`
+      );
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, 'clientLeft');
+      Reflect.deleteProperty(HTMLElement.prototype, 'clientTop');
+    }
+  });
+
   it('follows the part from scene to scene', () => {
     const { rerender } = render(<Stage part="card:budget" />);
     expect(ring()?.style.transform).toBe(

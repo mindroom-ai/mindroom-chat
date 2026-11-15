@@ -1137,7 +1137,7 @@
       "back": "Indietro",
       "next": "Avanti",
       "done": "Fine",
-      "keepGoing": "Continua (altri 6 passaggi)",
+      "keepGoing": "Continua (altri 4 passaggi)",
       "replay": "Rivedi"
     },
     "chapters": {
@@ -1186,8 +1186,8 @@
         "text": "Fissa thread tiene un thread in cima all’elenco. Modifica tag, in Opzioni del thread, assegna tag a un thread, e puoi filtrare per tag."
       },
       "filters": {
-        "title": "Filtra e ordina",
-        "text": "Filtri dei thread, nell’intestazione della stanza o nel suo menu, mostra e nasconde questa barra. Irrisolto nasconde ciò che è concluso, Ultima risposta cambia l’ordine e l’icona del filtro alla fine della barra apre Filtri avanzati, che trovano il resto, anche i thread posticipati."
+        "title": "I filtri nascondono i thread risolti",
+        "text": "Filtri dei thread, nell’intestazione della stanza o nel suo menu, mostra e nasconde questa barra. Irrisolto nasconde i thread risolti: disattivalo per rivederli. Ultima risposta cambia l’ordine e l’icona del filtro alla fine della barra apre Filtri avanzati, che trovano il resto, anche i thread posticipati."
       },
       "views": {
         "title": "Due viste di una stanza",

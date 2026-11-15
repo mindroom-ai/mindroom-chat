@@ -2,6 +2,7 @@
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
+import * as overviewCss from '../threads/overview/RoomThreadOverview.css';
 import { mockLayout, restoreLayout } from './__tests__/layout';
 import { mockMedia, restoreMedia } from './__tests__/media';
 import { VIEW_FADE_MS } from './tourMotion';
@@ -216,6 +217,11 @@ describe('TourStage', () => {
     expect(bar?.textContent).toContain('Unresolved');
     expect(bar?.textContent).toContain('Last Reply');
     expect(parts('filterButton')[0]?.getAttribute('aria-label')).toBe('Thread filters');
+    // Unresolved is a control of the bar, on as the app has it.
+    const unresolved = parts('filterUnresolved')[0];
+    expect(unresolved?.textContent).toBe('Unresolved');
+    expect(unresolved?.closest('[data-tour-part="filterBar"]')).toBe(bar);
+    expect(unresolved?.classList.contains(overviewCss.SortButtonActive)).toBe(true);
     cleanup();
 
     show('filters', 0, true);
@@ -223,6 +229,55 @@ describe('TourStage', () => {
     expect(menu?.textContent).toContain('Compact view');
     expect(parts('filterButton')[0]?.textContent).toBe('Thread filters');
     expect(parts('filterButton')[0]?.closest('[data-tour-room-menu]')).toBe(menu);
+  });
+
+  it('brings the resolved thread back while Unresolved is off, and counts it', () => {
+    const animate = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'animate', {
+      configurable: true,
+      writable: true,
+      value: animate,
+    });
+    /** The cards that fade in, by the first keyframe of what each plays. */
+    const fadedIn = () =>
+      animate.mock.contexts
+        .filter((_, call) => (animate.mock.calls[call]?.[0] as Keyframe[])[0]?.opacity === 0)
+        .map((card) => (card as HTMLElement).dataset.tourCard);
+    try {
+      const at = (phase: number) => stageOf(sceneOf('filters', phase, false, TYPED));
+      const count = () => parts('filterBar')[0]?.querySelector('span')?.textContent;
+      const isOn = () =>
+        parts('filterUnresolved')[0]?.classList.contains(overviewCss.SortButtonActive);
+      const { rerender } = render(at(1));
+      expect(isOn()).toBe(true);
+      expect(cardIds()).toEqual(['launch', 'budget', 'website']);
+      expect(count()).toBe('3');
+      // The cards the list starts with do not fade in.
+      expect(fadedIn()).toEqual([]);
+
+      rerender(at(2));
+      // Off, the control looks like the bar's other controls.
+      expect(isOn()).toBe(false);
+      expect(cardIds()).toEqual(['vendor', 'launch', 'budget', 'website']);
+      expect(count()).toBe('4');
+      const vendor = stage().querySelector('[data-tour-card="vendor"]');
+      expect(vendor?.querySelector('[data-compact-card-resolved-badge]')).toBeTruthy();
+      expect(fadedIn()).toEqual(['vendor']);
+
+      // The card stays as it is while the ring moves to it.
+      animate.mockClear();
+      rerender(at(3));
+      expect(stage().querySelector('[data-tour-card="vendor"]')).toBe(vendor);
+      expect(animate).not.toHaveBeenCalled();
+
+      rerender(at(4));
+      expect(isOn()).toBe(true);
+      expect(cardIds()).toEqual(['launch', 'budget', 'website']);
+      expect(count()).toBe('3');
+      expect(fadedIn()).toEqual([]);
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, 'animate');
+    }
   });
 
   it("shows each thread's first message with its reply count in the Threads view", () => {

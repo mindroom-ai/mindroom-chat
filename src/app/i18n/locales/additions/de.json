@@ -1114,7 +1114,7 @@
       "back": "Zurück",
       "next": "Weiter",
       "done": "Fertig",
-      "keepGoing": "Weitermachen (6 weitere Schritte)",
+      "keepGoing": "Weitermachen (4 weitere Schritte)",
       "replay": "Erneut abspielen"
     },
     "chapters": {
@@ -1163,8 +1163,8 @@
         "text": "„Thread anheften“ hält einen Thread oben in der Liste. Mit „Tags bearbeiten“ in den Thread-Optionen versiehst du einen Thread mit Tags, und du kannst nach Tags filtern."
       },
       "filters": {
-        "title": "Filtern und sortieren",
-        "text": "„Thread-Filter“, in der Kopfzeile des Raums oder in seinem Menü, blendet diese Leiste ein und aus. „Ungelöst“ blendet Erledigtes aus, „Letzte Antwort“ ändert die Reihenfolge, und das Filtersymbol am Ende der Leiste öffnet „Erweiterte Filter“, die den Rest finden, auch zurückgestellte Threads."
+        "title": "Filter blenden gelöste Threads aus",
+        "text": "„Thread-Filter“, in der Kopfzeile des Raums oder in seinem Menü, blendet diese Leiste ein und aus. „Ungelöst“ blendet gelöste Threads aus: Schalte es aus, um sie wieder zu sehen. „Letzte Antwort“ ändert die Reihenfolge, und das Filtersymbol am Ende der Leiste öffnet „Erweiterte Filter“, die den Rest finden, auch zurückgestellte Threads."
       },
       "views": {
         "title": "Zwei Ansichten eines Raums",

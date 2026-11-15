@@ -113,7 +113,7 @@ describe('TourDialog', () => {
     expect(screen.getByRole('dialog', { name: 'Quick tour' })).toBeTruthy();
     expect(dialog().getAttribute('data-tour-level')).toBe('quick');
     expect(stepId()).toBe('conversation');
-    expect(dialog().textContent).toContain('Step 1 of 6');
+    expect(dialog().textContent).toContain('Step 1 of 8');
     expect(dialog().textContent).toContain('The basics');
     expect(action('next')?.textContent).toBe('Next');
     expect(document.activeElement).toBe(action('next'));
@@ -125,7 +125,7 @@ describe('TourDialog', () => {
     render(<Tour />);
     press('next');
     expect(stepId()).toBe('start');
-    expect(dialog().textContent).toContain('Step 2 of 6');
+    expect(dialog().textContent).toContain('Step 2 of 8');
     expect(document.activeElement).toBe(action('next'));
 
     action('back')?.focus();
@@ -137,11 +137,11 @@ describe('TourDialog', () => {
 
   it('ends the Quick tour in Done, with Keep going beside it', () => {
     render(<Tour />);
-    goTo('states');
+    goTo('filters');
     expect(action('next')).toBeNull();
     expect(action('done')?.textContent).toBe('Done');
     expect(document.activeElement).toBe(action('done'));
-    expect(action('keepGoing')?.textContent).toBe('Keep going (6 more steps)');
+    expect(action('keepGoing')?.textContent).toBe('Keep going (4 more steps)');
 
     press('done');
     expect(onClose.mock.calls).toEqual([['done']]);
@@ -163,7 +163,7 @@ describe('TourDialog', () => {
 
   it('reports its closing once, though its focus trap asks again as the dialog goes', () => {
     const { unmount } = render(<Tour />);
-    goTo('states');
+    goTo('filters');
     press('done');
     unmount();
     expect(onClose.mock.calls).toEqual([['done']]);
@@ -171,14 +171,14 @@ describe('TourDialog', () => {
 
   it('goes on with the Full tour from Keep going', () => {
     render(<Tour />);
-    goTo('states');
+    goTo('filters');
     press('keepGoing');
 
     expect(onLevelChange.mock.calls).toEqual([['full']]);
     expect(onClose).not.toHaveBeenCalled();
     expect(dialog().getAttribute('data-tour-level')).toBe('full');
-    expect(stepId()).toBe('resolve');
-    expect(dialog().textContent).toContain('Step 7 of 12');
+    expect(stepId()).toBe('snooze');
+    expect(dialog().textContent).toContain('Step 9 of 12');
     expect(dialog().textContent).toContain('Keeping the list tidy');
     expect(screen.getByRole('dialog', { name: 'Full tour' })).toBeTruthy();
     expect(document.activeElement).toBe(action('next'));
@@ -205,10 +205,10 @@ describe('TourDialog', () => {
     key('ArrowLeft');
     expect(stepId()).toBe('start');
 
-    goTo('states');
+    goTo('filters');
     key('ArrowRight');
     // The end of the level: going on with the Full tour is a choice, not a key.
-    expect(stepId()).toBe('states');
+    expect(stepId()).toBe('filters');
     expect(onClose).not.toHaveBeenCalled();
     expect(onLevelChange).not.toHaveBeenCalled();
   });
@@ -280,7 +280,7 @@ describe('TourDialog', () => {
     ).toBeTruthy();
     expect(region.textContent).toContain('Each card is one thread');
     // Where this is in the tour comes first, for a reader that does not see the title row.
-    expect(region.textContent?.startsWith('Step 1 of 6. The basics.')).toBe(true);
+    expect(region.textContent?.startsWith('Step 1 of 8. The basics.')).toBe(true);
 
     press('next');
     // The same region with the next step's text, so a screen reader announces it.
@@ -316,8 +316,8 @@ describe('TourDialog', () => {
       segment.getAttribute('data-tour-segment')
     );
     expect(segments).toEqual([
-      ...Array<string>(8).fill('reached'),
-      ...Array<string>(4).fill('ahead'),
+      ...Array<string>(9).fill('reached'),
+      ...Array<string>(3).fill('ahead'),
     ]);
   });
 

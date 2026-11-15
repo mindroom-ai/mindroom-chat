@@ -1114,7 +1114,7 @@
       "back": "Geri",
       "next": "İleri",
       "done": "Bitti",
-      "keepGoing": "Devam et (6 adım daha)",
+      "keepGoing": "Devam et (4 adım daha)",
       "replay": "Yeniden oynat"
     },
     "chapters": {
@@ -1163,8 +1163,8 @@
         "text": "“Konuyu sabitle” bir konuyu listenin en üstünde tutar. “Konu seçenekleri” menüsündeki “Etiketleri düzenle” konuya etiket ekler; etikete göre filtreleyebilirsiniz."
       },
       "filters": {
-        "title": "Filtreleyin ve sıralayın",
-        "text": "Odanın üst çubuğundaki veya menüsündeki “Konu filtreleri” bu çubuğu gösterir ve gizler. “Çözülmemiş” bitenleri gizler, “Son yanıt” sıralamayı değiştirir, çubuğun sonundaki filtre simgesiyle açılan “Gelişmiş filtreler” ise ertelenen konular dahil geri kalanını bulur."
+        "title": "Filtreler çözülen konuları gizler",
+        "text": "Odanın üst çubuğundaki veya menüsündeki “Konu filtreleri” bu çubuğu gösterir ve gizler. “Çözülmemiş” çözülen konuları gizler; onları yeniden görmek için kapatın. “Son yanıt” sıralamayı değiştirir, çubuğun sonundaki filtre simgesiyle açılan “Gelişmiş filtreler” ise ertelenen konular dahil geri kalanını bulur."
       },
       "views": {
         "title": "Bir odanın iki görünümü",
