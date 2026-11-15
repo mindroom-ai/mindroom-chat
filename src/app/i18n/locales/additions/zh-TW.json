@@ -632,6 +632,25 @@
         "noWindow": "最前方的 App 沒有視窗",
         "failed": "截圖失敗"
       }
+    },
+    "watch": {
+      "title": "Apple Watch",
+      "description": "在聊天室中錄製語音訊息，並在手腕上回覆你的代理程式。",
+      "noWatch": "此 iPhone 未配對 Apple Watch。",
+      "notInstalled": "請透過此 iPhone 上的 Watch App 在 Apple Watch 上安裝 MindRoom。",
+      "notConnected": "未連線。",
+      "connect": "連線",
+      "connecting": "正在連線…",
+      "waiting": "請在 Apple Watch 上開啟 MindRoom 以完成。",
+      "verifying": "正在驗證手錶…",
+      "connected": "已以 {{deviceId}} 連線。",
+      "disconnect": "中斷連線",
+      "verify": "驗證",
+      "unsupported": "此主伺服器無法登入 Apple Watch。",
+      "failed": "無法連線：{{reason}}",
+      "noCrossSigning": "手錶已連線但未驗證：請在此 iPhone 上設定加密以驗證它。",
+      "noBackup": "手錶已驗證，但無法讀取連線前的訊息：請在此 iPhone 上開啟金鑰備份。",
+      "timeout": "手錶未完成登入。請在手錶上開啟 MindRoom 並重新連線。"
     }
   },
   "mindroomUi": {

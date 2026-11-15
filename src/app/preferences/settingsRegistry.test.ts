@@ -89,6 +89,12 @@ describe('settings registry', () => {
     expect(webPages).toContain('mindroom.local-mindroom');
     expect(appPages).not.toContain('connections');
     expect(appPages).not.toContain('mindroom.local-mindroom');
+    // The Apple Watch only in the iOS app.
+    expect(appPages).toContain('apple-watch');
+    expect(webPages).not.toContain('apple-watch');
+    expect(
+      getShownSettingsPages({ ...app, nativeIOS: false }).map((page) => page.id)
+    ).not.toContain('apple-watch');
     // The server's accounts only for its administrators.
     expect(webPages).not.toContain('server-accounts');
     expect(getShownSettingsPages({ ...WEB, serverAdmin: true }).map((page) => page.id)).toContain(

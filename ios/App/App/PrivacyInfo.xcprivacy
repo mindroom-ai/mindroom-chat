@@ -12,6 +12,15 @@
 				<string>35F9.1</string>
 			</array>
 		</dict>
+		<!-- The connected Apple Watch's device (MindRoomWatchPlugin). -->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>

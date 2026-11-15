@@ -75,6 +75,9 @@ if [[ "$sign" -eq 1 ]]; then
 fi
 
 npm run build:ios
+# The Xcode project references the watch app's SDK package, which Xcode resolves on every platform,
+# first when `pod install` reads the project.
+scripts/watch/build-sdk.sh --fetch
 # Also runs `pod install`.
 npx cap sync ios
 

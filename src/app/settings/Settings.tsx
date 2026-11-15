@@ -49,6 +49,7 @@ import { DeveloperTools } from './pages/DeveloperTools';
 import { LanguageRegion } from './pages/LanguageRegion';
 import { Notifications } from '../notifications/settings/Notifications';
 import { PrivacySecurity } from './pages/PrivacySecurity';
+import { AppleWatch } from '../account/watch/WatchSettings';
 import { Sidebar } from './pages/InterfaceSettings';
 import { StorageOffline } from './pages/StorageOffline';
 import { SettingsBreadcrumbRoot } from '../ui/settings/SettingsPageFrame';
@@ -82,6 +83,8 @@ function SettingsPageContent({ page, requestClose, closeDialog }: PageContentPro
       return <Notifications requestClose={requestClose} />;
     case 'privacy':
       return <PrivacySecurity requestClose={requestClose} />;
+    case 'apple-watch':
+      return <AppleWatch requestClose={requestClose} />;
     case 'appearance':
       return <Appearance requestClose={requestClose} />;
     case 'chats':
@@ -249,7 +252,8 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
       viewport,
       context.localMindroom,
       context.native,
-      context.serverAdmin
+      context.serverAdmin,
+      context.nativeIOS
     )
   );
   const [query, setQuery] = useState('');
@@ -275,8 +279,15 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
   useEffect(() => (target ? revealSetting(pageRef.current, target.id) : undefined), [target]);
 
   const menuItems = useMemo(
-    () => getSettingsMenuItems(context.localMindroom, t, context.native, context.serverAdmin),
-    [context.localMindroom, context.native, context.serverAdmin, t]
+    () =>
+      getSettingsMenuItems(
+        context.localMindroom,
+        t,
+        context.native,
+        context.serverAdmin,
+        context.nativeIOS
+      ),
+    [context.localMindroom, context.native, context.serverAdmin, context.nativeIOS, t]
   );
   const isMobile = viewport === ScreenSize.Mobile;
 

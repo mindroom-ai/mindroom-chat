@@ -123,7 +123,7 @@ Outside `src/` and `e2e/`:
 |---|---|
 | `scripts/` | Vite plugins and build helpers, check scripts (`license-check.mjs`), e2e tooling (`e2e-slot.sh`, `e2e-suite.sh`, `e2e-rtc.sh`, `agent-stack/`, `reference/seed.py`), release versions and tags (`calver.mjs`), iOS and App Store helpers |
 | `public/` | Files served at the root as they are: icons, sounds, `manifest.json` |
-| `ios/`, `android/` | The Capacitor native projects |
+| `ios/`, `android/` | The Capacitor native projects; `ios/Watch/` holds the native Apple Watch app, its widgets, the `MindRoomWatchKit` package and the matrix-rust-sdk build inputs |
 | `docs/` | This page, `configuration.md`, `development.md`, `deployment.md`, design reference screenshots, the README screenshots (`screenshots/`), specs and plans |
 
 Unit tests run in Vitest, in Node by default; DOM tests opt in with `// @vitest-environment jsdom`.

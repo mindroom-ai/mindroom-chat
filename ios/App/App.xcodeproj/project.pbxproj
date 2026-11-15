@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 48;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -29,6 +29,14 @@
 		0C0000000000000000000004 /* MacWindowing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0000000000000000000003 /* MacWindowing.swift */; };
 		0C0000000000000000000006 /* MindRoomQuickCapturePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0000000000000000000005 /* MindRoomQuickCapturePlugin.swift */; };
 		0C0000000000000000000008 /* MacScreenshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0000000000000000000007 /* MacScreenshot.swift */; };
+		00793D37691CA6A2C357C1DA /* MindRoomWatchPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF3699D35CE23E26A1F83E11 /* MindRoomWatchPlugin.swift */; };
+		525804A9D89766D91C052708 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A02C0E28C92536C30CEA5B63 /* Foundation.framework */; };
+		6A496C5B7FBC4E20A2D784F9 /* MatrixRustSDK in Frameworks */ = {isa = PBXBuildFile; productRef = FE89B787D18AF34B13E63160 /* MatrixRustSDK */; };
+		7A745045E4F6B376A3999DDE /* MindRoomWatchKit in Frameworks */ = {isa = PBXBuildFile; productRef = B5E27C236ED630B7A2434486 /* MindRoomWatchKit */; };
+		B03008D4DAA39978AA502638 /* MindRoomWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 0C534A4503B3860B63E31A5E /* MindRoomWatch.app */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B50195693EE6D7EBB6A8A573 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A02C0E28C92536C30CEA5B63 /* Foundation.framework */; };
+		EB491C9CD9DEA9F13556F494 /* MindRoomWatchKit in Frameworks */ = {isa = PBXBuildFile; productRef = B3F1E4DD43D478CE24DDADAC /* MindRoomWatchKit */; };
+		F52948A09D1988535D64FD86 /* MindRoomWatchWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 24830AA74AB4EBDA19AB5F84 /* MindRoomWatchWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -90,6 +98,10 @@
 		0C0000000000000000000003 /* MacWindowing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacWindowing.swift; sourceTree = "<group>"; };
 		0C0000000000000000000005 /* MindRoomQuickCapturePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomQuickCapturePlugin.swift; sourceTree = "<group>"; };
 		0C0000000000000000000007 /* MacScreenshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacScreenshot.swift; sourceTree = "<group>"; };
+		0C534A4503B3860B63E31A5E /* MindRoomWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MindRoomWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		24830AA74AB4EBDA19AB5F84 /* MindRoomWatchWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MindRoomWatchWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A02C0E28C92536C30CEA5B63 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/WatchOS.platform/Developer/SDKs/WatchOS11.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		BF3699D35CE23E26A1F83E11 /* MindRoomWatchPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MindRoomWatchPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,6 +113,25 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		048CB29393568CC49F40063E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				525804A9D89766D91C052708 /* Foundation.framework in Frameworks */,
+				6A496C5B7FBC4E20A2D784F9 /* MatrixRustSDK in Frameworks */,
+				EB491C9CD9DEA9F13556F494 /* MindRoomWatchKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D22396EE39292514D1410A2D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B50195693EE6D7EBB6A8A573 /* Foundation.framework in Frameworks */,
+				7A745045E4F6B376A3999DDE /* MindRoomWatchKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -108,6 +139,7 @@
 			isa = PBXGroup;
 			children = (
 				AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */,
+				31195A55096CE179E667661F /* watchOS */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -119,6 +151,7 @@
 				504EC3051FED79650016851F /* Products */,
 				7F8756D8B27F46E3366F6CEA /* Pods */,
 				27E2DDA53C4D2A4D1A88CE4A /* Frameworks */,
+				2F424D78DB612F32F7F4D79C /* Watch */,
 			);
 			sourceTree = "<group>";
 		};
@@ -126,6 +159,8 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* MindRoom.chat.app */,
+				0C534A4503B3860B63E31A5E /* MindRoomWatch.app */,
+				24830AA74AB4EBDA19AB5F84 /* MindRoomWatchWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -155,6 +190,7 @@
 				504EC3131FED79650016851F /* Info.plist */,
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
+				BF3699D35CE23E26A1F83E11 /* MindRoomWatchPlugin.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -166,6 +202,24 @@
 				AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */,
 			);
 			name = Pods;
+			sourceTree = "<group>";
+		};
+		2F424D78DB612F32F7F4D79C /* Watch */ = {
+			isa = PBXGroup;
+			children = (
+				84F19358D5FEAA6B0DBB7242 /* MindRoomWatch */,
+				C7ACE818649573806C3799A7 /* MindRoomWatchWidgets */,
+			);
+			name = Watch;
+			path = ../Watch;
+			sourceTree = "<group>";
+		};
+		31195A55096CE179E667661F /* watchOS */ = {
+			isa = PBXGroup;
+			children = (
+				A02C0E28C92536C30CEA5B63 /* Foundation.framework */,
+			);
+			name = watchOS;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -180,14 +234,65 @@
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
 				9592DBEFFC6D2A0C8D5DEB22 /* [CP] Embed Pods Frameworks */,
+				F6D5A971363E8A93FE00CDB5 /* Embed Watch Content */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F115A9556690951FA84C772F /* PBXTargetDependency */,
+			);
+			name = App;
+			productName = App;
+			productReference = 504EC3041FED79650016851F /* MindRoom.chat.app */;
+			productType = "com.apple.product-type.application";
+		};
+		926F9D3B3244570B5EE57113 /* MindRoomWatchWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 990F3963FF824A429A4481D0 /* Build configuration list for PBXNativeTarget "MindRoomWatchWidgets" */;
+			buildPhases = (
+				B60B067A8633C879FE0922E0 /* Sources */,
+				D22396EE39292514D1410A2D /* Frameworks */,
+				995C19733FDD21032CECF906 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
-			name = App;
-			productName = App;
-			productReference = 504EC3041FED79650016851F /* MindRoom.chat.app */;
+			fileSystemSynchronizedGroups = (
+				C7ACE818649573806C3799A7 /* MindRoomWatchWidgets */,
+			);
+			name = MindRoomWatchWidgets;
+			packageProductDependencies = (
+				B5E27C236ED630B7A2434486 /* MindRoomWatchKit */,
+			);
+			productName = MindRoomWatchWidgets;
+			productReference = 24830AA74AB4EBDA19AB5F84 /* MindRoomWatchWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		D7D31FF8B14971A37B635916 /* MindRoomWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 34FC2219ABA0F8C1471ABFAD /* Build configuration list for PBXNativeTarget "MindRoomWatch" */;
+			buildPhases = (
+				801ECE2A1E5FF564461242A0 /* Sources */,
+				048CB29393568CC49F40063E /* Frameworks */,
+				7DE81A0B21B6F918C22B81E4 /* Resources */,
+				ECA5505488067692DFA91F88 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6E2CAF3D39AC1D90F4C8F7B0 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				84F19358D5FEAA6B0DBB7242 /* MindRoomWatch */,
+			);
+			name = MindRoomWatch;
+			packageProductDependencies = (
+				FE89B787D18AF34B13E63160 /* MatrixRustSDK */,
+				B3F1E4DD43D478CE24DDADAC /* MindRoomWatchKit */,
+			);
+			productName = MindRoomWatch;
+			productReference = 0C534A4503B3860B63E31A5E /* MindRoomWatch.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -212,7 +317,7 @@
 				};
 			};
 			buildConfigurationList = 504EC2FF1FED79650016851F /* Build configuration list for PBXProject "App" */;
-			compatibilityVersion = "Xcode 8.0";
+			compatibilityVersion = "Xcode 16.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -237,12 +342,16 @@
 			);
 			mainGroup = 504EC2FB1FED79650016851F;
 			packageReferences = (
+				F28409DC59EB2A009449E2CA /* XCLocalSwiftPackageReference "MatrixRustSDK" */,
+				8E750DE8D0279E80AE6A3C7B /* XCLocalSwiftPackageReference "MindRoomWatchKit" */,
 			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
+				D7D31FF8B14971A37B635916 /* MindRoomWatch */,
+				926F9D3B3244570B5EE57113 /* MindRoomWatchWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -261,6 +370,20 @@
 				C0DEC0DE0000000000000007 /* Localizable.strings in Resources */,
 				A18A00000000000000000002 /* InfoPlist.strings in Resources */,
 				D1A600000000000000000008 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7DE81A0B21B6F918C22B81E4 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		995C19733FDD21032CECF906 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -319,6 +442,21 @@
 				0C0000000000000000000004 /* MacWindowing.swift in Sources */,
 				0C0000000000000000000006 /* MindRoomQuickCapturePlugin.swift in Sources */,
 				0C0000000000000000000008 /* MacScreenshot.swift in Sources */,
+				00793D37691CA6A2C357C1DA /* MindRoomWatchPlugin.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		801ECE2A1E5FF564461242A0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B60B067A8633C879FE0922E0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -560,6 +698,136 @@
 			};
 			name = Release;
 		};
+		032DDEC6F81ABC05BE3414B8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = ../Watch/MindRoomWatchWidgets/MindRoomWatchWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 33;
+				DEVELOPMENT_TEAM = DNA6966LGZ;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ../Watch/MindRoomWatchWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = MindRoom;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 4.12.6;
+				PRODUCT_BUNDLE_IDENTIFIER = chat.mindroom.app.watchkitapp.widgets;
+				PRODUCT_NAME = MindRoomWatchWidgets;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Debug;
+		};
+		86E473B5C8E6B937B46E1075 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ../Watch/MindRoomWatch/MindRoomWatch.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 33;
+				DEVELOPMENT_TEAM = DNA6966LGZ;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = MindRoom;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MindRoom records the voice messages you send.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = chat.mindroom.app;
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 4.12.6;
+				INFOPLIST_FILE = ../Watch/MindRoomWatch/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = chat.mindroom.app.watchkitapp;
+				PRODUCT_NAME = MindRoomWatch;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Release;
+		};
+		9766FCC4DA2CD44F7A43E519 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ../Watch/MindRoomWatch/MindRoomWatch.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 33;
+				DEVELOPMENT_TEAM = DNA6966LGZ;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = MindRoom;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MindRoom records the voice messages you send.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = chat.mindroom.app;
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 4.12.6;
+				INFOPLIST_FILE = ../Watch/MindRoomWatch/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = chat.mindroom.app.watchkitapp;
+				PRODUCT_NAME = MindRoomWatch;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Debug;
+		};
+		9CF154A5196D192AF5762962 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = ../Watch/MindRoomWatchWidgets/MindRoomWatchWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 33;
+				DEVELOPMENT_TEAM = DNA6966LGZ;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ../Watch/MindRoomWatchWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = MindRoom;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 4.12.6;
+				PRODUCT_BUNDLE_IDENTIFIER = chat.mindroom.app.watchkitapp.widgets;
+				PRODUCT_NAME = MindRoomWatchWidgets;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -581,7 +849,149 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		34FC2219ABA0F8C1471ABFAD /* Build configuration list for PBXNativeTarget "MindRoomWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				86E473B5C8E6B937B46E1075 /* Release */,
+				9766FCC4DA2CD44F7A43E519 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		990F3963FF824A429A4481D0 /* Build configuration list for PBXNativeTarget "MindRoomWatchWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9CF154A5196D192AF5762962 /* Release */,
+				032DDEC6F81ABC05BE3414B8 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
+
+/* Begin PBXContainerItemProxy section */
+		10133580AEEC5915A5D8B13E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D7D31FF8B14971A37B635916;
+			remoteInfo = MindRoomWatch;
+		};
+		71A305713B41DC181CB4A6C7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 926F9D3B3244570B5EE57113;
+			remoteInfo = MindRoomWatchWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		ECA5505488067692DFA91F88 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				F52948A09D1988535D64FD86 /* MindRoomWatchWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F6D5A971363E8A93FE00CDB5 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				B03008D4DAA39978AA502638 /* MindRoomWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		6FD4187A433BCE35F82B27F2 /* Exceptions for "MindRoomWatchWidgets" folder in "MindRoomWatchWidgets" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 926F9D3B3244570B5EE57113 /* MindRoomWatchWidgets */;
+		};
+		C6F39969A32347B46409949B /* Exceptions for "MindRoomWatch" folder in "MindRoomWatch" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D7D31FF8B14971A37B635916 /* MindRoomWatch */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		84F19358D5FEAA6B0DBB7242 /* MindRoomWatch */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C6F39969A32347B46409949B /* Exceptions for "MindRoomWatch" folder in "MindRoomWatch" target */,
+			);
+			path = MindRoomWatch;
+			sourceTree = "<group>";
+		};
+		C7ACE818649573806C3799A7 /* MindRoomWatchWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				6FD4187A433BCE35F82B27F2 /* Exceptions for "MindRoomWatchWidgets" folder in "MindRoomWatchWidgets" target */,
+			);
+			path = MindRoomWatchWidgets;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXTargetDependency section */
+		6E2CAF3D39AC1D90F4C8F7B0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = MindRoomWatchWidgets;
+			target = 926F9D3B3244570B5EE57113 /* MindRoomWatchWidgets */;
+			targetProxy = 71A305713B41DC181CB4A6C7 /* PBXContainerItemProxy */;
+		};
+		F115A9556690951FA84C772F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = MindRoomWatch;
+			platformFilter = ios;
+			target = D7D31FF8B14971A37B635916 /* MindRoomWatch */;
+			targetProxy = 10133580AEEC5915A5D8B13E /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		8E750DE8D0279E80AE6A3C7B /* XCLocalSwiftPackageReference "MindRoomWatchKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Watch/MindRoomWatchKit;
+		};
+		F28409DC59EB2A009449E2CA /* XCLocalSwiftPackageReference "MatrixRustSDK" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Watch/MatrixRustSDK;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B3F1E4DD43D478CE24DDADAC /* MindRoomWatchKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8E750DE8D0279E80AE6A3C7B /* XCLocalSwiftPackageReference "MindRoomWatchKit" */;
+			productName = MindRoomWatchKit;
+		};
+		B5E27C236ED630B7A2434486 /* MindRoomWatchKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8E750DE8D0279E80AE6A3C7B /* XCLocalSwiftPackageReference "MindRoomWatchKit" */;
+			productName = MindRoomWatchKit;
+		};
+		FE89B787D18AF34B13E63160 /* MatrixRustSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F28409DC59EB2A009449E2CA /* XCLocalSwiftPackageReference "MatrixRustSDK" */;
+			productName = MatrixRustSDK;
+		};
+/* End XCSwiftPackageProductDependency section */
+
 	};
 	rootObject = 504EC2FC1FED79650016851F /* Project object */;
 }

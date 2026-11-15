@@ -650,6 +650,25 @@
         "noWindow": "L’app in primo piano non ha finestre",
         "failed": "Lo screenshot non è riuscito"
       }
+    },
+    "watch": {
+      "title": "Apple Watch",
+      "description": "Registra messaggi vocali in una stanza e rispondi ai tuoi agenti dal polso.",
+      "noWatch": "Nessun Apple Watch è abbinato a questo iPhone.",
+      "notInstalled": "Installa MindRoom sul tuo Apple Watch dall’app Watch di questo iPhone.",
+      "notConnected": "Non connesso.",
+      "connect": "Connetti",
+      "connecting": "Connessione…",
+      "waiting": "Apri MindRoom sul tuo Apple Watch per completare.",
+      "verifying": "Verifica dell’orologio…",
+      "connected": "Connesso come {{deviceId}}.",
+      "disconnect": "Disconnetti",
+      "verify": "Verifica",
+      "unsupported": "Questo homeserver non può accedere con un Apple Watch.",
+      "failed": "Impossibile connettersi: {{reason}}",
+      "noCrossSigning": "L’orologio è connesso ma non verificato: configura la crittografia su questo iPhone per verificarlo.",
+      "noBackup": "L’orologio è verificato, ma non può leggere i messaggi precedenti alla connessione: attiva il backup delle chiavi su questo iPhone.",
+      "timeout": "L’orologio non ha completato l’accesso. Apri MindRoom sull’orologio e connettiti di nuovo."
     }
   },
   "mindroomUi": {

@@ -12,3 +12,11 @@ __pycache__/
 ui-audit/
 # npm run appstore:screenshots writes the App Store set here (see its README.md).
 ios/App/fastlane/screenshots/en-US/
+
+# The watch app's Rust SDK build (scripts/watch/build-sdk.sh).
+ios/Watch/MatrixRustSDK/MatrixSDKFFI.xcframework/
+ios/Watch/MatrixRustSDK/Sources/
+ios/Watch/MatrixRustSDK/*.zip
+ios/Watch/MatrixRustSDK/release
+ios/Watch/MatrixRustSDK/build/
+ios/Watch/**/.build/

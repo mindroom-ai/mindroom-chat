@@ -5,6 +5,7 @@ export const SettingsPages = {
   AccountPage: 'account',
   NotificationPage: 'notifications',
   PrivacyPage: 'privacy',
+  AppleWatchPage: 'apple-watch',
   AppearancePage: 'appearance',
   ChatsPage: 'chats',
   SidebarPage: 'sidebar',

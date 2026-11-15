@@ -30,6 +30,7 @@ const PAGE_FILES: Record<Exclude<SettingsPageId, 'sidebar'>, string[]> = {
     'account/devices/KeyBackupTile.tsx',
     'account/devices/LocalKeyBackup.tsx',
   ],
+  'apple-watch': ['account/watch/WatchSettings.tsx'],
   appearance: ['settings/pages/Appearance.tsx'],
   chats: [
     'settings/pages/Chats.tsx',
@@ -37,25 +38,13 @@ const PAGE_FILES: Record<Exclude<SettingsPageId, 'sidebar'>, string[]> = {
     'emoji/settings/GlobalPacks.tsx',
     'emoji/settings/ServerPack.tsx',
   ],
-  language: [
-    'settings/pages/LanguageRegion.tsx',
-    'settings/pages/DateFormatSetting.tsx',
-  ],
-  connections: [
-    'settings/pages/AgentSettingsPages.tsx',
-    'connections/ConnectionsSettings.tsx',
-  ],
-  computers: [
-    'settings/pages/AgentSettingsPages.tsx',
-    'computer/ComputerSettings.tsx',
-  ],
+  language: ['settings/pages/LanguageRegion.tsx', 'settings/pages/DateFormatSetting.tsx'],
+  connections: ['settings/pages/AgentSettingsPages.tsx', 'connections/ConnectionsSettings.tsx'],
+  computers: ['settings/pages/AgentSettingsPages.tsx', 'computer/ComputerSettings.tsx'],
   'mindroom.local-mindroom': ['local-mindroom/LocalMindroom.tsx'],
   'archived-rooms': ['rooms/archive/ArchivedRoomsPage.tsx'],
   'server-accounts': ['server-admin/ServerAccounts.tsx', 'server-admin/ServerAccountDetail.tsx'],
-  storage: [
-    'settings/pages/StorageOffline.tsx',
-    'settings/pages/PrefetchSettings.tsx',
-  ],
+  storage: ['settings/pages/StorageOffline.tsx', 'settings/pages/PrefetchSettings.tsx'],
   'developer-tools': ['settings/pages/DeveloperTools.tsx'],
   about: ['settings/pages/About.tsx'],
 };

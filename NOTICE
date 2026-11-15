@@ -35,6 +35,21 @@ require-like (MIT license text, no license field), caniuse-lite (CC-BY-4.0
 browser data, build tooling only, not in the bundle), and jsonify (public
 domain, development only).
 
+matrix-rust-sdk (Apple Watch app)
+  matrix-sdk-ffi and the other crates of matrix-rust-sdk, Copyright The
+  Matrix.org Foundation C.I.C., Apache License 2.0
+  (https://github.com/matrix-org/matrix-rust-sdk). The Apple Watch app links
+  them, built by scripts/watch/build-sdk.sh from the tag in
+  ios/Watch/sdk/version and modified by ios/Watch/sdk/matrix-rust-sdk.patch (a
+  timeline filter that keeps MindRoom's event types, a call that returns an
+  event and its relations as JSON, a secrets bundle read from JSON, no search
+  index, a smaller build profile). licenses/watch-sdk.txt lists every Rust crate the
+  watch app links, with its version and license, as
+  scripts/watch/check_sdk_licenses.py writes it; that script accepts the
+  licenses above (an "or later" MPL-2.0 too) and one crate by name:
+  xxhash-rust (Boost Software License 1.0, permissive, no notice required in a
+  binary; matrix-sdk-base needs it through growable-bloom-filter).
+
 noVNC
   @novnc/novnc 1.7.0, Copyright (C) The noVNC authors, Mozilla Public License
   2.0 (its vendored pako is MIT). The web bundle includes noVNC unmodified.

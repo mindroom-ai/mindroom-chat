@@ -641,6 +641,25 @@
         "noWindow": "Öndeki uygulamanın penceresi yok",
         "failed": "Ekran görüntüsü başarısız oldu"
       }
+    },
+    "watch": {
+      "title": "Apple Watch",
+      "description": "Bir odaya sesli mesaj kaydedin ve ajanlarınıza bileğinizden yanıt verin.",
+      "noWatch": "Bu iPhone ile eşlenmiş bir Apple Watch yok.",
+      "notInstalled": "MindRoom’u bu iPhone’daki Watch uygulamasından Apple Watch’unuza yükleyin.",
+      "notConnected": "Bağlı değil.",
+      "connect": "Bağla",
+      "connecting": "Bağlanıyor…",
+      "waiting": "Bitirmek için Apple Watch’unuzda MindRoom’u açın.",
+      "verifying": "Saat doğrulanıyor…",
+      "connected": "{{deviceId}} olarak bağlı.",
+      "disconnect": "Bağlantıyı kes",
+      "verify": "Doğrula",
+      "unsupported": "Bu ana sunucu bir Apple Watch’ta oturum açamaz.",
+      "failed": "Bağlanılamadı: {{reason}}",
+      "noCrossSigning": "Saat bağlı ama doğrulanmadı: doğrulamak için bu iPhone’da şifrelemeyi ayarlayın.",
+      "noBackup": "Saat doğrulandı ama bağlanmadan önceki mesajları okuyamaz: bu iPhone’da anahtar yedeklemesini açın.",
+      "timeout": "Saat oturum açmayı bitirmedi. Saatte MindRoom’u açın ve yeniden bağlayın."
     }
   },
   "mindroomUi": {

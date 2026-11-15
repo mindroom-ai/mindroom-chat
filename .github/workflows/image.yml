@@ -32,6 +32,9 @@ permissions:
 jobs:
   image:
     name: Build, check and publish the image
+    # A release that is no version of the app has no image: the watch app's SDK build
+    # (scripts/watch/build-sdk.sh --publish) is a release named watch-sdk-<tag>-<patch>.
+    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:

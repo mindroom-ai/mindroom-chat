@@ -1,0 +1,163 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index cde180f..a792cf9 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -255,3 +255,8 @@ lto = false
+ async-compat = { git = "https://github.com/element-hq/async-compat", rev = "5a27c8b290f1f1dcfc0c4ec22c464e38528aa591" }
+ zxcvbn = { git = "https://github.com/shssoichiro/zxcvbn-rs", rev = "4e8e784b23541d118800df84feedf8160879d1af" }
+ const_panic = { git = "https://github.com/jplatte/const_panic", rev = "e0b317a9a7bde2d48a7d15b6a60d70e4a41d3b5f" }
++
++[profile.watch-release]
++inherits = "small-release-stripped"
++opt-level = "z"
++codegen-units = 1
+diff --git a/bindings/matrix-sdk-ffi/Cargo.toml b/bindings/matrix-sdk-ffi/Cargo.toml
+index 521f9bf..150f0ca 100644
+--- a/bindings/matrix-sdk-ffi/Cargo.toml
++++ b/bindings/matrix-sdk-ffi/Cargo.toml
+@@ -63,7 +63,6 @@ matrix-sdk = { workspace = true, features = [
+     "socks",
+     "uniffi",
+     "federation-api",
+-    "experimental-search"
+ ] }
+ matrix-sdk-base.workspace = true
+ matrix-sdk-common.workspace = true
+diff --git a/bindings/matrix-sdk-ffi/src/encryption.rs b/bindings/matrix-sdk-ffi/src/encryption.rs
+index cf71a3a..a3e6fb8 100644
+--- a/bindings/matrix-sdk-ffi/src/encryption.rs
++++ b/bindings/matrix-sdk-ffi/src/encryption.rs
+@@ -249,6 +249,20 @@ pub struct SecretsBundleWithUserId {
+     inner: matrix_sdk_base::crypto::types::SecretsBundle,
+ }
+ 
++#[matrix_sdk_ffi_macros::export]
++impl SecretsBundleWithUserId {
++    /// A bundle another client exported as JSON, such as matrix-js-sdk's
++    /// `CryptoApi.exportSecretsBundle()`, for the user it belongs to.
++    #[uniffi::constructor]
++    pub fn from_json(user_id: String, json: String) -> Result<Arc<Self>, ClientError> {
++        let user_id = matrix_sdk::ruma::UserId::parse(user_id)
++            .map_err(|e| ClientError::Generic { msg: e.to_string(), details: None })?;
++        let inner = serde_json::from_str(&json)
++            .map_err(|e| ClientError::Generic { msg: e.to_string(), details: None })?;
++        Ok(Arc::new(Self { user_id, inner }))
++    }
++}
++
+ /// Result for the check if a store has a valid secrets bundle.
+ #[derive(uniffi::Enum)]
+ pub enum DetectedSecretsBundle {
+diff --git a/bindings/matrix-sdk-ffi/src/room/mod.rs b/bindings/matrix-sdk-ffi/src/room/mod.rs
+index ee11d99..e7a622e 100644
+--- a/bindings/matrix-sdk-ffi/src/room/mod.rs
++++ b/bindings/matrix-sdk-ffi/src/room/mod.rs
+@@ -275,6 +275,14 @@ impl Room {
+                 });
+             }
+ 
++            TimelineFilter::DefaultAndEventTypes { event_types } => {
++                builder = builder.event_filter(move |event, room_version_id| {
++                    default_event_filter(event, room_version_id)
++                        || (matches!(event, AnySyncTimelineEvent::MessageLike(_))
++                            && event_types.iter().any(|t| *t == event.event_type().to_string()))
++                });
++            }
++
+             TimelineFilter::EventFilter { filter: event_filter } => {
+                 builder = builder.event_filter(move |event, room_version_id| {
+                     // Always perform the default filter first
+@@ -1343,6 +1351,35 @@ impl Room {
+             .into())
+     }
+ 
++    /// The event as JSON (its decrypted form when it was encrypted), followed by
++    /// the events related to it (edits, reactions, thread replies, recursively),
++    /// each as JSON. The event may come from the event cache; its relations
++    /// always come from the homeserver, since the cache may miss those that
++    /// arrived while the client did not sync. Keeps the fields that the typed
++    /// events drop, such as an application's own content keys.
++    pub async fn load_or_fetch_event_json_with_relations(
++        &self,
++        event_id: String,
++    ) -> Result<Vec<String>, ClientError> {
++        let event_id = EventId::parse(event_id)?;
++        let event = self.inner.load_or_fetch_event(&event_id, None).await?;
++        let mut options = matrix_sdk::room::RelationsOptions {
++            recurse: true,
++            limit: Some(matrix_sdk::ruma::uint!(256)),
++            ..Default::default()
++        };
++        let mut events = vec![event];
++        loop {
++            let relations = self.inner.relations(event_id.clone(), options.clone()).await?;
++            events.extend(relations.chunk);
++            match relations.next_batch_token {
++                Some(token) => options.from = Some(token),
++                None => break,
++            }
++        }
++        Ok(events.into_iter().map(|event| event.kind.into_raw().json().get().to_owned()).collect())
++    }
++
+     /// Either loads the event associated with the `event_id` from the event
+     /// cache or fetches it from the homeserver, along with the events related
+     /// to it (e.g. reactions and edits), fetched recursively.
+diff --git a/bindings/matrix-sdk-ffi/src/timeline/configuration.rs b/bindings/matrix-sdk-ffi/src/timeline/configuration.rs
+index 09d20bd..686ac7c 100644
+--- a/bindings/matrix-sdk-ffi/src/timeline/configuration.rs
++++ b/bindings/matrix-sdk-ffi/src/timeline/configuration.rs
+@@ -103,6 +103,9 @@ pub enum TimelineFilter {
+     },
+     /// Show only events which match this event filter.
+     EventFilter { filter: TimelineEventFilter },
++    /// Show the events the default filter shows, and also message-like events
++    /// of the given types, which the default filter hides as unknown.
++    DefaultAndEventTypes { event_types: Vec<String> },
+ }
+ 
+ /// Various options used to configure the timeline's behavior.
+diff --git a/xtask/src/swift.rs b/xtask/src/swift.rs
+index f30f695..7af1aa9 100644
+--- a/xtask/src/swift.rs
++++ b/xtask/src/swift.rs
+@@ -169,7 +169,7 @@ impl Platform {
+ const FFI_LIBRARY_NAME: &str = "libmatrix_sdk_ffi.a";
+ 
+ /// The features enabled for the FFI library.
+-const FFI_FEATURES: &str = "sentry";
++const FFI_FEATURES: &str = "bundled-sqlite,rustls-aws-lc-rs,unstable-msc4274";
+ 
+ /// The list of targets supported by the SDK.
+ const TARGETS: &[Target] = &[
+@@ -407,10 +407,10 @@ fn build_targets(
+ 
+             println!("-- Building for {}", target.description);
+             if target.status == TargetStatus::TopTier {
+-                cmd!(sh, "rustup run stable cargo build -p matrix-sdk-ffi --target {triple} --profile {profile} --features {FFI_FEATURES}")
++                cmd!(sh, "rustup run stable cargo build -p matrix-sdk-ffi --target {triple} --profile {profile} --no-default-features --features {FFI_FEATURES}")
+                     .run()?;
+             } else {
+-                cmd!(sh, "rustup run nightly cargo build -p matrix-sdk-ffi -Zbuild-std --target {triple} --profile {profile} --features {FFI_FEATURES}")
++                cmd!(sh, "rustup run nightly cargo build -p matrix-sdk-ffi -Zbuild-std --target {triple} --profile {profile} --no-default-features --features {FFI_FEATURES}")
+                     .run()?;
+             }
+         }
+@@ -424,7 +424,7 @@ fn build_targets(
+             for triple in &triples {
+                 cmd = cmd.arg("--target").arg(triple);
+             }
+-            cmd = cmd.arg("--profile").arg(profile).arg("--features").arg(FFI_FEATURES);
++            cmd = cmd.arg("--profile").arg(profile).arg("--no-default-features").arg("--features").arg(FFI_FEATURES);
+ 
+             println!("-- Building for {} targets", triples.len());
+             cmd.run()?;
+@@ -436,7 +436,7 @@ fn build_targets(
+             for triple in &triples {
+                 cmd = cmd.arg("--target").arg(triple);
+             }
+-            cmd = cmd.arg("--profile").arg(profile).arg("--features").arg(FFI_FEATURES);
++            cmd = cmd.arg("--profile").arg(profile).arg("--no-default-features").arg("--features").arg(FFI_FEATURES);
+ 
+             println!("-- Building for {} targets with nightly -Zbuild-std", triples.len());
+             cmd.run()?;

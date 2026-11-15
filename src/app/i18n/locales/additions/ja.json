@@ -632,6 +632,25 @@
         "noWindow": "最前面のAppにウインドウがありません",
         "failed": "スクリーンショットに失敗しました"
       }
+    },
+    "watch": {
+      "title": "Apple Watch",
+      "description": "ルームに音声メッセージを録音し、手首からエージェントに答えます。",
+      "noWatch": "このiPhoneとペアリングされたApple Watchはありません。",
+      "notInstalled": "このiPhoneのWatchアプリから、Apple WatchにMindRoomをインストールしてください。",
+      "notConnected": "未接続です。",
+      "connect": "接続",
+      "connecting": "接続中…",
+      "waiting": "完了するには、Apple WatchでMindRoomを開いてください。",
+      "verifying": "ウォッチを確認中…",
+      "connected": "{{deviceId}} として接続済みです。",
+      "disconnect": "接続解除",
+      "verify": "確認する",
+      "unsupported": "このホームサーバーはApple Watchにサインインできません。",
+      "failed": "接続できませんでした: {{reason}}",
+      "noCrossSigning": "ウォッチは接続されていますが未確認です。確認するには、このiPhoneで暗号化を設定してください。",
+      "noBackup": "ウォッチは確認済みですが、接続前のメッセージは読めません。このiPhoneで鍵のバックアップをオンにしてください。",
+      "timeout": "ウォッチのサインインが完了しませんでした。ウォッチでMindRoomを開いて、もう一度接続してください。"
     }
   },
   "mindroomUi": {

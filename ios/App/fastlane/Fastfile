@@ -16,8 +16,10 @@ require "shellwords"
 default_platform(:ios)
 
 platform :ios do
-  desc "Build web assets and sync them into the iOS project (npm run build:ios + cap sync)"
+  desc "Fetch the watch app's SDK build, then build web assets and sync them into the iOS project (npm run build:ios + cap sync)"
   lane :sync_web do
+    # First: the sync's `pod install` already resolves the Xcode project's packages, the watch SDK among them.
+    sh("cd ../../.. && scripts/watch/build-sdk.sh --fetch")
     sh("cd ../../.. && npm run build:ios && npx cap sync ios")
   end
 

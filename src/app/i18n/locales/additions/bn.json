@@ -641,6 +641,25 @@
         "noWindow": "সামনের অ্যাপের কোনো উইন্ডো নেই",
         "failed": "স্ক্রিনশট ব্যর্থ হয়েছে"
       }
+    },
+    "watch": {
+      "title": "Apple Watch",
+      "description": "একটি রুমে ভয়েস বার্তা রেকর্ড করুন এবং কবজি থেকে আপনার এজেন্টদের উত্তর দিন।",
+      "noWatch": "এই iPhone-এর সাথে কোনো Apple Watch জোড়া নেই।",
+      "notInstalled": "এই iPhone-এর Watch অ্যাপ থেকে আপনার Apple Watch-এ MindRoom ইনস্টল করুন।",
+      "notConnected": "সংযুক্ত নয়।",
+      "connect": "সংযুক্ত করুন",
+      "connecting": "সংযুক্ত হচ্ছে…",
+      "waiting": "শেষ করতে আপনার Apple Watch-এ MindRoom খুলুন।",
+      "verifying": "ঘড়ি যাচাই হচ্ছে…",
+      "connected": "{{deviceId}} হিসেবে সংযুক্ত।",
+      "disconnect": "বিচ্ছিন্ন করুন",
+      "verify": "যাচাই করুন",
+      "unsupported": "এই হোমসার্ভার Apple Watch-এ সাইন ইন করতে পারে না।",
+      "failed": "সংযুক্ত করা যায়নি: {{reason}}",
+      "noCrossSigning": "ঘড়ি সংযুক্ত কিন্তু যাচাই করা হয়নি: যাচাই করতে এই iPhone-এ এনক্রিপশন সেট আপ করুন।",
+      "noBackup": "ঘড়ি যাচাই করা হয়েছে, কিন্তু সংযোগের আগের বার্তা পড়তে পারে না: এই iPhone-এ কী ব্যাকআপ চালু করুন।",
+      "timeout": "ঘড়ি সাইন ইন শেষ করেনি। ঘড়িতে MindRoom খুলুন এবং আবার সংযুক্ত করুন।"
     }
   },
   "mindroomUi": {

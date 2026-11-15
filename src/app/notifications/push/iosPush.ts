@@ -10,6 +10,12 @@ import {
 } from '../../matrix/session/sessions';
 import { hasCloudflareAccess } from '../../native/cloudflareAccess';
 
+/**
+ * The notification category of every push. The Apple Watch app shows its own long look for it
+ * when watchOS forwards a push from the iPhone (approve, answer, listen, reply).
+ */
+export const IOS_PUSH_CATEGORY = 'MINDROOM_EVENT';
+
 /** The push payload key of the account a push is for; see `findIOSPushAccount`. */
 export const IOS_PUSH_ACCOUNT_KEY = 'mindroom_account';
 
@@ -20,6 +26,7 @@ type IOSPushDefaultPayload = {
       body: string;
     };
     sound: 'default';
+    category: typeof IOS_PUSH_CATEGORY;
   };
   [IOS_PUSH_ACCOUNT_KEY]: string;
 };
@@ -233,6 +240,7 @@ export const buildIOSPushPusherRequest = (
     [IOS_PUSH_ACCOUNT_KEY]: accountTag,
     aps: {
       sound: 'default',
+      category: IOS_PUSH_CATEGORY,
       // Sygnal adds loc-key/loc-args for full pushes; a default body would mask that preview.
       ...(pushConfig.format === 'event_id_only'
         ? {
