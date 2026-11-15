@@ -15,7 +15,13 @@ import {
 } from '..';
 import { loadCachedEventAcrossRoomScopes, loadRoomOfflineEventBatch } from '../cacheStoreEvents';
 import { openCacheStore } from '../cacheStoreDb';
-import { EVENTS_STORE, META_STORE, buildEventCacheKey, buildMetaKey } from '../cacheStoreSchema';
+import {
+  EVENTS_STORE,
+  META_STORE,
+  buildEventCacheKey,
+  buildMetaKey,
+  type CachedMetaRecord,
+} from '../cacheStoreSchema';
 import { putLegacyRows } from './legacyRows';
 
 // A root's thread summary is the server's word at the moment the page read it. A thread list read
@@ -285,10 +291,18 @@ describe('a cached thread whose root is another room’s', () => {
   it('is saved by neither save, while this room’s rows and rows without a room are', async () => {
     const { room_id: _roomId, ...replyWithoutRoom } = notice('$no-room', 3_500);
     const foreignReply = { ...notice('$foreign', 4_000), room_id: OTHER_ROOM_ID };
-    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [
-      { ...otherRoot(), event_id: '$other-root' },
-      root(reply('completed'), 1),
-    ]);
+    const { room_id: _rootRoomId, ...roomEventWithoutRoom } = notice('$room-no-room', 1_500);
+    // The token belongs before the earliest event this room keeps.
+    await saveRoomEventsToCache(
+      SESSION_ID,
+      ROOM_ID,
+      [
+        { ...otherRoot(), event_id: '$other-root' },
+        root(reply('completed'), 1),
+        roomEventWithoutRoom,
+      ],
+      'token-before'
+    );
     await save([notice('$own', 3_000), foreignReply, replyWithoutRoom], otherRoot());
 
     const db = await openCacheStore(SESSION_ID);
@@ -302,6 +316,13 @@ describe('a cached thread whose root is another room’s', () => {
       undefined
     );
     expect(await read(EVENTS_STORE, buildEventCacheKey(ROOM_ID, '', ROOT_ID))).toBeDefined();
+    expect(
+      await read(EVENTS_STORE, buildEventCacheKey(ROOM_ID, '', '$room-no-room'))
+    ).toBeDefined();
+    const roomMeta = (await read(META_STORE, buildMetaKey(ROOM_ID, ''))) as
+      | CachedMetaRecord
+      | undefined;
+    expect(Object.keys(roomMeta?.beforeTokens ?? {})).toEqual([ROOT_ID]);
     expect(await read(EVENTS_STORE, buildEventCacheKey(ROOM_ID, ROOT_ID, '$foreign'))).toBe(
       undefined
     );
@@ -310,7 +331,7 @@ describe('a cached thread whose root is another room’s', () => {
       await read(EVENTS_STORE, buildEventCacheKey(ROOM_ID, ROOT_ID, '$no-room'))
     ).toBeDefined();
     const meta = (await read(META_STORE, buildMetaKey(ROOM_ID, ROOT_ID))) as
-      | { rootEvent?: Partial<IEvent> }
+      | CachedMetaRecord
       | undefined;
     expect(meta?.rootEvent).toBeUndefined();
   });

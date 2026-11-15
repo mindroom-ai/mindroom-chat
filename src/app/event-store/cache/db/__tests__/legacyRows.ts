@@ -1,6 +1,13 @@
 import type { IEvent } from 'matrix-js-sdk';
 import { openCacheStore } from '../cacheStoreDb';
-import { EVENTS_STORE, META_STORE, buildEventCacheKey, buildMetaKey } from '../cacheStoreSchema';
+import {
+  EVENTS_STORE,
+  META_STORE,
+  buildEventCacheKey,
+  buildMetaKey,
+  type CachedEventRecord,
+  type CachedMetaRecord,
+} from '../cacheStoreSchema';
 
 /**
  * Writes rows as an earlier version could, which the saves now refuse: another room's events, or
@@ -24,16 +31,21 @@ export const putLegacyRows = async (
         cacheKey: buildEventCacheKey(roomId, scope, rawEvent.event_id!),
         roomId,
         scope,
-        eventId: rawEvent.event_id,
+        eventId: rawEvent.event_id!,
         ts: rawEvent.origin_server_ts ?? 0,
         rawEvent,
         approxBytes: 0,
-      });
+      } satisfies CachedEventRecord);
     });
     rows.roots?.forEach(({ scope, rootEvent }) => {
-      transaction
-        .objectStore(META_STORE)
-        .put({ metaKey: buildMetaKey(roomId, scope), roomId, scope, rootEvent });
+      // The whole meta row, as an older build wrote it: a save's tokens and flags before it go.
+      transaction.objectStore(META_STORE).put({
+        metaKey: buildMetaKey(roomId, scope),
+        roomId,
+        scope,
+        rootEvent,
+        updatedAt: 0,
+      } satisfies CachedMetaRecord);
     });
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
