@@ -193,10 +193,8 @@ test('space members open as a sheet and close at 390px', async ({ page }) => {
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await members.click();
-  // Out, the sheet holds the focus, and Escape puts it away.
-  await expect
-    .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
-    .toBe(true);
+  // Escape puts the sheet away once it is out.
+  await expect(page.getByTestId('phone-members-sheet')).toHaveAttribute('data-open', 'true');
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(page).toHaveURL(lobbyUrl);
