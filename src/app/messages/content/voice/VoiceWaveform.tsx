@@ -10,13 +10,9 @@ import {
   normalizeMatrixWaveform,
 } from '../../../lib/audioWaveform';
 import * as css from './VoiceWaveform.css';
+import { BAR_GAP, BAR_STEP, BAR_WIDTH, GLIDE_MAX_STEPS } from './waveformGeometry';
 
 const SVG_HEIGHT = 32;
-const BAR_WIDTH = 2;
-const BAR_GAP = 1;
-// One bar and its gap, in px: how far the bars move per new sample. CompactStrip in
-// VoiceWaveform.css.ts repeats its dots at this step.
-const BAR_STEP = BAR_WIDTH + BAR_GAP;
 const RECORDING_WAVEFORM_SPEECH_BOOST_START = 0.12;
 const RECORDING_WAVEFORM_SPEECH_BOOST = 0.9;
 const getSvgWidth = (barCount: number): number =>
@@ -81,8 +77,10 @@ const useLiveGlide = (stripRef: RefObject<HTMLDivElement>, sampleCount: number |
     if (added <= 0 || !strip || typeof strip.animate !== 'function' || prefersReducedMotion()) {
       return;
     }
-    const fromSteps =
-      added + (running && typeof progress === 'number' ? running.fromSteps * (1 - progress) : 0);
+    const fromSteps = Math.min(
+      GLIDE_MAX_STEPS,
+      added + (running && typeof progress === 'number' ? running.fromSteps * (1 - progress) : 0)
+    );
     const animation = strip.animate(
       [{ transform: `translateX(${fromSteps * BAR_STEP}px)` }, { transform: 'none' }],
       { duration: VOICE_WAVEFORM_SAMPLE_INTERVAL_MS, easing: 'linear' }

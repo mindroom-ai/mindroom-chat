@@ -1,5 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
+import { BAR_GAP, BAR_STEP, GLIDE_MAX_STEPS } from './waveformGeometry';
 
 export const Waveform = style([
   DefaultReset,
@@ -46,18 +47,18 @@ export const WaveformCompact = style({
 });
 
 // The recording's bars and the dotted line before them, which glide left together as samples
-// come in (VoiceWaveform.tsx). The dots repeat at the bars' px step, so a glide of one step
-// ends where it began; the strip reaches one step past the start so a glide never bares it.
+// come in (VoiceWaveform.tsx). The dots repeat at the bars' px step, so a glide of whole steps
+// ends where it began; the strip reaches past its start as far as a glide can begin.
 export const CompactStrip = style({
   position: 'absolute',
   insetBlock: 0,
   insetInlineEnd: 0,
-  inlineSize: 'calc(100% + 3px)',
-  backgroundImage: `linear-gradient(to right, transparent 0 1px, ${color.SurfaceVariant.ContainerLine} 1px 3px)`,
+  inlineSize: `calc(100% + ${GLIDE_MAX_STEPS * BAR_STEP}px)`,
+  backgroundImage: `linear-gradient(to right, transparent 0 ${BAR_GAP}px, ${color.SurfaceVariant.ContainerLine} ${BAR_GAP}px ${BAR_STEP}px)`,
   // eslint-disable-next-line no-restricted-syntax -- Waveform lays out left to right in every language, so the bars sit at the right
   backgroundPosition: 'right center',
   backgroundRepeat: 'repeat-x',
-  backgroundSize: '3px 3px',
+  backgroundSize: `${BAR_STEP}px ${toRem(3)}`,
 });
 
 export const Svg = style({

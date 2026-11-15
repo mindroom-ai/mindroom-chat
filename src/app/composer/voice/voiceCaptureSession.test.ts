@@ -546,6 +546,8 @@ describe('voice capture session', () => {
     Audio.instances[0]!.analyser.getByteTimeDomainData = (buffer) => buffer.fill(128);
     vi.advanceTimersByTime(96_000);
     expect(session.getSnapshot().waveform).toEqual(Array(1200).fill(0));
+    // The count keeps going past the cap, so the live waveform still glides.
+    expect(session.getSnapshot().sampleCount).toBeGreaterThan(1200);
     const result = await finish(session);
     if (result.status !== 'captured') throw new Error('missing recording');
     expect(result.recording.waveform).toHaveLength(48);

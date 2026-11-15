@@ -4,6 +4,8 @@ import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VoiceWaveform } from './VoiceWaveform';
 
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
 vi.mock('./VoiceWaveform.css', () => ({
   Bar: 'Bar',
   BarActive: 'BarActive',
@@ -77,9 +79,13 @@ describe('VoiceWaveform live glide', () => {
     expect(animations[0]!.cancel).toHaveBeenCalled();
     expect(animations[1]!.keyframes[0]).toEqual({ transform: 'translateX(4.5px)' });
 
+    // Never farther than the strip reaches past its start: many samples at once jump the rest.
+    render(13);
+    expect(animations[2]!.keyframes[0]).toEqual({ transform: 'translateX(6px)' });
+
     render(0);
-    expect(animations[1]!.cancel).toHaveBeenCalled();
-    expect(animations).toHaveLength(2);
+    expect(animations[2]!.cancel).toHaveBeenCalled();
+    expect(animations).toHaveLength(3);
   });
 
   it('stays still without a live sample count', () => {
