@@ -25,6 +25,30 @@ const openRoom = async (page: Page) => {
   return { roomId, userId: session.userId };
 };
 
+/** Opens the lobby of a new private space; resolves its address. */
+const openSpaceLobby = async (page: Page) => {
+  const homeserver = getHomeserver();
+  const credentials = getPrimaryCredentials();
+  const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
+  const spaceId = await createPrivateSpace(homeserver, session.accessToken, {
+    name: `Member sidebar space ${Date.now()}`,
+  });
+  await loginWithPassword(page, { homeserver, ...credentials });
+  await page.goto(`/${encodeURIComponent(spaceId)}/lobby/`);
+  return page.url();
+};
+
+/**
+ * A phone's members sheet is out (a frame after it mounts) and holds the focus; only then does it
+ * take Escape and taps on the dimmed page. It stays mounted while it slides away.
+ */
+const expectSheetOut = async (sheet: Locator) => {
+  await expect(sheet).toHaveAttribute('data-open', 'true');
+  await expect
+    .poll(() => sheet.evaluate((element) => element.contains(document.activeElement)))
+    .toBe(true);
+};
+
 const widthOf = async (panel: Locator) => Math.round((await panel.boundingBox())?.width ?? 0);
 
 const startDrag = async (page: Page, handle: Locator) => {
@@ -116,14 +140,6 @@ test.describe('phone member sheet', () => {
     // A phone's header leaves Members to the room menu, whose button gets focus back.
     const show = roomMoreOptions(page);
     const showEntry = page.getByRole('menuitem', { name: 'Show Members', exact: true });
-    // Out (a frame after it mounts) the sheet holds the focus and takes Escape and taps on the
-    // dimmed page; it stays mounted while it slides away.
-    const expectOut = async () => {
-      await expect(sheet).toHaveAttribute('data-open', 'true');
-      await expect
-        .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
-        .toBe(true);
-    };
     const expectGone = async () => {
       await expect(sheet).toHaveCount(0);
       await expect(page).toHaveURL(roomUrl);
@@ -134,12 +150,12 @@ test.describe('phone member sheet', () => {
       await page.keyboard.press('Enter');
       await showEntry.focus();
       await page.keyboard.press('Enter');
-      await expectOut();
+      await expectSheetOut(sheet);
     };
     const openWithTap = async () => {
       await show.tap();
       await showEntry.tap();
-      await expectOut();
+      await expectSheetOut(sheet);
     };
     await expect(show).toBeVisible();
     await expect(sheet).toHaveCount(0);
@@ -180,24 +196,13 @@ test.describe('phone member sheet', () => {
 
 test('space members open as a sheet and close at 390px', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 850 });
-  const homeserver = getHomeserver();
-  const credentials = getPrimaryCredentials();
-  const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
-  const spaceId = await createPrivateSpace(homeserver, session.accessToken, {
-    name: `Member sidebar space ${Date.now()}`,
-  });
-  await loginWithPassword(page, { homeserver, ...credentials });
-  await page.goto(`/${encodeURIComponent(spaceId)}/lobby/`);
-  const lobbyUrl = page.url();
+  const lobbyUrl = await openSpaceLobby(page);
   const dialog = page.getByRole('dialog', { name: 'Members', exact: true });
   const sheet = page.getByTestId('phone-members-sheet');
   const members = page.getByRole('button', { name: 'Members', exact: true });
   const openAndExpectOut = async () => {
     await members.click();
-    await expect(sheet).toHaveAttribute('data-open', 'true');
-    await expect
-      .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
-      .toBe(true);
+    await expectSheetOut(sheet);
   };
   await expect(members).toBeVisible();
   await expect(sheet).toHaveCount(0);
@@ -216,15 +221,7 @@ test('space members open as a sheet and close at 390px', async ({ page }) => {
 
 test('space members resize and reopen at 1000px', async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 850 });
-  const homeserver = getHomeserver();
-  const credentials = getPrimaryCredentials();
-  const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
-  const spaceId = await createPrivateSpace(homeserver, session.accessToken, {
-    name: `Member sidebar space ${Date.now()}`,
-  });
-  await loginWithPassword(page, { homeserver, ...credentials });
-  await page.goto(`/${encodeURIComponent(spaceId)}/lobby/`);
-  const lobbyUrl = page.url();
+  const lobbyUrl = await openSpaceLobby(page);
   const panel = page.getByTestId('resizable-members-panel');
   const members = page.getByRole('button', { name: 'Members', exact: true });
   await expect(members).toBeVisible();
