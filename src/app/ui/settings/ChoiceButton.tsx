@@ -1,6 +1,6 @@
 import { MouseEvent, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
-import { Box, Button, Icon, Icons, Text, config, type RectCords } from 'folds';
+import { Box, Button, Icon, Icons, Scroll, Text, config, type RectCords } from 'folds';
 import { PopOut } from '../directional';
 import { Menu, MenuItem } from '../glass/GlassPrimitives';
 import { stopPropagation } from '../../lib/keyboard';
@@ -71,12 +71,15 @@ export function ChoiceButton<V extends string | number>({
     </MenuItem>
   ));
 
+  // The rows scroll inside the menu's rim, which stays put around them.
   const menu = (
     <FocusTrap focusTrapOptions={menuTrap(close)}>
-      <Menu style={{ maxHeight: '50vh', overflowY: 'auto' }}>
-        <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
-          {rows}
-        </Box>
+      <Menu style={{ display: 'flex', flexDirection: 'column', maxHeight: '50vh' }}>
+        <Scroll size="300" hideTrack visibility="Hover" style={{ overflowY: 'auto' }}>
+          <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+            {rows}
+          </Box>
+        </Scroll>
       </Menu>
     </FocusTrap>
   );

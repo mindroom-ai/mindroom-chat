@@ -1,5 +1,5 @@
 import { type MouseEvent, useMemo, useState } from 'react';
-import { Box, Chip, Icon, Icons, Text, config, toRem } from 'folds';
+import { Box, Chip, Icon, Icons, Scroll, Text, config, toRem } from 'folds';
 import type { RectCords } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
@@ -14,7 +14,13 @@ import { revealDirectionControls } from '../../ui/directional';
 import { ProfilePopMenu } from './ProfilePopMenu';
 
 const KEY = 'sharedUi.userChips';
-const LIST_STYLE = { maxHeight: toRem(320), overflowY: 'auto' as const, minWidth: toRem(220) };
+// The rows scroll inside the menu's rim, which stays put around them.
+const LIST_STYLE = {
+  display: 'flex',
+  flexDirection: 'column' as const,
+  maxHeight: toRem(320),
+  minWidth: toRem(220),
+};
 
 type Shared = { spaces: Room[]; rooms: Room[]; directs: Room[] };
 
@@ -112,11 +118,13 @@ export function MutualRoomsChip({ userId, onOpen }: { userId: string; onOpen: ()
       trigger={trigger}
       menuStyle={LIST_STYLE}
     >
-      <Box direction="Column" gap="200" style={{ padding: config.space.S100 }}>
-        {group(t(`${KEY}.spaces`), shared.spaces)}
-        {group(t(`${KEY}.rooms`), shared.rooms)}
-        {group(t(`${KEY}.directMessages`), shared.directs)}
-      </Box>
+      <Scroll size="300" hideTrack visibility="Hover" style={{ overflowY: 'auto' }}>
+        <Box direction="Column" gap="200" style={{ padding: config.space.S100 }}>
+          {group(t(`${KEY}.spaces`), shared.spaces)}
+          {group(t(`${KEY}.rooms`), shared.rooms)}
+          {group(t(`${KEY}.directMessages`), shared.directs)}
+        </Box>
+      </Scroll>
     </ProfilePopMenu>
   );
 }

@@ -128,6 +128,8 @@ export const Surface = as<'div', SurfaceProps>(
 );
 
 type MenuProps = Pick<ComponentProps<typeof FoldsMenu>, 'variant'> & AppearanceProps;
+// The menu draws its glass rim with an absolutely placed ::before, which scrolls with the menu's
+// content; a menu that can outgrow its space scrolls its rows in an element inside it instead.
 export const Menu = as<'div', MenuProps>(
   (
     { className, variant = 'Surface', appearance = 'glass', role = 'menu', ...props },
