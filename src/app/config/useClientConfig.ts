@@ -167,6 +167,14 @@ export type ClientConfig = {
     promptAtStart?: boolean;
   };
 
+  tour?: {
+    /**
+     * `false` stops the app from offering the interface tour by itself (src/app/tour/TourOffer.tsx),
+     * which it does until the account answers. The tour's other entries stay.
+     */
+    offerAtStart?: boolean;
+  };
+
   /** Messages the loading screen rotates through while the client starts. */
   splash?: {
     loadingMessages?: string[];

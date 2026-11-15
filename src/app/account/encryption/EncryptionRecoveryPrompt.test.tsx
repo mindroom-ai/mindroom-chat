@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { allRoomsAtom } from '../../matrix/state/roomList';
+import { tourAtom } from '../../navigation/tourState';
 import { hasServerEncryptionSetup } from '../devices/serverEncryptionSetup';
 import {
   EncryptionRecoveryPrompt,
@@ -53,10 +54,12 @@ const useAccount = (userId: string, crypto: object | null = {}) => {
 const setup = (
   state: RecoveryState,
   config: ClientConfig = {},
-  joined: string[] = [ENCRYPTED_ROOM]
+  joined: string[] = [ENCRYPTED_ROOM],
+  tourOpen = false
 ) => {
   const store = createStore();
   store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: joined });
+  if (tourOpen) store.set(tourAtom, { level: 'quick' });
   const ui = (config: ClientConfig) => (
     <Provider store={store}>
       <ClientConfigProvider value={config}>
@@ -324,6 +327,86 @@ describe('EncryptionRecoveryPrompt', () => {
       String(Date.now() + 2 * RECOVERY_PROMPT_SNOOZE_MS)
     );
     expect(isRecoveryPromptSnoozed('@alice:example.org')).toBe(false);
+  });
+
+  it('holds Unlock back while the tour is open, and opens it when the tour closes', async () => {
+    const { store } = setup(LOCKED, {}, [ENCRYPTED_ROOM], true);
+    await act(async () => {});
+    expect(store.get(recoveryDialogAtom)).toBeUndefined();
+
+    await act(async () => store.set(tourAtom, undefined));
+    expect(store.get(recoveryDialogAtom)).toBe('unlock');
+  });
+
+  it('asks the server nothing while the tour is open, and opens Set up when the tour closes', async () => {
+    const { store } = setup(NONE, {}, [ENCRYPTED_ROOM], true);
+    await act(async () => {});
+    expect(hasServerEncryptionSetup).not.toHaveBeenCalled();
+    expect(store.get(recoveryDialogAtom)).toBeUndefined();
+
+    await act(async () => store.set(tourAtom, undefined));
+    expect(store.get(recoveryDialogAtom)).toBe('setup');
+    expect(hasServerEncryptionSetup).toHaveBeenCalledTimes(1);
+  });
+
+  it('the tour opened while the server check is pending holds Set up back until it closes', async () => {
+    let answer: (hasSetup: boolean) => void = () => {};
+    vi.mocked(hasServerEncryptionSetup).mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        answer = resolve;
+      })
+    );
+    const { store } = setup(NONE);
+    await act(async () => store.set(tourAtom, { level: 'full' }));
+    answer(false);
+    await act(async () => {});
+    expect(store.get(recoveryDialogAtom)).toBeUndefined();
+
+    // The account was not counted as prompted: the server is asked again.
+    await act(async () => store.set(tourAtom, undefined));
+    expect(store.get(recoveryDialogAtom)).toBe('setup');
+    expect(hasServerEncryptionSetup).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ['answers', (answer: (hasSetup: boolean) => void) => answer(false)],
+    ['fails', (_answer: unknown, fail: (error: Error) => void) => fail(new Error('offline'))],
+  ] as const)(
+    'a server check that %s as the tour opens, before the prompt has seen it open, waits for the tour too',
+    async (_how, settleCheck) => {
+      let answer: (hasSetup: boolean) => void = () => {};
+      let fail: (error: Error) => void = () => {};
+      vi.mocked(hasServerEncryptionSetup).mockReturnValueOnce(
+        new Promise<boolean>((resolve, reject) => {
+          answer = resolve;
+          fail = reject;
+        })
+      );
+      const { store } = setup(NONE);
+      await act(async () => {
+        store.set(tourAtom, { level: 'full' });
+        settleCheck(answer, fail);
+      });
+      expect(store.get(recoveryDialogAtom)).toBeUndefined();
+
+      await act(async () => store.set(tourAtom, undefined));
+      expect(store.get(recoveryDialogAtom)).toBe('setup');
+      expect(hasServerEncryptionSetup).toHaveBeenCalledTimes(2);
+    }
+  );
+
+  it('a dialog that opened before the tour stays as it is, and is not opened again after it', async () => {
+    const { store } = setup(NONE);
+    await act(async () => {});
+    expect(store.get(recoveryDialogAtom)).toBe('setup');
+
+    await act(async () => store.set(tourAtom, { level: 'quick' }));
+    expect(store.get(recoveryDialogAtom)).toBe('setup');
+
+    store.set(recoveryDialogAtom, undefined);
+    await act(async () => store.set(tourAtom, undefined));
+    expect(store.get(recoveryDialogAtom)).toBeUndefined();
+    expect(hasServerEncryptionSetup).toHaveBeenCalledTimes(1);
   });
 
   it('another account is prompted once; the first is not prompted again', async () => {

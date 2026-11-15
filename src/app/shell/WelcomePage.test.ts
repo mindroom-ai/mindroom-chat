@@ -38,6 +38,7 @@ vi.mock('folds', async () => {
     Icons: {
       Code: () => null,
       Info: () => null,
+      Play: () => null,
     },
     Text: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) =>
       reactModule.createElement('span', props, children),

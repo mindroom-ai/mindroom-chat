@@ -9,6 +9,8 @@ import type { CommandPaletteActionItem } from './commandPaletteTypes';
 
 export type CommandPaletteQuickActionId =
   | 'open-settings'
+  | 'take-quick-tour'
+  | 'take-full-tour'
   | 'go-home'
   | 'go-direct'
   | 'go-activity'
@@ -68,6 +70,12 @@ export const getCommandPaletteQuickActions = (
   t: TFunction
 ): CommandPaletteActionItem[] => {
   const roomLabel = currentRoomName ?? t('commandPalette.actions.currentRoomFallback');
+  // The interface tour in both of its levels, found by the same words. It ranks below what people
+  // do every day, so the actions the palette shows before anything is typed stay those.
+  const tour = {
+    description: t('tour.entries.paletteDescription'),
+    keywords: ['help', 'tutorial', 'guide', 'threads', 'onboarding'],
+  };
   const actions: CommandPaletteActionItem[] = [
     actionItem('open-settings', t('commandPalette.actions.openSettings'), 130, {
       description: t('commandPalette.actions.openSettingsDescription'),
@@ -97,6 +105,8 @@ export const getCommandPaletteQuickActions = (
       description: t('commandPalette.actions.toggleThemeDescription'),
       keywords: ['appearance'],
     }),
+    actionItem('take-quick-tour', t('tour.entries.paletteQuick'), 16, tour),
+    actionItem('take-full-tour', t('tour.entries.paletteFull'), 13, tour),
     actionItem('logout', t('commandPalette.actions.logout'), 10, {
       description: t('commandPalette.actions.logoutDescription'),
       keywords: ['sign out'],

@@ -21,7 +21,9 @@ const runtimeConfigPath = fileURLToPath(new URL('../config/mindroom.json', impor
 /**
  * Vite plugin for the end-to-end dev server. It answers `/config.json` with the MindRoom
  * runtime config, pointing `sidebar.mindRoomProvisioningUrl` at the given origin, so browser
- * tests never reach the hosted provisioning service. With no URL the plugin does nothing.
+ * tests never reach the hosted provisioning service, and with the recovery password start prompt
+ * and the offer of the interface tour off, so neither covers a fresh account's page. With no URL
+ * the plugin does nothing.
  * `vite preview` of a build (`scripts/e2e-slot.sh --preview`) answers it the same way, ahead of
  * the built `config.json`.
  *
@@ -46,6 +48,7 @@ export const e2eClientConfig = (provisioningUrl) => {
           ...config,
           sidebar: { ...config.sidebar, mindRoomProvisioningUrl: provisioningUrl },
           encryptionRecovery: { ...config.encryptionRecovery, promptAtStart: false },
+          tour: { ...config.tour, offerAtStart: false },
         })
       );
     });

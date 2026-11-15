@@ -1053,5 +1053,118 @@
         "invalidAddress": "Ini bukan alamat email yang valid."
       }
     }
+  },
+  "tour": {
+    "levels": {
+      "quick": "Tur singkat",
+      "full": "Tur lengkap"
+    },
+    "offer": {
+      "title": "Ikuti tur MindRoom",
+      "text": "Lihat cara kerja utas, judul, dan status.",
+      "quick": "Tur singkat (1 mnt)",
+      "full": "Tur lengkap (5 mnt)",
+      "dismiss": "Tutup"
+    },
+    "dialog": {
+      "stepOf": "Langkah {{current}} dari {{total}}",
+      "close": "Tutup tur",
+      "back": "Kembali",
+      "next": "Berikutnya",
+      "done": "Selesai",
+      "keepGoing": "Lanjutkan (6 langkah lagi)",
+      "replay": "Putar ulang"
+    },
+    "chapters": {
+      "basics": "Dasar-dasar",
+      "tidy": "Menjaga daftar tetap rapi",
+      "finding": "Menemukan yang Anda cari"
+    },
+    "steps": {
+      "conversation": {
+        "title": "Satu utas adalah satu percakapan",
+        "text": "Sebagian besar ruang yang berisi agen terbuka dalam tampilan Ringkas. Setiap kartu adalah satu utas: satu topik beserta semua balasannya. Satu ruang bisa memuat utas sebanyak yang Anda perlukan."
+      },
+      "start": {
+        "title": "Ketik untuk memulai utas baru",
+        "text": "Tulis di kotak di bagian bawah ruang, lalu kirim. Utas baru pun dimulai dan langsung terbuka."
+      },
+      "reply": {
+        "title": "Di dalam utas, Anda membalas",
+        "text": "Yang Anda tulis di utas yang terbuka menjadi balasan di sana, bukan utas baru. Kembali membawa Anda ke daftar, dan setiap kartu di sana membuka utasnya lagi."
+      },
+      "title": {
+        "title": "AI yang menulis judul",
+        "text": "Kartu baru menampilkan pesan pertama Anda. Setelah agen membalas, AI MindRoom memberi utas itu judul singkat. Edit ringkasan di Opsi utas mengubahnya."
+      },
+      "order": {
+        "title": "Aktivitas terbaru tampil paling atas",
+        "text": "Utas naik ke paling atas saat mendapat pesan baru, sehingga yang aktif tampil lebih dulu. Utas yang disematkan tetap di atas yang lain."
+      },
+      "states": {
+        "title": "Kartu menunjukkan keadaan utasnya",
+        "streaming": "Agen sedang membalas.",
+        "unread": "Balasan baru, dengan tepi dan waktu berwarna.",
+        "resolved": "Sudah tuntas. Tampilan Ringkas menyembunyikannya.",
+        "snoozed": "Tersembunyi sampai waktunya, lalu kembali dengan sendirinya."
+      },
+      "resolve": {
+        "title": "Selesaikan yang sudah tuntas",
+        "text": "Tekan Selesaikan, tanda centang pada kartu, atau geser kartu di layar sentuh. Utas keluar dari daftar, dan Anda bisa membukanya kembali kapan saja."
+      },
+      "snooze": {
+        "title": "Tunda yang bisa menunggu",
+        "text": "Di Opsi utas (⋯), pilih Tunda. Utas disembunyikan sampai waktu yang Anda pilih, lalu kembali dengan catatan bahwa penundaan berakhir."
+      },
+      "pinAndTag": {
+        "title": "Sematkan dan beri tag",
+        "text": "Sematkan utas menjaga utas tetap di bagian atas daftar. Edit tag di Opsi utas memberi tag pada utas, dan Anda bisa memfilter menurut tag."
+      },
+      "filters": {
+        "title": "Filter dan urutkan",
+        "text": "Filter utas, di header ruang atau menunya, menampilkan dan menyembunyikan bilah ini. Belum selesai menyembunyikan yang sudah tuntas, Balasan terakhir mengubah urutan, dan ikon filter di ujung bilah membuka Filter lanjutan, yang menemukan sisanya, termasuk utas yang ditunda."
+      },
+      "views": {
+        "title": "Dua tampilan untuk satu ruang",
+        "text": "Ringkas menampilkan satu kartu per utas. Utas menampilkan pesan pertama setiap utas dengan jumlah balasan di bawahnya. Tampilan ringkas, di header ruang atau menunya, beralih di antara keduanya."
+      },
+      "activity": {
+        "title": "Aktivitas mengumpulkan yang menunggu Anda",
+        "text": "Lonceng membuka Aktivitas: sebutan, balasan di utas Anda, dan eksekusi agen yang sudah selesai. Persetujuan, pertanyaan, dan undangan dijawab langsung di sana."
+      }
+    },
+    "sample": {
+      "room": "Pemasaran",
+      "ana": "Ana",
+      "writer": "Penulis",
+      "analyst": "Analis",
+      "typed": "Buat draf email peluncuran musim semi",
+      "launchTitle": "Email peluncuran musim semi",
+      "launchReply": "Ini draf pertama dengan tiga pilihan subjek.",
+      "budgetTitle": "Tinjauan anggaran Q3",
+      "budgetReply": "Total naik 4% dari kuartal lalu.",
+      "websiteTitle": "Masukan desain ulang situs web",
+      "websiteReply": "Beranda baru mendapat hasil uji yang bagus.",
+      "vendorTitle": "Perpanjangan kontrak vendor",
+      "vendorReply": "Kita lihat lagi setelah telepon nanti.",
+      "vendorNewReply": "Kontrak sudah ditandatangani.",
+      "surveyTitle": "Hasil survei pelanggan",
+      "surveyReply": "Sejauh ini 212 jawaban.",
+      "preview": "{{name}}: {{text}}",
+      "tagLaunch": "peluncuran",
+      "tagFinance": "keuangan",
+      "approval": "Kirim laporan ke tim"
+    },
+    "entries": {
+      "paletteQuick": "Ikuti tur singkat",
+      "paletteFull": "Ikuti tur lengkap",
+      "paletteDescription": "Lihat cara kerja utas",
+      "settingsSection": "Tur",
+      "settingsTitle": "Lihat cara kerja utas",
+      "settingsDescription": "Tur singkat tentang utas: memulai utas, judul, urutan, dan status.",
+      "settingsKeywords": "tur, tutorial, panduan, bantuan, pengenalan, perkenalan, utas",
+      "howThreadsWork": "Cara kerja utas",
+      "noThreadsHint": "Kirim pesan di bawah untuk memulai utas."
+    }
   }
 }

@@ -213,7 +213,12 @@ export function ConversationLayout({
               </div>
             </ThreadApprovalProvider>
             {/* Outside the approval provider: opening a thread must not remount the composer. */}
-            <div ref={footerRef} className={overlay.Footer} data-room-footer="true">
+            <div
+              ref={footerRef}
+              className={overlay.Footer}
+              data-room-footer="true"
+              data-footer-of={threadId ? 'thread' : 'room'}
+            >
               <RoomViewTyping room={room} threadId={threadId} />
               {notice}
               {composer}

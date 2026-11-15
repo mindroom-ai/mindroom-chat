@@ -1076,5 +1076,118 @@
         "invalidAddress": "Das ist keine gültige E-Mail-Adresse."
       }
     }
+  },
+  "tour": {
+    "levels": {
+      "quick": "Kurze Tour",
+      "full": "Vollständige Tour"
+    },
+    "offer": {
+      "title": "Mach eine Tour durch MindRoom",
+      "text": "Sieh dir an, wie Threads, Titel und Zustände funktionieren.",
+      "quick": "Kurze Tour (1 Min.)",
+      "full": "Vollständige Tour (5 Min.)",
+      "dismiss": "Ausblenden"
+    },
+    "dialog": {
+      "stepOf": "Schritt {{current}} von {{total}}",
+      "close": "Tour schließen",
+      "back": "Zurück",
+      "next": "Weiter",
+      "done": "Fertig",
+      "keepGoing": "Weitermachen (6 weitere Schritte)",
+      "replay": "Erneut abspielen"
+    },
+    "chapters": {
+      "basics": "Die Grundlagen",
+      "tidy": "Die Liste aufgeräumt halten",
+      "finding": "Sich zurechtfinden"
+    },
+    "steps": {
+      "conversation": {
+        "title": "Ein Thread ist ein Gespräch",
+        "text": "Die meisten Räume mit Agenten öffnen sich in der Kompaktansicht. Jede Karte ist ein Thread: ein einzelnes Thema mit all seinen Antworten. Ein Raum fasst so viele, wie du brauchst."
+      },
+      "start": {
+        "title": "Schreibe, um einen neuen Thread zu starten",
+        "text": "Schreibe in das Feld unten im Raum und sende die Nachricht. Damit beginnt ein neuer Thread, der sich sofort öffnet."
+      },
+      "reply": {
+        "title": "In einem Thread antwortest du",
+        "text": "Was du in einem geöffneten Thread schreibst, ist dort eine Antwort, kein neuer Thread. „Zurück“ führt zur Liste, in der jede Karte ihren Thread wieder öffnet."
+      },
+      "title": {
+        "title": "Die KI schreibt die Titel",
+        "text": "Eine neue Karte zeigt deine erste Nachricht. Sobald ein Agent geantwortet hat, gibt die KI von MindRoom dem Thread einen kurzen Titel. Mit „Zusammenfassung bearbeiten“ in den Thread-Optionen änderst du ihn."
+      },
+      "order": {
+        "title": "Die neueste Aktivität kommt zuerst",
+        "text": "Ein Thread rückt nach oben, sobald er eine neue Nachricht bekommt. So steht oben, was aktiv ist. Angeheftete Threads bleiben über den übrigen."
+      },
+      "states": {
+        "title": "Eine Karte zeigt, wie es um ihren Thread steht",
+        "streaming": "Ein Agent antwortet gerade.",
+        "unread": "Neue Antworten, Rand und Uhrzeit sind farbig.",
+        "resolved": "Erledigt. „Kompakt“ blendet ihn aus.",
+        "snoozed": "Ausgeblendet bis zur gewählten Zeit, dann von selbst zurück."
+      },
+      "resolve": {
+        "title": "Löse auf, was erledigt ist",
+        "text": "Drücke auf „Auflösen“, den Haken auf einer Karte, oder wische auf einem Touchscreen über die Karte. Der Thread verschwindet aus der Liste, und du kannst ihn jederzeit wieder öffnen."
+      },
+      "snooze": {
+        "title": "Stelle zurück, was warten kann",
+        "text": "Wähle in den Thread-Optionen (⋯) „Zurückstellen“. Der Thread bleibt bis zur gewählten Zeit ausgeblendet und kommt dann mit dem Hinweis zurück, dass die Zurückstellung beendet ist."
+      },
+      "pinAndTag": {
+        "title": "Anheften und Tags vergeben",
+        "text": "„Thread anheften“ hält einen Thread oben in der Liste. Mit „Tags bearbeiten“ in den Thread-Optionen versiehst du einen Thread mit Tags, und du kannst nach Tags filtern."
+      },
+      "filters": {
+        "title": "Filtern und sortieren",
+        "text": "„Thread-Filter“, in der Kopfzeile des Raums oder in seinem Menü, blendet diese Leiste ein und aus. „Ungelöst“ blendet Erledigtes aus, „Letzte Antwort“ ändert die Reihenfolge, und das Filtersymbol am Ende der Leiste öffnet „Erweiterte Filter“, die den Rest finden, auch zurückgestellte Threads."
+      },
+      "views": {
+        "title": "Zwei Ansichten eines Raums",
+        "text": "„Kompakt“ zeigt eine Karte pro Thread. „Threads“ zeigt die erste Nachricht jedes Threads und darunter die Anzahl der Antworten. „Kompaktansicht“, in der Kopfzeile des Raums oder in seinem Menü, schaltet zwischen beiden um."
+      },
+      "activity": {
+        "title": "Aktivität sammelt, was auf dich wartet",
+        "text": "Die Glocke öffnet „Aktivität“: Erwähnungen, Antworten in deinen Threads und Agenten, die fertig sind. Genehmigungen, Fragen und Einladungen beantwortest du direkt dort."
+      }
+    },
+    "sample": {
+      "room": "Marketing",
+      "ana": "Ana",
+      "writer": "Texter",
+      "analyst": "Analyst",
+      "typed": "Entwirf die E-Mail zum Frühjahrs-Launch",
+      "launchTitle": "E-Mail zum Frühjahrs-Launch",
+      "launchReply": "Hier ist ein erster Entwurf mit drei Betreffzeilen.",
+      "budgetTitle": "Budgetprüfung Q3",
+      "budgetReply": "Die Gesamtzahlen liegen 4 % über dem Vorquartal.",
+      "websiteTitle": "Feedback zum Website-Redesign",
+      "websiteReply": "Die neue Startseite schneidet in Tests gut ab.",
+      "vendorTitle": "Verlängerung des Lieferantenvertrags",
+      "vendorReply": "Schauen wir nach dem Anruf noch einmal drauf.",
+      "vendorNewReply": "Der Vertrag ist unterschrieben.",
+      "surveyTitle": "Ergebnisse der Kundenumfrage",
+      "surveyReply": "Bisher 212 Antworten.",
+      "preview": "{{name}}: {{text}}",
+      "tagLaunch": "launch",
+      "tagFinance": "finanzen",
+      "approval": "Bericht an das Team senden"
+    },
+    "entries": {
+      "paletteQuick": "Kurze Tour starten",
+      "paletteFull": "Vollständige Tour starten",
+      "paletteDescription": "Sehen, wie Threads funktionieren",
+      "settingsSection": "Tour",
+      "settingsTitle": "Sehen, wie Threads funktionieren",
+      "settingsDescription": "Eine kurze Tour durch Threads: einen starten, Titel, Reihenfolge und Zustände.",
+      "settingsKeywords": "Tour, Rundgang, Tutorial, Anleitung, Hilfe, Einführung, Threads",
+      "howThreadsWork": "So funktionieren Threads",
+      "noThreadsHint": "Sende unten eine Nachricht, um einen zu starten."
+    }
   }
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, ReactNode } from 'react';
 import { Box, Button, Icon, Icons, Spinner, Switch, Text, color, config, toRem } from 'folds';
+import { useSetAtom } from 'jotai';
 import { Trans, useTranslation } from 'react-i18next';
 import { ViewerOverlay } from '../../messages/content/FileContent';
 import { SequenceCard } from '../../ui/SequenceCard';
@@ -7,6 +8,8 @@ import { SettingTile } from '../../ui/SettingTile';
 import { TextViewer } from '../../messages/viewers/TextViewer';
 import { useClientConfig } from '../../config/useClientConfig';
 import { appUrl } from '../../lib/basePath';
+import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
+import { tourAtom, type TourLevel } from '../../navigation/tourState';
 import { MINDROOM_CLIENT_BRANDING, getWelcomePageContent } from '../../ui/branding/clientBranding';
 import { isNativeIOS } from '../../native/nativeSso';
 import { saveFile } from '../../native/nativeFileSave';
@@ -195,8 +198,52 @@ function ErrorReportsSetting({ host }: { host: string }) {
   );
 }
 
+/**
+ * Starts the interface tour in either of its levels. `onStart` closes Settings, so that the tour
+ * shows.
+ */
+function TourSetting({ onStart }: { onStart: () => void }) {
+  const { t } = useTranslation();
+  const setTour = useSetAtom(tourAtom);
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
+
+  const start = (level: TourLevel) => {
+    setTour({ level });
+    onStart();
+  };
+
+  const buttons = (
+    <Box wrap="Wrap" gap="200">
+      <Button size="300" radii="300" variant="Primary" fill="Soft" onClick={() => start('quick')}>
+        <Text size="B300">{t('tour.offer.quick')}</Text>
+      </Button>
+      <Button size="300" radii="300" variant="Secondary" fill="Soft" onClick={() => start('full')}>
+        <Text size="B300">{t('tour.offer.full')}</Text>
+      </Button>
+    </Box>
+  );
+
+  // The trailing slot keeps its content's width, and the two buttons side by side leave a phone's
+  // tile no room for its text: there they go under the description, where they can wrap.
+  return (
+    <SettingTile
+      focusId="tour"
+      title={t('tour.entries.settingsTitle')}
+      description={t('tour.entries.settingsDescription')}
+      after={phone ? undefined : buttons}
+    >
+      {phone ? buttons : null}
+    </SettingTile>
+  );
+}
+
 type AboutProps = {
   requestClose: () => void;
+  /**
+   * Closes the whole Settings dialog where `requestClose` only leaves the page, as on a phone,
+   * whose pages close back to the menu. A tour starts through it, or else through `requestClose`.
+   */
+  closeDialog?: () => void;
 };
 
 /**
@@ -366,8 +413,11 @@ function AppIdentity() {
   );
 }
 
-/** App version, diagnostics tools in the iOS app, error reports when configured, and credits. */
-export function About({ requestClose }: AboutProps) {
+/**
+ * App version, diagnostics tools in the iOS app, error reports when configured, the interface
+ * tour, and credits.
+ */
+export function About({ requestClose, closeDialog }: AboutProps) {
   const { t } = useTranslation();
   const nativeDiagnostics = isNativeIOS();
   const collectorHost = parseDsn(useClientConfig().errorReporting?.dsn)?.host;
@@ -382,6 +432,9 @@ export function About({ requestClose }: AboutProps) {
           {collectorHost && <ErrorReportsSetting host={collectorHost} />}
         </AboutSection>
       )}
+      <AboutSection title={t('tour.entries.settingsSection')}>
+        <TourSetting onStart={closeDialog ?? requestClose} />
+      </AboutSection>
       <AboutSection title={t('featureUi.settings.about.credits')}>
         <CreditsList />
         <ThirdPartyNotices />
