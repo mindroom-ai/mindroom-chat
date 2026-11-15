@@ -170,8 +170,8 @@ vi.mock('./CompactRoomView.css', () => ({
 
 vi.mock('./CompactCardSwipe.css', () => ({
   SwipeAction: 'SwipeAction',
+  SwipeList: 'SwipeList',
   SwipeTrack: 'SwipeTrack',
-  SwipeTrackEnabled: 'SwipeTrackEnabled',
   SwipeTrackSettling: 'SwipeTrackSettling',
 }));
 
@@ -689,8 +689,42 @@ describe('CompactRoomView', () => {
     (scrollElement: ReturnType<typeof createScrollElement>) => (element: React.ReactElement) =>
       element.props['data-compact-room-view'] === 'true'
         ? scrollElement
-        : // The card swipe track listens for touchmove.
+        : // The cards' container listens for touchmove.
           { addEventListener: () => undefined, removeEventListener: () => undefined };
+
+  it('gives the cards one touch-action and one touchmove listener, on their container', () => {
+    // One on every card costs WebKit on iOS a touch region a card (CompactCardSwipe.css.ts).
+    const listening: string[] = [];
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(
+        renderOverview(makeRoom(), ['$thread-1', '$thread-2'], { current: new Map() }),
+        {
+          createNodeMock: (element: React.ReactElement) =>
+            element.props['data-compact-room-view'] === 'true'
+              ? createScrollElement()
+              : {
+                  addEventListener: (type: string, _listener: unknown, options: unknown) => {
+                    if (type !== 'touchmove') return;
+                    expect(options).toEqual({ passive: false });
+                    listening.push(String(element.props.className));
+                  },
+                  removeEventListener: () => undefined,
+                },
+        }
+      );
+    });
+
+    expect(listening).toHaveLength(1);
+    expect(listening[0]).toContain('SwipeList');
+    // The container and one track a card.
+    expect(
+      renderer?.root.findAll(
+        (node) => typeof node.type === 'string' && String(node.props.className).includes('Swipe')
+      )
+    ).toHaveLength(3);
+    act(() => renderer?.unmount());
+  });
 
   it('marks each card as a scroll anchor by its thread root', () => {
     let renderer: ReturnType<typeof create> | undefined;

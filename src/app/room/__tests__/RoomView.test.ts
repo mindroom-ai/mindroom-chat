@@ -272,8 +272,8 @@ vi.mock('../../threads/overview/CompactRoomView.css', () => ({
 
 vi.mock('../../threads/overview/CompactCardSwipe.css', () => ({
   SwipeAction: 'SwipeAction',
+  SwipeList: 'SwipeList',
   SwipeTrack: 'SwipeTrack',
-  SwipeTrackEnabled: 'SwipeTrackEnabled',
   SwipeTrackSettling: 'SwipeTrackSettling',
 }));
 
