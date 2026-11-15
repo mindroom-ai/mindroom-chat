@@ -8,6 +8,7 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useStateEventCallback } from '../../matrix/hooks/useStateEventCallback';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { StateEvent } from '../../matrix/types/room';
+import { tourAtom } from '../../navigation/tourState';
 import { hasServerEncryptionSetup } from '../devices/serverEncryptionSetup';
 import {
   endRecoveryPromptSnooze,
@@ -44,8 +45,9 @@ const useHasEncryptedRoom = (mx: MatrixClient): boolean => {
  * app start, as soon as the user has joined an encrypted room: before that there is nothing to
  * protect or unlock. `encryptionRecovery.promptAtStart: false` turns it off, as does encryption
  * being off by policy. It never replaces a dialog that is already open, and a session that has
- * been verified is never prompted. A recovery dialog closed unfinished keeps it closed on this
- * browser for `RECOVERY_PROMPT_SNOOZE_MS`, which verifying the session ends. Renders nothing.
+ * been verified is never prompted. While the interface tour is open it holds back, and prompts
+ * once the tour closes. A recovery dialog closed unfinished keeps it closed on this browser for
+ * `RECOVERY_PROMPT_SNOOZE_MS`, which verifying the session ends. Renders nothing.
  */
 export function EncryptionRecoveryPrompt() {
   const mx = useMatrixClient();
@@ -55,9 +57,11 @@ export function EncryptionRecoveryPrompt() {
   const userId = mx.getSafeUserId();
   const hasCrypto = Boolean(mx.getCrypto());
   const hasEncryptedRoom = useHasEncryptedRoom(mx);
+  const tourOpen = useAtomValue(tourAtom) !== undefined;
   const enabled =
     hasCrypto &&
     hasEncryptedRoom &&
+    !tourOpen &&
     encryptionRecovery?.promptAtStart !== false &&
     !(createRoom?.showEncryptionOption === false && createRoom?.defaultEncryption === false);
 
@@ -88,16 +92,20 @@ export function EncryptionRecoveryPrompt() {
       return;
     }
     let cancelled = false;
+    // The tour can open just before the check settles, when this effect has not been cleaned up
+    // for it yet: that cancels the check as the cleanup would.
+    const superseded = () => cancelled || store.get(tourAtom) !== undefined;
     // The account counts as prompted once the check settles; a state change that cancels a
-    // pending check leaves it unprompted, so a later `locked` still opens Unlock.
+    // pending check leaves it unprompted, so a later `locked` still opens Unlock, and the server
+    // is asked again once the tour has closed.
     hasServerEncryptionSetup(mx).then(
       (hasSetup) => {
-        if (cancelled) return;
+        if (superseded()) return;
         promptedAccounts.add(userId);
         if (!hasSetup) open('setup');
       },
       () => {
-        if (!cancelled) promptedAccounts.add(userId);
+        if (!superseded()) promptedAccounts.add(userId);
       }
     );
     return () => {

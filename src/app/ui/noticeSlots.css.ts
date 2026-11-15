@@ -4,11 +4,13 @@ import { config } from 'folds';
 
 // Empty, the places have no size or take no clicks, so they cover nothing.
 
-// At the foot of the room list, over its last rows, inside the list's resizable panel. Its notice
+// At the foot of the room list, over its last rows, inside the list's resizable panel. A notice
 // keeps the width of the list's content (ResizablePanel's --mr-panel-content-width) at the end
 // edge, and the place clips it at the panel's sides, so while the list opens, closes or is dragged
 // narrow the notice slides with the list instead of squeezing. No inline padding, so the place is
-// never wider than the panel; the notice keeps its own distance from the sides.
+// never wider than the panel; a notice keeps its own distance from the sides. The place stacks
+// its notices a gap apart, the new version notice at the foot and the tour's offer above it (the
+// new version notice's `order`), so the one at the foot stays put when the other comes or goes.
 export const ListSlot = style({
   position: 'absolute',
   // Over the list's scrollbar (z-index 2, earlier in the panel), so the card takes its own taps.
@@ -16,15 +18,18 @@ export const ListSlot = style({
   insetInline: 0,
   insetBlockEnd: 0,
   display: 'flex',
-  justifyContent: 'flex-end',
+  flexDirection: 'column',
+  alignItems: 'flex-end',
+  gap: config.space.S200,
   paddingBlockStart: config.space.S300,
   paddingBlockEnd: `calc(env(safe-area-inset-bottom, 0px) + ${config.space.S300})`,
   overflowX: 'clip',
   pointerEvents: 'none',
 });
 
-// The page's place stacks its notices, the new version notice above a sync status (their own
-// `order`, so the notice someone may tap never moves when the other comes or goes), a gap apart.
+// The page's place stacks its notices a gap apart: the new version notice, the tour's offer, then
+// a sync status (their own `order`). One that comes or goes moves only those under it, and the
+// sync status, which takes no taps, is the last.
 export const PageSlot = recipe({
   base: { display: 'flex', flexDirection: 'column', gap: config.space.S200 },
   variants: {

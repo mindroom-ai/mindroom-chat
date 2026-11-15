@@ -27,6 +27,8 @@ export const Card = recipe({
     placement: {
       list: {
         ...listMotion,
+        // At the foot of the list's place, under the tour's offer there.
+        order: 1,
         flexShrink: 0,
         // Clear of the splitter, which reaches --mr-panel-handle-inset at most into the list.
         inlineSize: `calc(var(--mr-panel-content-width, 100%) - ${config.space.S200} - ${listEndGap})`,
@@ -45,6 +47,8 @@ export const Card = recipe({
       },
       page: {
         ...pageMotion,
+        // At the top of the page's place, above the tour's offer and a sync status there.
+        order: -1,
         // A phone's place has no height of its own: the card keeps the height of its content.
         flexShrink: 0,
         display: 'flex',
