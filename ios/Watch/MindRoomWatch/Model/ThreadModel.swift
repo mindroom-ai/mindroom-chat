@@ -101,7 +101,6 @@ final class ThreadModel: ObservableObject {
             WKInterfaceDevice.current().play(.success)
         }
         snapshot = next
-        SeenStore.markSeen(rootId, eventId: next.latestEventId)
         #if DEBUG
         for card in next.approvals { log.notice("card \(card.eventId, privacy: .public) \(card.status.rawValue, privacy: .public)") }
         E2EHooks.act(on: next, model: self)
@@ -140,9 +139,10 @@ final class ThreadModel: ObservableObject {
         }
     }
 
-    /// Drops a reply that could not be sent.
+    /// Drops a reply that could not be sent and turns the room's queue back on (`RoomModel.discard`).
     func discard(_ transactionId: String) async {
         try? await timeline?.redactEvent(eventOrTransactionId: .transactionId(transactionId: transactionId), reason: nil)
+        room.enableSendQueue(enable: true)
     }
 
     func replyVoice(_ take: Take) async {

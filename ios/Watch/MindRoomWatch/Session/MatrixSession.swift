@@ -66,7 +66,11 @@ final class MatrixSession: ObservableObject {
             let session = Session(accessToken: result.accessToken, refreshToken: nil, userId: result.userId,
                                   deviceId: result.deviceId, homeserverUrl: homeserverUrl.absoluteString,
                                   oauthData: nil, slidingSyncVersion: .native)
-            try await start(session)
+            do { try await start(session) } catch {
+                // Its store is this sign-in's alone: nothing else would ever delete it.
+                SessionStore.removeStore(session)
+                throw error
+            }
             SessionStore.save(session)
             onSignedIn?(result.userId, result.deviceId)
         } catch TokenLoginError.expired {
@@ -99,11 +103,10 @@ final class MatrixSession: ObservableObject {
     }
 
     private func signOutNow() async {
-        let userId = SessionStore.load()?.userId
         await syncService?.stop()
         if let client { try? await client.logout() }
         tearDown()
-        SessionStore.clear(userId: userId)
+        SessionStore.clear()
         state = .signedOut
     }
 
@@ -141,7 +144,7 @@ final class MatrixSession: ObservableObject {
     }
 
     private func start(_ session: Session) async throws {
-        let paths = SessionStore.paths(userId: session.userId)
+        let paths = SessionStore.paths(session)
         let store = SqliteStoreBuilder(dataPath: paths.data.path, cachePath: paths.cache.path)
             .passphrase(passphrase: try SessionStore.passphrase())
         let client = try await ClientBuilder()
@@ -186,10 +189,9 @@ final class MatrixSession: ObservableObject {
 
     private func revokedNow() async {
         log.notice("session revoked")
-        let userId = SessionStore.load()?.userId
         await syncService?.stop()
         tearDown()
-        SessionStore.clear(userId: userId)
+        SessionStore.clear()
         state = .signedOut
     }
 

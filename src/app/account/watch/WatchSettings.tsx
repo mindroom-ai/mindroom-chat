@@ -33,7 +33,8 @@ const describeError = (error: unknown): string =>
 type Step =
   | { kind: 'idle' }
   | { kind: 'connecting' }
-  | { kind: 'waiting' }
+  /** `until`: when the login token the watch got runs out. */
+  | { kind: 'waiting'; until: number }
   | { kind: 'verifying' }
   /** `retry`: verifying did not finish, so Verify is offered again. */
   | { kind: 'message'; text: string; retry?: boolean };
@@ -123,12 +124,24 @@ function WatchSettingsSection() {
     };
   }, [mx, verify]);
 
+  // The watch can sign in only until its login token runs out: Connect is offered again then.
+  const waitingUntil = step.kind === 'waiting' ? step.until : undefined;
+  useEffect(() => {
+    if (waitingUntil === undefined) return undefined;
+    const timer = window.setTimeout(
+      () => setStep({ kind: 'idle' }),
+      Math.max(0, waitingUntil - Date.now())
+    );
+    return () => window.clearTimeout(timer);
+  }, [waitingUntil]);
+
   const connect = async () => {
     setStep({ kind: 'connecting' });
     const result = await connectWatch(mx, sendWatchCredentials, run);
-    if (result.kind === 'sent') pendingConnects.add(mx.getSafeUserId());
-    if (result.kind === 'sent') setStep({ kind: 'waiting' });
-    else if (result.kind === 'cancelled') setStep({ kind: 'idle' });
+    if (result.kind === 'sent') {
+      pendingConnects.add(mx.getSafeUserId());
+      setStep({ kind: 'waiting', until: result.expiresAt });
+    } else if (result.kind === 'cancelled') setStep({ kind: 'idle' });
     else if (result.kind === 'unsupported')
       setStep({ kind: 'message', text: t(`${W}.unsupported`) });
     else setStep({ kind: 'message', text: t(`${W}.failed`, { reason: result.reason }) });

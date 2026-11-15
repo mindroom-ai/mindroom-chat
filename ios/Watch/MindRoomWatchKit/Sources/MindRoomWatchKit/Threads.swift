@@ -40,7 +40,7 @@ public enum ThreadTags {
 
 /// What a thread's row says at its end, most urgent first.
 public enum ThreadRowState: Equatable, Sendable {
-    case failed, queued, needsYou, running, unread, idle(Date)
+    case failed, queued, needsYou, running, idle(Date)
 }
 
 /// A recording's meter samples (dB, -160 to 0) as bars from 0 to 1.

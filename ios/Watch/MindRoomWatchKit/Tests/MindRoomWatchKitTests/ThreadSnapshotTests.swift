@@ -39,7 +39,6 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.reply?.text, "Reminder set for Saturday.")
         XCTAssertEqual(snapshot.reply?.tools, 1)
         XCTAssertEqual(snapshot.reply?.run, .finished)
-        XCTAssertEqual(snapshot.latestEventId, "$reply")
         XCTAssertEqual(snapshot.latestTs, 4)
         XCTAssertEqual(snapshot.rootTs, 1)
     }
@@ -103,7 +102,7 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertFalse(snapshot.isVoiceRoot)
         XCTAssertEqual(snapshot.title, "Book a table for four")
         XCTAssertFalse(ThreadSnapshot.build(root: root, related: [], ownUserId: "@anna:x", now: now).rootFromMe)
-        XCTAssertEqual(snapshot.latestEventId, "$root")
+        XCTAssertEqual(snapshot.latestTs, 1)
     }
 
     func testPendingApprovalUntilItsEdit() {
@@ -179,10 +178,9 @@ final class ThreadSnapshotTests: XCTestCase {
     func testRowLineAndState() {
         let reply = event("$reply", 4, inThread(["msgtype": "m.text", "body": "Done", "io.mindroom.stream_status": "streaming"]))
         let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [reply], ownUserId: me, now: now)
-        XCTAssertEqual(snapshot.rowState(lastSeenEventId: nil), .running)
+        XCTAssertEqual(snapshot.rowState, .running)
         let stopped = ThreadSnapshot.build(root: voiceRoot, related: [event("$reply", 4, inThread(["msgtype": "m.text", "body": "Done"]))], ownUserId: me, now: now)
-        XCTAssertEqual(stopped.rowState(lastSeenEventId: nil), .unread)
-        XCTAssertEqual(stopped.rowState(lastSeenEventId: "$reply"), .idle(Date(timeIntervalSince1970: 0.004)))
+        XCTAssertEqual(stopped.rowState, .idle(Date(timeIntervalSince1970: 0.004)))
     }
 
     func testUndecryptableRootIsAnEncryptedMessage() {
@@ -194,6 +192,6 @@ final class ThreadSnapshotTests: XCTestCase {
         let encrypted = event("$enc", 4, type: "m.room.encrypted", ["algorithm": "m.megolm.v1.aes-sha2", "ciphertext": "x"])
         let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [encrypted], ownUserId: me, now: now)
         XCTAssertNil(snapshot.reply)
-        XCTAssertEqual(snapshot.latestEventId, "$root")
+        XCTAssertEqual(snapshot.latestTs, 1)
     }
 }

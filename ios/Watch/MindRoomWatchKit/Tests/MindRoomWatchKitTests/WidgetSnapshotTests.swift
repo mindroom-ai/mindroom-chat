@@ -19,7 +19,7 @@ final class WidgetSnapshotTests: XCTestCase {
     }
 
     func testCountsFromRowStates() {
-        let states: [ThreadRowState] = [.needsYou, .running, .needsYou, .unread, .idle(.distantPast)]
+        let states: [ThreadRowState] = [.needsYou, .running, .needsYou, .idle(.distantPast)]
         let snapshot = WidgetSnapshot(roomName: "Notes", states: states, at: .distantPast)
         XCTAssertEqual(snapshot.needsYou, 2)
         XCTAssertEqual(snapshot.running, 1)

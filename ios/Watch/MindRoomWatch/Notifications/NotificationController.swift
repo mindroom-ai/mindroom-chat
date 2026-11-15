@@ -69,25 +69,41 @@ enum NotificationActions {
     @MainActor
     static func perform(_ identifier: String, userInfo: [AnyHashable: Any]) async {
         guard let session = MatrixSession.shared, let event = await PushedEvent.load(userInfo: userInfo, session: session),
-              let client = session.client else { return }
+              let client = session.client else {
+            // Offline, the event cannot be read: an answer is lost, opening the app is not.
+            if identifier != "open" { notSent(userInfo) }
+            return
+        }
         switch event {
         case let .approval(card, actionable, roomId)
             where actionable && card.status == .pending && ((identifier == "approve" && card.approvable) || identifier == "deny"):
             let content = approvalResponseContent(cardId: card.eventId, threadId: card.threadId, approve: identifier == "approve")
             guard let room = try? client.getRoom(roomId: roomId),
-                  let data = try? JSONSerialization.data(withJSONObject: content) else { return }
-            try? await room.sendRaw(eventType: ApprovalCard.responseEventType, content: String(decoding: data, as: UTF8.self))
+                  let data = try? JSONSerialization.data(withJSONObject: content) else { return notSent(userInfo) }
+            do {
+                try await room.sendRaw(eventType: ApprovalCard.responseEventType, content: String(decoding: data, as: UTF8.self))
+            } catch { notSent(userInfo) }
         case let .question(question, roomId, _) where identifier.hasPrefix("option:"):
             let key = String(identifier.dropFirst("option:".count))
             let content: [String: Any] = ["m.relates_to": ["rel_type": "m.annotation", "event_id": question.eventId, "key": key]]
             guard let room = try? client.getRoom(roomId: roomId),
-                  let data = try? JSONSerialization.data(withJSONObject: content) else { return }
-            try? await room.sendRaw(eventType: "m.reaction", content: String(decoding: data, as: UTF8.self))
+                  let data = try? JSONSerialization.data(withJSONObject: content) else { return notSent(userInfo) }
+            do {
+                try await room.sendRaw(eventType: "m.reaction", content: String(decoding: data, as: UTF8.self))
+            } catch { notSent(userInfo) }
         case let .message(_, _, roomId, threadId), let .question(_, roomId, threadId):
             OpenThreadRequest.shared.target = (roomId, threadId)
         case let .approval(card, _, roomId):
             OpenThreadRequest.shared.target = (roomId, card.threadId)
         }
+    }
+
+    /// Says that an answer picked on a notification did not go out; tapping it opens the thread.
+    private static func notSent(_ userInfo: [AnyHashable: Any]) {
+        let content = UNMutableNotificationContent()
+        content.title = String(localized: "Not sent")
+        content.userInfo = userInfo
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
     }
 }
 

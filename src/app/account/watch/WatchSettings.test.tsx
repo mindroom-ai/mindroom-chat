@@ -97,7 +97,7 @@ describe('AppleWatch', () => {
     server.crossSigned = true;
     native.available = true;
     native.status = { paired: true, installed: true, reachable: true };
-    flow.connect.mockResolvedValue({ kind: 'sent' });
+    flow.connect.mockResolvedValue({ kind: 'sent', expiresAt: Date.now() + 120_000 });
     flow.verify.mockResolvedValue('verified');
   });
   afterEach(() => {
@@ -188,6 +188,22 @@ describe('AppleWatch', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
     });
     expect(screen.getByRole('button', { name: 'Connect' })).toHaveProperty('disabled', true);
+  });
+
+  it('offers Connect again once the login token has expired', async () => {
+    flow.connect.mockResolvedValue({ kind: 'sent', expiresAt: Date.now() + 20 });
+    await renderSettings();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+    });
+    expect(screen.getByRole('button', { name: 'Connect' })).toHaveProperty('disabled', true);
+    await act(async () => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 60);
+      });
+    });
+    expect(screen.getByRole('button', { name: 'Connect' })).toHaveProperty('disabled', false);
+    expect(screen.getByText('Not connected.')).toBeTruthy();
   });
 
   it('ignores a sign-in of another account', async () => {

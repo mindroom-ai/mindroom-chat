@@ -111,6 +111,7 @@ private struct RoomHome: View {
     let roomGone: () -> Void
     @ObservedObject private var request = RecordRequest.shared
     @EnvironmentObject private var session: MatrixSession
+    @Environment(\.scenePhase) private var scenePhase
     @State private var recording = false
     @State private var sendError: String?
     /// The threads there were when a voice message went out: the first new one is its thread, opened once it has an id.
@@ -188,6 +189,15 @@ private struct RoomHome: View {
             try? await Task.sleep(for: .seconds(30))
             if !Task.isCancelled { following = nil }
         }
+        // A reply in a thread whose root the room's timeline has not loaded changes nothing there: read the
+        // list each time the room comes on screen, and every 30 s while it stays.
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            while !Task.isCancelled {
+                model.scheduleRefresh()
+                try? await Task.sleep(for: .seconds(30))
+            }
+        }
         .onAppear { takeRequest() }
         .onChange(of: request.pending) { _, _ in takeRequest() }
         .onChange(of: model.gone, initial: true) { _, gone in if gone { roomGone() } }
@@ -247,7 +257,6 @@ struct ThreadRowView: View {
         switch row.state {
         case .needsYou: Text("Needs you").font(.caption2.bold()).foregroundStyle(.orange)
         case .running: ProgressView().controlSize(.mini).frame(width: 14, height: 14)
-        case .unread: Circle().fill(Color.accentColor).frame(width: 7, height: 7).accessibilityLabel(Text("New"))
         case .queued: Image(systemName: "clock").font(.caption2).accessibilityLabel(Text("Queued"))
         case .failed: Text("Not sent").font(.caption2.bold()).foregroundStyle(.red)
         case let .idle(date): Text(date, format: .relative(presentation: .numeric, unitsStyle: .narrow)).font(.caption2).foregroundStyle(.secondary)

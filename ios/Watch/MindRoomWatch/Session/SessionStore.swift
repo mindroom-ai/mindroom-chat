@@ -41,9 +41,10 @@ enum SessionStore {
         return value
     }
 
-    /// The store's data and cache folders for a user: one per account, so a new account starts empty.
-    static func paths(userId: String) -> (data: URL, cache: URL) {
-        let name = SHA256.hash(data: Data(userId.utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
+    /// The store's data and cache folders of a sign-in: one per account and device, so a new account or
+    /// a reconnect starts empty, away from the folders of a client that may still be closing.
+    static func paths(_ session: Session) -> (data: URL, cache: URL) {
+        let name = SHA256.hash(data: Data("\(session.userId) \(session.deviceId)".utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
         let fileManager = FileManager.default
         let data = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("matrix/\(name)")
         let cache = fileManager.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("matrix/\(name)")
@@ -52,14 +53,16 @@ enum SessionStore {
         return (data, cache)
     }
 
-    /// Forgets the session and deletes the account's store.
-    static func clear(userId: String?) {
+    /// Forgets the saved session and deletes its store.
+    static func clear() {
+        if let session = load() { removeStore(session) }
         delete(sessionItem)
-        if let userId {
-            let (data, cache) = paths(userId: userId)
-            try? FileManager.default.removeItem(at: data)
-            try? FileManager.default.removeItem(at: cache)
-        }
+    }
+
+    static func removeStore(_ session: Session) {
+        let (data, cache) = paths(session)
+        try? FileManager.default.removeItem(at: data)
+        try? FileManager.default.removeItem(at: cache)
     }
 
     private static func query(_ account: String) -> [String: Any] {

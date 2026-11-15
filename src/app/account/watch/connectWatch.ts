@@ -3,7 +3,8 @@ import { AuthenticationCancelled } from '../uia/useAuthenticatedAction';
 import type { WatchCredentials, WatchSecrets } from '../../native/nativeWatch';
 
 export type ConnectResult =
-  | { kind: 'sent' }
+  /** `expiresAt`: when the login token runs out (milliseconds since the epoch). */
+  | { kind: 'sent'; expiresAt: number }
   | { kind: 'unsupported' }
   | { kind: 'cancelled' }
   | { kind: 'failed'; reason: string };
@@ -41,15 +42,16 @@ export const connectWatch = async (
         { prefix: ClientPrefix.V1 }
       )
     );
+    const expiresAt = now() + token.expires_in_ms;
     await send({
       v: 1,
       kind: 'credentials',
       homeserverUrl: mx.getHomeserverUrl(),
       userId: mx.getSafeUserId(),
       loginToken: token.login_token,
-      expiresAt: now() + token.expires_in_ms,
+      expiresAt,
     });
-    return { kind: 'sent' };
+    return { kind: 'sent', expiresAt };
   } catch (error) {
     if (error instanceof AuthenticationCancelled) return { kind: 'cancelled' };
     return { kind: 'failed', reason: describe(error) };

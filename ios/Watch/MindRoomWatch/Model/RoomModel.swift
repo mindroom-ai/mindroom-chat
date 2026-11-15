@@ -83,10 +83,12 @@ final class RoomModel: ObservableObject {
         try await sendVoiceMessage(take, on: timeline)
     }
 
-    /// Drops a message that could not be sent, which also frees the room's queue behind it. (A failure the
-    /// SDK can recover from, such as no network, it retries by itself.)
+    /// Drops a message that could not be sent and turns the room's queue, which any failed send stops,
+    /// back on for the messages behind it. (A failure the SDK can recover from, such as no network, it
+    /// retries by itself.)
     func discard(transactionId: String) async {
         try? await timeline?.redactEvent(eventOrTransactionId: .transactionId(transactionId: transactionId), reason: nil)
+        room.enableSendQueue(enable: true)
         scheduleRefresh()
     }
 
@@ -96,6 +98,8 @@ final class RoomModel: ObservableObject {
         do {
             _ = try await room.sendStateEventRaw(eventType: ThreadTags.eventType, stateKey: ThreadTags.resolvedStateKey(root: rootId),
                                                  content: String(decoding: data, as: UTF8.self))
+            resolved.insert(rootId)
+            threadRows.removeAll { $0.rootId == rootId }
             rows.removeAll { $0.rootId == rootId }
         } catch {
             log.error("resolve failed: \(String(describing: error), privacy: .public)")
@@ -160,7 +164,7 @@ final class RoomModel: ObservableObject {
             // the person (edits and reactions do not show in the list).
             if let cached = snapshots[rootId], let read = snapshotReads[rootId], read.key == key,
                Date().timeIntervalSince(read.at) < Self.snapshotLifetime,
-               ![.running, .needsYou].contains(cached.rowState(lastSeenEventId: nil)) {
+               ![.running, .needsYou].contains(cached.rowState) {
                 rows.append(row(cached))
                 continue
             }
@@ -194,7 +198,7 @@ final class RoomModel: ObservableObject {
             line = String(localized: "Sent")
         }
         return ThreadRow(id: snapshot.rootId, rootId: snapshot.rootId, title: snapshot.title, line: line,
-                         state: snapshot.rowState(lastSeenEventId: SeenStore.lastSeen(snapshot.rootId)), ts: snapshot.latestTs,
+                         state: snapshot.rowState, ts: snapshot.latestTs,
                          rootTs: snapshot.rootTs, ownRoot: snapshot.rootFromMe)
     }
 

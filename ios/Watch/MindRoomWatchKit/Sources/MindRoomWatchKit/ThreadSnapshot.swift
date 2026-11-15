@@ -24,19 +24,13 @@ public struct ThreadSnapshot: Equatable, Sendable {
     /// The newest card from an agent that waits for this person's decision.
     public let pendingApproval: ApprovalCard?
     public let openQuestion: Question?
-    public let latestEventId: String
     /// Milliseconds since the epoch of the newest message.
     public let latestTs: Int
-    private let latestFromMe: Bool
     private let latestRun: RunState
 
-
-    public func rowState(lastSeenEventId: String?, sendFailed: Bool = false, queued: Bool = false) -> ThreadRowState {
-        if sendFailed { return .failed }
-        if queued { return .queued }
+    public var rowState: ThreadRowState {
         if pendingApproval != nil || openQuestion != nil { return .needsYou }
         if latestRun == .streaming { return .running }
-        if !latestFromMe && latestEventId != lastSeenEventId { return .unread }
         return .idle(Date(timeIntervalSince1970: Double(latestTs) / 1000))
     }
 
@@ -129,8 +123,7 @@ public struct ThreadSnapshot: Equatable, Sendable {
         return ThreadSnapshot(
             rootId: rootId, rootTs: root.timestamp, title: title, isVoiceRoot: isVoiceRoot,
             rootFromMe: (root["sender"] as? String) == ownUserId, reply: reply, approvals: approvals,
-            pendingApproval: pendingApproval, openQuestion: openQuestion, latestEventId: latest.eventId ?? rootId, latestTs: latest.timestamp,
-            latestFromMe: (latest["sender"] as? String) == ownUserId,
+            pendingApproval: pendingApproval, openQuestion: openQuestion, latestTs: latest.timestamp,
             latestRun: RunState.of(latest, latestEdit: edit(latest)))
     }
 }

@@ -69,7 +69,10 @@ describe('connectWatch', () => {
   it('mints a token and sends the credentials to the watch', async () => {
     const { mx, authedRequest } = client({});
     const send = vi.fn(async (_message: WatchCredentials) => undefined);
-    await expect(connectWatch(mx, send, directRun, () => NOW)).resolves.toEqual({ kind: 'sent' });
+    await expect(connectWatch(mx, send, directRun, () => NOW)).resolves.toEqual({
+      kind: 'sent',
+      expiresAt: NOW + 120_000,
+    });
     expect(authedRequest).toHaveBeenCalledWith(
       'POST',
       '/login/get_token',
