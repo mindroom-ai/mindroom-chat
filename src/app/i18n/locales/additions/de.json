@@ -712,6 +712,8 @@
         "usedOnlyFor": "Wird nur für {{hosts}} verwendet",
         "waitingFor": "Wartet auf {{name}}",
         "placeholder": "Schlüssel einfügen oder eingeben",
+        "showKey": "Schlüssel anzeigen",
+        "hideKey": "Schlüssel verbergen",
         "save": "Speichern",
         "decline": "Ablehnen",
         "savedWaiting": "Gespeichert, wartet auf den Agenten",

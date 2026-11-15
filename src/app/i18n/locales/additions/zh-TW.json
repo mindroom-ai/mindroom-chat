@@ -703,6 +703,8 @@
         "usedOnlyFor": "僅用於 {{hosts}}",
         "waitingFor": "等待 {{name}} 處理",
         "placeholder": "貼上或輸入金鑰",
+        "showKey": "顯示金鑰",
+        "hideKey": "隱藏金鑰",
         "save": "儲存",
         "decline": "拒絕",
         "savedWaiting": "已儲存，等待代理程式",

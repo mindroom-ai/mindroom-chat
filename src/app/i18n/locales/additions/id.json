@@ -703,6 +703,8 @@
         "usedOnlyFor": "Hanya digunakan untuk {{hosts}}",
         "waitingFor": "Menunggu {{name}}",
         "placeholder": "Tempel atau ketik kunci",
+        "showKey": "Tampilkan kunci",
+        "hideKey": "Sembunyikan kunci",
         "save": "Simpan",
         "decline": "Tolak",
         "savedWaiting": "Tersimpan, menunggu agen",

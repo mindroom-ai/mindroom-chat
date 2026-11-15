@@ -76,7 +76,11 @@ vi.mock('../../approvals/ToolApprovalCard', () => ({
 }));
 
 vi.mock('../../approvals/SecretRequestCard', () => ({
-  SecretRequestCard: (props: { request: { displayName: string }; roomId: string }) => {
+  SecretRequestCard: (props: {
+    request: { displayName: string };
+    roomId: string;
+    agentUserId: string;
+  }) => {
     secretRequestCardMock(props);
     return React.createElement(
       'div',
@@ -647,16 +651,23 @@ describe('renderAgentMessageContent', () => {
         expires_at: 4_102_444_800_000,
       },
     };
-    const render = (fromMindroomAgent: boolean) =>
-      renderNode({
+    const render = async (fromMindroomAgent: boolean) => {
+      const { MatrixEvent } = await import('matrix-js-sdk');
+      return renderNode({
+        mEvent: new MatrixEvent({
+          type: 'm.room.message',
+          sender: '@mindroom_assistant:example.org',
+          content,
+        }),
         fromMindroomAgent,
         roomId: '!room:example.org',
         eventId: '$card',
         msgType: 'm.notice',
         content,
       });
+    };
 
-    it('renders from a MindRoom agent', async () => {
+    it('renders from a MindRoom agent, whose server takes the answer', async () => {
       secretRequestCardMock.mockReset();
 
       const rendered = JSON.stringify((await render(true)).toJSON());
@@ -666,6 +677,7 @@ describe('renderAgentMessageContent', () => {
       expect(secretRequestCardMock).toHaveBeenCalledWith({
         request: expect.objectContaining({ requestId: 'req-1', displayName: 'GitHub' }),
         roomId: '!room:example.org',
+        agentUserId: '@mindroom_assistant:example.org',
       });
     });
 

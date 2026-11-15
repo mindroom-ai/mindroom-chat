@@ -712,6 +712,8 @@
         "usedOnlyFor": "Used only for {{hosts}}",
         "waitingFor": "Waiting for {{name}}",
         "placeholder": "Paste or type the key",
+        "showKey": "Show key",
+        "hideKey": "Hide key",
         "save": "Save",
         "decline": "Decline",
         "savedWaiting": "Saved, waiting for the agent",

@@ -292,10 +292,18 @@ export const renderAgentMessageContent = ({
   if (snoozeEndedNote !== null) return <SnoozeEndedMarker note={snoozeEndedNote} />;
 
   // An agent asking for a key; any member can write this content, which then renders as its body.
+  // The answer goes to the sender's own MindRoom server.
   const secretRequest = fromMindroomAgent ? parseSecretRequestContent(content) : null;
   const secretRequestRoomId = roomId ?? mEvent?.getRoomId();
-  if (secretRequest && secretRequestRoomId) {
-    return <SecretRequestCard request={secretRequest} roomId={secretRequestRoomId} />;
+  const secretRequestSender = mEvent?.getSender();
+  if (secretRequest && secretRequestRoomId && secretRequestSender) {
+    return (
+      <SecretRequestCard
+        request={secretRequest}
+        roomId={secretRequestRoomId}
+        agentUserId={secretRequestSender}
+      />
+    );
   }
 
   if (eventType === MINDROOM_TOOL_APPROVAL_EVENT) {

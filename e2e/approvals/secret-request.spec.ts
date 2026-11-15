@@ -17,11 +17,12 @@ import {
 
 // A MindRoom agent asks for a key in a thread (an `io.mindroom.secret_request` card) on the
 // homeserver of `just hs-up` or of an e2e slot. No MindRoom runs: the page answers for the
-// deployment's configured server (`mindroom.computers.apiUrl`), the room's MindRoom server while an
-// agent is in the room, which signs the page in for a homeserver OpenID token and takes the key.
-// The requester types the key into the masked field and saves; the server gets exactly the key with
-// the session as bearer, and the key reaches no other request and stays nowhere in the page. The
-// agent then edits the card to saved. Another member of the room sees the card without a field.
+// deployment's configured server (`mindroom.computers.apiUrl`), which takes the answer because the
+// asking agent published no server of its own; it signs the page in for a homeserver OpenID token and
+// takes the key. The requester types the key into the masked field, a text field that is no sign-in
+// field, and saves; the server gets exactly the key with the session as bearer, and the key reaches
+// no other request and stays nowhere in the page. The agent then edits the card to saved. Another
+// member of the room sees the card without a field.
 
 const MINDROOM_API = 'http://127.0.0.1:29597';
 const CORS = { 'Access-Control-Allow-Origin': '*' };
@@ -172,10 +173,17 @@ test('the requester saves a key to the MindRoom server only, and another member 
   await expect(card).toContainText('To open the pull request for the fix.');
   await expect(card).toContainText('api.github.com');
   const field = card.getByLabel('GitHub key', { exact: true });
-  await expect(field).toHaveAttribute('type', 'password');
+  // Masked without being a password field, which browsers and password managers would fill or save.
+  await expect(field).toHaveAttribute('type', 'text');
+  await expect(field).toHaveAttribute('autocomplete', 'off');
+  await expect(field).toHaveAttribute('data-form-type', 'other');
+  await expect(field).toHaveCSS('-webkit-text-security', 'disc');
+  await expect(card.locator('input[type="password"]')).toHaveCount(0);
   await field.fill(key);
   await card.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(card.getByRole('status')).toHaveText('Saved, waiting for the agent');
+  // Save went away with the field; focus moved to the status instead of the page.
+  await expect(card.getByRole('status')).toBeFocused();
   await expect(card.locator('input')).toHaveCount(0);
 
   expect(signIns).toHaveLength(1);

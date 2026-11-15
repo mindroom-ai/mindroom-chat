@@ -712,6 +712,8 @@
         "usedOnlyFor": "Yalnızca {{hosts}} için kullanılır",
         "waitingFor": "{{name}} bekleniyor",
         "placeholder": "Anahtarı yapıştırın veya yazın",
+        "showKey": "Anahtarı göster",
+        "hideKey": "Anahtarı gizle",
         "save": "Kaydet",
         "decline": "Geri çevir",
         "savedWaiting": "Kaydedildi, ajan bekleniyor",

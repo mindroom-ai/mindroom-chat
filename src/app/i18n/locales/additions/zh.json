@@ -703,6 +703,8 @@
         "usedOnlyFor": "仅用于 {{hosts}}",
         "waitingFor": "等待 {{name}} 处理",
         "placeholder": "粘贴或输入密钥",
+        "showKey": "显示密钥",
+        "hideKey": "隐藏密钥",
         "save": "保存",
         "decline": "拒绝",
         "savedWaiting": "已保存，等待智能体",

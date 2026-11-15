@@ -712,6 +712,8 @@
         "usedOnlyFor": "Alleen gebruikt voor {{hosts}}",
         "waitingFor": "Wacht op {{name}}",
         "placeholder": "Plak of typ de sleutel",
+        "showKey": "Sleutel tonen",
+        "hideKey": "Sleutel verbergen",
         "save": "Opslaan",
         "decline": "Weigeren",
         "savedWaiting": "Opgeslagen, wacht op de agent",

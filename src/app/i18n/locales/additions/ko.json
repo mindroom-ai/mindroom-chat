@@ -703,6 +703,8 @@
         "usedOnlyFor": "{{hosts}}에만 사용됩니다",
         "waitingFor": "{{name}} 님의 응답 대기 중",
         "placeholder": "키를 붙여넣거나 입력하세요",
+        "showKey": "키 표시",
+        "hideKey": "키 숨기기",
         "save": "저장",
         "decline": "거절",
         "savedWaiting": "저장됨, 에이전트를 기다리는 중",

@@ -721,6 +721,8 @@
         "usedOnlyFor": "Solo se usa para {{hosts}}",
         "waitingFor": "Esperando a {{name}}",
         "placeholder": "Pega o escribe la clave",
+        "showKey": "Mostrar clave",
+        "hideKey": "Ocultar clave",
         "save": "Guardar",
         "decline": "Rechazar",
         "savedWaiting": "Guardada, esperando al agente",

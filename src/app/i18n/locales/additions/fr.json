@@ -721,6 +721,8 @@
         "usedOnlyFor": "Utilisée uniquement pour {{hosts}}",
         "waitingFor": "En attente de {{name}}",
         "placeholder": "Collez ou saisissez la clé",
+        "showKey": "Afficher la clé",
+        "hideKey": "Masquer la clé",
         "save": "Enregistrer",
         "decline": "Refuser",
         "savedWaiting": "Enregistrée, en attente de l’agent",
