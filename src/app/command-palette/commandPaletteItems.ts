@@ -44,6 +44,7 @@ import type {
   CommandPaletteRoomItem,
   CommandPaletteThreadItem,
   CommandPaletteUserItem,
+  Executable,
 } from './commandPaletteTypes';
 import {
   buildCommandPaletteDmRoomMap,
@@ -51,8 +52,6 @@ import {
   getCommandPaletteDmUserDetails,
 } from './commandPaletteUserCandidates';
 import { getCommandPaletteAvatarUrl, useStartDirectChat } from './useCommandPalettePeople';
-
-type Executable<T> = T & { onSelect?: () => void };
 
 /**
  * A person: choosing them opens the direct chat with them (`onSelect`). Without one there is

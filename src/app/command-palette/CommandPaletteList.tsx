@@ -4,12 +4,14 @@ import { useTranslation } from 'react-i18next';
 import { type TFunction } from 'i18next';
 import { UnreadBadge } from '../ui/UnreadBadge';
 import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
+import { ShortcutKeys } from '../shortcuts/ShortcutKeys';
 import { UserAvatar } from '../avatars/UserAvatar';
 import { nameInitials } from '../lib/common';
 import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import { useRelativeTime } from '../i18n/useRelativeTime';
 import { makeHighlightRegex } from '../search/highlightRegex';
 import type {
+  CommandPaletteActionItem,
   CommandPaletteItem,
   CommandPaletteMessageItem,
   CommandPaletteSectionId,
@@ -96,7 +98,7 @@ const getItemDescription = (item: CommandPaletteItem, t: TFunction): string | un
 const getItemIcon = (item: CommandPaletteItem): IconSrc => {
   switch (item.kind) {
     case 'action':
-      return Icons.Terminal;
+      return item.icon ?? Icons.Terminal;
     case 'thread':
       return Icons.Message;
     case 'room':
@@ -181,15 +183,56 @@ function MessageRowText({ item }: { item: CommandPaletteMessageItem }) {
   return (
     <span className={css.RowText}>
       <span className={css.RowHeading}>
-        <span className={css.RowTitle} {...ownDirectionLine}>{item.senderName}</span>
+        <span className={css.RowTitle} {...ownDirectionLine}>
+          {item.senderName}
+        </span>
         {/* Room, then thread, in the interface's order; each name keeps its own direction. */}
         <span className={css.RowPlace}>
           <bdi>{revealDirectionControls(item.roomName)}</bdi>
-          {thread !== undefined && <> › <bdi>{thread}</bdi></>}
+          {thread !== undefined && (
+            <>
+              {' '}
+              › <bdi>{thread}</bdi>
+            </>
+          )}
         </span>
         <MessageTime timestamp={item.timestamp} />
       </span>
-      <span className={css.RowDescription} {...ownDirectionLine}>{markMatches(revealDirectionControls(item.snippet), item.highlights)}</span>
+      <span className={css.RowDescription} {...ownDirectionLine}>
+        {markMatches(revealDirectionControls(item.snippet), item.highlights)}
+      </span>
+    </span>
+  );
+}
+
+/** The aria-checked of an action row: its state when it flips something, else whether it is the current choice. */
+const getChecked = (item: CommandPaletteItem): boolean | undefined => {
+  if (item.kind !== 'action') return undefined;
+  if (item.state !== undefined) return item.state === 'on';
+  return item.current;
+};
+
+/** What an action row shows before its enter mark: keys, state, a check and a chevron. */
+function ActionRowEnd({ item }: { item: CommandPaletteActionItem }) {
+  const { t } = useTranslation();
+  return (
+    <span className={css.RowEnd}>
+      {item.shortcut && <ShortcutKeys id={item.shortcut} />}
+      {item.state && (
+        <span className={css.RowState} data-row-state={item.state}>
+          {t(item.state === 'on' ? 'commandPalette.state.on' : 'commandPalette.state.off')}
+        </span>
+      )}
+      {item.current && (
+        <span aria-hidden="true" data-row-current="">
+          <Icon size="200" src={Icons.Check} />
+        </span>
+      )}
+      {item.page && (
+        <span aria-hidden="true" data-row-page="">
+          <Icon size="200" src={Icons.ChevronRight} />
+        </span>
+      )}
     </span>
   );
 }
@@ -211,13 +254,20 @@ function ItemText({ item }: { item: CommandPaletteItem }) {
   return (
     <span className={css.RowText}>
       <span className={css.RowHeading}>
-        <span className={css.RowTitle} {...ownDirectionLine}>{getItemTitle(item, t)}</span>
+        <span className={css.RowTitle} {...ownDirectionLine}>
+          {getItemTitle(item, t)}
+        </span>
+        {item.kind === 'action' && item.tag && <span className={css.Tag}>{item.tag}</span>}
         {item.kind === 'space' && <span className={css.Tag}>{t('commandPalette.space')}</span>}
         {isPerson(item) && isMindroomAgentUserId(item.userId) && (
           <span className={css.Tag}>{t('threadActions.agent')}</span>
         )}
       </span>
-      {description && <span className={css.RowDescription} {...ownDirectionLine}>{description}</span>}
+      {description && (
+        <span className={css.RowDescription} {...ownDirectionLine}>
+          {description}
+        </span>
+      )}
     </span>
   );
 }
@@ -271,6 +321,7 @@ export function CommandPaletteList({
                   ref={isSelected ? selectedRef : undefined}
                   role="option"
                   aria-selected={isSelected}
+                  aria-checked={getChecked(item)}
                   tabIndex={-1}
                   className={css.Row}
                   data-item-id={item.id}
@@ -296,6 +347,7 @@ export function CommandPaletteList({
                     item.unreadCount !== undefined && (
                       <UnreadBadge highlight={!!item.unreadHighlight} count={item.unreadCount} />
                     )}
+                  {item.kind === 'action' && <ActionRowEnd item={item} />}
                   <span className={css.RowEnter} aria-hidden="true">
                     ↵
                   </span>

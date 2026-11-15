@@ -885,6 +885,10 @@
     "dismissLostFiles": "إخفاء"
   },
   "commandPalette": {
+    "state": {
+      "on": "تشغيل",
+      "off": "إيقاف"
+    },
     "people": "الأشخاص",
     "tabsLabel": "أنواع النتائج",
     "switchTabs": "تبديل علامة التبويب",

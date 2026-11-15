@@ -840,6 +840,10 @@
     "dismissLostFiles": "Dispensar"
   },
   "commandPalette": {
+    "state": {
+      "on": "Ativado",
+      "off": "Desativado"
+    },
     "people": "Pessoas",
     "tabsLabel": "Tipos de resultado",
     "switchTabs": "Mudar de separador",

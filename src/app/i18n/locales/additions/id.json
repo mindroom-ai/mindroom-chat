@@ -810,6 +810,10 @@
     "dismissLostFiles": "Tutup"
   },
   "commandPalette": {
+    "state": {
+      "on": "Aktif",
+      "off": "Mati"
+    },
     "people": "Orang",
     "tabsLabel": "Jenis hasil",
     "switchTabs": "Ganti tab",

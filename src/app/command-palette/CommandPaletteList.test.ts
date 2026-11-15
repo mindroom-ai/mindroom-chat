@@ -28,6 +28,8 @@ vi.mock('./CommandPalette.css', () => ({
   Note: 'Note',
   RowDescription: 'RowDescription',
   RowEnter: 'RowEnter',
+  RowEnd: 'RowEnd',
+  RowState: 'RowState',
   Key: 'Key',
   Footer: 'Footer',
   KeyboardHints: 'KeyboardHints',
@@ -37,16 +39,21 @@ vi.mock('./CommandPalette.css', () => ({
   EmptyDescription: 'EmptyDescription',
 }));
 
+const reactModule = await vi.hoisted(async () => import('react'));
+
 vi.mock('folds', () => ({
-  Icon: () => null,
+  Icon: ({ src }: { src: string }) => reactModule.createElement('row-icon', { src }),
   Spinner: () => null,
   Avatar: ({ children }: { children: React.ReactNode }) => children,
   AvatarImage: () => null,
   AvatarFallback: ({ children }: { children: React.ReactNode }) => children,
-  Text: ({ children }: { children: React.ReactNode }) => children,
+  Text: ({ children, ...props }: { children: React.ReactNode }) =>
+    reactModule.createElement('text', props, children),
   Icons: {
     Hash: 'hash',
     Terminal: 'terminal',
+    Check: 'check',
+    ChevronRight: 'chevron-right',
     Space: 'space',
     Message: 'message',
     Search: 'search',
@@ -229,5 +236,61 @@ describe('CommandPaletteList', () => {
     const place = renderer.root.findByProps({ className: 'RowPlace' });
     expect(place.findAllByType('bdi').map((name) => name.children)).toEqual([['Ops'], ['Thread']]);
     expect(renderer.root.findAllByType('mark')).toHaveLength(0);
+  });
+
+  describe('action rows', () => {
+    const renderAction = (item: Record<string, unknown>) =>
+      renderList({
+        sections: [
+          {
+            id: 'actions',
+            title: 'Actions',
+            items: [{ id: 'action:a', kind: 'action', title: 'Dark mode', ...item }],
+          },
+        ],
+      });
+    const option = (renderer: ReturnType<typeof renderAction>) =>
+      renderer.root.findByProps({ role: 'option' });
+    const marked = (renderer: ReturnType<typeof renderAction>, attribute: string) =>
+      renderer.root.findAll((node) => typeof node.type === 'string' && attribute in node.props);
+
+    it('shows what a row that flips something is now', () => {
+      const on = renderAction({ state: 'on' });
+      expect(marked(on, 'data-row-state')[0]?.props['data-row-state']).toBe('on');
+      expect(marked(on, 'data-row-state')[0]?.children).toEqual(['On']);
+      expect(option(on).props['aria-checked']).toBe(true);
+      const off = renderAction({ state: 'off' });
+      expect(marked(off, 'data-row-state')[0]?.children).toEqual(['Off']);
+      expect(option(off).props['aria-checked']).toBe(false);
+    });
+
+    it('marks the choice that is in effect', () => {
+      const current = renderAction({ current: true });
+      expect(marked(current, 'data-row-current')).toHaveLength(1);
+      expect(option(current).props['aria-checked']).toBe(true);
+      const other = renderAction({ current: false });
+      expect(marked(other, 'data-row-current')).toHaveLength(0);
+      expect(option(other).props['aria-checked']).toBe(false);
+    });
+
+    it('marks a row that opens a page', () => {
+      expect(marked(renderAction({ page: 'theme' }), 'data-row-page')).toHaveLength(1);
+    });
+
+    it('shows the keys of the same action', () => {
+      expect(marked(renderAction({ shortcut: 'settings' }), 'data-shortcut-keys')).toHaveLength(1);
+    });
+
+    it('shows a tag and its own icon, else the terminal', () => {
+      const renderer = renderAction({ tag: 'Settings', icon: 'sun' });
+      const heading = renderer.root.findByProps({ className: 'RowHeading' });
+      expect(heading.findByProps({ className: 'Tag' }).children).toEqual(['Settings']);
+      expect(renderer.root.findByType('row-icon' as never).props.src).toBe('sun');
+      expect(renderAction({}).root.findByType('row-icon' as never).props.src).toBe('terminal');
+    });
+
+    it('leaves aria-checked off a plain row', () => {
+      expect(option(renderAction({})).props['aria-checked']).toBeUndefined();
+    });
   });
 });

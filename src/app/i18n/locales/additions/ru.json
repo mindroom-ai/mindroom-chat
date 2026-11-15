@@ -855,6 +855,10 @@
     "dismissLostFiles": "Скрыть"
   },
   "commandPalette": {
+    "state": {
+      "on": "Вкл",
+      "off": "Выкл"
+    },
     "people": "Люди",
     "tabsLabel": "Типы результатов",
     "switchTabs": "Сменить вкладку",

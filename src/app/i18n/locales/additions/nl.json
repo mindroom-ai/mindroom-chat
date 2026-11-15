@@ -825,6 +825,10 @@
     "dismissLostFiles": "Sluiten"
   },
   "commandPalette": {
+    "state": {
+      "on": "Aan",
+      "off": "Uit"
+    },
     "people": "Personen",
     "tabsLabel": "Soorten resultaten",
     "switchTabs": "Tabblad wisselen",

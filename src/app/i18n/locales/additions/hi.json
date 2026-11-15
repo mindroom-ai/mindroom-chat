@@ -825,6 +825,10 @@
     "dismissLostFiles": "हटाएँ"
   },
   "commandPalette": {
+    "state": {
+      "on": "चालू",
+      "off": "बंद"
+    },
     "people": "लोग",
     "tabsLabel": "परिणाम के प्रकार",
     "switchTabs": "टैब बदलें",

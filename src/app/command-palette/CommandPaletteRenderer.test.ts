@@ -224,6 +224,8 @@ vi.mock('./CommandPalette.css', () => ({
   Note: 'Note',
   RowDescription: 'RowDescription',
   RowEnter: 'RowEnter',
+  RowEnd: 'RowEnd',
+  RowState: 'RowState',
   Key: 'Key',
   Footer: 'Footer',
   KeyboardHints: 'KeyboardHints',

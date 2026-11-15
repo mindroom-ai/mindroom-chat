@@ -1,7 +1,17 @@
-/** The palette's tabs, in the order of the tab row. */
-export const COMMAND_PALETTE_TABS = ['all', 'rooms', 'threads', 'users', 'messages', 'actions'] as const;
+import type { IconSrc } from 'folds';
+import type { ShortcutId } from '../shortcuts/shortcuts';
 
-export type CommandPaletteTab = typeof COMMAND_PALETTE_TABS[number];
+/** The palette's tabs, in the order of the tab row. */
+export const COMMAND_PALETTE_TABS = [
+  'all',
+  'rooms',
+  'threads',
+  'users',
+  'messages',
+  'actions',
+] as const;
+
+export type CommandPaletteTab = (typeof COMMAND_PALETTE_TABS)[number];
 
 export type CommandPaletteSectionId = 'actions' | 'threads' | 'rooms' | 'users' | 'messages';
 
@@ -11,11 +21,36 @@ type CommandPaletteBaseItem = {
   sortRank?: number;
 };
 
+export type CommandPalettePageId = 'theme' | 'message-layout' | 'language';
+
+/** A row together with what choosing it does. */
+export type Executable<T> = T & { onSelect?: () => void };
+
 export type CommandPaletteActionItem = CommandPaletteBaseItem & {
   kind: 'action';
   title: string;
   description?: string;
   keywords?: string[];
+  /** Its own icon; without one, the terminal. */
+  icon?: IconSrc;
+  /** A word after the title that says what kind of row it is. */
+  tag?: string;
+  /** The keyboard shortcut of the same action, shown at the row's end. */
+  shortcut?: ShortcutId;
+  /** A row that flips something: what it is now. */
+  state?: 'on' | 'off';
+  /** A choice of a page: whether it is the one in effect. */
+  current?: boolean;
+  /** Choosing the row opens this page. */
+  page?: CommandPalettePageId;
+  /** Choosing the row leaves the palette open, so the row can show its new state. */
+  keepOpen?: boolean;
+};
+
+export type CommandPalettePage = {
+  title: string;
+  /** In display order: their sortRank descends. */
+  items: readonly Executable<CommandPaletteActionItem>[];
 };
 
 export type CommandPaletteRoomItem = CommandPaletteBaseItem & {

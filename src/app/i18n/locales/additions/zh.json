@@ -810,6 +810,10 @@
     "dismissLostFiles": "关闭"
   },
   "commandPalette": {
+    "state": {
+      "on": "开",
+      "off": "关"
+    },
     "people": "人员",
     "tabsLabel": "结果类型",
     "switchTabs": "切换标签页",

@@ -282,6 +282,21 @@ export const RowDescription = style({
   lineHeight: '17px',
 });
 
+export const RowState = style({
+  flex: 'none',
+  color: color.SurfaceVariant.OnContainer,
+  fontSize: 12,
+  lineHeight: '17px',
+});
+
+export const RowEnd = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: config.space.S200,
+  flex: 'none',
+  color: color.SurfaceVariant.OnContainer,
+});
+
 export const RowEnter = style({
   flex: 'none',
   visibility: 'hidden',

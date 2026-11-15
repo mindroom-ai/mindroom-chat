@@ -825,6 +825,10 @@
     "dismissLostFiles": "Kapat"
   },
   "commandPalette": {
+    "state": {
+      "on": "Açık",
+      "off": "Kapalı"
+    },
     "people": "Kişiler",
     "tabsLabel": "Sonuç türleri",
     "switchTabs": "Sekme değiştir",
