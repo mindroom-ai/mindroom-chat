@@ -1,10 +1,10 @@
 # Releases and the iOS app
 
-This page covers the calendar versions this repository releases under, how a release is cut by hand or after CI, how Xcode Cloud builds the iOS app from this repository, and the steps that move the App Store app (MindRoom AI, `chat.mindroom.app`) from the legacy MindRoom Chat repository (`mindroom-ai/mindroom-chat-legacy`) to this one.
+This page covers the calendar versions this repository releases under, how a release is cut by hand or after CI, how Xcode Cloud builds the iOS app from this repository, the Mac DMG every release carries, and the steps that move the App Store app (MindRoom AI, `chat.mindroom.app`) from the legacy MindRoom Chat repository (`mindroom-ai/mindroom-chat-legacy`) to this one.
 
 In short:
 
-- A release is a tag `vYYYY.M.N` on a commit of `main`. `just release` cuts one by hand; `.github/workflows/release.yml` cuts one after every green push to `main` while `package.json` says `"autoRelease": true`, as it does. Every release also publishes the container image `ghcr.io/mindroom-ai/mindroom-chat:YYYY.M.N` ([`deployment.md`](deployment.md#container-image)).
+- A release is a tag `vYYYY.M.N` on a commit of `main`. `just release` cuts one by hand; `.github/workflows/release.yml` cuts one after every green push to `main` while `package.json` says `"autoRelease": true`, as it does. Every release also publishes the container image `ghcr.io/mindroom-ai/mindroom-chat:YYYY.M.N` ([`deployment.md`](deployment.md#container-image)) and a signed Mac DMG for Homebrew ([Mac DMG](#mac-dmg)).
 - Xcode Cloud builds take their App Store version from that scheme: a tag build gets the tag's version, any other build the version the next release will get. The build number is Xcode Cloud's own counter.
 - Every `YYYY.M.N` sorts above the `4.12.x` versions of the legacy MindRoom Chat builds, so with the same app record and bundle identifier, installed apps update in place.
 
@@ -45,7 +45,7 @@ The notes list the commits since the previous release, newest first, up to 200, 
 
 `.github/workflows/release.yml` runs after the CI workflow completes for a push to `main`. When CI passed, it checks out that commit with every tag and runs `node scripts/calver.mjs auto <commit> --main origin/main`, which reads the top-level `autoRelease` of `package.json` at that commit:
 
-- `"autoRelease": true` (as it is): the job cuts the release as `just release --yes` would, with the job's `GITHUB_TOKEN` (`contents: write`), and hands its tag to the `image` job, which publishes the release's container image (`.github/workflows/image.yml`, [`deployment.md`](deployment.md#container-image)).
+- `"autoRelease": true` (as it is): the job cuts the release as `just release --yes` would, with the job's `GITHUB_TOKEN` (`contents: write`), and hands its tag to the `image` job, which publishes the release's container image (`.github/workflows/image.yml`, [`deployment.md`](deployment.md#container-image)), and to the `macos` job, which attaches its Mac DMG ([Mac DMG](#mac-dmg)).
 - `"autoRelease": false`: the job logs `Automatic releases are off: package.json has "autoRelease": false. Nothing to do.` and succeeds.
 
 A push whose CI failed, or was cancelled by a newer push, gets no release; the next green push releases its commits too. Runs never overlap, and a run whose commit no longer contains the newest release (one that lost a race) does nothing. Pushes that change only `docs/design/` do not run CI, so they release nothing either.
@@ -79,6 +79,14 @@ Xcode Cloud runs the scripts in `ios/App/ci_scripts/`, beside `ios/App/App.xcwor
 With automatic releases on, a push to `main` starts its Xcode Cloud build before the Release workflow tags it; both arrive at the same version unless another release lands in between. `IOS_MARKETING_VERSION` (or `APP_STORE_MARKETING_VERSION`) and `IOS_BUILD_NUMBER`, set as workflow environment variables, override both. The build log names the source of each value, for example `Resolved iOS marketing version from next-after:v2026.11.3`. Untagged builds of one commit range share a version and differ in build number, which App Store Connect allows; Xcode Cloud's counter only grows.
 
 Checked on macbook-m5 (Xcode 27.2, iOS 27.2 SDK, Node 26) on 2026-11-05, without Apple credentials, in a scratch clone with the test tags `v2026.10.4` and `v2026.11.1`: both scripts ran as Xcode Cloud runs them (`CI=TRUE CI_BUILD_NUMBER=9001`); `xcodebuild -showBuildSettings` for scheme `App` reported `MARKETING_VERSION = 2026.11.2`, `CURRENT_PROJECT_VERSION = 9001`, `PRODUCT_BUNDLE_IDENTIFIER = chat.mindroom.app` and `DEVELOPMENT_TEAM = DNA6966LGZ`; an unsigned `xcodebuild build` and `xcodebuild archive` for `generic/platform=iOS` (`CODE_SIGNING_ALLOWED=NO`) succeeded, and the archived app's `Info.plist` said `2026.11.2 (9001)` and its `version.json` `"release":"v2026.11.2"`. Signing, export and the upload to App Store Connect run only in Xcode Cloud and were not tried.
+
+## Mac DMG
+
+`.github/workflows/macos.yml` builds the Mac Catalyst app outside the App Store for every release: `release.yml` calls it after an automatic release, and the release event starts it for one cut by hand (prereleases, such as the watch SDK builds, get none). It runs `scripts/build-macos-app.sh --sign` on a `macos-26` runner with `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` both `YYYY.M.N`, which exports the app with Developer ID, notarizes and staples it, and packs it as `MindRoom.app` into `MindRoom.dmg`, itself signed, notarized and stapled. The job attaches the DMG to the release, and while that release is still the newest it sends `mindroom-chat-release` to `mindroom-ai/homebrew-tap`, whose workflow points the cask `mindroom-ai/tap/mindroom-chat` at it. The cask installs the app as `MindRoom Chat.app`, since the backend's menu bar app (cask `mindroom-ai/tap/mindroom`) is also `MindRoom.app`. The tap also checks once a day and takes the newest release that has a DMG.
+
+A release's DMG is never replaced, so its bytes and the cask's checksum stay fixed. A release without one (its build failed, or it predates the workflow) gets it from a manual run of the workflow with its tag (Actions, **Mac app**, **Run workflow**), or from **Re-run failed jobs** on the failed run. Pull requests that change `ios/`, the build script or the workflow build the app unsigned and publish nothing.
+
+The job needs these repository secrets: `MACOS_CODESIGN_CERTIFICATE_BASE64` and `MACOS_CODESIGN_CERTIFICATE_PASSWORD` (the Developer ID Application certificate of team `DNA6966LGZ` as a base64 `.p12`), `MACOS_KEYCHAIN_PASSWORD` (any value, for the runner's temporary keychain), `MACOS_PROVISIONING_PROFILE_BASE64` (the Developer ID profile `MindRoom Chat Developer ID` for `chat.mindroom.app`, base64), `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID` (for `notarytool`), and `RELEASE_BOT_PRIVATE_KEY` with the variable `RELEASE_BOT_APP_ID` (the release bot GitHub App, which may dispatch to the tap).
 
 ## Moving the App Store app to this repository
 

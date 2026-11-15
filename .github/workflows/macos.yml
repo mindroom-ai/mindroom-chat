@@ -1,0 +1,172 @@
+# The Mac app outside the App Store: a Developer ID signed and notarized Mac Catalyst DMG
+# (scripts/build-macos-app.sh), attached to its release as MindRoom.dmg, which the Homebrew cask
+# mindroom-ai/tap/mindroom-chat installs (docs/ios-release.md "Mac DMG"):
+# - release.yml calls this workflow after it cuts an automatic release;
+# - the release event covers a release cut by hand (`just release`). A release that a workflow's
+#   GITHUB_TOKEN creates sends no release event, so the two never both run for one release;
+# - a manual run builds the DMG of the release tag it is given, for a release that has none.
+# A published DMG is never replaced. Once it is up, and while its release is still the newest, the
+# job asks the tap to update its cask. Pull requests that change the Mac build build it unsigned
+# and publish nothing.
+name: Mac app
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: The release tag (vYYYY.M.N) to build the DMG of.
+        type: string
+        required: true
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The release tag (vYYYY.M.N) whose DMG is missing.
+        type: string
+        required: true
+  pull_request:
+    paths:
+      - ios/**
+      - scripts/build-macos-app.sh
+      - .github/workflows/macos.yml
+
+permissions:
+  contents: read
+
+jobs:
+  dmg:
+    name: Build, notarize and publish the DMG
+    # Prereleases (the watch SDK builds) are not app releases.
+    if: github.event_name != 'release' || !github.event.release.prerelease
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    concurrency:
+      group: macos-${{ inputs.tag || github.event.release.tag_name || github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    env:
+      # Empty for a pull request: an unsigned build.
+      RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+    steps:
+      - name: Check the release
+        if: env.RELEASE_TAG
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! [[ $RELEASE_TAG =~ ^v[0-9]{4}\.([1-9]|1[0-2])\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::'$RELEASE_TAG' is not a release tag vYYYY.M.N"
+            exit 1
+          fi
+          # Its bytes and the cask's checksum stay fixed: changes ship in a new release.
+          published=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '[.assets[] | select(.name == "MindRoom.dmg")] | length')
+          if [[ $published != 0 ]]; then
+            echo "::error::$RELEASE_TAG already has MindRoom.dmg, which is never replaced"
+            exit 1
+          fi
+          echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: npm ci
+      - name: Build unsigned
+        if: ${{ !env.RELEASE_TAG }}
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: scripts/build-macos-app.sh
+      - name: Import the Developer ID certificate
+        if: env.RELEASE_TAG
+        uses: apple-actions/import-codesign-certs@5142e029c445c10ffc7149d172e540235a065466 # v7.0.0
+        with:
+          p12-file-base64: ${{ secrets.MACOS_CODESIGN_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.MACOS_CODESIGN_CERTIFICATE_PASSWORD }}
+          keychain-password: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+      - name: Find the Developer ID identity
+        if: env.RELEASE_TAG
+        id: codesign
+        run: |
+          set -euo pipefail
+          identity=$(security find-identity -v -p codesigning |
+            awk -F '"' '/Developer ID Application:.*\(DNA6966LGZ\)/ { print $2; exit }')
+          if [[ -z $identity ]]; then
+            echo '::error::No Developer ID Application identity for team DNA6966LGZ'
+            exit 1
+          fi
+          echo "identity=$identity" >> "$GITHUB_OUTPUT"
+      - name: Decode the provisioning profile
+        if: env.RELEASE_TAG
+        id: profile
+        env:
+          MACOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.MACOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          test -n "$MACOS_PROVISIONING_PROFILE_BASE64"
+          umask 077
+          directory=$(mktemp -d "$RUNNER_TEMP/mindroom-signing.XXXXXX")
+          echo "directory=$directory" >> "$GITHUB_OUTPUT"
+          printf '%s' "$MACOS_PROVISIONING_PROFILE_BASE64" | base64 -D > "$directory/profile.provisionprofile"
+          test -s "$directory/profile.provisionprofile"
+      - name: Build, sign and notarize
+        if: env.RELEASE_TAG
+        env:
+          CODESIGN_IDENTITY: ${{ steps.codesign.outputs.identity }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MACOS_PROVISIONING_PROFILE_PATH: ${{ steps.profile.outputs.directory }}/profile.provisionprofile
+          # YYYY.M.N for both: the build number only has to grow from one release to the next.
+          MARKETING_VERSION: ${{ steps.release.outputs.version }}
+          CURRENT_PROJECT_VERSION: ${{ steps.release.outputs.version }}
+          MINDROOM_RELEASE_VERSION: ${{ env.RELEASE_TAG }}
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: scripts/build-macos-app.sh --sign
+      - name: Attach the DMG to the release
+        if: env.RELEASE_TAG
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_TAG" build/macos/MindRoom.dmg --repo "$GITHUB_REPOSITORY"
+      - name: Check that the release is the newest
+        if: env.RELEASE_TAG
+        id: newest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          newest=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          if [[ $newest == "$RELEASE_TAG" ]]; then
+            echo 'newest=true' >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::The cask stays as it is: $newest is newer than $RELEASE_TAG"
+          fi
+      - name: Mint a token for the Homebrew tap
+        if: steps.newest.outputs.newest == 'true'
+        id: release-bot
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+          owner: mindroom-ai
+          repositories: homebrew-tap
+          permission-contents: write
+      - name: Ask the tap to update its cask
+        if: steps.newest.outputs.newest == 'true'
+        env:
+          GH_TOKEN: ${{ steps.release-bot.outputs.token }}
+        run: |
+          gh api repos/mindroom-ai/homebrew-tap/dispatches \
+            -f event_type=mindroom-chat-release \
+            -f "client_payload[tag_name]=$RELEASE_TAG" \
+            -f "client_payload[asset_url]=https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/MindRoom.dmg"
+      - name: Remove the provisioning profile
+        if: always() && steps.profile.outputs.directory != ''
+        env:
+          DIRECTORY: ${{ steps.profile.outputs.directory }}
+        run: rm -rf "$DIRECTORY"
