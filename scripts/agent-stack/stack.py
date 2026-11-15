@@ -734,9 +734,10 @@ def config_yaml(
     agent_tools += "".join(f"\n      - {tool}" for directory in plugin_dirs for tool in directory["tools"])
     plugin_paths = "".join(f"  - path: {json.dumps(d['dir'])}\n" for d in plugin_dirs if d["plugin"])
     plugins = f"plugins:\n{plugin_paths}" if plugin_paths else ""
-    # A shell that runs in the backend needs `allow_shell_without_worker` where the commit has it (MindRoom #3923
-    # refuses its calls otherwise); the setting leaves `worker_tools` deciding where tools run.
-    shell_default = "  allow_shell_without_worker: true\n" if shell_without_worker else ""
+    # A stub stack's shell that runs in the backend needs `allow_shell_without_worker` where the commit has it
+    # (MindRoom #3923 refuses its calls otherwise); the setting leaves `worker_tools` deciding where tools run. A real
+    # model keeps MindRoom's default, so its shell runs only in a worker.
+    shell_default = "  allow_shell_without_worker: true\n" if shell_without_worker and mode == "stub" else ""
     # A Worker Computer is a browser in a worker of one person and agent; the tools that share it run there too, and
     # every other tool stays in the backend.
     worker_defaults = ""

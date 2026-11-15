@@ -769,16 +769,20 @@ class OptionTests(unittest.TestCase):
         self.assertNotIn("browser_mcp", plain)
         self.assertNotIn("worker_", plain)
 
-    def test_the_config_allows_shells_outside_a_worker_only_where_the_commit_has_the_setting(self) -> None:
+    def test_a_stub_stack_allows_shells_outside_a_worker_where_the_commit_has_the_setting(self) -> None:
         computers = {"image": "worker:given", "tools": ["browser_mcp"]}
-        for mode in ("stub", "real"):
-            for options in ({}, {"computers": computers}, {"terminals": True}):
-                allowed = stack.config_yaml(mode, TESTER, STUB_URL, 0.0003, shell_without_worker=True, **options)
-                self.assertIn("\ndefaults:\n  markdown: true\n  allow_shell_without_worker: true\n", allowed, mode)
-                # The worker settings stay as they were.
-                plain = stack.config_yaml(mode, TESTER, STUB_URL, 0.0003, **options)
-                self.assertEqual(allowed.replace("  allow_shell_without_worker: true\n", ""), plain, mode)
-                self.assertNotIn("allow_shell_without_worker", plain, mode)
+        for options in ({}, {"computers": computers}, {"terminals": True}):
+            allowed = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, shell_without_worker=True, **options)
+            self.assertIn("\ndefaults:\n  markdown: true\n  allow_shell_without_worker: true\n", allowed, options)
+            # The worker settings stay as they were.
+            plain = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, **options)
+            self.assertEqual(allowed.replace("  allow_shell_without_worker: true\n", ""), plain, options)
+            self.assertNotIn("allow_shell_without_worker", plain, options)
+
+    def test_a_real_model_keeps_mindrooms_default_for_shells_outside_a_worker(self) -> None:
+        for options in ({}, {"terminals": True}):
+            config = stack.config_yaml("real", TESTER, STUB_URL, 0.0003, shell_without_worker=True, **options)
+            self.assertNotIn("allow_shell_without_worker", config, options)
 
     def test_terminals_give_the_helper_a_terminal_it_types_in_beside_its_shell_in_the_runner(self) -> None:
         for mode in ("stub", "real"):
