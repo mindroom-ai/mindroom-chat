@@ -59,9 +59,10 @@ vi.mock('react-i18next', () => ({
 }));
 
 const room = { roomId: ROOM_ID } as unknown as Room;
-const list = (threadRootIds: string[]) => (
+const list = (threadRootIds: string[], filterBarShown = false) => (
   <CompactRoomView
     room={room}
+    filterBarShown={filterBarShown}
     threadRootIds={threadRootIds}
     threadRecordMap={new Map()}
     onThreadClick={vi.fn()}
@@ -107,6 +108,23 @@ describe('the compact thread list in motion', () => {
     rerender(list(['$b', '$a']));
 
     expect(glided().sort()).toEqual(['$a', '$b']);
+  });
+
+  it('reads the cards when the filter bar comes or goes, which moves them all', () => {
+    /** How often a card's moving part was measured. */
+    const readsOfCards = () =>
+      motion.rects.mock.contexts.filter((element) =>
+        (element as HTMLElement).hasAttribute('data-motion-row')
+      ).length;
+    const { rerender } = render(list(['$a', '$b']));
+    motion.rects.mockClear();
+    rerender(list(['$a', '$b']));
+    expect(readsOfCards()).toBe(0);
+
+    rerender(list(['$a', '$b'], true));
+
+    // Before the change and after it, to play each card from where it was.
+    expect(readsOfCards()).toBeGreaterThan(0);
   });
 
   it('glides a card into the Pinned section', () => {

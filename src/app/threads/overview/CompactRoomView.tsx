@@ -45,6 +45,8 @@ export type CompactRoomViewProps = {
   threadRecordMap: ReadonlyMap<string, ThreadRecord>;
   onThreadClick: (threadRootId: string, summaryText?: string) => void;
   compactRoomScrollStateRef: MutableRefObject<ScrollAnchorMemory>;
+  /** Whether the thread filter bar floats over the cards: they move down for it, and glide. */
+  filterBarShown?: boolean;
 };
 
 type ThreadActionsMenuState = {
@@ -254,6 +256,7 @@ export function CompactRoomView({
   threadRecordMap,
   onThreadClick,
   compactRoomScrollStateRef,
+  filterBarShown = false,
 }: CompactRoomViewProps) {
   const { t } = useTranslation();
   const viewRef = useRef<HTMLDivElement>(null);
@@ -306,13 +309,14 @@ export function CompactRoomView({
   const ordinaryCards = cardViewModels.filter(
     (model) => !pinning.pinnedEventIds.includes(model.id.threadRootId)
   );
-  // The cards glide to a new order, a new one fades in and one that left fades out. After the
-  // hook that holds the order: it scrolls the list where the browser does not anchor it.
+  // The cards glide to a new order or to the place the filter bar leaves them, a new one fades
+  // in and one that left fades out. After the hook that holds the order: it scrolls the list
+  // where the browser does not anchor it.
   const rootIdsOf = (models: CompactThreadCardViewModel[]) =>
     models.map((model) => model.id.threadRootId).join(',');
   const listMotion = useListMotion(
     contentRef,
-    `${rootIdsOf(pinnedCards)}|${rootIdsOf(ordinaryCards)}`
+    `${filterBarShown}|${rootIdsOf(pinnedCards)}|${rootIdsOf(ordinaryCards)}`
   );
 
   // A fully stable click handler keeps the memoized cards from re-rendering
