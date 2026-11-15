@@ -9,7 +9,11 @@ import { useStateEventCallback } from '../../matrix/hooks/useStateEventCallback'
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { StateEvent } from '../../matrix/types/room';
 import { hasServerEncryptionSetup } from '../devices/serverEncryptionSetup';
-import { recoveryDialogAtom } from './recoveryDialog';
+import {
+  endRecoveryPromptSnooze,
+  isRecoveryPromptSnoozed,
+  recoveryDialogAtom,
+} from './recoveryDialog';
 import { useRecoveryState } from './recoveryState';
 
 // Accounts already prompted since the app started; a page load starts it over.
@@ -40,7 +44,8 @@ const useHasEncryptedRoom = (mx: MatrixClient): boolean => {
  * app start, as soon as the user has joined an encrypted room: before that there is nothing to
  * protect or unlock. `encryptionRecovery.promptAtStart: false` turns it off, as does encryption
  * being off by policy. It never replaces a dialog that is already open, and a session that has
- * been verified is never prompted. Renders nothing.
+ * been verified is never prompted. A recovery dialog closed unfinished keeps it closed on this
+ * browser for `RECOVERY_PROMPT_SNOOZE_MS`, which verifying the session ends. Renders nothing.
  */
 export function EncryptionRecoveryPrompt() {
   const mx = useMatrixClient();
@@ -60,10 +65,22 @@ export function EncryptionRecoveryPrompt() {
     // A verified session is past the start. It can look locked for a moment later on: a reset
     // signs it with the new identity only once that is published, and opening Unlock then would
     // put a second dialog over the account confirmation the reset is waiting for.
-    if (kind === 'ready') promptedAccounts.add(userId);
-    if (!enabled || (kind !== 'locked' && kind !== 'none') || promptedAccounts.has(userId)) return;
+    if (kind === 'ready') {
+      promptedAccounts.add(userId);
+      endRecoveryPromptSnooze(userId);
+    }
+    if (
+      !enabled ||
+      (kind !== 'locked' && kind !== 'none') ||
+      promptedAccounts.has(userId) ||
+      isRecoveryPromptSnoozed(userId)
+    )
+      return;
+    // Checked again when it opens: a dialog closed while the server check was pending snoozed it.
     const open = (dialog: 'setup' | 'unlock') => {
-      if (store.get(recoveryDialogAtom) === undefined) store.set(recoveryDialogAtom, dialog);
+      if (store.get(recoveryDialogAtom) === undefined && !isRecoveryPromptSnoozed(userId)) {
+        store.set(recoveryDialogAtom, dialog);
+      }
     };
     if (kind === 'locked') {
       promptedAccounts.add(userId);

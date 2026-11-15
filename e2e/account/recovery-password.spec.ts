@@ -209,6 +209,31 @@ test('a tap beside the unlock dialog closes it and opens nothing beneath', async
   await expect(second.getByRole('dialog')).toHaveCount(0);
 });
 
+test('Not now keeps the start prompt closed after a reload, and the banner still unlocks', async ({
+  browser,
+}) => {
+  const account = await createAccountWithEncryptedRoom();
+  await firstSession(browser, account);
+
+  const second = await signIn(browser, account.username);
+  const dialog = unlockDialog(second);
+  await expect(dialog).toBeVisible({ timeout: 90_000 });
+  await dialog.getByRole('button', { name: 'Not now' }).click();
+  await expect(dialog).toHaveCount(0);
+
+  await second.reload();
+  // The banner's Unlock shows the session is locked, with the key the start prompt reads, and the
+  // room list the encrypted room: the start prompt has had what it opens on.
+  const banner = second.getByRole('region', { name: 'Unverified Device' });
+  const unlock = banner.getByRole('button', { name: 'Unlock with recovery password' });
+  await expect(unlock).toBeVisible({ timeout: 90_000 });
+  await expect(second.getByText('Secret Plans').first()).toBeVisible({ timeout: 60_000 });
+  await expect(dialog).toHaveCount(0);
+
+  await unlock.click();
+  await unlockWithRecovery(dialog, RECOVERY_PASSWORD);
+});
+
 test('a changed password replaces the old one', async ({ browser }) => {
   const account = await createAccountWithEncryptedRoom();
   const { page: first } = await firstSession(browser, account);

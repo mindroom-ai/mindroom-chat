@@ -12,8 +12,14 @@ import {
   EncryptionRecoveryPrompt,
   resetPromptedAccountsForTests,
 } from './EncryptionRecoveryPrompt';
-import { recoveryDialogAtom } from './recoveryDialog';
+import {
+  RECOVERY_PROMPT_SNOOZE_MS,
+  isRecoveryPromptSnoozed,
+  recoveryDialogAtom,
+  snoozeRecoveryPrompt,
+} from './recoveryDialog';
 import { useRecoveryState, type RecoveryState } from './recoveryState';
+import { recoveryPromptSnoozeStorageKey } from '../../preferences/accountStorageKeys';
 
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: vi.fn() }));
 vi.mock('./recoveryState', () => ({ useRecoveryState: vi.fn() }));
@@ -72,6 +78,7 @@ const setup = (
 
 beforeEach(() => {
   resetPromptedAccountsForTests();
+  localStorage.clear();
   rooms.clear();
   rooms.set(ENCRYPTED_ROOM, { encrypted: true });
   rooms.set(PLAIN_ROOM, { encrypted: false });
@@ -82,6 +89,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();
+  vi.useRealTimers();
 });
 
 describe('EncryptionRecoveryPrompt', () => {
@@ -236,6 +244,22 @@ describe('EncryptionRecoveryPrompt', () => {
     expect(store.get(recoveryDialogAtom)).toBeUndefined();
   });
 
+  it('a dialog closed while the server check is pending keeps Set up from opening after it', async () => {
+    let answer: (hasSetup: boolean) => void = () => {};
+    vi.mocked(hasServerEncryptionSetup).mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        answer = resolve;
+      })
+    );
+    const { store } = setup(NONE);
+    await act(async () => {});
+    // Set up opened from the welcome page and closed with Not now before the check answers.
+    snoozeRecoveryPrompt('@alice:example.org');
+    answer(false);
+    await act(async () => {});
+    expect(store.get(recoveryDialogAtom)).toBeUndefined();
+  });
+
   it('leaving the last encrypted room while the server check is pending leaves the account unprompted', async () => {
     let answer: (hasSetup: boolean) => void = () => {};
     vi.mocked(hasServerEncryptionSetup).mockReturnValueOnce(
@@ -261,6 +285,45 @@ describe('EncryptionRecoveryPrompt', () => {
     await show(NONE);
     expect(hasServerEncryptionSetup).toHaveBeenCalledTimes(1);
     expect(store.get(recoveryDialogAtom)).toBeUndefined();
+  });
+
+  it('after Not now, later starts prompt nothing until the snooze ends', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    snoozeRecoveryPrompt('@alice:example.org');
+    const locked = setup(LOCKED);
+    await act(async () => {});
+    expect(locked.store.get(recoveryDialogAtom)).toBeUndefined();
+    cleanup();
+    const none = setup(NONE);
+    await act(async () => {});
+    expect(none.store.get(recoveryDialogAtom)).toBeUndefined();
+    expect(hasServerEncryptionSetup).not.toHaveBeenCalled();
+    cleanup();
+    useAccount('@bob:example.org');
+    const other = setup(LOCKED);
+    await act(async () => {});
+    expect(other.store.get(recoveryDialogAtom)).toBe('unlock');
+    cleanup();
+    useAccount('@alice:example.org');
+    vi.setSystemTime(Date.now() + RECOVERY_PROMPT_SNOOZE_MS + 1);
+    const later = setup(LOCKED);
+    await act(async () => {});
+    expect(later.store.get(recoveryDialogAtom)).toBe('unlock');
+  });
+
+  it('a verified session ends the snooze', async () => {
+    snoozeRecoveryPrompt('@alice:example.org');
+    setup({ kind: 'ready', key: KEY });
+    await act(async () => {});
+    expect(isRecoveryPromptSnoozed('@alice:example.org')).toBe(false);
+  });
+
+  it('a snooze that ends further away than a week, from a clock set ahead, is ignored', () => {
+    localStorage.setItem(
+      recoveryPromptSnoozeStorageKey('@alice:example.org'),
+      String(Date.now() + 2 * RECOVERY_PROMPT_SNOOZE_MS)
+    );
+    expect(isRecoveryPromptSnoozed('@alice:example.org')).toBe(false);
   });
 
   it('another account is prompted once; the first is not prompted again', async () => {
