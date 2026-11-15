@@ -6,6 +6,7 @@ import React, {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -31,6 +32,7 @@ import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
 import { useStagedCardIds } from './useStagedCardIds';
 import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
+import { ThreadCardBadges } from './ThreadCardBadges';
 
 const ThreadActionsMenu = lazy(() =>
   import('../ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -98,6 +100,12 @@ const CompactThreadCardRow = React.memo(
     // A live call's row shows in its card as in the timeline: who is in the call, Join and
     // Transcript. Once the call ends the card is a thread like any other.
     const callRow = useThreadRootLiveCallRow(room, rootId);
+    // Client plugins' marks for the thread, one node per thread so the memoized card does not
+    // render again for them.
+    const badges = useMemo(
+      () => <ThreadCardBadges room={room} threadId={rootId} />,
+      [room, rootId]
+    );
 
     return (
       <div
@@ -142,6 +150,7 @@ const CompactThreadCardRow = React.memo(
                 viewModel={viewModel}
                 onClick={onThreadClick}
                 attachment={callRow && <LazyCallRow {...callRow} />}
+                badges={badges}
               />
             )}
           />
