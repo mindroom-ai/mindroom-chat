@@ -127,6 +127,9 @@ vi.mock('react-i18next', async () => {
     useTranslation: () => ({ t: translateFromEn }),
   };
 });
+// The plugin registry loads the app's i18n, which the react-i18next stand-in above cannot set up;
+// unit tests build no plugins anyway.
+vi.mock('../../plugins/registry', () => ({ registeredPlugins: [] }));
 
 vi.mock('./compactThreadCardViewModel', () => ({
   useCompactThreadCardViewModels: useCompactThreadCardViewModelsMock,

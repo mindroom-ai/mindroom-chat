@@ -3,10 +3,7 @@ import { useOptionalClientConfig } from '../../config/useClientConfig';
 import { reportBoundaryError } from '../../bug-reports/error-reporting/errorReporting';
 import { pluginFailure } from '../../plugins/pluginFailure';
 import { registeredPlugins, type RegisteredPlugin } from '../../plugins/registry';
-import {
-  enabledThreadCardBadges,
-  type ThreadCardBadgeProps,
-} from '../../plugins/threadCardBadges';
+import { enabledThreadCardBadges, type ThreadCardBadgeProps } from '../../plugins/threadCardBadges';
 
 const reportFailure = (tag: string, thrown: unknown, componentStack?: string | null) => {
   // eslint-disable-next-line no-console

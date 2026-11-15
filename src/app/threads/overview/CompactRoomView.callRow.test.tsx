@@ -53,6 +53,9 @@ vi.mock('../../i18n/useRelativeTime', () => ({ useRelativeTime: () => '' }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ i18n: { language: 'en' }, t: (key: string) => key }),
 }));
+// The plugin registry loads the app's i18n, which the react-i18next stand-in above cannot set up;
+// unit tests build no plugins anyway.
+vi.mock('../../plugins/registry', () => ({ registeredPlugins: [] }));
 
 const message = (eventId: string, sender: string, content: IContent) =>
   new MatrixEvent({
