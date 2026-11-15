@@ -16,8 +16,8 @@ struct ThreadRow: Identifiable, Equatable {
     let ts: Int
     /// When the root was sent.
     let rootTs: Int
-    /// The person sent the root (a message of theirs, which Send follows).
-    let ownRoot: Bool
+    /// A voice root's file name: Send follows its own recording by it.
+    let voiceFile: String?
 }
 
 /// The default room: its threads (and the user's own messages nobody answered yet), new voice
@@ -188,7 +188,7 @@ final class RoomModel: ObservableObject {
         self.rows = rows.sorted { $0.ts > $1.ts }
         publishWidgetSnapshot()
         #if DEBUG
-        for row in self.rows.prefix(3) { E2EHooks.log("row \(row.rootId ?? row.id) \(String(describing: row.state))") }
+        for row in self.rows.prefix(3) { E2EHooks.log("row \(row.rootId ?? row.id) \(String(describing: row.state)) \(row.voiceFile ?? "")") }
         #endif
     }
 
@@ -201,7 +201,7 @@ final class RoomModel: ObservableObject {
         }
         return ThreadRow(id: snapshot.rootId, rootId: snapshot.rootId, title: snapshot.title, line: line,
                          state: snapshot.rowState, ts: snapshot.latestTs,
-                         rootTs: snapshot.rootTs, ownRoot: snapshot.rootFromMe)
+                         rootTs: snapshot.rootTs, voiceFile: snapshot.voiceFile)
     }
 
     /// The user's own messages in the room that no thread holds yet: a voice message just sent,
@@ -227,12 +227,12 @@ final class RoomModel: ObservableObject {
             case let .sendingFailed(_, isRecoverable): if isRecoverable { queued = true } else { failed = true }
             default: break
             }
-            let isVoice: Bool
-            if case .audio = message.msgType { isVoice = true } else { isVoice = false }
-            let title = isVoice ? String(localized: "Voice message") : PlainText.of(markdown: message.body)
+            var voiceFile: String?
+            if case let .audio(audio) = message.msgType { voiceFile = audio.filename }
+            let title = voiceFile != nil ? String(localized: "Voice message") : PlainText.of(markdown: message.body)
             let state: ThreadRowState = failed ? .failed : queued ? .queued : .idle(Date(timeIntervalSince1970: Double(item.timestamp) / 1000))
             return ThreadRow(id: id, rootId: rootId, title: title, line: String(localized: "Sent"), state: state,
-                             ts: Int(item.timestamp), rootTs: Int(item.timestamp), ownRoot: true)
+                             ts: Int(item.timestamp), rootTs: Int(item.timestamp), voiceFile: voiceFile)
         }
     }
 

@@ -6,6 +6,8 @@ struct RecordingView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var recorder = Recorder()
     @State private var denied = false
+    /// Recording could not start though the microphone is allowed.
+    @State private var failed = false
 
     var body: some View {
         VStack(spacing: 8) {
@@ -13,6 +15,8 @@ struct RecordingView: View {
                 Text("MindRoom may not use the microphone. Allow it in Settings on the watch: Privacy & Security, Microphone.")
                     .font(.footnote)
                     .multilineTextAlignment(.center)
+            } else if failed {
+                Button("Retry") { start() }
             } else {
                 Waveform(levels: recorder.levels.suffix(18))
                     .frame(height: 44)
@@ -37,12 +41,16 @@ struct RecordingView: View {
         }
         .task {
             guard await Recorder.requestPermission() else { denied = true; return }
-            do { try recorder.start() } catch { denied = true }
+            start()
         }
         .onChange(of: recorder.reachedLimit) { _, reached in
             // The 5 minutes ran out: send what there is.
             if reached, let take = recorder.stop() { send(take); dismiss() }
         }
+    }
+
+    private func start() {
+        do { try recorder.start(); failed = false } catch { failed = true }
     }
 }
 

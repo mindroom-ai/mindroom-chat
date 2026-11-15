@@ -14,7 +14,8 @@ POST /login/get_token through interactive auth), reinstalls the app with an empt
 DEBUG launch hooks of ios/Watch/MindRoomWatch/E2EHooks.swift, and checks the outcome on the homeserver and in the
 app's log:
 
-  voice    a 2 s tone sent as a voice message: a new message from the account, and an agent reply in its thread
+  voice    a 2 s tone sent as a voice message: a new message from the account, whose row on the watch names the
+           recording (Send follows it to open the thread), and an agent reply in its thread
   approve  "#approve" (the stub's shell call that needs approval) approved from the watch: the card turns approved
   ask      "#ask" (a question with two options) answered from the watch with its first option
   resolve  the newest thread marked done: its com.mindroom.thread.tags state appears
@@ -152,11 +153,14 @@ def main() -> int:
         results.append((name, problem))
         print(f"{'FAIL' if problem else 'PASS'} {name}{': ' + problem if problem else ''}", flush=True)
 
-    def voice(new, _log):
+    def voice(new, log):
         mine = [e for e in new if e["sender"] == me and e["type"] in ("m.room.message", "m.room.encrypted")]
         if not mine:
             return "no message from the watch"
         root = mine[0]["event_id"]
+        rows = [line for line in log.splitlines() if f"row {root} " in line]
+        if not rows or not all("voice-message-e2e.m4a" in line for line in rows):
+            return "the message's row does not name its recording"
         replies = [e for e in new if e["sender"] != me
                    and (e.get("content", {}).get("m.relates_to") or {}).get("event_id") == root]
         return None if replies else "no reply in the voice message's thread"

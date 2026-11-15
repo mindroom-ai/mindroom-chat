@@ -125,11 +125,8 @@ private struct RoomHome: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var recording = false
     @State private var sendError: String?
-    /// The threads there were when a voice message went out: the first new one is its thread, opened once it has an id.
-    @State private var following: Set<String>?
-    /// When that voice message went out, in milliseconds: at a cold launch the list may not have been read yet,
-    /// and an older thread is not the message's.
-    @State private var sentAt = 0
+    /// The file name of the voice message that just went out: its thread opens once it has an id.
+    @State private var following: String?
 
     var body: some View {
         List {
@@ -186,8 +183,7 @@ private struct RoomHome: View {
         }
         .fullScreenCover(isPresented: $recording) {
             RecordingView { take in
-                following = Set(model.rows.compactMap(\.rootId))
-                sentAt = Int(Date().timeIntervalSince1970 * 1000)
+                following = take.url.lastPathComponent
                 Task {
                     do { sendError = nil; try await model.sendVoice(take) } catch {
                         following = nil
@@ -238,11 +234,10 @@ private struct RoomHome: View {
         return counts.needsYou + counts.running == 0 ? String(localized: "Tap to talk") : counts.summary
     }
 
-    /// After Send: opens the message's thread once it has an id: the person's newest message that was not there before.
+    /// After Send: opens the message's thread once it has an id. Each recording's file has its own name.
     private func openSent(_ rows: [ThreadRow]) {
-        guard let known = following, path.isEmpty,
-              let newest = rows.filter({ $0.rootId != nil && $0.ownRoot }).max(by: { $0.rootTs < $1.rootTs }),
-              let rootId = newest.rootId, !known.contains(rootId), newest.rootTs >= sentAt - 60_000 else { return }
+        guard let sent = following, path.isEmpty,
+              let rootId = rows.first(where: { $0.voiceFile == sent })?.rootId else { return }
         following = nil
         path = [ThreadTarget(roomId: model.room.id(), rootId: rootId)]
     }

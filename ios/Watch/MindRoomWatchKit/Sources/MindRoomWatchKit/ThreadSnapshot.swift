@@ -16,21 +16,21 @@ public struct ThreadSnapshot: Equatable, Sendable {
     public let rootTs: Int
     public let title: String
     public let isVoiceRoot: Bool
-    /// The person sent the root.
-    public let rootFromMe: Bool
+    /// A voice root's file name: Send follows its own recording by it.
+    public let voiceFile: String?
     /// The newest reply from anyone else, not a relay.
     public let reply: Reply?
     public let approvals: [ApprovalCard]
     /// The newest card from an agent that waits for this person's decision.
     public let pendingApproval: ApprovalCard?
     public let openQuestion: Question?
-    /// Milliseconds since the epoch of the newest message.
+    /// Milliseconds since the epoch of the newest message or its newest edit: a reply streams on in edits.
     public let latestTs: Int
-    private let latestRun: RunState
 
     public var rowState: ThreadRowState {
         if pendingApproval != nil || openQuestion != nil { return .needsYou }
-        if latestRun == .streaming { return .running }
+        // The reply, not the newest event: a reply that began before an approval card goes on after it.
+        if reply?.run == .streaming { return .running }
         return .idle(Date(timeIntervalSince1970: Double(latestTs) / 1000))
     }
 
@@ -121,12 +121,12 @@ public struct ThreadSnapshot: Equatable, Sendable {
             let stale = Double(askedAt) / 1000 < now.timeIntervalSince1970 - 7 * 24 * 3600
             if !wroteSince && !reacted && !askedSomeoneElse && !stale { openQuestion = question }
         }
-        let latest = conversation.last ?? root
+        let latestTs = ([root] + conversation).map { max($0.timestamp, edit($0)?.timestamp ?? 0) }.max() ?? root.timestamp
         return ThreadSnapshot(
             rootId: rootId, rootTs: root.timestamp, title: title, isVoiceRoot: isVoiceRoot,
-            rootFromMe: (root["sender"] as? String) == ownUserId, reply: reply, approvals: approvals,
-            pendingApproval: pendingApproval, openQuestion: openQuestion, latestTs: latest.timestamp,
-            latestRun: RunState.of(latest, latestEdit: edit(latest)))
+            voiceFile: isVoiceRoot ? root.content["filename"] as? String ?? root.content["body"] as? String : nil,
+            reply: reply, approvals: approvals, pendingApproval: pendingApproval, openQuestion: openQuestion,
+            latestTs: latestTs)
     }
 }
 

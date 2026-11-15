@@ -33,13 +33,12 @@ final class ThreadSnapshotTests: XCTestCase {
             "m.relates_to": ["rel_type": "m.replace", "event_id": "$reply"] as JSON])
         let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [echo, echoEdit, reply, replyEdit], ownUserId: me, now: now)
         XCTAssertTrue(snapshot.isVoiceRoot)
-        XCTAssertTrue(snapshot.rootFromMe)
         XCTAssertEqual(snapshot.title, "🎤 Remind me to call the dentist")
         XCTAssertEqual(snapshot.reply?.sender, agent)
         XCTAssertEqual(snapshot.reply?.text, "Reminder set for Saturday.")
         XCTAssertEqual(snapshot.reply?.tools, 1)
         XCTAssertEqual(snapshot.reply?.run, .finished)
-        XCTAssertEqual(snapshot.latestTs, 4)
+        XCTAssertEqual(snapshot.latestTs, 5)
         XCTAssertEqual(snapshot.rootTs, 1)
     }
 
@@ -112,7 +111,6 @@ final class ThreadSnapshotTests: XCTestCase {
         let snapshot = ThreadSnapshot.build(root: root, related: [], ownUserId: me, now: now)
         XCTAssertFalse(snapshot.isVoiceRoot)
         XCTAssertEqual(snapshot.title, "Book a table for four")
-        XCTAssertFalse(ThreadSnapshot.build(root: root, related: [], ownUserId: "@anna:x", now: now).rootFromMe)
         XCTAssertEqual(snapshot.latestTs, 1)
     }
 
@@ -192,6 +190,35 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.rowState, .running)
         let stopped = ThreadSnapshot.build(root: voiceRoot, related: [event("$reply", 4, inThread(["msgtype": "m.text", "body": "Done"]))], ownUserId: me, now: now)
         XCTAssertEqual(stopped.rowState, .idle(Date(timeIntervalSince1970: 0.004)))
+    }
+
+    func testAReplyStillStreamingAfterAnApprovalCardIsRunning() {
+        // The agent's reply began before the card and goes on once the card is approved.
+        let reply = event("$reply", 2, inThread(["msgtype": "m.text", "body": "…", "io.mindroom.stream_status": "streaming"]))
+        let approved = event("$cardEdit", 4, sender: "@mindroom_router:x", type: "io.mindroom.tool_approval",
+                             ["m.new_content": ["status": "approved"] as JSON,
+                              "m.relates_to": ["rel_type": "m.replace", "event_id": "$card"] as JSON])
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [reply, card("$card", 3), approved], ownUserId: me, now: now)
+        XCTAssertNil(snapshot.pendingApproval)
+        XCTAssertEqual(snapshot.rowState, .running)
+    }
+
+    func testTheRowsTimeIsItsNewestEdit() {
+        let reply = event("$reply", 2, inThread(["msgtype": "m.text", "body": "…"]))
+        let done = event("$done", 9, ["m.new_content": ["body": "Done", "io.mindroom.ai_run": ["version": 1, "status": "completed"]] as JSON,
+                                      "m.relates_to": ["rel_type": "m.replace", "event_id": "$reply"] as JSON])
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [reply, done], ownUserId: me, now: now)
+        XCTAssertEqual(snapshot.latestTs, 9)
+        XCTAssertEqual(snapshot.rowState, .idle(Date(timeIntervalSince1970: 0.009)))
+    }
+
+    func testAVoiceRootNamesItsFile() {
+        XCTAssertEqual(ThreadSnapshot.build(root: voiceRoot, related: [], ownUserId: me, now: now).voiceFile, "voice-message.m4a")
+        let captioned = event("$root", 1, sender: me, ["msgtype": "m.audio", "body": "A caption", "filename": "take.m4a",
+                                                        "org.matrix.msc3245.voice": [:] as JSON])
+        XCTAssertEqual(ThreadSnapshot.build(root: captioned, related: [], ownUserId: me, now: now).voiceFile, "take.m4a")
+        let text = event("$root", 1, sender: me, ["msgtype": "m.text", "body": "voice-message.m4a"])
+        XCTAssertNil(ThreadSnapshot.build(root: text, related: [], ownUserId: me, now: now).voiceFile)
     }
 
     func testUndecryptableRootIsAnEncryptedMessage() {

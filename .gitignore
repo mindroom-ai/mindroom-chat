@@ -17,5 +17,6 @@ ios/App/fastlane/screenshots/en-US/
 ios/Watch/MatrixRustSDK/MatrixSDKFFI.xcframework/
 ios/Watch/MatrixRustSDK/Sources/
 ios/Watch/MatrixRustSDK/*.zip
+ios/Watch/MatrixRustSDK/release
 ios/Watch/MatrixRustSDK/build/
 ios/Watch/**/.build/

@@ -78,7 +78,7 @@ npm run build:ios
 # Also runs `pod install`.
 npx cap sync ios
 # The Xcode project references the watch app's SDK package, which Xcode resolves on every platform.
-[[ -d ios/Watch/MatrixRustSDK/MatrixSDKFFI.xcframework ]] || scripts/watch/build-sdk.sh --fetch
+scripts/watch/build-sdk.sh --fetch
 
 mkdir -p build/macos
 rm -rf "$archive_path"

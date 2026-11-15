@@ -16,10 +16,10 @@ require "shellwords"
 default_platform(:ios)
 
 platform :ios do
-  desc "Build web assets and sync them into the iOS project (npm run build:ios + cap sync), and fetch the watch app's SDK build when it is missing"
+  desc "Build web assets and sync them into the iOS project (npm run build:ios + cap sync), and fetch the watch app's SDK build"
   lane :sync_web do
     sh("cd ../../.. && npm run build:ios && npx cap sync ios")
-    sh("cd ../../.. && ([ -d ios/Watch/MatrixRustSDK/MatrixSDKFFI.xcframework ] || scripts/watch/build-sdk.sh --fetch)")
+    sh("cd ../../.. && scripts/watch/build-sdk.sh --fetch")
   end
 
   desc "Build a signed release archive and upload it to TestFlight"
