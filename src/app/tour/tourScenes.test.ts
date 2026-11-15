@@ -163,7 +163,7 @@ describe('tourScenes', () => {
     });
   });
 
-  it('marks the button, then the bar it shows, for `filters`', () => {
+  it('shows the bar, then the resolved card with Unresolved off and the list without it for `filters`', () => {
     expect(sceneOf('filters', 0, false, TYPED)).toMatchObject({
       filterBar: false,
       roomMenu: false,
@@ -176,11 +176,51 @@ describe('tourScenes', () => {
       spotlight: 'filterButton',
     });
     [false, true].forEach((phone) => {
-      expect(lastScene('filters', phone)).toMatchObject({
+      const bar = sceneOf('filters', 1, phone, TYPED);
+      expect(bar).toMatchObject({
         view: 'list',
         filterBar: true,
+        unresolvedOnly: true,
         roomMenu: false,
         spotlight: 'filterBar',
+      });
+      // The list as the step before left it: the thread it resolved is not there.
+      expect(ids(bar)).toEqual(ids(lastScene('resolve', phone)));
+
+      // Unresolved is turned off, and the resolved thread is back where its last reply puts it.
+      const all = sceneOf('filters', 2, phone, TYPED);
+      expect(all).toMatchObject({
+        filterBar: true,
+        unresolvedOnly: false,
+        spotlight: 'filterUnresolved',
+      });
+      expect(ids(all)).toEqual(['vendor', ...ids(bar)]);
+      expect(stateOf(all, 'vendor')).toEqual(
+        stateOf(sceneOf('resolve', 1, phone, TYPED), 'vendor')
+      );
+      expect(stateOf(all, 'vendor')?.resolved).toBe(true);
+
+      // Then the card that came back is what is marked.
+      expect(sceneOf('filters', 3, phone, TYPED)).toEqual({ ...all, spotlight: 'card:vendor' });
+
+      // Unresolved is on again, as the app has it, and the card is gone.
+      expect(lastScene('filters', phone)).toEqual({ ...bar, spotlight: 'filterUnresolved' });
+    });
+  });
+
+  it('lists a resolved thread only where a step shows its mark or Unresolved is off', () => {
+    TOUR_STEPS.forEach((step) => {
+      step.phases.forEach((_, phase) => {
+        [false, true].forEach((phone) => {
+          const scene = sceneOf(step.id, phase, phone, TYPED);
+          const where = `${step.id} ${phase}`;
+          // Only the bar turns Unresolved off, and only the step about the bar shows it.
+          if (step.id !== 'filters' || !scene.filterBar)
+            expect(scene.unresolvedOnly, where).toBe(true);
+          const resolved = scene.cards.some((card) => card.state.resolved);
+          const marks = step.id === 'states' || (step.id === 'resolve' && phase === 1);
+          expect(resolved, where).toBe(marks || !scene.unresolvedOnly);
+        });
       });
     });
   });

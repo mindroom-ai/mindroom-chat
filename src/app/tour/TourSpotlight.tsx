@@ -9,8 +9,9 @@ type Box = { x: number; y: number; width: number; height: number };
 
 /**
  * Where an element lies inside the stage, by its layout offsets. They say where the element
- * rests, so a card that is still gliding to its place is ringed where it will be. Nothing for an
- * element that is not laid out inside the stage.
+ * rests, so a card that is still gliding to its place is ringed where it will be. An offset
+ * counts from inside the border of the box it is measured in, so the border of each box on the
+ * way to the stage is added. Nothing for an element that is not laid out inside the stage.
  */
 const boxWithin = (element: HTMLElement, stage: HTMLElement): Box | undefined => {
   let x = 0;
@@ -21,6 +22,11 @@ const boxWithin = (element: HTMLElement, stage: HTMLElement): Box | undefined =>
     y += node.offsetTop;
     const parent: Element | null = node.offsetParent;
     node = parent instanceof HTMLElement ? parent : null;
+    // The ring's own place counts from inside the stage's border, as the last offset does.
+    if (node && node !== stage) {
+      x += node.clientLeft;
+      y += node.clientTop;
+    }
   }
   const { offsetWidth: width, offsetHeight: height } = element;
   if (node !== stage || !width || !height) return undefined;

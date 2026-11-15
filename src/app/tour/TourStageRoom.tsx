@@ -228,8 +228,16 @@ function RoomMenu({ scene, live }: Pick<RoomProps, 'scene' | 'live'>) {
   );
 }
 
+type FilterBarProps = {
+  /** How many threads the list shows. */
+  count: number;
+  /** Whether Unresolved is on, as Compact has it until someone turns it off. */
+  unresolvedOnly: boolean;
+  live: boolean;
+};
+
 /** The simple thread filters: the count, Unresolved, the sort button and Advanced filters. */
-function FilterBar({ count, live }: { count: number; live: boolean }) {
+function FilterBar({ count, unresolvedOnly, live }: FilterBarProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   return (
@@ -239,8 +247,13 @@ function FilterBar({ count, live }: { count: number; live: boolean }) {
           <IconMessages size={14} stroke={1.8} aria-hidden="true" />
           <Text size="T200">{localDigits(String(count), language)}</Text>
         </span>
-        {/* Compact hides resolved threads, so Unresolved is on. */}
-        <span className={classNames(overviewCss.SortButton, overviewCss.SortButtonActive)}>
+        <span
+          className={classNames(
+            overviewCss.SortButton,
+            unresolvedOnly && overviewCss.SortButtonActive
+          )}
+          {...mark(live, 'filterUnresolved')}
+        >
           <Text size="T200">{t('thread.simpleFilter.unresolved')}</Text>
         </span>
         <span className={overviewCss.SortButton}>
@@ -397,7 +410,8 @@ function CardList(props: RoomProps) {
   const { t } = useTranslation();
   const paneRef = useRef<HTMLDivElement>(null);
   const ids = scene.cards.map(({ id }) => id);
-  // The cards glide when their order changes, a card is pinned, or the bar moves them down.
+  // The cards glide when their order changes, a card is pinned, or the bar moves them down; a
+  // card the filters bring back fades in among them.
   useFlipList(paneRef, [ids.join(','), scene.pinned.join(','), scene.filterBar].join('|'));
   const isPinned = (id: SampleThreadId) => scene.pinned.includes(id);
   const renderCard = (card: SceneCard) => (
@@ -408,7 +422,9 @@ function CardList(props: RoomProps) {
   return (
     // The cards' places count from here, so the bar above them moves them too.
     <div ref={paneRef} className={css.Body}>
-      {scene.filterBar && <FilterBar count={scene.cards.length} live={live} />}
+      {scene.filterBar && (
+        <FilterBar count={scene.cards.length} unresolvedOnly={scene.unresolvedOnly} live={live} />
+      )}
       <div className={css.CardList} data-tour-cards="">
         {pinnedCards.length > 0 && (
           <Box direction="Column" gap="100" className={PinnedSection} data-tour-pinned="">

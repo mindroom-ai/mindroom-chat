@@ -1114,7 +1114,7 @@
       "back": "Terug",
       "next": "Volgende",
       "done": "Klaar",
-      "keepGoing": "Doorgaan (nog 6 stappen)",
+      "keepGoing": "Doorgaan (nog 4 stappen)",
       "replay": "Opnieuw afspelen"
     },
     "chapters": {
@@ -1163,8 +1163,8 @@
         "text": "Thread vastmaken houdt een thread bovenaan de lijst. Met Tags bewerken in Threadopties geef je een thread tags, en je kunt op tag filteren."
       },
       "filters": {
-        "title": "Filteren en sorteren",
-        "text": "Threadfilters, in de kopbalk van de kamer of in het kamermenu, toont en verbergt deze balk. Onopgelost verbergt wat klaar is, Laatste antwoord verandert de volgorde en het filterpictogram aan het eind van de balk opent Geavanceerde filters, waarmee je de rest vindt, ook gesnoozede threads."
+        "title": "Filters verbergen opgeloste threads",
+        "text": "Threadfilters, in de kopbalk van de kamer of in het kamermenu, toont en verbergt deze balk. Onopgelost verbergt opgeloste threads: zet het uit om ze weer te zien. Laatste antwoord verandert de volgorde en het filterpictogram aan het eind van de balk opent Geavanceerde filters, waarmee je de rest vindt, ook gesnoozede threads."
       },
       "views": {
         "title": "Twee weergaven van een kamer",

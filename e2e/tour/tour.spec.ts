@@ -10,7 +10,7 @@ import { createPrivateRoom } from '../helpers/matrix';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 // The interface tour in the real app against the disposable homeserver: a new account is offered
-// it on a card, the Quick tour goes through its six steps and on into the Full tour, Done hands
+// it on a card, the Quick tour goes through its eight steps and on into the Full tour, Done hands
 // over to the room's composer, the answer is kept for the account, and the command palette opens
 // the tour at any time.
 const PASSWORD = 'tour-spec-account-password';
@@ -88,24 +88,33 @@ test('a new account is offered the tour, takes it, and is not asked again', asyn
   await expect(dialog(page)).toBeVisible();
   await expect(dialog(page)).toHaveAttribute('data-tour-level', 'quick');
   await expect(offer(page)).toHaveCount(0);
-  await expect(dialog(page)).toContainText('Step 1 of 6');
+  await expect(dialog(page)).toContainText('Step 1 of 8');
   await expect(action(page, 'next')).toBeFocused();
 
-  // Six steps, Enter going on; the last offers the rest.
-  const quick = ['conversation', 'start', 'reply', 'title', 'order', 'states'];
+  // Eight steps, Enter going on; the last offers the rest.
+  const quick = [
+    'conversation',
+    'start',
+    'reply',
+    'title',
+    'order',
+    'states',
+    'resolve',
+    'filters',
+  ];
   for (const [index, step] of quick.entries()) {
     expect(await stepOf(page)).toBe(step);
     if (index < quick.length - 1) await page.keyboard.press('Enter');
   }
-  await expect(dialog(page)).toContainText('Step 6 of 6');
+  await expect(dialog(page)).toContainText('Step 8 of 8');
   await expect(action(page, 'done')).toBeFocused();
   await action(page, 'keepGoing').click();
   await expect(dialog(page)).toHaveAttribute('data-tour-level', 'full');
-  await expect(dialog(page)).toContainText('Step 7 of 12');
-  expect(await stepOf(page)).toBe('resolve');
+  await expect(dialog(page)).toContainText('Step 9 of 12');
+  expect(await stepOf(page)).toBe('snooze');
 
   // On to the end with the arrow key, back one, and Done.
-  for (let at = 7; at < 12; at += 1) await page.keyboard.press('ArrowRight');
+  for (let at = 9; at < 12; at += 1) await page.keyboard.press('ArrowRight');
   expect(await stepOf(page)).toBe('activity');
   await page.keyboard.press('ArrowRight');
   expect(await stepOf(page)).toBe('activity');
@@ -165,7 +174,7 @@ test('the card is dismissed for good, and the command palette still opens the to
   await palette.getByRole('combobox').fill('tour');
   await palette.getByRole('option', { name: /Take the quick tour/ }).click();
   await expect(dialog(page)).toHaveAttribute('data-tour-level', 'quick');
-  await expect(dialog(page)).toContainText('Step 1 of 6');
+  await expect(dialog(page)).toContainText('Step 1 of 8');
 
   await page.keyboard.press('Escape');
   await expect(dialog(page)).toHaveCount(0);

@@ -36,9 +36,9 @@ const SPOTLIGHT: Record<string, string | undefined> = {
   order: 'card:vendor',
   states: undefined,
   resolve: undefined,
+  filters: 'filterUnresolved',
   snooze: 'menuSnooze',
   pinAndTag: 'card:budget',
-  filters: 'filterBar',
   views: 'viewSwitch',
   activity: 'bell',
 };

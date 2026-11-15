@@ -1137,7 +1137,7 @@
       "back": "Précédent",
       "next": "Suivant",
       "done": "Terminé",
-      "keepGoing": "Continuer (6 étapes de plus)",
+      "keepGoing": "Continuer (4 étapes de plus)",
       "replay": "Rejouer"
     },
     "chapters": {
@@ -1186,8 +1186,8 @@
         "text": "Épingler le fil garde un fil en haut de la liste. Modifier les étiquettes, dans Options du fil, ajoute des étiquettes à un fil, et vous pouvez filtrer par étiquette."
       },
       "filters": {
-        "title": "Filtrer et trier",
-        "text": "Filtres de fils, dans l’en-tête de la salle ou dans son menu, affiche et masque cette barre. Non résolus masque ce qui est terminé, Dernière réponse change l’ordre, et l’icône de filtre au bout de la barre ouvre Filtres avancés, qui trouvent le reste, y compris les fils reportés."
+        "title": "Les filtres masquent les fils résolus",
+        "text": "Filtres de fils, dans l’en-tête de la salle ou dans son menu, affiche et masque cette barre. Non résolus masque les fils résolus : désactivez-le pour les revoir. Dernière réponse change l’ordre, et l’icône de filtre au bout de la barre ouvre Filtres avancés, qui trouvent le reste, y compris les fils reportés."
       },
       "views": {
         "title": "Deux vues d’une salle",
