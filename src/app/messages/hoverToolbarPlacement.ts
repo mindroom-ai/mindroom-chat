@@ -37,7 +37,8 @@ const FOLD_BUTTON = '[data-message-fold] > * > [data-message-disclosure] > butto
 /**
  * Buttons at the end side of a message's content: a code block's (Wrap lines, Expand, Copy code),
  * at the end of its top edge, and a file card's (View, Download). They sit under a toolbar that
- * moves down into a row whose code block or file starts at its top or below its sender line.
+ * moves down into a row whose code block or file starts at its top or below its sender line; where
+ * it cannot keep clear of them above or below, it moves toward the row's start edge, beside them.
  */
 const CONTENT_ACTIONS = '[data-code-block-actions], [data-file-actions]';
 /**
@@ -76,6 +77,24 @@ type Span = { top: number; bottom: number };
 type FoldSpan = Span & { ownRow: boolean };
 
 /**
+ * Content buttons under the toolbar, relative to the top of its row, and how far their start
+ * edge reaches from the toolbar's end edge toward its start edge.
+ */
+type ActionsSpan = Span & { reach: number };
+
+/** Whether a toolbar `height` tall with its top at `at` comes within 8 px of `control`. */
+const nearControl = (at: number, height: number, control: Span) =>
+  at < control.bottom + CONTROL_GAP_PX && at + height > control.top - CONTROL_GAP_PX;
+
+/** Where the toolbar sits when it is not in its usual place above the row. */
+export type ToolbarPlacement = {
+  /** Its top, relative to the top of its row. */
+  top: number;
+  /** How far it moves from the row's end edge toward its start edge, beside content buttons. */
+  shift?: number;
+};
+
+/**
  * Where the toolbar's top goes, relative to the top of its row, or `undefined` for its usual
  * place. `usual` is that place, `covered` where what floats over the top of the timeline ends,
  * `height` the toolbar's own height, `folds` the fold buttons under its span, `senderLine`
@@ -91,16 +110,14 @@ export const toolbarOffset = (
   senderLine?: Span,
   contentActions: Span[] = []
 ): number | undefined => {
-  const nearControl = (at: number, control: Span) =>
-    at < control.bottom + CONTROL_GAP_PX && at + height > control.top - CONTROL_GAP_PX;
   const clearAt = (at: number) =>
-    ![...folds, ...contentActions].some((control) => nearControl(at, control));
+    ![...folds, ...contentActions].some((control) => nearControl(at, height, control));
   // Below the header and the controls under it, but no lower than 4 px above the row's bottom.
   let top = covered > usual + 0.5 ? Math.min(covered, rowHeight - ROW_END_GAP_PX - height) : usual;
   [...folds]
     .sort((a, b) => a.top - b.top)
     .forEach((fold) => {
-      if (nearControl(top, fold)) {
+      if (nearControl(top, height, fold)) {
         // The fold button of the long message above pushes the toolbar down into its row; the
         // row's own, at its bottom, pushes it up.
         top = fold.ownRow ? fold.top - CONTROL_GAP_PX - height : fold.bottom + CONTROL_GAP_PX;
@@ -110,7 +127,7 @@ export const toolbarOffset = (
   // on to the nearest spot below such buttons that ends inside the row clear of every button
   // group and fold button, and stays where none is; up, it would go back under what floats over
   // the timeline.
-  if (top > usual + 0.5 && contentActions.some((actions) => nearControl(top, actions))) {
+  if (top > usual + 0.5 && contentActions.some((actions) => nearControl(top, height, actions))) {
     const below = contentActions
       .map((actions) => actions.bottom + CONTROL_GAP_PX)
       .filter((at) => at > top)
@@ -137,22 +154,43 @@ export const toolbarOffset = (
 };
 
 /**
+ * How far a toolbar out of its usual place, with its top at `top` and `height` tall, moves from
+ * the row's end edge toward its start edge so it ends 8 px before the content buttons it still
+ * covers (`contentActions`), or `undefined` where it covers none or has less than that much `room`
+ * beside its start edge: there it stays.
+ */
+export const toolbarShift = (
+  top: number,
+  height: number,
+  contentActions: ActionsSpan[],
+  room: number
+): number | undefined => {
+  const reaches = contentActions
+    .filter((actions) => nearControl(top, height, actions))
+    .map((actions) => actions.reach);
+  if (reaches.length === 0) return undefined;
+  const shift = Math.ceil(Math.max(...reaches) + CONTROL_GAP_PX);
+  return shift <= room ? shift : undefined;
+};
+
+/**
  * How far below the top of its row the hover toolbar sits, in pixels, or `undefined` in its usual
  * place above the row. It moves to stay clear of what floats over the top of the timeline (the
  * first row starts right under the room's `[+all]` toggle or a thread's banner, so its toolbar
  * moves down into the row instead of covering them) and of the fold buttons of long messages, so
  * it never draws over a Show less button. Moved down into its row, it also keeps clear of the
  * buttons of a code block or a file where the row has room below them, and below the row's sender
- * line unless such buttons are there. Measured while the toolbar shows, and again as the timeline
- * scrolls under it or the row changes size.
+ * line unless such buttons are there; where it still covers such buttons, it moves beside them.
+ * Measured while the toolbar shows, and again as the timeline scrolls under it or the row changes
+ * size.
  */
 export const useToolbarClearance = (
   rowRef: RefObject<HTMLElement>,
   toolbarRef: RefObject<HTMLElement>,
   shown: boolean
-): number | undefined => {
-  const [clearance, setClearance] = useState<number>();
-  const clearanceRef = useRef<number>();
+): ToolbarPlacement | undefined => {
+  const [clearance, setClearance] = useState<ToolbarPlacement>();
+  const clearanceRef = useRef<ToolbarPlacement>();
   clearanceRef.current = clearance;
   // The toolbar's usual offset from the top of its row, measured while it sits there.
   const usualOffset = useRef<number>();
@@ -165,6 +203,7 @@ export const useToolbarClearance = (
     }
     const scroller = findScroller(row);
     if (!scroller) return undefined;
+    const rtl = getComputedStyle(row).direction === 'rtl';
     let frame = 0;
     const place = () => {
       frame = 0;
@@ -173,11 +212,19 @@ export const useToolbarClearance = (
       const rowRect = row.getBoundingClientRect();
       const bar = toolbar.getBoundingClientRect();
       if (clearanceRef.current === undefined) usualOffset.current = bar.top - rowRect.top;
-      const underBar = (control: Element): Span[] => {
+      // The toolbar's span at the row's end edge, before any shift, so a toolbar that moved
+      // beside the buttons keeps them in view and stays there.
+      const back = (clearanceRef.current?.shift ?? 0) * (rtl ? -1 : 1);
+      const left = bar.left + back;
+      const right = bar.right + back;
+      const span = (rect: DOMRect): Span => ({
+        top: rect.top - rowRect.top,
+        bottom: rect.bottom - rowRect.top,
+      });
+      const underBar = (control: Element): ActionsSpan[] => {
         const rect = control.getBoundingClientRect();
-        if (!(rect.width > 0 && rect.left < bar.right && rect.right > bar.left)) return [];
-        const top = rect.top - rowRect.top;
-        return [{ top, bottom: top + rect.height }];
+        if (!(rect.width > 0 && rect.left < right && rect.right > left)) return [];
+        return [{ ...span(rect), reach: rtl ? rect.right - left : right - rect.left }];
       };
       const folds = Array.from(scroller.querySelectorAll(FOLD_BUTTON)).flatMap((button) =>
         underBar(button).map((span) => ({ ...span, ownRow: row.contains(button) }))
@@ -185,16 +232,35 @@ export const useToolbarClearance = (
       const contentActions = Array.from(row.querySelectorAll(CONTENT_ACTIONS)).flatMap(underBar);
       const sender = row.querySelector(SENDER_LINE);
       const [senderLine] = sender ? underBar(sender) : [];
-      const next = toolbarOffset(
+      const covered = coveredUntilY(scroller, left, right) - rowRect.top;
+      const top = toolbarOffset(
         usualOffset.current ?? 0,
-        coveredUntilY(scroller, bar.left, bar.right) - rowRect.top,
+        covered,
         rowRect.height,
         bar.height,
         folds,
         senderLine,
         contentActions
       );
-      if (next !== clearanceRef.current) setClearance(next);
+      // It moves beside buttons it still covers as far as the row's start edge, or 8 px short of
+      // the name or the time of a visible sender line where they start before its span: in
+      // Compact, they start the line of the code block or the file.
+      const stops = Array.from(sender?.children ?? [])
+        .map((part) => part.getBoundingClientRect())
+        .filter(
+          (rect) => (rtl ? rect.right > right : rect.left < left) && span(rect).bottom > covered
+        )
+        .map((rect) => (rtl ? rect.left - CONTROL_GAP_PX : rect.right + CONTROL_GAP_PX));
+      const room = rtl
+        ? Math.min(rowRect.right, ...stops) - right
+        : left - Math.max(rowRect.left, ...stops);
+      const next =
+        top === undefined
+          ? undefined
+          : { top, shift: toolbarShift(top, bar.height, contentActions, room) };
+      if (next?.top !== clearanceRef.current?.top || next?.shift !== clearanceRef.current?.shift) {
+        setClearance(next);
+      }
     };
     place();
     const schedule = () => {

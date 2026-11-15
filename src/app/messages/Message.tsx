@@ -693,7 +693,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       [ref]
     );
 
-    const toolbarClearance = useToolbarClearance(baseRef, toolbarRef, toolbarVisible);
+    const toolbarPlacement = useToolbarClearance(baseRef, toolbarRef, toolbarVisible);
 
     const eventId = mEvent.getId() ?? '';
     const senderId = mEvent.getSender() ?? '';
@@ -972,9 +972,11 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
           ref={toolbarRef}
           className={css.MessageOptionsBase}
           style={
-            toolbarClearance === undefined
-              ? undefined
-              : { insetBlockStart: `${toolbarClearance}px` }
+            toolbarPlacement && {
+              insetBlockStart: `${toolbarPlacement.top}px`,
+              insetInlineEnd:
+                toolbarPlacement.shift === undefined ? undefined : `${toolbarPlacement.shift}px`,
+            }
           }
         >
           <Menu role="none" variant="SurfaceVariant" className={css.MessageOptionsBar}>

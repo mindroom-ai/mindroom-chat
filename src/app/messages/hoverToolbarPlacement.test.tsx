@@ -6,7 +6,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   TIMELINE_OVERLAY_ATTRIBUTE,
   isKeyboardFocus,
+  type ToolbarPlacement,
   toolbarOffset,
+  toolbarShift,
   useToolbarClearance,
 } from './hoverToolbarPlacement';
 
@@ -47,6 +49,8 @@ const rectOf = ({ top, bottom, left, right }: Rect) =>
 
 let root: Root | undefined;
 let host: HTMLDivElement | undefined;
+// Each placement the row's hook returned, in order.
+let seen: Array<ToolbarPlacement | undefined> = [];
 
 const unmountRow = () => {
   act(() => root?.unmount());
@@ -64,33 +68,42 @@ afterEach(() => {
  * A scroller whose visible rows start at y=100 (its scroll padding), with an `[+all]`-like
  * control from y=110 to 130 at the right, and a row at `rowTop` whose toolbar normally sits 30 px
  * above it at the right edge. With `senderRight`, the row has a sender line from 4 to 26 px into it,
- * from x=60 to `senderRight`. With `codeActionsAt`, the row holds a code block whose buttons
- * span 24 px from that far into it, from x=900 to 980; `actionsAttribute` marks them as another
- * kind of content's buttons instead, such as a file card's.
+ * from x=60 to `senderRight`, holding the name from x=60 to 300 and the time from 80 to 10 px
+ * before its end. With `codeActionsAt`, the row holds a code block whose buttons span 24 px from
+ * that far into it, from x=900 to 980; `actions` marks them as another kind of content's buttons
+ * instead, such as a file card's. The row starts at x=`rowStart`. The toolbar moves toward x=0 by
+ * its shift, as `insetInlineEnd` moves it. With `direction` `rtl`, every x is mirrored.
  */
 const renderRow = (
   rowTop: number,
   overlayLeft = 900,
   senderRight?: number,
   codeActionsAt?: number,
-  actionsAttribute = 'data-code-block-actions'
+  {
+    actions = 'data-code-block-actions',
+    rowStart = 0,
+    direction = 'ltr',
+  }: { actions?: string; rowStart?: number; direction?: 'ltr' | 'rtl' } = {}
 ) => {
   unmountRow();
-  const seen: Array<number | undefined> = [];
+  seen = [];
   function Row() {
     const rowRef = useRef<HTMLDivElement>(null);
     const toolbarRef = useRef<HTMLDivElement>(null);
-    const clearance = useToolbarClearance(rowRef, toolbarRef, true);
-    seen.push(clearance);
+    const placement = useToolbarClearance(rowRef, toolbarRef, true);
+    seen.push(placement);
     return (
       <div data-testid="scroller" style={{ overflowY: 'auto', scrollPaddingTop: '100px' }}>
         <div {...{ [TIMELINE_OVERLAY_ATTRIBUTE]: '' }} data-testid="overlay" />
         <div ref={rowRef} data-testid="row">
-          <div ref={toolbarRef} data-testid="toolbar" />
-          {senderRight !== undefined && <div data-message-sender-line="" data-testid="sender" />}
-          {codeActionsAt !== undefined && (
-            <div {...{ [actionsAttribute]: '' }} data-testid="code" />
+          <div ref={toolbarRef} data-testid="toolbar" data-shift={placement?.shift ?? 0} />
+          {senderRight !== undefined && (
+            <div data-message-sender-line="" data-testid="sender">
+              <div data-testid="name" />
+              <div data-testid="time" />
+            </div>
           )}
+          {codeActionsAt !== undefined && <div {...{ [actions]: '' }} data-testid="code" />}
         </div>
       </div>
     );
@@ -99,20 +112,39 @@ const renderRow = (
   const rects: Record<string, Rect> = {
     scroller: { top: 0, bottom: 800, left: 0, right: 1000 },
     overlay: { top: 110, bottom: 130, left: overlayLeft, right: overlayLeft + 50 },
-    row: { top: rowTop, bottom: rowTop + 80, left: 0, right: 1000 },
+    row: { top: rowTop, bottom: rowTop + 80, left: rowStart, right: 1000 },
     toolbar: { top: rowTop - 30, bottom: rowTop + 6, left: 850, right: 1000 },
     sender: { top: rowTop + 4, bottom: rowTop + 26, left: 60, right: senderRight ?? 0 },
+    name: { top: rowTop + 4, bottom: rowTop + 26, left: 60, right: 300 },
+    time: {
+      top: rowTop + 6,
+      bottom: rowTop + 24,
+      left: (senderRight ?? 0) - 80,
+      right: (senderRight ?? 0) - 10,
+    },
     code: { top: codeTop, bottom: codeTop + 24, left: 900, right: 980 },
   };
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(
     this: HTMLElement
   ) {
-    return rectOf(rects[this.dataset.testid ?? ''] ?? { top: 0, bottom: 0, left: 0, right: 0 });
+    const shift = Number(this.dataset.shift ?? 0);
+    const { top, bottom, left, right } = rects[this.dataset.testid ?? ''] ?? {
+      top: 0,
+      bottom: 0,
+      left: 0,
+      right: 0,
+    };
+    const ltr = { top, bottom, left: left - shift, right: right - shift };
+    return rectOf(
+      direction === 'rtl' ? { top, bottom, left: 1000 - ltr.right, right: 1000 - ltr.left } : ltr
+    );
   });
   const computed = window.getComputedStyle.bind(window);
   vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
     const style = computed(element);
-    if ((element as HTMLElement).dataset?.testid !== 'scroller') return style;
+    const { testid } = (element as HTMLElement).dataset ?? {};
+    if (testid === 'row') return { ...style, direction } as CSSStyleDeclaration;
+    if (testid !== 'scroller') return style;
     return { ...style, overflowY: 'auto', scrollPaddingTop: '100px' } as CSSStyleDeclaration;
   });
   host = document.createElement('div');
@@ -138,39 +170,94 @@ describe('useToolbarClearance', () => {
 
   it('moves the toolbar of the row right under the [+all] toggle below the toggle', () => {
     // The toggle ends at 130, plus an 8 px gap; the row starts at 140.
-    expect(renderRow(140)).toBe(-2);
+    expect(renderRow(140)).toEqual({ top: -2 });
   });
 
   it('moves the toolbar of the row under the [+all] toggle below its sender line too', () => {
     // The sender line ends at 166, plus an 8 px gap; the row starts at 140.
-    expect(renderRow(140, 900, 1000)).toBe(34);
+    expect(renderRow(140, 900, 1000)).toEqual({ top: 34 });
     // A sender line that ends before the toolbar's span starts, as in Compact, is no reason.
-    expect(renderRow(140, 900, 800)).toBe(-2);
+    expect(renderRow(140, 900, 800)).toEqual({ top: -2 });
   });
 
-  it('stays over the sender line where the buttons of a code block are further down', () => {
+  it('stays over the sender line where the buttons of a code block are further down, beside them', () => {
     // Below the sender line (34) it would cover the code block's buttons at 46 to 70, so it stays
     // below the toggle, over the sender line.
-    expect(renderRow(140, 900, 1000, 46)).toBe(-2);
+    expect(renderRow(140, 900, 1000, 46)).toEqual({ top: -2 });
     // Buttons right under the sender line, with no room below them in the 80 px row, do not push
-    // it up under the toggle either.
-    expect(renderRow(140, 900, 1000, 30)).toBe(-2);
+    // it up under the toggle either; it moves toward the start until it ends 8 px before them, at
+    // x=892, past the time under its span and short of the name, which ends at x=300.
+    expect(renderRow(140, 900, 1000, 30)).toEqual({ top: -2, shift: 108 });
     // Buttons further down leave it below the sender line.
-    expect(renderRow(140, 900, 1000, 80)).toBe(34);
+    expect(renderRow(140, 900, 1000, 80)).toEqual({ top: 34 });
   });
 
   it('moves below the buttons of a code block at the top of a row without a sender line', () => {
     // Below the toggle (-2) it would cover the buttons at 4 to 28; it goes 8 px below them.
-    expect(renderRow(140, 900, undefined, 4)).toBe(36);
+    expect(renderRow(140, 900, undefined, 4)).toEqual({ top: 36 });
     // Buttons it is clear of leave it below the toggle.
-    expect(renderRow(140, 900, undefined, 48)).toBe(-2);
+    expect(renderRow(140, 900, undefined, 48)).toEqual({ top: -2 });
     // In its usual place above the row it stays, also over buttons at the row's top.
     expect(renderRow(400, 900, undefined, 4)).toBeUndefined();
   });
 
   it('stays over the sender line where the buttons of a file card are under it', () => {
     // A file card right under the sender line has its View and Download buttons at its end.
-    expect(renderRow(140, 900, 1000, 46, 'data-file-actions')).toBe(-2);
+    expect(renderRow(140, 900, 1000, 46, { actions: 'data-file-actions' })).toEqual({ top: -2 });
+  });
+
+  it('moves beside the buttons of a row too short to go below them', () => {
+    // Below the buttons at 30 to 54 it would reach past the 80 px row: it moves toward the start
+    // until it ends 8 px before them, at x=892.
+    expect(renderRow(140, 900, undefined, 30)).toEqual({ top: -2, shift: 108 });
+    // A row that starts at x=743 leaves no room for that; at x=742 it does.
+    expect(renderRow(140, 900, undefined, 30, { rowStart: 743 })).toEqual({ top: -2 });
+    expect(renderRow(140, 900, undefined, 30, { rowStart: 742 })).toEqual({
+      top: -2,
+      shift: 108,
+    });
+  });
+
+  it('stops 8 px short of the name and time of a sender line beside it, as in Compact', () => {
+    // The time, from x=520 to 590, leaves room.
+    expect(renderRow(140, 900, 600, 30)).toEqual({ top: -2, shift: 108 });
+    // From x=670 to 740, it does not, 8 px short of it: the toolbar keeps its place.
+    expect(renderRow(140, 900, 750, 30)).toEqual({ top: -2 });
+    expect(renderRow(140, 900, 750, 30, { direction: 'rtl' })).toEqual({ top: -2 });
+  });
+
+  it('moves past a sender line hidden under what floats over the timeline', () => {
+    // The row starts at 110, so the toggle covers it to 28 px: the sender line, from 4 to 26 px,
+    // is out of sight, and the toolbar moves beside the buttons at 30 to 54.
+    expect(renderRow(110, 900, 800, 30)).toEqual({ top: 28, shift: 108 });
+  });
+
+  /** Places the toolbar again, as a scroll of the timeline does. */
+  const placeAgain = () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    act(() => {
+      document.querySelector('[data-testid="scroller"]')!.dispatchEvent(new Event('scroll'));
+    });
+    vi.unstubAllGlobals();
+    return seen.at(-1);
+  };
+
+  it('keeps a toolbar it moved beside the buttons there when it places it again', () => {
+    expect(renderRow(140, 900, undefined, 30)).toEqual({ top: -2, shift: 108 });
+    // Moved, the toolbar no longer spans the buttons or the toggle.
+    expect(placeAgain()).toEqual({ top: -2, shift: 108 });
+  });
+
+  it('moves toward the start edge of a right-to-left row', () => {
+    // Mirrored: the toolbar from x=0 to 150 and the buttons from 20 to 100.
+    expect(renderRow(140, 900, undefined, 30, { direction: 'rtl' })).toEqual({
+      top: -2,
+      shift: 108,
+    });
+    expect(placeAgain()).toEqual({ top: -2, shift: 108 });
   });
 
   it('places the toolbar again when the sender line changes size', () => {
@@ -195,7 +282,35 @@ describe('useToolbarClearance', () => {
 
   it('moves the toolbar of a row under the sticky header into the visible part of the row', () => {
     // No overlay over the toolbar; the visible rows start at 100.
-    expect(renderRow(90, 100)).toBe(10);
+    expect(renderRow(90, 100)).toEqual({ top: 10 });
+  });
+});
+
+describe('toolbarShift', () => {
+  it('moves 8 px past the button group under it that reaches farthest toward the start', () => {
+    const groups = [
+      { top: 4, bottom: 28, reach: 60 },
+      { top: 20, bottom: 44, reach: 100 },
+    ];
+    expect(toolbarShift(0, 42, groups, 500)).toBe(108);
+  });
+
+  it('keeps at least 8 px from the buttons where they start between pixels', () => {
+    expect(toolbarShift(0, 42, [{ top: 4, bottom: 28, reach: 100.4 }], 500)).toBe(109);
+  });
+
+  it('ignores button groups 8 px or more above or below it', () => {
+    const apart = [
+      { top: -100, bottom: -76, reach: 100 },
+      { top: 50, bottom: 74, reach: 100 },
+    ];
+    expect(toolbarShift(0, 42, apart, 500)).toBeUndefined();
+  });
+
+  it('stays where the room beside it ends before the shift', () => {
+    const actions = [{ top: 18, bottom: 50, reach: 56 }];
+    expect(toolbarShift(10, 42, actions, 63)).toBeUndefined();
+    expect(toolbarShift(10, 42, actions, 64)).toBe(64);
   });
 });
 

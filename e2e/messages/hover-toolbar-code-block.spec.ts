@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { activeAccountButtonNamePattern } from '../helpers/auth';
 import { buildLoginPath } from '../env';
+import { expectRoomCompact, setRoomCompact } from '../helpers/roomViewSwitch';
 import {
   createPrivateRoom,
   joinRoom,
@@ -189,4 +190,166 @@ test('the hover toolbar keeps off the code block buttons of a row without a send
   );
   await block.getByRole('button', { name: 'Copy code', exact: true }).click({ timeout: 5_000 });
   await expect(block.getByRole('button', { name: 'Copied', exact: true })).toBeVisible();
+});
+
+const upload = async (accessToken: string, body: Buffer, type: string): Promise<string> => {
+  const response = await fetch(`${HOMESERVER}/_matrix/media/v3/upload`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': type },
+    body,
+  });
+  expect(response.ok).toBe(true);
+  return ((await response.json()) as { content_uri: string }).content_uri;
+};
+
+// A row too short to hold the toolbar below its buttons: a one-line code block, and a file card
+// with or without a sender line. Scrolled under the room header or the thread's banner, the
+// toolbar moves beside the buttons, onto no other control of the row either.
+test('the hover toolbar keeps off the controls of a short row with a code block or file', async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
+  await page.setViewportSize({ width: 1280, height: 800 });
+
+  const username = `hovershort_${Date.now().toString(36)}`;
+  const { access_token: token } = await matrixFetch<{ access_token: string }>(
+    HOMESERVER,
+    '/register',
+    {
+      method: 'POST',
+      body: JSON.stringify({ username, password: PASSWORD, auth: { type: 'm.login.dummy' } }),
+    }
+  );
+  const helper = await registerAgentAccount(HOMESERVER, 'helper');
+  const roomId = await createPrivateRoom(HOMESERVER, token, {
+    name: 'Hover Toolbar Short Rows',
+    invite: [helper.userId],
+  });
+  await joinRoom(HOMESERVER, helper.accessToken, roomId);
+  const send = (accessToken: string, content: Record<string, unknown>) =>
+    sendRoomMessage(HOMESERVER, accessToken, roomId, content, 'hover-toolbar-short-rows');
+  const line = 'export const answer = 42;';
+  const oneLine = {
+    msgtype: 'm.text',
+    body: `\`\`\`ts\n${line}\n\`\`\``,
+    format: 'org.matrix.custom.html',
+    formatted_body: `<pre><code class="language-ts">${line}\n</code></pre>\n`,
+  };
+  const file = {
+    msgtype: 'm.file',
+    body: 'receipts.txt',
+    url: await upload(helper.accessToken, Buffer.from('Lunch receipts\n'), 'text/plain'),
+    info: { mimetype: 'text/plain', size: 15 },
+  };
+
+  // The room's own view shows the newest message first: each row sits below a newer message of
+  // its sender, so it has no sender line, and older notes below it leave room to scroll.
+  for (let index = 0; index < 30; index += 1) {
+    await send(token, { msgtype: 'm.text', body: `Earlier room note ${index}` });
+  }
+  const roomFile = await send(helper.accessToken, file);
+  await send(helper.accessToken, { msgtype: 'm.text', body: 'The receipts are attached.' });
+  await send(token, { msgtype: 'm.text', body: 'And the snippet?' });
+  const roomCode = await send(helper.accessToken, oneLine);
+  await send(helper.accessToken, { msgtype: 'm.text', body: 'That is the snippet.' });
+
+  // In the thread, the code block continues its sender's message; the file card follows another
+  // sender's, so it has a sender line.
+  const rootId = await send(token, { msgtype: 'm.text', body: 'Show me the short rows' });
+  const inThread = {
+    rel_type: 'm.thread',
+    event_id: rootId,
+    is_falling_back: true,
+    'm.in_reply_to': { event_id: rootId },
+  };
+  const reply = (body: string) => ({ msgtype: 'm.text', body, 'm.relates_to': inThread });
+  for (let index = 0; index < 8; index += 1) await send(token, reply(`Earlier note ${index}`));
+  await send(helper.accessToken, reply('Here is the snippet:'));
+  const threadCode = await send(helper.accessToken, { ...oneLine, 'm.relates_to': inThread });
+  await send(token, reply('And the receipts?'));
+  const threadFile = await send(helper.accessToken, { ...file, 'm.relates_to': inThread });
+  for (let index = 0; index < 30; index += 1) await send(token, reply(`Later note ${index}`));
+
+  await signIn(page, username);
+  const blocked: string[] = [];
+  const views = [
+    { path: `/home/${encodeURIComponent(roomId)}/`, rows: { code: roomCode, file: roomFile } },
+    {
+      path: `/home/${encodeURIComponent(roomId)}/?threadId=${encodeURIComponent(rootId)}`,
+      rows: { code: threadCode, file: threadFile },
+    },
+  ];
+  for (const [view, { path, rows }] of views.entries()) {
+    await page.goto(path);
+    if (view === 0) {
+      // The room may open in Compact and settle into a stored view after a first switch.
+      await expect(async () => {
+        await setRoomCompact(page, false);
+        await expectRoomCompact(page, false, 3_000);
+      }, 'the room shows its full view').toPass({ timeout: 30_000 });
+    }
+    for (const [kind, eventId] of Object.entries(rows)) {
+      const row = page.locator(`[data-message-id="${eventId}"]`).first();
+      await expect(row.locator('[data-code-block-actions], [data-file-actions]')).toBeVisible({
+        timeout: 60_000,
+      });
+      // 10 and 25 px under it; at 25 px the 68 px file row is too short for the toolbar and the
+      // 4 px it keeps above the row's bottom, so it may reach back under the header there.
+      for (const under of [10, 25]) {
+        const label = `${view === 0 ? 'room' : 'thread'} ${kind} at ${under} px`;
+        let covered = 0;
+        await expect(async () => {
+          covered = await row.evaluate((element, by) => {
+            let scroller = element.parentElement;
+            while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) {
+              scroller = scroller.parentElement;
+            }
+            if (!scroller) throw new Error('The row has no scroller');
+            const top =
+              scroller.getBoundingClientRect().top +
+              Number.parseFloat(getComputedStyle(scroller).scrollPaddingTop);
+            scroller.scrollBy({
+              top: element.getBoundingClientRect().top - top + by,
+              behavior: 'instant',
+            });
+            return top;
+          }, under);
+          await twoFrames(page);
+          const rowTop = (await row.boundingBox())?.y ?? 0;
+          expect(Math.abs(rowTop - (covered - under))).toBeLessThan(1);
+        }, `the timeline scrolls the ${label} under the header`).toPass({ timeout: 15_000 });
+        const box = await row.boundingBox();
+        if (!box) throw new Error('The row has no box');
+        await page.mouse.move(box.x + box.width * 0.3, box.y + box.height / 2);
+        const replyButton = row.locator('button[aria-label="Reply"]');
+        await expect(replyButton).toBeVisible();
+        await twoFrames(page);
+        // The row's buttons and links outside the toolbar's pill that the pill touches.
+        const touched = await replyButton.evaluate((element) => {
+          const pill = element.parentElement!.parentElement!;
+          const bar = pill.getBoundingClientRect();
+          const row = pill.closest('[data-message-id]')!;
+          return Array.from(row.querySelectorAll('button, a[href]'))
+            .filter((control) => !pill.contains(control))
+            .filter((control) => {
+              const { left, right, top, bottom } = control.getBoundingClientRect();
+              return left < bar.right && bar.left < right && top < bar.bottom && bar.top < bottom;
+            })
+            .map((control) => control.getAttribute('aria-label') ?? control.textContent ?? '');
+        });
+        if (touched.length > 0) blocked.push(`${label}: ${touched.join(', ')}`);
+        if (SCREENSHOT) {
+          await page.screenshot({
+            path: `${SCREENSHOT}/hover-toolbar-short-${label.replaceAll(' ', '-')}.png`,
+            clip: { x: 0, y: 0, width: 1280, height: 400 },
+          });
+        }
+      }
+    }
+  }
+  expect(blocked).toEqual([]);
 });
