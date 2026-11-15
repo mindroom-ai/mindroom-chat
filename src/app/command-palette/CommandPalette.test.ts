@@ -59,6 +59,7 @@ vi.mock('folds', async () => {
     Line: () => reactModule.createElement('hr'),
     Spinner: () => reactModule.createElement('span', { 'data-spinner': true }),
     Icons: {
+      ChevronLeft: 'chevron-left',
       Cross: 'cross',
       Terminal: 'terminal',
       Message: 'message',
@@ -94,6 +95,7 @@ vi.mock('./CommandPalette.css', () => ({
   Search: 'Search',
   Input: 'Input',
   Close: 'Close',
+  PageChip: 'PageChip',
   Tabs: 'Tabs',
   Tab: 'Tab',
   ClearSearch: 'ClearSearch',
@@ -128,33 +130,71 @@ vi.mock('./CommandPalette.css', () => ({
 const getInput = (renderer: ReturnType<typeof create>) => renderer.root.findByType('input');
 const getOptions = (renderer: ReturnType<typeof create>) =>
   renderer.root.findAll((node) => node.props.role === 'option');
+
+const FIXTURE_ACTIONS: CommandPaletteSource['actions'] = [
+  {
+    id: 'action-settings',
+    kind: 'action',
+    title: 'Open Settings',
+    description: 'Shared settings modal',
+    keywords: ['preferences'],
+    sortRank: 30,
+  },
+  {
+    id: 'action-home',
+    kind: 'action',
+    title: 'Go Home',
+    description: 'Jump back to the home view',
+    keywords: ['home'],
+    sortRank: 20,
+  },
+  {
+    id: 'action-theme',
+    kind: 'action',
+    title: 'Toggle Theme',
+    description: 'Switch between light and dark',
+    keywords: ['theme', 'appearance'],
+    sortRank: 10,
+  },
+  { id: 'page-theme', kind: 'action', title: 'Theme', page: 'theme', sortRank: 5 },
+];
+
+// The rows only typed text finds, and the Theme page's choices, each with a spy to choose it.
+const choice = (id: string, title: string, current: boolean, sortRank: number) => ({
+  id,
+  kind: 'action' as const,
+  title,
+  current,
+  sortRank,
+  onSelect: vi.fn(),
+});
+const LIGHT = choice('theme:light', 'Light', false, 3);
+const DARK = choice('theme:dark', 'Dark', true, 2);
+const DRACULA = choice('theme:dracula', 'Dracula', false, 1);
+const MARKDOWN = {
+  id: 'setting:markdown',
+  kind: 'action' as const,
+  title: 'Markdown Formatting',
+  state: 'on' as const,
+  keepOpen: true,
+  onSelect: vi.fn(),
+};
+const VIEW_SWITCH = {
+  id: 'room-command:viewSwitch',
+  kind: 'action' as const,
+  title: 'Compact view',
+  state: 'on' as const,
+  onSelect: vi.fn(),
+};
+
 const FIXTURE_SOURCE: CommandPaletteSource = {
-  actions: [
-    {
-      id: 'action-settings',
-      kind: 'action',
-      title: 'Open Settings',
-      description: 'Shared settings modal',
-      keywords: ['preferences'],
-      sortRank: 30,
-    },
-    {
-      id: 'action-home',
-      kind: 'action',
-      title: 'Go Home',
-      description: 'Jump back to the home view',
-      keywords: ['home'],
-      sortRank: 20,
-    },
-    {
-      id: 'action-theme',
-      kind: 'action',
-      title: 'Toggle Theme',
-      description: 'Switch between light and dark',
-      keywords: ['theme', 'appearance'],
-      sortRank: 10,
-    },
-  ],
+  actions: FIXTURE_ACTIONS,
+  searchActions: [...FIXTURE_ACTIONS, MARKDOWN, VIEW_SWITCH, LIGHT, DARK, DRACULA],
+  pages: {
+    theme: { title: 'Theme', items: [LIGHT, DARK, DRACULA] },
+    'message-layout': { title: 'Message Layout', items: [] },
+    language: { title: 'App Language', items: [] },
+  },
   rooms: [
     {
       id: '!general:example.org',
@@ -276,7 +316,10 @@ const setPeople = (change: Partial<CommandPalettePeople>) => {
 };
 
 /** Someone only the server knows, who has no direct chat with the account yet. */
-const serverPerson = (name: string, change: Partial<CommandPalettePeople['items'][number]> = {}) => {
+const serverPerson = (
+  name: string,
+  change: Partial<CommandPalettePeople['items'][number]> = {}
+) => {
   const localpart = name.toLowerCase();
   return {
     id: `user:@${localpart}:example.org`,
@@ -299,6 +342,7 @@ beforeEach(() => {
   useMessages.mockClear();
   peopleState.current = { status: 'idle', items: [] };
   usePeople.mockClear();
+  for (const row of [LIGHT, DARK, DRACULA, MARKDOWN, VIEW_SWITCH]) row.onSelect.mockClear();
 });
 
 const paletteElement = (props: Partial<React.ComponentProps<typeof CommandPalette>> = {}) =>
@@ -371,7 +415,9 @@ describe('CommandPalette', () => {
     const renderer = renderPalette({ initialTab: 'messages' });
     expect(selectedTab(renderer)).toBe('messages');
     expect(useMessages).toHaveBeenLastCalledWith('', true);
-    expect(JSON.stringify(renderer.toJSON())).toContain('Type to search messages in all your rooms.');
+    expect(JSON.stringify(renderer.toJSON())).toContain(
+      'Type to search messages in all your rooms.'
+    );
   });
 
   it('switches tabs with Tab and Shift+Tab and keeps focus in the field', async () => {
@@ -433,9 +479,7 @@ describe('CommandPalette', () => {
     await act(async () => roomsTab?.props.onClick());
     expect(getInput(renderer).props.value).toBe('General');
     expect(selectedTab(renderer)).toBe('rooms');
-    expect(getOptions(renderer).every((option) => option.props['data-kind'] === 'room')).toBe(
-      true
-    );
+    expect(getOptions(renderer).every((option) => option.props['data-kind'] === 'room')).toBe(true);
   });
 
   it('lists spaces, marked as spaces, on the Rooms tab', async () => {
@@ -761,7 +805,11 @@ describe('CommandPalette people from the server', () => {
     const renderer = renderPalette();
     setPeople({
       status: 'done',
-      items: [serverPerson('Quentin'), serverPerson('Rosa'), serverPerson('Zed', { typedId: true })],
+      items: [
+        serverPerson('Quentin'),
+        serverPerson('Rosa'),
+        serverPerson('Zed', { typedId: true }),
+      ],
     });
     await type(renderer, 'example');
     expect(
@@ -783,13 +831,22 @@ describe('CommandPalette people from the server', () => {
       items: [serverPerson('Zed', { typedId: true, displayName: 'Zed Zimmer' })],
     });
     await type(renderer, '@zed:example.org');
-    const row = renderer.root.findByProps({ role: 'option', 'data-item-id': 'user:@zed:example.org' });
+    const row = renderer.root.findByProps({
+      role: 'option',
+      'data-item-id': 'user:@zed:example.org',
+    });
     expect(textOf(row)).toContain('Message @zed:example.org');
     expect(textOf(row)).toContain('Zed Zimmer');
     // Without a profile name the row shows the ID alone.
-    setPeople({ status: 'done', items: [serverPerson('Zed', { typedId: true, displayName: 'zed' })] });
+    setPeople({
+      status: 'done',
+      items: [serverPerson('Zed', { typedId: true, displayName: 'zed' })],
+    });
     await act(async () => renderer.update(paletteElement({ initialTab: 'users' })));
-    const bare = renderer.root.findByProps({ role: 'option', 'data-item-id': 'user:@zed:example.org' });
+    const bare = renderer.root.findByProps({
+      role: 'option',
+      'data-item-id': 'user:@zed:example.org',
+    });
     expect(textOf(bare)).toContain('Message @zed:example.org');
     expect(bare.findAllByProps({ className: 'RowDescription' })).toHaveLength(0);
   });
@@ -804,7 +861,10 @@ describe('CommandPalette people from the server', () => {
       ],
     });
     await type(renderer, 'example');
-    const quentin = renderer.root.findByProps({ role: 'option', 'data-item-id': 'user:@quentin:example.org' });
+    const quentin = renderer.root.findByProps({
+      role: 'option',
+      'data-item-id': 'user:@quentin:example.org',
+    });
     expect(quentin.findByType('img').props.src).toBe('https://example.org/quentin.png');
     expect(textOf(quentin)).not.toContain('Agent');
     const helper = renderer.root.findByProps({
@@ -869,7 +929,10 @@ describe('CommandPalette people from the server', () => {
     const renderer = renderPalette({ initialTab: 'users', requestClose });
     setPeople({ status: 'done', items: [quentin] });
     await type(renderer, 'quentin');
-    const row = renderer.root.findByProps({ role: 'option', 'data-item-id': 'user:@quentin:example.org' });
+    const row = renderer.root.findByProps({
+      role: 'option',
+      'data-item-id': 'user:@quentin:example.org',
+    });
     await act(async () => row.props.onClick());
     expect(optionIds(renderer)).toEqual(['start-chat:@quentin:example.org']);
     await type(renderer, 'quent');
@@ -1036,5 +1099,225 @@ describe('CommandPalette people from the server', () => {
     expect(peopleSection(renderer).props['aria-busy']).toBe(true);
     await act(async () => finish());
     expect(requestClose).toHaveBeenCalledOnce();
+  });
+});
+
+const hover = async (renderer: ReturnType<typeof create>, itemId: string) =>
+  act(async () =>
+    renderer.root
+      .findByProps({ role: 'option', 'data-item-id': itemId })
+      .props.onPointerMove({ pointerType: 'mouse' })
+  );
+
+const findChips = (renderer: ReturnType<typeof create>) =>
+  renderer.root.findAll(
+    (node) => node.type === 'button' && node.props['data-page-chip'] !== undefined
+  );
+
+const anyTabs = (renderer: ReturnType<typeof create>) =>
+  renderer.root.findAll((node) => node.props.role === 'tab');
+
+const footerText = (renderer: ReturnType<typeof create>) =>
+  textOf(renderer.root.findByProps({ className: 'Footer' }));
+
+/** Opens the Theme page from its row on the Actions tab, after typing `text` there. */
+const openThemePage = async (renderer: ReturnType<typeof create>, text = '') => {
+  if (text) await type(renderer, text);
+  await hover(renderer, 'page-theme');
+  await press(renderer, 'Enter');
+};
+
+describe('CommandPalette pages and rows that keep it open', () => {
+  it('Enter on a page row opens the page', async () => {
+    const requestClose = vi.fn();
+    const renderer = renderPalette({ initialTab: 'actions', requestClose });
+    await openThemePage(renderer);
+    expect(optionIds(renderer)).toEqual(['theme:light', 'theme:dark', 'theme:dracula']);
+    // The current choice is highlighted.
+    expect(selectedId(renderer)).toBe('theme:dark');
+    expect(anyTabs(renderer)).toHaveLength(0);
+    const chips = findChips(renderer);
+    expect(chips).toHaveLength(1);
+    expect(textOf(chips[0]!)).toContain('Theme');
+    expect(chips[0]!.props['aria-label']).toBe('Back');
+    expect(getInput(renderer).props.value).toBe('');
+    expect(getInput(renderer).props['aria-label']).toBe('Theme');
+    expect(requestClose).not.toHaveBeenCalled();
+  });
+
+  it('typing filters the page', async () => {
+    const renderer = renderPalette({ initialTab: 'actions' });
+    await openThemePage(renderer);
+    await type(renderer, 'drac');
+    expect(optionIds(renderer)).toEqual(['theme:dracula']);
+  });
+
+  it('a choice in its page applies and stays', async () => {
+    const requestClose = vi.fn();
+    const renderer = renderPalette({ initialTab: 'actions', requestClose });
+    await openThemePage(renderer);
+    await press(renderer, 'ArrowDown');
+    expect(selectedId(renderer)).toBe('theme:dracula');
+    await press(renderer, 'Enter');
+    expect(DRACULA.onSelect).toHaveBeenCalledOnce();
+    expect(requestClose).not.toHaveBeenCalled();
+    expect(findChips(renderer)).toHaveLength(1);
+    expect(optionIds(renderer)).toEqual(['theme:light', 'theme:dark', 'theme:dracula']);
+    expect(selectedId(renderer)).toBe('theme:dracula');
+  });
+
+  it('Escape goes back to the text and the row', async () => {
+    const requestClose = vi.fn();
+    const renderer = renderPalette({ initialTab: 'actions', requestClose });
+    await openThemePage(renderer, 'the');
+    expect(findChips(renderer)).toHaveLength(1);
+    const escape = await press(renderer, 'Escape');
+    // The dialog must not close on the same key.
+    expect(escape.stopPropagation).toHaveBeenCalled();
+    expect(findChips(renderer)).toHaveLength(0);
+    expect(getInput(renderer).props.value).toBe('the');
+    expect(selectedTab(renderer)).toBe('actions');
+    expect(selectedId(renderer)).toBe('page-theme');
+    expect(requestClose).not.toHaveBeenCalled();
+    await press(renderer, 'Escape');
+    expect(requestClose).toHaveBeenCalledOnce();
+  });
+
+  it('Backspace in the empty field goes back', async () => {
+    const requestClose = vi.fn();
+    const renderer = renderPalette({ initialTab: 'actions', requestClose });
+    await openThemePage(renderer, 'the');
+    // With text, Backspace edits it.
+    await type(renderer, 'd');
+    await press(renderer, 'Backspace');
+    expect(findChips(renderer)).toHaveLength(1);
+    await type(renderer, '');
+    const backspace = await press(renderer, 'Backspace');
+    expect(backspace.preventDefault).toHaveBeenCalled();
+    expect(findChips(renderer)).toHaveLength(0);
+    expect(getInput(renderer).props.value).toBe('the');
+    expect(selectedTab(renderer)).toBe('actions');
+    expect(selectedId(renderer)).toBe('page-theme');
+    expect(requestClose).not.toHaveBeenCalled();
+  });
+
+  it('Backspace in the empty field does not go back while composing', async () => {
+    const renderer = renderPalette({ initialTab: 'actions' });
+    await openThemePage(renderer);
+    await act(async () =>
+      getInput(renderer).props.onKeyDown({
+        key: 'Backspace',
+        nativeEvent: { isComposing: true },
+        currentTarget: { value: '', selectionStart: 0, selectionEnd: 0 },
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+      })
+    );
+    expect(findChips(renderer)).toHaveLength(1);
+  });
+
+  it('the chip goes back and focuses the field', async () => {
+    const focus = vi.fn();
+    const renderer = create(paletteElement({ initialTab: 'actions' }), {
+      createNodeMock: (element) => (element.type === 'input' ? { focus } : null),
+    });
+    await openThemePage(renderer, 'the');
+    focus.mockClear();
+    await act(async () => findChips(renderer)[0]!.props.onClick());
+    expect(findChips(renderer)).toHaveLength(0);
+    expect(selectedTab(renderer)).toBe('actions');
+    expect(getInput(renderer).props.value).toBe('the');
+    expect(focus).toHaveBeenCalled();
+  });
+
+  it('Clear search empties the text and stays in the page', async () => {
+    const renderer = renderPalette({ initialTab: 'actions' });
+    await openThemePage(renderer);
+    await type(renderer, 'zxqnotfound');
+    expect(getOptions(renderer)).toHaveLength(0);
+    const clear = renderer.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Clear search'
+    );
+    await act(async () => clear.props.onClick());
+    expect(getInput(renderer).props.value).toBe('');
+    expect(findChips(renderer)).toHaveLength(1);
+    expect(optionIds(renderer)).toEqual(['theme:light', 'theme:dark', 'theme:dracula']);
+  });
+
+  it('typed text searches searchActions', async () => {
+    const renderer = renderPalette();
+    await type(renderer, 'markdown');
+    expect(optionIds(renderer)).toContain('setting:markdown');
+    // Without text, not even the Actions tab lists it.
+    const actionsTab = renderPalette({ initialTab: 'actions' });
+    expect(optionIds(actionsTab)).not.toContain('setting:markdown');
+    expect(optionIds(actionsTab)).toContain('page-theme');
+  });
+
+  it('a keepOpen row keeps the palette open', async () => {
+    const requestClose = vi.fn();
+    const renderer = renderPalette({ requestClose });
+    await type(renderer, 'markdown');
+    await hover(renderer, 'setting:markdown');
+    await press(renderer, 'Enter');
+    expect(MARKDOWN.onSelect).toHaveBeenCalledOnce();
+    expect(requestClose).not.toHaveBeenCalled();
+    expect(getInput(renderer).props.value).toBe('markdown');
+
+    // The setting changed, so the source comes again with the row's new state.
+    const source: CommandPaletteSource = {
+      ...FIXTURE_SOURCE,
+      searchActions: FIXTURE_SOURCE.searchActions.map((row) =>
+        row.id === MARKDOWN.id ? { ...row, state: 'off' as const } : row
+      ),
+    };
+    await act(async () => renderer.update(paletteElement({ requestClose, source })));
+    expect(selectedId(renderer)).toBe('setting:markdown');
+    expect(
+      renderer.root
+        .findByProps({ role: 'option', 'data-item-id': 'setting:markdown' })
+        .findByProps({ 'data-row-state': 'off' })
+    ).toBeDefined();
+  });
+
+  it('a state row without keepOpen closes', async () => {
+    const requestClose = vi.fn();
+    const renderer = renderPalette({ requestClose });
+    await type(renderer, 'compact');
+    await hover(renderer, 'room-command:viewSwitch');
+    await press(renderer, 'Enter');
+    expect(VIEW_SWITCH.onSelect).toHaveBeenCalledOnce();
+    expect(requestClose).toHaveBeenCalledOnce();
+  });
+
+  it('a choice from the first list closes', async () => {
+    const requestClose = vi.fn();
+    const renderer = renderPalette({ requestClose });
+    await type(renderer, 'dracula');
+    await hover(renderer, 'theme:dracula');
+    await press(renderer, 'Enter');
+    expect(DRACULA.onSelect).toHaveBeenCalledOnce();
+    expect(requestClose).toHaveBeenCalledOnce();
+  });
+
+  it('the footer names Back in a page', async () => {
+    const renderer = renderPalette({ initialTab: 'actions' });
+    expect(footerText(renderer)).toContain('Tab');
+    await openThemePage(renderer);
+    expect(footerText(renderer)).toMatch(/esc\s+Back/);
+    expect(footerText(renderer)).not.toContain('Tab');
+  });
+
+  it('messages and people are not asked in a page', async () => {
+    const renderer = renderPalette();
+    await type(renderer, 'theme');
+    expect(useMessages).toHaveBeenLastCalledWith('theme', true);
+    expect(usePeople).toHaveBeenLastCalledWith('theme', true);
+    await openThemePage(renderer);
+    expect(useMessages).toHaveBeenLastCalledWith('', false);
+    expect(usePeople).toHaveBeenLastCalledWith('', false);
+    await type(renderer, 'drac');
+    expect(useMessages).toHaveBeenLastCalledWith('drac', false);
+    expect(usePeople).toHaveBeenLastCalledWith('drac', false);
   });
 });

@@ -4,6 +4,7 @@ import { type TFunction } from 'i18next';
 import {
   ChangeEventHandler,
   KeyboardEventHandler,
+  type RefObject,
   useEffect,
   useId,
   useRef,
@@ -38,6 +39,7 @@ import {
 import { getCommandPaletteShortcutLabel } from '../shortcuts/paletteShortcut';
 import {
   COMMAND_PALETTE_TABS,
+  type CommandPalettePageId,
   type CommandPaletteRoomItem,
   type CommandPaletteSectionId,
   type CommandPaletteTab,
@@ -71,6 +73,15 @@ const TAB_LABEL_KEYS = {
 
 type RoomItems = readonly (CommandPaletteRoomItem & { onSelect?: () => void })[];
 
+/** The highlighted row by ID, and the index where it was, for when that row leaves. */
+type Highlight = { id?: string; index: number };
+
+/** An open page of choices, with the typed text and the highlighted row to go back to. */
+type OpenPage = { id: CommandPalettePageId; query: string; highlight: Highlight };
+
+// A page lists all of its choices.
+const PAGE_LIMIT = 50;
+
 const getLocalSectionItems = ({
   sectionId,
   tab,
@@ -88,7 +99,8 @@ const getLocalSectionItems = ({
   switch (sectionId) {
     case 'actions':
       return searchCommandPaletteSection({
-        items: source.actions,
+        // Settings and the pages' choices only show for typed text.
+        items: searchText ? source.searchActions : source.actions,
         query: searchText,
         config: { ...commandPaletteSearchConfig.actions, limit },
       });
@@ -248,6 +260,57 @@ const directionOf = (element: unknown): 'ltr' | 'rtl' =>
 
 const MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta']);
 
+type PaletteTabsProps = {
+  listRef: RefObject<HTMLDivElement>;
+  tab: CommandPaletteTab;
+  tabId: (id: CommandPaletteTab) => string;
+  panelId: string;
+  onChoose: (tab: CommandPaletteTab) => void;
+};
+
+/**
+ * The row of tabs. It leaves while a page is open, so each time it comes back it marks its
+ * overflow again and scrolls the chosen tab into view.
+ */
+function PaletteTabs({ listRef, tab, tabId, panelId, onChoose }: PaletteTabsProps) {
+  const { t } = useTranslation();
+  useInlineScrollFade(listRef);
+
+  useEffect(() => {
+    listRef.current
+      ?.querySelector('[aria-selected="true"]')
+      ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [listRef, tab]);
+
+  return (
+    <div
+      ref={listRef}
+      className={`${css.Tabs} ${InlineScrollFade}`}
+      role="tablist"
+      aria-label={t('commandPalette.tabsLabel')}
+    >
+      {COMMAND_PALETTE_TABS.map((id) => (
+        <button
+          type="button"
+          key={id}
+          id={tabId(id)}
+          role="tab"
+          className={css.Tab}
+          aria-selected={tab === id}
+          aria-controls={panelId}
+          // The field keeps focus and moves between tabs with Tab and the arrows.
+          tabIndex={-1}
+          data-tab={id}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onChoose(id)}
+        >
+          {t(TAB_LABEL_KEYS[id])}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function CommandPalette({
   requestClose,
   source,
@@ -261,42 +324,52 @@ export function CommandPalette({
   const [tab, setTab] = useState<CommandPaletteTab>(initialTab);
   // The highlighted row by ID, so rows that arrive later never move it; the index is where it
   // was, for when that row leaves.
-  const [highlight, setHighlight] = useState<{ id?: string; index: number }>({ index: 0 });
+  const [highlight, setHighlight] = useState<Highlight>({ index: 0 });
   const [chatStart, setChatStart] = useState<ChatStart>();
+  const [page, setPage] = useState<OpenPage>();
   // Set while a chat is being started, so a second Enter cannot start another.
   const startingRef = useRef(false);
   // True after the up or down arrow, until the person edits or moves the caret.
   const navigatingRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const tabListRef = useRef<HTMLDivElement>(null);
-  useInlineScrollFade(tabListRef);
   const resultsRef = useRef<HTMLDivElement>(null);
   const listId = useId();
   const panelId = `${listId}-panel`;
   const tabId = (id: CommandPaletteTab) => `${listId}-tab-${id}`;
   const searchText = query.trim();
-  const messages = useMessages(query, tab === 'all' || tab === 'messages');
-  const people = usePeople(query, tab === 'all' || tab === 'users');
+  const pageId = page?.id;
+  const pageTitle = pageId ? source.pages[pageId].title : undefined;
+  // A page lists only its own choices, so the server is not asked.
+  const messages = useMessages(query, !page && (tab === 'all' || tab === 'messages'));
+  const people = usePeople(query, !page && (tab === 'all' || tab === 'users'));
   const starterRooms = useMemo(
     () => source.rooms.filter((item) => item.kind === 'room'),
     [source.rooms]
   );
 
-  const resultSections = useMemo(
-    () =>
-      getCommandPaletteSectionOrder(tab, searchText.length > 0)
-        .map((sectionId): CommandPaletteListSection | undefined => {
-          if (sectionId === 'messages') return buildMessageSection(messages, searchText, tab, t);
-          const items = getLocalSectionItems({ sectionId, tab, searchText, source, starterRooms });
-          if (sectionId === 'users') {
-            return buildPeopleSection(items, people, source, tab, searchText, t);
-          }
-          if (items.length === 0) return undefined;
-          return { id: sectionId, title: t(TAB_LABEL_KEYS[sectionId]), items };
-        })
-        .filter((section): section is CommandPaletteListSection => section !== undefined),
-    [messages, people, searchText, source, starterRooms, t, tab]
-  );
+  const resultSections = useMemo((): CommandPaletteListSection[] => {
+    if (pageId) {
+      const { title, items } = source.pages[pageId];
+      const choices = searchCommandPaletteSection({
+        items,
+        query: searchText,
+        config: { ...commandPaletteSearchConfig.actions, limit: PAGE_LIMIT },
+      });
+      return choices.length > 0 ? [{ id: 'actions', title, items: choices }] : [];
+    }
+    return getCommandPaletteSectionOrder(tab, searchText.length > 0)
+      .map((sectionId): CommandPaletteListSection | undefined => {
+        if (sectionId === 'messages') return buildMessageSection(messages, searchText, tab, t);
+        const items = getLocalSectionItems({ sectionId, tab, searchText, source, starterRooms });
+        if (sectionId === 'users') {
+          return buildPeopleSection(items, people, source, tab, searchText, t);
+        }
+        if (items.length === 0) return undefined;
+        return { id: sectionId, title: t(TAB_LABEL_KEYS[sectionId]), items };
+      })
+      .filter((section): section is CommandPaletteListSection => section !== undefined);
+  }, [messages, pageId, people, searchText, source, starterRooms, t, tab]);
   const visibleSections = useMemo(
     () => (chatStart ? [buildStartChatSection(chatStart, t)] : resultSections),
     [chatStart, resultSections, t]
@@ -315,12 +388,6 @@ export function CommandPalette({
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
-
-  useEffect(() => {
-    tabListRef.current
-      ?.querySelector('[aria-selected="true"]')
-      ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-  }, [tab]);
 
   const startOver = () => {
     setHighlight({ index: 0 });
@@ -357,6 +424,26 @@ export function CommandPalette({
     }
   };
 
+  /** Opens a page with its choice in effect highlighted, keeping the text and `row` for Back. */
+  const openPage = (id: CommandPalettePageId, row: Highlight) => {
+    const current = source.pages[id].items.find((choice) => choice.current === true);
+    setPage({ id, query, highlight: row });
+    setQuery('');
+    // Without a choice in effect, the index puts the highlight on the first one.
+    setHighlight({ id: current?.id, index: 0 });
+    navigatingRef.current = false;
+    if (resultsRef.current) resultsRef.current.scrollTop = 0;
+  };
+
+  /** Closes the page: the tabs, the text and the highlighted row are as they were. */
+  const goBack = () => {
+    if (!page) return;
+    setQuery(page.query);
+    setHighlight(page.highlight);
+    setPage(undefined);
+    navigatingRef.current = false;
+  };
+
   const handleSelect = (item: ExecutableCommandPaletteItem) => {
     if (item.kind === 'start-chat') {
       void confirmChat();
@@ -367,6 +454,16 @@ export function CommandPalette({
       // when the person goes back.
       setHighlight({ id: item.id, index: visibleItems.indexOf(item) });
       setChatStart({ person: item, state: 'asking' });
+      return;
+    }
+    if (item.kind === 'action' && item.page) {
+      openPage(item.page, { id: item.id, index: visibleItems.indexOf(item) });
+      return;
+    }
+    if (item.kind === 'action' && (item.keepOpen || (page && item.current !== undefined))) {
+      // The palette stays open on the row, which shows its new state or check mark.
+      setHighlight({ id: item.id, index: visibleItems.indexOf(item) });
+      item.onSelect?.();
       return;
     }
     item.onSelect?.();
@@ -381,6 +478,13 @@ export function CommandPalette({
       event.preventDefault();
       event.stopPropagation?.();
       if (!startingRef.current) setChatStart(undefined);
+      return;
+    }
+    if (page && (event.key === 'Escape' || (event.key === 'Backspace' && query === ''))) {
+      // Back to the first list; the dialog must not close on the same key.
+      event.preventDefault();
+      event.stopPropagation?.();
+      goBack();
       return;
     }
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -412,19 +516,22 @@ export function CommandPalette({
     }
 
     const input = event.currentTarget;
-    const tabStep = getCommandPaletteTabStep({
-      key: event.key,
-      shiftKey: event.shiftKey,
-      altKey: event.altKey,
-      ctrlKey: event.ctrlKey,
-      metaKey: event.metaKey,
-      query: input.value ?? query,
-      selectionStart: input.selectionStart ?? null,
-      selectionEnd: input.selectionEnd ?? null,
-      navigating: navigatingRef.current,
-      textDirection: directionOf(input),
-      tabDirection: directionOf(tabListRef.current),
-    });
+    // A page has no tabs, so Tab and the arrows do what they do in any field.
+    const tabStep = page
+      ? 0
+      : getCommandPaletteTabStep({
+          key: event.key,
+          shiftKey: event.shiftKey,
+          altKey: event.altKey,
+          ctrlKey: event.ctrlKey,
+          metaKey: event.metaKey,
+          query: input.value ?? query,
+          selectionStart: input.selectionStart ?? null,
+          selectionEnd: input.selectionEnd ?? null,
+          navigating: navigatingRef.current,
+          textDirection: directionOf(input),
+          tabDirection: directionOf(tabListRef.current),
+        });
     if (tabStep !== 0) {
       event.preventDefault();
       // The dialog's focus containment moves focus on Tab from a listener on the document.
@@ -446,6 +553,23 @@ export function CommandPalette({
     >
       <div className={css.Search}>
         <Icon src={Icons.Search} size="300" />
+        {page && (
+          // The Back button, also on phones, whose keyboard has no Escape.
+          <button
+            type="button"
+            className={css.PageChip}
+            data-page-chip={page.id}
+            aria-label={t('thread.back')}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              goBack();
+              inputRef.current?.focus();
+            }}
+          >
+            <Icon src={Icons.ChevronLeft} size="100" aria-hidden data-directional />
+            {pageTitle}
+          </button>
+        )}
         <input
           ref={inputRef}
           dir={query ? 'auto' : undefined}
@@ -459,7 +583,7 @@ export function CommandPalette({
           aria-activedescendant={
             selectedItem ? getCommandPaletteOptionId(listId, selectedItem.id) : undefined
           }
-          aria-label={t('commandPalette.inputAria')}
+          aria-label={pageTitle ?? t('commandPalette.inputAria')}
           placeholder={t('commandPalette.placeholder')}
           value={query}
           readOnly={chatStart?.state === 'starting'}
@@ -478,40 +602,24 @@ export function CommandPalette({
           {mobileSheet ? <Icon src={Icons.Cross} size="200" /> : <kbd className={css.Key}>esc</kbd>}
         </button>
       </div>
-      <div
-        ref={tabListRef}
-        className={`${css.Tabs} ${InlineScrollFade}`}
-        role="tablist"
-        aria-label={t('commandPalette.tabsLabel')}
-      >
-        {COMMAND_PALETTE_TABS.map((id) => (
-          <button
-            type="button"
-            key={id}
-            id={tabId(id)}
-            role="tab"
-            className={css.Tab}
-            aria-selected={tab === id}
-            aria-controls={panelId}
-            // The field keeps focus and moves between tabs with Tab and the arrows.
-            tabIndex={-1}
-            data-tab={id}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => {
-              chooseTab(id);
-              inputRef.current?.focus();
-            }}
-          >
-            {t(TAB_LABEL_KEYS[id])}
-          </button>
-        ))}
-      </div>
+      {!page && (
+        <PaletteTabs
+          listRef={tabListRef}
+          tab={tab}
+          tabId={tabId}
+          panelId={panelId}
+          onChoose={(id) => {
+            chooseTab(id);
+            inputRef.current?.focus();
+          }}
+        />
+      )}
       <div
         ref={resultsRef}
         id={panelId}
         className={css.Results}
-        role="tabpanel"
-        aria-labelledby={tabId(tab)}
+        role={page ? undefined : 'tabpanel'}
+        aria-labelledby={page ? undefined : tabId(tab)}
       >
         <CommandPaletteList
           id={listId}
@@ -559,9 +667,15 @@ export function CommandPalette({
           <span className={css.Hint}>
             <kbd className={css.Key}>↵</kbd> {t('commandPalette.select')}
           </span>
-          <span className={css.Hint}>
-            <kbd className={css.Key}>Tab</kbd> {t('commandPalette.switchTabs')}
-          </span>
+          {page ? (
+            <span className={css.Hint}>
+              <kbd className={css.Key}>esc</kbd> {t('thread.back')}
+            </span>
+          ) : (
+            <span className={css.Hint}>
+              <kbd className={css.Key}>Tab</kbd> {t('commandPalette.switchTabs')}
+            </span>
+          )}
           <span className={css.Hint}>
             <kbd className={css.Key}>{shortcutLabel}</kbd>
           </span>

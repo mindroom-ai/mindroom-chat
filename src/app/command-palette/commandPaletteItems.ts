@@ -41,6 +41,8 @@ import { getCommandPaletteRoomRanking } from './commandPaletteRoomRanking';
 import type {
   CommandPaletteActionItem,
   CommandPaletteItem,
+  CommandPalettePage,
+  CommandPalettePageId,
   CommandPaletteRoomItem,
   CommandPaletteThreadItem,
   CommandPaletteUserItem,
@@ -74,7 +76,12 @@ type CommandPaletteUserQuery = { exhaustive: boolean; includeRelatedRooms: boole
  * users are built on demand. Messages come from the server (`useCommandPaletteMessages`).
  */
 export type CommandPaletteSource = {
+  /** The action rows of the first list. */
   actions: Executable<CommandPaletteActionItem>[];
+  /** Every action row typed text can find: `actions`, the settings and the pages' choices. */
+  searchActions: readonly Executable<CommandPaletteActionItem>[];
+  /** The pages of choices that a row with `page` opens. */
+  pages: Readonly<Record<CommandPalettePageId, CommandPalettePage>>;
   threads: Executable<CommandPaletteThreadItem>[];
   rooms: readonly Executable<CommandPaletteRoomItem>[];
   getUsers: (query: CommandPaletteUserQuery) => ExecutableCommandPaletteUserItem[];
@@ -394,8 +401,17 @@ export const useCommandPaletteSource = ({
     ]
   );
 
+  const pages = useMemo<Record<CommandPalettePageId, CommandPalettePage>>(
+    () => ({
+      theme: { title: t('settings.general.appearance.theme'), items: [] },
+      'message-layout': { title: t('settings.general.messages.messageLayout'), items: [] },
+      language: { title: t('settings.general.language.appLanguage'), items: [] },
+    }),
+    [t]
+  );
+
   return useMemo(
-    () => ({ actions, threads, rooms, getUsers }),
-    [actions, getUsers, rooms, threads]
+    () => ({ actions, searchActions: actions, pages, threads, rooms, getUsers }),
+    [actions, getUsers, pages, rooms, threads]
   );
 };
