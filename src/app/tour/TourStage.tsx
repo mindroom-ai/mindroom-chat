@@ -7,10 +7,7 @@ import {
   useState,
 } from 'react';
 import classNames from 'classnames';
-import { useTranslation } from 'react-i18next';
-import { Icon, IconButton, Icons } from 'folds';
 import { useInert } from '../lib/hooks/useInert';
-import { IconTooltip } from '../ui/IconTooltip';
 import { VIEW_FADE_MS, prefersReducedMotion } from './tourMotion';
 import type { TourScene } from './tourScenes';
 import { TourSpotlight } from './TourSpotlight';
@@ -94,19 +91,15 @@ type TourStageProps = {
   phase: number;
   /** Whether the scene has reached its last phase. */
   settled: boolean;
-  /** Plays the scene again; the Replay button shows while this is given. */
-  onReplay?: () => void;
   className?: string;
 };
 
 /**
  * The tour's stage: a small sample room that plays the scene of the current step, with a
  * spotlight on the part the step is about. The room is inert and hidden from assistive
- * technology, since the step's text says what it shows; only Replay, in the frame's corner, can
- * be pressed.
+ * technology, since the step's text says what it shows.
  */
-export function TourStage({ scene, phone, phase, settled, onReplay, className }: TourStageProps) {
-  const { t } = useTranslation();
+export function TourStage({ scene, phone, phase, settled, className }: TourStageProps) {
   const frameRef = useRef<HTMLDivElement>(null);
   const roomRef = useRef<HTMLDivElement>(null);
   useInert(roomRef, true);
@@ -115,7 +108,6 @@ export function TourStage({ scene, phone, phase, settled, onReplay, className }:
   const [now] = useState(() => Date.now());
   const name = viewOf(scene);
   const leaving = useLeavingView(scene);
-  const replayLabel = t('tour.dialog.replay');
 
   return (
     <div
@@ -142,26 +134,6 @@ export function TourStage({ scene, phone, phase, settled, onReplay, className }:
         <TourSpotlight part={scene.spotlight} />
         {scene.activity && <TourStageActivity phone={phone} now={now} />}
       </div>
-      {onReplay && (
-        <IconTooltip label={replayLabel} position="Top">
-          {(triggerRef) => (
-            <IconButton
-              ref={triggerRef}
-              className={css.Replay}
-              size="300"
-              radii="Pill"
-              variant="Secondary"
-              fill="Soft"
-              outlined
-              aria-label={replayLabel}
-              data-tour-action="replay"
-              onClick={onReplay}
-            >
-              <Icon size="100" src={Icons.Reload} />
-            </IconButton>
-          )}
-        </IconTooltip>
-      )}
     </div>
   );
 }

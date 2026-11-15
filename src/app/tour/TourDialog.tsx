@@ -64,8 +64,9 @@ type TourDialogProps = {
 
 /**
  * The interface tour: a dialog that goes through the steps of a level. From the top it has the
- * level's name with the step's number, the stage that plays the step's scene, the step's chapter,
- * title and text, a progress bar and the buttons. The arrow keys move a step, the main button
+ * level's name with the step's number, the stage that plays the step's scene, the step's chapter
+ * (with Replay beside it once the scene has played), title and text, a progress bar and the
+ * buttons. The arrow keys move a step, the main button
  * keeps the focus so Enter goes on, and the text is read out as each step comes.
  */
 export function TourDialog({ level, onLevelChange, onClose }: TourDialogProps) {
@@ -164,13 +165,28 @@ export function TourDialog({ level, onLevelChange, onClose }: TourDialogProps) {
           phone={phone}
           phase={phase}
           settled={settled}
-          onReplay={canReplay ? playAgain : undefined}
         />
 
         <div className={classNames(css.TextBlock, phone && css.PhoneTextBlock)}>
-          <Text as="span" size="L400" className={css.Chapter}>
-            {t(`tour.chapters.${step.chapter}`)}
-          </Text>
+          <div className={css.ChapterRow}>
+            <Text as="span" size="L400" className={css.Chapter}>
+              {t(`tour.chapters.${step.chapter}`)}
+            </Text>
+            {canReplay && (
+              <Button
+                className={css.Replay}
+                size="300"
+                radii="300"
+                variant="Secondary"
+                fill="None"
+                before={<Icon size="50" src={Icons.Reload} />}
+                data-tour-action="replay"
+                onClick={playAgain}
+              >
+                <Text size="B300">{t('tour.dialog.replay')}</Text>
+              </Button>
+            )}
+          </div>
           <div className={css.TextGrid}>
             {/* Every step's text holds its room, so the block is as tall as the tallest. */}
             {TOUR_STEPS.map((each) => (

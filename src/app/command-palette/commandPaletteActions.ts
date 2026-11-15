@@ -70,7 +70,8 @@ export const getCommandPaletteQuickActions = (
   t: TFunction
 ): CommandPaletteActionItem[] => {
   const roomLabel = currentRoomName ?? t('commandPalette.actions.currentRoomFallback');
-  // The interface tour in both of its levels, found by the same words.
+  // The interface tour in both of its levels, found by the same words. It ranks below what people
+  // do every day, so the actions the palette shows before anything is typed stay those.
   const tour = {
     description: t('tour.entries.paletteDescription'),
     keywords: ['help', 'tutorial', 'guide', 'threads', 'onboarding'],
@@ -80,8 +81,6 @@ export const getCommandPaletteQuickActions = (
       description: t('commandPalette.actions.openSettingsDescription'),
       keywords: ['preferences'],
     }),
-    actionItem('take-quick-tour', t('tour.entries.paletteQuick'), 127, tour),
-    actionItem('take-full-tour', t('tour.entries.paletteFull'), 124, tour),
     actionItem('go-home', t('commandPalette.actions.goHome'), 120, {
       description: t('commandPalette.actions.goHomeDescription'),
       keywords: ['rooms'],
@@ -106,6 +105,8 @@ export const getCommandPaletteQuickActions = (
       description: t('commandPalette.actions.toggleThemeDescription'),
       keywords: ['appearance'],
     }),
+    actionItem('take-quick-tour', t('tour.entries.paletteQuick'), 16, tour),
+    actionItem('take-full-tour', t('tour.entries.paletteFull'), 13, tour),
     actionItem('logout', t('commandPalette.actions.logout'), 10, {
       description: t('commandPalette.actions.logoutDescription'),
       keywords: ['sign out'],
@@ -114,7 +115,7 @@ export const getCommandPaletteQuickActions = (
 
   if (currentRoomName) {
     actions.splice(
-      8,
+      6,
       0,
       actionItem('mark-current-room-read', t('commandPalette.actions.markCurrentRoomRead'), 70, {
         description: t('commandPalette.actions.markCurrentRoomReadDescription', {

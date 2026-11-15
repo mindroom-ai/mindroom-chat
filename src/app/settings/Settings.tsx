@@ -105,7 +105,7 @@ function SettingsPageContent({ page, requestClose, closeDialog }: PageContentPro
     case 'developer-tools':
       return <DeveloperTools requestClose={requestClose} />;
     case 'about':
-      return <About requestClose={requestClose} />;
+      return <About requestClose={requestClose} closeDialog={closeDialog} />;
   }
 }
 

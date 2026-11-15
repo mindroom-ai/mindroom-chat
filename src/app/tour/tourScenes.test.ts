@@ -94,12 +94,12 @@ describe('tourScenes', () => {
     });
   });
 
-  it('shows one card in each state, with no header, composer or spotlight, for `states`', () => {
+  it('shows one card in each state and no spotlight for `states`, on a phone the cards alone', () => {
     [false, true].forEach((phone) => {
       const scene = lastScene('states', phone);
       expect(scene.view).toBe('list');
-      expect(scene.header).toBe(false);
-      expect(scene.composer).toBe(false);
+      expect(scene.header).toBe(!phone);
+      expect(scene.composer).toBe(!phone);
       expect(scene.spotlight).toBeUndefined();
       expect(scene.cards.map((card) => Object.keys(card.state))).toEqual([
         ['streaming'],
@@ -219,7 +219,8 @@ describe('tourScenes', () => {
           if (step.id !== 'filters') expect(scene.filterBar, step.id).toBe(false);
           if (step.id !== 'snooze') expect(scene.menuOn, step.id).toBeUndefined();
           if (step.id !== 'start') expect(scene.typed, step.id).toBe(0);
-          if (step.id !== 'states') expect(scene.header && scene.composer, step.id).toBe(true);
+          if (step.id !== 'states' || !phone)
+            expect(scene.header && scene.composer, step.id).toBe(true);
           // A room menu is a phone's.
           if (!phone) expect(scene.roomMenu, step.id).toBe(false);
           expect(scene.view === 'thread', step.id).toBe(scene.thread !== undefined);

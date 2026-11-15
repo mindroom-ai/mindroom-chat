@@ -5,10 +5,10 @@ import { useAtom, useAtomValue } from 'jotai';
 import { Button, Icon, IconButton, Icons, Text } from 'folds';
 import { useClientConfig } from '../config/useClientConfig';
 import { useForceUpdate } from '../lib/hooks/useForceUpdate';
-import { useClientStartupContext } from '../matrix/ClientStartupContext';
 import { useAccountData } from '../matrix/hooks/useAccountData';
 import { useSetAccountSettings } from '../matrix/hooks/useAccountSettings';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { useSyncedWithServer } from '../matrix/hooks/useSyncedWithServer';
 import { PHONE_SLIDE_OUT_MS, phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
 import { tourAtom, type TourLevel } from '../navigation/tourState';
 import {
@@ -29,7 +29,7 @@ export const resetAnsweredAccountsForTests = () => answeredAccounts.clear();
 /**
  * Offers the interface tour, in a Quick and a Full level, on a card where the new version notice
  * shows (ui/noticeSlots.tsx): at the foot of the room list while there is one beside the page,
- * else at the top of the page. It shows once the client's first sync has completed, until the
+ * else at the top of the page. It shows once the client has synced with its server, until the
  * account answers: with one of the card's buttons, or by opening the tour from anywhere else. The
  * answer is kept for the life of the page and stored as `tourOffered` in the account's
  * `io.mindroom.settings`, so no other start or device asks again. `tour.offerAtStart: false`
@@ -37,8 +37,11 @@ export const resetAnsweredAccountsForTests = () => answeredAccounts.clear();
  */
 export function TourOffer() {
   const { t } = useTranslation();
-  const userId = useMatrixClient().getSafeUserId();
-  const { hasCompletedInitialSync } = useClientStartupContext();
+  const mx = useMatrixClient();
+  const userId = mx.getSafeUserId();
+  // Not the stored copy of the last session, which a start shows first: its account data may
+  // lack the answer another device gave since, or the settings a write here would replace.
+  const synced = useSyncedWithServer(mx);
   const offerAtStart = useClientConfig().tour?.offerAtStart !== false;
   // The event itself, which the client holds from the start, so no render is without it.
   const settings = useAccountData(MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE);
@@ -54,13 +57,14 @@ export function TourOffer() {
     if (tourOpen) answeredAccounts.add(userId);
   }, [tourOpen, userId]);
 
-  // Stores the answer, never before the first sync has completed: the write goes over the stored
-  // settings, and before they have arrived it would replace the account's other settings. A
-  // refused write is left alone: the card stays away for this page, and the next start asks again.
+  // Stores the answer, never before the client has synced with its server: the write goes over
+  // the stored settings, and before they have arrived it would replace the account's other
+  // settings. A refused write is left alone: the card stays away for this page, and the next
+  // start asks again.
   useEffect(() => {
-    if (!answered || !hasCompletedInitialSync || stored) return;
+    if (!answered || !synced || stored) return;
     setAccountSettings({ tourOffered: true }).catch(() => undefined);
-  }, [answered, hasCompletedInitialSync, stored, setAccountSettings]);
+  }, [answered, synced, stored, setAccountSettings]);
 
   // The card shows only in a place of the layout, so it is due only once one is offered: a place
   // that comes after the offer, under a phone's drawer, holds the card back like any other.
@@ -69,7 +73,7 @@ export function TourOffer() {
   const hasPlace = listSlot !== null || pageSlot !== null;
   const phoneLayerOpen = useAtomValue(phoneLayerOpenAtom);
   const { shown, slot, placement, leaving, settled, dismiss, onAnimationEnd } = useNoticePresence(
-    hasCompletedInitialSync && offerAtStart && !stored && !answered && hasPlace,
+    synced && offerAtStart && !stored && !answered && hasPlace,
     { open: phoneLayerOpen, slideOutMs: PHONE_SLIDE_OUT_MS }
   );
   if (!shown || !slot) return null;

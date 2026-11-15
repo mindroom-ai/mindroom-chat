@@ -318,13 +318,6 @@ export const Messages = style({
   padding: `${config.space.S200} ${config.space.S400}`,
 });
 
-/** The Threads view keeps its newest message at the bottom, above the composer. */
-export const MessagesAtEnd = style({
-  flex: '1 1 0',
-  justifyContent: 'flex-end',
-  paddingBlockEnd: config.space.S400,
-});
-
 /** One message: the sender's avatar, then name, time and text. */
 export const Message = style({
   display: 'flex',
@@ -469,15 +462,3 @@ export const Spotlight = style([
     transition: transition(['transform', 'width', 'height'], motion.duration.Slower),
   },
 ]);
-
-/** The Replay button, in the frame's corner and outside the room, so it can be pressed. */
-export const Replay = style({
-  position: 'absolute',
-  zIndex: 1,
-  insetInlineEnd: config.space.S200,
-  insetBlockEnd: config.space.S200,
-  borderRadius: config.radii.Pill,
-  boxShadow: config.shadow.E200,
-  animation: `${fadeIn} ${motion.duration.Slow} ${motion.easing.Standard} both`,
-  '@media': { [reducedMotion]: { animation: 'none' } },
-});

@@ -1,9 +1,11 @@
-import { style, styleVariants } from '@vanilla-extract/css';
+import { keyframes, style, styleVariants } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { motion } from '../ui/styles/Motion.css';
 import { transition } from '../ui/styles/transition';
 
 const { space } = config;
+
+const replayIn = keyframes({ from: { opacity: 0 } });
 
 /**
  * The tour's dialog on screens wider than a phone: 720 px wide and as tall as its content, up to
@@ -79,6 +81,27 @@ export const PhoneTextBlock = style({
   overflowY: 'auto',
   paddingInline: space.S300,
   paddingBlockStart: space.S300,
+});
+
+/**
+ * The chapter's name with Replay at its end. As tall as the button whether or not it shows, so
+ * the title under it never moves.
+ */
+export const ChapterRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  columnGap: space.S200,
+  minHeight: toRem(32),
+});
+
+/** Replay comes in softly once a scene has played. */
+export const Replay = style({
+  flexShrink: 0,
+  // Its label ends where the text block does, its own padding hanging outside.
+  marginInlineEnd: `calc(-1 * ${space.S200})`,
+  animation: `${replayIn} ${motion.duration.Slow} ${motion.easing.Standard} both`,
+  '@media': { '(prefers-reduced-motion: reduce)': { animation: 'none' } },
 });
 
 /** The chapter's name: small capitals in the accent color. */

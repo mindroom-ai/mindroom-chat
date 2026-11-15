@@ -74,8 +74,6 @@ type NoticePresence = {
   settled: boolean;
   /** Plays the card out from where it is; for the card's own controls. */
   dismiss: () => void;
-  /** Dismissed and played out: it stays away for as long as the caller is mounted. */
-  gone: boolean;
   /** The card's `onAnimationEnd`, which notes that it has come in. */
   onAnimationEnd: (event: AnimationEvent<HTMLElement>) => void;
 };
@@ -140,7 +138,6 @@ export const useNoticePresence = (due: boolean, phoneLayer: PhoneLayer): NoticeP
     leaving,
     settled,
     dismiss: () => setLeftFrom({ slot, placement }),
-    gone,
     onAnimationEnd: (event) => {
       if (event.target === event.currentTarget && !leaving) cameInAt.current = placement;
     },

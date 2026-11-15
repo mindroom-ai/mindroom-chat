@@ -485,12 +485,12 @@ function MessageRow({ message, ts, replyCount = 0 }: MessageRowProps) {
   );
 }
 
-/** The Threads view: each thread's first message with its reply count, the newest last. */
+/** The Threads view: each thread's first message with its reply count, the newest thread first. */
 function MessageList({ scene, now }: Pick<RoomProps, 'scene' | 'now'>) {
   return (
     <div className={css.Body}>
-      <div className={classNames(css.Messages, css.MessagesAtEnd)}>
-        {[...scene.cards].reverse().map(({ id, state }) => (
+      <div className={css.Messages}>
+        {scene.cards.map(({ id, state }) => (
           <MessageRow
             key={id}
             message={sampleRootMessage(id)}

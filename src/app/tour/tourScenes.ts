@@ -23,7 +23,7 @@ export type SceneCard = { id: SampleThreadId; state: SampleCardState };
 export type TourScene = {
   /** The Compact list of cards, an open thread, or the Threads view's messages. */
   view: 'list' | 'thread' | 'messages';
-  /** Whether the room's header and its composer show; a scene of cards alone has neither. */
+  /** Whether the room's header and its composer show; a phone's scene of cards alone has neither. */
   header: boolean;
   composer: boolean;
   /** How many characters of the sample message the composer holds. */
@@ -170,8 +170,9 @@ const scenesOf = (step: TourStepId, phone: boolean, typedLength: number): TourSc
             card('website', { resolved: true }),
             card('vendor', { snoozed: true }),
           ]),
-          header: false,
-          composer: false,
+          // Four cards and the room around them do not fit a phone's stage: the cards alone do.
+          header: !phone,
+          composer: !phone,
         },
       ];
     case 'resolve': {

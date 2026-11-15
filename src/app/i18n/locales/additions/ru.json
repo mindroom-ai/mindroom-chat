@@ -1231,7 +1231,7 @@
       "settingsSection": "Tour",
       "settingsTitle": "See how threads work",
       "settingsDescription": "A short tour of threads: starting one, titles, order and states.",
-      "settingsKeywords": "tour tutorial guide help onboarding threads",
+      "settingsKeywords": "tour, tutorial, guide, help, onboarding, threads",
       "howThreadsWork": "How threads work",
       "noThreadsHint": "Send a message below to start one."
     }

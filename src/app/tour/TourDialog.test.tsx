@@ -306,6 +306,9 @@ describe('TourDialog', () => {
       'Spring launch email'
     );
 
+    // Outside the stage, which is inert, so it can be pressed.
+    expect(stage().contains(action('replay'))).toBe(false);
+    expect(action('replay')?.textContent).toBe('Replay');
     press('replay');
     expect(stage().getAttribute('data-tour-phase')).toBe('0');
     expect(stage().hasAttribute('data-tour-settled')).toBe(false);

@@ -2,10 +2,9 @@
 import { EventEmitter } from 'events';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
-import { ClientEvent } from 'matrix-js-sdk';
+import { ClientEvent, SyncState } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
-import { ClientStartupProvider } from '../matrix/ClientStartupContext';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { PHONE_SLIDE_OUT_MS, phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { tourAtom } from '../navigation/tourState';
@@ -36,8 +35,11 @@ const account = (userId: string, stored?: unknown) => {
   });
   let held = stored === undefined ? undefined : settingsEvent(stored);
   const setAccountData = vi.fn(async (_type: string, _content: unknown): Promise<void> => {});
+  // Read from its stored copy, as a start is before the server has answered.
+  let syncState: SyncState = SyncState.Prepared;
   const client = Object.assign(new EventEmitter(), {
     getSafeUserId: () => userId,
+    getSyncState: () => syncState,
     getAccountData: (type: string) =>
       type === MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE ? held : undefined,
     setAccountData,
@@ -45,6 +47,16 @@ const account = (userId: string, stored?: unknown) => {
   return {
     client,
     setAccountData,
+    /** The server answers the client's first sync of this start. */
+    sync: (rendered = true) => {
+      const before = syncState;
+      syncState = SyncState.Syncing;
+      const report = () => {
+        client.emit(ClientEvent.Sync, syncState, before);
+      };
+      if (rendered) act(report);
+      else report();
+    },
     /** A sync brings the account's settings. */
     deliver: (content: unknown) => {
       held = settingsEvent(content);
@@ -63,7 +75,7 @@ type Account = ReturnType<typeof account>;
  * says whether a card was ever put into a place.
  */
 const show = (
-  { client }: Account,
+  { client, sync }: Account,
   {
     synced = true,
     config = {},
@@ -98,24 +110,22 @@ const show = (
   };
   const observer = new MutationObserver(noteCards);
   [page, listPlace].forEach((place) => observer.observe(place, { childList: true }));
-  const ui = (hasCompletedInitialSync: boolean) => (
+  if (synced) sync(false);
+  render(
     <Provider store={store}>
       <ClientConfigProvider value={config}>
-        <ClientStartupProvider hasCompletedInitialSync={hasCompletedInitialSync}>
-          {withNewVersion && <NewVersionNotice />}
-          <TourOffer />
-        </ClientStartupProvider>
+        {withNewVersion && <NewVersionNotice />}
+        <TourOffer />
       </ClientConfigProvider>
     </Provider>
   );
-  const view = render(ui(synced));
   return {
     store,
     page,
     listPlace,
     offerPlaces,
-    /** The client's first sync of this start completes. */
-    completeSync: () => view.rerender(ui(true)),
+    /** The server answers the client's first sync of this start. */
+    completeSync: () => sync(),
     everShown: () => {
       noteCards(observer.takeRecords());
       return shown;
@@ -148,7 +158,7 @@ afterEach(() => {
 });
 
 describe('TourOffer', () => {
-  it('shows nothing before the first sync has completed, nor after it when it brought the answer', async () => {
+  it('shows nothing before the client has synced with its server, nor after when that brought the answer', async () => {
     const alice = account(ALICE);
     const { page, completeSync, everShown } = show(alice, { synced: false });
     expect(card(page)).toBeNull();
@@ -161,7 +171,7 @@ describe('TourOffer', () => {
     expect(alice.setAccountData).not.toHaveBeenCalled();
   });
 
-  it('offers the tour once the first sync has completed without an answer', () => {
+  it('offers the tour once the client has synced with its server and found no answer', () => {
     const alice = account(ALICE);
     const { page, completeSync } = show(alice, { synced: false });
 
@@ -269,7 +279,7 @@ describe('TourOffer', () => {
     expect(alice.setAccountData).toHaveBeenCalledOnce();
   });
 
-  it('stores an answer given before the first sync has completed only once it has, over what the sync brought', async () => {
+  it('stores an answer given before the client has synced with its server only once it has, over what the sync brought', async () => {
     const alice = account(ALICE);
     const { store, completeSync, everShown } = show(alice, { synced: false });
 
@@ -289,7 +299,7 @@ describe('TourOffer', () => {
     expect(everShown()).toBe(false);
   });
 
-  it('stores nothing for an answer given before the first sync when that sync brings one', async () => {
+  it('stores nothing for an answer given before the client has synced when the sync brings one', async () => {
     const alice = account(ALICE);
     const { store, completeSync } = show(alice, { synced: false });
 

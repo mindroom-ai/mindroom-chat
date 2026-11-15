@@ -14,14 +14,14 @@ describe('getCommandPaletteQuickActions', () => {
   it('shows only the global action set when no room or thread is selected', () => {
     expect(getCommandPaletteQuickActions({}, t).map((item) => item.id)).toEqual([
       'open-settings',
-      'take-quick-tour',
-      'take-full-tour',
       'go-home',
       'go-direct',
       'go-activity',
       'create-room',
       'create-space',
       'toggle-theme',
+      'take-quick-tour',
+      'take-full-tour',
       'logout',
     ]);
   });
@@ -114,18 +114,13 @@ describe('getCommandPaletteQuickActions', () => {
     });
   });
 
-  it('shows the tour right under Open Settings, and finds both levels by "tutorial"', () => {
+  it('keeps the tour below the everyday actions, and finds both levels by "tutorial"', () => {
     const items = getCommandPaletteQuickActions({}, t);
     const shown = (query: string) =>
       searchCommandPaletteSection({ items, query, config: commandPaletteSearchConfig.actions }).map(
         (item) => item.id
       );
-    expect(shown('').slice(0, 4)).toEqual([
-      'open-settings',
-      'take-quick-tour',
-      'take-full-tour',
-      'go-home',
-    ]);
+    expect(shown('').slice(0, 3)).toEqual(['open-settings', 'go-home', 'go-direct']);
     expect(shown('tutorial')).toEqual(['take-quick-tour', 'take-full-tour']);
     expect(shown('quick tour')[0]).toBe('take-quick-tour');
     expect(shown('full tour')[0]).toBe('take-full-tour');

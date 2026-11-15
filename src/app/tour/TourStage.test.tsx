@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { mockLayout, restoreLayout } from './__tests__/layout';
@@ -11,9 +11,9 @@ import { TOUR_STEPS, type TourStepId } from './tourSteps';
 
 const TYPED = 12;
 
-const stageOf = (scene: TourScene, phone = false, onReplay?: () => void) => (
+const stageOf = (scene: TourScene, phone = false) => (
   <ScreenSizeProvider value={phone ? ScreenSize.Mobile : ScreenSize.Desktop}>
-    <TourStage scene={scene} phone={phone} phase={0} settled={false} onReplay={onReplay} />
+    <TourStage scene={scene} phone={phone} phase={0} settled={false} />
   </ScreenSizeProvider>
 );
 
@@ -99,8 +99,14 @@ describe('TourStage', () => {
     expect(stage().textContent).toContain('finance');
   });
 
-  it('shows the four states without a header or a composer', () => {
+  it('shows the four states, on a phone without a header or a composer', () => {
     show('states');
+    expect(cardIds()).toHaveLength(4);
+    expect(stage().querySelector('[data-tour-header]')).toBeTruthy();
+    expect(stage().querySelector('[data-tour-composer-text]')).toBeTruthy();
+    cleanup();
+
+    show('states', 0, true);
     expect(cardIds()).toHaveLength(4);
     expect(stage().querySelector('[data-tour-header]')).toBeNull();
     expect(stage().querySelector('[data-tour-composer-text]')).toBeNull();
@@ -180,8 +186,8 @@ describe('TourStage', () => {
       stage().querySelectorAll('[data-tour-reply-count]'),
       (chip) => chip.textContent
     );
-    // The newest thread last, as the timeline has it.
-    expect(counts).toEqual(['6 replies', '4 replies', '1 reply']);
+    // The newest thread first, as the Threads view of a room with agents lists them.
+    expect(counts).toEqual(['1 reply', '4 replies', '6 replies']);
     expect(stage().textContent).toContain('Draft the spring launch email');
   });
 
@@ -204,19 +210,6 @@ describe('TourStage', () => {
     expect(parts('bell')[0]?.closest('[data-tour-phone-bar]')).toBeTruthy();
     expect(stage().querySelector('[data-tour-rail]')).toBeNull();
     expect(rows()).toEqual([]);
-  });
-
-  it('offers Replay outside the room only when it is given', () => {
-    const onReplay = vi.fn();
-    const { rerender } = render(stageOf(sceneOf('title', 1, false, TYPED), false, onReplay));
-    const replay = screen.getByRole('button', { name: 'Replay' });
-    expect(replay.getAttribute('data-tour-action')).toBe('replay');
-    expect(stage().contains(replay)).toBe(false);
-    fireEvent.click(replay);
-    expect(onReplay).toHaveBeenCalledOnce();
-
-    rerender(stageOf(sceneOf('title', 1, false, TYPED)));
-    expect(screen.queryByRole('button', { name: 'Replay' })).toBeNull();
   });
 
   it('fades a new view in over the one before it, which loses its marks', () => {
