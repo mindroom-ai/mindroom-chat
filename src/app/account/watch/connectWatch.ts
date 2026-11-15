@@ -1,5 +1,6 @@
 import { ClientPrefix, Method, type AuthDict, type MatrixClient } from 'matrix-js-sdk';
 import { AuthenticationCancelled } from '../uia/useAuthenticatedAction';
+import { hasCloudflareAccess } from '../../native/cloudflareAccess';
 import type { WatchCredentials, WatchSecrets } from '../../native/nativeWatch';
 
 export type ConnectResult =
@@ -29,6 +30,8 @@ export const connectWatch = async (
   now: () => number = Date.now
 ): Promise<ConnectResult> => {
   try {
+    // The watch holds no Cloudflare Access session, so such a server rejects its every request.
+    if (hasCloudflareAccess(mx.getHomeserverUrl())) return { kind: 'unsupported' };
     const { flows } = (await mx.loginFlows()) as { flows: LoginFlow[] };
     if (!flows.some((flow) => flow.type === 'm.login.token' && flow.get_login_token === true)) {
       return { kind: 'unsupported' };

@@ -70,8 +70,8 @@ enum NotificationActions {
     static func perform(_ identifier: String, userInfo: [AnyHashable: Any]) async {
         guard let session = MatrixSession.shared, let event = await PushedEvent.load(userInfo: userInfo, session: session),
               let client = session.client else {
-            // Offline, the event cannot be read: an answer is lost, opening the app is not.
-            if identifier != "open" { notSent(userInfo) }
+            // Offline, the event cannot be read: an answer is lost, a tap opens its thread once sync runs.
+            if identifier == "open" { OpenThreadRequest.shared.unread = userInfo } else { notSent(userInfo) }
             return
         }
         switch event {
@@ -112,6 +112,8 @@ enum NotificationActions {
 final class OpenThreadRequest: ObservableObject {
     static let shared = OpenThreadRequest()
     @Published var target: (roomId: String, threadId: String)?
+    /// A tapped notification whose event could not be read yet.
+    var unread: [AnyHashable: Any]?
 }
 
 /// Delivers the notification's actions to `NotificationActions`.

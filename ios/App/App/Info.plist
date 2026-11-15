@@ -9,6 +9,7 @@
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>chat.mindroom.open-thread</string>
+		<string>chat.mindroom.quick-capture</string>
 	</array>
 	<key>CFBundleURLTypes</key>
 	<array>

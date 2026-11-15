@@ -48,6 +48,12 @@ struct HomeView: View {
         .onChange(of: openThread.target?.threadId, initial: true) { _, _ in openRequestedThread() }
         // On a cold launch the tap may come before the default room is open.
         .onChange(of: model?.room.id()) { _, _ in openRequestedThread() }
+        .onChange(of: session.syncState) { _, state in
+            // A notification tapped offline opens its thread now.
+            guard state == .running, let tap = openThread.unread else { return }
+            openThread.unread = nil
+            Task { await NotificationActions.perform("open", userInfo: tap) }
+        }
         .onOpenURL { url in
             // The complication opens the app recording (`mindroom-watch://record`).
             if url.host == "record" { RecordRequest.shared.pending = true }

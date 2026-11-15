@@ -4,6 +4,9 @@ import { AuthenticationCancelled } from '../uia/useAuthenticatedAction';
 import type { WatchCredentials, WatchSecrets } from '../../native/nativeWatch';
 import { connectWatch, verifyWatch } from './connectWatch';
 
+const access = vi.hoisted(() => ({ on: false }));
+vi.mock('../../native/cloudflareAccess', () => ({ hasCloudflareAccess: () => access.on }));
+
 const NOW = 1_800_000_000_000;
 
 type GetToken = (auth?: AuthDict) => Promise<{ login_token: string; expires_in_ms: number }>;
@@ -63,6 +66,21 @@ describe('connectWatch', () => {
     await expect(connectWatch(mx, send, directRun, () => NOW)).resolves.toEqual({
       kind: 'unsupported',
     });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('says the homeserver cannot connect a watch behind Cloudflare Access', async () => {
+    access.on = true;
+    const { mx, authedRequest } = client({});
+    const send = vi.fn();
+    try {
+      await expect(connectWatch(mx, send, directRun, () => NOW)).resolves.toEqual({
+        kind: 'unsupported',
+      });
+    } finally {
+      access.on = false;
+    }
+    expect(authedRequest).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();
   });
 

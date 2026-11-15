@@ -44,13 +44,22 @@ enum SessionStore {
     /// The store's data and cache folders of a sign-in: one per account and device, so a new account or
     /// a reconnect starts empty, away from the folders of a client that may still be closing.
     static func paths(_ session: Session) -> (data: URL, cache: URL) {
+        let (data, cache) = folders(session)
+        try? FileManager.default.createDirectory(at: data, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+        return (data, cache)
+    }
+
+    /// Whether the sign-in's store is on disk. Deleting the app deletes it and keeps the Keychain.
+    static func hasStore(_ session: Session) -> Bool {
+        FileManager.default.fileExists(atPath: folders(session).data.path)
+    }
+
+    private static func folders(_ session: Session) -> (data: URL, cache: URL) {
         let name = SHA256.hash(data: Data("\(session.userId) \(session.deviceId)".utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
         let fileManager = FileManager.default
-        let data = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("matrix/\(name)")
-        let cache = fileManager.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("matrix/\(name)")
-        try? fileManager.createDirectory(at: data, withIntermediateDirectories: true)
-        try? fileManager.createDirectory(at: cache, withIntermediateDirectories: true)
-        return (data, cache)
+        return (fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("matrix/\(name)"),
+                fileManager.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("matrix/\(name)"))
     }
 
     /// Forgets the saved session and deletes its store.
@@ -60,7 +69,7 @@ enum SessionStore {
     }
 
     static func removeStore(_ session: Session) {
-        let (data, cache) = paths(session)
+        let (data, cache) = folders(session)
         try? FileManager.default.removeItem(at: data)
         try? FileManager.default.removeItem(at: cache)
     }

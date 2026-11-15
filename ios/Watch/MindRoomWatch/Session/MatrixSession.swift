@@ -88,6 +88,14 @@ final class MatrixSession: ObservableObject {
 
     private func restoreNow() async {
         guard client == nil, let session = SessionStore.load() else { return }
+        // The app was deleted and installed again: the Keychain kept the session, the store with the
+        // device's keys is gone. A new store would give the old device new keys, which nothing trusts:
+        // the watch is signed out, and Disconnect on the iPhone deletes the device.
+        guard SessionStore.hasStore(session) else {
+            log.notice("the saved session has no store: signed out")
+            SessionStore.clear()
+            return
+        }
         state = .connecting
         do {
             try await start(session)

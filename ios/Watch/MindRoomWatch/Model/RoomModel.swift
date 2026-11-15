@@ -101,6 +101,8 @@ final class RoomModel: ObservableObject {
             resolved.insert(rootId)
             threadRows.removeAll { $0.rootId == rootId }
             rows.removeAll { $0.rootId == rootId }
+            // A refresh that read the room's state before the tag was there would bring the thread back.
+            scheduleRefresh()
         } catch {
             log.error("resolve failed: \(String(describing: error), privacy: .public)")
         }
@@ -205,7 +207,8 @@ final class RoomModel: ObservableObject {
     /// The user's own messages in the room that no thread holds yet: a voice message just sent,
     /// still sending, or failed.
     private func ownUnansweredRoots(excluding roots: Set<String>) -> [ThreadRow] {
-        feed.events.suffix(20).compactMap { item -> ThreadRow? in
+        let events = feed.events
+        return events.enumerated().compactMap { index, item -> ThreadRow? in
             guard item.isOwn, case let .msgLike(content) = item.content, content.threadRoot == nil,
                   content.threadSummary == nil, case let .message(message) = content.kind else { return nil }
             var id = ""
@@ -214,7 +217,9 @@ final class RoomModel: ObservableObject {
             case let .eventId(eventId): id = eventId; rootId = eventId
             case let .transactionId(transactionId): id = transactionId
             }
-            if let rootId, roots.contains(rootId) { return nil }
+            // A sent message counts among the newest 20 events. One still to send always shows, with its
+            // Delete: a message the server refused holds up every message queued behind it.
+            if let rootId, roots.contains(rootId) || index < events.count - 20 { return nil }
             var queued = false, failed = false
             switch item.localSendState {
             case .notSentYet: queued = true
