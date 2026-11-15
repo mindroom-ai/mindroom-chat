@@ -28,7 +28,7 @@ const plugin = (id: string, threadCardBadges: ThreadCardBadge[]): RegisteredPlug
 });
 
 describe('isThreadCardBadge', () => {
-  it('takes an entry whose Component is a function or a memo or lazy component', () => {
+  it('takes an entry whose Component is a function or a component object, such as a memo', () => {
     expect(isThreadCardBadge({ Component: () => null })).toBe(true);
     expect(isThreadCardBadge({ Component: memo(Component) })).toBe(true);
   });
