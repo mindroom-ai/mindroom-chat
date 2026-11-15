@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { cleanup, render } from '@testing-library/react';
+import { lazy, Suspense, type ComponentType } from 'react';
+import { cleanup, render, screen } from '@testing-library/react';
 import type { Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
@@ -24,6 +25,9 @@ const named = (label: string) =>
 const Broken = (): never => {
   throw new Error('boom');
 };
+
+/** A badge whose code never loads. */
+const NeverLoads = lazy<ComponentType<ThreadCardBadgeProps>>(() => new Promise(() => undefined));
 
 const plugin = (id: string, threadCardBadges: ThreadCardBadge[]): RegisteredPlugin => ({
   id,
@@ -99,5 +103,28 @@ describe('ThreadCardBadges', () => {
           String(first).includes('[plugin broken@1.0.0] failed to render on a thread card')
         )
     ).toBe(true);
+  });
+
+  it('keeps the card and the other badges while a badge waits for its code', () => {
+    // The page's own boundary, which would show its fallback in place of the page.
+    const { container } = render(
+      <Suspense fallback={<p>Page loading</p>}>
+        <ClientConfigProvider value={{}}>
+          <span data-testid="card-text">Thread title</span>
+          <ThreadCardBadges
+            room={room}
+            threadId="$root"
+            plugins={[
+              plugin('waiting', [{ Component: NeverLoads }]),
+              plugin('alpha', [{ Component: named('first') }]),
+            ]}
+          />
+        </ClientConfigProvider>
+      </Suspense>
+    );
+    expect(screen.queryByText('Page loading')).toBeNull();
+    expect(screen.getByTestId('card-text')).toBeTruthy();
+    expect(shown(container)).toEqual(['first !room:example.org $root']);
+    expect(mocks.reportBoundaryError).not.toHaveBeenCalled();
   });
 });

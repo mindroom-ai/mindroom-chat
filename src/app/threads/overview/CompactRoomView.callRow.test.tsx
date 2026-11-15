@@ -4,6 +4,7 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 import type { CallRowContent } from '../../matrix/protocol/callRow';
+import type { ThreadCardBadgeProps } from '../../plugins/threadCardBadges';
 import {
   installEventContentGuard,
   trustAgentsOfViewer,
@@ -15,7 +16,11 @@ const ROOM_ID = '!room:example.org';
 const ROUTER = '@mindroom_router:example.org';
 const PERSON = '@person:example.org';
 
-const state = vi.hoisted(() => ({ models: [] as CompactThreadCardViewModel[] }));
+const state = vi.hoisted(() => ({
+  models: [] as CompactThreadCardViewModel[],
+  // What each render of the plugin's badge was given.
+  badgeProps: [] as ThreadCardBadgeProps[],
+}));
 
 // The call's row as a stub, with a control of its own like Join.
 vi.mock('../../calls/transcription/CallRow', () => ({
@@ -54,8 +59,32 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ i18n: { language: 'en' }, t: (key: string) => key }),
 }));
 // The plugin registry loads the app's i18n, which the react-i18next stand-in above cannot set up;
-// unit tests build no plugins anyway.
-vi.mock('../../plugins/registry', () => ({ registeredPlugins: [] }));
+// in its place, the build's one plugin, whose thread card badge names the room and thread it got.
+vi.mock('../../plugins/registry', () => ({
+  registeredPlugins: [
+    {
+      id: 'marks',
+      tag: 'marks@1.0.0',
+      conversationCovers: [],
+      messageRenderers: [],
+      pages: [],
+      roomHeaderSlot: [],
+      sidePanels: [],
+      headerActions: [],
+      slashCommands: [],
+      roomActions: [],
+      messageLinks: [],
+      threadCardBadges: [
+        {
+          Component: (props: ThreadCardBadgeProps) => {
+            state.badgeProps.push(props);
+            return <span data-badge-stub={props.threadId}>{props.room.roomId}</span>;
+          },
+        },
+      ],
+    },
+  ],
+}));
 
 const message = (eventId: string, sender: string, content: IContent) =>
   new MatrixEvent({
@@ -101,14 +130,18 @@ const viewModel = (threadRootId: string, titleText: string): CompactThreadCardVi
 
 let renderer: ReactTestRenderer | undefined;
 
-/** The compact list of a room whose thread roots are `events`. */
-const renderList = async (events: MatrixEvent[]) => {
+/** A room whose thread roots are `events`. */
+const roomOf = (events: MatrixEvent[]) => {
   const byId = new Map(events.map((event) => [event.getId(), event]));
-  const room = {
+  return {
     roomId: ROOM_ID,
     getUnfilteredTimelineSet: () => ({ findEventById: (id: string) => byId.get(id) }),
     getThread: () => null,
   } as unknown as Room;
+};
+
+/** The compact list of `room`, whose thread roots are `events`. */
+const renderList = async (events: MatrixEvent[], room = roomOf(events)) => {
   state.models = events.map((event) =>
     viewModel(event.getId() ?? '', String(event.getContent().body))
   );
@@ -169,6 +202,7 @@ beforeAll(() => {
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
+  state.badgeProps = [];
 });
 
 describe('a call row in the compact thread list', () => {
@@ -204,5 +238,52 @@ describe('a call row in the compact thread list', () => {
   it("shows no row for a person's message that carries the key", async () => {
     const tree = await renderList([message('$person', PERSON, LIVE)]);
     expect(rowIdsOf(tree)).toEqual([]);
+  });
+});
+
+describe("a client plugin's badge in the compact thread list", () => {
+  /** The thread each shown badge names, with the root of the card button around it. */
+  const badgesOf = (tree: ReactTestRenderer) =>
+    tree.root
+      .findAll(
+        (node) => typeof node.type === 'string' && node.props['data-badge-stub'] !== undefined
+      )
+      .map((node) => {
+        let button = node.parent;
+        while (button && button.type !== 'button') button = button.parent;
+        return {
+          thread: node.props['data-badge-stub'] as string,
+          card: button?.props['data-thread-root-id'] as string | undefined,
+        };
+      });
+
+  const cardsOf = (tree: ReactTestRenderer) =>
+    tree.root
+      .findAll((node) => node.type === 'button' && node.props['data-thread-root-id'])
+      .map((node) => node.props['data-thread-root-id'] as string);
+
+  it("draws it inside the thread's card button, given the row's room and the thread's root", async () => {
+    const root = message('$root', PERSON, { msgtype: 'm.text', body: 'Plan the trip' });
+    const room = roomOf([root]);
+    const tree = await renderList([root], room);
+
+    expect(badgesOf(tree)).toEqual([{ thread: '$root', card: '$root' }]);
+    expect(state.badgeProps.length).toBeGreaterThan(0);
+    for (const props of state.badgeProps) {
+      expect(props.room).toBe(room);
+      expect(props.threadId).toBe('$root');
+    }
+  });
+
+  it('draws none on the card of a thread whose root is still sending, and draws it on a sent one', async () => {
+    const sending = message('~!room:example.org:m1.1', PERSON, {
+      msgtype: 'm.text',
+      body: 'Still sending',
+    });
+    const sent = message('$sent', PERSON, { msgtype: 'm.text', body: 'Sent' });
+    const tree = await renderList([sending, sent]);
+
+    expect(cardsOf(tree)).toEqual(['~!room:example.org:m1.1', '$sent']);
+    expect(badgesOf(tree)).toEqual([{ thread: '$sent', card: '$sent' }]);
   });
 });
