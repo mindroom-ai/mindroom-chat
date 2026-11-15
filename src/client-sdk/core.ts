@@ -27,6 +27,7 @@ export {
 } from '../app/plugins/pluginPages';
 export { usePluginStorage, type PluginStorage } from '../app/plugins/pluginStorage';
 export { useRoomSidePanel, type RoomSidePanelControl } from '../app/plugins/sidePanels';
+export type { ThreadCardBadge, ThreadCardBadgeProps } from '../app/plugins/threadCardBadges';
 export { usePanelFrame, type PanelFrame } from '../app/ui/panels/panelFrameContext';
 export { getPluginTranslation, usePluginTranslation } from '../app/plugins/pluginTranslations';
 

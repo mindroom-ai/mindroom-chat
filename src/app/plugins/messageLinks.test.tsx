@@ -27,6 +27,7 @@ const plugin = (id: string, messageLinks: MessageLink[]): RegisteredPlugin => ({
   slashCommands: [],
   roomActions: [],
   messageLinks,
+  threadCardBadges: [],
 });
 
 const matcher = (plugins: RegisteredPlugin[], config?: ClientConfig) =>

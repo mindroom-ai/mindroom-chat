@@ -21,7 +21,7 @@ Each subpath is a module of its own, so a plugin's entry, which loads with the a
 
 ### `core`
 
-`core` has the plugin types (`ClientPlugin`, `MessageRenderer`, `PluginEvent`, `PluginPage`, `PluginPageProps`, `MessageLink`, `MessageLinkCardProps`), `usePluginConfig`, `usePluginStorage`, `usePluginTranslation`, `getPluginTranslation`, `useRoomSidePanel`, `usePanelFrame`, `pluginRoutePath`, `usePluginRouteHref`, `pluginPublicUrl`, `reloadForNewVersion()`, which reloads the page into the newest version the server has, as the app's own update notice does, also when the page has not noticed that version yet, and `commandUsage()`, the refusal a slash command's `run` throws to show its usage.
+`core` has the plugin types (`ClientPlugin`, `MessageRenderer`, `PluginEvent`, `PluginPage`, `PluginPageProps`, `MessageLink`, `MessageLinkCardProps`, `ThreadCardBadge`, `ThreadCardBadgeProps`), `usePluginConfig`, `usePluginStorage`, `usePluginTranslation`, `getPluginTranslation`, `useRoomSidePanel`, `usePanelFrame`, `pluginRoutePath`, `usePluginRouteHref`, `pluginPublicUrl`, `reloadForNewVersion()`, which reloads the page into the newest version the server has, as the app's own update notice does, also when the page has not noticed that version yet, and `commandUsage()`, the refusal a slash command's `run` throws to show its usage.
 
 ### `matrix`
 
@@ -172,7 +172,7 @@ one that uses `useMindroomServer`, `useMindroomServerStatus` or `useRoomComputer
 
 ## SDK versions
 
-`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 55), naming the plugin.
+`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 56), naming the plugin.
 The SDK only grows: nothing a plugin uses is changed or removed, and each addition raises that version, a new export as well as a new kind of contribution in `ClientPlugin` or a new field of the declaration, so a plugin built for an older SDK still builds and one that uses a newer addition never builds into a client that would ignore it.
 
 ### What each version added
@@ -231,6 +231,7 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 - version 53 the `fixtures` subpath
 - version 54 `testing`'s `PanelPlace`
 - version 55 a message renderer's `hidden`
+- version 56 thread card badges
 
 ## Pinches
 
@@ -440,6 +441,15 @@ Escape, a click outside the card and `close()` close the card, and the focus goe
 One card shows at a time: another link's card takes its place, and a switch to another room closes it.
 A `Component` that throws closes the card, logged and reported with `[plugin <id>@<version>]`.
 `plugins.<id>.enabled: false` and `?plugins=off` turn the kind off as they turn off the others.
+
+## Thread card badges
+
+Thread card badges (`src/app/plugins/threadCardBadges.ts`) are the tenth kind: `ClientPlugin.threadCardBadges`, a list of `{ Component }`.
+`Component` gets `{ room, threadId }`: the thread's room (matrix-js-sdk's `Room`) and the ID of its root event, and draws a small mark for that thread, such as the state of a pull request it works on, or nothing.
+The Compact view draws the badges of the enabled plugins, in build order, on each thread's card, in the card's metadata row after the thread's tags.
+They are drawn inside the card's button, so a badge renders no control of its own: no button, no link and nothing that takes the focus, and a click on it opens the thread as a click anywhere on the card does.
+A click handler on the badge's element may stop the click (`event.stopPropagation()`) to keep the thread closed.
+A badge that throws shows nothing, and the failure is logged and reported with `[plugin <id>@<version>]`.
 
 ## Turning plugins off
 

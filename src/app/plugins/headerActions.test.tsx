@@ -30,6 +30,7 @@ const plugin = (id: string, headerActions: HeaderAction[]): RegisteredPlugin => 
   slashCommands: [],
   roomActions: [],
   messageLinks: [],
+  threadCardBadges: [],
 });
 
 describe('usePluginHeaderActions', () => {

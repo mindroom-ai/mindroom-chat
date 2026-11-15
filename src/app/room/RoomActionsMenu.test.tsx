@@ -375,6 +375,7 @@ describe("plugins' entries", () => {
       slashCommands: [],
       roomActions,
       messageLinks: [],
+      threadCardBadges: [],
     });
   };
 
