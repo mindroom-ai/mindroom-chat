@@ -364,6 +364,8 @@ test.describe('calls', () => {
       await bobPage.setViewportSize({ width: 1280, height: 260 });
       await callPanel(bobPage).getByRole('button', { name: 'Settings' }).click();
       const lastDevice = devices.getByRole('menuitemradio').last();
+      // The devices come in after the menu opens, and a row that is not there is out of view too.
+      await expect(lastDevice).toBeAttached();
       await expect(lastDevice).not.toBeInViewport();
       await lastDevice.scrollIntoViewIfNeeded();
       await expect(lastDevice).toBeInViewport();

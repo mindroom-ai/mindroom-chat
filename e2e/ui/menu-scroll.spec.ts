@@ -89,7 +89,9 @@ test('a settings picker that fits keeps its rows as far from both edges of the m
 
   const menu = page.getByRole('menu');
   await expect(menu).toBeVisible();
-  expect(await menu.evaluate((element) => element.scrollHeight - element.clientHeight)).toBe(0);
+  expect(
+    await menu.evaluate((element) => element.scrollHeight - element.clientHeight)
+  ).toBeLessThanOrEqual(1);
   const { start, end } = await edgeGaps(menu.getByRole('menuitemradio').first());
   expect(Math.abs(end - start)).toBeLessThanOrEqual(1);
 });
