@@ -112,25 +112,37 @@ test.describe('phone member sheet', () => {
     await openRoom(page);
     const roomUrl = page.url();
     const dialog = page.getByRole('dialog', { name: 'Members', exact: true });
+    const sheet = page.getByTestId('phone-members-sheet');
     // A phone's header leaves Members to the room menu, whose button gets focus back.
     const show = roomMoreOptions(page);
     const showEntry = page.getByRole('menuitem', { name: 'Show Members', exact: true });
+    // Out (a frame after it mounts) the sheet holds the focus and takes Escape and taps on the
+    // dimmed page; it stays mounted while it slides away.
+    const expectOut = async () => {
+      await expect(sheet).toHaveAttribute('data-open', 'true');
+      await expect
+        .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
+        .toBe(true);
+    };
+    const expectGone = async () => {
+      await expect(sheet).toHaveCount(0);
+      await expect(page).toHaveURL(roomUrl);
+      await expect(show).toBeFocused();
+    };
     const openWithKeyboard = async () => {
       await show.focus();
       await page.keyboard.press('Enter');
       await showEntry.focus();
       await page.keyboard.press('Enter');
+      await expectOut();
     };
     const openWithTap = async () => {
       await show.tap();
       await showEntry.tap();
+      await expectOut();
     };
-    const expectFocusInside = () =>
-      expect
-        .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
-        .toBe(true);
     await expect(show).toBeVisible();
-    await expect(dialog).toHaveCount(0);
+    await expect(sheet).toHaveCount(0);
     const editor = page.locator('[data-slate-editor="true"]').first();
     const editorWidth = await widthOf(editor);
 
@@ -139,34 +151,24 @@ test.describe('phone member sheet', () => {
 
     // A phone's members are a sheet over the page: nothing to resize, and the room keeps its width.
     await openWithKeyboard();
-    await expect(dialog).toBeVisible();
-    await expectFocusInside();
     await expect(dialog.getByRole('separator', { name: 'Resize member panel' })).toHaveCount(0);
     await expect.poll(() => widthOf(editor)).toBe(editorWidth);
     await page.screenshot({ path: test.info().outputPath('members-phone-sheet.png') });
     await dialog.getByRole('button', { name: 'Close', exact: true }).tap();
-    await expect(dialog).toHaveCount(0);
-    await expect(page).toHaveURL(roomUrl);
-    await expect(show).toBeFocused();
+    await expectGone();
 
     await openWithKeyboard();
-    await expectFocusInside();
     await page.keyboard.press('Escape');
-    await expect(dialog).toHaveCount(0);
-    await expect(show).toBeFocused();
+    await expectGone();
 
     await openWithTap();
-    await expect(dialog).toBeVisible();
-    await expectFocusInside();
     await page.keyboard.press('Escape');
-    await expect(dialog).toHaveCount(0);
+    await expectGone();
     await openWithTap();
-    await expect(dialog).toBeVisible();
     // The dimmed page beside the sheet puts it away.
     await page.touchscreen.tap(20, 350);
-    await expect(dialog).toHaveCount(0);
+    await expectGone();
     await expect.poll(() => widthOf(editor)).toBe(editorWidth);
-    await expect(page).toHaveURL(roomUrl);
     await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 390);
     expect(errors).toEqual([]);
   });
@@ -184,19 +186,24 @@ test('space members open as a sheet and close at 390px', async ({ page }) => {
   await page.goto(`/${encodeURIComponent(spaceId)}/lobby/`);
   const lobbyUrl = page.url();
   const dialog = page.getByRole('dialog', { name: 'Members', exact: true });
+  const sheet = page.getByTestId('phone-members-sheet');
   const members = page.getByRole('button', { name: 'Members', exact: true });
+  const openAndExpectOut = async () => {
+    await members.click();
+    await expect(sheet).toHaveAttribute('data-open', 'true');
+    await expect
+      .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
+      .toBe(true);
+  };
   await expect(members).toBeVisible();
-  await expect(dialog).toHaveCount(0);
-  await members.click();
-  await expect(dialog).toBeVisible();
+  await expect(sheet).toHaveCount(0);
+  await openAndExpectOut();
   await expect(page.getByTestId('resizable-members-panel')).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
-  await expect(dialog).toHaveCount(0);
-  await members.click();
-  // Escape puts the sheet away once it is out.
-  await expect(page.getByTestId('phone-members-sheet')).toHaveAttribute('data-open', 'true');
+  await expect(sheet).toHaveCount(0);
+  await openAndExpectOut();
   await page.keyboard.press('Escape');
-  await expect(dialog).toHaveCount(0);
+  await expect(sheet).toHaveCount(0);
   await expect(page).toHaveURL(lobbyUrl);
   await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 390);
 });
