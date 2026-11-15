@@ -133,6 +133,8 @@ describe('ThreadsNav', () => {
         expect.stringContaining('Staging deploy'),
       ]);
       expect(motion.glided()).toEqual(['b']);
+      // A group's heading is a row too, so it moves with the rows under it.
+      expect(group('Recent').querySelector('h3')?.dataset.motionRow).toBe('group:recent');
     } finally {
       motion.restore();
     }

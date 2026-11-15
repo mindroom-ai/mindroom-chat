@@ -266,6 +266,8 @@ describe('ActivityList', () => {
         expect.stringContaining('Mind asked you'),
       ]);
       expect(motion.glided()).toContain('m');
+      // A day's divider is a row too, so it moves with the rows under it.
+      expect(document.querySelector('[data-motion-row^="day:"]')?.textContent).toBe('Today');
     } finally {
       motion.restore();
     }
