@@ -129,6 +129,7 @@ describe('useToolbarClearance', () => {
     renderRow(400);
     renderRow(140);
     expect(document.querySelectorAll('[data-testid="row"]')).toHaveLength(1);
+    expect(document.body.childElementCount).toBe(1);
   });
 
   it('keeps the usual place above a row with room above it', () => {
