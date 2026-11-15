@@ -15,7 +15,14 @@ import {
 } from '..';
 import { loadCachedEventAcrossRoomScopes, loadRoomOfflineEventBatch } from '../cacheStoreEvents';
 import { openCacheStore } from '../cacheStoreDb';
-import { EVENTS_STORE, buildEventCacheKey } from '../cacheStoreSchema';
+import {
+  EVENTS_STORE,
+  META_STORE,
+  buildEventCacheKey,
+  buildMetaKey,
+  type CachedMetaRecord,
+} from '../cacheStoreSchema';
+import { putLegacyRows } from './legacyRows';
 
 // A root's thread summary is the server's word at the moment the page read it. A thread list read
 // while an agent streams keeps the reply's placeholder in it; the page then saves the reply's
@@ -170,7 +177,9 @@ describe('a cached thread whose root is another room’s', () => {
   });
 
   it('is not a thread of the room it was saved under', async () => {
-    await save([], otherRoot());
+    await putLegacyRows(SESSION_ID, ROOM_ID, {
+      roots: [{ scope: ROOT_ID, rootEvent: otherRoot() }],
+    });
 
     expect(await loadCachedThreadRootsForRoom(SESSION_ID, ROOM_ID)).toEqual([]);
     expect(await loadCachedThreadEvent(SESSION_ID, ROOM_ID, ROOT_ID, ROOT_ID)).toBeUndefined();
@@ -182,11 +191,13 @@ describe('a cached thread whose root is another room’s', () => {
   });
 
   it('leaves out events saved under a room they do not name', async () => {
-    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [
-      { ...otherRoot(), event_id: '$other-root' },
-      root(reply('completed'), 1),
-    ]);
-    await save([{ ...reply('completed'), room_id: OTHER_ROOM_ID }]);
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [root(reply('completed'), 1)]);
+    await putLegacyRows(SESSION_ID, ROOM_ID, {
+      events: [
+        { scope: '', rawEvent: { ...otherRoot(), event_id: '$other-root' } },
+        { scope: ROOT_ID, rawEvent: { ...reply('completed'), room_id: OTHER_ROOM_ID } },
+      ],
+    });
 
     const roomPage = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10);
     expect(roomPage.events.map((event) => event.room_id)).toEqual([ROOM_ID]);
@@ -208,7 +219,8 @@ describe('a cached thread whose root is another room’s', () => {
     const own = notice('$own', 3_000);
     const foreign = { ...notice('$foreign', 4_000), room_id: OTHER_ROOM_ID };
     // A plain root takes the newest reply it holds; a summarized one, the newer replies.
-    await save([own, foreign], { ...root(reply('pending'), 1), unsigned: {} });
+    await save([own], { ...root(reply('pending'), 1), unsigned: {} });
+    await putLegacyRows(SESSION_ID, ROOM_ID, { events: [{ scope: ROOT_ID, rawEvent: foreign }] });
     const [plain] = await loadCachedThreadRootsForRoom(SESSION_ID, ROOM_ID);
     expect(plain?.latestReply?.event_id).toBe('$own');
 
@@ -223,7 +235,10 @@ describe('a cached thread whose root is another room’s', () => {
     const { room_id: _rootRoomId, ...rootWithoutRoom } = root(reply('completed'), 1);
     // The root's own copy and a reply were saved without a room; the thread's root names another.
     await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [rootWithoutRoom]);
-    await save([replyWithoutRoom], otherRoot());
+    await save([replyWithoutRoom]);
+    await putLegacyRows(SESSION_ID, ROOM_ID, {
+      roots: [{ scope: ROOT_ID, rootEvent: otherRoot() }],
+    });
 
     expect(await loadCachedThreadRootsForRoom(SESSION_ID, ROOM_ID)).toEqual([]);
     expect(await loadCachedThreadEvent(SESSION_ID, ROOM_ID, ROOT_ID, REPLY_ID)).toBeUndefined();
@@ -237,9 +252,14 @@ describe('a cached thread whose root is another room’s', () => {
       sender: PERSON,
       content: { body: '* other', 'm.relates_to': { rel_type: 'm.replace', event_id: ROOT_ID } },
     };
-    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [
-      { ...otherRoot(), unsigned: { 'm.relations': { 'm.replace': rootEdit } } },
-    ]);
+    await putLegacyRows(SESSION_ID, ROOM_ID, {
+      events: [
+        {
+          scope: '',
+          rawEvent: { ...otherRoot(), unsigned: { 'm.relations': { 'm.replace': rootEdit } } },
+        },
+      ],
+    });
     await save([], rootWithoutRoom);
     const replacementOf = (event: Partial<IEvent> | undefined) =>
       event?.unsigned?.['m.relations']?.['m.replace'];
@@ -253,28 +273,67 @@ describe('a cached thread whose root is another room’s', () => {
   });
 
   it('finds this room’s root over a copy that names another room, and skips such a reply', async () => {
-    await save([{ ...reply('completed'), room_id: OTHER_ROOM_ID }], root(reply('completed'), 1));
+    await save([], root(reply('completed'), 1));
     // An earlier version could save the root under its own thread's scope, as another room's.
-    const db = await openCacheStore(SESSION_ID);
-    await new Promise<void>((resolve, reject) => {
-      const transaction = db!.transaction(EVENTS_STORE, 'readwrite');
-      transaction.objectStore(EVENTS_STORE).put({
-        cacheKey: buildEventCacheKey(ROOM_ID, ROOT_ID, ROOT_ID),
-        roomId: ROOM_ID,
-        scope: ROOT_ID,
-        eventId: ROOT_ID,
-        ts: 1_000,
-        rawEvent: otherRoot(),
-        approxBytes: 0,
-      });
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
+    await putLegacyRows(SESSION_ID, ROOM_ID, {
+      events: [
+        { scope: ROOT_ID, rawEvent: otherRoot() },
+        { scope: ROOT_ID, rawEvent: { ...reply('completed'), room_id: OTHER_ROOM_ID } },
+      ],
     });
 
     const found = await loadCachedThreadEvent(SESSION_ID, ROOM_ID, ROOT_ID, ROOT_ID);
     expect(found?.event_id).toBe(ROOT_ID);
     expect(found?.room_id).toBe(ROOM_ID);
     expect(await loadCachedThreadEvent(SESSION_ID, ROOM_ID, ROOT_ID, REPLY_ID)).toBeUndefined();
+  });
+
+  it('is saved by neither save, while this room’s rows and rows without a room are', async () => {
+    const { room_id: _roomId, ...replyWithoutRoom } = notice('$no-room', 3_500);
+    const foreignReply = { ...notice('$foreign', 4_000), room_id: OTHER_ROOM_ID };
+    const { room_id: _rootRoomId, ...roomEventWithoutRoom } = notice('$room-no-room', 1_500);
+    // The token belongs before the earliest event this room keeps.
+    await saveRoomEventsToCache(
+      SESSION_ID,
+      ROOM_ID,
+      [
+        { ...otherRoot(), event_id: '$other-root' },
+        root(reply('completed'), 1),
+        roomEventWithoutRoom,
+      ],
+      'token-before'
+    );
+    await save([notice('$own', 3_000), foreignReply, replyWithoutRoom], otherRoot());
+
+    const db = await openCacheStore(SESSION_ID);
+    const read = (store: string, key: string) =>
+      new Promise<unknown>((resolve, reject) => {
+        const request = db!.transaction(store, 'readonly').objectStore(store).get(key);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    expect(await read(EVENTS_STORE, buildEventCacheKey(ROOM_ID, '', '$other-root'))).toBe(
+      undefined
+    );
+    expect(await read(EVENTS_STORE, buildEventCacheKey(ROOM_ID, '', ROOT_ID))).toBeDefined();
+    expect(
+      await read(EVENTS_STORE, buildEventCacheKey(ROOM_ID, '', '$room-no-room'))
+    ).toBeDefined();
+    const roomMeta = (await read(META_STORE, buildMetaKey(ROOM_ID, ''))) as
+      | CachedMetaRecord
+      | undefined;
+    expect(Object.keys(roomMeta?.beforeTokens ?? {})).toEqual([ROOT_ID]);
+    expect(await read(EVENTS_STORE, buildEventCacheKey(ROOM_ID, ROOT_ID, '$foreign'))).toBe(
+      undefined
+    );
+    expect(await read(EVENTS_STORE, buildEventCacheKey(ROOM_ID, ROOT_ID, '$own'))).toBeDefined();
+    expect(
+      await read(EVENTS_STORE, buildEventCacheKey(ROOM_ID, ROOT_ID, '$no-room'))
+    ).toBeDefined();
+    const meta = (await read(META_STORE, buildMetaKey(ROOM_ID, ROOT_ID))) as
+      | CachedMetaRecord
+      | undefined;
+    expect(meta?.rootEvent).toBeUndefined();
   });
 
   it('keeps a root saved without its room, as older rows were', async () => {
