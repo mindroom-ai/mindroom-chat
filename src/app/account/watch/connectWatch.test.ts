@@ -17,6 +17,8 @@ const client = (options: {
   crossSigningKeys?: boolean;
   exportBundle?: () => Promise<unknown>;
   devicesAfter?: number;
+  /** The signing key the homeserver lists for the watch's device. */
+  listedKey?: string;
 }) => {
   let polls = 0;
   const crossSignDevice = vi.fn(async () => undefined);
@@ -48,7 +50,9 @@ const client = (options: {
       getUserDeviceInfo: async () => {
         polls += 1;
         const devices = new Map<string, unknown>();
-        if (polls > (options.devicesAfter ?? 0)) devices.set('WATCH', {});
+        if (polls > (options.devicesAfter ?? 0)) {
+          devices.set('WATCH', { getFingerprint: () => options.listedKey ?? 'KEY' });
+        }
         return new Map([['@bas:mindroom.chat', devices]]);
       },
       crossSignDevice,
@@ -148,11 +152,12 @@ describe('connectWatch', () => {
 
 describe('verifyWatch', () => {
   const options = { timeoutMs: 1000, pollMs: 1 };
+  const WATCH = { deviceId: 'WATCH', deviceKey: 'KEY' };
 
   it('cross-signs the watch once its keys are visible, then sends it the secrets bundle', async () => {
     const { mx, crossSignDevice } = client({ devicesAfter: 2 });
     const send = vi.fn(async (_message: WatchSecrets) => undefined);
-    await expect(verifyWatch(mx, 'WATCH', send, options)).resolves.toBe('verified');
+    await expect(verifyWatch(mx, WATCH, send, options)).resolves.toBe('verified');
     expect(crossSignDevice).toHaveBeenCalledWith('WATCH');
     expect(send).toHaveBeenCalledWith({
       v: 1,
@@ -162,10 +167,21 @@ describe('verifyWatch', () => {
     });
   });
 
+  it('refuses a device whose key on the homeserver is not the one the watch named', async () => {
+    const { mx, crossSignDevice, exportSecretsBundle } = client({ listedKey: 'OTHER' });
+    const send = vi.fn();
+    await expect(verifyWatch(mx, WATCH, send, options)).rejects.toThrow(
+      'The homeserver lists another key for the watch.'
+    );
+    expect(crossSignDevice).not.toHaveBeenCalled();
+    expect(exportSecretsBundle).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it('leaves the watch unverified when this device has no cross-signing keys', async () => {
     const { mx, crossSignDevice, exportSecretsBundle } = client({ crossSigningKeys: false });
     const send = vi.fn();
-    await expect(verifyWatch(mx, 'WATCH', send, options)).resolves.toBe('no-cross-signing');
+    await expect(verifyWatch(mx, WATCH, send, options)).resolves.toBe('no-cross-signing');
     expect(crossSignDevice).not.toHaveBeenCalled();
     expect(exportSecretsBundle).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();
@@ -176,7 +192,7 @@ describe('verifyWatch', () => {
     const bundle = { cross_signing: { master_key: 'm' } };
     const { mx, crossSignDevice } = client({ exportBundle: async () => bundle });
     const send = vi.fn(async (_message: WatchSecrets) => undefined);
-    await expect(verifyWatch(mx, 'WATCH', send, options)).resolves.toBe('no-backup');
+    await expect(verifyWatch(mx, WATCH, send, options)).resolves.toBe('no-backup');
     expect(crossSignDevice).toHaveBeenCalledWith('WATCH');
     expect(send).toHaveBeenCalledWith(expect.objectContaining({ bundle: JSON.stringify(bundle) }));
   });
@@ -188,14 +204,14 @@ describe('verifyWatch', () => {
       },
     });
     const send = vi.fn();
-    await expect(verifyWatch(mx, 'WATCH', send, options)).rejects.toThrow('no backup version');
+    await expect(verifyWatch(mx, WATCH, send, options)).rejects.toThrow('no backup version');
     expect(send).not.toHaveBeenCalled();
   });
 
   it('gives up when the watch keys never show', async () => {
     const { mx, crossSignDevice } = client({ devicesAfter: Infinity });
     const send = vi.fn();
-    await expect(verifyWatch(mx, 'WATCH', send, { timeoutMs: 20, pollMs: 1 })).resolves.toBe(
+    await expect(verifyWatch(mx, WATCH, send, { timeoutMs: 20, pollMs: 1 })).resolves.toBe(
       'timeout'
     );
     expect(crossSignDevice).not.toHaveBeenCalled();

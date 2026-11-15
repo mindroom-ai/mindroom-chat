@@ -17,8 +17,11 @@ export type WatchCredentials = {
  */
 export type WatchSecrets = { v: 1; kind: 'secrets'; userId: string; bundle: string };
 
-/** The watch's own Matrix device, once it signed in. */
-export type WatchDevice = { userId: string; deviceId: string };
+/**
+ * The watch's own Matrix device, once it signed in. `deviceKey` is its Ed25519 signing key as the
+ * watch itself named it over WatchConnectivity.
+ */
+export type WatchDevice = { userId: string; deviceId: string; deviceKey: string };
 
 /** A thread the watch handed off to the iPhone (Handoff from the watch's thread screen). */
 /** `userId`: the account the watch shows the thread as. */

@@ -18,8 +18,10 @@ final class WatchLinkMessageTests: XCTestCase {
     }
 
     func testSignedInAndSignOut() {
-        let signedIn = WatchLinkMessage.signedIn(userId: "@bas:x", deviceId: "WATCH")
+        let signedIn = WatchLinkMessage.signedIn(userId: "@bas:x", deviceId: "WATCH", deviceKey: "ed25519key")
         XCTAssertEqual(WatchLinkMessage(dictionary: signedIn.dictionary), signedIn)
+        // The iPhone verifies only a device whose key the watch named.
+        XCTAssertNil(WatchLinkMessage(dictionary: ["v": 1, "kind": "signedIn", "userId": "@bas:x", "deviceId": "WATCH"]))
         XCTAssertEqual(WatchLinkMessage(dictionary: ["v": 1, "kind": "signOut"]), .signOut)
     }
 

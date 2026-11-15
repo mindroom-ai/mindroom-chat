@@ -38,9 +38,17 @@ describe('MindRoomWatchPlugin native contract', () => {
       expect(pluginSource).toContain(`"${kind}"`);
       expect(linkMessageSource).toContain(`"${kind}"`);
     });
-    ['homeserverUrl', 'userId', 'loginToken', 'expiresAt', 'deviceId', 'bundle'].forEach((key) =>
-      expect(linkMessageSource).toContain(`"${key}"`)
-    );
+    [
+      'homeserverUrl',
+      'userId',
+      'loginToken',
+      'expiresAt',
+      'deviceId',
+      'deviceKey',
+      'bundle',
+    ].forEach((key) => expect(linkMessageSource).toContain(`"${key}"`));
+    // The device the watch names carries its signing key, which the web side checks before verifying.
+    expect(pluginSource).toContain('let deviceKey = message["deviceKey"] as? String');
   });
 
   it('takes the watch’s Handoff in the main scene, as a declared activity type', () => {

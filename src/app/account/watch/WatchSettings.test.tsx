@@ -78,12 +78,14 @@ vi.mock('../../ui/SettingTile', () => ({
   ),
 }));
 
+const WATCH: WatchDevice = { userId: '@bas:mindroom.chat', deviceId: 'WATCH', deviceKey: 'KEY' };
+
 const renderSettings = async () => {
   render(<AppleWatch requestClose={() => undefined} />);
   await act(async () => undefined);
 };
 
-const connectThenSignIn = async (device = { userId: '@bas:mindroom.chat', deviceId: 'WATCH' }) => {
+const connectThenSignIn = async (device = WATCH) => {
   await act(async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
   });
@@ -124,7 +126,7 @@ describe('AppleWatch', () => {
       paired: false,
       installed: false,
       reachable: false,
-      device: { userId: '@bas:mindroom.chat', deviceId: 'WATCH' },
+      device: WATCH,
     };
     await renderSettings();
     expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy();
@@ -134,19 +136,19 @@ describe('AppleWatch', () => {
     server.crossSigned = false;
     native.status = {
       ...native.status,
-      device: { userId: '@bas:mindroom.chat', deviceId: 'WATCH' },
+      device: WATCH,
     };
     await renderSettings();
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
     });
-    expect(flow.verify).toHaveBeenCalledWith(expect.anything(), 'WATCH', native.sendSecrets);
+    expect(flow.verify).toHaveBeenCalledWith(expect.anything(), WATCH, native.sendSecrets);
   });
 
   it('offers no Verify for a cross-signed watch', async () => {
     native.status = {
       ...native.status,
-      device: { userId: '@bas:mindroom.chat', deviceId: 'WATCH' },
+      device: WATCH,
     };
     await renderSettings();
     expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy();
@@ -172,12 +174,12 @@ describe('AppleWatch', () => {
 
     native.status = {
       ...native.status,
-      device: { userId: '@bas:mindroom.chat', deviceId: 'WATCH' },
+      device: WATCH,
     };
     await act(async () => {
-      native.signedIn?.({ userId: '@bas:mindroom.chat', deviceId: 'WATCH' });
+      native.signedIn?.(WATCH);
     });
-    expect(flow.verify).toHaveBeenCalledWith(expect.anything(), 'WATCH', native.sendSecrets);
+    expect(flow.verify).toHaveBeenCalledWith(expect.anything(), WATCH, native.sendSecrets);
     expect(screen.getByText('Connected as WATCH.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy();
   });
@@ -208,7 +210,7 @@ describe('AppleWatch', () => {
 
   it('ignores a sign-in of another account', async () => {
     await renderSettings();
-    await connectThenSignIn({ userId: '@other:mindroom.chat', deviceId: 'X' });
+    await connectThenSignIn({ userId: '@other:mindroom.chat', deviceId: 'X', deviceKey: 'K' });
     expect(flow.verify).not.toHaveBeenCalled();
   });
 
@@ -219,7 +221,7 @@ describe('AppleWatch', () => {
     render(<FreshSettings requestClose={() => undefined} />);
     await act(async () => undefined);
     await act(async () => {
-      native.signedIn?.({ userId: '@bas:mindroom.chat', deviceId: 'WATCH' });
+      native.signedIn?.(WATCH);
     });
     expect(flow.verify).not.toHaveBeenCalled();
   });
@@ -259,10 +261,10 @@ describe('AppleWatch', () => {
     });
     native.status = {
       ...native.status,
-      device: { userId: '@bas:mindroom.chat', deviceId: 'WATCH' },
+      device: WATCH,
     };
     await act(async () => {
-      native.signedIn?.({ userId: '@bas:mindroom.chat', deviceId: 'WATCH' });
+      native.signedIn?.(WATCH);
     });
     flow.verify.mockResolvedValue('verified');
     await act(async () => {
@@ -288,7 +290,7 @@ describe('AppleWatch', () => {
       paired: true,
       installed: true,
       reachable: true,
-      device: { userId: '@bas:mindroom.chat', deviceId: 'WATCH' },
+      device: WATCH,
     };
     await renderSettings();
     native.status = { paired: true, installed: true, reachable: true };

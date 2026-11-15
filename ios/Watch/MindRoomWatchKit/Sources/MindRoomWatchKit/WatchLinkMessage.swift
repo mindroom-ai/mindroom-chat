@@ -4,8 +4,9 @@ import Foundation
 public enum WatchLinkMessage: Equatable, Sendable {
     /// A one-time login token for the watch's own device.
     case credentials(homeserverUrl: URL, userId: String, loginToken: String, expiresAt: Date)
-    /// The watch signed in as this device.
-    case signedIn(userId: String, deviceId: String)
+    /// The watch signed in as this device. `deviceKey` is the device's own Ed25519 signing key: the iPhone
+    /// verifies the device only when the homeserver lists that key for it.
+    case signedIn(userId: String, deviceId: String, deviceKey: String)
     /// The account's secrets bundle (cross-signing keys, key backup key) as JSON, to verify the watch's
     /// device and turn key backup on.
     case secrets(userId: String, bundle: String)
@@ -25,8 +26,9 @@ public enum WatchLinkMessage: Equatable, Sendable {
                                 expiresAt: Date(timeIntervalSince1970: expiresMs / 1000))
         case "signedIn":
             guard let userId = dictionary["userId"] as? String, Self.isUserId(userId),
-                  let deviceId = dictionary["deviceId"] as? String, !deviceId.isEmpty else { return nil }
-            self = .signedIn(userId: userId, deviceId: deviceId)
+                  let deviceId = dictionary["deviceId"] as? String, !deviceId.isEmpty,
+                  let deviceKey = dictionary["deviceKey"] as? String, !deviceKey.isEmpty else { return nil }
+            self = .signedIn(userId: userId, deviceId: deviceId, deviceKey: deviceKey)
         case "secrets":
             guard let userId = dictionary["userId"] as? String, Self.isUserId(userId),
                   let bundle = dictionary["bundle"] as? String, !bundle.isEmpty else { return nil }
@@ -43,8 +45,8 @@ public enum WatchLinkMessage: Equatable, Sendable {
         case let .credentials(url, userId, token, expiresAt):
             return ["v": 1, "kind": "credentials", "homeserverUrl": url.absoluteString, "userId": userId,
                     "loginToken": token, "expiresAt": expiresAt.timeIntervalSince1970 * 1000]
-        case let .signedIn(userId, deviceId):
-            return ["v": 1, "kind": "signedIn", "userId": userId, "deviceId": deviceId]
+        case let .signedIn(userId, deviceId, deviceKey):
+            return ["v": 1, "kind": "signedIn", "userId": userId, "deviceId": deviceId, "deviceKey": deviceKey]
         case let .secrets(userId, bundle):
             return ["v": 1, "kind": "secrets", "userId": userId, "bundle": bundle]
         case .signOut:

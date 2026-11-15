@@ -27,8 +27,9 @@ final class MatrixSession: ObservableObject {
     /// The last session change queued: connecting, restoring, importing secrets and signing out run one at a
     /// time, so two clients never open the one store and a sign-out never misses a client still starting.
     private var lastChange: Task<Void, Never>?
-    /// Called with the new device after a sign-in, to tell the iPhone (WatchLink).
-    var onSignedIn: ((String, String) -> Void)?
+    /// Called with the new device (user id, device id, its Ed25519 key) after a sign-in, to tell the iPhone
+    /// (WatchLink).
+    var onSignedIn: ((String, String, String) -> Void)?
 
     var client: Client? {
         if case let .signedIn(client) = state { return client }
@@ -76,7 +77,13 @@ final class MatrixSession: ObservableObject {
                 throw error
             }
             SessionStore.save(session)
-            onSignedIn?(result.userId, result.deviceId)
+            // The iPhone verifies the device by the key the watch names here, not by what the server lists.
+            if let deviceKey = await client?.encryption().ed25519Key() {
+                log.notice("reporting the device with key \(deviceKey, privacy: .public)")
+                onSignedIn?(result.userId, result.deviceId, deviceKey)
+            } else {
+                log.error("the new device has no signing key to report")
+            }
         } catch TokenLoginError.expired {
             if !signedIn { state = .expired }
         } catch {

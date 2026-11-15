@@ -31,6 +31,11 @@ struct MindRoomWatchApp: App {
             }
             .environmentObject(session)
             .task { await start() }
+            .onOpenURL { url in
+                // The complication opens the app recording (`mindroom-watch://record`). At a cold launch
+                // the URL comes before the session is restored, so before the home screen is there.
+                if url.host == "record" { RecordRequest.shared.pending = true }
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             Task { await session.setActive(phase == .active) }

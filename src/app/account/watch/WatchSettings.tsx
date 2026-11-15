@@ -61,8 +61,8 @@ function WatchSettingsSection() {
     };
   }, [refresh]);
 
-  const deviceId =
-    status?.device?.userId === mx.getSafeUserId() ? status.device.deviceId : undefined;
+  const device = status?.device?.userId === mx.getSafeUserId() ? status.device : undefined;
+  const deviceId = device?.deviceId;
 
   useEffect(() => {
     setCrossSigned(undefined);
@@ -81,11 +81,11 @@ function WatchSettingsSection() {
 
   /** Cross-signs the watch's device and sends it the account's secrets. */
   const verify = useCallback(
-    async (watchDeviceId: string) => {
+    async (watch: WatchDevice) => {
       setStep({ kind: 'verifying' });
       let result: Awaited<ReturnType<typeof verifyWatch>>;
       try {
-        result = await verifyWatch(mx, watchDeviceId, sendWatchSecrets);
+        result = await verifyWatch(mx, watch, sendWatchSecrets);
       } catch (error) {
         if (mounted.current)
           setStep({ kind: 'message', text: t(`${W}.failed`, { reason: describeError(error) }) });
@@ -109,11 +109,11 @@ function WatchSettingsSection() {
   useEffect(() => {
     let stop: (() => void) | undefined;
     let alive = true;
-    void onWatchSignedIn((device: WatchDevice) => {
-      if (!alive || device.userId !== mx.getSafeUserId() || !pendingConnects.has(device.userId))
+    void onWatchSignedIn((signedIn: WatchDevice) => {
+      if (!alive || signedIn.userId !== mx.getSafeUserId() || !pendingConnects.has(signedIn.userId))
         return;
-      pendingConnects.delete(device.userId);
-      void verify(device.deviceId);
+      pendingConnects.delete(signedIn.userId);
+      void verify(signedIn);
     }).then((remove) => {
       if (alive) stop = remove;
       else remove();
@@ -179,7 +179,7 @@ function WatchSettingsSection() {
   let action = null;
   // A remembered watch can always be disconnected: its device is deleted on the server even when the
   // watch is unpaired or gone.
-  if (deviceId) {
+  if (device) {
     action = (
       <Box gap="200">
         {(crossSigned === false || (step.kind === 'message' && step.retry)) && (
@@ -190,7 +190,7 @@ function WatchSettingsSection() {
             fill="Soft"
             disabled={busy}
             before={busy ? <Spinner size="50" variant="Primary" /> : undefined}
-            onClick={() => void verify(deviceId)}
+            onClick={() => void verify(device)}
           >
             <Text size="B300">{t(`${W}.verify`)}</Text>
           </Button>
@@ -200,7 +200,7 @@ function WatchSettingsSection() {
           radii="300"
           variant="Secondary"
           fill="Soft"
-          onClick={() => void disconnect(deviceId)}
+          onClick={() => void disconnect(device.deviceId)}
         >
           <Text size="B300">{t(`${W}.disconnect`)}</Text>
         </Button>

@@ -143,8 +143,9 @@ final class WatchLink: NSObject {
 
     fileprivate func receive(_ message: [String: Any]) {
         guard (message["v"] as? NSNumber)?.intValue == 1, message["kind"] as? String == "signedIn",
-              let userId = message["userId"] as? String, let deviceId = message["deviceId"] as? String else { return }
-        let device = ["userId": userId, "deviceId": deviceId]
+              let userId = message["userId"] as? String, let deviceId = message["deviceId"] as? String,
+              let deviceKey = message["deviceKey"] as? String else { return }
+        let device = ["userId": userId, "deviceId": deviceId, "deviceKey": deviceKey]
         UserDefaults.standard.set(device, forKey: MindRoomWatchPlugin.deviceKey)
         DispatchQueue.main.async { self.onSignedIn?(device) }
     }

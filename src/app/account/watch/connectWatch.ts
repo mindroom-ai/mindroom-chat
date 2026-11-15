@@ -1,7 +1,7 @@
 import { ClientPrefix, Method, type AuthDict, type MatrixClient } from 'matrix-js-sdk';
 import { AuthenticationCancelled } from '../uia/useAuthenticatedAction';
 import { hasCloudflareAccess } from '../../native/cloudflareAccess';
-import type { WatchCredentials, WatchSecrets } from '../../native/nativeWatch';
+import type { WatchCredentials, WatchDevice, WatchSecrets } from '../../native/nativeWatch';
 
 export type ConnectResult =
   /** `expiresAt`: when the login token runs out (milliseconds since the epoch). */
@@ -70,7 +70,9 @@ const wait = (ms: number) =>
 
 /**
  * Verifies the watch's new device: cross-signs it once its keys reach this client, so the account's
- * other devices and other people trust it, then sends it this account's secrets bundle (the private
+ * other devices and other people trust it, and only when the homeserver lists the signing key the
+ * watch named for it (a server could list a device of its own under that id; this throws then).
+ * Then sends it this account's secrets bundle (the private
  * cross-signing keys and the key backup's key), which makes the watch trust the account's devices in
  * turn and turns key backup on there, so it reads messages from before it signed in. Needs this
  * device to hold the cross-signing keys; without a key backup the bundle holds only those
@@ -78,7 +80,7 @@ const wait = (ms: number) =>
  */
 export const verifyWatch = async (
   mx: MatrixClient,
-  deviceId: string,
+  { deviceId, deviceKey }: Pick<WatchDevice, 'deviceId' | 'deviceKey'>,
   send: (secrets: WatchSecrets) => Promise<void>,
   { timeoutMs = 30_000, pollMs = 2_000 }: { timeoutMs?: number; pollMs?: number } = {}
 ): Promise<VerifyResult> => {
@@ -91,8 +93,13 @@ export const verifyWatch = async (
   for (;;) {
     // Polls one download at a time until the server lists the new device.
     // eslint-disable-next-line no-await-in-loop
-    const devices = await crypto.getUserDeviceInfo([userId], true);
-    if (devices.get(userId)?.has(deviceId)) break;
+    const listed = (await crypto.getUserDeviceInfo([userId], true)).get(userId)?.get(deviceId);
+    if (listed) {
+      if (listed.getFingerprint() !== deviceKey) {
+        throw new Error('The homeserver lists another key for the watch.');
+      }
+      break;
+    }
     if (Date.now() + pollMs > deadline) return 'timeout';
     // eslint-disable-next-line no-await-in-loop
     await wait(pollMs);

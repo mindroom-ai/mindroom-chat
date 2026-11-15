@@ -10,8 +10,8 @@ final class WatchLink: NSObject, WCSessionDelegate, @unchecked Sendable {
     init(session: MatrixSession) {
         self.session = session
         super.init()
-        session.onSignedIn = { [weak self] userId, deviceId in
-            self?.send(.signedIn(userId: userId, deviceId: deviceId))
+        session.onSignedIn = { [weak self] userId, deviceId, deviceKey in
+            self?.send(.signedIn(userId: userId, deviceId: deviceId, deviceKey: deviceKey))
         }
         guard WCSession.isSupported() else { return }
         WCSession.default.delegate = self

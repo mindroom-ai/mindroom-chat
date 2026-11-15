@@ -63,10 +63,6 @@ struct HomeView: View {
             openThread.unread = nil
             Task { await NotificationActions.perform("open", userInfo: tap) }
         }
-        .onOpenURL { url in
-            // The complication opens the app recording (`mindroom-watch://record`).
-            if url.host == "record" { RecordRequest.shared.pending = true }
-        }
     }
 
     /// A tapped notification opens its thread; another room's thread opens without making it the default.
