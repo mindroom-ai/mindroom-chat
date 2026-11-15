@@ -23,7 +23,7 @@ export function LiveTranscriptPanel({ room, onClose }: { room: Room; onClose: ()
   const callRoom = active?.origin?.roomId === room.roomId ? active.call.room : room;
   const view = useLiveTranscript(callRoom, READ_MS);
   const { state } = view;
-  const pausable = view.ownCall && active?.kind === 'room';
+  const pausable = view.ownCall && active?.kind !== 'agent';
   const call = view.live?.call;
   const title = t('featureUi.calls.transcription.liveTranscript');
 
