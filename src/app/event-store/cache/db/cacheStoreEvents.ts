@@ -683,7 +683,7 @@ export const loadRoomOfflineEventBatch = async (
 export const saveRoomEventsToCacheCommitted = async (
   sessionId: string,
   roomId: string,
-  rawEvents: Partial<IEvent>[],
+  eventsOfAnyRoom: Partial<IEvent>[],
   beforeTokenForEarliest?: string | null,
   relationSnapshotMode: RelationSnapshotMode = 'partial',
   writeLease: CacheStoreWriteLease = captureCacheStoreWriteLease(sessionId, roomId),
@@ -695,6 +695,8 @@ export const saveRoomEventsToCacheCommitted = async (
   // shrink storage). The eventRepository seam no longer wraps this
   // call in its own gate/catch.
   if (!isCacheWritable() || !isCacheStoreWriteLeaseCurrent(writeLease)) return false;
+  // An event that names another room is not this room's; one without a room ID is kept.
+  const rawEvents = eventsOfAnyRoom.filter((event) => !isOtherRoomEvent(event, roomId));
 
   // ISSUE-207 P2 review: the entire body (including the openCacheStore
   // await) must live inside the error-reporting boundary. Callers
@@ -1284,8 +1286,8 @@ export const saveThreadEventsToCacheCommitted = async (
   sessionId: string,
   roomId: string,
   threadId: string,
-  rawEvents: Partial<IEvent>[],
-  rootEvent?: Partial<IEvent>,
+  eventsOfAnyRoom: Partial<IEvent>[],
+  rootOfAnyRoom?: Partial<IEvent>,
   beforeTokenForEarliest?: string | null,
   tailLoaded?: boolean,
   snapshotComplete?: boolean,
@@ -1297,6 +1299,8 @@ export const saveThreadEventsToCacheCommitted = async (
 ): Promise<boolean> => {
   // ISSUE-207 P2.3: cache health gate (same rationale as the room save).
   if (!isCacheWritable() || !isCacheStoreWriteLeaseCurrent(writeLease)) return false;
+  const rawEvents = eventsOfAnyRoom.filter((event) => !isOtherRoomEvent(event, roomId));
+  const rootEvent = isOtherRoomEvent(rootOfAnyRoom, roomId) ? undefined : rootOfAnyRoom;
 
   // ISSUE-207 P2 review: keep the open inside the error boundary — see
   // saveRoomEventsToCache for the rationale (callers use `void save`).
