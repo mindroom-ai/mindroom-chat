@@ -1102,115 +1102,115 @@
   },
   "tour": {
     "levels": {
-      "quick": "Quick tour",
-      "full": "Full tour"
+      "quick": "Tour rapido",
+      "full": "Tour completo"
     },
     "offer": {
-      "title": "Take a tour of MindRoom",
-      "text": "See how threads, titles and states work.",
-      "quick": "Quick tour (1 min)",
-      "full": "Full tour (5 min)",
-      "dismiss": "Dismiss"
+      "title": "Fai un tour di MindRoom",
+      "text": "Scopri come funzionano thread, titoli e stati.",
+      "quick": "Tour rapido (1 min)",
+      "full": "Tour completo (5 min)",
+      "dismiss": "Ignora"
     },
     "dialog": {
-      "stepOf": "Step {{current}} of {{total}}",
-      "close": "Close tour",
-      "back": "Back",
-      "next": "Next",
-      "done": "Done",
-      "keepGoing": "Keep going (6 more steps)",
-      "replay": "Replay"
+      "stepOf": "Passaggio {{current}} di {{total}}",
+      "close": "Chiudi il tour",
+      "back": "Indietro",
+      "next": "Avanti",
+      "done": "Fine",
+      "keepGoing": "Continua (altri 6 passaggi)",
+      "replay": "Rivedi"
     },
     "chapters": {
-      "basics": "The basics",
-      "tidy": "Keeping the list tidy",
-      "finding": "Finding your way"
+      "basics": "Le basi",
+      "tidy": "Tenere in ordine l’elenco",
+      "finding": "Orientarsi"
     },
     "steps": {
       "conversation": {
-        "title": "A thread is one conversation",
-        "text": "Rooms with agents open in Compact view. Each card is one thread: a single topic with all its replies together. A room holds as many as you need."
+        "title": "Un thread è una conversazione",
+        "text": "Le stanze con agenti si aprono nella vista Compatto. Ogni scheda è un thread: un solo argomento con tutte le sue risposte. Una stanza ne contiene quanti te ne servono."
       },
       "start": {
-        "title": "Type to start a new thread",
-        "text": "Write in the box at the bottom of the room and send. That starts a new thread, and it opens right away."
+        "title": "Scrivi per iniziare un nuovo thread",
+        "text": "Scrivi nella casella in fondo alla stanza e invia. Così inizia un nuovo thread, che si apre subito."
       },
       "reply": {
-        "title": "Inside a thread, you reply",
-        "text": "What you write in an open thread is a reply there, not a new thread. Back returns to the list, where any card opens its thread again."
+        "title": "Dentro un thread, rispondi",
+        "text": "Quello che scrivi in un thread aperto è una risposta in quel thread, non un nuovo thread. Indietro riporta all’elenco, dove ogni scheda riapre il suo thread."
       },
       "title": {
-        "title": "AI writes the titles",
-        "text": "A new card shows your first message. After an agent replies, MindRoom’s AI gives the thread a short title. Edit summary in Thread options changes it."
+        "title": "L’IA scrive i titoli",
+        "text": "Una nuova scheda mostra il tuo primo messaggio. Dopo la risposta di un agente, l’IA di MindRoom dà al thread un titolo breve. Modifica riepilogo, in Opzioni del thread, lo cambia."
       },
       "order": {
-        "title": "The latest activity comes first",
-        "text": "A thread moves to the top when it gets a new message, so what is active comes first. Pinned threads stay above the rest."
+        "title": "L’attività più recente viene prima",
+        "text": "Un thread sale in cima quando riceve un nuovo messaggio, così ciò che è attivo viene prima. I thread fissati restano sopra gli altri."
       },
       "states": {
-        "title": "A card shows where its thread stands",
-        "streaming": "An agent is replying now.",
-        "unread": "New replies, with a colored edge and time.",
-        "resolved": "Done. Compact hides it.",
-        "snoozed": "Hidden until its time, then back by itself."
+        "title": "Una scheda mostra a che punto è il suo thread",
+        "streaming": "Un agente sta rispondendo ora.",
+        "unread": "Nuove risposte, con bordo e ora colorati.",
+        "resolved": "Concluso. La vista Compatto lo nasconde.",
+        "snoozed": "Nascosto fino all’ora stabilita, poi torna da solo."
       },
       "resolve": {
-        "title": "Resolve what is done",
-        "text": "Press Resolve, the check on a card, or swipe the card on a touch screen. The thread leaves the list, and you can reopen it at any time."
+        "title": "Risolvi ciò che è concluso",
+        "text": "Premi Risolvi, il segno di spunta su una scheda, oppure fai scorrere la scheda su un touch screen. Il thread esce dall’elenco e puoi riaprirlo in qualsiasi momento."
       },
       "snooze": {
-        "title": "Snooze what can wait",
-        "text": "In Thread options (⋯), pick Snooze. The thread hides until the time you choose, then returns with a note that the snooze ended."
+        "title": "Posticipa ciò che può aspettare",
+        "text": "In Opzioni del thread (⋯), scegli Posticipa. Il thread resta nascosto fino all’ora che scegli, poi torna con una nota che segnala che il posticipo è terminato."
       },
       "pinAndTag": {
-        "title": "Pin and tag",
-        "text": "Pin keeps a thread at the top of the list. Edit tags in Thread options labels a thread, and you can filter by tag."
+        "title": "Fissa e aggiungi tag",
+        "text": "Fissa thread tiene un thread in cima all’elenco. Modifica tag, in Opzioni del thread, assegna tag a un thread, e puoi filtrare per tag."
       },
       "filters": {
-        "title": "Filter and sort",
-        "text": "Thread filters, in the room’s header or its menu, shows this bar. Unresolved hides what is done, Last Reply changes the order, and Advanced filters finds the rest, snoozed threads too."
+        "title": "Filtra e ordina",
+        "text": "Filtri dei thread, nell’intestazione della stanza o nel suo menu, mostra questa barra. Irrisolto nasconde ciò che è concluso, Ultima risposta cambia l’ordine e Filtri avanzati trova il resto, anche i thread posticipati."
       },
       "views": {
-        "title": "Two views of a room",
-        "text": "Compact shows one card per thread. Threads shows each thread’s first message with its reply count under it. Compact view, in the room’s header or its menu, switches."
+        "title": "Due viste di una stanza",
+        "text": "Compatto mostra una scheda per thread. Thread mostra il primo messaggio di ogni thread, con sotto il numero di risposte. Vista compatta, nell’intestazione della stanza o nel suo menu, passa dall’una all’altra."
       },
       "activity": {
-        "title": "Activity collects what needs you",
-        "text": "The bell opens Activity: mentions, replies in your threads and agent runs that finished. Approvals, questions and invites are answered right there."
+        "title": "Attività raccoglie ciò che ti aspetta",
+        "text": "La campanella apre Attività: menzioni, risposte nei tuoi thread ed esecuzioni degli agenti terminate. Ad approvazioni, domande e inviti rispondi direttamente lì."
       }
     },
     "sample": {
       "room": "Marketing",
       "ana": "Ana",
-      "writer": "Writer",
-      "analyst": "Analyst",
-      "typed": "Draft the spring launch email",
-      "launchTitle": "Spring launch email",
-      "launchReply": "Here is a first draft with three subject lines.",
-      "budgetTitle": "Q3 budget review",
-      "budgetReply": "Totals are up 4% on last quarter.",
-      "websiteTitle": "Website redesign feedback",
-      "websiteReply": "The new homepage tests well.",
-      "vendorTitle": "Vendor contract renewal",
-      "vendorReply": "Let’s look again after the call.",
-      "vendorNewReply": "The contract is signed.",
-      "surveyTitle": "Customer survey results",
-      "surveyReply": "212 answers so far.",
+      "writer": "Redattore",
+      "analyst": "Analista",
+      "typed": "Prepara una bozza dell’email per il lancio di primavera",
+      "launchTitle": "Email per il lancio di primavera",
+      "launchReply": "Ecco una prima bozza con tre proposte di oggetto.",
+      "budgetTitle": "Revisione del budget Q3",
+      "budgetReply": "I totali sono in crescita del 4% rispetto allo scorso trimestre.",
+      "websiteTitle": "Feedback sul restyling del sito web",
+      "websiteReply": "La nuova home page ottiene buoni risultati nei test.",
+      "vendorTitle": "Rinnovo del contratto con il fornitore",
+      "vendorReply": "Riguardiamolo dopo la chiamata.",
+      "vendorNewReply": "Il contratto è firmato.",
+      "surveyTitle": "Risultati del sondaggio tra i clienti",
+      "surveyReply": "212 risposte finora.",
       "preview": "{{name}}: {{text}}",
-      "tagLaunch": "launch",
-      "tagFinance": "finance",
-      "approval": "Send the report to the team"
+      "tagLaunch": "lancio",
+      "tagFinance": "finanza",
+      "approval": "Invia il report al team"
     },
     "entries": {
-      "paletteQuick": "Take the quick tour",
-      "paletteFull": "Take the full tour",
-      "paletteDescription": "See how threads work",
+      "paletteQuick": "Fai il tour rapido",
+      "paletteFull": "Fai il tour completo",
+      "paletteDescription": "Scopri come funzionano i thread",
       "settingsSection": "Tour",
-      "settingsTitle": "See how threads work",
-      "settingsDescription": "A short tour of threads: starting one, titles, order and states.",
-      "settingsKeywords": "tour, tutorial, guide, help, onboarding, threads",
-      "howThreadsWork": "How threads work",
-      "noThreadsHint": "Send a message below to start one."
+      "settingsTitle": "Scopri come funzionano i thread",
+      "settingsDescription": "Un breve tour dei thread: come iniziarne uno, titoli, ordine e stati.",
+      "settingsKeywords": "tour, tutorial, guida, aiuto, introduzione, primi passi, thread",
+      "howThreadsWork": "Come funzionano i thread",
+      "noThreadsHint": "Invia un messaggio qui sotto per iniziarne uno."
     }
   }
 }

@@ -1079,115 +1079,115 @@
   },
   "tour": {
     "levels": {
-      "quick": "Quick tour",
-      "full": "Full tour"
+      "quick": "त्वरित टूर",
+      "full": "पूरा टूर"
     },
     "offer": {
-      "title": "Take a tour of MindRoom",
-      "text": "See how threads, titles and states work.",
-      "quick": "Quick tour (1 min)",
-      "full": "Full tour (5 min)",
-      "dismiss": "Dismiss"
+      "title": "MindRoom का टूर लें",
+      "text": "देखें कि थ्रेड, शीर्षक और स्थितियाँ कैसे काम करती हैं।",
+      "quick": "त्वरित टूर (1 मिनट)",
+      "full": "पूरा टूर (5 मिनट)",
+      "dismiss": "हटाएँ"
     },
     "dialog": {
-      "stepOf": "Step {{current}} of {{total}}",
-      "close": "Close tour",
-      "back": "Back",
-      "next": "Next",
-      "done": "Done",
-      "keepGoing": "Keep going (6 more steps)",
-      "replay": "Replay"
+      "stepOf": "चरण {{total}} में से {{current}}",
+      "close": "टूर बंद करें",
+      "back": "वापस",
+      "next": "आगे",
+      "done": "हो गया",
+      "keepGoing": "जारी रखें (6 और चरण)",
+      "replay": "फिर से चलाएँ"
     },
     "chapters": {
-      "basics": "The basics",
-      "tidy": "Keeping the list tidy",
-      "finding": "Finding your way"
+      "basics": "बुनियादी बातें",
+      "tidy": "सूची को व्यवस्थित रखना",
+      "finding": "जो चाहिए, उसे खोजना"
     },
     "steps": {
       "conversation": {
-        "title": "A thread is one conversation",
-        "text": "Rooms with agents open in Compact view. Each card is one thread: a single topic with all its replies together. A room holds as many as you need."
+        "title": "एक थ्रेड यानी एक बातचीत",
+        "text": "एजेंट वाले रूम सघन दृश्य में खुलते हैं। हर कार्ड एक थ्रेड है: एक ही विषय और उसके सारे उत्तर एक साथ। एक रूम में उतने थ्रेड हो सकते हैं जितने आपको चाहिए।"
       },
       "start": {
-        "title": "Type to start a new thread",
-        "text": "Write in the box at the bottom of the room and send. That starts a new thread, and it opens right away."
+        "title": "नया थ्रेड शुरू करने के लिए टाइप करें",
+        "text": "रूम में सबसे नीचे वाले बॉक्स में लिखें और भेजें। इससे नया थ्रेड शुरू होता है और तुरंत खुल जाता है।"
       },
       "reply": {
-        "title": "Inside a thread, you reply",
-        "text": "What you write in an open thread is a reply there, not a new thread. Back returns to the list, where any card opens its thread again."
+        "title": "थ्रेड के अंदर आप उत्तर देते हैं",
+        "text": "खुले थ्रेड में आप जो लिखते हैं, वह उसी थ्रेड में उत्तर होता है, नया थ्रेड नहीं। \"वापस\" आपको सूची पर ले जाता है, जहाँ कोई भी कार्ड अपना थ्रेड फिर से खोल देता है।"
       },
       "title": {
-        "title": "AI writes the titles",
-        "text": "A new card shows your first message. After an agent replies, MindRoom’s AI gives the thread a short title. Edit summary in Thread options changes it."
+        "title": "शीर्षक एआई लिखता है",
+        "text": "नया कार्ड आपका पहला संदेश दिखाता है। किसी एजेंट के उत्तर देने के बाद MindRoom का एआई थ्रेड को एक छोटा शीर्षक देता है। \"थ्रेड के विकल्प\" में \"सारांश संपादित करें\" से आप इसे बदल सकते हैं।"
       },
       "order": {
-        "title": "The latest activity comes first",
-        "text": "A thread moves to the top when it gets a new message, so what is active comes first. Pinned threads stay above the rest."
+        "title": "सबसे नई गतिविधि सबसे ऊपर",
+        "text": "नया संदेश आने पर थ्रेड सबसे ऊपर आ जाता है, इसलिए जो सक्रिय है वह पहले दिखता है। पिन किए गए थ्रेड बाकी थ्रेड से ऊपर रहते हैं।"
       },
       "states": {
-        "title": "A card shows where its thread stands",
-        "streaming": "An agent is replying now.",
-        "unread": "New replies, with a colored edge and time.",
-        "resolved": "Done. Compact hides it.",
-        "snoozed": "Hidden until its time, then back by itself."
+        "title": "कार्ड बताता है कि उसका थ्रेड किस स्थिति में है",
+        "streaming": "कोई एजेंट अभी उत्तर दे रहा है।",
+        "unread": "नए उत्तर, रंगीन किनारे और समय के साथ।",
+        "resolved": "काम पूरा। सघन दृश्य इसे छिपा देता है।",
+        "snoozed": "तय समय तक छिपा रहता है, फिर अपने-आप लौट आता है।"
       },
       "resolve": {
-        "title": "Resolve what is done",
-        "text": "Press Resolve, the check on a card, or swipe the card on a touch screen. The thread leaves the list, and you can reopen it at any time."
+        "title": "जो पूरा हो गया, उसे सुलझा हुआ चिह्नित करें",
+        "text": "\"सुलझा हुआ चिह्नित करें\" दबाएँ, यानी कार्ड पर बना सही का निशान, या टच स्क्रीन पर कार्ड को स्वाइप करें। थ्रेड सूची से हट जाता है, और आप इसे किसी भी समय फिर से खोल सकते हैं।"
       },
       "snooze": {
-        "title": "Snooze what can wait",
-        "text": "In Thread options (⋯), pick Snooze. The thread hides until the time you choose, then returns with a note that the snooze ended."
+        "title": "जो इंतज़ार कर सकता है, उसे स्थगित करें",
+        "text": "\"थ्रेड के विकल्प\" (⋯) में \"स्थगित करें\" चुनें। थ्रेड आपके चुने हुए समय तक छिपा रहता है, फिर इस सूचना के साथ लौटता है कि स्थगन समाप्त हो गया।"
       },
       "pinAndTag": {
-        "title": "Pin and tag",
-        "text": "Pin keeps a thread at the top of the list. Edit tags in Thread options labels a thread, and you can filter by tag."
+        "title": "पिन करें और टैग लगाएँ",
+        "text": "\"थ्रेड पिन करें\" थ्रेड को सूची में सबसे ऊपर रखता है। \"थ्रेड के विकल्प\" में \"टैग संपादित करें\" से थ्रेड पर टैग लगते हैं, और आप टैग के अनुसार फ़िल्टर कर सकते हैं।"
       },
       "filters": {
-        "title": "Filter and sort",
-        "text": "Thread filters, in the room’s header or its menu, shows this bar. Unresolved hides what is done, Last Reply changes the order, and Advanced filters finds the rest, snoozed threads too."
+        "title": "फ़िल्टर करें और क्रम बदलें",
+        "text": "रूम के हेडर या उसके मेनू में \"थ्रेड फ़िल्टर\" यह पट्टी दिखाता है। \"अनसुलझे\" पूरे हो चुके थ्रेड छिपाता है, \"अंतिम उत्तर\" क्रम बदलता है, और \"उन्नत फ़िल्टर\" बाकी सब खोजता है, स्थगित थ्रेड भी।"
       },
       "views": {
-        "title": "Two views of a room",
-        "text": "Compact shows one card per thread. Threads shows each thread’s first message with its reply count under it. Compact view, in the room’s header or its menu, switches."
+        "title": "रूम के दो दृश्य",
+        "text": "\"सघन\" हर थ्रेड के लिए एक कार्ड दिखाता है। \"थ्रेड\" हर थ्रेड का पहला संदेश और उसके नीचे उत्तरों की संख्या दिखाता है। रूम के हेडर या उसके मेनू में \"सघन दृश्य\" से आप दोनों के बीच बदल सकते हैं।"
       },
       "activity": {
-        "title": "Activity collects what needs you",
-        "text": "The bell opens Activity: mentions, replies in your threads and agent runs that finished. Approvals, questions and invites are answered right there."
+        "title": "गतिविधि में वह सब, जिस पर आपको ध्यान देना है",
+        "text": "घंटी \"गतिविधि\" खोलती है: उल्लेख, आपके थ्रेड में आए उत्तर और एजेंटों के पूरे हुए रन। मंज़ूरियों, सवालों और आमंत्रणों का जवाब वहीं दिया जाता है।"
       }
     },
     "sample": {
-      "room": "Marketing",
-      "ana": "Ana",
-      "writer": "Writer",
-      "analyst": "Analyst",
-      "typed": "Draft the spring launch email",
-      "launchTitle": "Spring launch email",
-      "launchReply": "Here is a first draft with three subject lines.",
-      "budgetTitle": "Q3 budget review",
-      "budgetReply": "Totals are up 4% on last quarter.",
-      "websiteTitle": "Website redesign feedback",
-      "websiteReply": "The new homepage tests well.",
-      "vendorTitle": "Vendor contract renewal",
-      "vendorReply": "Let’s look again after the call.",
-      "vendorNewReply": "The contract is signed.",
-      "surveyTitle": "Customer survey results",
-      "surveyReply": "212 answers so far.",
+      "room": "मार्केटिंग",
+      "ana": "एना",
+      "writer": "लेखक",
+      "analyst": "विश्लेषक",
+      "typed": "वसंत लॉन्च के ईमेल का ड्राफ़्ट तैयार करें",
+      "launchTitle": "वसंत लॉन्च का ईमेल",
+      "launchReply": "यह रहा पहला ड्राफ़्ट, तीन विषय पंक्तियों के साथ।",
+      "budgetTitle": "Q3 बजट की समीक्षा",
+      "budgetReply": "कुल राशि पिछली तिमाही से 4% ज़्यादा है।",
+      "websiteTitle": "वेबसाइट के नए डिज़ाइन पर फ़ीडबैक",
+      "websiteReply": "नया होमपेज टेस्ट में अच्छा प्रदर्शन कर रहा है।",
+      "vendorTitle": "वेंडर अनुबंध का नवीनीकरण",
+      "vendorReply": "कॉल के बाद इसे फिर से देखते हैं।",
+      "vendorNewReply": "अनुबंध पर हस्ताक्षर हो गए हैं।",
+      "surveyTitle": "ग्राहक सर्वेक्षण के नतीजे",
+      "surveyReply": "अब तक 212 जवाब मिले हैं।",
       "preview": "{{name}}: {{text}}",
-      "tagLaunch": "launch",
-      "tagFinance": "finance",
-      "approval": "Send the report to the team"
+      "tagLaunch": "लॉन्च",
+      "tagFinance": "वित्त",
+      "approval": "टीम को रिपोर्ट भेजें"
     },
     "entries": {
-      "paletteQuick": "Take the quick tour",
-      "paletteFull": "Take the full tour",
-      "paletteDescription": "See how threads work",
-      "settingsSection": "Tour",
-      "settingsTitle": "See how threads work",
-      "settingsDescription": "A short tour of threads: starting one, titles, order and states.",
-      "settingsKeywords": "tour, tutorial, guide, help, onboarding, threads",
-      "howThreadsWork": "How threads work",
-      "noThreadsHint": "Send a message below to start one."
+      "paletteQuick": "त्वरित टूर लें",
+      "paletteFull": "पूरा टूर लें",
+      "paletteDescription": "देखें कि थ्रेड कैसे काम करते हैं",
+      "settingsSection": "टूर",
+      "settingsTitle": "देखें कि थ्रेड कैसे काम करते हैं",
+      "settingsDescription": "थ्रेड का एक छोटा टूर: थ्रेड शुरू करना, शीर्षक, क्रम और स्थितियाँ।",
+      "settingsKeywords": "टूर, ट्यूटोरियल, गाइड, मार्गदर्शिका, मदद, सहायता, परिचय, थ्रेड",
+      "howThreadsWork": "थ्रेड कैसे काम करते हैं",
+      "noThreadsHint": "थ्रेड शुरू करने के लिए नीचे संदेश भेजें।"
     }
   }
 }

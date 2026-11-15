@@ -1,7 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 
 // Every step of the interface tour on its fixture page (e2e/fixtures/tour.tsx), on a wide screen,
-// on a small phone and in a right-to-left language: the part a step is about lies inside the
+// on a small phone (in English and in two languages of longer texts) and in a right-to-left
+// language: the part a step is about lies inside the
 // stage, the four state cards are all in view, and the buttons stay in view where they are from
 // step to step. Motion is reduced, so each step shows the end of its scene at once.
 
@@ -32,6 +33,17 @@ const frameOf = (page: Page): Promise<Box> =>
 const SCREENS = [
   { name: 'a wide screen', viewport: { width: 1280, height: 800 }, query: 'level=full' },
   { name: 'a small phone', viewport: { width: 375, height: 667 }, query: 'level=full' },
+  // Languages whose texts run longer than the English ones.
+  {
+    name: 'a small phone in German',
+    viewport: { width: 375, height: 667 },
+    query: 'level=full&lang=de',
+  },
+  {
+    name: 'a small phone in Russian',
+    viewport: { width: 375, height: 667 },
+    query: 'level=full&lang=ru',
+  },
   {
     name: 'a right-to-left language',
     viewport: { width: 1280, height: 800 },
