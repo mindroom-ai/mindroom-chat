@@ -101,9 +101,13 @@ const CompactThreadCardRow = React.memo(
     // Transcript. Once the call ends the card is a thread like any other.
     const callRow = useThreadRootLiveCallRow(room, rootId);
     // Client plugins' marks for the thread, one node per thread so the memoized card does not
-    // render again for them.
+    // render again for them. A thread whose first message is still sending has none until the
+    // server has confirmed it, so a badge is only ever given the root's own ID.
     const badges = useMemo(
-      () => <ThreadCardBadges room={room} threadId={rootId} />,
+      () =>
+        isConfirmedMatrixEventId(rootId) ? (
+          <ThreadCardBadges room={room} threadId={rootId} />
+        ) : undefined,
       [room, rootId]
     );
 
