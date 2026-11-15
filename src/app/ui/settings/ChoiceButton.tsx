@@ -71,12 +71,15 @@ export function ChoiceButton<V extends string | number>({
     </MenuItem>
   ));
 
+  // The rows scroll inside the menu's rim, which stays put around them.
   const menu = (
     <FocusTrap focusTrapOptions={menuTrap(close)}>
-      <Menu style={{ maxHeight: '50vh', overflowY: 'auto' }}>
-        <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
-          {rows}
-        </Box>
+      <Menu style={{ display: 'flex', flexDirection: 'column', maxHeight: '50vh' }}>
+        <div style={{ minHeight: 0, overflowY: 'auto' }}>
+          <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+            {rows}
+          </Box>
+        </div>
       </Menu>
     </FocusTrap>
   );

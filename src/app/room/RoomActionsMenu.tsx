@@ -82,29 +82,31 @@ export const RoomActionsMenu = forwardRef<HTMLDivElement, RoomActionsMenuProps>(
     const criticalRows = pluginRows(true);
     return (
       <Menu ref={ref} className={css.RoomMenu} style={menuStyle}>
-        {roomEntries && (
-          <>
-            <MenuGroup>{roomEntries}</MenuGroup>
-            <Line variant="Surface" size="300" />
-          </>
-        )}
-        {ROOM_ACTIONS.map((group, index) => (
-          <Fragment key={group[0]?.id ?? index}>
-            {index > 0 && <Line variant="Surface" size="300" />}
-            <MenuGroup>
-              {group.map(({ id, Entry }) => (
-                <Entry key={id} {...actionProps} />
-              ))}
-              {index === ROOM_ACTIONS.length - 1 && criticalRows}
-            </MenuGroup>
-            {index === 0 && ordinaryRows.length > 0 && (
-              <>
-                <Line variant="Surface" size="300" />
-                <MenuGroup>{ordinaryRows}</MenuGroup>
-              </>
-            )}
-          </Fragment>
-        ))}
+        <div className={css.RoomMenuRows}>
+          {roomEntries && (
+            <>
+              <MenuGroup>{roomEntries}</MenuGroup>
+              <Line variant="Surface" size="300" />
+            </>
+          )}
+          {ROOM_ACTIONS.map((group, index) => (
+            <Fragment key={group[0]?.id ?? index}>
+              {index > 0 && <Line variant="Surface" size="300" />}
+              <MenuGroup>
+                {group.map(({ id, Entry }) => (
+                  <Entry key={id} {...actionProps} />
+                ))}
+                {index === ROOM_ACTIONS.length - 1 && criticalRows}
+              </MenuGroup>
+              {index === 0 && ordinaryRows.length > 0 && (
+                <>
+                  <Line variant="Surface" size="300" />
+                  <MenuGroup>{ordinaryRows}</MenuGroup>
+                </>
+              )}
+            </Fragment>
+          ))}
+        </div>
       </Menu>
     );
   }
