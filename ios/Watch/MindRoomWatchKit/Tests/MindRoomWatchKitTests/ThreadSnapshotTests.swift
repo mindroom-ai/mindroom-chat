@@ -69,6 +69,17 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(ThreadSnapshot.build(root: voiceRoot, related: [card("$c", 3), approved], ownUserId: me, now: now).pendingApproval?.eventId, "$c")
     }
 
+    func testAnEditThatDoesNotDecryptLeavesTheNewestReadableOne() {
+        let reply = event("$reply", 4, inThread(["msgtype": "m.text", "body": "Thinking…", "io.mindroom.stream_status": "streaming"]))
+        let readable = event("$edit1", 5, ["m.new_content": ["body": "Almost", "io.mindroom.stream_status": "streaming"] as JSON,
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$reply"] as JSON])
+        // An encrypted edit keeps its relation in the clear and has no content to read.
+        let locked = event("$edit2", 6, type: "m.room.encrypted", ["algorithm": "m.megolm.v1.aes-sha2", "ciphertext": "x",
+            "m.relates_to": ["rel_type": "m.replace", "event_id": "$reply"] as JSON])
+        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [reply, readable, locked], ownUserId: me, now: now)
+        XCTAssertEqual(snapshot.reply?.text, "Almost")
+    }
+
     func testAnEditedSummaryRetitlesTheThread() {
         let summary = event("$sum", 6, sender: "@mindroom_router:x", inThread(["msgtype": "m.notice", "body": "Dentist",
             "io.mindroom.thread_summary": ["version": 1, "summary": "Dentist"] as JSON]))

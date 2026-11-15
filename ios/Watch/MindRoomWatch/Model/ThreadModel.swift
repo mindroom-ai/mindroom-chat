@@ -112,6 +112,7 @@ final class ThreadModel: ObservableObject {
     func approve(_ card: ApprovalCard, _ yes: Bool) async {
         guard snapshot?.pendingApproval?.eventId == card.eventId, !answered.contains(card.eventId),
               card.approvable || !yes else { return }
+        error = nil
         answered.insert(card.eventId)
         let content = approvalResponseContent(cardId: card.eventId, threadId: card.threadId, approve: yes)
         do {
@@ -127,6 +128,7 @@ final class ThreadModel: ObservableObject {
     /// Answers an agent's question with the option's reaction, as the web client does.
     func answer(_ question: Question, key: String) async {
         guard !answered.contains(question.eventId) else { return }
+        error = nil
         answered.insert(question.eventId)
         let content: [String: Any] = ["m.relates_to": ["rel_type": "m.annotation", "event_id": question.eventId, "key": key]]
         do {
@@ -146,6 +148,7 @@ final class ThreadModel: ObservableObject {
     }
 
     func replyVoice(_ take: Take) async {
+        error = nil
         guard let timeline else {
             error = String(localized: "Not sent")
             return

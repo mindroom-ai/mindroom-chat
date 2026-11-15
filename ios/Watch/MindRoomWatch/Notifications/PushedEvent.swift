@@ -1,6 +1,7 @@
 import Foundation
 import MatrixRustSDK
 import MindRoomWatchKit
+import WatchKit
 
 /// What a MindRoom push is about, read with the watch's own client: the push carries only the room
 /// and event ids (Sygnal's `event_id_only` format, or content the watch cannot read when encrypted).
@@ -19,9 +20,20 @@ enum PushedEvent {
         guard let roomId = userInfo["room_id"] as? String, let eventId = userInfo["event_id"] as? String else { return nil }
         if session.client == nil { await session.restore() }
         guard let client = session.client, let userId = try? client.userId(),
-              let room = try? client.getRoom(roomId: roomId),
-              let jsons = try? await room.loadOrFetchEventJsonWithRelations(eventId: eventId),
-              let event = jsons.first.flatMap(parse) else { return nil }
+              let room = try? client.getRoom(roomId: roomId) else { return nil }
+        var read = try? await room.loadOrFetchEventJsonWithRelations(eventId: eventId)
+        // A room's newer keys reach the watch only through sync, which runs while the app is in front: when
+        // the event does not decrypt, sync for a few seconds and read it again.
+        let locked = { (jsons: [String]?) in jsons?.first.flatMap(parse)?["type"] as? String == "m.room.encrypted" }
+        if locked(read) {
+            await session.setActive(true)
+            for _ in 0..<5 where locked(read) {
+                try? await Task.sleep(for: .seconds(1))
+                read = try? await room.loadOrFetchEventJsonWithRelations(eventId: eventId)
+            }
+            if WKApplication.shared().applicationState != .active { await session.setActive(false) }
+        }
+        guard let jsons = read, let event = jsons.first.flatMap(parse) else { return nil }
         let rootId = ThreadSnapshot.threadRootId(of: event)
         let threadJsons = rootId == eventId ? jsons : (try? await room.loadOrFetchEventJsonWithRelations(eventId: rootId)) ?? []
         if let root = threadJsons.first.flatMap(parse) {
@@ -32,13 +44,13 @@ enum PushedEvent {
             case .message: break
             }
         }
-        // The message as its sender's newest edit says it.
+        // The message as its sender's newest edit that can be read says it.
         let sender = event["sender"] as? String
         let latestEdit = jsons.dropFirst().compactMap(parse)
             .filter { edit in
                 let relation = (edit["content"] as? [String: Any])?["m.relates_to"] as? [String: Any]
                 return relation?["rel_type"] as? String == "m.replace" && relation?["event_id"] as? String == eventId
-                    && edit["sender"] as? String == sender
+                    && edit["sender"] as? String == sender && (edit["content"] as? [String: Any])?["m.new_content"] != nil
             }
             .max { ($0["origin_server_ts"] as? Int ?? 0) < ($1["origin_server_ts"] as? Int ?? 0) }
         let content = (latestEdit?["content"] as? [String: Any])?["m.new_content"] as? [String: Any] ?? event["content"] as? [String: Any] ?? [:]

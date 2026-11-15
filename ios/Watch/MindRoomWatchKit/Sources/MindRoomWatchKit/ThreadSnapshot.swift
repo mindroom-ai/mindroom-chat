@@ -50,12 +50,14 @@ public struct ThreadSnapshot: Equatable, Sendable {
             }
         }
         messages.sort { $0.timestamp < $1.timestamp }
-        // As the Matrix spec and the web client: only the sender's own edits replace a message.
+        // As the Matrix spec and the web client: only the sender's own edits replace a message, and the
+        // newest one that can be read (an edit that does not decrypt has no new content).
         var senders: [String: String] = [:]
         for event in [root] + messages { if let id = event.eventId { senders[id] = event["sender"] as? String } }
         var latestEdits: [String: JSON] = [:]
         for event in edits {
-            guard let target = event.replacedEventId, let sender = senders[target], sender == event["sender"] as? String else { continue }
+            guard let target = event.replacedEventId, let sender = senders[target], sender == event["sender"] as? String,
+                  event.newContent != nil else { continue }
             if (latestEdits[target]?.timestamp ?? -1) < event.timestamp { latestEdits[target] = event }
         }
         let cardEdits = edits.filter { $0["type"] as? String == ApprovalCard.eventType }

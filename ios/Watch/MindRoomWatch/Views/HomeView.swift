@@ -127,6 +127,9 @@ private struct RoomHome: View {
     @State private var sendError: String?
     /// The threads there were when a voice message went out: the first new one is its thread, opened once it has an id.
     @State private var following: Set<String>?
+    /// When that voice message went out, in milliseconds: at a cold launch the list may not have been read yet,
+    /// and an older thread is not the message's.
+    @State private var sentAt = 0
 
     var body: some View {
         List {
@@ -184,6 +187,7 @@ private struct RoomHome: View {
         .fullScreenCover(isPresented: $recording) {
             RecordingView { take in
                 following = Set(model.rows.compactMap(\.rootId))
+                sentAt = Int(Date().timeIntervalSince1970 * 1000)
                 Task {
                     do { sendError = nil; try await model.sendVoice(take) } catch {
                         following = nil
@@ -238,7 +242,7 @@ private struct RoomHome: View {
     private func openSent(_ rows: [ThreadRow]) {
         guard let known = following, path.isEmpty,
               let newest = rows.filter({ $0.rootId != nil && $0.ownRoot }).max(by: { $0.rootTs < $1.rootTs }),
-              let rootId = newest.rootId, !known.contains(rootId) else { return }
+              let rootId = newest.rootId, !known.contains(rootId), newest.rootTs >= sentAt - 60_000 else { return }
         following = nil
         path = [ThreadTarget(roomId: model.room.id(), rootId: rootId)]
     }
