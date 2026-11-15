@@ -63,6 +63,21 @@ describe('parseSecretRequestContent', () => {
     expect(parseSecretRequestContent(null)).toBeNull();
     expect(parseSecretRequestContent('text')).toBeNull();
   });
+
+  it('takes a URL-safe request ID of 1 to 128 characters', () => {
+    const id = (requestId: string) =>
+      parseSecretRequestContent(content(inner({ request_id: requestId })))?.requestId;
+    expect(id('Ab9_-x')).toBe('Ab9_-x');
+    expect(id('a'.repeat(128))).toBe('a'.repeat(128));
+  });
+
+  // A dot-only ID would make `.../secret-requests/..` another path once the URL is normalized.
+  it.each(['', '.', '..', 'a.b', 'a/b', 'a b', '%2e', 'a'.repeat(129)])(
+    'rejects the request ID %j',
+    (requestId) => {
+      expect(parseSecretRequestContent(content(inner({ request_id: requestId })))).toBeNull();
+    }
+  );
 });
 
 describe('effectiveSecretRequestStatus', () => {

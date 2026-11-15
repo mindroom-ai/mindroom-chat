@@ -24,6 +24,9 @@ export type SecretRequest = {
 
 const STATUSES: readonly string[] = ['pending', 'saved', 'declined', 'expired'];
 
+// The backend's IDs are URL-safe tokens. One of dots alone would turn the answer's path into another.
+const REQUEST_ID = /^[A-Za-z0-9_-]{1,128}$/;
+
 const isStatus = (value: unknown): value is SecretRequestStatus =>
   typeof value === 'string' && STATUSES.includes(value);
 
@@ -41,6 +44,7 @@ const readRequest = (value: unknown): SecretRequest | null => {
   } = value;
   if (
     typeof requestId !== 'string' ||
+    !REQUEST_ID.test(requestId) ||
     typeof requesterId !== 'string' ||
     typeof service !== 'string' ||
     typeof displayName !== 'string' ||
