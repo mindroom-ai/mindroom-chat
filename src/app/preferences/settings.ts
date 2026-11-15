@@ -71,7 +71,7 @@ const BOOLEAN_SETTING_KEYS = [
   'sendErrorReports', // Send error reports to the collector config.json names, if it names one.
 ] as const;
 
-type BooleanSettingKey = (typeof BOOLEAN_SETTING_KEYS)[number];
+export type BooleanSettingKey = (typeof BOOLEAN_SETTING_KEYS)[number];
 
 /** `themeId` applies while `useSystemTheme` is off; the other two are the system's light and dark picks. */
 type ThemePicks = Partial<Record<'themeId' | 'lightThemeId' | 'darkThemeId', string>>;
