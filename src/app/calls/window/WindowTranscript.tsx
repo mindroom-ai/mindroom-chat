@@ -10,7 +10,7 @@ import { textDirection } from '../../ui/directional';
 import type { TranscriptLine } from '../transcription/api';
 import { GAP_KEYS, LiveTranscriptBody } from '../transcription/LiveTranscriptBody';
 import { callTranscriptionAtom } from '../transcription/transcriptionState';
-import { dismissTranscriptPanel } from '../transcription/transcriptPanel';
+import { dismissTranscriptPanel, transcriptRoomId } from '../transcription/transcriptPanel';
 import { useLiveTranscript } from '../transcription/useLiveTranscript';
 import { useCallWindowSize } from './callWindowFrame';
 import {
@@ -183,7 +183,8 @@ type TranscriptProps = {
  */
 function Transcript({ room, layout, grow, paneRef }: TranscriptProps) {
   const { t } = useTranslation();
-  // It is this device's call: its transcriber reads it, and the window only shows what it read.
+  // It is this device's call: its transcriber (with an agent, its reader) reads it, and the window
+  // only shows what it read.
   const view = useLiveTranscript(room, READ_MS, false);
   const lines = view.live?.lines ?? [];
   const subtitle = layout === 'subtitle';
@@ -227,12 +228,12 @@ export function WindowTranscript({ room, children }: { room: Room; children: Rea
   const userId = useMatrixClient().getSafeUserId();
   const layout = useTranscriptLayout(room);
   // One transcript at a time: once it shows here (also when it was left on and MindRoom answers
-  // for a call just joined), the room's side transcript closes, so each line is read out once.
+  // for a call just joined), the call's side transcript closes, so each line is read out once.
   const store = useStore();
   const { roomId } = room;
   const shows = layout !== undefined;
   useEffect(() => {
-    if (shows) dismissTranscriptPanel(store, roomId);
+    if (shows) dismissTranscriptPanel(store, transcriptRoomId(store, roomId));
   }, [roomId, shows, store]);
   // The row's Transcript, outside the window, hands its focus to the transcript it opened here; one
   // that shows on its own (the controls' switch, left on for a call just joined) takes none. The

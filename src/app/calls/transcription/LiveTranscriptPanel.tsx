@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Icon, IconButton, Icons, Text } from 'folds';
+import { isActiveCallShownIn, useActiveCall } from '../callStore';
 import { LiveTranscriptBody } from './LiveTranscriptBody';
 import { PauseControl } from './PauseControl';
 import { useLiveTranscript } from './useLiveTranscript';
@@ -12,13 +13,17 @@ const READ_MS = 2_000;
 
 /**
  * The live transcript of the room's call, in the room's side panel: a line saying the call is
- * transcribed, who is in it, and what each person said under their name, with the gaps. Pause is
- * in its header while it shows this device's call.
+ * transcribed, who is in it, and what each person said under their name, with the gaps. In the
+ * conversation an agent call started from, where its call panel shows, it is that call's. Pause is
+ * in its header while it shows this device's call with people.
  */
 export function LiveTranscriptPanel({ room, onClose }: { room: Room; onClose: () => void }) {
   const { t } = useTranslation();
-  const view = useLiveTranscript(room, READ_MS);
-  const { state, ownCall } = view;
+  const active = useActiveCall();
+  const callRoom = active && isActiveCallShownIn(active, room.roomId) ? active.call.room : room;
+  const view = useLiveTranscript(callRoom, READ_MS);
+  const { state } = view;
+  const pausable = view.ownCall && active?.kind === 'room';
   const call = view.live?.call;
   const title = t('featureUi.calls.transcription.liveTranscript');
 
@@ -36,7 +41,7 @@ export function LiveTranscriptPanel({ room, onClose }: { room: Room; onClose: ()
           )}
         </div>
         <div className={css.HeaderActions}>
-          {ownCall && state === 'live' && call && <PauseControl room={room} small />}
+          {pausable && state === 'live' && call && <PauseControl room={room} small />}
           <IconButton
             size="300"
             radii="300"
@@ -48,7 +53,7 @@ export function LiveTranscriptPanel({ room, onClose }: { room: Room; onClose: ()
           </IconButton>
         </div>
       </header>
-      <LiveTranscriptBody room={room} view={view} className={panelCss.Body} />
+      <LiveTranscriptBody room={callRoom} view={view} className={panelCss.Body} />
     </section>
   );
 }

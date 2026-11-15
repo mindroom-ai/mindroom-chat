@@ -1,7 +1,14 @@
 import { useCallback } from 'react';
 import { atom, useAtomValue, useStore } from 'jotai';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { callPanelRoomAtom, useActiveCall, useInCall } from '../callStore';
+import {
+  activeCallAtom,
+  callHomeRoomId,
+  callPanelRoomAtom,
+  isActiveCallShownIn,
+  useActiveCall,
+  useInCall,
+} from '../callStore';
 import {
   focusHandOffAtom,
   getCallWindowTranscriptAtom,
@@ -45,6 +52,20 @@ export const dismissTranscriptPanel = (store: Store, roomId: string): void => {
   if (store.get(transcriptPanelAtom)?.roomId === roomId) store.set(transcriptPanelAtom, undefined);
 };
 
+/**
+ * The room whose call panel shows the call in `roomId` and whose side panel shows its transcript:
+ * for this device's call, where its panel is open, else its home (an agent call's conversation);
+ * for another call, its own room.
+ */
+export const transcriptRoomId = (store: Store, roomId: string): string => {
+  const active = store.get(activeCallAtom);
+  if (active?.call.room.roomId !== roomId) return roomId;
+  const panelRoomId = store.get(callPanelRoomAtom);
+  return panelRoomId && isActiveCallShownIn(active, panelRoomId)
+    ? panelRoomId
+    : callHomeRoomId(active);
+};
+
 /** Whether the room shows its live transcript, and the ways to close or dismiss it. */
 export const useTranscriptPanel = (roomId: string) => {
   const store = useStore();
@@ -57,10 +78,11 @@ export const useTranscriptPanel = (roomId: string) => {
 /**
  * Transcript for the call in `roomId`, in the call's controls or on its row: whether it shows
  * inside the floating window (the call is this device's and still on here, this device
- * transcribes it, and its view floats), whether it shows there now, and `open`. There, the window's
- * call view opens with the transcript: the controls toggle it (`toggle`), the row opens it and
- * hands it its focus, and the room's side transcript closes, so one shows it. The window shows only
- * what this device's transcriber reads, so anywhere else the room's side panel, which reads the
+ * transcribes it or, with an agent, reads it, and its view floats), whether it shows there now,
+ * and `open`. There, the window's call view opens with the transcript: the controls toggle it
+ * (`toggle`), the row opens it and hands it its focus, and the side transcript closes, so one
+ * shows it. The window shows only what this device's transcriber or reader reads, so anywhere else
+ * the side panel of the room whose call panel shows the call (`transcriptRoomId`), which reads the
  * call itself, shows it, beside a floating call view: a call that failed or ended here (its
  * finished view has no transcript, while the others may still talk), and one whose transcriber
  * did not load or MindRoom has not answered yet.
@@ -73,20 +95,20 @@ export const useCallTranscript = (roomId: string) => {
   const floats = useCallViewFloats();
   const transcription = useAtomValue(callTranscriptionAtom);
   const transcribed = transcription?.roomId === roomId && transcription.status !== 'joining';
-  const inWindow =
-    floats && live && transcribed && active?.kind === 'room' && active.call.room.roomId === roomId;
+  const inWindow = floats && live && transcribed && active?.call.room.roomId === roomId;
   const shown = useAtomValue(getCallWindowTranscriptAtom(userId));
   const open = useCallback(
     (toggle: boolean) => {
+      const panelRoomId = transcriptRoomId(store, roomId);
       if (!inWindow) {
-        openTranscriptPanel(store, roomId, floats);
+        openTranscriptPanel(store, panelRoomId, floats);
         return;
       }
       const shownAtom = getCallWindowTranscriptAtom(userId);
       const show = toggle ? !store.get(shownAtom) : true;
       store.set(shownAtom, show);
-      store.set(callPanelRoomAtom, roomId);
-      if (show) dismissTranscriptPanel(store, roomId);
+      store.set(callPanelRoomAtom, panelRoomId);
+      if (show) dismissTranscriptPanel(store, panelRoomId);
       if (!toggle) store.set(focusHandOffAtom, { to: 'transcript', from: document.activeElement });
     },
     [floats, inWindow, roomId, store, userId]

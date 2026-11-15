@@ -197,6 +197,36 @@ describe('the call controls for transcripts', () => {
     expect(status()).toBe('Transcripts are unavailable');
   });
 
+  it("offer Transcript without Pause in a call with an agent, opening it in its conversation's panel", () => {
+    const store = inAgentCall();
+    store.set(settings(), { mode: 'docked' });
+    render('transcribing', store);
+    expect(labels()).toEqual(['Live transcript']);
+    expect(status()).toBe('');
+
+    // The call panel shows in the conversation the call started from: the transcript takes its place.
+    act(() => transcript()?.click());
+    expect(store.get(transcriptPanelAtom)).toEqual({ roomId: ORIGIN_ID, replacedCall: true });
+    expect(store.get(callPanelRoomAtom)).toBeUndefined();
+
+    act(() => store.set(callTranscriptionAtom, { roomId: ROOM_ID, status: 'unavailable' }));
+    expect(status()).toBe('Transcripts are unavailable');
+  });
+
+  it('toggle the live transcript inside the floating window of a call with an agent', () => {
+    const store = inAgentCall();
+    store.set(transcriptPanelAtom, { roomId: ORIGIN_ID, replacedCall: false });
+    render('transcribing', store);
+    expect(labels()).toEqual(['Live transcript']);
+
+    act(() => transcript()?.click());
+    expect(store.get(settings()).transcript).toBe(true);
+    expect(transcript()?.getAttribute('aria-pressed')).toBe('true');
+    // The window stays on the conversation's call view, and its side transcript closes.
+    expect(store.get(callPanelRoomAtom)).toBe(ORIGIN_ID);
+    expect(store.get(transcriptPanelAtom)).toBeUndefined();
+  });
+
   it.each([
     ['docked', ScreenSize.Desktop],
     ['floating', ScreenSize.Mobile],
@@ -216,6 +246,25 @@ describe('the call controls for transcripts', () => {
 const settings = () => getCallWindowSettingsAtom('@ann:example.org');
 const transcript = () =>
   container.querySelector<HTMLButtonElement>('[aria-label="Live transcript"]');
+
+const ORIGIN_ID = '!conversation:example.org';
+
+/** This device is in a call with an agent in the room, started from another conversation. */
+const inAgentCall = () => {
+  const store = createStore();
+  store.set(activeCallAtom, {
+    kind: 'agent',
+    agentUserId: '@mindroom_helper:example.org',
+    origin: { roomId: ORIGIN_ID },
+    call: {
+      room: { roomId: ROOM_ID },
+      subscribe: () => () => undefined,
+      getState: () => ({ phase: 'connected' }),
+    },
+  } as unknown as ActiveCall);
+  store.set(callPanelRoomAtom, ORIGIN_ID);
+  return store;
+};
 
 /** This device is in the room's call, whose view is open. */
 const inOwnCall = () => {

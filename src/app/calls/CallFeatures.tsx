@@ -15,6 +15,7 @@ import {
 } from './callResume';
 import { AgentCallFailureNotice } from './agent/AgentCallFailureNotice';
 import { IncomingCalls } from './IncomingCalls';
+import { AgentCallTranscript } from './transcription/AgentCallTranscript';
 import { CallTranscription } from './transcription/CallTranscription';
 import * as css from './IncomingCalls.css';
 import { CallWindowHost } from './window/CallWindowHost';
@@ -119,8 +120,8 @@ function CallResume() {
 
 /**
  * Account-wide call features: incoming rings, why an agent call did not start, resuming after a
- * reload, the call's lifetime, transcribing this device's speech in it, and the floating call
- * window.
+ * reload, the call's lifetime, transcribing this device's speech in it (reading an agent call's
+ * transcript), and the floating call window.
  */
 export function CallFeatures() {
   return (
@@ -128,6 +129,7 @@ export function CallFeatures() {
       <CallLifetime />
       <CallResume />
       <CallTranscription />
+      <AgentCallTranscript />
       {/* Beside the rings, not inside their fixed corner: the window places itself in the viewport. */}
       <CallWindowHost />
       <div className={css.Host}>
