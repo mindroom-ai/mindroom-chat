@@ -40,22 +40,26 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: 'states', chapter: 'basics', phases: [0] },
   // The card's buttons, the resolved mark, the list without the card.
   { id: 'resolve', chapter: 'tidy', phases: [1300, 1000, 0] },
+  // The button, the bar it shows, Unresolved turned off, the resolved card that is back,
+  // Unresolved on again and the list without the card.
+  { id: 'filters', chapter: 'tidy', phases: [1200, 900, 1300, 1500, 0] },
   // The card's buttons, then its menu.
   { id: 'snooze', chapter: 'tidy', phases: [700, 0] },
   // The tagged cards, then one of them pinned.
   { id: 'pinAndTag', chapter: 'tidy', phases: [1000, 0] },
-  // The button, then the bar it shows.
-  { id: 'filters', chapter: 'finding', phases: [1200, 0] },
   // The switch, then the other view.
   { id: 'views', chapter: 'finding', phases: [1200, 0] },
   // The bell, then its list.
   { id: 'activity', chapter: 'finding', phases: [900, 0] },
 ];
 
-/** How many steps the Quick tour has: the first chapter. */
-export const QUICK_STEP_COUNT = 6;
+/**
+ * How many steps the Quick tour has: the first chapter, then how a thread that is done leaves the
+ * list and how the filters bring it back.
+ */
+export const QUICK_STEP_COUNT = 8;
 
-/** The steps of a level: the Quick tour is the Full tour's first chapter. */
+/** The steps of a level: the Quick tour is the Full tour's first steps. */
 export const stepsOf = (level: TourLevel): readonly TourStep[] =>
   level === 'quick' ? TOUR_STEPS.slice(0, QUICK_STEP_COUNT) : TOUR_STEPS;
 

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import {
@@ -228,8 +228,16 @@ function RoomMenu({ scene, live }: Pick<RoomProps, 'scene' | 'live'>) {
   );
 }
 
+type FilterBarProps = {
+  /** How many threads the list shows. */
+  count: number;
+  /** Whether Unresolved is on, as Compact has it until someone turns it off. */
+  unresolvedOnly: boolean;
+  live: boolean;
+};
+
 /** The simple thread filters: the count, Unresolved, the sort button and Advanced filters. */
-function FilterBar({ count, live }: { count: number; live: boolean }) {
+function FilterBar({ count, unresolvedOnly, live }: FilterBarProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   return (
@@ -239,8 +247,14 @@ function FilterBar({ count, live }: { count: number; live: boolean }) {
           <IconMessages size={14} stroke={1.8} aria-hidden="true" />
           <Text size="T200">{localDigits(String(count), language)}</Text>
         </span>
-        {/* Compact hides resolved threads, so Unresolved is on. */}
-        <span className={classNames(overviewCss.SortButton, overviewCss.SortButtonActive)}>
+        <span
+          className={classNames(
+            overviewCss.SortButton,
+            unresolvedOnly && overviewCss.SortButtonActive
+          )}
+          data-tour-filter={unresolvedOnly ? 'on' : 'off'}
+          {...mark(live, 'filterUnresolved')}
+        >
           <Text size="T200">{t('thread.simpleFilter.unresolved')}</Text>
         </span>
         <span className={overviewCss.SortButton}>
@@ -293,10 +307,12 @@ function CardMenu({ phone, live }: Pick<RoomProps, 'phone' | 'live'>) {
 type SampleCardRowProps = RoomProps & {
   card: SceneCard;
   pinned: boolean;
+  /** Whether the card came into a list that was already there, and so fades in. */
+  joined: boolean;
 };
 
 /** One thread: the app's card with sample data, and around it the card's buttons and menu. */
-function SampleCardRow({ card, scene, phone, live, now, pinned }: SampleCardRowProps) {
+function SampleCardRow({ card, scene, phone, live, now, pinned, joined }: SampleCardRowProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const shellRef = useRef<HTMLDivElement>(null);
@@ -320,12 +336,14 @@ function SampleCardRow({ card, scene, phone, live, now, pinned }: SampleCardRowP
       ref={shellRef}
       className={classNames(
         css.CardShell,
+        joined && css.Arriving,
         phone && css.PhoneCardShell,
         pointed && css.CardShellHovered,
         menuOpen && css.CardShellRaised
       )}
       data-flip-key={id}
       data-tour-card={id}
+      data-tour-joined={joined ? '' : undefined}
       {...mark(live, `card:${id}`)}
     >
       {swiped && (
@@ -391,6 +409,22 @@ function SampleCardRow({ card, scene, phone, live, now, pinned }: SampleCardRowP
   );
 }
 
+/**
+ * The cards that came into a list which was already on the stage, for as long as they stay in
+ * it: a thread the filters bring back. The cards a list starts with are none of them.
+ */
+const useJoinedCards = (ids: readonly SampleThreadId[]): readonly SampleThreadId[] => {
+  const shown = useRef<{ ids: readonly SampleThreadId[]; joined: readonly SampleThreadId[] }>();
+  const before = shown.current;
+  const joined = before
+    ? ids.filter((id) => before.joined.includes(id) || !before.ids.includes(id))
+    : [];
+  useEffect(() => {
+    shown.current = { ids, joined };
+  });
+  return joined;
+};
+
 /** The Compact view: the filter bar when it shows, the Pinned section, then the other cards. */
 function CardList(props: RoomProps) {
   const { scene, live } = props;
@@ -399,16 +433,25 @@ function CardList(props: RoomProps) {
   const ids = scene.cards.map(({ id }) => id);
   // The cards glide when their order changes, a card is pinned, or the bar moves them down.
   useFlipList(paneRef, [ids.join(','), scene.pinned.join(','), scene.filterBar].join('|'));
+  const joined = useJoinedCards(ids);
   const isPinned = (id: SampleThreadId) => scene.pinned.includes(id);
   const renderCard = (card: SceneCard) => (
-    <SampleCardRow key={card.id} {...props} card={card} pinned={isPinned(card.id)} />
+    <SampleCardRow
+      key={card.id}
+      {...props}
+      card={card}
+      pinned={isPinned(card.id)}
+      joined={joined.includes(card.id)}
+    />
   );
   const pinnedCards = scene.cards.filter(({ id }) => isPinned(id));
 
   return (
     // The cards' places count from here, so the bar above them moves them too.
     <div ref={paneRef} className={css.Body}>
-      {scene.filterBar && <FilterBar count={scene.cards.length} live={live} />}
+      {scene.filterBar && (
+        <FilterBar count={scene.cards.length} unresolvedOnly={scene.unresolvedOnly} live={live} />
+      )}
       <div className={css.CardList} data-tour-cards="">
         {pinnedCards.length > 0 && (
           <Box direction="Column" gap="100" className={PinnedSection} data-tour-pinned="">
