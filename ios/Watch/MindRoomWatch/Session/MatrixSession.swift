@@ -2,7 +2,6 @@ import Foundation
 import MatrixRustSDK
 import MindRoomWatchKit
 import os
-import WatchKit
 
 private let log = Logger(subsystem: "chat.mindroom.app.watchkitapp", category: "session")
 
@@ -50,6 +49,8 @@ final class MatrixSession: ObservableObject {
 
     /// Credentials not used yet: the sign-in runs only while the app is in front (WaitingCredentials).
     private var waiting = WaitingCredentials()
+    /// Whether the app is in front, as its scene last said.
+    private var inFront = false
 
     func connect(_ message: WatchLinkMessage) async {
         waiting.received(message)
@@ -58,9 +59,15 @@ final class MatrixSession: ObservableObject {
 
     /// Asks whether the app is in front when its turn comes, not when the credentials did.
     private func connectWaiting() async {
-        let inFront = WKApplication.shared().applicationState == .active
         guard let message = waiting.take(inFront: inFront) else { return }
         await connectNow(message)
+    }
+
+    /// The app's scene came to the front or left it: sync follows, and credentials that waited sign in.
+    func sceneChanged(inFront: Bool) async {
+        self.inFront = inFront
+        await setActive(inFront)
+        if self.inFront, !waiting.isEmpty { await serially { await self.connectWaiting() } }
     }
 
     private func connectNow(_ message: WatchLinkMessage) async {
@@ -144,8 +151,11 @@ final class MatrixSession: ObservableObject {
 
     /// Logs the device out on the server when it can, then forgets everything on the watch.
     func signOut() async {
-        waiting.clear()
-        await serially { await self.signOutNow() }
+        await serially {
+            // In its turn: a sign-in still under way puts its credentials back when the network fails it.
+            self.waiting.clear()
+            await self.signOutNow()
+        }
     }
 
     private func signOutNow() async {
@@ -180,7 +190,6 @@ final class MatrixSession: ObservableObject {
 
     /// Starts or stops sync as the app comes forward or goes to the background.
     func setActive(_ active: Bool) async {
-        if active, !waiting.isEmpty { await serially { await self.connectWaiting() } }
         guard let syncService else { return }
         if active {
             await syncService.start()

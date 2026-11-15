@@ -39,6 +39,9 @@ final class URLSessionTransport: HttpTransport, @unchecked Sendable {
             }
             return .response(status: UInt16(response.statusCode), headers: headers, body: body)
         } catch {
+            // The SDK gave up on the request and takes no answer. UniFFI 0.32 does not free the answer to a
+            // call it dropped, so this one is as small as an answer gets.
+            if Task.isCancelled { return .failure(message: "") }
             return .failure(message: error.localizedDescription)
         }
     }
