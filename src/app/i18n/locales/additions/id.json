@@ -812,7 +812,7 @@
   "commandPalette": {
     "state": {
       "on": "Aktif",
-      "off": "Mati"
+      "off": "Nonaktif"
     },
     "people": "Orang",
     "tabsLabel": "Jenis hasil",

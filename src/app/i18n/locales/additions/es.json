@@ -841,8 +841,8 @@
   },
   "commandPalette": {
     "state": {
-      "on": "Sí",
-      "off": "No"
+      "on": "Activado",
+      "off": "Desactivado"
     },
     "people": "Personas",
     "tabsLabel": "Tipos de resultado",
