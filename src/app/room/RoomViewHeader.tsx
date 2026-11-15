@@ -48,6 +48,7 @@ import type { SidePanel } from '../plugins/sidePanels';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
 import type { RoomViewMode } from '../navigation/roomViewMode';
+import { useRoomCommands } from '../navigation/roomCommands';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import {
   hasChosenThreadFilters,
@@ -495,6 +496,20 @@ export function RoomViewHeader({
     },
   ];
   const entries = listed.filter((entry): entry is RoomHeaderEntry => !!entry);
+  // The command palette offers the actions the header draws, bar the ones that need their button's place.
+  useRoomCommands(
+    entries
+      .filter(drawnByHeader)
+      .filter((entry) => !entry.popup)
+      .map(({ id, label, icon, pressed, shortcut, run }) => ({
+        id,
+        label,
+        icon,
+        pressed,
+        shortcut,
+        run: () => run(undefined),
+      }))
+  );
   const inRow = (entry: RoomHeaderEntry) => showsInRow(entry.placement, mobile);
   const menuEntries = entries.filter((entry) => !inRow(entry));
   // What only works in the open room, before the room's own actions in the menu.
