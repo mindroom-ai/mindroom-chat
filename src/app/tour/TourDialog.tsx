@@ -128,8 +128,9 @@ export function TourDialog({ level, onLevelChange, onClose }: TourDialogProps) {
     mainRef.current?.focus();
   }, [step.id]);
 
-  // The dialog's focus trap also asks to close as it is taken off the page, which a tour that
-  // was closed with Done is by then: only the first way of closing counts.
+  // The dialog's focus trap also asks to close as the dialog is taken off the page: after Done,
+  // or when a tour opened anew takes its place. Only the first way of closing counts, and being
+  // taken off the page is none.
   const closed = useRef(false);
   const latestOnClose = useLatestRef(onClose);
   const close = (how: 'done' | 'dismissed') => {
@@ -137,6 +138,12 @@ export function TourDialog({ level, onLevelChange, onClose }: TourDialogProps) {
     closed.current = true;
     latestOnClose.current(how);
   };
+  useLayoutEffect(() => {
+    closed.current = false;
+    return () => {
+      closed.current = true;
+    };
+  }, []);
   const dismiss = () => close('dismissed');
 
   // A phone's text scrolls where the screen is too short for it: each step starts at its top.

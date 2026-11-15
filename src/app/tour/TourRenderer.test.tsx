@@ -146,7 +146,8 @@ describe('TourRenderer', () => {
     for (let step = 1; step < QUICK_STEP_COUNT; step += 1) press('next');
     press('keepGoing');
 
-    expect(store.get(tourAtom)).toEqual({ level: 'full' });
+    // The same opening, now at the Full level.
+    expect(dialog()?.getAttribute('data-tour-level')).toBe('full');
     expect(dialog()?.getAttribute('data-tour-step')).toBe('resolve');
     for (let step = QUICK_STEP_COUNT + 1; step < 12; step += 1) press('next');
     press('done');
@@ -161,6 +162,22 @@ describe('TourRenderer', () => {
     expect(dialog()?.getAttribute('data-tour-step')).toBe('start');
     press('close');
     open('quick');
+    expect(dialog()?.getAttribute('data-tour-step')).toBe('conversation');
+  });
+
+  it('starts over when a tour is opened while one is open, as the command palette can', () => {
+    render(<TourRenderer />);
+    open('quick');
+    press('next');
+    press('next');
+    expect(dialog()?.getAttribute('data-tour-step')).toBe('reply');
+
+    open('full');
+    expect(dialog()?.getAttribute('data-tour-level')).toBe('full');
+    expect(dialog()?.getAttribute('data-tour-step')).toBe('conversation');
+    // The same level again is another opening too.
+    press('next');
+    open('full');
     expect(dialog()?.getAttribute('data-tour-step')).toBe('conversation');
   });
 });

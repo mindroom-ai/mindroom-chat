@@ -34,7 +34,7 @@ Out:
 - Marks on the live page beyond the handoff's one ring (coach marks). See the first assumption.
 - Trying things in the stage (typing in its composer, clicking its cards).
 - Tours of other parts of the app (calls, canvases, computers, Connections, settings). The step list is data, so a later tour adds steps and scenes; nothing here is built for that ahead of time.
-- Remembering how far someone got. Closing the tour ends it; opening it starts at its first step.
+- Remembering how far someone got. Closing the tour ends it; opening it starts at its first step, also when it is opened while it is open (the command palette opens over it).
 - A setting to see the offer again. The entries open the tour at any time.
 - Declined from the reviews: showing all three sort modes (the text names the button, the bar shows it); translated search keywords for the palette (its other actions have English ones, and the translated title matches); opening a room for someone who finishes on the welcome page ("Start in <room>": which room is a guess); a focus target of the tour's own for an entry that is gone when the tour closes (the app's dialogs leave that to `lib/overlayFocus.ts`).
 

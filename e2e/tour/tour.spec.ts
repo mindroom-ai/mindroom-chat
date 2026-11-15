@@ -148,6 +148,16 @@ test('the card is dismissed for good, and the command palette still opens the to
     );
   }
 
+  // The palette opens over the tour, as over the app's other dialogs: a tour chosen there
+  // starts over at its first step.
+  await action(page, 'next').click();
+  await expect(dialog(page)).toContainText('Step 2 of 12');
+  await pressPaletteShortcut(page);
+  await palette.getByRole('combobox').fill('tour');
+  await palette.getByRole('option', { name: /Take the quick tour/ }).click();
+  await expect(dialog(page)).toHaveAttribute('data-tour-level', 'quick');
+  await expect(dialog(page)).toContainText('Step 1 of 6');
+
   await page.keyboard.press('Escape');
   await expect(dialog(page)).toHaveCount(0);
   await page.reload();
