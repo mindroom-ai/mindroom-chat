@@ -1,4 +1,13 @@
-import { Fragment, type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Fragment,
+  type KeyboardEvent,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon, IconButton, Icons, Text } from 'folds';
@@ -90,6 +99,17 @@ export function TourDialog({ level, onLevelChange, onClose }: TourDialogProps) {
     [step.id, phase, phone, typedLength]
   );
 
+  // A live region says only what changes in it, so it is silent about the step the tour opens
+  // with. The dialog is described by the step's text, which a screen reader reads with the
+  // dialog's name as the focus enters it.
+  const textId = useId();
+  const contentRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const dialog = contentRef.current?.closest('[role="dialog"]');
+    dialog?.setAttribute('aria-describedby', textId);
+    return () => dialog?.removeAttribute('aria-describedby');
+  }, [textId]);
+
   // Enter goes on: the main button has the focus when the tour opens and after each step.
   const mainRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -132,6 +152,7 @@ export function TourDialog({ level, onLevelChange, onClose }: TourDialogProps) {
       {/* The arrow keys reach this element from whichever of its controls has the focus. */}
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
       <div
+        ref={contentRef}
         className={css.Content}
         data-tour-dialog=""
         data-tour-level={level}
@@ -198,7 +219,7 @@ export function TourDialog({ level, onLevelChange, onClose }: TourDialogProps) {
                 <StepText step={each} />
               </div>
             ))}
-            <div className={css.StepText} aria-live="polite" aria-atomic="true">
+            <div id={textId} className={css.StepText} aria-live="polite" aria-atomic="true">
               <StepText step={step} heading />
             </div>
           </div>

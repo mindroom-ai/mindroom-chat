@@ -2,13 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { prefersReducedMotion } from './tourMotion';
 import { SCENE_START_DELAY_MS, type TourStep, type TourStepId } from './tourSteps';
 
-type Run = { step: TourStepId; phase: number; replays: number };
+type Run = { step: TourStepId; phase: number };
 
 /** A step's scene from its start, or at its end where nothing should move. */
-const startOf = (step: TourStep, replays: number): Run => ({
+const startOf = (step: TourStep): Run => ({
   step: step.id,
   phase: prefersReducedMotion() ? step.phases.length - 1 : 0,
-  replays,
 });
 
 /**
@@ -19,14 +18,14 @@ const startOf = (step: TourStep, replays: number): Run => ({
 export const useScenePhase = (
   step: TourStep
 ): { phase: number; settled: boolean; replay: () => void } => {
-  const [run, setRun] = useState(() => startOf(step, 0));
+  const [run, setRun] = useState(() => startOf(step));
   // A new step starts over in the render that brings it, so its scene never shows the old phase.
   let current = run;
   if (run.step !== step.id) {
-    current = startOf(step, 0);
+    current = startOf(step);
     setRun(current);
   }
-  const { phase, replays } = current;
+  const { phase } = current;
   const last = step.phases.length - 1;
 
   useEffect(() => {
@@ -37,9 +36,10 @@ export const useScenePhase = (
       length
     );
     return () => clearTimeout(timer);
-  }, [step, phase, last, replays]);
+  }, [step, phase, last]);
 
-  const replay = useCallback(() => setRun((now) => startOf(step, now.replays + 1)), [step]);
+  // Offered once the scene has played, so the phase changes and its timer starts anew.
+  const replay = useCallback(() => setRun(startOf(step)), [step]);
 
   return { phase: Math.min(phase, last), settled: phase >= last, replay };
 };

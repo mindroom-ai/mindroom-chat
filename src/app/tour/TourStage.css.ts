@@ -167,8 +167,10 @@ export const CardActions = style([
   {
     position: 'absolute',
     insetInlineEnd: config.space.S300,
-    insetBlockStart: '50%',
-    transform: 'translateY(-50%)',
+    // Centered by its margins, not a transform: the spotlight measures layout offsets.
+    insetBlock: 0,
+    marginBlock: 'auto',
+    height: 'fit-content',
     display: 'flex',
     alignItems: 'center',
     columnGap: config.space.S100,

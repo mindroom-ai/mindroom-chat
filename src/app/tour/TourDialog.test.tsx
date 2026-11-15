@@ -240,6 +240,14 @@ describe('TourDialog', () => {
     expect(reached).toEqual(new Set([action('close'), action('back'), action('next')]));
   });
 
+  it('describes the dialog by the step it opens with, which a live region would not say', () => {
+    render(<Tour />);
+    const described = dialog().closest('[role="dialog"]')?.getAttribute('aria-describedby');
+    expect(described).toBeTruthy();
+    expect(document.getElementById(described ?? '')).toBe(liveRegion());
+    expect(liveRegion().textContent).toContain('A thread is one conversation');
+  });
+
   it("reads each step's title and text in a live region", () => {
     render(<Tour />);
     const region = liveRegion();

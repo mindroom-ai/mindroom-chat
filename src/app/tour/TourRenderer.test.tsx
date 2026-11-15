@@ -41,6 +41,7 @@ const page = ({ room }: { room: boolean }) => {
   if (!room) return { opener, composer: undefined };
   const footer = document.body.appendChild(document.createElement('div'));
   footer.setAttribute('data-room-footer', 'true');
+  footer.setAttribute('data-footer-of', 'room');
   const composer = footer.appendChild(document.createElement('div'));
   composer.setAttribute('data-editable-name', 'RoomInput');
   composer.tabIndex = 0;

@@ -2,9 +2,10 @@ import { expect, test, type Page } from '@playwright/test';
 
 // Every step of the interface tour on its fixture page (e2e/fixtures/tour.tsx), on a wide screen,
 // on a small phone (in English and in two languages of longer texts) and in a right-to-left
-// language: the part a step is about lies inside the
-// stage, the four state cards are all in view, and the buttons stay in view where they are from
-// step to step. Motion is reduced, so each step shows the end of its scene at once.
+// language: the spotlight is around the part a step is about, which lies inside the stage, the
+// four state cards are all in view, and the buttons stay in view where they are from step to
+// step. Motion is reduced there, so each step shows the end of its scene at once; a last test
+// plays a scene and checks the spotlight on a part only an early phase shows.
 
 const STEP_COUNT = 12;
 
@@ -22,6 +23,42 @@ const inside = (inner: Box, outer: Box, slack = 3): boolean =>
   inner.y >= outer.y - slack &&
   inner.x + inner.width <= outer.x + outer.width + slack &&
   inner.y + inner.height <= outer.y + outer.height + slack;
+
+/**
+ * The part each step's spotlight is around once its scene has played; none where the step is
+ * about the whole list, or where what it was about has gone.
+ */
+const SPOTLIGHT: Record<string, string | undefined> = {
+  conversation: 'card:budget',
+  start: 'thread',
+  reply: 'card:launch',
+  title: 'title:launch',
+  order: 'card:vendor',
+  states: undefined,
+  resolve: undefined,
+  snooze: 'menuSnooze',
+  pinAndTag: 'card:budget',
+  filters: 'filterBar',
+  views: 'viewSwitch',
+  activity: 'bell',
+};
+
+/** Whether the ring is around the part: outside it on every side, by a few px at most. */
+const around = (ring: Box, part: Box): boolean =>
+  inside(part, ring, 1) && ring.width - part.width <= 12 && ring.height - part.height <= 12;
+
+/** Waits for the ring to rest around the part it names, and returns its box. */
+const expectSpotlightOn = async (page: Page, part: string, step: string): Promise<Box> => {
+  const ring = `[data-tour-spotlight="${part}"]`;
+  const marked = `[data-tour-stage] [data-tour-part="${part}"]`;
+  await expect(page.locator(ring), `${step}: the spotlight is on ${part}`).toHaveCount(1);
+  await expect
+    .poll(async () => around(await boxOf(page, ring), await boxOf(page, marked)), {
+      message: `${step}: the spotlight is around ${part}`,
+    })
+    .toBe(true);
+  return boxOf(page, ring);
+};
 
 /** The frame that clips the stage's room. */
 const frameOf = (page: Page): Promise<Box> =>
@@ -70,17 +107,14 @@ SCREENS.forEach(({ name, viewport, query }) => {
       const frame = await frameOf(page);
       expect(inside(frame, screen, 0), `${step}: the stage is on the screen`).toBe(true);
 
-      // The part the step is about, under its ring, is not cut off by the stage.
-      const ring = page.locator('[data-tour-spotlight]');
-      if ((await ring.count()) > 0) {
-        await expect
-          .poll(async () => inside(await boxOf(page, '[data-tour-spotlight]'), frame), {
-            message: `${step}: the spotlight lies inside the stage`,
-          })
-          .toBe(true);
-        const ringBox = await boxOf(page, '[data-tour-spotlight]');
-        expect(ringBox.width, `${step}: the spotlight has a size`).toBeGreaterThan(8);
-        expect(ringBox.height, `${step}: the spotlight has a size`).toBeGreaterThan(8);
+      // The part the step is about has the ring around it and is not cut off by the stage. A
+      // phone's view switch is in its room menu, which has closed again by the scene's end.
+      const part = step === 'views' && viewport.width < 600 ? undefined : SPOTLIGHT[step];
+      if (part) {
+        const ring = await expectSpotlightOn(page, part, step);
+        expect(inside(ring, frame), `${step}: the spotlight lies inside the stage`).toBe(true);
+      } else {
+        await expect(page.locator('[data-tour-spotlight]'), `${step}: no spotlight`).toHaveCount(0);
       }
 
       if (step === 'states') {
@@ -121,4 +155,21 @@ SCREENS.forEach(({ name, viewport, query }) => {
       ).toBeLessThanOrEqual(1);
     });
   });
+});
+
+test('the spotlight is on the check of a card while the scene of Resolve plays', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/e2e/fixtures/tour.html?level=full');
+  await page.locator('body[data-fixture-ready="true"]').waitFor();
+  const dialog = page.locator('[data-tour-dialog]');
+  await expect(dialog).toBeVisible();
+  // Straight to the seventh step, whose first phase shows the card's buttons.
+  for (let at = 1; at < 7; at += 1) await page.locator('[data-tour-action="next"]').click();
+  await expect(dialog).toHaveAttribute('data-tour-step', 'resolve');
+  await expect(page.locator('[data-tour-stage]')).toHaveAttribute('data-tour-phase', '0');
+  // The buttons sit over the card's end, centered on it, and the ring has to find them there.
+  await expectSpotlightOn(page, 'resolveButton', 'resolve');
+  await expect(page.locator('[data-tour-stage]')).toHaveAttribute('data-tour-phase', '0');
 });

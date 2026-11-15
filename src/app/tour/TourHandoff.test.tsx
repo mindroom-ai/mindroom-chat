@@ -6,10 +6,14 @@ import { HANDOFF_LENGTH_MS, TourHandoff } from './TourHandoff';
 
 const onEnd = vi.fn();
 
-/** Puts a room's composer on the page, as `ConversationLayout` and the editor mark it. */
-const addComposer = (): HTMLElement => {
-  const footer = document.body.appendChild(document.createElement('div'));
+/**
+ * Puts a composer on the page, as `ConversationLayout` and the editor mark it: a room's own, or
+ * an open thread's.
+ */
+const addComposer = (of: 'room' | 'thread' = 'room', parent: HTMLElement = document.body) => {
+  const footer = parent.appendChild(document.createElement('div'));
   footer.setAttribute('data-room-footer', 'true');
+  footer.setAttribute('data-footer-of', of);
   const composer = footer.appendChild(document.createElement('div'));
   composer.setAttribute('data-editable-name', 'RoomInput');
   composer.tabIndex = 0;
@@ -80,6 +84,30 @@ describe('TourHandoff', () => {
     expect(ring()).toBeNull();
     tick();
     expect(document.activeElement).toBe(composer);
+    expect(onEnd).toHaveBeenCalledOnce();
+  });
+
+  it("passes over an open thread's composer for the room's, beside the thread", () => {
+    const reply = addComposer('thread');
+    const composer = addComposer('room');
+    render(<TourHandoff onEnd={onEnd} />);
+    tick();
+    expect(document.activeElement).toBe(composer);
+    expect(document.activeElement).not.toBe(reply);
+    expect(ring()).not.toBeNull();
+  });
+
+  it('does nothing while a thread fills the page, where typing would reply to it', () => {
+    // The room's conversation is under the thread, inert, composer and all.
+    const area = document.body.appendChild(document.createElement('div'));
+    area.setAttribute('inert', '');
+    const covered = addComposer('room', area);
+    const reply = addComposer('thread');
+    render(<TourHandoff onEnd={onEnd} />);
+    tick(HANDOFF_LENGTH_MS);
+    expect(ring()).toBeNull();
+    expect(document.activeElement).not.toBe(covered);
+    expect(document.activeElement).not.toBe(reply);
     expect(onEnd).toHaveBeenCalledOnce();
   });
 

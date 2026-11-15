@@ -75,7 +75,7 @@ export function TourSpotlight({ part }: TourSpotlightProps) {
       {box && (
         <div
           className={css.Spotlight}
-          data-tour-spotlight=""
+          data-tour-spotlight={part}
           style={{
             transform: `translate(${box.x - SPOTLIGHT_GAP}px, ${box.y - SPOTLIGHT_GAP}px)`,
             width: box.width + 2 * SPOTLIGHT_GAP,
