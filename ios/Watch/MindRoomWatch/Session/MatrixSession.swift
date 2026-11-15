@@ -176,9 +176,8 @@ final class MatrixSession: ObservableObject {
             .homeserverUrl(url: session.homeserverUrl)
             .sqliteStore(config: store)
             .slidingSyncVersionBuilder(versionBuilder: .native)
-            // Turn key backup on when another device hands over its key, and fetch a room's keys from it
-            // when a message there does not decrypt.
-            .autoEnableBackups(autoEnableBackups: true)
+            // Fetch a room's keys from the account's key backup when a message there does not decrypt. The
+            // iPhone's secrets bundle turns that backup on here; the watch never creates one of its own.
             .backupDownloadStrategy(backupDownloadStrategy: .afterDecryptionFailure)
             .userAgent(userAgent: "MindRoom Apple Watch")
             .build()
