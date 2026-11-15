@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Icons } from 'folds';
 import { type TFunction } from 'i18next';
 import { translateFromEn } from '../../test/utils/i18n';
 import {
@@ -19,11 +20,83 @@ describe('getCommandPaletteQuickActions', () => {
       'go-activity',
       'create-room',
       'create-space',
+      'page-theme',
       'toggle-theme',
+      'page-message-layout',
+      'page-language',
       'take-quick-tour',
       'take-full-tour',
       'logout',
     ]);
+  });
+
+  it('opens the Theme, Message Layout and App Language pages from rows of their own', () => {
+    const actions = getCommandPaletteQuickActions({}, t);
+    expect(actions.find((item) => item.id === 'page-theme')).toMatchObject({
+      title: 'Theme',
+      page: 'theme',
+      sortRank: 25,
+      icon: Icons.Sun,
+      keywords: ['appearance', 'dark', 'light', 'colors'],
+    });
+    expect(actions.find((item) => item.id === 'page-message-layout')).toMatchObject({
+      title: 'Message Layout',
+      page: 'message-layout',
+      sortRank: 18,
+      icon: Icons.Message,
+      keywords: ['modern', 'compact', 'bubble'],
+    });
+    expect(actions.find((item) => item.id === 'page-language')).toMatchObject({
+      title: 'App Language',
+      page: 'language',
+      sortRank: 17,
+      icon: Icons.Globe,
+      keywords: ['locale', 'translation'],
+    });
+  });
+
+  it('shows the keys of Open Settings and of resolving a thread', () => {
+    const shortcutOf = (id: string, resolved: boolean) =>
+      getCommandPaletteQuickActions(
+        { currentThreadId: '$thread', isCurrentThreadResolved: resolved },
+        t
+      ).find((item) => item.id === id)?.shortcut;
+    expect(shortcutOf('open-settings', false)).toBe('settings');
+    expect(shortcutOf('resolve-current-thread', false)).toBe('resolveThread');
+    expect(shortcutOf('unresolve-current-thread', true)).toBe('resolveThread');
+  });
+
+  it('gives every action an icon of its own', () => {
+    const icons = Object.fromEntries(
+      getCommandPaletteQuickActions(
+        { currentRoomName: 'General', currentThreadId: '$thread' },
+        t
+      ).map((item) => [item.id, item.icon])
+    );
+    expect(icons).toEqual({
+      'open-settings': Icons.Setting,
+      'go-home': Icons.Home,
+      'go-direct': Icons.Message,
+      'go-activity': Icons.Bell,
+      'create-room': Icons.HashPlus,
+      'create-space': Icons.SpacePlus,
+      'mark-current-room-read': Icons.CheckTwice,
+      'copy-current-room-link': Icons.Link,
+      'open-current-room-settings': Icons.Setting,
+      'resolve-current-thread': Icons.Check,
+      'page-theme': Icons.Sun,
+      'toggle-theme': Icons.Sun,
+      'page-message-layout': Icons.Message,
+      'page-language': Icons.Globe,
+      'take-quick-tour': Icons.Info,
+      'take-full-tour': Icons.Info,
+      logout: Icons.Power,
+    });
+    const unresolve = getCommandPaletteQuickActions(
+      { currentThreadId: '$thread', isCurrentThreadResolved: true },
+      t
+    ).find((item) => item.id === 'unresolve-current-thread');
+    expect(unresolve?.icon).toBe(Icons.Check);
   });
 
   it('adds room-scoped actions when a room is selected', () => {

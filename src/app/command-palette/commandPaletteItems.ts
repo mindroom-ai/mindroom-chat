@@ -53,6 +53,7 @@ import {
   collectCommandPaletteUserCandidates,
   getCommandPaletteDmUserDetails,
 } from './commandPaletteUserCandidates';
+import { useCommandPaletteCommands } from './useCommandPaletteCommands';
 import { getCommandPaletteAvatarUrl, useStartDirectChat } from './useCommandPalettePeople';
 
 /**
@@ -101,8 +102,9 @@ const roomTopic = (room: Room): string | undefined => {
 
 /**
  * The command palette's items for the signed-in account: quick actions for where the user is,
- * recent threads, rooms and spaces ranked by activity and unread state, and people. Lists keep
- * their identity while their inputs do, so search indexes are reused.
+ * the settings, pages and commands of `useCommandPaletteCommands`, recent threads, rooms and
+ * spaces ranked by activity and unread state, and people. Lists keep their identity while their
+ * inputs do, so search indexes are reused.
  */
 export const useCommandPaletteSource = ({
   onLogout,
@@ -220,19 +222,22 @@ export const useCommandPaletteSource = ({
   );
 
   const currentThreadId = currentRoom ? selectedThreadId : undefined;
-  // The thread tag hooks need a room; without one open, no thread action is offered anyway.
+  // The thread tag hooks and the agent call hooks need a room; without one open, no thread action
+  // or agent call is offered anyway.
   const noRoom = useMemo(
     () => new Room('!command-palette:invalid', client, myUserId),
     [client, myUserId]
   );
-  const resolutionRoom = currentRoom ?? noRoom;
-  const { isResolved: currentThreadResolved } = useThreadResolution(
-    resolutionRoom,
-    currentThreadId
-  );
-  const { canToggle, setResolved } = useToggleThreadResolution(resolutionRoom);
+  const roomOrStandIn = currentRoom ?? noRoom;
+  const { isResolved: currentThreadResolved } = useThreadResolution(roomOrStandIn, currentThreadId);
+  const { canToggle, setResolved } = useToggleThreadResolution(roomOrStandIn);
   const canResolveThread = !!currentRoom && !!currentThreadId && canToggle;
-  const actions = useMemo<Executable<CommandPaletteActionItem>[]>(() => {
+  const commands = useCommandPaletteCommands({
+    room: roomOrStandIn,
+    inRoom: !!currentRoom,
+    threadId: currentThreadId,
+  });
+  const quickActions = useMemo<Executable<CommandPaletteActionItem>[]>(() => {
     const items = getCommandPaletteQuickActions(
       {
         currentRoomName: currentRoom?.name,
@@ -276,6 +281,10 @@ export const useCommandPaletteSource = ({
       'open-settings': () => setSettingsModal({}),
       'take-quick-tour': () => setTour({ level: 'quick' }),
       'take-full-tour': () => setTour({ level: 'full' }),
+      // The palette opens a page row's page itself.
+      'page-theme': undefined,
+      'page-message-layout': undefined,
+      'page-language': undefined,
       'copy-current-room-link': inCurrentRoom(copyRoomLink),
       'mark-current-room-read': inCurrentRoom((room) => {
         void markRoomsRead([room.roomId]);
@@ -317,6 +326,15 @@ export const useCommandPaletteSource = ({
     t,
     theme.kind,
   ]);
+  const actions = useMemo(
+    () => [...quickActions, ...commands.actions],
+    [commands.actions, quickActions]
+  );
+  // One list for typed text, so its search index is built once while its rows stay.
+  const searchActions = useMemo(
+    () => [...actions, ...commands.searchOnly],
+    [actions, commands.searchOnly]
+  );
 
   const dmRoomByUserId = useMemo(
     () =>
@@ -401,17 +419,10 @@ export const useCommandPaletteSource = ({
     ]
   );
 
-  const pages = useMemo<Record<CommandPalettePageId, CommandPalettePage>>(
-    () => ({
-      theme: { title: t('settings.general.appearance.theme'), items: [] },
-      'message-layout': { title: t('settings.general.messages.messageLayout'), items: [] },
-      language: { title: t('settings.general.language.appLanguage'), items: [] },
-    }),
-    [t]
-  );
+  const { pages } = commands;
 
   return useMemo(
-    () => ({ actions, searchActions: actions, pages, threads, rooms, getUsers }),
-    [actions, getUsers, pages, rooms, threads]
+    () => ({ actions, searchActions, pages, threads, rooms, getUsers }),
+    [actions, getUsers, pages, rooms, searchActions, threads]
   );
 };
