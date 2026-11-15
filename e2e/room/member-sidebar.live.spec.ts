@@ -153,7 +153,11 @@ test.describe('phone member sheet', () => {
     await openWithKeyboard();
     await expect(dialog.getByRole('separator', { name: 'Resize member panel' })).toHaveCount(0);
     await expect.poll(() => widthOf(editor)).toBe(editorWidth);
-    await page.screenshot({ path: test.info().outputPath('members-phone-sheet.png') });
+    // Its slide ends at once for the picture.
+    await page.screenshot({
+      path: test.info().outputPath('members-phone-sheet.png'),
+      animations: 'disabled',
+    });
     await dialog.getByRole('button', { name: 'Close', exact: true }).tap();
     await expectGone();
 
@@ -201,9 +205,11 @@ test('space members open as a sheet and close at 390px', async ({ page }) => {
   await expect(page.getByTestId('resizable-members-panel')).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(sheet).toHaveCount(0);
+  await expect(members).toBeFocused();
   await openAndExpectOut();
   await page.keyboard.press('Escape');
   await expect(sheet).toHaveCount(0);
+  await expect(members).toBeFocused();
   await expect(page).toHaveURL(lobbyUrl);
   await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 390);
 });
