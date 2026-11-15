@@ -265,15 +265,6 @@ export const MessageText = style({
   flex: 1,
 });
 
-// Secondary text on a resolved card's green or a snoozed card's amber keeps 4.5:1 at the lighter
-// of the two quiet levels.
-globalStyle(
-  [CardResolved, CardSnoozed]
-    .map((tint) => `${tint} ${MessageText}, ${tint} ${TimeText}:not(${TimeTextUnread})`)
-    .join(', '),
-  { opacity: config.opacity.P400 }
-);
-
 // One line, so every card keeps one height: the byline and tags end in an ellipsis instead of
 // wrapping.
 export const MetadataRow = style({
@@ -359,3 +350,17 @@ export const ReplyCount = style({
   gap: toRem(3),
   whiteSpace: 'nowrap',
 });
+
+// Secondary text on a resolved card's green or a snoozed card's amber keeps 4.5:1 at the lighter
+// of the two quiet levels (the quieter one has 3.8:1 and 4.2:1 on the light palette).
+globalStyle(
+  [CardResolved, CardSnoozed]
+    .flatMap((tint) => [
+      `${tint} ${MessageText}`,
+      `${tint} ${TimeText}:not(${TimeTextUnread})`,
+      `${tint} ${StreamingStatus}`,
+      `${tint} ${ReplyCount}`,
+    ])
+    .join(', '),
+  { opacity: config.opacity.P400 }
+);
