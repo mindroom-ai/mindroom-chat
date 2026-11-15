@@ -39,12 +39,15 @@ export const EmptyState = style({
  * browser's scroll anchoring keeps from moving the cards in view, so engines without it (WebKit)
  * draw every card as before. While the list puts its cards back where the reader left them
  * (`data-restoring-place`), every card draws, so the restore measures real heights; the sizes
- * they drew at are remembered (`auto`), so skipping them afterwards moves nothing.
+ * they drew at are remembered (`auto`), so skipping them afterwards moves nothing. Skipping also
+ * clips what a card paints outside its shell (the focus ring, a swiped card); the clip reaches as
+ * far as the view's inline padding, where the view itself clips.
  */
 export const offscreenCardSkip: StyleRule = {
   '@supports': {
     '(overflow-anchor: auto)': {
       containIntrinsicSize: 'auto 80px',
+      overflowClipMargin: config.space.S300,
       selectors: {
         [`${View}:not([data-restoring-place]) &`]: { contentVisibility: 'auto' },
       },

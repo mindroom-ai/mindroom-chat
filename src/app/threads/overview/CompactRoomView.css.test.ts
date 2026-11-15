@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest';
+import { config } from 'folds';
 import { offscreenCardSkip, View } from './CompactRoomView.css';
 
 it('skips off-screen cards only where the browser anchors scrolling, and not while restoring', () => {
@@ -10,6 +11,7 @@ it('skips off-screen cards only where the browser anchors scrolling, and not whi
     '@supports': {
       '(overflow-anchor: auto)': {
         containIntrinsicSize: 'auto 80px',
+        overflowClipMargin: config.space.S300,
         selectors: {
           [`${View}:not([data-restoring-place]) &`]: { contentVisibility: 'auto' },
         },

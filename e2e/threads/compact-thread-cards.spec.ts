@@ -84,6 +84,22 @@ test('compact cards give the title and preview the full width on a phone', async
   expect(byline.labelRight).toBeLessThanOrEqual(byline.contentRight);
 });
 
+test('the keyboard focus ring paints around a card', async ({ page }) => {
+  await page.goto('/e2e/fixtures/compact-thread-cards.html');
+  await page.locator('body[data-fixture-ready="true"]').waitFor();
+  const card = page.locator('[data-thread-root-id]').first();
+  const bounds = await card.boundingBox();
+  if (!bounds) throw new Error('Card has no bounds');
+  // A strip just outside the card's start edge, where the ring paints: an off-screen card's
+  // containment must not clip it (CompactRoomView.css.ts).
+  const clip = { x: bounds.x - 3, y: bounds.y + bounds.height / 2 - 5, width: 3, height: 10 };
+  const unfocused = await page.screenshot({ clip });
+  await page.keyboard.press('Tab');
+  await card.focus();
+  await expect(card).toHaveCSS('outline-style', 'solid');
+  expect((await page.screenshot({ clip })).equals(unfocused)).toBe(false);
+});
+
 test.describe('compact card swipe', () => {
   test.use({ isMobile: true, hasTouch: true, viewport: { width: 390, height: 500 } });
 

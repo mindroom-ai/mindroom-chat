@@ -164,7 +164,16 @@ test('the compact overview keeps its cards in place when threads re-sort during 
     await expect(view).not.toHaveAttribute('data-restoring-place');
     const { offsets: scrolled } = await settledCardLayout(page);
     expect(await view.evaluate((element) => element.scrollTop)).toBe(restoredTop + 45);
-    for (const rootId of below.filter((id) => scrolled[id] !== undefined)) {
+    // In a browser that anchors scrolling, the cards may skip drawing again.
+    expect(
+      await view
+        .locator('[data-scroll-anchor]')
+        .first()
+        .evaluate((shell) => getComputedStyle(shell).contentVisibility)
+    ).toBe('auto');
+    const kept = below.filter((id) => scrolled[id] !== undefined);
+    expect(kept.length).toBeGreaterThan(0);
+    for (const rootId of kept) {
       expect(
         Math.abs(scrolled[rootId]! - (after[rootId]! - 45)),
         `card ${roots.indexOf(rootId)} after the reader's scroll`
