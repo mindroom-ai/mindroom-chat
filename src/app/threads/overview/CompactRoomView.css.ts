@@ -72,6 +72,18 @@ export const Card = style([
       outline: `${config.borderWidth.B300} solid ${color.Primary.Main}`,
       outlineOffset: '1px',
     },
+    // A tint over the card, clear at rest: a card whose thread just changed fades it out once
+    // (`useShowChange` in CompactThreadCard.tsx), which repaints nothing of the card.
+    position: 'relative',
+    '::after': {
+      content: "''",
+      position: 'absolute',
+      inset: 0,
+      borderRadius: 'inherit',
+      backgroundColor: color.Primary.Main,
+      opacity: 0,
+      pointerEvents: 'none',
+    },
   },
 ]);
 

@@ -19,8 +19,9 @@ import {
 // thread got a reply glides to the top, a new thread's card fades in there, and a card that left
 // (a thread resolved while the filter hides resolved ones) fades where it stood while the cards
 // under it close the gap. Each card moves by the element inside the one the scroll position is
-// measured on, so that one stays at rest. Set LIST_MOTION_SHOTS=<dir> to save a frame of each
-// change with the motion slowed to a tenth.
+// measured on, so that one stays at rest. The card of a thread that just got a reply also tints
+// once. Set LIST_MOTION_SHOTS=<dir> to save a frame of each change with the motion slowed to a
+// tenth.
 const PASSWORD = 'compact-list-motion-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.LIST_MOTION_SHOTS;
@@ -32,7 +33,14 @@ const TOPICS = [
   'The chart legend is unreadable in the dark theme',
 ];
 
-type Play = { card: string; left: boolean; anchor: boolean; properties: string[] };
+type Play = {
+  card: string;
+  left: boolean;
+  anchor: boolean;
+  properties: string[];
+  /** The pseudo-element it played on, as the card's tint does. */
+  pseudo?: string;
+};
 
 const threadRelation = (rootId: string) => ({
   rel_type: 'm.thread',
@@ -56,7 +64,9 @@ const recordPlays = (page: Page) =>
     (window as unknown as { listMotionPlays: Play[] }).listMotionPlays = plays;
     const animate = Element.prototype.animate;
     Element.prototype.animate = function record(keyframes, options) {
-      const card = this.querySelector('[data-thread-root-id]')?.getAttribute('data-thread-root-id');
+      const card = (
+        this.closest('[data-thread-root-id]') ?? this.querySelector('[data-thread-root-id]')
+      )?.getAttribute('data-thread-root-id');
       const first = Array.isArray(keyframes) ? keyframes[0] : keyframes;
       if (card) {
         plays.push({
@@ -64,6 +74,7 @@ const recordPlays = (page: Page) =>
           left: this.hasAttribute('inert'),
           anchor: this.hasAttribute('data-scroll-anchor'),
           properties: Object.keys(first ?? {}),
+          pseudo: typeof options === 'object' ? options.pseudoElement ?? undefined : undefined,
         });
       }
       return animate.call(this, keyframes, options);
@@ -72,9 +83,7 @@ const recordPlays = (page: Page) =>
 
 /** The plays since the last call. */
 const takePlays = (page: Page) =>
-  page.evaluate(() =>
-    (window as unknown as { listMotionPlays: Play[] }).listMotionPlays.splice(0)
-  );
+  page.evaluate(() => (window as unknown as { listMotionPlays: Play[] }).listMotionPlays.splice(0));
 
 const playsOf = (plays: Play[], card: string, property: string) =>
   plays.filter((play) => play.card === card && play.properties.includes(property));
@@ -159,7 +168,14 @@ test.describe('the Compact cards in motion', () => {
     expect(glidesOf(moved, oldest), 'the card that moved up').toHaveLength(1);
     expect(playsOf(moved, oldest, 'zIndex'), 'it passes over the others').toHaveLength(1);
     expect(glidesOf(moved, rootIds[1] ?? ''), 'a card it passed').toHaveLength(1);
-    expect(moved.filter((play) => play.anchor), 'plays on a measured element').toEqual([]);
+    expect(
+      moved.filter((play) => play.anchor),
+      'plays on a measured element'
+    ).toEqual([]);
+    expect(
+      moved.filter((play) => play.card === oldest && play.pseudo === '::after'),
+      'the tint of the card whose thread just got a reply'
+    ).toHaveLength(1);
 
     // 2. The agent starts a thread: its card fades in at the top.
     const fresh = await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {

@@ -21,8 +21,9 @@ type Place = { row: HTMLElement; rect: DOMRect };
 /** The rows in view before a change, and where the list stood then. */
 type Before = { rows: Map<string, Place>; list: DOMRect; scrollTop: number; scrollLeft: number };
 
-const canPlay = (list: HTMLElement): boolean =>
-  typeof list.animate === 'function' &&
+/** Whether a Web Animation on `element` may play: the browser has them and the page is seen. */
+export const playsMotion = (element: HTMLElement): boolean =>
+  typeof element.animate === 'function' &&
   // A page nobody sees plays nothing, so a row that left would never finish leaving.
   document.visibilityState !== 'hidden' &&
   !(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
@@ -51,7 +52,7 @@ const readRows = (list: HTMLElement): { all: HTMLElement[]; inView: Map<string, 
 };
 
 const readBefore = (list: HTMLElement): Before | undefined => {
-  if (!canPlay(list)) return undefined;
+  if (!playsMotion(list)) return undefined;
   const rows = readRows(list).inView;
   if (rows.size === 0) return undefined;
   const { scrollTop, scrollLeft } = list;
