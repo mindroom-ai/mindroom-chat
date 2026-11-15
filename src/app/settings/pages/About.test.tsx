@@ -2,7 +2,10 @@
 
 import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
+import { Provider, createStore } from 'jotai';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
+import { tourAtom } from '../../navigation/tourState';
 import { About } from './About';
 
 const mocks = vi.hoisted(() => ({
@@ -70,6 +73,9 @@ vi.mock('../../ui/page/PageScroll', () => ({
     React.createElement('section', null, header, children),
 }));
 
+// A phone's title bar leads with the back chevron, which needs a router and the real tooltip.
+vi.mock('../../ui/page/PhoneBackButton', () => ({ PhoneBackButton: () => null }));
+
 vi.mock('../../ui/SequenceCard', () => ({
   SequenceCard: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('div', null, children),
@@ -77,18 +83,23 @@ vi.mock('../../ui/SequenceCard', () => ({
 
 vi.mock('../../ui/SettingTile', () => ({
   SettingTile: ({
+    focusId,
     title,
     description,
     after,
+    children,
   }: {
+    focusId?: string;
     title: string;
     description: string;
     after?: React.ReactNode;
+    children?: React.ReactNode;
   }) =>
     React.createElement(
       'section',
-      { 'data-setting-title': title, 'data-description': description },
-      after
+      { 'data-setting-id': focusId, 'data-setting-title': title, 'data-description': description },
+      React.createElement('div', { 'data-slot': 'after' }, after),
+      React.createElement('div', { 'data-slot': 'under' }, children)
     ),
 }));
 
@@ -563,6 +574,107 @@ describe('About diagnostics export', () => {
       'Enabled, but trace storage is currently unavailable.'
     );
     expect(deepTraceTile(renderer).props['data-description']).not.toContain('Recording');
+    renderer.unmount();
+  });
+});
+
+describe('About tour', () => {
+  const LEVELS = [
+    ['Quick tour (1 min)', 'quick'],
+    ['Full tour (5 min)', 'full'],
+  ] as const;
+
+  /** About as a browser shows it, with the store its tour buttons write to. */
+  const renderAbout = (
+    callbacks: { requestClose: () => void; closeDialog?: () => void },
+    screenSize: ScreenSize = ScreenSize.Desktop
+  ) => {
+    const store = createStore();
+    const renderer = create(
+      <Provider store={store}>
+        <ScreenSizeProvider value={screenSize}>
+          <About {...callbacks} />
+        </ScreenSizeProvider>
+      </Provider>
+    );
+    return { store, renderer };
+  };
+
+  const tourTile = (renderer: ReactTestRenderer): ReactTestInstance =>
+    renderer.root.findByProps({ 'data-setting-id': 'tour' });
+
+  const labelOf = (button: ReactTestInstance): string =>
+    button.findByType('span').children.join('');
+
+  const tourButton = (renderer: ReactTestRenderer, label: string): ReactTestInstance => {
+    const button = tourTile(renderer)
+      .findAllByType('button')
+      .find((candidate) => labelOf(candidate) === label);
+    if (!button) throw new Error(`no "${label}" button on the tour tile`);
+    return button;
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.isNativeIOS.mockReturnValue(false);
+  });
+
+  it('shows the Tour section above the credits, its tile with a button for each level', () => {
+    const { renderer } = renderAbout({ requestClose: vi.fn() });
+
+    const texts = renderer.root.findAllByType('span').map((text) => text.children.join(''));
+    expect(texts).toContain('Tour');
+    expect(texts.indexOf('Tour')).toBeLessThan(texts.indexOf('Credits'));
+    expect(tourTile(renderer).props).toMatchObject({
+      'data-setting-title': 'See how threads work',
+      'data-description': 'A short tour of threads: starting one, titles, order and states.',
+    });
+    expect(tourTile(renderer).findAllByType('button').map(labelOf)).toEqual(
+      LEVELS.map(([label]) => label)
+    );
+    renderer.unmount();
+  });
+
+  it('keeps the buttons beside the text, and under it on a phone, where they would not fit', () => {
+    const buttonsIn = (renderer: ReactTestRenderer, slot: 'after' | 'under'): number =>
+      tourTile(renderer).findByProps({ 'data-slot': slot }).findAllByType('button').length;
+
+    const wide = renderAbout({ requestClose: vi.fn() }).renderer;
+    expect([buttonsIn(wide, 'after'), buttonsIn(wide, 'under')]).toEqual([2, 0]);
+    wide.unmount();
+
+    const phone = renderAbout({ requestClose: vi.fn() }, ScreenSize.Mobile).renderer;
+    expect([buttonsIn(phone, 'after'), buttonsIn(phone, 'under')]).toEqual([0, 2]);
+    phone.unmount();
+  });
+
+  it.each(LEVELS)('%s opens the %s tour and closes Settings', (label, level) => {
+    const requestClose = vi.fn();
+    const { store, renderer } = renderAbout({ requestClose });
+    expect(store.get(tourAtom)).toBeUndefined();
+
+    act(() => {
+      tourButton(renderer, label).props.onClick();
+    });
+
+    expect(store.get(tourAtom)).toEqual({ level });
+    expect(requestClose).toHaveBeenCalledOnce();
+    renderer.unmount();
+  });
+
+  // On a phone the page's own close only goes back to the menu of Settings.
+  it.each(LEVELS)('%s closes the dialog itself on a phone', (label, level) => {
+    const requestClose = vi.fn();
+    const closeDialog = vi.fn();
+    const { store, renderer } = renderAbout({ requestClose, closeDialog }, ScreenSize.Mobile);
+
+    act(() => {
+      tourButton(renderer, label).props.onClick();
+    });
+
+    expect(store.get(tourAtom)).toEqual({ level });
+    expect(closeDialog).toHaveBeenCalledOnce();
+    expect(requestClose).not.toHaveBeenCalled();
     renderer.unmount();
   });
 });

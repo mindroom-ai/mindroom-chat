@@ -9,6 +9,8 @@ import type { CommandPaletteActionItem } from './commandPaletteTypes';
 
 export type CommandPaletteQuickActionId =
   | 'open-settings'
+  | 'take-quick-tour'
+  | 'take-full-tour'
   | 'go-home'
   | 'go-direct'
   | 'go-activity'
@@ -68,11 +70,18 @@ export const getCommandPaletteQuickActions = (
   t: TFunction
 ): CommandPaletteActionItem[] => {
   const roomLabel = currentRoomName ?? t('commandPalette.actions.currentRoomFallback');
+  // The interface tour in both of its levels, found by the same words.
+  const tour = {
+    description: t('tour.entries.paletteDescription'),
+    keywords: ['help', 'tutorial', 'guide', 'threads', 'onboarding'],
+  };
   const actions: CommandPaletteActionItem[] = [
     actionItem('open-settings', t('commandPalette.actions.openSettings'), 130, {
       description: t('commandPalette.actions.openSettingsDescription'),
       keywords: ['preferences'],
     }),
+    actionItem('take-quick-tour', t('tour.entries.paletteQuick'), 127, tour),
+    actionItem('take-full-tour', t('tour.entries.paletteFull'), 124, tour),
     actionItem('go-home', t('commandPalette.actions.goHome'), 120, {
       description: t('commandPalette.actions.goHomeDescription'),
       keywords: ['rooms'],
@@ -105,7 +114,7 @@ export const getCommandPaletteQuickActions = (
 
   if (currentRoomName) {
     actions.splice(
-      6,
+      8,
       0,
       actionItem('mark-current-room-read', t('commandPalette.actions.markCurrentRoomRead'), 70, {
         description: t('commandPalette.actions.markCurrentRoomReadDescription', {

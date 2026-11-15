@@ -733,6 +733,15 @@ export const SETTINGS = [
     scope: 'device',
     hidden: (context) => !context.errorReporting,
   },
+  {
+    id: 'tour',
+    page: 'about',
+    group: 'tour.entries.settingsSection',
+    labelKey: 'tour.entries.settingsTitle',
+    descriptionKey: 'tour.entries.settingsDescription',
+    keywordsKey: 'tour.entries.settingsKeywords',
+    scope: 'device',
+  },
 ] as const satisfies readonly SettingDefinition[];
 
 const PAGE_BY_REQUEST = new Map<string, SettingsPageId>(

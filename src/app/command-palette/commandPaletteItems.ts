@@ -23,6 +23,7 @@ import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
 import { allRoomsAtom } from '../matrix/state/roomList';
 import { settingsAtom } from '../preferences/settings';
 import { settingsModalAtom } from '../navigation/settingsModal';
+import { tourAtom } from '../navigation/tourState';
 import { copyToClipboard } from '../lib/dom';
 import { getCanonicalAliasOrRoomId, getMxIdLocalPart } from '../matrix/matrix';
 import { getMemberAvatarMxc } from '../matrix/room';
@@ -118,6 +119,7 @@ export const useCommandPaletteSource = ({
   const useAuthentication = useMediaAuthentication();
   const startChat = useStartDirectChat();
   const setSettingsModal = useSetAtom(settingsModalAtom);
+  const setTour = useSetAtom(tourAtom);
   const openCreateRoom = useOpenCreateRoomModal();
   const openCreateSpace = useOpenCreateSpaceModal();
   const openRoomSettings = useOpenRoomSettings();
@@ -266,6 +268,8 @@ export const useCommandPaletteSource = ({
       'create-space': () => openCreateSpace(selectedSpaceId),
       'create-room': () => openCreateRoom(selectedSpaceId),
       'open-settings': () => setSettingsModal({}),
+      'take-quick-tour': () => setTour({ level: 'quick' }),
+      'take-full-tour': () => setTour({ level: 'full' }),
       'copy-current-room-link': inCurrentRoom(copyRoomLink),
       'mark-current-room-read': inCurrentRoom((room) => {
         void markRoomsRead([room.roomId]);
@@ -302,6 +306,7 @@ export const useCommandPaletteSource = ({
     setSettingsModal,
     setResolved,
     setThemeId,
+    setTour,
     setUseSystemTheme,
     t,
     theme.kind,
