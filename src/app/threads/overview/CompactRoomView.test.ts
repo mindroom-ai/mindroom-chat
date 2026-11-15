@@ -717,6 +717,7 @@ describe('CompactRoomView', () => {
 
     expect(listening).toHaveLength(1);
     expect(listening[0]).toContain('SwipeList');
+    // The container and one track a card.
     expect(
       renderer?.root.findAll(
         (node) => typeof node.type === 'string' && String(node.props.className).includes('Swipe')

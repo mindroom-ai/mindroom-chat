@@ -87,6 +87,25 @@ test('compact cards give the title and preview the full width on a phone', async
 test.describe('compact card swipe', () => {
   test.use({ isMobile: true, hasTouch: true, viewport: { width: 390, height: 500 } });
 
+  test('the card list holds the one touch-action, and nothing in a card has its own', async ({
+    page,
+  }) => {
+    await page.goto('/e2e/fixtures/compact-thread-cards.html');
+    await page.locator('body[data-fixture-ready="true"]').waitFor();
+    // One on every card costs WebKit on iOS a touch region a card (CompactCardSwipe.css.ts).
+    const list = page.locator('[data-compact-room-view="true"] > div').first();
+    await expect(list).toHaveCSS('touch-action', 'pan-y pinch-zoom');
+    await expect(list.locator('[data-thread-root-id]')).toHaveCount(6);
+    expect(
+      await list.evaluate(
+        (element) =>
+          [...element.querySelectorAll('*')].filter(
+            (child) => getComputedStyle(child).touchAction !== 'auto'
+          ).length
+      )
+    ).toBe(0);
+  });
+
   test('a touch swipe toward the start resolves a card and leaves taps and scrolling alone', async ({
     page,
   }, testInfo) => {
