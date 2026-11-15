@@ -169,7 +169,7 @@ test('the compact overview keeps its cards in place when threads re-sort during 
       await view
         .locator('[data-scroll-anchor]')
         .first()
-        .evaluate((shell) => getComputedStyle(shell).contentVisibility)
+        .evaluate((shell) => getComputedStyle(shell).getPropertyValue('content-visibility'))
     ).toBe('auto');
     const kept = below.filter((id) => scrolled[id] !== undefined);
     expect(kept.length).toBeGreaterThan(0);
