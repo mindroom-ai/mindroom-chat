@@ -1,5 +1,13 @@
 import React from 'react';
-import { createClient, MatrixEvent, RelationType, Room, type MatrixClient } from 'matrix-js-sdk';
+import {
+  ClientEvent,
+  createClient,
+  MatrixEvent,
+  MatrixEventEvent,
+  RelationType,
+  Room,
+  type MatrixClient,
+} from 'matrix-js-sdk';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,7 +15,21 @@ import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import { getLiveReplyStore } from '../messages/live/liveReplyStore';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
 import type { CrossRoomThreadIndexEntry } from './cross-room/crossRoomThreadIndex';
+import type { ThreadSignals } from './cross-room/threadSignals';
 import { ThreadLiveStatusRows } from './ThreadLiveStatusRows';
+
+// Stands in for what a thread's events say it waits on, when a test sets it.
+const signals = vi.hoisted(() => ({
+  read: undefined as ((now: number) => Partial<ThreadSignals>) | undefined,
+}));
+vi.mock('./cross-room/threadSignals', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./cross-room/threadSignals')>();
+  return {
+    ...actual,
+    readThreadSignals: (...args: Parameters<typeof actual.readThreadSignals>) =>
+      signals.read ? signals.read(args[3]) : actual.readThreadSignals(...args),
+  };
+});
 
 vi.mock('folds', async () => {
   const reactModule = await import('react');
@@ -116,6 +138,8 @@ describe('ThreadLiveStatusRows', () => {
   afterEach(() => {
     if (renderer) act(() => renderer?.unmount());
     renderer = undefined;
+    signals.read = undefined;
+    vi.useRealTimers();
     Thread.hasServerSideSupport = previousThreadSupport;
     vi.restoreAllMocks();
   });
@@ -212,5 +236,79 @@ describe('ThreadLiveStatusRows', () => {
     const { mx, room } = await setup([streamingReply]);
 
     expect(textOf(render(mx, room, false))).toEqual([]);
+  });
+
+  it('follows what the room hears while it is shown, such as a reaction answering the question', async () => {
+    const { mx, room } = await setup([reply('$plain', 2000, {})]);
+    let asking = true;
+    signals.read = () =>
+      asking ? { pendingQuestion: {} as ThreadSignals['pendingQuestion'] } : {};
+    const rows = render(mx, room, false);
+    expect(textOf(rows)).toEqual(['Status', 'Waiting for an answer']);
+
+    asking = false;
+    act(() => {
+      mx.emit(ClientEvent.Event, new MatrixEvent({ type: 'm.reaction', room_id: ROOM_ID }));
+    });
+
+    expect(textOf(rows)).toEqual([]);
+  });
+
+  it('lets an approval go once it expires while shown', async () => {
+    const { mx, room } = await setup([reply('$plain', 2000, {})]);
+    vi.useFakeTimers({ now: 10_000 });
+    signals.read = (now) =>
+      now < 70_000
+        ? { pendingApproval: {} as ThreadSignals['pendingApproval'], waitsUntil: 70_000 }
+        : {};
+    const rows = render(mx, room, false);
+    expect(textOf(rows)).toEqual(['Status', 'Waiting for approval']);
+
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+
+    expect(textOf(rows)).toEqual([]);
+  });
+
+  it('sums the cost again when a reply edit decrypts while shown', async () => {
+    const edit = new MatrixEvent({
+      event_id: '$edit',
+      room_id: ROOM_ID,
+      sender: AGENT,
+      type: 'm.room.message',
+      origin_server_ts: 2500,
+      content: {
+        msgtype: 'm.text',
+        body: '* edited',
+        'm.new_content': { msgtype: 'm.text', body: 'edited' },
+        'm.relates_to': { rel_type: RelationType.Replace, event_id: '$priced' },
+      },
+    });
+    const { mx, room } = await setup([priced]);
+    const { timelineSet } = room.getThread(ROOT)!;
+    timelineSet.relations.aggregateChildEvent(edit, timelineSet);
+    const rows = render(mx, room, false);
+    expect(textOf(rows)).toEqual([]);
+
+    // What the edit says becomes readable, with the run's cost.
+    edit.setClearData({
+      clearEvent: {
+        type: 'm.room.message',
+        content: {
+          ...edit.getContent(),
+          'm.new_content': {
+            msgtype: 'm.text',
+            body: 'edited',
+            'io.mindroom.ai_run': { version: 1, status: 'completed', cost: { usd: '0.75' } },
+          },
+        },
+      },
+    } as Parameters<MatrixEvent['setClearData']>[0]);
+    act(() => {
+      mx.emit(MatrixEventEvent.Decrypted, edit);
+    });
+
+    expect(textOf(rows)).toEqual(['Cost', '≥ $0.75']);
   });
 });

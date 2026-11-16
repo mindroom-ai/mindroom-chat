@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useMemo, useSyncExternalStore } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Text } from 'folds';
@@ -15,7 +15,8 @@ import { getLiveReplyStore } from '../messages/live/liveReplyStore';
 import { useRoomSubagentCounts } from '../messages/live/subagentRunStore';
 import { useRoomBackgroundJobs } from '../background-jobs/useRoomBackgroundJobs';
 import type { CrossRoomThreadIndexEntry } from './cross-room/crossRoomThreadIndex';
-import { getThreadSignalsReader } from './cross-room/threadSignalsReader';
+import { getThreadSignalsReader, subscribeRoomSignals } from './cross-room/threadSignalsReader';
+import { useSnoozeNow } from './tags/useSnoozeNow';
 import { threadLiveStatusRows } from './threadLiveStatus';
 
 const NO_EVENTS: MatrixEvent[] = [];
@@ -76,16 +77,23 @@ export function ThreadLiveStatusRows({ room, entry }: ThreadLiveStatusRowsProps)
   const { active: activeSubagents } = useRoomSubagentCounts(room.roomId, threadId);
   const { jobs: roomJobs } = useRoomBackgroundJobs(room);
   const jobs = useMemo(() => jobsInView(roomJobs, threadId), [roomJobs, threadId]);
-  // The entry changes with the thread's events, which both of these read.
-  const signals = useMemo(
-    () => getThreadSignalsReader(mx).read(room, entry, userId, Date.now()),
-    [entry, mx, room, userId]
+  // Both read more than the entry follows: a reaction that answers, an edit or a decryption that
+  // changes a reply's cost. So they are read again whenever the room hears anything.
+  const [roomChanges, roomChanged] = useForceUpdate();
+  useEffect(
+    () => subscribeRoomSignals(mx, room.roomId, roomChanged),
+    [mx, room.roomId, roomChanged]
   );
+  // The reader reads the thread again only when something its signals depend on changed.
+  const signals = getThreadSignalsReader(mx).read(room, entry, userId, Date.now());
+  // Renders again once what the thread waits on lapses, such as an approval that expires.
+  useSnoozeNow([signals.waitsUntil]);
   const cost = useMemo(() => {
     void entry;
+    void roomChanges;
     const thread = room.getThread(threadId);
     return thread ? summarizeLoadedThreadCost(thread, userId) : undefined;
-  }, [entry, room, threadId, userId]);
+  }, [entry, room, roomChanges, threadId, userId]);
 
   const rows = threadLiveStatusRows(
     {
