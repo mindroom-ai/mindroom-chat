@@ -1259,5 +1259,13 @@
       "idle": "閒置",
       "resolved": "已解決"
     }
+  },
+  "threadBoard": {
+    "label": "依狀態分列的討論串",
+    "working": "進行中",
+    "later": "稍後",
+    "open": "未完成",
+    "done": "已完成",
+    "compactOnly": "將此聊天室切換為精簡檢視，即可在此查看其討論串"
   }
 }

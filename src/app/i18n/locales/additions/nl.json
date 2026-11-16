@@ -1283,5 +1283,13 @@
       "idle": "Inactief",
       "resolved": "Opgelost"
     }
+  },
+  "threadBoard": {
+    "label": "Threads per status",
+    "working": "Bezig",
+    "later": "Later",
+    "open": "Open",
+    "done": "Klaar",
+    "compactOnly": "Zet deze kamer op Compact om hier de threads te zien"
   }
 }

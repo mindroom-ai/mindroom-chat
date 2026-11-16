@@ -1259,5 +1259,13 @@
       "idle": "대기 중",
       "resolved": "해결됨"
     }
+  },
+  "threadBoard": {
+    "label": "상태별 스레드",
+    "working": "작업 중",
+    "later": "나중에",
+    "open": "열림",
+    "done": "완료",
+    "compactOnly": "여기에서 스레드를 보려면 이 방을 간략히 보기로 바꾸세요"
   }
 }

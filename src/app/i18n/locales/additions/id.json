@@ -1259,5 +1259,13 @@
       "idle": "Tidak aktif",
       "resolved": "Selesai"
     }
+  },
+  "threadBoard": {
+    "label": "Utas menurut status",
+    "working": "Dikerjakan",
+    "later": "Nanti",
+    "open": "Terbuka",
+    "done": "Selesai",
+    "compactOnly": "Ubah ruangan ini ke Ringkas untuk melihat utasnya di sini"
   }
 }

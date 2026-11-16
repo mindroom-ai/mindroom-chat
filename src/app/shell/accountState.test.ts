@@ -44,6 +44,8 @@ const KEPT_MODULES: Record<string, string> = {
     'counts the back swipes of the pages shown, each taken back as its page goes',
   'src/app/navigation/conversationView.ts':
     'lists the conversation views shown, each taken out as its view goes or hides',
+  'src/app/threads/board/compactThreads.ts':
+    'lists the Compact threads of the room pages shown, each taken out as its page goes',
 };
 
 // The importer of the app: every module under src/app/, keyed by its path from the root.

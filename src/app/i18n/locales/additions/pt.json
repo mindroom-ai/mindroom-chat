@@ -1307,5 +1307,13 @@
       "idle": "Inativos",
       "resolved": "Resolvidos"
     }
+  },
+  "threadBoard": {
+    "label": "Tópicos por estado",
+    "working": "Em andamento",
+    "later": "Mais tarde",
+    "open": "Abertos",
+    "done": "Concluídos",
+    "compactOnly": "Mude esta sala para Compacto para ver aqui os tópicos"
   }
 }

@@ -1307,5 +1307,13 @@
       "idle": "Inactivos",
       "resolved": "Resueltos"
     }
+  },
+  "threadBoard": {
+    "label": "Hilos por estado",
+    "working": "En curso",
+    "later": "Más tarde",
+    "open": "Abiertos",
+    "done": "Hechos",
+    "compactOnly": "Cambia esta sala a Compacta para ver aquí sus hilos"
   }
 }

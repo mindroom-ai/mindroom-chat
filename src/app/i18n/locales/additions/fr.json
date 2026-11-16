@@ -1307,5 +1307,13 @@
       "idle": "Inactifs",
       "resolved": "Résolus"
     }
+  },
+  "threadBoard": {
+    "label": "Fils par état",
+    "working": "En cours",
+    "later": "Plus tard",
+    "open": "Ouverts",
+    "done": "Terminés",
+    "compactOnly": "Passez ce salon en vue Compacte pour voir ses fils ici"
   }
 }

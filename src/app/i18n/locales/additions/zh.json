@@ -1259,5 +1259,13 @@
       "idle": "空闲",
       "resolved": "已解决"
     }
+  },
+  "threadBoard": {
+    "label": "按状态分列的话题",
+    "working": "进行中",
+    "later": "稍后",
+    "open": "未完成",
+    "done": "已完成",
+    "compactOnly": "将此房间切换为紧凑视图即可在此查看其话题"
   }
 }
