@@ -22,9 +22,11 @@ The person's latest message picks a scenario by hashtag:
   #canvas      show_canvas with a page that submits a color
   #canvasrtl   the same page, titled in Arabic around a Latin file name
   #job         a shell call that runs 45 s as a background job
-  #work        a reply shaped by knobs in the prompt: #work words=200 wps=30 reasoning=0 tools=0 toolsec=0 seed=1
-               (words in the reply, words a second (0 sends it at once), characters of reasoning first, shell
-               calls of toolsec seconds before it, and the seed of the generated Markdown)
+  #work        a reply shaped by knobs in the prompt: #work words=200 wps=30 reasoning=0 tools=0 toolsec=0 links=0
+               seed=1 (words in the reply, words a second (0 sends it at once), characters of reasoning first, shell
+               calls of toolsec seconds before it, how many of the words are links (https://example.org/work/..., a
+               reserved name nothing is fetched from by a homeserver without a preview allowlist), and the seed of
+               the generated Markdown)
   #terminal    terminal_open, then terminal_run of an echo in the terminal it opened (stack.py --terminals)
 
 --scenarios FILE (repeatable; stack.py passes each plugin directory's e2e/stub-scenarios.json) adds tool scenarios in
@@ -319,7 +321,7 @@ def schema_value(schema: dict, defs: dict, text: str, key: str = ""):
 
 # The #work scenario
 
-WORK_DEFAULTS = {"words": 200, "wps": 30, "reasoning": 0, "tools": 0, "toolsec": 0, "seed": 1}
+WORK_DEFAULTS = {"words": 200, "wps": 30, "reasoning": 0, "tools": 0, "toolsec": 0, "links": 0, "seed": 1}
 WORK_WORDS = (
     "the agent room thread message reply model tool result step plan check build test run file change update "
     "list item value config state client server user queue event stream render page link note cache index "
@@ -330,15 +332,16 @@ WORK_WORDS = (
 def work_knobs(text: str) -> dict[str, float]:
     """The #work knobs of `text` (key=number pairs), defaults for those it leaves out."""
     knobs: dict[str, float] = dict(WORK_DEFAULTS)
-    for key, value in re.findall(r"\b(words|wps|reasoning|tools|toolsec|seed)=(-?\d+(?:\.\d+)?)", text.lower()):
+    for key, value in re.findall(r"\b(words|wps|reasoning|tools|toolsec|links|seed)=(-?\d+(?:\.\d+)?)", text.lower()):
         number = float(value)
         knobs[key] = int(number) if number == int(number) else number
     return knobs
 
 
-def work_text(words: int, seed: int) -> str:
+def work_text(words: int, seed: int, links: int = 0) -> str:
     """`words` whitespace-separated words of Markdown (paragraphs, a heading about every 250 words and a bullet
-    list about every 400, the first near word 200), the same for the same seed. Markers count as words."""
+    list about every 400, the first near word 200), the same for the same seed. Markers count as words. `links` of
+    the paragraphs' words, spread evenly, are links instead (as many as the paragraphs have words, at most)."""
     rng = random.Random(seed)
 
     def sentence(count: int) -> list[str]:
@@ -362,6 +365,12 @@ def work_text(words: int, seed: int) -> str:
             since_heading += len(line)
             since_list += len(line)
         lines.append([])  # a blank line between blocks
+    paragraphs = [(row, line) for row, line in enumerate(lines) if line[:1] not in (["##"], ["-"])]
+    plain = [(row, column) for row, line in paragraphs for column in range(len(line))]
+    count = min(max(0, links), len(plain))
+    for number in range(count):
+        row, column = plain[(2 * number + 1) * len(plain) // (2 * count)]
+        lines[row][column] = f"https://example.org/work/{seed}-{number + 1}"
     text = "\n".join(" ".join(line) for line in lines)
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
@@ -410,7 +419,7 @@ def plan(body: dict, scenarios: dict[str, list[Step]]) -> tuple:
         return (
             "work",
             work_reasoning(int(knobs["reasoning"]), int(knobs["seed"])),
-            work_text(int(knobs["words"]), int(knobs["seed"])),
+            work_text(int(knobs["words"]), int(knobs["seed"]), int(knobs["links"])),
             0 if wps <= 0 else 1 / wps,
         )
     for tag, steps in scenarios.items():

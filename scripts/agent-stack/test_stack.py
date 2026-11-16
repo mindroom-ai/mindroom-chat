@@ -1432,7 +1432,7 @@ class StubScenarioTests(unittest.TestCase):
 
 class WorkScenarioTests(unittest.TestCase):
     def test_knobs_default_and_parse(self) -> None:
-        defaults = {"words": 200, "wps": 30, "reasoning": 0, "tools": 0, "toolsec": 0, "seed": 1}
+        defaults = {"words": 200, "wps": 30, "reasoning": 0, "tools": 0, "toolsec": 0, "links": 0, "seed": 1}
         self.assertEqual(stub_model.work_knobs("#work"), defaults)
         self.assertEqual(
             stub_model.work_knobs("please #work words=50 wps=0 tools=2 toolsec=1.5 seed=9"),
@@ -1446,6 +1446,22 @@ class WorkScenarioTests(unittest.TestCase):
         self.assertEqual(len(text.split()), 300)
         self.assertIn("\n## ", text)
         self.assertIn("\n- ", text)
+
+    def test_links_take_the_place_of_words(self) -> None:
+        self.assertEqual(stub_model.work_knobs("#work words=50 links=3")["links"], 3)
+        plain = stub_model.work_text(300, 7)
+        text = stub_model.work_text(300, 7, links=3)
+        links = [word for word in text.split() if word.startswith("https://")]
+        self.assertEqual(links, [f"https://example.org/work/7-{number}" for number in (1, 2, 3)])
+        self.assertEqual(len(text.split()), 300)
+        # Only those three words differ, and no heading or list marker is one of them.
+        differing = [(a, b) for a, b in zip(plain.split(), text.split()) if a != b]
+        self.assertEqual([b for _, b in differing], links)
+        self.assertTrue(all(a not in ("##", "-") for a, _ in differing))
+        self.assertEqual(stub_model.work_text(300, 7, links=0), plain)
+        self.assertEqual(len([w for w in stub_model.work_text(2, 7, links=9).split() if w.startswith("https://")]), 2)
+        with_links = stub_model.plan(chat("#work words=40 wps=0 links=2"), {})
+        self.assertEqual(with_links[2].count("https://example.org/work/"), 2)
 
     def test_plan_runs_tools_then_streams(self) -> None:
         prompt = "#work words=10 tools=2 toolsec=0 wps=0"
