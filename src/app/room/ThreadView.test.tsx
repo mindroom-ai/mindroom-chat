@@ -472,6 +472,20 @@ describe('a fork draft', () => {
     focus.mockRestore();
   });
 
+  it('drops the reply chosen in its thread once the fork starts, so it takes nothing back there', () => {
+    const store = getDefaultStore();
+    render(<ThreadView room={room} threadId={THREAD} forkAt="$point" />);
+    const replyAtom = composerReplyDraftAtom(room.roomId, state.composerViews.at(-1));
+    act(() => {
+      store.set(replyAtom, { userId: '@bob:example.org', eventId: '$reply', body: 'Reply' });
+    });
+
+    act(() => {
+      state.composer?.onRoomMessageSent?.('$fork');
+    });
+    expect(store.get(replyAtom)).toBeUndefined();
+  });
+
   it('asks the timeline for no draft at a point the server has not confirmed', () => {
     render(<ThreadView room={room} threadId={THREAD} forkAt="~!room:example.org:m1.1" />);
 

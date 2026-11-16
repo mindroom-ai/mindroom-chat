@@ -487,8 +487,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       [composer, roomId, sendTypingStatus, t, threadId]
     );
 
+    // A recording begun in the thread stays the thread's: a fork draft neither shows nor sends it.
+    const voiceActive = !forkFrom;
     const submit = useCallback(async () => {
-      if (voice.blocksSubmit()) return;
+      if (voiceActive && voice.blocksSubmit()) return;
       // A `/word` that is no command, such as a typo of one, stays in the composer unsent.
       const unknownCommand = readUnknownCommand(editor.children, commands);
       if (unknownCommand !== undefined) {
@@ -515,7 +517,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       }
       setSubmitPending(true);
       try {
-        if (await voice.submitIfActive(textContent)) return;
+        if (voiceActive && (await voice.submitIfActive(textContent))) return;
         const sending = sessions.startSendSession({ textContent });
         // The composer is free again once the send session owns the text.
         sendTypingStatus(false);
@@ -536,6 +538,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       settlePastes,
       t,
       voice,
+      voiceActive,
     ]);
 
     // Every send path goes through here: failures are logged once, and the promise still
@@ -590,8 +593,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const syncAutocompleteQuery = useCallback(() => {
       const range = getPrevWorldRange(editor);
       const query = range
-        ? (getAgentCommandQuery(editor, range) ??
-          getAutocompleteQuery(editor, range, AUTOCOMPLETE_PREFIXES))
+        ? getAgentCommandQuery(editor, range) ??
+          getAutocompleteQuery(editor, range, AUTOCOMPLETE_PREFIXES)
         : undefined;
       setAutocompleteQuery(query);
     }, [editor]);
@@ -748,7 +751,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             onDismiss={attachments.dismissLostPastes}
           />
         )}
-        {voice.renderRecorder(() => void handleSend())}
+        {voiceActive && voice.renderRecorder(() => void handleSend())}
         <CustomEditor
           editor={editor}
           editableName="RoomInput"

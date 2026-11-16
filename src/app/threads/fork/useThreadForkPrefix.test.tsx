@@ -55,7 +55,7 @@ const raw = (eventId: string, ts: number, threadRoot?: string, content = {}): IE
       ...(threadRoot ? { 'm.relates_to': { rel_type: 'm.thread', event_id: threadRoot } } : {}),
       ...content,
     },
-  }) as IEvent;
+  } as IEvent);
 
 const message = (...args: Parameters<typeof raw>) => new MatrixEvent(raw(...args));
 
@@ -87,7 +87,7 @@ const makeRoom = (parentEvents: MatrixEvent[], thread: Thread | null = null) =>
     roomId,
     getThread: (threadId: string) => (threadId === '$p' ? thread : null),
     findEventById: (eventId: string) => parentEvents.find((event) => event.getId() === eventId),
-  }) as unknown as Room;
+  } as unknown as Room);
 
 /** The event cache holds all of `$p`: the events, which the prefix takes. */
 const cacheParent = (events: MatrixEvent[]) => {

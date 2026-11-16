@@ -78,7 +78,7 @@ describe('a forked thread', () => {
         rootEvent: root,
         events: [reply],
         getUnfilteredTimelineSet: () => timelineSet,
-      }) as never;
+      } as never);
     threadRenderStateMock.threadEvents = rows as never;
     threadRenderStateMock.ownThreadEvents = own as never;
     threadRenderStateMock.threadEventIndexMapRef.current = new Map(
@@ -148,7 +148,7 @@ describe('a fork draft', () => {
         rootEvent: root,
         events: [a, b, later],
         getUnfilteredTimelineSet: () => timelineSet,
-      }) as never;
+      } as never);
     // The render state cut the thread at $b; its own events stay whole.
     threadRenderStateMock.threadEvents = rows as never;
     threadRenderStateMock.ownThreadEvents = [...rows, later] as never;
@@ -194,6 +194,49 @@ describe('a fork draft', () => {
         expect(props.onReplyClick).toBeUndefined();
         expect(props.onOpenInOriginalThread).toBeDefined();
       });
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
+
+  it('keeps every row read-only while its fork point is not among them', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const { Message } = await import('../../messages/Message');
+    const root = makeEvent('$parent', { isThreadRoot: true, ts: 1_000 });
+    const a = makeEvent('$a', { threadRootId: '$parent', ts: 2_000 });
+    forkPrefix.value = { events: [], parent: undefined };
+    const rows = [root, a];
+    const timeline = makeTimeline(rows, { backwardToken: null });
+    const room = makeRoom({ liveEvents: [root] });
+    room.getThread = () =>
+      ({
+        rootEvent: root,
+        events: [a],
+        getUnfilteredTimelineSet: () => ({
+          getLiveTimeline: () => timeline,
+          getTimelineForEvent: () => undefined,
+        }),
+      } as never);
+    threadRenderStateMock.threadEvents = rows as never;
+    threadRenderStateMock.ownThreadEvents = rows as never;
+    threadRenderStateMock.forkPointIndex = undefined;
+    threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+      rows.map((event, index) => [event.getId(), index])
+    );
+    roomTimelineVirtualizerState.virtualIndexes = rows.map((_, index) => index);
+    const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(Harness, { room, threadId: '$parent', forkAt: '$not-loaded' })
+        );
+        await flushAsyncWork();
+      });
+
+      const messages = renderer!.root.findAllByType(Message);
+      expect(messages).toHaveLength(2);
+      messages.forEach(({ props }) => expect(props.onReplyClick).toBeUndefined());
     } finally {
       act(() => renderer?.unmount());
     }

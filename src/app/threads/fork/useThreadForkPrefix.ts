@@ -145,7 +145,8 @@ const NOT_A_FORK: ThreadForkPrefix = { events: [] };
 /**
  * The prefix of the fork whose root is `root`: its parents' messages up to each fork point. It is
  * loaded again when the root's ID or its reference changes, and the loaded one shows meanwhile
- * while the reference stays; another copy of the same root (the SDK's replacing the cache's) keeps it, also while that copy waits to be decrypted. Edits the
+ * while the reference stays; another copy of the same root (the SDK's replacing the cache's)
+ * keeps it, also while that copy waits to be decrypted. Edits the
  * parents' messages get later show in the events it holds; a redaction of one loads it again.
  */
 export const useThreadForkPrefix = (

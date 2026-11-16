@@ -4,10 +4,7 @@ import { countCacheProbe } from '../../event-store/cache/cacheProbe';
 import { logTimelineDebug } from '../../diagnostics/timelineDebug';
 import { isLocalEchoEventId } from '../../event-store/threads/threadRouteUtils';
 import { hydrateThreadFromCache, refreshLatestThreadSlice } from './threadOpenCacheController';
-import {
-  getLinkedTimelines,
-  getThreadTimelineEvents,
-} from '../../event-store/timeline/linkedTimelines';
+import { getLinkedTimelines, getThreadTimelineEvents } from '../../event-store/timeline/linkedTimelines';
 import { hasThreadCacheBackwardGap } from '../../event-store/cache/threadCacheCoverage';
 import { createThreadOpenSeedSession } from './threadOpenSeedController';
 import { runThreadOpenCacheFirst } from './threadOpenCacheFirst';

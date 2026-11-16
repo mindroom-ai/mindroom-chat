@@ -410,7 +410,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
 
   // A fork shows its parent's conversation up to the fork point before its own rows.
   const liveThreadRoot = threadId
-    ? (room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId))
+    ? room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId)
     : undefined;
   const cachedThreadRoot = useCachedThreadRoot(room, threadId ?? '', liveThreadRoot);
   const forkPrefix = useThreadForkPrefix(room, liveThreadRoot ?? cachedThreadRoot);
@@ -435,14 +435,12 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const { forkPointIndex } = threadState;
   const forkPoint = forkPointIndex !== undefined ? threadEvents[forkPointIndex] : undefined;
   const shownForkPoint = forkPoint?.getId();
-  // A fork's parent messages, and in a fork draft every row: what the fork will show of its parent,
-  // read-only as it will show it.
+  // A fork's parent messages, and in a fork draft every row, also before or without its fork
+  // point: what the fork will show of its parent, read-only as it will show it.
   const forkPrefixEventIds = useMemo(
     () =>
-      new Set(
-        (forkPoint ? threadEvents : forkPrefix.events).flatMap((event) => event.getId() ?? [])
-      ),
-    [forkPoint, forkPrefix.events, threadEvents]
+      new Set((forkAt ? threadEvents : forkPrefix.events).flatMap((event) => event.getId() ?? [])),
+    [forkAt, forkPrefix.events, threadEvents]
   );
   // A draft's reader reads its thread up to the fork point; what follows is out of sight.
   const readThreadEvents = useMemo(
@@ -928,8 +926,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
           threadLoading ? 'loading' : '',
         ].join('|')
       : roomSurfaceShown && !latestAtTop
-        ? ['room', showRoomIntro ? 'intro' : '', itemCount > 0 ? 'toggle' : ''].join('|')
-        : '',
+      ? ['room', showRoomIntro ? 'intro' : '', itemCount > 0 ? 'toggle' : ''].join('|')
+      : '',
     automaticFill: roomSurfaceShown
       ? { isActive: automaticFill.isActive, geometryReader: automaticFill.geometryReader }
       : undefined,
@@ -973,8 +971,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
       !threadId
         ? EMPTY_IDS
         : pluginHiddenThreadIds.size === 0
-          ? approvalTimeline.hiddenEventIds
-          : new Set([...approvalTimeline.hiddenEventIds, ...pluginHiddenThreadIds]),
+        ? approvalTimeline.hiddenEventIds
+        : new Set([...approvalTimeline.hiddenEventIds, ...pluginHiddenThreadIds]),
     [threadId, approvalTimeline.hiddenEventIds, pluginHiddenThreadIds]
   );
   useThreadApprovalRowMeasurements(virtualizer, threadEvents, threadHiddenIds, estimateSize);

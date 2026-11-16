@@ -140,7 +140,8 @@ const {
   // The plugins' test of a row they hide (useMessageRowHidden); none by default.
   pluginRowHiddenMock: {
     test: undefined as
-      ((event: { eventId?: string; content: Record<string, unknown> }) => boolean) | undefined,
+      | ((event: { eventId?: string; content: Record<string, unknown> }) => boolean)
+      | undefined,
   },
   virtualPaginatorState: {
     lastOptions: undefined as
@@ -433,7 +434,8 @@ vi.mock('@tanstack/react-virtual', () => {
       const latestOptionsRef = { current: options };
       const key = roomTimelineVirtualizerState as unknown as object;
       let instance = instances.get(key) as
-        (Record<string, unknown> & { __optionsRef: { current: typeof options } }) | undefined;
+        | (Record<string, unknown> & { __optionsRef: { current: typeof options } })
+        | undefined;
       if (instance) {
         instance.__optionsRef.current = options;
         instance.options = options;
@@ -866,8 +868,8 @@ vi.mock('../../event-store/threads/threadUtils', () => ({
     const replyEvents = thread?.events?.length
       ? thread.events
       : thread?.timeline?.length
-        ? thread.timeline
-        : (thread?.events ?? thread?.timeline ?? []);
+      ? thread.timeline
+      : thread?.events ?? thread?.timeline ?? [];
     return replyEvents.filter(
       (event) =>
         !!event.getId() &&
@@ -924,8 +926,8 @@ vi.mock('../../event-store/threads/threadUtils', () => ({
     const replyEvents = thread?.events?.length
       ? thread.events
       : thread?.timeline?.length
-        ? thread.timeline
-        : (thread?.events ?? thread?.timeline ?? []);
+      ? thread.timeline
+      : thread?.events ?? thread?.timeline ?? [];
     const visibleReplies = replyEvents.filter(
       (event) =>
         !!event.getId() &&
@@ -977,8 +979,8 @@ vi.mock('../../event-store/threads/threadUtils', () => ({
     const replyEvents = thread?.events?.length
       ? thread.events
       : thread?.timeline?.length
-        ? thread.timeline
-        : (thread?.events ?? thread?.timeline ?? []);
+      ? thread.timeline
+      : thread?.events ?? thread?.timeline ?? [];
 
     for (
       let i = replyEvents.length - 1;
@@ -1105,8 +1107,9 @@ vi.mock('../../event-store/cache/eventCacheEditUtils', () => ({
 }));
 
 vi.mock('../../event-store/timeline/timelineScrollUtils', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('../../event-store/timeline/timelineScrollUtils')>();
+  const actual = await importOriginal<
+    typeof import('../../event-store/timeline/timelineScrollUtils')
+  >();
   return {
     ...actual,
     isScrollNearBottom: () => true,
@@ -1138,7 +1141,7 @@ vi.mock('../../threads/overview/useRoomThreadList', () => ({
     threads: enabled
       ? roomThreadListThreadsMock.length > 0
         ? roomThreadListThreadsMock
-        : (room?.getThreads?.() ?? [])
+        : room?.getThreads?.() ?? []
       : [],
   }),
 }));
@@ -1432,7 +1435,8 @@ const waitForCondition = async (condition: () => boolean, cycles = 500) => {
 
 const emitClientSync = (current = 'SYNCING', previous = 'SYNCING') => {
   const syncHandler = matrixClientMock.on.mock.calls.find(([event]) => event === 'sync')?.[1] as
-    ((currentState: string, previousState: string) => void) | undefined;
+    | ((currentState: string, previousState: string) => void)
+    | undefined;
   syncHandler?.(current, previous);
 };
 

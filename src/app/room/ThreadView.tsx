@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
 } from 'react';
+import { useStore } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { RoomInput } from '../composer/RoomInput';
@@ -156,12 +157,16 @@ export function ThreadView({
     () => (draftForkAt ? { threadId, eventId: draftForkAt } : undefined),
     [draftForkAt, threadId]
   );
+  const store = useStore();
   const openFork = useCallback(
     (forkRootId: string) => {
+      // A reply chosen in the thread before the draft would take the fork's next message back
+      // into the thread: the fork starts without it.
+      store.set(roomIdToReplyDraftAtomFamily(composerStateKey(roomId, view)), undefined);
       navigateRoomThread(roomId, forkRootId, undefined, { replace: true });
       return true;
     },
-    [navigateRoomThread, roomId]
+    [navigateRoomThread, roomId, store, view]
   );
 
   const focusConversation = useCallback(() => ReactEditor.focus(editor), [editor]);
