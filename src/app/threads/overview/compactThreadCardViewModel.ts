@@ -293,8 +293,10 @@ export const useCompactThreadCardViewModels = ({
   return useMemo(() => {
     const previousCache = viewModelCaches.get(room);
     // SDK member objects mutate in place. Include all members because titles
-    // and previews can mention people outside the thread's participant list.
-    // The language stands for `t`, which each mount of `useTranslation` gives anew.
+    // and previews can mention people outside the thread's participant list, and
+    // their memberships too: whether a name needs its user ID depends on who else
+    // is in the room. The language stands for `t`, which each mount of
+    // `useTranslation` gives anew.
     const contextSignature = JSON.stringify([
       currentUserId,
       language,
@@ -308,7 +310,13 @@ export const useCompactThreadCardViewModels = ({
       new Intl.DateTimeFormat().resolvedOptions().timeZone,
       room
         .getMembers()
-        .map((member) => [member.userId, member.rawDisplayName, member.getMxcAvatarUrl()]),
+        .map((member) => [
+          member.userId,
+          member.rawDisplayName,
+          member.name,
+          member.membership,
+          member.getMxcAvatarUrl(),
+        ]),
     ]);
     const canReuseInputs =
       previousCache?.mx === mx && previousCache.contextSignature === contextSignature;
@@ -319,11 +327,14 @@ export const useCompactThreadCardViewModels = ({
       const record = threadRecordMap.get(threadRootId);
       if (!record) return;
 
+      // A card previewing its root names the root's sender, and the root may load after the
+      // card was built.
       const inputSignature = JSON.stringify([
         record.roomId,
         record.threadRootId,
         record.presentation,
         record.status,
+        room.getThread(threadRootId)?.rootEvent?.getSender(),
       ]);
       const cached = previousCache?.models.get(threadRootId);
       // Scheduled labels read the clock; keep their existing refresh cadence.

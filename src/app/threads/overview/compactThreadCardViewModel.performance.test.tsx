@@ -1,5 +1,5 @@
 import { act, create } from 'react-test-renderer';
-import { createClient, MatrixEvent, Room, type MatrixClient } from 'matrix-js-sdk';
+import { createClient, MatrixEvent, Room, type MatrixClient, type Thread } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel, ThreadRecord } from '../../event-store/threads/types';
 import { useCompactThreadCardViewModels } from './compactThreadCardViewModel';
@@ -193,6 +193,45 @@ describe('compact card formatting work', () => {
     expect(harness.models[0]!.resolvedByDisplayName).toBe('Alicia');
     expect(harness.models[0]!.participants[0]!.avatarUrl).not.toBe(oldAvatar);
     harness.unmount();
+  });
+
+  it('names a member with their user ID once a nameless member it reads as joins', () => {
+    const setMembership = (userId: string, membership: string) =>
+      room.currentState.setStateEvents([
+        new MatrixEvent({
+          type: 'm.room.member',
+          room_id: room.roomId,
+          state_key: userId,
+          sender: userId,
+          event_id: `$${membership}${userId}`,
+          content: { membership },
+        }),
+      ]);
+    setMember(room, '@alice:server', 'carol');
+    setMembership('@carol:server', 'leave');
+    const first = mount(room, [record('$a')]);
+    expect(first.models[0]!.previewText.startsWith('carol: ')).toBe(true);
+    first.unmount();
+
+    // The nameless member, who shows as their localpart, comes back while the list is unmounted.
+    setMembership('@carol:server', 'join');
+    const again = mount(room, [record('$a')]);
+    expect(again.models[0]!.previewText.startsWith('carol (⁦@alice:server⁩): ')).toBe(true);
+    again.unmount();
+  });
+
+  it("names the root's sender once the root loads after the card was built", () => {
+    const rootPreview = record('$a');
+    rootPreview.presentation.latestReplyPreviewText = undefined;
+    const first = mount(room, [rootPreview]);
+    expect(first.models[0]!.previewText).toBe('Conversation with Alice');
+    first.unmount();
+
+    const rootEvent = new MatrixEvent({ event_id: '$a', sender: '@alice:server' });
+    vi.spyOn(room, 'getThread').mockReturnValue({ rootEvent } as unknown as Thread);
+    const again = mount(room, [structuredClone(rootPreview)]);
+    expect(again.models[0]!.previewText).toBe('Alice: Conversation with Alice');
+    again.unmount();
   });
 
   it('refreshes locale, media authentication, and native token changes', () => {
