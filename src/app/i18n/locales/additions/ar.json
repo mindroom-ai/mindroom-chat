@@ -758,6 +758,29 @@
         "noLongerActive": "لم يعد هذا الطلب نشطًا. اطلب من الوكيل مرة أخرى.",
         "unavailable": "إدخال المفاتيح غير متاح على هذا الخادم.",
         "unavailableHint": "لإدخال المفاتيح هنا، اضبط خادم MindRoom الخاص بك في الإعدادات → ⁨{{page}}⁩ → ⁨{{field}}⁩.",
+        "replaces": "يستبدل المفتاح المحفوظ حاليًا.",
+        "replaceKey": "استبدال المفتاح",
+        "temporary": {
+          "label": "طلب سر",
+          "title": "سر لـ ⁨{{agent}}⁩",
+          "givenAs": "يُعطى لأوامر ⁨{{agent}}⁩ في هذه المحادثة باسم ⁨{{variable}}⁩.",
+          "field": "سر لـ ⁨{{variable}}⁩",
+          "placeholder": "الصق السر أو اكتبه",
+          "show": "إظهار السر",
+          "hide": "إخفاء السر",
+          "keepFor": "مدة الاحتفاظ",
+          "keep": {
+            "memory": "⁨{{duration}}⁩، في الذاكرة فقط",
+            "disk": "⁨{{duration}}⁩، في ملف على الخادم"
+          },
+          "kept": {
+            "memory": "يُحتفظ به لمدة ⁨{{duration}}⁩، في الذاكرة فقط.",
+            "disk": "يُحتفظ به لمدة ⁨{{duration}}⁩، في ملف على الخادم."
+          },
+          "send": "إرسال",
+          "sent": "تم الإرسال",
+          "sentWaiting": "تم الإرسال، في انتظار الوكيل"
+        },
         "status": {
           "waitingForYou": "في انتظارك",
           "pending": "معلق",
@@ -909,6 +932,10 @@
     "dismissLostFiles": "إخفاء"
   },
   "commandPalette": {
+    "state": {
+      "on": "تشغيل",
+      "off": "إيقاف"
+    },
     "people": "الأشخاص",
     "tabsLabel": "أنواع النتائج",
     "switchTabs": "تبديل علامة التبويب",

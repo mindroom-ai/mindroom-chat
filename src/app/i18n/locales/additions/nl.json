@@ -722,6 +722,29 @@
         "noLongerActive": "Dit verzoek is niet meer actief. Vraag het de agent opnieuw.",
         "unavailable": "Sleutels invoeren is op deze server niet beschikbaar.",
         "unavailableHint": "Stel je MindRoom-server in via Instellingen → {{page}} → {{field}} om hier sleutels in te voeren.",
+        "replaces": "Vervangt de sleutel die nu is opgeslagen.",
+        "replaceKey": "Sleutel vervangen",
+        "temporary": {
+          "label": "Geheimverzoek",
+          "title": "Geheim voor {{agent}}",
+          "givenAs": "Gaat naar de opdrachten van {{agent}} in dit gesprek als {{variable}}.",
+          "field": "Geheim voor {{variable}}",
+          "placeholder": "Plak of typ het geheim",
+          "show": "Geheim tonen",
+          "hide": "Geheim verbergen",
+          "keepFor": "Bewaren voor",
+          "keep": {
+            "memory": "{{duration}}, alleen in het geheugen",
+            "disk": "{{duration}}, in een bestand op de server"
+          },
+          "kept": {
+            "memory": "Bewaard voor {{duration}}, alleen in het geheugen.",
+            "disk": "Bewaard voor {{duration}}, in een bestand op de server."
+          },
+          "send": "Versturen",
+          "sent": "Verstuurd",
+          "sentWaiting": "Verstuurd, wacht op de agent"
+        },
         "status": {
           "waitingForYou": "Wacht op jou",
           "pending": "In behandeling",
@@ -849,6 +872,10 @@
     "dismissLostFiles": "Sluiten"
   },
   "commandPalette": {
+    "state": {
+      "on": "Aan",
+      "off": "Uit"
+    },
     "people": "Personen",
     "tabsLabel": "Soorten resultaten",
     "switchTabs": "Tabblad wisselen",

@@ -16,9 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { PageNav, PageNavHeader, PageRoot } from '../ui/page/Page';
 import { NavCategoryHeader } from '../ui/nav/NavCategoryHeader';
 import { LogoutDialog } from '../account/LogoutDialog';
-import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
-import { getMxIdLocalPart } from '../matrix/matrix';
 import { ArchivedRooms } from '../rooms/archive/ArchivedRoomsPage';
 import { LocalMindroom } from '../local-mindroom/LocalMindroom';
 import { ServerAccounts } from '../server-admin/ServerAccounts';
@@ -37,8 +35,7 @@ import { searchSettings, type SettingsSearchResult } from './settingsSearchIndex
 import { SettingsTargetContext, type SettingsTarget } from '../preferences/settingsTarget';
 import { revealSetting } from './revealSetting';
 import { SettingsSearch } from './SettingsSearch';
-import { isMacOS } from '../lib/user-agent';
-import { getCommandPaletteShortcutLabel } from '../command-palette/commandPaletteShortcut';
+import { useSettingsSearchValues } from './useSettingsSearchValues';
 import type { SettingsPage } from '../navigation/settingsPages';
 import { useSettingsContext } from './useSettingsContext';
 import { About } from './pages/About';
@@ -65,6 +62,8 @@ import {
 type SettingsProps = {
   /** A page id, or an earlier one; settingsRegistry.ts resolves it. */
   initialPage?: SettingsPage;
+  /** A setting to scroll to, highlight and focus on the page that opens, as a search result is. */
+  initialSetting?: string;
   requestClose: () => void;
 };
 
@@ -113,20 +112,6 @@ function SettingsPageContent({ page, requestClose, closeDialog }: PageContentPro
 }
 
 const MENU_TITLE_STYLE = { flexGrow: 1 };
-
-/** The values some labels and descriptions fill in, so search reads them as the page does. */
-const useSearchValues = () => {
-  const userId = useMatrixClient().getUserId() ?? '';
-  return useMemo(
-    () => ({
-      userId,
-      username: getMxIdLocalPart(userId) ?? userId,
-      sendKey: isMacOS() ? 'Cmd' : 'Ctrl',
-      shortcut: getCommandPaletteShortcutLabel(),
-    }),
-    [userId]
-  );
-};
 
 // A group heading is as tall as its text and sits right on its rows; SettingsMenuGroup parts the
 // groups, so the whole menu fits a 700 px dialog.
@@ -242,7 +227,7 @@ function LogoutButton() {
  * beside the selected page, whose title bar reads "Settings / <page>"; on phones the menu and a
  * page take turns, and the menu carries the dialog's title.
  */
-export function Settings({ initialPage, requestClose }: SettingsProps) {
+export function Settings({ initialPage, initialSetting, requestClose }: SettingsProps) {
   const { t } = useTranslation();
   const viewport = useScreenSizeContext();
   const context = useSettingsContext();
@@ -257,9 +242,11 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
     )
   );
   const [query, setQuery] = useState('');
-  const [target, setTarget] = useState<SettingsTarget>();
+  const [target, setTarget] = useState<SettingsTarget | undefined>(() =>
+    initialSetting ? { id: initialSetting, seq: 0 } : undefined
+  );
   const pageRef = useRef<HTMLDivElement>(null);
-  const searchValues = useSearchValues();
+  const searchValues = useSettingsSearchValues();
   const results = searchSettings(
     query,
     getShownSettings(context),

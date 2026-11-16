@@ -6,7 +6,7 @@ import { AI_RUN_METADATA_KEY } from './aiRun';
  * Matrix username localpart prefix the MindRoom platform assigns to
  * agent-like entities (see mindroom `matrix_identifiers.agent_username_localpart`).
  */
-const AGENT_USERNAME_PREFIX = 'mindroom_';
+export const AGENT_USERNAME_PREFIX = 'mindroom_';
 
 const STREAM_STATUS_KEY = 'io.mindroom.stream_status';
 const TOOL_TRACE_KEY = 'io.mindroom.tool_trace';

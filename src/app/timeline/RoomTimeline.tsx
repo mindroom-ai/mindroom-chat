@@ -1113,7 +1113,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const hideOpeningThreadRows = useThreadOpeningReveal({
     viewKey,
     opensAtLatest: !!threadId && !eventId && !isLocalEchoEventId(threadId),
-    rowCount: threadEvents.length,
+    rows: threadEvents,
     scrollRef,
     readerTookOver: () =>
       readerScrolledRef.current.value || backController.isOpenBottomPinSuppressed(),
@@ -1622,6 +1622,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
           threadRecordMap={threadIndex.compactThreadRecordMap}
           onThreadClick={(rootId) => navigateRoomThread(room.roomId, rootId)}
           compactRoomScrollStateRef={compactRoomScrollStateRef}
+          filterBarShown={filterBarShown}
         />
       </Box>
     );

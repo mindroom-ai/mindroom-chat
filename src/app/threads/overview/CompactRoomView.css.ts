@@ -32,10 +32,20 @@ export const EmptyState = style({
   color: color.SurfaceVariant.OnContainer,
 });
 
+// The cards' list: a card that left fades at its old place in it (`useListMotion`).
+export const Cards = style({
+  position: 'relative',
+});
+
 export const CardShell = style({
   position: 'relative',
   width: '100%',
   minWidth: 0,
+});
+
+// A card's moving part: positioned, so a card that travels far passes over the others.
+export const CardMotion = style({
+  position: 'relative',
 });
 
 export const PinnedSection = style({
@@ -61,6 +71,18 @@ export const Card = style([
     ':focus-visible': {
       outline: `${config.borderWidth.B300} solid ${color.Primary.Main}`,
       outlineOffset: '1px',
+    },
+    // A tint over the card, clear at rest: a card whose thread just changed fades it out once
+    // (`useShowChange` in CompactThreadCard.tsx), which repaints nothing of the card.
+    position: 'relative',
+    '::after': {
+      content: "''",
+      position: 'absolute',
+      inset: 0,
+      borderRadius: 'inherit',
+      backgroundColor: color.Primary.Main,
+      opacity: 0,
+      pointerEvents: 'none',
     },
   },
 ]);

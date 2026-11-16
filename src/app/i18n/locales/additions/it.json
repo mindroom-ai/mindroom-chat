@@ -731,6 +731,29 @@
         "noLongerActive": "Questa richiesta non è più attiva. Chiedi di nuovo all’agente.",
         "unavailable": "L’inserimento delle chiavi non è disponibile su questo server.",
         "unavailableHint": "Per inserire chiavi qui, imposta il tuo server MindRoom in Impostazioni → {{page}} → {{field}}.",
+        "replaces": "Sostituisce la chiave salvata ora.",
+        "replaceKey": "Sostituisci chiave",
+        "temporary": {
+          "label": "Richiesta di segreto",
+          "title": "Segreto per {{agent}}",
+          "givenAs": "Viene passato ai comandi di {{agent}} in questa conversazione come {{variable}}.",
+          "field": "Segreto per {{variable}}",
+          "placeholder": "Incolla o digita il segreto",
+          "show": "Mostra segreto",
+          "hide": "Nascondi segreto",
+          "keepFor": "Conserva per",
+          "keep": {
+            "memory": "{{duration}}, solo in memoria",
+            "disk": "{{duration}}, in un file sul server"
+          },
+          "kept": {
+            "memory": "Conservato per {{duration}}, solo in memoria.",
+            "disk": "Conservato per {{duration}}, in un file sul server."
+          },
+          "send": "Invia",
+          "sent": "Inviato",
+          "sentWaiting": "Inviato, in attesa dell’agente"
+        },
         "status": {
           "waitingForYou": "Ti sta aspettando",
           "pending": "In sospeso",
@@ -864,6 +887,10 @@
     "dismissLostFiles": "Ignora"
   },
   "commandPalette": {
+    "state": {
+      "on": "Attivo",
+      "off": "Spento"
+    },
     "people": "Persone",
     "tabsLabel": "Tipi di risultato",
     "switchTabs": "Cambia scheda",

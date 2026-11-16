@@ -713,6 +713,29 @@
         "noLongerActive": "Permintaan ini sudah tidak aktif. Minta lagi kepada agen.",
         "unavailable": "Memasukkan kunci tidak tersedia di server ini.",
         "unavailableHint": "Untuk memasukkan kunci di sini, atur server MindRoom Anda di Pengaturan → {{page}} → {{field}}.",
+        "replaces": "Menggantikan kunci yang tersimpan sekarang.",
+        "replaceKey": "Ganti kunci",
+        "temporary": {
+          "label": "Permintaan rahasia",
+          "title": "Rahasia untuk {{agent}}",
+          "givenAs": "Diberikan ke perintah {{agent}} dalam percakapan ini sebagai {{variable}}.",
+          "field": "Rahasia untuk {{variable}}",
+          "placeholder": "Tempel atau ketik rahasia",
+          "show": "Tampilkan rahasia",
+          "hide": "Sembunyikan rahasia",
+          "keepFor": "Simpan selama",
+          "keep": {
+            "memory": "{{duration}}, hanya di memori",
+            "disk": "{{duration}}, dalam berkas di server"
+          },
+          "kept": {
+            "memory": "Disimpan selama {{duration}}, hanya di memori.",
+            "disk": "Disimpan selama {{duration}}, dalam berkas di server."
+          },
+          "send": "Kirim",
+          "sent": "Terkirim",
+          "sentWaiting": "Terkirim, menunggu agen"
+        },
         "status": {
           "waitingForYou": "Menunggu Anda",
           "pending": "Menunggu",
@@ -834,6 +857,10 @@
     "dismissLostFiles": "Tutup"
   },
   "commandPalette": {
+    "state": {
+      "on": "Aktif",
+      "off": "Nonaktif"
+    },
     "people": "Orang",
     "tabsLabel": "Jenis hasil",
     "switchTabs": "Ganti tab",

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   daysToMs,
   formatCompactRelativeTime,
+  formatLifetime,
   formatRelativeTime,
   hoursToMs,
   minutesToMs,
@@ -114,5 +115,20 @@ describe('formatCompactRelativeTime', () => {
     expect(formatCompactRelativeTime(now - daysToMs(2), 'nl')).toBe('2 d');
     expect(formatCompactRelativeTime(now - hoursToMs(3), 'nl')).toBe('3 u');
     expect(formatCompactRelativeTime(new Date(2026, 2, 1, 12).getTime(), 'nl')).toBe('1 mrt');
+  });
+});
+
+describe('formatLifetime', () => {
+  it('names whole hours in hours and anything else in minutes, in words', () => {
+    expect(formatLifetime(900)).toBe('15 minutes');
+    expect(formatLifetime(86_400)).toBe('24 hours');
+    expect(formatLifetime(3_600)).toBe('1 hour');
+    expect(formatLifetime(5_400)).toBe('90 minutes');
+    expect(formatLifetime(60)).toBe('1 minute');
+  });
+
+  it('uses the words of the language', () => {
+    expect(formatLifetime(900, 'nl')).toBe('15 minuten');
+    expect(formatLifetime(86_400, 'de')).toBe('24 Stunden');
   });
 });

@@ -20,6 +20,28 @@ export const Reason = style({ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }
 export const Masked = style({});
 globalStyle(`${Masked} input`, { WebkitTextSecurity: 'disc' } as unknown as GlobalStyleRule);
 
+/** The requester's choice, field and buttons, which lie in the card as if no element held them. */
+export const Answer = style({ display: 'contents' });
+
+/** The choice of how long a temporary secret is kept: its options, one to a line. */
+export const Keep = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: config.space.S100,
+  margin: 0,
+  padding: 0,
+  border: 'none',
+  minInlineSize: 0,
+});
+
+/** One option: its radio button and its text, which wraps beside the button. */
+export const KeepOption = style({
+  display: 'flex',
+  alignItems: 'baseline',
+  gap: config.space.S200,
+  cursor: 'pointer',
+});
+
 /**
  * The live region that says what an answer did. It stays mounted while the card is open, so a
  * screen reader announces the text it gets; empty, it takes no room.

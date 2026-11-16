@@ -72,6 +72,44 @@ export const Close = style({
   '@media': { '(max-width: 480px)': { minWidth: 44, minHeight: 44 } },
 });
 
+// The open page's title before the text; a click goes back. 12 px from its neighbours, so to a
+// finger it reaches 6 px out to each side and is 44 px tall. A long title leaves the field most
+// of a phone's width: the chip takes at most 45 % and cuts the title short.
+export const PageChip = style([
+  touchTarget('6px'),
+  {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 2,
+    flex: 'none',
+    maxWidth: '45%',
+    minWidth: 0,
+    minHeight: 28,
+    paddingBlock: 4,
+    paddingInlineStart: 6,
+    paddingInlineEnd: 10,
+    border: 0,
+    borderRadius: config.radii.Pill,
+    background: `color-mix(in srgb, ${color.SurfaceVariant.Container} 65%, transparent)`,
+    color: color.SurfaceVariant.OnContainer,
+    font: 'inherit',
+    fontSize: 13,
+    fontWeight: 500,
+    lineHeight: '20px',
+    whiteSpace: 'nowrap',
+    cursor: 'pointer',
+    ':hover': { background: color.SurfaceVariant.ContainerHover },
+    ':focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: 2 },
+  },
+]);
+
+// The chip's title, clipped inside it, so the chip's reach for a finger stays whole.
+export const PageChipTitle = style({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+});
+
 // One row of tabs under the field; on a narrow screen it scrolls sideways.
 export const Tabs = style({
   display: 'flex',
@@ -92,31 +130,31 @@ export const Tab = style([
   // 4 px apart: to a finger each reaches 2 px out, 44 px tall.
   touchTarget('2px'),
   {
-  display: 'inline-flex',
-  alignItems: 'center',
-  flex: 'none',
-  whiteSpace: 'nowrap',
-  padding: '7px 12px',
-  minHeight: 32,
-  border: '1px solid transparent',
-  borderRadius: config.radii.R300,
-  font: 'inherit',
-  fontSize: 12,
-  fontWeight: 500,
-  color: color.SurfaceVariant.OnContainer,
-  background: 'none',
-  cursor: 'pointer',
-  ':hover': { background: color.Surface.ContainerHover },
-  ':focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: -2 },
-  selectors: {
-    '&[aria-selected="true"]': {
-      color: color.Primary.OnContainer,
-      background: `color-mix(in srgb, ${color.Primary.Container} 88%, transparent)`,
-      borderColor: color.Primary.ContainerLine,
-      boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 10%)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    flex: 'none',
+    whiteSpace: 'nowrap',
+    padding: '7px 12px',
+    minHeight: 32,
+    border: '1px solid transparent',
+    borderRadius: config.radii.R300,
+    font: 'inherit',
+    fontSize: 12,
+    fontWeight: 500,
+    color: color.SurfaceVariant.OnContainer,
+    background: 'none',
+    cursor: 'pointer',
+    ':hover': { background: color.Surface.ContainerHover },
+    ':focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: -2 },
+    selectors: {
+      '&[aria-selected="true"]': {
+        color: color.Primary.OnContainer,
+        background: `color-mix(in srgb, ${color.Primary.Container} 88%, transparent)`,
+        borderColor: color.Primary.ContainerLine,
+        boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 10%)',
+      },
     },
-  },
-  '@media': { '(max-width: 480px)': { minHeight: 40 } },
+    '@media': { '(max-width: 480px)': { minHeight: 40 } },
   },
 ]);
 
@@ -273,6 +311,17 @@ export const Match = style({
   fontWeight: 600,
 });
 
+// The letters of a title, or of the line under it, that matched the typed text. The weight
+// stays as it is, so a row keeps its width and Arabic letters keep their joins.
+export const TitleMatch = style({
+  background: 'none',
+  color: color.Primary.Main,
+  fontWeight: 'inherit',
+  textDecoration: 'underline',
+  textDecorationThickness: 1,
+  textUnderlineOffset: 2,
+});
+
 export const RowDescription = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',
@@ -280,6 +329,21 @@ export const RowDescription = style({
   color: color.SurfaceVariant.OnContainer,
   fontSize: 12,
   lineHeight: '17px',
+});
+
+export const RowState = style({
+  flex: 'none',
+  color: color.SurfaceVariant.OnContainer,
+  fontSize: 12,
+  lineHeight: '17px',
+});
+
+export const RowEnd = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: config.space.S200,
+  flex: 'none',
+  color: color.SurfaceVariant.OnContainer,
 });
 
 export const RowEnter = style({

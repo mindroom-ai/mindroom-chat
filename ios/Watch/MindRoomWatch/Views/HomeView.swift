@@ -93,14 +93,14 @@ struct HomeView: View {
         if model?.room.id() == roomId { return model }
         if let other = otherRooms[roomId] { return other }
         guard let room = try? client.getRoom(roomId: roomId) else { return nil }
-        let other = RoomModel(room: room, userId: userId, session: try? client.session())
+        let other = RoomModel(room: room, userId: userId, client: client)
         otherRooms[roomId] = other
         return other
     }
 
     private func open(_ roomId: String) {
         guard model?.room.id() != roomId, let room = try? client.getRoom(roomId: roomId) else { return }
-        let model = RoomModel(room: room, userId: userId, session: try? client.session())
+        let model = RoomModel(room: room, userId: userId, client: client)
         self.model = model
         Task { await model.start() }
     }

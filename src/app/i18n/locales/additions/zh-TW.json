@@ -713,6 +713,29 @@
         "noLongerActive": "此請求已失效。請再次向代理程式提出。",
         "unavailable": "此伺服器不支援輸入金鑰。",
         "unavailableHint": "若要在此輸入金鑰，請在設定 → {{page}} → {{field}} 中設定您的 MindRoom 伺服器。",
+        "replaces": "將取代目前儲存的金鑰。",
+        "replaceKey": "取代金鑰",
+        "temporary": {
+          "label": "機密要求",
+          "title": "給 {{agent}} 的機密",
+          "givenAs": "在此對話中以 {{variable}} 提供給 {{agent}} 的指令。",
+          "field": "{{variable}} 的機密",
+          "placeholder": "貼上或輸入機密",
+          "show": "顯示機密",
+          "hide": "隱藏機密",
+          "keepFor": "保留時間",
+          "keep": {
+            "memory": "{{duration}}，僅在記憶體中",
+            "disk": "{{duration}}，儲存在伺服器上的檔案中"
+          },
+          "kept": {
+            "memory": "保留 {{duration}}，僅在記憶體中。",
+            "disk": "保留 {{duration}}，儲存在伺服器上的檔案中。"
+          },
+          "send": "傳送",
+          "sent": "已傳送",
+          "sentWaiting": "已傳送，等待代理程式"
+        },
         "status": {
           "waitingForYou": "等您處理",
           "pending": "待處理",
@@ -834,6 +857,10 @@
     "dismissLostFiles": "關閉"
   },
   "commandPalette": {
+    "state": {
+      "on": "開",
+      "off": "關"
+    },
     "people": "人員",
     "tabsLabel": "結果類型",
     "switchTabs": "切換分頁",

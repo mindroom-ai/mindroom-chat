@@ -6,44 +6,55 @@ import { CommandPaletteRenderer } from './CommandPaletteRenderer';
 import { commandPaletteOpenAtom } from './commandPaletteState';
 import type { CommandPaletteTab } from './commandPaletteTypes';
 
-const { hotkeyState, screenSizeState, sourceState, useCommandPaletteSourceMock } = vi.hoisted(() => {
-  const state = {
-    logoutAction: false,
-  };
-  const screenSize = {
-    value: 'Desktop',
-  };
+const { hotkeyState, screenSizeState, sourceState, useCommandPaletteSourceMock } = vi.hoisted(
+  () => {
+    const state = {
+      logoutAction: false,
+    };
+    const screenSize = {
+      value: 'Desktop',
+    };
 
-  return {
-    hotkeyState: {
-      apple: false,
-      matcher: undefined as ((event: KeyboardEvent) => boolean) | undefined,
-    },
-    screenSizeState: screenSize,
-    sourceState: state,
-    useCommandPaletteSourceMock: vi.fn((options?: { onLogout?: () => void }) => ({
-      actions: state.logoutAction
-        ? [
-            {
-              id: 'logout',
-              kind: 'action',
-              title: 'Logout',
-              onSelect: options?.onLogout,
-            },
-          ]
-        : [
-            {
-              id: 'action-settings',
-              kind: 'action',
-              title: 'Open Settings',
-            },
-          ],
-      threads: [],
-      rooms: [],
-      getUsers: () => [],
-    })),
-  };
-});
+    return {
+      hotkeyState: {
+        apple: false,
+        matcher: undefined as ((event: KeyboardEvent) => boolean) | undefined,
+      },
+      screenSizeState: screenSize,
+      sourceState: state,
+      useCommandPaletteSourceMock: vi.fn((options?: { onLogout?: () => void }) => {
+        const actions = state.logoutAction
+          ? [
+              {
+                id: 'logout',
+                kind: 'action',
+                title: 'Logout',
+                onSelect: options?.onLogout,
+              },
+            ]
+          : [
+              {
+                id: 'action-settings',
+                kind: 'action',
+                title: 'Open Settings',
+              },
+            ];
+        return {
+          actions,
+          commands: [],
+          pages: {
+            theme: { title: 'Theme', items: [] },
+            'message-layout': { title: 'Message Layout', items: [] },
+            language: { title: 'App Language', items: [] },
+          },
+          threads: [],
+          rooms: [],
+          getUsers: () => [],
+        };
+      }),
+    };
+  }
+);
 
 afterEach(() => {
   hotkeyState.apple = false;
@@ -147,6 +158,7 @@ vi.mock('folds', async () => {
       reactModule.createElement('span', { ...props, 'data-icon-src': src }),
     Spinner: () => null,
     Icons: {
+      ChevronLeft: 'chevron-left',
       Cross: 'cross',
       Terminal: 'terminal',
       Message: 'message',
@@ -205,6 +217,8 @@ vi.mock('./CommandPalette.css', () => ({
   Search: 'Search',
   Input: 'Input',
   Close: 'Close',
+  PageChip: 'PageChip',
+  PageChipTitle: 'PageChipTitle',
   Tabs: 'Tabs',
   Tab: 'Tab',
   ClearSearch: 'ClearSearch',
@@ -224,6 +238,8 @@ vi.mock('./CommandPalette.css', () => ({
   Note: 'Note',
   RowDescription: 'RowDescription',
   RowEnter: 'RowEnter',
+  RowEnd: 'RowEnd',
+  RowState: 'RowState',
   Key: 'Key',
   Footer: 'Footer',
   KeyboardHints: 'KeyboardHints',

@@ -713,6 +713,29 @@
         "noLongerActive": "此请求已失效。请再次向智能体请求。",
         "unavailable": "此服务器不支持输入密钥。",
         "unavailableHint": "要在此输入密钥，请在设置 → {{page}} → {{field}} 中设置您的 MindRoom 服务器。",
+        "replaces": "将替换当前保存的密钥。",
+        "replaceKey": "替换密钥",
+        "temporary": {
+          "label": "机密请求",
+          "title": "给 {{agent}} 的机密",
+          "givenAs": "在此对话中以 {{variable}} 提供给 {{agent}} 的命令。",
+          "field": "{{variable}} 的机密",
+          "placeholder": "粘贴或输入机密",
+          "show": "显示机密",
+          "hide": "隐藏机密",
+          "keepFor": "保留时间",
+          "keep": {
+            "memory": "{{duration}}，仅在内存中",
+            "disk": "{{duration}}，保存在服务器上的文件中"
+          },
+          "kept": {
+            "memory": "保留 {{duration}}，仅在内存中。",
+            "disk": "保留 {{duration}}，保存在服务器上的文件中。"
+          },
+          "send": "发送",
+          "sent": "已发送",
+          "sentWaiting": "已发送，等待智能体"
+        },
         "status": {
           "waitingForYou": "等您处理",
           "pending": "待处理",
@@ -834,6 +857,10 @@
     "dismissLostFiles": "关闭"
   },
   "commandPalette": {
+    "state": {
+      "on": "开",
+      "off": "关"
+    },
     "people": "人员",
     "tabsLabel": "结果类型",
     "switchTabs": "切换标签页",
