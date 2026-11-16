@@ -25,6 +25,8 @@ export type SettingsContext = {
   /** Inside the iOS or Android app. */
   native: boolean;
   nativeIOS: boolean;
+  /** The diagnostics record: always in the iOS app, elsewhere with debug mode on. */
+  diagnostics: boolean;
   /** The account can pair a Local MindRoom. */
   localMindroom: boolean;
   /** The signed-in user administers the homeserver. */
@@ -738,7 +740,7 @@ export const SETTINGS = [
     group: `${ABOUT}.options`,
     labelKey: `${ABOUT}.onDeviceDiagnostics`,
     scope: 'device',
-    hidden: (context) => !context.nativeIOS,
+    hidden: (context) => !context.diagnostics,
   },
   {
     id: 'deepTrace',
@@ -746,7 +748,7 @@ export const SETTINGS = [
     group: `${ABOUT}.options`,
     labelKey: `${ABOUT}.deepDiagnosticTracing`,
     scope: 'device',
-    hidden: (context) => !context.nativeIOS,
+    hidden: (context) => !context.diagnostics,
   },
   {
     id: 'errorReports',

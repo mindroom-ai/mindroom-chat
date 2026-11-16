@@ -4,8 +4,12 @@ import {
   removeStorageItemSafe,
   setStorageItemSafe,
 } from '../lib/safeLocalStorage';
-import { FLIGHT_RECORDER_CURRENT_KEY, installFlightRecorder } from './flightRecorder';
-import { initializeDeepTraceRecorder, setDeepTraceEnabled } from './deepTrace';
+import {
+  FLIGHT_RECORDER_ABNORMAL_KEY,
+  FLIGHT_RECORDER_CURRENT_KEY,
+  installFlightRecorder,
+} from './flightRecorder';
+import { clearDeepTrace, initializeDeepTraceRecorder, setDeepTraceEnabled } from './deepTrace';
 
 /**
  * Debug mode turns on the iOS app's diagnostics, the flight recorder and the deep trace switch,
@@ -27,8 +31,8 @@ export const startFlightRecorder = (): void => {
 };
 
 /**
- * Turns debug mode on or off in this browser and starts or stops its recorders at once.
- * Returns whether the choice was saved.
+ * Turns debug mode on or off in this browser and starts or stops its recorders at once; off also
+ * deletes what they recorded. Returns whether the choice was saved.
  */
 export const setDebugModeEnabled = async (
   enabled: boolean,
@@ -46,8 +50,11 @@ export const setDebugModeEnabled = async (
   await setDeepTraceEnabled(false);
   stopFlightRecorder?.();
   stopFlightRecorder = undefined;
-  // A stopped session never ends cleanly; left behind, it would read as a crash once debug mode
-  // is back on.
+  // Off clears what debug mode recorded: its Clear button goes with it, and a bug report would
+  // still attach the trace. A stopped session never ends cleanly either; left behind, it would
+  // read as a crash once debug mode is back on.
+  await clearDeepTrace();
   removeStorageItemSafe(storage, FLIGHT_RECORDER_CURRENT_KEY);
+  removeStorageItemSafe(storage, FLIGHT_RECORDER_ABNORMAL_KEY);
   return saved;
 };

@@ -202,6 +202,8 @@ function DebugModeSetting({
     setPending(true);
     try {
       await setDebugModeEnabled(next);
+    } catch {
+      // The switch shows the saved choice again below.
     } finally {
       setPending(false);
       onChange(getDebugModeEnabled());
