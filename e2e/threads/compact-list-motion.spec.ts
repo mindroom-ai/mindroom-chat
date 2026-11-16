@@ -20,8 +20,9 @@ import {
 // (a thread resolved while the filter hides resolved ones) fades where it stood while the cards
 // under it close the gap. Each card moves by the element inside the one the scroll position is
 // measured on, so that one stays at rest. The card of a thread that just got a reply also tints
-// once, and hiding the filter bar glides every card up to where that leaves it. Set LIST_MOTION_SHOTS=<dir> to save a frame of each change with the motion slowed to a
-// tenth.
+// once, and hiding the filter bar glides every card up to where that leaves it. A row that plays
+// costs the list no layout. Set LIST_MOTION_SHOTS=<dir> to save a frame of each change with the
+// motion slowed to a tenth.
 const PASSWORD = 'compact-list-motion-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.LIST_MOTION_SHOTS;
@@ -101,6 +102,7 @@ test.describe('the Compact cards in motion', () => {
 
   test('a card glides to the top, a new one fades in, one that left fades out', async ({
     page,
+    browserName,
   }) => {
     test.setTimeout(180_000);
     const reader = await registerDisposableUser(`clm_reader_${RUN}`, PASSWORD);
@@ -154,6 +156,33 @@ test.describe('the Compact cards in motion', () => {
       await page.screenshot({ path: `${SHOTS}/${name}.png` });
     };
     await takePlays(page);
+
+    // A row that plays must not have the browser lay out the list. A row that became a stacking
+    // context only while it played did, when the play started and when it ended: 20 to 25 ms
+    // each time in a list of 600 cards. Other work may lay out the page meanwhile, so one play
+    // without a layout is enough.
+    if (browserName === 'chromium') {
+      const metrics = await page.context().newCDPSession(page);
+      await metrics.send('Performance.enable');
+      const layouts = async () =>
+        (await metrics.send('Performance.getMetrics')).metrics.find(
+          ({ name }) => name === 'LayoutCount'
+        )?.value;
+      await expect(async () => {
+        const before = await layouts();
+        await page
+          .locator('[data-compact-room-view] [data-motion-row]')
+          .nth(2)
+          .evaluate(async (row) => {
+            await row.animate([{ translate: '0px 20px' }, { translate: 'none' }], 120).finished;
+            await new Promise((resolve) => {
+              requestAnimationFrame(() => requestAnimationFrame(resolve));
+            });
+          });
+        expect(await layouts(), 'layouts while a row played').toBe(before);
+      }).toPass({ timeout: 20_000 });
+      await takePlays(page);
+    }
 
     // 1. A reply in the oldest thread: its card, the last one, glides to the top.
     const oldest = rootIds[0] ?? '';

@@ -6,7 +6,10 @@ import {
   useLayoutEffect,
   useRef,
 } from 'react';
+import './listMotion.css';
 
+// A row is a stacking context at rest (listMotion.css.ts): one that became one only while it
+// played would have the browser lay out the whole list at the start and the end of every play.
 const ROW = 'data-motion-row';
 
 // The motion tokens `Slower`, `Slow` and `Normal` with their curves (ui/styles/Motion.css.ts) as
