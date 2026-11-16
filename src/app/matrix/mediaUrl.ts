@@ -78,8 +78,7 @@ type MxcHttpExtras = [
   allowRedirects?: boolean
 ];
 
-/** The HTTP URL of an `mxc://` URI, a thumbnail when a size is given. */
-export const mxcUrlToHttp = (
+const buildMediaUrl = (
   mx: MediaClient,
   mxcUrl: string,
   useAuthentication?: boolean,
@@ -109,6 +108,36 @@ export const mxcUrlToHttp = (
   if (!token || !isHomeserverMediaUrl(url, homeserver)) return url === parsed ? httpUrl : url.href;
   url.searchParams.set('access_token', token);
   return url.href;
+};
+
+// Every timeline row builds its avatar's URL at each render, and building one parses URLs three
+// times. A URL without a token depends only on the client's homeserver and the arguments, so it
+// is kept per client; one that carries the token is built each time, with the current token.
+const MAX_CACHED_URLS = 1000;
+const tokenFreeUrls = new WeakMap<MediaClient, Map<string, string | null>>();
+
+/** The HTTP URL of an `mxc://` URI, a thumbnail when a size is given. */
+export const mxcUrlToHttp = (
+  mx: MediaClient,
+  mxcUrl: string,
+  useAuthentication?: boolean,
+  ...extras: MxcHttpExtras
+): string | null => {
+  if (useAuthentication && !hasServiceWorkerControl() && runsInNativeShell()) {
+    return buildMediaUrl(mx, mxcUrl, useAuthentication, ...extras);
+  }
+  let urls = tokenFreeUrls.get(mx);
+  if (!urls) {
+    urls = new Map();
+    tokenFreeUrls.set(mx, urls);
+  }
+  const key = JSON.stringify([mx.getHomeserverUrl(), mxcUrl, useAuthentication, ...extras]);
+  const known = urls.get(key);
+  if (known !== undefined) return known;
+  const url = buildMediaUrl(mx, mxcUrl, useAuthentication, ...extras);
+  if (urls.size >= MAX_CACHED_URLS) urls.delete(urls.keys().next().value as string);
+  urls.set(key, url);
+  return url;
 };
 
 /**
