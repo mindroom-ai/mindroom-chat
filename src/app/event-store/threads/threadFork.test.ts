@@ -19,12 +19,19 @@ const makeEvent = (
   ts: number,
   threadRootId?: string,
   isThreadRoot = false,
-  { type = 'm.room.message', redacted = false, relType = undefined as string | undefined } = {}
+  {
+    type = 'm.room.message',
+    redacted = false,
+    relType = undefined as string | undefined,
+    content = {} as Record<string, unknown>,
+  } = {}
 ) =>
   ({
     getId: () => id,
     getTs: () => ts,
     getType: () => type,
+    getContent: () => content,
+    status: null,
     isRedacted: () => redacted,
     getRelation: () => (relType ? { rel_type: relType, event_id: '$x' } : null),
     threadRootId,
@@ -159,6 +166,20 @@ describe('latestForkPoint', () => {
 
   it("is the thread's latest message the server confirmed, past edits and sends under way", () => {
     expect(latestForkPoint(roomWith(root, [a, edit, b, pending]), '$p')).toEqual({
+      threadId: '$p',
+      eventId: '$b',
+    });
+  });
+
+  it("passes over the thread's title notice", () => {
+    const title = makeEvent('$title', 7, '$p', false, {
+      content: {
+        msgtype: 'm.notice',
+        body: 'Lisbon trip',
+        'io.mindroom.thread_summary': { version: 1, summary: 'Lisbon trip' },
+      },
+    });
+    expect(latestForkPoint(roomWith(root, [a, b, title]), '$p')).toEqual({
       threadId: '$p',
       eventId: '$b',
     });

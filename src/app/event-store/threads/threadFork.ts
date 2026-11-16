@@ -1,5 +1,6 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
+import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 import { getThreadTimelineEvents } from '../timeline/linkedTimelines';
 import { compareThreadRenderOrder } from './threadRenderUtils';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
@@ -71,14 +72,18 @@ export const forkTargetFor = (event: MatrixEvent): ThreadForkRef | undefined => 
   return { threadId: ownThreadId(event) ?? eventId, eventId };
 };
 
-/** "Fork thread": the latest message of the thread the room holds, the fork point of its copy. */
+/**
+ * "Fork thread": the latest message of the thread the room holds, the fork point of its copy. A
+ * title notice is the thread's title, not part of the conversation, and often hidden in it.
+ */
 export const latestForkPoint = (room: Room, threadId: string): ThreadForkRef | undefined => {
   const thread = room.getThread(threadId);
   const root = thread?.rootEvent ?? room.findEventById(threadId);
   const events = [...(root ? [root] : []), ...(thread ? getThreadTimelineEvents(thread) : [])];
   events.sort(compareThreadRenderOrder);
   for (let index = events.length - 1; index >= 0; index -= 1) {
-    const ref = forkTargetFor(events[index]!);
+    const event = events[index]!;
+    const ref = isThreadSummaryEvent(event) ? undefined : forkTargetFor(event);
     if (ref?.threadId === threadId) return ref;
   }
   return undefined;
