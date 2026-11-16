@@ -397,7 +397,9 @@
       },
       "about": {
         "thirdPartyNotices": "타사 고지 사항",
-        "soundsCredit": "알림음과 초대음은 이 앱을 위해 합성한 차임입니다."
+        "soundsCredit": "알림음과 초대음은 이 앱을 위해 합성한 차임입니다.",
+        "debugMode": "디버그 모드",
+        "debugModeDescription": "이 기기에서 진단 정보를 기록하여 내보내고 상세 진단 추적을 켤 수 있게 합니다."
       }
     },
     "createChat": {

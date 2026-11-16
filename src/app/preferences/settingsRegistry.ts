@@ -724,6 +724,15 @@ export const SETTINGS = [
     hidden: (context) => !context.developerTools,
   },
   {
+    id: 'debugMode',
+    page: 'about',
+    group: `${ABOUT}.options`,
+    labelKey: `${ABOUT}.debugMode`,
+    descriptionKey: `${ABOUT}.debugModeDescription`,
+    scope: 'device',
+    hidden: (context) => context.nativeIOS,
+  },
+  {
     id: 'diagnosticsExport',
     page: 'about',
     group: `${ABOUT}.options`,

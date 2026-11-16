@@ -397,7 +397,9 @@
       },
       "about": {
         "thirdPartyNotices": "第三方声明",
-        "soundsCredit": "通知和邀请提示音是为本应用合成的铃声。"
+        "soundsCredit": "通知和邀请提示音是为本应用合成的铃声。",
+        "debugMode": "调试模式",
+        "debugModeDescription": "在此设备上记录诊断信息，以便导出并开启深度诊断追踪。"
       }
     },
     "createChat": {

@@ -402,7 +402,9 @@
       },
       "about": {
         "thirdPartyNotices": "Third-party notices",
-        "soundsCredit": "The notification and invite sounds are chimes synthesized for this app."
+        "soundsCredit": "The notification and invite sounds are chimes synthesized for this app.",
+        "debugMode": "Debug mode",
+        "debugModeDescription": "Records diagnostics on this device so you can export them and turn on deep diagnostic tracing."
       }
     },
     "createChat": {

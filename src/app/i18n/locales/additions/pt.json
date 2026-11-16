@@ -407,7 +407,9 @@
       },
       "about": {
         "thirdPartyNotices": "Avisos de terceiros",
-        "soundsCredit": "Os sons de notificação e de convite são toques sintetizados para este aplicativo."
+        "soundsCredit": "Os sons de notificação e de convite são toques sintetizados para este aplicativo.",
+        "debugMode": "Modo de depuração",
+        "debugModeDescription": "Regista diagnósticos neste dispositivo para que os possa exportar e ativar o rastreio de diagnóstico detalhado."
       }
     },
     "createChat": {
