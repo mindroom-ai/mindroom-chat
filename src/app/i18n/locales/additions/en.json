@@ -872,6 +872,10 @@
     "dismissLostFiles": "Dismiss"
   },
   "commandPalette": {
+    "state": {
+      "on": "On",
+      "off": "Off"
+    },
     "people": "People",
     "tabsLabel": "Result types",
     "switchTabs": "Switch tabs",

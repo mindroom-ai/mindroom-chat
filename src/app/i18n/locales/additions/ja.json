@@ -857,6 +857,10 @@
     "dismissLostFiles": "閉じる"
   },
   "commandPalette": {
+    "state": {
+      "on": "オン",
+      "off": "オフ"
+    },
     "people": "人物",
     "tabsLabel": "結果の種類",
     "switchTabs": "タブを切り替え",

@@ -887,6 +887,10 @@
     "dismissLostFiles": "Descartar"
   },
   "commandPalette": {
+    "state": {
+      "on": "Activado",
+      "off": "Desactivado"
+    },
     "people": "Personas",
     "tabsLabel": "Tipos de resultado",
     "switchTabs": "Cambiar de pestaña",

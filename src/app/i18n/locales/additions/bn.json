@@ -872,6 +872,10 @@
     "dismissLostFiles": "সরিয়ে দিন"
   },
   "commandPalette": {
+    "state": {
+      "on": "চালু",
+      "off": "বন্ধ"
+    },
     "people": "মানুষ",
     "tabsLabel": "ফলাফলের ধরন",
     "switchTabs": "ট্যাব পরিবর্তন করুন",

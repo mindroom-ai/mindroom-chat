@@ -857,6 +857,10 @@
     "dismissLostFiles": "닫기"
   },
   "commandPalette": {
+    "state": {
+      "on": "켜짐",
+      "off": "꺼짐"
+    },
     "people": "사람",
     "tabsLabel": "결과 유형",
     "switchTabs": "탭 전환",

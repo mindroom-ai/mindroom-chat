@@ -887,6 +887,10 @@
     "dismissLostFiles": "Ignora"
   },
   "commandPalette": {
+    "state": {
+      "on": "Attivo",
+      "off": "Spento"
+    },
     "people": "Persone",
     "tabsLabel": "Tipi di risultato",
     "switchTabs": "Cambia scheda",

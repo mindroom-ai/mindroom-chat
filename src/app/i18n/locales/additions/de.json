@@ -872,6 +872,10 @@
     "dismissLostFiles": "Ausblenden"
   },
   "commandPalette": {
+    "state": {
+      "on": "Ein",
+      "off": "Aus"
+    },
     "people": "Personen",
     "tabsLabel": "Ergebnisarten",
     "switchTabs": "Tab wechseln",

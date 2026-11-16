@@ -4,15 +4,11 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoom } from '../matrix/hooks/useRoom';
 import { RoomCallButton } from './RoomCallButton';
 import { useCallSupport } from './callSupport';
-import {
-  isActiveCallShownIn,
-  useActiveCall,
-  useCallPanel,
-  useRoomCallMembers,
-} from './callStore';
+import { isActiveCallShownIn, useActiveCall, useCallPanel, useRoomCallMembers } from './callStore';
 import { MenuEntry } from '../ui/MenuEntry';
-import { AgentCallHeaderButton, useAgentCallCandidates } from './agent/AgentCallHeaderButton';
+import { AgentCallHeaderButton } from './agent/AgentCallHeaderButton';
 import { useAgentCaller } from './agent/agentCaller';
+import { useAgentCallOffer } from './agent/useAgentCallOffer';
 
 /** Whether a call is on in the room: someone is in it here, or this device shows it. */
 const useLiveCall = () => {
@@ -20,7 +16,7 @@ const useLiveCall = () => {
   const room = useRoom();
   const shownHere = isActiveCallShownIn(useActiveCall(), room.roomId);
   const live = useRoomCallMembers(mx, room).length > 0 || shownHere;
-  return { room, shownHere, live };
+  return { room, live };
 };
 
 /**
@@ -28,13 +24,14 @@ const useLiveCall = () => {
  * run only on its own (`chooseCallService`). Where a voice-capable agent is in the room, calling
  * it takes the place of the room's own call; call rooms and rooms without such an agent offer the
  * room's call. A call that is on is always shown, service or not. The agents are looked up once
- * per header: by the wide header, or on phones by the room menu while it is open.
+ * per header: by the wide header, or on phones by the room menu while it is open; which of them
+ * are offered is `useAgentCallOffer`'s rule, which the command palette follows too.
  */
 const useHeaderCalls = (threadId: string | undefined) => {
-  const { room, shownHere, live } = useLiveCall();
+  const { room, live } = useLiveCall();
   const offered = useCallSupport(useMatrixClient()) === 'supported';
-  const candidates = useAgentCallCandidates(room, threadId);
-  const offerAgent = offered && candidates.length > 0 && !room.isCallRoom() && !shownHere;
+  const candidates = useAgentCallOffer(room, threadId);
+  const offerAgent = candidates.length > 0;
   const offerRoom = live || (offered && !offerAgent);
   return { room, candidates, offered, offerAgent, offerRoom, live };
 };

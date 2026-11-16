@@ -857,6 +857,10 @@
     "dismissLostFiles": "關閉"
   },
   "commandPalette": {
+    "state": {
+      "on": "開",
+      "off": "關"
+    },
     "people": "人員",
     "tabsLabel": "結果類型",
     "switchTabs": "切換分頁",
