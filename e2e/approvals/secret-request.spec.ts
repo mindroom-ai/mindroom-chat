@@ -1,5 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { expect, test, type BrowserContext, type Locator, type Page, type Route } from '@playwright/test';
+import {
+  expect,
+  test,
+  type BrowserContext,
+  type Locator,
+  type Page,
+  type Route,
+} from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
