@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { MatrixEvent } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { THREAD_REVEAL_AFTER_MS, useThreadOpeningReveal } from './useThreadOpeningReveal';
@@ -19,10 +20,20 @@ const scrollArea = ({ mounted = [20], ...geometry }: Geometry) =>
       mounted.some((index) => selector === `[data-index="${index}"]`) ? {} : null,
   } as unknown as HTMLElement);
 
+const message = (index: number) =>
+  new MatrixEvent({ event_id: `$${index}`, type: 'm.room.message', content: { body: `${index}` } });
+const edit = (index: number) =>
+  new MatrixEvent({
+    event_id: `$edit${index}`,
+    type: 'm.room.message',
+    content: { body: '* edited', 'm.relates_to': { rel_type: 'm.replace', event_id: '$1' } },
+  });
+const messages = (count: number) => Array.from({ length: count }, (_, index) => message(index));
+
 type Props = {
   viewKey?: string;
   opensAtLatest?: boolean;
-  rowCount?: number;
+  rows?: MatrixEvent[];
   geometry: Geometry;
   tookOver?: boolean;
 };
@@ -32,14 +43,14 @@ const shown: { hidden?: boolean } = {};
 function Harness({
   viewKey = '!room|$thread',
   opensAtLatest = true,
-  rowCount = 21,
+  rows = messages(21),
   geometry,
   tookOver = false,
 }: Props) {
   shown.hidden = useThreadOpeningReveal({
     viewKey,
     opensAtLatest,
-    rowCount,
+    rows,
     scrollRef: { current: scrollArea(geometry) },
     readerTookOver: () => tookOver,
   });
@@ -89,12 +100,23 @@ describe('useThreadOpeningReveal', () => {
   });
 
   it('keeps an empty list hidden at the end, and shows a short thread that fits', () => {
-    render({ geometry: { scrollHeight: 800, clientHeight: 800, scrollTop: 0 }, rowCount: 0 });
+    render({ geometry: { scrollHeight: 800, clientHeight: 800, scrollTop: 0 }, rows: [] });
     expect(shown.hidden).toBe(true);
     render({
       geometry: { scrollHeight: 800, clientHeight: 800, scrollTop: 0, mounted: [0, 1] },
-      rowCount: 2,
+      rows: messages(2),
     });
+    expect(shown.hidden).toBe(false);
+  });
+
+  it('shows the rows at the end of a thread whose last rows are edits, which have no tiles', () => {
+    // Streamed replies leave their edits at the end of the list; once they measure to no height
+    // they have no tile, so the last tile is the last message's.
+    const rows = [...messages(21), edit(21), edit(22), edit(23)];
+    render({ geometry: { ...AT_END, mounted: [0, 1, 2] }, rows });
+    expect(shown.hidden).toBe(true);
+
+    render({ geometry: { ...AT_END, mounted: [18, 19, 20] }, rows });
     expect(shown.hidden).toBe(false);
   });
 

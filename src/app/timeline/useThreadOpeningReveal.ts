@@ -1,4 +1,6 @@
 import { type RefObject, useEffect, useLayoutEffect } from 'react';
+import type { MatrixEvent } from 'matrix-js-sdk';
+import { reactionOrEditEvent } from '../matrix/room';
 import { useViewScopedState } from './roomTimelineViewScope';
 
 /** The longest a thread's rows stay hidden while it opens, whatever holds them back. */
@@ -9,8 +11,8 @@ type ThreadOpeningRevealOptions = {
   viewKey: string;
   /** Whether the open thread opens at its newest reply (no target event). */
   opensAtLatest: boolean;
-  /** How many rows the thread's virtual list holds. */
-  rowCount: number;
+  /** The rows of the thread's virtual list. */
+  rows: readonly MatrixEvent[];
   scrollRef: RefObject<HTMLElement>;
   /** Whether the reader took the position over: a gesture, a jump, a request for older history. */
   readerTookOver: () => boolean;
@@ -21,14 +23,16 @@ type ThreadOpeningRevealOptions = {
  * the rows the client already holds (the root and the newest replies) before its open pins them
  * to the bottom, and on a long thread they would paint at the top and jump there a moment later.
  * The rows stay hidden until the view first rests at the end of its scroll range with the list's
- * last row mounted (the virtual list can still hold the rows of the scroll position before the
+ * last tile mounted (the virtual list can still hold the rows of the scroll position before the
  * pin), checked after every commit, after the pins; or the reader takes over; or
- * THREAD_REVEAL_AFTER_MS pass. Once shown, they stay shown for the view.
+ * THREAD_REVEAL_AFTER_MS pass. Once shown, they stay shown for the view. The last tile is the last
+ * row's that is not an edit or a reaction: those have no tile once they measure to no height
+ * (renderTimelineTiles), and a streamed reply leaves its edits at the end of the list.
  */
 export const useThreadOpeningReveal = ({
   viewKey,
   opensAtLatest,
-  rowCount,
+  rows,
   scrollRef,
   readerTookOver,
 }: ThreadOpeningRevealOptions): boolean => {
@@ -37,11 +41,12 @@ export const useThreadOpeningReveal = ({
   useLayoutEffect(() => {
     if (revealed) return;
     const scrollArea = scrollRef.current;
+    const lastTileIndex = rows.findLastIndex((row) => !reactionOrEditEvent(row));
     const atEnd =
       !!scrollArea &&
-      rowCount > 0 &&
+      lastTileIndex >= 0 &&
       scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1 &&
-      !!scrollArea.querySelector(`[data-index="${rowCount - 1}"]`);
+      !!scrollArea.querySelector(`[data-index="${lastTileIndex}"]`);
     if (atEnd || readerTookOver()) setRevealed(true);
   });
 
