@@ -214,6 +214,34 @@ export function ThreadActionsMenu({
     isConfirmedMatrixEventId(rootId) ? shownThreadDetails(plugins, clientConfig, room, rootId) : []
   );
   const detailsId = useId();
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  const [placed, setPlaced] = useState({ anchor, copy: anchor });
+  const menuAnchor = placed.anchor === anchor ? placed.copy : anchor;
+  const [described, setDescribed] = useState(false);
+
+  useEffect(() => {
+    const surface = surfaceRef.current;
+    if (!surface) return undefined;
+    // Details that render nothing (empty, loading or failed) describe nothing.
+    const measure = () =>
+      setDescribed(surface.querySelector('[data-thread-detail]:not(:empty)') !== null);
+    measure();
+    // A height-capped menu need not resize when its details become empty or appear.
+    const mutations = new MutationObserver(measure);
+    mutations.observe(surface, { childList: true, subtree: true, characterData: true });
+    const observer =
+      typeof ResizeObserver === 'undefined'
+        ? undefined
+        : new ResizeObserver(() => {
+            // Folds repositions when its anchor changes; lazy details can resize without a window resize.
+            setPlaced({ anchor, copy: { ...anchor } });
+          });
+    observer?.observe(surface);
+    return () => {
+      mutations.disconnect();
+      observer?.disconnect();
+    };
+  }, [anchor, dialog]);
 
   if (dialog === 'snooze') {
     return (
@@ -569,7 +597,7 @@ export function ThreadActionsMenu({
   // The menu opens under its trigger, its end edge on the trigger's end edge.
   return (
     <PopOut
-      anchor={anchor}
+      anchor={menuAnchor}
       offset={4}
       align="End"
       position="Bottom"
@@ -583,15 +611,16 @@ export function ThreadActionsMenu({
           }}
         >
           <Menu
+            ref={surfaceRef}
             role="menu"
             aria-label={t('threadActions.more')}
-            aria-describedby={details.length > 0 ? detailsId : undefined}
+            aria-describedby={described ? detailsId : undefined}
             className={css.ThreadMenu}
             style={menuStyle}
           >
             <div className={css.ThreadMenuRows}>
               {details.length > 0 && (
-                <>
+                <div className={css.ThreadMenuDetails}>
                   <div
                     id={detailsId}
                     data-thread-details=""
@@ -600,7 +629,7 @@ export function ThreadActionsMenu({
                     <ThreadDetailsList room={room} threadId={rootId} details={details} />
                   </div>
                   <Line variant="Surface" size="300" />
-                </>
+                </div>
               )}
               <MenuGroup>
                 {items.map((item) => (

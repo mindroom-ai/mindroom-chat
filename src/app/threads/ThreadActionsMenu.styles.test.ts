@@ -1,6 +1,6 @@
 import type { StyleRule } from '@vanilla-extract/css';
 import { expect, it, vi } from 'vitest';
-import { ThreadMenu, ThreadMenuRows } from './ThreadActionsMenu.css';
+import { ThreadMenu, ThreadMenuDetails, ThreadMenuRows } from './ThreadActionsMenu.css';
 
 const rules = vi.hoisted(() => new Map<string, StyleRule>());
 // Capture declarations supplied to the CSS compiler, including their media scope.
@@ -22,5 +22,13 @@ it('constrains the menu and scrolls its rows without requiring a coarse pointer'
     minHeight: 0,
     overflowY: 'auto',
     overscrollBehavior: 'contain',
+  });
+});
+
+it('hides the details and their divider while no detail has content, as the hover card does', () => {
+  expect(rules.get(ThreadMenuDetails)).toEqual({
+    selectors: {
+      '&:not(:has([data-thread-detail]:not(:empty)))': { display: 'none' },
+    },
   });
 });

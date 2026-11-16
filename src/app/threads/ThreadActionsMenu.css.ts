@@ -12,3 +12,10 @@ export const ThreadMenuRows = style({
   overflowY: 'auto',
   overscrollBehavior: 'contain',
 });
+
+// As the hover card, details that all render nothing leave no padded group or divider.
+export const ThreadMenuDetails = style({
+  selectors: {
+    '&:not(:has([data-thread-detail]:not(:empty)))': { display: 'none' },
+  },
+});
