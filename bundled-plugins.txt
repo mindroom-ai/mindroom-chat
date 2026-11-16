@@ -1,0 +1,7 @@
+# The client plugins MindRoom Chat's own builds ship by default (scripts/bundled-plugins.mjs): `just build` and
+# the container image (docker/Dockerfile) build them in while MINDROOM_CLIENT_PLUGINS is unset.
+# One per line: `<GitHub repository URL> <full commit SHA>`; `#` starts a comment. To bump a plugin, put the
+# new commit here in a pull request; the image workflow then builds and checks the image with it.
+
+# GitHub pull request cards, a thread's pull requests and worktree branch, and the pull request side panel.
+https://github.com/mindroom-ai/pull-request-client-plugin 7a6975db7e7629e5b38e7ac0f43e7497019395b1
