@@ -44,8 +44,9 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
  * the workload profile PERF_WORKLOAD (default e2e/perf/workloads/real-work-census.json): its
  * history phase fills the lobby once (kept in the stack's directory, so a later run reuses it),
  * then for each value of PERF_STREAMS (a list such as `7,25,50`; default the profile's
- * `live.streams`) its live phase keeps that many replies streaming, the spec waits 30 s for the
- * ramp, and the scenarios run. A profile with more than one agent starts the stack with
+ * `live.streams`) its live phase keeps that many replies streaming, the spec waits 60 s for the
+ * ramp, over which the driver spreads the first replies' starts so the windows do not all meet them
+ * at the same point, and the scenarios run. A profile with more than one agent starts the stack with
  * `--agents <agents>` and stops it at the end.
  *
  * Scenarios, in this order, each one measurement window of e2e/helpers/perfProbe.ts:
@@ -65,7 +66,8 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
  * jobs state writes a second, replies given up as stuck). A window that held under 80 % of the
  * target fails with both numbers, and so does one in which the driver stopped (its result then
  * has `driverExit`). The thread scenarios press a card that shows the app's streaming marker,
- * waiting up to 10 s for one, else the top card; `openedStreaming` says whether every card they
+ * waiting up to 10 s for one, else the top card (among several that stream, one of the profile's
+ * heavy threads, which hold as many replies as real ones do); `openedStreaming` says whether every card they
  * pressed showed it. Each result also goes to the console as a `PERF-REAL-WORK {json}` line.
  *
  * Knobs:
@@ -136,8 +138,8 @@ const SOAK_MINUTES = Number(process.env.PERF_SOAK_MINUTES ?? 20);
 const SOAK_HEAP_MB = 50;
 const OUT_DIR = 'test-results/perf/real-work';
 const DRIVER = fileURLToPath(new URL('../../scripts/perf/real-work/driver.py', import.meta.url));
-/** The driver's ramp, which its shortfall check leaves out as well. */
-const RAMP_MS = 30_000;
+/** The driver's ramp (its `--ramp`), which its shortfall check leaves out as well. */
+const RAMP_MS = 60_000;
 /** The driver reports every 5 s. */
 const REPORT_SECONDS = 5;
 const SHARE = 0.8;
@@ -214,6 +216,8 @@ const startDriver = (
       String(streams),
       '--seconds',
       String(seconds),
+      '--ramp',
+      String(RAMP_MS / 1000),
       '--out',
       out,
     ],
@@ -337,6 +341,8 @@ type Run = {
   driver?: Driver;
   /** The threads the driver streams in; without them any card counts. */
   threads?: string[];
+  /** Those of them with a real thread's many replies, which the thread scenarios open first. */
+  heavy?: string[];
 };
 
 const cards = (page: Page) => page.locator(CARD);
@@ -354,15 +360,16 @@ const shownThreads = async (run: Run, of = cards(run.page)): Promise<string[]> =
 
 /**
  * A thread to press: one whose card shows the app's streaming marker (the word beside the pulsing
- * dot) right now, waiting up to 10 s under the driver's load for one, else the top card. `except`
- * leaves a thread out.
+ * dot) right now (a heavy thread, when one of them does), waiting up to 10 s under the driver's
+ * load for one, else the top card. `except` leaves a thread out.
  */
 const pickThread = async (run: Run, except = ''): Promise<{ root: string; streaming: boolean }> => {
   const { page } = run;
   const marked = cards(page).filter({ has: page.getByText(STREAMING_MARKER, { exact: true }) });
   const end = Date.now() + (run.driver ? 10_000 : 0);
   for (;;) {
-    const root = (await shownThreads(run, marked)).find((candidate) => candidate !== except);
+    const streaming = (await shownThreads(run, marked)).filter((candidate) => candidate !== except);
+    const root = streaming.find((candidate) => run.heavy?.includes(candidate)) ?? streaming[0];
     if (root) return { root, streaming: true };
     if (Date.now() >= end) break;
     await page.waitForTimeout(250);
@@ -753,8 +760,13 @@ test.describe('PERF: real work under the backend load', () => {
         }
       });
 
-      const history = () =>
-        (JSON.parse(readFileSync(historyFile, 'utf8')) as { threads: string[] }).threads;
+      const history = () => {
+        const kept = JSON.parse(readFileSync(historyFile, 'utf8')) as {
+          threads: string[];
+          heavyThreads?: string[];
+        };
+        return { threads: kept.threads, heavy: kept.heavyThreads ?? [] };
+      };
 
       for (const throttle of THROTTLES) {
         test(`scenarios at ${throttle}x CPU`, async ({ page, browserName }) => {
@@ -769,7 +781,7 @@ test.describe('PERF: real work under the backend load', () => {
             throttle,
             suffix: `${streams}s`,
             driver,
-            threads: history(),
+            ...history(),
           });
         });
       }
@@ -785,7 +797,7 @@ test.describe('PERF: real work under the backend load', () => {
           throttle: 1,
           suffix: `${streams}s`,
           driver,
-          threads: history(),
+          ...history(),
         };
         const label = `soak-${browserName}-1x-${streams}s`;
         const from = Date.now();

@@ -78,6 +78,14 @@ class PromptTest(unittest.TestCase):
         self.assertEqual(prompt, driver.work_prompt(REPLY, random.Random(1), live=False))
         self.assertNotEqual(prompt, driver.work_prompt(REPLY, random.Random(2), live=False))
 
+    def test_prompt_with_links(self) -> None:
+        reply = REPLY | {"links": {"p50": 3, "p90": 3, "max": 3}}
+        prompt = driver.work_prompt(reply, random.Random(1), live=True)
+        self.assertRegex(prompt, r" toolsec=\d+(\.\d+)? links=3 seed=\d+$")
+        # The other draws are those of the profile without links.
+        plain = driver.work_prompt(REPLY, random.Random(1), live=True)
+        self.assertEqual(prompt.split(" links=")[0], plain.split(" seed=")[0])
+
     def test_prompt_live_keeps_the_pace(self) -> None:
         prompt = driver.work_prompt(REPLY, random.Random(1), live=True)
         self.assertIn(" wps=30 ", prompt)
@@ -366,6 +374,13 @@ class ShortfallTest(unittest.TestCase):
         windows[-2]["streaming"] = 7
         self.assertTrue(driver.shortfall(windows))  # two low windows in a row
 
+    def test_a_ramp_is_left_out(self) -> None:
+        low = [{"t": 5 * index, "target": 10, "streaming": 2} for index in range(1, 16)]
+        self.assertTrue(driver.shortfall(low))
+        # 60 s of ramp and 15 s for the last stream to count as live: the windows up to 75 s do not decide.
+        self.assertFalse(driver.shortfall(low, ramp=60))
+        self.assertTrue(driver.shortfall([*low, {"t": 80, "target": 10, "streaming": 2}, {"t": 85, "target": 10, "streaming": 2}], ramp=60))
+
     def test_only_the_last_10_seconds_count(self) -> None:
         windows = self.windows(0.0, seconds=60)
         for window in windows[-2:]:
@@ -390,8 +405,11 @@ class FakeLobby:
         self.resolved: list[str] = []
         self.resolves = True
         self.jobs_event: str | None = None
+        self.latest_reply: dict[str, str] = {}
+        # Unthreaded receipts by event, threaded ones as (event, thread root); the first `refused_receipts` fail.
         self.marked_read: list[str] = []
-        self.marks_read = True
+        self.thread_reads: list[tuple[str, str]] = []
+        self.refused_receipts = 0
 
     def clock(self) -> float:
         return self.now
@@ -412,10 +430,15 @@ class FakeLobby:
             self.resolved.append(root)
         return self.resolves
 
-    def mark_read(self, event_id: str) -> bool:
-        if self.marks_read:
+    def mark_read(self, event_id: str, thread: str | None = None) -> bool:
+        if self.refused_receipts > 0:
+            self.refused_receipts -= 1
+            return False
+        if thread is None:
             self.marked_read.append(event_id)
-        return self.marks_read
+        else:
+            self.thread_reads.append((event_id, thread))
+        return True
 
 
 class RunHistoryTest(unittest.TestCase):
@@ -431,12 +454,15 @@ class RunHistoryTest(unittest.TestCase):
                 reply = f"$reply{index}"
                 if reply not in lobby.reply_roots:
                     lobby.reply_roots[reply] = root or f"$turn{index + 1}"
+                    lobby.latest_reply[lobby.reply_roots[reply]] = reply
                     seen["started"].append(reply)
                     seen["finished"].append(reply)
             return seen
 
         lobby.answer = answer
-        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stderr(io.StringIO()):
+        # Every draw is its distribution's maximum, so a test knows each thread's turns.
+        top = mock.patch.object(driver, "sample", lambda dist, rng: dist["max"])
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stderr(io.StringIO()), top:
             out = Path(directory) / "history.json"
             code = driver.run_history(lobby, profile, 2, random.Random(1), out)
             return code, json.loads(out.read_text()) if out.exists() else {}
@@ -478,13 +504,60 @@ class RunHistoryTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(lobby.marked_read, [])
 
-    def test_refused_receipt_fails_the_history(self) -> None:
+    def test_refused_receipt_is_sent_again(self) -> None:
         lobby = FakeLobby()
         lobby.jobs_event = "$jobs1"
-        lobby.marks_read = False
+        lobby.refused_receipts = 2
         code, history = self.run_history(lobby)
-        self.assertEqual(code, 1)
-        self.assertEqual(history, {})
+        self.assertEqual(code, 0)
+        self.assertEqual(lobby.marked_read, ["$jobs1"])
+        self.assertEqual(len(history["threads"]), 5)
+
+    def test_open_threads_are_read_up_to_their_newest_reply(self) -> None:
+        lobby = FakeLobby()
+        code, history = self.run_history(lobby, resolvedThreads=3, turns={"p50": 2, "p90": 2, "max": 2})
+        self.assertEqual(code, 0)
+        self.assertEqual(sorted(root for _, root in lobby.thread_reads), sorted(history["threads"]))
+        for reply, root in lobby.thread_reads:
+            self.assertEqual(lobby.latest_reply[root], reply)
+        # The second turn's reply, not the first one's.
+        replies_of = {root: [r for r, owner in lobby.reply_roots.items() if owner == root] for root in history["threads"]}
+        self.assertTrue(all(len(replies) == 2 for replies in replies_of.values()), replies_of)
+        self.assertEqual(lobby.marked_read, [])
+
+    def test_thread_receipt_refused_three_times_is_given_up(self) -> None:
+        lobby = FakeLobby()
+        code, history = self.run_history(lobby, threads=1)
+        self.assertEqual((code, len(lobby.thread_reads)), (0, 1))
+        lobby = FakeLobby()
+        lobby.refused_receipts = 3
+        code, history = self.run_history(lobby, threads=1)
+        self.assertEqual((code, lobby.thread_reads), (0, []))
+        self.assertEqual(len(history["threads"]), 1)
+
+    def test_heavy_threads_are_open_start_first_and_have_their_own_turns(self) -> None:
+        lobby = FakeLobby()
+        heavy = {"threads": 2, "turns": {"p50": 6, "p90": 6, "max": 6}}
+        code, history = self.run_history(lobby, resolvedThreads=2, heavy=heavy)
+        self.assertEqual(code, 0)
+        # Two streams at once: the heavy threads' roots are the first two posts.
+        self.assertEqual(history["heavyThreads"], ["$turn1", "$turn2"])
+        self.assertEqual(history["threads"][:2], history["heavyThreads"])
+        self.assertEqual(len(history["threads"]), 3)
+        turns = {root: 1 + sum(1 for _, posted in lobby.posts if posted == root) for root in history["threads"]}
+        self.assertEqual([turns[root] for root in history["threads"]], [6, 6, 1])
+
+    def test_profile_without_heavy_has_none(self) -> None:
+        _, history = self.run_history(FakeLobby())
+        self.assertEqual(history["heavyThreads"], [])
+        profile = json.loads((WORKLOADS / "real-work-smoke.json").read_text())
+        for bad in ({"threads": profile["threads"] + 1, "turns": NO_PAUSE}, {"threads": 1}, {"threads": 1.5, "turns": NO_PAUSE}):
+            with self.assertRaisesRegex(ValueError, "heavy"):
+                driver.check_profile(profile | {"heavy": bad})
+        with self.assertRaisesRegex(ValueError, "heavy.threads"):
+            driver.check_profile(profile | {"resolvedThreads": 2, "heavy": {"threads": 2, "turns": NO_PAUSE}})
+        with self.assertRaisesRegex(ValueError, "reply.links"):
+            driver.check_profile(profile | {"reply": profile["reply"] | {"links": 2}})
 
     def test_resolved_threads_leave_one_open(self) -> None:
         profile = json.loads((WORKLOADS / "real-work-smoke.json").read_text())
@@ -543,6 +616,41 @@ class RunLiveTest(unittest.TestCase):
         self.assertEqual([line["t"] - lines[0]["t"] for line in lines], list(range(0, 55, 5)))
         self.assertEqual(sorted(lines[0]), ["edits", "frames", "jobs", "streaming", "stuck", "t", "target"])
 
+    def first_posts(self, ramp: float, threads: int = 6, streams: int = 3) -> list[tuple[float, str]]:
+        lobby = FakeLobby(tick=0.5)
+        lobby.answer = self.replies(lobby, ends_after=None)
+        profile = json.loads((WORKLOADS / "real-work-smoke.json").read_text())
+        profile["live"] |= {"stuckSeconds": 600}
+        history = {"room": ROOM, "threads": [f"$r{index}" for index in range(threads)], "quietRooms": []}
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stderr(io.StringIO()):
+            out = Path(directory) / "live.jsonl"
+            driver.run_live(lobby, profile, history, streams, 100, random.Random(1), out, clock=lobby.clock, ramp=ramp)
+        return lobby.posts
+
+    def test_first_turns_are_spread_over_the_ramp(self) -> None:
+        posts = self.first_posts(ramp=60)
+        # Replies that never end: only the first three threads get a turn, each at its own time within the ramp.
+        self.assertEqual(sorted(root for _, root in posts), ["$r0", "$r1", "$r2"])
+        times = sorted(at for at, _ in posts)
+        self.assertTrue(all(0 <= at <= 61 for at in times), times)
+        self.assertGreater(times[-1] - times[0], 10)
+        self.assertEqual(posts, self.first_posts(ramp=60))
+        # Without a ramp they start together, as before.
+        self.assertEqual(len({at for at, _ in self.first_posts(ramp=0)}), 1)
+
+    def test_other_threads_wait_for_the_end_of_the_ramp(self) -> None:
+        lobby = FakeLobby(tick=0.5)
+        lobby.answer = self.replies(lobby, ends_after=2)
+        profile = json.loads((WORKLOADS / "real-work-smoke.json").read_text())
+        profile["live"] |= {"pauseSeconds": {"p50": 1000, "p90": 1000, "max": 1000}}
+        history = {"room": ROOM, "threads": [f"$r{index}" for index in range(6)], "quietRooms": []}
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stderr(io.StringIO()):
+            out = Path(directory) / "live.jsonl"
+            driver.run_live(lobby, profile, history, 3, 80, random.Random(1), out, clock=lobby.clock, ramp=60)
+        later = [at for at, root in lobby.posts if root in ("$r3", "$r4", "$r5")]
+        self.assertEqual(len(later), 3)
+        self.assertTrue(all(at >= 60 for at in later), later)
+
     def test_backend_that_never_answers_is_a_shortfall(self) -> None:
         lobby = FakeLobby()
         code, lines, errors = self.run_live(lobby, 600)
@@ -591,7 +699,11 @@ class RunLiveTest(unittest.TestCase):
 
 
 class LobbySyncTest(unittest.TestCase):
-    STACK = {"homeserver": "http://hs", "tester": {"accessToken": "token"}, "rooms": {"lobby": ROOM}}
+    STACK = {
+        "homeserver": "http://hs",
+        "tester": {"accessToken": "token", "userId": "@tester:matrix.localhost"},
+        "rooms": {"lobby": ROOM},
+    }
 
     def lobby(self) -> driver.Lobby:
         members = {"joined": {AGENT: {}, "@tester:matrix.localhost": {}}}

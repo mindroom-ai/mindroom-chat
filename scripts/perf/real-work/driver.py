@@ -2,7 +2,7 @@
 """Keep a number of agent replies streaming in the lobby of an agent stack, shaped by a workload profile.
 
 Usage: python3 scripts/perf/real-work/driver.py --stack <state.json> --profile <profile.json>
-       --phase history|live [--history <file>] [--streams N] [--seconds S] [--seed N] --out <file>
+       --phase history|live [--history <file>] [--streams N] [--seconds S] [--ramp S] [--seed N] --out <file>
 
   --stack    the state that `python3 scripts/agent-stack/stack.py <slot> up` (or `status`) prints
   --profile  a workload profile, e2e/perf/workloads/<name>.json
@@ -19,15 +19,22 @@ history  creates the profile's quiet rooms, then gives each of its threads its t
          (or --streams) replies at once, with the stub at full speed (`wps=0 toolsec=0`). A profile's
          `resolvedThreads` (default 0) of them get their turns first and are then marked resolved, as the person
          does to a thread that is done; Chat's Compact view leaves those out, and the live phase gives them no
-         turn. At the first jobs state write of an agent the tester marks the room read (an unthreaded read
-         receipt on that event, as "Mark as read" sends), once: after the history that follows, a client no longer
-         holds that event, as in a room the person marked read long ago, and Chat then looks for it in every
-         thread. Writes --out as {"room": str, "threads": [root ID of an open thread...], "resolvedThreads": [root
-         ID...], "quietRooms": [room ID...]} and exits 0 once every thread has its turns; a reply that never ends,
-         no turn posted or ended for the profile's `live.stuckSeconds`, or a thread or receipt the homeserver
-         refused fails the run with exit 1.
+         turn. A profile's `heavy` ({"threads": n, "turns": distribution}, default none) gives the first n open
+         threads their turns from that distribution instead: the long threads a person keeps working in. At the
+         first jobs state write of an agent the tester marks the room read (an unthreaded read receipt on that
+         event, as "Mark as read" sends; a refused one is sent again), once: after the history that follows, a
+         client no longer holds that event, as in a room the person marked read long ago, and Chat then looks for
+         it in every thread. At the end the tester reads every open thread (a read receipt with the thread's ID on
+         its newest reply, tried three times), as a person who keeps up. Writes --out as {"room": str, "threads":
+         [root ID of an open thread...], "heavyThreads": [root ID...] (the first of `threads`), "resolvedThreads":
+         [root ID...], "quietRooms": [room ID...]} and exits 0 once every thread has its turns; a reply that never
+         ends, no turn posted or ended for the profile's `live.stuckSeconds`, or a thread the homeserver did not
+         let the tester resolve fails the run with exit 1.
 live     reads that file (--history) and keeps `live.streams` (or --streams) replies streaming in its threads at the
-         profile's pace: a thread whose reply ended gets its next turn after a pause from `live.pauseSeconds`. Every
+         profile's pace: a thread whose reply ended gets its next turn after a pause from `live.pauseSeconds`. With
+         --ramp S the first of those threads (as many as the streams) get their first turn at a time drawn evenly
+         from the first S seconds and the others none before that, so the replies are not all in the same part of
+         their course afterwards; the shortfall check then starts 15 s after the ramp. Every
          5 s it appends one JSON line to --out, {"t": unix s, "target", "streaming", "frames", "edits", "jobs",
          "stuck"}: the streams asked for, the replies that were live (averaged over those 5 s, rounded), and the live
          frames, agent edits, jobs state writes and replies given up as stuck that its own /sync saw in them. A
@@ -39,7 +46,8 @@ live     reads that file (--history) and keeps `live.streams` (or --streams) rep
          tried again, so a homeserver or backend that stays away ends the run the same way.
 
 A profile's distributions are {"p50": n, "p90": n, "max": n}; a draw is piecewise linear through 0, the median, the
-90th percentile and the maximum. --seed (default 1) fixes every draw.
+90th percentile and the maximum. --seed (default 1) fixes every draw. A profile's `reply.links` (a distribution,
+default none) is how many links a reply's text holds (the stub's `links=` knob).
 """
 
 from __future__ import annotations
@@ -105,6 +113,16 @@ def check_profile(profile: dict) -> dict:
     resolved = profile.setdefault("resolvedThreads", 0)
     if not isinstance(resolved, int) or isinstance(resolved, bool) or not 0 <= resolved < profile["threads"]:
         raise ValueError("the profile's resolvedThreads must be an integer from 0 to one under its threads")
+    # Old profiles have no heavy thread and no link.
+    heavy = profile.setdefault("heavy", {"threads": 0, "turns": profile["turns"]})
+    count = heavy.get("threads") if isinstance(heavy, dict) else None
+    if not isinstance(count, int) or isinstance(count, bool) or not 0 <= count <= profile["threads"] - resolved:
+        raise ValueError("the profile's heavy.threads must be an integer from 0 to the number of its open threads")
+    for name, dist in (("heavy.turns", heavy.get("turns")), ("reply.links", profile["reply"].get("links"))):
+        if name == "reply.links" and dist is None:
+            continue
+        if not isinstance(dist, dict) or any(key not in dist for key in DIST_KEYS):
+            raise ValueError(f"the profile's {name} must have {', '.join(DIST_KEYS)}")
     return profile
 
 
@@ -138,16 +156,19 @@ def sample(dist: dict, rng: random.Random) -> float:
 def work_prompt(reply: dict, rng: random.Random, live: bool, worker: str | None = None) -> str:
     """A `#work` prompt for the stub model with a reply drawn from the profile's `reply`. History replies come at
     full speed (`wps=0 toolsec=0`) and are otherwise the replies the same draws give a live run. A `worker` is
-    named first in the prompt, where the stub's router finds it."""
+    named first in the prompt, where the stub's router finds it. `reply.links`, when the profile has it, is how many
+    links the reply's text holds."""
     words = max(1, round(sample(reply["words"], rng)))
     reasoning = round(sample(reply["reasoning"], rng))
     tools = round(sample(reply["tools"], rng))
     toolsec = round(sample(reply["toolsec"], rng), 1)
     seed = rng.randrange(1, 1_000_000)
     wps = reply["wps"] if live else 0
+    # A profile without `reply.links` draws nothing for them, so its prompts stay what they were.
+    links = f"links={round(sample(reply['links'], rng))} " if "links" in reply else ""
     return (
         f"{worker + ' ' if worker else ''}#work words={words} wps={wps:g} reasoning={reasoning} tools={tools} "
-        f"toolsec={toolsec if live else 0:g} seed={seed}"
+        f"toolsec={toolsec if live else 0:g} {links}seed={seed}"
     )
 
 
@@ -173,8 +194,9 @@ class Scheduler:
         self._thread_of_reply: dict[str, str] = {}
         self._active_at: dict[str, float] = {}
 
-    def add(self, thread: str) -> None:
-        self._idle[thread] = 0.0
+    def add(self, thread: str, at: float = 0.0) -> None:
+        """The thread may get its first turn from `at` on."""
+        self._idle[thread] = at
 
     def drop(self, thread: str) -> None:
         """The thread gets no more turns."""
@@ -323,14 +345,15 @@ def apply_counts(
     return [thread for thread in ended if thread is not None]
 
 
-def shortfall(windows: list[dict]) -> bool:
-    """Whether a live run fell short: the windows of its last 10 s, all after its first 30 s, held under 80 % of
-    the target on average. One window never decides."""
+def shortfall(windows: list[dict], ramp: float = 0.0) -> bool:
+    """Whether a live run fell short: the windows of its last 10 s, all after its first 30 s (or 15 s after a
+    longer `ramp`, in which the streams start one by one), held under 80 % of the target on average. One window
+    never decides."""
     if not windows:
         return False
     first, last = windows[0]["t"], windows[-1]["t"]
     recent = [window for window in windows if last - window["t"] < SHORTFALL_AVERAGE_SECONDS]
-    if len(recent) < 2 or recent[0]["t"] - first < SHORTFALL_RAMP_SECONDS:
+    if len(recent) < 2 or recent[0]["t"] - first < max(SHORTFALL_RAMP_SECONDS, ramp + LIVE_SECONDS):
         return False
     return achieved_share(recent) < SHORTFALL_SHARE
 
@@ -349,7 +372,7 @@ class Lobby:
     def __init__(self, stack: dict) -> None:
         self.homeserver: str = stack["homeserver"]
         self.token: str = stack["tester"]["accessToken"]
-        self.user: str = stack["tester"].get("userId", "")
+        self.user: str = stack["tester"]["userId"]
         self.room: str = stack["rooms"]["lobby"]
         members = call(
             self.homeserver, "GET", f"/_matrix/client/v3/rooms/{quote(self.room)}/joined_members", self.token
@@ -369,6 +392,8 @@ class Lobby:
         self.reply_roots: dict[str, str] = {}
         # The first jobs state write of an agent that a sync showed.
         self.jobs_event: str | None = None
+        # Thread root to the newest reply of an agent in it that a sync showed.
+        self.latest_reply: dict[str, str] = {}
 
     def sync(self) -> dict:
         """What the next /sync answer shows (count_sync); zeros when the homeserver gave no usable answer."""
@@ -387,7 +412,10 @@ class Lobby:
         self._since = batch.get("next_batch", self._since)
         if self.jobs_event is None:
             self.jobs_event = jobs_state_event(batch, self.room, self.agents)
-        return count_sync(batch, self.room, self.agents, self.reply_roots)
+        counts = count_sync(batch, self.room, self.agents, self.reply_roots)
+        for reply in counts["started"]:
+            self.latest_reply[self.reply_roots[reply]] = reply
+        return counts
 
     def post_turn(self, root: str | None, body: str) -> str | None:
         """Posts a person's turn: a new thread's root, or a reply in the thread of `root`. Its event ID, or None
@@ -407,14 +435,15 @@ class Lobby:
             return None
 
 
-    def mark_read(self, event_id: str) -> bool:
-        """Marks the room and its threads read up to `event_id`, as "Mark as read" does in Chat: an unthreaded
-        read receipt. False when the homeserver refused it."""
+    def mark_read(self, event_id: str, thread: str | None = None) -> bool:
+        """A read receipt of the tester on `event_id`. Without `thread` it is unthreaded and reads the room and its
+        threads up to there, as "Mark as read" does in Chat; with a thread's root it reads that thread, as opening
+        it does. False when the homeserver refused it, which the caller tries again."""
         path = f"/_matrix/client/v3/rooms/{quote(self.room)}/receipt/m.read/{quote(event_id)}"
         try:
-            call(self.homeserver, "POST", path, self.token, {})
+            call(self.homeserver, "POST", path, self.token, {} if thread is None else {"thread_id": thread})
         except (RuntimeError, ValueError) as error:
-            log(f"the room was not marked read: {error}")
+            log(f"a read receipt was not sent: {error}")
             return False
         return True
 
@@ -454,20 +483,41 @@ def create_quiet_rooms(lobby: Lobby, rooms: int, messages: int) -> list[str]:
 # The phases
 
 
+def read_open_threads(lobby: Lobby, roots: list[str]) -> int:
+    """The person keeps up with the open threads: a read receipt in each on its newest reply, tried up to three
+    times. How many threads got none (a thread no agent replied in has nothing to read)."""
+    unread = 0
+    for root in roots:
+        reply = lobby.latest_reply.get(root)
+        if reply is None or not any(lobby.mark_read(reply, root) for _ in range(3)):
+            unread += 1
+    return unread
+
+
 def run_history(lobby: Lobby, profile: dict, streams: int, rng: random.Random, out: Path) -> int:
     quiet_rooms = create_quiet_rooms(lobby, profile["quietRooms"], profile["quietMessages"])
     log(f"{len(quiet_rooms)} quiet rooms")
     scheduler = Scheduler(streams, {"p50": 0, "p90": 0, "max": 0}, profile["live"]["stuckSeconds"], rng)
-    # A thread is its number until its first turn gives it a root.
-    turns_left = {str(index): max(1, round(sample(profile["turns"], rng))) for index in range(profile["threads"])}
+    # A thread is its number until its first turn gives it a root. The first `heavy.threads` have the heavy turns.
+    heavy_threads = profile["heavy"]["threads"]
+    turns_left = {
+        str(index): max(1, round(sample(profile["heavy"]["turns"] if index < heavy_threads else profile["turns"], rng)))
+        for index in range(profile["threads"])
+    }
     total = sum(turns_left.values())
     roots: dict[str, str] = {}
     thread_of_root: dict[str, str] = {}
     # The threads numbered from `open_threads` on are resolved once they have their turns. They get their turns
-    # first, so the open threads are the room's newest, and keep the numbers (and so the workers) the live phase
-    # gives the threads it reads.
+    # before the other open threads, so the open threads are the room's newest, and keep the numbers (and so the
+    # workers) the live phase gives the threads it reads. The heavy threads start first: their many turns, one
+    # after the other, then end with the rest and not long after it.
     open_threads = profile["threads"] - profile["resolvedThreads"]
-    for thread in sorted(turns_left, key=lambda name: (int(name) < open_threads, int(name))):
+
+    def order(name: str) -> tuple[int, int]:
+        number = int(name)
+        return (0 if number < heavy_threads else 1 if number >= open_threads else 2, number)
+
+    for thread in sorted(turns_left, key=order):
         scheduler.add(thread)
     lobby.sync()
     marked_read = False
@@ -490,10 +540,8 @@ def run_history(lobby: Lobby, profile: dict, streams: int, rng: random.Random, o
         now = time.monotonic()
         if not marked_read and lobby.jobs_event is not None:
             # The person marked the room read once, early: the history that follows pushes the receipt's event out
-            # of what a client loads, as in a room marked read long ago.
-            if not lobby.mark_read(lobby.jobs_event):
-                return 1
-            marked_read = True
+            # of what a client loads, as in a room marked read long ago. A refused receipt is tried again.
+            marked_read = lobby.mark_read(lobby.jobs_event)
         for thread in apply_counts(scheduler, counts, lobby.reply_roots, now, thread_of_root):
             progressed = now
             turns_left[thread] -= 1
@@ -516,9 +564,13 @@ def run_history(lobby: Lobby, profile: dict, streams: int, rng: random.Random, o
     history = {
         "room": lobby.room,
         "threads": numbered[:open_threads],
+        "heavyThreads": numbered[:heavy_threads],
         "resolvedThreads": numbered[open_threads:],
         "quietRooms": quiet_rooms,
     }
+    unread = read_open_threads(lobby, history["threads"])
+    if unread:
+        log(f"history: {unread} open threads got no read receipt")
     out.write_text(json.dumps(history) + "\n")
     log(f"history: {len(roots)} threads with {total} turns, {len(history['resolvedThreads'])} of them resolved")
     if not marked_read:
@@ -536,19 +588,25 @@ def run_live(
     out: Path,
     stopped: Callable[[], bool] = lambda: False,
     clock: Callable[[], float] = time.monotonic,
+    ramp: float = 0.0,
 ) -> int:
-    """The live phase: 0 once `seconds` passed or `stopped` says so, 2 on a shortfall."""
+    """The live phase: 0 once `seconds` passed or `stopped` says so, 2 on a shortfall. The first `streams` threads
+    get their first turn at a time drawn evenly from the first `ramp` seconds, and the others none before its end,
+    so the replies under way are not all at the same point of their course when the ramp is over."""
     if history["room"] != lobby.room:
         raise RuntimeError(f"the history is of {history['room']}, the stack's lobby is {lobby.room}")
     scheduler = Scheduler(streams, profile["live"]["pauseSeconds"], profile["live"]["stuckSeconds"], rng)
     # The history lists the threads by number, so thread i keeps the worker it had there.
     worker_of = {root: worker_for(index, profile.get("agents", 1)) for index, root in enumerate(history["threads"])}
-    for root in history["threads"]:
-        scheduler.add(root)
     lobby.sync()
     windows: list[dict] = []
     window = {"frames": 0, "edits": 0, "jobs": 0, "stuck": 0}
     started = ticked = window_started = clock()
+    # Draws of their own, so the turns' draws are the same with and without a ramp.
+    stagger = random.Random(rng.random()) if ramp > 0 else None
+    for index, root in enumerate(history["threads"]):
+        first = 0.0 if stagger is None else stagger.uniform(0, ramp) if index < streams else ramp
+        scheduler.add(root, started + first)
     unix_offset = time.time() - started
     window_end = started + WINDOW_SECONDS
     # Live replies times the seconds they were live for, in this window.
@@ -572,7 +630,7 @@ def run_live(
                 lines.write(json.dumps(line) + "\n")
                 lines.flush()
                 window = {"frames": 0, "edits": 0, "jobs": 0, "stuck": 0}
-                if shortfall(windows):
+                if shortfall(windows, ramp):
                     recent = windows[-SHORTFALL_AVERAGE_SECONDS // WINDOW_SECONDS :]
                     held = ", ".join(str(entry["streaming"]) for entry in recent)
                     log(
@@ -597,6 +655,7 @@ def main() -> int:
     parser.add_argument("--history", type=Path, help="live: the file the history phase wrote")
     parser.add_argument("--streams", type=int, help="replies at once (default: the profile's)")
     parser.add_argument("--seconds", type=float, help="live: stop after this long (default: on SIGTERM)")
+    parser.add_argument("--ramp", type=float, default=0, help="live: spread the first turns over this many seconds")
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
@@ -618,7 +677,9 @@ def main() -> int:
     for number in (signal.SIGTERM, signal.SIGINT):
         signal.signal(number, lambda received, _frame: signals.append(received))
     streams = args.streams or profile["live"]["streams"]
-    return run_live(lobby, profile, history, streams, args.seconds, rng, args.out, stopped=lambda: bool(signals))
+    return run_live(
+        lobby, profile, history, streams, args.seconds, rng, args.out, stopped=lambda: bool(signals), ramp=args.ramp
+    )
 
 
 if __name__ == "__main__":
