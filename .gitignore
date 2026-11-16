@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# Native Mac archives, derived data and contract-test executables.
+/build/
 test-results/
 playwright-report/
 .baspowers/

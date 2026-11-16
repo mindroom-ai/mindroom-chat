@@ -789,6 +789,10 @@
         "removed": "удалён",
         "diffTruncated": "Diff обрезан",
         "diffLabel": "Diff файла {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "Работал {{duration}}",
+        "worked": "Работал"
       }
     },
     "message-search": {
@@ -1348,5 +1352,12 @@
       "idle": "Неактивные",
       "resolved": "Решённые"
     }
+  },
+  "threadBoard": {
+    "label": "Треды по состоянию",
+    "working": "В работе",
+    "later": "Позже",
+    "open": "Открытые",
+    "done": "Готово"
   }
 }

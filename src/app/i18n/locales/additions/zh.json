@@ -756,6 +756,10 @@
         "removed": "已删除",
         "diffTruncated": "差异已截断",
         "diffLabel": "{{path}} 的差异"
+      },
+      "finishedWork": {
+        "workedFor": "工作了 {{duration}}",
+        "worked": "已工作"
       }
     },
     "message-search": {
@@ -1270,5 +1274,12 @@
       "idle": "空闲",
       "resolved": "已解决"
     }
+  },
+  "threadBoard": {
+    "label": "按状态分列的话题",
+    "working": "进行中",
+    "later": "稍后",
+    "open": "未完成",
+    "done": "已完成"
   }
 }

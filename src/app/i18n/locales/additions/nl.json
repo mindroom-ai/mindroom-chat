@@ -767,6 +767,10 @@
         "removed": "verwijderd",
         "diffTruncated": "Diff ingekort",
         "diffLabel": "Diff van {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} gewerkt",
+        "worked": "Gewerkt"
       }
     },
     "message-search": {
@@ -1296,5 +1300,12 @@
       "idle": "Inactief",
       "resolved": "Opgelost"
     }
+  },
+  "threadBoard": {
+    "label": "Threads per status",
+    "working": "Bezig",
+    "later": "Later",
+    "open": "Open",
+    "done": "Klaar"
   }
 }

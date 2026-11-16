@@ -31,6 +31,7 @@ const plugin = (id: string, ...messageRenderers: MessageRenderer[]): RegisteredP
   roomActions: [],
   messageLinks: [],
   threadCardBadges: [],
+  threadDetails: [],
 });
 
 const renderer = (overrides: Partial<MessageRenderer> = {}): MessageRenderer => ({

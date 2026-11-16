@@ -10,8 +10,22 @@ const widgetSceneSource = readSource('../../../ios/App/App/QuickCaptureSceneDele
 const windowingSource = readSource('../../../ios/App/App/MacWindowing.swift');
 
 /** The source outside every `#if targetEnvironment(macCatalyst)` block (and its `#else`). */
-const outsideMacOnly = (source: string) =>
-  source.replace(/#if targetEnvironment\(macCatalyst\)[\s\S]*?#endif/g, '');
+const outsideMacOnly = (source: string) => {
+  let depth = 0;
+  return source
+    .split('\n')
+    .filter((line) => {
+      if (depth === 0 && /^#if targetEnvironment\(macCatalyst\)/.test(line)) {
+        depth = 1;
+        return false;
+      }
+      if (depth === 0) return true;
+      if (/^#if\b/.test(line)) depth += 1;
+      if (/^#endif\b/.test(line)) depth -= 1;
+      return false;
+    })
+    .join('\n');
+};
 
 describe('Mac Catalyst shell', () => {
   it('loads the app as a desktop page on Mac only', () => {
@@ -111,9 +125,7 @@ describe('Mac Catalyst shell', () => {
     );
     const disconnect = (source: string) =>
       source.match(/func sceneDidDisconnect\(_ scene: UIScene\) \{[\s\S]*?\n {4}\}/)?.[0] ?? '';
-    const main = disconnect(sceneSource).match(
-      /#if targetEnvironment\(macCatalyst\)([\s\S]*?)#endif/
-    )?.[1];
+    const main = disconnect(sceneSource);
     expect(main).toMatch(/if let window \{/);
     expect(main).toContain('requestSceneSessionDestruction(widget.session');
     expect(main).toMatch(/QuickCapture\.stopPage\(of: window\)\s*self\.window = nil/);

@@ -25,6 +25,7 @@ const plugin = (id: string, threadCardBadges: ThreadCardBadge[]): RegisteredPlug
   roomActions: [],
   messageLinks: [],
   threadCardBadges,
+  threadDetails: [],
 });
 
 describe('isThreadCardBadge', () => {

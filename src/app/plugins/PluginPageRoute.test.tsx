@@ -26,6 +26,7 @@ const plugin = (id: string, ...pages: PluginPage[]): RegisteredPlugin => ({
   roomActions: [],
   messageLinks: [],
   threadCardBadges: [],
+  threadDetails: [],
 });
 
 /** A config.json with this `plugins` section. */

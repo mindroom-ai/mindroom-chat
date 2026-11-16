@@ -40,6 +40,10 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(MindRoomFileSavePlugin())
         bridge?.registerPluginInstance(MindRoomDiagnosticsPlugin())
         bridge?.registerPluginInstance(MindRoomQuickCapturePlugin())
+#if targetEnvironment(macCatalyst) && MINDROOM_MAC_APP_STORE
+        // Only the main bridge consumes Watch Handoff; the widget must not take its pending event.
+        if self is QuickCaptureViewController { return }
+#endif
         bridge?.registerPluginInstance(MindRoomWatchPlugin())
     }
 
@@ -51,6 +55,11 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
         if activeStatusBarStyle != .default {
             bridge?.statusBarStyle = activeStatusBarStyle
         }
+#if targetEnvironment(macCatalyst) && MINDROOM_MAC_APP_STORE
+        if let scene = view.window?.windowScene, scene.delegate is SceneDelegate {
+            MacWindowing.mainBridgeDidAppear(scene)
+        }
+#endif
 
 #if DEBUG
         guard ProcessInfo.processInfo.environment["MINDROOM_FILE_SAVE_ACCEPTANCE"] == "1",

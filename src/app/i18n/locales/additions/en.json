@@ -767,6 +767,10 @@
         "removed": "removed",
         "diffTruncated": "Diff truncated",
         "diffLabel": "Diff of {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "Worked for {{duration}}",
+        "worked": "Worked"
       }
     },
     "message-search": {
@@ -1296,5 +1300,12 @@
       "idle": "Idle",
       "resolved": "Resolved"
     }
+  },
+  "threadBoard": {
+    "label": "Threads by state",
+    "working": "Working",
+    "later": "Later",
+    "open": "Open",
+    "done": "Done"
   }
 }

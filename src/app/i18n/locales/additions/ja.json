@@ -756,6 +756,10 @@
         "removed": "削除",
         "diffTruncated": "差分は省略されています",
         "diffLabel": "{{path}} の差分"
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} 作業しました",
+        "worked": "作業しました"
       }
     },
     "message-search": {
@@ -1270,5 +1274,12 @@
       "idle": "待機中",
       "resolved": "解決済み"
     }
+  },
+  "threadBoard": {
+    "label": "状態別のスレッド",
+    "working": "作業中",
+    "later": "後で",
+    "open": "未完了",
+    "done": "完了"
   }
 }

@@ -127,7 +127,13 @@ vi.mock('../../approvals/ApprovalArgumentFields.css', () => ({
   Count: 'Count',
 }));
 
-vi.mock('../agent-run/Reasoning.css', () => ({}));
+vi.mock('../agent-run/Reasoning.css', () => ({
+  Reasoning: 'Reasoning',
+  Toggle: 'Toggle',
+  Label: 'Label',
+  Chevron: 'Chevron',
+}));
+vi.mock('../agent-run/FinishedWorkFold.css', () => ({ Work: 'Work' }));
 vi.mock('../agent-run/OutlineComet.css', () => ({}));
 vi.mock('../html/HtmlBlocks.css', () => ({
   Block: 'MindroomBlock',
@@ -1519,6 +1525,86 @@ describe('LongTextText hydration identity', () => {
     await act(async () => {
       renderer.unmount();
     });
+  });
+});
+
+describe('a finished agent reply in a sidecar', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // The preview stops partway through the answer; the sidecar holds the whole reply.
+  const content = {
+    ...createPreviewContent(),
+    body: ['Let me look.', '', '🔧 `read_file` [1]', '', 'The answer starts'].join('\n'),
+    'io.mindroom.ai_run': { version: 1, status: 'completed' },
+  };
+
+  it.each([
+    ['resolved', true],
+    ['unavailable', false],
+  ])('folds its work only once the sidecar is read (%s)', async (outcome, folds) => {
+    const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
+    const deferred = createDeferred<Record<string, unknown>>();
+    longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(deferred.promise);
+    const eventId = `$sidecar-${outcome}`;
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderAgentMessageContent({
+            eventId,
+            fromMindroomAgent: true,
+            displayName: 'MindRoom',
+            msgType: 'm.text',
+            content,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+    const worked = () => JSON.stringify(renderer.toJSON()).includes('Worked');
+    try {
+      // The preview never folds, also while the sidecar loads.
+      expect(worked()).toBe(false);
+
+      const previewContent =
+        longTextMocks.hydrateMindroomLongTextSource.mock.calls.at(-1)?.[0].previewContent;
+      await act(async () => {
+        // A sidecar that cannot be read leaves the preview.
+        deferred.resolve(
+          outcome === 'unavailable'
+            ? previewContent
+            : {
+                msgtype: 'm.text',
+                // Long enough to fold.
+                body: [
+                  'Let me look.',
+                  '',
+                  '🔧 `read_file` [1]',
+                  '',
+                  'The answer starts and ends. '.repeat(50),
+                ].join('\n'),
+                format: 'org.matrix.custom.html',
+                formatted_body:
+                  '<p>Let me look.</p><p>🔧 <code>read_file</code> [1]</p><p>The answer starts and ends.</p>',
+                'io.mindroom.ai_run': { version: 1, status: 'completed' },
+              }
+        );
+      });
+
+      expect(worked()).toBe(folds);
+      expect(JSON.stringify(renderer.toJSON())).toContain(
+        folds ? 'The answer starts and ends.' : 'Let me look.'
+      );
+    } finally {
+      await act(async () => {
+        renderer.unmount();
+      });
+    }
   });
 });
 

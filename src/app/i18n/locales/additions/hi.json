@@ -767,6 +767,10 @@
         "removed": "हटाया गया",
         "diffTruncated": "डिफ़ छोटा किया गया",
         "diffLabel": "{{path}} का डिफ़"
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} तक काम किया",
+        "worked": "काम किया"
       }
     },
     "message-search": {
@@ -1296,5 +1300,12 @@
       "idle": "निष्क्रिय",
       "resolved": "सुलझे हुए"
     }
+  },
+  "threadBoard": {
+    "label": "स्थिति के अनुसार थ्रेड",
+    "working": "काम जारी",
+    "later": "बाद में",
+    "open": "खुले",
+    "done": "पूरे"
   }
 }

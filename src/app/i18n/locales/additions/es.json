@@ -778,6 +778,10 @@
         "removed": "eliminado",
         "diffTruncated": "Diff truncado",
         "diffLabel": "Diff de {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "Trabajó durante {{duration}}",
+        "worked": "Trabajó"
       }
     },
     "message-search": {
@@ -1322,5 +1326,12 @@
       "idle": "Inactivos",
       "resolved": "Resueltos"
     }
+  },
+  "threadBoard": {
+    "label": "Hilos por estado",
+    "working": "En curso",
+    "later": "Más tarde",
+    "open": "Abiertos",
+    "done": "Hechos"
   }
 }

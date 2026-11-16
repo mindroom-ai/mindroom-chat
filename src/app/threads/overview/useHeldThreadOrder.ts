@@ -7,6 +7,7 @@ import {
   useState,
   type PointerEvent,
   type RefObject,
+  type TouchEvent,
 } from 'react';
 
 /**
@@ -195,5 +196,11 @@ export const usePointerOverCards = () => {
     onPointerDown: onPointerEnter,
     onPointerLeave,
     onPointerCancel,
+    onTouchEnd: (event: TouchEvent<HTMLElement>) => {
+      // A long press consumes the release click, so there is no click left to wait for.
+      if (!event.defaultPrevented) return;
+      stopWaiting();
+      setPointerInside(false);
+    },
   };
 };

@@ -767,6 +767,10 @@
         "removed": "kaldırıldı",
         "diffTruncated": "Diff kısaltıldı",
         "diffLabel": "{{path}} için diff"
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} çalıştı",
+        "worked": "Çalıştı"
       }
     },
     "message-search": {
@@ -1296,5 +1300,12 @@
       "idle": "Boşta",
       "resolved": "Çözülenler"
     }
+  },
+  "threadBoard": {
+    "label": "Duruma göre ileti dizileri",
+    "working": "Çalışılıyor",
+    "later": "Sonra",
+    "open": "Açık",
+    "done": "Bitti"
   }
 }
