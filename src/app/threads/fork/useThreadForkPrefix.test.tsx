@@ -32,6 +32,7 @@ const raw = (eventId: string, ts: number, threadRoot?: string, content = {}): IE
     sender: bob,
     type: 'm.room.message',
     origin_server_ts: ts,
+    unsigned: {},
     content: {
       msgtype: 'm.text',
       body: eventId,
