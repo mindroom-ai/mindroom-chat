@@ -279,14 +279,50 @@ const closeList = async () => {
   renderer = undefined;
 };
 
-it.each([undefined, 'edit', 'redaction', 'decryption'] as const)(
+const bundledReply = (eventId: string) => ({
+  'm.relations': {
+    'm.thread': {
+      count: 1,
+      current_user_participated: true,
+      latest_event: {
+        event_id: eventId,
+        room_id: roomId,
+        sender: userId,
+        origin_server_ts: 1500,
+        type: 'm.room.message',
+        content: {
+          msgtype: 'm.text',
+          body: eventId,
+          'm.relates_to': { rel_type: 'm.thread', event_id: '$listed' },
+        },
+      },
+    },
+  },
+});
+
+/** Whether a saved root and its edit were readable when saved. */
+const describeSave = (root: MatrixEvent | null | undefined) => {
+  const edit = root?.replacingEvent();
+  const state = (event: MatrixEvent) => (event.isDecryptionFailure() ? 'undecrypted' : 'readable');
+  return root ? [state(root), ...(edit ? [`${state(edit)} edit`] : [])].join(', ') : '';
+};
+
+/** Each change made between the list's first and second page, and the saves it leads to. */
+const changesBeforeLaterPage = {
+  none: ['readable'],
+  edit: ['readable', 'readable, readable edit'],
+  redaction: ['readable', 'readable'],
+  decryption: ['undecrypted', 'readable'],
+  'bundled reply': ['readable', 'readable'],
+  'edit decryption': ['readable, undecrypted edit', 'readable, readable edit'],
+};
+
+it.each(Object.keys(changesBeforeLaterPage) as (keyof typeof changesBeforeLaterPage)[])(
   'saves server-listed roots, and again when one changes before a later page, without claiming replies downloaded (change: %s)',
   async (change) => {
     const { mx, room, engine } = setUpRoom();
-    const failedSaves: boolean[] = [];
-    recordSaves(engine, (_threadId, _replies, root) =>
-      failedSaves.push(!!root?.isDecryptionFailure())
-    );
+    const saves: string[] = [];
+    recordSaves(engine, (_threadId, _replies, root) => saves.push(describeSave(root)));
     const root =
       change === 'decryption'
         ? encryptedListedRoot('$listed')
@@ -294,7 +330,24 @@ it.each([undefined, 'edit', 'redaction', 'decryption'] as const)(
     if (change === 'decryption') {
       await decryptRoot(root, Promise.reject(new Error('Missing key')));
     }
-    if (change) {
+    if (change === 'bundled reply') root.setUnsigned(bundledReply('$reply-1'));
+    const encryptedEdit = new MatrixEvent({
+      event_id: '$edit',
+      room_id: roomId,
+      sender: userId,
+      origin_server_ts: 2000,
+      type: 'm.room.encrypted',
+      content: {
+        algorithm: 'm.megolm.v1.aes-sha2',
+        ciphertext: 'edit',
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$listed' },
+      },
+    });
+    if (change === 'edit decryption') {
+      await decryptRoot(encryptedEdit, Promise.reject(new Error('Missing key')));
+      root.makeReplaced(encryptedEdit);
+    }
+    if (change !== 'none') {
       const timeline = listInPages(room);
       let changed = false;
       vi.spyOn(mx, 'paginateEventTimeline').mockImplementation(async () => {
@@ -304,7 +357,7 @@ it.each([undefined, 'edit', 'redaction', 'decryption'] as const)(
           return false;
         }
         // First progress callback has already saved this same root.
-        await vi.waitFor(() => expect(failedSaves).toHaveLength(1));
+        await vi.waitFor(() => expect(saves).toHaveLength(1));
         changed = true;
         if (change === 'edit') {
           root.makeReplaced(rootEdit('$listed', 'Newer server title'));
@@ -321,8 +374,13 @@ it.each([undefined, 'edit', 'redaction', 'decryption'] as const)(
             }),
             room
           );
-        } else {
+        } else if (change === 'decryption') {
           await decryptRoot(root, Promise.resolve('Clear title'));
+        } else if (change === 'bundled reply') {
+          // The list's later page carries the root again, with a newer reply in its summary.
+          root.setUnsigned(bundledReply('$reply-2'));
+        } else {
+          await decryptRoot(encryptedEdit, Promise.resolve('Newer title'));
         }
         timeline.setPaginationToken('unchanged-page', Direction.Backward);
         return true;
@@ -335,21 +393,20 @@ it.each([undefined, 'edit', 'redaction', 'decryption'] as const)(
       const list = showList(mx, engine, room);
       await vi.waitFor(async () => {
         const cached = await loadLatestCachedThreadEvents(sessionId, roomId, '$listed', 1);
-        if (change === 'edit')
-          expect(JSON.stringify(cached.rootEvent)).toContain('Newer server title');
+        const saved = JSON.stringify(cached.rootEvent);
+        if (change === 'edit') expect(saved).toContain('Newer server title');
         else if (change === 'redaction')
           expect(cached.rootEvent?.unsigned?.redacted_because).toBeTruthy();
-        else if (change !== 'decryption')
+        else if (change === 'bundled reply') expect(saved).toContain('$reply-2');
+        else if (change === 'none')
           expect(cached.rootEvent?.content?.body).toBe('Listed by server');
-        expect(cached.events).toEqual([]);
+        if (change !== 'bundled reply') expect(cached.events).toEqual([]);
         expect(cached.tailLoaded).toBe(false);
         expect(cached.snapshotComplete).toBe(false);
         expect(list.current?.loading).toBe(false);
       });
     });
-    expect(failedSaves).toEqual(
-      change === 'decryption' ? [true, false] : change ? [false, false] : [false]
-    );
+    expect(saves).toEqual(changesBeforeLaterPage[change]);
   }
 );
 
