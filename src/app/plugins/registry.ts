@@ -11,6 +11,7 @@ import { isSidePanel, type SidePanel } from './sidePanels';
 import { isPluginRoomAction, type PluginRoomAction } from './roomActions';
 import { isPluginSlashCommand, type PluginSlashCommand } from './slashCommands';
 import { isThreadCardBadge, type ThreadCardBadge } from './threadCardBadges';
+import { isThreadDetail, type ThreadDetail } from './threadDetails';
 import { registerPluginTranslations, type PluginTranslations } from './pluginTranslations';
 
 /**
@@ -36,6 +37,7 @@ export type ClientPlugin = {
   roomActions?: readonly PluginRoomAction[];
   messageLinks?: readonly MessageLink[];
   threadCardBadges?: readonly ThreadCardBadge[];
+  threadDetails?: readonly ThreadDetail[];
   translations?: PluginTranslations;
 };
 
@@ -54,6 +56,7 @@ export type RegisteredPlugin = {
   readonly roomActions: readonly PluginRoomAction[];
   readonly messageLinks: readonly MessageLink[];
   readonly threadCardBadges: readonly ThreadCardBadge[];
+  readonly threadDetails: readonly ThreadDetail[];
 };
 
 const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
@@ -67,6 +70,7 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
   const roomActions = isRecord(plugin) ? plugin.roomActions : undefined;
   const links = isRecord(plugin) ? plugin.messageLinks : undefined;
   const badges = isRecord(plugin) ? plugin.threadCardBadges : undefined;
+  const details = isRecord(plugin) ? plugin.threadDetails : undefined;
   registerPluginTranslations(id, isRecord(plugin) ? plugin.translations : undefined);
   return Object.freeze({
     id,
@@ -103,6 +107,7 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
     ),
     messageLinks: Object.freeze(Array.isArray(links) ? links.filter(isMessageLink) : []),
     threadCardBadges: Object.freeze(Array.isArray(badges) ? badges.filter(isThreadCardBadge) : []),
+    threadDetails: Object.freeze(Array.isArray(details) ? details.filter(isThreadDetail) : []),
   });
 };
 

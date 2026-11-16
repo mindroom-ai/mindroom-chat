@@ -43,7 +43,13 @@ expect() {
   echo "ok: $1: $2"
 }
 
-expect '/version.json' "$(body /version.json)" "{\"version\":\"$tag\",\"release\":\"$tag\"}"
+# With the client plugins it builds in (bundled-plugins.txt by default), the version names their digest.
+version=$(body /version.json)
+case "$version" in
+  "{\"version\":\"$tag\",\"release\":\"$tag\"}" | "{\"version\":\"$tag-plugins-"*"\",\"release\":\"$tag\"}") ;;
+  *) fail "/version.json: expected release $tag, got '$version'" ;;
+esac
+echo "ok: /version.json: $version"
 expect '/version.json Cache-Control' "$(header /version.json Cache-Control)" 'no-cache'
 
 shell=$(body /)

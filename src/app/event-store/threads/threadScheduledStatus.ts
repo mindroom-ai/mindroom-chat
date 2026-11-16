@@ -1,8 +1,9 @@
 import type { Room } from 'matrix-js-sdk';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
-import { MINDROOM_SCHEDULED_TASK_EVENT } from '../../matrix/protocol/scheduledTaskContract';
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import {
+  isPendingScheduledTaskStatus,
+  MINDROOM_SCHEDULED_TASK_EVENT,
   parseScheduleTimestamp,
   parseScheduledTaskStateEvent,
 } from '../../matrix/protocol/scheduledTaskContract';
@@ -27,7 +28,7 @@ export const buildRoomThreadScheduledStatusMap = (
   scheduledTaskEvents.forEach((event) => {
     const parsedTask = parseScheduledTaskStateEvent(event);
     if (!parsedTask) return;
-    if (parsedTask.status !== 'pending') return;
+    if (!isPendingScheduledTaskStatus(parsedTask.status)) return;
     if (parsedTask.newThread) return;
     if (!parsedTask.threadId) return;
 

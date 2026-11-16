@@ -19,8 +19,13 @@ ARG MINDROOM_BUILD_VERSION=""
 ARG MINDROOM_RELEASE_VERSION=""
 # Client plugins to build in (docs/configuration.md "Build-time variables"): directories in this
 # stage, such as /src/plugins/example for a plugin the build context holds at plugins/example.
-ARG MINDROOM_CLIENT_PLUGINS=""
-RUN MINDROOM_BUILD_VERSION="$MINDROOM_BUILD_VERSION" \
+# Unset, the build takes the plugins bundled-plugins.txt pins, which scripts/bundled-plugins.mjs
+# downloads from GitHub and installs; `--build-arg MINDROOM_CLIENT_PLUGINS=` builds none.
+ARG MINDROOM_CLIENT_PLUGINS
+RUN if [ -z "${MINDROOM_CLIENT_PLUGINS+set}" ]; then \
+      MINDROOM_CLIENT_PLUGINS=$(node scripts/bundled-plugins.mjs); \
+    fi \
+    && MINDROOM_BUILD_VERSION="$MINDROOM_BUILD_VERSION" \
     MINDROOM_RELEASE_VERSION="$MINDROOM_RELEASE_VERSION" \
     MINDROOM_CLIENT_PLUGINS="$MINDROOM_CLIENT_PLUGINS" \
     npx vite build
