@@ -150,19 +150,27 @@ export function ThreadView({
   );
 
   // The fork draft. Its composer starts the fork once the timeline shows the fork point among the
-  // thread's own messages; until then, and for a point that is not one of them, the thread shows as
-  // it is. Its first message opens the fork in the draft's place.
+  // thread's own messages. Until the timeline says, there is no composer: text typed into the
+  // thread's would go to the thread. A point that is not among them leaves the thread as it is. Its
+  // first message opens the fork in the draft's place.
   const { navigateRoomThread } = useRoomNavigate();
-  const [shownForkPoint, setShownForkPoint] = useState<ThreadForkRef>();
+  const draftForkAt = isConfirmedMatrixEventId(forkAt) ? forkAt : undefined;
+  const [forkPointReport, setForkPointReport] = useState<ThreadForkRef & { shown: boolean }>();
   const onForkPointShown = useCallback(
-    (forkPointId: string | undefined) =>
-      setShownForkPoint(forkPointId ? { threadId, eventId: forkPointId } : undefined),
-    [threadId]
+    (forkPointId: string | undefined) => {
+      if (!draftForkAt) return;
+      setForkPointReport({ threadId, eventId: draftForkAt, shown: forkPointId === draftForkAt });
+    },
+    [draftForkAt, threadId]
   );
-  const forkFrom =
-    shownForkPoint?.threadId === threadId && shownForkPoint.eventId === forkAt
-      ? shownForkPoint
-      : undefined;
+  const reported =
+    forkPointReport?.threadId === threadId && forkPointReport.eventId === draftForkAt;
+  const forkPointPending = !!draftForkAt && !reported;
+  const forkShown = reported && forkPointReport?.shown === true;
+  const forkFrom = useMemo(
+    () => (forkShown && draftForkAt ? { threadId, eventId: draftForkAt } : undefined),
+    [draftForkAt, forkShown, threadId]
+  );
   const openFork = useCallback(
     (forkRootId: string) => {
       navigateRoomThread(roomId, forkRootId, undefined, { replace: true });
@@ -211,7 +219,7 @@ export function ThreadView({
                 room={room}
                 threadId={threadId}
                 eventId={eventId}
-                forkAt={isConfirmedMatrixEventId(forkAt) ? forkAt : undefined}
+                forkAt={draftForkAt}
                 onForkPointShown={onForkPointShown}
                 threadHeader={header}
                 onThreadLoadError={onThreadLoadError}
@@ -234,7 +242,8 @@ export function ThreadView({
               />
             }
             composer={
-              composerShown && (
+              composerShown &&
+              !forkPointPending && (
                 <RoomInput
                   room={room}
                   roomId={roomId}

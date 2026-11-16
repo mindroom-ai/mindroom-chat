@@ -29,6 +29,7 @@ const initialState = {
     initialCacheHydrated: false,
     sdkReady: false,
     latestPending: false,
+    settled: false,
     editResetEpoch: 0,
   },
   history: { hasMoreCachedBack: false, tailLoaded: false },
@@ -422,7 +423,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
             if (isCurrentThreadOpen()) {
               publish((current) => ({
                 ...current,
-                open: { ...current.open, latestPending: false },
+                open: { ...current.open, latestPending: false, settled: true },
               }));
             }
           }

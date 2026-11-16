@@ -218,7 +218,10 @@ export type RoomTimelineProps = {
    * up to it, read-only as the fork will show it, with the "Forking" divider under it.
    */
   forkAt?: string;
-  /** Hears the fork point the rows show (`forkAt`, once they hold it), undefined for none. */
+  /**
+   * Hears the fork point the rows show (`forkAt`, once they hold it), or undefined once the
+   * thread's open is done without it; nothing before.
+   */
   onForkPointShown?: (eventId: string | undefined) => void;
 };
 
@@ -438,9 +441,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const { forkPointIndex } = threadState;
   const forkPoint = forkPointIndex !== undefined ? threadEvents[forkPointIndex] : undefined;
   const shownForkPoint = forkPoint?.getId();
+  const threadOpenSettled = session.snapshot.open.settled;
   useLayoutEffect(() => {
-    onForkPointShown?.(shownForkPoint);
-  }, [onForkPointShown, shownForkPoint]);
+    if (shownForkPoint || threadOpenSettled) onForkPointShown?.(shownForkPoint);
+  }, [onForkPointShown, shownForkPoint, threadOpenSettled]);
   // A fork's parent messages, and in a fork draft every row: what the fork will show of its parent,
   // read-only as it will show it.
   const forkPrefixEventIds = useMemo(

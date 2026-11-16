@@ -18,6 +18,8 @@ export type ThreadSessionSnapshot = Readonly<{
     initialCacheHydrated: boolean;
     sdkReady: boolean;
     latestPending: boolean;
+    /** The open's server loads are done: the thread and the event its route names. */
+    settled: boolean;
     editResetEpoch: number;
   }>;
   history: Readonly<{ hasMoreCachedBack: boolean; tailLoaded: boolean }>;
