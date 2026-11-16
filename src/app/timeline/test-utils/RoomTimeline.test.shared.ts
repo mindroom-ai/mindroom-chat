@@ -99,6 +99,8 @@ const {
   threadRenderStateMock: {
     threadEventIndexMapRef: { current: new Map() },
     threadEvents: [] as unknown[],
+    // The thread's own rows without a fork's prefix; the rows themselves when left unset.
+    ownThreadEvents: undefined as unknown[] | undefined,
     threadInitialRenderMode: 'live',
     setSupplementalThreadEvents: vi.fn(),
     resetThreadRenderState: vi.fn(),
@@ -1026,6 +1028,7 @@ vi.mock('../../matrix/protocol/threadSummary', async (importOriginal) => {
 vi.mock('../useThreadRenderState', () => ({
   useThreadRenderState: () => ({
     ...threadRenderStateMock,
+    ownThreadEvents: threadRenderStateMock.ownThreadEvents ?? threadRenderStateMock.threadEvents,
     threadEventIndexMap: threadRenderStateMock.threadEventIndexMapRef.current,
   }),
 }));
@@ -1440,6 +1443,7 @@ beforeEach(() => {
   clearThreadOpenSeedSnapshotsForTests();
   threadRenderStateMock.threadEventIndexMapRef.current = new Map();
   threadRenderStateMock.threadEvents = [];
+  threadRenderStateMock.ownThreadEvents = undefined;
   threadRenderStateMock.threadInitialRenderMode = 'live';
   pluginRowHiddenMock.test = undefined;
   settingsState.showHiddenEvents = false;

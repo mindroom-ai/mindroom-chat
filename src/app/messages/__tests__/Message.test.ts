@@ -622,6 +622,48 @@ describe('Message local-echo actions', () => {
   });
 });
 
+describe('Message from another thread, in a fork', () => {
+  it('offers copying and the way to its own thread, and nothing that would write there', async () => {
+    const Message = await getMessageComponent();
+    const onOpenInOriginalThread = vi.fn();
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          Message,
+          {
+            room: createRoom(),
+            mEvent: createMessageEvent({ msgtype: 'm.text', body: 'from the parent thread' }),
+            collapse: true,
+            highlight: false,
+            messageLayout: MessageLayout.Modern,
+            messageSpacing: '400',
+            onOpenInOriginalThread,
+          },
+          React.createElement('div', null, 'message body')
+        )
+      );
+    });
+
+    expect(getButtonByIcon(renderer, 'ReplyArrow')).toBeUndefined();
+    expect(getButtonByIcon(renderer, 'ThreadPlus')).toBeUndefined();
+    expect(getButtonByIcon(renderer, 'SmilePlus')).toBeUndefined();
+
+    await openContextMenu(renderer);
+
+    expect(getButtonByText(renderer, 'Copy Text')).toBeDefined();
+    expect(getButtonByText(renderer, 'Copy Link')).toBeDefined();
+    for (const label of ['Reply', 'Reply in Thread', 'Add Reaction', 'Pin Message', 'Delete']) {
+      expect(getButtonByText(renderer, label), label).toBeUndefined();
+    }
+
+    await act(async () => {
+      getButtonByText(renderer, 'Open in original thread')?.props.onClick();
+    });
+    expect(onOpenInOriginalThread).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('Message reply details menu item', () => {
   it('does not render Reply details in the context menu for messages without ai_run metadata', async () => {
     const { renderer } = await renderMessage({

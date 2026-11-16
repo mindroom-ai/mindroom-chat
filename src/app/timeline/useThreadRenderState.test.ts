@@ -87,6 +87,27 @@ const attachSerializedReplacement = (
   };
 };
 
+/** A reply in the thread whose root is `rootId`. */
+const makeThreadReplyEvent = (
+  eventId: string,
+  ts: number,
+  rootId: string,
+  content: Record<string, unknown> = {}
+) =>
+  new MatrixEvent({
+    content: {
+      body: eventId,
+      msgtype: 'm.text',
+      'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+      ...content,
+    },
+    event_id: eventId,
+    origin_server_ts: ts,
+    room_id: '!room:example.org',
+    sender: '@alice:example.org',
+    type: 'm.room.message',
+  });
+
 const makeAiRunEditEvent = (eventId: string, ts: number, targetEventId: string, status: string) =>
   new MatrixEvent({
     content: {
@@ -126,6 +147,7 @@ type HarnessProps = {
   threadId?: string;
   thread: Thread | null;
   threadInitialCacheHydrated: boolean;
+  prefixEvents?: MatrixEvent[];
   onRender: (snapshot: HookSnapshot) => void;
 };
 
@@ -1210,6 +1232,68 @@ describe('useThreadRenderState', () => {
     );
     expect(afterNewReply).toBeDefined();
     expect(afterNewReply?.replacingEvent()).toBe(foreignSenderEdit);
+
+    renderer.unmount();
+  });
+});
+
+describe('useThreadRenderState in a fork', () => {
+  const ids = (events: readonly MatrixEvent[]) => events.map((event) => event.getId());
+  // The parent's root and two of its messages up to the fork point, the last its title notice.
+  const makeParentPrefix = () => [
+    makeThreadReplyEvent('$p2', 3, '$parent', {
+      msgtype: 'm.notice',
+      'io.mindroom.thread_summary': { version: 1, summary: 'Lisbon trip', message_count: 2 },
+    }),
+    makeMessageEvent('$parent', 1),
+    makeThreadReplyEvent('$p1', 2, '$parent'),
+  ];
+  const renderFork = (prefixEvents: MatrixEvent[]) => {
+    const rootEvent = makeMessageEvent('$fork', 10);
+    const reply = makeThreadReplyEvent('$reply', 11, '$fork');
+    return renderHookHarness({
+      room: makeRoom(rootEvent),
+      roomTimelineSet: makeTimelineSet(),
+      threadTimelineSet: undefined,
+      threadId: '$fork',
+      thread: makeThread(rootEvent, [reply]),
+      threadInitialCacheHydrated: true,
+      prefixEvents,
+    });
+  };
+
+  it("sorts the parent's messages before the root and keeps the fork's own after them", () => {
+    const { getSnapshot, renderer } = renderFork(makeParentPrefix());
+
+    expect(ids(getSnapshot().threadEvents)).toEqual(['$parent', '$p1', '$p2', '$fork', '$reply']);
+    expect(getSnapshot().threadEventIndexMap.get('$fork')).toBe(3);
+    expect(getSnapshot().threadInitialRenderMode).toBe('live');
+
+    renderer.unmount();
+  });
+
+  it("leaves the parent's messages out of the thread's own events, which its reads and counts use", () => {
+    const { getSnapshot, renderer } = renderFork(makeParentPrefix());
+
+    expect(ids(getSnapshot().ownThreadEvents)).toEqual(['$fork', '$reply']);
+
+    renderer.unmount();
+  });
+
+  it("shows no parent message before the fork's own rows load", () => {
+    const rootEvent = makeMessageEvent('$fork', 10);
+    const { getSnapshot, renderer } = renderHookHarness({
+      room: makeRoom(rootEvent),
+      roomTimelineSet: makeTimelineSet(),
+      threadTimelineSet: undefined,
+      threadId: '$fork',
+      thread: null,
+      threadInitialCacheHydrated: false,
+      prefixEvents: makeParentPrefix(),
+    });
+
+    expect(getSnapshot().threadEvents).toEqual([]);
+    expect(getSnapshot().threadInitialRenderMode).toBe('loading');
 
     renderer.unmount();
   });

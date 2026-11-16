@@ -64,13 +64,15 @@ vi.mock('../../approvals/ToolApprovalCard', () => ({
     eventId,
     roomId,
     threadId,
+    readOnly,
   }: {
     approval: { toolName: string };
     eventId?: string;
     roomId?: string;
     threadId?: string;
+    readOnly?: boolean;
   }) => {
-    toolApprovalCardMock({ approval, eventId, roomId, threadId });
+    toolApprovalCardMock({ approval, eventId, roomId, threadId, readOnly });
     return React.createElement('div', { 'data-renderer': 'tool-approval' }, approval.toolName);
   },
 }));
@@ -1149,6 +1151,38 @@ describe('renderAgentMessageContent', () => {
       eventId: '$approval',
       threadId: '$thread-root',
     });
+
+    renderer.unmount();
+  });
+
+  it("hands a read-only row's approval card no decisions", async () => {
+    toolApprovalCardMock.mockReset();
+
+    const renderer = await renderNode({
+      fromMindroomAgent: true,
+      eventType: 'io.mindroom.tool_approval',
+      roomId: '!room:example.org',
+      eventId: '$approval',
+      threadId: '$parent',
+      msgType: '',
+      readOnly: true,
+      content: {
+        approval_id: 'approval-1',
+        tool_name: 'web_search',
+        arguments: { query: 'release date' },
+        agent_name: 'research',
+        status: 'pending',
+        requested_at: '2026-04-10T12:00:00Z',
+        expires_at: '2026-04-17T12:00:00Z',
+        resolved_at: null,
+        resolved_by: null,
+        resolution_reason: null,
+      },
+    });
+
+    expect(toolApprovalCardMock).toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: '$parent', readOnly: true })
+    );
 
     renderer.unmount();
   });

@@ -15,6 +15,7 @@ import {
   makeRoom,
   createControlledRoomTimelineHarness,
   flushAsyncWork,
+  navigateRoomThreadMock,
   threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
 import { MessageLayout, MessageSpacing } from '../../preferences/settings';
@@ -426,5 +427,74 @@ describe('timeline message feature', () => {
 
     expect(summaryMarkers(renderer)).toHaveLength(0);
     expect(renderedContent(renderer)).toHaveLength(1);
+  });
+});
+
+describe("a fork's rows of its parent thread", () => {
+  const AGENT = '@mindroom_research:example.org';
+  /** A message of the parent thread `$parent`, shown in the fork `$fork` before its own. */
+  const parentMessage = (id: string, opts: Parameters<typeof makeEvent>[1] = {}) =>
+    makeEvent(id, { threadRootId: '$parent', ...opts }) as unknown as MatrixEvent;
+  // The fork's root before the SDK knows its thread: no thread ID of its own yet.
+  const forkRoot = () => makeEvent('$fork') as unknown as MatrixEvent;
+  const forkReply = () => makeEvent('$r1', { threadRootId: '$fork' }) as unknown as MatrixEvent;
+
+  it('offers no reply, reaction, edit, delete or pin, and opens the message in its thread', async () => {
+    const { Message } = await import('../../messages/Message');
+    const { renderer } = await mountFeature(
+      [rowFor(parentMessage('$p1'), 0), rowFor(forkRoot(), 1), rowFor(forkReply(), 2)],
+      '$fork'
+    );
+
+    const [prefix, root, reply] = renderer.root.findAllByType(Message).map((node) => node.props);
+    expect(prefix).toMatchObject({ canDelete: false, canSendReaction: false, canPinEvent: false });
+    expect(prefix?.onReplyClick).toBeUndefined();
+    expect(prefix?.onReactionToggle).toBeUndefined();
+    expect(prefix?.onEditId).toBeUndefined();
+    [root, reply].forEach((own) => {
+      expect(own?.onReplyClick).toBeDefined();
+      expect(own?.canSendReaction).toBe(true);
+      expect(own?.onOpenInOriginalThread).toBeUndefined();
+    });
+
+    act(() => prefix?.onOpenInOriginalThread());
+    expect(navigateRoomThreadMock).toHaveBeenCalledWith('!room:example.org', '$parent', '$p1');
+  });
+
+  it("answers its cards in the parent thread and shows an approval and a question without their buttons", async () => {
+    const { Message } = await import('../../messages/Message');
+    const approval = parentMessage('$approval', {
+      type: MINDROOM_TOOL_APPROVAL_EVENT,
+      sender: AGENT,
+      content: { tool_name: 'web_search', status: 'pending' },
+    });
+    const question = parentMessage('$question', {
+      sender: AGENT,
+      content: {
+        msgtype: 'm.text',
+        body: 'Which city? React with 1️⃣ Lisbon or 2️⃣ Porto.',
+        'io.mindroom.interactive': {
+          question_text: 'Which city?',
+          options: { '1️⃣': 'Lisbon', '2️⃣': 'Porto' },
+        },
+      },
+    });
+    const { renderer } = await mountFeature(
+      [rowFor(approval, 0), rowFor(question, 1), rowFor(forkReply(), 2)],
+      '$fork'
+    );
+
+    expect(
+      renderedContent(renderer).map(({ props }) => [props.eventId, props.threadId, props.readOnly])
+    ).toEqual([
+      ['$approval', '$parent', true],
+      ['$question', '$parent', true],
+      ['$r1', '$fork', false],
+    ]);
+    // A question's options are its reaction chips: in the fork they do not react.
+    const chipsCanReact = renderer.root
+      .findAllByType(Message)
+      .map(({ props }) => props.reactions.props.children[0].props.canSendReaction);
+    expect(chipsCanReact).toEqual([false, false, true]);
   });
 });
