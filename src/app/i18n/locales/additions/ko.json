@@ -1274,6 +1274,15 @@
       "snoozed": "다시 알림",
       "idle": "대기 중",
       "resolved": "해결됨"
+    },
+    "live": {
+      "tools": "도구",
+      "toolsRunning_other": "{{count}}개 실행 중",
+      "toolsRunningNamed_other": "{{count}}개 실행 중: {{names}}",
+      "background": "백그라운드",
+      "jobs_other": "작업 {{count}}개",
+      "jobsWaiting_other": "{{jobs}}, 승인 대기 {{count}}개",
+      "waitingForAnswer": "답변 대기 중"
     }
   },
   "threadBoard": {

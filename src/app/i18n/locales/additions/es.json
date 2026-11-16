@@ -1326,6 +1326,23 @@
       "snoozed": "Pospuestos",
       "idle": "Inactivos",
       "resolved": "Resueltos"
+    },
+    "live": {
+      "tools": "Herramientas",
+      "toolsRunning_one": "{{count}} en ejecución",
+      "toolsRunning_many": "{{count}} en ejecución",
+      "toolsRunning_other": "{{count}} en ejecución",
+      "toolsRunningNamed_one": "{{count}} en ejecución: {{names}}",
+      "toolsRunningNamed_many": "{{count}} en ejecución: {{names}}",
+      "toolsRunningNamed_other": "{{count}} en ejecución: {{names}}",
+      "background": "Segundo plano",
+      "jobs_one": "{{count}} tarea",
+      "jobs_many": "{{count}} tareas",
+      "jobs_other": "{{count}} tareas",
+      "jobsWaiting_one": "{{jobs}}, {{count}} esperando aprobación",
+      "jobsWaiting_many": "{{jobs}}, {{count}} esperando aprobación",
+      "jobsWaiting_other": "{{jobs}}, {{count}} esperando aprobación",
+      "waitingForAnswer": "Esperando una respuesta"
     }
   },
   "threadBoard": {

@@ -1274,6 +1274,15 @@
       "snoozed": "Ditunda",
       "idle": "Tidak aktif",
       "resolved": "Selesai"
+    },
+    "live": {
+      "tools": "Alat",
+      "toolsRunning_other": "{{count}} berjalan",
+      "toolsRunningNamed_other": "{{count}} berjalan: {{names}}",
+      "background": "Latar belakang",
+      "jobs_other": "{{count}} tugas",
+      "jobsWaiting_other": "{{jobs}}, {{count}} menunggu persetujuan",
+      "waitingForAnswer": "Menunggu jawaban"
     }
   },
   "threadBoard": {
