@@ -352,17 +352,32 @@ const runScrubRedactedRelationsTxn = async (
       return stripRedactedRelationsFromRawEvent(merged, redactedEventIds);
     };
 
+    // Reading a whole room, the keys are written after its two cursors end: a write between a
+    // cursor's steps makes Chromium's next step slow (5 times the whole read at 10,000 rows).
+    const listAfterCursors: (() => void)[] = [];
+    let openCursors = 2;
+    const cursorEnded = (): void => {
+      openCursors -= 1;
+      if (openCursors !== 0) return;
+      listAfterCursors.forEach((list) => list());
+      embeddedStore.put(1, buildRoomEmbedsListedKey(roomId));
+    };
+
     /** `listed`: whether the row's keys in `EMBEDDED_EVENTS_STORE` are known to exist. */
     const repairEventRecord = (previous: CachedEventRecord, listed: boolean): void => {
       const rawEvent = repairRawEvent(previous.rawEvent, previous.eventId);
-      listEmbeddedEvents(
-        embeddedStore,
-        roomId,
-        EMBED_OWNER_EVENT,
-        previous.cacheKey,
-        listed ? embeddedIdsOfEvent(previous.rawEvent) : NO_EVENT_IDS,
-        embeddedIdsOfEvent(rawEvent)
-      );
+      const nextIds = embeddedIdsOfEvent(rawEvent);
+      const list = (): void =>
+        listEmbeddedEvents(
+          embeddedStore,
+          roomId,
+          EMBED_OWNER_EVENT,
+          previous.cacheKey,
+          listed ? embeddedIdsOfEvent(previous.rawEvent) : NO_EVENT_IDS,
+          nextIds
+        );
+      if (listed) list();
+      else if (nextIds.size > 0) listAfterCursors.push(list);
       if (!rawEvent) {
         ledger.noteDelete(previous);
         eventStore.delete(previous.cacheKey);
@@ -379,15 +394,19 @@ const runScrubRedactedRelationsTxn = async (
 
     const repairMetaRecord = (currentMeta: CachedMetaRecord, listed: boolean): void => {
       if (!currentMeta.rootEvent) return;
-      const rootEvent = repairRawEvent(currentMeta.rootEvent, currentMeta.rootEvent.event_id);
-      listEmbeddedEvents(
-        embeddedStore,
-        roomId,
-        EMBED_OWNER_META,
-        currentMeta.metaKey,
-        listed ? embeddedIdsOfRoot(currentMeta.rootEvent) : NO_EVENT_IDS,
-        embeddedIdsOfRoot(rootEvent)
-      );
+      const previousRoot = currentMeta.rootEvent;
+      const rootEvent = repairRawEvent(previousRoot, previousRoot.event_id);
+      const list = (): void =>
+        listEmbeddedEvents(
+          embeddedStore,
+          roomId,
+          EMBED_OWNER_META,
+          currentMeta.metaKey,
+          listed ? embeddedIdsOfRoot(previousRoot) : NO_EVENT_IDS,
+          embeddedIdsOfRoot(rootEvent)
+        );
+      if (listed) list();
+      else listAfterCursors.push(list);
       if (rootEvent !== currentMeta.rootEvent)
         metaStore.put({ ...currentMeta, rootEvent, updatedAt: Date.now() });
     };
@@ -406,6 +425,7 @@ const runScrubRedactedRelationsTxn = async (
         const cursor = cursorRequest.result;
         if (!cursor) {
           ledger.finalize(ledgerStore);
+          cursorEnded();
           return;
         }
         repairEventRecord(cursor.value as CachedEventRecord, false);
@@ -418,7 +438,7 @@ const runScrubRedactedRelationsTxn = async (
       metaCursorRequest.onsuccess = () => {
         const cursor = metaCursorRequest.result;
         if (!cursor) {
-          embeddedStore.put(1, buildRoomEmbedsListedKey(roomId));
+          cursorEnded();
           return;
         }
         repairMetaRecord(cursor.value as CachedMetaRecord, false);
