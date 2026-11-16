@@ -122,16 +122,35 @@ const toolTrace = (...toolNames: string[]) => ({
   events: toolNames.map((name) => ({ type: 'tool_call_completed', tool_name: name })),
 });
 
-/** A reply that searched, read a file, then answered. */
+/** The plain body of a reply with two tool calls, `length` characters long with its markers. */
+const bodyOf = (length: number) => {
+  const lines = [
+    'Let me look.',
+    '',
+    '🔧 `web_search` [1]',
+    '',
+    'Now the file.',
+    '',
+    '🔧 `read_file` [2]',
+  ];
+  // Each line and its newline, a marker line counted as 80 characters, then the blank line's.
+  const counted = lines.reduce((n, line) => n + (line.startsWith('🔧') ? 80 : line.length) + 1, 1);
+  return [...lines, '', 'The answer.'.padEnd(length - counted, ' More.')].join('\n');
+};
+const LONG_BODY = bodyOf(1200);
+const SHORT_BODY = bodyOf(1199);
+
+/** A reply that searched, read a file, then answered, long enough to fold by default. */
 const reply = (
   status: string | undefined,
   html = `<p>Let me look.</p>${marker('web_search', 1)}<p>Now the file.</p>${marker(
     'read_file',
     2
-  )}<p>The answer.</p>`
+  )}<p>The answer.</p>`,
+  body = LONG_BODY
 ): Record<string, unknown> => ({
   msgtype: 'm.text',
-  body: 'Let me look. Now the file. The answer.',
+  body,
   format: 'org.matrix.custom.html',
   formatted_body: html,
   'io.mindroom.tool_trace': toolTrace('web_search', 'read_file'),
@@ -151,16 +170,9 @@ vi.spyOn(mEvent, 'replacingEvent').mockReturnValue(
   new MatrixEvent({ origin_server_ts: 1_133_000 })
 );
 
-// Each test shows a reply of its own: the fold remembers per reply whether it was tall.
+// Each test shows a reply of its own.
 let replyCount = 0;
 let replyId = '$reply';
-// How tall the reply renders, in pixels; jsdom's viewport is 768.
-let replyHeight = 2000;
-const createNodeMock = () => {
-  const element = document.createElement('div');
-  element.getBoundingClientRect = () => ({ width: 600, height: replyHeight } as DOMRect);
-  return element;
-};
 
 let renderer: ReactTestRenderer | undefined;
 const render = (
@@ -185,7 +197,7 @@ const render = (
       </ClientConfigProvider>
     );
     if (renderer) renderer.update(tree);
-    else renderer = create(tree, { createNodeMock });
+    else renderer = create(tree);
   });
 const text = () => JSON.stringify(renderer?.toJSON());
 const textOf = (node: ReactTestInstance | string): string =>
@@ -205,7 +217,6 @@ describe('finished agent work', () => {
   beforeEach(() => {
     replyCount += 1;
     replyId = `$reply${replyCount}`;
-    replyHeight = 2000;
   });
 
   afterEach(() => {
@@ -277,9 +288,16 @@ describe('finished agent work', () => {
     expect(text()).not.toContain('Let me look.');
   });
 
-  it('does not fold a reply that fits on the screen', () => {
-    replyHeight = 500;
-    render(reply('completed'));
+  it('folds a finished reply of 1200 characters, its tool markers counted as 80', () => {
+    expect(LONG_BODY.length).toBeLessThan(1200);
+    render(reply('completed', undefined, LONG_BODY));
+
+    expect(text()).toContain('Worked for 2m 13s');
+    expect(text()).not.toContain('Let me look.');
+  });
+
+  it('does not fold a shorter finished reply with tool calls', () => {
+    render(reply('completed', undefined, SHORT_BODY));
 
     expect(text()).not.toContain('Worked');
     expect(text()).toContain('Let me look.');
@@ -295,11 +313,10 @@ describe('finished agent work', () => {
   });
 
   it('keeps a short reply in place when it finishes on screen', () => {
-    replyHeight = 500;
-    render(reply('streaming'));
+    render(reply('streaming', undefined, SHORT_BODY));
     const before = firstParagraph();
 
-    render(reply('completed'));
+    render(reply('completed', undefined, SHORT_BODY));
     expect(text()).not.toContain('Worked');
     expect(firstParagraph()).toBe(before);
   });
@@ -332,15 +349,10 @@ describe('finished agent work', () => {
     expect(toolCalls()).toEqual(['web_search']);
   });
 
-  it('does not split a reply again that fits on the screen', () => {
-    replyHeight = 500;
-    render(reply('completed'));
-    expect(text()).not.toContain('Worked');
-    act(() => renderer?.unmount());
-    renderer = undefined;
+  it('does not split a short reply', () => {
     vi.mocked(splitFinishedWork).mockClear();
 
-    render(reply('completed'));
+    render(reply('completed', undefined, SHORT_BODY));
     expect(text()).not.toContain('Worked');
     expect(text()).toContain('Let me look.');
     expect(splitFinishedWork).not.toHaveBeenCalled();

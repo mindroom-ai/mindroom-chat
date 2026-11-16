@@ -22,8 +22,8 @@ import { LongTextKind, LongTextText } from './LongTextText';
 import { PasteAttachmentContent } from './PasteAttachmentContent';
 import { ThinkingPlaceholder } from '../agent-run/ThinkingPlaceholder';
 import { withReasoning } from '../agent-run/Reasoning';
-import { FinishedWorkFold, useFitsOnScreen } from '../agent-run/FinishedWorkFold';
-import { splitFinishedWork } from '../agent-run/finishedWorkSplit';
+import { FinishedWorkFold } from '../agent-run/FinishedWorkFold';
+import { isLongAgentReply, splitFinishedWork } from '../agent-run/finishedWorkSplit';
 import { LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
 import { TranscribingPlaceholder } from '../agent-run/TranscribingPlaceholder';
 import { ThreadSummaryCard } from '../thread-summary/ThreadSummaryCard';
@@ -104,6 +104,8 @@ function AgentRenderBody({
 }
 
 type AgentWorkBodyProps = {
+  /** The body's plain text, whose length decides whether it folds. */
+  body: string;
   /** The body's HTML; undefined for a plain body or the thinking placeholder. */
   html?: string;
   foldKey: string;
@@ -119,9 +121,10 @@ type AgentWorkBodyProps = {
 /**
  * An agent reply, in the same tree from its first streamed frame on, with or without tool calls,
  * so the state inside it, such as collapsed reasoning, stays as they come; its work folded once it
- * finished with an answer after its last tool call.
+ * finished long, with an answer after its last tool call.
  */
 function AgentWorkBody({
+  body,
   html,
   foldKey,
   finished,
@@ -130,12 +133,13 @@ function AgentWorkBody({
   wrapWithReasoning,
 }: AgentWorkBodyProps) {
   // A timeline renders its rows again on each streamed edit of any reply; the split waits for this
-  // reply's own HTML to change, and for it to finish. A reply known to fit on the screen is not
-  // split at all.
-  const fits = useFitsOnScreen(foldKey);
+  // reply's own body to change, and for it to finish long.
   const split = useMemo(
-    () => (finished && !fits && html !== undefined ? splitFinishedWork(html) : undefined),
-    [finished, fits, html]
+    () =>
+      finished && html !== undefined && isLongAgentReply(body)
+        ? splitFinishedWork(html)
+        : undefined,
+    [finished, body, html]
   );
   return (
     <FinishedWorkFold
@@ -220,10 +224,9 @@ export const renderAgentMessageContent = ({
   const wrapWithReasoning = (bodyContent: Record<string, unknown>, body: ReactNode) =>
     withReasoning(bodyContent, body, htmlReactParserOptions, linkifyOpts);
 
-  // A finished reply taller than the screen folds its work, everything up to its last tool call,
-  // behind one row, as T3 Code folds a finished turn; the answer after it stays. The work took
-  // from the reply's first event to its final edit. Search results and highlighted rows show the
-  // whole reply.
+  // A long finished reply folds its work, everything up to its last tool call, behind one row, as
+  // T3 Code folds a finished turn; the answer after it stays. The work took from the reply's first
+  // event to its final edit. Search results and highlighted rows show the whole reply.
   const foldEventId = eventId ?? mEvent?.getId();
   const status = getAiRunInfo(content)?.status;
   const foldsWork = fromMindroomAgent && highlightRegex === undefined;
@@ -244,6 +247,7 @@ export const renderAgentMessageContent = ({
     }
     return (
       <AgentWorkBody
+        body={typeof bodyContent.body === 'string' ? bodyContent.body : ''}
         html={html}
         foldKey={`finished-work:${foldEventId}`}
         finished={finished && canFold}

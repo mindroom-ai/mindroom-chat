@@ -1526,12 +1526,6 @@ describe('LongTextText hydration identity', () => {
 describe('a finished agent reply in a sidecar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // The fold measures the reply against the viewport; this file runs without a DOM.
-    vi.stubGlobal('window', { innerHeight: 768 });
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
   });
 
   // The preview stops partway through the answer; the sidecar holds the whole reply.
@@ -1564,8 +1558,7 @@ describe('a finished agent reply in a sidecar', () => {
             htmlReactParserOptions: {},
             linkifyOpts: {},
           })
-        ),
-        { createNodeMock: () => ({ getBoundingClientRect: () => ({ width: 600, height: 2000 }) }) }
+        )
       );
     });
     const worked = () => JSON.stringify(renderer.toJSON()).includes('Worked');
@@ -1582,7 +1575,14 @@ describe('a finished agent reply in a sidecar', () => {
             ? previewContent
             : {
                 msgtype: 'm.text',
-                body: 'Let me look. The answer starts and ends.',
+                // Long enough to fold.
+                body: [
+                  'Let me look.',
+                  '',
+                  '🔧 `read_file` [1]',
+                  '',
+                  'The answer starts and ends. '.repeat(50),
+                ].join('\n'),
                 format: 'org.matrix.custom.html',
                 formatted_body:
                   '<p>Let me look.</p><p>🔧 <code>read_file</code> [1]</p><p>The answer starts and ends.</p>',

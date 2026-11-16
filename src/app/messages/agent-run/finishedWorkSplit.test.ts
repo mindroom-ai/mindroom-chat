@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { splitFinishedWork } from './finishedWorkSplit';
+import { isLongAgentReply, splitFinishedWork } from './finishedWorkSplit';
 import backendBodies from '../__fixtures__/backendToolMarkerBodies.json';
 
 const marker = (name: string, n: number) => `<p>🔧 <code>${name}</code> [${n}]</p>`;
@@ -94,5 +94,43 @@ describe('splitFinishedWork', () => {
     expect(
       splitFinishedWork(backendBodies['leading and trailing tool calls'].formatted_body)
     ).toBeUndefined();
+  });
+});
+
+describe('isLongAgentReply', () => {
+  const textMarker = (name: string, n: number, pending = false) =>
+    `🔧 \`${name}\` [${n}]${pending ? ' ⏳' : ''}`;
+
+  it('is long from 1200 characters on', () => {
+    expect(isLongAgentReply('a'.repeat(1199))).toBe(false);
+    expect(isLongAgentReply('a'.repeat(1200))).toBe(true);
+  });
+
+  it('counts each tool marker line as 80 characters, as it renders as a full row', () => {
+    const line = textMarker('shell', 1);
+    expect(line.length).toBeLessThan(80);
+    // 1199 - 80 - 1 (the newline) = 1118 characters of text and one marker: 1199 in all.
+    expect(isLongAgentReply(`${'a'.repeat(1118)}\n${line}`)).toBe(false);
+    expect(isLongAgentReply(`${'a'.repeat(1119)}\n${line}`)).toBe(true);
+    // 15 markers and their 14 newlines: 15 * 80 + 14 = 1214.
+    const markers = Array.from({ length: 15 }, (_, i) => textMarker('read_file', i + 1));
+    expect(markers.join('\n').length).toBeLessThan(1200);
+    expect(isLongAgentReply(markers.join('\n'))).toBe(true);
+  });
+
+  it('weights a marker line with a long tool name as 80 characters too', () => {
+    const line = textMarker('x'.repeat(200), 1);
+    expect(isLongAgentReply(`${'a'.repeat(1000)}\n${line}`)).toBe(false);
+  });
+
+  it('counts a pending marker, with its hourglass, as a marker', () => {
+    const line = textMarker('shell', 1, true);
+    expect(isLongAgentReply(`${'a'.repeat(1118)}\n${line}`)).toBe(false);
+    expect(isLongAgentReply(`${'a'.repeat(1119)}\n${line}`)).toBe(true);
+  });
+
+  it('counts a marker inside a line of text as text', () => {
+    const line = `see ${textMarker('shell', 1)} here`;
+    expect(isLongAgentReply(`${'a'.repeat(1199 - line.length - 1)}\n${line}`)).toBe(false);
   });
 });

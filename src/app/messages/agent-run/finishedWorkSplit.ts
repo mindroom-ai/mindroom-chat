@@ -1,6 +1,6 @@
 import { htmlToDOM } from 'html-react-parser';
 import { isText, type ChildNode } from 'domhandler';
-import { MINDROOM_TOOL_REF_ICON } from '../html/blocks';
+import { MINDROOM_TOOL_REF_ICON, parseToolRefText } from '../html/blocks';
 import { sanitizeCustomHtml, sanitizeText } from '../../rich-text/sanitize';
 import {
   extractTextFromChildren,
@@ -15,6 +15,26 @@ export type FinishedWorkSplit = {
   /** What follows the last tool marker: the reply's answer. */
   tail: string;
 };
+
+// The timeline's long-message length (FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH in
+// timeline/threadCollapsibleMessages.ts, a layer messages may not import).
+const LONG_AGENT_REPLY_LENGTH = 1200;
+// A tool marker renders as a full row, however short its line.
+const TOOL_MARKER_LINE_LENGTH = 80;
+
+/**
+ * Whether a finished agent reply is long enough to fold its work: its plain body is at least
+ * 1200 characters, each tool marker line counted as 80. A length, not a measured height, so every
+ * device and layout agrees and nothing waits for the reply to lay out.
+ */
+export const isLongAgentReply = (body: string): boolean =>
+  body
+    .split('\n')
+    .reduce(
+      (length, line) =>
+        length + (parseToolRefText(line) ? TOOL_MARKER_LINE_LENGTH - line.length : 0),
+      body.length
+    ) >= LONG_AGENT_REPLY_LENGTH;
 
 /** Whether the renderer shows this top-level node as a tool block, as `getRenderedToolRefs` reads it. */
 const startsWithToolBlock = (node: ChildNode): boolean => {

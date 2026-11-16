@@ -23,14 +23,14 @@ A MindRoom agent reply folds when all of these hold:
 3. Its rendered HTML has at least one tool marker, and visible content follows the last one:
    once sanitized as the renderer sanitizes it, text other than whitespace and the pending mark
    `⏳`, or an image, video or audio element.
-4. It is taller than one screen (owner decision, 2026-11-16). The reply first renders unfolded;
-   before it paints, its rendered height is measured once against the viewport height
-   (`window.innerHeight`), and only a taller reply folds, so the reader sees no jump. The verdict
-   is remembered per reply (a bounded map), so a virtualization remount folds or stays open on
-   its first paint without measuring again. A reply measured at zero width or height (a hidden
-   panel) has no verdict yet; it is measured again once it lays out with a size.
-   Showing or hiding tool calls changes the height, so each setting has its own verdict, and
-   toggling it measures the reply again.
+4. It is long (owner decision, 2026-11-16: "only fold when the reply is longer than a certain
+   length"): its plain `body` (the sidecar's once read) has an effective length of at least
+   1200 characters, the timeline's long-message length, where each tool marker line counts as
+   80 characters, because it renders as a full row. A length, not a measured height: an earlier
+   version measured the rendered reply against the viewport, and review kept finding races in
+   it (the cog mounting after the measurement, the Android keyboard shrinking the viewport for a
+   cached verdict, images loading later, zero-size panels), and the element it measured broke
+   inline bodies. A length is the same on every device and needs no layout.
 5. It is not a search result or a highlighted row (`highlightRegex` set); those show the whole
    reply.
 6. A long reply whose body is in a sidecar folds only once the sidecar is read; the truncated
@@ -57,11 +57,10 @@ When it folds:
 - The timeline's expand all opens the folded work and collapse all folds it, as it does for
   `CollapsibleMessage` (`ExpandAllInitContext`: true opens, false folds, undefined keeps the
   reply's own state).
-- Every finished reply in the history that is taller than a screen folds, not just the latest
-  one.
+- Every long finished reply in the history folds, not just the latest one.
 
 Nothing else changes: user messages, agent replies without tool calls, replies that end in a
-tool call and replies that fit on one screen render as today, with no row.
+tool call and shorter replies render as today, with no row and no element of their own.
 
 ## Design
 
@@ -73,14 +72,16 @@ tool call and replies that fit on one screen render as today, with no row.
   marker as its own paragraph (`_format_tool_marker` wraps it in blank lines), so a top-level
   split is exact. The rendering component memoizes it on the HTML string (`useMemo`), because
   every streamed edit re-renders the row.
-- **Fold component:** `FinishedWorkFold` in `src/app/messages/agent-run/`. Renders the reply
-  whole, measures it in a layout effect, and when it is taller than the viewport renders the
-  row, the work when open, and the answer. The row uses the reasoning header's styles
-  (`Reasoning.css.ts`); no new design language.
-- **Measuring:** a zero-size measurement is not cached; a `ResizeObserver` on the whole reply
-  measures again once it has a size, and disconnects after that measurement. The verdict is
-  keyed on the fold key and `useToolCallsShown(roomId, threadId)`, read as `ToolCallsFold`
-  reads it. A reply whose verdict for the current key is "fits on screen" is not split.
+- **Length (pure, unit-tested):** `isLongAgentReply(body)` beside `splitFinishedWork`. Each line
+  that `parseToolRefText` reads as a marker (`⏳` included) counts as 80 characters; the reply is
+  long from 1200. `LONG_AGENT_REPLY_LENGTH` repeats the timeline's
+  `FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH`, which `messages` may not import (layers). A reply
+  that is not long is not split.
+- **Fold component:** `FinishedWorkFold` in `src/app/messages/agent-run/`. Given a split, it
+  renders the row, the work when open, and the answer; without one it returns the whole reply
+  with no element of its own, so the tree is the same as without the fold (an emote's
+  `* Agent` prefix and a body's streaming dots or `(edited)` stay on its line). The row uses the
+  reasoning header's styles (`Reasoning.css.ts`); no new design language.
 - **Wiring:** the agent text path in `renderAgentMessageContent.tsx` (`renderBody`, the
   thinking placeholder and the long-text path, so hydrated sidecar replies fold too). Every
   agent body renders through `AgentWorkBody` and `FinishedWorkFold` from its first streamed
@@ -97,8 +98,12 @@ tool call and replies that fit on one screen render as today, with no row.
   several markers; whitespace-only tail; marker text inside a code block does not count; a
   tail of only `⏳` or of content the sanitizer drops does not fold, an image-only tail does;
   comments are not text; under the browser parser a `<pre>` keeps its leading newline.
-- Component tests: a completed reply taller than the screen folds and opens on click, a shorter
-  one does not; a streaming reply, an `error` reply, a reply without tools, a non-agent message
+- Unit tests for `isLongAgentReply`: 1199 characters is not long, 1200 is; a marker line counts
+  as 80, also a pending one with `⏳`; a marker inside a line of text counts as text.
+- Component tests: a completed reply of effective length 1200 folds and opens on click, one of
+  1199 does not; a reply that does not fold renders with no element of the fold's own; an agent
+  emote and an inline body, through the real `MsgTypeRenderers`, keep the body on the line of
+  the `* Agent` prefix and of the streaming or edited suffix; a streaming reply, an `error` reply, a reply without tools, a non-agent message
   and a highlighted row do not fold; the label shows the duration from the replacement
   timestamp; the open state survives a remount through `ManualExpansionStateContext`; expand
   all opens and folds it; a sidecar reply folds once read and not when the read fails.
