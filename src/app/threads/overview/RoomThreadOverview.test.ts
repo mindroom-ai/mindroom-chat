@@ -40,6 +40,8 @@ vi.mock('./RoomThreadOverview.css', () => ({
   WorkflowTabs: 'WorkflowTabs',
   WorkflowTab: 'WorkflowTab',
   WorkflowCount: 'WorkflowCount',
+  WorkflowLabel: 'WorkflowLabel',
+  WorkflowIcon: 'WorkflowIcon',
   ToolbarHeader: 'ToolbarHeader',
   ToggleButton: 'ToggleButton',
   CompactCount: 'CompactCount',
@@ -130,6 +132,17 @@ const defaultProps = {
 };
 
 describe('RoomThreadOverview', () => {
+  it('keeps explicit accessible labels when workflow tabs compress', () => {
+    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
+    const tabs = renderer.root.findAll((node) => node.props['data-thread-tab']);
+    expect(tabs).toHaveLength(5);
+    for (const tab of tabs) {
+      expect(tab.props['aria-label']).toEqual(expect.any(String));
+      expect(tab.props['aria-label'].length).toBeGreaterThan(0);
+    }
+    renderer.unmount();
+  });
+
   it('keeps only search and sort controls in agentless rooms', () => {
     const renderer = create(
       React.createElement(RoomThreadOverview, {

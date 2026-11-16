@@ -19,6 +19,8 @@ export const Overview = style([
   },
 ]);
 
+const WORKFLOW_GAP = toRem(2);
+
 export const ToolbarHeader = style({
   display: 'flex',
   // Wrap controls into recognizable rows when the room is narrow.
@@ -26,6 +28,12 @@ export const ToolbarHeader = style({
   placeItems: 'center start',
   columnGap: config.space.S200,
   rowGap: config.space.S100,
+  selectors: {
+    '&:has([data-thread-tab])': {
+      containerType: 'inline-size',
+      columnGap: WORKFLOW_GAP,
+    },
+  },
 });
 
 export const CompactCount = style({
@@ -309,37 +317,43 @@ export const ResetLink = style({
 
 export const WorkflowTabs = style({
   display: 'flex',
-  flexWrap: 'wrap',
-  gap: toRem(2),
-  padding: toRem(3),
+  flexShrink: 0,
+  gap: WORKFLOW_GAP,
+  height: TOGGLE_SIZE,
   maxWidth: '100%',
   borderRadius: config.radii.R400,
   background: color.SurfaceVariant.Container,
-  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
 });
 
-export const WorkflowTab = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: toRem(5),
-  minHeight: toRem(36),
-  padding: `${toRem(4)} ${toRem(8)}`,
-  border: 'none',
-  borderRadius: config.radii.R300,
-  background: 'transparent',
-  color: color.SurfaceVariant.OnContainer,
-  font: 'inherit',
-  fontSize: toRem(12),
-  whiteSpace: 'nowrap',
-  cursor: 'pointer',
-  selectors: {
-    '&[aria-pressed="true"]': {
-      background: color.Primary.Container,
-      color: color.Primary.OnContainer,
+// Reuse the dropdown's complete sizing, including its border-box height. The group has no
+// extra padding or border, so its outer height is the same as the neighbouring triggers.
+export const WorkflowTab = style([
+  FilterButton,
+  {
+    borderColor: 'transparent',
+    background: 'transparent',
+    selectors: {
+      '&[aria-pressed="true"]': {
+        background: color.Primary.Container,
+        color: color.Primary.OnContainer,
+      },
     },
-    '&:focus-visible': {
-      outline: `${toRem(2)} solid ${color.Primary.Main}`,
-      outlineOffset: toRem(1),
+  },
+]);
+
+export const WorkflowIcon = style({
+  display: 'none',
+  '@container': {
+    '(max-width: 40rem)': {
+      selectors: { '[aria-pressed="false"] &': { display: 'inline-flex' } },
+    },
+  },
+});
+
+export const WorkflowLabel = style({
+  '@container': {
+    '(max-width: 40rem)': {
+      selectors: { '[aria-pressed="false"] &': { display: 'none' } },
     },
   },
 });

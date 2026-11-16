@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
@@ -106,6 +107,14 @@ for (const width of [1280, 390]) {
         execute_at: new Date(Date.now() + 86_400_000).toISOString(),
       }
     );
+    await sendStateEvent(
+      HOMESERVER,
+      agent.accessToken,
+      roomId,
+      'com.mindroom.thread.tags',
+      JSON.stringify([roots[0], 'review']),
+      { set_by: agent.userId, set_at: new Date().toISOString() }
+    );
     await loginWithPassword(page, { homeserver: HOMESERVER, username: reader.username, password });
     await page.goto(`/home/${encodeURIComponent(roomId)}`);
     const overview = page.locator('[data-room-thread-overview]');
@@ -154,6 +163,85 @@ for (const width of [1280, 390]) {
     const box = await overview.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.x + box!.width).toBeLessThanOrEqual(width);
-    await page.screenshot({ path: testInfo.outputPath(`impl-${width}.png`), fullPage: true });
+    await overview.locator('[data-search-toggle]').click();
+    for (const rootFontSize of ['100%', '80%']) {
+      // eslint-disable-next-line no-await-in-loop
+      await page.evaluate((size) => {
+        document.documentElement.style.fontSize = size;
+      }, rootFontSize);
+      // eslint-disable-next-line no-await-in-loop
+      const metrics = await overview.evaluate((element) => {
+        const measure = (node: Element) => {
+          const rect = node.getBoundingClientRect();
+          const style = getComputedStyle(node);
+          return {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+            padding: style.padding,
+            fontSize: style.fontSize,
+            lineHeight: style.lineHeight,
+            borderRadius: style.borderRadius,
+            borderWidth: style.borderWidth,
+            scrollWidth: node.scrollWidth,
+            clientWidth: node.clientWidth,
+          };
+        };
+        const frame = element.querySelector('[data-thread-tab]')!.parentElement!;
+        const toolbar = frame.parentElement!;
+        return {
+          rootFontSize: getComputedStyle(document.documentElement).fontSize,
+          overview: measure(element),
+          toolbar: measure(toolbar),
+          columnGap: parseFloat(getComputedStyle(toolbar).columnGap),
+          frame: measure(frame),
+          tabs: Array.from(frame.children, (node) => ({
+            name: node.getAttribute('data-thread-tab'),
+            ...measure(node),
+          })),
+          triggers: [
+            '[data-people-filter-button]',
+            '[data-tag-filter-button]',
+            '[data-sort-by]',
+          ].map((selector) => ({ selector, ...measure(element.querySelector(selector)!) })),
+          controls: Array.from(toolbar.children)
+            .filter((node) => node.getBoundingClientRect().width > 0)
+            .map(measure),
+        };
+      });
+      // eslint-disable-next-line no-await-in-loop
+      await writeFile(
+        testInfo.outputPath(`metrics-${width}-${rootFontSize}.json`),
+        JSON.stringify(metrics, null, 2)
+      );
+      for (const trigger of metrics.triggers) {
+        expect(metrics.frame.height).toBe(trigger.height);
+        if (width === 1280) expect(metrics.frame.y).toBe(trigger.y);
+      }
+      for (const item of [...metrics.tabs, ...metrics.triggers, metrics.frame]) {
+        expect(item.x).toBeGreaterThanOrEqual(metrics.toolbar.x);
+        expect(item.x + item.width).toBeLessThanOrEqual(metrics.toolbar.x + metrics.toolbar.width);
+        expect(item.scrollWidth).toBeLessThanOrEqual(item.clientWidth);
+      }
+      expect(new Set(metrics.tabs.map((item) => item.y)).size).toBe(1);
+      // The count can be shorter than its neighbours; compare row centres, not top edges.
+      const rows = new Set(metrics.controls.map((item) => Math.round(item.y + item.height / 2)));
+      expect(rows.size).toBeLessThanOrEqual(2);
+      const controlWidth = metrics.controls.reduce((sum, item) => sum + item.width, 0);
+      if (
+        controlWidth + (metrics.controls.length - 1) * metrics.columnGap <=
+        metrics.toolbar.width
+      ) {
+        expect(rows.size).toBe(1);
+      }
+      // eslint-disable-next-line no-await-in-loop
+      await expect(overview.locator('[data-thread-tab][aria-label]')).toHaveCount(5);
+      // eslint-disable-next-line no-await-in-loop
+      await page.screenshot({
+        path: testInfo.outputPath(`impl2-${width}-${rootFontSize}.png`),
+        fullPage: true,
+      });
+    }
   });
 }

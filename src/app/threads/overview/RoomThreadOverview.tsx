@@ -8,6 +8,11 @@ import { Box, Icon, Icons, Text, Tooltip, toRem } from 'folds';
 import { TooltipProvider } from '../../ui/directional';
 import { useTranslation } from 'react-i18next';
 import {
+  IconBell,
+  IconCheck,
+  IconClock,
+  IconList,
+  IconLoader,
   IconFilter,
   IconInfoCircle,
   IconLock,
@@ -43,6 +48,13 @@ import {
 
 // How long a filter change's summary stays in the live region.
 const SPOKEN_SUMMARY_MS = 5_000;
+const WORKFLOW_ICONS = {
+  needsYou: IconBell,
+  working: IconLoader,
+  later: IconClock,
+  done: IconCheck,
+  all: IconList,
+};
 const VISUALLY_HIDDEN = {
   position: 'absolute',
   width: 1,
@@ -594,6 +606,10 @@ export function RoomThreadOverview({
                 key={tab}
                 data-thread-tab={tab}
                 className={css.WorkflowTab}
+                aria-label={`${t(`thread.workflow.${tab}`)} ${localDigits(
+                  String(bucketCounts?.[tab] ?? 0),
+                  i18n.language
+                )}`}
                 aria-pressed={
                   (state.tab ??
                     (THREAD_FILTER_KEYS.some((key) => state[key] !== 'any')
@@ -602,13 +618,27 @@ export function RoomThreadOverview({
                 }
                 onClick={() => onSelectTab?.(tab)}
               >
-                <span>{t(`thread.workflow.${tab}`)}</span>
-                <span className={css.WorkflowCount}>
-                  {localDigits(String(bucketCounts?.[tab] ?? 0), i18n.language)}
+                <span className={css.WorkflowIcon} aria-hidden="true">
+                  {React.createElement(WORKFLOW_ICONS[tab], { size: toRem(12), stroke: 1.8 })}
                 </span>
+                <Text size="T200" className={css.WorkflowLabel}>
+                  {t(`thread.workflow.${tab}`)}
+                </Text>
+                <Text size="T200" className={css.WorkflowCount}>
+                  {localDigits(String(bucketCounts?.[tab] ?? 0), i18n.language)}
+                </Text>
               </button>
             ))}
           </div>
+        )}
+        {/* Info */}
+        {hasMindroomAgents && (
+          <ThreadInfoPopover
+            statusCounts={statusCounts}
+            tagCounts={tagCounts}
+            threadCount={threadCount}
+            totalThreadCount={totalThreadCount}
+          />
         )}
         {peopleFilter}
         {hasMindroomAgents && (state.tags.size > 0 || availableTags.length > 0) && (
@@ -622,18 +652,8 @@ export function RoomThreadOverview({
           />
         )}
 
-        {/* Info + Search */}
-        {hasMindroomAgents && (
-          <ThreadInfoPopover
-            statusCounts={statusCounts}
-            tagCounts={tagCounts}
-            threadCount={threadCount}
-            totalThreadCount={totalThreadCount}
-          />
-        )}
-        <ThreadSearchBar searchQuery={searchQueryDraft} onSearchQueryChange={handleSearch} />
-
         <ThreadSortControl state={state} active={filtersActive} onChange={handleSort} />
+        <ThreadSearchBar searchQuery={searchQueryDraft} onSearchQueryChange={handleSearch} />
         {hasMindroomAgents && state.sortBy !== 'natural' && (
           <TooltipProvider
             position="Bottom"
