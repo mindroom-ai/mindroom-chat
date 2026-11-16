@@ -301,6 +301,7 @@ describe('a fork draft', () => {
         );
         await flushAsyncWork();
       });
+      onForkPointShown.mockClear();
       opening.gate = new Promise<void>((resolve) => {
         open = resolve;
       });
