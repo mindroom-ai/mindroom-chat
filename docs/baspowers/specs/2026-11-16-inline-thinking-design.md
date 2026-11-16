@@ -106,6 +106,17 @@ This handles bodies without markers, markers inside code, and anchors past the l
 - A segment renders when the bulb is open, or when it is the live segment of a streaming reply. Each one has the rail, a button with the label "Hide thinking", and the text with the current Markdown rendering (`ReasoningText`). The rail and the end button set `open` to false and focus the bulb, which scrolls it into view (today's `collapseFromEnd`).
 - Labels: the header says "Thinking…" while live reasoning grows, otherwise "Thought for N s" with the total. Each segment shows "Thought for N s" with its own duration, or "Thinking…" while it is live, or "Thought" without a duration.
 
+### With the "Worked for" fold (#419)
+
+A long finished reply folds its reasoning header, its cog, and every block up to and including its last tool marker behind one `Worked for <duration>` row (`FinishedWorkFold.tsx`, `finishedWorkSplit.ts`). Inline thinking lives inside that fold:
+
+- The header line (bulb and cog) stays the first thing inside the fold, as it is now.
+- Segments at the top, and segments after any tool run (also the last run), render inside the fold. They render as part of the run's block, or right under the header, so `finishedWorkSplit` moves them with the block that holds them.
+- The tail after the last tool call (the answer) stays outside the fold and holds no segment, because a segment's anchor is a marker at most its `after_tool`, and the tail has no marker.
+- So opening "Worked for" shows today's header line, and opening the bulb then shows the thinking in place between the tool runs, as in T3 Code.
+
+A test in `renderAgentMessageContent.finishedWork.test.tsx` pins this: in a folded reply, all segments are inside the fold, and none are in the tail.
+
 Styles go in `Reasoning.css.ts` (vanilla-extract), and strings go in the i18n files that `mindroomUi.messages.mindroomReasoning` uses now.
 
 ### Tests

@@ -153,6 +153,7 @@
   - With the bulb open, clicking one segment's rail (`button` named "Hide thinking" and the rail element) hides all of them, and focus moves to the bulb.
   - A live reply (`LIVE_REASONING_KEY` and segments, active stream status) shows only the last segment, open, while the bulb is closed.
   - An old event without `segments` shows its text at the top when the bulb is open.
+  - In `src/app/messages/content/renderAgentMessageContent.finishedWork.test.tsx` (from #419), add a test. A long finished reply that folds behind "Worked for", with segments at `after_tool` 0 and at the last marker, keeps both segments inside the folded part, with none in the tail, once the fold and the bulb are open. Read `docs/baspowers/specs/2026-11-15-fold-finished-agent-work-design.md` and `FinishedWorkFold.tsx` first.
 - [ ] **Step 2: Write a failing parser test** in `react-custom-html-parser.test.ts`. Use markers `[1]` and `[2]` as consecutive paragraphs, and a segment at `after_tool: 1`. With segments rendering, two run blocks appear with the segment between them. With the bulb closed, one run block appears.
 - [ ] **Step 3: Run both, expect FAIL.**
 - [ ] **Step 4: Implement.**
