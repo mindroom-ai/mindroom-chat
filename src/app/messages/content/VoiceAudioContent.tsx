@@ -354,12 +354,7 @@ export function VoiceAudioContent({
               {loadingSource ? (
                 <Spinner size="100" variant="Primary" fill="Solid" />
               ) : (
-                <Icon
-                  className={playing ? undefined : css.PlayIcon}
-                  size="100"
-                  src={playing ? Icons.Pause : Icons.Play}
-                  filled
-                />
+                <Icon size="100" src={playing ? Icons.Pause : Icons.Play} filled />
               )}
             </IconButton>
           </div>

@@ -34,6 +34,8 @@ import { firstRenderCardCount, useStagedCardIds } from './useStagedCardIds';
 import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import { ThreadCardBadges } from './ThreadCardBadges';
+import { ThreadCardDetails } from './ThreadCardDetails';
+import { useLongPress } from '../../lib/hooks/useLongPress';
 import { useShortcut } from '../../shortcuts/useShortcut';
 import {
   KEY_FOCUS_ATTRIBUTE,
@@ -123,23 +125,29 @@ const CompactThreadCardRow = React.memo(
       [room, rootId]
     );
 
+    const openMenuAt = (x: number, y: number, shell: HTMLElement) => {
+      onOpenMenu({
+        roomId,
+        rootId,
+        viewModel,
+        anchor: { x, y, width: 0, height: 0 },
+        trigger: shell.querySelector<HTMLButtonElement>('[data-thread-root-id]') ?? undefined,
+      });
+    };
+    const longPress = useLongPress(openMenuAt, (evt) =>
+      evt.currentTarget.contains(evt.target as Node)
+    );
+
     return (
       <div
+        {...longPress}
         ref={shownRef}
         className={css.CardShell}
         data-scroll-anchor={rootId}
         onContextMenu={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          onOpenMenu({
-            roomId,
-            rootId,
-            viewModel,
-            anchor: { x: event.clientX, y: event.clientY, width: 0, height: 0 },
-            trigger:
-              event.currentTarget.querySelector<HTMLButtonElement>('[data-thread-root-id]') ??
-              undefined,
-          });
+          openMenuAt(event.clientX, event.clientY, event.currentTarget);
         }}
         onKeyDown={(event) => {
           if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
@@ -426,6 +434,7 @@ export function CompactRoomView({
     // Touch screens hide the hover Resolve button; a swipe resolves or reopens.
     const swipeEnabled =
       canToggle &&
+      menu?.rootId !== rootId &&
       !pinned &&
       isConfirmedMatrixEventId(rootId) &&
       !updatingThreadRootIds.has(rootId);
@@ -526,6 +535,7 @@ export function CompactRoomView({
         className={overlay.Scrollbar}
         label={t('threadNav.messages')}
       />
+      <ThreadCardDetails room={room} listRef={contentRef} menuOpen={!!menu} />
       {menu && menuModel && (
         <Suspense fallback={null}>
           <ThreadActionsMenu

@@ -79,6 +79,7 @@ vi.mock('./MsgTypeRenderers', () => ({
       renderAfterBody
     ),
 }));
+vi.mock('./ImageOverlay', () => ({ ImageOverlay: () => null }));
 vi.mock('folds', () => ({
   Box: ({ children, ...props }: Record<string, unknown>) =>
     React.createElement('div', props, children as React.ReactNode),

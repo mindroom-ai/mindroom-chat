@@ -31,6 +31,7 @@ const entries = vi.hoisted(() => {
   const headerSlot = [banner];
   const cover = { covers: () => false, subscribe: () => () => undefined, Component };
   const badge = { Component };
+  const detail = { Component, shows: () => true };
   const forgotten: string[] = [];
   const page = { path: 'board', Component: (): null => null };
   return {
@@ -46,6 +47,8 @@ const entries = vi.hoisted(() => {
     headerSlot,
     cover,
     badge,
+    detail,
+    Component,
     list: [
       {
         id: 'alpha',
@@ -61,6 +64,7 @@ const entries = vi.hoisted(() => {
           roomHeaderSlot: banner,
           conversationCovers: cover,
           threadCardBadges: badge,
+          threadDetails: detail,
           forgetAccount: 'not a function',
         },
       },
@@ -136,6 +140,7 @@ const entries = vi.hoisted(() => {
             { ...cover, close: 'not a function' },
           ],
           threadCardBadges: [badge, { nope: 1 }],
+          threadDetails: [detail, { Component }, { nope: 1 }, { Component, shows: 'x' }],
           forgotten,
           // A method of the plugin object, which it calls with the plugin as `this`.
           forgetAccount(this: { forgotten: string[] }, userId: string) {
@@ -196,6 +201,9 @@ describe('registeredPlugins', () => {
     // A thread card badge needs a component.
     expect(plugins[0]?.threadCardBadges).toEqual([]);
     expect(plugins[1]?.threadCardBadges).toEqual([entries.badge]);
+    // A thread detail needs a component and no shows or a shows function.
+    expect(plugins[0]?.threadDetails).toEqual([]);
+    expect(plugins[1]?.threadDetails).toEqual([entries.detail, { Component: entries.Component }]);
     // So does a `forgetAccount` that is not a function.
     expect(plugins[0]?.forgetAccount).toBeUndefined();
     await plugins[1]?.forgetAccount?.('@alice:example.org');
@@ -216,6 +224,7 @@ describe('registeredPlugins', () => {
       expect(Object.isFrozen(plugin.roomHeaderSlot)).toBe(true);
       expect(Object.isFrozen(plugin.conversationCovers)).toBe(true);
       expect(Object.isFrozen(plugin.threadCardBadges)).toBe(true);
+      expect(Object.isFrozen(plugin.threadDetails)).toBe(true);
     }
     // The plugin's own list stays as it was.
     expect(Object.isFrozen(entries.headerSlot)).toBe(false);
