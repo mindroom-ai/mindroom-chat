@@ -968,7 +968,14 @@
       "working": "Em andamento",
       "later": "Mais tarde",
       "done": "Concluído",
-      "all": "Todos"
+      "all": "Todos",
+      "description": {
+        "needsYou": "Uma tarefa em segundo plano precisa de aprovação, ou não há nada em execução nem agendado.",
+        "working": "Um agente está respondendo, ou um subagente ou uma ferramenta em segundo plano está em execução.",
+        "later": "Adiados ou aguardando uma tarefa agendada.",
+        "done": "Tópicos resolvidos.",
+        "all": "Todos os tópicos que correspondem aos seus outros filtros."
+      }
     }
   },
   "threadSnooze": {

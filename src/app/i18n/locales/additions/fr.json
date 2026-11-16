@@ -968,7 +968,14 @@
       "working": "En cours",
       "later": "Plus tard",
       "done": "Terminé",
-      "all": "Tous"
+      "all": "Tous",
+      "description": {
+        "needsYou": "Une tâche en arrière-plan attend une approbation, ou rien n’est en cours ni planifié.",
+        "working": "Un agent répond, ou un sous-agent ou un outil fonctionne en arrière-plan.",
+        "later": "Mis en veille ou en attente d’une tâche planifiée.",
+        "done": "Fils résolus.",
+        "all": "Tous les fils correspondant à vos autres filtres."
+      }
     }
   },
   "threadSnooze": {

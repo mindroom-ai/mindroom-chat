@@ -953,7 +953,14 @@
       "working": "Çalışıyor",
       "later": "Sonra",
       "done": "Tamamlandı",
-      "all": "Tümü"
+      "all": "Tümü",
+      "description": {
+        "needsYou": "Bir arka plan görevi onay bekliyor veya çalışan ya da zamanlanmış bir iş yok.",
+        "working": "Bir ajan yanıt veriyor veya bir alt ajan ya da arka plan aracı çalışıyor.",
+        "later": "Ertelenmiş veya zamanlanmış bir görevi bekliyor.",
+        "done": "Çözümlenmiş konular.",
+        "all": "Diğer filtrelerinize uyan tüm konular."
+      }
     }
   },
   "threadSnooze": {

@@ -938,7 +938,14 @@
       "working": "Sedang dikerjakan",
       "later": "Nanti",
       "done": "Selesai",
-      "all": "Semua"
+      "all": "Semua",
+      "description": {
+        "needsYou": "Tugas latar belakang memerlukan persetujuan, atau tidak ada yang berjalan maupun dijadwalkan.",
+        "working": "Agen sedang membalas, atau subagen maupun alat latar belakang sedang berjalan.",
+        "later": "Ditunda, atau menunggu tugas terjadwal.",
+        "done": "Utas yang sudah diselesaikan.",
+        "all": "Semua utas yang cocok dengan filter Anda lainnya."
+      }
     }
   },
   "threadSnooze": {

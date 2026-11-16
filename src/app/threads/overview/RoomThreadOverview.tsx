@@ -601,33 +601,46 @@ export function RoomThreadOverview({
             aria-label={t('mindroomUi.threads.roomThreadOverview.statusFilters')}
           >
             {THREAD_WORKFLOW_TABS.map((tab) => (
-              <button
-                type="button"
+              <TooltipProvider
                 key={tab}
-                data-thread-tab={tab}
-                className={css.WorkflowTab}
-                aria-label={`${t(`thread.workflow.${tab}`)} ${localDigits(
-                  String(bucketCounts?.[tab] ?? 0),
-                  i18n.language
-                )}`}
-                aria-pressed={
-                  (state.tab ??
-                    (THREAD_FILTER_KEYS.some((key) => state[key] !== 'any')
-                      ? undefined
-                      : 'all')) === tab
+                position="Bottom"
+                align="Center"
+                tooltip={
+                  <Tooltip style={{ maxWidth: toRem(320) }}>
+                    <Text size="T200">{t(`thread.workflow.description.${tab}`)}</Text>
+                  </Tooltip>
                 }
-                onClick={() => onSelectTab?.(tab)}
               >
-                <span className={css.WorkflowIcon} aria-hidden="true">
-                  {React.createElement(WORKFLOW_ICONS[tab], { size: toRem(12), stroke: 1.8 })}
-                </span>
-                <Text size="T200" className={css.WorkflowLabel}>
-                  {t(`thread.workflow.${tab}`)}
-                </Text>
-                <Text size="T200" className={css.WorkflowCount}>
-                  {localDigits(String(bucketCounts?.[tab] ?? 0), i18n.language)}
-                </Text>
-              </button>
+                {(triggerRef) => (
+                  <button
+                    ref={triggerRef}
+                    type="button"
+                    data-thread-tab={tab}
+                    className={css.WorkflowTab}
+                    aria-label={`${t(`thread.workflow.${tab}`)} ${localDigits(
+                      String(bucketCounts?.[tab] ?? 0),
+                      i18n.language
+                    )}`}
+                    aria-pressed={
+                      (state.tab ??
+                        (THREAD_FILTER_KEYS.some((key) => state[key] !== 'any')
+                          ? undefined
+                          : 'all')) === tab
+                    }
+                    onClick={() => onSelectTab?.(tab)}
+                  >
+                    <span className={css.WorkflowIcon} aria-hidden="true">
+                      {React.createElement(WORKFLOW_ICONS[tab], { size: toRem(12), stroke: 1.8 })}
+                    </span>
+                    <Text size="T200" className={css.WorkflowLabel}>
+                      {t(`thread.workflow.${tab}`)}
+                    </Text>
+                    <Text size="T200" className={css.WorkflowCount}>
+                      {localDigits(String(bucketCounts?.[tab] ?? 0), i18n.language)}
+                    </Text>
+                  </button>
+                )}
+              </TooltipProvider>
             ))}
           </div>
         )}

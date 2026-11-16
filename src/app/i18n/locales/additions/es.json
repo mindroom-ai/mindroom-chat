@@ -968,7 +968,14 @@
       "working": "En curso",
       "later": "Más tarde",
       "done": "Hecho",
-      "all": "Todos"
+      "all": "Todos",
+      "description": {
+        "needsYou": "Una tarea en segundo plano necesita aprobación, o no hay nada en ejecución ni programado.",
+        "working": "Un agente está respondiendo, o un subagente o una herramienta en segundo plano está en ejecución.",
+        "later": "Pospuestos o a la espera de una tarea programada.",
+        "done": "Hilos resueltos.",
+        "all": "Todos los hilos que coinciden con tus otros filtros."
+      }
     }
   },
   "threadSnooze": {

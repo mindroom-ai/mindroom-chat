@@ -953,7 +953,14 @@
       "working": "In Arbeit",
       "later": "Später",
       "done": "Erledigt",
-      "all": "Alle"
+      "all": "Alle",
+      "description": {
+        "needsYou": "Eine Hintergrundaufgabe benötigt eine Freigabe, oder es läuft nichts und ist nichts geplant.",
+        "working": "Ein Agent antwortet, oder ein Subagent oder Hintergrundwerkzeug ist aktiv.",
+        "later": "Zurückgestellt oder auf eine geplante Aufgabe wartend.",
+        "done": "Erledigte Threads.",
+        "all": "Alle Threads, die deinen anderen Filtern entsprechen."
+      }
     }
   },
   "threadSnooze": {

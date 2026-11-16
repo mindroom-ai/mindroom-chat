@@ -93,3 +93,55 @@ for (const width of [320, 390]) {
     });
   }
 }
+
+const workflowDescriptions = [
+  ['needsYou', 'Needs you', 'Background approval needed, or nothing running or scheduled.'],
+  ['working', 'Working', 'An agent is replying, or a subagent or background tool is running.'],
+  ['later', 'Later', 'Snoozed, or waiting for a scheduled task.'],
+  ['done', 'Done', 'Resolved threads.'],
+  ['all', 'All', 'Every thread matching your other filters.'],
+] as const;
+
+for (const interaction of ['hover', 'keyboard focus'] as const) {
+  test(`workflow descriptions appear on ${interaction} outside the scrollport`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 500 });
+    await page.addInitScript(() => {
+      localStorage.setItem('settings', JSON.stringify({ simpleThreadFilters: false }));
+    });
+    await page.goto('/e2e/fixtures/thread-workflow-tabs.html?lang=en');
+    const tabs = page.locator('[data-thread-tab]');
+    await expect(tabs).toHaveCount(5);
+    if (interaction === 'keyboard focus') {
+      // Enter through keyboard navigation, not a synthetic focus event.
+      await tabs.nth(1).focus();
+      await pressTab(page, true);
+    }
+    for (const [index, [key, label, description]] of workflowDescriptions.entries()) {
+      const tab = page.locator(`[data-thread-tab="${key}"]`);
+      if (interaction === 'hover') await tab.hover();
+      else await expect(tab).toBeFocused();
+      const tooltip = page.getByRole('tooltip').filter({ hasText: description });
+      await expect(tooltip).toBeVisible({ timeout: 5000 });
+      await expect(tooltip).toHaveText(description);
+      await expect(tab).toHaveAttribute('aria-label', `${label} ${key === 'all' ? '3996' : '999'}`);
+      await expect(tab).toContainText(key === 'all' ? '3996' : '999');
+      await expect(tabs.first()).toHaveAttribute('aria-pressed', 'true');
+      // The real provider portals the tooltip out of the overflow-clipped tabs.
+      await expect(tab.locator('..').getByRole('tooltip')).toHaveCount(0);
+      const box = (await tooltip.boundingBox())!;
+      const frame = (await tab.locator('..').boundingBox())!;
+      expect(box.y).toBeGreaterThanOrEqual(frame.y + frame.height);
+      expect(
+        await tooltip.evaluate((element) => element.closest('[data-room-thread-overview]'))
+      ).toBeNull();
+      if (index === 0 && interaction === 'hover') {
+        await page.screenshot({ path: testInfo.outputPath('impl3-tooltip.png') });
+      }
+      if (interaction === 'hover') await page.mouse.move(380, 450);
+      else await pressTab(page);
+      await expect(tooltip).not.toBeVisible();
+    }
+  });
+}

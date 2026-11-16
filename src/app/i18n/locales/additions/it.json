@@ -968,7 +968,14 @@
       "working": "In corso",
       "later": "Più tardi",
       "done": "Completati",
-      "all": "Tutti"
+      "all": "Tutti",
+      "description": {
+        "needsYou": "Serve un’approvazione per un’attività in background, oppure non ci sono attività in corso o pianificate.",
+        "working": "Un agente sta rispondendo, oppure è in esecuzione un sottoagente o uno strumento in background.",
+        "later": "Posticipati o in attesa di un’attività pianificata.",
+        "done": "Thread risolti.",
+        "all": "Tutti i thread che corrispondono agli altri filtri."
+      }
     }
   },
   "threadSnooze": {
