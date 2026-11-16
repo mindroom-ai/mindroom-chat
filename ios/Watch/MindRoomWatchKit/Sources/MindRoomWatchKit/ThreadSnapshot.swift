@@ -35,11 +35,14 @@ public struct ThreadSnapshot: Equatable, Sendable {
     /// Milliseconds since the epoch of the root.
     public let rootTs: Int
     public let title: String
+    /// The title where the first entry does not give it already: the router's own title, or what stands for a
+    /// root that is no entry (one that cannot be read).
+    public let heading: String?
     public let isVoiceRoot: Bool
     /// A voice root's file name: Send follows its own recording by it.
     public let voiceFile: String?
     /// The whole thread in order: the root and every reply, without the router's echoes, relays and titles,
-    /// and each approval card but one that waits for someone else.
+    /// and each approval card that was decided or is the one waiting for this person (`pendingApproval`).
     public let entries: [Entry]
     /// The newest reply from anyone else, not a relay.
     public let reply: Message?
@@ -111,7 +114,8 @@ public struct ThreadSnapshot: Equatable, Sendable {
         let encryptedRoot = root["type"] as? String == "m.room.encrypted"
         // Audio's body is its file's name, with the voice mark or without it.
         let audioRoot = isVoiceRoot || root.content["msgtype"] as? String == "m.audio"
-        let title = ThreadSummary.title(from: notices) ?? transcript
+        let summary = ThreadSummary.title(from: notices)
+        let title = summary ?? transcript
             ?? (audioRoot ? String(localized: "Voice message") : encryptedRoot ? String(localized: "Encrypted message") : rootText)
 
         // The conversation: what people and agents said, without the router's echo and titles.
@@ -125,7 +129,7 @@ public struct ThreadSnapshot: Equatable, Sendable {
             var plain = PlainText.withToolCount(content["body"] as? String ?? "")
             // An audio message's body is its file's name, unless it has a caption (a `filename` beside it).
             if event.content["msgtype"] as? String == "m.audio" {
-                let caption = (event.content["filename"] as? String).map { $0 != event.content["body"] as? String } ?? false
+                let caption = (content["filename"] as? String).map { $0 != content["body"] as? String } ?? false
                 plain = (transcripts[id] ?? (caption ? plain.text : ""), 0)
             }
             return Message(eventId: id, sender: sender, isOwn: sender == ownUserId, text: plain.text,
@@ -171,7 +175,8 @@ public struct ThreadSnapshot: Equatable, Sendable {
         }
         let latestTs = ([root] + conversation).map { max($0.timestamp, edit($0)?.timestamp ?? 0) }.max() ?? root.timestamp
         return ThreadSnapshot(
-            rootId: rootId, rootTs: root.timestamp, title: title, isVoiceRoot: isVoiceRoot,
+            rootId: rootId, rootTs: root.timestamp, title: title,
+            heading: summary ?? (entries.first?.id == rootId ? nil : title), isVoiceRoot: isVoiceRoot,
             voiceFile: isVoiceRoot ? root.content["filename"] as? String ?? root.content["body"] as? String : nil,
             entries: entries, reply: reply, approvals: approvals, pendingApproval: pendingApproval, openQuestion: openQuestion,
             latestTs: latestTs)

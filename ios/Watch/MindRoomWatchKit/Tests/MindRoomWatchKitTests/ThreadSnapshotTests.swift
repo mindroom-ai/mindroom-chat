@@ -288,11 +288,48 @@ final class ThreadSnapshotTests: XCTestCase {
         let file = source(ThreadSnapshot.build(root: voiceRoot, related: [encrypted], ownUserId: me, now: now).reply)?["file"] as? JSON
         XCTAssertEqual(file?["url"] as? String, "mxc://x/secret")
         XCTAssertEqual(file?["v"] as? String, "v2")
-        // Text is not a voice message, and neither is audio the router wrote out.
+        // Text is not a voice message.
         let text = ThreadSnapshot.build(root: voiceRoot, related: [event("$t", 4, inThread(["msgtype": "m.text", "body": "Hi"]))],
                                         ownUserId: me, now: now)
         XCTAssertEqual(text.reply?.isVoiceOnly, false)
         XCTAssertNil(text.reply?.audio)
+        // Audio the router wrote out has words to show, and still plays.
+        let echo = event("$echo", 5, sender: "@mindroom_router:x", ["msgtype": "m.text", "body": "🎤 The table is booked",
+            "com.mindroom.visible_router_voice_echo": true,
+            "m.relates_to": ["rel_type": "m.thread", "event_id": "$root", "m.in_reply_to": ["event_id": "$spoken"]] as JSON])
+        let written = ThreadSnapshot.build(root: voiceRoot, related: [spoken, echo], ownUserId: me, now: now).reply
+        XCTAssertEqual(written?.text, "🎤 The table is booked")
+        XCTAssertEqual(written?.isVoiceOnly, false)
+        XCTAssertEqual(source(written)?["url"] as? String, "mxc://x/answer")
+    }
+
+    func testAnAudioMessagesCaptionIsItsNewestOne() {
+        let plain: JSON = ["msgtype": "m.audio", "body": "voice-message.opus", "url": "mxc://x/answer"]
+        let captioned: JSON = ["msgtype": "m.audio", "body": "The address", "filename": "voice-message.opus", "url": "mxc://x/answer"]
+        let edit = { (content: JSON) in event("$edit", 5, ["m.new_content": content,
+                                                           "m.relates_to": ["rel_type": "m.replace", "event_id": "$spoken"] as JSON]) }
+        let text = { (original: JSON, related: [JSON]) in
+            ThreadSnapshot.build(root: voiceRoot, related: [event("$spoken", 4, inThread(original))] + related, ownUserId: me, now: self.now).reply?.text
+        }
+        XCTAssertEqual(text(captioned, []), "The address")
+        // A caption added later shows, and one taken away leaves no file name behind.
+        XCTAssertEqual(text(plain, [edit(captioned)]), "The address")
+        XCTAssertEqual(text(captioned, [edit(plain)]), "")
+    }
+
+    func testTheHeadingIsATitleTheFirstMessageDoesNotGive() {
+        let root = event("$root", 1, sender: me, ["msgtype": "m.text", "body": "Book a table"])
+        let summary = event("$sum", 6, sender: "@mindroom_router:x", inThread(["msgtype": "m.notice", "body": "Dinner",
+            "io.mindroom.thread_summary": ["version": 1, "summary": "Dinner"] as JSON]))
+        // The first message names the thread, in text or as a voice message: no heading repeats it.
+        XCTAssertNil(ThreadSnapshot.build(root: root, related: [], ownUserId: me, now: now).heading)
+        let spoken = event("$root", 1, sender: me, ["msgtype": "m.audio", "body": "voice-message.m4a", "url": "mxc://x/take",
+                                                    "org.matrix.msc3245.voice": [:] as JSON])
+        XCTAssertNil(ThreadSnapshot.build(root: spoken, related: [], ownUserId: me, now: now).heading)
+        // The router's title is one, and so is what stands for a root that cannot be read and is no entry.
+        XCTAssertEqual(ThreadSnapshot.build(root: root, related: [summary], ownUserId: me, now: now).heading, "Dinner")
+        let locked = event("$root", 1, sender: me, type: "m.room.encrypted", ["algorithm": "m.megolm.v1.aes-sha2", "ciphertext": "x"])
+        XCTAssertEqual(ThreadSnapshot.build(root: locked, related: [], ownUserId: me, now: now).heading, "Encrypted message")
     }
 
     func testAnAudioRootIsNotNamedByItsFile() {
@@ -307,14 +344,17 @@ final class ThreadSnapshotTests: XCTestCase {
         let echo = event("$echo", 6, sender: "@mindroom_router:x", ["msgtype": "m.text", "body": "🎤 And for two",
             "com.mindroom.visible_router_voice_echo": true,
             "m.relates_to": ["rel_type": "m.thread", "event_id": "$root", "m.in_reply_to": ["event_id": "$again"]] as JSON])
-        let snapshot = ThreadSnapshot.build(root: voiceRoot, related: [again, echo], ownUserId: me, now: now)
+        let first = event("$root", 1, sender: me, ["msgtype": "m.audio", "body": "voice-message.m4a", "url": "mxc://x/take",
+                                                   "org.matrix.msc3245.voice": [:] as JSON])
+        let snapshot = ThreadSnapshot.build(root: first, related: [again, echo], ownUserId: me, now: now)
         guard case let .message(root) = snapshot.entries[0], case let .message(reply) = snapshot.entries[1] else {
             return XCTFail("\(snapshot.entries)")
         }
         // Not yet written out: a voice message, to play.
         XCTAssertEqual(root.text, "")
-        XCTAssertNil(root.audio, "the fixture's root has no file")
+        XCTAssertTrue(root.isVoiceOnly)
         XCTAssertEqual(reply.text, "🎤 And for two")
+        XCTAssertFalse(reply.isVoiceOnly)
         XCTAssertEqual(snapshot.title, "Voice message")
     }
 

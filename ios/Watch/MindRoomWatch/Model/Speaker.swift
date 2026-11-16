@@ -41,6 +41,7 @@ final class Speaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
             } catch {
                 guard !Task.isCancelled else { return }
                 log.error("could not play: \(String(describing: error), privacy: .public)")
+                silence()
                 current = nil
                 failed = id
             }
@@ -59,20 +60,27 @@ final class Speaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
         let node = AVAudioPlayerNode()
         engine.attach(node)
         engine.connect(node, to: engine.mainMixerNode, format: file.processingFormat)
+        self.engine = engine
         try AVAudioSession.sharedInstance().setActive(true)
         try engine.start()
         let sound = ObjectIdentifier(engine)
         node.scheduleFile(file, at: nil, completionCallbackType: .dataPlayedBack) { [weak self] _ in self?.ended(sound) }
         node.play()
-        self.engine = engine
         sounding = sound
+    }
+
+    /// Stops the engine and gives the audio session back, so that what it interrupted (music) goes on.
+    private func silence() {
+        guard let engine else { return }
+        engine.stop()
+        self.engine = nil
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     func stop() {
         loading?.cancel()
         loading = nil
-        engine?.stop()
-        engine = nil
+        silence()
         sounding = nil
         if synthesizer.isSpeaking { synthesizer.stopSpeaking(at: .immediate) }
         current = nil
@@ -92,8 +100,7 @@ final class Speaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
     private nonisolated func ended(_ sound: ObjectIdentifier) {
         Task { @MainActor in
             guard self.sounding == sound else { return }
-            self.engine?.stop()
-            self.engine = nil
+            self.silence()
             self.sounding = nil
             self.current = nil
         }

@@ -32,7 +32,7 @@ final class RoomModel: ObservableObject {
     @Published private(set) var rows: [ThreadRow] = [] {
         didSet {
             #if DEBUG
-            for row in rows.prefix(3) { E2EHooks.log("row \(row.rootId ?? row.id) \(String(describing: row.state)) \(row.voiceFile ?? "") | \(row.line)") }
+            for row in rows.prefix(3) { E2EHooks.log("row \(row.rootId ?? row.id) \(String(describing: row.state)) \(row.voiceFile ?? "")") }
             #endif
         }
     }
@@ -54,6 +54,11 @@ final class RoomModel: ObservableObject {
     /// The thread rows as last read from the server, kept when the list cannot be read (offline).
     private var threadRows: [ThreadRow] = []
     private var threadRoots: [String] = []
+    /// Whether a refresh has run to its end, online or not: until then nothing says which of the person's older
+    /// messages have a thread or are marked done.
+    private var refreshed = false
+    /// When this model started, in the timeline's milliseconds, less what the server's clock may be behind.
+    private let startedAt = Int(Date().timeIntervalSince1970 * 1000) - 10_000
     private let client: Client
     private let session: Session?
 
@@ -160,6 +165,7 @@ final class RoomModel: ObservableObject {
         // Offline the list cannot be read: keep its rows (and the widget) as they were, with the person's own
         // messages, queued or failed, kept current.
         do { try await threads.paginate() } catch {
+            refreshed = true
             showLocalRows()
             return
         }
@@ -198,7 +204,8 @@ final class RoomModel: ObservableObject {
         }
         threadRows = rows
         threadRoots = roots
-        rows += ownUnansweredRoots(excluding: Set(roots).union(resolved))
+        rows += ownRoots(notIn: Set(roots).union(resolved))
+        refreshed = true
         self.rows = rows.sorted { $0.ts > $1.ts }
         publishWidgetSnapshot()
     }
@@ -206,7 +213,10 @@ final class RoomModel: ObservableObject {
     /// The rows without a read of the server, which takes several requests: the threads as last read, and the
     /// person's own messages as the room's timeline has them now, so one just recorded shows at once.
     private func showLocalRows() {
-        let rows = (threadRows + ownUnansweredRoots(excluding: Set(threadRoots).union(resolved))).sorted { $0.ts > $1.ts }
+        var own = ownRoots(notIn: Set(threadRoots).union(resolved))
+        // Before the first refresh, only what is still to send and what was sent since the app opened the room.
+        if !refreshed { own.removeAll { $0.rootId != nil && $0.rootTs < startedAt } }
+        let rows = (threadRows + own).sorted { $0.ts > $1.ts }
         if rows != self.rows { self.rows = rows }
     }
 
@@ -223,13 +233,14 @@ final class RoomModel: ObservableObject {
                          rootTs: snapshot.rootTs, voiceFile: snapshot.voiceFile)
     }
 
-    /// The user's own messages in the room that no thread holds yet: a voice message just sent,
-    /// still sending, or failed.
-    private func ownUnansweredRoots(excluding roots: Set<String>) -> [ThreadRow] {
+    /// The user's own messages in the room that are not among the given threads: a voice message just sent,
+    /// still sending, or failed, and one that was answered since the thread list was read (its row stays
+    /// until the list has its thread).
+    private func ownRoots(notIn roots: Set<String>) -> [ThreadRow] {
         let events = feed.events
         return events.enumerated().compactMap { index, item -> ThreadRow? in
             guard item.isOwn, case let .msgLike(content) = item.content, content.threadRoot == nil,
-                  content.threadSummary == nil, case let .message(message) = content.kind else { return nil }
+                  case let .message(message) = content.kind else { return nil }
             var id = ""
             var rootId: String?
             switch item.eventOrTransactionId {

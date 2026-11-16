@@ -84,7 +84,6 @@ enum E2EHooks {
     static func send(on timeline: Timeline) async {
         guard !sent else { return }
         sent = true
-        log("sending")
         if let seconds = environment["MINDROOM_WATCH_E2E_SEND_TONE"].flatMap(Double.init) {
             let url = FileManager.default.temporaryDirectory.appendingPathComponent("voice-message-e2e.m4a")
             do {

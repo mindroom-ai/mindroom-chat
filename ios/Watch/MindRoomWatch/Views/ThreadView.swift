@@ -23,9 +23,8 @@ struct ThreadView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
                     if let snapshot = model.snapshot {
-                        // A thread without a title of its own is named by its first message, which follows.
-                        if !isFirstMessage(snapshot.title, of: snapshot) {
-                            Text(snapshot.title).font(.headline)
+                        if let heading = snapshot.heading {
+                            Text(heading).font(.headline)
                         }
                         ForEach(snapshot.entries) { entry in
                             switch entry {
@@ -73,7 +72,7 @@ struct ThreadView: View {
         .onChange(of: model.snapshot.map(people), initial: true) { _, people in
             if let people { Task { await roomModel.learnNames(people) } }
         }
-        .onDisappear { model.stop() }
+        .onDisappear { model.stop(); speaker.stop() }
         .fullScreenCover(isPresented: $recording) {
             RecordingView { take in Task { await model.replyVoice(take) } }
         }
@@ -96,11 +95,6 @@ struct ThreadView: View {
         #endif
     }
 
-    private func isFirstMessage(_ title: String, of snapshot: ThreadSnapshot) -> Bool {
-        if case let .message(first)? = snapshot.entries.first { return first.text == title }
-        return false
-    }
-
     /// Everyone the thread's messages are from or name.
     private func people(_ snapshot: ThreadSnapshot) -> [String] {
         snapshot.entries.flatMap { entry -> [String] in
@@ -109,11 +103,16 @@ struct ThreadView: View {
         }
     }
 
-    /// A message: the person's own without a name and dimmed, a voice message with its audio to play (the
-    /// person's own only while nothing says what is in it), the newest answer with Listen, and the question
-    /// it asks under it.
+    /// A message: the question it asks first (the thread opens there, and it waits for the person), the
+    /// person's own without a name and dimmed, a voice message with its audio to play (the person's own only
+    /// while nothing says what is in it), the newest answer with Listen.
     private func messageView(_ message: ThreadSnapshot.Message, in snapshot: ThreadSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 4) {
+            if let question = snapshot.openQuestion, question.eventId == message.eventId {
+                QuestionView(question: question, busy: model.answered.contains(question.eventId)) { key in
+                    Task { await model.answer(question, key: key) }
+                }
+            }
             if !message.isOwn {
                 HStack(spacing: 4) {
                     Text(roomModel.name(message.sender)).font(.caption.bold()).foregroundStyle(.tint)
@@ -136,11 +135,6 @@ struct ThreadView: View {
                 }
             } else if message.eventId == snapshot.reply?.eventId, !message.text.isEmpty {
                 listen(message) { speaker.toggle(message.eventId, text: roomModel.named(message.text)) }
-            }
-            if let question = snapshot.openQuestion, question.eventId == message.eventId {
-                QuestionView(question: question, busy: model.answered.contains(question.eventId)) { key in
-                    Task { await model.answer(question, key: key) }
-                }
             }
         }
     }
