@@ -39,17 +39,26 @@ describe('LinkRule', () => {
 });
 
 describe('ItalicRule2', () => {
-  it.each(['MAX_RETRY_COUNT', 'snake_case_name', 'a_b_', '_a_b', '1_000_000', 'a__b__'])(
-    'keeps underscores inside %s as written',
-    (markdown) => {
-      expect(parseInlineMD(markdown)).toBe(markdown);
-    }
-  );
+  it.each([
+    'MAX_RETRY_COUNT',
+    'snake_case_name',
+    'a_b_',
+    '_a_b',
+    '1_000_000',
+    'a__b__',
+    '𝒜_b_',
+    '_b_𝒜',
+    'e\u0301_a_',
+  ])('keeps underscores inside %s as written', (markdown) => {
+    expect(parseInlineMD(markdown)).toBe(markdown);
+  });
 
   it.each([
     ['_a_', '<i data-md="_">a</i>'],
     ['rename _this_ one', 'rename <i data-md="_">this</i> one'],
     ['(_a_)', '(<i data-md="_">a</i>)'],
+    ['&quot;_a_&quot;', '&quot;<i data-md="_">a</i>&quot;'],
+    ['_a_.', '<i data-md="_">a</i>.'],
     ['_snake_case_', '<i data-md="_">snake_case</i>'],
   ])('italicizes %s', (markdown, html) => {
     expect(parseInlineMD(markdown)).toBe(html);

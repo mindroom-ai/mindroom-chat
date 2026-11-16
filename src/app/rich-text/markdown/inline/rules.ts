@@ -4,7 +4,9 @@ import { restoreCodeSource } from './code';
 import type { InlineMDMatcher, InlineMDRule } from './type';
 
 const WHITESPACE = /\s/;
-const WORD_CHARACTER = /[\p{L}\p{N}]/u;
+// What CommonMark counts as inside a word: anything but whitespace, punctuation and symbols. Checked
+// one UTF-16 unit at a time, so half of an astral letter and a combining accent count too.
+const WORD_CHARACTER = /[^\s\p{P}\p{S}]/u;
 
 const isEscaped = (text: string, index: number): boolean => {
   let backslashes = 0;
@@ -29,7 +31,7 @@ type DelimiterOptions = {
   notBeforeCloser?: string;
   /** Characters that keep a delimiter in front of them from closing. */
   notAfterCloser?: string;
-  /** Whether the delimiters may sit inside a word, with a letter or digit on their outer side. */
+  /** Whether the delimiters may sit inside a word, with a word character on their outer side. */
   intraword?: boolean;
 };
 
