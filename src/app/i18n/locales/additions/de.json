@@ -755,6 +755,19 @@
           "expired": "Abgelaufen"
         }
       },
+      "skillReviewMarker": {
+        "updatedOne": "Skill <code>{{skill}}</code> aktualisiert",
+        "createdOne": "Skill <code>{{skill}}</code> erstellt",
+        "updatedMany_one": "{{count}} Skill aktualisiert",
+        "updatedMany_other": "{{count}} Skills aktualisiert",
+        "createdMany_one": "{{count}} Skill erstellt",
+        "createdMany_other": "{{count}} Skills erstellt",
+        "created": "erstellt",
+        "updated": "aktualisiert",
+        "removed": "entfernt",
+        "diffTruncated": "Diff gekürzt",
+        "diffLabel": "Diff von {{path}}"
+      },
       "finishedWork": {
         "workedFor": "{{duration}} gearbeitet",
         "worked": "Gearbeitet"

@@ -791,6 +791,27 @@
           "expired": "منتهي الصلاحية"
         }
       },
+      "skillReviewMarker": {
+        "updatedOne": "تم تحديث المهارة <code>⁨{{skill}}⁩</code>",
+        "createdOne": "تم إنشاء المهارة <code>⁨{{skill}}⁩</code>",
+        "updatedMany_zero": "تم تحديث ⁨{{count}}⁩ مهارة",
+        "updatedMany_one": "تم تحديث ⁨{{count}}⁩ مهارة",
+        "updatedMany_two": "تم تحديث مهارتين (⁨{{count}}⁩)",
+        "updatedMany_few": "تم تحديث ⁨{{count}}⁩ مهارات",
+        "updatedMany_many": "تم تحديث ⁨{{count}}⁩ مهارة",
+        "updatedMany_other": "تم تحديث ⁨{{count}}⁩ مهارة",
+        "createdMany_zero": "تم إنشاء ⁨{{count}}⁩ مهارة",
+        "createdMany_one": "تم إنشاء ⁨{{count}}⁩ مهارة",
+        "createdMany_two": "تم إنشاء مهارتين (⁨{{count}}⁩)",
+        "createdMany_few": "تم إنشاء ⁨{{count}}⁩ مهارات",
+        "createdMany_many": "تم إنشاء ⁨{{count}}⁩ مهارة",
+        "createdMany_other": "تم إنشاء ⁨{{count}}⁩ مهارة",
+        "created": "أُنشئ",
+        "updated": "حُدّث",
+        "removed": "أُزيل",
+        "diffTruncated": "تم اقتطاع الفرق",
+        "diffLabel": "الفرق في ⁨{{path}}⁩"
+      },
       "finishedWork": {
         "workedFor": "عمل لمدة ⁨{{duration}}⁩",
         "worked": "عمل"

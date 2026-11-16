@@ -161,6 +161,9 @@ vi.mock('../agent-run/ThinkingPlaceholder', () => ({
 vi.mock('../agent-run/TranscribingPlaceholder', () => ({
   TranscribingPlaceholder: () => null,
 }));
+vi.mock('../SkillReviewMarker', () => ({
+  SkillReviewMarker: () => null,
+}));
 vi.mock('../thread-summary/ThreadSummaryCard', () => ({
   ThreadSummaryCard: () => null,
 }));

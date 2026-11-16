@@ -746,6 +746,17 @@
           "expired": "期限切れ"
         }
       },
+      "skillReviewMarker": {
+        "updatedOne": "スキル <code>{{skill}}</code> を更新しました",
+        "createdOne": "スキル <code>{{skill}}</code> を作成しました",
+        "updatedMany_other": "{{count}} 件のスキルを更新しました",
+        "createdMany_other": "{{count}} 件のスキルを作成しました",
+        "created": "作成",
+        "updated": "更新",
+        "removed": "削除",
+        "diffTruncated": "差分は省略されています",
+        "diffLabel": "{{path}} の差分"
+      },
       "finishedWork": {
         "workedFor": "{{duration}} 作業しました",
         "worked": "作業しました"
