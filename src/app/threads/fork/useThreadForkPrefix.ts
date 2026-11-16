@@ -29,6 +29,7 @@ import {
   getThreadTimelineEvents,
 } from '../../event-store/timeline/linkedTimelines';
 import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
+import { useLatestRef } from '../../lib/hooks/useLatestRef';
 import { isUnreadableYet } from '../../matrix/decryptionWaits';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { getAppliedEdit } from '../../matrix/protocol/untrustedContent';
@@ -164,7 +165,8 @@ const changedEventId = (event: MatrixEvent): string | undefined => {
   return relation?.rel_type === RelationType.Replace ? relation.event_id : undefined;
 };
 
-type Loaded = { root: MatrixEvent; parentKey: string; prefix: ThreadForkPrefix };
+/** A loaded prefix, for the root with this ID and this reference (whichever copy of it). */
+type Loaded = { rootId: string | undefined; parentKey: string; prefix: ThreadForkPrefix };
 
 const NOT_A_FORK: ThreadForkPrefix & { loading: boolean } = {
   events: [],
@@ -174,8 +176,9 @@ const NOT_A_FORK: ThreadForkPrefix & { loading: boolean } = {
 
 /**
  * The prefix of the fork whose root is `root`: its parents' messages up to each fork point. It is
- * loaded again when the root or its reference changes, and edits and redactions the parents'
- * messages get later show in the events it holds.
+ * loaded again when the root's ID or its reference changes; another copy of the same root (the
+ * SDK's replacing the cache's) keeps it, also while that copy waits to be decrypted. Edits and
+ * redactions the parents' messages get later show in the events it holds.
  */
 export const useThreadForkPrefix = (
   room: Room,
@@ -187,12 +190,20 @@ export const useThreadForkPrefix = (
   const fetchRoomEvent = useFetchRoomEvent(room);
   const [loaded, setLoaded] = useState<Loaded>();
   const [revision, refresh] = useForceUpdate();
-  // An encrypted root shows its reference once decrypted: the key changes then.
-  const reference = root && parseThreadForkRef(root.getOriginalContent());
+  const rootId = root?.getId();
+  const rootRef = useLatestRef(root);
+  // An encrypted root shows its reference once decrypted: the key changes then. A new copy of
+  // the loaded root that is not decrypted yet keeps the reference the loaded one had.
+  const reference =
+    (root && parseThreadForkRef(root.getOriginalContent())) ??
+    (root && isUnreadableYet(root) && loaded?.rootId === rootId
+      ? loaded?.prefix.parent
+      : undefined);
   const parentKey = reference && `${reference.threadId} ${reference.eventId}`;
 
   useEffect(() => {
-    if (!root || !parentKey) return undefined;
+    const shownRoot = rootRef.current;
+    if (!shownRoot || !parentKey) return undefined;
     let current = true;
     const sources: Sources = {
       mx,
@@ -204,21 +215,22 @@ export const useThreadForkPrefix = (
     };
     const loadThreadEvents = (threadId: string, forkPointId: string) =>
       loadParentThreadEvents(sources, threadId, forkPointId);
-    void loadThreadForkPrefix({ loadThreadEvents }, root)
+    void loadThreadForkPrefix({ loadThreadEvents }, shownRoot)
       .catch((error: unknown): ThreadForkPrefix => {
         console.warn('[threadFork] prefix load failed', error);
-        const parent = parseThreadForkRef(root.getOriginalContent());
+        const parent = parseThreadForkRef(shownRoot.getOriginalContent());
         return { events: [], parent, complete: false };
       })
       .then((prefix) => {
-        if (current) setLoaded({ root, parentKey, prefix });
+        if (current) setLoaded({ rootId: shownRoot.getId(), parentKey, prefix });
       });
     return () => {
       current = false;
     };
-  }, [fetchRoomEvent, mx, parentKey, room, root, scheduler, sessionId]);
+  }, [fetchRoomEvent, mx, parentKey, room, rootId, rootRef, scheduler, sessionId]);
 
-  const events = loaded && loaded.root === root ? loaded.prefix.events : undefined;
+  const shown = loaded?.rootId === rootId && loaded?.parentKey === parentKey ? loaded : undefined;
+  const events = shown?.prefix.events;
   useEffect(() => {
     if (!root) return undefined;
     const prefixEvents = events ?? [];
@@ -252,10 +264,10 @@ export const useThreadForkPrefix = (
     // The held events change in place; a new list tells consumers so.
     void revision;
     if (!root || !parentKey) return NOT_A_FORK;
-    if (!loaded || loaded.root !== root || loaded.parentKey !== parentKey) {
+    if (!shown) {
       const parent = parseThreadForkRef(root.getOriginalContent());
       return { events: [], parent, complete: false, loading: true };
     }
-    return { ...loaded.prefix, events: [...loaded.prefix.events], loading: false };
-  }, [loaded, parentKey, revision, root]);
+    return { ...shown.prefix, events: [...shown.prefix.events], loading: false };
+  }, [parentKey, revision, root, shown]);
 };
