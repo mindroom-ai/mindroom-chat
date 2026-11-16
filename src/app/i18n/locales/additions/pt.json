@@ -1311,5 +1311,12 @@
       "idle": "Inativos",
       "resolved": "Resolvidos"
     }
+  },
+  "threadBoard": {
+    "label": "Tópicos por estado",
+    "working": "Em andamento",
+    "later": "Mais tarde",
+    "open": "Abertos",
+    "done": "Concluídos"
   }
 }

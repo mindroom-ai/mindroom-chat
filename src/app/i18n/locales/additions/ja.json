@@ -1263,5 +1263,12 @@
       "idle": "待機中",
       "resolved": "解決済み"
     }
+  },
+  "threadBoard": {
+    "label": "状態別のスレッド",
+    "working": "作業中",
+    "later": "後で",
+    "open": "未完了",
+    "done": "完了"
   }
 }

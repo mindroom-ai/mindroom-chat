@@ -1311,5 +1311,12 @@
       "idle": "Inactifs",
       "resolved": "Résolus"
     }
+  },
+  "threadBoard": {
+    "label": "Fils par état",
+    "working": "En cours",
+    "later": "Plus tard",
+    "open": "Ouverts",
+    "done": "Terminés"
   }
 }

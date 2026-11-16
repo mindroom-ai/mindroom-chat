@@ -1263,5 +1263,12 @@
       "idle": "Tidak aktif",
       "resolved": "Selesai"
     }
+  },
+  "threadBoard": {
+    "label": "Utas menurut status",
+    "working": "Dikerjakan",
+    "later": "Nanti",
+    "open": "Terbuka",
+    "done": "Selesai"
   }
 }
