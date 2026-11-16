@@ -29,7 +29,8 @@ export type ThreadSectionReader<T> = {
 
 type Compare<T> = (left: T, right: T) => number;
 
-const pinnedFirst =
+/** Pinned threads first, by rank (`pinRank`), then the rest by `compare`. */
+export const pinnedFirst =
   <T>(pinRank: (item: T) => number | undefined, compare: Compare<T>): Compare<T> =>
   (left, right) => {
     const leftRank = pinRank(left);

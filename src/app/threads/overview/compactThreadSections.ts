@@ -14,7 +14,7 @@ export type CompactThreadSection = { id: ThreadSectionId; rootIds: string[] };
  * (`jobThreadIds`). The index entry of the thread (`entryOf`), when the index has it, gives when
  * it started and was resolved, and its signals (`signalsOf`) when its last run finished, as in
  * the sidebar; the record stands in for what it lacks. Ties keep the list's order, and the
- * room's pinned threads (`pinnedRootIds`, in pin order) lead their section.
+ * room's pinned threads (`pinnedRootIds`, in the list's order) lead their section.
  */
 export const buildCompactThreadSections = ({
   threadRootIds,

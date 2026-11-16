@@ -5,6 +5,7 @@ import { isSnoozedAt } from '../../event-store/threads/threadSnooze';
 import { isThreadWorking } from '../../event-store/threads/threadWorking';
 import {
   groupThreadSections,
+  pinnedFirst,
   THREAD_SECTION_ORDER,
   type ThreadSectionId,
 } from '../../threads/threadSections';
@@ -13,43 +14,26 @@ export const MAX_SIDEBAR_THREADS = 50;
 export const MAX_SIDEBAR_RESOLVED_THREADS = 20;
 export const MAX_SIDEBAR_SNOOZED_THREADS = 20;
 
-type Compare = (left: CrossRoomThreadIndexEntry, right: CrossRoomThreadIndexEntry) => number;
-
-/** Pinned threads first, by pin rank, then the rest by `compare`. */
-const pinnedFirst = (pinnedThreadKeys: string[], compare: Compare): Compare => {
-  const pinnedRanks = new Map(
-    pinnedThreadKeys.map((threadKey, index) => [threadKey, index] as const)
-  );
-  return (left, right) => {
-    const leftPinnedRank = pinnedRanks.get(left.key);
-    const rightPinnedRank = pinnedRanks.get(right.key);
-
-    if (leftPinnedRank !== undefined && rightPinnedRank !== undefined) {
-      return leftPinnedRank - rightPinnedRank;
-    }
-    if (leftPinnedRank !== undefined) return -1;
-    if (rightPinnedRank !== undefined) return 1;
-
-    return compare(left, right);
-  };
-};
-
 export const buildSidebarThreadEntries = (
   entries: Iterable<CrossRoomThreadIndexEntry>,
   pinnedThreadKeys: string[],
   directRoomIds: ReadonlySet<string> = new Set(),
   limit = MAX_SIDEBAR_THREADS,
   now = Date.now()
-): CrossRoomThreadIndexEntry[] =>
-  Array.from(entries)
+): CrossRoomThreadIndexEntry[] => {
+  const pinnedRanks = new Map(
+    pinnedThreadKeys.map((threadKey, index) => [threadKey, index] as const)
+  );
+  return Array.from(entries)
     .filter(
       (entry) =>
         !entry.isResolved &&
         !isSnoozedAt(entry.snoozedUntilTs, now) &&
         !directRoomIds.has(entry.roomId)
     )
-    .sort(pinnedFirst(pinnedThreadKeys, compareCrossRoomThreadEntries))
+    .sort(pinnedFirst((entry) => pinnedRanks.get(entry.key), compareCrossRoomThreadEntries))
     .slice(0, Math.max(0, limit));
+};
 
 export type SidebarThreadSectionId = ThreadSectionId;
 export type SidebarThreadSection = {

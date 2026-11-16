@@ -72,7 +72,10 @@ export const selectBackgroundJobs = (
   return { jobs, total };
 };
 
-/** The threads the agents' listed jobs run in, by their root IDs; a main timeline job adds none. */
+/**
+ * The threads the agents' listed jobs run in, by their root IDs; a main timeline job adds none.
+ * Jobs past the listed ones (`total` above the list) carry no thread ID, so they mark no thread.
+ */
 export const selectBackgroundJobThreadIds = (events: MatrixEvent[]): ReadonlySet<string> =>
   new Set(
     events.flatMap((event) =>
