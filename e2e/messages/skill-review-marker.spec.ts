@@ -38,7 +38,9 @@ test('a skill review notice is a quiet marker with files on hover and diffs on c
 }, testInfo) => {
   test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
   const shot = (name: string) =>
+    // Disabled animations finish the triggers' highlight transitions before the capture.
     page.screenshot({
+      animations: 'disabled',
       path: process.env.SKILL_REVIEW_SHOTS
         ? `${process.env.SKILL_REVIEW_SHOTS}/${name}.png`
         : testInfo.outputPath(`${name}.png`),
@@ -160,6 +162,7 @@ test('a skill review notice is a quiet marker with files on hover and diffs on c
   await expect(marker).toBeVisible({ timeout: 30_000 });
   await marker.click();
   await expect(panel).toBeVisible();
+  await expect(marker).toHaveAttribute('aria-expanded', 'true');
   await page.mouse.move(640, 790);
   await shot('expanded-light');
 });
