@@ -15,8 +15,11 @@ import {
 } from '../cross-room/crossRoomThreadIndex';
 import { useCompactThreadSections } from './useCompactThreadSections';
 
+const signalsRead = vi.hoisted(() =>
+  vi.fn((_room: Room, _entry: CrossRoomThreadIndexEntry) => ({}))
+);
 vi.mock('../cross-room/threadSignalsReader', () => ({
-  getThreadSignalsReader: () => ({ read: () => ({}) }),
+  getThreadSignalsReader: () => ({ read: signalsRead }),
 }));
 
 const ROOM_ID = '!room:example.org';
@@ -155,5 +158,58 @@ describe('useCompactThreadSections', () => {
     );
 
     expect(result.current).toEqual([{ id: 'resolved', rootIds: ['$new', '$old'] }]);
+  });
+
+  it("reads an Idle thread's signals again only once its own entry changes", () => {
+    signalsRead.mockClear();
+    const store = createStore();
+    const entry = (rootId: string, generation = 0) =>
+      ({
+        key: getCrossRoomThreadIndexKey(ROOM_ID, rootId),
+        roomId: ROOM_ID,
+        threadRootId: rootId,
+        generation,
+      } as CrossRoomThreadIndexEntry);
+    const index = (...entries: CrossRoomThreadIndexEntry[]) =>
+      act(() => {
+        store.set(crossRoomThreadIndexAtom, {
+          ...emptyCrossRoomThreadIndexSnapshot(),
+          entries: new Map(entries.map((item) => [item.key, item] as const)),
+        });
+      });
+    const readsOf = (read: CrossRoomThreadIndexEntry) =>
+      signalsRead.mock.calls.filter(([, item]) => item === read).length;
+    // As the room builds them: new records for every thread on each update.
+    const recordsWith = (streaming: boolean) =>
+      new Map([
+        ['$a', { ...record('$a'), status: { ...record('$a').status, isStreaming: streaming } }],
+        ['$b', record('$b')],
+      ] as const);
+    const idleB = entry('$b');
+    index(entry('$a'), idleB);
+    const { room } = roomWithJobs(jobsState([]));
+    const { rerender } = renderHook(
+      ({ recordMap }: { recordMap: ReadonlyMap<string, ThreadRecord> }) =>
+        useCompactThreadSections({
+          room,
+          enabled: true,
+          threadRootIds: ['$a', '$b'],
+          threadRecordMap: recordMap,
+          pinnedRootIds: [],
+        }),
+      { wrapper: wrapperOf(store), initialProps: { recordMap: recordsWith(false) } }
+    );
+    const mountReads = readsOf(idleB);
+    expect(mountReads).toBeGreaterThan(0);
+
+    // A stream chunk in $a: its entry and every record are new, $b's entry is not.
+    index(entry('$a', 1), idleB);
+    rerender({ recordMap: recordsWith(true) });
+    expect(readsOf(idleB)).toBe(mountReads);
+
+    const repliedB = entry('$b', 1);
+    index(entry('$a', 1), repliedB);
+    rerender({ recordMap: recordsWith(true) });
+    expect(readsOf(repliedB)).toBe(1);
   });
 });

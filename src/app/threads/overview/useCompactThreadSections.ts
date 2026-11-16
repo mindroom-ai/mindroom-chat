@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { atom, useAtomValue, type Atom } from 'jotai';
 import { selectAtom } from 'jotai/utils';
 import type { Room } from 'matrix-js-sdk';
@@ -12,6 +12,7 @@ import {
   crossRoomThreadIndexAtom,
   type CrossRoomThreadIndexEntry,
 } from '../cross-room/crossRoomThreadIndex';
+import type { ThreadSignals } from '../cross-room/threadSignals';
 import { getThreadSignalsReader } from '../cross-room/threadSignalsReader';
 import { useSnoozeNow } from '../tags/useSnoozeNow';
 import { buildCompactThreadSections, type CompactThreadSection } from './compactThreadSections';
@@ -83,6 +84,10 @@ export const useCompactThreadSections = ({
       [enabled, threadRecordMap, threadRootIds]
     )
   );
+  // Each Idle thread's signals, kept by its index entry, which is new whenever that thread
+  // changed: the shared cache reads every thread of the room again on any event in it, so a
+  // stream chunk in one thread would read them all.
+  const [signalsByEntry] = useState(() => new WeakMap<CrossRoomThreadIndexEntry, ThreadSignals>());
   return useMemo(() => {
     if (!enabled) return undefined;
     // The client's shared signals cache, which Activity and the sidebar keep filled.
@@ -92,9 +97,26 @@ export const useCompactThreadSections = ({
       recordMap: threadRecordMap,
       jobThreadIds,
       entryOf: (rootId) => entries.get(rootId),
-      signalsOf: (entry) => reader.read(room, entry, room.myUserId, now),
+      signalsOf: (entry) => {
+        let signals = signalsByEntry.get(entry);
+        if (!signals) {
+          signals = reader.read(room, entry, room.myUserId, now);
+          signalsByEntry.set(entry, signals);
+        }
+        return signals;
+      },
       pinnedRootIds,
       now,
     });
-  }, [enabled, entries, jobThreadIds, now, pinnedRootIds, room, threadRecordMap, threadRootIds]);
+  }, [
+    enabled,
+    entries,
+    jobThreadIds,
+    now,
+    pinnedRootIds,
+    room,
+    signalsByEntry,
+    threadRecordMap,
+    threadRootIds,
+  ]);
 };
