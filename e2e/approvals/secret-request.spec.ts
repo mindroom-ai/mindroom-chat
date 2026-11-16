@@ -35,6 +35,9 @@ import {
 // when the edit comes before the server's answer, and on Save after an error.
 // An agent may also ask for a temporary secret, which its commands receive as a variable: the card
 // names the variable, and the requester chooses how long MindRoom keeps the value before sending it.
+// The agent may say what the secret is, hint at its form and name the page that gives it: the card
+// then carries that title and hint, and a button that names the page's host and opens it in a tab
+// of its own, which knows nothing of the page it came from.
 
 const MINDROOM_API = 'http://127.0.0.1:29597';
 /** Another origin, where a redirect from the MindRoom server points. */
@@ -548,4 +551,57 @@ test('the requester sends a temporary secret and chooses to keep it for 24 hours
   expect(
     await page.evaluate((value) => document.documentElement.outerHTML.includes(value), secret)
   ).toBe(false);
+});
+
+/** The page the agent says gives the secret; the test answers for it, so nothing leaves the machine. */
+const TOKEN_PAGE = 'https://github.com/settings/personal-access-tokens/new?name=mindroom';
+
+test("a card shows the agent's label and field hint, and a button that opens the page it names", async ({
+  context,
+  page,
+}) => {
+  test.slow();
+  const { requester, room } = await seedCard(false, (requesterId, requestId, status) => {
+    const content = temporaryContent(requesterId, requestId, status);
+    return {
+      ...content,
+      'io.mindroom.secret_request': {
+        ...content['io.mindroom.secret_request'],
+        env: 'GITHUB_TOKEN',
+        reason: 'To push the fix to your fork. A fine-grained token with Contents: write is enough.',
+        label: 'GitHub token',
+        url: TOKEN_PAGE,
+        placeholder: 'github_pat_…',
+      },
+    };
+  });
+  await routeSignIn(context, requester, `session-${randomUUID()}`);
+  await context.route('https://github.com/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'text/html', body: '<title>New token</title>' })
+  );
+
+  await openThread(context, page, requester, room);
+  const card = page.locator('[aria-label="Secret request"]');
+  const chip = card.locator('[data-secret-request-status]');
+  await expect(chip).toHaveAttribute('data-secret-request-status', 'waitingForYou', {
+    timeout: 30_000,
+  });
+  // The label is the title, in place of "Secret for <agent>"; the variable stays named below.
+  await expect(card).toContainText('GitHub token');
+  await expect(card).not.toContainText('Secret for');
+  await expect(card).toContainText('in this conversation as GITHUB_TOKEN.');
+  const field = card.getByLabel('Secret for GITHUB_TOKEN', { exact: true });
+  await expect(field).toHaveAttribute('placeholder', 'github_pat_…');
+
+  // The button names the host the browser will open, and opens it apart from this page.
+  const link = card.getByRole('link', { name: 'Open github.com', exact: true });
+  await expect(link).toHaveAttribute('href', TOKEN_PAGE);
+  const [opened] = await Promise.all([context.waitForEvent('page'), link.click()]);
+  await expect(opened).toHaveURL(TOKEN_PAGE);
+  expect(await opened.evaluate(() => window.opener === null && document.referrer === '')).toBe(true);
+  await opened.close();
+
+  // The card waits as before, its field ready for what the person brings back.
+  await expect(chip).toHaveAttribute('data-secret-request-status', 'waitingForYou');
+  await expect(field).toBeVisible();
 });
