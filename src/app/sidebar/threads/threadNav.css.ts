@@ -1,5 +1,5 @@
 import { style } from '@vanilla-extract/css';
-import { color, config } from 'folds';
+import { color, config, toRem } from 'folds';
 import { transition } from '../../ui/styles/transition';
 
 export const CategoryState = style({
@@ -175,4 +175,14 @@ export const EntryTooltipDetails = style({
   gridTemplateColumns: 'auto minmax(0, 1fr)',
   gap: `${config.space.S100} ${config.space.S300}`,
   alignItems: 'baseline',
+});
+
+// The plugins' details, under a rule, hidden while none of them drew anything.
+export const EntryTooltipPluginDetails = style({
+  maxWidth: toRem(320),
+  borderBlockStart: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+  paddingBlockStart: config.space.S200,
+  selectors: {
+    '&:not(:has([data-thread-detail]:not(:empty)))': { display: 'none' },
+  },
 });

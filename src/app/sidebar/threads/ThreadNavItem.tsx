@@ -18,6 +18,7 @@ import { buildCompactThreadCardViewModelFromRecord } from '../../threads/overvie
 import { useInitializeShownThread } from '../../threads/useInitializeShownThread';
 import { ThreadStreamingDot } from '../../threads/ThreadStreamingDot';
 import { ThreadLiveStatusRows } from '../../threads/ThreadLiveStatusRows';
+import { ThreadNavPluginDetails } from './ThreadNavPluginDetails';
 import { useRoomViewMode } from '../../navigation/useRoomViewMode';
 import { useToggleThreadResolution } from '../../threads/tags/useRoomThreadTags';
 import * as css from './threadNav.css';
@@ -201,6 +202,7 @@ function ThreadNavItemRow({
         {/* The tooltip mounts its content only while open, so the rows follow their stores then. */}
         <ThreadLiveStatusRows room={room} entry={entry} />
       </div>
+      <ThreadNavPluginDetails room={room} threadId={entry.threadRootId} />
     </Box>
   );
 
