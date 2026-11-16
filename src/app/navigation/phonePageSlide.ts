@@ -1,5 +1,6 @@
 import { flushSync } from 'react-dom';
 import { NavigationType, type createBrowserRouter } from 'react-router-dom';
+import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
 import { getImperativeJotaiStore } from '../lib/state/jotaiStore';
 import { conversationUnderThreadAtom } from './conversationCover';
 import { phoneNavDrawerOpenAtom } from './phoneNavDrawer';
@@ -47,7 +48,9 @@ let playing = false;
  * in shows as they happen.
  *
  * `change` runs at once, and nothing slides, off the phone layout, in a browser without view
- * transitions and with reduced motion.
+ * transitions and with reduced motion. Nothing slides either when the change leaves the phone
+ * layout, or leaves a dialog open over the page (one that closes with the change, as a search
+ * that opens a room, does not count).
  */
 export const slidePhonePage = (change: Change): void => {
   if (waiting) {
@@ -77,8 +80,12 @@ export const slidePhonePage = (change: Change): void => {
     playing = true;
     flushSync(() => changes.forEach((each) => each(true)));
     const to = depth();
-    if (to === from) transition.skipTransition();
-    else root.dataset.pageSlide = to > from ? 'forward' : 'back';
+    // Nothing to slide where the page is as deep as it was, and nothing where the pictures would
+    // not fit: the phone layout is gone (signed out, turned sideways), or a dialog still open
+    // over the page would show under them.
+    if (to === from || !page.querySelector(`[${PHONE_STAGE}]`) || hasBlockingPortalOverlay()) {
+      transition.skipTransition();
+    } else root.dataset.pageSlide = to > from ? 'forward' : 'back';
   });
   const done = () => {
     playing = false;
@@ -87,6 +94,15 @@ export const slidePhonePage = (change: Change): void => {
   transition.finished.then(done, done);
   // A slide that is skipped rejects it.
   transition.ready.catch(() => undefined);
+};
+
+/**
+ * Runs `change` now, or after the changes that wait for a slide's picture: what it sets is how
+ * the page is left when they have run.
+ */
+export const afterWaitingSlide = (change: () => void): void => {
+  if (waiting) waiting.push(change);
+  else change();
 };
 
 /**
@@ -116,8 +132,7 @@ export const withPhonePageSlide = (router: Router): Router => {
       if (moved) browserSlid = false;
       if (slides) {
         slidePhonePage((sliding) => listener(state, sliding ? { ...opts, flushSync: true } : opts));
-      } else if (waiting) waiting.push(() => listener(state, opts));
-      else listener(state, opts);
+      } else afterWaitingSlide(() => listener(state, opts));
     });
   };
   // The router's own properties are read through it: they are getters over its state.

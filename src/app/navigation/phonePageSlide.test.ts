@@ -3,7 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getImperativeJotaiStore } from '../lib/state/jotaiStore';
 import { conversationUnderThreadAtom } from './conversationCover';
 import { phoneNavDrawerOpenAtom } from './phoneNavDrawer';
-import { PHONE_STAGE, slidePhonePage, withPhonePageSlide } from './phonePageSlide';
+import {
+  PHONE_STAGE,
+  afterWaitingSlide,
+  slidePhonePage,
+  withPhonePageSlide,
+} from './phonePageSlide';
+
+// A dialog or popover in the app's portal container, over the page.
+const overlay = vi.hoisted(() => ({ open: false }));
+vi.mock('../lib/portalOverlay', () => ({ hasBlockingPortalOverlay: () => overlay.open }));
 
 type Router = Parameters<typeof withPhonePageSlide>[0];
 type RouterState = Router['state'];
@@ -52,6 +61,7 @@ beforeEach(() => {
   document.body.append(stage);
   showList(false);
   showThread(false);
+  overlay.open = false;
 });
 
 afterEach(async () => {
@@ -174,6 +184,73 @@ describe('slidePhonePage', () => {
     slidePhonePage(() => showThread(true));
     expect(page.start).toHaveBeenCalledTimes(2);
     page.takePicture();
+    await page.finish();
+  });
+});
+
+describe('slidePhonePage, where its pictures would not fit', () => {
+  it('plays nothing under a dialog that stays open, which the pictures would cover', async () => {
+    const page = browser();
+    showList(true);
+    overlay.open = true;
+    const change = vi.fn(() => showList(false));
+    slidePhonePage(change);
+    page.takePicture();
+
+    expect(change).toHaveBeenCalledWith(true);
+    expect(page.skipTransition).toHaveBeenCalledTimes(1);
+    expect(root.dataset.pageSlide).toBe('');
+    await page.finish();
+  });
+
+  it('slides when the dialog goes with the change, as a search that opens a room does', async () => {
+    const page = browser();
+    showList(true);
+    overlay.open = true;
+    slidePhonePage(() => {
+      overlay.open = false;
+      showList(false);
+    });
+    page.takePicture();
+
+    expect(root.dataset.pageSlide).toBe('forward');
+    expect(page.skipTransition).not.toHaveBeenCalled();
+    await page.finish();
+  });
+
+  it('plays nothing when the change leaves the phone layout, as signing out does', async () => {
+    const page = browser();
+    showThread(true);
+    slidePhonePage(() => {
+      document.body.replaceChildren();
+      showThread(false);
+    });
+    page.takePicture();
+
+    expect(page.skipTransition).toHaveBeenCalledTimes(1);
+    expect(root.dataset.pageSlide).toBe('');
+    await page.finish();
+  });
+});
+
+describe('afterWaitingSlide', () => {
+  it('runs a change at once when no slide waits for its picture', () => {
+    browser();
+    const change = vi.fn();
+    afterWaitingSlide(change);
+    expect(change).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs a change after those that wait, so the last word on the page is its own', async () => {
+    const page = browser();
+    slidePhonePage(() => showList(true));
+    afterWaitingSlide(() => showList(false));
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+
+    page.takePicture();
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+    // The list never showed: nothing slides.
+    expect(page.skipTransition).toHaveBeenCalledTimes(1);
     await page.finish();
   });
 });

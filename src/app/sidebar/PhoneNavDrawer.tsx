@@ -9,7 +9,7 @@ import {
   phoneNavSlotAtom,
   phoneSheetSlotAtom,
 } from '../navigation/phoneNavDrawer';
-import { slidePhonePage } from '../navigation/phonePageSlide';
+import { afterWaitingSlide, slidePhonePage } from '../navigation/phonePageSlide';
 import { useEdgeSwipe } from '../navigation/useEdgeSwipe';
 import { edgeSwipeBackCountAtom } from '../navigation/useEdgeSwipeBack';
 import { useSwipeAway } from '../navigation/useSwipeAway';
@@ -91,8 +91,9 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
   useDrawerFollowsNavigation(setOpenNow);
   useInert(panelRef, !open);
   // Gone with the phone layout (a phone turned sideways), the drawer is away: nothing else would
-  // put it away, and edge swipes rest while it is out.
-  useEffect(() => () => setOpenNow(false), [setOpenNow]);
+  // put it away, and edge swipes rest while it is out. After an opening that still waits for the
+  // page slide's picture, which would otherwise leave it out with no drawer there.
+  useEffect(() => () => afterWaitingSlide(() => setOpenNow(false)), [setOpenNow]);
 
   // Put away, the drawer drops the rail and the list once it has slid out, as a phone's page had
   // them unmounted before; out, or sliding, it holds them.
