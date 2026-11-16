@@ -827,9 +827,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 content={
                   <EmojiBoard
                     imagePackRooms={imagePackRooms}
-                    tab={boardTab}
+                    // A fork draft offers no stickers: one would start a thread, not the fork.
+                    tab={forkFrom ? 'Emoji' : boardTab}
                     onTabChange={setBoardTab}
-                    onStickerSelect={(mxc, _shortcode, label) => sendSticker(mxc, label)}
+                    onStickerSelect={
+                      forkFrom
+                        ? undefined
+                        : (mxc, _shortcode, label) => sendSticker(mxc, label)
+                    }
                     returnFocusOnDeactivate={false}
                     requestClose={() => setEmojiAnchor(undefined)}
                     onEmojiSelect={(unicode) =>
