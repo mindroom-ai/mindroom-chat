@@ -66,8 +66,13 @@ const event = ({
     getRelation: () => (relatesTo ? { event_id: relatesTo } : null),
   } as unknown as MatrixEvent);
 
-const receiptOf = (userId: string) =>
-  event({ type: 'm.receipt', content: { $read: { 'm.read': { [userId]: { ts: 1 } } } } });
+const receiptOf = (userId: string, threadId?: string) =>
+  event({
+    type: 'm.receipt',
+    content: {
+      $read: { 'm.read': { [userId]: { ts: 1, ...(threadId ? { thread_id: threadId } : {}) } } },
+    },
+  });
 
 const setup = (threadId?: string) => {
   // The events the room holds: a reply of the thread `$root`, and a message outside any thread.
@@ -76,8 +81,10 @@ const setup = (threadId?: string) => {
     ['$plain', event({ id: '$plain' })],
   ]);
   const client = { ...emitter(), getUserId: () => ME };
+  const oldest = { ts: Infinity };
   const room = {
     ...emitter(),
+    getOldestThreadedReceiptTs: () => oldest.ts,
     roomId: ROOM_ID,
     client,
     findEventById: (eventId: string) => held.get(eventId),
@@ -97,7 +104,7 @@ const setup = (threadId?: string) => {
         : [...after.threads].filter(([, count]) => count > before).map(([id]) => id);
     return { marked, counted: state().overviewRefreshCounter - overviewRefreshCounter };
   };
-  return { room, client, state, told };
+  return { room, client, state, told, oldest };
 };
 
 describe('useThreadOverviewRefreshCounter changes', () => {
@@ -172,7 +179,46 @@ describe('useThreadOverviewRefreshCounter changes', () => {
       marked: 'room',
       counted: 1,
     });
+    expect(told(() => room.emit(RoomEvent.Receipt, receiptOf(ME, 'main'), room)).marked).toBe(
+      'room'
+    );
     expect(told(() => room.emit(RoomEvent.Receipt, undefined, room)).marked).toBe('room');
+  });
+
+  it("marks the thread of the reader's thread receipt, as the receipt of their own reply is", () => {
+    const { room, told } = setup();
+
+    expect(told(() => room.emit(RoomEvent.Receipt, receiptOf(ME, '$root'), room))).toEqual({
+      marked: ['$root'],
+      counted: 1,
+    });
+    // Someone else's receipt for the main timeline in the same event changes nothing.
+    const mixed = event({
+      type: 'm.receipt',
+      content: {
+        $a: { 'm.read': { [ME]: { ts: 1, thread_id: '$root' } } },
+        $b: {
+          'm.read': { '@alice:example.org': { ts: 1 } },
+          'm.read.private': { [ME]: { ts: 1, thread_id: '$other' } },
+        },
+      },
+    });
+    expect(told(() => room.emit(RoomEvent.Receipt, mixed, room)).marked).toEqual([
+      '$root',
+      '$other',
+    ]);
+  });
+
+  it("marks the room when the reader's oldest thread receipt of the room changes", () => {
+    const { room, told, oldest } = setup();
+
+    oldest.ts = 5;
+    expect(told(() => room.emit(RoomEvent.Receipt, receiptOf(ME, '$root'), room)).marked).toBe(
+      'room'
+    );
+    expect(told(() => room.emit(RoomEvent.Receipt, receiptOf(ME, '$root'), room)).marked).toEqual([
+      '$root',
+    ]);
   });
 
   it('marks the room when a caller asks for a recompute', () => {

@@ -16,6 +16,7 @@ import {
   markThreadRecordChange,
   type ThreadRecordChanges,
 } from '../../event-store/threads/threadRecord';
+import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { isRecord } from '../../lib/isRecord';
 
 /**
@@ -31,13 +32,28 @@ const changedThreadId = (room: Room, mEvent: MatrixEvent): string | undefined =>
   return related && (related.threadRootId ?? relatedId);
 };
 
-/** Whether a receipt event holds a receipt of `userId`; a thread record reads no one else's. */
-const holdsReceiptOf = (receipt: MatrixEvent | undefined, userId: string): boolean =>
-  Object.values(receipt?.getContent() ?? {}).some(
-    (byType) =>
-      isRecord(byType) &&
-      Object.values(byType).some((byUser) => isRecord(byUser) && userId in byUser)
+/**
+ * The threads the receipts of `userId` in a receipt event are for; a thread record reads no one
+ * else's. Undefined when one of them is unthreaded or for the main timeline: such a receipt reads
+ * the root of every thread, or all of each.
+ */
+const receiptThreadIds = (receipt: MatrixEvent, userId: string): string[] | undefined => {
+  const threadIds: string[] = [];
+  const own = Object.values(receipt.getContent()).flatMap((byType) =>
+    isRecord(byType)
+      ? Object.values(byType).map((byUser) => isRecord(byUser) && byUser[userId])
+      : []
   );
+  for (const data of own) {
+    if (isRecord(data)) {
+      if (typeof data.thread_id !== 'string' || data.thread_id === MAIN_ROOM_TIMELINE) {
+        return undefined;
+      }
+      threadIds.push(data.thread_id);
+    }
+  }
+  return threadIds;
+};
 
 /**
  * A recompute key for the room's thread overview (chips, cards, reply counts, unread marks and
@@ -53,8 +69,9 @@ const holdsReceiptOf = (receipt: MatrixEvent | undefined, userId: string): boole
  * the setter, which callers also use to ask for a recompute, keeps its identity.
  *
  * `overviewChanges` says what each count may have changed, for the thread records kept from one
- * count to the next (`ThreadRecordReuse`): the thread of the event or thread update, or the whole
- * room (the reader's own receipt, a caller's request, an event whose thread is unknown). It also
+ * count to the next (`ThreadRecordReuse`): the thread of the event, thread update or reader's
+ * thread receipt, or the whole room (the reader's other receipts, a caller's request, an event
+ * whose thread is unknown). It also
  * takes what a record reads that raises no count: every event the client hears of the room (the
  * edits kept from the sync are in by then), a local echo's progress, a redaction, a member's new
  * name or membership, and the room's encryption. Someone else's receipt changes no record.
@@ -98,12 +115,20 @@ export const useThreadOverviewRefreshCounter = (
     // Optional calls: the rooms of some view tests carry a client stand-in without listeners.
     const client: Partial<Pick<MatrixClient, 'on' | 'removeListener' | 'getUserId'>> | undefined =
       room.client;
+    // The reader's first receipt in a thread, or one older than the others, changes how the SDK
+    // reads every thread of the room (`getThreadEventReadUpTo`).
+    let oldestThreadedReceiptTs = room.getOldestThreadedReceiptTs?.();
     const handleReceipt = (receipt: MatrixEvent | undefined, receiptRoom: Room | undefined) => {
       if (receiptRoom?.roomId !== room.roomId) return;
       const userId = client?.getUserId?.();
-      if (!userId || !receipt || holdsReceiptOf(receipt, userId)) {
+      const threadIds = userId && receipt ? receiptThreadIds(receipt, userId) : undefined;
+      const oldest = room.getOldestThreadedReceiptTs?.();
+      if (!threadIds || oldest !== oldestThreadedReceiptTs) {
         markThreadRecordChange(overviewChanges);
+      } else {
+        threadIds.forEach((id) => markThreadRecordChange(overviewChanges, id));
       }
+      oldestThreadedReceiptTs = oldest;
       bump();
     };
     // Without an ID it is no event of a timeline (typing, a receipt, account data).
