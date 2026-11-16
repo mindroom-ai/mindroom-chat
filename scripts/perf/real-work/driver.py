@@ -19,10 +19,13 @@ history  creates the profile's quiet rooms, then gives each of its threads its t
          (or --streams) replies at once, with the stub at full speed (`wps=0 toolsec=0`). A profile's
          `resolvedThreads` (default 0) of them get their turns first and are then marked resolved, as the person
          does to a thread that is done; Chat's Compact view leaves those out, and the live phase gives them no
-         turn. Writes --out as {"room": str, "threads": [root ID of an open thread...], "resolvedThreads": [root
+         turn. At the first jobs state write of an agent the tester marks the room read (an unthreaded read
+         receipt on that event, as "Mark as read" sends), once: after the history that follows, a client no longer
+         holds that event, as in a room the person marked read long ago, and Chat then looks for it in every
+         thread. Writes --out as {"room": str, "threads": [root ID of an open thread...], "resolvedThreads": [root
          ID...], "quietRooms": [room ID...]} and exits 0 once every thread has its turns; a reply that never ends,
-         no turn posted or ended for the profile's `live.stuckSeconds`, or a thread the homeserver did not let
-         the tester resolve fails the run with exit 1.
+         no turn posted or ended for the profile's `live.stuckSeconds`, or a thread or receipt the homeserver
+         refused fails the run with exit 1.
 live     reads that file (--history) and keeps `live.streams` (or --streams) replies streaming in its threads at the
          profile's pace: a thread whose reply ended gets its next turn after a pause from `live.pauseSeconds`. Every
          5 s it appends one JSON line to --out, {"t": unix s, "target", "streaming", "frames", "edits", "jobs",
@@ -289,6 +292,17 @@ def count_sync(batch: dict, room: str, agent_ids: set[str], reply_roots: dict[st
     return counts
 
 
+def jobs_state_event(batch: dict, room: str, agent_ids: set[str]) -> str | None:
+    """The ID of the first jobs state write of an agent that a /sync answer shows in `room`; None without one."""
+    joined = joined_room(batch, room)
+    events = [*((joined.get("state") or {}).get("events") or []), *((joined.get("timeline") or {}).get("events") or [])]
+    for event in events:
+        event_id = event.get("event_id")
+        if event.get("type") == JOBS_STATE and event.get("sender") in agent_ids and isinstance(event_id, str):
+            return event_id
+    return None
+
+
 def apply_counts(
     scheduler: Scheduler,
     counts: dict,
@@ -353,6 +367,8 @@ class Lobby:
         self._query = f"timeout=1000&filter={quote(json.dumps(sync_filter, separators=(',', ':')))}"
         self._since = ""
         self.reply_roots: dict[str, str] = {}
+        # The first jobs state write of an agent that a sync showed.
+        self.jobs_event: str | None = None
 
     def sync(self) -> dict:
         """What the next /sync answer shows (count_sync); zeros when the homeserver gave no usable answer."""
@@ -369,6 +385,8 @@ class Lobby:
         elif self._since and (joined_room(batch, self.room).get("timeline") or {}).get("limited"):
             log("a /sync answer left events out (over 100 since the last one); a reply's end may go unseen")
         self._since = batch.get("next_batch", self._since)
+        if self.jobs_event is None:
+            self.jobs_event = jobs_state_event(batch, self.room, self.agents)
         return count_sync(batch, self.room, self.agents, self.reply_roots)
 
     def post_turn(self, root: str | None, body: str) -> str | None:
@@ -388,6 +406,17 @@ class Lobby:
             log(f"a turn was not posted: {error}")
             return None
 
+
+    def mark_read(self, event_id: str) -> bool:
+        """Marks the room and its threads read up to `event_id`, as "Mark as read" does in Chat: an unthreaded
+        read receipt. False when the homeserver refused it."""
+        path = f"/_matrix/client/v3/rooms/{quote(self.room)}/receipt/m.read/{quote(event_id)}"
+        try:
+            call(self.homeserver, "POST", path, self.token, {})
+        except (RuntimeError, ValueError) as error:
+            log(f"the room was not marked read: {error}")
+            return False
+        return True
 
     def resolve(self, root: str) -> bool:
         """Marks the thread of `root` resolved, as the person does in Chat: the room state `com.mindroom.thread.tags`
@@ -441,6 +470,7 @@ def run_history(lobby: Lobby, profile: dict, streams: int, rng: random.Random, o
     for thread in sorted(turns_left, key=lambda name: (int(name) < open_threads, int(name))):
         scheduler.add(thread)
     lobby.sync()
+    marked_read = False
     reported = progressed = time.monotonic()
     while turns_left:
         now = time.monotonic()
@@ -458,6 +488,12 @@ def run_history(lobby: Lobby, profile: dict, streams: int, rng: random.Random, o
             progressed = now
         counts = lobby.sync()
         now = time.monotonic()
+        if not marked_read and lobby.jobs_event is not None:
+            # The person marked the room read once, early: the history that follows pushes the receipt's event out
+            # of what a client loads, as in a room marked read long ago.
+            if not lobby.mark_read(lobby.jobs_event):
+                return 1
+            marked_read = True
         for thread in apply_counts(scheduler, counts, lobby.reply_roots, now, thread_of_root):
             progressed = now
             turns_left[thread] -= 1
@@ -485,6 +521,8 @@ def run_history(lobby: Lobby, profile: dict, streams: int, rng: random.Random, o
     }
     out.write_text(json.dumps(history) + "\n")
     log(f"history: {len(roots)} threads with {total} turns, {len(history['resolvedThreads'])} of them resolved")
+    if not marked_read:
+        log("history: no agent wrote jobs state, so the tester has no read receipt in the room")
     return 0
 
 

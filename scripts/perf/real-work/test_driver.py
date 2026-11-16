@@ -302,6 +302,22 @@ class CountSyncTest(unittest.TestCase):
         self.assertEqual(reply_roots, {})
 
 
+class JobsStateEventTest(unittest.TestCase):
+    @staticmethod
+    def jobs(event_id: str, sender: str = AGENT) -> dict:
+        return {"type": "io.mindroom.background_jobs", "event_id": event_id, "sender": sender, "state_key": sender}
+
+    def test_first_jobs_state_write_of_an_agent(self) -> None:
+        answer = batch([reply_event("$reply", "$r"), self.jobs("$jobs1"), self.jobs("$jobs2")])
+        self.assertEqual(driver.jobs_state_event(answer, ROOM, {AGENT}), "$jobs1")
+
+    def test_none_without_one(self) -> None:
+        self.assertIsNone(driver.jobs_state_event(batch([reply_event("$reply", "$r")]), ROOM, {AGENT}))
+        self.assertIsNone(driver.jobs_state_event(batch([self.jobs("$jobs", "@person:x")]), ROOM, {AGENT}))
+        self.assertIsNone(driver.jobs_state_event(batch([self.jobs("$jobs")]), "!other:x", {AGENT}))
+        self.assertIsNone(driver.jobs_state_event({}, ROOM, {AGENT}))
+
+
 class ApplyCountsTest(unittest.TestCase):
     def test_counts_reach_the_scheduler(self) -> None:
         scheduler = driver.Scheduler(2, NO_PAUSE, 600, random.Random(1))
@@ -373,6 +389,9 @@ class FakeLobby:
         self._failing_posts = failing_posts
         self.resolved: list[str] = []
         self.resolves = True
+        self.jobs_event: str | None = None
+        self.marked_read: list[str] = []
+        self.marks_read = True
 
     def clock(self) -> float:
         return self.now
@@ -392,6 +411,11 @@ class FakeLobby:
         if self.resolves:
             self.resolved.append(root)
         return self.resolves
+
+    def mark_read(self, event_id: str) -> bool:
+        if self.marks_read:
+            self.marked_read.append(event_id)
+        return self.marks_read
 
 
 class RunHistoryTest(unittest.TestCase):
@@ -438,6 +462,27 @@ class RunHistoryTest(unittest.TestCase):
         lobby = FakeLobby()
         lobby.resolves = False
         code, history = self.run_history(lobby, resolvedThreads=3)
+        self.assertEqual(code, 1)
+        self.assertEqual(history, {})
+
+    def test_room_is_marked_read_once_at_the_first_jobs_state_write(self) -> None:
+        lobby = FakeLobby()
+        lobby.jobs_event = "$jobs1"
+        code, _ = self.run_history(lobby)
+        self.assertEqual(code, 0)
+        self.assertEqual(lobby.marked_read, ["$jobs1"])
+
+    def test_room_without_jobs_state_is_not_marked_read(self) -> None:
+        lobby = FakeLobby()
+        code, _ = self.run_history(lobby)
+        self.assertEqual(code, 0)
+        self.assertEqual(lobby.marked_read, [])
+
+    def test_refused_receipt_fails_the_history(self) -> None:
+        lobby = FakeLobby()
+        lobby.jobs_event = "$jobs1"
+        lobby.marks_read = False
+        code, history = self.run_history(lobby)
         self.assertEqual(code, 1)
         self.assertEqual(history, {})
 
