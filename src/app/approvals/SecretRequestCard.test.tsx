@@ -142,6 +142,9 @@ const button = (label: string) =>
   );
 const text = () => host.textContent ?? '';
 const chip = () => host.querySelector('[data-secret-request-status]')?.textContent;
+/** The card's title, which stands before its status. */
+const title = () =>
+  host.querySelector('[data-secret-request-status]')?.previousElementSibling?.textContent;
 const status = () => host.querySelector('[role="status"]');
 const card = () => host.querySelector('[aria-label="Key request"]');
 
@@ -838,7 +841,7 @@ describe('SecretRequestCard', () => {
   it("titles a temporary secret's card with what the agent calls the secret", () => {
     render(temporary({ label: 'GitHub token' }));
 
-    expect(host.querySelector(`.${css.Title}`)?.textContent).toBe('GitHub token');
+    expect(title()).toBe('GitHub token');
     expect(text()).not.toContain('Secret for Ada');
     expect(text()).toContain("Given to Ada's commands in this conversation as SUDO_PASSWORD.");
   });
@@ -859,10 +862,11 @@ describe('SecretRequestCard', () => {
     expect(host.querySelector('a')?.textContent).toBe('Open github.com.example.org:8443');
   });
 
-  it('shows no link on a card that names none', () => {
+  it('shows no link on a card that names none, and titles it with the agent', () => {
     render(temporary());
 
     expect(host.querySelector('a')).toBeNull();
+    expect(title()).toBe('Secret for Ada');
   });
 
   it('shows the link only with the field: not to anyone else, in a read-only view, or once answered', () => {
