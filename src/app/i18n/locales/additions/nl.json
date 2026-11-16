@@ -402,7 +402,9 @@
       },
       "about": {
         "thirdPartyNotices": "Kennisgevingen van derden",
-        "soundsCredit": "De meldings- en uitnodigingsgeluiden zijn klanken die voor deze app zijn gesynthetiseerd."
+        "soundsCredit": "De meldings- en uitnodigingsgeluiden zijn klanken die voor deze app zijn gesynthetiseerd.",
+        "debugMode": "Debugmodus",
+        "debugModeDescription": "Legt diagnostiek vast op dit apparaat, zodat je die kunt exporteren en uitgebreide diagnostische tracering kunt inschakelen."
       }
     },
     "createChat": {

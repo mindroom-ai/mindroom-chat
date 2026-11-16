@@ -407,7 +407,9 @@
       },
       "about": {
         "thirdPartyNotices": "Avvisi di terze parti",
-        "soundsCredit": "I suoni di notifica e di invito sono rintocchi sintetizzati per questa app."
+        "soundsCredit": "I suoni di notifica e di invito sono rintocchi sintetizzati per questa app.",
+        "debugMode": "Modalità debug",
+        "debugModeDescription": "Registra la diagnostica su questo dispositivo per poterla esportare e attivare il tracciamento diagnostico approfondito."
       }
     },
     "createChat": {

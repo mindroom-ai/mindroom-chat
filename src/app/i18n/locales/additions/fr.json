@@ -407,7 +407,9 @@
       },
       "about": {
         "thirdPartyNotices": "Avis de tiers",
-        "soundsCredit": "Les sons de notification et d'invitation sont des carillons synthétisés pour cette application."
+        "soundsCredit": "Les sons de notification et d'invitation sont des carillons synthétisés pour cette application.",
+        "debugMode": "Mode débogage",
+        "debugModeDescription": "Enregistre des diagnostics sur cet appareil pour que vous puissiez les exporter et activer le traçage de diagnostic approfondi."
       }
     },
     "createChat": {

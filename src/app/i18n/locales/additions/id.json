@@ -397,7 +397,9 @@
       },
       "about": {
         "thirdPartyNotices": "Pemberitahuan pihak ketiga",
-        "soundsCredit": "Suara notifikasi dan undangan adalah nada yang disintesis untuk aplikasi ini."
+        "soundsCredit": "Suara notifikasi dan undangan adalah nada yang disintesis untuk aplikasi ini.",
+        "debugMode": "Mode debug",
+        "debugModeDescription": "Merekam diagnostik di perangkat ini agar Anda dapat mengekspornya dan mengaktifkan pelacakan diagnostik mendalam."
       }
     },
     "createChat": {

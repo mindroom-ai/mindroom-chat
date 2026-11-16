@@ -697,8 +697,8 @@ describe('CompactRoomView', () => {
     (scrollElement: ReturnType<typeof createScrollElement>) => (element: React.ReactElement) =>
       element.props['data-compact-room-view'] === 'true'
         ? scrollElement
-        : // The cards' container listens for touchmove.
-          { addEventListener: () => undefined, removeEventListener: () => undefined };
+        : // The cards' container listens for touchmove; a card's track comes to rest as it goes.
+          { addEventListener: () => undefined, removeEventListener: () => undefined, style: {} };
 
   it('gives the cards one touch-action and one touchmove listener, on their container', () => {
     // One on every card costs WebKit on iOS a touch region a card (CompactCardSwipe.css.ts).
@@ -718,6 +718,7 @@ describe('CompactRoomView', () => {
                     listening.push(String(element.props.className));
                   },
                   removeEventListener: () => undefined,
+                  style: {},
                 },
         }
       );
