@@ -69,6 +69,23 @@ describe('inline message images', () => {
     expect(root.findAllByType(ImageOverlay)).toHaveLength(0);
   });
 
+  it.each([
+    '<img src="mxc://example/chart" alt="Report">',
+    '<strong><img src="mxc://example/chart" alt="Report"></strong>',
+  ])('preserves link navigation for a linked image: %s', (content) => {
+    const root = renderHtml(`<a href="https://example.org/report">${content}</a>`);
+    const link = root.findByType('a');
+    expect(link.props.href).toBe('https://example.org/report');
+    expect(link.findByType('img').props).toMatchObject({
+      className: 'InlineImage',
+      src: url,
+      alt: 'Report',
+      loading: 'lazy',
+    });
+    expect(root.findAllByType('button')).toHaveLength(0);
+    expect(root.findAllByType(ImageOverlay)).toHaveLength(0);
+  });
+
   it('names an image without alt text', () => {
     const root = renderHtml('<img src="mxc://example/chart">');
     expect(root.findByType('button').props['aria-label']).toBe('View');

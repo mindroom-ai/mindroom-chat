@@ -799,6 +799,17 @@ export const getReactCustomHtmlParser = (
               </span>
             );
           }
+          if (hasAncestor(domNode, ['a'])) {
+            return (
+              <img
+                {...props}
+                src={url}
+                alt={revealDirectionControls(alt ?? '')}
+                className={css.InlineImage}
+                loading="lazy"
+              />
+            );
+          }
           return <InlineImage {...props} src={url} alt={alt ?? ''} />;
         }
         default:
