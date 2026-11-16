@@ -12,6 +12,7 @@ import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
+import { keepSyncedEdits } from '../matrix/client/syncedEdits';
 import { getLiveReplyStore } from '../messages/live/liveReplyStore';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
 import type { CrossRoomThreadIndexEntry } from './cross-room/crossRoomThreadIndex';
@@ -290,6 +291,48 @@ describe('ThreadLiveStatusRows', () => {
     );
 
     expect(textOf(render(mx, room, true))).toContain('1 running: read');
+  });
+
+  it('follows an edit the sync brought that the SDK holds back, with no live frame', async () => {
+    const running = reply('$running', 3000, {
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.tool_trace': { version: 2, events: [started('shell')] },
+    });
+    const { mx, room } = await setup([running]);
+    const stopKeeping = keepSyncedEdits(mx);
+    const rows = render(mx, room, true);
+    expect(textOf(rows)).toContain('1 running: shell');
+
+    // A progress edit of a thread not opened: no Replaced event and no thread update.
+    act(() => {
+      mx.emit(
+        ClientEvent.Event,
+        new MatrixEvent({
+          event_id: '$progress',
+          room_id: ROOM_ID,
+          sender: AGENT,
+          type: 'm.room.message',
+          origin_server_ts: 3100,
+          content: {
+            msgtype: 'm.text',
+            body: '* $running',
+            'm.new_content': {
+              msgtype: 'm.text',
+              body: '$running',
+              'io.mindroom.stream_status': 'streaming',
+              'io.mindroom.tool_trace': {
+                version: 2,
+                events: [completed('shell'), started('grep')],
+              },
+            },
+            'm.relates_to': { rel_type: RelationType.Replace, event_id: '$running' },
+          },
+        })
+      );
+    });
+
+    expect(textOf(rows)).toContain('1 running: grep');
+    stopKeeping();
   });
 
   it('counts no tool once the reply stopped streaming', async () => {

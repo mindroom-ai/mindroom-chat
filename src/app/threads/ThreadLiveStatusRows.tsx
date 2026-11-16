@@ -25,17 +25,19 @@ const NO_EVENTS: MatrixEvent[] = [];
 /**
  * The tool calls the thread's streaming replies run, several agents' at once: each reply's live
  * frames while they show over it, else its latest edit's tool trace. Read again on each frame,
- * edit and thread update.
+ * edit, thread update and change the room hears (`roomChanges`): an edit the SDK holds back for
+ * a thread not opened brings neither of the others.
  */
-const useRunningTools = (room: Room, threadId: string, streaming: boolean) => {
+const useRunningTools = (room: Room, threadId: string, streaming: boolean, roomChanges: number) => {
   const mx = useMatrixClient();
   const [version, refresh] = useForceUpdate();
   const [frames, framed] = useForceUpdate();
   const thread = room.getThread(threadId) ?? undefined;
   const replies = useMemo(() => {
     void version;
+    void roomChanges;
     return streaming ? getThreadStreamingReplies(room, threadId) : NO_EVENTS;
-  }, [room, streaming, threadId, version]);
+  }, [room, roomChanges, streaming, threadId, version]);
   useThreadEventRefresh(thread, replies, refresh);
 
   const store = getLiveReplyStore(mx);
@@ -81,17 +83,17 @@ export function ThreadLiveStatusRows({ room, entry }: ThreadLiveStatusRowsProps)
   const userId = mx.getUserId() ?? '';
   const threadId = entry.threadRootId;
   const streaming = entry.threadRecord.status.isStreaming;
-  const runningTools = useRunningTools(room, threadId, streaming);
   const { active: activeSubagents } = useRoomSubagentCounts(room.roomId, threadId);
   const { jobs: roomJobs, total: roomTotal } = useRoomBackgroundJobs(room);
   const jobs = useMemo(() => jobsInView(roomJobs, threadId), [roomJobs, threadId]);
-  // Both read more than the entry follows: a reaction that answers, an edit or a decryption that
-  // changes a reply's cost. So they are read again whenever the room hears anything.
+  // The status, tools and cost read more than the entry follows: a reaction that answers, an edit
+  // or a decryption. So they are read again whenever the room hears anything.
   const [roomChanges, roomChanged] = useForceUpdate();
   useEffect(
     () => subscribeRoomSignals(mx, room.roomId, roomChanged),
     [mx, room.roomId, roomChanged]
   );
+  const runningTools = useRunningTools(room, threadId, streaming, roomChanges);
   // The reader reads the thread again only when something its signals depend on changed.
   const signals = getThreadSignalsReader(mx).read(room, entry, userId, Date.now());
   // Renders again once what the thread waits on lapses, such as an approval that expires.
