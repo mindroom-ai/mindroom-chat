@@ -12,6 +12,7 @@ import { isRecord } from '../../lib/isRecord';
 import { matchesEnum } from '../../lib/matchesEnum';
 import { stripRedactedRelationsFromRawEvent } from '../eventRevision';
 import { withoutRedactedThreadPreviews } from '../threadSummaryPreviews';
+import { dropSettledScheduledTasks } from './savedSyncScheduledTasks';
 
 // The SDK saves its sync store after the first sync of a session and then at most every five
 // minutes. A reload or an offline start in between replays the saved sync, so what changed since
@@ -169,13 +170,15 @@ export const dropRedactedContent = (
 
 /**
  * Drops the redacted content from the sync the client's store saves (only the IndexedDB store has
- * one), with the edits each room took a redaction of as it arrived (eventRevision.ts).
+ * one), with the edits each room took a redaction of as it arrived (eventRevision.ts), and the
+ * scheduled tasks that are no longer pending (savedSyncScheduledTasks.ts).
  */
-const dropRedactedContentFromSavedSync = (mx: MatrixClient): void => {
+const trimSavedSync = (mx: MatrixClient): void => {
   const sync = (mx.store as unknown as { backend?: { syncAccumulator?: SavedSync } }).backend
     ?.syncAccumulator;
-  if (sync)
-    dropRedactedContent(sync, (roomId) => mx.getRoom(roomId)?.redactedBundledEdits ?? new Set());
+  if (!sync) return;
+  dropRedactedContent(sync, (roomId) => mx.getRoom(roomId)?.redactedBundledEdits ?? new Set());
+  dropSettledScheduledTasks(sync);
 };
 
 /**
@@ -224,7 +227,7 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
     }
     dropWaitingSave();
     saving = true;
-    dropRedactedContentFromSavedSync(mx);
+    trimSavedSync(mx);
     mx.store
       .save(true)
       .catch((error: unknown) => {
@@ -270,7 +273,7 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
     // The session's first batch and the first after five minutes are saved by the SDK, with
     // every batch before them.
     if (mx.store.wantsSave()) {
-      dropRedactedContentFromSavedSync(mx);
+      trimSavedSync(mx);
       redactionSinceSave = false;
       changeSinceSave = false;
       dropWaitingSave();
