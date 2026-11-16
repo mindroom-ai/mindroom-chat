@@ -37,7 +37,8 @@ import {
 // names the variable, and the requester chooses how long MindRoom keeps the value before sending it.
 // The agent may say what the secret is, hint at its form and name the page that gives it: the card
 // then carries that title and hint, and a button that names the page's host and opens it in a tab
-// of its own, which knows nothing of the page it came from.
+// of its own, which knows nothing of the page it came from. A host too long for the button's line
+// wraps, so the person reads all of it, its end too, which says whose page it is.
 
 const MINDROOM_API = 'http://127.0.0.1:29597';
 /** Another origin, where a redirect from the MindRoom server points. */
@@ -604,4 +605,42 @@ test("a card shows the agent's label and field hint, and a button that opens the
   // The card waits as before, its field ready for what the person brings back.
   await expect(chip).toHaveAttribute('data-secret-request-status', 'waitingForYou');
   await expect(field).toBeVisible();
+});
+
+test('a host too long for one line wraps on the button, so its end stays readable', async ({
+  context,
+  page,
+}) => {
+  test.slow();
+  const host = 'github.com.settings.personal-access-tokens.new.accounts.example.org';
+  const { requester, room } = await seedCard(false, (requesterId, requestId, status) => {
+    const content = temporaryContent(requesterId, requestId, status);
+    return {
+      ...content,
+      'io.mindroom.secret_request': {
+        ...content['io.mindroom.secret_request'],
+        url: `https://${host}/login`,
+      },
+    };
+  });
+  await routeSignIn(context, requester, `session-${randomUUID()}`);
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  await openThread(context, page, requester, room);
+  const card = page.locator('[aria-label="Secret request"]');
+  const link = card.getByRole('link', { name: `Open ${host}`, exact: true });
+  await expect(link).toBeVisible({ timeout: 30_000 });
+
+  // Nothing of the text is cut off or pushed out of the button, and the button stays in the card.
+  const fit = await link.evaluate((button) => {
+    const text = button.querySelector('bdi')?.parentElement ?? button;
+    const box = button.getBoundingClientRect();
+    const around = button.closest('[aria-label="Secret request"]')?.getBoundingClientRect();
+    return {
+      cut: text.scrollWidth > text.clientWidth || button.scrollWidth > button.clientWidth,
+      lines: box.height > 40,
+      inside: !!around && box.left >= around.left && box.right <= around.right,
+    };
+  });
+  expect(fit).toEqual({ cut: false, lines: true, inside: true });
 });
