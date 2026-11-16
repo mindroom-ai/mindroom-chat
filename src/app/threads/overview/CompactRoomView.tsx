@@ -413,7 +413,14 @@ export function CompactRoomView({
   };
 
   return (
-    <Box ref={viewRef} className={css.View} data-compact-room-view="true" tabIndex={-1}>
+    <Box
+      ref={viewRef}
+      className={css.View}
+      data-compact-room-view="true"
+      // Cards still to mount: the cards' end is further down than the view's.
+      data-cards-pending={stagedRootIds.length < shownRootIds.length || undefined}
+      tabIndex={-1}
+    >
       <Box
         ref={contentRef}
         className={`${SwipeList} ${css.Cards}`}

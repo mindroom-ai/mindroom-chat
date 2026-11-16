@@ -29,8 +29,8 @@ export const firstRenderCardCount = (
  * order. A change that brings no more than `CARD_MOUNT_CHUNK` new cards (a new thread, a stream)
  * renders the whole list at once. The first render of a room (`scope`) renders its first
  * `firstCount` cards (`firstRenderCardCount`), by default the whole list, and the others mount as
- * those of a filter change: mounting all 259 cards of a room at once on the way back from a
- * thread kept a phone (4x CPU throttling) from painting for 3.5 to 5 s.
+ * those of a filter change: mounting all 266 cards of a room at once on the way back from a
+ * thread kept a phone (4x CPU throttling) from painting for 2.3 to 5.1 s.
  */
 export const useStagedCardIds = (
   scope: string,
@@ -41,8 +41,9 @@ export const useStagedCardIds = (
   const mountedRef = useRef<{ scope: string; ids: ReadonlySet<string> }>();
   const [chunk, nextChunk] = useState(0);
 
-  // Worked out again for a new list or the next chunk's task only: a room's first commit sets off
-  // renders of its own in the same task, which would otherwise mount every chunk before it paints.
+  // Worked out again only for a new list, scope or first count, or in the next chunk's task: a
+  // room's first commit sets off renders of its own in the same task, which would otherwise mount
+  // every chunk before it paints.
   // The same cards in a new array, as a rebuilt index gives them, are the same list.
   const listKey = threadRootIds.join('\n');
   const shownIds = useMemo(() => {
