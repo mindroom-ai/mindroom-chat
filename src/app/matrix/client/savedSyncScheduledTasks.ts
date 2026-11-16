@@ -1,5 +1,8 @@
 import { isRecord } from '../../lib/isRecord';
-import { MINDROOM_SCHEDULED_TASK_EVENT } from '../protocol/scheduledTaskContract';
+import {
+  isPendingScheduledTaskStatus,
+  MINDROOM_SCHEDULED_TASK_EVENT,
+} from '../protocol/scheduledTaskContract';
 
 // The backend keeps every scheduled task as a state event in its room, and a finished or cancelled
 // one stays there for good. A busy room collects thousands of them (one room held 3,453, 4 MB),
@@ -12,7 +15,7 @@ import { MINDROOM_SCHEDULED_TASK_EVENT } from '../protocol/scheduledTaskContract
 type SavedSync = { joinRooms?: Record<string, object> };
 
 const isPendingTask = (event: unknown): boolean =>
-  isRecord(event) && isRecord(event.content) && event.content.status === 'pending';
+  isRecord(event) && isRecord(event.content) && isPendingScheduledTaskStatus(event.content.status);
 
 /** Drops every scheduled task that is not pending from the rooms' state in `sync`. */
 export const dropSettledScheduledTasks = (sync: SavedSync): void => {
