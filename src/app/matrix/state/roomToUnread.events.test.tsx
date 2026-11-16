@@ -92,8 +92,11 @@ describe('useBindRoomToUnreadAtom', () => {
   });
 
   it('counts the room again when its highlight count changes', async () => {
-    const { room, entry } = setUp();
-    room.state.main = { total: 1, highlight: 1 };
+    const room = makeRoom();
+    room.state.main.total = 1;
+    const { entry } = setUp([room]);
+    expect(entry()).toEqual({ total: 1, highlight: 0 });
+    room.state.main.highlight = 1;
     room.emit(RoomEvent.UnreadNotifications, room.state.main);
     await afterCounts();
     expect(entry()).toEqual({ total: 1, highlight: 1 });
@@ -155,13 +158,16 @@ describe('useBindRoomToUnreadAtom', () => {
   });
 
   it('drops the room when the user leaves it and lists it again on a join, at once', () => {
-    const { mx, room, entry } = setUp();
+    const room = makeRoom();
     room.state.main.total = 1;
-    mx.emit(RoomEvent.MyMembership, room, 'join');
+    const { mx, entry } = setUp([room]);
     expect(entry()).toEqual({ total: 1, highlight: 0 });
     room.state.membership = 'leave';
     mx.emit(RoomEvent.MyMembership, room, 'leave');
     expect(entry()).toBeUndefined();
+    room.state.membership = 'join';
+    mx.emit(RoomEvent.MyMembership, room, 'join');
+    expect(entry()).toEqual({ total: 1, highlight: 0 });
   });
 
   it('watches the counts of a room that arrives later', async () => {
