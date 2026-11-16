@@ -772,6 +772,10 @@
           "declined": "Отклонён",
           "expired": "Истёк"
         }
+      },
+      "finishedWork": {
+        "workedFor": "Работал {{duration}}",
+        "worked": "Работал"
       }
     },
     "message-search": {
