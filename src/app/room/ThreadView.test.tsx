@@ -37,6 +37,7 @@ const state = vi.hoisted(() => ({
   timelineLevels: undefined as unknown,
   dropTarget: undefined as HTMLElement | null | undefined,
   composerViews: [] as (string | undefined)[],
+  composerMounts: 0,
   approvals: undefined as Omit<ApprovalProps, 'children'> | undefined,
   composer: undefined as
     | {
@@ -124,6 +125,9 @@ vi.mock('../composer/RoomInput', () => ({
     state.composer = { threadId, forkFrom, onRoomMessageSent };
     const view = useContext(ConversationViewContext);
     useEffect(() => {
+      state.composerMounts += 1;
+    }, []);
+    useEffect(() => {
       state.dropTarget = fileDropContainerRef.current;
       state.composerViews.push(view);
     });
@@ -143,6 +147,7 @@ beforeEach(() => {
   state.timelineLevels = undefined;
   state.dropTarget = undefined;
   state.composerViews = [];
+  state.composerMounts = 0;
   state.approvals = undefined;
   state.composer = undefined;
   state.navigateRoomThread.mockReset();
@@ -484,6 +489,17 @@ describe('a fork draft', () => {
       state.composer?.onRoomMessageSent?.('$fork');
     });
     expect(store.get(replyAtom)).toBeUndefined();
+  });
+
+  it('gives the draft a composer of its own, and the thread its own again as the draft closes', () => {
+    const { rerender } = render(<ThreadView room={room} threadId={THREAD} />);
+    expect(state.composerMounts).toBe(1);
+
+    rerender(<ThreadView room={room} threadId={THREAD} forkAt="$point" />);
+    expect(state.composerMounts).toBe(2);
+
+    rerender(<ThreadView room={room} threadId={THREAD} />);
+    expect(state.composerMounts).toBe(3);
   });
 
   it('asks the timeline for no draft at a point the server has not confirmed', () => {

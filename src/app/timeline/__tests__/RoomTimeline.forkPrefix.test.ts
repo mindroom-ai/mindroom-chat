@@ -1,3 +1,4 @@
+import { EventStatus } from 'matrix-js-sdk';
 import React from 'react';
 import { act, type ReactTestInstance } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
@@ -199,11 +200,20 @@ describe('a fork draft', () => {
     }
   });
 
-  it('keeps every row read-only while its fork point is not among them', async () => {
+  it('keeps every row read-only while its fork point is not among them, a failed edit too', async () => {
     const { RoomTimeline } = await import('../RoomTimeline');
     const { Message } = await import('../../messages/Message');
+    const { FailedSendActions } = await import('../../messages/FailedSendActions');
     const root = makeEvent('$parent', { isThreadRoot: true, ts: 1_000 });
-    const a = makeEvent('$a', { threadRootId: '$parent', ts: 2_000 });
+    const a = makeEvent('$a', { threadRootId: '$parent', ts: 2_000 }) as ReturnType<
+      typeof makeEvent
+    > & { __editedEvent?: unknown };
+    // An edit of `$a` in the parent that failed to send: Retry would send it into the parent.
+    const failedEdit = makeEvent('$failed-edit', { content: { body: 'edited' } }) as ReturnType<
+      typeof makeEvent
+    > & { status?: EventStatus };
+    failedEdit.status = EventStatus.NOT_SENT;
+    a.__editedEvent = failedEdit;
     forkPrefix.value = { events: [], parent: undefined };
     const rows = [root, a];
     const timeline = makeTimeline(rows, { backwardToken: null });
@@ -237,6 +247,7 @@ describe('a fork draft', () => {
       const messages = renderer!.root.findAllByType(Message);
       expect(messages).toHaveLength(2);
       messages.forEach(({ props }) => expect(props.onReplyClick).toBeUndefined());
+      expect(renderer!.root.findAllByType(FailedSendActions)).toEqual([]);
     } finally {
       act(() => renderer?.unmount());
     }

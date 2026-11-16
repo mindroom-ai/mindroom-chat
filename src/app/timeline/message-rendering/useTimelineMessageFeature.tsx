@@ -532,8 +532,9 @@ export const useTimelineMessageFeature = ({
       const sendState = getSendStateEvent(event, editedEvent);
       const failedSend = sendState.status === EventStatus.NOT_SENT;
       const pendingSend = PENDING_SEND_STATUSES.has(sendState.status);
-      // The footer of an open thread offers the actions for its own failed root.
-      const showFailedActions = failedSend && !(threadId && eventId === threadId);
+      // The footer of an open thread offers the actions for its own failed root. A read-only row
+      // offers none: its failed send is the parent thread's.
+      const showFailedActions = failedSend && !readOnly && !(threadId && eventId === threadId);
       // In Bubble layout the reader's own messages, the only ones that fail to send, sit at the end.
       const bubbles = messageLayout === MessageLayout.Bubble;
       const editable = kind === 'message' && !readOnly;
