@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   MatrixEventEvent,
   RoomEvent,
@@ -21,12 +21,10 @@ import {
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT } from '../matrix/thread';
 
 /**
- * `stallsAt`: when the first streaming reply stops counting without an edit, by `Date.now()`;
- * absent while none streams.
+ * A conversation's newest replies. `stallsAt`: when the first streaming one stops counting without
+ * an edit, by `Date.now()`; absent while none streams.
  */
-type Snapshot = { replies: MatrixEvent[]; stallsAt?: number };
-
-const NONE: Snapshot = { replies: [] };
+type Reading = { replies: MatrixEvent[]; stallsAt?: number };
 
 // One key per conversation and agent, so the jobs' list changing alone reads nothing again.
 const SEPARATOR = '\u0000';
@@ -53,7 +51,7 @@ const read = (
   agents: Set<string>,
   vouched: Set<string>,
   live: boolean
-): Snapshot => {
+): Reading => {
   const replies = repliesOf(room, threadId, agents);
   let stallsAt: number | undefined;
   replies.forEach((event) => {
@@ -72,20 +70,6 @@ const read = (
   });
   return { replies, stallsAt };
 };
-
-/** The conversations as one: streaming while any of them is, until the first of them stalls. */
-const merge = (conversations: Snapshot[]): Snapshot => {
-  const stalls = conversations.flatMap((conversation) => conversation.stallsAt ?? []);
-  return {
-    replies: conversations.flatMap((conversation) => conversation.replies),
-    stallsAt: stalls.length > 0 ? Math.min(...stalls) : undefined,
-  };
-};
-
-const sameSnapshot = (a: Snapshot, b: Snapshot): boolean =>
-  a.stallsAt === b.stallsAt &&
-  a.replies.length === b.replies.length &&
-  a.replies.every((event, index) => event === b.replies[index]);
 
 /**
  * Whether the reply that runs the jobs still streams: a message of a job's agent in the job's
@@ -118,35 +102,43 @@ export const useJobRepliesStreaming = (
       });
     return agents;
   }, [ownersKey]);
-  // Each conversation as last read. A busy room sends many events a second and nearly all of
-  // them belong to one conversation, so an event reads that one again and no other.
-  const conversations = useRef(new Map<string, Snapshot>());
-  const [snapshot, setSnapshot] = useState<Snapshot>(NONE);
-  /** Reads one conversation again, or without a name all of them. */
-  const refresh = useCallback(
-    (threadId?: string) => {
-      const known = conversations.current;
-      if (threadId === undefined) {
-        known.clear();
-        if (room)
-          agentsByThread.forEach((agents, id) =>
-            known.set(id, read(room, id, agents, vouched.current, live))
-          );
-      } else {
-        const agents = agentsByThread.get(threadId);
-        if (!room || !agents) return;
-        known.set(threadId, read(room, threadId, agents, vouched.current, live));
-      }
-      const next = merge([...known.values()]);
-      setSnapshot((previous) => (sameSnapshot(previous, next) ? previous : next));
-    },
-    [room, agentsByThread, live]
-  );
+  const [streaming, setStreaming] = useState(false);
 
   useEffect(() => {
-    refresh();
+    setStreaming(false);
+    // Each conversation as last read, with the way to stop following that read. A busy room sends
+    // many events a second and nearly all of them belong to one conversation, so an event reads
+    // that one again and touches no other.
+    const known = new Map<string, { replies: MatrixEvent[]; stop: () => void }>();
+    const streams = new Set<string>();
+    const refresh = (threadId: string) => {
+      const agents = agentsByThread.get(threadId);
+      if (!room || !agents) return;
+      known.get(threadId)?.stop();
+      const { replies, stallsAt } = read(room, threadId, agents, vouched.current, live);
+      const again = () => refresh(threadId);
+      // An edit of a reply (its finishing one too) arrives on the reply itself.
+      replies.forEach((reply) => reply.on(MatrixEventEvent.Replaced, again));
+      // A stalled reply sends nothing, so read again when the first one stalls.
+      const timer =
+        stallsAt === undefined
+          ? undefined
+          : window.setTimeout(again, Math.max(0, stallsAt - Date.now()));
+      known.set(threadId, {
+        replies,
+        stop: () => {
+          replies.forEach((reply) => reply.removeListener(MatrixEventEvent.Replaced, again));
+          window.clearTimeout(timer);
+        },
+      });
+      if (stallsAt === undefined) streams.delete(threadId);
+      else streams.add(threadId);
+      setStreaming(streams.size > 0);
+    };
+    const refreshAll = () => agentsByThread.forEach((_agents, threadId) => refresh(threadId));
+    refreshAll();
     if (!room || agentsByThread.size === 0) return undefined;
-    // The room passes on its threads' events, so one listener follows every conversation.
+    // The room passes on its threads' events, so its listeners follow every conversation.
     const onTimeline = (
       _event: MatrixEvent,
       _room: Room | undefined,
@@ -157,13 +149,12 @@ export const useJobRepliesStreaming = (
     // A thread's reset is its own. The main timeline resets at a sync gap, which leaves no
     // conversation as it was.
     const onReset = (_room: Room | undefined, timelineSet: EventTimelineSet) =>
-      refresh(timelineSet.thread?.id);
+      timelineSet.thread ? refresh(timelineSet.thread.id) : refreshAll();
     // News of a message that began a thread comes by that thread, and the message itself is in
     // the main timeline.
     const onThread = (thread: Thread) => {
       refresh(thread.id);
-      if (conversations.current.get(MAIN)?.replies.some((reply) => reply.getId() === thread.id))
-        refresh(MAIN);
+      if (known.get(MAIN)?.replies.some((reply) => reply.getId() === thread.id)) refresh(MAIN);
     };
     room.on(RoomEvent.Timeline, onTimeline);
     room.on(RoomEvent.TimelineReset, onReset);
@@ -174,29 +165,9 @@ export const useJobRepliesStreaming = (
       room.removeListener(RoomEvent.TimelineReset, onReset);
       room.removeListener(ThreadEvent.Update, onThread);
       room.removeListener(ThreadEvent.NewReply, onThread);
+      known.forEach((conversation) => conversation.stop());
     };
-  }, [room, agentsByThread, refresh]);
+  }, [room, agentsByThread, live]);
 
-  // A stalled reply sends nothing, so read again when the first one stalls.
-  useEffect(() => {
-    if (snapshot.stallsAt === undefined) return undefined;
-    const timer = window.setTimeout(refresh, Math.max(0, snapshot.stallsAt - Date.now()));
-    return () => window.clearTimeout(timer);
-  }, [refresh, snapshot.stallsAt]);
-
-  // An edit of a reply (its finishing one too) arrives on the reply itself.
-  useEffect(() => {
-    const onReplaced = (reply: MatrixEvent) =>
-      conversations.current.forEach((conversation, threadId) => {
-        if (conversation.replies.includes(reply)) refresh(threadId);
-      });
-    snapshot.replies.forEach((event) => event.on(MatrixEventEvent.Replaced, onReplaced));
-    return () => {
-      snapshot.replies.forEach((event) =>
-        event.removeListener(MatrixEventEvent.Replaced, onReplaced)
-      );
-    };
-  }, [refresh, snapshot.replies]);
-
-  return snapshot.stallsAt !== undefined;
+  return streaming;
 };

@@ -19,16 +19,16 @@ vi.mock('../matrix/client/streamingReplies', async (importOriginal) => ({
   isStreamingReplyCurrent: (_room: Room, event: MatrixEvent) => !unvouched.has(event.getId()!),
 }));
 
-/** A room of threads and a main timeline that notes which ones' events are read. */
+/** A room of threads and a main timeline that notes each read of one's events. */
 const makeRoom = () => {
-  const reads = new Set<string | null>();
+  const reads: (string | null)[] = [];
   const lists = new Map<string | null, MatrixEvent[]>();
   const sets = new Map<string | null, ReturnType<typeof makeSet>>();
   const threads = new Map<string, ReturnType<typeof makeThread>>();
   const makeSet = (id: string | null) => {
     const timeline = {
       getEvents: () => {
-        reads.add(id);
+        reads.push(id);
         return lists.get(id) ?? [];
       },
       getNeighbouringTimeline: () => null,
@@ -122,9 +122,9 @@ const wait = (ms: number) =>
     vi.advanceTimersByTime(ms);
   });
 
-/** The conversations whose events were read while `run` ran. */
+/** The conversation of each read of events while `run` ran. */
 const readsOf = (run: () => void, from = room) => {
-  from.reads.clear();
+  from.reads.length = 0;
   act(run);
   return [...from.reads];
 };
@@ -157,7 +157,8 @@ it('reads only the conversation an event belongs to', () => {
 
   // A thread without jobs, as nearly every thread of a busy room is.
   expect(readsOf(sayAll('$other'))).toEqual([]);
-  expect(readsOf(sayAll('$a'))).toEqual(['$a']);
+  // One read for each of its four events.
+  expect(readsOf(sayAll('$a'))).toEqual(['$a', '$a', '$a', '$a']);
   expect(readsOf(() => room.finish(b))).toEqual(['$b']);
   expect(readsOf(() => room.announce.timeline(room.put('$m2', MAIN), MAIN))).toEqual([MAIN]);
 });
@@ -272,7 +273,7 @@ it('keeps streaming while another conversation of the jobs still does', () => {
   expect(streaming).toBe(true);
 });
 
-it('reads everything again when the first reply stalls, and stops when the last one does', () => {
+it('reads a conversation again when its reply stalls, and stops when the last one does', () => {
   room.put('$a1', '$a');
   show([job('$a'), job('$b')]);
   wait(60_000);
@@ -280,28 +281,48 @@ it('reads everything again when the first reply stalls, and stops when the last 
   act(() => {
     room.announce.timeline(later, '$b');
   });
-  // The first one stalls, which is when everything is read again; the second has a minute left.
-  expect(readsOf(() => vi.advanceTimersByTime(STREAM_IDLE_LIMIT_MS - 60_000 + 1))).toEqual([
-    '$a',
-    '$b',
-  ]);
+  // The first one stalls, which is when it is read again; the second has a minute left.
+  expect(readsOf(() => vi.advanceTimersByTime(STREAM_IDLE_LIMIT_MS - 60_000 + 1))).toEqual(['$a']);
   expect(streaming).toBe(true);
   wait(60_000 - 1);
   expect(streaming).toBe(true);
-  wait(1);
+  expect(readsOf(() => vi.advanceTimersByTime(1))).toEqual(['$b']);
   expect(streaming).toBe(false);
 });
 
 it('reads a conversation whose job starts, and forgets one whose jobs are gone', () => {
-  room.put('$a1', '$a');
+  const a = room.put('$a1', '$a');
   show([job('$b')]);
   expect(streaming).toBe(false);
   show([job('$a'), job('$b')]);
   expect(streaming).toBe(true);
   show([job('$b')]);
   expect(streaming).toBe(false);
-  // The dropped thread's events are not read any more.
+  // The dropped thread is not read any more: not for its events, its reply's edit or its stall.
   expect(readsOf(() => room.announce.update('$a'))).toEqual([]);
+  expect(readsOf(() => vi.advanceTimersByTime(STREAM_IDLE_LIMIT_MS + 1))).toEqual([]);
+  expect(readsOf(() => room.finish(a))).toEqual([]);
+});
+
+it('follows only the newest read of a conversation', () => {
+  const a = room.put('$a1', '$a');
+  show([job('$a')]);
+  // Read again, which follows the reply's edits and its stall anew.
+  act(() => {
+    room.announce.update('$a');
+  });
+  // One read for the edit, not one for each earlier read.
+  expect(readsOf(() => room.finish(a))).toEqual(['$a']);
+  // The reply finished, so no read waits for its stall.
+  expect(readsOf(() => vi.advanceTimersByTime(STREAM_IDLE_LIMIT_MS + 1))).toEqual([]);
+});
+
+it('says nothing streams once no job is left', () => {
+  room.put('$a1', '$a');
+  show([job('$a')]);
+  expect(streaming).toBe(true);
+  show([]);
+  expect(streaming).toBe(false);
 });
 
 it('takes a reply it cannot vouch for at its word only while the jobs run', () => {
