@@ -1,4 +1,4 @@
-import { createClient, MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
+import { createClient, Direction, MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -108,6 +108,38 @@ describe('summarizeThreadConversationCost', () => {
     expect(cost?.byEventId.has('$r1')).toBe(false);
   });
 
+  it("is a lower bound when an agent's run stopped or failed without a cost", () => {
+    const ended = (id: string, status: string, sender = AGENT) =>
+      message(id, sender, undefined, { 'io.mindroom.ai_run': { version: 1, status } });
+    const complete = (events: MatrixEvent[]) =>
+      summarizeThreadConversationCost([message('$r1', AGENT, '0.01'), ...events], {
+        history: loaded,
+        isTrustedSender,
+      })?.complete;
+
+    expect(complete([ended('$r2', 'cancelled')])).toBe(false);
+    expect(complete([ended('$r2', 'error')])).toBe(false);
+    // A completed run without a cost used no priced model, and only agents' metadata counts.
+    expect(complete([ended('$r2', 'completed')])).toBe(true);
+    expect(complete([ended('$r2', 'cancelled', PERSON)])).toBe(true);
+  });
+
+  it("is a lower bound when an agent's reply ended in a stopped or failed note without run metadata", () => {
+    // The backend's terminal note: the reply's text and stream status, no io.mindroom.ai_run.
+    const note = (id: string, status: string) =>
+      message(id, AGENT, undefined, { 'io.mindroom.stream_status': status });
+    const complete = (events: MatrixEvent[]) =>
+      summarizeThreadConversationCost([message('$r1', AGENT, '0.01'), ...events], {
+        history: loaded,
+        isTrustedSender,
+      })?.complete;
+
+    expect(complete([note('$r2', 'cancelled')])).toBe(false);
+    expect(complete([note('$r2', 'error')])).toBe(false);
+    expect(complete([note('$r2', 'interrupted')])).toBe(false);
+    expect(complete([note('$r2', 'completed')])).toBe(true);
+  });
+
   it('returns undefined when nothing is priced', () => {
     expect(
       summarizeThreadConversationCost([message('$root', PERSON), message('$r1', AGENT)], {
@@ -161,10 +193,13 @@ describe('summarizeLoadedThreadCost', () => {
   const setup = async (replies: MatrixEvent[], { fetched = false } = {}) => {
     const mx = createClient({ baseUrl: 'https://example.org', userId: PERSON });
     vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
-    vi.spyOn(mx.http, 'authedRequest').mockResolvedValue({ chunk: [] });
+    const root = message('$root', PERSON);
+    // The root's own request answers with the root, every page with no event.
+    vi.spyOn(mx.http, 'authedRequest').mockImplementation(async (_method, path) =>
+      path.includes('/event/') ? root.event : { chunk: [] }
+    );
     const room = new Room(ROOM_ID, mx, PERSON);
     mx.store.storeRoom(room);
-    const root = message('$root', PERSON);
     room.getUnfilteredTimelineSet().addLiveEvent(root, { addToState: false });
     const thread = room.createThread('$root', root, [], false);
     if (fetched) await thread.initialize();
@@ -193,6 +228,50 @@ describe('summarizeLoadedThreadCost', () => {
     const thread = await setup([message('$r1', AGENT, '0.25')], { fetched: true });
 
     expect(summarizeLoadedThreadCost(thread, PERSON)?.complete).toBe(true);
+  });
+
+  // An older segment the SDK holds before the live one, as a jump or a sync gap leaves it.
+  const linkOlderSegment = (thread: Thread, events: MatrixEvent[], backToken: string | null) => {
+    const timelineSet = thread.getUnfilteredTimelineSet();
+    const live = timelineSet.getLiveTimeline();
+    const older = timelineSet.addTimeline();
+    events.forEach((event) =>
+      timelineSet.addEventToTimeline(event, older, { toStartOfTimeline: false, addToState: false })
+    );
+    older.setPaginationToken(backToken, Direction.Backward);
+    older.setNeighbouringTimeline(live, Direction.Forward);
+    live.setNeighbouringTimeline(older, Direction.Backward);
+  };
+
+  it('sums the replies of older linked segments, as a lower bound while the oldest pages back', async () => {
+    const thread = await setup([message('$new', AGENT, '1')]);
+    thread.initialEventsFetched = true;
+    linkOlderSegment(thread, [inThread(message('$old', AGENT, '2'))], 'older');
+
+    const cost = summarizeLoadedThreadCost(thread, PERSON);
+
+    expect(cost?.byEventId.get('$new')).toEqual({ usd: 3, replyCount: 2 });
+    expect(cost?.complete).toBe(false);
+  });
+
+  it('is complete once the oldest linked segment starts at the root', async () => {
+    const thread = await setup([message('$new', AGENT, '1')]);
+    thread.initialEventsFetched = true;
+    linkOlderSegment(thread, [thread.rootEvent!, inThread(message('$old', AGENT, '2'))], null);
+
+    const cost = summarizeLoadedThreadCost(thread, PERSON);
+
+    expect(cost?.byEventId.get('$new')?.usd).toBe(3);
+    expect(cost?.complete).toBe(true);
+  });
+
+  it('is a lower bound when the first page was marked fetched but never reached the root', async () => {
+    // A standalone root's thread is marked fetched before its first page loads, and stays so when
+    // that page fails; a reply /sync brings is then all it holds.
+    const thread = await setup([message('$r1', AGENT, '0.25')]);
+    thread.initialEventsFetched = true;
+
+    expect(summarizeLoadedThreadCost(thread, PERSON)?.complete).toBe(false);
   });
 
   it('is undefined when no reply is priced', async () => {

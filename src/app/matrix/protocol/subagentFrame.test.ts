@@ -66,8 +66,32 @@ describe('sub-agent frames', () => {
       status: 'running',
       startedAt: 1762790000.1,
       endedAt: null,
+      model: {
+        modelConfig: 'opus',
+        modelDisplayName: 'Opus 5.5',
+        modelId: 'anthropic/claude-opus-5.5',
+        modelProvider: 'openrouter',
+      },
       task: 'Find when version 2 shipped.',
     });
+  });
+
+  it("keeps the run's model, and has none from MindRoom before the field", () => {
+    expect(
+      parseSubagentFrame(frame({ meta: { ...meta, model: { config: 'opus', display_name: ' ' } } }))
+        ?.meta.model
+    ).toEqual({ modelConfig: 'opus' });
+    expect(parseSubagentFrame(frame({}))?.meta).not.toHaveProperty('model');
+  });
+
+  it.each([
+    ['a string', 'opus'],
+    ['a number', 3],
+    ['an empty object', {}],
+  ])('keeps a frame whose model is %s, without the model', (_name, model) => {
+    const parsed = parseSubagentFrame(frame({ meta: { ...meta, model } }));
+    expect(parsed?.meta.agent).toBe('researcher');
+    expect(parsed?.meta).not.toHaveProperty('model');
   });
 
   it('takes a frame without a sub-agent as a turn of a sub-agent of its own', () => {

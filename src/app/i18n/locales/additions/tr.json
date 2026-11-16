@@ -754,6 +754,23 @@
           "declined": "Geri çevrildi",
           "expired": "Süresi doldu"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "<code>{{skill}}</code> becerisi güncellendi",
+        "createdOne": "<code>{{skill}}</code> becerisi oluşturuldu",
+        "updatedMany_one": "{{count}} beceri güncellendi",
+        "updatedMany_other": "{{count}} beceri güncellendi",
+        "createdMany_one": "{{count}} beceri oluşturuldu",
+        "createdMany_other": "{{count}} beceri oluşturuldu",
+        "created": "oluşturuldu",
+        "updated": "güncellendi",
+        "removed": "kaldırıldı",
+        "diffTruncated": "Diff kısaltıldı",
+        "diffLabel": "{{path}} için diff"
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} çalıştı",
+        "worked": "Çalıştı"
       }
     },
     "message-search": {
@@ -953,7 +970,8 @@
     "unsnooze": "Ertelemeyi kaldır",
     "status": {
       "snoozed": "Ertelendi"
-    }
+    },
+    "renameHint": "Yeniden adlandırmak için çift tıklayın"
   },
   "threadSnooze": {
     "title": "Şu zamana kadar ertele",
@@ -1296,5 +1314,12 @@
       "jobsWaiting_other": "{{jobs}}, {{count}} onay bekliyor",
       "waitingForAnswer": "Yanıt bekliyor"
     }
+  },
+  "threadBoard": {
+    "label": "Duruma göre ileti dizileri",
+    "working": "Çalışılıyor",
+    "later": "Sonra",
+    "open": "Açık",
+    "done": "Bitti"
   }
 }

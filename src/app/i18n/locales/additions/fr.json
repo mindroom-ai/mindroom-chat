@@ -763,6 +763,25 @@
           "declined": "Refusée",
           "expired": "Expirée"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Compétence <code>{{skill}}</code> mise à jour",
+        "createdOne": "Compétence <code>{{skill}}</code> créée",
+        "updatedMany_one": "{{count}} compétence mise à jour",
+        "updatedMany_many": "{{count}} compétences mises à jour",
+        "updatedMany_other": "{{count}} compétences mises à jour",
+        "createdMany_one": "{{count}} compétence créée",
+        "createdMany_many": "{{count}} compétences créées",
+        "createdMany_other": "{{count}} compétences créées",
+        "created": "créé",
+        "updated": "mis à jour",
+        "removed": "supprimé",
+        "diffTruncated": "Diff tronqué",
+        "diffLabel": "Diff de {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "A travaillé pendant {{duration}}",
+        "worked": "A travaillé"
       }
     },
     "message-search": {
@@ -968,7 +987,8 @@
     "unsnooze": "Annuler le report",
     "status": {
       "snoozed": "Reporté"
-    }
+    },
+    "renameHint": "Double-cliquez pour renommer"
   },
   "threadSnooze": {
     "title": "Reporter jusqu'à",
@@ -1324,5 +1344,12 @@
       "jobsWaiting_other": "{{jobs}}, {{count}} en attente d’approbation",
       "waitingForAnswer": "En attente d’une réponse"
     }
+  },
+  "threadBoard": {
+    "label": "Fils par état",
+    "working": "En cours",
+    "later": "Plus tard",
+    "open": "Ouverts",
+    "done": "Terminés"
   }
 }

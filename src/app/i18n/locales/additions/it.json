@@ -763,6 +763,25 @@
           "declined": "Rifiutata",
           "expired": "Scaduta"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Skill <code>{{skill}}</code> aggiornata",
+        "createdOne": "Skill <code>{{skill}}</code> creata",
+        "updatedMany_one": "{{count}} skill aggiornata",
+        "updatedMany_many": "{{count}} skill aggiornate",
+        "updatedMany_other": "{{count}} skill aggiornate",
+        "createdMany_one": "{{count}} skill creata",
+        "createdMany_many": "{{count}} skill create",
+        "createdMany_other": "{{count}} skill create",
+        "created": "creato",
+        "updated": "aggiornato",
+        "removed": "rimosso",
+        "diffTruncated": "Diff troncato",
+        "diffLabel": "Diff di {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "Ha lavorato per {{duration}}",
+        "worked": "Ha lavorato"
       }
     },
     "message-search": {
@@ -968,7 +987,8 @@
     "unsnooze": "Annulla posticipo",
     "status": {
       "snoozed": "Posticipato"
-    }
+    },
+    "renameHint": "Fai doppio clic per rinominare"
   },
   "threadSnooze": {
     "title": "Posticipa fino a",
@@ -1324,5 +1344,12 @@
       "jobsWaiting_other": "{{jobs}}, {{count}} in attesa di approvazione",
       "waitingForAnswer": "In attesa di una risposta"
     }
+  },
+  "threadBoard": {
+    "label": "Thread per stato",
+    "working": "In corso",
+    "later": "Più tardi",
+    "open": "Aperti",
+    "done": "Fatti"
   }
 }

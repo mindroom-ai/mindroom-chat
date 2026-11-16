@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useMemo, useSyncExternalStore } from 'react';
+import { Fragment, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Text } from 'folds';
@@ -8,51 +8,62 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { getEditedEvent, getLatestMessageContent } from '../matrix/room';
 import { getContentToolTraceEvents, runningToolCalls } from '../matrix/protocol/toolTrace';
 import { jobsInView } from '../matrix/protocol/backgroundJobsContract';
-import { getThreadStreamingReply } from '../event-store/threads/useThreadStreamingState';
+import { getThreadStreamingReplies } from '../event-store/threads/useThreadStreamingState';
 import { useThreadEventRefresh } from '../event-store/threads/useThreadEventRefresh';
 import { summarizeLoadedThreadCost } from '../event-store/threads/threadConversationCost';
 import { getLiveReplyStore } from '../messages/live/liveReplyStore';
+import { getLiveVerdict } from '../messages/live/useLiveReplyContent';
 import { useRoomSubagentCounts } from '../messages/live/subagentRunStore';
 import { useRoomBackgroundJobs } from '../background-jobs/useRoomBackgroundJobs';
 import type { CrossRoomThreadIndexEntry } from './cross-room/crossRoomThreadIndex';
-import { getThreadSignalsReader } from './cross-room/threadSignalsReader';
+import { getThreadSignalsReader, subscribeRoomSignals } from './cross-room/threadSignalsReader';
+import { useSnoozeNow } from './tags/useSnoozeNow';
 import { threadLiveStatusRows } from './threadLiveStatus';
 
 const NO_EVENTS: MatrixEvent[] = [];
 
 /**
- * The tool calls the thread's streaming reply runs: from its live frames while they arrive, else
- * from its latest edit's tool trace. Read again on each frame, edit and thread update.
+ * The tool calls the thread's streaming replies run, several agents' at once: each reply's live
+ * frames while they show over it, else its latest edit's tool trace. Read again on each frame,
+ * edit, thread update and change the room hears (`roomChanges`): an edit the SDK holds back for
+ * a thread not opened brings neither of the others.
  */
-const useRunningTools = (room: Room, threadId: string, streaming: boolean) => {
+const useRunningTools = (room: Room, threadId: string, streaming: boolean, roomChanges: number) => {
   const mx = useMatrixClient();
   const [version, refresh] = useForceUpdate();
+  const [frames, framed] = useForceUpdate();
   const thread = room.getThread(threadId) ?? undefined;
-  const reply = useMemo(() => {
+  const replies = useMemo(() => {
     void version;
-    return streaming ? getThreadStreamingReply(room, threadId) : undefined;
-  }, [room, streaming, threadId, version]);
-  const tracked = useMemo(() => (reply ? [reply] : NO_EVENTS), [reply]);
-  useThreadEventRefresh(thread, tracked, refresh);
+    void roomChanges;
+    return streaming ? getThreadStreamingReplies(room, threadId) : NO_EVENTS;
+  }, [room, roomChanges, streaming, threadId, version]);
+  useThreadEventRefresh(thread, replies, refresh);
 
   const store = getLiveReplyStore(mx);
-  const replyId = reply?.getId();
-  const subscribe = useCallback(
-    (onChange: () => void) =>
-      replyId ? store.subscribe(room.roomId, replyId, onChange) : () => undefined,
-    [replyId, room.roomId, store]
-  );
-  const live = useSyncExternalStore(subscribe, () =>
-    replyId ? store.get(room.roomId, replyId) : undefined
-  );
-  const durable = useMemo(() => {
-    void version;
-    if (!reply) return undefined;
-    const edit = getEditedEvent(reply.getId() ?? '', reply, thread?.timelineSet);
-    return getContentToolTraceEvents(getLatestMessageContent(reply, edit));
-  }, [reply, thread, version]);
-  const events = live && live.sender === reply?.getSender() ? live.docs.tools : durable;
-  return runningToolCalls(events, !!reply);
+  useEffect(() => {
+    const unsubscribes = replies.map((reply) =>
+      store.subscribe(room.roomId, reply.getId() ?? '', framed)
+    );
+    return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
+  }, [framed, replies, room.roomId, store]);
+
+  return useMemo(() => {
+    void frames;
+    const now = Date.now();
+    const events = replies.flatMap((reply) => {
+      const replyId = reply.getId() ?? '';
+      const content = getLatestMessageContent(
+        reply,
+        getEditedEvent(replyId, reply, thread?.timelineSet)
+      );
+      // The reply's row shows its frames only while they are newer than what it wrote.
+      const live = store.get(room.roomId, replyId);
+      const shown = live && getLiveVerdict(reply, content, live, now) === 'show';
+      return (shown ? live.docs.tools : getContentToolTraceEvents(content)) ?? [];
+    });
+    return runningToolCalls(events, replies.length > 0);
+  }, [frames, replies, room.roomId, store, thread]);
 };
 
 type ThreadLiveStatusRowsProps = {
@@ -72,20 +83,27 @@ export function ThreadLiveStatusRows({ room, entry }: ThreadLiveStatusRowsProps)
   const userId = mx.getUserId() ?? '';
   const threadId = entry.threadRootId;
   const streaming = entry.threadRecord.status.isStreaming;
-  const runningTools = useRunningTools(room, threadId, streaming);
   const { active: activeSubagents } = useRoomSubagentCounts(room.roomId, threadId);
-  const { jobs: roomJobs } = useRoomBackgroundJobs(room);
+  const { jobs: roomJobs, total: roomTotal } = useRoomBackgroundJobs(room);
   const jobs = useMemo(() => jobsInView(roomJobs, threadId), [roomJobs, threadId]);
-  // The entry changes with the thread's events, which both of these read.
-  const signals = useMemo(
-    () => getThreadSignalsReader(mx).read(room, entry, userId, Date.now()),
-    [entry, mx, room, userId]
+  // The status, tools and cost read more than the entry follows: a reaction that answers, an edit
+  // or a decryption. So they are read again whenever the room hears anything.
+  const [roomChanges, roomChanged] = useForceUpdate();
+  useEffect(
+    () => subscribeRoomSignals(mx, room.roomId, roomChanged),
+    [mx, room.roomId, roomChanged]
   );
+  const runningTools = useRunningTools(room, threadId, streaming, roomChanges);
+  // The reader reads the thread again only when something its signals depend on changed.
+  const signals = getThreadSignalsReader(mx).read(room, entry, userId, Date.now());
+  // Renders again once what the thread waits on lapses, such as an approval that expires.
+  useSnoozeNow([signals.waitsUntil]);
   const cost = useMemo(() => {
     void entry;
+    void roomChanges;
     const thread = room.getThread(threadId);
     return thread ? summarizeLoadedThreadCost(thread, userId) : undefined;
-  }, [entry, room, threadId, userId]);
+  }, [entry, room, roomChanges, threadId, userId]);
 
   const rows = threadLiveStatusRows(
     {
@@ -95,6 +113,8 @@ export function ThreadLiveStatusRows({ room, entry }: ThreadLiveStatusRowsProps)
       runningTools,
       activeSubagents,
       jobs,
+      // The agents count their live jobs per room, as the jobs bar reads them, not per thread.
+      jobsUnlisted: roomTotal > roomJobs.length,
       cost,
     },
     t,

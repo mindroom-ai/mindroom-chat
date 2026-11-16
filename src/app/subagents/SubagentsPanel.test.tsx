@@ -235,6 +235,54 @@ describe('SubagentsPanel', () => {
     );
   });
 
+  it("shows the model of a sub-agent's newest turn after its agent, and none it was not sent", () => {
+    const opus = {
+      modelConfig: 'harry_opus',
+      modelDisplayName: 'Opus 5.5',
+      modelId: 'anthropic/claude-opus-5.5',
+      modelProvider: 'openrouter',
+    };
+    ingest(
+      'modeled',
+      meta('completed', { subagent: 'modeled', model: { modelConfig: 'sonnet' } }),
+      docs('A.')
+    );
+    ingest(
+      'modeled-2',
+      meta('running', { subagent: 'modeled', model: opus, startedAt: NOW - 10 }),
+      docs('B.')
+    );
+    ingest(
+      'unnamed',
+      meta('running', { model: { modelConfig: 'bedtime_fable' }, startedAt: NOW - 8 }),
+      docs('C.')
+    );
+    ingest('old', meta('running', { startedAt: NOW - 5 }), docs('D.'));
+    render();
+
+    const model = card('modeled').querySelector('[data-subagent-model]');
+    expect(model?.textContent).toBe('Opus 5.5');
+    expect(model?.getAttribute('title')).toBe(
+      'harry_opus (openrouter / anthropic/claude-opus-5.5)'
+    );
+    // Without a display name, the short name the message badge shows.
+    expect(card('unnamed').querySelector('[data-subagent-model]')?.textContent).toBe(
+      'Bedtime Fable'
+    );
+    // After the agent's name, before its status.
+    const name = [...card('modeled').querySelectorAll('span')].find(
+      (element) => element.textContent === 'Research Desk'
+    );
+    expect(name?.compareDocumentPosition(model as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(model?.nextElementSibling?.textContent).toBe('Running');
+    expect(card('old').querySelector('[data-subagent-model]')).toBeNull();
+
+    open('modeled');
+    const standing = container.querySelector('header [data-subagent-model]');
+    expect(standing?.textContent).toBe('Opus 5.5');
+    expect(standing?.nextElementSibling?.textContent).toBe('Running');
+  });
+
   it('lists finished runs after the running ones, the one that ended last first', () => {
     ingest('old', meta('completed', { endedAt: NOW - 300 }), docs('A', [], false));
     ingest('busy', meta('running'), docs('B'));

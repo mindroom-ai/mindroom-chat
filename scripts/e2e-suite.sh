@@ -174,7 +174,7 @@ main() {
       started=$SECONDS
       status=0
       # The machine's 1-minute load average when the spec starts, to tell load failures apart.
-      load="$(cut -d ' ' -f 1 /proc/loadavg)"
+      load="$(node -e 'console.log(require("node:os").loadavg()[0])')"
       local options=(--snapshot="$sha")
       if [ "$server" = preview ]; then options+=(--preview); fi
       if printf '%s\n' "${rtc_specs[@]}" | grep -qxF "$spec"; then options+=(--rtc); fi

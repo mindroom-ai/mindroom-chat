@@ -1,15 +1,10 @@
 import type { TFunction } from 'i18next';
-import { AiRunInfo } from '../../matrix/protocol/aiRun';
+import type { AiRunInfo, AiRunModelInfo } from '../../matrix/protocol/aiRun';
 
-export const formatAiRunNumber = (
-  value: number | undefined,
-  locale?: string
-): string | undefined =>
+export const formatAiRunNumber = (value: number | undefined, locale?: string): string | undefined =>
   typeof value === 'number' ? Math.round(value).toLocaleString(locale) : undefined;
 
-export const formatAiRunTimeToFirstToken = (
-  value: number | undefined
-): string | undefined => {
+export const formatAiRunTimeToFirstToken = (value: number | undefined): string | undefined => {
   if (typeof value !== 'number' || value < 0) return undefined;
   return `${Math.round(value * 1000)} ms`;
 };
@@ -90,7 +85,7 @@ export const getAiRunTokenParts = (
   };
 };
 
-export const getAiRunModelLabel = (info: AiRunInfo): string | undefined => {
+export const getAiRunModelLabel = (info: AiRunModelInfo): string | undefined => {
   const providerAndId = [info.modelProvider, info.modelId].filter(Boolean).join(' / ');
   if (info.modelConfig && providerAndId) return `${info.modelConfig} (${providerAndId})`;
   if (info.modelConfig) return info.modelConfig;
@@ -119,7 +114,7 @@ const formatModelId = (modelId: string): string => {
 };
 
 /** A short, friendly model name intended for the always-visible message badge. */
-export const getAiRunCompactModelLabel = (info: AiRunInfo): string | undefined => {
+export const getAiRunCompactModelLabel = (info: AiRunModelInfo): string | undefined => {
   if (info.modelDisplayName) return info.modelDisplayName;
 
   const modelConfig = info.modelConfig?.trim();

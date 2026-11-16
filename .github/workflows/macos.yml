@@ -29,6 +29,9 @@ on:
     paths:
       - ios/**
       - scripts/build-macos-app.sh
+      - scripts/build-macos-store.sh
+      - scripts/macos-store-preflight.mjs
+      - scripts/test-macos-support.sh
       - .github/workflows/macos.yml
 
 permissions:
@@ -77,6 +80,18 @@ jobs:
         with:
           node-version: 24
       - run: npm ci
+      - name: Check native Mac support
+        if: ${{ !env.RELEASE_TAG }}
+        run: scripts/test-macos-support.sh
+      - name: Archive the Mac App Store variant unsigned
+        if: ${{ !env.RELEASE_TAG }}
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: |
+          set -euo pipefail
+          version=$(node scripts/ios-ci-version.mjs | sed -n 's/^marketing_version=//p')
+          MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            scripts/build-macos-store.sh --unsigned
       - name: Build unsigned
         if: ${{ !env.RELEASE_TAG }}
         env:

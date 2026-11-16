@@ -1,13 +1,36 @@
 import React from 'react';
-import { createClient, MatrixEvent, RelationType, Room, type MatrixClient } from 'matrix-js-sdk';
+import {
+  ClientEvent,
+  createClient,
+  MatrixEvent,
+  MatrixEventEvent,
+  RelationType,
+  Room,
+  type MatrixClient,
+} from 'matrix-js-sdk';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
+import { keepSyncedEdits } from '../matrix/client/syncedEdits';
 import { getLiveReplyStore } from '../messages/live/liveReplyStore';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
 import type { CrossRoomThreadIndexEntry } from './cross-room/crossRoomThreadIndex';
+import type { ThreadSignals } from './cross-room/threadSignals';
 import { ThreadLiveStatusRows } from './ThreadLiveStatusRows';
+
+// Stands in for what a thread's events say it waits on, when a test sets it.
+const signals = vi.hoisted(() => ({
+  read: undefined as ((now: number) => Partial<ThreadSignals>) | undefined,
+}));
+vi.mock('./cross-room/threadSignals', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./cross-room/threadSignals')>();
+  return {
+    ...actual,
+    readThreadSignals: (...args: Parameters<typeof actual.readThreadSignals>) =>
+      signals.read ? signals.read(args[3] ?? Date.now()) : actual.readThreadSignals(...args),
+  };
+});
 
 vi.mock('folds', async () => {
   const reactModule = await import('react');
@@ -25,11 +48,11 @@ const ROOT = '$root';
 const started = (name: string) => ({ type: 'tool_call_started', tool_name: name });
 const completed = (name: string) => ({ type: 'tool_call_completed', tool_name: name });
 
-const reply = (id: string, ts: number, content: Record<string, unknown>) =>
+const reply = (id: string, ts: number, content: Record<string, unknown>, sender = AGENT) =>
   new MatrixEvent({
     event_id: id,
     room_id: ROOM_ID,
-    sender: AGENT,
+    sender,
     type: 'm.room.message',
     origin_server_ts: ts,
     content: {
@@ -48,14 +71,14 @@ const streamingReply = reply('$streaming', 3000, {
   'io.mindroom.tool_trace': { version: 2, events: [started('shell'), started('grep')] },
 });
 
-const jobsState = (jobs: Record<string, unknown>[]) =>
+const jobsState = (jobs: Record<string, unknown>[], total?: number) =>
   new MatrixEvent({
     type: 'io.mindroom.background_jobs',
     state_key: AGENT,
     sender: AGENT,
     room_id: ROOM_ID,
     event_id: '$jobs',
-    content: { jobs },
+    content: { jobs, ...(total === undefined ? {} : { total }) },
   });
 
 const job = (jobId: string, status: string) => ({
@@ -116,6 +139,8 @@ describe('ThreadLiveStatusRows', () => {
   afterEach(() => {
     if (renderer) act(() => renderer?.unmount());
     renderer = undefined;
+    signals.read = undefined;
+    vi.useRealTimers();
     Thread.hasServerSideSupport = previousThreadSupport;
     vi.restoreAllMocks();
   });
@@ -180,6 +205,18 @@ describe('ThreadLiveStatusRows', () => {
     ]);
   });
 
+  it('gives the jobs as a lower bound when the agent lists only some of the room jobs', async () => {
+    const { mx, room } = await setup([reply('$plain', 2000, {})]);
+    room.currentState.setStateEvents([
+      jobsState([job('job-1', 'running'), job('job-2', 'awaiting_approval')], 5),
+    ]);
+
+    expect(textOf(render(mx, room, false))).toEqual([
+      'Background',
+      '≥ 2 jobs, 1 waiting for approval',
+    ]);
+  });
+
   it("follows the reply's live frames while it is shown", async () => {
     const { mx, room } = await setup([streamingReply]);
     const rows = render(mx, room, true);
@@ -208,9 +245,173 @@ describe('ThreadLiveStatusRows', () => {
     expect(textOf(rows)).toContain('1 running: grep');
   });
 
+  it('counts the tools of every reply that streams in the thread', async () => {
+    const other = reply(
+      '$other',
+      3500,
+      {
+        'io.mindroom.stream_status': 'streaming',
+        'io.mindroom.tool_trace': { version: 2, events: [started('read'), started('shell')] },
+      },
+      '@mindroom_research:example.org'
+    );
+    const { mx, room } = await setup([streamingReply, other]);
+
+    expect(textOf(render(mx, room, true))).toContain('4 running: shell, grep, …');
+  });
+
+  it('shows the durable trace once it covers the live frames', async () => {
+    const SID = '1762790000123-0a1b2c3d';
+    const checkpointed = reply('$streaming', 3000, {
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.live_checkpoint': { sid: SID, seq: 1 },
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [completed('shell'), completed('grep'), started('read')],
+      },
+    });
+    const { mx, room } = await setup([checkpointed]);
+    // A frame the durable write already covers.
+    getLiveReplyStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      {
+        reply: '$streaming',
+        sid: SID,
+        seq: 1,
+        snapshot: {
+          md: 'Working',
+          reasoning: '',
+          tools: [started('shell'), started('grep')],
+          status: 'streaming',
+          activity: '',
+        },
+      },
+      Date.now()
+    );
+
+    expect(textOf(render(mx, room, true))).toContain('1 running: read');
+  });
+
+  it('follows an edit the sync brought that the SDK holds back, with no live frame', async () => {
+    const running = reply('$running', 3000, {
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.tool_trace': { version: 2, events: [started('shell')] },
+    });
+    const { mx, room } = await setup([running]);
+    const stopKeeping = keepSyncedEdits(mx);
+    const rows = render(mx, room, true);
+    expect(textOf(rows)).toContain('1 running: shell');
+
+    // A progress edit of a thread not opened: no Replaced event and no thread update.
+    act(() => {
+      mx.emit(
+        ClientEvent.Event,
+        new MatrixEvent({
+          event_id: '$progress',
+          room_id: ROOM_ID,
+          sender: AGENT,
+          type: 'm.room.message',
+          origin_server_ts: 3100,
+          content: {
+            msgtype: 'm.text',
+            body: '* $running',
+            'm.new_content': {
+              msgtype: 'm.text',
+              body: '$running',
+              'io.mindroom.stream_status': 'streaming',
+              'io.mindroom.tool_trace': {
+                version: 2,
+                events: [completed('shell'), started('grep')],
+              },
+            },
+            'm.relates_to': { rel_type: RelationType.Replace, event_id: '$running' },
+          },
+        })
+      );
+    });
+
+    expect(textOf(rows)).toContain('1 running: grep');
+    stopKeeping();
+  });
+
   it('counts no tool once the reply stopped streaming', async () => {
     const { mx, room } = await setup([streamingReply]);
 
     expect(textOf(render(mx, room, false))).toEqual([]);
+  });
+
+  it('follows what the room hears while it is shown, such as a reaction answering the question', async () => {
+    const { mx, room } = await setup([reply('$plain', 2000, {})]);
+    let asking = true;
+    signals.read = () =>
+      asking ? { pendingQuestion: {} as ThreadSignals['pendingQuestion'] } : {};
+    const rows = render(mx, room, false);
+    expect(textOf(rows)).toEqual(['Status', 'Waiting for an answer']);
+
+    asking = false;
+    act(() => {
+      mx.emit(ClientEvent.Event, new MatrixEvent({ type: 'm.reaction', room_id: ROOM_ID }));
+    });
+
+    expect(textOf(rows)).toEqual([]);
+  });
+
+  it('lets an approval go once it expires while shown', async () => {
+    const { mx, room } = await setup([reply('$plain', 2000, {})]);
+    vi.useFakeTimers({ now: 10_000 });
+    signals.read = (now) =>
+      now < 70_000
+        ? { pendingApproval: {} as ThreadSignals['pendingApproval'], waitsUntil: 70_000 }
+        : {};
+    const rows = render(mx, room, false);
+    expect(textOf(rows)).toEqual(['Status', 'Waiting for approval']);
+
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+
+    expect(textOf(rows)).toEqual([]);
+  });
+
+  it('sums the cost again when a reply edit decrypts while shown', async () => {
+    const edit = new MatrixEvent({
+      event_id: '$edit',
+      room_id: ROOM_ID,
+      sender: AGENT,
+      type: 'm.room.message',
+      origin_server_ts: 2500,
+      content: {
+        msgtype: 'm.text',
+        body: '* edited',
+        'm.new_content': { msgtype: 'm.text', body: 'edited' },
+        'm.relates_to': { rel_type: RelationType.Replace, event_id: '$priced' },
+      },
+    });
+    const { mx, room } = await setup([priced]);
+    const { timelineSet } = room.getThread(ROOT)!;
+    timelineSet.relations.aggregateChildEvent(edit, timelineSet);
+    const rows = render(mx, room, false);
+    expect(textOf(rows)).toEqual([]);
+
+    // What the edit says becomes readable, with the run's cost.
+    edit['setClearData']({
+      clearEvent: {
+        type: 'm.room.message',
+        content: {
+          ...edit.getContent(),
+          'm.new_content': {
+            msgtype: 'm.text',
+            body: 'edited',
+            'io.mindroom.ai_run': { version: 1, status: 'completed', cost: { usd: '0.75' } },
+          },
+        },
+      },
+    });
+    act(() => {
+      mx.emit(MatrixEventEvent.Decrypted, edit);
+    });
+
+    expect(textOf(rows)).toEqual(['Cost', '≥ $0.75']);
   });
 });

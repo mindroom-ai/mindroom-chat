@@ -62,6 +62,11 @@ vi.mock('../thread-summary/ThreadSummaryCard', () => ({
     React.createElement('div', { 'data-renderer': 'summary-card' }, summaryInfo.summaryText),
 }));
 
+// The marker's folds PopOut needs a DOM; this suite runs in node.
+vi.mock('../SkillReviewMarker', () => ({
+  SkillReviewMarker: () => React.createElement('div', { 'data-skill-review': true }),
+}));
+
 vi.mock('../../approvals/ToolApprovalCard', () => ({
   ToolApprovalCard: ({
     approval,
@@ -641,6 +646,28 @@ describe('renderAgentMessageContent', () => {
     const personRow = JSON.stringify((await render(false)).toJSON());
     expect(personRow).not.toContain('data-thread-snooze-ended');
     expect(personRow).toContain('Snooze ended: check CI');
+  });
+
+  it('shows the skill review marker only for a MindRoom agent', async () => {
+    const { MatrixEvent } = await import('matrix-js-sdk');
+    const content = {
+      msgtype: 'm.notice',
+      body: '💾 Skill review: updated `developing-mindroom-chat`',
+      'io.mindroom.skill_review': { changes: { 'developing-mindroom-chat': 'updated' } },
+    };
+    const render = (fromMindroomAgent: boolean) =>
+      renderNode({
+        mEvent: new MatrixEvent({ type: 'm.room.message', content }),
+        fromMindroomAgent,
+        msgType: 'm.notice',
+        content,
+      });
+
+    expect(JSON.stringify((await render(true)).toJSON())).toContain('data-skill-review');
+    // Any member can write the content key; a person's message renders as written.
+    const personRow = JSON.stringify((await render(false)).toJSON());
+    expect(personRow).not.toContain('data-skill-review');
+    expect(personRow).toContain('Skill review: updated');
   });
 
   describe('a secret request card', () => {

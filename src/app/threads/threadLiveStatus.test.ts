@@ -80,6 +80,14 @@ describe('threadLiveStatusRows', () => {
     ).toEqual([['Background', '3 jobs, 1 waiting for approval']]);
   });
 
+  it('gives the jobs as a lower bound when the room has jobs no agent lists', () => {
+    expect(rows({ jobs: [{ status: 'running' }], jobsUnlisted: true })).toEqual([
+      ['Background', '≥ 1 job'],
+    ]);
+    // With no listed job here, nothing is known about the others.
+    expect(rows({ jobsUnlisted: true })).toEqual([]);
+  });
+
   it('gives the total cost, as a lower bound while older replies are not loaded', () => {
     expect(rows({ cost: cost([0.25, 1], true) })).toEqual([['Cost', '$1.25']]);
     expect(rows({ cost: cost([0.25, 1], false) })).toEqual([['Cost', '≥ $1.25']]);

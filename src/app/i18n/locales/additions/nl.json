@@ -754,6 +754,23 @@
           "declined": "Geweigerd",
           "expired": "Verlopen"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Skill <code>{{skill}}</code> bijgewerkt",
+        "createdOne": "Skill <code>{{skill}}</code> aangemaakt",
+        "updatedMany_one": "{{count}} skill bijgewerkt",
+        "updatedMany_other": "{{count}} skills bijgewerkt",
+        "createdMany_one": "{{count}} skill aangemaakt",
+        "createdMany_other": "{{count}} skills aangemaakt",
+        "created": "aangemaakt",
+        "updated": "bijgewerkt",
+        "removed": "verwijderd",
+        "diffTruncated": "Diff ingekort",
+        "diffLabel": "Diff van {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} gewerkt",
+        "worked": "Gewerkt"
       }
     },
     "message-search": {
@@ -953,7 +970,8 @@
     "unsnooze": "Snooze opheffen",
     "status": {
       "snoozed": "Gesnoozed"
-    }
+    },
+    "renameHint": "Dubbelklik om de naam te wijzigen"
   },
   "threadSnooze": {
     "title": "Snoozen tot",
@@ -1296,5 +1314,12 @@
       "jobsWaiting_other": "{{jobs}}, {{count}} wachten op goedkeuring",
       "waitingForAnswer": "Wacht op een antwoord"
     }
+  },
+  "threadBoard": {
+    "label": "Threads per status",
+    "working": "Bezig",
+    "later": "Later",
+    "open": "Open",
+    "done": "Klaar"
   }
 }
