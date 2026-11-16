@@ -70,7 +70,7 @@ Action rows get an icon of their own in place of the one terminal icon they shar
 
 ### Calling an agent
 
-- Each voice-capable agent the header's call button would offer is a row `Call <name>`, described by the room's name, and only while the header would show that button: calls are supported (the browser and the homeserver's call service), the room is not a call room, and no call is showing in the room. The agents are those of `useAgentCallCandidates`: the room's agents whose presence advertises voice calls; in a thread those that took part in it, when any did. One hook holds this rule for the header and the palette.
+- Each voice-capable agent the header's call button would offer is a row `Call <name>`, described by the room's name, and only while the header would show that button: the homeserver's call service is found, the room is not a call room, and no call is showing in the room. The agents are those of `useAgentCallCandidates`: the room's agents whose presence advertises voice calls; in a thread those that took part in it, when any did. One hook holds this rule for the header and the palette.
 - Enter closes the palette and starts the call about the open thread, or the room outside one. A call that does not start is reported by the account's call notices, as from the header button.
 
 ### Room commands
@@ -106,7 +106,7 @@ Action rows get an icon of their own in place of the one terminal icon they shar
 | `command-palette/commandPaletteTypes.ts` | `CommandPaletteActionItem` gains `icon`, `tag`, `shortcut`, `state` (`'on' \| 'off'`), `current` (boolean), `page` (a page id) and `keepOpen`. `CommandPalettePageId` is `'theme' \| 'message-layout' \| 'language'`. |
 | `command-palette/commandPaletteSettings.ts` (new) | Pure: the registry's shown settings to action rows (title, location, search words, tag, state for the switch settings). Holds the map of switch settings to their `settingsAtom` key and whether the switch is inverted. |
 | `command-palette/commandPalettePages.ts` (new) | Pure: the rows of the three pages from the themes, layouts and languages, with the current one marked, and their tagged copies for the first list's search. |
-| `command-palette/useCommandPaletteCommands.ts` (new) | The hook that makes those rows executable and adds the agent calls, room commands and shortcut commands. Returns `actions` (extra rows for the first list), `searchOnly` (settings and page choices) and `pages`. |
+| `command-palette/useCommandPaletteCommands.ts` (new) | The hook that makes those rows executable and adds the agent calls, room commands and shortcut commands. Returns `actions` (extra rows for the first list), `searchCommands` (the settings and page choices that match typed text) and `pages`. |
 | `command-palette/commandPaletteItems.ts` | `CommandPaletteSource` gains `searchCommands(text)` (the settings and page choices that match typed text, best first) and `pages`; `actions` gains the extra rows. |
 | `command-palette/CommandPalette.tsx` | The open page with the text and highlight to return to; a `keepOpen` row keeps the palette open, a choice does inside its page; typed text lists the matching actions, then `searchCommands(text)`. |
 | `command-palette/CommandPaletteList.tsx` | Draws the row's icon, tag and end (state, check, chevron, keys). |
