@@ -81,8 +81,10 @@ const computeSplit = (html: string): FinishedWorkSplit | undefined => {
   };
 };
 
-// Every streamed edit renders the reply again; the last answer covers them.
-let memo: { html: string; split: FinishedWorkSplit | undefined } | undefined;
+// A timeline renders every row again on each streamed edit of any reply, so the split of each
+// finished reply on screen is kept, the least recently used dropping first.
+const SPLIT_CACHE_LIMIT = 256;
+const splitCache = new Map<string, FinishedWorkSplit | undefined>();
 
 /**
  * Splits a finished agent reply's HTML after the top-level block that holds its last tool marker,
@@ -90,8 +92,19 @@ let memo: { html: string; split: FinishedWorkSplit | undefined } | undefined;
  * backend writes every marker as a paragraph of its own, so the split falls between blocks.
  */
 export const splitFinishedWork = (html: string): FinishedWorkSplit | undefined => {
-  if (memo?.html !== html) memo = { html, split: computeSplit(html) };
-  return memo.split;
+  if (splitCache.has(html)) {
+    const split = splitCache.get(html);
+    splitCache.delete(html);
+    splitCache.set(html, split);
+    return split;
+  }
+  const split = computeSplit(html);
+  splitCache.set(html, split);
+  if (splitCache.size > SPLIT_CACHE_LIMIT) {
+    const oldest = splitCache.keys().next().value;
+    if (oldest !== undefined) splitCache.delete(oldest);
+  }
+  return split;
 };
 
 /** A run's duration as T3 Code shows it: `45s`, `2m 13s`, `1h 4m`. */

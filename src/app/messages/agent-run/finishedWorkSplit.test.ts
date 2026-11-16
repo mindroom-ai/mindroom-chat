@@ -75,9 +75,11 @@ describe('splitFinishedWork', () => {
     ).toBeUndefined();
   });
 
-  it('returns the same result for the same HTML', () => {
+  it('returns the same result for the same HTML, also between other replies', () => {
     const html = `${marker('shell', 1)}<p>x</p>`;
-    expect(splitFinishedWork(html)).toBe(splitFinishedWork(html));
+    const first = splitFinishedWork(html);
+    splitFinishedWork(`${marker('grep', 1)}<p>y</p>`);
+    expect(splitFinishedWork(html)).toBe(first);
   });
 });
 
