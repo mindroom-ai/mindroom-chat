@@ -29,16 +29,19 @@
 # (real-data) mode on gce or mw. Run it from the checkout that holds the commit (remote-test.sh
 # looks there); a commit that exists only locally is pushed to the runner's clone, never to GitHub.
 # Check a MacBook's power and load first with ~/repos/machines.sh: no jobs on battery. Start more
-# than 8 jobs on gce in waves.
+# than 8 jobs on gce in waves. Matrix jobs use their own snapshot root, so they neither take nor see
+# scripts/e2e-slot.sh's E2E_MAX_CONCURRENT tokens, and each job builds the commit itself; choose
+# slot lists so the host is not overloaded while measuring.
 #
 # Every run keeps its snapshot and agent stack in a run directory of its own,
 # rw-<commit>-<host>-<slot> (the commit's first 8 characters), under /tmp, or on gce and gce-dev
 # under /work/tmp, the encrypted disk, with TMPDIR=/work/tmp for its other temporary files. A trap
-# on the host removes the run directory when the job's shell exits, on success and on failure
-# alike, and removes nothing whose name is not that run's. A job killed with SIGKILL (a runner that
-# kills hard on a timeout), or Ctrl-C on this script, can skip the trap and leave the run directory
-# and a running agent stack behind: stop the stack with `scripts/e2e-slot.sh <slot> down` and that
-# run's E2E_AGENT_STACK_ROOT=<run directory>/agents, then remove the directory by hand.
+# on the host stops the run's agent stack and removes the run directory when the job's shell exits,
+# on success and on failure alike, and removes nothing whose name is not that run's. A job killed
+# with SIGKILL (a runner that kills hard on a timeout), or Ctrl-C on this script, can skip the trap
+# and leave the run directory and a running agent stack behind: stop the stack with
+# `scripts/e2e-slot.sh <slot> down` and that run's E2E_AGENT_STACK_ROOT=<run directory>/agents,
+# then remove the directory by hand.
 # Exits non-zero when any run failed or left no results, and lists which.
 set -euo pipefail
 
@@ -87,6 +90,8 @@ for entry in "${entries[@]}"; do
   slot=${entry#*:}
   case "$slot" in '' | *[!0-9]*) echo "matrix: bad host:slot entry: $entry" >&2; exit 2 ;; esac
   [ "$host" != "$entry" ] || { echo "matrix: bad host:slot entry: $entry" >&2; exit 2; }
+  # The host goes into paths and the run directory's name.
+  [[ "$host" =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo "matrix: bad host:slot entry: $entry" >&2; exit 2; }
   name=$host-$slot
   for seen in "${names[@]:-}"; do
     [ "$seen" != "$name" ] || { echo "matrix: $name given twice" >&2; exit 2; }
@@ -109,9 +114,10 @@ run_one() {
   # The inner script runs on the host, in the commit's worktree. A snapshot run leaves its
   # test-results/ in the snapshot, so it copies the perf results into the worktree's, which
   # --artifacts brings back, and beside them the scripts of the build it served (only when there
-  # are results, so a run without any still counts as failed); the trap then removes the run's
-  # directory (snapshot, build, agent stack) on every exit path, only when it is an absolute path
-  # whose last part is this run's name, and the exit code stays Playwright's.
+  # are results, so a run without any still counts as failed); the trap then stops the run's agent
+  # stack (already stopped after a run that was not killed) and removes the run's directory
+  # (snapshot, build, agent stack) on every exit path, only when it is an absolute path whose last
+  # part is this run's name, and the exit code stays Playwright's.
   local inner
   inner=": \"\${E2E_SNAPSHOT_ROOT:?}\" \"\${E2E_AGENT_STACK_ROOT:?}\"
 run_dir=\"\$(dirname \"\${E2E_SNAPSHOT_ROOT:?}\")\"
@@ -122,6 +128,7 @@ finish() {
     mkdir -p test-results/perf/real-work/served-build/assets
     cp \"\$E2E_SNAPSHOT_ROOT/builds/$commit/assets/\"*.js test-results/perf/real-work/served-build/assets/ || true
   fi
+  python3 scripts/agent-stack/stack.py $slot down || true
   case \"\$run_dir\" in
     /*/$run) cd / && rm -rf \"\$run_dir\" ;;
     *) echo \"matrix: not removing \$run_dir\" >&2 ;;
