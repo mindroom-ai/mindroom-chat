@@ -754,6 +754,10 @@
           "declined": "Geri çevrildi",
           "expired": "Süresi doldu"
         }
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} çalıştı",
+        "worked": "Çalıştı"
       }
     },
     "message-search": {
@@ -1283,5 +1287,12 @@
       "idle": "Boşta",
       "resolved": "Çözülenler"
     }
+  },
+  "threadBoard": {
+    "label": "Duruma göre ileti dizileri",
+    "working": "Çalışılıyor",
+    "later": "Sonra",
+    "open": "Açık",
+    "done": "Bitti"
   }
 }

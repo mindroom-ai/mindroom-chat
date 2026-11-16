@@ -1,7 +1,8 @@
 // `@mindroom/client-sdk/room`, the client SDK's subpath for rooms and threads (docs/client-plugins.md
 // "room"): it opens them, links to them, names the thread a room's page shows, creates
 // sub-rooms and names the rooms a room is a sub-room of, shows a person's profile card in a room,
-// names the floating one that is open and closes it, and shows a thread on a plugin's own surface.
+// names the floating one that is open and closes it, and shows a thread, or a room's threads as a
+// board by state, on a plugin's own surface.
 // Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION in
 // scripts/client-plugins.mjs.
 import { createElement, lazy, Suspense, useCallback, useContext, useMemo } from 'react';
@@ -183,3 +184,21 @@ const LazyThreadView = lazy(() =>
  */
 export const ThreadView = (props: { room: Room; threadId: string }) =>
   createElement(Suspense, { fallback: null }, createElement(LazyThreadView, props));
+
+const LazyThreadBoard = lazy(() =>
+  import('../app/threads/board/ThreadBoard').then((module) => ({ default: module.ThreadBoard }))
+);
+
+/**
+ * The threads of `room` as a board, for a plugin's own surface such as its side panel: a column per
+ * state, Working (a reply streams, or a live background job names the thread), Later (snoozed, or
+ * a schedule is pending), Open and Done (resolved), each thread in the first of those that applies,
+ * in the order Working, Done, Later, Open. Its threads are the room's threads with at least one
+ * reply, or one of the signed-in user's sending, as the app's thread index holds them, in any view
+ * of the room and with or without its page open; a message nobody replied to is no card. Each shows
+ * as its Compact card, with its actions, and a card opens its thread in the room's page. A thread
+ * moves to its column as its state changes. It fills its parent and scrolls inside it; it shows
+ * nothing while its code loads.
+ */
+export const ThreadBoard = (props: { room: Room }) =>
+  createElement(Suspense, { fallback: null }, createElement(LazyThreadBoard, props));

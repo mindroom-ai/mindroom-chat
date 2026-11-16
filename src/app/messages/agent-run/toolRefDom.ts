@@ -194,6 +194,17 @@ export const getToolRefPrefixFromElement = (element: Element): ToolRefElementPre
 export const countToolRefIcons = (text: string): number =>
   text.split(MINDROOM_TOOL_REF_ICON).length - 1;
 
+/**
+ * The marker a tool block shows for this marker HTML, taken from the start of
+ * an element. The renderer groups by the first bracketed number in the text,
+ * so a name holding another index can hide the block; that counts as text.
+ * The marker starts the text, so that number is in the marker.
+ */
+export const parseToolBlockMarker = (html: string): ToolRefParseResult | undefined => {
+  const toolRef = parseToolRefHtml(html);
+  return toolRef && parseToolRefIndexFromTextPrefix(html) === toolRef.index ? toolRef : undefined;
+};
+
 export type RenderedToolRefs = {
   /** Markers shown as tool blocks, in document order. */
   toolBlocks: ToolRefParseResult[];
@@ -224,11 +235,8 @@ export const getRenderedToolRefs = (html: string): RenderedToolRefs => {
     if (!text.trimStart().startsWith(MINDROOM_TOOL_REF_ICON)) return;
 
     takeLeadingToolRefs(node, (html) => {
-      const toolRef = parseToolRefHtml(html);
-      // The renderer groups by the first bracketed number in the text, so a name
-      // holding another index can hide the block; count it as text instead.
-      // The marker starts the text, so that number is in the marker.
-      if (!toolRef || parseToolRefIndexFromTextPrefix(html) !== toolRef.index) return false;
+      const toolRef = parseToolBlockMarker(html);
+      if (!toolRef) return false;
 
       toolBlocks.push(toolRef);
       toolBlockIconCount += countToolRefIcons(html);

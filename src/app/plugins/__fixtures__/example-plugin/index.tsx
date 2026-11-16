@@ -85,6 +85,8 @@
 // as it opened, as the room's page shows it (`ThreadView`), and keeps it while the room shows
 // another; an Escape in it that nothing took, as on one of its rows, closes the panel, and one that
 // closes the thread's menus, or a profile card its rows opened, leaves it open.
+// A fourth, "Example board", toggled from the room menu, shows the room's threads as a board by
+// state (`ThreadBoard`).
 import {
   useEffect,
   useLayoutEffect,
@@ -124,6 +126,7 @@ import {
   type PluginEvent,
   type PluginPageProps,
   type ThreadCardBadgeProps,
+  type ThreadDetailProps,
 } from '@mindroom/client-sdk/core';
 import {
   getMemberDisplayName,
@@ -145,6 +148,7 @@ import {
   useRoomHref,
   useRoomNavigate,
   useShownThread,
+  ThreadBoard,
   ThreadView,
 } from '@mindroom/client-sdk/room';
 import {
@@ -906,6 +910,12 @@ function ExampleThread({ roomId }: { roomId: string }) {
   );
 }
 
+/** The room's threads as a board by state. */
+function ExampleBoard({ roomId }: { roomId: string }) {
+  const room = useMatrixClient().getRoom(roomId);
+  return room ? <ThreadBoard room={room} /> : null;
+}
+
 // The card's width: its own beside the conversation, the room's when it fills it or on a phone. Its
 // box, the card and its margins, clips it: the box moves in and out, and the card keeps its width.
 const CARD_WIDTH = 320;
@@ -1095,14 +1105,28 @@ function ItemCard({ href, close }: MessageLinkCardProps) {
   );
 }
 
+/** The text of the greeting that begins a thread, if its loaded root is a greeting. */
+function greetingOf(room: Room, threadId: string): string | undefined {
+  const root = room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId);
+  return root ? greetingText(root.getContent()) : undefined;
+}
+
+function GreetingDetails({ room, threadId }: ThreadDetailProps) {
+  return (
+    <div data-example-plugin-details>
+      <div>Greeting</div>
+      <div>{greetingOf(room, threadId)}</div>
+    </div>
+  );
+}
+
 /**
  * Its thread card badge: "Greeting" on the card of a thread a greeting begins, on one line and with
  * no control of its own, so a click on it opens the thread as a click on the card does. A greeting
  * stays as it was sent, so the badge reads the thread's root once, as the card shows it.
  */
 function GreetingBadge({ room, threadId }: ThreadCardBadgeProps) {
-  const root = room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId);
-  if (!root || greetingText(root.getContent()) === undefined) return null;
+  if (greetingOf(room, threadId) === undefined) return null;
   return (
     <span
       data-example-plugin-badge
@@ -1165,6 +1189,7 @@ const plugin: ClientPlugin = {
     },
     { id: 'card', label: 'Example card', Component: ExampleCard, frame: 'own' },
     { id: 'thread', label: 'Example thread', Component: ExampleThread },
+    { id: 'board', label: 'Example board', Component: ExampleBoard },
   ],
   headerActions: [
     {
@@ -1216,6 +1241,12 @@ const plugin: ClientPlugin = {
     },
   ],
   threadCardBadges: [{ Component: GreetingBadge }],
+  threadDetails: [
+    {
+      shows: (room, threadId) => greetingOf(room, threadId) !== undefined,
+      Component: GreetingDetails,
+    },
+  ],
   roomActions: [
     {
       id: 'info',

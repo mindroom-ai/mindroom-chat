@@ -745,6 +745,10 @@
           "declined": "거절됨",
           "expired": "만료됨"
         }
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} 동안 작업함",
+        "worked": "작업함"
       }
     },
     "message-search": {
@@ -1259,5 +1263,12 @@
       "idle": "대기 중",
       "resolved": "해결됨"
     }
+  },
+  "threadBoard": {
+    "label": "상태별 스레드",
+    "working": "작업 중",
+    "later": "나중에",
+    "open": "열림",
+    "done": "완료"
   }
 }
