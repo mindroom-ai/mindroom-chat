@@ -394,10 +394,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const [unreadInfo, setUnreadInfo] = useRoomUnreadInfo(room, !!threadId || !!eventId);
   const readUptoEventIdRef = useLatestRef(unreadInfo?.readUptoEventId);
 
-  const { overviewRefreshCounter, setOverviewRefreshCounter } = useThreadOverviewRefreshCounter(
-    room,
-    threadId
-  );
+  const { overviewRefreshCounter, setOverviewRefreshCounter, overviewChanges } =
+    useThreadOverviewRefreshCounter(room, threadId);
   // The room's rows come from its timeline once more, so a deleted thread's root leaves the
   // overview, a frozen sort order included.
   const rederiveRoomRows = useCallback(
@@ -486,6 +484,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     requestedThreadFilterState,
     threadSortFreezeState,
     overviewRefreshCounter,
+    overviewChanges,
     sessionId,
     mx,
     onStoreThreadSummary: onStoreThreadSummary as (

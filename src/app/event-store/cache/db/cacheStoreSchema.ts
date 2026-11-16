@@ -3,7 +3,9 @@ import type { CachedPaginationTokenMap } from '../eventCacheTokenUtils';
 
 // The unified CacheStore originated at schema v3 with event, metadata,
 // ledger, and summary stores. Schema v4 adds raw attachment payloads and
-// per-room references without replacing any v3 data.
+// per-room references without replacing any v3 data. Schema v7 adds the
+// `embedded_events` lookup store and the summaries' `by_room_event` index,
+// which let a redaction find the rows it changes without reading the room.
 //
 // per-domain caches (`roomEventCache`, `threadEventCache`,
 // `threadSummaryCache`) collapse into one IDB database with three data
@@ -13,7 +15,7 @@ import type { CachedPaginationTokenMap } from '../eventCacheTokenUtils';
 // `getCacheStoreDbName` in `cacheStoreDb.ts` via `getSessionScopedStorageKey`.
 
 export const MINDROOM_CACHE_DB_BASE_NAME = 'mindroom-cache';
-export const CACHE_STORE_DB_VERSION = 6;
+export const CACHE_STORE_DB_VERSION = 7;
 export const EVENTS_BY_ROOM_EVENT_INDEX = 'by_room_event';
 
 export const ATTACHMENTS_BY_ACCESS_BYTES_INDEX = 'by_access_bytes';
@@ -31,6 +33,24 @@ export const THREAD_SUMMARIES_STORE = 'thread_summaries';
 // indexes with a single shared shape so both cursors reuse the same core.
 export const EVENTS_BY_SCOPE_TS_INDEX = 'by_scope_ts';
 export const THREAD_SUMMARIES_BY_ROOM_INDEX = 'by_room';
+// [roomId, eventId] of the notice a summary came from; a row without one is not indexed.
+export const THREAD_SUMMARIES_BY_ROOM_EVENT_INDEX = 'by_room_event';
+
+// Which cached rows hold a copy of an event inside another one: a bundled edit, or the latest
+// reply and the previews of a thread summary (`collectEmbeddedRelationEventIds`). A redaction
+// reads its rows here instead of reading every row of the room. The store has no values worth
+// reading, only keys:
+// - `[roomId, embeddedEventId, ownerKind, ownerKey]`: the event row (`EMBED_OWNER_EVENT`, its
+//   `cacheKey`) or the meta row (`EMBED_OWNER_META`, its `metaKey`) that embeds the event. A meta
+//   row is also listed under its root event's own ID. A key may outlive its row or the copy in
+//   it: readers check the row.
+// - `[roomId]`: every row of the room is listed (`buildRoomEmbedsListedKey`).
+// - `PRE_V7_ROWS_KEY`: the database held rows before this store existed, so only the rooms with
+//   a `[roomId]` key are fully listed. A database created at v7 or later lists every row.
+export const EMBEDDED_EVENTS_STORE = 'embedded_events';
+export const EMBED_OWNER_EVENT = 0;
+export const EMBED_OWNER_META = 1;
+export const PRE_V7_ROWS_KEY: IDBValidKey = ['__pre-v7'];
 export const ATTACHMENT_REFERENCES_BY_ROOM_INDEX = 'by_room';
 export const ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX = 'by_attachment';
 
@@ -221,6 +241,21 @@ export const buildEventCacheKey = (roomId: string, scope: string, eventId: strin
   `${roomId}|${scope}|${eventId}`;
 
 export const buildMetaKey = (roomId: string, scope: string): string => `${roomId}|${scope}`;
+
+export const buildEmbeddedEventKey = (
+  roomId: string,
+  embeddedEventId: string,
+  ownerKind: typeof EMBED_OWNER_EVENT | typeof EMBED_OWNER_META,
+  ownerKey: string
+): IDBValidKey => [roomId, embeddedEventId, ownerKind, ownerKey];
+
+/** Every key that lists an owner of `embeddedEventId` (an array sorts after any string). */
+export const buildEmbeddedEventOwnersRange = (
+  roomId: string,
+  embeddedEventId: string
+): IDBKeyRange => IDBKeyRange.bound([roomId, embeddedEventId], [roomId, embeddedEventId, []]);
+
+export const buildRoomEmbedsListedKey = (roomId: string): IDBValidKey => [roomId];
 
 export const buildSummaryCacheKey = (roomId: string, threadRootId: string): string =>
   `${roomId}|${threadRootId}`;

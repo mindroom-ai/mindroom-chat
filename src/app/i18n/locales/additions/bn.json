@@ -754,6 +754,23 @@
           "declined": "প্রত্যাখ্যাত",
           "expired": "মেয়াদ শেষ"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "স্কিল <code>{{skill}}</code> আপডেট হয়েছে",
+        "createdOne": "স্কিল <code>{{skill}}</code> তৈরি হয়েছে",
+        "updatedMany_one": "{{count}}টি স্কিল আপডেট হয়েছে",
+        "updatedMany_other": "{{count}}টি স্কিল আপডেট হয়েছে",
+        "createdMany_one": "{{count}}টি স্কিল তৈরি হয়েছে",
+        "createdMany_other": "{{count}}টি স্কিল তৈরি হয়েছে",
+        "created": "তৈরি হয়েছে",
+        "updated": "আপডেট হয়েছে",
+        "removed": "সরানো হয়েছে",
+        "diffTruncated": "ডিফ ছোট করা হয়েছে",
+        "diffLabel": "{{path}}-এর ডিফ"
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} কাজ করেছে",
+        "worked": "কাজ করেছে"
       }
     },
     "message-search": {
@@ -961,7 +978,8 @@
         "done": "সমাধান করা থ্রেড।",
         "all": "আপনার অন্যান্য ফিল্টারের সঙ্গে মেলে এমন সব থ্রেড।"
       }
-    }
+    },
+    "renameHint": "নাম বদলাতে ডাবল-ক্লিক করুন"
   },
   "threadSnooze": {
     "title": "যতক্ষণ পর্যন্ত স্থগিত",
@@ -1291,5 +1309,12 @@
       "idle": "নিষ্ক্রিয়",
       "resolved": "সমাধান করা"
     }
+  },
+  "threadBoard": {
+    "label": "অবস্থা অনুযায়ী থ্রেড",
+    "working": "কাজ চলছে",
+    "later": "পরে",
+    "open": "খোলা",
+    "done": "সম্পন্ন"
   }
 }

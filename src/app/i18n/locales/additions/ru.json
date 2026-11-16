@@ -772,6 +772,27 @@
           "declined": "Отклонён",
           "expired": "Истёк"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Навык <code>{{skill}}</code> обновлён",
+        "createdOne": "Навык <code>{{skill}}</code> создан",
+        "updatedMany_one": "Обновлён {{count}} навык",
+        "updatedMany_few": "Обновлено {{count}} навыка",
+        "updatedMany_many": "Обновлено {{count}} навыков",
+        "updatedMany_other": "Обновлено {{count}} навыка",
+        "createdMany_one": "Создан {{count}} навык",
+        "createdMany_few": "Создано {{count}} навыка",
+        "createdMany_many": "Создано {{count}} навыков",
+        "createdMany_other": "Создано {{count}} навыка",
+        "created": "создан",
+        "updated": "обновлён",
+        "removed": "удалён",
+        "diffTruncated": "Diff обрезан",
+        "diffLabel": "Diff файла {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "Работал {{duration}}",
+        "worked": "Работал"
       }
     },
     "message-search": {
@@ -991,7 +1012,8 @@
         "done": "Решённые ветки.",
         "all": "Все ветки, соответствующие остальным фильтрам."
       }
-    }
+    },
+    "renameHint": "Дважды щёлкните, чтобы переименовать"
   },
   "threadSnooze": {
     "title": "Отложить до",
@@ -1339,5 +1361,12 @@
       "idle": "Неактивные",
       "resolved": "Решённые"
     }
+  },
+  "threadBoard": {
+    "label": "Треды по состоянию",
+    "working": "В работе",
+    "later": "Позже",
+    "open": "Открытые",
+    "done": "Готово"
   }
 }

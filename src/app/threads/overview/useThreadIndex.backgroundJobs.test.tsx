@@ -4,6 +4,10 @@ import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { BackgroundJob } from '../../matrix/protocol/backgroundJobsContract';
 import { createDefaultThreadFilterState } from '../../event-store/threads/roomThreadOverviewModel';
+import {
+  createThreadRecordChanges,
+  markThreadRecordChange,
+} from '../../event-store/threads/threadRecord';
 import { buildThreadIndexRecordMaps } from './threadIndexRecords';
 import { useThreadIndex } from './useThreadIndex';
 
@@ -92,6 +96,7 @@ describe('useThreadIndex background updates', () => {
       requestedThreadFilterState: createDefaultThreadFilterState(),
       threadSortFreezeState: null,
       overviewRefreshCounter: 0,
+      overviewChanges: createThreadRecordChanges(),
       sessionId: 'session',
       mx: {} as MatrixClient,
       onStoreThreadSummary: vi.fn(),
@@ -147,6 +152,42 @@ describe('useThreadIndex background updates', () => {
     expect(latest.normalThreadRecordMap.get('$job')).toBe(original);
     expect(buildThreadIndexRecordMaps).not.toHaveBeenCalled();
     expect(getThread).not.toHaveBeenCalled();
+    // A room update while jobs run must reuse BASE records, not their job overlays.
+    publish('running');
+    const active = latest.normalThreadRecordMap.get('$job');
+    markThreadRecordChange(options.overviewChanges, '$other');
+    options.overviewRefreshCounter += 1;
+    act(() => renderer.update(<Probe />));
+    expect(latest.normalThreadRecordMap.get('$job')).toBe(active);
+    expect(latest.normalThreadRecordMap.get('$other')).not.toBe(other);
+    const afterOther = vi.mocked(buildThreadIndexRecordMaps).mock.results.at(-1)!
+      .value as ReturnType<typeof buildThreadIndexRecordMaps>;
+    expect(afterOther.normalThreadRecordMap.get('$job')).toBe(original);
+    expect(original.status.hasBackgroundJob).toBeUndefined();
+    const updatedOther = latest.normalThreadRecordMap.get('$other');
+
+    markThreadRecordChange(options.overviewChanges, '$job');
+    options.overviewRefreshCounter += 1;
+    act(() => renderer.update(<Probe />));
+    expect(latest.normalThreadRecordMap.get('$job')).not.toBe(active);
+    expect(latest.normalThreadRecordMap.get('$job')?.status.hasBackgroundJob).toBe(true);
+    expect(latest.normalThreadRecordMap.get('$other')).toBe(updatedOther);
+    const afterJob = vi.mocked(buildThreadIndexRecordMaps).mock.results.at(-1)!.value as ReturnType<
+      typeof buildThreadIndexRecordMaps
+    >;
+    const updatedBase = afterJob.normalThreadRecordMap.get('$job');
+    expect(updatedBase).not.toBe(original);
+    expect(updatedBase?.status.hasBackgroundJob).toBeUndefined();
+    vi.mocked(buildThreadIndexRecordMaps).mockClear();
+    getThread.mockClear();
+    live.jobs = [];
+    act(() => renderer.update(<Probe />));
+    expect(latest.normalThreadRecordMap.get('$job')).toBe(updatedBase);
+    expect(latest.normalThreadRecordMap.get('$other')).toBe(updatedOther);
+    expect(buildThreadIndexRecordMaps).not.toHaveBeenCalled();
+    expect(getThread).not.toHaveBeenCalled();
+    expect(baseMaps.normalThreadRecordMap.get('$job')).toBe(original);
+    expect(original.status.hasBackgroundJob).toBeUndefined();
     act(() => renderer.unmount());
   });
 });

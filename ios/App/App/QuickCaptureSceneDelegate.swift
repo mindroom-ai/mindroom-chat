@@ -10,6 +10,14 @@ class QuickCaptureSceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = scene as? UIWindowScene else { return }
+#if targetEnvironment(macCatalyst) && MINDROOM_MAC_APP_STORE
+        MacWindowing.forwardLinks(connectionOptions.urlContexts, activities: connectionOptions.userActivities)
+        guard MacWindowing.requireSupport() else {
+            UIApplication.shared.requestSceneSessionDestruction(session, options: nil)
+            QuickCapture.showMainWindow()
+            return
+        }
+#endif
         windowScene.title = NSLocalizedString("QUICK_CAPTURE", comment: "The Quick Capture window")
         // Links and notifications go to the main window's scene, not to the widget's.
         windowScene.activationConditions.canActivateForTargetContentIdentifierPredicate = NSPredicate(value: false)
@@ -23,6 +31,9 @@ class QuickCaptureSceneDelegate: UIResponder, UIWindowSceneDelegate {
         windowScene.sizeRestrictions?.maximumSize = MacWindowing.widgetSize
         windowScene.titlebar?.titleVisibility = .hidden
         windowScene.titlebar?.toolbar = nil
+#if MINDROOM_MAC_APP_STORE
+        MacWindowing.prepare(windowScene, title: windowScene.title ?? "Quick Capture")
+#endif
         // Opened by the shortcut it shows; restored at launch it waits, hidden, for the shortcut.
         let show = QuickCapture.opening
         QuickCapture.opening = false
@@ -49,16 +60,24 @@ class QuickCaptureSceneDelegate: UIResponder, UIWindowSceneDelegate {
     /// A link UIKit gives the widget anyway goes to the app, as the main window's would, and the
     /// main window comes forward with it.
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+#if targetEnvironment(macCatalyst) && MINDROOM_MAC_APP_STORE
+        MacWindowing.forwardLinks(URLContexts, activities: [])
+#else
         SceneDelegateProxy.shared.scene(scene, openURLContexts: URLContexts)
 #if targetEnvironment(macCatalyst)
         QuickCapture.showMainWindow()
 #endif
+#endif
     }
 
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+#if targetEnvironment(macCatalyst) && MINDROOM_MAC_APP_STORE
+        MacWindowing.forwardLinks([], activities: [userActivity])
+#else
         SceneDelegateProxy.shared.scene(scene, continue: userActivity)
 #if targetEnvironment(macCatalyst)
         QuickCapture.showMainWindow()
+#endif
 #endif
     }
 
@@ -82,6 +101,9 @@ class QuickCaptureSceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     /// A closed widget's page would live on unseen, one more for each time the widget opens again.
     func sceneDidDisconnect(_ scene: UIScene) {
+#if MINDROOM_MAC_APP_STORE
+        MacWindowing.disconnect(scene)
+#endif
         if let window { QuickCapture.stopPage(of: window) }
         window = nil
     }
@@ -157,15 +179,26 @@ enum QuickCapture {
 
 #if targetEnvironment(macCatalyst)
     /// Calls `body` with the AppKit window of `scene` once UIKit made it, trying for a second.
-    static func whenHostWindow(of scene: UIWindowScene, attempt: Int = 0, _ body: @escaping (NSObject) -> Void) {
+    static func whenHostWindow(of scene: UIWindowScene, attempt: Int = 0, onFailure: ((String) -> Void)? = nil, _ body: @escaping (NSObject) -> Void) {
+#if MINDROOM_MAC_APP_STORE
+        guard MacWindowing.isPrepared(scene) else {
+            onFailure?("The window has closed.")
+            return
+        }
+#endif
         if let window = scene.windows.first, let host = MacWindowing.hostWindow(of: window) {
             body(host)
         } else if attempt < 20 {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                whenHostWindow(of: scene, attempt: attempt + 1, body)
+                whenHostWindow(of: scene, attempt: attempt + 1, onFailure: onFailure, body)
             }
         } else {
             NSLog("[QuickCapture] no AppKit window for the scene")
+            let message = "MindRoom could not reach its Mac window. Close and reopen the window, or restart MindRoom."
+#if MINDROOM_MAC_APP_STORE
+            MacWindowing.reportFailure(message)
+#endif
+            onFailure?(message)
         }
     }
 
@@ -206,11 +239,17 @@ enum QuickCapture {
     static var opening = false
 
     private static func openWidgetScene() {
+#if MINDROOM_MAC_APP_STORE
+        guard !opening, MacWindowing.requireSupport() else { return }
+#endif
         opening = true
         let activity = NSUserActivity(activityType: activityType)
         UIApplication.shared.requestSceneSessionActivation(nil, userActivity: activity, options: nil) { error in
             opening = false
             NSLog("[QuickCapture] the widget did not open: %@", error.localizedDescription)
+#if MINDROOM_MAC_APP_STORE
+            MacWindowing.reportFailure("Quick Capture could not open. Try again or restart MindRoom.")
+#endif
         }
     }
 
@@ -231,6 +270,32 @@ enum QuickCapture {
     static var widgetDisplay: UInt32? {
         widgetHost.flatMap(MacWindowing.displayID(of:))
     }
+
+#if MINDROOM_MAC_APP_STORE
+    /// Plugin completion waits for the actual window instead of reporting an activation request as success.
+    static func showMainWindow(completion: @escaping (String?) -> Void) {
+        guard MacWindowing.requireSupport() else { return completion("Quick Capture is unavailable.") }
+        showMainWindow()
+        waitForMainWindow(completion: completion)
+    }
+
+    private static func waitForMainWindow(attempt: Int = 0, completion: @escaping (String?) -> Void) {
+        if let main = mainScene {
+            whenHostWindow(of: main, onFailure: { completion($0) }) { host in
+                MacWindowing.showMainWindow(host)
+                completion(nil)
+            }
+        } else if attempt < 100 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                waitForMainWindow(attempt: attempt + 1, completion: completion)
+            }
+        } else {
+            let message = "MindRoom's main window could not open. Try again or restart MindRoom."
+            MacWindowing.reportFailure(message)
+            completion(message)
+        }
+    }
+#endif
 
     /// The main window, opened again when there is none, unless the app came forward for the
     /// widget.

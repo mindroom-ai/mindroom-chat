@@ -745,6 +745,21 @@
           "declined": "Ditolak",
           "expired": "Kedaluwarsa"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Skill <code>{{skill}}</code> diperbarui",
+        "createdOne": "Skill <code>{{skill}}</code> dibuat",
+        "updatedMany_other": "{{count}} skill diperbarui",
+        "createdMany_other": "{{count}} skill dibuat",
+        "created": "dibuat",
+        "updated": "diperbarui",
+        "removed": "dihapus",
+        "diffTruncated": "Diff dipotong",
+        "diffLabel": "Diff {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "Bekerja selama {{duration}}",
+        "worked": "Bekerja"
       }
     },
     "message-search": {
@@ -946,7 +961,8 @@
         "done": "Utas yang sudah diselesaikan.",
         "all": "Semua utas yang cocok dengan filter Anda lainnya."
       }
-    }
+    },
+    "renameHint": "Klik dua kali untuk mengganti nama"
   },
   "threadSnooze": {
     "title": "Tunda hingga",
@@ -1267,5 +1283,12 @@
       "idle": "Tidak aktif",
       "resolved": "Selesai"
     }
+  },
+  "threadBoard": {
+    "label": "Utas menurut status",
+    "working": "Dikerjakan",
+    "later": "Nanti",
+    "open": "Terbuka",
+    "done": "Selesai"
   }
 }

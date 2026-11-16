@@ -4,6 +4,18 @@ import { restoreCodeSource } from './code';
 import type { InlineMDMatcher, InlineMDRule } from './type';
 
 const WHITESPACE = /\s/;
+// A letter, digit or combining mark, read as a whole code point so astral letters count and emoji
+// and the private-use placeholders of protected code spans do not.
+const WORD_CHARACTER_BEFORE = /[\p{L}\p{N}\p{M}]$/u;
+const WORD_CHARACTER_AFTER = /^[\p{L}\p{N}\p{M}]/u;
+
+/** Whether the character ending just before `index` belongs to a word. */
+const wordBefore = (text: string, index: number): boolean =>
+  WORD_CHARACTER_BEFORE.test(text.slice(Math.max(0, index - 2), index));
+
+/** Whether the character starting at `index` belongs to a word. */
+const wordAfter = (text: string, index: number): boolean =>
+  WORD_CHARACTER_AFTER.test(text.slice(index, index + 2));
 
 const isEscaped = (text: string, index: number): boolean => {
   let backslashes = 0;
@@ -28,6 +40,8 @@ type DelimiterOptions = {
   notBeforeCloser?: string;
   /** Characters that keep a delimiter in front of them from closing. */
   notAfterCloser?: string;
+  /** Whether the delimiters may sit inside a word, with a letter or digit on their outer side. */
+  intraword?: boolean;
 };
 
 const isOneOf = (character: string | undefined, characters: string): boolean =>
@@ -45,11 +59,17 @@ const delimitedMatcher =
     notAfterOpener = '',
     notBeforeCloser = '',
     notAfterCloser = '',
+    intraword = true,
   }: DelimiterOptions): InlineMDMatcher =>
   (text) => {
     const size = delimiter.length;
     let opener = -1;
+    // Where the run of delimiters holding the current one starts, as in `a__b`.
+    let runStart = -1;
+    let previous = -Infinity;
     for (let at = text.indexOf(delimiter); at >= 0; at = text.indexOf(delimiter, at + 1)) {
+      if (at > previous + size) runStart = at;
+      previous = at;
       if (isEscaped(text, at)) continue;
       const before = text[at - 1];
       const after = text[at + size];
@@ -58,7 +78,8 @@ const delimitedMatcher =
         at > opener + size &&
         !WHITESPACE.test(before ?? '') &&
         !isOneOf(before, notBeforeCloser) &&
-        !isOneOf(after, notAfterCloser)
+        !isOneOf(after, notAfterCloser) &&
+        (intraword || !wordAfter(text, at + size))
       ) {
         return toMatch(
           [text.slice(opener, at + size), text.slice(opener + size, at)],
@@ -70,7 +91,8 @@ const delimitedMatcher =
         opener < 0 &&
         after !== undefined &&
         !WHITESPACE.test(after) &&
-        !isOneOf(after, notAfterOpener)
+        !isOneOf(after, notAfterOpener) &&
+        (intraword || !wordBefore(text, runStart))
       ) {
         opener = at;
       }
@@ -96,11 +118,11 @@ export const ItalicRule1: InlineMDRule = {
 };
 
 /**
- * `_italic_`, also inside words as in chat messages, so `snake_case_name` italicizes `case` and
- * `__init__` nests two italics; the closer is the last of a run of underscores.
+ * `_italic_`, never inside a word, as in CommonMark, so `snake_case_name` and `MAX_RETRY_COUNT`
+ * stay as written. `__init__` nests two italics; the closer is the last of a run of underscores.
  */
 export const ItalicRule2: InlineMDRule = {
-  match: delimitedMatcher({ delimiter: '_', notAfterCloser: '_' }),
+  match: delimitedMatcher({ delimiter: '_', notAfterCloser: '_', intraword: false }),
   html: (parseInline, match) => `<i data-md="_">${parseInline(capture(match, 1))}</i>`,
 };
 

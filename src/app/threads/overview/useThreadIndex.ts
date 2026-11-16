@@ -1,7 +1,7 @@
 import { useRoomBackgroundJobs } from '../../background-jobs/useRoomBackgroundJobs';
 import { indexThreadBackgroundJobs } from '../../matrix/protocol/threadBackgroundJobs';
 import type { ThreadWorkflowCounts } from '../../event-store/threads/threadWorkflow';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { buildThreadSummaryMap, type ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { getRoomEventThreadOpenTarget } from '../../routes/roomDeepLink';
@@ -34,6 +34,7 @@ import {
   type FetchedRelationOverviewUpdateOptions,
 } from './threadOverviewCacheHydration';
 import type { ThreadRecord } from '../../event-store/threads/types';
+import type { ThreadRecordChanges } from '../../event-store/threads/threadRecord';
 import {
   buildVisibleThreadParticipantMap,
   buildVisibleThreadReplyCountMap,
@@ -62,7 +63,7 @@ import {
   mergeCompactThreadRootBodyMaps,
   useThreadOverviewCachedMetadata,
 } from './threadOverviewCacheMetadata';
-import { buildThreadIndexRecordMaps } from './threadIndexRecords';
+import { buildThreadIndexRecordMaps, type ThreadIndexRecordMaps } from './threadIndexRecords';
 import { useSnoozeNow } from '../tags/useSnoozeNow';
 
 type ThreadResolutionLike = {
@@ -321,6 +322,8 @@ export type UseThreadIndexOptions = {
   requestedThreadFilterState: ThreadFilterState;
   threadSortFreezeState: ThreadSortFreezeState | null;
   overviewRefreshCounter: number;
+  /** What each count of `overviewRefreshCounter` may have changed (`ThreadRecordChanges`). */
+  overviewChanges: ThreadRecordChanges;
   sessionId: string;
   mx: MatrixClient;
   onStoreThreadSummary: (threadRootId: string, info: ThreadSummaryInfo | undefined) => void;
@@ -345,6 +348,7 @@ export const useThreadIndex = ({
   requestedThreadFilterState,
   threadSortFreezeState,
   overviewRefreshCounter,
+  overviewChanges,
   sessionId,
   mx,
   onStoreThreadSummary,
@@ -562,10 +566,12 @@ export const useThreadIndex = ({
   );
   const { jobs } = useRoomBackgroundJobs(room);
   const jobStates = useMemo(() => indexThreadBackgroundJobs(jobs), [jobs]);
+  // Keep base records only: background-job overlays never become reuse inputs.
+  const builtRecordMapsRef = useRef<ThreadIndexRecordMaps>();
   const baseRecordMaps = useMemo(() => {
     // External hydration can refresh mutable SDK/cache-backed sources without changing map identity.
     void overviewRefreshCounter;
-    return buildThreadIndexRecordMaps({
+    const built = buildThreadIndexRecordMaps({
       threadId,
       compactViewRequested,
       room,
@@ -582,7 +588,12 @@ export const useThreadIndex = ({
       threadResolutionMap,
       currentUserId,
       scheduledStatusMap,
+      previous: builtRecordMapsRef.current,
+      changes: overviewChanges,
     });
+    // An open thread has no records, so nothing is kept from before it.
+    builtRecordMapsRef.current = built;
+    return built;
   }, [
     threadId,
     compactViewRequested,
@@ -601,6 +612,7 @@ export const useThreadIndex = ({
     currentUserId,
     scheduledStatusMap,
     overviewRefreshCounter,
+    overviewChanges,
   ]);
   // Base records read SDK timelines. Job-only updates must only overlay their two flags.
   // Weak keys retain unchanged overlays without retaining old record/history snapshots.
