@@ -14,7 +14,13 @@ export const KEY_FOCUS_ATTRIBUTE = 'data-key-focus';
 export const focusCompactCard = (card: HTMLElement | undefined): boolean => {
   if (!card) return false;
   card.setAttribute(KEY_FOCUS_ATTRIBUTE, '');
-  card.addEventListener('blur', () => card.removeAttribute(KEY_FOCUS_ATTRIBUTE), { once: true });
+  // Until the focus moves on: a window that loses the focus blurs the card too, which keeps it.
+  const onBlur = () => {
+    if (card.ownerDocument.activeElement === card) return;
+    card.removeAttribute(KEY_FOCUS_ATTRIBUTE);
+    card.removeEventListener('blur', onBlur);
+  };
+  card.addEventListener('blur', onBlur);
   card.focus();
   return true;
 };

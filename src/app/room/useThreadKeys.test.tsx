@@ -14,6 +14,7 @@ const ROOM = '!room:server';
 const onExitThread = vi.fn();
 const onOpenThread = vi.fn();
 const onFocusComposer = vi.fn();
+const onFocusThread = vi.fn();
 const opened = vi.fn();
 let store = createStore();
 let area: HTMLElement;
@@ -32,6 +33,7 @@ const mount = (openThreadId?: string, viewMode: RoomViewMode = 'compact') =>
         onOpenThread,
         onExitThread,
         onFocusComposer,
+        onFocusThread,
       }),
     {
       initialProps: { threadId: openThreadId },
@@ -60,6 +62,7 @@ afterEach(() => {
   cleanup();
   document.body.innerHTML = '';
   vi.clearAllMocks();
+  onFocusComposer.mockReset();
 });
 
 describe('useThreadKeys', () => {
@@ -110,10 +113,29 @@ describe('useThreadKeys', () => {
     // The room shows without the thread a moment later.
     rerender({ threadId: undefined });
     expect(document.activeElement).toBe(card('$b'));
-    expect(press('leaveThread')).toBe(true);
-    expect(onFocusComposer).toHaveBeenCalledTimes(1);
-    card('$b').blur();
+    // A room without a composer has nowhere further out: the keys stay the browser's.
     expect(press('leaveThread')).toBe(false);
+    expect(document.activeElement).toBe(card('$b'));
+    const composer = document.createElement('button');
+    document.body.append(composer);
+    onFocusComposer.mockImplementation(() => composer.focus());
+    expect(press('leaveThread')).toBe(true);
+    expect(document.activeElement).toBe(composer);
+    composer.blur();
+    expect(press('leaveThread')).toBe(false);
+  });
+
+  it("goes into the open thread from that thread's own card beside it", () => {
+    mount('$b');
+    card('$b').focus();
+    expect(press('openThread')).toBe(true);
+    expect(onFocusThread).toHaveBeenCalledTimes(1);
+    expect(opened).not.toHaveBeenCalled();
+    // Another thread's card opens that thread.
+    card('$c').focus();
+    expect(press('openThread')).toBe(true);
+    expect(opened).toHaveBeenCalledWith('$c');
+    expect(onFocusThread).toHaveBeenCalledTimes(1);
   });
 
   it('leaves the focus alone when the thread closed another way', () => {

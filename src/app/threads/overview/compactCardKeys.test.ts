@@ -76,6 +76,11 @@ describe('focusCompactCard', () => {
     expect(card('$a').hasAttribute('data-key-focus')).toBe(false);
     expect(card('$b').hasAttribute('data-key-focus')).toBe(true);
     expect(focusCompactCard(undefined)).toBe(false);
+    // A window that loses the focus blurs the card, which keeps both the focus and the mark.
+    card('$b').dispatchEvent(new FocusEvent('blur'));
+    expect(card('$b').hasAttribute('data-key-focus')).toBe(true);
+    card('$b').blur();
+    expect(card('$b').hasAttribute('data-key-focus')).toBe(false);
   });
 });
 

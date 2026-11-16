@@ -199,6 +199,7 @@ export function RoomView({
     onOpenThread: threadState.handleOpenThread,
     onExitThread: threadState.handleExitThread,
     onFocusComposer: focusConversation,
+    onFocusThread: () => focusColumn.current?.(),
   });
 
   // Beside its thread, the page shows the room's messages too, which its address does not name:

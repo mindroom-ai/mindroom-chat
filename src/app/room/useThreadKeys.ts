@@ -23,6 +23,8 @@ type UseThreadKeysOptions = {
   onOpenThread: (threadId: string) => void;
   onExitThread: () => void;
   onFocusComposer: () => void;
+  /** Moves the focus into the open thread, beside the cards. */
+  onFocusThread: () => void;
 };
 
 /**
@@ -43,6 +45,7 @@ export const useThreadKeys = ({
   onOpenThread,
   onExitThread,
   onFocusComposer,
+  onFocusThread,
 }: UseThreadKeysOptions): void => {
   const store = useStore();
   // The cards under a thread that fills the page are gone; a cover or a panel hides the rest.
@@ -70,7 +73,9 @@ export const useThreadKeys = ({
     const shown = cards();
     const focused = focusedCompactCard(areaRef.current);
     if (focused && shown.includes(focused)) {
-      focused.click();
+      // The open thread's own card, beside it: in is the thread, which a click would not focus.
+      if (focused.dataset.threadRootId === openThreadId) onFocusThread();
+      else focused.click();
       return true;
     }
     if (openThreadId) return false;
@@ -108,6 +113,7 @@ export const useThreadKeys = ({
     const focused = focusedCompactCard(areaRef.current);
     if (!focused || !cards().includes(focused)) return false;
     onFocusComposer();
-    return true;
+    // A room without a composer has nowhere out: the keys stay the browser's.
+    return focusedCompactCard(areaRef.current) !== focused;
   });
 };

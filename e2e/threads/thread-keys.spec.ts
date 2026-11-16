@@ -96,7 +96,7 @@ const openOrchard = async (
   return cardOrder(page);
 };
 
-test('the keyboard goes into a thread, to the next one, and out again', async ({ page }) => {
+test('the keyboard goes into a thread and out again, and between the cards', async ({ page }) => {
   test.setTimeout(180_000);
   const order = await openOrchard(page, 'full', 1280);
   const [first, second, third, fourth] = order as [string, string, string, string];
@@ -223,7 +223,7 @@ test('the keyboard goes into a thread, to the next one, and out again', async ({
   await test.step('the shortcuts dialog lists the thread keys', async () => {
     await page.keyboard.press('ControlOrMeta+/');
     const row = (id: string) => page.locator(`[data-shortcut-row="${id}"]`);
-    await expect(row('nextThread')).toContainText('Next thread');
+    await expect(row('nextThread')).toContainText('Focus the next thread');
     await expect(row('nextThread')).toContainText('↓');
     await expect(row('leaveThread')).toContainText('Leave the open thread');
     await expect(row('openThread')).toBeVisible();
@@ -258,8 +258,18 @@ test('beside its thread, the keys reach the cards and open the next thread', asy
   });
   expect(openThread(page)).toBe(second);
 
-  // Mod, Alt and the down arrow goes to the card below the open thread's; Alt and the right
-  // arrow opens it.
+  // Mod, Alt and the down arrow goes to the card below the open thread's. From the open thread's
+  // own card, Alt and the right arrow goes back into that thread.
+  const threadComposer = page.getByTestId('thread-column').getByRole('textbox').last();
+  await page.keyboard.press('ControlOrMeta+Alt+ArrowDown');
+  await expect(card(page, third)).toBeFocused();
+  await page.keyboard.press('ArrowUp');
+  await expect(card(page, second)).toBeFocused();
+  await page.keyboard.press('Alt+ArrowRight');
+  await expect(threadComposer).toBeFocused();
+  expect(openThread(page)).toBe(second);
+
+  // And from another card it opens that card's thread.
   await page.keyboard.press('ControlOrMeta+Alt+ArrowDown');
   await expect(card(page, third)).toBeFocused();
   await page.keyboard.press('Alt+ArrowRight');
