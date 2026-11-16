@@ -2242,7 +2242,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "voice": {
@@ -3044,7 +3044,7 @@
       "intro": "Di utas ini, panggilan alat yang diminta orang-orang ini berjalan tanpa kartu persetujuan.",
       "you": "Anda",
       "until": "Hingga {{time}}",
-      "ownUntil": "Hingga {{time}}. Kirim !auto_approve off untuk mengakhirinya."
+      "ownUntil": "Hingga {{time}}. Kirim /auto_approve off untuk mengakhirinya."
     },
     "notices": {
       "dismiss": "Tutup pemberitahuan",

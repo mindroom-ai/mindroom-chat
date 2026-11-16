@@ -983,7 +983,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "calls": {
@@ -1798,7 +1798,7 @@
       "intro": "এই থ্রেডে, এই লোকেদের অনুরোধ করা টুল কল অনুমোদন কার্ড ছাড়াই চলে।",
       "you": "আপনি",
       "until": "{{time}} পর্যন্ত",
-      "ownUntil": "{{time}} পর্যন্ত। শেষ করতে !auto_approve off পাঠান।"
+      "ownUntil": "{{time}} পর্যন্ত। শেষ করতে /auto_approve off পাঠান।"
     },
     "notices": {
       "dismiss": "বিজ্ঞপ্তি খারিজ করুন",

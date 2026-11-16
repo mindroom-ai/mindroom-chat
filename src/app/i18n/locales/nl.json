@@ -2242,7 +2242,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "voice": {
@@ -3057,7 +3057,7 @@
       "intro": "In deze thread lopen toolaanroepen die deze mensen vragen zonder goedkeuringskaarten.",
       "you": "Jij",
       "until": "Tot {{time}}",
-      "ownUntil": "Tot {{time}}. Stuur !auto_approve off om dit te beëindigen."
+      "ownUntil": "Tot {{time}}. Stuur /auto_approve off om dit te beëindigen."
     },
     "notices": {
       "dismiss": "Melding sluiten",

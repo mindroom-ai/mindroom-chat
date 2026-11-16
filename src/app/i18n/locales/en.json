@@ -2242,7 +2242,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model (or !model) with a model key in this thread."
       }
     },
     "voice": {
@@ -3057,7 +3057,7 @@
       "intro": "In this thread, tool calls these people request run without approval cards.",
       "you": "You",
       "until": "Until {{time}}",
-      "ownUntil": "Until {{time}}. Send !auto_approve off to end it."
+      "ownUntil": "Until {{time}}. Send /auto_approve off (or !auto_approve off) to end it."
     },
     "notices": {
       "dismiss": "Dismiss notice",

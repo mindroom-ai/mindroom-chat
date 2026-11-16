@@ -983,7 +983,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "calls": {
@@ -1798,7 +1798,7 @@
       "intro": "इस थ्रेड में, इन लोगों के अनुरोध किए गए टूल कॉल बिना मंज़ूरी कार्ड के चलते हैं।",
       "you": "आप",
       "until": "{{time}} तक",
-      "ownUntil": "{{time}} तक। इसे खत्म करने के लिए !auto_approve off भेजें।"
+      "ownUntil": "{{time}} तक। इसे खत्म करने के लिए /auto_approve off भेजें।"
     },
     "notices": {
       "dismiss": "सूचना ख़ारिज करें",

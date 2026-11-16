@@ -2354,7 +2354,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "voice": {
@@ -3317,7 +3317,7 @@
       "intro": "في هذه السلسلة، تعمل استدعاءات الأدوات التي يطلبها هؤلاء الأشخاص دون بطاقات موافقة.",
       "you": "أنت",
       "until": "حتى ⁨{{time}}⁩",
-      "ownUntil": "حتى ⁨{{time}}⁩. أرسل ⁨!auto_approve off⁩ لإنهاء ذلك."
+      "ownUntil": "حتى ⁨{{time}}⁩. أرسل ⁨/auto_approve off⁩ لإنهاء ذلك."
     },
     "notices": {
       "dismiss": "إخفاء الإشعار",

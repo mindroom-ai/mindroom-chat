@@ -17,6 +17,8 @@ import { readableReason } from '../../lib/errorReason';
 import { matchesEnum } from '../../lib/matchesEnum';
 import { registeredPlugins } from '../../plugins/registry';
 import { usePluginSlashCommands } from '../../plugins/slashCommands';
+import { MINDROOM_COMMAND_PREFIX } from './agentCommandQuery';
+import { MINDROOM_COMMANDS } from './agentCommands';
 import { CommandRefusedError, usage } from './commandRefusal';
 
 /**
@@ -78,9 +80,14 @@ export type CommandContext = {
 type CommandAction = (context: CommandContext, args: string) => Promise<void>;
 
 export type SlashCommand = {
-  /** A built-in command, or one a plugin adds (`src/app/plugins/slashCommands.ts`). */
+  /**
+   * A built-in command, one of MindRoom's (`MINDROOM_COMMANDS`, sent as typed for the room's
+   * agents), or one a plugin adds (`src/app/plugins/slashCommands.ts`).
+   */
   name: string;
   description: string;
+  /** How to call it, with its arguments, for the menu; MindRoom's commands have one. */
+  syntax?: string;
   /** For commands that act instead of sending a message; message commands have none. */
   run?: (args: string) => Promise<void>;
   /**
@@ -374,9 +381,10 @@ export const isActingCommand = (name: Command): boolean => ACTIONS[name] !== und
 
 /**
  * The slash commands for `room`, by name: each with its description in the person's language,
- * and for commands that act, `run` with the text typed after the name. The plugins' commands
- * follow the built-in ones, which keep their names: a plugin's command of the same name is none.
- * A plugin's command runs in `threadId`, the thread the composer writes to, if any.
+ * and for commands that act, `run` with the text typed after the name. MindRoom's commands follow
+ * the built-in ones, without `run`: the message goes out as typed, for the room's agents. The
+ * plugins' commands come last; a name keeps its first command, so a later one of the same name
+ * is none. A plugin's command runs in `threadId`, the thread the composer writes to, if any.
  */
 export const useCommands = (room: Room, threadId?: string): Record<string, SlashCommand> => {
   const client = useMatrixClient();
@@ -407,6 +415,17 @@ export const useCommands = (room: Room, threadId?: string): Record<string, Slash
       }
     );
     const commands: Record<string, SlashCommand> = Object.fromEntries(entries);
+    MINDROOM_COMMANDS.forEach(({ name, syntax, description }) => {
+      if (Object.hasOwn(commands, name)) return;
+      commands[name] = {
+        name,
+        syntax: `/${syntax.slice(MINDROOM_COMMAND_PREFIX.length)}`,
+        // Keys built at runtime are untyped, so t returns unknown.
+        description: String(
+          t(`mindroomUi.commands.descriptions.${name}`, { defaultValue: description })
+        ),
+      };
+    });
     pluginCommands.forEach(({ name, description, run }) => {
       if (!Object.hasOwn(commands, name)) {
         commands[name] = {

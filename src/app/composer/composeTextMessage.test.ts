@@ -103,6 +103,17 @@ describe('composeTextMessage', () => {
     expect(content?.msgtype).toBe(MsgType.Text);
   });
 
+  it("sends a MindRoom command as typed, for the room's agents to answer", () => {
+    ['/schedule in 5 min do x', '/list_schedules', '/reload-plugins', '/room_model reset'].forEach(
+      (text) =>
+        expect(compose([line({ text })]), text).toEqual({
+          msgtype: MsgType.Text,
+          body: text,
+          'm.mentions': {},
+        })
+    );
+  });
+
   it('sends /plain as the text typed, without reading Markdown or adding HTML', () => {
     expect(compose([line({ text: '/plain a **literal** _thing_' })])).toEqual({
       msgtype: MsgType.Text,

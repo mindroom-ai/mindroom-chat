@@ -409,10 +409,10 @@ A cover that throws, in `covers`, `subscribe` or the stop it returns, `close` or
 ## Slash commands
 
 Slash commands (`src/app/plugins/slashCommands.ts`) are the seventh kind: `{ name, description, run }`.
-The composer offers them after its own commands, in the same command menu, and runs them as it runs its own commands that act (`src/app/composer/commands/useCommands.ts`): the message is not sent, and `run({ room, args, threadId })` gets the room (matrix-js-sdk's `Room`, whose `client` is the account's client), the text typed after the name, and `threadId`, the root of the thread whose composer it was typed in (none in the main timeline or in Classic).
+The composer offers them after its own commands and MindRoom's (`/schedule`, `/model`, ..., which go out as typed for the room's agents), in the same command menu, and runs them as it runs its own commands that act (`src/app/composer/commands/useCommands.ts`): the message is not sent, and `run({ room, args, threadId })` gets the room (matrix-js-sdk's `Room`, whose `client` is the account's client), the text typed after the name, and `threadId`, the root of the thread whose composer it was typed in (none in the main timeline or in Classic).
 In a thread whose root the server has not confirmed yet, the command waits, its text in the composer, until the root has its own ID, as a message sent there does.
 `name` is what follows the `/`, letters a to z only; `description` is a key of the plugin's strings, shown in the app's language in the menu.
-A built-in command keeps its name, also one a later version of the app adds, so a plugin's command of the same name is none, and a name claimed more than once, by one plugin or by several, runs for none of them, with one warning that names the plugins.
+A built-in command or one of MindRoom's keeps its name, also one a later version of the app adds, so a plugin's command of the same name is none, and a name claimed more than once, by one plugin or by several, runs for none of them, with one warning that names the plugins.
 A `run` that throws, or whose promise rejects, leaves the text in the composer with `/<name> failed: <the error's message>` above it, as a built-in command's failure does.
 One that throws `commandUsage()` from `core`, for a text after the name that it does not take, shows instead the usage line a built-in command shows, `Could not run /<name>. <its description>`, in the app's language; for a message of its own in the app's language, it throws an error whose message `getPluginTranslation(id)` translates.
 

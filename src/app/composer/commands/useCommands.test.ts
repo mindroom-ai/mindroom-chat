@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import en from '../../i18n/englishResources';
+import { MINDROOM_COMMANDS } from './agentCommands';
 import { CommandRefusedError } from './commandRefusal';
 import { Command, type CommandContext, isActingCommand, runCommandAction } from './useCommands';
 
@@ -79,6 +80,11 @@ describe('slash commands', () => {
     Object.keys(Command).forEach((key) => {
       expect(commands[`Command${key}`], key).toBeTruthy();
     });
+  });
+
+  it("shares no name with MindRoom's commands, which the menu lists after the built-in ones", () => {
+    const builtIn: readonly string[] = Object.values(Command);
+    expect(MINDROOM_COMMANDS.filter(({ name }) => builtIn.includes(name))).toEqual([]);
   });
 
   it('acts only for the commands that do not change the message', () => {

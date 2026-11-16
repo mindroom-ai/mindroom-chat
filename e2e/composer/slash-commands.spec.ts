@@ -110,6 +110,22 @@ test('slash commands: the menu, a message command, commands that act, and a refu
     .toBe('¯\\_(ツ)_/¯ no idea');
   await expect(page.getByText('¯\\_(ツ)_/¯ no idea')).toBeVisible();
 
+  // MindRoom's commands are in the menu with their syntax, and go out exactly as typed for the
+  // room's agents; a /word that is no command stays unsent.
+  await page.keyboard.type('/sched');
+  await expect(page.locator('[data-slash-command="schedule"]')).toContainText('/schedule <task>');
+  await page.keyboard.press('Tab');
+  await page.keyboard.type('in 5 min do x');
+  await page.keyboard.press('Enter');
+  await expect
+    .poll(async () => (await latestMessages(token, roomId))[0]?.content.body, { timeout: 30_000 })
+    .toBe('/schedule in 5 min do x');
+  await page.keyboard.type('/zz');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('alert').filter({ hasText: '/zz is not a command' })).toBeVisible();
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.press('Backspace');
+
   // A command that acts sends no message: the invite lands and the composer empties.
   const before = (await latestMessages(token, roomId)).length;
   // The space after the user ID ends the word, so no mention menu takes the Enter.

@@ -61,7 +61,9 @@ export const readActingCommand = (
   document: Descendant[],
   commands: Record<string, SlashCommand>
 ): ActingCommand | undefined => {
-  const match = /^\/([a-z]+)(?:\s+([\s\S]*))?$/.exec(argumentText(document).trim());
+  // A name is a letter, then letters, digits, `_` and `-`, as MindRoom's `/list_schedules`,
+  // `/reload-plugins` and `/e2ee` are.
+  const match = /^\/([a-z][a-z0-9_-]*)(?:\s+([\s\S]*))?$/.exec(argumentText(document).trim());
   const command = match?.[1] === undefined ? undefined : commands[match[1]];
   if (!match || !command?.run) return undefined;
   return { command, run: command.run, args: match[2] ?? '' };
@@ -81,7 +83,7 @@ export const readUnknownCommand = (
   if (!first || !('type' in first) || first.type !== BlockType.Paragraph) return undefined;
   const [run] = first.children;
   if (!run || !Text.isText(run)) return undefined;
-  const name = /^\/([a-z]+)(?:\s|$)/i.exec(run.text)?.[1];
+  const name = /^\/([a-z][a-z0-9_-]*)(?:\s|$)/i.exec(run.text)?.[1];
   return name !== undefined && !Object.hasOwn(commands, name) ? name : undefined;
 };
 

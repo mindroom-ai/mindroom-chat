@@ -2242,7 +2242,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "voice": {
@@ -3044,7 +3044,7 @@
       "intro": "在此话题中，这些人请求的工具调用无需审批卡片即可运行。",
       "you": "你",
       "until": "至 {{time}}",
-      "ownUntil": "至 {{time}}。发送 !auto_approve off 可提前结束。"
+      "ownUntil": "至 {{time}}。发送 /auto_approve off 可提前结束。"
     },
     "notices": {
       "dismiss": "关闭通知",
