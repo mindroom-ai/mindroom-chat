@@ -22,6 +22,7 @@ import { getMatrixToRoomEvent } from '../matrix/matrix-to';
 import { copyToClipboard } from '../lib/dom';
 import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { useRoomThreadMode } from '../matrix/hooks/useRoomThreadMode';
 import { Menu } from '../ui/glass/GlassPrimitives';
 import { MenuEntry, MenuGroup } from '../ui/MenuEntry';
 import type { ShortcutId } from '../shortcuts/shortcuts';
@@ -93,6 +94,8 @@ export function ThreadActionsMenu({
   const members = useRoomMembers(mx, room.roomId);
   const [toolCallsShown, setToolCallsShown] = useToolCallsShown(room.roomId, rootId);
   const startFork = useStartThreadFork(room);
+  // Where agents answer in the room, they answer a fork there too, and it stays empty.
+  const forksAnswered = useRoomThreadMode(room.roomId, !onOpenThread) !== 'room';
 
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -471,7 +474,7 @@ export function ThreadActionsMenu({
     });
   }
   // The copy of the open thread (the card's has Open instead): a fork at its latest message.
-  const forkPoint = onOpenThread ? undefined : latestForkPoint(room, rootId);
+  const forkPoint = onOpenThread || !forksAnswered ? undefined : latestForkPoint(room, rootId);
   if (forkPoint) {
     items.push({
       action: 'fork',

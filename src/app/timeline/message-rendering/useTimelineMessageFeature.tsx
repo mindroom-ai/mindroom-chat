@@ -28,6 +28,7 @@ import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthenticatio
 import { usePowerLevelsContext } from '../../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../../matrix/hooks/useRoomPermissions';
+import { useRoomThreadMode } from '../../matrix/hooks/useRoomThreadMode';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { useSpaceOptionally } from '../../matrix/hooks/useSpace';
 import { useOpenUserRoomProfile } from '../../navigation/useUserRoomProfileState';
@@ -409,6 +410,8 @@ export const useTimelineMessageFeature = ({
   const setReplyDraft = useSetAtom(composerReplyDraftAtom(room.roomId, view));
   const { navigateRoomThread } = useRoomNavigate();
   const startFork = useStartThreadFork(room);
+  // Where agents answer in the room, they answer a fork there too, and it stays empty.
+  const forksAnswered = useRoomThreadMode(room.roomId, !!threadId) !== 'room';
   const forksByPoint = useThreadForks(room, threadId);
   const handleReplyClick = useCallback(
     (replyEventId: string, startThread = false) => {
@@ -585,7 +588,7 @@ export const useTimelineMessageFeature = ({
       const canSendReaction = !readOnly && kind !== 'sticker';
       // Inside a thread a message can start a fork, also one from a parent shown in a fork: that
       // forks its own thread.
-      const forkTarget = threadId ? forkTargetFor(event) : undefined;
+      const forkTarget = threadId && forksAnswered ? forkTargetFor(event) : undefined;
       // The forks made at this message, under it in the thread they were forked from: not on the
       // parent's rows shown in a fork, where they would repeat the chip the parent's own view shows.
       const forks = readOnly ? undefined : forksByPoint.get(eventId);
@@ -735,6 +738,7 @@ export const useTimelineMessageFeature = ({
       consumeLiveExpansion,
       dateFormatString,
       editingEventId,
+      forksAnswered,
       forksByPoint,
       handleOpenThread,
       handleReplyClick,
