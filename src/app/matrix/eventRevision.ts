@@ -1,6 +1,7 @@
 import { MatrixEvent, RelationType, type IEvent, type Room } from 'matrix-js-sdk';
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from './editEvent';
 import { getLatestEdit } from './room';
+import { findRoomEvent } from './roomEventLookup';
 import { threadSummaryPreviews, withoutRedactedThreadPreviews } from './threadSummaryPreviews';
 import { matchesEnum } from '../lib/matchesEnum';
 
@@ -194,7 +195,7 @@ export const collectEmbeddedRelationEventIds = (
  */
 export const isKnownRedactedEventId = (room: Room, eventId: string): boolean =>
   // Optional: room stand-ins in tests have no record.
-  !!room.redactedBundledEdits?.has(eventId) || room.findEventById(eventId)?.isRedacted() === true;
+  !!room.redactedBundledEdits?.has(eventId) || findRoomEvent(room, eventId)?.isRedacted() === true;
 
 /**
  * Union of every event id known to be redacted from the given raw batch: the
