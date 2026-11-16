@@ -451,7 +451,7 @@ it('keeps a loaded list free of errors when checking its roots at the end fails'
   );
 });
 
-it('checks each listed root once per page load, not once per page', async () => {
+it('checks each listed root with its page and once more as the load ends, not once per page', async () => {
   class Client extends MatrixClient {
     constructor() {
       super({ baseUrl: 'https://example.org', userId });
@@ -733,4 +733,73 @@ it('saves encrypted listed roots once decrypted, and again when a failed one dec
   await decrypt(lateKey, clear('Late title'));
   await showOverview();
   expect(saved).toEqual(['$late-key m.room.message']);
+});
+
+it('saves a listed root that is still being decrypted when the overview closes', async () => {
+  class Client extends MatrixClient {
+    constructor() {
+      super({ baseUrl: 'https://example.org', userId });
+      this.clientOpts = { threadSupport: true };
+      this.threadSupportPending = Promise.resolve();
+    }
+  }
+  const mx = new Client();
+  const room = new Room(roomId, mx, userId, { timelineSupport: true });
+  mx.store.storeRoom(room);
+  const engine = createSyncEngine({ mx });
+  sessionId = engine.sessionId;
+  const saved: string[] = [];
+  const forRoom = engine.persist.forRoom.bind(engine.persist);
+  vi.spyOn(engine.persist, 'forRoom').mockImplementation((target) => {
+    const persist = forRoom(target);
+    return {
+      ...persist,
+      persistThreadEventCache: (...args) => {
+        saved.push(`${args[0]} ${args[2]?.getType()}`);
+        return persist.persistThreadEventCache(...args);
+      },
+    };
+  });
+  const root = new MatrixEvent({
+    event_id: '$decrypting',
+    room_id: roomId,
+    sender: userId,
+    origin_server_ts: 1000,
+    type: 'm.room.encrypted',
+    content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'decrypting' },
+  });
+  let releaseKey!: () => void;
+  const decrypted = root.attemptDecryption({
+    decryptEvent: () =>
+      new Promise((resolve) => {
+        releaseKey = () =>
+          resolve({
+            clearEvent: { room_id: roomId, type: 'm.room.message', content: { body: 'Clear' } },
+          });
+      }),
+  } as unknown as CryptoBackend);
+  vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
+    room.processThreadRoots([root], false);
+  });
+  let loading = true;
+  function Harness() {
+    loading = useRoomThreadList(room).loading;
+    return null;
+  }
+  await act(async () => {
+    renderer = create(
+      <MatrixClientProvider value={mx}>
+        <SyncEngineProvider engine={engine}>
+          <Harness />
+        </SyncEngineProvider>
+      </MatrixClientProvider>
+    );
+    await vi.waitFor(() => expect(loading).toBe(false));
+  });
+  await act(async () => renderer?.unmount());
+  renderer = undefined;
+  expect(saved).toEqual([]);
+  releaseKey();
+  await decrypted;
+  await vi.waitFor(() => expect(saved).toEqual(['$decrypting m.room.message']));
 });
