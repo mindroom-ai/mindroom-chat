@@ -275,13 +275,24 @@ export const prepareText = (text: string): PreparedText => {
   return { text: folded, flags, starts, initials };
 };
 
+/** Ranges in order, with those that overlap or touch as one. */
+const mergeRanges = (ranges: readonly TextRange[]): TextRange[] => {
+  const merged: [number, number][] = [];
+  ranges.forEach(([start, end]) => {
+    const last = merged[merged.length - 1];
+    if (last && start <= last[1]) last[1] = Math.max(last[1], end);
+    else merged.push([start, end]);
+  });
+  return merged;
+};
+
 /**
- * Ranges of a text's folded form as ranges of the text as written. A range that holds a part of
- * a character takes all of it: the accent with its letter, both halves of a letter that folds to
- * two.
+ * Ranges of a text's folded form, in order, as ranges of the text as written. A range that holds
+ * a part of a character takes all of it: the accent with its letter, both halves of a letter that
+ * folds to two. Ranges that overlap or touch come back as one, so no letter is marked twice.
  */
 export const originalRanges = (text: string, ranges: readonly TextRange[]): TextRange[] => {
-  if (ASCII.test(text)) return ranges.map(([start, end]): TextRange => [start, end]);
+  if (ASCII.test(text)) return mergeRanges(ranges);
   // Where the unit of each folded character starts and ends in the text as written.
   const starts: number[] = [];
   const ends: number[] = [];
@@ -294,37 +305,43 @@ export const originalRanges = (text: string, ranges: readonly TextRange[]): Text
     }
     at += unit.length;
   });
-  const merged: [number, number][] = [];
-  ranges.forEach(([start, end]) => {
-    const from = starts[start];
-    const to = ends[end - 1];
-    if (from === undefined || to === undefined) return;
-    const last = merged[merged.length - 1];
-    if (last && from <= last[1]) last[1] = Math.max(last[1], to);
-    else merged.push([from, to]);
-  });
-  return merged;
+  return mergeRanges(
+    ranges.flatMap(([start, end]): TextRange[] => {
+      const from = starts[start];
+      const to = ends[end - 1];
+      return from === undefined || to === undefined ? [] : [[from, to]];
+    })
+  );
 };
 
 const has = (flags: Uint8Array, index: number, flag: number): boolean =>
   ((flags[index] ?? 0) & flag) !== 0;
 
-/** What the words that start before `index` take from a match there. */
-const wordsBefore = (flags: Uint8Array, index: number): number => {
-  let count = 0;
-  for (let at = 0; at < index && count < DETAIL.wordsBeforeCounted; at += 1) {
-    if (has(flags, at, WORD_START)) count += 1;
+/**
+ * The words that start before `index`, up to the number that counts. A field is asked for its
+ * places in rising order: `from` and `count` are the place asked before and its answer, so the
+ * text between two places is read once however many places there are.
+ */
+const wordStartsBefore = (
+  flags: Uint8Array,
+  index: number,
+  from: number,
+  count: number
+): number => {
+  let starts = count;
+  for (let at = from; at < index && starts < DETAIL.wordsBeforeCounted; at += 1) {
+    if (has(flags, at, WORD_START)) starts += 1;
   }
-  return count * DETAIL.wordBefore;
+  return starts;
 };
 
-/** The length of the word that holds `index`. */
-const wordLength = (flags: Uint8Array, index: number): number => {
+/** The word that holds `index`: its first index and the index after its last. */
+const wordAt = (flags: Uint8Array, index: number): TextRange => {
   let end = index;
   while (end < flags.length && has(flags, end, WORD_CHAR) && !has(flags, end, WORD_END)) end += 1;
   let start = index;
   while (start > 0 && has(flags, start, WORD_CHAR) && !has(flags, start, WORD_START)) start -= 1;
-  return Math.min(end + 1, flags.length) - start;
+  return [start, Math.min(end + 1, flags.length)];
 };
 
 const better = (match: WordMatch, than: WordMatch | undefined): boolean =>
@@ -338,6 +355,11 @@ const findHeld = (word: string, { text, flags, starts }: PreparedText, name: boo
     return { score: MATCH_SCORE.exact, detail: 0, ranges: [[0, word.length]] as TextRange[] };
   }
   let best: WordMatch | undefined;
+  // The places come in rising order, so the field is read once for all of them: the words before
+  // a place are counted on from the place before it, and a word is measured once.
+  let counted = 0;
+  let before = 0;
+  let around: TextRange = [0, 0];
   for (; at !== -1; at = text.indexOf(word, at + 1)) {
     const end = at + word.length;
     const atStart = has(flags, at, WORD_START);
@@ -351,11 +373,14 @@ const findHeld = (word: string, { text, flags, starts }: PreparedText, name: boo
       }
       // The detail only of a place that can still be the best one.
       if (!best || score >= best.score) {
+        before = wordStartsBefore(flags, at, counted, before);
+        counted = at;
+        if (at >= around[1]) around = wordAt(flags, at);
         const match: WordMatch = {
           score,
           detail:
-            DETAIL.coverage * Math.min(1, word.length / wordLength(flags, at)) +
-            wordsBefore(flags, at) +
+            DETAIL.coverage * Math.min(1, word.length / (around[1] - around[0])) +
+            before * DETAIL.wordBefore +
             (!atStart && atEnd ? DETAIL.inWordEnd : 0),
           ranges: [[at, end]],
         };
@@ -457,10 +482,14 @@ const findTypo = (word: string, { text, flags, starts }: PreparedText): WordMatc
   const limit = length >= TWO_TYPOS_LENGTH ? 2 : 1;
   const first = word.charAt(0);
   let best: WordMatch | undefined;
+  let counted = 0;
+  let before = 0;
   const consider = (start: number, end: number, typos: number, whole: boolean) => {
+    before = wordStartsBefore(flags, start, counted, before);
+    counted = start;
     const match: WordMatch = {
       score: SCORE.typo + (whole ? SCORE.typoWholeWord : 0) - (typos > 1 ? SCORE.secondTypo : 0),
-      detail: wordsBefore(flags, start),
+      detail: before * DETAIL.wordBefore,
       ranges: [[start, end]],
     };
     if (better(match, best)) best = match;
@@ -494,6 +523,10 @@ const findTypo = (word: string, { text, flags, starts }: PreparedText): WordMatc
 };
 
 const ABBREVIATION_LENGTH = 3;
+// The longest typed word compared for typos and abbreviations. Comparing for typos takes the
+// square of its length and following an abbreviation a call inside a call for each letter, and a
+// word this long is pasted, not typed: it matches where a field holds it.
+const FUZZY_WORD_LENGTH = 64;
 
 /**
  * The word abbreviates the field: the starts of words that follow each other, each as far as it
@@ -508,29 +541,30 @@ const findAbbreviation = (
   const places: number[] = [];
   const inWord = (place: number): boolean =>
     place < text.length && has(flags, place, WORD_CHAR) && !has(flags, place, SEGMENT_START);
-  const follow = (letter: number, from: number, jumped: boolean): boolean => {
+  // `segment` is the word that holds `from`, as its place in `starts`.
+  const follow = (letter: number, from: number, segment: number, jumped: boolean): boolean => {
     if (letter === word.length) return true;
     const key = (letter * (text.length + 1) + from) * 2 + (jumped ? 1 : 0);
     if (dead.has(key)) return false;
     const wanted = word.charAt(letter);
-    const take = (place: number, afterJump: boolean): boolean => {
+    const take = (place: number, inSegment: number, afterJump: boolean): boolean => {
       if (text.charAt(place) !== wanted) return false;
       places.push(place);
-      if (follow(letter + 1, place, afterJump)) return true;
+      if (follow(letter + 1, place, inSegment, afterJump)) return true;
       places.pop();
       return false;
     };
     const next = from + 1;
     // The next letter of this word.
-    if (inWord(next) && take(next, jumped)) return true;
+    if (inWord(next) && take(next, segment, jumped)) return true;
     if (!jumped) {
       // The start of the word after this one: no word is passed over.
-      const nextStart = starts.find((start) => start > from);
-      if (nextStart !== undefined && take(nextStart, false)) return true;
+      const nextStart = starts[segment + 1];
+      if (nextStart !== undefined && take(nextStart, segment + 1, false)) return true;
       // A later letter of this word, once; nothing but this word's letters may follow it.
       if (inWord(next)) {
         for (let place = next + 1; inWord(place); place += 1) {
-          if (take(place, true)) return true;
+          if (take(place, segment, true)) return true;
         }
       }
     }
@@ -540,11 +574,13 @@ const findAbbreviation = (
 
   const first = word.charAt(0);
   let best: WordMatch | undefined;
-  for (const start of starts) {
+  let counted = 0;
+  let before = 0;
+  for (const [segment, start] of starts.entries()) {
     if (text.charAt(start) === first) {
       places.length = 0;
       places.push(start);
-      if (follow(1, start, false)) {
+      if (follow(1, start, segment, false)) {
         const runs = places.filter(
           (place, index) =>
             index > 0 &&
@@ -556,9 +592,11 @@ const findAbbreviation = (
           if (last && last[1] === place) last[1] = place + 1;
           else ranges.push([place, place + 1]);
         });
+        before = wordStartsBefore(flags, start, counted, before);
+        counted = start;
         const match: WordMatch = {
           score: SCORE.abbreviation,
-          detail: (DETAIL.abbreviationRun * runs) / (word.length - 1) + wordsBefore(flags, start),
+          detail: (DETAIL.abbreviationRun * runs) / (word.length - 1) + before * DETAIL.wordBefore,
           ranges,
         };
         if (better(match, best)) best = match;
@@ -572,8 +610,9 @@ const findAbbreviation = (
  * How `word`, a typed word already folded, matches `field`: the best of the field holding it
  * (whole, at its start, at the start of a later word, inside a word), its initials, a typo, and
  * an abbreviation. `name` says the field is what a row is called by: only a name matches by
- * initials, by abbreviation, and by one or two letters inside a word. The ranges are of the
- * folded field ({@link originalRanges}). Undefined when the word does not match.
+ * initials, by abbreviation, and by one or two letters inside a word. A word of more than 64
+ * letters matches by neither a typo nor an abbreviation. The ranges are of the folded field
+ * ({@link originalRanges}). Undefined when the word does not match.
  */
 export const matchWord = (
   word: string,
@@ -587,7 +626,11 @@ export const matchWord = (
   if (initials) return initials;
   if (held) return held;
   // The rest starts at the first letter of a word of the field.
-  if (word.length < ABBREVIATION_LENGTH || !field.initials.includes(word.charAt(0))) {
+  if (
+    word.length < ABBREVIATION_LENGTH ||
+    word.length > FUZZY_WORD_LENGTH ||
+    !field.initials.includes(word.charAt(0))
+  ) {
     return undefined;
   }
   return (

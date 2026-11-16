@@ -336,8 +336,3 @@ export const matchCommandPaletteSection = <T extends SearchableCommandPaletteIte
     );
   return [...matches, ...unmatched.map(unmarked)].slice(0, config.limit);
 };
-
-/** The items of {@link matchCommandPaletteSection}. */
-export const searchCommandPaletteSection = <T extends SearchableCommandPaletteItem>(
-  options: MatchCommandPaletteSectionOptions<T>
-): T[] => matchCommandPaletteSection(options).map(({ item }) => item);

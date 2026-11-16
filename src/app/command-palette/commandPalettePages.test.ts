@@ -1,6 +1,6 @@
 import { Icons } from 'folds';
 import { describe, expect, it } from 'vitest';
-import { commandPaletteSearchConfig, searchCommandPaletteSection } from './commandPaletteSearch';
+import { commandPaletteSearchConfig, matchCommandPaletteSection } from './commandPaletteSearch';
 import type { CommandPaletteActionItem } from './commandPaletteTypes';
 import { getCommandPalettePageRows, tagCommandPalettePageRows } from './commandPalettePages';
 
@@ -52,11 +52,11 @@ describe('tagCommandPalettePageRows', () => {
       title: 'Theme',
       page: 'theme',
     };
-    const found = searchCommandPaletteSection({
+    const found = matchCommandPaletteSection({
       items: [pageRow, ...tagCommandPalettePageRows('Theme', rows())],
       query: 'theme',
       config: commandPaletteSearchConfig.actions,
-    });
+    }).map(({ item }) => item);
     expect(found).toStrictEqual([pageRow]);
   });
 });

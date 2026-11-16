@@ -5,11 +5,7 @@ import type {
   CommandPaletteThreadItem,
   CommandPaletteUserItem,
 } from './commandPaletteTypes';
-import {
-  commandPaletteSearchConfig,
-  matchCommandPaletteSection,
-  searchCommandPaletteSection,
-} from './commandPaletteSearch';
+import { commandPaletteSearchConfig, matchCommandPaletteSection } from './commandPaletteSearch';
 
 const action = (
   id: string,
@@ -40,13 +36,25 @@ const user = (
 const ids = (items: readonly { id: string }[]) => items.map((item) => item.id);
 
 const searchRooms = (items: CommandPaletteRoomItem[], query: string) =>
-  ids(searchCommandPaletteSection({ items, query, config: commandPaletteSearchConfig.rooms }));
+  ids(
+    matchCommandPaletteSection({ items, query, config: commandPaletteSearchConfig.rooms }).map(
+      ({ item }) => item
+    )
+  );
 
 const searchUsers = (items: CommandPaletteUserItem[], query: string) =>
-  ids(searchCommandPaletteSection({ items, query, config: commandPaletteSearchConfig.users }));
+  ids(
+    matchCommandPaletteSection({ items, query, config: commandPaletteSearchConfig.users }).map(
+      ({ item }) => item
+    )
+  );
 
 const searchActions = (items: CommandPaletteActionItem[], query: string) =>
-  ids(searchCommandPaletteSection({ items, query, config: commandPaletteSearchConfig.actions }));
+  ids(
+    matchCommandPaletteSection({ items, query, config: commandPaletteSearchConfig.actions }).map(
+      ({ item }) => item
+    )
+  );
 
 describe('commandPaletteSearchConfig', () => {
   const shape = (config: { fields: readonly { key: string; weight: number; name?: boolean }[] }) =>
@@ -81,7 +89,7 @@ describe('commandPaletteSearchConfig', () => {
   });
 });
 
-describe('searchCommandPaletteSection', () => {
+describe('matchCommandPaletteSection rows', () => {
   it('keeps the starter order without text, up to the limit', () => {
     const items = [
       action('logout', 'Logout', { sortRank: 10 }),
@@ -89,11 +97,11 @@ describe('searchCommandPaletteSection', () => {
       action('home', 'Go Home', { sortRank: 30 }),
     ];
 
-    const results = searchCommandPaletteSection({
+    const results = matchCommandPaletteSection({
       items,
       query: '   ',
       config: { ...commandPaletteSearchConfig.actions, limit: 2 },
-    });
+    }).map(({ item }) => item);
 
     expect(ids(results)).toEqual(['home', 'settings']);
   });
@@ -129,11 +137,11 @@ describe('searchCommandPaletteSection', () => {
       },
     ];
 
-    const results = searchCommandPaletteSection({
+    const results = matchCommandPaletteSection({
       items,
       query: 'urgent',
       config: commandPaletteSearchConfig.threads,
-    });
+    }).map(({ item }) => item);
 
     expect(ids(results)).toEqual(['$thread-1']);
   });
@@ -235,7 +243,11 @@ describe('searchCommandPaletteSection', () => {
     ];
     const search = (query: string) =>
       ids(
-        searchCommandPaletteSection({ items, query, config: commandPaletteSearchConfig.threads })
+        matchCommandPaletteSection({
+          items,
+          query,
+          config: commandPaletteSearchConfig.threads,
+        }).map(({ item }) => item)
       );
 
     expect(search('crd')).toEqual([]);
@@ -340,6 +352,14 @@ describe('matchCommandPaletteSection', () => {
     );
 
     expect(match?.marks).toEqual({ name: [[0, 3]], topic: [[12, 19]] });
+  });
+
+  it('marks letters that two typed words matched once', () => {
+    const [prefix] = matchRooms([room('!create:example.org', 'Create Room')], 'create c');
+    expect(prefix?.marks).toEqual({ name: [[0, 6]] });
+
+    const [twice] = matchRooms([room('!general:example.org', 'General')], 'gen gen');
+    expect(twice?.marks).toEqual({ name: [[0, 3]] });
   });
 
   it('marks nothing in a field that is a list', () => {

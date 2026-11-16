@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CommandPaletteRoomItem } from './commandPaletteTypes';
-import { commandPaletteSearchConfig, searchCommandPaletteSection } from './commandPaletteSearch';
+import { commandPaletteSearchConfig, matchCommandPaletteSection } from './commandPaletteSearch';
 
 const room = (id: string, name: string, boost = 0): CommandPaletteRoomItem => ({
   id,
@@ -10,7 +10,7 @@ const room = (id: string, name: string, boost = 0): CommandPaletteRoomItem => ({
   boost,
 });
 
-describe('searchCommandPaletteSection room names', () => {
+describe('matchCommandPaletteSection room names', () => {
   it('ranks a room whose name matches above unread rooms that match only by topic', () => {
     const items = [
       room('!a:example.org', 'Team room 1', 25),
@@ -18,11 +18,11 @@ describe('searchCommandPaletteSection room names', () => {
       room('!named:example.org', 'Quarterly planning for the customer onboarding redesign'),
     ];
 
-    const results = searchCommandPaletteSection({
+    const results = matchCommandPaletteSection({
       items,
       query: 'plan',
       config: commandPaletteSearchConfig.rooms,
-    });
+    }).map(({ item }) => item);
 
     expect(results[0]?.id).toBe('!named:example.org');
     expect(results).toHaveLength(3);
@@ -35,23 +35,26 @@ describe('searchCommandPaletteSection room names', () => {
       room('!named:example.org', 'Quarterly planning for the customer onboarding redesign'),
     ];
 
-    const results = searchCommandPaletteSection({
+    const results = matchCommandPaletteSection({
       items,
       query: 'Plan',
       config: commandPaletteSearchConfig.rooms,
-    });
+    }).map(({ item }) => item);
 
     expect(results[0]?.id).toBe('!named:example.org');
   });
 
   it('keeps the boost order among rooms that match the same way', () => {
-    const items = [room('!a:example.org', 'Team room 1'), room('!b:example.org', 'Team room 2', 25)];
+    const items = [
+      room('!a:example.org', 'Team room 1'),
+      room('!b:example.org', 'Team room 2', 25),
+    ];
 
-    const results = searchCommandPaletteSection({
+    const results = matchCommandPaletteSection({
       items,
       query: 'plan',
       config: commandPaletteSearchConfig.rooms,
-    });
+    }).map(({ item }) => item);
 
     expect(results.map((item) => item.id)).toEqual(['!b:example.org', '!a:example.org']);
   });

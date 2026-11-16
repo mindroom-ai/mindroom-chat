@@ -12,7 +12,7 @@ import type { SettingsContext } from '../preferences/settingsRegistry';
 import type { SettingsSearchValues } from '../settings/settingsSearchIndex';
 import { THEMES } from '../theme/useTheme';
 import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
-import { commandPaletteSearchConfig, searchCommandPaletteSection } from './commandPaletteSearch';
+import { commandPaletteSearchConfig, matchCommandPaletteSection } from './commandPaletteSearch';
 import type { CommandPaletteActionItem, Executable } from './commandPaletteTypes';
 import { useCommandPaletteCommands } from './useCommandPaletteCommands';
 
@@ -126,11 +126,11 @@ const search = (
   commands: readonly Executable<CommandPaletteActionItem>[],
   text: string
 ): Executable<CommandPaletteActionItem>[] =>
-  searchCommandPaletteSection({
+  matchCommandPaletteSection({
     items: commands,
     query: text,
     config: { ...commandPaletteSearchConfig.actions, limit: 50 },
-  });
+  }).map(({ item }) => item);
 
 afterEach(() => {
   localStorage.clear();

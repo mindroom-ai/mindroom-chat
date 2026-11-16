@@ -6,8 +6,8 @@ import { CommandPalette } from './CommandPalette';
 import type { CommandPaletteMessages } from './useCommandPaletteMessages';
 import type { CommandPalettePeople } from './useCommandPalettePeople';
 
-const { searchCommandPaletteSectionCalls } = vi.hoisted(() => ({
-  searchCommandPaletteSectionCalls: vi.fn(),
+const { matchCommandPaletteSectionCalls } = vi.hoisted(() => ({
+  matchCommandPaletteSectionCalls: vi.fn(),
 }));
 
 vi.mock('../lib/user-agent', () => ({
@@ -23,7 +23,7 @@ vi.mock('./commandPaletteSearch', async () => {
   return {
     ...actual,
     matchCommandPaletteSection: vi.fn((options) => {
-      searchCommandPaletteSectionCalls(options);
+      matchCommandPaletteSectionCalls(options);
       return actual.matchCommandPaletteSection(options);
     }),
   };
@@ -562,11 +562,11 @@ describe('CommandPalette', () => {
 
   it('only searches the active section on a single-section tab', async () => {
     const renderer = renderPalette({ initialTab: 'users' });
-    searchCommandPaletteSectionCalls.mockClear();
+    matchCommandPaletteSectionCalls.mockClear();
     await type(renderer, 'alice');
-    expect(searchCommandPaletteSectionCalls).toHaveBeenCalledTimes(1);
+    expect(matchCommandPaletteSectionCalls).toHaveBeenCalledTimes(1);
     expect(
-      searchCommandPaletteSectionCalls.mock.calls[0]?.[0]?.items.every(
+      matchCommandPaletteSectionCalls.mock.calls[0]?.[0]?.items.every(
         (item: { kind: string }) => item.kind === 'user'
       )
     ).toBe(true);

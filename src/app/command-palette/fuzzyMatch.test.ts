@@ -285,9 +285,90 @@ describe('matchWord ranges', () => {
   });
 });
 
+/**
+ * `text` prepared, with a count of the times its flags and its word starts are read: what the
+ * matcher's work on a field comes to, on any machine.
+ */
+const counting = (text: string) => {
+  const prepared = prepareText(text);
+  let reads = 0;
+  const counted = <T extends object>(target: T): T =>
+    new Proxy(target, {
+      get: (inner, key): unknown => {
+        reads += 1;
+        return Reflect.get(inner, key) as unknown;
+      },
+    });
+  return {
+    field: { ...prepared, flags: counted(prepared.flags), starts: counted(prepared.starts) },
+    length: prepared.text.length,
+    reads: () => reads,
+  };
+};
+
+describe('matchWord on long text', () => {
+  it('reads a long word once for a letter it holds many times', () => {
+    const { field, length, reads } = counting(`b${'a'.repeat(2000)}`);
+
+    expect(matchWord('a', field, true)).toBeDefined();
+    expect(reads()).toBeLessThan(20 * length);
+  });
+
+  it('reads the words before its typos once, however many words match', () => {
+    const { field, length, reads } = counting(`${'x'.repeat(2000)} ${'abcde '.repeat(300)}`);
+
+    expect(matchWord('abcdx', field, true)).toBeDefined();
+    expect(reads()).toBeLessThan(20 * length);
+  });
+
+  it('finds the next word of an abbreviation without reading the words before it', () => {
+    const { field, length, reads } = counting('ab '.repeat(1000));
+
+    expect(matchWord('abab', field, true)).toBeDefined();
+    expect(reads()).toBeLessThan(20 * length);
+  });
+
+  it('compares a word of more than 64 letters only as it was typed', () => {
+    const most = `a${'b'.repeat(62)}`;
+    expect(match(`${most}d`, `${most}c`)).toBeDefined();
+
+    const longer = `a${'b'.repeat(70)}`;
+    expect(match(`${longer}d`, `${longer}c`)).toBeUndefined();
+    expect(match(longer, `${longer}c`)).toBeDefined();
+
+    const pasted = 'a'.repeat(10000);
+    expect(match(`${pasted}d`, `${pasted}c`)).toBeUndefined();
+  });
+
+  it('takes a pasted abbreviation of thousands of letters without failing', () => {
+    expect(match('ab'.repeat(5000), 'ab '.repeat(5000))).toBeUndefined();
+  });
+});
+
 describe('originalRanges', () => {
   it('keeps the ranges of text that folds letter for letter', () => {
     expect(originalRanges('Café Zürich', [[5, 8]])).toEqual([[5, 8]]);
+  });
+
+  it('gives ranges that overlap or touch as one', () => {
+    expect(
+      originalRanges('Create Room', [
+        [0, 1],
+        [0, 6],
+      ])
+    ).toEqual([[0, 6]]);
+    expect(
+      originalRanges('abcd', [
+        [0, 2],
+        [2, 4],
+      ])
+    ).toEqual([[0, 4]]);
+    expect(
+      originalRanges('Café Zürich', [
+        [0, 2],
+        [1, 4],
+      ])
+    ).toEqual([[0, 4]]);
   });
 
   it('takes a combining accent with its letter', () => {

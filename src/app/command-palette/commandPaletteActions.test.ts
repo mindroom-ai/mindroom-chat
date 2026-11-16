@@ -7,7 +7,7 @@ import {
   getCommandPaletteSearchPagePath,
   getCommandPaletteQuickActions,
 } from './commandPaletteActions';
-import { commandPaletteSearchConfig, searchCommandPaletteSection } from './commandPaletteSearch';
+import { commandPaletteSearchConfig, matchCommandPaletteSection } from './commandPaletteSearch';
 
 const t = translateFromEn as unknown as TFunction;
 
@@ -190,9 +190,9 @@ describe('getCommandPaletteQuickActions', () => {
   it('keeps the tour below the everyday actions, and finds both levels by "tutorial"', () => {
     const items = getCommandPaletteQuickActions({}, t);
     const shown = (query: string) =>
-      searchCommandPaletteSection({ items, query, config: commandPaletteSearchConfig.actions }).map(
-        (item) => item.id
-      );
+      matchCommandPaletteSection({ items, query, config: commandPaletteSearchConfig.actions })
+        .map(({ item }) => item)
+        .map((item) => item.id);
     expect(shown('').slice(0, 3)).toEqual(['open-settings', 'go-home', 'go-direct']);
     expect(shown('tutorial')).toEqual(['take-quick-tour', 'take-full-tour']);
     expect(shown('quick tour')[0]).toBe('take-quick-tour');

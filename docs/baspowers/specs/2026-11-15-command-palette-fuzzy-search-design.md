@@ -101,7 +101,7 @@ The first search costs about what it did; it is paid again whenever a list chang
 | an abbreviation | `engplat` for Engineering Platform, `crm` for Create Room | names |
 
 - "Names" are the fields a row is called by: a room's name, a person's display name and user name, an action's title. The other fields (topic, alias, parent spaces, search words, description, tags, room of a thread, user ID) and a thread's title, which is a sentence, take no initials and no abbreviations.
-- **Typos.** The first letter must be right. A word of up to three letters takes no typo. A word of four letters takes two neighboring letters swapped (`jhon`), nothing else. A word of five to eight letters takes one typo, and one of nine or more takes two; a typo is a letter that is wrong, missing or extra, or two neighbors swapped. The typed word is compared with a whole word of the field; from seven letters on also with the start of a longer word, so a typo does not hide the row while the word is still being typed.
+- **Typos.** The first letter must be right. A word of up to three letters takes no typo. A word of four letters takes two neighboring letters swapped (`jhon`), nothing else. A word of five to eight letters takes one typo, and one of nine or more takes two; a typo is a letter that is wrong, missing or extra, or two neighbors swapped. The typed word is compared with a whole word of the field; from seven letters on also with the start of a longer word, so a typo does not hide the row while the word is still being typed. A word of more than 64 letters is pasted, not typed: it takes no typo and is no abbreviation, and matches where a field holds it.
 - **Abbreviations.** Three letters or more: the starts of words that follow each other, each as far as it was typed (`engplat`, `opset`). No word is passed over, and the last word may leave letters out once (`crm`: `C`reate `R`oo`m`).
 - **Tags.** An action row's tag (the page of a choice, `Settings` on a setting) matches a typed word only beside another word that matches the row itself: `theme dracula` finds the Dracula theme, and `theme` alone lists the Theme page, not every theme.
 - A person's user name counts without MindRoom's agent prefix, and typed text may carry it (`mindroom_code` finds Code), so `mind` and `room` list no agent. A leading `@` is dropped.
@@ -139,7 +139,7 @@ The first search costs about what it did; it is paid again whenever a list chang
 | File | What it does |
 |---|---|
 | `command-palette/fuzzyMatch.ts` (new) | Pure, no app types. `foldText`, `prepareText` (the folded text with its word starts and ends), `matchWord` (one typed word against one prepared text: the way it matches as a score, the detail inside that way, and the matched ranges, or nothing), `originalRanges` (ranges of folded text as ranges of the text as written), `MATCH_SCORE` (the scores that mean something on their own). |
-| `command-palette/commandPaletteSearch.ts` | The fields of each list with their weights (`commandPaletteSearchConfig`), `matchCommandPaletteSection` (the matches of a list for typed text: item, score, marks per field, best first) and `searchCommandPaletteSection` (their items). The prepared rows of a list are kept while the list keeps its identity. Fuse.js goes. |
+| `command-palette/commandPaletteSearch.ts` | The fields of each list with their weights (`commandPaletteSearchConfig`), `matchCommandPaletteSection` (the matches of a list for typed text: item, score, marks per field, best first). The prepared rows of a list are kept while the list keeps its identity. Fuse.js goes. |
 | `command-palette/commandPaletteResults.ts` (new) | Pure: `getCommandPaletteLocalSections` gives the rooms, threads, people and actions of a tab for typed text, in the order shown, with their marks. `rankCommandPalettePeople` ranks local and server people together. The corpus tests run on it. |
 | `command-palette/commandPalettePeopleRanking.ts` | Removed: the one score ranks people. |
 | `command-palette/useCommandPaletteCommands.ts`, `commandPaletteItems.ts` | `searchCommands(text)` becomes `commands`, the rows only typed text finds (settings, page choices), which the palette searches with the actions. |
@@ -153,7 +153,7 @@ The first search costs about what it did; it is paid again whenever a list chang
 
 ### Speed
 
-Per keystroke each row costs a few `indexOf` calls; the initials, typo and abbreviation checks run only for a word no field holds, and the last two only when a word of the field starts with the typed word's first letter. A prepared text holds the folded text, one flag per character, where its words start and their first letters.
+Per keystroke each row costs a few `indexOf` calls; the initials, typo and abbreviation checks run only for a word no field holds, and the last two only when a word of the field starts with the typed word's first letter. A prepared text holds the folded text, one flag per character, where its words start and their first letters. A field is read once for a typed word however long it is and however often it holds the word, so a room name of thousands of letters does not stall a keystroke.
 
 ## Testing
 
