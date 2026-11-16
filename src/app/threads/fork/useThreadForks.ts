@@ -1,5 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { RoomEvent, ThreadEvent, type MatrixEvent, type Room, type Thread } from 'matrix-js-sdk';
+import { getLinkedTimelines } from '../../event-store/timeline/linkedTimelines';
+import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { parseThreadForkRef } from '../../event-store/threads/threadFork';
 import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
 
@@ -40,10 +42,9 @@ const NO_FORKS = new Map<string, ThreadFork[]>();
 /** The roots the room knows: those of its threads, and its loaded timeline's events. */
 const knownRoots = (room: Room): MatrixEvent[] => [
   ...room.getThreads().flatMap(({ rootEvent }) => rootEvent ?? []),
-  ...room
-    .getUnfilteredTimelineSet()
-    .getTimelines()
-    .flatMap((timeline) => timeline.getEvents()),
+  ...getLinkedTimelines(room.getUnfilteredTimelineSet().getLiveTimeline()).flatMap((timeline) =>
+    timeline.getEvents()
+  ),
 ];
 
 const makesForkOf = (event: MatrixEvent | undefined, threadId: string): boolean =>
@@ -58,6 +59,7 @@ export const useThreadForks = (
   room: Room,
   threadId: string | undefined
 ): Map<string, ThreadFork[]> => {
+  const mx = useMatrixClient();
   const [version, bump] = useForceUpdate();
   useEffect(() => {
     if (!threadId) return undefined;
@@ -68,13 +70,17 @@ export const useThreadForks = (
     const onThread = (thread: Thread) => {
       if (makesForkOf(thread.rootEvent, threadId)) bump();
     };
-    room.on(RoomEvent.Timeline, onEvent);
+    // The client re-emits its rooms' timeline events; a thread's creation only the room emits.
+    const onRoomEvent = (event: MatrixEvent, eventRoom: Room | undefined) => {
+      if (eventRoom?.roomId === room.roomId) onEvent(event);
+    };
+    mx.on(RoomEvent.Timeline, onRoomEvent);
     room.on(ThreadEvent.New, onThread);
     return () => {
-      room.off(RoomEvent.Timeline, onEvent);
-      room.off(ThreadEvent.New, onThread);
+      mx.removeListener(RoomEvent.Timeline, onRoomEvent);
+      room.removeListener(ThreadEvent.New, onThread);
     };
-  }, [room, threadId, bump]);
+  }, [mx, room, threadId, bump]);
   return useMemo(() => {
     // The roots live in the SDK's mutable timelines: `version` renews the read.
     void version;

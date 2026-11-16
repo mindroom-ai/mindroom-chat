@@ -2,8 +2,11 @@
 import { EventEmitter } from 'events';
 import { act, renderHook } from '@testing-library/react';
 import { MatrixEvent, RoomEvent, ThreadEvent, type Room } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { groupThreadForks, useThreadForks } from './useThreadForks';
+
+const client = vi.hoisted(() => ({ emitter: undefined as unknown as EventEmitter }));
+vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => client.emitter }));
 
 const ROOM = '!room:example.org';
 
@@ -94,16 +97,20 @@ describe('groupThreadForks', () => {
 });
 
 const makeRoom = (threadRoots: MatrixEvent[], timelineEvents: MatrixEvent[]) => {
-  const emitter = new EventEmitter();
+  // The client re-emits timeline events of its rooms; the room emits a new thread itself.
+  const roomEmitter = new EventEmitter();
+  client.emitter = new EventEmitter();
   const state = { threadRoots, timelineEvents };
-  const room = Object.assign(emitter, {
+  const timeline = {
+    getEvents: () => state.timelineEvents,
+    getNeighbouringTimeline: () => null,
+  };
+  const room = Object.assign(roomEmitter, {
     roomId: ROOM,
     getThreads: () => state.threadRoots.map((rootEvent) => ({ rootEvent })),
-    getUnfilteredTimelineSet: () => ({
-      getTimelines: () => [{ getEvents: () => state.timelineEvents }],
-    }),
+    getUnfilteredTimelineSet: () => ({ getLiveTimeline: () => timeline }),
   }) as unknown as Room;
-  return { room, state, emitter };
+  return { room, state, emitter: roomEmitter, clientEmitter: client.emitter };
 };
 
 describe('useThreadForks', () => {
@@ -117,20 +124,20 @@ describe('useThreadForks', () => {
   });
 
   it('follows a fork root that arrives later, and ignores the rest', () => {
-    const { room, state, emitter } = makeRoom([], []);
+    const { room, state, emitter, clientEmitter } = makeRoom([], []);
     const { result } = renderHook(() => useThreadForks(room, '$p'));
     expect(result.current.size).toBe(0);
 
     const fork = root('$f', 20, { thread_id: '$p', event_id: '$a' });
     state.timelineEvents = [fork];
     act(() => {
-      emitter.emit(RoomEvent.Timeline, fork);
+      clientEmitter.emit(RoomEvent.Timeline, fork, room);
     });
     expect(result.current.get('$a')).toEqual([{ threadId: '$f', ts: 20 }]);
 
     const same = result.current;
     act(() => {
-      emitter.emit(RoomEvent.Timeline, root('$unrelated', 21));
+      clientEmitter.emit(RoomEvent.Timeline, root('$unrelated', 21), room);
     });
     expect(result.current).toBe(same);
 

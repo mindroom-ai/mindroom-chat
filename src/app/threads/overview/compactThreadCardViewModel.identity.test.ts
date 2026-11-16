@@ -21,6 +21,8 @@ import { useCompactThreadCardViewModels } from './compactThreadCardViewModel';
 const makeRoom = (): Room =>
   ({
     roomId: '!room:server',
+    getThread: () => null,
+    findEventById: () => undefined,
     getMember: () => undefined,
     getMembers: () => [],
   } as unknown as Room);

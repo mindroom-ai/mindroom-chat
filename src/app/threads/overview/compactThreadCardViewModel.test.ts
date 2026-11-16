@@ -71,6 +71,7 @@ const makeEvent = ({
     threadRootId,
     getSender: () => sender,
     getContent: () => content ?? (body ? { body, msgtype: 'm.text' } : {}),
+    getOriginalContent: () => content ?? (body ? { body, msgtype: 'm.text' } : {}),
     getType: () => 'm.room.message',
     getRelation: () => (threadRootId ? { rel_type: 'm.thread' } : undefined),
     isRelation: (relType: string) => !!threadRootId && relType === 'm.thread',
@@ -140,10 +141,7 @@ const buildModel = (
 describe('buildCompactThreadCardViewModelFromRecord', () => {
   it("names the thread a fork was made from, read from its root's original content", () => {
     const forkRoot = (content: Record<string, unknown>) =>
-      ({
-        ...makeEvent({ eventId: '$root', sender: '@me:server', content }),
-        getOriginalContent: () => content,
-      } as unknown as MatrixEvent);
+      makeEvent({ eventId: '$root', sender: '@me:server', content });
     const modelOf = (content: Record<string, unknown>) => {
       const rootEvent = forkRoot(content);
       return buildModel(makeRoom({ rootEvent }), { threadRootEvent: rootEvent });
