@@ -83,7 +83,7 @@ export function ThreadLiveStatusRows({ room, entry }: ThreadLiveStatusRowsProps)
   const streaming = entry.threadRecord.status.isStreaming;
   const runningTools = useRunningTools(room, threadId, streaming);
   const { active: activeSubagents } = useRoomSubagentCounts(room.roomId, threadId);
-  const { jobs: roomJobs } = useRoomBackgroundJobs(room);
+  const { jobs: roomJobs, total: roomTotal } = useRoomBackgroundJobs(room);
   const jobs = useMemo(() => jobsInView(roomJobs, threadId), [roomJobs, threadId]);
   // Both read more than the entry follows: a reaction that answers, an edit or a decryption that
   // changes a reply's cost. So they are read again whenever the room hears anything.
@@ -111,6 +111,8 @@ export function ThreadLiveStatusRows({ room, entry }: ThreadLiveStatusRowsProps)
       runningTools,
       activeSubagents,
       jobs,
+      // The agents count their live jobs per room, as the jobs bar reads them, not per thread.
+      jobsUnlisted: roomTotal > roomJobs.length,
       cost,
     },
     t,

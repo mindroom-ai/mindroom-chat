@@ -70,14 +70,14 @@ const streamingReply = reply('$streaming', 3000, {
   'io.mindroom.tool_trace': { version: 2, events: [started('shell'), started('grep')] },
 });
 
-const jobsState = (jobs: Record<string, unknown>[]) =>
+const jobsState = (jobs: Record<string, unknown>[], total?: number) =>
   new MatrixEvent({
     type: 'io.mindroom.background_jobs',
     state_key: AGENT,
     sender: AGENT,
     room_id: ROOM_ID,
     event_id: '$jobs',
-    content: { jobs },
+    content: { jobs, ...(total === undefined ? {} : { total }) },
   });
 
 const job = (jobId: string, status: string) => ({
@@ -201,6 +201,18 @@ describe('ThreadLiveStatusRows', () => {
       '2 jobs, 1 waiting for approval',
       'Cost',
       '≥ $0.50',
+    ]);
+  });
+
+  it('gives the jobs as a lower bound when the agent lists only some of the room jobs', async () => {
+    const { mx, room } = await setup([reply('$plain', 2000, {})]);
+    room.currentState.setStateEvents([
+      jobsState([job('job-1', 'running'), job('job-2', 'awaiting_approval')], 5),
+    ]);
+
+    expect(textOf(render(mx, room, false))).toEqual([
+      'Background',
+      '≥ 2 jobs, 1 waiting for approval',
     ]);
   });
 
