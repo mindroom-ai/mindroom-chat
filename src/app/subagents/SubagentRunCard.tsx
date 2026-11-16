@@ -20,6 +20,7 @@ import {
   type SubagentStatus,
 } from '../matrix/protocol/subagentFrame';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../matrix/room';
+import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../messages/agent-run/aiRunDisplay';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
 import * as css from './subagentsPanel.css';
 
@@ -136,6 +137,7 @@ export const SubagentRunCard = memo(function SubagentRunCard({
   const nested = node.turns.reduce((count, turn) => count + turn.nested.length, 0);
   const agent = useAgentProfile(room, meta.agent);
   const active = isActiveSubagentStatus(meta.status);
+  const modelLabel = meta.model && getAiRunCompactModelLabel(meta.model);
   const ago = useRelativeTime(
     active ? undefined : (meta.endedAt ?? meta.startedAt) * 1000,
     'compact'
@@ -175,16 +177,17 @@ export const SubagentRunCard = memo(function SubagentRunCard({
         <Text as="span" size="T200" className={css.AgentName} truncate>
           {agent.name}
         </Text>
-        {meta.model && (
+        {modelLabel && (
           <Text
             as="span"
             size="T200"
             priority="300"
             className={css.Model}
+            title={meta.model && getAiRunModelLabel(meta.model)}
             data-subagent-model=""
             truncate
           >
-            {meta.model}
+            {modelLabel}
           </Text>
         )}
         <Text as="span" size="T200" priority="300">

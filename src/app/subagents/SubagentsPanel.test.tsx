@@ -236,17 +236,39 @@ describe('SubagentsPanel', () => {
   });
 
   it("shows the model of a sub-agent's newest turn after its agent, and none it was not sent", () => {
-    ingest('modeled', meta('completed', { subagent: 'modeled', model: 'sonnet' }), docs('A.'));
+    const opus = {
+      modelConfig: 'harry_opus',
+      modelDisplayName: 'Opus 5.5',
+      modelId: 'anthropic/claude-opus-5.5',
+      modelProvider: 'openrouter',
+    };
+    ingest(
+      'modeled',
+      meta('completed', { subagent: 'modeled', model: { modelConfig: 'sonnet' } }),
+      docs('A.')
+    );
     ingest(
       'modeled-2',
-      meta('running', { subagent: 'modeled', model: 'harry_opus', startedAt: NOW - 10 }),
+      meta('running', { subagent: 'modeled', model: opus, startedAt: NOW - 10 }),
       docs('B.')
     );
-    ingest('old', meta('running', { startedAt: NOW - 5 }), docs('C.'));
+    ingest(
+      'unnamed',
+      meta('running', { model: { modelConfig: 'bedtime_fable' }, startedAt: NOW - 8 }),
+      docs('C.')
+    );
+    ingest('old', meta('running', { startedAt: NOW - 5 }), docs('D.'));
     render();
 
     const model = card('modeled').querySelector('[data-subagent-model]');
-    expect(model?.textContent).toBe('harry_opus');
+    expect(model?.textContent).toBe('Opus 5.5');
+    expect(model?.getAttribute('title')).toBe(
+      'harry_opus (openrouter / anthropic/claude-opus-5.5)'
+    );
+    // Without a display name, the short name the message badge shows.
+    expect(card('unnamed').querySelector('[data-subagent-model]')?.textContent).toBe(
+      'Bedtime Fable'
+    );
     // After the agent's name, before its status.
     const name = [...card('modeled').querySelectorAll('span')].find(
       (element) => element.textContent === 'Research Desk'
@@ -257,7 +279,7 @@ describe('SubagentsPanel', () => {
 
     open('modeled');
     const standing = container.querySelector('header [data-subagent-model]');
-    expect(standing?.textContent).toBe('harry_opus');
+    expect(standing?.textContent).toBe('Opus 5.5');
     expect(standing?.nextElementSibling?.textContent).toBe('Running');
   });
 

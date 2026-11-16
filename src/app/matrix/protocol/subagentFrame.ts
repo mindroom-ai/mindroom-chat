@@ -1,3 +1,4 @@
+import { parseAiRunModel, type AiRunModelInfo } from './aiRun';
 import { parseLiveFrame, type LiveDelta, type LiveDocs, type LiveOrder } from './liveFrame';
 
 /** Event type of the ephemeral frames that stream a MindRoom sub-agent run. */
@@ -31,10 +32,10 @@ export type SubagentMeta = {
   startedAt: number;
   endedAt: number | null;
   /**
-   * The key of the model the run's agent is configured with (`default`, `opus`). MindRoom before
+   * The model the run's agent is configured with, as `io.mindroom.ai_run` names it. MindRoom before
    * the field sends none.
    */
-  model?: string;
+  model?: AiRunModelInfo;
   /** Only on snapshots. */
   task?: string;
   /** Only on snapshots of an ended run. */
@@ -73,10 +74,10 @@ const parseMeta = (value: unknown, run: string): SubagentMeta | null => {
     return null;
   }
   if (endedAt !== null && (typeof endedAt !== 'number' || !Number.isFinite(endedAt))) return null;
-  if (model !== undefined && typeof model !== 'string') return null;
   if (task !== undefined && typeof task !== 'string') return null;
   // MindRoom sends `result: null` for an ended run without one.
   if (result !== undefined && result !== null && typeof result !== 'string') return null;
+  const modelInfo = parseAiRunModel(model);
   return {
     agent,
     subagent,
@@ -88,7 +89,7 @@ const parseMeta = (value: unknown, run: string): SubagentMeta | null => {
     status,
     startedAt,
     endedAt,
-    ...(model ? { model } : {}),
+    ...(modelInfo ? { model: modelInfo } : {}),
     ...(task === undefined ? {} : { task }),
     ...(typeof result === 'string' ? { result } : {}),
   };

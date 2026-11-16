@@ -27,7 +27,12 @@
           "status": "running",
           "started_at": 1762790000.1,
           "ended_at": null,
-          "model": "harry_opus",
+          "model": {
+            "config": "harry_opus",
+            "display_name": "Opus 5.5",
+            "id": "anthropic/claude-opus-5.5",
+            "provider": "openrouter"
+          },
           "task": "Find when version 2 shipped."
         },
         "snapshot": {
@@ -71,7 +76,12 @@
           "status": "running",
           "started_at": 1762790000.1,
           "ended_at": null,
-          "model": "harry_opus"
+          "model": {
+            "config": "harry_opus",
+            "display_name": "Opus 5.5",
+            "id": "anthropic/claude-opus-5.5",
+            "provider": "openrouter"
+          }
         },
         "delta": {
           "md": {
@@ -121,7 +131,12 @@
           "status": "running",
           "started_at": 1762790000.1,
           "ended_at": null,
-          "model": "harry_opus"
+          "model": {
+            "config": "harry_opus",
+            "display_name": "Opus 5.5",
+            "id": "anthropic/claude-opus-5.5",
+            "provider": "openrouter"
+          }
         },
         "delta": {
           "md": {
@@ -190,7 +205,12 @@
           "status": "awaiting_approval",
           "started_at": 1762790000.1,
           "ended_at": null,
-          "model": "harry_opus",
+          "model": {
+            "config": "harry_opus",
+            "display_name": "Opus 5.5",
+            "id": "anthropic/claude-opus-5.5",
+            "provider": "openrouter"
+          },
           "task": "Find when version 2 shipped."
         },
         "snapshot": {
@@ -253,7 +273,12 @@
           "status": "completed",
           "started_at": 1762790000.1,
           "ended_at": 1762790012.5,
-          "model": "harry_opus",
+          "model": {
+            "config": "harry_opus",
+            "display_name": "Opus 5.5",
+            "id": "anthropic/claude-opus-5.5",
+            "provider": "openrouter"
+          },
           "task": "Find when version 2 shipped.",
           "result": "Version 2 shipped as tag v2.0."
         },
