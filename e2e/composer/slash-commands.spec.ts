@@ -122,23 +122,15 @@ test('slash commands: the menu, a message command, commands that act, and a refu
     .toBe('invite');
   await expect(composer(page)).not.toContainText('/invite');
 
-  await page.keyboard.type('/myroomnick Deck Captain');
-  await page.keyboard.press('Enter');
-  await expect
-    .poll(
-      async () => (await memberContent(token, roomId, `@${owner}:${SERVER_NAME}`)).displayname,
-      { timeout: 30_000 }
-    )
-    .toBe('Deck Captain');
   expect((await latestMessages(token, roomId)).length).toBe(before);
 
   // A command that cannot run keeps the text and shows its usage.
-  await page.keyboard.type('/myroomavatar not-a-picture');
+  await page.keyboard.type('/startdm not-a-user');
   await page.keyboard.press('Enter');
   await expect(
-    page.getByRole('alert').filter({ hasText: 'Could not run /myroomavatar.' })
+    page.getByRole('alert').filter({ hasText: 'Could not run /startdm.' })
   ).toBeVisible();
-  await expect(composer(page)).toContainText('/myroomavatar not-a-picture');
+  await expect(composer(page)).toContainText('/startdm not-a-user');
   await page.screenshot({ path: testInfo.outputPath('slash-refused.png') });
   expect((await latestMessages(token, roomId)).length).toBe(before);
 });

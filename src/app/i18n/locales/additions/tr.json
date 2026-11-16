@@ -142,8 +142,7 @@
       "noCrossSigningKeys": "Gizli depolamanızda çapraz imzalama anahtarı yok, bu yüzden kurtarma anahtarı bu oturumu doğrulayamaz. Onu diğer oturumlarınızdan birinden doğrulayın."
     },
     "commands": {
-      "CommandPlain": "Mesajı Markdown olmadan düz metin olarak gönder. Örnek: /plain mesaj",
-      "CommandHtml": "Mesajı Markdown olmadan HTML olarak gönder. Örnek: /html mesaj"
+      "CommandPlain": "Mesajı Markdown olmadan düz metin olarak gönder. Örnek: /plain mesaj"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Bu oturum açma işlemi burada başlatılmadı, bu yüzden kullanılmadı. Yeniden oturum açın."
@@ -537,7 +536,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} başarısız oldu: {{reason}}",
         "usage": "{{command}} çalıştırılamadı. {{usage}}",
-        "ownServer": "Hiçbir şey değişmedi: bu, kendi sunucunuzu ({{server}}) odanın dışında bırakırdı.",
         "unknown": "{{command}} bir komut değil. Metin olarak göndermek için mesajı /plain ile başlatın."
       },
       "jumpToTime": {

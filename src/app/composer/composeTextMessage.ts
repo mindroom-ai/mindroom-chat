@@ -9,36 +9,29 @@ import {
 } from '../editor/output';
 import type { ParagraphElement } from '../editor/slate';
 import { BlockType } from '../editor/types';
-import { type Command, SHRUG, TABLEFLIP, UNFLIP } from './commands/useCommands';
+import { type Command, SHRUG } from './commands/useCommands';
 
 /** The slash commands that change the message being sent, typed at the very start of it. */
 type MessageCommand = Extract<
   Command,
-  'me' | 'notice' | 'plain' | 'html' | 'shrug' | 'tableflip' | 'unflip'
+  'me' | 'plain' | 'shrug'
 >;
 const MESSAGE_COMMANDS: readonly string[] = [
   'me',
-  'notice',
   'plain',
-  'html',
   'shrug',
-  'tableflip',
-  'unflip',
 ] satisfies MessageCommand[];
 
 const isMessageCommand = (name: string): name is MessageCommand => MESSAGE_COMMANDS.includes(name);
 
-/** The message types `/me` and `/notice` pick. */
+/** The message type `/me` picks. */
 const MSGTYPE_BY_COMMAND: ReadonlyMap<MessageCommand, MsgType> = new Map([
   ['me', MsgType.Emote],
-  ['notice', MsgType.Notice],
 ]);
 
 /** The face each face command puts before the message. */
 const FACE_BY_COMMAND: ReadonlyMap<MessageCommand, string> = new Map([
   ['shrug', SHRUG],
-  ['tableflip', TABLEFLIP],
-  ['unflip', UNFLIP],
 ]);
 
 /** A `/command` as a word of its own at the start, and the blank space after it. */
@@ -48,8 +41,7 @@ const isParagraph = (node: Descendant | undefined): node is ParagraphElement =>
   !!node && 'type' in node && node.type === BlockType.Paragraph;
 
 /**
- * Splits a leading message command (`/me`, `/notice`, `/plain`, `/html`, `/shrug`,
- * `/tableflip`, `/unflip`) off the composer's text: the command, and the document without it.
+ * Splits a leading message command (`/me`, `/plain`, `/shrug`) off the composer's text: the command, and the document without it.
  * Only plain text at the start of the first paragraph counts, so a command inside a code block
  * or a quote is sent as written, and so is any other `/word`.
  */
@@ -69,29 +61,6 @@ const takeMessageCommand = (
   return { command, document: [paragraph, ...otherBlocks] };
 };
 
-const HTML_ENTITIES: Record<string, string> = {
-  amp: '&',
-  lt: '<',
-  gt: '>',
-  quot: '"',
-  apos: "'",
-  nbsp: ' ',
-};
-
-/** The text a `/html` message shows without formatting: its tags dropped, entities read. */
-const textOfHtml = (html: string): string =>
-  html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (entity, name: string) => {
-      if (name.startsWith('#')) {
-        const code =
-          name[1]?.toLowerCase() === 'x' ? parseInt(name.slice(2), 16) : Number(name.slice(1));
-        return Number.isFinite(code) ? String.fromCodePoint(code) : entity;
-      }
-      return HTML_ENTITIES[name.toLowerCase()] ?? entity;
-    });
-
 /**
  * The message the composer holds, or undefined when no text is left to send: the plain body,
  * HTML only when it says more than the body, and the mentions the text holds as pills.
@@ -106,13 +75,12 @@ export const composeTextMessage = (
   const { command, document } = takeMessageCommand(editor.children);
   const msgtype = (command && MSGTYPE_BY_COMMAND.get(command)) ?? MsgType.Text;
   const face = command && FACE_BY_COMMAND.get(command);
-  // `/plain` and `/html` send what was typed as it is, without reading Markdown in it.
-  const readMarkdown = markdown && command !== 'plain' && command !== 'html';
+  // `/plain` sends what was typed as it is, without reading Markdown in it.
+  const readMarkdown = markdown && command !== 'plain';
   const typed = toPlainText(document, readMarkdown).trim();
   if (typed === '' && !face) return undefined;
   const formattedHtml = (): string | undefined => {
     if (command === 'plain') return undefined;
-    if (command === 'html') return typed;
     return trimCustomHtml(
       toMatrixCustomHTML(document, {
         allowInlineMarkdown: readMarkdown,
@@ -123,7 +91,7 @@ export const composeTextMessage = (
     );
   };
   const html = formattedHtml();
-  const text = command === 'html' ? textOfHtml(typed).trim() : typed;
+  const text = typed;
   const withFace = (value: string) => (face ? `${face} ${value}`.trim() : value);
   const body = withFace(text);
 

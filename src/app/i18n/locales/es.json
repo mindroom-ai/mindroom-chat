@@ -1287,26 +1287,16 @@
     },
     "commands": {
       "CommandMe": "Enviar mensaje de acción",
-      "CommandNotice": "Enviar mensaje de aviso",
       "CommandShrug": "Enviar ¯\\_(ツ)_/¯ como mensaje",
-      "CommandTableFlip": "Enviar {{value1}} como mensaje",
-      "CommandUnFlip": "Enviar {{value1}} como mensaje",
       "CommandStartDm": "Iniciar mensaje directo con un usuario. Ejemplo: /startdm userId1",
       "CommandJoin": "Unirse a una sala mediante su dirección. Ejemplo: /join address1 address2",
       "CommandLeave": "Salir de la sala actual.",
       "CommandInvite": "Invitar a un usuario a la sala. Ejemplo: /invite userId1 userId2 [-r reason]",
-      "CommandDisInvite": "Retirar la invitación de un usuario a la sala. Ejemplo: /disinvite userId1 userId2 [-r reason]",
       "CommandKick": "Expulsar a un usuario de la sala. Ejemplo: /kick userId1 userId2 servername [-r reason]",
       "CommandBan": "Vetar a un usuario de la sala. Ejemplo: /ban userId1 userId2 servername [-r reason]",
       "CommandUnBan": "Anular el veto de un usuario de la sala. Ejemplo: /unban userId1 userId2",
       "CommandIgnore": "Ignorar a un usuario. Ejemplo: /ignore userId1 userId2",
-      "CommandUnIgnore": "Dejar de ignorar a un usuario. Ejemplo: /unignore userId1 userId2",
-      "CommandMyRoomNick": "Cambiar el apodo en la sala actual.",
-      "CommandMyRoomAvatar": "Cambiar la imagen de perfil en la sala actual. Ejemplo: /myroomavatar mxc://xyzabc",
-      "CommandConvertToDm": "Convertir la sala en mensaje directo",
-      "CommandConvertToRoom": "Convertir el mensaje directo en sala",
-      "CommandDelete": "Eliminar mensajes de usuarios. Ejemplo: /delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandAcl": "Gestionar la lista de control de acceso del servidor. Ejemplo: /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]"
+      "CommandUnIgnore": "Dejar de ignorar a un usuario. Ejemplo: /unignore userId1 userId2"
     },
     "item": {
       "value1Emoji": "{{value1}} emoji"

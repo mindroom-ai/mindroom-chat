@@ -145,8 +145,7 @@
       "noCrossSigningKeys": "O seu armazenamento secreto não contém chaves de assinatura cruzada, por isso a chave de recuperação não pode verificar esta sessão. Verifique-a a partir de outra das suas sessões."
     },
     "commands": {
-      "CommandPlain": "Enviar uma mensagem como texto simples, sem Markdown. Exemplo: /plain mensagem",
-      "CommandHtml": "Enviar uma mensagem como HTML, sem Markdown. Exemplo: /html mensagem"
+      "CommandPlain": "Enviar uma mensagem como texto simples, sem Markdown. Exemplo: /plain mensagem"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Este início de sessão não foi iniciado aqui, por isso não foi utilizado. Inicie sessão novamente."
@@ -546,7 +545,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} falhou: {{reason}}",
         "usage": "Não foi possível executar {{command}}. {{usage}}",
-        "ownServer": "Nada mudou: isto deixaria o seu próprio servidor ({{server}}) fora da sala.",
         "unknown": "{{command}} não é um comando. Para enviá-lo como texto, comece a mensagem com /plain."
       },
       "jumpToTime": {

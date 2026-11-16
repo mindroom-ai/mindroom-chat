@@ -1311,26 +1311,16 @@
     },
     "commands": {
       "CommandMe": "إرسال رسالة إجراء",
-      "CommandNotice": "إرسال رسالة تنبيه",
       "CommandShrug": "إرسال ¯\\_(ツ)_/¯ كرسالة",
-      "CommandTableFlip": "إرسال ⁨{{value1}}⁩ كرسالة",
-      "CommandUnFlip": "إرسال ⁨{{value1}}⁩ كرسالة",
       "CommandStartDm": "بدء رسالة مباشرة مع مستخدم. مثال: ⁨/startdm userId1⁩",
       "CommandJoin": "الانضمام إلى غرفة باستخدام عنوان. مثال: ⁨/join address1 address2⁩",
       "CommandLeave": "مغادرة الغرفة الحالية.",
       "CommandInvite": "دعوة مستخدم إلى الغرفة. مثال: ⁨/invite userId1 userId2 [-r reason]⁩",
-      "CommandDisInvite": "إلغاء دعوة مستخدم إلى الغرفة. مثال: ⁨/disinvite userId1 userId2 [-r reason]⁩",
       "CommandKick": "طرد مستخدم من الغرفة. مثال: ⁨/kick userId1 userId2 servername [-r reason]⁩",
       "CommandBan": "حظر مستخدم من الغرفة. مثال: ⁨/ban userId1 userId2 servername [-r reason]⁩",
       "CommandUnBan": "إلغاء حظر مستخدم من الغرفة. مثال: ⁨/unban userId1 userId2⁩",
       "CommandIgnore": "تجاهل مستخدم. مثال: ⁨/ignore userId1 userId2⁩",
-      "CommandUnIgnore": "إلغاء تجاهل مستخدم. مثال: ⁨/unignore userId1 userId2⁩",
-      "CommandMyRoomNick": "تغيير الاسم المستعار في الغرفة الحالية.",
-      "CommandMyRoomAvatar": "تغيير صورة الملف الشخصي في الغرفة الحالية. مثال ⁨/myroomavatar mxc://xyzabc⁩",
-      "CommandConvertToDm": "تحويل الغرفة إلى رسالة مباشرة",
-      "CommandConvertToRoom": "تحويل الرسالة المباشرة إلى غرفة",
-      "CommandDelete": "حذف رسائل مستخدمين. مثال: ⁨/delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]⁩",
-      "CommandAcl": "إدارة قائمة التحكم بوصول الخادم. مثال ⁨/acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]⁩"
+      "CommandUnIgnore": "إلغاء تجاهل مستخدم. مثال: ⁨/unignore userId1 userId2⁩"
     },
     "item": {
       "value1Emoji": "رمز ⁨{{value1}}⁩ التعبيري"

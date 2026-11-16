@@ -145,8 +145,7 @@
       "noCrossSigningKeys": "Votre stockage secret ne contient aucune clé de signature croisée : la clé de récupération ne peut donc pas vérifier cette session. Vérifiez-la depuis une autre de vos sessions."
     },
     "commands": {
-      "CommandPlain": "Envoyer un message en texte brut, sans Markdown. Exemple : /plain message",
-      "CommandHtml": "Envoyer un message en HTML, sans Markdown. Exemple : /html message"
+      "CommandPlain": "Envoyer un message en texte brut, sans Markdown. Exemple : /plain message"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Cette connexion n’a pas été lancée ici, elle n’a donc pas été utilisée. Reconnectez-vous."
@@ -546,7 +545,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} a échoué : {{reason}}",
         "usage": "Impossible d’exécuter {{command}}. {{usage}}",
-        "ownServer": "Rien n’a changé : votre propre serveur ({{server}}) serait exclu du salon.",
         "unknown": "{{command}} n’est pas une commande. Pour l’envoyer comme texte, commencez le message par /plain."
       },
       "jumpToTime": {

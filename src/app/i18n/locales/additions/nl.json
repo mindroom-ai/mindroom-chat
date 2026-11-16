@@ -142,8 +142,7 @@
       "noCrossSigningKeys": "Je geheime opslag bevat geen kruiselingse ondertekeningssleutels, dus de herstelsleutel kan deze sessie niet verifiëren. Verifieer haar vanuit een van je andere sessies."
     },
     "commands": {
-      "CommandPlain": "Stuur een bericht als platte tekst, zonder Markdown. Voorbeeld: /plain bericht",
-      "CommandHtml": "Stuur een bericht als HTML, zonder Markdown. Voorbeeld: /html bericht"
+      "CommandPlain": "Stuur een bericht als platte tekst, zonder Markdown. Voorbeeld: /plain bericht"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Deze aanmelding is hier niet gestart en is daarom niet gebruikt. Meld je opnieuw aan."
@@ -537,7 +536,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} mislukt: {{reason}}",
         "usage": "Kon {{command}} niet uitvoeren. {{usage}}",
-        "ownServer": "Niets gewijzigd: je eigen server ({{server}}) zou uit de ruimte worden gesloten.",
         "unknown": "{{command}} is geen opdracht. Begin het bericht met /plain om het als tekst te versturen."
       },
       "jumpToTime": {

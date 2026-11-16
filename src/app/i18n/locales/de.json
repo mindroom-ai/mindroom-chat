@@ -1279,26 +1279,16 @@
     },
     "commands": {
       "CommandMe": "Aktionsnachricht senden",
-      "CommandNotice": "Hinweisnachricht senden",
       "CommandShrug": "¯\\_(ツ)_/¯ als Nachricht senden",
-      "CommandTableFlip": "{{value1}} als Nachricht senden",
-      "CommandUnFlip": "{{value1}} als Nachricht senden",
       "CommandStartDm": "Direktnachricht mit Benutzer starten. Beispiel: /startdm userId1",
       "CommandJoin": "Raum über Adresse beitreten. Beispiel: /join address1 address2",
       "CommandLeave": "Aktuellen Raum verlassen.",
       "CommandInvite": "Benutzer in den Raum einladen. Beispiel: /invite userId1 userId2 [-r reason]",
-      "CommandDisInvite": "Einladung eines Benutzers in den Raum zurückziehen. Beispiel: /disinvite userId1 userId2 [-r reason]",
       "CommandKick": "Benutzer aus dem Raum entfernen. Beispiel: /kick userId1 userId2 servername [-r reason]",
       "CommandBan": "Benutzer im Raum sperren. Beispiel: /ban userId1 userId2 servername [-r reason]",
       "CommandUnBan": "Benutzersperre im Raum aufheben. Beispiel: /unban userId1 userId2",
       "CommandIgnore": "Benutzer ignorieren. Beispiel: /ignore userId1 userId2",
-      "CommandUnIgnore": "Benutzer nicht mehr ignorieren. Beispiel: /unignore userId1 userId2",
-      "CommandMyRoomNick": "Spitznamen im aktuellen Raum ändern.",
-      "CommandMyRoomAvatar": "Profilbild im aktuellen Raum ändern. Beispiel: /myroomavatar mxc://xyzabc",
-      "CommandConvertToDm": "Raum in Direktnachricht umwandeln",
-      "CommandConvertToRoom": "Direktnachricht in Raum umwandeln",
-      "CommandDelete": "Nachrichten von Benutzern löschen. Beispiel: /delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandAcl": "Serverzugriffssteuerungsliste verwalten. Beispiel: /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]"
+      "CommandUnIgnore": "Benutzer nicht mehr ignorieren. Beispiel: /unignore userId1 userId2"
     },
     "item": {
       "value1Emoji": "Emoji {{value1}}"

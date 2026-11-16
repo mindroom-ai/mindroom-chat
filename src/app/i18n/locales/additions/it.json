@@ -145,8 +145,7 @@
       "noCrossSigningKeys": "Il tuo archivio segreto non contiene chiavi di firma incrociata, quindi la chiave di recupero non può verificare questa sessione. Verificala da un’altra delle tue sessioni."
     },
     "commands": {
-      "CommandPlain": "Invia un messaggio come testo semplice, senza Markdown. Esempio: /plain messaggio",
-      "CommandHtml": "Invia un messaggio come HTML, senza Markdown. Esempio: /html messaggio"
+      "CommandPlain": "Invia un messaggio come testo semplice, senza Markdown. Esempio: /plain messaggio"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Questo accesso non è stato avviato qui, quindi non è stato usato. Accedi di nuovo."
@@ -546,7 +545,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} non riuscito: {{reason}}",
         "usage": "Impossibile eseguire {{command}}. {{usage}}",
-        "ownServer": "Nessuna modifica: il tuo server ({{server}}) verrebbe escluso dalla stanza.",
         "unknown": "{{command}} non è un comando. Per inviarlo come testo, inizia il messaggio con /plain."
       },
       "jumpToTime": {

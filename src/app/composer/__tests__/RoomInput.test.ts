@@ -448,14 +448,9 @@ vi.mock('../commands/CommandAutocomplete', () => ({
 vi.mock('../commands/useCommands', () => ({
   Command: {
     Me: 'me',
-    Notice: 'notice',
     Shrug: 'shrug',
-    TableFlip: 'tableflip',
-    UnFlip: 'unflip',
   },
   SHRUG: 'SHRUG',
-  TABLEFLIP: 'TABLEFLIP',
-  UNFLIP: 'UNFLIP',
   useCommands: () => ({}),
 }));
 

@@ -86,7 +86,7 @@ describe('slash commands', () => {
       Object.values(Command)
         .filter((name) => !isActingCommand(name))
         .sort()
-    ).toEqual(['html', 'me', 'notice', 'plain', 'shrug', 'tableflip', 'unflip']);
+    ).toEqual(['me', 'plain', 'shrug']);
   });
 
   it('invites each user with the reason after -r', async () => {
@@ -130,13 +130,6 @@ describe('slash commands', () => {
     expect(mx.unban.mock.calls).toEqual([['!room:home.org', '@di:spam.org']]);
   });
 
-  it('withdraws only invitations', async () => {
-    const { mx } = fakeClient();
-    const context = contextFor(mx, fakeRoom(members));
-    await runCommandAction(Command.DisInvite, context, '@bo:spam.org @ann:spam.org');
-    expect(mx.kick.mock.calls).toEqual([['!room:home.org', '@bo:spam.org', undefined]]);
-  });
-
   it('names every target that failed in one error, after trying them all', async () => {
     const invite = vi.fn(async (_roomId: string, userId: string) => {
       if (userId === '@x:a.org') throw new Error('M_FORBIDDEN: not allowed');
@@ -166,29 +159,6 @@ describe('slash commands', () => {
     expect(context.openPath).toHaveBeenCalledWith('/home/');
   });
 
-  it('changes the name and picture in this room only, keeping the rest', async () => {
-    const { mx } = fakeClient();
-    const own = { membership: 'join', displayname: 'Me', avatar_url: 'mxc://home.org/old' };
-    const context = contextFor(mx, fakeRoom(members, { [`m.room.member|${ME}`]: own }));
-    await runCommandAction(Command.MyRoomNick, context, '  Captain Me ');
-    expect(mx.sendStateEvent).toHaveBeenLastCalledWith(
-      '!room:home.org',
-      'm.room.member',
-      { ...own, displayname: 'Captain Me' },
-      ME
-    );
-    await runCommandAction(Command.MyRoomAvatar, context, 'mxc://home.org/new');
-    expect(mx.sendStateEvent).toHaveBeenLastCalledWith(
-      '!room:home.org',
-      'm.room.member',
-      { ...own, avatar_url: 'mxc://home.org/new' },
-      ME
-    );
-    expect(await refusalOf(runCommandAction(Command.MyRoomAvatar, context, 'https://x'))).toEqual({
-      code: 'usage',
-    });
-  });
-
   it('ignores and unignores users, keeping the others', async () => {
     const { mx, ignored } = fakeClient();
     const context = contextFor(mx, fakeRoom(members));
@@ -198,19 +168,6 @@ describe('slash commands', () => {
     expect(ignored()).toEqual(['@ann:spam.org']);
   });
 
-  it('lists the room as a direct chat with the others, and takes it out again', async () => {
-    const { mx, direct } = fakeClient();
-    const room = fakeRoom([
-      { userId: ME, membership: 'join' },
-      { userId: '@friend:home.org', membership: 'join' },
-      { userId: '@gone:home.org', membership: 'leave' },
-    ]);
-    await runCommandAction(Command.ConvertToDm, contextFor(mx, room), '');
-    expect(direct()).toEqual({ '@friend:home.org': ['!room:home.org'] });
-    await runCommandAction(Command.ConvertToRoom, contextFor(mx, room), '');
-    expect(direct()).toEqual({});
-  });
-
   it('opens a direct chat with a user', async () => {
     const { mx } = fakeClient();
     const context = contextFor(mx, fakeRoom(members));
@@ -218,59 +175,4 @@ describe('slash commands', () => {
     expect(context.openPath).toHaveBeenCalledWith('/direct/create/?userId=%40friend%3Ahome.org');
   });
 
-  it('adds and removes servers on the ACL, and refuses to shut out its own server', async () => {
-    const { mx } = fakeClient();
-    const acl = { allow: ['*'], deny: ['old.org'], allow_ip_literals: false };
-    const context = contextFor(mx, fakeRoom(members, { 'm.room.server_acl|': acl }));
-    await runCommandAction(Command.Acl, context, '-d spam.org -rd old.org');
-    expect(mx.sendStateEvent).toHaveBeenCalledWith(
-      '!room:home.org',
-      'm.room.server_acl',
-      { allow: ['*'], deny: ['spam.org'], allow_ip_literals: false },
-      ''
-    );
-    expect(await refusalOf(runCommandAction(Command.Acl, context, '-d *.org'))).toEqual({
-      code: 'ownServer',
-      server: 'home.org',
-    });
-    expect(await refusalOf(runCommandAction(Command.Acl, context, '-ra * -a far.org'))).toEqual({
-      code: 'ownServer',
-      server: 'home.org',
-    });
-    expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
-  });
-
-  it('deletes what the named senders sent within the window, of the given type', async () => {
-    const now = Date.now();
-    const events = [
-      { event_id: '$1', sender: '@ann:spam.org', type: 'm.room.message', origin_server_ts: now },
-      { event_id: '$2', sender: '@cy:home.org', type: 'm.room.message', origin_server_ts: now },
-      { event_id: '$3', sender: '@bo:spam.org', type: 'm.reaction', origin_server_ts: now },
-      {
-        event_id: '$4',
-        sender: '@bo:spam.org',
-        type: 'm.room.message',
-        origin_server_ts: now - 1000,
-        unsigned: { redacted_because: {} },
-      },
-      {
-        event_id: '$5',
-        sender: '@bo:spam.org',
-        type: 'm.room.message',
-        origin_server_ts: now - 7_200_000,
-      },
-    ];
-    const createMessagesRequest = vi.fn(async () => ({ chunk: events, end: 'more' }));
-    const { mx } = fakeClient({ createMessagesRequest });
-    const context = contextFor(mx, fakeRoom(members));
-    await runCommandAction(Command.Delete, context, 'spam.org -past 1h -t m.room.message -r spam');
-    expect(mx.redactEvent.mock.calls).toEqual([
-      ['!room:home.org', '$1', undefined, { reason: 'spam' }],
-    ]);
-    // The last page already reached past the window, so no older page is read.
-    expect(createMessagesRequest).toHaveBeenCalledTimes(1);
-    expect(await refusalOf(runCommandAction(Command.Delete, context, 'spam.org'))).toEqual({
-      code: 'usage',
-    });
-  });
 });

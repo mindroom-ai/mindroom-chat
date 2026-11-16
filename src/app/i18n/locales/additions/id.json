@@ -139,8 +139,7 @@
       "noCrossSigningKeys": "Penyimpanan rahasia Anda tidak berisi kunci penandatanganan silang, jadi kunci pemulihan tidak dapat memverifikasi sesi ini. Verifikasi dari salah satu sesi Anda yang lain."
     },
     "commands": {
-      "CommandPlain": "Kirim pesan sebagai teks biasa, tanpa Markdown. Contoh: /plain pesan",
-      "CommandHtml": "Kirim pesan sebagai HTML, tanpa Markdown. Contoh: /html pesan"
+      "CommandPlain": "Kirim pesan sebagai teks biasa, tanpa Markdown. Contoh: /plain pesan"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Proses masuk ini tidak dimulai di sini, jadi tidak digunakan. Masuk lagi."
@@ -528,7 +527,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} gagal: {{reason}}",
         "usage": "Tidak dapat menjalankan {{command}}. {{usage}}",
-        "ownServer": "Tidak ada yang berubah: ini akan mengeluarkan server Anda sendiri ({{server}}) dari ruangan.",
         "unknown": "{{command}} bukan perintah. Untuk mengirimnya sebagai teks, awali pesan dengan /plain."
       },
       "jumpToTime": {

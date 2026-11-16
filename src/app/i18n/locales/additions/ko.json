@@ -139,8 +139,7 @@
       "noCrossSigningKeys": "비밀 저장소에 교차 서명 키가 없어 복구 키로 이 세션을 인증할 수 없습니다. 다른 세션에서 인증하세요."
     },
     "commands": {
-      "CommandPlain": "Markdown 없이 일반 텍스트로 메시지를 보냅니다. 예: /plain message",
-      "CommandHtml": "Markdown 없이 HTML로 메시지를 보냅니다. 예: /html message"
+      "CommandPlain": "Markdown 없이 일반 텍스트로 메시지를 보냅니다. 예: /plain message"
     },
     "tokenLogin": {
       "signInNotStartedHere": "이 로그인은 여기에서 시작되지 않아 사용되지 않았습니다. 다시 로그인하세요."
@@ -528,7 +527,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} 실패: {{reason}}",
         "usage": "{{command}}을(를) 실행할 수 없습니다. {{usage}}",
-        "ownServer": "변경되지 않았습니다: 내 서버({{server}})가 방에서 차단됩니다.",
         "unknown": "{{command}}은(는) 명령어가 아닙니다. 텍스트로 보내려면 메시지를 /plain으로 시작하세요."
       },
       "jumpToTime": {

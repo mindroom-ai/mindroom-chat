@@ -142,8 +142,7 @@
       "noCrossSigningKeys": "Dein geheimer Speicher enthält keine Cross-Signing-Schlüssel, daher kann der Wiederherstellungsschlüssel diese Sitzung nicht verifizieren. Verifiziere sie von einer deiner anderen Sitzungen aus."
     },
     "commands": {
-      "CommandPlain": "Nachricht als reinen Text ohne Markdown senden. Beispiel: /plain Nachricht",
-      "CommandHtml": "Nachricht als HTML ohne Markdown senden. Beispiel: /html Nachricht"
+      "CommandPlain": "Nachricht als reinen Text ohne Markdown senden. Beispiel: /plain Nachricht"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Diese Anmeldung wurde nicht hier gestartet und deshalb nicht verwendet. Melde dich erneut an."
@@ -537,7 +536,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} fehlgeschlagen: {{reason}}",
         "usage": "{{command}} konnte nicht ausgeführt werden. {{usage}}",
-        "ownServer": "Nichts geändert: Dein eigener Server ({{server}}) würde aus dem Raum ausgeschlossen.",
         "unknown": "{{command}} ist kein Befehl. Um es als Text zu senden, beginne die Nachricht mit /plain."
       },
       "jumpToTime": {

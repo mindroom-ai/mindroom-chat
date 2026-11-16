@@ -65,16 +65,6 @@ describe('composeTextMessage', () => {
     });
   });
 
-  it('sends /notice as a notice, and keeps the formatting of the rest', () => {
-    expect(compose([line({ text: '/notice the build is **green**' })])).toEqual({
-      msgtype: MsgType.Notice,
-      body: 'the build is **green**',
-      format: 'org.matrix.custom.html',
-      formatted_body: 'the build is <strong data-md="**">green</strong>',
-      'm.mentions': {},
-    });
-  });
-
   it('takes the command off a line of its own', () => {
     expect(compose([line({ text: '/me' }), line({ text: 'stretches' })])).toMatchObject({
       msgtype: MsgType.Emote,
@@ -119,16 +109,6 @@ describe('composeTextMessage', () => {
     });
   });
 
-  it('sends /html as the HTML typed, with its text as the body', () => {
-    expect(compose([line({ text: '/html <b>big</b> &amp; <i>bold</i>' })])).toEqual({
-      msgtype: MsgType.Text,
-      body: 'big & bold',
-      format: 'org.matrix.custom.html',
-      formatted_body: '<b>big</b> &amp; <i>bold</i>',
-      'm.mentions': {},
-    });
-  });
-
   it('puts the shrug before the message, and sends it alone without text', () => {
     expect(compose([line({ text: '/shrug no idea' })])).toMatchObject({
       msgtype: MsgType.Text,
@@ -142,11 +122,10 @@ describe('composeTextMessage', () => {
   });
 
   it('keeps the face in front of formatted text too', () => {
-    expect(compose([line({ text: '/tableflip **enough**' })])).toMatchObject({
-      body: '(╯°□°)╯︵ ┻━┻ **enough**',
-      formatted_body: '(╯°□°)╯︵ ┻━┻ <strong data-md="**">enough</strong>',
+    expect(compose([line({ text: '/shrug **enough**' })])).toMatchObject({
+      body: '¯\\_(ツ)_/¯ **enough**',
+      formatted_body: '¯\\_(ツ)_/¯ <strong data-md="**">enough</strong>',
     });
-    expect(compose([line({ text: '/unflip' })])?.body).toBe('┬─┬ノ( º _ ºノ)');
   });
 
   it.each(['/invite @bob:example.org', '/shrugs about it'])(
