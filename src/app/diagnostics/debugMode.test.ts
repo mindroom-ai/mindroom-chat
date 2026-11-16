@@ -58,6 +58,17 @@ describe('debug mode', () => {
     expect(window.localStorage.getItem(FLIGHT_RECORDER_ABNORMAL_KEY)).toBeNull();
   });
 
+  it("off still drops the flight recorder's session when the trace store fails to clear", async () => {
+    await setDebugModeEnabled(true);
+    window.localStorage.setItem(FLIGHT_RECORDER_CURRENT_KEY, '{}');
+    mocks.clearDeepTrace.mockRejectedValue(new Error('IndexedDB lost'));
+
+    await expect(setDebugModeEnabled(false)).rejects.toThrow('IndexedDB lost');
+
+    expect(window.localStorage.getItem(DEBUG_MODE_KEY)).toBeNull();
+    expect(window.localStorage.getItem(FLIGHT_RECORDER_CURRENT_KEY)).toBeNull();
+  });
+
   it('starts nothing when the choice cannot be saved', async () => {
     const storage = {
       setItem: vi.fn(() => {

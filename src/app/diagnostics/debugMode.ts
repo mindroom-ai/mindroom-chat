@@ -47,14 +47,15 @@ export const setDebugModeEnabled = async (
     return true;
   }
   const saved = removeStorageItemSafe(storage, DEBUG_MODE_KEY);
-  await setDeepTraceEnabled(false);
   stopFlightRecorder?.();
   stopFlightRecorder = undefined;
   // Off clears what debug mode recorded: its Clear button goes with it, and a bug report would
   // still attach the trace. A stopped session never ends cleanly either; left behind, it would
-  // read as a crash once debug mode is back on.
-  await clearDeepTrace();
+  // read as a crash once debug mode is back on. The flight recorder's keys go first, so a trace
+  // store that fails to clear cannot keep them.
   removeStorageItemSafe(storage, FLIGHT_RECORDER_CURRENT_KEY);
   removeStorageItemSafe(storage, FLIGHT_RECORDER_ABNORMAL_KEY);
+  await setDeepTraceEnabled(false);
+  await clearDeepTrace();
   return saved;
 };
