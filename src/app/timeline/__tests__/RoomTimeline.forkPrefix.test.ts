@@ -269,4 +269,63 @@ describe('a fork draft', () => {
       act(() => renderer?.unmount());
     }
   });
+
+  it('waits for its own open after switching from a thread that already opened', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const root = makeEvent('$parent', { isThreadRoot: true, ts: 1_000 });
+    const other = makeEvent('$other', { isThreadRoot: true, ts: 2_000 });
+    forkPrefix.value = { events: [], parent: undefined };
+    const timeline = makeTimeline([root, other], { backwardToken: null });
+    const room = makeRoom({ liveEvents: [root, other] });
+    room.getThread = (id: string) =>
+      ({
+        rootEvent: id === '$other' ? other : root,
+        events: [],
+        getUnfilteredTimelineSet: () => ({
+          getLiveTimeline: () => timeline,
+          getTimelineForEvent: () => undefined,
+        }),
+      } as never);
+    threadRenderStateMock.threadEvents = [root] as never;
+    threadRenderStateMock.threadEventIndexMapRef.current = new Map([['$parent', 0]]);
+    roomTimelineVirtualizerState.virtualIndexes = [0];
+    const onForkPointShown = vi.fn();
+    const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+    let open: () => void = () => undefined;
+    try {
+      // The previous thread opened in this same view.
+      await act(async () => {
+        renderer = create(
+          React.createElement(Harness, { room, threadId: '$other', onForkPointShown })
+        );
+        await flushAsyncWork();
+      });
+      opening.gate = new Promise<void>((resolve) => {
+        open = resolve;
+      });
+      await act(async () => {
+        renderer!.update(
+          React.createElement(Harness, {
+            room,
+            threadId: '$parent',
+            forkAt: '$elsewhere',
+            onForkPointShown,
+          })
+        );
+        await flushAsyncWork();
+      });
+      // The previous thread's settled open says nothing about this one.
+      expect(onForkPointShown).not.toHaveBeenCalled();
+
+      await act(async () => {
+        open();
+        await flushAsyncWork();
+      });
+      expect(onForkPointShown).toHaveBeenLastCalledWith(undefined);
+    } finally {
+      opening.gate = undefined;
+      act(() => renderer?.unmount());
+    }
+  });
 });
