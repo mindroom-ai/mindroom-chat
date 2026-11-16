@@ -384,6 +384,7 @@ export function CompactRoomView({
     // Touch screens hide the hover Resolve button; a swipe resolves or reopens.
     const swipeEnabled =
       canToggle &&
+      !menu &&
       !pinned &&
       isConfirmedMatrixEventId(rootId) &&
       !updatingThreadRootIds.has(rootId);

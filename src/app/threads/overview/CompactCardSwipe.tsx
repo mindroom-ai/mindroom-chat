@@ -125,6 +125,9 @@ export function CompactCardSwipe({
   // anywhere, so the whole document listens for it.
   const cancelRef = useLatestRef(() => finish(false));
   useEffect(() => {
+    if (!enabled) cancelRef.current();
+  }, [enabled, cancelRef]);
+  useEffect(() => {
     const doc = trackRef.current?.ownerDocument;
     if (!doc) return undefined;
     const handleTouchStart = (event: TouchEvent) => {

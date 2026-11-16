@@ -181,11 +181,12 @@ describe('CompactRoomView row rendering', () => {
         },
       });
     });
-    expect(state.actionRenderProps).toHaveBeenCalledTimes(15);
+    // Opening a menu disables swipe on the other rows too.
+    expect(state.actionRenderProps).toHaveBeenCalledTimes(21);
 
     state.pinnedEventIds = ['$second'];
     act(() => renderer.update(<CompactRoomView {...props} />));
-    expect(state.actionRenderProps).toHaveBeenCalledTimes(17);
+    expect(state.actionRenderProps).toHaveBeenCalledTimes(23);
 
     state.models = [
       state.models[0]!,
@@ -193,7 +194,7 @@ describe('CompactRoomView row rendering', () => {
       makeViewModel('$third', { isResolved: true }),
     ];
     act(() => renderer.update(<CompactRoomView {...props} />));
-    expect(state.actionRenderProps).toHaveBeenCalledTimes(19);
+    expect(state.actionRenderProps).toHaveBeenCalledTimes(25);
 
     renderer.unmount();
   });

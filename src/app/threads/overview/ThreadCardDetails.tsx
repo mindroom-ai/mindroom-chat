@@ -39,6 +39,19 @@ export function ThreadCardDetails({
   const resetRef = useRef<() => void>();
   const closeRef = useRef<() => void>();
   const [open, setOpen] = useState<OpenDetails>();
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  const openThreadId = open?.threadId;
+
+  useEffect(() => {
+    const surface = surfaceRef.current;
+    if (!surface || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => {
+      // Folds repositions when its anchor changes; lazy details can resize without a window resize.
+      setOpen((current) => (current ? { ...current, anchor: { ...current.anchor } } : current));
+    });
+    observer.observe(surface);
+    return () => observer.disconnect();
+  }, [openThreadId]);
 
   useEffect(() => {
     const list = listRef.current;
@@ -64,6 +77,12 @@ export function ThreadCardDetails({
       const found = target instanceof Element ? target.closest('[data-scroll-anchor]') : null;
       return found && list.contains(found) ? found : undefined;
     };
+    const underPointer = (target: Element) => {
+      if (!target.isConnected) return false;
+      // Without a hit test (some test documents), a connected card counts as still hovered.
+      if (typeof doc.elementFromPoint !== 'function') return true;
+      return cardAt(doc.elementFromPoint(point.x, point.y)) === target;
+    };
     const dismiss = (event: Event) => {
       close();
       card = cardAt(event.target);
@@ -82,7 +101,7 @@ export function ThreadCardDetails({
       timer = setTimeout(() => {
         timer = undefined;
         const current = latest.current;
-        if (current.menuOpen) return;
+        if (current.menuOpen || !card || !underPointer(card)) return;
         const details = shownThreadDetails(current.plugins, current.config, current.room, threadId);
         if (details.length === 0) return;
         setOpen({
@@ -100,6 +119,12 @@ export function ThreadCardDetails({
       close();
     };
 
+    // A card can leave or move without a scroll, such as a thread resolved on another device.
+    const mutations = new win.MutationObserver(() => {
+      if (card && !underPointer(card)) reset();
+    });
+    mutations.observe(list, { childList: true, subtree: true });
+
     list.addEventListener('pointermove', move);
     list.addEventListener('pointerleave', reset);
     list.addEventListener('pointerdown', dismiss, true);
@@ -108,6 +133,7 @@ export function ThreadCardDetails({
     win.addEventListener('scroll', scroll, { capture: true, passive: true });
     return () => {
       clearTimeout(timer);
+      mutations.disconnect();
       resetRef.current = undefined;
       closeRef.current = undefined;
       list.removeEventListener('pointermove', move);
@@ -135,7 +161,7 @@ export function ThreadCardDetails({
       aria-hidden="true"
       style={{ pointerEvents: 'none' }}
       content={
-        <Menu role="none" className={css.HoverCard}>
+        <Menu ref={surfaceRef} role="none" className={css.HoverCard}>
           <ThreadDetailsList room={open.room} threadId={open.threadId} details={open.details} />
         </Menu>
       }

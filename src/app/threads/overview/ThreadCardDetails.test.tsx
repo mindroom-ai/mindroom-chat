@@ -62,18 +62,21 @@ const defaults = [plugin([{ Component: Named }])];
 
 type HarnessProps = Partial<Omit<ComponentProps<typeof ThreadCardDetails>, 'listRef'>> & {
   config?: ClientConfig;
+  withoutA?: boolean;
 };
-function Harness({ config = {}, ...props }: HarnessProps) {
+function Harness({ config = {}, withoutA = false, ...props }: HarnessProps) {
   const listRef = useRef<HTMLDivElement>(null);
   return (
     <ClientConfigProvider value={config}>
       <div ref={listRef} data-testid="list">
-        <div data-scroll-anchor="$a">
-          <span data-testid="a">A</span>
-          <button type="button" data-testid="a-menu">
-            More Options
-          </button>
-        </div>
+        {!withoutA && (
+          <div data-scroll-anchor="$a">
+            <span data-testid="a">A</span>
+            <button type="button" data-testid="a-menu">
+              More Options
+            </button>
+          </div>
+        )}
         <div data-scroll-anchor="$b">
           <span data-testid="b">B</span>
         </div>
@@ -206,11 +209,15 @@ describe('ThreadCardDetails', () => {
     'closes on a %s and opens again only after the pointer left the card',
     (type) => {
       const { getByTestId } = render(<Harness />);
-      Object.defineProperty(document, 'elementFromPoint', {
-        configurable: true,
-        value: () => getByTestId('gap'),
-      });
-      const dismiss = () => (type === 'scroll' ? scroll() : point(getByTestId('a'), type));
+      let hit = getByTestId('a');
+      Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => hit });
+      const dismiss = () => {
+        if (type !== 'scroll') return point(getByTestId('a'), type);
+        // The scroll moves the pointer off the card, and the pointer comes back by moving.
+        hit = getByTestId('gap');
+        scroll();
+        hit = getByTestId('a');
+      };
       point(getByTestId('a'));
       advance();
       dismiss();
@@ -412,6 +419,42 @@ describe('ThreadCardDetails', () => {
       expect(shown()).toBeNull();
     }
   );
+  it('closes when the hovered card leaves the list without a scroll, as when another device resolves its thread', async () => {
+    const { getByTestId, rerender } = render(<Harness />);
+    point(getByTestId('a'));
+    advance();
+    expect(shown()?.textContent).toBe('Details of $a');
+    await act(async () => {
+      rerender(<Harness withoutA />);
+      await Promise.resolve();
+    });
+    expect(shown()).toBeNull();
+  });
+  it('opens nothing when the waited-on card left the list and another slid under the pointer', async () => {
+    const { getByTestId, rerender } = render(<Harness />);
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => getByTestId('b'),
+    });
+    point(getByTestId('a'));
+    advance(200);
+    await act(async () => {
+      rerender(<Harness withoutA />);
+      await Promise.resolve();
+    });
+    advance(1000);
+    expect(shown()).toBeNull();
+  });
+  it('opens nothing when the wait ends with another card under the pointer', () => {
+    const { getByTestId } = render(<Harness />);
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => getByTestId('b'),
+    });
+    point(getByTestId('a'));
+    advance(1000);
+    expect(shown()).toBeNull();
+  });
   it('cancels a pending wait on unmount', () => {
     const shows = vi.fn(() => true);
     const { getByTestId, unmount } = render(
