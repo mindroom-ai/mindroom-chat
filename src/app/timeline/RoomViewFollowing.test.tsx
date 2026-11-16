@@ -36,6 +36,7 @@ const NAMES: Record<string, string> = {
 };
 
 type FakeRoom = EventEmitter & {
+  joined: Set<string>;
   read: Set<string>;
   latest: { id: string; sender: string };
   liveTimeline: { getEvents: () => unknown[] };
@@ -44,6 +45,7 @@ type FakeRoom = EventEmitter & {
 /** A room whose latest event is `latest` and whose members in `read` have read it. */
 const makeRoom = (): FakeRoom => {
   const emitter = new EventEmitter() as FakeRoom;
+  emitter.joined = new Set(Object.keys(NAMES));
   emitter.read = new Set();
   emitter.latest = { id: '$latest', sender: '@sam:example.org' };
   emitter.liveTimeline = {
@@ -57,7 +59,7 @@ const makeRoom = (): FakeRoom => {
     roomId: '!room:example.org',
     getLiveTimeline: () => emitter.liveTimeline,
     getThread: () => null,
-    getJoinedMembers: () => Object.keys(NAMES).map((userId) => ({ userId })),
+    getJoinedMembers: () => [...emitter.joined].map((userId) => ({ userId })),
     getMember: (userId: string) => ({ rawDisplayName: NAMES[userId] }),
     hasUserReadEvent: (userId: string, eventId: string) =>
       eventId === emitter.latest.id && emitter.read.has(userId),
@@ -78,12 +80,12 @@ afterEach(() => {
   root = undefined;
 });
 
-const render = (room: FakeRoom) => {
+const render = (room: FakeRoom, threadId?: string) => {
   container = document.createElement('div');
   document.body.append(container);
   act(() => {
     root = createRoot(container!);
-    root.render(<RoomViewFollowing room={room as unknown as Room} />);
+    root.render(<RoomViewFollowing room={room as unknown as Room} threadId={threadId} />);
   });
   return container;
 };
@@ -162,8 +164,8 @@ it('asks no receipts for timeline events that leave the newest event as it was',
   const view = render(room);
   const askedOnFirstDraw = hasUserReadEvent.mock.calls.length;
 
-  // Older history loading above the view, and a reply's edits: each is a timeline event, and
-  // none changes the newest event or anyone's receipt.
+  // Older history loading above the view: each is a timeline event, and none changes the newest
+  // event or anyone's receipt.
   act(() => {
     for (let older = 0; older < 50; older += 1) {
       room.emit('Room.timeline', {}, room, true, false, { timeline: room.liveTimeline });
@@ -216,6 +218,60 @@ it('asks no receipts for the events and receipts of threads the room view does n
   room.read.clear();
   act(() => {
     room.emit('Room.timeline', {}, room, false, false, { timeline: room.liveTimeline });
+  });
+  expect(strip(view)?.textContent).toBe('');
+});
+
+it('names a member once their membership is set, and drops one who leaves', () => {
+  const room = makeRoom();
+  room.joined.delete('@avery:example.org');
+  room.read.add('@avery:example.org');
+  const view = render(room);
+  expect(strip(view)?.textContent).toBe('');
+
+  // Members load lazily. The SDK announces a member it did not know before it sets their
+  // membership, and emits `RoomState.members` once it has.
+  act(() => {
+    room.emit('RoomState.newMember');
+    room.joined.add('@avery:example.org');
+    room.emit('RoomState.members');
+  });
+  // Older history loading leaves the newest event as it was.
+  act(() => {
+    room.emit('Room.timeline', {}, room, true, false, { timeline: room.liveTimeline });
+  });
+  expect(strip(view)?.textContent).toContain('Avery');
+
+  act(() => {
+    room.joined.delete('@avery:example.org');
+    room.emit('RoomState.members');
+  });
+  expect(strip(view)?.textContent).toBe('');
+});
+
+it('in a thread, asks receipts only for an update that changes its newest event', () => {
+  const room = makeRoom();
+  room.read.add('@avery:example.org');
+  const thread = { id: '$thread', liveTimeline: room.liveTimeline };
+  Object.assign(room, { getThread: (id: string) => (id === thread.id ? thread : null) });
+  const hasUserReadEvent = vi.spyOn(
+    room as unknown as { hasUserReadEvent: () => boolean },
+    'hasUserReadEvent'
+  );
+  const view = render(room, thread.id);
+  expect(strip(view)?.textContent).toContain('Avery');
+  const askedOnFirstDraw = hasUserReadEvent.mock.calls.length;
+
+  // The thread's first page loading, newest first: its newest event stays.
+  act(() => {
+    for (let update = 0; update < 20; update += 1) room.emit('Thread.update', thread);
+  });
+  expect(hasUserReadEvent.mock.calls.length).toBe(askedOnFirstDraw);
+
+  room.latest = { id: '$newer', sender: '@sam:example.org' };
+  room.read.clear();
+  act(() => {
+    room.emit('Thread.update', thread);
   });
   expect(strip(view)?.textContent).toBe('');
 });

@@ -100,8 +100,8 @@ const useFollowers = (room: Room, threadId: string | undefined, myUserId: string
     };
     // Who has read the newest event changes with a receipt, a member, or a new newest event. Each
     // refresh asks every member's receipt, so a timeline event that leaves the newest event as it
-    // was (older history loading, an edit, the events of a thread being opened) asks none: on a
-    // long thread those come by the hundred.
+    // was (older history loading, the events of a thread being opened) asks none: on a long thread
+    // those come by the hundred.
     const refreshForNewestEvent = () => {
       if (latestSyncedEvent(room, threadId)?.getId() !== readEventId) refresh();
     };
@@ -121,13 +121,14 @@ const useFollowers = (room: Room, threadId: string | undefined, myUserId: string
     room.on(RoomEvent.Receipt, refreshForReceipt);
     room.on(RoomEvent.Timeline, refreshForTimeline);
     room.on(ThreadEvent.Update, refreshForThread);
-    // Members load lazily, so a follower may only be known once the member list arrives.
-    room.on(RoomStateEvent.NewMember, refresh);
+    // Members load lazily, and join and leave. The SDK announces a member it did not know before it
+    // sets their membership, and emits `Members` once it has, so the row reads them then.
+    room.on(RoomStateEvent.Members, refresh);
     return () => {
       room.removeListener(RoomEvent.Receipt, refreshForReceipt);
       room.removeListener(RoomEvent.Timeline, refreshForTimeline);
       room.removeListener(ThreadEvent.Update, refreshForThread);
-      room.removeListener(RoomStateEvent.NewMember, refresh);
+      room.removeListener(RoomStateEvent.Members, refresh);
     };
   }, [room, threadId, myUserId]);
 
