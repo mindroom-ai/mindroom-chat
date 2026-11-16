@@ -1263,7 +1263,7 @@
     "layoutSections": "섹션",
     "sections": {
       "working": "작업 중",
-      "snoozed": "다시 알림",
+      "later": "나중에",
       "idle": "대기 중",
       "resolved": "해결됨"
     }

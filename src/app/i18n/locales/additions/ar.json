@@ -1383,7 +1383,7 @@
     "layoutSections": "أقسام",
     "sections": {
       "working": "قيد العمل",
-      "snoozed": "مؤجلة",
+      "later": "لاحقًا",
       "idle": "خاملة",
       "resolved": "محلولة"
     }

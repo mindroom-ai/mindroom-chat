@@ -1263,7 +1263,7 @@
     "layoutSections": "分区",
     "sections": {
       "working": "进行中",
-      "snoozed": "已延后",
+      "later": "稍后",
       "idle": "空闲",
       "resolved": "已解决"
     }

@@ -1263,7 +1263,7 @@
     "layoutSections": "Bagian",
     "sections": {
       "working": "Sedang berjalan",
-      "snoozed": "Ditunda",
+      "later": "Nanti",
       "idle": "Tidak aktif",
       "resolved": "Selesai"
     }

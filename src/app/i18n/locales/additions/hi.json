@@ -1287,7 +1287,7 @@
     "layoutSections": "अनुभाग",
     "sections": {
       "working": "काम जारी",
-      "snoozed": "स्नूज़ किए गए",
+      "later": "बाद में",
       "idle": "निष्क्रिय",
       "resolved": "सुलझे हुए"
     }

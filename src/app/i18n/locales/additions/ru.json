@@ -1335,7 +1335,7 @@
     "layoutSections": "Разделы",
     "sections": {
       "working": "В работе",
-      "snoozed": "Отложенные",
+      "later": "Позже",
       "idle": "Неактивные",
       "resolved": "Решённые"
     }

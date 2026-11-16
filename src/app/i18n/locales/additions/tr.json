@@ -1287,7 +1287,7 @@
     "layoutSections": "Bölümler",
     "sections": {
       "working": "Çalışıyor",
-      "snoozed": "Ertelenenler",
+      "later": "Sonra",
       "idle": "Boşta",
       "resolved": "Çözülenler"
     }

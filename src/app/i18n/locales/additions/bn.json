@@ -1287,7 +1287,7 @@
     "layoutSections": "বিভাগ",
     "sections": {
       "working": "কাজ চলছে",
-      "snoozed": "স্নুজ করা",
+      "later": "পরে",
       "idle": "নিষ্ক্রিয়",
       "resolved": "সমাধান করা"
     }

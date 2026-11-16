@@ -1311,7 +1311,7 @@
     "layoutSections": "Secciones",
     "sections": {
       "working": "En curso",
-      "snoozed": "Pospuestos",
+      "later": "Más tarde",
       "idle": "Inactivos",
       "resolved": "Resueltos"
     }

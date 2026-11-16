@@ -1287,7 +1287,7 @@
     "layoutSections": "Sections",
     "sections": {
       "working": "Working",
-      "snoozed": "Snoozed",
+      "later": "Later",
       "idle": "Idle",
       "resolved": "Resolved"
     }

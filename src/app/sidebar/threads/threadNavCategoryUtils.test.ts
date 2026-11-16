@@ -5,7 +5,7 @@ import {
   buildSidebarThreadEntries,
   buildSidebarThreadSections,
   MAX_SIDEBAR_RESOLVED_THREADS,
-  MAX_SIDEBAR_SNOOZED_THREADS,
+  MAX_SIDEBAR_LATER_THREADS,
   MAX_SIDEBAR_THREADS,
   type SidebarThreadSection,
 } from './threadNavCategoryUtils';
@@ -114,6 +114,8 @@ type SectionEntryOptions = {
   isResolved?: boolean;
   resolvedTs?: number;
   snoozedUntilTs?: number;
+  scheduledTaskCount?: number;
+  nextScheduledTs?: number;
   roomId?: string;
 };
 
@@ -127,6 +129,8 @@ const makeSectionEntry = ({
   isResolved = false,
   resolvedTs,
   snoozedUntilTs,
+  scheduledTaskCount = 0,
+  nextScheduledTs,
   roomId = key,
 }: SectionEntryOptions): CrossRoomThreadIndexEntry =>
   ({
@@ -135,7 +139,7 @@ const makeSectionEntry = ({
     ...(resolvedTs !== undefined ? { resolvedTs } : {}),
     ...(snoozedUntilTs !== undefined ? { snoozedUntilTs } : {}),
     threadRecord: {
-      status: { isStreaming, hasPendingSend },
+      status: { isStreaming, hasPendingSend, scheduledTaskCount, nextScheduledTs },
       cache: oldestTs !== undefined ? { oldestTs } : {},
     },
   } as CrossRoomThreadIndexEntry);
@@ -163,7 +167,7 @@ describe('buildSidebarThreadSections', () => {
     expect(
       sectionKeys(buildSidebarThreadSections(entries, [], new Set(), 100, NO_SIGNALS))
     ).toEqual([
-      ['snoozed', ['sending', 'snoozed']],
+      ['later', ['sending', 'snoozed']],
       ['idle', ['idle']],
       ['resolved', ['resolved-snoozed', 'streaming-resolved']],
     ]);
@@ -185,17 +189,52 @@ describe('buildSidebarThreadSections', () => {
     const sectionOf = (now: number) =>
       buildSidebarThreadSections([snoozed], [], new Set(), now, NO_SIGNALS)[0]?.id;
 
-    expect(sectionOf(499)).toBe('snoozed');
+    expect(sectionOf(499)).toBe('later');
     expect(sectionOf(500)).toBe('idle');
   });
 
-  it('orders Snoozed by the end of the snooze, soonest first', () => {
+  it('orders Later by active snooze or schedule, with unknown times last by activity and pins first', () => {
+    const entries = [
+      makeSectionEntry({
+        key: 'snoozed',
+        snoozedUntilTs: 900,
+        scheduledTaskCount: 1,
+        nextScheduledTs: 550,
+      }),
+      makeSectionEntry({ key: 'scheduled', scheduledTaskCount: 1, nextScheduledTs: 600 }),
+      makeSectionEntry({
+        key: 'expired',
+        snoozedUntilTs: 400,
+        scheduledTaskCount: 1,
+        nextScheduledTs: 800,
+      }),
+      makeSectionEntry({ key: 'unknown-old', scheduledTaskCount: 1, lastActivityTs: 10 }),
+      makeSectionEntry({ key: 'unknown-new', scheduledTaskCount: 1, lastActivityTs: 20 }),
+      makeSectionEntry({
+        key: 'tie-new',
+        scheduledTaskCount: 1,
+        nextScheduledTs: 600,
+        lastActivityTs: 30,
+      }),
+      makeSectionEntry({ key: 'pinned', scheduledTaskCount: 1 }),
+    ];
+    expect(
+      sectionKeys(buildSidebarThreadSections(entries, ['pinned'], new Set(), 500, NO_SIGNALS))
+    ).toEqual([
+      [
+        'later',
+        ['pinned', 'tie-new', 'scheduled', 'expired', 'snoozed', 'unknown-new', 'unknown-old'],
+      ],
+    ]);
+  });
+
+  it('orders Later by the end of the snooze, soonest first', () => {
     const later = makeSectionEntry({ key: 'later', snoozedUntilTs: 900, lastActivityTs: 1 });
     const sooner = makeSectionEntry({ key: 'sooner', snoozedUntilTs: 600, lastActivityTs: 2 });
 
     expect(
       sectionKeys(buildSidebarThreadSections([later, sooner], [], new Set(), 100, NO_SIGNALS))
-    ).toEqual([['snoozed', ['sooner', 'later']]]);
+    ).toEqual([['later', ['sooner', 'later']]]);
   });
 
   it('keeps pinned threads first inside their own section, by pin rank', () => {
@@ -314,7 +353,7 @@ describe('buildSidebarThreadSections', () => {
     expect(resolvedKeys?.slice(0, 3)).toEqual(['resolved-0', 'resolved-24', 'resolved-23']);
   });
 
-  it('gives Snoozed its own cap, so many idle threads leave it its threads', () => {
+  it('gives Later its own cap, so many idle threads leave it its threads', () => {
     const idle = Array.from({ length: 60 }, (_, index) =>
       makeSectionEntry({ key: `idle-${index}`, lastActivityTs: index })
     );
@@ -331,7 +370,7 @@ describe('buildSidebarThreadSections', () => {
     );
 
     expect(sections.map(({ id, entries }) => [id, entries.length])).toEqual([
-      ['snoozed', MAX_SIDEBAR_SNOOZED_THREADS],
+      ['later', MAX_SIDEBAR_LATER_THREADS],
       ['idle', MAX_SIDEBAR_THREADS],
     ]);
   });
@@ -385,7 +424,7 @@ describe('shared workflow precedence', () => {
     expect(
       sectionKeys(buildSidebarThreadSections(entries, [], new Set(), 100, NO_SIGNALS))
     ).toEqual([
-      ['snoozed', ['later']],
+      ['later', ['later']],
       ['resolved', ['done']],
     ]);
   });

@@ -1287,7 +1287,7 @@
     "layoutSections": "Abschnitte",
     "sections": {
       "working": "In Arbeit",
-      "snoozed": "Zurückgestellt",
+      "later": "Später",
       "idle": "Inaktiv",
       "resolved": "Gelöst"
     }
