@@ -53,7 +53,7 @@ let playing = false;
  * `change` runs at once, and nothing slides, off the phone layout, in a browser without view
  * transitions and with reduced motion. Nothing slides either when the change leaves the phone
  * layout, or leaves a dialog open over the page (one that closes with the change, as a search
- * that opens a room, does not count).
+ * that opens a thread, does not count).
  */
 export const slidePhonePage = (change: Change): void => {
   if (waiting) {
