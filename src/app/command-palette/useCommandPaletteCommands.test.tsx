@@ -135,25 +135,53 @@ describe('useCommandPaletteCommands settings', () => {
   it('flips a switch setting, and the row shows its new state', () => {
     const { store, result } = render();
     const before = store.get(settingsAtom).isMarkdown;
-    const row = find(result.current.searchOnly, 'setting:markdown');
+    const row = find(result.current.searchCommands('markdown'), 'setting:markdown');
     expect(row.state).toBe(before ? 'on' : 'off');
 
     act(() => row.onSelect?.());
 
     expect(store.get(settingsAtom).isMarkdown).toBe(!before);
-    expect(find(result.current.searchOnly, 'setting:markdown').state).toBe(before ? 'off' : 'on');
+    expect(find(result.current.searchCommands('markdown'), 'setting:markdown').state).toBe(
+      before ? 'off' : 'on'
+    );
   });
 
   it('opens Settings at a setting that is no switch', () => {
     const { store, result } = render();
 
-    act(() => find(result.current.searchOnly, 'setting:pageZoom').onSelect?.());
+    act(() => find(result.current.searchCommands('page zoom'), 'setting:pageZoom').onSelect?.());
 
     expect(store.get(settingsModalAtom)).toEqual({
       initialPage: 'appearance',
       initialSetting: 'pageZoom',
       requestId: 'palette:pageZoom',
     });
+  });
+});
+
+describe('useCommandPaletteCommands search', () => {
+  const ids = (text: string) =>
+    render()
+      .result.current.searchCommands(text)
+      .map((item) => item.id);
+
+  it.each(['john', 'lisa', 'emma'])('finds nothing for a name like %s', (name) => {
+    expect(ids(name)).toEqual([]);
+  });
+
+  it('finds nothing without text', () => {
+    expect(ids('')).toEqual([]);
+    expect(ids('   ')).toEqual([]);
+  });
+
+  it('ranks settings as the Settings search does, before the choices', () => {
+    expect(ids('markdown')[0]).toBe('setting:markdown');
+    expect(ids('dracula')).toContain('theme:dracula-theme');
+  });
+
+  it("finds a choice by its title alone, so the page's name finds only System Theme", () => {
+    const themeChoices = ids('theme').filter((id) => id.startsWith('theme:'));
+    expect(themeChoices).toEqual(['theme:system']);
   });
 });
 
@@ -227,7 +255,7 @@ describe('useCommandPaletteCommands pages', () => {
   it("finds a page's choices by typing, tagged with the page's title", () => {
     const { result } = render();
 
-    expect(find(result.current.searchOnly, 'theme:dracula-theme').tag).toBe(
+    expect(find(result.current.searchCommands('dracula'), 'theme:dracula-theme').tag).toBe(
       result.current.pages.theme.title
     );
     expect(result.current.pages.theme.title).toBe('Theme');
@@ -235,12 +263,12 @@ describe('useCommandPaletteCommands pages', () => {
 
   it('keeps its lists while nothing they show changes', () => {
     const { result, rerender } = render();
-    const { actions, searchOnly, pages } = result.current;
+    const { actions, searchCommands, pages } = result.current;
 
     rerender();
 
     expect(result.current.actions).toBe(actions);
-    expect(result.current.searchOnly).toBe(searchOnly);
+    expect(result.current.searchCommands).toBe(searchCommands);
     expect(result.current.pages).toBe(pages);
   });
 });

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useAtomValue, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Icons } from 'folds';
@@ -12,6 +12,7 @@ import { settingsModalAtom } from '../navigation/settingsModal';
 import { settingsAtom } from '../preferences/settings';
 import { getSettingDefinition, getShownSettings } from '../preferences/settingsRegistry';
 import { LAYOUT_CHOICES } from '../settings/pages/Appearance';
+import { foldSearchText, searchSettings } from '../settings/settingsSearchIndex';
 import { useSettingsContext } from '../settings/useSettingsContext';
 import { useSettingsSearchValues } from '../settings/useSettingsSearchValues';
 import { SHORTCUTS, type ShortcutId } from '../shortcuts/shortcuts';
@@ -39,8 +40,11 @@ import type {
 export type CommandPaletteCommands = {
   /** Rows for the first list, beside the fixed actions. */
   actions: Executable<CommandPaletteActionItem>[];
-  /** Rows only typed text finds: the settings and the pages' choices, tagged. */
-  searchOnly: Executable<CommandPaletteActionItem>[];
+  /**
+   * The settings and page choices that match typed text, best first: settings as the Settings
+   * dialog's own search ranks them, then the page choices whose title holds the text.
+   */
+  searchCommands: (text: string) => Executable<CommandPaletteActionItem>[];
   pages: Record<CommandPalettePageId, CommandPalettePage>;
 };
 
@@ -90,7 +94,7 @@ export const useCommandPaletteCommands = ({
   const languageCode = useAppLanguageCode();
   const searchValues = useSettingsSearchValues();
   // The context is a new object on every render; the settings it shows keep their list until
-  // one of them comes or goes, so the rows and the search index built on them stay too.
+  // one of them comes or goes, so the rows and the search built on them stay too.
   const shownIds = getShownSettings(useSettingsContext())
     .map((setting) => setting.id)
     .join('\n');
@@ -212,14 +216,32 @@ export const useCommandPaletteCommands = ({
     [languagePage, messageLayoutPage, themePage]
   );
 
-  const searchOnly = useMemo(
-    () => [
-      ...settingRows,
-      ...[themePage, messageLayoutPage, languagePage].flatMap((page) =>
+  const settingRowsById = useMemo(
+    () => new Map(settingRows.map((row) => [row.id, row])),
+    [settingRows]
+  );
+  // The pages' choices as typed text finds them, each tagged with its page's title.
+  const choices = useMemo(
+    () =>
+      [themePage, messageLayoutPage, languagePage].flatMap((page) =>
         tagCommandPalettePageRows(page.title, page.items)
       ),
-    ],
-    [languagePage, messageLayoutPage, settingRows, themePage]
+    [languagePage, messageLayoutPage, themePage]
+  );
+
+  // No fuzzy matching here, so a person's name or a word of a room's topic finds no setting.
+  const searchCommands = useCallback(
+    (text: string): Executable<CommandPaletteActionItem>[] => {
+      const folded = foldSearchText(text);
+      if (!folded) return [];
+      // The settings a page covers have no row, so the search's results for them are left out.
+      const settingMatches = searchSettings(text, shownSettings, t, searchValues).flatMap(
+        ({ setting }) => settingRowsById.get(`setting:${setting.id}`) ?? []
+      );
+      const choiceMatches = choices.filter((row) => foldSearchText(row.title).includes(folded));
+      return [...settingMatches, ...choiceMatches];
+    },
+    [choices, searchValues, settingRowsById, shownSettings, t]
   );
 
   const actions = useMemo(() => {
@@ -271,5 +293,5 @@ export const useCommandPaletteCommands = ({
     return [...callRows, ...roomCommandRows, ...shortcutRows];
   }, [call, candidates, inRoom, room, roomCommands, shortcutCommands, t, threadId]);
 
-  return useMemo(() => ({ actions, searchOnly, pages }), [actions, pages, searchOnly]);
+  return useMemo(() => ({ actions, searchCommands, pages }), [actions, pages, searchCommands]);
 };

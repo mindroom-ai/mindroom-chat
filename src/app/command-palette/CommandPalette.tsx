@@ -97,13 +97,17 @@ const getLocalSectionItems = ({
 }): ExecutableCommandPaletteItem[] => {
   const limit = getCommandPaletteSectionLimit(sectionId, tab);
   switch (sectionId) {
-    case 'actions':
-      return searchCommandPaletteSection({
-        // Settings and the pages' choices only show for typed text.
-        items: searchText ? source.searchActions : source.actions,
+    case 'actions': {
+      const actions = searchCommandPaletteSection({
+        items: source.actions,
         query: searchText,
         config: { ...commandPaletteSearchConfig.actions, limit },
       });
+      // Settings and the pages' choices only show for typed text, after the actions that match.
+      return searchText
+        ? [...actions, ...source.searchCommands(searchText)].slice(0, limit)
+        : actions;
+    }
     case 'threads':
       return searchCommandPaletteSection({
         items: source.threads,

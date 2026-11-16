@@ -79,8 +79,11 @@ type CommandPaletteUserQuery = { exhaustive: boolean; includeRelatedRooms: boole
 export type CommandPaletteSource = {
   /** The action rows of the first list. */
   actions: Executable<CommandPaletteActionItem>[];
-  /** Every action row typed text can find: `actions`, the settings and the pages' choices. */
-  searchActions: readonly Executable<CommandPaletteActionItem>[];
+  /**
+   * The settings and page choices that match typed text, best first: settings as the Settings
+   * dialog's own search ranks them, then the page choices whose title holds the text.
+   */
+  searchCommands: (text: string) => Executable<CommandPaletteActionItem>[];
   /** The pages of choices that a row with `page` opens. */
   pages: Readonly<Record<CommandPalettePageId, CommandPalettePage>>;
   threads: Executable<CommandPaletteThreadItem>[];
@@ -330,11 +333,6 @@ export const useCommandPaletteSource = ({
     () => [...quickActions, ...commands.actions],
     [commands.actions, quickActions]
   );
-  // One list for typed text, so its search index is built once while its rows stay.
-  const searchActions = useMemo(
-    () => [...actions, ...commands.searchOnly],
-    [actions, commands.searchOnly]
-  );
 
   const dmRoomByUserId = useMemo(
     () =>
@@ -419,10 +417,10 @@ export const useCommandPaletteSource = ({
     ]
   );
 
-  const { pages } = commands;
+  const { searchCommands, pages } = commands;
 
   return useMemo(
-    () => ({ actions, searchActions, pages, threads, rooms, getUsers }),
-    [actions, getUsers, pages, rooms, searchActions, threads]
+    () => ({ actions, searchCommands, pages, threads, rooms, getUsers }),
+    [actions, getUsers, pages, rooms, searchCommands, threads]
   );
 };

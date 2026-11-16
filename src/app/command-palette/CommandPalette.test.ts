@@ -3,6 +3,7 @@ import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommandPaletteSource } from './commandPaletteItems';
 import { CommandPalette } from './CommandPalette';
+import type { CommandPaletteActionItem, Executable } from './commandPaletteTypes';
 import type { CommandPaletteMessages } from './useCommandPaletteMessages';
 import type { CommandPalettePeople } from './useCommandPalettePeople';
 
@@ -187,9 +188,15 @@ const VIEW_SWITCH = {
   onSelect: vi.fn(),
 };
 
+// The source's search of settings and choices: the rows whose title holds the text.
+const searchRows =
+  (rows: readonly Executable<CommandPaletteActionItem>[]) =>
+  (text: string): Executable<CommandPaletteActionItem>[] =>
+    text ? rows.filter((row) => row.title.toLowerCase().includes(text.toLowerCase())) : [];
+
 const FIXTURE_SOURCE: CommandPaletteSource = {
   actions: FIXTURE_ACTIONS,
-  searchActions: [...FIXTURE_ACTIONS, MARKDOWN, VIEW_SWITCH, LIGHT, DARK, DRACULA],
+  searchCommands: searchRows([MARKDOWN, LIGHT, DARK, DRACULA]),
   pages: {
     theme: { title: 'Theme', items: [LIGHT, DARK, DRACULA] },
     'message-layout': { title: 'Message Layout', items: [] },
@@ -1244,7 +1251,7 @@ describe('CommandPalette pages and rows that keep it open', () => {
     expect(optionIds(renderer)).toEqual(['theme:light', 'theme:dark', 'theme:dracula']);
   });
 
-  it('typed text searches searchActions', async () => {
+  it("typed text also finds the source's settings and choices", async () => {
     const renderer = renderPalette();
     await type(renderer, 'markdown');
     expect(optionIds(renderer)).toContain('setting:markdown');
@@ -1252,6 +1259,28 @@ describe('CommandPalette pages and rows that keep it open', () => {
     const actionsTab = renderPalette({ initialTab: 'actions' });
     expect(optionIds(actionsTab)).not.toContain('setting:markdown');
     expect(optionIds(actionsTab)).toContain('page-theme');
+  });
+
+  it('lists the actions that match before the settings and choices', async () => {
+    const createRoom = { id: 'create-room', kind: 'action' as const, title: 'Create Room' };
+    const archivedRooms = {
+      id: 'setting:archivedRooms',
+      kind: 'action' as const,
+      title: 'Archived Rooms',
+      description: 'Rooms › Archived rooms',
+      keywords: ['room', 'rooms', 'archive', 'archived room', 'hidden rooms'],
+      tag: 'Settings',
+    };
+    const renderer = renderPalette({
+      initialTab: 'actions',
+      source: {
+        ...FIXTURE_SOURCE,
+        actions: [...FIXTURE_ACTIONS, createRoom],
+        searchCommands: (text) => (text ? [archivedRooms] : []),
+      },
+    });
+    await type(renderer, 'room');
+    expect(optionIds(renderer)).toEqual(['create-room', 'setting:archivedRooms']);
   });
 
   it('a keepOpen row keeps the palette open', async () => {
@@ -1267,9 +1296,7 @@ describe('CommandPalette pages and rows that keep it open', () => {
     // The setting changed, so the source comes again with the row's new state.
     const source: CommandPaletteSource = {
       ...FIXTURE_SOURCE,
-      searchActions: FIXTURE_SOURCE.searchActions.map((row) =>
-        row.id === MARKDOWN.id ? { ...row, state: 'off' as const } : row
-      ),
+      searchCommands: searchRows([{ ...MARKDOWN, state: 'off' }, LIGHT, DARK, DRACULA]),
     };
     await act(async () => renderer.update(paletteElement({ requestClose, source })));
     expect(selectedId(renderer)).toBe('setting:markdown');
@@ -1282,7 +1309,10 @@ describe('CommandPalette pages and rows that keep it open', () => {
 
   it('a state row without keepOpen closes', async () => {
     const requestClose = vi.fn();
-    const renderer = renderPalette({ requestClose });
+    const renderer = renderPalette({
+      requestClose,
+      source: { ...FIXTURE_SOURCE, actions: [...FIXTURE_ACTIONS, VIEW_SWITCH] },
+    });
     await type(renderer, 'compact');
     await hover(renderer, 'room-command:viewSwitch');
     await press(renderer, 'Enter');

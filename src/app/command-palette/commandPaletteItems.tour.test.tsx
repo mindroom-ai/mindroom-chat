@@ -34,7 +34,7 @@ vi.mock('../theme/useTheme', async (importOriginal) => ({
 vi.mock('./useCommandPaletteCommands', () => ({
   useCommandPaletteCommands: () => ({
     actions: [],
-    searchOnly: [],
+    searchCommands: () => [],
     pages: {
       theme: { title: '', items: [] },
       'message-layout': { title: '', items: [] },

@@ -15,9 +15,12 @@ export type SettingsSearchValues = Record<string, string>;
 /** The active language's text for a key. */
 export type SettingsTranslate = (key: ParseKeys, values?: SettingsSearchValues) => string;
 
-// Lower case, and Latin letters without their accents, so "theme" finds "Thème". Other scripts
-// keep their marks: an Indic vowel sign or a Japanese voicing mark changes the word.
-const fold = (text: string): string =>
+/**
+ * Text as the search compares it: lower case, one space between words, and Latin letters without
+ * their accents, so "theme" finds "Thème". Other scripts keep their marks: an Indic vowel sign or
+ * a Japanese voicing mark changes the word.
+ */
+export const foldSearchText = (text: string): string =>
   text
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -121,7 +124,7 @@ export const searchSettings = (
   t: SettingsTranslate,
   values: SettingsSearchValues = {}
 ): SettingsSearchResult[] => {
-  const queryWords = fold(query).split(' ').filter(Boolean);
+  const queryWords = foldSearchText(query).split(' ').filter(Boolean);
   if (queryWords.length === 0) return [];
   const text = translator(t, values);
 
@@ -131,11 +134,11 @@ export const searchSettings = (
       // The group counts even where the location leaves it out for repeating the page's name.
       const { page, group } = placeLabels(setting, text);
       const fields: Fields = {
-        label: fold(label),
-        keywords: keywords.map(fold).filter(Boolean),
-        group: fold(group),
-        description: fold(description),
-        page: fold(page),
+        label: foldSearchText(label),
+        keywords: keywords.map(foldSearchText).filter(Boolean),
+        group: foldSearchText(group),
+        description: foldSearchText(description),
+        page: foldSearchText(page),
       };
       const scores = queryWords.map((word) => scoreWord(word, fields));
       const exact = fields.label === queryWords.join(' ') ? WEIGHTS.labelStart : 0;
