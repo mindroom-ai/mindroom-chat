@@ -333,6 +333,7 @@ describe('useThreadForkPrefix and a redaction of a prefix message', () => {
     const unloadedThread = Object.assign(new EventEmitter(), {
       id: '$p',
       initialEventsFetched: false,
+      events: [],
       timelineSet: { removeEvent: vi.fn() },
     }) as unknown as Thread;
     const room = realRoom(mx, unloadedThread);
