@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ClientEvent,
-  Direction,
   MatrixEventEvent,
   RelationType,
   type MatrixClient,
@@ -22,12 +21,7 @@ import {
   useSyncEngine,
   type BackfillScheduler,
 } from '../../event-store/engine';
-import { hasLoadedFirstThreadPage } from '../../event-store/sdk/threadBootstrapSdk';
 import { parseThreadForkRef } from '../../event-store/threads/threadFork';
-import {
-  getFirstLinkedTimeline,
-  getThreadTimelineEvents,
-} from '../../event-store/timeline/linkedTimelines';
 import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
 import { isUnreadableYet } from '../../matrix/decryptionWaits';
@@ -56,20 +50,6 @@ const uniqueEvents = (events: (MatrixEvent | null | undefined)[]): MatrixEvent[]
 
 const holds = (events: MatrixEvent[], eventId: string): boolean =>
   events.some((event) => event.getId() === eventId);
-
-/** The SDK thread's events, when its timeline reaches back to the root and holds the fork point. */
-const sdkThreadEvents = (room: Room, threadId: string, forkPointId: string) => {
-  const thread = room.getThread(threadId);
-  if (!thread || !hasLoadedFirstThreadPage(thread)) return undefined;
-  const first = getFirstLinkedTimeline(
-    thread.getUnfilteredTimelineSet().getLiveTimeline(),
-    Direction.Backward
-  );
-  if (first.getPaginationToken(Direction.Backward) !== null) return undefined;
-  const root = thread.rootEvent ?? room.findEventById(threadId);
-  const events = uniqueEvents([root, ...getThreadTimelineEvents(thread)]);
-  return holds(events, forkPointId) ? events : undefined;
-};
 
 /** The cached thread, when the cache holds all of it and the fork point. */
 const cachedThreadEvents = async (
@@ -129,16 +109,15 @@ const backfilledThreadEvents = async (
 };
 
 /**
- * A parent thread's events: the SDK's when they reach its fork point, otherwise the cache's,
- * otherwise the server's. Loaded copies get their edits and redactions and are decrypted.
+ * A parent thread's events: the cache's when it holds all of them and the fork point, otherwise
+ * the server's. Not the SDK thread's: a thread opened from the cache keeps its older replies beside
+ * it. Loaded copies get their edits and redactions and are decrypted.
  */
 const loadParentThreadEvents = async (
   sources: Sources,
   threadId: string,
   forkPointId: string
 ): Promise<MatrixEvent[]> => {
-  const sdkEvents = sdkThreadEvents(sources.room, threadId, forkPointId);
-  if (sdkEvents) return sdkEvents;
   const events =
     (await cachedThreadEvents(sources, threadId, forkPointId)) ??
     (await backfilledThreadEvents(sources, threadId));
@@ -165,8 +144,8 @@ const NOT_A_FORK: ThreadForkPrefix = { events: [] };
 
 /**
  * The prefix of the fork whose root is `root`: its parents' messages up to each fork point. It is
- * loaded again when the root's ID or its reference changes; another copy of the same root (the
- * SDK's replacing the cache's) keeps it, also while that copy waits to be decrypted. Edits the
+ * loaded again when the root's ID or its reference changes, and the loaded one shows meanwhile
+ * while the reference stays; another copy of the same root (the SDK's replacing the cache's) keeps it, also while that copy waits to be decrypted. Edits the
  * parents' messages get later show in the events it holds; a redaction of one loads it again.
  */
 export const useThreadForkPrefix = (
@@ -220,7 +199,8 @@ export const useThreadForkPrefix = (
     };
   }, [fetchRoomEvent, mx, parentKey, reloads, room, rootId, rootRef, scheduler, sessionId]);
 
-  const shown = loaded?.rootId === rootId && loaded?.parentKey === parentKey ? loaded : undefined;
+  // The prefix depends on the reference alone: a root that gets its server ID keeps it.
+  const shown = loaded?.parentKey === parentKey ? loaded : undefined;
   const events = shown?.prefix.events;
   useEffect(() => {
     if (!root) return undefined;

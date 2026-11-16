@@ -10,7 +10,7 @@ import {
   type MatrixClient,
   type Thread,
 } from 'matrix-js-sdk';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import {
   createBackfillScheduler,
@@ -55,7 +55,7 @@ const raw = (eventId: string, ts: number, threadRoot?: string, content = {}): IE
       ...(threadRoot ? { 'm.relates_to': { rel_type: 'm.thread', event_id: threadRoot } } : {}),
       ...content,
     },
-  } as IEvent);
+  }) as IEvent;
 
 const message = (...args: Parameters<typeof raw>) => new MatrixEvent(raw(...args));
 
@@ -81,15 +81,25 @@ const sdkThreadOf = (events: MatrixEvent[], rootEvent: MatrixEvent | undefined) 
   } as unknown as Thread;
 };
 
-/** A room holding `$p`'s events; with `sdkThread`, an SDK thread for `$p` loaded from its start. */
-const makeRoom = (parentEvents: MatrixEvent[], sdkThread: boolean) => {
-  const thread = sdkThreadOf(parentEvents, parentEvents[0]);
-  return {
+/** A room holding `$p`'s events, with `thread` as the SDK's thread of `$p`. */
+const makeRoom = (parentEvents: MatrixEvent[], thread: Thread | null = null) =>
+  ({
     roomId,
-    getThread: (threadId: string) => (sdkThread && threadId === '$p' ? thread : null),
+    getThread: (threadId: string) => (threadId === '$p' ? thread : null),
     findEventById: (eventId: string) => parentEvents.find((event) => event.getId() === eventId),
-  } as unknown as Room;
+  }) as unknown as Room;
+
+/** The event cache holds all of `$p`: the events, which the prefix takes. */
+const cacheParent = (events: MatrixEvent[]) => {
+  session.value = { sessionId: 'session' };
+  cache.events = events;
+  return events;
 };
+
+afterEach(() => {
+  session.value = undefined;
+  cache.events = undefined;
+});
 
 const newClient = () => createClient({ baseUrl: 'https://example.org', userId: '@me:example.org' });
 
@@ -145,7 +155,7 @@ describe('useThreadForkPrefix', () => {
     ];
     const mx = newClient();
     const view = await renderPrefix(
-      makeRoom(parentEvents, true),
+      makeRoom(cacheParent(parentEvents)),
       mx,
       {} as BackfillScheduler,
       forkRoot()
@@ -174,7 +184,7 @@ describe('useThreadForkPrefix', () => {
   it('keeps the prefix through a new copy of the root, also one waiting to be decrypted', async () => {
     const parentEvents = [message('$p', 1), message('$a', 2, '$p'), message('$b', 3, '$p')];
     const view = await renderPrefix(
-      makeRoom(parentEvents, true),
+      makeRoom(cacheParent(parentEvents)),
       newClient(),
       {} as BackfillScheduler,
       forkRoot()
@@ -215,7 +225,7 @@ describe('useThreadForkPrefix', () => {
       return { chunk: [raw('$c', 4, '$p'), raw('$b', 3, '$p'), raw('$a', 2, '$p')] };
     });
     const view = await renderPrefix(
-      makeRoom([message('$p', 1)], false),
+      makeRoom([message('$p', 1)]),
       mx,
       createBackfillScheduler(),
       forkRoot()
@@ -231,17 +241,51 @@ describe('useThreadForkPrefix', () => {
     expect(ids(view.results.at(-1)!.events)).toEqual(['$p', '$a', '$b']);
     await view.unmount();
   });
-  it("puts the parent's root first when its SDK thread does not hold the root yet", async () => {
-    const root = message('$p', 1);
-    const replies = [message('$a', 2, '$p'), message('$b', 3, '$p'), message('$c', 4, '$p')];
-    const thread = sdkThreadOf(replies, undefined);
-    const room = {
-      roomId,
-      getThread: (threadId: string) => (threadId === '$p' ? thread : null),
-      findEventById: (eventId: string) => (eventId === '$p' ? root : undefined),
-    } as unknown as Room;
-    const view = await renderPrefix(room, newClient(), {} as BackfillScheduler, forkRoot());
+  it("reads the parent from the cache, not the SDK's thread, which can lack older replies", async () => {
+    const parentEvents = cacheParent([
+      message('$p', 1),
+      message('$a', 2, '$p'),
+      message('$b', 3, '$p'),
+      message('$c', 4, '$p'),
+    ]);
+    // Opened from the cache: the SDK's thread starts at `$b` and says nothing is before it.
+    const partial = sdkThreadOf([parentEvents[0]!, ...parentEvents.slice(2)], parentEvents[0]);
+    const view = await renderPrefix(
+      makeRoom(parentEvents, partial),
+      newClient(),
+      {} as BackfillScheduler,
+      forkRoot()
+    );
     expect(ids(view.results.at(-1)!.events)).toEqual(['$p', '$a', '$b']);
+    await view.unmount();
+  });
+
+  it('keeps showing the prefix while the root gets its server ID', async () => {
+    const parentEvents = cacheParent([
+      message('$p', 1),
+      message('$a', 2, '$p'),
+      message('$b', 3, '$p'),
+    ]);
+    const echo = message(
+      '~!room:example.org:m1.1',
+      10,
+      undefined,
+      threadForkContent({ threadId: '$p', eventId: '$b' })
+    );
+    const view = await renderPrefix(
+      makeRoom(parentEvents),
+      newClient(),
+      {} as BackfillScheduler,
+      echo
+    );
+    const loadedAt = view.results.findIndex((result) => result.events.length > 0);
+    expect(loadedAt).toBeGreaterThanOrEqual(0);
+
+    await view.setRoot(forkRoot());
+
+    view.results.slice(loadedAt).forEach((result) => {
+      expect(ids(result.events)).toEqual(['$p', '$a', '$b']);
+    });
     await view.unmount();
   });
 
@@ -249,7 +293,7 @@ describe('useThreadForkPrefix', () => {
     const parentEvents = [message('$p', 1), message('$a', 2, '$p'), message('$b', 3, '$p')];
     const mx = newClient();
     const view = await renderPrefix(
-      makeRoom(parentEvents, true),
+      makeRoom(cacheParent(parentEvents)),
       mx,
       {} as BackfillScheduler,
       forkRoot()
@@ -347,29 +391,6 @@ describe('useThreadForkPrefix and a redaction of a prefix message', () => {
     expect(mainTimeline(room)).toEqual([]);
     expect(cache.load).toHaveBeenCalledTimes(2);
     expect(ids(view.results.at(-1)!.events)).toEqual(['$p', '$b']);
-    await view.unmount();
-    session.value = undefined;
-    cache.events = undefined;
-  });
-
-  it("reads the SDK's thread again once the SDK took the redaction", async () => {
-    const mx = newClient();
-    const parentEvents = [message('$p', 1), message('$a', 2, '$p'), message('$b', 3, '$p')];
-    const room = realRoom(mx, sdkThreadOf(parentEvents, parentEvents[0]));
-    const view = await renderPrefix(room, mx, {} as BackfillScheduler, forkRoot());
-    expect(ids(view.results.at(-1)!.events)).toEqual(['$p', '$a', '$b']);
-
-    // The SDK redacts its own copy and takes it out of the thread, into the main timeline.
-    const sdkRedaction = redaction();
-    parentEvents[1]!.makeRedacted(sdkRedaction, room);
-    parentEvents.splice(1, 1);
-    const before = mainTimeline(room);
-    await act(async () => {
-      mx.emit(ClientEvent.Event, sdkRedaction);
-    });
-
-    expect(ids(view.results.at(-1)!.events)).toEqual(['$p', '$b']);
-    expect(mainTimeline(room)).toEqual(before);
     await view.unmount();
   });
 });

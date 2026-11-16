@@ -218,11 +218,6 @@ export type RoomTimelineProps = {
    * up to it, read-only as the fork will show it, with the "Forking" divider under it.
    */
   forkAt?: string;
-  /**
-   * Hears the fork point the rows show (`forkAt`, once they hold it), or undefined once the
-   * thread's open is done without it; nothing before.
-   */
-  onForkPointShown?: (eventId: string | undefined) => void;
 };
 
 type ScrollToBottomState = { count: number; smooth: boolean };
@@ -273,7 +268,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
     onThreadLoadError,
     threadHeader,
     forkAt,
-    onForkPointShown,
   } = props;
   const mx = useMatrixClient();
   const alive = useAlive();
@@ -416,7 +410,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
 
   // A fork shows its parent's conversation up to the fork point before its own rows.
   const liveThreadRoot = threadId
-    ? room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId)
+    ? (room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId))
     : undefined;
   const cachedThreadRoot = useCachedThreadRoot(room, threadId ?? '', liveThreadRoot);
   const forkPrefix = useThreadForkPrefix(room, liveThreadRoot ?? cachedThreadRoot);
@@ -441,13 +435,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const { forkPointIndex } = threadState;
   const forkPoint = forkPointIndex !== undefined ? threadEvents[forkPointIndex] : undefined;
   const shownForkPoint = forkPoint?.getId();
-  // The view the session last opened; until this view's own open starts, the session still reports
-  // the previous thread's open.
-  const openedViewKeyRef = useRef<string>();
-  const threadOpenSettled = session.snapshot.open.settled && openedViewKeyRef.current === viewKey;
-  useLayoutEffect(() => {
-    if (shownForkPoint || threadOpenSettled) onForkPointShown?.(shownForkPoint);
-  }, [onForkPointShown, shownForkPoint, threadOpenSettled]);
   // A fork's parent messages, and in a fork draft every row: what the fork will show of its parent,
   // read-only as it will show it.
   const forkPrefixEventIds = useMemo(
@@ -609,6 +596,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
 
   // Opening a thread: render and viewport ports for the session, and the runtime it opens with.
   const viewKeyRef = useLatestRef(viewKey);
+  const openedViewKeyRef = useRef<string>();
   const renderPort = useMemo<ThreadRenderPort>(
     () => ({
       reset: (nextThreadId) => threadStateRef.current.resetThreadRenderState(nextThreadId),
@@ -940,8 +928,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
           threadLoading ? 'loading' : '',
         ].join('|')
       : roomSurfaceShown && !latestAtTop
-      ? ['room', showRoomIntro ? 'intro' : '', itemCount > 0 ? 'toggle' : ''].join('|')
-      : '',
+        ? ['room', showRoomIntro ? 'intro' : '', itemCount > 0 ? 'toggle' : ''].join('|')
+        : '',
     automaticFill: roomSurfaceShown
       ? { isActive: automaticFill.isActive, geometryReader: automaticFill.geometryReader }
       : undefined,
@@ -985,8 +973,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
       !threadId
         ? EMPTY_IDS
         : pluginHiddenThreadIds.size === 0
-        ? approvalTimeline.hiddenEventIds
-        : new Set([...approvalTimeline.hiddenEventIds, ...pluginHiddenThreadIds]),
+          ? approvalTimeline.hiddenEventIds
+          : new Set([...approvalTimeline.hiddenEventIds, ...pluginHiddenThreadIds]),
     [threadId, approvalTimeline.hiddenEventIds, pluginHiddenThreadIds]
   );
   useThreadApprovalRowMeasurements(virtualizer, threadEvents, threadHiddenIds, estimateSize);

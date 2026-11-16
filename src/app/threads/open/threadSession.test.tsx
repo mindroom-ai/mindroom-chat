@@ -108,7 +108,7 @@ const openFixture = () => {
         relationSnapshotComplete: complete,
         expectedReplyCount: 1,
       },
-    } as unknown as ThreadCachedSnapshot);
+    }) as unknown as ThreadCachedSnapshot;
   return { runtime, root, reply, timeline, bootstrap, context, rendered, cache, getThread };
 };
 
@@ -583,31 +583,6 @@ describe('thread session opening', () => {
       latestPending: false,
     });
     expect(fixture.runtime.reconcile).toHaveBeenCalledTimes(1);
-    view.unmount();
-  });
-
-  it('settles an open once its loads are done, the route event among them', async () => {
-    vi.mocked(loadThreadCachedSnapshot).mockReset().mockResolvedValue(undefined);
-    const fixture = openFixture();
-    const target = deferred<typeof fixture.timeline>();
-    fixture.context.mockImplementation(async (_timelineSet, eventId) =>
-      eventId === '$reply' ? target.promise : fixture.timeline
-    );
-    const view = renderOpen(fixture.runtime, {
-      roomId: fixture.runtime.room.roomId,
-      threadId: '$a',
-      eventId: '$reply',
-    });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-    expect(view.session.snapshot.open.settled).toBe(false);
-
-    await act(async () => {
-      target.resolve(fixture.timeline);
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-    expect(view.session.snapshot.open.settled).toBe(true);
     view.unmount();
   });
 

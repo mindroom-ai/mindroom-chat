@@ -590,8 +590,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const syncAutocompleteQuery = useCallback(() => {
       const range = getPrevWorldRange(editor);
       const query = range
-        ? getAgentCommandQuery(editor, range) ??
-          getAutocompleteQuery(editor, range, AUTOCOMPLETE_PREFIXES)
+        ? (getAgentCommandQuery(editor, range) ??
+          getAutocompleteQuery(editor, range, AUTOCOMPLETE_PREFIXES))
         : undefined;
       setAutocompleteQuery(query);
     }, [editor]);
@@ -786,7 +786,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   onToggleFormatting={toggleFormatting}
                   onEmoji={(anchor) => openBoard('Emoji', anchor)}
                 />
-                {voice.microphone}
+                {/* A fork draft records no voice: one would start a thread, not the fork. */}
+                {!forkFrom && voice.microphone}
               </>
             ) : (
               <>
@@ -796,7 +797,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   icon={Icons.PlusCircle}
                   onPress={attachments.pickFiles}
                 />
-                {voice.microphone}
+                {/* A fork draft records no voice: one would start a thread, not the fork. */}
+                {!forkFrom && voice.microphone}
                 <ComposerIconButton
                   label={t('composer.formatting')}
                   icon={Icons.Text}

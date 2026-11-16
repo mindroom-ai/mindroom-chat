@@ -7,13 +7,11 @@ import {
   useId,
   useMemo,
   useRef,
-  useState,
 } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { RoomInput } from '../composer/RoomInput';
 import { useEditor } from '../editor/Editor';
-import type { ThreadForkRef } from '../event-store/threads/threadFork';
 import {
   isConfirmedMatrixEventId,
   isLocalEchoEventId,
@@ -149,27 +147,14 @@ export function ThreadView({
     [last, roomsShown, view]
   );
 
-  // The fork draft. Its composer starts the fork once the timeline shows the fork point among the
-  // thread's own messages. Until the timeline says, there is no composer: text typed into the
-  // thread's would go to the thread. A point that is not among them leaves the thread as it is. Its
-  // first message opens the fork in the draft's place.
+  // The fork draft: the thread up to the fork point, read-only, and a composer whose first message
+  // starts the fork, then opens it in the draft's place. A point that is not among the thread's
+  // messages makes a fork without its parent's messages, as a missing reference does.
   const { navigateRoomThread } = useRoomNavigate();
   const draftForkAt = isConfirmedMatrixEventId(forkAt) ? forkAt : undefined;
-  const [forkPointReport, setForkPointReport] = useState<ThreadForkRef & { shown: boolean }>();
-  const onForkPointShown = useCallback(
-    (forkPointId: string | undefined) => {
-      if (!draftForkAt) return;
-      setForkPointReport({ threadId, eventId: draftForkAt, shown: forkPointId === draftForkAt });
-    },
-    [draftForkAt, threadId]
-  );
-  const reported =
-    forkPointReport?.threadId === threadId && forkPointReport.eventId === draftForkAt;
-  const forkPointPending = !!draftForkAt && !reported;
-  const forkShown = reported && forkPointReport?.shown === true;
   const forkFrom = useMemo(
-    () => (forkShown && draftForkAt ? { threadId, eventId: draftForkAt } : undefined),
-    [draftForkAt, forkShown, threadId]
+    () => (draftForkAt ? { threadId, eventId: draftForkAt } : undefined),
+    [draftForkAt, threadId]
   );
   const openFork = useCallback(
     (forkRootId: string) => {
@@ -220,7 +205,6 @@ export function ThreadView({
                 threadId={threadId}
                 eventId={eventId}
                 forkAt={draftForkAt}
-                onForkPointShown={onForkPointShown}
                 threadHeader={header}
                 onThreadLoadError={onThreadLoadError}
                 viewMode="threaded"
@@ -233,6 +217,7 @@ export function ThreadView({
             }
             focusConversation={focusConversation}
             canCancelJobs={canCancelJobs}
+            readOnly={!!forkFrom}
             notice={
               <ComposerNotice
                 room={room}
@@ -242,8 +227,7 @@ export function ThreadView({
               />
             }
             composer={
-              composerShown &&
-              !forkPointPending && (
+              composerShown && (
                 <RoomInput
                   room={room}
                   roomId={roomId}

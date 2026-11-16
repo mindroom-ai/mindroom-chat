@@ -23,20 +23,6 @@ const forkPrefix = vi.hoisted(() => ({
 vi.mock('../../threads/fork/useThreadForkPrefix', () => ({
   useThreadForkPrefix: () => forkPrefix.value,
 }));
-// While `gate` is pending, the thread's open waits on the server.
-const opening = vi.hoisted(() => ({ gate: undefined as Promise<void> | undefined }));
-vi.mock('../../threads/open/threadOpenSdkBootstrap', async (original) => {
-  const actual = await original<typeof import('../../threads/open/threadOpenSdkBootstrap')>();
-  return {
-    ...actual,
-    runThreadOpenSdkBootstrap: async (
-      ...args: Parameters<typeof actual.runThreadOpenSdkBootstrap>
-    ) => {
-      await opening.gate;
-      return actual.runThreadOpenSdkBootstrap(...args);
-    },
-  };
-});
 vi.mock('../../threads/fork/ThreadForkDivider', async () => {
   const ReactImport = await import('react');
   return {
@@ -92,7 +78,7 @@ describe('a forked thread', () => {
         rootEvent: root,
         events: [reply],
         getUnfilteredTimelineSet: () => timelineSet,
-      } as never);
+      }) as never;
     threadRenderStateMock.threadEvents = rows as never;
     threadRenderStateMock.ownThreadEvents = own as never;
     threadRenderStateMock.threadEventIndexMapRef.current = new Map(
@@ -162,7 +148,7 @@ describe('a fork draft', () => {
         rootEvent: root,
         events: [a, b, later],
         getUnfilteredTimelineSet: () => timelineSet,
-      } as never);
+      }) as never;
     // The render state cut the thread at $b; its own events stay whole.
     threadRenderStateMock.threadEvents = rows as never;
     threadRenderStateMock.ownThreadEvents = [...rows, later] as never;
@@ -171,7 +157,6 @@ describe('a fork draft', () => {
       rows.map((event, index) => [event.getId(), index])
     );
     roomTimelineVirtualizerState.virtualIndexes = rows.map((_, index) => index);
-    const onForkPointShown = vi.fn();
     const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
     let renderer: ReturnType<typeof create> | undefined;
     try {
@@ -181,7 +166,6 @@ describe('a fork draft', () => {
             room,
             threadId: '$parent',
             forkAt: '$b',
-            onForkPointShown,
           })
         );
         await flushAsyncWork();
@@ -202,7 +186,6 @@ describe('a fork draft', () => {
       ]);
       const divider = renderer!.root.find((node) => (node.type as unknown) === 'fork-divider');
       expect(divider.props.parent).toEqual({ threadId: '$parent', eventId: '$b' });
-      expect(onForkPointShown).toHaveBeenLastCalledWith('$b');
 
       // What the fork will show of its parent, as the fork shows it: nothing to answer here.
       const messages = renderer!.root.findAllByType(Message);
@@ -212,125 +195,6 @@ describe('a fork draft', () => {
         expect(props.onOpenInOriginalThread).toBeDefined();
       });
     } finally {
-      act(() => renderer?.unmount());
-    }
-  });
-
-  it('says it shows no fork point once the thread opened without it, and not before', async () => {
-    const { RoomTimeline } = await import('../RoomTimeline');
-    const root = makeEvent('$parent', { isThreadRoot: true, ts: 1_000 });
-    forkPrefix.value = { events: [], parent: undefined };
-    const timeline = makeTimeline([root], { backwardToken: null });
-    const room = makeRoom({ liveEvents: [root] });
-    room.getThread = () =>
-      ({
-        rootEvent: root,
-        events: [],
-        getUnfilteredTimelineSet: () => ({
-          getLiveTimeline: () => timeline,
-          getTimelineForEvent: () => undefined,
-        }),
-      } as never);
-    threadRenderStateMock.threadEvents = [root] as never;
-    threadRenderStateMock.threadEventIndexMapRef.current = new Map([['$parent', 0]]);
-    roomTimelineVirtualizerState.virtualIndexes = [0];
-    const onForkPointShown = vi.fn();
-    const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
-    let renderer: ReturnType<typeof create> | undefined;
-    let open: () => void = () => undefined;
-    opening.gate = new Promise<void>((resolve) => {
-      open = resolve;
-    });
-    try {
-      await act(async () => {
-        renderer = create(
-          React.createElement(Harness, {
-            room,
-            threadId: '$parent',
-            forkAt: '$elsewhere',
-            onForkPointShown,
-          })
-        );
-        await flushAsyncWork();
-      });
-      // The point may still come with the thread's loads.
-      expect(onForkPointShown).not.toHaveBeenCalled();
-
-      await act(async () => {
-        open();
-        await flushAsyncWork();
-      });
-      expect(renderer!.root.findAll((node) => (node.type as unknown) === 'fork-divider')).toEqual(
-        []
-      );
-      expect(onForkPointShown).toHaveBeenLastCalledWith(undefined);
-    } finally {
-      opening.gate = undefined;
-      act(() => renderer?.unmount());
-    }
-  });
-
-  it('waits for its own open after switching from a thread that already opened', async () => {
-    const { RoomTimeline } = await import('../RoomTimeline');
-    const root = makeEvent('$parent', { isThreadRoot: true, ts: 1_000 });
-    const other = makeEvent('$other', { isThreadRoot: true, ts: 2_000 });
-    forkPrefix.value = { events: [], parent: undefined };
-    const timeline = makeTimeline([root, other], { backwardToken: null });
-    const room = makeRoom({ liveEvents: [root, other] });
-    room.getThread = (id: string) =>
-      ({
-        rootEvent: id === '$other' ? other : root,
-        events: [],
-        getUnfilteredTimelineSet: () => ({
-          getLiveTimeline: () => timeline,
-          getTimelineForEvent: () => undefined,
-        }),
-      } as never);
-    threadRenderStateMock.threadEvents = [root] as never;
-    threadRenderStateMock.threadEventIndexMapRef.current = new Map([['$parent', 0]]);
-    roomTimelineVirtualizerState.virtualIndexes = [0];
-    // ThreadView's callback is new for every thread it shows.
-    const onOtherForkPointShown = vi.fn();
-    const onForkPointShown = vi.fn();
-    const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
-    let renderer: ReturnType<typeof create> | undefined;
-    let open: () => void = () => undefined;
-    try {
-      // The previous thread opened in this same view.
-      await act(async () => {
-        renderer = create(
-          React.createElement(Harness, {
-            room,
-            threadId: '$other',
-            onForkPointShown: onOtherForkPointShown,
-          })
-        );
-        await flushAsyncWork();
-      });
-      opening.gate = new Promise<void>((resolve) => {
-        open = resolve;
-      });
-      await act(async () => {
-        renderer!.update(
-          React.createElement(Harness, {
-            room,
-            threadId: '$parent',
-            forkAt: '$elsewhere',
-            onForkPointShown,
-          })
-        );
-        await flushAsyncWork();
-      });
-      // The previous thread's settled open says nothing about this one.
-      expect(onForkPointShown).not.toHaveBeenCalled();
-
-      await act(async () => {
-        open();
-        await flushAsyncWork();
-      });
-      expect(onForkPointShown).toHaveBeenLastCalledWith(undefined);
-    } finally {
-      opening.gate = undefined;
       act(() => renderer?.unmount());
     }
   });

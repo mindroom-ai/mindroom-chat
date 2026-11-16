@@ -103,7 +103,7 @@ const {
           getMember: () => undefined,
           getMembers: () => [],
           getMyMembership: () => 'join',
-        } as unknown as Room)
+        }) as unknown as Room
     ),
     makeTxnId: vi.fn(() => 'txn-room-input'),
     sendMessage: vi.fn<(roomId: string, content: unknown) => Promise<{ event_id: string }>>(
@@ -279,9 +279,8 @@ vi.mock('../../editor/Editor', () => ({
   },
 }));
 vi.mock('../../editor/autocomplete/autocompleteQuery', async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import('../../editor/autocomplete/autocompleteQuery')
-  >();
+  const actual =
+    await importOriginal<typeof import('../../editor/autocomplete/autocompleteQuery')>();
   return {
     ...actual,
     AUTOCOMPLETE_PREFIXES: ['user'],
@@ -529,8 +528,7 @@ vi.mock('../RoomInputExtensions', async () => {
       }
     ) => {
       const liveRoom = mxClient.getRoom(context.roomId) as
-        | { getMyMembership?: () => string }
-        | undefined;
+        { getMyMembership?: () => string } | undefined;
       if (!liveRoom || liveRoom.getMyMembership?.() !== 'join') return null;
       return {
         ...context,
@@ -543,9 +541,14 @@ vi.mock('../RoomInputExtensions', async () => {
       replyDraft: IReplyDraft | undefined;
       threadingEnabled: boolean;
     }) =>
-      getMessageRelation(context.replyDraft?.eventId, context.replyDraft?.relation, context.threadId, {
-        allowThreadRelation: context.threadingEnabled,
-      }),
+      getMessageRelation(
+        context.replyDraft?.eventId,
+        context.replyDraft?.relation,
+        context.threadId,
+        {
+          allowThreadRelation: context.threadingEnabled,
+        }
+      ),
     isRoomInputAutocompleteQuery: (query?: { prefix?: string }) => query?.prefix === '!',
     RoomInputAutocomplete: () => null,
     RoomInputReplyContext: ({
@@ -661,7 +664,7 @@ const createRoom = (roomId = ROOM_ID, encrypted = false) =>
     getMember: () => undefined,
     getMembers: () => [],
     getMyMembership: () => 'join',
-  } as never);
+  }) as never;
 
 const createEditor = () => {
   const editor = {
@@ -690,10 +693,10 @@ const createTextPasteEvent = (text: string) =>
       getData: (type: string) => (type === 'text/plain' ? text : ''),
     },
     preventDefault: vi.fn(),
-  } as never as {
+  }) as never as {
     clipboardData: DataTransfer;
     preventDefault: ReturnType<typeof vi.fn>;
-  });
+  };
 
 const createDeferred = <T>() => {
   let resolve!: (value: T) => void;
@@ -802,7 +805,7 @@ const createRoomInputTree = (
     Provider,
     { store },
     React.createElement(RoomInput, {
-      key: props?.keyedRoomSubtree ? props?.roomId ?? ROOM_ID : undefined,
+      key: props?.keyedRoomSubtree ? (props?.roomId ?? ROOM_ID) : undefined,
       editor: createEditor(),
       fileDropContainerRef: createRef<HTMLElement>(),
       roomId: props?.roomId ?? ROOM_ID,
@@ -897,7 +900,7 @@ afterEach(() => {
         getMember: () => undefined,
         getMembers: () => [],
         getMyMembership: () => 'join',
-      } as unknown as Room)
+      }) as unknown as Room
   );
   mxState.makeTxnId.mockReset();
   mxState.makeTxnId.mockReturnValue('txn-room-input');
@@ -3697,7 +3700,7 @@ describe('RoomInput', () => {
           getMember: () => undefined,
           getMembers: () => [],
           getMyMembership: () => 'join',
-        } as unknown as Room)
+        }) as unknown as Room
     );
     const { renderer } = await renderRoomInput(store, {
       threadId: '$thread-a',
@@ -4262,6 +4265,23 @@ describe('RoomInput in a fork draft', () => {
     await updateRoomInput(renderer, store, { forkFrom });
     expect(boardProps(renderer).onStickerSelect).toBeUndefined();
     expect(boardProps(renderer).tab).toBe('Emoji');
+
+    renderer.unmount();
+  });
+
+  it('records no voice: a voice message alone would start a thread instead of the fork', async () => {
+    const microphones = (renderer: ReactTestRenderer) =>
+      renderer.root.findAll(
+        (node) =>
+          node.type === 'button' &&
+          String(node.props['aria-label'] ?? '').startsWith('Record voice message')
+      );
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { threadId: '$parent' });
+    expect(microphones(renderer)).not.toHaveLength(0);
+
+    await updateRoomInput(renderer, store, { forkFrom });
+    expect(microphones(renderer)).toHaveLength(0);
 
     renderer.unmount();
   });

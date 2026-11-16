@@ -4,7 +4,10 @@ import { countCacheProbe } from '../../event-store/cache/cacheProbe';
 import { logTimelineDebug } from '../../diagnostics/timelineDebug';
 import { isLocalEchoEventId } from '../../event-store/threads/threadRouteUtils';
 import { hydrateThreadFromCache, refreshLatestThreadSlice } from './threadOpenCacheController';
-import { getLinkedTimelines, getThreadTimelineEvents } from '../../event-store/timeline/linkedTimelines';
+import {
+  getLinkedTimelines,
+  getThreadTimelineEvents,
+} from '../../event-store/timeline/linkedTimelines';
 import { hasThreadCacheBackwardGap } from '../../event-store/cache/threadCacheCoverage';
 import { createThreadOpenSeedSession } from './threadOpenSeedController';
 import { runThreadOpenCacheFirst } from './threadOpenCacheFirst';
@@ -29,7 +32,6 @@ const initialState = {
     initialCacheHydrated: false,
     sdkReady: false,
     latestPending: false,
-    settled: false,
     editResetEpoch: 0,
   },
   history: { hasMoreCachedBack: false, tailLoaded: false },
@@ -423,7 +425,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
             if (isCurrentThreadOpen()) {
               publish((current) => ({
                 ...current,
-                open: { ...current.open, latestPending: false, settled: true },
+                open: { ...current.open, latestPending: false },
               }));
             }
           }

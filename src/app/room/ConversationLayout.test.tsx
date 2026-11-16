@@ -26,9 +26,9 @@ vi.mock('../timeline/RoomViewFollowing', () => ({
   ),
 }));
 vi.mock('../background-jobs/BackgroundJobsBar', () => ({
-  BackgroundJobsBar: ({ threadId }: { threadId: string | null }) => {
+  BackgroundJobsBar: ({ threadId, canCancel }: { threadId: string | null; canCancel: boolean }) => {
     seen.jobs.push(threadId);
-    return <div data-testid="jobs" />;
+    return <div data-testid="jobs" data-can-cancel={String(canCancel)} />;
   },
 }));
 // The jobs bar's link to the Sub-agents panel reads the room's runs, which need a client.
@@ -97,6 +97,14 @@ it("adds the thread's approvals and passes a confirmed thread to its provider", 
 
   rerender(layout({ threadId: '~!room:example.org:txn' }));
   expect(seen.approvals.at(-1)).toBeUndefined();
+});
+
+it("acts on none of a fork draft's thread: no approvals to answer, no jobs to cancel", () => {
+  render(layout({ threadId: '$thread:example.org', readOnly: true }));
+
+  expect(screen.queryByTestId('approval-queue')).toBeNull();
+  expect(seen.approvals.at(-1)).toBeUndefined();
+  expect(screen.getByTestId('jobs').dataset.canCancel).toBe('false');
 });
 
 it('shows only its children while collapsed', () => {

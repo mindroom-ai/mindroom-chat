@@ -10,11 +10,7 @@ import {
 import { useStore } from 'jotai';
 import { IContent, MatrixClient, RelationType, Room } from 'matrix-js-sdk';
 import { Descendant, Editor } from 'slate';
-import {
-  resetEditor,
-  resetEditorHistory,
-  restoreEditorContent,
-} from '../editor/utils';
+import { resetEditor, resetEditorHistory, restoreEditorContent } from '../editor/utils';
 import {
   IReplyDraft,
   roomUploadAtomFamily,
@@ -301,7 +297,7 @@ const createSendSession = (
 type ForkStart = { ref: ThreadForkRef; root?: Promise<string | undefined> };
 
 /**
- * A fork draft's send to its room's top level, a voice message's too, belongs to the fork: see
+ * A fork draft's send to its room's top level belongs to the fork: see
  * `placeMessage`.
  */
 const withForkStart = (
@@ -591,86 +587,92 @@ export const useRoomInputSendSessionController = ({
     [mx]
   );
 
-  const clearSendSession = useCallback((sendSlot: SendSlot) => {
-    const session = sendSlot.session;
-    sendSlot.session = undefined;
-    busySlotsOf(mx).delete(sendSlot);
-    sendSlot.stopWatching?.();
-    sendSlot.stopWatching = undefined;
-    sendSlot.adopted = false;
-    if (sendSlot.queued.length === 0) sendSlot.unpark?.();
-    session?.composer.attachments.clearEnrollment(session.orderedFiles);
-    notifySlot(sendSlot);
-  }, [mx]);
+  const clearSendSession = useCallback(
+    (sendSlot: SendSlot) => {
+      const session = sendSlot.session;
+      sendSlot.session = undefined;
+      busySlotsOf(mx).delete(sendSlot);
+      sendSlot.stopWatching?.();
+      sendSlot.stopWatching = undefined;
+      sendSlot.adopted = false;
+      if (sendSlot.queued.length === 0) sendSlot.unpark?.();
+      session?.composer.attachments.clearEnrollment(session.orderedFiles);
+      notifySlot(sendSlot);
+    },
+    [mx]
+  );
 
-  const processSendSession = useCallback(async (sendSlot: SendSlot = slotRef.current) => {
-    if (sendSlot.processing) return;
+  const processSendSession = useCallback(
+    async (sendSlot: SendSlot = slotRef.current) => {
+      if (sendSlot.processing) return;
 
-    sendSlot.processing = true;
-    try {
-      while (sendSlot.session) {
-        const session = sendSlot.session;
+      sendSlot.processing = true;
+      try {
+        while (sendSlot.session) {
+          const session = sendSlot.session;
 
-        const step = resolveRoomInputSendStep(session, ...getSessionUploads(session));
+          const step = resolveRoomInputSendStep(session, ...getSessionUploads(session));
 
-        if (step.kind === 'wait') {
-          // Once its composer went, no one can retry or remove the files it waits for.
-          if (!session.composer.mounted() && isSessionStalled(session)) clearSendSession(sendSlot);
-          return;
-        }
-        if (step.kind === 'complete') {
-          clearSendSession(sendSlot);
-          return;
-        }
+          if (step.kind === 'wait') {
+            // Once its composer went, no one can retry or remove the files it waits for.
+            if (!session.composer.mounted() && isSessionStalled(session))
+              clearSendSession(sendSlot);
+            return;
+          }
+          if (step.kind === 'complete') {
+            clearSendSession(sendSlot);
+            return;
+          }
 
-        if (step.kind === 'send-text') {
+          if (step.kind === 'send-text') {
+            try {
+              await sendSessionText(session);
+            } catch (error) {
+              // Only a text that never got a row of its own fails here.
+              restoreComposerFallback(session);
+              if (session.failFast) {
+                throw error;
+              }
+            }
+            continue;
+          }
+
           try {
-            await sendSessionText(session);
+            await sendSessionUpload(session, step.file, step.mxc, step.isRoot);
           } catch (error) {
-            // Only a text that never got a row of its own fails here.
-            restoreComposerFallback(session);
             if (session.failFast) {
               throw error;
             }
+            if (step.isRoot) {
+              // The caption goes on without it (resolveRoomInputSendStep).
+              session.blockedRoot = true;
+              continue;
+            }
+            session.failedFiles.add(step.file);
           }
-          continue;
         }
-
-        try {
-          await sendSessionUpload(session, step.file, step.mxc, step.isRoot);
-        } catch (error) {
-          if (session.failFast) {
-            throw error;
-          }
-          if (step.isRoot) {
-            // The caption goes on without it (resolveRoomInputSendStep).
-            session.blockedRoot = true;
-            continue;
-          }
-          session.failedFiles.add(step.file);
-        }
+      } finally {
+        sendSlot.processing = false;
+        releaseQueuedSends(sendSlot);
       }
-    } finally {
-      sendSlot.processing = false;
-      releaseQueuedSends(sendSlot);
-    }
-  }, [
-    sendSessionText,
-    sendSessionUpload,
-    clearSendSession,
-  ]);
+    },
+    [sendSessionText, sendSessionUpload, clearSendSession]
+  );
 
   const startSendSession = useCallback(
-    async ({
-      textContent,
-      batch,
-      context,
-      completeWithinCall = false,
-      composerFallback,
-      composerContext,
-      composerAlreadyReset = false,
-      onUploadSent,
-    }: StartRoomInputSendSessionOptions = {}, sendSlot: SendSlot = slotRef.current) => {
+    async (
+      {
+        textContent,
+        batch,
+        context,
+        completeWithinCall = false,
+        composerFallback,
+        composerContext,
+        composerAlreadyReset = false,
+        onUploadSent,
+      }: StartRoomInputSendSessionOptions = {},
+      sendSlot: SendSlot = slotRef.current
+    ) => {
       // The session takes what it needs of this composer now: it may outlive it.
       const composer: SessionComposer = {
         attachments,
@@ -704,7 +706,8 @@ export const useRoomInputSendSessionController = ({
         // message took stays with that one.
         const nextFallback = composerFallback ?? structuredClone(editor.children);
         if (!composerAlreadyReset) {
-          resetEditor(editor); resetEditorHistory(editor);
+          resetEditor(editor);
+          resetEditorHistory(editor);
           sendTypingStatus(false);
         }
         const nextContext = withForkStart(
@@ -740,14 +743,17 @@ export const useRoomInputSendSessionController = ({
         // Otherwise it follows the message still going out, in order.
         sendSlot.queued.push(() => {
           sendSlot
-            .start?.({
-              textContent,
-              context: nextContext,
-              composerFallback: nextFallback,
-              composerContext: nextComposerContext,
-              composerAlreadyReset: true,
-              onUploadSent,
-            }, sendSlot)
+            .start?.(
+              {
+                textContent,
+                context: nextContext,
+                composerFallback: nextFallback,
+                composerContext: nextComposerContext,
+                composerAlreadyReset: true,
+                onUploadSent,
+              },
+              sendSlot
+            )
             .catch((error: unknown) => {
               // eslint-disable-next-line no-console
               console.warn('[room-input] could not send the queued message', error);
@@ -812,7 +818,8 @@ export const useRoomInputSendSessionController = ({
         session.composerFallback = composerFallback ?? structuredClone(editor.children);
         if (!composerAlreadyReset) {
           // Start the editor over, and stop the typing indicator, now that its text is captured.
-          resetEditor(editor); resetEditorHistory(editor);
+          resetEditor(editor);
+          resetEditorHistory(editor);
           sendTypingStatus(false);
         }
       }
