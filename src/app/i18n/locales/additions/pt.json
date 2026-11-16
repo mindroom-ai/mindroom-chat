@@ -726,6 +726,7 @@
         "showKey": "Mostrar chave",
         "hideKey": "Ocultar chave",
         "sentTo": "Enviada para {{host}}",
+        "openLink": "Abrir {{host}}",
         "save": "Guardar",
         "decline": "Recusar",
         "savedWaiting": "Guardada, a aguardar o agente",

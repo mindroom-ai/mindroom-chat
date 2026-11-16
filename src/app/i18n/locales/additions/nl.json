@@ -717,6 +717,7 @@
         "showKey": "Sleutel tonen",
         "hideKey": "Sleutel verbergen",
         "sentTo": "Gaat naar {{host}}",
+        "openLink": "{{host}} openen",
         "save": "Opslaan",
         "decline": "Weigeren",
         "savedWaiting": "Opgeslagen, wacht op de agent",

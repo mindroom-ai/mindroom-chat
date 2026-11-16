@@ -708,6 +708,7 @@
         "showKey": "显示密钥",
         "hideKey": "隐藏密钥",
         "sentTo": "发送到 {{host}}",
+        "openLink": "打开 {{host}}",
         "save": "保存",
         "decline": "拒绝",
         "savedWaiting": "已保存，等待智能体",

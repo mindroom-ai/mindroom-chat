@@ -20,6 +20,10 @@ type SecretRequestBase = {
   status: SecretRequestStatus;
   /** Milliseconds since the epoch. */
   expiresAt: number;
+  /** The page the agent says gives the secret: an http or https URL, as the browser writes it. */
+  url?: string;
+  /** The agent's hint for the empty field, one short line. */
+  placeholder?: string;
 };
 
 /** A request for a service's API key, which MindRoom stores for the agent. */
@@ -38,6 +42,8 @@ export type TemporarySecretRequest = SecretRequestBase & {
   kind: 'temporary';
   /** The environment variable the commands receive. */
   env: string;
+  /** What the agent calls the secret, one short line. */
+  label?: string;
   /** The keeps the person chooses from, each with its lifetime in seconds. */
   keep: Partial<Record<SecretKeep, number>>;
   /** The keep the person chose, once answered. */
@@ -53,6 +59,41 @@ const KEEPS: readonly SecretKeep[] = ['memory', 'disk'];
 const REQUEST_ID = /^[A-Za-z0-9_-]{1,128}$/;
 // A name every shell takes as a variable.
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+
+// What the backend cuts a label or a field hint to, and the longest link it posts.
+const MAX_LINE_LENGTH = 80;
+const MAX_LINK_LENGTH = 2000;
+
+/** A label or a field hint as the card shows it: one line, cut to its limit; undefined without text. */
+const readLine = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  // By character, so that the cut never splits one.
+  const line = [...value.replace(/\s+/g, ' ').trim()].slice(0, MAX_LINE_LENGTH).join('');
+  return line || undefined;
+};
+
+/**
+ * The page a card's button opens: an http or https URL that names no account to sign in with.
+ * Anything else is no link, and the card shows without one.
+ */
+const readLink = (value: unknown): string | undefined => {
+  if (typeof value !== 'string' || value.length > MAX_LINK_LENGTH) return undefined;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return undefined;
+  }
+  const web = url.protocol === 'http:' || url.protocol === 'https:';
+  return web && !url.username && !url.password ? url.href : undefined;
+};
+
+/** What the agent chose to show on either kind of card, each only when the card has it. */
+const readShown = (value: Record<string, unknown>): Pick<SecretRequestBase, 'url' | 'placeholder'> => {
+  const url = readLink(value.url);
+  const placeholder = readLine(value.placeholder);
+  return { ...(url && { url }), ...(placeholder && { placeholder }) };
+};
 
 const isStatus = (value: unknown): value is SecretRequestStatus =>
   typeof value === 'string' && STATUSES.includes(value);
@@ -97,7 +138,7 @@ const readRequest = (value: unknown): SecretRequest | null => {
   ) {
     return null;
   }
-  const base = { requestId, requesterId, reason, status, expiresAt };
+  const base = { requestId, requesterId, reason, status, expiresAt, ...readShown(value) };
   if (env !== undefined) {
     // A temporary secret names no service: a card with both is neither kind.
     const keep = readKeep(value.keep);
@@ -111,7 +152,15 @@ const readRequest = (value: unknown): SecretRequest | null => {
     ) {
       return null;
     }
-    return { ...base, kind: 'temporary', env, keep, kept: isKeep(value.kept) ? value.kept : null };
+    const label = readLine(value.label);
+    return {
+      ...base,
+      kind: 'temporary',
+      env,
+      keep,
+      kept: isKeep(value.kept) ? value.kept : null,
+      ...(label && { label }),
+    };
   }
   if (
     typeof service !== 'string' ||
