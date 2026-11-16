@@ -13,7 +13,7 @@ const linkMessageSource = read(
 );
 
 describe('MindRoomWatchPlugin native contract', () => {
-  it('is the plugin the web side registers, with its methods, on every bridge', () => {
+  it('is the plugin the web side registers, with its methods, on the main bridge', () => {
     expect(pluginSource).toContain('public let jsName = "MindRoomWatch"');
     ['status', 'sendCredentials', 'sendSecrets', 'signOut'].forEach((method) => {
       expect(pluginSource).toContain(

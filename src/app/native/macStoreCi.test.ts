@@ -94,6 +94,31 @@ fs.appendFileSync(process.env.TEST_COMMANDS, JSON.stringify({name, args, release
 };
 
 describe('isolated Mac Store CI and archive entry points', () => {
+  it('ignores generated native build output in a fresh Git checkout while retaining source changes', () => {
+    const root = mkdtempSync(join(tmpdir(), 'mindroom-mac-store-ignore-'));
+    roots.push(root);
+    copyFileSync(resolve('.gitignore'), join(root, '.gitignore'));
+    const init = spawnSync('git', ['init', '-q', root], { encoding: 'utf8' });
+    expect(init.status, init.stderr).toBe(0);
+    mkdirSync(join(root, '.git/info'), { recursive: true });
+    writeFileSync(join(root, '.git/info/exclude'), '');
+    mkdirSync(join(root, 'build/mac-support-tests'), { recursive: true });
+    writeFileSync(join(root, 'build/mac-support-tests/contract'), 'generated executable');
+    mkdirSync(join(root, 'ios/App/App'), { recursive: true });
+    writeFileSync(join(root, 'ios/App/App/SceneDelegate.swift'), 'uncommitted source');
+    const status = spawnSync(
+      'git',
+      ['-c', 'core.excludesFile=/dev/null', 'status', '--porcelain', '--untracked-files=all'],
+      {
+        cwd: root,
+        encoding: 'utf8',
+      }
+    );
+    expect(status.status, status.stderr).toBe(0);
+    expect(status.stdout).not.toContain('build/');
+    expect(status.stdout).toContain('?? ios/App/App/SceneDelegate.swift');
+  });
+
   it.each(['iOS', 'tvOS', ''])(
     'rejects a Store scheme/platform mismatch (%s) without mutation',
     (platform) => {

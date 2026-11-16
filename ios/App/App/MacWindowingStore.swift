@@ -127,9 +127,10 @@ enum MacWindowing {
         let external = activities.filter { $0.activityType != QuickCapture.activityType }
         guard !urls.isEmpty || !external.isEmpty else { return }
         scenes.enqueue { id in
-            guard let main = QuickCapture.mainScene, main.session.persistentIdentifier == id else { return }
-            SceneDelegateProxy.shared.scene(main, openURLContexts: urls)
-            external.forEach { SceneDelegateProxy.shared.scene(main, continue: $0) }
+            guard let main = QuickCapture.mainScene, main.session.persistentIdentifier == id,
+                  let delegate = main.delegate as? SceneDelegate else { return }
+            delegate.scene(main, openURLContexts: urls)
+            external.forEach { delegate.scene(main, continue: $0) }
         }
         QuickCapture.showMainWindow()
     }
