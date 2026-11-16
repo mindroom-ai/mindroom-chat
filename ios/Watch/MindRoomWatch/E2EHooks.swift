@@ -15,6 +15,7 @@ import os
 ///   MINDROOM_WATCH_E2E_APPROVE      `approve` or `deny`: answer the open thread's pending approval, once
 ///   MINDROOM_WATCH_E2E_ANSWER       `first`: answer the open thread's question with its first option, once
 ///   MINDROOM_WATCH_E2E_RESOLVE      `newest`: mark the newest thread done, once
+///   MINDROOM_WATCH_E2E_LISTEN       `voice`: play each voice message someone else sent in the open thread, once
 ///   MINDROOM_WATCH_E2E_SECRETS      the account's secrets bundle as JSON, imported after a restored session
 ///   MINDROOM_WATCH_E2E_LOG_CRYPTO   `1`: log the device's verification, backup and recovery state every 5 s,
 ///                                   and the SDK's own crypto and backup tracing to stdout
@@ -29,6 +30,12 @@ enum E2EHooks {
     private static var sent = false
     private static var acted: Set<String> = []
     private static var asked: String?
+    private static var listened: Set<String> = []
+
+    /// Whether to play this voice message now: once each.
+    static func listen(_ eventId: String) -> Bool {
+        environment["MINDROOM_WATCH_E2E_LISTEN"] == "voice" && listened.insert(eventId).inserted
+    }
 
     /// Answers what the thread asks, through the same calls the buttons make.
     @MainActor

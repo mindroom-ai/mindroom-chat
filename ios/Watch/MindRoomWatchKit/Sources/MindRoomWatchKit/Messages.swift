@@ -76,6 +76,16 @@ public enum ThreadSummary {
     }
 }
 
+/// An `m.audio` message's caption: its body, when a `filename` beside it differs. Without one the body is the
+/// file's name, which says nothing.
+public enum AudioCaption {
+    public static func of(_ content: JSON) -> String? {
+        guard let filename = content["filename"] as? String, let body = content["body"] as? String,
+              filename != body else { return nil }
+        return PlainText.of(markdown: body)
+    }
+}
+
 /// The router's echo of a voice message: a reply that says it is transcribing, edited into the transcript.
 public enum VoiceEcho {
     public static let placeholder = "Router agent is transcribing…"
