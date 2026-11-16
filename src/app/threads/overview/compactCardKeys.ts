@@ -42,12 +42,13 @@ const firstCardInView = (cards: readonly HTMLElement[]): HTMLElement | undefined
 
 /**
  * Where the focus goes from outside the cards: the card `step` places from the thread just left
- * (that thread's own card at either end), or the first card in view when its card does not show.
+ * (that thread's own card at either end, and for no step), or the first card in view when its
+ * card does not show.
  */
 export const cardBeside = (
   cards: readonly HTMLElement[],
   leftThreadId: string | undefined,
-  step: -1 | 1
+  step: -1 | 0 | 1
 ): HTMLElement | undefined => {
   const index = cards.findIndex((card) => card.dataset.threadRootId === leftThreadId);
   if (leftThreadId === undefined || index < 0) return firstCardInView(cards);

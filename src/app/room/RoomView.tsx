@@ -151,14 +151,6 @@ export function RoomView({
     },
     [handleThreadLoadError, onThreadLoadError]
   );
-  useThreadKeys({
-    roomId,
-    areaRef,
-    openThreadId,
-    viewMode,
-    onOpenThread: threadState.handleOpenThread,
-    onExitThread: threadState.handleExitThread,
-  });
   const threadLayout = useThreadLayout(pageRef);
   // Every open thread shows in the column: beside the room's messages while the person chose that
   // and the page has room, else filling the page, over the room's conversation, which goes.
@@ -197,6 +189,17 @@ export function RoomView({
       ?.querySelector<HTMLElement>('[data-room-footer="true"] [contenteditable="true"]')
       ?.focus();
   }, []);
+  // Before the effect below that sends the focus of a closed thread column to the composer: the
+  // card of a thread the keys left takes it first.
+  useThreadKeys({
+    roomId,
+    areaRef,
+    openThreadId,
+    viewMode,
+    onOpenThread: threadState.handleOpenThread,
+    onExitThread: threadState.handleExitThread,
+    onFocusComposer: focusConversation,
+  });
 
   // Beside its thread, the page shows the room's messages too, which its address does not name:
   // notifications count the room as on screen, as they do while the page shows only the room.

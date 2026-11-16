@@ -113,6 +113,7 @@ describe('cardBeside', () => {
     expect(cardBeside(cards, '$b', -1)).toBe(card('$a'));
     // At either end, that thread's own card.
     expect(cardBeside(cards, '$c', 1)).toBe(card('$c'));
+    expect(cardBeside(cards, '$b', 0)).toBe(card('$b'));
   });
 
   it('is the first card in view without one', () => {

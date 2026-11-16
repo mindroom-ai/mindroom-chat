@@ -14,6 +14,7 @@ import { useThreadKeys } from './useThreadKeys';
 const ROOM = '!room:server';
 const onExitThread = vi.fn();
 const onOpenThread = vi.fn();
+const onFocusComposer = vi.fn();
 const opened = vi.fn();
 let store = createStore();
 let area: HTMLElement;
@@ -23,16 +24,18 @@ const card = (id: string): HTMLElement =>
 
 const mount = (openThreadId?: string, viewMode: RoomViewMode = 'compact') =>
   renderHook(
-    () =>
+    ({ threadId }: { threadId: string | undefined }) =>
       useThreadKeys({
         roomId: ROOM,
         areaRef: { current: area },
-        openThreadId,
+        openThreadId: threadId,
         viewMode,
         onOpenThread,
         onExitThread,
+        onFocusComposer,
       }),
     {
+      initialProps: { threadId: openThreadId },
       wrapper: ({ children }: { children: ReactNode }) => (
         <Provider store={store}>{children}</Provider>
       ),
@@ -80,24 +83,45 @@ describe('useThreadKeys', () => {
     expect(document.activeElement).toBe(card('$c'));
   });
 
-  it('opens the focused card, or the thread just left again', () => {
+  it('goes one level in: to the cards, then into the focused card', () => {
     mount();
-    expect(press('openThread')).toBe(false);
-    store.set(lastExitedThreadAtom, { roomId: ROOM, threadId: '$b' });
     expect(press('openThread')).toBe(true);
-    expect(onOpenThread).toHaveBeenCalledWith('$b');
-    card('$c').focus();
+    expect(document.activeElement).toBe(card('$a'));
     expect(press('openThread')).toBe(true);
-    expect(opened).toHaveBeenCalledWith('$c');
+    expect(opened).toHaveBeenCalledWith('$a');
+    expect(onOpenThread).not.toHaveBeenCalled();
   });
 
-  it('leaves the open thread, and does nothing without one', () => {
-    const { unmount } = mount();
-    expect(press('leaveThread')).toBe(false);
-    unmount();
-    mount('$b');
+  it('goes to the card of the thread just left, and opens that thread where no cards show', () => {
+    store.set(lastExitedThreadAtom, { roomId: ROOM, threadId: '$b' });
+    mount();
+    expect(press('openThread')).toBe(true);
+    expect(document.activeElement).toBe(card('$b'));
+    card('$b').blur();
+    area.innerHTML = '';
+    expect(press('openThread')).toBe(true);
+    expect(onOpenThread).toHaveBeenCalledWith('$b');
+    store.set(lastExitedThreadAtom, null);
+    expect(press('openThread')).toBe(false);
+  });
+
+  it('goes one level out: from the thread to its card, then to the composer', () => {
+    const { rerender } = mount('$b');
     expect(press('leaveThread')).toBe(true);
     expect(onExitThread).toHaveBeenCalledTimes(1);
+    // The room shows without the thread a moment later.
+    rerender({ threadId: undefined });
+    expect(document.activeElement).toBe(card('$b'));
+    expect(press('leaveThread')).toBe(true);
+    expect(onFocusComposer).toHaveBeenCalledTimes(1);
+    card('$b').blur();
+    expect(press('leaveThread')).toBe(false);
+  });
+
+  it('leaves the focus alone when the thread closed another way', () => {
+    const { rerender } = mount('$b');
+    rerender({ threadId: undefined });
+    expect(document.activeElement).toBe(document.body);
   });
 
   it('in a thread that fills the page, opens the thread above or below once per press', () => {

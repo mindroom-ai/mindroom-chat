@@ -10,12 +10,12 @@ import { sendRoomMessage } from '../helpers/matrix';
 import { setRoomCompact } from '../helpers/roomViewSwitch';
 
 // Into a thread and out of it by keyboard, in a Compact room against the disposable homeserver of
-// `just hs-up` (or a slot of scripts/e2e-slot.sh). Mod, Alt and the arrows move the focus through
-// the cards, and from an open thread open the thread above or below; the plain arrows, Home and
-// End move between focused cards; Alt and the right arrow opens the focused card or the thread
-// just left, Alt and the left arrow leaves the thread; Mod, Shift and Enter resolves a focused
-// card's thread. A composer with text keeps Alt and the left arrow. Set THREAD_KEYS_SHOTS=<dir>
-// to also save screenshots.
+// `just hs-up` (or a slot of scripts/e2e-slot.sh). Alt and the right arrow goes one level in (the
+// composer, the cards, the focused card's thread), Alt and the left arrow one level out; Mod, Alt
+// and the arrows move the focus through the cards, and from an open thread open the thread above
+// or below; the plain arrows, Home and End move between focused cards; Mod, Shift and Enter
+// resolves a focused card's thread. A composer with text keeps Alt and the left arrow. Set
+// THREAD_KEYS_SHOTS=<dir> to also save screenshots.
 const PASSWORD = 'thread-keys-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.THREAD_KEYS_SHOTS;
@@ -92,8 +92,17 @@ test('the keyboard goes into a thread, to the next one, and out again', async ({
   const order = await cardOrder(page);
   const [first, second, third, fourth] = order as [string, string, string, string];
 
-  await test.step('Mod, Alt and the down arrow moves the focus from the composer into the cards', async () => {
+  await test.step('Alt and the right arrow goes from the composer to the cards, the left arrow back', async () => {
     await composer(page).click();
+    await page.keyboard.press('Alt+ArrowRight');
+    await expect(card(page, first)).toBeFocused();
+    await expect(card(page, first)).toHaveCSS('outline-style', 'solid');
+    await page.keyboard.press('Alt+ArrowLeft');
+    await expect(composer(page)).toBeFocused();
+    expect(openThread(page)).toBeNull();
+  });
+
+  await test.step('Mod, Alt and the down arrow moves the focus from the composer into the cards', async () => {
     await page.keyboard.press('ControlOrMeta+Alt+ArrowDown');
     await expect(card(page, first)).toBeFocused();
     await page.keyboard.press('ControlOrMeta+Alt+ArrowDown');
@@ -166,20 +175,31 @@ test('the keyboard goes into a thread, to the next one, and out again', async ({
     }).toPass({ timeout: 10_000 });
   });
 
-  await test.step('Alt and the left arrow leaves the thread, Alt and the right arrow opens it again', async () => {
+  await test.step('Alt and the left arrow leaves the thread for its card, Alt and the right arrow opens it again', async () => {
     await page.keyboard.press('Alt+ArrowLeft');
     await expect(banner(page)).toHaveCount(0);
     await expect(cards(page)).toHaveCount(TOPICS.length);
     expect(openThread(page)).toBeNull();
+    await expect(card(page, first)).toBeFocused();
+    await expect(card(page, first)).toHaveCSS('outline-style', 'solid');
     await page.keyboard.press('Alt+ArrowRight');
     await expect(banner(page)).toBeVisible();
     expect(openThread(page)).toBe(first);
     await page.keyboard.press('Alt+ArrowLeft');
     await expect(banner(page)).toHaveCount(0);
-    // Without a thread, the keys are the browser's.
+    await expect(card(page, first)).toBeFocused();
+    // One more level out: the composer.
+    await page.keyboard.press('Alt+ArrowLeft');
+    await expect(composer(page)).toBeFocused();
+    // Without a thread or a focused card, the keys are the browser's.
     await page.keyboard.press('Alt+ArrowLeft');
     await settle(page);
     await expect(cards(page)).toHaveCount(TOPICS.length);
+    // From the composer, Alt and the right arrow goes to the card of the thread just left.
+    await page.keyboard.press('Alt+ArrowRight');
+    await expect(card(page, first)).toBeFocused();
+    await page.keyboard.press('Alt+ArrowLeft');
+    await expect(composer(page)).toBeFocused();
   });
 
   await test.step('from outside the cards, the focus goes to the card beside the thread just left', async () => {
