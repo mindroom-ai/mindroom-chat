@@ -157,11 +157,13 @@ describe('parseSecretRequestContent', () => {
 
 describe('effectiveSecretRequestStatus', () => {
   const request = (status: SecretRequest['status']): SecretRequest => ({
+    kind: 'key',
     requestId: 'r',
     requesterId: '@p:e',
     service: 's',
     displayName: 'S',
     hosts: [],
+    replaces: false,
     reason: '',
     status,
     expiresAt: 1_000,

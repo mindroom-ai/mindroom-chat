@@ -251,9 +251,9 @@ function SecretRequestAnswer({
           size="300"
           variant="Background"
           aria-label={
-            temporary
+            request.kind === 'temporary'
               ? t('mindroomUi.messages.secretRequestCard.temporary.field', {
-                  variable: temporary.env,
+                  variable: request.env,
                 })
               : t('mindroomUi.messages.secretRequestCard.title', { name: request.displayName })
           }
@@ -428,7 +428,7 @@ export function SecretRequestCard({
         <span className={css.Title}>
           <IsolatedText
             text={
-              temporary
+              request.kind === 'temporary'
                 ? t('mindroomUi.messages.secretRequestCard.temporary.title', {
                     agent: userDisplayName(room, agentUserId),
                   })
