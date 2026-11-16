@@ -208,7 +208,7 @@ export const useThreadForkPrefix = (
     };
   }, [fetchRoomEvent, mx, parentKey, room, root, scheduler, sessionId]);
 
-  const events = loaded?.root === root ? loaded.prefix.events : undefined;
+  const events = loaded && loaded.root === root ? loaded.prefix.events : undefined;
   useEffect(() => {
     if (!root) return undefined;
     const prefixEvents = events ?? [];
@@ -242,7 +242,7 @@ export const useThreadForkPrefix = (
     // The held events change in place; a new list tells consumers so.
     void revision;
     if (!root || !parentKey) return NOT_A_FORK;
-    if (loaded?.root !== root || loaded.parentKey !== parentKey) {
+    if (!loaded || loaded.root !== root || loaded.parentKey !== parentKey) {
       const parent = parseThreadForkRef(root.getOriginalContent());
       return { events: [], parent, complete: false, loading: true };
     }

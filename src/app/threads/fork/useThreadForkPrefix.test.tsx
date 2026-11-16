@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { ClientEvent, createClient, MatrixEvent, type Room, type Thread } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
