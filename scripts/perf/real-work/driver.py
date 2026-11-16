@@ -45,6 +45,10 @@ live     reads that file (--history) and keeps `live.streams` (or --streams) rep
          so a backend that cannot keep up never passes as a light load. A post or /sync that fails is logged and
          tried again, so a homeserver or backend that stays away ends the run the same way.
 
+A /sync answer whose lobby timeline left events out (Tuwunel gives at most 100 at a time) has them read back with
+/messages, ahead of its own and each event counted once; a gap over 50 pages of 100 events, or a page that fails three
+times, ends the run with exit 1.
+
 A profile's distributions are {"p50": n, "p90": n, "max": n}; a draw is piecewise linear through 0, the median, the
 90th percentile and the maximum. --seed (default 1) fixes the sequence of draws (the replies' shapes and the
 pauses, in the order the run asks for them), not which thread gets which: that follows the order in which the
@@ -60,6 +64,7 @@ import random
 import signal
 import sys
 import time
+from collections import deque
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -81,6 +86,11 @@ STREAM_STATUS = "io.mindroom.stream_status"
 LIVE_FRAME = "io.mindroom.live"
 JOBS_STATE = "io.mindroom.background_jobs"
 THREAD_TAGS = "com.mindroom.thread.tags"
+# The lobby events a limited /sync answer left out are read back with /messages, this many a page, over at most
+# this many pages; an event the driver processed already, of the last SEEN_EVENTS, ends the read and counts once.
+GAP_PAGE_EVENTS = 100
+GAP_PAGES = 50
+SEEN_EVENTS = 20_000
 DIST_KEYS = ("p50", "p90", "max")
 DISTS = ("turns", "reply.words", "reply.reasoning", "reply.tools", "reply.toolsec", "live.pauseSeconds")
 PROFILE_KEYS = (
@@ -386,8 +396,9 @@ class Lobby:
             "room": {
                 "rooms": [self.room],
                 "ephemeral": {"types": [LIVE_FRAME]},
-                # More events than any answer since the last one holds, so none is left out.
-                "timeline": {"limit": 5000},
+                # Tuwunel gives at most 100 however many are asked for; sync reads back what a limited answer
+                # left out.
+                "timeline": {"limit": 100},
             }
         }
         self._query = f"timeout=1000&filter={quote(json.dumps(sync_filter, separators=(',', ':')))}"
@@ -397,9 +408,14 @@ class Lobby:
         self.jobs_event: str | None = None
         # Thread root to the newest reply of an agent in it that a sync showed.
         self.latest_reply: dict[str, str] = {}
+        # The IDs of the last SEEN_EVENTS lobby events processed, and the same in the order they came.
+        self._seen: set[str] = set()
+        self._seen_order: deque[str] = deque()
 
     def sync(self) -> dict:
-        """What the next /sync answer shows (count_sync); zeros when the homeserver gave no usable answer."""
+        """What the next /sync answer shows (count_sync); zeros when the homeserver gave no usable answer. When its
+        timeline is limited (after the first answer), the events it left out count too, ahead of its own, and an
+        event that came before counts once."""
         since = f"&since={quote(self._since)}" if self._since else ""
         url = f"{self.homeserver}/_matrix/client/v3/sync?{self._query}{since}"
         try:
@@ -410,12 +426,9 @@ class Lobby:
             log(f"skipped a /sync answer (status {status})")
             time.sleep(0.5)
             batch = {}
-        elif self._since and (joined_room(batch, self.room).get("timeline") or {}).get("limited"):
+        else:
             # A reply's start or end it left out would hold its turn until stuckSeconds.
-            raise SystemExit(
-                f"driver: the /sync answer since {self._since} (next batch {batch['next_batch']}) left events of "
-                f"{self.room} out (timeline limited); stopping, as its observations of the replies are incomplete"
-            )
+            batch = self._unseen(batch, self._gap(batch) if self._since else [])
         self._since = batch.get("next_batch", self._since)
         if self.jobs_event is None:
             self.jobs_event = jobs_state_event(batch, self.room, self.agents)
@@ -423,6 +436,82 @@ class Lobby:
         for reply in counts["started"]:
             self.latest_reply[self.reply_roots[reply]] = reply
         return counts
+
+    def _gap(self, batch: dict) -> list[dict]:
+        """The lobby events a limited timeline of `batch` left out, oldest first: read back from its start with
+        /messages, up to the first event processed before or the room's beginning. Exits when that takes more than
+        GAP_PAGES pages or a page cannot be read."""
+        timeline = joined_room(batch, self.room).get("timeline") or {}
+        if not timeline.get("limited"):
+            return []
+        token = timeline.get("prev_batch")
+        if not isinstance(token, str):
+            raise SystemExit(
+                f"driver: a /sync answer left events of {self.room} out without a prev_batch to read them back from; "
+                f"stopping, as its observations of the replies would be incomplete"
+            )
+        missed: list[dict] = []
+        for _ in range(GAP_PAGES):
+            page = self._messages(token)
+            chunk = page.get("chunk") or []
+            for event in chunk:
+                if event.get("event_id") in self._seen:
+                    return missed[::-1]
+                missed.append(event)
+            token = page.get("end")
+            # The room's first event: no page, or no token for the one before.
+            if not chunk or not isinstance(token, str):
+                return missed[::-1]
+        raise SystemExit(
+            f"driver: the events a /sync answer left out of {self.room} take more than {GAP_PAGES} pages of "
+            f"/messages; stopping, as its observations of the replies would be incomplete"
+        )
+
+    def _messages(self, token: str) -> dict:
+        """One page of the lobby's events before `token`, newest first; tried three times, then the run exits."""
+        path = f"/_matrix/client/v3/rooms/{quote(self.room)}/messages?dir=b&from={quote(token)}&limit={GAP_PAGE_EVENTS}"
+        for attempt in range(1, 4):
+            try:
+                status, page = http_json("GET", self.homeserver + path, token=self.token, timeout=30)
+            except ValueError:  # an answer that is not JSON
+                status, page = 0, {}
+            if 200 <= status < 300 and isinstance(page, dict):
+                return page
+            log(f"/messages of {self.room} failed (status {status}, try {attempt} of 3)")
+            time.sleep(0.5)
+        raise SystemExit(
+            f"driver: /messages of {self.room} failed three times; stopping, as the events a /sync answer left out "
+            f"cannot be read back"
+        )
+
+    def _unseen(self, batch: dict, gap: list[dict]) -> dict:
+        """`batch` with the `gap` events ahead of its timeline's, less the lobby events processed before; records
+        the rest as processed."""
+        joined = joined_room(batch, self.room)
+        if not joined:
+            return batch
+
+        def fresh(events: list[dict]) -> list[dict]:
+            kept = []
+            for event in events:
+                event_id = event.get("event_id")
+                if isinstance(event_id, str):
+                    if event_id in self._seen:
+                        continue
+                    self._seen.add(event_id)
+                    self._seen_order.append(event_id)
+                    if len(self._seen_order) > SEEN_EVENTS:
+                        self._seen.discard(self._seen_order.popleft())
+                kept.append(event)
+            return kept
+
+        timeline = joined.get("timeline") or {}
+        room = {
+            **joined,
+            "state": {"events": fresh((joined.get("state") or {}).get("events") or [])},
+            "timeline": {**timeline, "events": fresh([*gap, *(timeline.get("events") or [])])},
+        }
+        return {**batch, "rooms": {**batch["rooms"], "join": {**batch["rooms"]["join"], self.room: room}}}
 
     def post_turn(self, root: str | None, body: str) -> str | None:
         """Posts a person's turn: a new thread's root, or a reply in the thread of `root`. Its event ID, or None

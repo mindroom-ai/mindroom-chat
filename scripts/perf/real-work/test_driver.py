@@ -698,6 +698,32 @@ class RunLiveTest(unittest.TestCase):
         self.assertEqual(code, 0)
 
 
+def limited(events: list[dict], prev_batch: str) -> dict:
+    """A joined room of a /sync answer whose timeline left older events out."""
+    return {"timeline": {"events": events, "limited": True, "prev_batch": prev_batch}}
+
+
+class FakeHomeserver:
+    """Answers /sync with `syncs` in turn and a backwards /messages page from token t with `pages[t]` (a server error
+    for any other token); `asked` lists the tokens of the /messages asked."""
+
+    def __init__(self, syncs: list[dict], pages: dict[str, dict]) -> None:
+        self.syncs = list(syncs)
+        self.pages = pages
+        self.asked: list[str] = []
+
+    def __call__(self, method: str, url: str, token: str | None = None, timeout: float = 10.0) -> tuple[int, object]:
+        parsed = urllib.parse.urlparse(url)
+        query = urllib.parse.parse_qs(parsed.query)
+        if parsed.path == "/_matrix/client/v3/sync":
+            return 200, self.syncs.pop(0)
+        assert parsed.path == f"/_matrix/client/v3/rooms/{urllib.parse.quote(ROOM, safe='')}/messages", url
+        assert (query["dir"], query["limit"]) == (["b"], ["100"]), url
+        self.asked.append(query["from"][0])
+        page = self.pages.get(query["from"][0])
+        return (500, {"errcode": "M_UNKNOWN"}) if page is None else (200, page)
+
+
 class LobbySyncTest(unittest.TestCase):
     STACK = {
         "homeserver": "http://hs",
@@ -748,17 +774,77 @@ class LobbySyncTest(unittest.TestCase):
         self.assertEqual(seen, counts(edits=1, active=["$reply"], finished=["$reply"]))
         self.assertIn("since=s2", self.sync(lobby, (200, {"next_batch": "s3"}))[1])
 
-    def test_an_answer_that_leaves_events_out_stops_the_driver(self) -> None:
+    @contextlib.contextmanager
+    def homeserver(self, home: FakeHomeserver):
+        with (
+            mock.patch.object(driver, "http_json", home),
+            mock.patch.object(driver.time, "sleep"),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            yield
+
+    def test_a_limited_answer_reads_back_the_final_edit_it_left_out(self) -> None:
         lobby = self.lobby()
-        limited = {ROOM: {"timeline": {"events": [], "limited": True}}}
+        scheduler = driver.Scheduler(1, NO_PAUSE, 1800, random.Random(1))
+        scheduler.add("$r")
+        scheduler.started("$r", 0)
+        later = message("$later", "@tester:matrix.localhost", {"msgtype": "m.text", "body": "later"})
         # The first answer leaves the room's older events out; that is where the driver starts.
-        _, url = self.sync(lobby, (200, {"next_batch": "s1", "rooms": {"join": limited}}))
-        self.assertIn('"timeline":{"limit":5000}', urllib.parse.unquote(url))
-        with self.assertRaises(SystemExit) as stopped:
-            self.sync(lobby, (200, {"next_batch": "s2", "rooms": {"join": limited}}))
-        message = str(stopped.exception.code)
-        self.assertIn(ROOM, message)
-        self.assertIn("since s1", message)
+        first = {"next_batch": "s1", "rooms": {"join": {ROOM: limited([reply_event("$reply", "$r")], "p1")}}}
+        second = {"next_batch": "s2", "rooms": {"join": {ROOM: limited([later], "p2")}}}
+        # Newest first, back to the reply the first answer held.
+        gap = [edit_event("$final", "$reply", "completed"), edit_event("$mid", "$reply", "streaming")]
+        home = FakeHomeserver([first, second], {"p2": {"chunk": [*gap, reply_event("$reply", "$r")], "end": "p3"}})
+        with self.homeserver(home):
+            self.assertEqual(driver.apply_counts(scheduler, lobby.sync(), lobby.reply_roots, 1), [])
+            seen = lobby.sync()
+        self.assertEqual(seen, counts(edits=2, active=["$reply"], finished=["$reply"]))
+        self.assertEqual(driver.apply_counts(scheduler, seen, lobby.reply_roots, 2), ["$r"])
+        self.assertEqual(home.asked, ["p2"])
+
+    def test_an_event_in_the_gap_and_in_the_answer_counts_once(self) -> None:
+        lobby = self.lobby()
+        jobs = {"type": driver.JOBS_STATE, "event_id": "$jobs", "sender": AGENT, "state_key": AGENT, "content": {}}
+        first = {"next_batch": "s1", "rooms": {"join": {ROOM: limited([reply_event("$reply", "$r")], "p1")}}}
+        second_room = limited([edit_event("$e2", "$reply", "streaming")], "p2") | {"state": {"events": [jobs]}}
+        second = {"next_batch": "s2", "rooms": {"join": {ROOM: second_room}}}
+        third_room = limited([edit_event("$e1", "$reply", "streaming")], "p3")
+        third = {"next_batch": "s3", "rooms": {"join": {ROOM: third_room}}}
+        page = [edit_event("$e2", "$reply", "streaming"), jobs, edit_event("$e1", "$reply", "streaming")]
+        pages = {"p2": {"chunk": [*page, reply_event("$reply", "$r")], "end": "x"}, "p3": {"chunk": [], "end": "y"}}
+        home = FakeHomeserver([first, second, third], pages)
+        with self.homeserver(home):
+            lobby.sync()
+            self.assertEqual(lobby.sync(), counts(edits=2, jobs=1, active=["$reply"]))
+            # A later answer that holds an event read back before counts nothing of it.
+            self.assertEqual(lobby.sync(), counts())
+        self.assertEqual(home.asked, ["p2", "p3"])
+
+    def test_a_gap_over_the_page_cap_stops_the_driver(self) -> None:
+        lobby = self.lobby()
+        first = {"next_batch": "s1", "rooms": {"join": {ROOM: limited([reply_event("$reply", "$r")], "p0")}}}
+        second = {"next_batch": "s2", "rooms": {"join": {ROOM: limited([], "p1")}}}
+        pages = {
+            f"p{n}": {"chunk": [edit_event(f"$e{n}", "$reply", "streaming")], "end": f"p{n + 1}"} for n in range(1, 99)
+        }
+        home = FakeHomeserver([first, second], pages)
+        with self.homeserver(home), self.assertRaises(SystemExit) as stopped:
+            lobby.sync()
+            lobby.sync()
+        self.assertIn(ROOM, str(stopped.exception.code))
+        self.assertIn("50 pages", str(stopped.exception.code))
+        self.assertEqual(len(home.asked), 50)
+
+    def test_a_page_that_fails_three_times_stops_the_driver(self) -> None:
+        lobby = self.lobby()
+        first = {"next_batch": "s1", "rooms": {"join": {ROOM: limited([reply_event("$reply", "$r")], "p0")}}}
+        second = {"next_batch": "s2", "rooms": {"join": {ROOM: limited([], "p1")}}}
+        home = FakeHomeserver([first, second], {})
+        with self.homeserver(home), self.assertRaises(SystemExit) as stopped:
+            lobby.sync()
+            lobby.sync()
+        self.assertIn(ROOM, str(stopped.exception.code))
+        self.assertEqual(home.asked, ["p1", "p1", "p1"])
 
     def test_failed_post_gives_none(self) -> None:
         lobby = self.lobby()
