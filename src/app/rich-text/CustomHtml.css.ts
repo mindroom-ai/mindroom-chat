@@ -296,6 +296,28 @@ export const Spoiler = recipe({
   },
 });
 
+/** A native button keeps inline images keyboard accessible without adding button chrome. */
+export const InlineImageButton = style({
+  display: 'block',
+  maxWidth: '100%',
+  padding: 0,
+  border: 0,
+  background: 'transparent',
+  cursor: 'zoom-in',
+});
+
+/** Message images fit the text column while keeping tall pictures out of the way. */
+export const InlineImage = style({
+  display: 'block',
+  maxWidth: '100%',
+  maxHeight: '24rem',
+  height: 'auto',
+  objectFit: 'contain',
+  borderRadius: config.radii.R300,
+  marginBlock: config.space.S200,
+  cursor: 'zoom-in',
+});
+
 /** The inline wrapper of a custom (`data-mx-emoticon`) image emoji. */
 export const EmoticonBase = style({ display: 'inline-block', whiteSpace: 'nowrap' });
 
