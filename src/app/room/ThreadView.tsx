@@ -234,9 +234,6 @@ export function ThreadView({
             composer={
               composerShown && (
                 <RoomInput
-                  // The draft's composer is its own: no recording, send or retry of the thread's
-                  // composer carries into the fork, or back.
-                  key={forkKey ?? 'thread'}
                   room={room}
                   roomId={roomId}
                   threadId={forkFrom ? undefined : threadId}

@@ -1116,7 +1116,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
     handleJumpToUnread,
     handleOpenReply,
   } = useRoomTimelineNavigationController({
-    eventId,
+    // A fork draft's address names its fork point, its last row: dropping it would end the draft.
+    eventId: forkAt ? undefined : eventId,
     handleOpenEvent,
     hideMembershipEvents,
     hideNickAvatarEvents,
