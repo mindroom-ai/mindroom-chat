@@ -39,6 +39,15 @@ A census of Bas's account on a copy of the production homeserver (2026-11-15, th
 - **Streams are long.** A streamed reply lasts 3.4 minutes at the median and an hour at p90, with only 1 durable edit at the median (p90 18) and 8 s between edits: the live frames carry the streaming.
 - **Concurrency today is low.** Per minute, at most 5 to 7 threads are active and at most 7 replies stream in one room (median 1). So the rooms already struggle at a few streams; 50 is about ten times today's peak.
 
+## Spike findings (2026-11-15)
+
+A throwaway spike ran 1 to 25 real backend streams (stub model, about 2,300 words each at 20 words a second) against main's production build in Chromium on gce-dev:
+
+- **The homeserver caps live frames.** MindRoom's Tuwunel allows 30 ephemeral events a second per sender per room (`RATE_LIMIT` in `src/service/rooms/ephemeral/mod.rs`). Past 3 streams from one agent in one room, frames meet 429 answers and fall back to the 5 s snapshots: at 50 threads with one agent, text would move in jumps of 0.3 to 5 s. This is a server-side defect of its own; the client cannot be loaded past 30 frames a second from one agent until it is fixed. The driver therefore spreads turns over several agents when the profile asks for it (`agents`), to measure the client at the frame rate a fixed server would deliver.
+- **A fast desktop hides the problem.** Fresh rooms cost 8 to 17 % of the main thread at up to 25 streams, with no long frame.
+- **History and a slower CPU expose it.** With 300 older threads, a 4x CPU slowdown and 25 streams, the Compact view was 60 % busy with 69 long animation frames (p95 174 ms, max 255 ms) at 45 fps; total time went to `RoomTimeline`, `useThreadIndex` and `threadRecord` (about 4.2 s of 16 s). The 4x slowdown is the budget's binding case.
+- **The backend kept up** at 25 streams (every reply complete), with event loop lag p95 of 141 to 209 ms.
+
 ## Success criteria
 
 Measured on the production build, with 50 threads streaming, on the MacBook M5 in Chromium and again with a 4x CPU slowdown as a stand-in for slower machines:
@@ -74,7 +83,7 @@ Approach 1 is still used once, as ground truth: the same scenarios run against t
 `e2e/perf/workloads/<name>.json`, committed, numbers only:
 
 - `account`: rooms besides the measured one (the census: about 210, most quiet), with how many events each, and spaces.
-- `room`: number of agents and people (unencrypted, as Bas's agent rooms are).
+- `room`: number of people, and `agents`: how many agent accounts take the replies (1 in Bas's rooms; more to load the client past the homeserver's frame cap, see Spike findings). Unencrypted, as Bas's agent rooms are.
 - `history`: threads, turns per thread (a distribution), and per turn the reply shape below.
 - `reply`: words (distribution, long enough that the p99 reply crosses the backend's long-text limit), pace in words per second, reasoning characters, tool calls (distribution) with their run time, so each call writes jobs state twice as in production.
 - `live`: concurrent streams, the pause before a thread's next turn (distribution), and how long the measured window lasts.
@@ -84,7 +93,7 @@ Approach 1 is still used once, as ground truth: the same scenarios run against t
 ### 3. Load: real backend, stub model, driver
 
 - **Stub scenario `#work`**: in `scripts/agent-stack/stub_model.py`, a reply whose knobs come from the prompt (`#work words=800 wps=40 reasoning=3000 tools=3 toolsec=4 seed=17`), deterministic for a seed. It streams reasoning, runs the requested tool calls through the existing tool-step machinery (each a short shell command that takes the requested time), then streams Markdown text of the requested length, so the backend writes frames, tool traces, jobs state and long-text files as it does in production.
-- **Agents**: the stack's helper takes the replies, as one agent does in each of Bas's agent rooms (the census finds one jobs-state publisher per room); the backend runs its turns in different threads at the same time.
+- **Agents**: with `agents: 1` the stack's helper takes every reply, as one agent does in each of Bas's agent rooms (the census finds one jobs-state publisher per room). With more, `stack.py --agents N` adds stub agents to the lobby and the driver addresses turns to them in turn, so each sender stays under the homeserver's 30 frames a second.
 - **Driver** `scripts/perf/real-work/driver.py`: as the person, creates the account's other rooms; the stack's lobby is the measured room. In it the driver starts the profile's threads, each with a `#work` prompt addressed to an agent, and keeps the configured number of replies streaming: when a reply ends, that thread gets its next turn after the configured pause. A history phase runs the same loop with the stub at full speed until every thread has its turns, then the live phase starts. It records the target and the achieved rates (frames, edits and jobs state writes per second, streams at once) from its own sync with the live-frame opt-in, and stops the run when the achieved rate falls below 80 % of the target, so a slow backend cannot pass as a light load. The rooms are unencrypted, as Bas's agent rooms are, so the driver is a plain HTTP client (`scripts/matrix_http.py`).
 
 ### 4. Measurement: one probe, one result schema

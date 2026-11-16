@@ -89,6 +89,27 @@
 - [ ] **Step 6: Smoke against a real stack** on gce (agent stack works there; memory `remote-test-runner-quirks.md`): `scripts/e2e-slot.sh <n> bash -c 'python3 scripts/agent-stack/stack.py <n> up > /work/tmp/s.json && python3 scripts/perf/real-work/driver.py --stack /work/tmp/s.json --profile e2e/perf/workloads/real-work-smoke.json --phase history --out /work/tmp/h.json && python3 scripts/perf/real-work/driver.py --stack /work/tmp/s.json --profile e2e/perf/workloads/real-work-smoke.json --phase live --history /work/tmp/h.json --seconds 60 --out /work/tmp/r.jsonl; python3 scripts/agent-stack/stack.py <n> down'`. Expected: history exits 0 with 3 threads; live exits 0, and its lines show `streaming` near 3, `frames` above 0 and `jobs` above 0.
 - [ ] **Step 7: Commit** — the driver, its test, the three profiles, `justfile`; message `perf: real-work driver and workload profiles from the production census`.
 
+### Task 2b: More agents, to load past the homeserver's frame cap
+
+Added 2026-11-15 after the spike: MindRoom's Tuwunel allows 30 ephemeral events a second per sender per room, so one agent cannot deliver more than 3 streams of frames. The client is measured at the frame rate a fixed server would deliver by spreading turns over agents.
+
+**Files:**
+- Modify: `scripts/agent-stack/stack.py` (`--agents N` option, `AGENTS`/`config_yaml`, docstring), `scripts/agent-stack/stub_model.py` (router pick), `scripts/agent-stack/test_stack.py`
+- Modify: `scripts/perf/real-work/driver.py`, `scripts/perf/real-work/test_driver.py`
+- Create: `e2e/perf/workloads/real-work-50-agents.json`
+
+**Interfaces:**
+- Consumes: Task 2's profile schema and driver; the stack state JSON's `agents` (agent user IDs).
+- Produces: `stack.py <slot> up --agents N` (stub mode only, default 0) adds stub agents `worker1` .. `workerN` (display names `Worker 1` ..), each `model: default`, `rooms: [lobby]`, `tools: [shell]`, to the stub config; the state JSON's `agents` lists them with the others. The stub's router answers `workerK` when the routed message names `workerK`, else as before.
+- Produces: profile key `agents: int` (default 1, optional in old files). With `agents > 1` the driver addresses thread `i`'s turns to `worker{(i % agents) + 1}` by naming it in the prompt, and refuses to start (exit 1, message naming the missing agent) when the stack state lacks one.
+
+- [ ] **Step 1: Write the failing tests**: `config_yaml` with `extra_agents=3` holds `worker1`, `worker2`, `worker3` in the lobby with `tools: [shell]` and without it holds none; the stub's `schema_value` for `agent_name` on a message naming `worker2` gives `worker2`, on one naming `scout` gives `scout`, otherwise `helper`; the driver's prompt for thread 4 with `agents: 3` names `worker2`; the driver refuses a stack state without `worker3` when `agents: 3`; every profile still loads.
+- [ ] **Step 2: Run, expect FAIL** — `python3 -m unittest scripts/agent-stack/test_stack.py scripts/perf/real-work/test_driver.py`.
+- [ ] **Step 3: Implement**; `real-work-50-agents.json` is `real-work-50.json` with `agents: 17` (at most 3 streams per agent).
+- [ ] **Step 4: Run, expect PASS**, then `just script-tests`.
+- [ ] **Step 5: Smoke on gce** (slot 80-89): `stack.py <n> up --agents 3` and the driver's live phase with `real-work-smoke.json` plus `agents: 3` and `--streams 9` for 60 s: lines show `streaming` near 9 and `frames` near 9 streams' worth (well above the 30 a second one agent gets, i.e. above 150 per 5 s window).
+- [ ] **Step 6: Commit** — message `agent stack: more stub agents, so the real-work load passes one sender's frame cap`.
+
 ### Task 3: Measurement probe
 
 **Files:**
@@ -113,7 +134,7 @@
 - Create: `e2e/perf/real-work.live.spec.ts`
 
 **Interfaces:**
-- Consumes: Task 2 CLI and report files; Task 3 `installProbe`, `startProbe`, `timeToVisible`, `typeWithLatency`; `e2e/helpers/agentStack.ts` (`test` fixture, `stack`, `openLobby`, `showThread`, `composer`); `e2e/helpers/roomViewSwitch.ts` `setRoomCompact`.
+- Consumes: Task 2 CLI and report files; Task 2b `stack.py --agents` (the spec starts its own stack with `--agents <profile agents>` when the profile's `agents` exceeds 1, otherwise the fixture's); Task 3 `installProbe`, `startProbe`, `timeToVisible`, `typeWithLatency`; `e2e/helpers/agentStack.ts` (`test` fixture, `stack`, `openLobby`, `showThread`, `composer`); `e2e/helpers/roomViewSwitch.ts` `setRoomCompact`.
 - Produces: `test-results/perf/real-work/<scenario>-<engine>-<throttle>x.json` (a `ProbeResult` plus `{ target, achieved }` from the driver's lines in the window) and `.cpuprofile` files; `PERF-REAL-WORK {json}` console lines.
 
 - [ ] **Step 1: Implement** the spec header (scenarios, knobs, how to run) and, opt-in with `PERF_REAL_WORK=1`: `beforeAll` writes the stack state to a temp file, runs the driver's history phase (`child_process.spawnSync`, timeout 30 min), starts its live phase (`spawn`, `--streams` from `PERF_STREAMS`) and waits 30 s for the ramp; `afterAll` sends SIGTERM and fails if the driver exited 2. Scenarios in order, each through `startProbe` with `profile: process.env.PERF_PROFILE === '1'`: `compact-idle` (30 s), `compact-scroll` (wheel 600 px steps down then up, 20 s), `thread-open` (`timeToVisible` on a streaming thread's card click, then its first message row), `thread-idle` (30 s), `thread-type` (`typeWithLatency`, 10 s), `switch` (Back then another streaming thread, 5 times, each timed), `cold-load` (reload, `timeToVisible` of the first card). A scenario whose window's mean `streaming` is below 80 % of `target` fails with both numbers. `PERF_CPU_THROTTLE` (default `1,4`) repeats the list per rate via CDP `Emulation.setCPUThrottlingRate`; `PERF_SCENARIOS` filters; `PERF_VIEWPORT=phone` uses 390x844 with touch. Playwright `trace: 'off'` and `actionTimeout: 15_000` in `test.use`. `soak`, its own test opted in with `PERF_SOAK=1`: 20 minutes alternating 60 s of `compact-idle` and 60 s of `thread-idle` in one probe with `sampleMs: 5000`, failing when the last heap sample is more than 50 MB above the first.
