@@ -79,6 +79,9 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
  *   PERF_SOAK=1        adds `soak` (run it alone with `-g soak`): PERF_SOAK_MINUTES (default 20) of
  *                      60 s Compact and 60 s thread in turn, in one window sampled every 5 s; it
  *                      fails when the heap ends more than 50 MB above where it began
+ *   PERF_SOAK_GC=1     the soak forces a garbage collection before each of its samples, so the
+ *                      heap it compares is what stays (a busy page lets garbage pile up between
+ *                      collections, which the plain samples count); its result has `collected`
  *
  * External mode, for an account that is already there: PERF_TARGET=external with PERF_HOMESERVER
  * (which must be on 127.0.0.1 or localhost), PERF_USERNAME, PERF_PASSWORD and PERF_ROOM (a room
@@ -135,6 +138,7 @@ const PROFILE = process.env.PERF_PROFILE === '1';
 const TRACE = process.env.PERF_TRACE === '1';
 const SOAK = process.env.PERF_SOAK === '1';
 const SOAK_MINUTES = Number(process.env.PERF_SOAK_MINUTES ?? 20);
+const SOAK_GC = process.env.PERF_SOAK_GC === '1';
 const SOAK_HEAP_MB = 50;
 const OUT_DIR = 'test-results/perf/real-work';
 const DRIVER = fileURLToPath(new URL('../../scripts/perf/real-work/driver.py', import.meta.url));
@@ -578,8 +582,9 @@ const report = (
 /**
  * Slows the page's CPU; a rate above 1 needs Chromium. Each scenario sets it again: in the
  * Chromium that Playwright installs on a Mac a rate set once held for the first scenario only
- * (the probe detaches its developer tools session at the end of each window, and the rate was 1
- * after that). This session therefore stays attached.
+ * (measured: the later scenarios' 4x results equalled the 1x ones). The cause is inferred, not
+ * shown: the probe detaches its developer tools session at the end of each window, and Chromium
+ * may put the rate back when a session of the page goes. This session therefore stays attached.
  */
 const throttleCpu = async (page: Page, rate: number): Promise<void> => {
   if (rate === 1) return;
@@ -806,7 +811,12 @@ test.describe('PERF: real work under the backend load', () => {
         };
         const label = `soak-${browserName}-1x-${streams}s`;
         const from = Date.now();
-        const probe = await startProbe(page, { label, outDir: OUT_DIR, sampleMs: 5000 });
+        const probe = await startProbe(page, {
+          label,
+          outDir: OUT_DIR,
+          sampleMs: 5000,
+          collectGarbage: SOAK_GC,
+        });
         const extra = {
           scenario: 'soak',
           engine: browserName,
@@ -814,6 +824,8 @@ test.describe('PERF: real work under the backend load', () => {
           viewport: VIEWPORT,
           target: streams,
           timings: [] as Timing[],
+          // Whether each sample of `series` followed a forced garbage collection.
+          collected: SOAK_GC,
         };
         try {
           const end = from + SOAK_MINUTES * 60_000;

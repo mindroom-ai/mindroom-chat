@@ -263,8 +263,11 @@ const countSync = (body: unknown): { frames: number; edits: number; jobs: number
  * Starts a measurement window. `profile` records a CPU profile of it into `<label>.cpuprofile`
  * and `trace` a Chrome trace into `<label>.trace.json`, which scripts/perf/trace-summary.mjs
  * reads (both Chromium only; either slows the page, so its numbers do not compare with a plain
- * window). `sampleMs` (default 1000) is the time between the samples of `series`. A full page
- * load inside the window drops what the page had buffered until then.
+ * window). `sampleMs` (default 1000) is the time between the samples of `series`. With
+ * `collectGarbage` (Chromium only) every sample first forces a garbage collection, so `series`
+ * holds the heap and the nodes that stay, not what waits for the collector; the collections cost
+ * main-thread time, so the window's other numbers do not compare with a plain window. A full
+ * page load inside the window drops what the page had buffered until then.
  */
 export const startProbe = async (
   page: Page,
@@ -274,9 +277,17 @@ export const startProbe = async (
     profile?: boolean;
     trace?: boolean;
     sampleMs?: number;
+    collectGarbage?: boolean;
   }
 ): Promise<Probe> => {
-  const { label, outDir, profile = false, trace = false, sampleMs = 1000 } = options;
+  const {
+    label,
+    outDir,
+    profile = false,
+    trace = false,
+    sampleMs = 1000,
+    collectGarbage = false,
+  } = options;
   const notes: string[] = [];
 
   // Only Chromium has a developer tools session; without one the Chrome numbers stay empty.
@@ -319,6 +330,7 @@ export const startProbe = async (
   let tracing = false;
   let attached = session !== undefined;
   const sample = async (from: CDPSession) => {
+    if (collectGarbage) await from.send('HeapProfiler.collectGarbage');
     const now = await readMetrics(from);
     series.push({
       t: round((Date.now() - startedAt) / 1000),
