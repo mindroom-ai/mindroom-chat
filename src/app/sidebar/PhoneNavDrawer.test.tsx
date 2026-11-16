@@ -10,6 +10,7 @@ import {
   phoneNavSectionRootAtom,
   useMarkPhoneSectionRoot,
 } from '../navigation/phoneNavDrawer';
+import { PHONE_STAGE } from '../navigation/phonePageSlide';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { PhoneNavDrawer } from './PhoneNavDrawer';
 import { followRouterSignalsInNode } from '../../test/utils/nodeSignalRequests';
@@ -63,6 +64,48 @@ describe('PhoneNavDrawer', () => {
     act(() => store.set(phoneNavDrawerOpenAtom, true));
     act(() => renderer?.unmount());
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+  });
+
+  it('stays put away when it unmounts while its opening waits for the page slide', () => {
+    // A browser with view transitions takes a picture of the page before the drawer opens.
+    let takePicture: () => void = () => undefined;
+    Object.defineProperty(document, 'startViewTransition', {
+      configurable: true,
+      value: (update: () => void) => {
+        takePicture = update;
+        return {
+          finished: Promise.resolve(),
+          ready: Promise.resolve(),
+          skipTransition: () => undefined,
+        };
+      },
+    });
+    const stage = document.createElement('div');
+    stage.setAttribute(PHONE_STAGE, '');
+    document.body.append(stage);
+    try {
+      const store = createStore();
+      let renderer: ReturnType<typeof create> | undefined;
+      act(() => {
+        renderer = create(
+          <Provider store={store}>
+            <MemoryRouter initialEntries={['/home/!room:example.org/']}>
+              <PhoneNavDrawer nav={null} />
+            </MemoryRouter>
+          </Provider>
+        );
+      });
+      swipeFromLeftEdge();
+      // The picture is not taken yet.
+      expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+
+      act(() => renderer?.unmount());
+      act(() => takePicture());
+      expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+    } finally {
+      stage.remove();
+      Reflect.deleteProperty(document, 'startViewTransition');
+    }
   });
 
   it('opens on a shown section page and goes away when that page gives way on the spot', async () => {

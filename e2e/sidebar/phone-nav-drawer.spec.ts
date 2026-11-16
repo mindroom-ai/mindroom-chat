@@ -136,8 +136,10 @@ const expectDrawer = async (page: Page, open: boolean, step: string) => {
 const openDrawer = async (page: Page) => {
   await menuButton(page).tap();
   await expectDrawer(page, true, 'the menu button slides the drawer in');
-  // Until it has slid in, a finger at its middle may still land on the scrim.
+  // Until it has slid in, a finger at its middle may still land on the scrim; and while the
+  // whole page slides (phone-page-slide.spec.ts), it takes no taps.
   await expect.poll(() => drawer(page).evaluate((panel) => panel.getAnimations().length)).toBe(0);
+  await expect(page.locator('html[data-page-slide]')).toHaveCount(0);
 };
 
 const pickRoom = async (page: Page, name: string, room: string) => {
@@ -494,8 +496,11 @@ for (const engine of ENGINES) {
     try {
       const { context, page } = await signIn(own, await seed(engine, 'launch'));
       try {
-        // Every transform transition the drawer starts, from the first script of the page on.
+        // Every transform transition the drawer starts, from the first script of the page on,
+        // in a browser without view transitions: with them the whole page slides instead
+        // (phone-page-slide.spec.ts), and the drawer is out or away at once.
         await context.addInitScript(() => {
+          Object.defineProperty(Document.prototype, 'startViewTransition', { value: undefined });
           const runs: string[] = [];
           Object.assign(window, { drawerSlides: runs });
           document.addEventListener(
@@ -546,6 +551,9 @@ test('chromium: the drawer slides, except with reduced motion, and mirrors right
   const moving = await signIn(browser, seeded);
   try {
     await pickRoom(moving.page, 'Garden Club', seeded.garden);
+    // Its own slide, for a browser without view transitions; while the page slides
+    // (phone-page-slide.spec.ts) the drawer has none.
+    await expect(moving.page.locator('html[data-page-slide]')).toHaveCount(0);
     expect(await transitionOf(moving.page)).toMatch(/^0\.28s/);
     // Turned sideways, the phone gets the wider layout, and the room stays mounted.
     await roomBanner(moving.page).evaluate((element) =>
