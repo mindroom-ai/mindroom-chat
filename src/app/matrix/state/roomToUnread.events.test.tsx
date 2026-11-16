@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import { renderHook } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import type { ReactNode } from 'react';
-import { ClientEvent, MatrixEvent, ReceiptType, RoomEvent } from 'matrix-js-sdk';
+import { ClientEvent, MatrixEvent, ReceiptType, RelationType, RoomEvent } from 'matrix-js-sdk';
 import { synthesizeReceipt } from 'matrix-js-sdk/lib/models/read-receipt';
 import { describe, expect, it, vi } from 'vitest';
 import { roomToUnreadAtom, sendOwnReceipt, useBindRoomToUnreadAtom } from './roomToUnread';
@@ -21,6 +21,20 @@ const message = (eventId: string, roomId: string) =>
     type: 'm.room.message',
   });
 
+const threadReply = (eventId: string, roomId: string, sender: string, ts: number) =>
+  new MatrixEvent({
+    content: {
+      body: eventId,
+      msgtype: 'm.text',
+      'm.relates_to': { event_id: THREAD_ID, rel_type: RelationType.Thread },
+    },
+    event_id: eventId,
+    origin_server_ts: ts,
+    room_id: roomId,
+    sender,
+    type: 'm.room.message',
+  });
+
 /** A room whose counts, membership and loaded messages the test changes. */
 const makeRoom = (roomId = '!desk:example.org') => {
   const state = {
@@ -29,10 +43,9 @@ const makeRoom = (roomId = '!desk:example.org') => {
     membership: 'join',
     events: [] as MatrixEvent[],
   };
-  const room = Object.assign(new EventEmitter(), {
+  return Object.assign(new EventEmitter(), {
     roomId,
     state,
-    findEventById: () => undefined,
     getMyMembership: () => state.membership,
     isSpaceRoom: () => false,
     getUnreadNotificationCount: vi.fn(
@@ -43,31 +56,24 @@ const makeRoom = (roomId = '!desk:example.org') => {
       threadId === THREAD_ID ? state.thread[type] : 0,
     getLiveTimeline: () => ({ getEvents: () => state.events }),
     getEventReadUpTo: () => null,
-    getThread: () => null,
   });
-  return room;
 };
 
-type TestRoom = ReturnType<typeof makeRoom>;
-
-const setUp = (rooms: TestRoom[] = [makeRoom()]) => {
+const setUp = (room = makeRoom()) => {
   const mx = Object.assign(new EventEmitter(), {
-    getRooms: () => rooms,
+    getRooms: () => [room],
     getUserId: () => USER_ID,
-    getPushActionsForEvent: () => ({ notify: true }),
-    getAccountData: () => undefined,
-    getRoomPushRule: () => undefined,
-    pushRules: undefined,
   });
   const store = createStore();
   const wrapper = ({ children }: { children: ReactNode }) => (
     <Provider store={store}>{children}</Provider>
   );
   const { unmount } = renderHook(() => useBindRoomToUnreadAtom(mx as never), { wrapper });
-  const [room] = rooms;
-  if (!room) throw new Error('no room');
   const entry = (roomId = room.roomId) => store.get(roomToUnreadAtom).get(roomId);
-  return { mx, room, entry, unmount };
+  /** Announces a read receipt of the user on the event. */
+  const emitReceipt = (event = message('$read', room.roomId)) =>
+    mx.emit(RoomEvent.Receipt, synthesizeReceipt(USER_ID, event, ReceiptType.Read), room);
+  return { mx, room, entry, emitReceipt, unmount };
 };
 
 /** Lets the recount that waits for the end of a burst of count changes run. */
@@ -94,7 +100,7 @@ describe('useBindRoomToUnreadAtom', () => {
   it('counts the room again when its highlight count changes', async () => {
     const room = makeRoom();
     room.state.main.total = 1;
-    const { entry } = setUp([room]);
+    const { entry } = setUp(room);
     expect(entry()).toEqual({ total: 1, highlight: 0 });
     room.state.main.highlight = 1;
     room.emit(RoomEvent.UnreadNotifications, room.state.main);
@@ -154,13 +160,12 @@ describe('useBindRoomToUnreadAtom', () => {
 
   it('keeps the counts a receipt of this client lowered after a count change before it', async () => {
     // Sending a receipt, the SDK sets the highlight count before it announces the receipt.
-    const { mx, room, entry } = setUp();
+    const { room, entry, emitReceipt } = setUp();
     room.state.main.total = 3;
     room.state.thread.total = 2;
     sendOwnReceipt(() => {
       room.emit(RoomEvent.UnreadNotifications, room.state.main);
-      const receipt = synthesizeReceipt(USER_ID, message('$read', room.roomId), ReceiptType.Read);
-      mx.emit(RoomEvent.Receipt, receipt, room);
+      emitReceipt();
     });
     expect(entry()).toEqual({ total: 2, highlight: 0 });
     await afterCounts();
@@ -168,17 +173,39 @@ describe('useBindRoomToUnreadAtom', () => {
   });
 
   it('counts the room again for a receipt of the user from a sync, at once', () => {
-    const { mx, room, entry } = setUp();
+    const { room, entry, emitReceipt } = setUp();
     room.state.main.total = 4;
-    const receipt = synthesizeReceipt(USER_ID, message('$read', room.roomId), ReceiptType.Read);
-    mx.emit(RoomEvent.Receipt, receipt, room);
+    emitReceipt();
     expect(entry()).toEqual({ total: 4, highlight: 0 });
+  });
+
+  it('lowers the counts of the thread for a receipt this client sends in it', () => {
+    const room = makeRoom();
+    room.state.main.total = 3;
+    room.state.thread.total = 2;
+    const { entry, emitReceipt } = setUp(room);
+    expect(entry()?.total).toBe(5);
+    sendOwnReceipt(() =>
+      emitReceipt(threadReply('$newest', room.roomId, '@writer:example.org', 3))
+    );
+    expect(entry()?.total).toBe(3);
+  });
+
+  it('keeps the counts for a receipt the SDK makes up on an older reply of the user', () => {
+    // Loading the thread, the SDK gives the user a receipt on their own reply, which two
+    // replies of someone else's follow.
+    const room = makeRoom();
+    room.state.main.total = 3;
+    room.state.thread.total = 2;
+    const { entry, emitReceipt } = setUp(room);
+    emitReceipt(threadReply('$own', room.roomId, USER_ID, 1));
+    expect(entry()?.total).toBe(5);
   });
 
   it('drops the room when the user leaves it and lists it again on a join, at once', () => {
     const room = makeRoom();
     room.state.main.total = 1;
-    const { mx, entry } = setUp([room]);
+    const { mx, entry } = setUp(room);
     expect(entry()).toEqual({ total: 1, highlight: 0 });
     room.state.membership = 'leave';
     mx.emit(RoomEvent.MyMembership, room, 'leave');
