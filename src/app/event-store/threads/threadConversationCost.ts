@@ -75,10 +75,7 @@ export const summarizeThreadConversationCost = (
   if (replyCount === 0) return undefined;
   return {
     complete:
-      !unknownCost &&
-      history.sdkLoaded &&
-      !history.canPaginateBack &&
-      !history.hasMoreCachedBack,
+      !unknownCost && history.sdkLoaded && !history.canPaginateBack && !history.hasMoreCachedBack,
     byEventId,
     replies,
   };
