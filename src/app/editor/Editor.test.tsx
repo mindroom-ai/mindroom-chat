@@ -23,6 +23,8 @@ vi.mock('./Editor.css', () =>
       'InlineChipHighlight',
       'InlineChipSelected',
       'InlineCode',
+      'MarkdownLink',
+      'MarkdownMarker',
       'Spoiler',
     ].map((name) => [name, name])
   )
@@ -45,7 +47,11 @@ afterEach(() => {
   container = undefined;
 });
 
-const textBox = (props: { ariaLabel?: string; initialValue?: Descendant[] }) => {
+const textBox = (props: {
+  ariaLabel?: string;
+  initialValue?: Descendant[];
+  styleMarkdown?: boolean;
+}) => {
   function Harness() {
     const editor = useEditor();
     return (
@@ -88,5 +94,35 @@ describe('CustomEditor', () => {
     // Slate keeps a zero-width character (U+FEFF) after an inline element's label.
     const chip = container!.querySelector('[data-editor-inline="mention"]');
     expect(chip?.textContent?.replace(/\uFEFF/g, '')).toBe('@ops<U+202E>nimda');
+  });
+
+  describe('with Markdown styled', () => {
+    const line = (text: string): Descendant[] => [
+      { type: BlockType.Paragraph, children: [{ text }] },
+    ];
+    const markers = () =>
+      [...container!.querySelectorAll('.MarkdownMarker')].map((marker) => marker.textContent);
+
+    it('styles the text and dims its syntax, keeping every character as typed', () => {
+      const editable = textBox({
+        styleMarkdown: true,
+        initialValue: line('a **b** [c](https://x.example)'),
+      });
+      expect(markers()).toEqual(['**', '**', '[', '](https://x.example)']);
+      expect(editable.querySelector('strong')?.textContent).toBe('b');
+      expect(editable.querySelector('.MarkdownLink')?.textContent).toBe('c');
+      expect(editable.textContent).toBe('a **b** [c](https://x.example)');
+    });
+
+    it('styles nothing where the message reads no Markdown', () => {
+      const editable = textBox({ initialValue: line('a **b**') });
+      expect(markers()).toEqual([]);
+      expect(editable.querySelector('strong')).toBeNull();
+    });
+
+    it('styles nothing in a message sent with /plain', () => {
+      textBox({ styleMarkdown: true, initialValue: line('/plain a **b**') });
+      expect(markers()).toEqual([]);
+    });
   });
 });

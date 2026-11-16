@@ -755,6 +755,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         <CustomEditor
           editor={editor}
           editableName="RoomInput"
+          styleMarkdown={isMarkdown}
+          linkSchemes={linkSchemes}
           // The composer floats over the timeline and the cards, which scroll beneath it.
           className={glassDenseOverBackdrop}
           placeholder={forkFrom ? t('threadFork.continueInNewThread') : t('composer.placeholder')}

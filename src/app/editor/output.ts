@@ -45,16 +45,28 @@ const getMentionHref = (mention: MentionElement): string => {
   return getMatrixToRoom(mention.id, mention.viaServers);
 };
 
+/** The tags a run of text with marks is sent in: what goes before its text and after it. */
+export const textMarkTags = (node: FormattedText): { open: string; close: string } => {
+  let open = '';
+  let close = '';
+  const wrap = (before: string, after: string) => {
+    open = before + open;
+    close += after;
+  };
+  if (node.code) wrap('<code>', '</code>');
+  if (node.bold) wrap('<strong>', '</strong>');
+  if (node.italic) wrap('<i>', '</i>');
+  if (node.underline) wrap('<u>', '</u>');
+  if (node.strikeThrough) wrap('<s>', '</s>');
+  if (node.spoiler) wrap('<span data-mx-spoiler>', '</span>');
+  return { open, close };
+};
+
 const textToCustomHtml = (node: FormattedText, opts: OutputOptions): string => {
-  let html = sanitizeText(node.text);
+  const html = sanitizeText(node.text);
   if (!opts.allowTextFormatting || html === '') return html;
-  if (node.code) html = `<code>${html}</code>`;
-  if (node.bold) html = `<strong>${html}</strong>`;
-  if (node.italic) html = `<i>${html}</i>`;
-  if (node.underline) html = `<u>${html}</u>`;
-  if (node.strikeThrough) html = `<s>${html}</s>`;
-  if (node.spoiler) html = `<span data-mx-spoiler>${html}</span>`;
-  return html;
+  const { open, close } = textMarkTags(node);
+  return open + html + close;
 };
 
 const inlineElementToCustomHtml = (node: CustomElement, children: string): string | undefined => {
@@ -86,7 +98,8 @@ const lineToCustomHtml = (nodes: Descendant[], opts: OutputOptions): string => {
   return opts.allowInlineMarkdown ? inlineParser(opts)(html) : html;
 };
 
-function nodeToCustomHtml(node: Descendant, opts: OutputOptions): string {
+/** The HTML of one node, as a message sends it with `opts`. */
+export function nodeToCustomHtml(node: Descendant, opts: OutputOptions): string {
   if (Text.isText(node)) return textToCustomHtml(node, opts);
 
   const inline = inlineElementToCustomHtml(node, childrenToCustomHtml(node.children, opts));

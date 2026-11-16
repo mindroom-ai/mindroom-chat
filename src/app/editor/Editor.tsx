@@ -4,6 +4,7 @@ import React, {
   KeyboardEventHandler,
   ReactNode,
   useCallback,
+  useMemo,
   useState,
 } from 'react';
 import classNames from 'classnames';
@@ -21,9 +22,16 @@ import {
   withReact,
 } from 'slate-react';
 import { BlockType } from './types';
-import type { BlockElement, CustomElement, HeadingElement, InlineElement } from './slate';
+import type {
+  BlockElement,
+  CustomElement,
+  FormattedText,
+  HeadingElement,
+  InlineElement,
+} from './slate';
 import { withWordUndo } from './history';
 import { createParagraphElement, isAfterMentionSpace, withInlineElements } from './utils';
+import { createMarkdownDecorate, type MarkdownLeaf } from './markdownDecorations';
 import * as css from './Editor.css';
 import { useOptionalMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
@@ -181,7 +189,8 @@ function RenderElement(props: RenderElementProps) {
   }
 }
 
-function RenderLeaf({ attributes, children, leaf }: RenderLeafProps) {
+function RenderLeaf({ attributes, children, leaf: node }: RenderLeafProps) {
+  const leaf: FormattedText & MarkdownLeaf = node;
   let content = children;
   if (leaf.code) content = <code className={css.InlineCode}>{content}</code>;
   if (leaf.bold) content = <strong>{content}</strong>;
@@ -189,6 +198,8 @@ function RenderLeaf({ attributes, children, leaf }: RenderLeafProps) {
   if (leaf.underline) content = <u>{content}</u>;
   if (leaf.strikeThrough) content = <s>{content}</s>;
   if (leaf.spoiler) content = <span className={css.Spoiler}>{content}</span>;
+  if (leaf.linkLabel) content = <span className={css.MarkdownLink}>{content}</span>;
+  if (leaf.marker) content = <span className={css.MarkdownMarker}>{content}</span>;
   return <span {...attributes}>{content}</span>;
 }
 
@@ -219,6 +230,13 @@ type CustomEditorProps = EditorSlots & {
   className?: string;
   style?: CSSProperties;
   readOnly?: boolean;
+  /**
+   * Shows typed Markdown styled, its syntax dimmed but kept as text, as the message will send it:
+   * on where the message reads Markdown (the `isMarkdown` setting).
+   */
+  styleMarkdown?: boolean;
+  /** The extra URI schemes Markdown links may use, as sending takes them. */
+  linkSchemes?: readonly string[];
   onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
   onKeyUp?: KeyboardEventHandler<HTMLDivElement>;
   onChange?: (value: Descendant[]) => void;
@@ -260,6 +278,11 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
   const { editor, onChange, top, bottom, before, after, className, style } = props;
   const { placeholder, ariaLabel = placeholder, editableName, maxHeight = '50vh' } = props;
   const { readOnly, onKeyDown, onKeyUp, onPaste, initialValue = emptyDocument } = props;
+  const { styleMarkdown, linkSchemes } = props;
+  const decorate = useMemo(
+    () => (styleMarkdown ? createMarkdownDecorate(linkSchemes) : undefined),
+    [styleMarkdown, linkSchemes]
+  );
 
   // When this returns true, Slate skips its own handling of the key (as after a preventDefault
   // here), so a shortcut's key goes on to the window unprevented.
@@ -297,6 +320,7 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
       renderPlaceholder={renderPlaceholder}
       renderElement={renderElement}
       renderLeaf={renderLeaf}
+      decorate={decorate}
       onPaste={onPaste}
       onKeyUp={onKeyUp}
       onKeyDown={handleKeyDown}
