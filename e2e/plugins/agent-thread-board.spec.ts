@@ -46,6 +46,10 @@ const boardPanel = (page: Page): Locator =>
 const cardIn = (panel: Locator, column: string, rootId: string): Locator =>
   panel.locator(`[data-thread-board-column="${column}"] [data-thread-root-id="${rootId}"]`);
 
+/** The room page's own Compact cards, not the board's. */
+const pageCards = (page: Page): Locator =>
+  page.locator('[data-compact-room-view]:not([aria-label="Example board"] *)');
+
 const heading = (panel: Locator, column: string): Locator =>
   panel.locator(`[data-thread-board-column="${column}"] > h2`);
 
@@ -145,7 +149,7 @@ test("a plugin's board keeps each thread in the column of its state, without a r
     ['later', 'Later'],
     ['open', 'Open'],
     ['done', 'Done'],
-  ]) {
+  ] as const) {
     // eslint-disable-next-line no-await-in-loop
     await expect(heading(panel, column)).toHaveText(new RegExp(`^${name} \\d+$`));
   }
@@ -225,7 +229,7 @@ test("a plugin's board keeps each thread in the column of its state, without a r
   await cardIn(panel, 'done', doneRoot).click();
   await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 60_000 });
   await expect(page).toHaveURL(new RegExp(`threadId=${encodeURIComponent(doneRoot)}`));
-  await expect(page.locator('[data-compact-room-view]')).toHaveCount(0);
+  await expect(pageCards(page)).toHaveCount(0);
   await expect(cardIn(panel, 'done', doneRoot)).toBeVisible();
   await tag(stack, streamRoot, 'resolved');
   await expect(cardIn(panel, 'done', streamRoot)).toBeVisible({ timeout: 30_000 });
@@ -246,7 +250,7 @@ test("a plugin's board keeps each thread in the column of its state, without a r
       filterState: createDefaultThreadFilterState(),
     });
     // eslint-disable-next-line no-await-in-loop
-    await expect(page.locator('[data-compact-room-view]')).toHaveCount(0, { timeout: 30_000 });
+    await expect(pageCards(page)).toHaveCount(0, { timeout: 30_000 });
     // eslint-disable-next-line no-await-in-loop
     await expect(cardIn(panel, 'open', rootId)).toBeVisible({ timeout: 30_000 });
     // eslint-disable-next-line no-await-in-loop
