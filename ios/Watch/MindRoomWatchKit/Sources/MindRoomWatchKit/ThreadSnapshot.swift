@@ -3,12 +3,32 @@ import Foundation
 /// What the watch shows of a thread, built from its root and every event related to it (thread
 /// replies, edits, reactions) as raw JSON.
 public struct ThreadSnapshot: Equatable, Sendable {
-    public struct Reply: Equatable, Sendable {
+    public struct Message: Equatable, Sendable {
         public let eventId: String
         public let sender: String
+        public let isOwn: Bool
+        /// Plain text. Of an audio message: what the router wrote out of it or its caption, else nothing.
         public let text: String
+        /// An audio message's file, as the JSON the SDK reads a media source from.
+        public let audio: String?
         public let tools: Int
         public let run: RunState
+
+        /// Audio with no words to show: there is only the sound.
+        public var isVoiceOnly: Bool { audio != nil && text.isEmpty }
+    }
+
+    /// A step of the thread: a message, or a tool call's approval card.
+    public enum Entry: Equatable, Sendable, Identifiable {
+        case message(Message)
+        case approval(ApprovalCard)
+
+        public var id: String {
+            switch self {
+            case let .message(message): message.eventId
+            case let .approval(card): card.eventId
+            }
+        }
     }
 
     public let rootId: String
@@ -18,14 +38,22 @@ public struct ThreadSnapshot: Equatable, Sendable {
     public let isVoiceRoot: Bool
     /// A voice root's file name: Send follows its own recording by it.
     public let voiceFile: String?
+    /// The whole thread in order: the root and every reply, without the router's echoes, relays and titles,
+    /// and each approval card but one that waits for someone else.
+    public let entries: [Entry]
     /// The newest reply from anyone else, not a relay.
-    public let reply: Reply?
+    public let reply: Message?
     public let approvals: [ApprovalCard]
     /// The newest card from an agent that waits for this person's decision.
     public let pendingApproval: ApprovalCard?
     public let openQuestion: Question?
     /// Milliseconds since the epoch of the newest message or its newest edit: a reply streams on in edits.
     public let latestTs: Int
+
+    /// Where the thread opens: at what waits for the person, else at the newest answer.
+    public var focusId: String? {
+        pendingApproval?.eventId ?? openQuestion?.eventId ?? reply?.eventId ?? entries.last?.id
+    }
 
     public var rowState: ThreadRowState {
         if pendingApproval != nil || openQuestion != nil { return .needsYou }
@@ -64,9 +92,13 @@ public struct ThreadSnapshot: Equatable, Sendable {
         let edit = { (event: JSON) in latestEdits[event.eventId ?? ""] }
 
         let isVoiceRoot = root.content["org.matrix.msc3245.voice"] is JSON || root.content["m.voice"] is JSON
-        let transcript = messages.lazy
-            .compactMap { VoiceEcho.transcript($0, latestEdit: edit($0)) }
-            .first { $0.voiceEventId == rootId }?.text
+        // What the router wrote out of each voice message.
+        var transcripts: [String: String] = [:]
+        for message in messages {
+            if let echo = VoiceEcho.transcript(message, latestEdit: edit(message)), let text = echo.text,
+               transcripts[echo.voiceEventId] == nil { transcripts[echo.voiceEventId] = text }
+        }
+        let transcript = transcripts[rootId]
         // Each message as its newest edit says it (the whole new content, keeping its thread relation).
         let notices = messages.map { message in edit(message).flatMap(\.newContent).map { newContent -> JSON in
             var merged = message
@@ -77,24 +109,34 @@ public struct ThreadSnapshot: Equatable, Sendable {
         } ?? message }
         let rootText = PlainText.of(markdown: effectiveContent(root, latestEdit: edit(root))["body"] as? String ?? "")
         let encryptedRoot = root["type"] as? String == "m.room.encrypted"
+        // Audio's body is its file's name, with the voice mark or without it.
+        let audioRoot = isVoiceRoot || root.content["msgtype"] as? String == "m.audio"
         let title = ThreadSummary.title(from: notices) ?? transcript
-            ?? (isVoiceRoot ? String(localized: "Voice message") : encryptedRoot ? String(localized: "Encrypted message") : rootText)
+            ?? (audioRoot ? String(localized: "Voice message") : encryptedRoot ? String(localized: "Encrypted message") : rootText)
 
         // The conversation: what people and agents said, without the router's echo and titles.
         let conversation = messages.filter { message in
             VoiceEcho.transcript(message, latestEdit: nil) == nil && message.content["io.mindroom.thread_summary"] == nil
         }
-        // The router's relay of a message hands it to an agent; it is not an answer.
-        let reply = conversation.last {
-            ($0["sender"] as? String) != ownUserId && $0["type"] as? String == "m.room.message"
-                && $0.content["com.mindroom.original_sender"] == nil
-        }
-            .map { message -> Reply in
-                let body = effectiveContent(message, latestEdit: edit(message))["body"] as? String ?? ""
-                let plain = PlainText.withToolCount(body)
-                return Reply(eventId: message.eventId ?? "", sender: message["sender"] as? String ?? "", text: plain.text,
-                             tools: plain.tools, run: RunState.of(message, latestEdit: edit(message)))
+        let message = { (event: JSON) -> Message in
+            let id = event.eventId ?? ""
+            let sender = event["sender"] as? String ?? ""
+            let content = effectiveContent(event, latestEdit: edit(event))
+            var plain = PlainText.withToolCount(content["body"] as? String ?? "")
+            // An audio message's body is its file's name, unless it has a caption (a `filename` beside it).
+            if event.content["msgtype"] as? String == "m.audio" {
+                let caption = (event.content["filename"] as? String).map { $0 != event.content["body"] as? String } ?? false
+                plain = (transcripts[id] ?? (caption ? plain.text : ""), 0)
             }
+            return Message(eventId: id, sender: sender, isOwn: sender == ownUserId, text: plain.text,
+                           audio: event.content["msgtype"] as? String == "m.audio" ? mediaSource(event.content) : nil,
+                           tools: plain.tools, run: RunState.of(event, latestEdit: edit(event)))
+        }
+        // The router's relay of a message hands it to an agent; it is not an answer.
+        let isMessage = { (event: JSON) in
+            event["type"] as? String == "m.room.message" && event.content["com.mindroom.original_sender"] == nil
+        }
+        let reply = conversation.last { ($0["sender"] as? String) != ownUserId && isMessage($0) }.map(message)
         let approvals = conversation.compactMap(ApprovalCard.parse).map { $0.applying(edits: cardEdits, now: now) }
         let isAgent = { (userId: String?) in MindRoomAgent.isAgent(userId, viewer: ownUserId) }
         let pendingApproval = approvals.last {
@@ -121,13 +163,28 @@ public struct ThreadSnapshot: Equatable, Sendable {
             let stale = Double(askedAt) / 1000 < now.timeIntervalSince1970 - 7 * 24 * 3600
             if !wroteSince && !reacted && !askedSomeoneElse && !stale { openQuestion = question }
         }
+        let entries = ([root] + conversation).compactMap { event -> Entry? in
+            if let card = approvals.first(where: { $0.eventId == event.eventId }) {
+                return card.status != .pending || card.eventId == pendingApproval?.eventId ? .approval(card) : nil
+            }
+            return isMessage(event) ? .message(message(event)) : nil
+        }
         let latestTs = ([root] + conversation).map { max($0.timestamp, edit($0)?.timestamp ?? 0) }.max() ?? root.timestamp
         return ThreadSnapshot(
             rootId: rootId, rootTs: root.timestamp, title: title, isVoiceRoot: isVoiceRoot,
             voiceFile: isVoiceRoot ? root.content["filename"] as? String ?? root.content["body"] as? String : nil,
-            reply: reply, approvals: approvals, pendingApproval: pendingApproval, openQuestion: openQuestion,
+            entries: entries, reply: reply, approvals: approvals, pendingApproval: pendingApproval, openQuestion: openQuestion,
             latestTs: latestTs)
     }
+}
+
+/// A media content's file as the JSON the SDK reads a media source from: `url`, or `file` with its keys in an
+/// encrypted room.
+func mediaSource(_ content: JSON) -> String? {
+    var source: JSON = [:]
+    if let file = content["file"] as? JSON { source["file"] = file } else if let url = content["url"] as? String { source["url"] = url }
+    guard !source.isEmpty, let data = try? JSONSerialization.data(withJSONObject: source) else { return nil }
+    return String(decoding: data, as: UTF8.self)
 }
 
 /// What a pushed event lets the person do from its notification: the thread screen's own rules.

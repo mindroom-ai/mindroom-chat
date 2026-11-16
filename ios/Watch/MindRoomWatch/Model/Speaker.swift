@@ -1,32 +1,109 @@
 import AVFoundation
+import os
 
-/// Reads an agent's answer aloud on the watch's speaker or connected headphones.
+private let log = Logger(subsystem: "chat.mindroom.app.watchkitapp", category: "speaker")
+
+/// Sounds a message on the watch's speaker or connected headphones: an agent's answer read aloud, or a voice
+/// message's own audio. One message at a time.
 @MainActor
 final class Speaker: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
-    @Published private(set) var speaking = false
+    /// The id of the message that sounds, or whose audio is on its way.
+    @Published private(set) var current: String?
+    /// The id of the voice message whose audio could not be fetched or played.
+    @Published private(set) var failed: String?
     private let synthesizer = AVSpeechSynthesizer()
+    private var engine: AVAudioEngine?
+    private var loading: Task<Void, Never>?
+    /// What sounds now: a callback about anything older changes nothing.
+    private var sounding: ObjectIdentifier?
 
     override init() {
         super.init()
         synthesizer.delegate = self
     }
 
-    /// Starts reading the text, or stops when it is reading.
-    func toggle(_ text: String) {
-        if synthesizer.isSpeaking {
-            synthesizer.stopSpeaking(at: .immediate)
-            return
+    /// Reads the text aloud, or stops when this message sounds.
+    func toggle(_ id: String, text: String) {
+        guard start(id) else { return }
+        let utterance = AVSpeechUtterance(string: text)
+        sounding = ObjectIdentifier(utterance)
+        synthesizer.speak(utterance)
+    }
+
+    /// Plays the audio `load` fetches, or stops when this message sounds.
+    func toggle(_ id: String, audio load: @escaping () async throws -> Data) {
+        guard start(id) else { return }
+        loading = Task {
+            do {
+                let data = try await load()
+                guard !Task.isCancelled else { return }
+                try play(data)
+            } catch {
+                guard !Task.isCancelled else { return }
+                log.error("could not play: \(String(describing: error), privacy: .public)")
+                current = nil
+                failed = id
+            }
         }
+    }
+
+    /// AVAudioPlayer opens the Ogg Opus that MindRoom's agents send and then does not play it. AVAudioFile
+    /// decodes it, as it does AAC, so an engine plays the file.
+    private func play(_ data: Data) throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("voice-\(UUID().uuidString)")
+        try data.write(to: url)
+        // The open file keeps its data; only the name goes.
+        defer { try? FileManager.default.removeItem(at: url) }
+        let file = try AVAudioFile(forReading: url)
+        let engine = AVAudioEngine()
+        let node = AVAudioPlayerNode()
+        engine.attach(node)
+        engine.connect(node, to: engine.mainMixerNode, format: file.processingFormat)
+        try AVAudioSession.sharedInstance().setActive(true)
+        try engine.start()
+        let sound = ObjectIdentifier(engine)
+        node.scheduleFile(file, at: nil, completionCallbackType: .dataPlayedBack) { [weak self] _ in self?.ended(sound) }
+        node.play()
+        self.engine = engine
+        sounding = sound
+    }
+
+    func stop() {
+        loading?.cancel()
+        loading = nil
+        engine?.stop()
+        engine = nil
+        sounding = nil
+        if synthesizer.isSpeaking { synthesizer.stopSpeaking(at: .immediate) }
+        current = nil
+    }
+
+    /// Stops what sounds and makes this message the current one; false when it was (the tap meant stop).
+    private func start(_ id: String) -> Bool {
+        let was = current
+        stop()
+        guard was != id else { return false }
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
-        synthesizer.speak(AVSpeechUtterance(string: text))
-        speaking = true
+        current = id
+        failed = nil
+        return true
+    }
+
+    private nonisolated func ended(_ sound: ObjectIdentifier) {
+        Task { @MainActor in
+            guard self.sounding == sound else { return }
+            self.engine?.stop()
+            self.engine = nil
+            self.sounding = nil
+            self.current = nil
+        }
     }
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        Task { @MainActor in self.speaking = false }
+        ended(ObjectIdentifier(utterance))
     }
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        Task { @MainActor in self.speaking = false }
+        ended(ObjectIdentifier(utterance))
     }
 }

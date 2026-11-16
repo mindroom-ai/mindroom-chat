@@ -1,7 +1,8 @@
 import MindRoomWatchKit
 import SwiftUI
 
-/// One thread: what it is about and the newest agent answer, with reply, done and Handoff to the iPhone.
+/// One thread: what it is about and every message in it, opened at what waits for the person or the newest
+/// answer, with reply, done and Handoff to the iPhone.
 struct ThreadView: View {
     @ObservedObject var roomModel: RoomModel
     let rootId: String
@@ -18,71 +19,59 @@ struct ThreadView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
-                if let snapshot = model.snapshot {
-                    Text(snapshot.title).font(.headline)
-                    // What waits for the person comes first.
-                    if let card = snapshot.pendingApproval {
-                        approvalView(card)
-                    }
-                    if let question = snapshot.openQuestion {
-                        QuestionView(question: question, busy: model.answered.contains(question.eventId)) { key in
-                            Task { await model.answer(question, key: key) }
+        ScrollViewReader { scroll in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let snapshot = model.snapshot {
+                        // A thread without a title of its own is named by its first message, which follows.
+                        if !isFirstMessage(snapshot.title, of: snapshot) {
+                            Text(snapshot.title).font(.headline)
                         }
-                    }
-                    if let reply = snapshot.reply {
-                        HStack(spacing: 4) {
-                            Text(roomModel.name(reply.sender)).font(.caption.bold()).foregroundStyle(.tint)
-                            if reply.tools > 0 {
-                                Text("\(reply.tools) tools").font(.caption2).foregroundStyle(.secondary)
+                        ForEach(snapshot.entries) { entry in
+                            switch entry {
+                            case let .message(message): messageView(message, in: snapshot)
+                            case let .approval(card): approvalView(card)
                             }
-                            if reply.run == .streaming { ProgressView().controlSize(.mini) }
                         }
-                        Text(reply.text.isEmpty ? "…" : roomModel.named(reply.text)).font(.body)
-                        if !reply.text.isEmpty {
-                            Button { speaker.toggle(roomModel.named(reply.text)) } label: {
-                                Label(speaker.speaking ? LocalizedStringKey("Stop") : LocalizedStringKey("Listen"),
-                                      systemImage: speaker.speaking ? "stop.fill" : "play.fill")
-                            }
+                        if snapshot.reply == nil {
+                            Text("Sent").font(.footnote).foregroundStyle(.secondary)
                         }
                     } else {
-                        Text("Sent").font(.footnote).foregroundStyle(.secondary)
+                        ProgressView()
                     }
-                    if let card = snapshot.approvals.last, card.status != .pending {
-                        approvalView(card)
+                    if let error = model.error {
+                        Text(error).font(.footnote).foregroundStyle(.red)
                     }
-                } else {
-                    ProgressView()
-                }
-                if let error = model.error {
-                    Text(error).font(.footnote).foregroundStyle(.red)
-                }
-                ForEach(model.failedReplies, id: \.self) { transactionId in
-                    HStack {
-                        Text("Not sent").font(.footnote).foregroundStyle(.red)
-                        Spacer()
-                        Button("Delete", role: .destructive) { Task { await model.discard(transactionId) } }
-                            .fixedSize()
+                    ForEach(model.failedReplies, id: \.self) { transactionId in
+                        HStack {
+                            Text("Not sent").font(.footnote).foregroundStyle(.red)
+                            Spacer()
+                            Button("Delete", role: .destructive) { Task { await model.discard(transactionId) } }
+                                .fixedSize()
+                        }
+                    }
+                    Button { speaker.stop(); recording = true } label: {
+                        Label("Reply", systemImage: "mic.fill").frame(maxWidth: .infinity)
+                    }
+                    .tint(.accentColor)
+                    .padding(.top, 4)
+                    // Marks the thread done (resolved) and goes back to the room.
+                    Button {
+                        Task { await roomModel.resolve(rootId); dismiss() }
+                    } label: {
+                        Label("Done", systemImage: "checkmark").frame(maxWidth: .infinity)
                     }
                 }
-                Button { recording = true } label: {
-                    Label("Reply", systemImage: "mic.fill").frame(maxWidth: .infinity)
-                }
-                .tint(.accentColor)
-                .padding(.top, 4)
-                // Marks the thread done (resolved) and goes back to the room.
-                Button {
-                    Task { await roomModel.resolve(rootId); dismiss() }
-                } label: {
-                    Label("Done", systemImage: "checkmark").frame(maxWidth: .infinity)
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // Opens there, and goes there again when something new waits or is answered.
+            .onChange(of: model.snapshot?.focusId, initial: true) { _, focus in
+                if let focus { scroll.scrollTo(focus, anchor: .top) }
+            }
         }
         .task { await model.start() }
-        .onChange(of: model.snapshot?.reply) { _, reply in
-            if let reply { Task { await roomModel.learnNames([reply.sender] + PlainText.mentionedUserIds(reply.text)) } }
+        .onChange(of: model.snapshot.map(people), initial: true) { _, people in
+            if let people { Task { await roomModel.learnNames(people) } }
         }
         .onDisappear { model.stop() }
         .fullScreenCover(isPresented: $recording) {
@@ -93,6 +82,73 @@ struct ThreadView: View {
             activity.isEligibleForHandoff = true
             activity.title = model.snapshot?.title
             activity.userInfo = ["roomId": roomModel.room.id(), "threadId": rootId, "userId": roomModel.userId]
+        }
+        #if DEBUG
+        .onChange(of: model.snapshot?.entries) { _, entries in
+            for case let .message(message) in entries ?? [] where !message.isOwn {
+                if let audio = message.audio, E2EHooks.listen(message.eventId) {
+                    speaker.toggle(message.eventId) { try await roomModel.audio(audio) }
+                }
+            }
+        }
+        .onChange(of: speaker.current) { _, current in E2EHooks.log("sound \(current ?? "ended")") }
+        .onChange(of: speaker.failed) { _, failed in if let failed { E2EHooks.log("sound failed \(failed)") } }
+        #endif
+    }
+
+    private func isFirstMessage(_ title: String, of snapshot: ThreadSnapshot) -> Bool {
+        if case let .message(first)? = snapshot.entries.first { return first.text == title }
+        return false
+    }
+
+    /// Everyone the thread's messages are from or name.
+    private func people(_ snapshot: ThreadSnapshot) -> [String] {
+        snapshot.entries.flatMap { entry -> [String] in
+            guard case let .message(message) = entry else { return [] }
+            return [message.sender] + PlainText.mentionedUserIds(message.text)
+        }
+    }
+
+    /// A message: the person's own without a name and dimmed, a voice message with its audio to play (the
+    /// person's own only while nothing says what is in it), the newest answer with Listen, and the question
+    /// it asks under it.
+    private func messageView(_ message: ThreadSnapshot.Message, in snapshot: ThreadSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if !message.isOwn {
+                HStack(spacing: 4) {
+                    Text(roomModel.name(message.sender)).font(.caption.bold()).foregroundStyle(.tint)
+                    if message.tools > 0 {
+                        Text("\(message.tools) tools").font(.caption2).foregroundStyle(.secondary)
+                    }
+                    if message.run == .streaming { ProgressView().controlSize(.mini) }
+                }
+            }
+            if message.isVoiceOnly {
+                Label("Voice message", systemImage: "waveform").foregroundStyle(message.isOwn ? .secondary : .primary)
+            } else {
+                Text(message.text.isEmpty ? "…" : roomModel.named(message.text))
+                    .font(.body).foregroundStyle(message.isOwn ? .secondary : .primary)
+            }
+            if let audio = message.audio, !message.isOwn || message.isVoiceOnly {
+                listen(message) { speaker.toggle(message.eventId) { try await roomModel.audio(audio) } }
+                if speaker.failed == message.eventId {
+                    Text("Could not play").font(.footnote).foregroundStyle(.red)
+                }
+            } else if message.eventId == snapshot.reply?.eventId, !message.text.isEmpty {
+                listen(message) { speaker.toggle(message.eventId, text: roomModel.named(message.text)) }
+            }
+            if let question = snapshot.openQuestion, question.eventId == message.eventId {
+                QuestionView(question: question, busy: model.answered.contains(question.eventId)) { key in
+                    Task { await model.answer(question, key: key) }
+                }
+            }
+        }
+    }
+
+    private func listen(_ message: ThreadSnapshot.Message, action: @escaping () -> Void) -> some View {
+        let sounds = speaker.current == message.eventId
+        return Button(action: action) {
+            Label(sounds ? LocalizedStringKey("Stop") : LocalizedStringKey("Listen"), systemImage: sounds ? "stop.fill" : "play.fill")
         }
     }
 

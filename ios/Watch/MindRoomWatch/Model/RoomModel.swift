@@ -29,7 +29,13 @@ final class RoomModel: ObservableObject {
     let room: Room
     let userId: String
     let roomName: String
-    @Published private(set) var rows: [ThreadRow] = []
+    @Published private(set) var rows: [ThreadRow] = [] {
+        didSet {
+            #if DEBUG
+            for row in rows.prefix(3) { E2EHooks.log("row \(row.rootId ?? row.id) \(String(describing: row.state)) \(row.voiceFile ?? "") | \(row.line)") }
+            #endif
+        }
+    }
     @Published private(set) var gone = false
     /// Display names of the room's members met so far.
     @Published private(set) var names: [String: String] = [:]
@@ -48,12 +54,14 @@ final class RoomModel: ObservableObject {
     /// The thread rows as last read from the server, kept when the list cannot be read (offline).
     private var threadRows: [ThreadRow] = []
     private var threadRoots: [String] = []
+    private let client: Client
     private let session: Session?
 
-    init(room: Room, userId: String, session: Session?) {
+    init(room: Room, userId: String, client: Client) {
         self.room = room
         self.userId = userId
-        self.session = session
+        self.client = client
+        session = try? client.session()
         roomName = room.displayName() ?? room.id()
         threads = room.threadListService()
         weak var model: RoomModel?
@@ -110,6 +118,11 @@ final class RoomModel: ObservableObject {
 
     func snapshot(of rootId: String) -> ThreadSnapshot? { snapshots[rootId] }
 
+    /// A voice message's audio (`ThreadSnapshot.Message.audio`), decrypted.
+    func audio(_ source: String) async throws -> Data {
+        try await client.getMediaContent(mediaSource: MediaSource.fromJson(json: source))
+    }
+
     func name(_ userId: String) -> String { names[userId] ?? agentName(userId) }
 
     /// Plain text with the user ids in it shown as names.
@@ -123,6 +136,7 @@ final class RoomModel: ObservableObject {
     }
 
     func scheduleRefresh() {
+        showLocalRows()
         if refreshing { refreshAgain = true; return }
         refreshing = true
         Task {
@@ -146,7 +160,7 @@ final class RoomModel: ObservableObject {
         // Offline the list cannot be read: keep its rows (and the widget) as they were, with the person's own
         // messages, queued or failed, kept current.
         do { try await threads.paginate() } catch {
-            rows = (threadRows + ownUnansweredRoots(excluding: Set(threadRoots).union(resolved))).sorted { $0.ts > $1.ts }
+            showLocalRows()
             return
         }
         if let resolved = await resolvedRoots() { self.resolved = resolved }
@@ -187,15 +201,20 @@ final class RoomModel: ObservableObject {
         rows += ownUnansweredRoots(excluding: Set(roots).union(resolved))
         self.rows = rows.sorted { $0.ts > $1.ts }
         publishWidgetSnapshot()
-        #if DEBUG
-        for row in self.rows.prefix(3) { E2EHooks.log("row \(row.rootId ?? row.id) \(String(describing: row.state)) \(row.voiceFile ?? "")") }
-        #endif
+    }
+
+    /// The rows without a read of the server, which takes several requests: the threads as last read, and the
+    /// person's own messages as the room's timeline has them now, so one just recorded shows at once.
+    private func showLocalRows() {
+        let rows = (threadRows + ownUnansweredRoots(excluding: Set(threadRoots).union(resolved))).sorted { $0.ts > $1.ts }
+        if rows != self.rows { self.rows = rows }
     }
 
     private func row(_ snapshot: ThreadSnapshot) -> ThreadRow {
         let line: String
         if let reply = snapshot.reply {
-            line = "\(name(reply.sender)): \(reply.text.isEmpty ? "…" : named(reply.text))"
+            let text = reply.isVoiceOnly ? String(localized: "Voice message") : reply.text.isEmpty ? "…" : named(reply.text)
+            line = "\(name(reply.sender)): \(text)"
         } else {
             line = String(localized: "Sent")
         }
