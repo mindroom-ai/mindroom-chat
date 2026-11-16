@@ -20,9 +20,10 @@ const makeEvent = (id: string, ts: number, threadRootId?: string, isThreadRoot =
 
 describe('parseThreadForkRef', () => {
   it('reads the reference from content', () => {
-    expect(
-      parseThreadForkRef({ [THREAD_FORK_KEY]: { thread_id: '$p', event_id: '$e' } })
-    ).toEqual({ threadId: '$p', eventId: '$e' });
+    expect(parseThreadForkRef({ [THREAD_FORK_KEY]: { thread_id: '$p', event_id: '$e' } })).toEqual({
+      threadId: '$p',
+      eventId: '$e',
+    });
   });
 
   it('rejects anything but two $ IDs', () => {
