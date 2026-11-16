@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { buildThreadSummaryMap, type ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { getRoomEventThreadOpenTarget } from '../../routes/roomDeepLink';
@@ -30,6 +30,7 @@ import {
   type FetchedRelationOverviewUpdateOptions,
 } from './threadOverviewCacheHydration';
 import type { ThreadRecord } from '../../event-store/threads/types';
+import type { ThreadRecordChanges } from '../../event-store/threads/threadRecord';
 import {
   buildVisibleThreadParticipantMap,
   buildVisibleThreadReplyCountMap,
@@ -58,7 +59,7 @@ import {
   mergeCompactThreadRootBodyMaps,
   useThreadOverviewCachedMetadata,
 } from './threadOverviewCacheMetadata';
-import { buildThreadIndexRecordMaps } from './threadIndexRecords';
+import { buildThreadIndexRecordMaps, type ThreadIndexRecordMaps } from './threadIndexRecords';
 import { useSnoozeNow } from '../tags/useSnoozeNow';
 
 type ThreadResolutionLike = {
@@ -310,6 +311,8 @@ export type UseThreadIndexOptions = {
   requestedThreadFilterState: ThreadFilterState;
   threadSortFreezeState: ThreadSortFreezeState | null;
   overviewRefreshCounter: number;
+  /** What each count of `overviewRefreshCounter` may have changed (`ThreadRecordChanges`). */
+  overviewChanges: ThreadRecordChanges;
   sessionId: string;
   mx: MatrixClient;
   onStoreThreadSummary: (threadRootId: string, info: ThreadSummaryInfo | undefined) => void;
@@ -334,6 +337,7 @@ export const useThreadIndex = ({
   requestedThreadFilterState,
   threadSortFreezeState,
   overviewRefreshCounter,
+  overviewChanges,
   sessionId,
   mx,
   onStoreThreadSummary,
@@ -549,10 +553,14 @@ export const useThreadIndex = ({
     () => buildThreadRootEventMap(compactRoomSurfaceEntries, compactThreadRootData.indexMap),
     [compactRoomSurfaceEntries, compactThreadRootData.indexMap]
   );
+  // The maps of the last build. A build keeps their records for the threads nothing changed for,
+  // so a room event costs the record of its thread, not one per thread of the room. Each kept
+  // record is checked against what it was built from, so a render React drops leaves nothing wrong.
+  const builtRecordMapsRef = useRef<ThreadIndexRecordMaps>();
   const { normalThreadRecordMap, compactThreadRecordMap } = useMemo(() => {
     // External hydration can refresh mutable SDK/cache-backed sources without changing map identity.
     void overviewRefreshCounter;
-    return buildThreadIndexRecordMaps({
+    const built = buildThreadIndexRecordMaps({
       threadId,
       compactViewRequested,
       room,
@@ -569,7 +577,12 @@ export const useThreadIndex = ({
       threadResolutionMap,
       currentUserId,
       scheduledStatusMap,
+      // An open thread hears nothing of the room, so nothing is kept from before it.
+      previous: threadId ? undefined : builtRecordMapsRef.current,
+      changes: overviewChanges,
     });
+    builtRecordMapsRef.current = threadId ? undefined : built;
+    return built;
   }, [
     threadId,
     compactViewRequested,
@@ -588,6 +601,7 @@ export const useThreadIndex = ({
     currentUserId,
     scheduledStatusMap,
     overviewRefreshCounter,
+    overviewChanges,
   ]);
   // Renewed when a snooze ends, so its thread comes back into the list.
   const snoozeNow = useSnoozeNow(

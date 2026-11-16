@@ -23,11 +23,16 @@ import {
   getVisibleThreadParticipantIds,
 } from './threadUtils';
 import { EMPTY_THREAD_SCHEDULED_STATUS, type ThreadScheduledStatus } from './threadScheduledStatus';
-import { isFailedLocalEchoEvent, isPendingLocalEchoEvent } from '../../matrix/protocol/pendingLocalEcho';
+import {
+  isFailedLocalEchoEvent,
+  isPendingLocalEchoEvent,
+} from '../../matrix/protocol/pendingLocalEcho';
 import type { ThreadCacheCoverage, ThreadRecord } from './types';
 import { collectThreadPeopleIds, currentUserTookPart } from './threadPeopleFilter';
 import { RESOLVED_TAG, SNOOZED_TAG, type TagMetadata } from './threadTags';
 import { parseThreadSnooze } from './threadSnooze';
+import { seenThreadRootsVersion } from '../../matrix/seenThreadRoots';
+import { heldReceiptEventsVersion } from '../../matrix/receiptReadTs';
 
 const THREAD_PARTICIPANT_LIMIT = 3;
 
@@ -78,7 +83,98 @@ type BuildThreadRecordMapOptions = {
   scheduledStatusMap?: ReadonlyMap<string, ThreadScheduledStatus>;
   cacheCoverageMap?: ReadonlyMap<string, ThreadCacheCoverage>;
   absoluteIndexMap?: ReadonlyMap<string, number>;
+  /** The records of the last build and what changed in the room since: see `ThreadRecordReuse`. */
+  reuse?: ThreadRecordReuse;
 };
+
+/**
+ * What changed in a room's threads, for whoever keeps thread records: a record reads its thread's
+ * events, receipts and streaming state from the SDK, which change in place. The listener of the
+ * room's events marks each change (`markThreadRecordChange`) as one thread's or as the room's.
+ */
+export type ThreadRecordChanges = {
+  /** Counts the marks. */
+  count: number;
+  /** The count at the last change that any thread's record may show. */
+  room: number;
+  /** The count at the last change of each thread, by root, since the room's last. */
+  threads: Map<string, number>;
+};
+
+export const createThreadRecordChanges = (): ThreadRecordChanges => ({
+  count: 0,
+  room: 0,
+  threads: new Map(),
+});
+
+/** Marks a change of one thread, or without `threadRootId` one that any thread's record may show. */
+export const markThreadRecordChange = (
+  changes: ThreadRecordChanges,
+  threadRootId?: string
+): void => {
+  changes.count += 1;
+  if (threadRootId) {
+    changes.threads.set(threadRootId, changes.count);
+    return;
+  }
+  changes.room = changes.count;
+  changes.threads.clear();
+};
+
+/**
+ * Lets a build keep the records of the build before it (`previous`) for the threads that did not
+ * change: no mark in `changes` for the thread or the room since its record was built, the same
+ * values given for it, and the same answers of the room that every record reads (`roomSources`).
+ */
+export type ThreadRecordReuse = {
+  previous: ReadonlyMap<string, ThreadRecord> | undefined;
+  changes: ThreadRecordChanges;
+};
+
+type ThreadRecordSources = {
+  options: BuildThreadRecordOptions;
+  builtAt: number;
+  roomSources: readonly unknown[];
+};
+
+/** What each kept record was built from. */
+const recordSources = new WeakMap<ThreadRecord, ThreadRecordSources>();
+
+/**
+ * What every record of a room reads that changes without an event of its thread: whether the
+ * room's thread list is in (it decides whose reply count is used), the roots opened on this
+ * device, and the receipt events the room came to hold (a receipt reads up to its event's time).
+ */
+const getRoomSources = (room: Room): readonly unknown[] => [
+  roomThreadListIsListed(room),
+  seenThreadRootsVersion(),
+  heldReceiptEventsVersion(),
+];
+
+const sameValues = (left: readonly unknown[], right: readonly unknown[]): boolean =>
+  left.length === right.length && left.every((value, index) => Object.is(value, right[index]));
+
+/** The same value, or two lists or plain objects that hold the same values. */
+const sameOption = (left: unknown, right: unknown): boolean => {
+  if (Object.is(left, right)) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) && sameValues(left, right);
+  }
+  if (!isPlainObject(left) || !isPlainObject(right)) return false;
+  const keys = Object.keys(left);
+  return (
+    keys.length === Object.keys(right).length &&
+    keys.every((key) => Object.is(left[key], right[key]))
+  );
+};
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && Object.getPrototypeOf(value) === Object.prototype;
+
+const sameOptions = (left: BuildThreadRecordOptions, right: BuildThreadRecordOptions): boolean =>
+  (Object.keys(left) as Array<keyof BuildThreadRecordOptions>).every((key) =>
+    sameOption(left[key], right[key])
+  );
 
 const getLoadedThreadEvents = (thread: ReturnType<Room['getThread']>): MatrixEvent[] | undefined =>
   thread?.events && thread.events.length > 0
@@ -403,34 +499,51 @@ export const buildThreadRecordMap = ({
   scheduledStatusMap,
   cacheCoverageMap,
   absoluteIndexMap,
+  reuse,
 }: BuildThreadRecordMapOptions): Map<string, ThreadRecord> => {
   const records = new Map<string, ThreadRecord>();
+  const roomSources = getRoomSources(room);
+  const builtAt = reuse?.changes.count ?? 0;
 
   threadRootIds.forEach((threadRootId) => {
-    records.set(
+    const options: BuildThreadRecordOptions = {
+      room,
       threadRootId,
-      buildThreadRecord({
-        room,
-        threadRootId,
-        threadRootEvent: threadRootEventMap?.get(threadRootId),
-        summaryInfo: summaryMap?.get(threadRootId),
-        fallbackSummaryInfo: fallbackSummaryMap?.get(threadRootId),
-        fallbackReplyCount: fallbackReplyCountMap?.get(threadRootId),
-        rootPreviewText: rootPreviewTextMap?.get(threadRootId),
-        fallbackLatestReplyPreviewText: fallbackLatestReplyPreviewMap?.get(threadRootId),
-        fallbackLatestReplyTs: fallbackLatestReplyTsMap?.get(threadRootId),
-        fallbackLastSenderId: fallbackLastSenderIdMap?.get(threadRootId),
-        fallbackLastSenderDisplayName: fallbackLastSenderDisplayNameMap?.get(threadRootId),
-        fallbackMessageCount: fallbackMessageCountMap?.get(threadRootId),
-        fallbackLastActivityTs: fallbackLastActivityTsMap?.get(threadRootId),
-        fallbackParticipantIds: fallbackParticipantMap?.get(threadRootId),
-        threadResolution: threadResolutionMap?.get(threadRootId),
-        currentUserId,
-        scheduledStatus: scheduledStatusMap?.get(threadRootId),
-        cacheCoverage: cacheCoverageMap?.get(threadRootId),
-        absoluteIndex: absoluteIndexMap?.get(threadRootId),
-      })
-    );
+      threadRootEvent: threadRootEventMap?.get(threadRootId),
+      summaryInfo: summaryMap?.get(threadRootId),
+      fallbackSummaryInfo: fallbackSummaryMap?.get(threadRootId),
+      fallbackReplyCount: fallbackReplyCountMap?.get(threadRootId),
+      rootPreviewText: rootPreviewTextMap?.get(threadRootId),
+      fallbackLatestReplyPreviewText: fallbackLatestReplyPreviewMap?.get(threadRootId),
+      fallbackLatestReplyTs: fallbackLatestReplyTsMap?.get(threadRootId),
+      fallbackLastSenderId: fallbackLastSenderIdMap?.get(threadRootId),
+      fallbackLastSenderDisplayName: fallbackLastSenderDisplayNameMap?.get(threadRootId),
+      fallbackMessageCount: fallbackMessageCountMap?.get(threadRootId),
+      fallbackLastActivityTs: fallbackLastActivityTsMap?.get(threadRootId),
+      fallbackParticipantIds: fallbackParticipantMap?.get(threadRootId),
+      threadResolution: threadResolutionMap?.get(threadRootId),
+      currentUserId,
+      scheduledStatus: scheduledStatusMap?.get(threadRootId),
+      cacheCoverage: cacheCoverageMap?.get(threadRootId),
+      absoluteIndex: absoluteIndexMap?.get(threadRootId),
+    };
+    const kept = reuse?.previous?.get(threadRootId);
+    const keptFrom = kept && recordSources.get(kept);
+    if (
+      reuse &&
+      kept &&
+      keptFrom &&
+      keptFrom.builtAt >=
+        Math.max(reuse.changes.room, reuse.changes.threads.get(threadRootId) ?? 0) &&
+      sameValues(keptFrom.roomSources, roomSources) &&
+      sameOptions(keptFrom.options, options)
+    ) {
+      records.set(threadRootId, kept);
+      return;
+    }
+    const record = buildThreadRecord(options);
+    if (reuse) recordSources.set(record, { options, builtAt, roomSources });
+    records.set(threadRootId, record);
   });
 
   return records;

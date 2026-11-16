@@ -65,8 +65,12 @@ export const keepUnthreadedReceiptEvents = (mx: MatrixClient): (() => void) => {
 // The IDs asked for that no timeline of a room held. Asking the room costs a lookup in each of
 // its threads, and the callers ask for every thread and receipt type, so an answer of "not held"
 // is kept until the room gains an event of that ID: one a timeline takes, one a local echo is
-// renamed to, or one a new thread came with.
+// renamed to, or one a new thread holds.
 const unheldEventIds = new WeakMap<Room, Set<string>>();
+let held = 0;
+
+/** A count of the unheld events that rooms came to hold, for caches of how far receipts read. */
+export const heldReceiptEventsVersion = (): number => held;
 
 const unheldEventIdsOf = (room: Room): Set<string> | undefined => {
   let unheld = unheldEventIds.get(room);
@@ -74,12 +78,16 @@ const unheldEventIdsOf = (room: Room): Set<string> | undefined => {
   if (!unheld && typeof room.prependListener === 'function') {
     const ids = new Set<string>();
     const forget = (event: MatrixEvent) => {
-      ids.delete(event.getId() ?? '');
+      if (ids.delete(event.getId() ?? '')) held += 1;
     };
     // First, so the views that update on an event find it.
     room.prependListener(RoomEvent.Timeline, forget);
     room.prependListener(RoomEvent.LocalEchoUpdated, forget);
-    room.prependListener(ThreadEvent.New, () => ids.clear());
+    room.prependListener(ThreadEvent.New, (thread: Thread) => {
+      ids.forEach((id) => {
+        if (thread.findEventById(id) && ids.delete(id)) held += 1;
+      });
+    });
     unheldEventIds.set(room, ids);
     unheld = ids;
   }

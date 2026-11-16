@@ -1,8 +1,50 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { MatrixEventEvent, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
-import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import {
+  ClientEvent,
+  EventType,
+  MatrixEventEvent,
+  RoomEvent,
+  RoomStateEvent,
+  ThreadEvent,
+} from 'matrix-js-sdk';
+import type { MatrixClient, MatrixEvent, Room, RoomState, Thread } from 'matrix-js-sdk';
 import { shouldRefreshOverviewForTimelineEvent } from '../open/threadBootstrap';
+import {
+  createThreadRecordChanges,
+  markThreadRecordChange,
+  type ThreadRecordChanges,
+} from '../../event-store/threads/threadRecord';
+import { isRecord } from '../../lib/isRecord';
+
+/**
+ * The thread whose record an event of the room may change: the thread it is in, else the thread
+ * of the event it relates to, else that event or itself, either of which may be a root. Undefined
+ * when it relates to an event the room does not hold, whose thread is then unknown.
+ */
+const changedThreadId = (room: Room, mEvent: MatrixEvent): string | undefined => {
+  const eventId = mEvent.getId();
+  if (mEvent.threadRootId) return mEvent.threadRootId;
+  if (mEvent.isThreadRoot) return eventId;
+  const relatedId = mEvent.getAssociatedId() ?? mEvent.getRelation()?.event_id;
+  if (!relatedId) return eventId;
+  const related = room.findEventById(relatedId);
+  return related && (related.threadRootId ?? relatedId);
+};
+
+/** Whether a receipt event holds a receipt of `userId`; a thread record reads no one else's. */
+const holdsReceiptOf = (receipt: MatrixEvent | undefined, userId: string): boolean =>
+  Object.values(receipt?.getContent() ?? {}).some(
+    (byType) =>
+      isRecord(byType) &&
+      Object.values(byType).some((byUser) => isRecord(byUser) && userId in byUser)
+  );
+
+/** The state a thread record reads: who its people are, and whether the room is encrypted. */
+const RECORD_STATE_TYPES: ReadonlySet<string> = new Set([
+  EventType.RoomMember,
+  EventType.RoomEncryption,
+]);
 
 /**
  * A recompute key for the room's thread overview (chips, cards, reply counts, unread marks and
@@ -16,6 +58,13 @@ import { shouldRefreshOverviewForTimelineEvent } from '../open/threadBootstrap';
  * often decrypts after the cards are drawn (P2-e2ee-F005). Inside a thread nothing
  * listens and the count keeps its value. The listeners change only with the room or the thread:
  * the setter, which callers also use to ask for a recompute, keeps its identity.
+ *
+ * `overviewChanges` says what each count may have changed, for the thread records kept from one
+ * count to the next (`ThreadRecordReuse`): the thread of the event or thread update, or the whole
+ * room (the reader's own receipt, a caller's request, an event whose thread is unknown). It also
+ * takes what a record reads that raises no count: every event the client hears of the room (the
+ * edits kept from the sync are in by then), a local echo's progress, a redaction, and the room's
+ * members and encryption. Someone else's receipt changes no record.
  */
 export const useThreadOverviewRefreshCounter = (
   room: Room,
@@ -23,31 +72,67 @@ export const useThreadOverviewRefreshCounter = (
 ): {
   overviewRefreshCounter: number;
   setOverviewRefreshCounter: Dispatch<SetStateAction<number>>;
+  overviewChanges: ThreadRecordChanges;
 } => {
-  const [overviewRefreshCounter, setOverviewRefreshCounter] = useState(0);
+  const [overviewRefreshCounter, setCounter] = useState(0);
+  const [overviewChanges] = useState(createThreadRecordChanges);
+  const setOverviewRefreshCounter = useCallback<Dispatch<SetStateAction<number>>>(
+    (count) => {
+      markThreadRecordChange(overviewChanges);
+      setCounter(count);
+    },
+    [overviewChanges]
+  );
 
   useEffect(() => {
     if (threadId) return undefined;
 
-    const bump = () => setOverviewRefreshCounter((count) => count + 1);
+    // What happened to the room before these listeners heard it.
+    markThreadRecordChange(overviewChanges);
+    const bump = () => setCounter((count) => count + 1);
+    const markEvent = (mEvent: MatrixEvent) =>
+      markThreadRecordChange(overviewChanges, changedThreadId(room, mEvent));
     const handleTimeline = (
       mEvent: MatrixEvent,
       eventRoom: Room | undefined,
       _toStartOfTimeline: boolean | undefined,
       removed: boolean
     ) => {
-      if (removed || eventRoom?.roomId !== room.roomId) return;
-      if (shouldRefreshOverviewForTimelineEvent(room, mEvent)) bump();
+      if (eventRoom?.roomId !== room.roomId) return;
+      markEvent(mEvent);
+      if (!removed && shouldRefreshOverviewForTimelineEvent(room, mEvent)) bump();
     };
-    const handleReceipt = (_receipt: MatrixEvent, receiptRoom: Room | undefined) => {
-      if (receiptRoom?.roomId === room.roomId) bump();
+    // Optional calls: the rooms of some view tests carry a client stand-in without listeners.
+    const client: Partial<Pick<MatrixClient, 'on' | 'removeListener' | 'getUserId'>> | undefined =
+      room.client;
+    const handleReceipt = (receipt: MatrixEvent | undefined, receiptRoom: Room | undefined) => {
+      if (receiptRoom?.roomId !== room.roomId) return;
+      const userId = client?.getUserId?.();
+      if (!userId || !receipt || holdsReceiptOf(receipt, userId)) {
+        markThreadRecordChange(overviewChanges);
+      }
+      bump();
+    };
+    // Without an ID it is no event of a timeline (typing, a receipt, account data).
+    const handleRoomEvent = (mEvent: MatrixEvent) => {
+      if (mEvent.getRoomId() === room.roomId && mEvent.getId()) markEvent(mEvent);
+    };
+    const handleEcho = (mEvent: MatrixEvent) => markEvent(mEvent);
+    const handleState = (mEvent: MatrixEvent, state: RoomState) => {
+      if (state.roomId === room.roomId && RECORD_STATE_TYPES.has(mEvent.getType())) {
+        markThreadRecordChange(overviewChanges);
+      }
+    };
+    const handleThread = (thread: Thread | undefined) => {
+      markThreadRecordChange(overviewChanges, thread?.id);
+      bump();
     };
 
-    // Optional calls: the rooms of some view tests carry a client stand-in without listeners.
-    const client: Partial<Pick<MatrixClient, 'on' | 'removeListener'>> | undefined = room.client;
     let decryptedBump: ReturnType<typeof setTimeout> | undefined;
     const handleDecrypted = (mEvent: MatrixEvent) => {
-      if (decryptedBump !== undefined || mEvent.getRoomId() !== room.roomId) return;
+      if (mEvent.getRoomId() !== room.roomId) return;
+      markEvent(mEvent);
+      if (decryptedBump !== undefined) return;
       if (!shouldRefreshOverviewForTimelineEvent(room, mEvent)) return;
       decryptedBump = setTimeout(() => {
         decryptedBump = undefined;
@@ -57,22 +142,30 @@ export const useThreadOverviewRefreshCounter = (
 
     room.on(RoomEvent.Timeline, handleTimeline);
     room.on(RoomEvent.Receipt, handleReceipt);
+    room.on(RoomEvent.LocalEchoUpdated, handleEcho);
+    room.on(RoomEvent.Redaction, handleEcho);
     client?.on?.(MatrixEventEvent.Decrypted, handleDecrypted);
-    room.on(ThreadEvent.New, bump);
-    room.on(ThreadEvent.Update, bump);
-    room.on(ThreadEvent.NewReply, bump);
-    room.on(ThreadEvent.Delete, bump);
+    client?.on?.(ClientEvent.Event, handleRoomEvent);
+    client?.on?.(RoomStateEvent.Events, handleState);
+    room.on(ThreadEvent.New, handleThread);
+    room.on(ThreadEvent.Update, handleThread);
+    room.on(ThreadEvent.NewReply, handleThread);
+    room.on(ThreadEvent.Delete, handleThread);
     return () => {
       room.removeListener(RoomEvent.Timeline, handleTimeline);
       room.removeListener(RoomEvent.Receipt, handleReceipt);
+      room.removeListener(RoomEvent.LocalEchoUpdated, handleEcho);
+      room.removeListener(RoomEvent.Redaction, handleEcho);
       client?.removeListener?.(MatrixEventEvent.Decrypted, handleDecrypted);
+      client?.removeListener?.(ClientEvent.Event, handleRoomEvent);
+      client?.removeListener?.(RoomStateEvent.Events, handleState);
       clearTimeout(decryptedBump);
-      room.removeListener(ThreadEvent.New, bump);
-      room.removeListener(ThreadEvent.Update, bump);
-      room.removeListener(ThreadEvent.NewReply, bump);
-      room.removeListener(ThreadEvent.Delete, bump);
+      room.removeListener(ThreadEvent.New, handleThread);
+      room.removeListener(ThreadEvent.Update, handleThread);
+      room.removeListener(ThreadEvent.NewReply, handleThread);
+      room.removeListener(ThreadEvent.Delete, handleThread);
     };
-  }, [room, threadId]);
+  }, [room, threadId, overviewChanges]);
 
-  return { overviewRefreshCounter, setOverviewRefreshCounter };
+  return { overviewRefreshCounter, setOverviewRefreshCounter, overviewChanges };
 };

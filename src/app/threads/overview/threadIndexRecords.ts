@@ -1,7 +1,10 @@
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import type { VisibleThreadRootData } from '../../event-store/threads/roomThreadOverviewModel';
-import { buildThreadRecordMap } from '../../event-store/threads/threadRecord';
+import {
+  buildThreadRecordMap,
+  type ThreadRecordChanges,
+} from '../../event-store/threads/threadRecord';
 import type { ThreadOverviewCachedMetadataSnapshot } from './threadOverviewCacheMetadata';
 import type { ThreadScheduledStatus } from '../../event-store/threads/threadScheduledStatus';
 import type { ThreadRecord } from '../../event-store/threads/types';
@@ -36,6 +39,9 @@ export type BuildThreadIndexRecordMapsOptions = {
   threadResolutionMap: ReadonlyMap<string, ThreadResolutionLike>;
   currentUserId: string | undefined;
   scheduledStatusMap: ReadonlyMap<string, ThreadScheduledStatus>;
+  /** The maps of the build before, whose records are kept for the threads without a change. */
+  previous?: ThreadIndexRecordMaps;
+  changes?: ThreadRecordChanges;
 };
 
 export type ThreadIndexRecordMaps = {
@@ -60,6 +66,8 @@ export const buildThreadIndexRecordMaps = ({
   threadResolutionMap,
   currentUserId,
   scheduledStatusMap,
+  previous,
+  changes,
 }: BuildThreadIndexRecordMapsOptions): ThreadIndexRecordMaps => {
   const emptyThreadRecordMap = new Map<string, ThreadRecord>();
   if (threadId) {
@@ -92,6 +100,7 @@ export const buildThreadIndexRecordMaps = ({
     threadRootEventMap: visibleThreadRootEventMap,
     rootPreviewTextMap: visibleThreadRootData.bodyMap,
     absoluteIndexMap: visibleThreadRootData.indexMap,
+    reuse: changes && { previous: previous?.normalThreadRecordMap, changes },
   });
   const compactThreadRecordMap = compactViewRequested
     ? buildThreadRecordMap({
@@ -100,6 +109,7 @@ export const buildThreadIndexRecordMaps = ({
         threadRootEventMap: compactThreadRootEventMap,
         rootPreviewTextMap: compactThreadRootBodyMap,
         absoluteIndexMap: compactThreadRootData.indexMap,
+        reuse: changes && { previous: previous?.compactThreadRecordMap, changes },
       })
     : normalThreadRecordMap;
 
