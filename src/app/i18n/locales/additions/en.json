@@ -1269,5 +1269,16 @@
       "howThreadsWork": "How threads work",
       "noThreadsHint": "Send a message below to start one."
     }
+  },
+  "threadNav": {
+    "layout": "Thread layout",
+    "layoutRecent": "Recent",
+    "layoutSections": "Sections",
+    "sections": {
+      "working": "Working",
+      "snoozed": "Snoozed",
+      "idle": "Idle",
+      "resolved": "Resolved"
+    }
   }
 }

@@ -1269,5 +1269,16 @@
       "howThreadsWork": "থ্রেড কীভাবে কাজ করে",
       "noThreadsHint": "একটি শুরু করতে নিচে বার্তা পাঠান।"
     }
+  },
+  "threadNav": {
+    "layout": "থ্রেডের বিন্যাস",
+    "layoutRecent": "সাম্প্রতিক",
+    "layoutSections": "বিভাগ",
+    "sections": {
+      "working": "কাজ চলছে",
+      "snoozed": "স্নুজ করা",
+      "idle": "নিষ্ক্রিয়",
+      "resolved": "সমাধান করা"
+    }
   }
 }

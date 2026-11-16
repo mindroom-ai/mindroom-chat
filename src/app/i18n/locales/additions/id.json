@@ -1245,5 +1245,16 @@
       "howThreadsWork": "Cara kerja utas",
       "noThreadsHint": "Kirim pesan di bawah untuk memulai utas."
     }
+  },
+  "threadNav": {
+    "layout": "Tata letak utas",
+    "layoutRecent": "Terbaru",
+    "layoutSections": "Bagian",
+    "sections": {
+      "working": "Sedang berjalan",
+      "snoozed": "Ditunda",
+      "idle": "Tidak aktif",
+      "resolved": "Selesai"
+    }
   }
 }

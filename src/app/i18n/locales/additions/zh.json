@@ -1245,5 +1245,16 @@
       "howThreadsWork": "讨论串如何运作",
       "noThreadsHint": "在下方发送一条消息即可发起讨论串。"
     }
+  },
+  "threadNav": {
+    "layout": "讨论串布局",
+    "layoutRecent": "最近",
+    "layoutSections": "分区",
+    "sections": {
+      "working": "进行中",
+      "snoozed": "已延后",
+      "idle": "空闲",
+      "resolved": "已解决"
+    }
   }
 }

@@ -1245,5 +1245,16 @@
       "howThreadsWork": "スレッドのしくみ",
       "noThreadsHint": "下の入力欄からメッセージを送ると、スレッドが始まります。"
     }
+  },
+  "threadNav": {
+    "layout": "スレッドの表示方法",
+    "layoutRecent": "最近",
+    "layoutSections": "セクション",
+    "sections": {
+      "working": "作業中",
+      "snoozed": "スヌーズ中",
+      "idle": "待機中",
+      "resolved": "解決済み"
+    }
   }
 }
