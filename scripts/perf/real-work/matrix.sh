@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Run e2e/perf/real-work.live.spec.ts for one commit on several runner hosts and slots at once, and
-# collect each run's test-results/perf/real-work/ into <out dir>/<host>-<slot>/.
+# collect each run's test-results/perf/real-work/ into <out dir>/<host>-<slot>/, with the scripts
+# of the build the run served in <out dir>/<host>-<slot>/served-build/assets/: what
+# scripts/perf/cpuprofile-summary.mjs takes as --build to de-minify the run's CPU profiles (its
+# --maps is a `MINDROOM_BUILD_VERSION=<commit> npx vite build --sourcemap --outDir <dir>` of the
+# same commit; builds of one commit differ in hashed and minified names, not in positions).
 #
 # Usage: matrix.sh <commit> <out dir> <host>:<slot>[,<host>:<slot>...] [-- NAME=VALUE...]
 #   host   a remote-test.sh host: m5, m2, mw, dev or gce (~/repos/dev/scripts/mac-runner/remote-test.sh)
@@ -88,14 +92,20 @@ run_one() {
   run_env+=(--env "E2E_SNAPSHOT_ROOT=$base/$run/snap" --env "E2E_AGENT_STACK_ROOT=$base/$run/agents")
   # The inner script runs on the host, in the commit's worktree. A snapshot run leaves its
   # test-results/ in the snapshot, so it copies the perf results into the worktree's, which
-  # --artifacts brings back; the trap then removes the run's directory (snapshot, build, agent
-  # stack) on every exit path, and the exit code stays Playwright's.
+  # --artifacts brings back, and beside them the scripts of the build it served (only when there
+  # are results, so a run without any still counts as failed); the trap then removes the run's
+  # directory (snapshot, build, agent stack) on every exit path, and the exit code stays
+  # Playwright's.
   local inner
   inner=": \"\${E2E_SNAPSHOT_ROOT:?}\" \"\${E2E_AGENT_STACK_ROOT:?}\"
 run_dir=\"\$(dirname \"\${E2E_SNAPSHOT_ROOT:?}\")\"
 finish() {
   mkdir -p test-results/perf
   cp -a \"\$E2E_SNAPSHOT_ROOT/slot-$slot/test-results/perf/real-work\" test-results/perf/ || true
+  if [ -d test-results/perf/real-work ]; then
+    mkdir -p test-results/perf/real-work/served-build/assets
+    cp \"\$E2E_SNAPSHOT_ROOT/builds/$commit/assets/\"*.js test-results/perf/real-work/served-build/assets/ || true
+  fi
   case \"\$run_dir\" in
     /*/rw-*) cd / && rm -rf \"\$run_dir\" ;;
     *) echo \"matrix: not removing \$run_dir\" >&2 ;;
