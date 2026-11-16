@@ -132,7 +132,6 @@ export function InlineThreadTitleEditor({
         aria-label={t('threadActions.summary')}
         aria-invalid={shown.tooLong && length > SUMMARY_MAX_LENGTH ? true : undefined}
         value={shown.draft}
-        maxLength={SUMMARY_MAX_LENGTH * 2}
         disabled={shown.saving}
         onChange={(event) => update({ ...shown, draft: event.target.value })}
         onBlur={save}

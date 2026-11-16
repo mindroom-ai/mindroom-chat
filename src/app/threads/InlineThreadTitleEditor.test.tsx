@@ -173,10 +173,13 @@ describe('InlineThreadTitleEditor', () => {
   it('keeps editing an over-long title and shows its length', async () => {
     const renderer = render();
     startEditing(renderer);
-    type(renderer, 'x'.repeat(301));
+    // Emoji take two UTF-16 units each: a native `maxLength` would cut the draft to a valid title.
+    const long = '\u{1F600}'.repeat(301);
+    expect(input(renderer).props.maxLength).toBeUndefined();
+    type(renderer, long);
     await press(renderer, 'Enter');
     expect(state.save).not.toHaveBeenCalled();
-    expect(input(renderer).props.value).toBe('x'.repeat(301));
+    expect(input(renderer).props.value).toBe(long);
     expect(alerts(renderer)[0]?.children).toEqual(['301 / 300 characters']);
   });
 
