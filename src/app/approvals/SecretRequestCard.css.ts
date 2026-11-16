@@ -1,4 +1,5 @@
 import { globalStyle, style, type GlobalStyleRule } from '@vanilla-extract/css';
+import { config } from 'folds';
 import { SectionTitle } from './ThreadApprovals.css';
 
 /** "GitHub key": a long service name ends in an ellipsis before it pushes the chip out. */
@@ -33,5 +34,15 @@ export const Status = style({
       clip: 'rect(0, 0, 0, 0)',
       whiteSpace: 'nowrap',
     },
+  },
+});
+
+/**
+ * Save and Decline while the answer is on its way: `aria-disabled`, not `disabled`, so the button
+ * keeps the keyboard focus, and looks as a disabled one does.
+ */
+export const Busy = style({
+  selectors: {
+    '&[aria-disabled="true"]': { cursor: 'progress', opacity: config.opacity.Disabled },
   },
 });

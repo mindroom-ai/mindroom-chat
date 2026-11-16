@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type MutableRefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { Box, Button, Icon, IconButton, Icons, Input, Text } from 'folds';
@@ -70,13 +70,18 @@ function SecretRequestAnswer({
   request,
   roomId,
   agentUserId,
+  keyboardFocus,
   onAnswer,
 }: {
   request: SecretRequest;
   roomId: string;
   agentUserId: string;
-  /** `keyboardFocus`: whether the form, which unmounts with the answer, held keyboard focus. */
-  onAnswer: (answer: Answer, keyboardFocus: boolean) => void;
+  /**
+   * Whether keyboard focus is in the form. Leaving the form clears it; the form going away fires
+   * no focusout, so it stays set then, and the card uses it to take the focus.
+   */
+  keyboardFocus: MutableRefObject<boolean>;
+  onAnswer: (answer: Answer) => void;
 }) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
@@ -87,14 +92,13 @@ function SecretRequestAnswer({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string>();
   const errorId = useId();
-  const form = useRef<HTMLFormElement>(null);
-  // A second press before the first answer arrives sends nothing.
+  // A second press before the first answer arrives sends nothing, on a busy button too.
   const sendingRef = useRef(false);
-  // Whether a pointer pressed Save or Decline. Enter in the field clicks Save too, with no pointer
-  // (`detail` 0), as a key on a focused button does.
-  const pointerAnswer = useRef(false);
+  // A pointer that clicks Save or Decline answers without the keyboard, also where focus stayed in
+  // the field (Safari). Enter in the field clicks Save with no pointer (`detail` 0), as a key on a
+  // focused button does.
   const notePointer = (event: { detail: number }) => {
-    pointerAnswer.current = event.detail > 0;
+    if (event.detail > 0) keyboardFocus.current = false;
   };
 
   if (!pending && !apiUrl) {
@@ -112,14 +116,12 @@ function SecretRequestAnswer({
     );
   }
 
-  const ready = !pending && !!apiUrl && !sending;
+  const ready = !pending && !!apiUrl;
 
   const send = async (decline: boolean) => {
     const secret = field.current?.value ?? '';
     if (pending || !apiUrl || sendingRef.current) return;
     if (!decline && secret.trim() === '') return;
-    const byPointer = pointerAnswer.current;
-    pointerAnswer.current = false;
     sendingRef.current = true;
     setSending(true);
     setError(undefined);
@@ -136,12 +138,8 @@ function SecretRequestAnswer({
         }
       );
       if (response.ok || response.status === 404) {
-        const focused = document.activeElement;
         if (field.current) field.current.value = '';
-        onAnswer(
-          response.status === 404 ? 'inactive' : decline ? 'declined' : 'saved',
-          !byPointer && !!form.current?.contains(focused) && isKeyboardFocus(focused)
-        );
+        onAnswer(response.status === 404 ? 'inactive' : decline ? 'declined' : 'saved');
         return;
       }
       const detail =
@@ -166,11 +164,16 @@ function SecretRequestAnswer({
   return (
     <>
       <form
-        ref={form}
         className={sectionCss.DenyRow}
         onSubmit={(event) => {
           event.preventDefault();
           void send(false);
+        }}
+        onFocus={(event) => {
+          keyboardFocus.current = isKeyboardFocus(event.target);
+        }}
+        onBlur={() => {
+          keyboardFocus.current = false;
         }}
       >
         <Input
@@ -221,7 +224,11 @@ function SecretRequestAnswer({
             fill="Soft"
             outlined
             radii="300"
+            // Busy, not disabled, while the answer is on its way: a disabled button would drop its
+            // keyboard focus to the page.
+            className={css.Busy}
             disabled={!ready || !hasKey}
+            aria-disabled={sending || undefined}
             onClick={notePointer}
           >
             <Text size="B300">{t('mindroomUi.messages.secretRequestCard.save')}</Text>
@@ -233,7 +240,9 @@ function SecretRequestAnswer({
             fill="Soft"
             outlined
             radii="300"
+            className={css.Busy}
             disabled={!ready}
+            aria-disabled={sending || undefined}
             onClick={(event: { detail: number }) => {
               notePointer(event);
               void send(true);
@@ -279,7 +288,7 @@ export function SecretRequestCard({
   const room = useApprovalRoom(roomId);
   const [answer, setAnswer] = useState<Answer>();
   const [clockTick, setClockTick] = useState(0);
-  const focusCard = useRef(false);
+  const keyboardFocus = useRef(false);
   const now = Date.now();
   const isRequester = request.requesterId === viewerId;
   // The agent's edit decides; until it comes, an answer the server took holds whatever the clock says.
@@ -302,19 +311,18 @@ export function SecretRequestCard({
     return () => clearTimeout(timer);
   }, [open, request.expiresAt, clockTick]);
 
-  // The answer took away the control that held keyboard focus; the card, which stays through the
-  // agent's edit, takes it. After a pointer answer focus moves nowhere: focus put in the row there
-  // would show the row's toolbar as if it came from the keyboard.
+  // The form went away, after the answer or with the agent's edit, whichever came first, while it
+  // held keyboard focus: the card, which stays through the edit, takes the focus the page got.
+  // Focus moved elsewhere on purpose stays there, and after a pointer answer none moves: focus put
+  // in the row would show the row's toolbar as if it came from the keyboard.
+  const formShown = open && isRequester;
   useEffect(() => {
-    if (!answer || !focusCard.current) return;
-    focusCard.current = false;
-    card.current?.focus({ preventScroll: true });
-  }, [answer]);
-
-  const onAnswer = (value: Answer, keyboardFocus: boolean) => {
-    focusCard.current = keyboardFocus;
-    setAnswer(value);
-  };
+    if (formShown || !keyboardFocus.current) return;
+    keyboardFocus.current = false;
+    if (document.activeElement === document.body || document.activeElement === null) {
+      card.current?.focus({ preventScroll: true });
+    }
+  }, [formShown]);
 
   return (
     <Box
@@ -382,12 +390,13 @@ export function SecretRequestCard({
             />
           </Text>
         )}
-        {open && isRequester && (
+        {formShown && (
           <SecretRequestAnswer
             request={request}
             roomId={roomId}
             agentUserId={agentUserId}
-            onAnswer={onAnswer}
+            keyboardFocus={keyboardFocus}
+            onAnswer={setAnswer}
           />
         )}
       </div>

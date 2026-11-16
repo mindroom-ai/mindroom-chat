@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, type BrowserContext, type Locator, type Page, type Route } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -24,6 +24,8 @@ import {
 // no other request and stays nowhere in the page. The agent then edits the card to saved. Another
 // member of the room sees the card without a field. A redirect from that server, which would replay
 // the key to another origin, fails the answer instead, and the key stays in the field for a retry.
+// An answer from the keyboard leaves the keyboard focus on the card through the agent's edit, also
+// when the edit comes before the server's answer, and on Save after an error.
 
 const MINDROOM_API = 'http://127.0.0.1:29597';
 /** Another origin, where a redirect from the MindRoom server points. */
@@ -36,7 +38,11 @@ test.beforeEach(async () => {
 });
 
 /** The card's content as the agent posts it, and as each of its edits sets the status. */
-const cardContent = (requesterId: string, requestId: string, status: 'pending' | 'saved') => ({
+const cardContent = (
+  requesterId: string,
+  requestId: string,
+  status: 'pending' | 'saved' | 'declined'
+) => ({
   msgtype: 'm.notice',
   body: '🔑 assistant asks for your GitHub key. Open MindRoom Chat to enter it.',
   'io.mindroom.secret_request': {
@@ -303,4 +309,136 @@ test('a redirect from the MindRoom server sends the key nowhere else, and the ke
   expect(answers).toEqual([answerUrl]);
   expect(elsewhere).toEqual([]);
   expect(leaks).toEqual([]);
+});
+
+/** A seeded card opened by its requester, with the MindRoom server's answer to the POST left to `answer`. */
+const openForKeyboard = async (
+  context: BrowserContext,
+  page: Page,
+  answer: (route: Route) => Promise<void>
+) => {
+  const seeded = await seedCard(false);
+  await routeSignIn(context, seeded.requester, `session-${randomUUID()}`);
+  await context.route(`${MINDROOM_API}/api/rooms/**`, answer);
+  await openThread(context, page, seeded.requester, seeded.room);
+  const card = keyCard(page);
+  await expect(statusChip(page)).toHaveAttribute('data-secret-request-status', 'waitingForYou', {
+    timeout: 30_000,
+  });
+  const field = card.getByLabel('GitHub key', { exact: true });
+  await field.fill(`ghp_${randomUUID().replaceAll('-', '')}`);
+  return { ...seeded, card, field };
+};
+
+/** Tabs from the field, past the show and hide toggle, to the button `label`. */
+const tabTo = async (page: Page, card: Locator, field: Locator, label: 'Save' | 'Decline') => {
+  const target = card.getByRole('button', { name: label, exact: true });
+  await field.focus();
+  for (let presses = 0; presses < 5; presses += 1) {
+    if (await target.evaluate((element) => element === document.activeElement)) break;
+    await page.keyboard.press('Tab');
+  }
+  await expect(target).toBeFocused();
+  return target;
+};
+
+/** The agent's edit of its card to a final status. */
+const editCard = async (
+  seeded: Awaited<ReturnType<typeof seedCard>>,
+  status: 'saved' | 'declined'
+) => {
+  const final = cardContent(seeded.requester.userId, seeded.requestId, status);
+  await sendRoomMessage(HOMESERVER, seeded.agent.accessToken, seeded.room.roomId, {
+    ...final,
+    body: `* ${final.body}`,
+    'm.new_content': final,
+    'm.relates_to': { rel_type: 'm.replace', event_id: seeded.cardId },
+  });
+};
+
+for (const [label, final, waiting] of [
+  ['Save', 'saved', 'Saved, waiting for the agent'],
+  ['Decline', 'declined', 'Declined, waiting for the agent'],
+] as const) {
+  test(`${label} from the keyboard leaves the focus on the card through the agent's edit`, async ({
+    context,
+    page,
+  }) => {
+    test.slow();
+    // A slow server, so the button is busy for a while.
+    const seeded = await openForKeyboard(context, page, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      await route.fulfill({ status: 204, headers: CORS });
+    });
+    const target = await tabTo(page, seeded.card, seeded.field, label);
+
+    await page.keyboard.press('Enter');
+    // Busy, not disabled: a disabled button would drop the focus to the page.
+    await expect(target).toHaveAttribute('aria-disabled', 'true');
+    await expect(target).toBeFocused();
+    await expect(seeded.card.getByRole('status')).toHaveText(waiting);
+    await expect(seeded.card).toBeFocused();
+
+    await editCard(seeded, final);
+    await expect(statusChip(page)).toHaveAttribute('data-secret-request-status', final, {
+      timeout: 30_000,
+    });
+    await expect(seeded.card).toBeFocused();
+  });
+}
+
+test("the card takes the keyboard focus when the agent's edit comes before the server's answer", async ({
+  context,
+  page,
+}) => {
+  test.slow();
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let reached!: () => void;
+  const answering = new Promise<void>((resolve) => {
+    reached = resolve;
+  });
+  const seeded = await openForKeyboard(context, page, async (route) => {
+    reached();
+    await released;
+    await route.fulfill({ status: 204, headers: CORS });
+  });
+  await tabTo(page, seeded.card, seeded.field, 'Save');
+
+  await page.keyboard.press('Enter');
+  await answering;
+  await editCard(seeded, 'saved');
+  await expect(statusChip(page)).toHaveAttribute('data-secret-request-status', 'saved', {
+    timeout: 30_000,
+  });
+  await expect(seeded.card).toBeFocused();
+  release();
+  // The late answer changes nothing: the agent's edit decided.
+  await page.waitForTimeout(500);
+  await expect(statusChip(page)).toHaveText('Saved');
+  await expect(seeded.card).toBeFocused();
+});
+
+test('an error after Save from the keyboard leaves the focus on Save to retry', async ({
+  context,
+  page,
+}) => {
+  test.slow();
+  const seeded = await openForKeyboard(context, page, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await route.fulfill({ status: 503, headers: CORS });
+  });
+  const save = await tabTo(page, seeded.card, seeded.field, 'Save');
+  const key = await seeded.field.inputValue();
+
+  await page.keyboard.press('Enter');
+
+  await expect(seeded.card.getByRole('alert')).toHaveText(
+    'The server ran into a problem. Try again later.'
+  );
+  await expect(save).toBeFocused();
+  await expect(save).not.toHaveAttribute('aria-disabled', 'true');
+  await expect(seeded.field).toHaveValue(key);
 });

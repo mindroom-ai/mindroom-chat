@@ -410,43 +410,136 @@ describe('SecretRequestCard', () => {
     expect(host.innerHTML).not.toContain('ghp_secret');
   });
 
-  it('gives keyboard focus to the card, which keeps it through the agent edit', async () => {
-    env.send.mockResolvedValue(answer(204));
-    const focus = vi.spyOn(HTMLElement.prototype, 'focus');
-    const value = request();
-    render(value);
-    type('ghp_secret');
-    input()?.focus();
-
-    await pressEnter();
-    await settle();
-
-    expect(document.activeElement).toBe(card());
-    expect(focus).toHaveBeenLastCalledWith({ preventScroll: true });
-    render({ ...value, status: 'saved' });
-    expect(chip()).toBe('Saved');
-    expect(document.activeElement).toBe(card());
-    focus.mockRestore();
-  });
-
-  it('moves no focus after an answer by pointer', async () => {
-    env.send.mockResolvedValue(answer(204));
-    render();
-    type('ghp_secret');
-    // Safari leaves focus in the field when the pointer clicks Save.
-    input()?.focus();
-
-    await act(async () => {
-      button('Save')?.dispatchEvent(
-        new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })
+  describe('focus', () => {
+    /** A response the test answers when it likes, as a slow server does. */
+    const deferred = () => {
+      let resolve!: (response: Response) => void;
+      env.send.mockReturnValue(
+        new Promise<Response>((done) => {
+          resolve = done;
+        })
       );
-    });
-    await settle();
+      return async (response: Response) => {
+        resolve(response);
+        await settle();
+      };
+    };
 
-    expect(env.send).toHaveBeenCalledTimes(1);
-    expect(status()?.textContent).toBe('Saved, waiting for the agent');
-    expect(document.activeElement).not.toBe(card());
-    expect(card()?.contains(document.activeElement)).toBe(false);
+    /** A key press on a focused button: a click with no pointer (`detail` 0). */
+    const pressKeyOn = async (label: string) => {
+      const target = button(label);
+      if (!target) throw new Error(`no ${label}`);
+      act(() => target.focus());
+      await act(async () => {
+        target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      });
+    };
+
+    it.each([
+      ['Save', 'Saved, waiting for the agent', 'saved'],
+      ['Decline', 'Declined, waiting for the agent', 'declined'],
+    ] as const)(
+      'keeps keyboard focus on %s while busy, then gives it to the card through the edit',
+      async (label, waiting, final) => {
+        const respond = deferred();
+        const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+        const value = request();
+        render(value);
+        type('ghp_secret');
+
+        await pressKeyOn(label);
+
+        // Busy, not disabled: a disabled button would drop the focus to the page.
+        expect(button(label)?.getAttribute('aria-disabled')).toBe('true');
+        expect(button(label)?.disabled).toBe(false);
+        expect(document.activeElement).toBe(button(label));
+        await respond(answer(204));
+        expect(status()?.textContent).toBe(waiting);
+        expect(document.activeElement).toBe(card());
+        expect(focus).toHaveBeenLastCalledWith({ preventScroll: true });
+        render({ ...value, status: final });
+        expect(document.activeElement).toBe(card());
+        focus.mockRestore();
+      }
+    );
+
+    it('ignores a click on a busy button', async () => {
+      deferred();
+      render();
+      type('ghp_secret');
+
+      await pressKeyOn('Save');
+      await act(async () => button('Save')?.click());
+      await act(async () => button('Decline')?.click());
+
+      expect(env.send).toHaveBeenCalledTimes(1);
+    });
+
+    it('gives keyboard focus to the card when the agent edit comes before the response', async () => {
+      const respond = deferred();
+      const value = request();
+      render(value);
+      type('ghp_secret');
+      act(() => input()?.focus());
+      await pressEnter();
+
+      render({ ...value, status: 'saved' });
+      expect(document.activeElement).toBe(card());
+      await respond(answer(204));
+
+      expect(chip()).toBe('Saved');
+      expect(document.activeElement).toBe(card());
+    });
+
+    it('moves no focus after an answer by pointer', async () => {
+      env.send.mockResolvedValue(answer(204));
+      render();
+      type('ghp_secret');
+      // Safari leaves focus in the field when the pointer clicks Save.
+      act(() => input()?.focus());
+
+      await act(async () => {
+        button('Save')?.dispatchEvent(
+          new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })
+        );
+      });
+      await settle();
+
+      expect(env.send).toHaveBeenCalledTimes(1);
+      expect(status()?.textContent).toBe('Saved, waiting for the agent');
+      expect(document.activeElement).toBe(document.body);
+    });
+
+    it('leaves keyboard focus on Save after an error to retry from', async () => {
+      const respond = deferred();
+      render();
+      type('ghp_secret');
+
+      await pressKeyOn('Save');
+      await respond(answer(503));
+
+      expect(host.querySelector('[role="alert"]')?.textContent).toBe(
+        'The server ran into a problem. Try again later.'
+      );
+      expect(document.activeElement).toBe(button('Save'));
+      expect(button('Save')?.hasAttribute('aria-disabled')).toBe(false);
+    });
+
+    it('leaves focus where the person moved it during the request', async () => {
+      const respond = deferred();
+      const composer = document.createElement('textarea');
+      document.body.append(composer);
+      render();
+      type('ghp_secret');
+      await pressKeyOn('Save');
+
+      act(() => composer.focus());
+      await respond(answer(204));
+
+      expect(status()?.textContent).toBe('Saved, waiting for the agent');
+      expect(document.activeElement).toBe(composer);
+      composer.remove();
+    });
   });
 
   it('refuses a redirect, which would replay the key to another origin, and keeps the key', async () => {
