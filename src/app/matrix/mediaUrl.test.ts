@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createClient } from 'matrix-js-sdk';
 import { authenticatedMediaRequestInit, mxcUrlToHttp } from './mediaUrl';
 
@@ -152,6 +152,59 @@ describe('mxcUrlToHttp', () => {
 
     expect(mxcUrlToHttp(mx, 'mxc://server/id', true)).toBe(
       'https://attacker.example/_matrix/client/v1/media/download/server/id'
+    );
+  });
+
+  it("builds a URL without a token once per client: every row renders its avatar's", () => {
+    Object.defineProperty(globalThis, 'window', {
+      value: { location: { protocol: 'https:' } },
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'navigator', { value: {}, configurable: true });
+    const build = vi.fn(
+      (mxc: string, width?: number) =>
+        `https://mindroom.chat/_matrix/client/v1/media/thumbnail/${mxc.slice(6)}?width=${width}`
+    );
+    const mx = { getHomeserverUrl: () => 'https://mindroom.chat', mxcUrlToHttp: build } as any;
+
+    const url = 'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/cached?width=96';
+    expect(mxcUrlToHttp(mx, 'mxc://server/cached', true, 96, 96, 'crop')).toBe(url);
+    expect(mxcUrlToHttp(mx, 'mxc://server/cached', true, 96, 96, 'crop')).toBe(url);
+    expect(build).toHaveBeenCalledTimes(1);
+
+    expect(mxcUrlToHttp(mx, 'mxc://server/cached', true, 36, 36, 'crop')).toBe(
+      'https://mindroom.chat/_matrix/client/v1/media/thumbnail/server/cached?width=36'
+    );
+    expect(build).toHaveBeenCalledTimes(2);
+
+    const otherClient = {
+      getHomeserverUrl: () => 'https://mindroom.chat',
+      mxcUrlToHttp: () => 'https://mindroom.chat/_matrix/client/v1/media/download/server/cached',
+    } as any;
+    expect(mxcUrlToHttp(otherClient, 'mxc://server/cached', true, 96, 96, 'crop')).toBe(
+      'https://mindroom.chat/_matrix/client/v1/media/download/server/cached'
+    );
+  });
+
+  it('builds the URL that carries the token each time, so it has the current token', () => {
+    Object.defineProperty(globalThis, 'window', {
+      value: { location: { protocol: 'capacitor:' } },
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'navigator', { value: {}, configurable: true });
+    let token = 'first-token';
+    const mx = {
+      getHomeserverUrl: () => 'https://mindroom.chat',
+      getAccessToken: () => token,
+      mxcUrlToHttp: () => 'https://mindroom.chat/_matrix/client/v1/media/download/server/id',
+    } as any;
+
+    expect(mxcUrlToHttp(mx, 'mxc://server/id', true)).toBe(
+      'https://mindroom.chat/_matrix/client/v1/media/download/server/id?access_token=first-token'
+    );
+    token = 'second-token';
+    expect(mxcUrlToHttp(mx, 'mxc://server/id', true)).toBe(
+      'https://mindroom.chat/_matrix/client/v1/media/download/server/id?access_token=second-token'
     );
   });
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useMemo, useReducer } from 'react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Relations, RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
 import {
@@ -10,7 +10,10 @@ import {
   hasTerminalStreamMetadata,
 } from '../../matrix/protocol/aiRun';
 import { STOP_REACTION_KEYS } from '../../matrix/protocol/stopReaction';
-import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from '../../matrix/editEvent';
+import {
+  getShallowSerializedReplacementEvent,
+  isSameSenderEditEvent,
+} from '../../matrix/editEvent';
 import { getActiveAnnotationsByKey } from '../../matrix/protocol/reactionAnnotations';
 import { getEditedEvent, getEventReactions, getLatestMessageContent } from '../../matrix/room';
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../../matrix/thread';
@@ -165,10 +168,14 @@ export const useThreadStreamingState = (
   threadRootId: string | undefined
 ): boolean => {
   const thread = room && threadRootId ? room.getThread(threadRootId) ?? undefined : undefined;
-  const [snapshot, setSnapshot] = useState(() => getThreadStreamingSnapshot(room, threadRootId));
-  const refresh = useCallback(() => {
-    setSnapshot(getThreadStreamingSnapshot(room, threadRootId));
-  }, [room, threadRootId]);
+  // The check resolves every edit of the tail's replies, and the SDK sends a thread update for
+  // each event a page of older history adds: a refresh only marks the state stale, and the next
+  // render, which React takes once for a burst of marks, checks again.
+  const [checks, refresh] = useReducer((count: number) => count + 1, 0);
+  const snapshot = useMemo(() => {
+    void checks;
+    return getThreadStreamingSnapshot(room, threadRootId);
+  }, [checks, room, threadRootId]);
 
   useThreadEventRefresh(thread, snapshot.trackedEvents, refresh);
 
