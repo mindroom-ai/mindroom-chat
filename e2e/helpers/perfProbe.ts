@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import type { CDPSession, Locator, Page, Response } from '@playwright/test';
 
 /**
@@ -40,7 +40,7 @@ export type ProbeResult = {
   series: { t: number; heapMB: number; nodes: number }[];
   /** What the /sync answers of the window carried, over all joined rooms. */
   load: { seconds: number; frames: number; edits: number; jobs: number; syncs: number };
-  /** Event Timing: the slowest event of each interaction that took 16 ms or more. */
+  /** Event Timing: each press or key that took 16 ms or more, by its slowest event. */
   inputs: Stats;
   /** What this engine or page could not measure; such fields hold zeros or nothing. */
   notes: string[];
@@ -64,9 +64,10 @@ type PageProbe = {
   shifts: number[];
   begin: () => void;
 };
+type VisibleOutcome = { ms?: number; error?: string };
 type ProbeWindow = Window & {
   __perfProbe?: PageProbe;
-  __perfProbeVisible?: Promise<number>;
+  __perfProbeVisible?: { done: Promise<VisibleOutcome>; cancel: () => void };
   __perfProbeKeys?: { samples: number[]; listener: (event: KeyboardEvent) => void };
 };
 
@@ -175,11 +176,11 @@ const pageProbe = () => {
   });
   observe(
     'event',
-    (entry) =>
-      state.inputs.push({
-        interaction: (entry as PerformanceEntry & { interactionId?: number }).interactionId ?? 0,
-        ms: entry.duration,
-      }),
+    (entry) => {
+      // An entry without an interaction (a hover, a pointer move) is not a press or a key.
+      const interaction = (entry as PerformanceEntry & { interactionId?: number }).interactionId;
+      if (interaction) state.inputs.push({ interaction, ms: entry.duration });
+    },
     { durationThreshold: 16 }
   );
   observe('layout-shift', (entry) => {
@@ -260,15 +261,22 @@ const countSync = (body: unknown): { frames: number; edits: number; jobs: number
 
 /**
  * Starts a measurement window. `profile` records a CPU profile of it into `<label>.cpuprofile`
- * (Chromium only; it slows the page, so its numbers do not compare with an unprofiled window).
- * `sampleMs` (default 5000) is the time between the samples of `series`. A full page load inside
- * the window drops what the page had buffered until then.
+ * and `trace` a Chrome trace into `<label>.trace.json`, which scripts/perf/trace-summary.mjs
+ * reads (both Chromium only; either slows the page, so its numbers do not compare with a plain
+ * window). `sampleMs` (default 1000) is the time between the samples of `series`. A full page
+ * load inside the window drops what the page had buffered until then.
  */
 export const startProbe = async (
   page: Page,
-  options: { label: string; outDir: string; profile?: boolean; sampleMs?: number }
+  options: {
+    label: string;
+    outDir: string;
+    profile?: boolean;
+    trace?: boolean;
+    sampleMs?: number;
+  }
 ): Promise<Probe> => {
-  const { label, outDir, profile = false, sampleMs = 5000 } = options;
+  const { label, outDir, profile = false, trace = false, sampleMs = 1000 } = options;
   const notes: string[] = [];
 
   // Only Chromium has a developer tools session; without one the Chrome numbers stay empty.
@@ -280,7 +288,7 @@ export const startProbe = async (
     notes.push(
       `no CDP session in this engine: metrics are zeros, series is empty${
         profile ? ', no CPU profile' : ''
-      }`
+      }${trace ? ', no trace' : ''}`
     );
   }
 
@@ -304,70 +312,84 @@ export const startProbe = async (
     parsing.add(parsed);
   };
 
-  const installed = await page.evaluate(() => {
-    const probe = (window as unknown as ProbeWindow).__perfProbe;
-    probe?.begin();
-    return probe !== undefined;
-  });
-  if (!installed) throw new Error('startProbe: call installProbe(page) before the page loads');
-
   const series: ProbeResult['series'] = [];
-  let before: Metrics | undefined;
+  let startedAt = 0;
   let timer: NodeJS.Timeout | undefined;
-  const startedAt = Date.now();
-  if (session) {
-    await session.send('Performance.enable');
-    const sample = async () => {
-      const now = await readMetrics(session);
-      series.push({
-        t: round((Date.now() - startedAt) / 1000),
-        heapMB: round(now.heapMB),
-        nodes: now.nodes,
-      });
-      return now;
-    };
-    before = await sample();
-    timer = setInterval(() => {
-      // A sample that fails (the page is closing) is left out.
-      sample().catch(() => undefined);
-    }, sampleMs);
-    if (profile) {
-      await session.send('Profiler.enable');
-      await session.send('Profiler.setSamplingInterval', { interval: 200 });
-      await session.send('Profiler.start');
-    }
-  }
-  page.on('response', onResponse);
-
-  const stop = async (extra: Record<string, unknown> = {}): Promise<ProbeResult> => {
-    const wallMs = Date.now() - startedAt;
+  let profiling = false;
+  let tracing = false;
+  let attached = session !== undefined;
+  const sample = async (from: CDPSession) => {
+    const now = await readMetrics(from);
+    series.push({
+      t: round((Date.now() - startedAt) / 1000),
+      heapMB: round(now.heapMB),
+      nodes: now.nodes,
+    });
+    return now;
+  };
+  /** Lets go of whatever is still held, after a normal end or a failure; never throws. */
+  const release = async () => {
     clearInterval(timer);
-    mkdirSync(outDir, { recursive: true });
-    if (session && profile) {
-      const { profile: cpuProfile } = await session.send('Profiler.stop');
-      writeFileSync(`${outDir}/${label}.cpuprofile`, JSON.stringify(cpuProfile));
-    }
     page.off('response', onResponse);
-    await Promise.all(parsing);
+    if (!session || !attached) return;
+    if (profiling) await session.send('Profiler.stop').catch(() => undefined);
+    if (tracing) await session.send('Tracing.end').catch(() => undefined);
+    profiling = false;
+    tracing = false;
+    attached = false;
+    await session.detach().catch(() => undefined);
+  };
 
-    const metrics = { taskMs: 0, scriptMs: 0, layoutMs: 0, styleMs: 0 };
-    const counted = { layoutCount: 0, styleCount: 0 };
-    if (session && before) {
-      const after = await readMetrics(session);
-      series.push({
-        t: round(wallMs / 1000),
-        heapMB: round(after.heapMB),
-        nodes: after.nodes,
-      });
-      metrics.taskMs = round(after.taskMs - before.taskMs);
-      metrics.scriptMs = round(after.scriptMs - before.scriptMs);
-      metrics.layoutMs = round(after.layoutMs - before.layoutMs);
-      metrics.styleMs = round(after.styleMs - before.styleMs);
-      counted.layoutCount = after.layoutCount - before.layoutCount;
-      counted.styleCount = after.styleCount - before.styleCount;
-      await session.detach();
+  let before: Metrics | undefined;
+  try {
+    const installed = await page.evaluate(
+      () => (window as unknown as ProbeWindow).__perfProbe !== undefined
+    );
+    if (!installed) throw new Error('startProbe: call installProbe(page) before the page loads');
+    if (session) {
+      await session.send('Performance.enable');
+      if (trace) {
+        await session.send('Tracing.start', {
+          transferMode: 'ReturnAsStream',
+          traceConfig: {
+            includedCategories: [
+              'devtools.timeline',
+              'disabled-by-default-devtools.timeline',
+              'v8.execute',
+              'blink',
+            ],
+          },
+        });
+        tracing = true;
+      }
+      if (profile) {
+        await session.send('Profiler.enable');
+        await session.send('Profiler.setSamplingInterval', { interval: 200 });
+        await session.send('Profiler.start');
+        profiling = true;
+      }
     }
+    // The window opens here, in the reverse of the order in which `stop` closes it.
+    startedAt = Date.now();
+    page.on('response', onResponse);
+    await page.evaluate(() => (window as unknown as ProbeWindow).__perfProbe?.begin());
+    if (session) {
+      before = await sample(session);
+      timer = setInterval(() => {
+        // A sample that fails (the page is closing) is left out.
+        sample(session).catch(() => undefined);
+      }, sampleMs);
+    }
+  } catch (error) {
+    await release();
+    throw error;
+  }
 
+  const finish = async (extra: Record<string, unknown>): Promise<ProbeResult> => {
+    // The window closes first, before anything slow: Chrome's totals, the page's buffers, the
+    // load counter and the clock, so every number of the result covers the same time.
+    clearInterval(timer);
+    const after = session ? await sample(session) : undefined;
     const seen = await page.evaluate(() => {
       const probe = (window as unknown as ProbeWindow).__perfProbe;
       if (!probe) return undefined;
@@ -376,6 +398,49 @@ export const startProbe = async (
       probe.recording = false;
       return { recording, hooked, supported, frames, commits, longTasks, loaf, inputs, shifts };
     });
+    page.off('response', onResponse);
+    const wallMs = Date.now() - startedAt;
+
+    // Answers that arrived inside the window may still be parsing.
+    await Promise.all(parsing);
+    mkdirSync(outDir, { recursive: true });
+    if (session && profiling) {
+      const { profile: cpuProfile } = await session.send('Profiler.stop');
+      profiling = false;
+      writeFileSync(`${outDir}/${label}.cpuprofile`, JSON.stringify(cpuProfile));
+    }
+    if (session && tracing) {
+      const complete = new Promise<{ stream?: string }>((resolve) => {
+        session.once('Tracing.tracingComplete', resolve);
+      });
+      await session.send('Tracing.end');
+      tracing = false;
+      const { stream } = await complete;
+      const file = `${outDir}/${label}.trace.json`;
+      writeFileSync(file, '');
+      if (stream === undefined) {
+        notes.push('the trace came without a stream: the trace file is empty');
+      } else {
+        for (;;) {
+          const chunk = await session.send('IO.read', { handle: stream });
+          appendFileSync(file, chunk.data, chunk.base64Encoded ? 'base64' : 'utf8');
+          if (chunk.eof) break;
+        }
+        await session.send('IO.close', { handle: stream });
+      }
+    }
+
+    const metrics = { taskMs: 0, scriptMs: 0, layoutMs: 0, styleMs: 0 };
+    const counted = { layoutCount: 0, styleCount: 0 };
+    if (after && before) {
+      metrics.taskMs = round(after.taskMs - before.taskMs);
+      metrics.scriptMs = round(after.scriptMs - before.scriptMs);
+      metrics.layoutMs = round(after.layoutMs - before.layoutMs);
+      metrics.styleMs = round(after.styleMs - before.styleMs);
+      counted.layoutCount = after.layoutCount - before.layoutCount;
+      counted.styleCount = after.styleCount - before.styleCount;
+    }
+
     if (!seen?.recording) {
       notes.push('the page loaded again inside the window: its page-side counts were lost');
     }
@@ -411,13 +476,12 @@ export const startProbe = async (
         sources.set(script.source, (sources.get(script.source) ?? 0) + script.ms)
       )
     );
-    // Event Timing reports several events of one interaction (keydown, keypress, keyup).
+    // Event Timing reports several events of one press (pointerdown, pointerup, click; keydown,
+    // keypress, keyup) under one interaction: the longest of them stands for the press.
     const interactions = new Map<number, number>();
-    const loose: number[] = [];
-    buffered.inputs.forEach(({ interaction, ms }) => {
-      if (interaction === 0) loose.push(ms);
-      else interactions.set(interaction, Math.max(interactions.get(interaction) ?? 0, ms));
-    });
+    buffered.inputs.forEach(({ interaction, ms }) =>
+      interactions.set(interaction, Math.max(interactions.get(interaction) ?? 0, ms))
+    );
     const loafMs = buffered.loaf.map((frame) => frame.ms);
 
     const result: ProbeResult = {
@@ -450,7 +514,7 @@ export const startProbe = async (
       },
       series,
       load: { seconds: round(wallMs / 1000), ...load },
-      inputs: stats([...interactions.values(), ...loose]),
+      inputs: stats([...interactions.values()]),
       notes,
     };
     writeFileSync(
@@ -459,13 +523,23 @@ export const startProbe = async (
     );
     return result;
   };
+  const stop = async (extra: Record<string, unknown> = {}): Promise<ProbeResult> => {
+    try {
+      return await finish(extra);
+    } finally {
+      // Also after a failure (a closed page): the profiler and the trace end, the session goes.
+      await release();
+    }
+  };
   return { stop };
 };
 
 /**
  * Milliseconds from the input event of `act` (its first press or key) to the first animation
- * frame in which an element matching `selector` is laid out and in the viewport. `act` must not
- * load the page again.
+ * frame in which an element matching `selector` is laid out and in the viewport, read when that
+ * frame's callbacks run, so the work the input started counts. `act` must not load the page
+ * again. Fails when `act` makes no press or key within 60 s, or the element is not visible 60 s
+ * after it.
  */
 export const timeToVisible = async (
   page: Page,
@@ -482,37 +556,71 @@ export const timeToVisible = async (
         ? element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
         : true;
     };
-    (window as unknown as ProbeWindow).__perfProbeVisible = new Promise<number>(
-      (resolve, reject) => {
-        const start = (event: Event) => {
-          document.removeEventListener('pointerdown', start, true);
-          document.removeEventListener('keydown', start, true);
-          // The event's own time, which counts the wait behind a busy main thread. WebKit stamps
-          // synthesized pointer events from another clock; there the handler's time stands in.
-          const now = performance.now();
-          const age = now - event.timeStamp;
-          const startedAt = age >= 0 && age < 60_000 ? event.timeStamp : now;
-          const tick = (frame: number) => {
-            if (Array.from(document.querySelectorAll(watched)).some(visible)) {
-              resolve(frame - startedAt);
-            } else if (frame - startedAt > 60_000) {
-              reject(new Error(`timeToVisible: ${watched} was not visible within 60 s`));
-            } else {
-              requestAnimationFrame(tick);
-            }
-          };
+    let settle: (outcome: VisibleOutcome) => void = () => {};
+    let cancelled = false;
+    const start = (event: Event) => {
+      unlisten();
+      // The event's own time, which counts the wait behind a busy main thread. WebKit stamps
+      // synthesized pointer events from another clock; there the handler's time stands in.
+      const now = performance.now();
+      const age = now - event.timeStamp;
+      const startedAt = age >= 0 && age < 60_000 ? event.timeStamp : now;
+      const tick = () => {
+        if (cancelled) return;
+        // Not the frame time given to the callback: that is when the frame began, before the
+        // work that ran ahead of this callback.
+        const elapsed = performance.now() - startedAt;
+        if (Array.from(document.querySelectorAll(watched)).some(visible)) {
+          settle({ ms: elapsed });
+        } else if (elapsed > 60_000) {
+          settle({ error: `timeToVisible: ${watched} was not visible within 60 s` });
+        } else {
           requestAnimationFrame(tick);
-        };
-        // The press, not the click: some controls act on their press.
-        document.addEventListener('pointerdown', start, true);
-        document.addEventListener('keydown', start, true);
-      }
-    );
+        }
+      };
+      requestAnimationFrame(tick);
+    };
+    const unlisten = () => {
+      clearTimeout(noInput);
+      document.removeEventListener('pointerdown', start, true);
+      document.removeEventListener('keydown', start, true);
+    };
+    const noInput = setTimeout(() => {
+      unlisten();
+      settle({ error: `timeToVisible: no press or key within 60 s (waiting for ${watched})` });
+    }, 60_000);
+    // The press, not the click: some controls act on their press.
+    document.addEventListener('pointerdown', start, true);
+    document.addEventListener('keydown', start, true);
+    (window as unknown as ProbeWindow).__perfProbeVisible = {
+      // Settles with the error rather than rejecting: nothing may be waiting for it yet.
+      done: new Promise<VisibleOutcome>((resolve) => {
+        settle = resolve;
+      }),
+      cancel: () => {
+        cancelled = true;
+        unlisten();
+      },
+    };
   }, selector);
-  await act();
-  const ms = await page.evaluate(() => (window as unknown as ProbeWindow).__perfProbeVisible);
-  if (ms === undefined) throw new Error('timeToVisible: the page loaded again during the act');
-  return round(ms);
+  try {
+    await act();
+    const outcome = await page.evaluate(
+      () => (window as unknown as ProbeWindow).__perfProbeVisible?.done
+    );
+    if (!outcome) throw new Error('timeToVisible: the page loaded again during the act');
+    if (outcome.ms === undefined) throw new Error(outcome.error);
+    return round(outcome.ms);
+  } finally {
+    // Also when `act` threw: no listener or frame loop stays behind.
+    await page
+      .evaluate(() => {
+        const target = window as unknown as ProbeWindow;
+        target.__perfProbeVisible?.cancel();
+        delete target.__perfProbeVisible;
+      })
+      .catch(() => undefined);
+  }
 };
 
 /**
@@ -535,23 +643,30 @@ export const typeWithLatency = async (page: Page, target: Locator, ms: number): 
     document.addEventListener('keydown', listener, true);
     (window as unknown as ProbeWindow).__perfProbeKeys = { samples, listener };
   });
-  const end = Date.now() + ms;
-  do {
-    await page.keyboard.type('load test typing probe ', { delay: 60 });
-    await page.keyboard.press('ControlOrMeta+A');
-    await page.keyboard.press('Backspace');
-  } while (Date.now() < end);
-  const samples = await page.evaluate(async () => {
-    const target_ = window as unknown as ProbeWindow;
-    const keys = target_.__perfProbeKeys;
-    if (!keys) return [];
-    document.removeEventListener('keydown', keys.listener, true);
+  try {
+    const end = Date.now() + ms;
+    do {
+      await page.keyboard.type('load test typing probe ', { delay: 60 });
+      await page.keyboard.press('ControlOrMeta+A');
+      await page.keyboard.press('Backspace');
+    } while (Date.now() < end);
     // The last key's sample lands in the task after the next frame.
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => setTimeout(resolve, 0));
-    });
-    delete target_.__perfProbeKeys;
-    return keys.samples;
-  });
-  return stats(samples);
+    const samples = await page.evaluate(
+      () =>
+        new Promise<number[]>((resolve) => {
+          const keys = (window as unknown as ProbeWindow).__perfProbeKeys;
+          requestAnimationFrame(() => setTimeout(() => resolve(keys?.samples ?? []), 0));
+        })
+    );
+    return stats(samples);
+  } finally {
+    await page
+      .evaluate(() => {
+        const target_ = window as unknown as ProbeWindow;
+        const keys = target_.__perfProbeKeys;
+        if (keys) document.removeEventListener('keydown', keys.listener, true);
+        delete target_.__perfProbeKeys;
+      })
+      .catch(() => undefined);
+  }
 };
