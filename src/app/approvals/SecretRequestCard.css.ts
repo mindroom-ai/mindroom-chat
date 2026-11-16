@@ -20,8 +20,15 @@ export const Reason = style({ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }
 export const Masked = style({});
 globalStyle(`${Masked} input`, { WebkitTextSecurity: 'disc' } as unknown as GlobalStyleRule);
 
-/** The button to the page that gives the secret: as wide as its text, never wider than the card. */
-export const Link = style({ alignSelf: 'flex-start', maxInlineSize: '100%' });
+/**
+ * The button to the page that gives the secret: as wide as its text, never wider than the card,
+ * and a button to the eye, so without a link's underline.
+ */
+export const Link = style({
+  alignSelf: 'flex-start',
+  maxInlineSize: '100%',
+  textDecoration: 'none',
+});
 
 /** The requester's choice, field and buttons, which lie in the card as if no element held them. */
 export const Answer = style({ display: 'contents' });
