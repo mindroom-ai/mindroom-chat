@@ -16,6 +16,7 @@ import {
   crossRoomThreadIndexAtom,
   crossRoomThreadIndexBootstrappedAtom,
 } from '../cross-room/crossRoomThreadIndex';
+import { isCrossRoomThreadEntryEligible } from '../cross-room/crossRoomThreadOrder';
 import {
   loadRoomThreads,
   roomThreadListIsComplete,
@@ -57,13 +58,16 @@ function BoardColumn({ room, column, rootIds, records, onThreadClick }: ColumnPr
         <span>{t(`threadBoard.${column}`)}</span>{' '}
         <span className={css.Count}>{localDigits(String(rootIds.length), i18n.language)}</span>
       </Text>
-      <CompactRoomView
-        room={room}
-        threadRootIds={shown}
-        threadRecordMap={records}
-        onThreadClick={onThreadClick}
-        compactRoomScrollStateRef={scrollMemory}
-      />
+      {/* An empty column is its header with 0: the Compact view's "No threads" would say it knows. */}
+      {rootIds.length > 0 && (
+        <CompactRoomView
+          room={room}
+          threadRootIds={shown}
+          threadRecordMap={records}
+          onThreadClick={onThreadClick}
+          compactRoomScrollStateRef={scrollMemory}
+        />
+      )}
       {shown.length < rootIds.length && (
         <Button
           size="300"
@@ -84,8 +88,9 @@ const sameRecords = (a: ReadonlyMap<string, ThreadRecord>, b: ReadonlyMap<string
   a.size === b.size && Array.from(a).every(([rootId, record]) => b.get(rootId) === record);
 
 /**
- * The room's threads as the app-wide thread index holds them, by root ID: the same map until one
- * of them changes, so a change in another room renders nothing here.
+ * The room's threads as the app-wide thread index holds them, by root ID, those the Threads page
+ * lists (a reply, or one of the user's on its way): the same map until one of them changes, so a
+ * change in another room renders nothing here.
  */
 const useRoomThreadRecords = (roomId: string): ReadonlyMap<string, ThreadRecord> =>
   useAtomValue(
@@ -96,7 +101,9 @@ const useRoomThreadRecords = (roomId: string): ReadonlyMap<string, ThreadRecord>
           ({ entries }): ReadonlyMap<string, ThreadRecord> => {
             const records = new Map<string, ThreadRecord>();
             entries.forEach((entry) => {
-              if (entry.roomId === roomId) records.set(entry.threadRootId, entry.threadRecord);
+              if (entry.roomId === roomId && isCrossRoomThreadEntryEligible(entry)) {
+                records.set(entry.threadRootId, entry.threadRecord);
+              }
             });
             return records;
           },

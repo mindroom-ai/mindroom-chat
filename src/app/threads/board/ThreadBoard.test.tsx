@@ -156,10 +156,21 @@ describe('ThreadBoard', () => {
     expect(cardsOf('Done')).toEqual(['$done-1', '$done-2']);
   });
 
+  it('leaves out a thread without a reply, as the Threads page does, until one of its own is sending', () => {
+    renderBoard([
+      ['$replied', {}],
+      ['$no-reply', { replyCount: 0 }],
+      ['$sending', { replyCount: 0, hasPendingSend: true }],
+    ]);
+    expect(cardsOf('Open')).toEqual(['$replied', '$sending']);
+    expect(screen.getByRole('heading', { name: 'Open 2' })).toBeTruthy();
+  });
+
   it('keeps an empty column with 0', () => {
     renderBoard([['$open', {}]]);
     expect(screen.getByRole('heading', { name: 'Working 0' })).toBeTruthy();
-    expect(cardsOf('Working')).toEqual([]);
+    // No list under it, so no Compact "No threads" while the board may still be loading.
+    expect(within(column('Working')).queryByRole('list')).toBeNull();
   });
 
   it('shows the first 20 of Open and Done, and 20 more for each Show more', () => {
