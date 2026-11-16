@@ -53,9 +53,14 @@ const forkChips = async (renderer: ReturnType<typeof create>) => {
   return renderer.root.findAllByType(Message).flatMap(({ props }) => {
     const chips = (props.reactions?.props.children as unknown[] | undefined)?.filter(
       (child): child is { type: unknown; props: Record<string, unknown> } =>
-        typeof child === 'object' && child !== null && (child as { type?: unknown }).type === ThreadForksChip
+        typeof child === 'object' &&
+        child !== null &&
+        (child as { type?: unknown }).type === ThreadForksChip
     );
-    return (chips ?? []).map((chip) => ({ eventId: props.mEvent.getId() as string, props: chip.props }));
+    return (chips ?? []).map((chip) => ({
+      eventId: props.mEvent.getId() as string,
+      props: chip.props,
+    }));
   });
 };
 
