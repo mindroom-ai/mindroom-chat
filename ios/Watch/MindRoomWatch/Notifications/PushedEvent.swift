@@ -61,8 +61,8 @@ enum PushedEvent {
             }
             .max { ($0["origin_server_ts"] as? Int ?? 0) < ($1["origin_server_ts"] as? Int ?? 0) }
         let content = (latestEdit?["content"] as? [String: Any])?["m.new_content"] as? [String: Any] ?? event["content"] as? [String: Any] ?? [:]
-        // An audio message's body is its file's name.
-        let text = content["msgtype"] as? String == "m.audio" ? String(localized: "Voice message")
+        let text = content["msgtype"] as? String == "m.audio"
+            ? AudioCaption.of(content) ?? String(localized: "Voice message")
             : PlainText.of(markdown: content["body"] as? String ?? "")
         return .message(sender: sender ?? "", text: text, roomId: roomId, threadId: rootId)
     }

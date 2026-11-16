@@ -55,10 +55,11 @@ final class RoomModel: ObservableObject {
     private var threadRows: [ThreadRow] = []
     private var threadRoots: [String] = []
     /// Whether a refresh has run to its end, online or not: until then nothing says which of the person's older
-    /// messages have a thread or are marked done.
+    /// messages are marked done.
     private var refreshed = false
-    /// When this model started, in the timeline's milliseconds, less what the server's clock may be behind.
-    private let startedAt = Int(Date().timeIntervalSince1970 * 1000) - 10_000
+    /// The event ids of the messages this watch sent since the model started. Their rows show before the first
+    /// refresh, and stay when they are answered until the thread list has their thread.
+    private var sentHere: Set<String> = []
     private let client: Client
     private let session: Session?
 
@@ -213,9 +214,12 @@ final class RoomModel: ObservableObject {
     /// The rows without a read of the server, which takes several requests: the threads as last read, and the
     /// person's own messages as the room's timeline has them now, so one just recorded shows at once.
     private func showLocalRows() {
+        for item in feed.events {
+            if case let .sent(eventId) = item.localSendState { sentHere.insert(eventId) }
+        }
         var own = ownRoots(notIn: Set(threadRoots).union(resolved))
-        // Before the first refresh, only what is still to send and what was sent since the app opened the room.
-        if !refreshed { own.removeAll { $0.rootId != nil && $0.rootTs < startedAt } }
+        // Before the first refresh, only what is still to send and what this watch sent.
+        if !refreshed { own.removeAll { row in row.rootId.map { !sentHere.contains($0) } ?? false } }
         let rows = (threadRows + own).sorted { $0.ts > $1.ts }
         if rows != self.rows { self.rows = rows }
     }
@@ -233,9 +237,8 @@ final class RoomModel: ObservableObject {
                          rootTs: snapshot.rootTs, voiceFile: snapshot.voiceFile)
     }
 
-    /// The user's own messages in the room that are not among the given threads: a voice message just sent,
-    /// still sending, or failed, and one that was answered since the thread list was read (its row stays
-    /// until the list has its thread).
+    /// The user's own messages in the room that no thread holds yet: a voice message just sent, still sending,
+    /// or failed. One this watch sent keeps its row when it is answered, until `roots` has its thread.
     private func ownRoots(notIn roots: Set<String>) -> [ThreadRow] {
         let events = feed.events
         return events.enumerated().compactMap { index, item -> ThreadRow? in
@@ -247,6 +250,7 @@ final class RoomModel: ObservableObject {
             case let .eventId(eventId): id = eventId; rootId = eventId
             case let .transactionId(transactionId): id = transactionId
             }
+            if content.threadSummary != nil, !(rootId.map(sentHere.contains) ?? false) { return nil }
             // A sent message counts among the newest 20 events. One still to send always shows, with its
             // Delete: a message the server refused holds up every message queued behind it.
             if let rootId, roots.contains(rootId) || index < events.count - 20 { return nil }

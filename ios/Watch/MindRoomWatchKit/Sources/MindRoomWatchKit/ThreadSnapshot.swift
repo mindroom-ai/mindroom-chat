@@ -127,10 +127,8 @@ public struct ThreadSnapshot: Equatable, Sendable {
             let sender = event["sender"] as? String ?? ""
             let content = effectiveContent(event, latestEdit: edit(event))
             var plain = PlainText.withToolCount(content["body"] as? String ?? "")
-            // An audio message's body is its file's name, unless it has a caption (a `filename` beside it).
             if event.content["msgtype"] as? String == "m.audio" {
-                let caption = (content["filename"] as? String).map { $0 != content["body"] as? String } ?? false
-                plain = (transcripts[id] ?? (caption ? plain.text : ""), 0)
+                plain = (transcripts[id] ?? AudioCaption.of(content) ?? "", 0)
             }
             return Message(eventId: id, sender: sender, isOwn: sender == ownUserId, text: plain.text,
                            audio: event.content["msgtype"] as? String == "m.audio" ? mediaSource(event.content) : nil,

@@ -229,6 +229,8 @@ def main() -> int:
             # The agent's reply, not the router's relay of the message to it.
             reply = wait(lambda: next((e["event_id"] for e in thread_of(root) if e["sender"] != me
                                        and "com.mindroom.original_sender" not in e["content"]), None), 30)
+            if not reply:
+                raise RuntimeError("no agent reply in the message's thread")
             speaker, token = server.register(f"watch-e2e-voice-{secrets.token_hex(4)}")
             room = urllib.parse.quote(args.room)
             # The room may be invite-only: an invite that is not needed, or not allowed, changes nothing.
@@ -238,12 +240,12 @@ def main() -> int:
                 raise RuntimeError(f"the second account could not join the room: {status} {body}")
             audio = Path(__file__).with_name("voice-answer.opus").read_bytes()
             details = {"duration": 1500, "waveform": [200, 600, 900, 600, 200]}
-            spoken.update(root=root, reply=reply or "", voice=server.send(args.room, {
+            spoken.update(root=root, reply=reply, voice=server.send(args.room, {
                 "msgtype": "m.audio", "body": "voice-message.opus", "url": server.upload(audio, "audio/ogg", token),
                 "info": {"mimetype": "audio/ogg", "size": len(audio), "duration": 1500},
                 "org.matrix.msc3245.voice": {}, "org.matrix.msc1767.audio": details,
                 "m.relates_to": {"rel_type": "m.thread", "event_id": root, "is_falling_back": True,
-                                 "m.in_reply_to": {"event_id": reply or root}}}, token))
+                                 "m.in_reply_to": {"event_id": reply}}}, token))
         except (RuntimeError, urllib.error.URLError) as error:
             spoken["problem"] = str(error)
 
@@ -253,7 +255,7 @@ def main() -> int:
         root, voice = spoken["root"], spoken["voice"]
         lines = log.splitlines()
         threads = [line.split(f"thread {root} ")[-1].strip().split(",") for line in lines if f"thread {root} " in line]
-        expected = [root, *([spoken["reply"]] if spoken["reply"] else []), voice]
+        expected = [root, spoken["reply"], voice]
         if not threads or [event for event in threads[-1] if event in expected] != expected:
             return f"the thread on the watch is {threads[-1] if threads else 'not read'}, without {expected} in order"
         if "sound failed" in log or f"sound {voice}" not in log:
