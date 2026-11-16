@@ -122,7 +122,6 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
         createPreferLiveEventMapper(room, mx.getEventMapper())
       );
       const saveRoot = (threadId: string, rootEvent: MatrixEvent) => {
-        if (signal.aborted) return;
         // Later pages can update the same SDK object, including its edits.
         const revision = getRootRevision(room, rootEvent);
         if (saved.get(threadId) === revision) return;
@@ -141,7 +140,8 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
         persist.persistThreadEventCache(threadId, replies, rootEvent);
       };
       // A page checks the roots this load has not checked yet, not every listed root again; once a
-      // list of several pages ends, every root is checked once more for changes made meanwhile.
+      // list of several pages ends or is left, every root is checked once more for changes made
+      // meanwhile, such as a root a later page listed again.
       const checked = new Set<string>();
       let pages = 0;
       const saveRoots = (all: boolean) =>
@@ -160,6 +160,12 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
             console.warn('[threadList] saving a decrypted root failed:', err);
           });
         });
+      const checkAll = () => {
+        signal.removeEventListener('abort', checkAll);
+        if (pages > 1) saveRoots(true);
+        pages = 0;
+      };
+      signal.addEventListener('abort', checkAll);
       return loadRoomThreads(
         room,
         () => {
@@ -169,9 +175,7 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
           handleThreadListProgress();
         },
         signal
-      ).finally(() => {
-        if (pages > 1) saveRoots(true);
-      });
+      ).finally(checkAll);
     },
     [engine.persist, handleThreadListProgress, mx, room]
   );

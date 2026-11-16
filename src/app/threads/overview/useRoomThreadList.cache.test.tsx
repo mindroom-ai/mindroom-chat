@@ -297,6 +297,95 @@ it.each([undefined, 'edit', 'redaction', 'decryption'] as const)(
   }
 );
 
+it('saves a root that changed before a later page when the overview closes before the list ends', async () => {
+  class Client extends MatrixClient {
+    constructor() {
+      super({ baseUrl: 'https://example.org', userId });
+      this.clientOpts = { threadSupport: true };
+      this.threadSupportPending = Promise.resolve();
+    }
+  }
+  const mx = new Client();
+  const room = new Room(roomId, mx, userId, { timelineSupport: true });
+  mx.store.storeRoom(room);
+  const engine = createSyncEngine({ mx });
+  sessionId = engine.sessionId;
+  const persist = engine.persist.forRoom(room);
+  const saveRoot = vi.spyOn(persist, 'persistThreadEventCache');
+  vi.spyOn(engine.persist, 'forRoom').mockReturnValue(persist);
+  const root = new MatrixEvent({
+    event_id: '$listed',
+    room_id: roomId,
+    sender: userId,
+    origin_server_ts: 1000,
+    type: 'm.room.message',
+    content: { msgtype: 'm.text', body: 'Cached title' },
+  });
+  Thread.hasServerSideListSupport = FeatureSupport.Stable;
+  const list = room.getUnfilteredTimelineSet();
+  room.threadsTimelineSets[0] = list;
+  room.threadsTimelineSets[1] = list;
+  list.getLiveTimeline().setPaginationToken('older-roots', Direction.Backward);
+  let finishLastPage!: (more: boolean) => void;
+  let pages = 0;
+  vi.spyOn(mx, 'paginateEventTimeline').mockImplementation(async () => {
+    pages += 1;
+    if (pages > 1) return new Promise<boolean>((resolve) => (finishLastPage = resolve));
+    await vi.waitFor(() => expect(saveRoot).toHaveBeenCalledTimes(1));
+    // This page lists the root with a newer title.
+    root.makeReplaced(
+      new MatrixEvent({
+        event_id: '$edit',
+        room_id: roomId,
+        sender: userId,
+        origin_server_ts: 2000,
+        type: 'm.room.message',
+        content: {
+          msgtype: 'm.text',
+          body: '* Listed title',
+          'm.new_content': { msgtype: 'm.text', body: 'Listed title' },
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$listed' },
+        },
+      })
+    );
+    list.getLiveTimeline().setPaginationToken('older-page', Direction.Backward);
+    return true;
+  });
+  vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
+    room.processThreadRoots([root], false);
+  });
+  function Harness() {
+    useRoomThreadList(room);
+    return null;
+  }
+  await act(async () => {
+    renderer = create(
+      <MatrixClientProvider value={mx}>
+        <SyncEngineProvider engine={engine}>
+          <Harness />
+        </SyncEngineProvider>
+      </MatrixClientProvider>
+    );
+    await vi.waitFor(() => expect(pages).toBe(2));
+  });
+  // The reader leaves the room while its list still loads.
+  await act(async () => renderer?.unmount());
+  renderer = undefined;
+  expect(saveRoot).toHaveBeenCalledTimes(2);
+  await vi.waitFor(async () => {
+    const cached = await loadLatestCachedThreadEvents(sessionId, roomId, '$listed', 1);
+    expect(JSON.stringify(cached.rootEvent)).toContain('Listed title');
+  });
+  // The list's end, after the reader left, checks no root again.
+  const revised = revisedRoots.length;
+  await act(async () => {
+    finishLastPage(false);
+    // The load settles within the microtasks before the next task.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(revisedRoots).toHaveLength(revised);
+});
+
 it('checks each listed root once per page load, not once per page', async () => {
   class Client extends MatrixClient {
     constructor() {
