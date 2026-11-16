@@ -2,7 +2,16 @@
   "name": "real-work-50",
   "quietRooms": 200,
   "quietMessages": 10,
-  "threads": 50,
+  "threads": 520,
+  "resolvedThreads": 470,
+  "heavy": {
+    "threads": 12,
+    "turns": {
+      "p50": 10,
+      "p90": 44,
+      "max": 54
+    }
+  },
   "turns": {
     "p50": 2,
     "p90": 4,
@@ -29,6 +38,11 @@
       "p50": 10,
       "p90": 60,
       "max": 120
+    },
+    "links": {
+      "p50": 0,
+      "p90": 0,
+      "max": 1
     }
   },
   "live": {
