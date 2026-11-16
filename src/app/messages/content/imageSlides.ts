@@ -31,17 +31,19 @@ export const ImageSlidesContext = createContext<(() => readonly ImageSlide[]) | 
 /**
  * The pictures among `events`, in their order, as the timeline shows them (`getContent` gives a
  * row's shown content, its newest edit's). Left out: stickers, redacted and undecrypted events,
- * spoilers, rows `isHidden` hides, and images the timeline shows as a file row.
+ * spoilers, rows `isHidden` hides, images of senders the reader ignores, and images the timeline
+ * shows as a file row.
  */
 export const buildImageSlides = (
   events: readonly MatrixEvent[],
   getContent: (event: MatrixEvent) => Record<string, unknown>,
-  isHidden: (event: MatrixEvent) => boolean
+  isHidden: (event: MatrixEvent) => boolean,
+  ignoredUserIds: ReadonlySet<string>
 ): ImageSlide[] =>
   events.flatMap((event): ImageSlide[] => {
     const eventId = event.getId();
     if (!eventId || event.getType() !== 'm.room.message' || event.isRedacted()) return [];
-    if (event.isDecryptionFailure()) return [];
+    if (event.isDecryptionFailure() || ignoredUserIds.has(event.getSender() ?? '')) return [];
     const content = getContent(event);
     if (content.msgtype !== MsgType.Image || content[MEDIA_SPOILER_PROPERTY] === true) return [];
     const image = readImageAttachment(content);

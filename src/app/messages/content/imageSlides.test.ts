@@ -27,16 +27,23 @@ const image = (name: string, info: Content = { mimetype: 'image/png' }): Content
 
 const ownContent = (mEvent: MatrixEvent) => mEvent.getContent();
 const nothingHidden = () => false;
+const nobodyIgnored: ReadonlySet<string> = new Set();
 
 const ids = (
   events: MatrixEvent[],
   getContent = ownContent,
-  isHidden: (mEvent: MatrixEvent) => boolean = nothingHidden
-) => buildImageSlides(events, getContent, isHidden).map((slide) => slide.eventId);
+  isHidden: (mEvent: MatrixEvent) => boolean = nothingHidden,
+  ignoredUserIds = nobodyIgnored
+) => buildImageSlides(events, getContent, isHidden, ignoredUserIds).map((slide) => slide.eventId);
 
 describe('buildImageSlides', () => {
   it('turns a plain image into a slide with its name, file, type, info and owner', () => {
-    const [slide] = buildImageSlides([event('$a', image('a.png'))], ownContent, nothingHidden);
+    const [slide] = buildImageSlides(
+      [event('$a', image('a.png'))],
+      ownContent,
+      nothingHidden,
+      nobodyIgnored
+    );
 
     expect(slide).toEqual({
       eventId: '$a',
@@ -67,7 +74,8 @@ describe('buildImageSlides', () => {
         }),
       ],
       ownContent,
-      nothingHidden
+      nothingHidden,
+      nobodyIgnored
     );
 
     expect(slide?.url).toBe('mxc://example.org/secret');
@@ -119,6 +127,14 @@ describe('buildImageSlides', () => {
     expect(ids(events, ownContent, (mEvent) => mEvent.getId() === '$hidden')).toEqual(['$shown']);
   });
 
+  it('leaves out the images of a sender the reader ignores, as the timeline does', () => {
+    const ignored = event('$ignored', image('i.png'), { sender: '@spam:example.org' });
+    const events = [ignored, event('$kept', image('k.png'))];
+    expect(ids(events, ownContent, nothingHidden, new Set(['@spam:example.org']))).toEqual([
+      '$kept',
+    ]);
+  });
+
   it('leaves out an image the timeline shows as a file row (SVG, not an image type, no file)', () => {
     const events = [
       event('$svg', image('vector.svg', { mimetype: 'image/svg+xml' })),
@@ -135,7 +151,8 @@ describe('buildImageSlides', () => {
     const [slide] = buildImageSlides(
       [original],
       (mEvent) => (mEvent.getId() === '$edited' ? edited : mEvent.getContent()),
-      nothingHidden
+      nothingHidden,
+      nobodyIgnored
     );
     expect(slide?.body).toBe('new.png');
     expect(slide?.url).toBe('mxc://example.org/new.png');

@@ -773,14 +773,16 @@ export function RoomTimeline(props: RoomTimelineProps) {
     events: threadId ? threadEvents : roomRows,
     getRowContent,
     isHiddenByPlugin,
+    ignoredUsersSet,
   });
   const getImageSlides = useCallback(() => {
-    const {
-      events,
-      getRowContent: getContent,
-      isHiddenByPlugin: isHidden,
-    } = imageSlideSourceRef.current;
-    return buildImageSlides(events, getContent, isHidden);
+    const source = imageSlideSourceRef.current;
+    return buildImageSlides(
+      source.events,
+      source.getRowContent,
+      source.isHiddenByPlugin,
+      source.ignoredUsersSet
+    );
   }, [imageSlideSourceRef]);
   // What each agent reply of the open thread and the thread so far cost, for Reply details.
   const threadConversationCost = useThreadConversationCostSummary(
