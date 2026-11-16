@@ -441,7 +441,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const { forkPointIndex } = threadState;
   const forkPoint = forkPointIndex !== undefined ? threadEvents[forkPointIndex] : undefined;
   const shownForkPoint = forkPoint?.getId();
-  const threadOpenSettled = session.snapshot.open.settled;
+  // The view the session last opened; until this view's own open starts, the session still reports
+  // the previous thread's open.
+  const openedViewKeyRef = useRef<string>();
+  const threadOpenSettled = session.snapshot.open.settled && openedViewKeyRef.current === viewKey;
   useLayoutEffect(() => {
     if (shownForkPoint || threadOpenSettled) onForkPointShown?.(shownForkPoint);
   }, [onForkPointShown, shownForkPoint, threadOpenSettled]);
@@ -606,7 +609,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
 
   // Opening a thread: render and viewport ports for the session, and the runtime it opens with.
   const viewKeyRef = useLatestRef(viewKey);
-  const openedViewKeyRef = useRef<string>();
   const renderPort = useMemo<ThreadRenderPort>(
     () => ({
       reset: (nextThreadId) => threadStateRef.current.resetThreadRenderState(nextThreadId),
