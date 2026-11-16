@@ -119,6 +119,40 @@ const showsInFull = (event: MatrixEvent, content: Record<string, unknown>): bool
   hasThreadSummary(content) ||
   hasMessageExtras(content);
 
+const priceMessageRow = (
+  event: MatrixEvent,
+  content: Record<string, unknown>,
+  compact: boolean
+): number => {
+  const textPx = estimateThreadEventRowHeight(event, { compact });
+  if (textPx === 0) return 0;
+  const relation = event.getRelation()?.rel_type;
+  if (relation === RelationType.Replace || relation === RelationType.Annotation) return 0;
+  const base = compact ? ROW_BASE_PX.compact : ROW_BASE_PX.comfortable;
+  const mediaPx = estimateMediaPx(content, event.getType());
+  if (mediaPx !== undefined) return Math.max(textPx, base + mediaPx);
+  const richPx = estimateFormattedBodyPx(content);
+  if (richPx === undefined) return textPx;
+  const capLines = showsInFull(event, content) ? MAX_LINES : FOLDED_LINES;
+  return Math.max(textPx, base + Math.min(richPx, capLines * LINE_PX));
+};
+
+type RowEstimate = {
+  content: object;
+  keyCount: number;
+  compact: boolean;
+  px: number;
+};
+
+/**
+ * The last estimate of each row. The virtual list prices every unmeasured row again at each
+ * render, and a long thread has hundreds, so a row keeps its estimate while what it shows stays:
+ * the same content object (an edit, a decryption or a redaction by the server gives another),
+ * with as many keys (an older edit's metadata is written into the shown content, and a local
+ * redaction deletes its keys), in the same layout.
+ */
+const rowEstimates = new WeakMap<MatrixEvent, RowEstimate>();
+
 /**
  * A message row's height without an author line: the text estimate, or the rich HTML or media
  * it shows when those are taller. Edits and reactions have no row and stay at zero.
@@ -127,18 +161,20 @@ export const estimateMessageRowHeight = (
   event: MatrixEvent,
   { compact }: { compact: boolean }
 ): number => {
-  const textPx = estimateThreadEventRowHeight(event, { compact });
-  if (textPx === 0) return 0;
-  const relation = event.getRelation()?.rel_type;
-  if (relation === RelationType.Replace || relation === RelationType.Annotation) return 0;
   const content = event.getContent<Record<string, unknown>>();
-  const base = compact ? ROW_BASE_PX.compact : ROW_BASE_PX.comfortable;
-  const mediaPx = estimateMediaPx(content, event.getType());
-  if (mediaPx !== undefined) return Math.max(textPx, base + mediaPx);
-  const richPx = estimateFormattedBodyPx(content);
-  if (richPx === undefined) return textPx;
-  const capLines = showsInFull(event, content) ? MAX_LINES : FOLDED_LINES;
-  return Math.max(textPx, base + Math.min(richPx, capLines * LINE_PX));
+  const keyCount = Object.keys(content).length;
+  const known = rowEstimates.get(event);
+  if (
+    known &&
+    known.content === content &&
+    known.keyCount === keyCount &&
+    known.compact === compact
+  ) {
+    return known.px;
+  }
+  const px = priceMessageRow(event, content, compact);
+  rowEstimates.set(event, { content, keyCount, compact, px });
+  return px;
 };
 
 /**
