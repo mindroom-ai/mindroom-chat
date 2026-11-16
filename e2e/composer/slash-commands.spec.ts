@@ -98,17 +98,24 @@ test('slash commands: the menu, a message command, commands that act, and a refu
   await page.screenshot({ path: testInfo.outputPath('slash-menu.png') });
 
   // Typing narrows the list; Tab takes the first command and leaves room for its arguments.
-  await page.keyboard.type('shr');
+  await page.keyboard.type('pla');
   await expect(commands).toHaveCount(1);
   await page.keyboard.press('Tab');
   await expect(commands).toHaveCount(0);
-  await expect(composer(page)).toContainText('/shrug');
-  await page.keyboard.type('no idea');
+  await expect(composer(page)).toContainText('/plain');
+  // `/plain` sends the Markdown as typed, with no HTML.
+  await page.keyboard.type('**not bold**');
   await page.keyboard.press('Enter');
   await expect
-    .poll(async () => (await latestMessages(token, roomId))[0]?.content.body, { timeout: 30_000 })
-    .toBe('¯\\_(ツ)_/¯ no idea');
-  await expect(page.getByText('¯\\_(ツ)_/¯ no idea')).toBeVisible();
+    .poll(
+      async () => {
+        const content = (await latestMessages(token, roomId))[0]?.content;
+        return content && { body: content.body, formatted: content.formatted_body };
+      },
+      { timeout: 30_000 }
+    )
+    .toEqual({ body: '**not bold**', formatted: undefined });
+  await expect(page.getByText('**not bold**', { exact: true })).toBeVisible();
 
   // A command that acts sends no message: the invite lands and the composer empties.
   const before = (await latestMessages(token, roomId)).length;

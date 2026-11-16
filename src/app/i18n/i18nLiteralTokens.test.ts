@@ -44,7 +44,6 @@ const LITERAL_TOKENS: Readonly<Record<string, readonly string[]>> = {
   'sharedUi.ssoProviders.signInApple': ['Apple'],
   'sharedUi.ssoProviders.continueGoogle': ['Google'],
   'sharedUi.ssoProviders.continueGithub': ['GitHub'],
-  'sharedUi.commands.CommandShrug': ['¯\\_(ツ)_/¯'],
   'featureUi.call.callView.yourBrowserDoesNotSupportWebrtcWhich': ['WebRTC'],
   'mindroomUi.calls.agentCallButton.browserUnsupported': ['WebRTC'],
   'mindroomUi.autoApprove.ownUntil': ['!auto_approve off'],

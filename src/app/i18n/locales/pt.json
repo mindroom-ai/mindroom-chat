@@ -1288,7 +1288,6 @@
     "commands": {
       "CommandMe": "Enviar mensagem de ação",
       "CommandNotice": "Enviar mensagem de aviso",
-      "CommandShrug": "Enviar ¯\\_(ツ)_/¯ como mensagem",
       "CommandStartDm": "Iniciar mensagem direta com um utilizador. Exemplo: /startdm userId1",
       "CommandJoin": "Entrar numa sala pelo endereço. Exemplo: /join address1 address2",
       "CommandLeave": "Sair da sala atual.",

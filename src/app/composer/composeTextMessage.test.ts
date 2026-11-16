@@ -119,26 +119,7 @@ describe('composeTextMessage', () => {
     });
   });
 
-  it('puts the shrug before the message, and sends it alone without text', () => {
-    expect(compose([line({ text: '/shrug no idea' })])).toMatchObject({
-      msgtype: MsgType.Text,
-      body: '¯\\_(ツ)_/¯ no idea',
-    });
-    expect(compose([line({ text: '/shrug' })])).toEqual({
-      msgtype: MsgType.Text,
-      body: '¯\\_(ツ)_/¯',
-      'm.mentions': {},
-    });
-  });
-
-  it('keeps the face in front of formatted text too', () => {
-    expect(compose([line({ text: '/shrug **enough**' })])).toMatchObject({
-      body: '¯\\_(ツ)_/¯ **enough**',
-      formatted_body: '¯\\_(ツ)_/¯ <strong data-md="**">enough</strong>',
-    });
-  });
-
-  it.each(['/invite @bob:example.org', '/shrugs about it'])(
+  it.each(['/invite @bob:example.org', '/plainly put'])(
     'leaves "%s" to the commands that act, or as written',
     (text) => {
       expect(compose([line({ text })])).toMatchObject({ msgtype: MsgType.Text, body: text });

@@ -9,16 +9,11 @@ import {
 } from '../editor/output';
 import type { ParagraphElement } from '../editor/slate';
 import { BlockType } from '../editor/types';
-import { type Command, SHRUG } from './commands/useCommands';
+import type { Command } from './commands/useCommands';
 
 /** The slash commands that change the message being sent, typed at the very start of it. */
-type MessageCommand = Extract<Command, 'me' | 'notice' | 'plain' | 'shrug'>;
-const MESSAGE_COMMANDS: readonly string[] = [
-  'me',
-  'notice',
-  'plain',
-  'shrug',
-] satisfies MessageCommand[];
+type MessageCommand = Extract<Command, 'me' | 'notice' | 'plain'>;
+const MESSAGE_COMMANDS: readonly string[] = ['me', 'notice', 'plain'] satisfies MessageCommand[];
 
 const isMessageCommand = (name: string): name is MessageCommand => MESSAGE_COMMANDS.includes(name);
 
@@ -28,9 +23,6 @@ const MSGTYPE_BY_COMMAND: ReadonlyMap<MessageCommand, MsgType> = new Map([
   ['notice', MsgType.Notice],
 ]);
 
-/** The face each face command puts before the message. */
-const FACE_BY_COMMAND: ReadonlyMap<MessageCommand, string> = new Map([['shrug', SHRUG]]);
-
 /** A `/command` as a word of its own at the start, and the blank space after it. */
 const LEADING_COMMAND = /^\/([a-z]+)(?:\s+|$)/;
 
@@ -38,7 +30,8 @@ const isParagraph = (node: Descendant | undefined): node is ParagraphElement =>
   !!node && 'type' in node && node.type === BlockType.Paragraph;
 
 /**
- * Splits a leading message command (`/me`, `/notice`, `/plain`, `/shrug`) off the composer's text: the command, and the document without it.
+ * Splits a leading message command (`/me`, `/notice`, `/plain`) off the composer's text: the
+ * command, and the document without it.
  * Only plain text at the start of the first paragraph counts, so a command inside a code block
  * or a quote is sent as written, and so is any other `/word`.
  */
@@ -71,11 +64,10 @@ export const composeTextMessage = (
 ): IContent | undefined => {
   const { command, document } = takeMessageCommand(editor.children);
   const msgtype = (command && MSGTYPE_BY_COMMAND.get(command)) ?? MsgType.Text;
-  const face = command && FACE_BY_COMMAND.get(command);
   // `/plain` sends what was typed as it is, without reading Markdown in it.
   const readMarkdown = markdown && command !== 'plain';
-  const typed = toPlainText(document, readMarkdown).trim();
-  if (typed === '' && !face) return undefined;
+  const body = toPlainText(document, readMarkdown).trim();
+  if (body === '') return undefined;
   const formattedHtml = (): string | undefined => {
     if (command === 'plain') return undefined;
     return trimCustomHtml(
@@ -88,9 +80,6 @@ export const composeTextMessage = (
     );
   };
   const html = formattedHtml();
-  const text = typed;
-  const withFace = (value: string) => (face ? `${face} ${value}`.trim() : value);
-  const body = withFace(text);
 
   // Intentional mentions (MSC3952): only the users and @room the composer holds as pills.
   const { users, room: mentionsRoom } = getMentions(editor, ownUserId);
@@ -99,8 +88,8 @@ export const composeTextMessage = (
   if (mentionsRoom) mentions.room = true;
 
   const formatted =
-    html === undefined || customHtmlEqualsPlainText(html, text)
+    html === undefined || customHtmlEqualsPlainText(html, body)
       ? {}
-      : { format: 'org.matrix.custom.html', formatted_body: withFace(html) };
+      : { format: 'org.matrix.custom.html', formatted_body: html };
   return { msgtype, body, ...formatted, 'm.mentions': mentions };
 };

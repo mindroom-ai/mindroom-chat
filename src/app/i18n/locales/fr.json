@@ -1288,7 +1288,6 @@
     "commands": {
       "CommandMe": "Envoyer un message d’action",
       "CommandNotice": "Envoyer un message d’avertissement",
-      "CommandShrug": "Envoyer ¯\\_(ツ)_/¯ comme message",
       "CommandStartDm": "Démarrer une conversation directe avec un utilisateur. Exemple : /startdm userId1",
       "CommandJoin": "Rejoindre un salon avec son adresse. Exemple : /join address1 address2",
       "CommandLeave": "Quitter le salon actuel.",

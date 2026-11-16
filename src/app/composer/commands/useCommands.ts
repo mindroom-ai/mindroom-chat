@@ -21,7 +21,6 @@ export const Command = {
   Me: 'me',
   Notice: 'notice',
   Plain: 'plain',
-  Shrug: 'shrug',
   Join: 'join',
   Leave: 'leave',
   Invite: 'invite',
@@ -34,14 +33,6 @@ export const Command = {
 } as const;
 
 export type Command = (typeof Command)[keyof typeof Command];
-
-/** The shrug `/shrug` puts before the message. */
-export const SHRUG = '¯\\_(ツ)_/¯';
-
-/** The text each face command puts before the message. */
-export const COMMAND_FACES: Partial<Record<Command, string>> = {
-  [Command.Shrug]: SHRUG,
-};
 
 /** What a command acts on, and how it opens what it leads to. */
 export type CommandContext = {
@@ -214,9 +205,7 @@ export const useCommands = (room: Room, threadId?: string): Record<string, Slash
     const entries = (Object.keys(Command) as Array<keyof typeof Command>).map(
       (key): [string, SlashCommand] => {
         const name = Command[key];
-        const description = t(`sharedUi.commands.Command${key}`, {
-          value1: COMMAND_FACES[name] ?? '',
-        });
+        const description = t(`sharedUi.commands.Command${key}`);
         const run = isActingCommand(name)
           ? (args: string) => runCommandAction(name, context, args)
           : undefined;

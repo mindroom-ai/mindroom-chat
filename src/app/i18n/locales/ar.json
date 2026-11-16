@@ -1312,7 +1312,6 @@
     "commands": {
       "CommandMe": "إرسال رسالة إجراء",
       "CommandNotice": "إرسال رسالة تنبيه",
-      "CommandShrug": "إرسال ¯\\_(ツ)_/¯ كرسالة",
       "CommandStartDm": "بدء رسالة مباشرة مع مستخدم. مثال: ⁨/startdm userId1⁩",
       "CommandJoin": "الانضمام إلى غرفة باستخدام عنوان. مثال: ⁨/join address1 address2⁩",
       "CommandLeave": "مغادرة الغرفة الحالية.",

@@ -1276,7 +1276,6 @@
     "commands": {
       "CommandMe": "傳送操作訊息",
       "CommandNotice": "傳送通知訊息",
-      "CommandShrug": "將 ¯\\_(ツ)_/¯ 作為訊息傳送",
       "CommandStartDm": "與使用者開始私訊。範例：/startdm userId1",
       "CommandJoin": "使用地址加入房間。範例：/join address1 address2",
       "CommandLeave": "離開目前房間。",

@@ -1280,7 +1280,6 @@
     "commands": {
       "CommandMe": "Send action message",
       "CommandNotice": "Send notice message",
-      "CommandShrug": "Send ¯\\_(ツ)_/¯ as message",
       "CommandStartDm": "Start direct message with user. Example: /startdm userId1",
       "CommandJoin": "Join room with address. Example: /join address1 address2",
       "CommandLeave": "Leave current room.",

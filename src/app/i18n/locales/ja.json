@@ -1276,7 +1276,6 @@
     "commands": {
       "CommandMe": "アクションメッセージを送信する",
       "CommandNotice": "通知メッセージを送信する",
-      "CommandShrug": "¯\\_(ツ)_/¯ をメッセージとして送信します",
       "CommandStartDm": "ユーザーとのダイレクトメッセージを開始します。例：/startdm userId1",
       "CommandJoin": "アドレスを指定してルームに参加します。例：/join address1 address2",
       "CommandLeave": "現在のルームを出ます。",

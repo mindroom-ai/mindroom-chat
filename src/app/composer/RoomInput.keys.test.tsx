@@ -104,7 +104,6 @@ vi.mock('../matrix/send/msgContent', () => ({
 }));
 vi.mock('./commands/CommandAutocomplete', () => ({ CommandAutocomplete: () => null }));
 vi.mock('./commands/useCommands', () => ({
-  SHRUG: 'shrug-face',
   useCommands: (_room: Room, threadId?: string) => {
     state.commandThread = threadId;
     return state.commands;
