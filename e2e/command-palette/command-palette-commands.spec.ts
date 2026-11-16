@@ -107,10 +107,11 @@ test('another setting opens Settings at it', async ({ page }) => {
       .getByRole('navigation', { name: 'Settings' })
       .getByRole('button', { name: 'Appearance', exact: true })
   ).toHaveAttribute('aria-pressed', 'true');
-  await expect(settings.locator('[data-setting-id="pageZoom"]')).toHaveAttribute(
-    'data-settings-highlight',
-    ''
-  );
+  const setting = settings.locator('[data-setting-id="pageZoom"]');
+  await expect(setting).toHaveAttribute('data-settings-highlight', '');
+  await expect
+    .poll(() => setting.evaluate((element) => element.contains(document.activeElement)))
+    .toBe(true);
 });
 
 test('a room command', async ({ page }) => {
