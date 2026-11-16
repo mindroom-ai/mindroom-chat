@@ -194,10 +194,11 @@ const LazyThreadBoard = lazy(() =>
  * state, Working (a reply streams, or a live background job names the thread), Later (snoozed, or
  * a schedule is pending), Open and Done (resolved), each thread in the first of those that applies,
  * in the order Working, Done, Later, Open. Its threads are the room's threads with at least one
- * reply, as the app's thread index holds them, in any view of the room and with or without its
- * page open; a message nobody replied to is no card. Each shows as its Compact card, with its
- * actions, and a card opens its thread in the room's page. A thread moves to its column as its
- * state changes. It fills its parent and scrolls inside it; it shows nothing while its code loads.
+ * reply, or one of the signed-in user's sending, as the app's thread index holds them, in any view
+ * of the room and with or without its page open; a message nobody replied to is no card. Each shows
+ * as its Compact card, with its actions, and a card opens its thread in the room's page. A thread
+ * moves to its column as its state changes. It fills its parent and scrolls inside it; it shows
+ * nothing while its code loads.
  */
 export const ThreadBoard = (props: { room: Room }) =>
   createElement(Suspense, { fallback: null }, createElement(LazyThreadBoard, props));

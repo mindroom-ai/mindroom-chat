@@ -1,6 +1,7 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
 import type { BackgroundJob } from '../../matrix/protocol/backgroundJobsContract';
 import {
+  isPendingScheduledTaskStatus,
   parseScheduleTimestamp,
   parseScheduledTaskStateEvent,
 } from '../../matrix/protocol/scheduledTaskContract';
@@ -117,6 +118,8 @@ export const threadBoardWakeTimes = (
   ...Array.from(records.values(), (record) => record.status.snoozedUntilTs),
   ...scheduledTaskEvents.map((event) => {
     const task = parseScheduledTaskStateEvent(event);
-    return task?.status === 'pending' ? parseScheduleTimestamp(task.executeAt) : undefined;
+    return task && isPendingScheduledTaskStatus(task.status)
+      ? parseScheduleTimestamp(task.executeAt)
+      : undefined;
   }),
 ];

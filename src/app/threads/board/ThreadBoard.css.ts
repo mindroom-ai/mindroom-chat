@@ -44,7 +44,6 @@ export const More = style({
 });
 
 export const Frame = style({
-  display: 'flex',
   flex: '1 1 auto',
   minBlockSize: 0,
   blockSize: '100%',

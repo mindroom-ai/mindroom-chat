@@ -78,39 +78,36 @@ const makeRecord = (threadRootId: string, status: Partial<ThreadStatusSnapshot> 
     absoluteIndex: 0,
   } as ThreadRecord);
 
-type Threads = [string, Partial<ThreadStatusSnapshot>][];
+type Thread = [string, Partial<ThreadStatusSnapshot>];
+type Threads = Thread[];
 
 /** The index as the app-wide thread index holds these threads of the room, and one of another. */
 const indexOf = (threads: Threads, scanned = true) => {
   const entries = new Map<string, CrossRoomThreadIndexEntry>();
-  [...threads, ['$elsewhere', {}] as [string, Partial<ThreadStatusSnapshot>]].forEach(
-    ([id, status]) => {
-      const roomId = id === '$elsewhere' ? '!other:example.org' : ROOM_ID;
-      entries.set(`${roomId}|${id}`, {
-        roomId,
-        threadRootId: id,
-        threadRecord: { ...makeRecord(id, status), roomId },
-      } as CrossRoomThreadIndexEntry);
-    }
-  );
+  [...threads, ['$elsewhere', {}] as Thread].forEach(([id, status]) => {
+    const roomId = id === '$elsewhere' ? '!other:example.org' : ROOM_ID;
+    entries.set(`${roomId}|${id}`, {
+      roomId,
+      threadRootId: id,
+      threadRecord: { ...makeRecord(id, status), roomId },
+    } as CrossRoomThreadIndexEntry);
+  });
   return { ...emptyCrossRoomThreadIndexSnapshot(), entries, bootstrapped: scanned };
 };
 
 const renderBoard = (threads: Threads, scanned = true) => {
   const store = createStore();
   store.set(crossRoomThreadIndexAtom, indexOf(threads, scanned));
-  const result = render(
+  render(
     <Provider store={store}>
       <ThreadBoard room={room} />
     </Provider>
   );
   return {
-    ...result,
-    update: (next: Threads, nextScanned = true) =>
+    update: (next: Threads) =>
       act(() => {
-        store.set(crossRoomThreadIndexAtom, indexOf(next, nextScanned));
+        store.set(crossRoomThreadIndexAtom, indexOf(next));
       }),
-    store,
   };
 };
 
@@ -132,6 +129,7 @@ describe('ThreadBoard', () => {
     mocks.jobs = [];
     mocks.scheduleEvents = [];
     mocks.navigateRoomThread.mockReset();
+    mocks.loadRoomThreads.mockClear();
     mocks.listComplete = true;
   });
   afterEach(() => {
@@ -174,14 +172,14 @@ describe('ThreadBoard', () => {
   });
 
   it('shows the first 20 of Open and Done, and 20 more for each Show more', () => {
-    const open = Array.from({ length: 45 }, (_, index): [string, Partial<ThreadStatusSnapshot>] => [
-      `$open-${index}`,
-      { lastActivityTs: 1000 - index },
-    ]);
-    const done = Array.from({ length: 21 }, (_, index): [string, Partial<ThreadStatusSnapshot>] => [
-      `$done-${index}`,
-      { isResolved: true, lastActivityTs: 1000 - index },
-    ]);
+    const open = Array.from(
+      { length: 45 },
+      (_, index): Thread => [`$open-${index}`, { lastActivityTs: 1000 - index }]
+    );
+    const done = Array.from(
+      { length: 21 },
+      (_, index): Thread => [`$done-${index}`, { isResolved: true, lastActivityTs: 1000 - index }]
+    );
     renderBoard([...open, ...done]);
     expect(screen.getByRole('heading', { name: 'Open 45' })).toBeTruthy();
     expect(cardsOf('Open')).toHaveLength(20);
@@ -201,10 +199,13 @@ describe('ThreadBoard', () => {
 
   it('shows every thread of Working and Later', () => {
     renderBoard(
-      Array.from({ length: 50 }, (_, index): [string, Partial<ThreadStatusSnapshot>] => [
-        `$t-${index}`,
-        index % 2 ? { isStreaming: true } : { snoozedUntilTs: NOW + (index + 1) * MINUTE },
-      ])
+      Array.from(
+        { length: 50 },
+        (_, index): Thread => [
+          `$t-${index}`,
+          index % 2 ? { isStreaming: true } : { snoozedUntilTs: NOW + (index + 1) * MINUTE },
+        ]
+      )
     );
     expect(cardsOf('Working')).toHaveLength(25);
     expect(cardsOf('Later')).toHaveLength(25);
@@ -284,6 +285,26 @@ describe('ThreadBoard', () => {
       expect.anything()
     );
     expect(screen.getByText('Loading threads')).toBeTruthy();
+    expect(cardsOf('Open')).toEqual(['$open']);
+  });
+
+  it("drops the loading line once the room's thread list is in", async () => {
+    mocks.listComplete = false;
+    let arrive = () => {};
+    mocks.loadRoomThreads.mockImplementationOnce(
+      () =>
+        new Promise<undefined>((resolve) => {
+          arrive = () => resolve(undefined);
+        })
+    );
+    renderBoard([['$open', {}]]);
+    expect(screen.getByText('Loading threads')).toBeTruthy();
+    mocks.listComplete = true;
+    await act(async () => {
+      arrive();
+      await Promise.resolve();
+    });
+    expect(screen.queryByText('Loading threads')).toBeNull();
     expect(cardsOf('Open')).toEqual(['$open']);
   });
 

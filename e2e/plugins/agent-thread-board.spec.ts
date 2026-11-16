@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop -- one step after the other on one page. */
 import type { Locator, Page } from '@playwright/test';
 import {
   expect,
@@ -39,9 +40,6 @@ test.use({ viewport: { width: 1600, height: 900 } });
 const TAGS_EVENT = 'com.mindroom.thread.tags';
 const SCHEDULE_EVENT = 'com.mindroom.scheduled.task';
 
-const boardPanel = (page: Page): Locator =>
-  page.getByRole('region', { name: 'Example board', exact: true });
-
 /** The card of `rootId` in the board's column `column`. */
 const cardIn = (panel: Locator, column: string, rootId: string): Locator =>
   panel.locator(`[data-thread-board-column="${column}"] [data-thread-root-id="${rootId}"]`);
@@ -57,7 +55,7 @@ const heading = (panel: Locator, column: string): Locator =>
 const openBoard = async (page: Page): Promise<Locator> => {
   await roomMoreOptions(page).click();
   await page.getByRole('menuitemcheckbox', { name: 'Example board', exact: true }).click();
-  const panel = boardPanel(page);
+  const panel = page.getByRole('region', { name: 'Example board', exact: true });
   await expect(panel).toBeVisible({ timeout: 30_000 });
   return panel;
 };
@@ -84,7 +82,6 @@ const tag = (stack: AgentStack, rootId: string, name: string, data?: Record<stri
 type StateEvent = {
   type: string;
   state_key: string;
-  sender: string;
   content: { status?: string; thread_id?: string; workflow?: string };
 };
 
@@ -112,17 +109,15 @@ const cancelSchedules = async (stack: AgentStack, rootId: string) => {
       scheduleThread(event) === rootId
   );
   expect(tasks).toHaveLength(1);
-  await Promise.all(
-    tasks.map((task) =>
-      sendStateEvent(
-        stack.homeserver,
-        routerToken(stack),
-        stack.rooms.lobby,
-        SCHEDULE_EVENT,
-        task.state_key,
-        { ...task.content, status: 'cancelled' }
-      )
-    )
+  const [task] = tasks;
+  if (!task) return;
+  await sendStateEvent(
+    stack.homeserver,
+    routerToken(stack),
+    stack.rooms.lobby,
+    SCHEDULE_EVENT,
+    task.state_key,
+    { ...task.content, status: 'cancelled' }
   );
 };
 
@@ -150,7 +145,6 @@ test("a plugin's board keeps each thread in the column of its state, without a r
     ['open', 'Open'],
     ['done', 'Done'],
   ] as const) {
-    // eslint-disable-next-line no-await-in-loop
     await expect(heading(panel, column)).toHaveText(new RegExp(`^${name} \\d+$`));
   }
   await expect(cardIn(panel, 'open', openRoot)).toBeVisible({ timeout: 60_000 });
@@ -170,13 +164,11 @@ test("a plugin's board keeps each thread in the column of its state, without a r
   await shot(page, 'working');
 
   // The card's Resolve puts the thread in Done, its menu's Reopen back in Open.
-  await panel
-    .locator(`[data-thread-board-column="open"] [data-scroll-anchor="${openRoot}"]`)
-    .hover();
-  await panel
-    .locator(`[data-thread-board-column="open"] [data-scroll-anchor="${openRoot}"]`)
-    .locator('[data-compact-thread-resolve]')
-    .click();
+  const openRow = panel.locator(
+    `[data-thread-board-column="open"] [data-scroll-anchor="${openRoot}"]`
+  );
+  await openRow.hover();
+  await openRow.locator('[data-compact-thread-resolve]').click();
   const done = cardIn(panel, 'done', openRoot);
   await expect(done).toBeVisible({ timeout: 30_000 });
   await done.click({ button: 'right' });
@@ -207,7 +199,6 @@ test("a plugin's board keeps each thread in the column of its state, without a r
   await expect(cardIn(panel, 'open', streamRoot)).toBeVisible({ timeout: 120_000 });
   await expect(cardIn(panel, 'open', jobRoot)).toBeVisible({ timeout: 120_000 });
   for (const rootId of [streamRoot, jobRoot, openRoot, wakeRoot]) {
-    // eslint-disable-next-line no-await-in-loop
     await expect(panel.locator(`[data-thread-root-id="${rootId}"]`)).toHaveCount(1);
   }
 
@@ -241,7 +232,6 @@ test("a plugin's board keeps each thread in the column of its state, without a r
     ['threaded', wakeRoot],
     ['classic', jobRoot],
   ] as const) {
-    // eslint-disable-next-line no-await-in-loop
     await seedRoomOverviewState({
       page,
       roomId: stack.rooms.lobby,
@@ -249,15 +239,10 @@ test("a plugin's board keeps each thread in the column of its state, without a r
       viewMode,
       filterState: createDefaultThreadFilterState(),
     });
-    // eslint-disable-next-line no-await-in-loop
     await expect(pageCards(page)).toHaveCount(0, { timeout: 30_000 });
-    // eslint-disable-next-line no-await-in-loop
     await expect(cardIn(panel, 'open', rootId)).toBeVisible({ timeout: 30_000 });
-    // eslint-disable-next-line no-await-in-loop
     await tag(stack, rootId, 'resolved');
-    // eslint-disable-next-line no-await-in-loop
     await expect(cardIn(panel, 'done', rootId)).toBeVisible({ timeout: 30_000 });
-    // eslint-disable-next-line no-await-in-loop
     await shot(page, viewMode);
   }
 });

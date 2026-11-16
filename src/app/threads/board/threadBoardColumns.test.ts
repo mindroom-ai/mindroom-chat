@@ -48,20 +48,18 @@ const makeRecord = (
   absoluteIndex: 0,
 });
 
-const iso = (ts: number) => new Date(ts).toISOString();
-
 const scheduleEvent = (
   threadId: string | null,
   executeAt: number | null,
-  { status = 'pending', stateKey = `task-${String(threadId)}-${String(executeAt)}` } = {}
+  { status = 'pending' } = {}
 ): MatrixEvent =>
   ({
-    getStateKey: () => stateKey,
+    getStateKey: () => `task-${String(threadId)}-${String(executeAt)}`,
     getContent: () => ({
       status,
       thread_id: threadId,
       new_thread: false,
-      execute_at: executeAt === null ? null : iso(executeAt),
+      execute_at: executeAt === null ? null : new Date(executeAt).toISOString(),
       ...(executeAt === null ? { cron_description: 'Every Monday at 9:00' } : {}),
     }),
   } as unknown as MatrixEvent);
@@ -138,14 +136,16 @@ describe('threadBoardColumn', () => {
   });
 });
 
-const records = (entries: [string, Partial<ThreadStatusSnapshot>][]) =>
+type Thread = [string, Partial<ThreadStatusSnapshot>];
+
+const records = (entries: Thread[]) =>
   new Map(entries.map(([id, status]) => [id, makeRecord(id, status)]));
 
-/** The board of these threads, with the room's jobs and schedules, at `now`. */
+/** The board of these threads, with the room's jobs and schedules, at `NOW`. */
 const board = (
-  entries: [string, Partial<ThreadStatusSnapshot>][],
-  { jobs = [] as BackgroundJob[], events = [] as MatrixEvent[], now = NOW } = {}
-) => groupThreadBoard(withThreadSchedules(records(entries), events, now), { jobs, now });
+  entries: Thread[],
+  { jobs = [] as BackgroundJob[], events = [] as MatrixEvent[] } = {}
+) => groupThreadBoard(withThreadSchedules(records(entries), events, NOW), { jobs, now: NOW });
 
 describe('withThreadSchedules', () => {
   it('gives a record its pending schedules at the clock, and keeps the others as they were', () => {
@@ -293,18 +293,17 @@ describe('groupThreadBoard', () => {
 
 describe('threadBoardWakeTimes', () => {
   it('lists every snooze end and pending one-time run, so the board looks again at each', () => {
-    const map = new Map([
-      ['$a', makeRecord('$a', { snoozedUntilTs: NOW + HOUR })],
-      ['$b', makeRecord('$b')],
-    ]);
-    const times = threadBoardWakeTimes(map, [
-      scheduleEvent('$b', NOW + 2 * HOUR),
-      scheduleEvent('$b', null),
-      scheduleEvent('$b', NOW + 3 * HOUR, { status: 'completed' }),
-    ]);
-    expect([...times].filter((ts) => ts !== undefined).sort()).toEqual([
-      NOW + HOUR,
-      NOW + 2 * HOUR,
-    ]);
+    const times = threadBoardWakeTimes(
+      records([
+        ['$a', { snoozedUntilTs: NOW + HOUR }],
+        ['$b', {}],
+      ]),
+      [
+        scheduleEvent('$b', NOW + 2 * HOUR),
+        scheduleEvent('$b', null),
+        scheduleEvent('$b', NOW + 3 * HOUR, { status: 'completed' }),
+      ]
+    );
+    expect(times.filter((ts) => ts !== undefined).sort()).toEqual([NOW + HOUR, NOW + 2 * HOUR]);
   });
 });

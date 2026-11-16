@@ -8,6 +8,7 @@ import { useRoomBackgroundJobs } from '../../background-jobs/useRoomBackgroundJo
 import { useScheduledTaskEvents } from '../../schedules/useScheduledTaskEvents';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { localDigits } from '../../lib/localDigits';
+import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
 import type { ThreadRecord } from '../../event-store/threads/types';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { CompactRoomView } from '../overview/CompactRoomView';
@@ -58,7 +59,7 @@ function BoardColumn({ room, column, rootIds, records, onThreadClick }: ColumnPr
         <span>{t(`threadBoard.${column}`)}</span>{' '}
         <span className={css.Count}>{localDigits(String(rootIds.length), i18n.language)}</span>
       </Text>
-      {/* An empty column is its header with 0: the Compact view's "No threads" would say it knows. */}
+      {/* An empty column is its header with 0: Compact's "No threads" would claim to know. */}
       {rootIds.length > 0 && (
         <CompactRoomView
           room={room}
@@ -115,20 +116,19 @@ const useRoomThreadRecords = (roomId: string): ReadonlyMap<string, ThreadRecord>
 
 /** Whether the room's whole thread list has arrived; its other pages load while the board shows. */
 const useRoomThreadListComplete = (room: Room): boolean => {
-  const [, setPages] = useState(0);
+  const [, loaded] = useForceUpdate();
   useEffect(() => {
     const leave = new AbortController();
-    const loaded = () => setPages((count) => count + 1);
     loadRoomThreads(room, loaded, leave.signal).then(loaded, loaded);
     return () => leave.abort();
-  }, [room]);
+  }, [loaded, room]);
   return roomThreadListIsComplete(room);
 };
 
 /**
- * The room's threads, those with a reply, in a column each by state: Working, Later, Open, Done
- * (`threadBoardColumns.ts`), from the app-wide thread index, in any view of the room and beside
- * any page. It fills its parent and scrolls inside it.
+ * The room's threads, those with a reply or one of the user's sending, in a column each by state:
+ * Working, Later, Open, Done (`threadBoardColumns.ts`), from the app-wide thread index, in any
+ * view of the room and beside any page. It fills its parent and scrolls inside it.
  */
 export function ThreadBoard({ room }: { room: Room }) {
   const { t } = useTranslation();
@@ -158,27 +158,22 @@ export function ThreadBoard({ room }: { room: Room }) {
 
   // Until the index has scanned the rooms and the room's thread list is in, it may lack threads.
   const loading = !scanned || !listed;
-  const loadingLine = (
+  const line = (text: string) => (
     <Text className={css.Line} size="T300" priority="300">
-      {t('sharedUi.threadsView.loadingThreads')}
+      {text}
     </Text>
   );
+  const loadingLine = loading && line(t('sharedUi.threadsView.loadingThreads'));
   if (records.size === 0) {
     return (
       <Box className={css.Empty} alignItems="Center" justifyContent="Center">
-        {loading ? (
-          loadingLine
-        ) : (
-          <Text className={css.Line} size="T300" priority="300">
-            {t('mindroomUi.threads.compactRoomView.noThreads')}
-          </Text>
-        )}
+        {loadingLine || line(t('mindroomUi.threads.compactRoomView.noThreads'))}
       </Box>
     );
   }
   return (
     <Box className={css.Frame} direction="Column">
-      {loading && loadingLine}
+      {loadingLine}
       <div className={css.Board} role="group" aria-label={t('threadBoard.label')}>
         {THREAD_BOARD_COLUMNS.map((column) => (
           <BoardColumn
