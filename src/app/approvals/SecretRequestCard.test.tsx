@@ -7,7 +7,11 @@ import { ClientConfigProvider, type ClientConfig } from '../config/useClientConf
 import { computerServicePreferenceAtom } from '../computer/computerServiceSettings';
 import { ClientSessions, MindroomServerError } from '../computer/clientSessions';
 import type { AgentServer } from '../computer/agentServer';
-import type { SecretRequest } from '../matrix/protocol/secretRequest';
+import type {
+  KeySecretRequest,
+  SecretRequest,
+  TemporarySecretRequest,
+} from '../matrix/protocol/secretRequest';
 import { SecretRequestCard } from './SecretRequestCard';
 import * as css from './SecretRequestCard.css';
 
@@ -43,7 +47,10 @@ const env = vi.hoisted(() => ({
 const mx = vi.hoisted(() => ({
   getUserId: () => env.viewer,
   getRoom: () => ({
-    getMember: (userId: string) => (userId === '@alice:example.org' ? { name: 'Alice' } : null),
+    getMember: (userId: string) =>
+      ({ '@alice:example.org': { name: 'Alice' }, '@mindroom_assistant:example.org': { name: 'Ada' } })[
+        userId
+      ] ?? null,
     getJoinedMembers: () => [],
   }),
 }));
@@ -58,13 +65,28 @@ vi.mock('../computer/clientSessions', async (importOriginal) => ({
   clientSessions: (...args: unknown[]) => env.clientSessions(...args),
 }));
 
-const request = (overrides: Partial<SecretRequest> = {}): SecretRequest => ({
+const request = (overrides: Partial<KeySecretRequest> = {}): SecretRequest => ({
+  kind: 'key',
   requestId: 'req-1',
   requesterId: ALICE,
   service: 'github',
   displayName: 'GitHub',
   hosts: ['api.github.com', 'uploads.github.com'],
+  replaces: false,
   reason: 'To open the pull request.',
+  status: 'pending',
+  expiresAt: Date.now() + 15 * 60_000,
+  ...overrides,
+});
+
+const temporary = (overrides: Partial<TemporarySecretRequest> = {}): SecretRequest => ({
+  kind: 'temporary',
+  requestId: 'req-1',
+  requesterId: ALICE,
+  env: 'SUDO_PASSWORD',
+  keep: { memory: 900, disk: 86_400 },
+  kept: null,
+  reason: 'To restart the web server.',
   status: 'pending',
   expiresAt: Date.now() + 15 * 60_000,
   ...overrides,
@@ -112,7 +134,7 @@ const render = (value: SecretRequest = request()) => {
   );
 };
 
-const input = () => host.querySelector('input');
+const input = () => host.querySelector<HTMLInputElement>('input:not([type="radio"])');
 const button = (label: string) =>
   [...host.querySelectorAll('button')].find(
     (node) => node.textContent === label || node.getAttribute('aria-label') === label
@@ -149,6 +171,9 @@ const answer = (status: number, body?: unknown) =>
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+
+const radio = (keep: string) => host.querySelector<HTMLInputElement>(`input[type="radio"][value="${keep}"]`);
+const sentBody = (): unknown => JSON.parse(env.send.mock.calls[0]?.[1]?.body as string);
 
 /** Saves `key` and lets the answer arrive. */
 const save = async (key = 'ghp_secret') => {
@@ -757,5 +782,112 @@ describe('SecretRequestCard', () => {
     expect(input()).toBeNull();
     expect(status()).toBeNull();
     expect(text()).not.toContain('expires');
+  });
+  it('says that saving replaces a key the service already has', () => {
+    render(request({ replaces: true }));
+
+    expect(text()).toContain('Replaces the key saved now.');
+    expect(button('Replace key')).toBeDefined();
+    expect(button('Save')).toBeUndefined();
+  });
+
+  it('says nothing of replacing when the service has no key', () => {
+    render();
+
+    expect(text()).not.toContain('Replaces');
+    expect(button('Replace key')).toBeUndefined();
+  });
+
+  it('asks for a temporary secret with its variable and how long to keep it', () => {
+    render(temporary());
+
+    expect(host.querySelector('[aria-label="Secret request"]')).not.toBeNull();
+    expect(card()).toBeNull();
+    expect(text()).toContain('Secret for Ada');
+    expect(text()).toContain('To restart the web server.');
+    expect(text()).toContain("Given to Ada's commands in this conversation as SUDO_PASSWORD.");
+    expect(text()).toContain('expires in 15 minutes');
+    expect(text()).not.toContain('Used only for');
+    expect(text()).not.toContain('key');
+    expect(input()?.getAttribute('aria-label')).toBe('Secret for SUDO_PASSWORD');
+    expect(input()?.getAttribute('placeholder')).toBe('Paste or type the secret');
+    expect(input()?.parentElement?.classList.contains(css.Masked)).toBe(true);
+    expect(host.querySelector('fieldset legend')?.textContent).toBe('Keep for');
+    expect(radio('memory')?.checked).toBe(true);
+    expect(radio('memory')?.closest('label')?.textContent).toBe('15 minutes, in memory only');
+    expect(radio('disk')?.checked).toBe(false);
+    expect(radio('disk')?.closest('label')?.textContent).toBe('24 hours, in a file on the server');
+    expect(button('Send')).toBeDefined();
+    expect(button('Save')).toBeUndefined();
+    expect(button('Show secret')).toBeDefined();
+    expect(chip()).toBe('Waiting for you');
+  });
+
+  it('offers only the keeps the card names', () => {
+    render(temporary({ keep: { disk: 3_600 } }));
+
+    expect(radio('memory')).toBeNull();
+    expect(radio('disk')?.checked).toBe(true);
+    expect(radio('disk')?.closest('label')?.textContent).toBe('1 hour, in a file on the server');
+  });
+
+  it('sends a temporary secret to be kept in memory unless the person chooses the file', async () => {
+    env.send.mockResolvedValue(answer(204));
+    render(temporary());
+    type('hunter2');
+
+    await pressEnter();
+
+    expect(env.send).toHaveBeenCalledTimes(1);
+    expect(env.send.mock.calls[0]?.[0]).toBe(PATH);
+    expect(sentBody()).toEqual({ secret: 'hunter2', keep: 'memory' });
+    await settle();
+    expect(status()?.textContent).toBe('Sent, waiting for the agent');
+    expect(chip()).toBe('Sent');
+    expect(input()).toBeNull();
+  });
+
+  it('sends the keep the person chose', async () => {
+    env.send.mockResolvedValue(answer(204));
+    render(temporary());
+    act(() => radio('disk')?.click());
+    type('hunter2');
+
+    await pressEnter();
+
+    expect(radio('disk')?.checked ?? true).toBe(true);
+    expect(sentBody()).toEqual({ secret: 'hunter2', keep: 'disk' });
+  });
+
+  it('declines a temporary secret with no keep', async () => {
+    env.send.mockResolvedValue(answer(204));
+    render(temporary());
+    act(() => radio('disk')?.click());
+
+    await act(async () => button('Decline')?.click());
+
+    expect(sentBody()).toEqual({ decline: true });
+  });
+
+  it.each([
+    ['memory', 'Kept for 15 minutes, in memory only.'],
+    ['disk', 'Kept for 24 hours, in a file on the server.'],
+  ] as const)('says how long an answered temporary secret is kept (%s)', (kept, line) => {
+    render(temporary({ status: 'saved', kept }));
+
+    expect(chip()).toBe('Sent');
+    expect(text()).toContain(line);
+    expect(input()).toBeNull();
+    expect(radio('memory')).toBeNull();
+  });
+
+  it('shows anyone else who a temporary secret waits for, with no field or choice', () => {
+    env.viewer = BOB;
+    render(temporary());
+
+    expect(text()).toContain('Waiting for Alice');
+    expect(input()).toBeNull();
+    expect(radio('memory')).toBeNull();
+    expect(button('Send')).toBeUndefined();
   });
 });
