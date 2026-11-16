@@ -66,6 +66,7 @@ vi.mock('./ThreadCardBadges', () => ({ ThreadCardBadges: () => null }));
 vi.mock('../../ui/InsetScrollbar', () => ({ InsetScrollbar: () => null }));
 vi.mock('../ThreadActionsMenu', () => ({ ThreadActionsMenu: () => null }));
 vi.mock('../../i18n/useRelativeTime', () => ({ useRelativeTime: () => '' }));
+vi.mock('./ThreadCardDetails', () => ({ ThreadCardDetails: () => null }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ i18n: { language: 'en' }, t: (key: string) => key }),
 }));
