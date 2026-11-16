@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { enableMapSet } from 'immer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { archivedRoomsAtom } from '../../matrix/state/archivedRooms';
-import { makeClosedNavCategoriesAtom } from '../../ui/nav/closedNavCategories';
+import { makeClosedNavCategoriesAtom, makeNavCategoryId } from '../../ui/nav/closedNavCategories';
 import { ClosedNavCategoriesProvider } from '../../ui/nav/useClosedNavCategories';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
@@ -15,15 +15,32 @@ import {
   type CrossRoomThreadIndexEntry,
 } from '../../threads/cross-room/crossRoomThreadIndex';
 import { THREAD_NAV_CATEGORY_ID, ThreadNavCategory } from './ThreadNavCategory';
-import { clearThreadSidebarPreferencesStore } from '../../threads/cross-room/threadSidebarPreferences';
+import {
+  clearThreadSidebarPreferencesStore,
+  makeThreadSidebarPreferencesAtom,
+} from '../../threads/cross-room/threadSidebarPreferences';
 
 enableMapSet();
+
+const { MINUTE_NOW, readSignals } = vi.hoisted(() => ({
+  // Later than any real clock, so it wins over the time a snooze last renewed.
+  MINUTE_NOW: 4_000_000_000_000,
+  readSignals: vi.fn(() => undefined),
+}));
 
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
   return { useTranslation: () => ({ t: translateFromEn }) };
 });
 vi.mock('folds', () => ({
+  Button: ({
+    before: _before,
+    children,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { before?: React.ReactNode }) =>
+    React.createElement('button', props, children),
+  Icon: () => null,
+  Icons: {},
   Text: ({
     as: asElement = 'span',
     children,
@@ -50,7 +67,7 @@ vi.mock('../room-nav/RoomNavCategoryButton', () => ({
     React.createElement('button', { ...props, 'aria-expanded': !closed }, children),
 }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org' }),
+  useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org', getRoom: () => ({}) }),
 }));
 vi.mock('../../navigation/useSelectedRoom', () => ({ useSelectedRoom: () => undefined }));
 vi.mock('./ThreadNavItem', () => ({
@@ -71,6 +88,11 @@ vi.mock('./ThreadNavItem', () => ({
     ),
 }));
 vi.mock('./threadNav.css', () => ({ CategoryState: 'CategoryState' }));
+vi.mock('../../threads/cross-room/threadSignalsReader', () => ({
+  getThreadSignalsReader: () => ({ read: readSignals }),
+}));
+vi.mock('../../lib/hooks/useMinuteClock', () => ({ useMinuteClock: () => MINUTE_NOW }));
+vi.mock('../../threads/page/ThreadsNav.css', () => ({ Scopes: 'Scopes', Scope: 'Scope' }));
 
 const USER_ID = '@me:example.org';
 const makeEntry = (roomId: string, threadRootId: string, lastActivityTs: number) =>
@@ -82,8 +104,10 @@ const makeEntry = (roomId: string, threadRootId: string, lastActivityTs: number)
     lastActivityTs,
     isInvolved: true,
     isUnread: false,
+    isResolved: false,
     summaryText: threadRootId,
-  } as CrossRoomThreadIndexEntry);
+    threadRecord: { status: { isStreaming: false }, cache: {} },
+  } as unknown as CrossRoomThreadIndexEntry);
 
 const older = makeEntry('!room:example.org', '$older', 10);
 const newer = makeEntry('!newer-room:example.org', '$newer', 20);
@@ -228,5 +252,69 @@ describe('ThreadNavCategory', () => {
         .findAll((node) => node.props['data-thread-key'])
         .map((node) => node.props['data-thread-key'])
     ).toEqual([older.key]);
+  });
+
+  it('switches to sections from the header, each folding on its own', () => {
+    const resolved = {
+      ...makeEntry('!resolved-room:example.org', '$resolved', 30),
+      isResolved: true,
+    };
+    store.set(crossRoomThreadIndexAtom, {
+      version: 2,
+      bootstrapped: true,
+      eventIdToThreadRoots: new Map(),
+      entries: new Map([
+        [older.key, older],
+        [newer.key, newer],
+        [resolved.key, resolved],
+      ]),
+    });
+    const closedCategoriesAtom = renderCategory();
+    const threadKeys = () =>
+      renderer!.root
+        .findAll((node) => node.props['data-thread-key'])
+        .map((node) => node.props['data-thread-key']);
+    const radio = (label: string) =>
+      renderer!.root.find((node) => node.props.role === 'radio' && node.children.includes(label));
+    expect(radio('Recent').props['aria-checked']).toBe(true);
+    expect(threadKeys()).toEqual([newer.key, older.key]);
+
+    act(() => {
+      radio('Sections').props.onClick();
+    });
+
+    expect(store.get(makeThreadSidebarPreferencesAtom(USER_ID)).layout).toBe('sections');
+    expect(radio('Sections').props['aria-checked']).toBe(true);
+    const resolvedId = makeNavCategoryId('mindroom', 'threads', 'resolved');
+    const heading = (id: string) => renderer!.root.findByProps({ 'data-category-id': id });
+    const headingText = (id: string) =>
+      heading(id)
+        .findAll(() => true)
+        .flatMap((node) => node.children.filter((child) => typeof child === 'string'));
+    expect(headingText(makeNavCategoryId('mindroom', 'threads', 'idle'))).toContain('Idle · 2');
+    expect(headingText(resolvedId)).toContain('Resolved · 1');
+    expect(threadKeys()).toEqual([newer.key, older.key, resolved.key]);
+
+    act(() => {
+      heading(resolvedId).props.onClick({ currentTarget: { getAttribute: () => resolvedId } });
+    });
+
+    expect(store.get(closedCategoriesAtom)).toContain(resolvedId);
+    expect(heading(resolvedId).props['aria-expanded']).toBe(false);
+    expect(threadKeys()).toEqual([newer.key, older.key]);
+  });
+
+  it('reads the signals of its sections at the minute clock, as Activity does', () => {
+    store.set(makeThreadSidebarPreferencesAtom(USER_ID), {
+      type: 'SET_LAYOUT',
+      layout: 'sections',
+    });
+
+    renderCategory();
+
+    expect(readSignals).toHaveBeenCalled();
+    expect(readSignals.mock.calls.map((call: unknown[]) => call[3])).toEqual(
+      readSignals.mock.calls.map(() => MINUTE_NOW)
+    );
   });
 });

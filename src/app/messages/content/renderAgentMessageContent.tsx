@@ -70,6 +70,8 @@ export type RenderAgentMessageContentOptions = {
   renderUrlsPreview?: (urls: string[]) => ReactNode;
   showMessageExtras?: boolean;
   hydrateLongText?: boolean;
+  /** Shown in another thread's view (a fork's prefix): its cards offer no decisions there. */
+  readOnly?: boolean;
 };
 
 type AgentRenderBodyProps = Omit<ComponentProps<typeof RenderBody>, 'htmlReactParserOptions'> & {
@@ -117,6 +119,7 @@ export const renderAgentMessageContent = ({
   renderUrlsPreview,
   showMessageExtras = false,
   hydrateLongText = true,
+  readOnly,
 }: RenderAgentMessageContentOptions): ReactNode | undefined => {
   const withToolRefFormattedBodyFallback = (bodyContent: Record<string, unknown>) => {
     if (typeof bodyContent.formatted_body === 'string') return bodyContent;
@@ -302,6 +305,7 @@ export const renderAgentMessageContent = ({
         request={secretRequest}
         roomId={secretRequestRoomId}
         agentUserId={secretRequestSender}
+        readOnly={readOnly}
       />
     );
   }
@@ -310,7 +314,13 @@ export const renderAgentMessageContent = ({
     // Only MindRoom sends approval cards; any member can post this event type.
     const approval = fromMindroomAgent ? parseToolApprovalContent(eventType, content) : null;
     return approval ? (
-      <ToolApprovalCard approval={approval} roomId={roomId} eventId={eventId} threadId={threadId} />
+      <ToolApprovalCard
+        approval={approval}
+        roomId={roomId}
+        eventId={eventId}
+        threadId={threadId}
+        readOnly={readOnly}
+      />
     ) : (
       <BrokenContent />
     );
@@ -469,7 +479,8 @@ export const renderAgentMessageContent = ({
                 )
               : renderBody(content)
           }
-          renderAfterBody={<ChatUiActionButton event={mEvent} />}
+          // A read-only row (a fork's parent message) answers nothing: its canvas is the parent's.
+          renderAfterBody={readOnly ? undefined : <ChatUiActionButton event={mEvent} />}
         />
       );
     }

@@ -22,6 +22,11 @@ The person's latest message picks a scenario by hashtag:
   #canvas      show_canvas with a page that submits a color
   #canvasrtl   the same page, titled in Arabic around a Latin file name
   #job         a shell call that runs 45 s as a background job
+  #work        a reply shaped by knobs in the prompt: #work words=200 wps=30 reasoning=0 tools=0 toolsec=0 links=0
+               seed=1 (words in the reply, words a second (0 sends it at once), characters of reasoning first, shell
+               calls of toolsec seconds before it, how many of the words are links (https://example.org/work/..., a
+               reserved name nothing is fetched from by a homeserver without a preview allowlist), and the seed of
+               the generated Markdown)
   #terminal    terminal_open, then terminal_run of an echo in the terminal it opened (stack.py --terminals)
 
 --scenarios FILE (repeatable; stack.py passes each plugin directory's e2e/stub-scenarios.json) adds tool scenarios in
@@ -54,6 +59,7 @@ import argparse
 import asyncio
 import io
 import json
+import random
 import re
 import runpy
 import time
@@ -114,7 +120,7 @@ TOOL_SCENARIOS: dict[str, list[Step]] = {
     ],
     "#terminal": [("terminal_open", {}), ("terminal_run", terminal_command)],
 }
-TEXT_SCENARIOS = ("#stopme", "#slow", "#long", "#think", "#markdown", "#error", "#ask")
+TEXT_SCENARIOS = ("#stopme", "#slow", "#long", "#think", "#markdown", "#error", "#ask", "#work")
 
 # #ask: a short stream (each word an edit) ending in MindRoom's interactive block, which the backend turns into the
 # message's question and its reaction buttons.
@@ -299,6 +305,10 @@ def schema_value(schema: dict, defs: dict, text: str, key: str = ""):
         return schema.get("minimum", 1)
     if key in ("entity_name", "agent_name"):
         routed = text.split('Message: "', 1)[-1].lower()
+        # A whole word, so worker1 does not match a message that names worker10.
+        worker = re.search(r"\bworker[0-9]+\b", routed)
+        if worker:
+            return worker.group(0)
         return "scout" if "scout" in routed else "helper"
     if key == "summary" and "<transcript>" in text:
         return "Stub notes of the call."
@@ -309,11 +319,79 @@ def schema_value(schema: dict, defs: dict, text: str, key: str = ""):
     return "stub"
 
 
+# The #work scenario
+
+WORK_DEFAULTS = {"words": 200, "wps": 30, "reasoning": 0, "tools": 0, "toolsec": 0, "links": 0, "seed": 1}
+WORK_WORDS = (
+    "the agent room thread message reply model tool result step plan check build test run file change update "
+    "list item value config state client server user queue event stream render page link note cache index "
+    "token field entry group view panel draft route patch commit branch review report summary section"
+).split()
+
+
+def work_knobs(text: str) -> dict[str, float]:
+    """The #work knobs of `text` (key=number pairs), defaults for those it leaves out."""
+    knobs: dict[str, float] = dict(WORK_DEFAULTS)
+    for key, value in re.findall(r"\b(words|wps|reasoning|tools|toolsec|links|seed)=(-?\d+(?:\.\d+)?)", text.lower()):
+        number = float(value)
+        knobs[key] = int(number) if number == int(number) else number
+    return knobs
+
+
+def work_text(words: int, seed: int, links: int = 0) -> str:
+    """`words` whitespace-separated words of Markdown (paragraphs, a heading about every 250 words and a bullet
+    list about every 400, the first near word 200), the same for the same seed. Markers count as words. `links` of
+    the paragraphs' words, spread evenly, are links instead (as many as the paragraphs have words, at most)."""
+    rng = random.Random(seed)
+
+    def sentence(count: int) -> list[str]:
+        return [rng.choice(WORK_WORDS) for _ in range(count)]
+
+    lines: list[list[str]] = []
+    since_heading, since_list, total = 0, 200, 0
+    while total < words:
+        if since_heading >= 250:
+            block, since_heading = [["##", *sentence(3)]], 0
+        elif since_list >= 400:
+            block, since_list = [["-", *sentence(8)] for _ in range(4)], 0
+        else:
+            block = [sentence(rng.randint(40, 80))]
+        for line in block:
+            line = line[: words - total]
+            if not line:
+                break
+            lines.append(line)
+            total += len(line)
+            since_heading += len(line)
+            since_list += len(line)
+        lines.append([])  # a blank line between blocks
+    paragraphs = [(row, line) for row, line in enumerate(lines) if line[:1] not in (["##"], ["-"])]
+    plain = [(row, column) for row, line in paragraphs for column in range(len(line))]
+    count = min(max(0, links), len(plain))
+    for number in range(count):
+        row, column = plain[(2 * number + 1) * len(plain) // (2 * count)]
+        lines[row][column] = f"https://example.org/work/{seed}-{number + 1}"
+    text = "\n".join(" ".join(line) for line in lines)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
+def work_reasoning(chars: int, seed: int) -> str:
+    """About `chars` characters of reasoning text ("" for 0), the same for the same seed."""
+    if chars <= 0:
+        return ""
+    rng = random.Random(seed + 1_000_003)
+    out = ""
+    while len(out) < chars:
+        out += rng.choice(WORK_WORDS) + " "
+    return out[:chars].rstrip() + "."
+
+
 # Chat turns
 
 
 def plan(body: dict, scenarios: dict[str, list[Step]]) -> tuple:
-    """("text", markdown), ("slow", text, seconds per word), ("think", text), ("tool", name, args) or ("error",),
+    """("text", markdown), ("slow", text, seconds per word), ("think", text),
+    ("work", reasoning, text, seconds per word), ("tool", name, args) or ("error",),
     with the tool scenarios of tool_scenarios."""
     messages = body.get("messages") or []
     index = latest_person_index(messages)
@@ -332,6 +410,18 @@ def plan(body: dict, scenarios: dict[str, list[Step]]) -> tuple:
         if not results:
             return ("tool", "job", {"action": "collect"})
         return ("text", f"The background job ended:\n\n```\n{last_result}\n```")
+    if has_tag(text, "#work"):
+        knobs = work_knobs(text)
+        if len(results) < knobs["tools"]:
+            seconds = f"{knobs['toolsec']:g}"
+            return ("tool", "run_shell_command", {"args": f"sleep {seconds}; echo work step {len(results) + 1}"})
+        wps = knobs["wps"]
+        return (
+            "work",
+            work_reasoning(int(knobs["reasoning"]), int(knobs["seed"])),
+            work_text(int(knobs["words"]), int(knobs["seed"]), int(knobs["links"])),
+            0 if wps <= 0 else 1 / wps,
+        )
     for tag, steps in scenarios.items():
         if not has_tag(text, tag):
             continue
@@ -451,7 +541,9 @@ class Stub:
                 {"error": {"message": "stub provider failure", "type": "server_error"}}, status=500
             )
         if not body.get("stream"):
-            message: dict = {"role": "assistant", "content": None if step[0] == "tool" else step[1]}
+            # A work step's reply is its text; its reasoning is not part of the content.
+            content = None if step[0] == "tool" else step[2] if step[0] == "work" else step[1]
+            message: dict = {"role": "assistant", "content": content}
             if step[0] == "tool":
                 message["tool_calls"] = [tool_call(step[1], step[2])]
             return web.json_response(
@@ -501,6 +593,16 @@ class Stub:
             for word in step[1].split(" "):
                 await send(chunk(model, {"content": word + " "}))
                 await asyncio.sleep(0.05)
+        elif step[0] == "work":
+            reasoning = step[1]
+            for start in range(0, len(reasoning), 40):
+                await send(chunk(model, {"reasoning_content": reasoning[start : start + 40]}))
+            # No text (words=0) sends no content chunk at all, not one empty one.
+            words = step[2].split(" ") if step[2] else []
+            for position, word in enumerate(words):
+                await send(chunk(model, {"content": word if position == len(words) - 1 else word + " "}))
+                if step[3] > 0:
+                    await asyncio.sleep(step[3])
         else:
             delay = step[2] if step[0] == "slow" else 0.03
             words = step[1].split(" ")

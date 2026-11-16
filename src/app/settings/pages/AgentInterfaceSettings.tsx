@@ -3,16 +3,9 @@ import { Box, color, Switch, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { SequenceCard } from '../../ui/SequenceCard';
 import { SettingTile } from '../../ui/SettingTile';
-import {
-  RAIL_BUTTON_SETTING,
-  type RailButton,
-  useOfferedRailButtons,
-} from '../railButtons';
-import { getCommandPaletteShortcutLabel } from '../../command-palette/commandPaletteShortcut';
-import {
-  useAccountSettings,
-  useSetAccountSettings,
-} from '../../matrix/hooks/useAccountSettings';
+import { RAIL_BUTTON_SETTING, type RailButton, useOfferedRailButtons } from '../railButtons';
+import { getCommandPaletteShortcutLabel } from '../../shortcuts/paletteShortcut';
+import { useAccountSettings, useSetAccountSettings } from '../../matrix/hooks/useAccountSettings';
 import type { AccountSettings } from '../../preferences/accountSettings';
 import { SIDEBAR_SWITCH_SETTINGS } from '../../preferences/settingsRegistry';
 
@@ -29,12 +22,7 @@ type AccountSettingSwitchProps = {
   description: string;
 };
 
-function AccountSettingSwitch({
-  focusId,
-  setting,
-  title,
-  description,
-}: AccountSettingSwitchProps) {
+function AccountSettingSwitch({ focusId, setting, title, description }: AccountSettingSwitchProps) {
   const { t } = useTranslation();
   const settings = useAccountSettings();
   const setAccountSettings = useSetAccountSettings();

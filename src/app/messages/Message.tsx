@@ -34,6 +34,7 @@ import { DialogOpenerContext } from '../ui/ModalLayer';
 import { Menu } from '../ui/glass/GlassPrimitives';
 import { ActionDialog } from '../ui/ActionDialog';
 import { MenuEntry } from '../ui/MenuEntry';
+import { ForkIcon } from './ForkIcon';
 import { IconTooltip } from '../ui/IconTooltip';
 import { EmojiBoard } from '../emoji/board/LazyEmojiBoard';
 import { useMemberEventParser } from './useMemberEventParser';
@@ -529,6 +530,10 @@ export type MessageProps = MessageSubject &
     onUsernameClick?: MouseEventHandler<HTMLButtonElement>;
     /** Reply to this message, or start (or continue) its thread. */
     onReplyClick?: (eventId: string, startThread?: boolean) => void;
+    /** A message shown in a thread it does not belong to (a fork's prefix): opens it in its own. */
+    onOpenInOriginalThread?: () => void;
+    /** Starts a fork of the message's thread that holds the thread up to this message. */
+    onForkClick?: (eventId: string) => void;
     /** Rooms whose emoji packs the reaction pickers offer. */
     imagePackRooms?: Room[];
     onReactionToggle?: ReactionHandler;
@@ -620,6 +625,8 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       onUsernameClick,
       // Replying and reacting.
       onReplyClick,
+      onOpenInOriginalThread,
+      onForkClick,
       onReactionToggle,
       resolvedMessageContent,
       children,
@@ -880,6 +887,26 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                     icon={Icons.ThreadPlus}
                     onSelect={() => {
                       onReplyClick(eventId, true);
+                      dismissMenu();
+                    }}
+                  />
+                )}
+                {onOpenInOriginalThread && (
+                  <MenuEntry
+                    label={t('threadFork.openInOriginalThread')}
+                    icon={Icons.Thread}
+                    onSelect={() => {
+                      onOpenInOriginalThread();
+                      dismissMenu();
+                    }}
+                  />
+                )}
+                {confirmed && onForkClick && (
+                  <MenuEntry
+                    label={t('threadFork.forkFromHere')}
+                    icon={ForkIcon}
+                    onSelect={() => {
+                      onForkClick(eventId);
                       dismissMenu();
                     }}
                   />

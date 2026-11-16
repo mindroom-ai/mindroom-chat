@@ -94,6 +94,9 @@ import { useTimelineDebugTraceIds } from './timelineDebugController';
 import { useThreadIndex } from '../threads/overview/useThreadIndex';
 import { useRoomThreadResolutionMap } from '../threads/tags/useRoomThreadTags';
 import { useThreadTimelineState } from './useThreadTimelineState';
+import { useCachedThreadRoot } from '../event-store/sdk/cachedThreadRoots';
+import { useThreadForkPrefix } from '../threads/fork/useThreadForkPrefix';
+import { ThreadForkDivider } from '../threads/fork/ThreadForkDivider';
 import { useThreadSession } from '../threads/open/useThreadSession';
 import { useThreadPagination } from '../threads/open/useThreadPagination';
 import type {
@@ -210,6 +213,11 @@ export type RoomTimelineProps = {
   onThreadLoadError?: (threadId: string) => void;
   /** Shown above an open thread's rows, inside its scroll area. */
   threadHeader?: ReactNode;
+  /**
+   * A fork draft's fork point: when it is one of the open thread's own messages, the thread shows
+   * up to it, read-only as the fork will show it, with the "Forking" divider under it.
+   */
+  forkAt?: string;
 };
 
 type ScrollToBottomState = { count: number; smooth: boolean };
@@ -259,6 +267,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     editor,
     onThreadLoadError,
     threadHeader,
+    forkAt,
   } = props;
   const mx = useMatrixClient();
   const alive = useAlive();
@@ -399,6 +408,13 @@ export function RoomTimeline(props: RoomTimelineProps) {
   );
   useRoomThreadDeleted(room, threadId, rederiveRoomRows);
 
+  // A fork shows its parent's conversation up to the fork point before its own rows.
+  const liveThreadRoot = threadId
+    ? room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId)
+    : undefined;
+  const cachedThreadRoot = useCachedThreadRoot(room, threadId ?? '', liveThreadRoot);
+  const forkPrefix = useThreadForkPrefix(room, liveThreadRoot ?? cachedThreadRoot);
+
   // Thread rows.
   const threadState = useThreadTimelineState({
     room,
@@ -407,10 +423,33 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadInitialSdkLoaded: session.snapshot.open.sdkReady,
     timelineRevision: session.snapshot.timelineRevision,
     debugTraceId: threadDebugTraceId,
+    prefixEvents: forkPrefix.events,
+    forkAt,
   });
   const threadStateRef = useLatestRef(threadState);
   const threadEvents = threadId ? threadState.threadEvents : EMPTY_EVENTS;
-  const threadEventsRef = useLatestRef(threadEvents);
+  // Without a fork's prefix: the thread's own rows are what it loads, reads, counts and titles.
+  const ownThreadEvents = threadId ? threadState.ownThreadEvents : EMPTY_EVENTS;
+  const ownThreadEventsRef = useLatestRef(ownThreadEvents);
+  // A fork draft shows its thread up to the fork point, its last row.
+  const { forkPointIndex } = threadState;
+  const forkPoint = forkPointIndex !== undefined ? threadEvents[forkPointIndex] : undefined;
+  const shownForkPoint = forkPoint?.getId();
+  // A fork's parent messages, and in a fork draft every row, also before or without its fork
+  // point: what the fork will show of its parent, read-only as it will show it.
+  const forkPrefixEventIds = useMemo(
+    () =>
+      new Set((forkAt ? threadEvents : forkPrefix.events).flatMap((event) => event.getId() ?? [])),
+    [forkAt, forkPrefix.events, threadEvents]
+  );
+  // A draft's reader reads its thread up to the fork point; what follows is out of sight.
+  const readThreadEvents = useMemo(
+    () =>
+      forkPoint
+        ? ownThreadEvents.slice(0, ownThreadEvents.indexOf(forkPoint) + 1)
+        : ownThreadEvents,
+    [forkPoint, ownThreadEvents]
+  );
   const { threadEventIndexMapRef, threadInitialRenderMode } = threadState;
   const threadEventIndexMap = threadState.threadEventIndexMap ?? threadEventIndexMapRef.current;
   const threadTailLoaded = session.snapshot.history.tailLoaded;
@@ -501,7 +540,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     roomSurfaceEventEntries: threadIndex.roomSurfaceEventEntries,
     roomThreadListThreads: threadIndex.roomThreadListThreads,
     prefetchDepth: windowLimit,
-    threadEventsLength: threadEvents.length,
+    threadEventsLength: ownThreadEvents.length,
     threadHasMoreCachedBack,
     threadId,
     threadReplyCountMap: threadIndex.threadReplyCountMap,
@@ -648,7 +687,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     sessionId,
     beginThreadCacheWrite,
     thread: threadState.thread,
-    threadEvents,
+    threadEvents: ownThreadEvents,
     threadHasMoreCachedBack,
     viewport: prependViewport,
   });
@@ -740,8 +779,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
       viewerId: mx.getUserId() ?? undefined,
     }
   );
+  // The parent's approvals keep their cards in a fork's prefix: the fork's plan leaves them be.
   const approvalTimeline = useThreadApprovalTimeline(
-    threadId ? threadEvents : roomRows,
+    threadId ? ownThreadEvents : roomRows,
     ignoredUsersSet,
     threadId,
     eventId,
@@ -1076,7 +1116,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
     handleJumpToUnread,
     handleOpenReply,
   } = useRoomTimelineNavigationController({
-    eventId,
+    // A fork draft's address names its fork point, its last row: dropping it would end the draft.
+    eventId: forkAt ? undefined : eventId,
     handleOpenEvent,
     hideMembershipEvents,
     hideNickAvatarEvents,
@@ -1127,10 +1168,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
     room,
     setAtBottom,
     classicRows,
-    threadEventsLength: threadEvents.length,
+    threadEventsLength: readThreadEvents.length,
     threadId,
     threadInitialRenderMode,
-    threadEvents,
+    threadEvents: readThreadEvents,
     threadTailLoaded,
     timelineAtLiveEnd,
     unreadInfo,
@@ -1207,7 +1248,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     refreshLatestThreadSlice,
     onRoomRefresh: handleRoomRefresh,
   });
-  const getLoadedThreadEvents = useCallback(() => threadEventsRef.current, [threadEventsRef]);
+  const getLoadedThreadEvents = useCallback(() => ownThreadEventsRef.current, [ownThreadEventsRef]);
   useThreadGapRecovery({
     engine,
     room,
@@ -1232,7 +1273,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     notifyThreadEventsChanged: notifyEventsChanged,
     editResetEpoch: session.snapshot.open.editResetEpoch,
     readEditResetEpoch,
-    threadEvents,
+    threadEvents: ownThreadEvents,
     threadId,
     threadIdRef,
     threadTailLoaded,
@@ -1241,7 +1282,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     onStoreThreadSummary,
     room,
     thread: threadState.thread,
-    threadEvents,
+    threadEvents: ownThreadEvents,
     threadId,
     threadSummaryInfoMap: threadIndex.threadSummaryInfoMap,
   });
@@ -1580,12 +1621,46 @@ export function RoomTimeline(props: RoomTimelineProps) {
     );
   }
 
+  // The fork's divider sits over its first row of its own, after the parent's messages.
+  const { parent: forkParent } = forkPrefix;
+  const ownStartIndex = threadEventIndexMap.get(ownThreadEvents[0]?.getId() ?? '');
+  const forkStartIndex = forkParent && ownStartIndex ? ownStartIndex : undefined;
+  const forkDivider =
+    forkParent && forkStartIndex !== undefined
+      ? {
+          index: forkStartIndex,
+          node: (
+            <ThreadForkDivider
+              room={room}
+              parent={forkParent}
+              root={forkPrefix.events.find((event) => event.getId() === forkParent.threadId)}
+              summaryInfo={summaryMap.get(forkParent.threadId)}
+            />
+          ),
+        }
+      : undefined;
+  // A fork draft's line under its fork point, the last row it shows.
+  const forkingDivider =
+    threadId && shownForkPoint && forkPointIndex !== undefined
+      ? {
+          index: forkPointIndex,
+          node: (
+            <ThreadForkDivider
+              room={room}
+              parent={{ threadId, eventId: shownForkPoint }}
+              summaryInfo={summaryMap.get(threadId)}
+              variant="forking"
+            />
+          ),
+        }
+      : undefined;
   const messageData: TimelineMessageData = {
     threadRecordMap: threadIndex.threadRecordMap,
     threadEventMap: threadState.threadEventMap ?? new Map(),
     approvalTimeline,
     threadSummaryTimeline,
     handleOpenReply,
+    forkPrefixEventIds,
   };
   const tiles = renderTimelineTiles({
     virtualItems,
@@ -1605,6 +1680,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
     isHiddenByPlugin,
     isHiddenByPluginId,
     renderEvent: feature.renderEvent,
+    forkDivider,
+    forkingDivider,
     unreadMarkerRef: setUnreadMarker,
     measureElement: ledger.measureElement,
     ledgerPxAtRender: ledger.ledgerPxAtRender,

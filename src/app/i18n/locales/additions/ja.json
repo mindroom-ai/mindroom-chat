@@ -397,7 +397,9 @@
       },
       "about": {
         "thirdPartyNotices": "サードパーティ通知",
-        "soundsCredit": "通知音と招待音は、このアプリのために合成したチャイムです。"
+        "soundsCredit": "通知音と招待音は、このアプリのために合成したチャイムです。",
+        "debugMode": "デバッグモード",
+        "debugModeDescription": "このデバイスで診断情報を記録し、エクスポートや詳細な診断トレースの有効化ができるようにします。"
       }
     },
     "createChat": {
@@ -713,6 +715,29 @@
         "noLongerActive": "このリクエストは有効ではなくなりました。もう一度エージェントに依頼してください。",
         "unavailable": "このサーバーではキーを入力できません。",
         "unavailableHint": "ここでキーを入力するには、設定 → {{page}} → {{field}} で MindRoom サーバーを設定してください。",
+        "replaces": "現在保存されているキーを置き換えます。",
+        "replaceKey": "キーを置き換える",
+        "temporary": {
+          "label": "シークレットのリクエスト",
+          "title": "{{agent}} へのシークレット",
+          "givenAs": "この会話で {{agent}} のコマンドに {{variable}} として渡されます。",
+          "field": "{{variable}} のシークレット",
+          "placeholder": "シークレットを貼り付けるか入力してください",
+          "show": "シークレットを表示",
+          "hide": "シークレットを非表示",
+          "keepFor": "保持期間",
+          "keep": {
+            "memory": "{{duration}}、メモリ内のみ",
+            "disk": "{{duration}}、サーバー上のファイルに保存"
+          },
+          "kept": {
+            "memory": "{{duration}}保持されます（メモリ内のみ）。",
+            "disk": "{{duration}}保持されます（サーバー上のファイル）。"
+          },
+          "send": "送信",
+          "sent": "送信済み",
+          "sentWaiting": "送信しました。エージェントを待っています"
+        },
         "status": {
           "waitingForYou": "あなたの対応待ち",
           "pending": "保留中",
@@ -805,6 +830,7 @@
       "title": "サブエージェント",
       "close": "閉じる",
       "empty": "このルームで実行中のサブエージェントはありません。",
+      "emptyThread": "このスレッドで実行中のサブエージェントはありません。",
       "back": "戻る",
       "nested_other": "サブエージェント {{count}} 件",
       "turns_other": "{{count}} ターン",
@@ -834,6 +860,10 @@
     "dismissLostFiles": "閉じる"
   },
   "commandPalette": {
+    "state": {
+      "on": "オン",
+      "off": "オフ"
+    },
     "people": "人物",
     "tabsLabel": "結果の種類",
     "switchTabs": "タブを切り替え",
@@ -918,6 +948,15 @@
     "nextMonday": "来週の月曜日 09:00",
     "pickDateTime": "日時を選択",
     "pastTime": "未来の日時を選んでください"
+  },
+  "threadFork": {
+    "forkedFrom": "{{title}} から分岐",
+    "openInOriginalThread": "元のスレッドで開く",
+    "forkFromHere": "ここから分岐",
+    "forkThread": "スレッドを分岐",
+    "forking": "{{title}} を分岐中",
+    "continueInNewThread": "新しいスレッドで続ける",
+    "forkCount_other": "{{count}} 件の分岐"
   },
   "activity": {
     "title": "アクティビティ",
@@ -1208,6 +1247,17 @@
       "settingsKeywords": "ツアー, チュートリアル, ガイド, ヘルプ, 使い方, 入門, スレッド",
       "howThreadsWork": "スレッドのしくみ",
       "noThreadsHint": "下の入力欄からメッセージを送ると、スレッドが始まります。"
+    }
+  },
+  "threadNav": {
+    "layout": "スレッドの表示方法",
+    "layoutRecent": "最近",
+    "layoutSections": "セクション",
+    "sections": {
+      "working": "作業中",
+      "snoozed": "スヌーズ中",
+      "idle": "待機中",
+      "resolved": "解決済み"
     }
   }
 }

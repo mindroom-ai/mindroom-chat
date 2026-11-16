@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { importBeforeTests } from './test/utils/importBeforeTests';
+import { DEBUG_MODE_KEY } from './app/diagnostics/debugMode';
 
 const mocks = vi.hoisted(() => ({
   isNativeIOS: vi.fn(),
@@ -143,6 +144,7 @@ describe('application bootstrap', () => {
   });
 
   afterEach(() => {
+    window.localStorage.removeItem(DEBUG_MODE_KEY);
     vi.unstubAllGlobals();
     if (originalServiceWorker) {
       Object.defineProperty(navigator, 'serviceWorker', originalServiceWorker);
@@ -152,10 +154,12 @@ describe('application bootstrap', () => {
   });
 
   it.each([
-    ['native iOS', true, 1],
-    ['another platform', false, 0],
-  ])('installs the flight recorder on %s', async (_platform, nativeIOS, installs) => {
+    ['native iOS', true, false, 1],
+    ['another platform', false, false, 0],
+    ['another platform with debug mode on', false, true, 1],
+  ])('installs the flight recorder on %s', async (_platform, nativeIOS, debugMode, installs) => {
     mocks.isNativeIOS.mockReturnValue(nativeIOS);
+    if (debugMode) window.localStorage.setItem(DEBUG_MODE_KEY, '1');
 
     await import('./index');
 

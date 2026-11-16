@@ -24,7 +24,9 @@ vi.mock('react-i18next', () => ({
       options?.name ? `${key}:${options.name}` : key,
   }),
 }));
-vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => ({}) }));
+vi.mock('../matrix/hooks/useMatrixClient', () => ({
+  useMatrixClient: () => ({ getUserId: () => '@me:example.org' }),
+}));
 vi.mock('../matrix/hooks/useRoom', () => ({
   useRoom: () => ({ roomId: '!room:example.org', isCallRoom: () => state.callRoom }),
 }));
@@ -39,13 +41,21 @@ vi.mock('./callStore', () => ({
 }));
 vi.mock('./agent/AgentCallHeaderButton', () => ({
   AgentCallHeaderButton: () => React.createElement('button', { 'data-kind': 'agent-call' }),
-  useAgentCallCandidates: () => {
+}));
+// The room's voice agents are the candidates given here; the rule for offering them is real.
+vi.mock('../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => [] }));
+vi.mock('./agent/agentPresence', () => ({ usePresenceStatuses: () => new Map() }));
+vi.mock('./agent/agentCallCandidates', () => ({
+  getAgentCallCandidates: () => {
     state.lookups += 1;
     return state.candidates;
   },
+  keepThreadSenders: (candidates: unknown[]) => candidates,
 }));
 vi.mock('./callSupport', () => ({ useCallSupport: () => state.support }));
-vi.mock('./agent/agentCaller', () => ({ useAgentCaller: () => ({ call: state.call, pending: false }) }));
+vi.mock('./agent/agentCaller', () => ({
+  useAgentCaller: () => ({ call: state.call, pending: false }),
+}));
 vi.mock('../ui/MenuEntry', () => ({
   MenuEntry: ({ label, onSelect }: { label: string; onSelect: () => void }) =>
     React.createElement('button', { 'data-kind': 'menu-entry', onClick: onSelect }, label),

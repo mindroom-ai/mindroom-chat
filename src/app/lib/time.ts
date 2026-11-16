@@ -52,6 +52,19 @@ const unitFormat = (language: string, unit: 'second' | 'minute' | 'hour') =>
   numberFormat(language, { style: 'unit', unit, unitDisplay: 'short' });
 
 /**
+ * How long something lasts, in words: hours when it is a whole number of them ("24 hours"), else
+ * minutes ("15 minutes"), in the language's own units and digits.
+ */
+export const formatLifetime = (seconds: number, language = 'en'): string => {
+  const hours = seconds % 3600 === 0;
+  return numberFormat(language, {
+    style: 'unit',
+    unit: hours ? 'hour' : 'minute',
+    unitDisplay: 'long',
+  }).format(hours ? seconds / 3600 : Math.round(seconds / 60));
+};
+
+/**
  * How long a call lasted: seconds under a minute ("45 sec"), then whole minutes ("3 min"), then
  * hours and minutes ("1 hr 5 min"), in the language's own units and digits.
  */

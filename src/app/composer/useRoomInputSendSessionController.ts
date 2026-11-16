@@ -2,12 +2,13 @@ import {
   MutableRefObject,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
 } from 'react';
 import { useStore } from 'jotai';
-import { IContent, MatrixClient, Room } from 'matrix-js-sdk';
+import { IContent, MatrixClient, RelationType, Room } from 'matrix-js-sdk';
 import { Descendant, Editor } from 'slate';
 import {
   resetEditor,
@@ -45,11 +46,18 @@ import {
   RoomInputSendSessionState,
 } from './roomInputSendSession';
 import { getRoomMessageSentNotificationEventId } from '../event-store/timeline/roomMessageSent';
+import { getMessageRelation } from '../matrix/send/composeMessageRelation';
+import {
+  type ThreadForkRef,
+  threadForkContent,
+  threadForkDraftId,
+} from '../event-store/threads/threadFork';
 
 type SendSession = RoomInputSendSessionState & {
   room: Room;
   roomId: string;
   threadId: string | undefined;
+  forkStart: ForkStart | undefined;
   replyDraft: IReplyDraft | undefined;
   threadingEnabled: boolean;
   textContent?: IContent;
@@ -172,6 +180,8 @@ export type RoomInputSendContext = {
   replyDraft: IReplyDraft | undefined;
   threadingEnabled: boolean;
   signalBridgedRoom: boolean;
+  /** Sent from a fork draft: its messages without a relation start the fork or join it. */
+  forkStart?: ForkStart;
 };
 
 export type StartRoomInputSendSessionOptions = {
@@ -213,6 +223,8 @@ type UseRoomInputSendSessionControllerOptions = {
     threadId?: string
   ) => void;
   onRoomMessageSent?: (eventId: string) => boolean | void;
+  /** A fork draft's composer (`RoomInput`): its sends start the fork. */
+  forkFrom?: ThreadForkRef;
 };
 
 const getTextContentStrings = (content: IContent | undefined): string[] => {
@@ -271,6 +283,7 @@ const createSendSession = (
   replyDraft: context.replyDraft,
   threadingEnabled: context.threadingEnabled,
   signalBridgedRoom: context.signalBridgedRoom,
+  forkStart: context.forkStart,
   replyCleared: false,
   ...createRoomInputSendSessionState({
     files,
@@ -280,6 +293,80 @@ const createSendSession = (
     threadingEnabled: context.threadingEnabled,
   }),
 });
+
+/**
+ * A fork draft's start, which every send of the draft shares: one message carries the reference
+ * (`root`, its ID once the server has it) and all later ones join its thread.
+ */
+type ForkStart = { ref: ThreadForkRef; root?: Promise<string | undefined> };
+
+/**
+ * A fork draft's send to its room's top level belongs to the fork: see `placeMessage`.
+ */
+const withForkStart = (
+  context: RoomInputSendContext,
+  roomId: string,
+  forkStart: ForkStart | undefined
+): RoomInputSendContext =>
+  forkStart && !context.forkStart && context.roomId === roomId && !context.threadId
+    ? { ...context, forkStart }
+    : context;
+
+/**
+ * Where a fork draft's message without a relation goes: into the thread of the message that started
+ * the fork, once the server confirmed it, or, as the first, it starts the fork, and `settle` hears its
+ * server ID; one that was not sent (no ID) gives way to the next.
+ */
+const placeInFork = async (
+  fork: ForkStart
+): Promise<{ rootId: string } | { settle: (rootId?: string) => void }> => {
+  const started = fork.root;
+  if (started) {
+    const rootId = await started;
+    return rootId ? { rootId } : placeInFork(fork);
+  }
+  let resolve!: (rootId?: string) => void;
+  const root = new Promise<string | undefined>((done) => {
+    resolve = done;
+  });
+  fork.root = root;
+  return {
+    settle: (rootId) => {
+      if (!rootId && fork.root === root) fork.root = undefined;
+      resolve(rootId);
+    },
+  };
+};
+
+/**
+ * A session's message with the relation it gets. In a fork draft exactly one message carries the
+ * reference: the first without a relation, whose `settleFork` hears its server ID. Each later one,
+ * a queued text, a caption or an upload sent again, joins that message's thread.
+ */
+const placeMessage = async (
+  session: SendSession,
+  content: IContent,
+  relation: IContent['m.relates_to'] | undefined
+): Promise<{
+  content: IContent;
+  relation: IContent['m.relates_to'] | undefined;
+  settleFork?: (rootId?: string) => void;
+}> => {
+  const fork = relation ? undefined : session.forkStart;
+  if (!fork) {
+    return { content: relation ? { ...content, 'm.relates_to': relation } : content, relation };
+  }
+  const place = await placeInFork(fork);
+  if ('rootId' in place) {
+    const joined = getMessageRelation(undefined, undefined, place.rootId);
+    return { content: { ...content, 'm.relates_to': joined }, relation: joined };
+  }
+  return {
+    content: { ...content, ...threadForkContent(fork.ref) },
+    relation,
+    settleFork: place.settle,
+  };
+};
 
 const clearReplyDraftForSession = (session: SendSession) => {
   if (session.replyCleared) return;
@@ -337,6 +424,7 @@ export const useRoomInputSendSessionController = ({
   buildUploadMessageContent,
   restoreComposerFallbackForRoom,
   onRoomMessageSent,
+  forkFrom,
 }: UseRoomInputSendSessionControllerOptions): {
   hasActiveSendSession: () => boolean;
   /** A send this composer took over from one that unmounted is still going out. */
@@ -349,10 +437,17 @@ export const useRoomInputSendSessionController = ({
   const [slot, setSlot] = useState(createSendSlot);
   const slotRef = useRef(slot);
   slotRef.current = slot;
-  const composerKey = voiceComposerKey({ roomId, threadId, threadView });
+  // A fork draft keeps its text, and its sends' text to put back, apart from its thread's. Its sends
+  // share one start (ThreadView keeps the draft's reference as one object while it shows).
+  const composerThreadId = forkFrom ? threadForkDraftId(forkFrom) : threadId;
+  const forkStart = useMemo<ForkStart | undefined>(
+    () => (forkFrom ? { ref: forkFrom } : undefined),
+    [forkFrom]
+  );
+  const composerKey = voiceComposerKey({ roomId, threadId: composerThreadId, threadView });
   const composerKeyRef = useLatestRef(composerKey);
-  const composerContextRef = useRef({ roomId, threadId });
-  composerContextRef.current = { roomId, threadId };
+  const composerContextRef = useRef({ roomId, threadId: composerThreadId });
+  composerContextRef.current = { roomId, threadId: composerThreadId };
   const onRoomMessageSentRef = useLatestRef(onRoomMessageSent);
 
   const isMounted = useCallback(() => mountedRef?.current ?? true, [mountedRef]);
@@ -381,26 +476,29 @@ export const useRoomInputSendSessionController = ({
     async (session: SendSession) => {
       if (!session.textContent) return;
 
-      const relation = getTextRelationForSendSession(session);
-      const content: IContent = relation
-        ? {
-            ...session.textContent,
-            'm.relates_to': relation,
-          }
-        : session.textContent;
+      const { content, relation, settleFork } = await placeMessage(
+        session,
+        session.textContent,
+        getTextRelationForSendSession(session)
+      );
       // Content too large for one event goes as a long-text sidecar, as MindRoom's long replies do.
       // A failed upload throws before anything is sent, so the text returns to the composer.
-      const eventContent =
-        contentBytes(content) <= MAX_EVENT_CONTENT_BYTES
-          ? content
-          : await uploadLongTextSidecar(
-              mx,
-              session.room,
-              content,
-              buildLongTextPreview(content)
-            );
+      let eventContent: IContent;
+      try {
+        eventContent =
+          contentBytes(content) <= MAX_EVENT_CONTENT_BYTES
+            ? content
+            : await uploadLongTextSidecar(mx, session.room, content, buildLongTextPreview(content));
+      } catch (error) {
+        settleFork?.();
+        throw error;
+      }
       const txnId = mx.makeTxnId();
       const sendPromise = mx.sendMessage(session.roomId, eventContent as any, txnId);
+      sendPromise.then(
+        (response) => settleFork?.(response.event_id),
+        () => settleFork?.()
+      );
       const localEvent = session.room.getEventForTxnId(txnId);
       const localEventId = localEvent?.getId();
       let roomMessageSentNotified = false;
@@ -452,21 +550,21 @@ export const useRoomInputSendSessionController = ({
       }
 
       const content = await buildUploadMessageContent(fileItem, mxc, session.signalBridgedRoom);
-      const relation = getUploadRelationForSendSession(session, isRoot);
-      const contentWithRelation: IContent = relation
-        ? {
-            ...content,
-            'm.relates_to': relation,
-          }
-        : content;
+      const {
+        content: contentWithRelation,
+        relation,
+        settleFork,
+      } = await placeMessage(session, content, getUploadRelationForSendSession(session, isRoot));
       const txnId = mx.makeTxnId();
       const response = await mx
         .sendMessage(session.roomId, contentWithRelation as any, txnId)
         .catch((error: unknown) => {
+          settleFork?.();
           // The composer keeps the attachment to send again; drop the unsent echo.
           discardFailedLocalEcho(mx, session.room.getEventForTxnId(txnId));
           throw error;
         });
+      settleFork?.(response.event_id);
       const sentEventIdToNotify = getRoomMessageSentNotificationEventId({
         eventId: response.event_id,
         relation,
@@ -477,7 +575,11 @@ export const useRoomInputSendSessionController = ({
       session.sentFiles.add(file);
       session.failedFiles.delete(file);
       if (session.mode === 'auto-thread-upload-root' && isRoot) {
-        session.rootEventId = response.event_id;
+        // A root that joined a fork another message started keeps that thread for the rest.
+        session.rootEventId =
+          relation?.rel_type === RelationType.Thread && relation.event_id
+            ? relation.event_id
+            : response.event_id;
       }
       session.onUploadSent?.(file);
       clearReplyDraftForSession(session);
@@ -604,15 +706,19 @@ export const useRoomInputSendSessionController = ({
           resetEditor(editor); resetEditorHistory(editor);
           sendTypingStatus(false);
         }
-        const nextContext: RoomInputSendContext = context ?? {
+        const nextContext = withForkStart(
+          context ?? {
+            roomId,
+            room,
+            threadId,
+            replyDraft: replyDraft === existingSession.replyDraft ? undefined : replyDraft,
+            threadingEnabled,
+            signalBridgedRoom: isSignalBridgeRoom(room),
+          },
           roomId,
-          room,
-          threadId,
-          replyDraft: replyDraft === existingSession.replyDraft ? undefined : replyDraft,
-          threadingEnabled,
-          signalBridgedRoom: isSignalBridgeRoom(room),
-        };
-        const nextComposerContext = composerContext ?? { roomId, threadId };
+          forkStart
+        );
+        const nextComposerContext = composerContext ?? { roomId, threadId: composerThreadId };
         if (isSessionStalled(existingSession)) {
           // The session waits for the person to retry an attachment; the text does not wait
           // with it and gets its row at once.
@@ -663,18 +769,22 @@ export const useRoomInputSendSessionController = ({
       attachments.enroll(sendItems);
 
       const session = createSendSession(
-        context ?? {
+        withForkStart(
+          context ?? {
+            roomId,
+            room,
+            threadId,
+            replyDraft,
+            threadingEnabled,
+            signalBridgedRoom: isSignalBridgeRoom(room),
+          },
           roomId,
-          room,
-          threadId,
-          replyDraft,
-          threadingEnabled,
-          signalBridgedRoom: isSignalBridgeRoom(room),
-        },
+          forkStart
+        ),
         sendFiles,
         {
           textContent,
-          composerContext: composerContext ?? { roomId, threadId },
+          composerContext: composerContext ?? { roomId, threadId: composerThreadId },
           failFast: completeWithinCall,
           uploads: batch?.uploads,
           onUploadSent,
@@ -726,6 +836,8 @@ export const useRoomInputSendSessionController = ({
       threadView,
       roomId,
       threadId,
+      composerThreadId,
+      forkStart,
       replyDraft,
       threadingEnabled,
       room,

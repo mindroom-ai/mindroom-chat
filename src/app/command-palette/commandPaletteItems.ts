@@ -41,18 +41,20 @@ import { getCommandPaletteRoomRanking } from './commandPaletteRoomRanking';
 import type {
   CommandPaletteActionItem,
   CommandPaletteItem,
+  CommandPalettePage,
+  CommandPalettePageId,
   CommandPaletteRoomItem,
   CommandPaletteThreadItem,
   CommandPaletteUserItem,
+  Executable,
 } from './commandPaletteTypes';
 import {
   buildCommandPaletteDmRoomMap,
   collectCommandPaletteUserCandidates,
   getCommandPaletteDmUserDetails,
 } from './commandPaletteUserCandidates';
+import { useCommandPaletteCommands } from './useCommandPaletteCommands';
 import { getCommandPaletteAvatarUrl, useStartDirectChat } from './useCommandPalettePeople';
-
-type Executable<T> = T & { onSelect?: () => void };
 
 /**
  * A person: choosing them opens the direct chat with them (`onSelect`). Without one there is
@@ -75,7 +77,12 @@ type CommandPaletteUserQuery = { exhaustive: boolean; includeRelatedRooms: boole
  * users are built on demand. Messages come from the server (`useCommandPaletteMessages`).
  */
 export type CommandPaletteSource = {
+  /** The action rows of the first list. */
   actions: Executable<CommandPaletteActionItem>[];
+  /** The rows only typed text finds, searched with the actions: every setting and page choice. */
+  commands: Executable<CommandPaletteActionItem>[];
+  /** The pages of choices that a row with `page` opens. */
+  pages: Readonly<Record<CommandPalettePageId, CommandPalettePage>>;
   threads: Executable<CommandPaletteThreadItem>[];
   rooms: readonly Executable<CommandPaletteRoomItem>[];
   getUsers: (query: CommandPaletteUserQuery) => ExecutableCommandPaletteUserItem[];
@@ -95,8 +102,9 @@ const roomTopic = (room: Room): string | undefined => {
 
 /**
  * The command palette's items for the signed-in account: quick actions for where the user is,
- * recent threads, rooms and spaces ranked by activity and unread state, and people. Lists keep
- * their identity while their inputs do, so search indexes are reused.
+ * the settings, pages and commands of `useCommandPaletteCommands`, recent threads, rooms and
+ * spaces ranked by activity and unread state, and people. Lists keep their identity while their
+ * inputs do, so search indexes are reused.
  */
 export const useCommandPaletteSource = ({
   onLogout,
@@ -214,19 +222,22 @@ export const useCommandPaletteSource = ({
   );
 
   const currentThreadId = currentRoom ? selectedThreadId : undefined;
-  // The thread tag hooks need a room; without one open, no thread action is offered anyway.
+  // The thread tag hooks and the agent call hooks need a room; without one open, no thread action
+  // or agent call is offered anyway.
   const noRoom = useMemo(
     () => new Room('!command-palette:invalid', client, myUserId),
     [client, myUserId]
   );
-  const resolutionRoom = currentRoom ?? noRoom;
-  const { isResolved: currentThreadResolved } = useThreadResolution(
-    resolutionRoom,
-    currentThreadId
-  );
-  const { canToggle, setResolved } = useToggleThreadResolution(resolutionRoom);
+  const roomOrStandIn = currentRoom ?? noRoom;
+  const { isResolved: currentThreadResolved } = useThreadResolution(roomOrStandIn, currentThreadId);
+  const { canToggle, setResolved } = useToggleThreadResolution(roomOrStandIn);
   const canResolveThread = !!currentRoom && !!currentThreadId && canToggle;
-  const actions = useMemo<Executable<CommandPaletteActionItem>[]>(() => {
+  const commands = useCommandPaletteCommands({
+    room: roomOrStandIn,
+    inRoom: !!currentRoom,
+    threadId: currentThreadId,
+  });
+  const quickActions = useMemo<Executable<CommandPaletteActionItem>[]>(() => {
     const items = getCommandPaletteQuickActions(
       {
         currentRoomName: currentRoom?.name,
@@ -270,6 +281,10 @@ export const useCommandPaletteSource = ({
       'open-settings': () => setSettingsModal({}),
       'take-quick-tour': () => setTour({ level: 'quick' }),
       'take-full-tour': () => setTour({ level: 'full' }),
+      // The palette opens a page row's page itself.
+      'page-theme': undefined,
+      'page-message-layout': undefined,
+      'page-language': undefined,
       'copy-current-room-link': inCurrentRoom(copyRoomLink),
       'mark-current-room-read': inCurrentRoom((room) => {
         void markRoomsRead([room.roomId]);
@@ -311,6 +326,10 @@ export const useCommandPaletteSource = ({
     t,
     theme.kind,
   ]);
+  const actions = useMemo(
+    () => [...quickActions, ...commands.actions],
+    [commands.actions, quickActions]
+  );
 
   const dmRoomByUserId = useMemo(
     () =>
@@ -395,8 +414,10 @@ export const useCommandPaletteSource = ({
     ]
   );
 
+  const { commands: searchedCommands, pages } = commands;
+
   return useMemo(
-    () => ({ actions, threads, rooms, getUsers }),
-    [actions, getUsers, rooms, threads]
+    () => ({ actions, commands: searchedCommands, pages, threads, rooms, getUsers }),
+    [actions, getUsers, pages, rooms, searchedCommands, threads]
   );
 };

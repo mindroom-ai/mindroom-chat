@@ -402,7 +402,9 @@
       },
       "about": {
         "thirdPartyNotices": "Third-party notices",
-        "soundsCredit": "The notification and invite sounds are chimes synthesized for this app."
+        "soundsCredit": "The notification and invite sounds are chimes synthesized for this app.",
+        "debugMode": "Debug mode",
+        "debugModeDescription": "Records diagnostics on this device so you can export them and turn on deep diagnostic tracing."
       }
     },
     "createChat": {
@@ -722,6 +724,29 @@
         "noLongerActive": "This request is no longer active. Ask the agent again.",
         "unavailable": "Entering keys is not available on this server.",
         "unavailableHint": "To enter keys here, set your MindRoom server in Settings → {{page}} → {{field}}.",
+        "replaces": "Replaces the key saved now.",
+        "replaceKey": "Replace key",
+        "temporary": {
+          "label": "Secret request",
+          "title": "Secret for {{agent}}",
+          "givenAs": "Given to {{agent}}'s commands in this conversation as {{variable}}.",
+          "field": "Secret for {{variable}}",
+          "placeholder": "Paste or type the secret",
+          "show": "Show secret",
+          "hide": "Hide secret",
+          "keepFor": "Keep for",
+          "keep": {
+            "memory": "{{duration}}, in memory only",
+            "disk": "{{duration}}, in a file on the server"
+          },
+          "kept": {
+            "memory": "Kept for {{duration}}, in memory only.",
+            "disk": "Kept for {{duration}}, in a file on the server."
+          },
+          "send": "Send",
+          "sent": "Sent",
+          "sentWaiting": "Sent, waiting for the agent"
+        },
         "status": {
           "waitingForYou": "Waiting for you",
           "pending": "Pending",
@@ -816,6 +841,7 @@
       "title": "Sub-agents",
       "close": "Close",
       "empty": "No sub-agents are running in this room.",
+      "emptyThread": "No sub-agents are running in this thread.",
       "back": "Back",
       "nested_one": "{{count}} sub-agent",
       "nested_other": "{{count}} sub-agents",
@@ -849,6 +875,10 @@
     "dismissLostFiles": "Dismiss"
   },
   "commandPalette": {
+    "state": {
+      "on": "On",
+      "off": "Off"
+    },
     "people": "People",
     "tabsLabel": "Result types",
     "switchTabs": "Switch tabs",
@@ -933,6 +963,16 @@
     "nextMonday": "Next Monday 09:00",
     "pickDateTime": "Pick date and time",
     "pastTime": "Pick a time in the future"
+  },
+  "threadFork": {
+    "forkedFrom": "Forked from {{title}}",
+    "openInOriginalThread": "Open in original thread",
+    "forkFromHere": "Fork from here",
+    "forkThread": "Fork thread",
+    "forking": "Forking {{title}}",
+    "continueInNewThread": "Continue in a new thread",
+    "forkCount_one": "{{count}} fork",
+    "forkCount_other": "{{count}} forks"
   },
   "activity": {
     "title": "Activity",
@@ -1231,6 +1271,17 @@
       "settingsKeywords": "tour, tutorial, guide, help, onboarding, threads",
       "howThreadsWork": "How threads work",
       "noThreadsHint": "Send a message below to start one."
+    }
+  },
+  "threadNav": {
+    "layout": "Thread layout",
+    "layoutRecent": "Recent",
+    "layoutSections": "Sections",
+    "sections": {
+      "working": "Working",
+      "snoozed": "Snoozed",
+      "idle": "Idle",
+      "resolved": "Resolved"
     }
   }
 }

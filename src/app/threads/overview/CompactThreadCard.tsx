@@ -15,6 +15,10 @@ import { ownDirectionBlock } from '../../ui/directional';
 import { playsMotion } from '../../ui/listMotion';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { OverflowChip } from '../ThreadContextBanner.css';
+import { ThreadForkedBadge } from '../fork/ThreadForkedBadge';
+import { useThreadTitle } from '../fork/ThreadForkDivider';
+import type { ThreadForkRef } from '../../event-store/threads/threadFork';
+import type { Room } from 'matrix-js-sdk';
 
 export type CompactThreadCardProps = {
   viewModel: CompactThreadCardViewModel;
@@ -30,6 +34,8 @@ export type CompactThreadCardProps = {
    * or the memoized card renders again for it.
    */
   badges?: ReactNode;
+  /** The card's room, which names the thread a fork was made from. */
+  room?: Room;
 };
 
 /** How long ago a thread's last activity may be for its card to show it as just happened. */
@@ -81,7 +87,16 @@ const useShowChange = (cardRef: RefObject<HTMLElement>, now: Shown): void => {
 const DESKTOP_MAX_TAGS = 3;
 const MOBILE_MAX_TAGS = 2;
 
-function CompactThreadCardBase({ viewModel, onClick, attachment, badges }: CompactThreadCardProps) {
+function CompactThreadCardBase({
+  viewModel,
+  onClick,
+  attachment,
+  badges,
+  forkedFromLabel,
+}: Omit<CompactThreadCardProps, 'room'> & {
+  /** "Forked from <the parent's title>", for a fork. */
+  forkedFromLabel?: string;
+}) {
   const { t } = useTranslation();
   const maxTags = useScreenSizeContext() === ScreenSize.Mobile ? MOBILE_MAX_TAGS : DESKTOP_MAX_TAGS;
   const {
@@ -122,6 +137,7 @@ function CompactThreadCardBase({ viewModel, onClick, attachment, badges }: Compa
       : undefined;
   const ariaLabel = [
     t('thread.aria.openThread', { title: titleText }),
+    forkedFromLabel,
     attentionStatusText,
     previewText,
     hasReplies ? messageCountLabel : undefined,
@@ -251,6 +267,7 @@ function CompactThreadCardBase({ viewModel, onClick, attachment, badges }: Compa
             +{tags.length - maxTags}
           </span>
         )}
+        {forkedFromLabel && <ThreadForkedBadge label={forkedFromLabel} />}
         {badges}
         {isStreaming && (
           <Text as="span" className={css.StreamingStatus} size="T200" priority="300">
@@ -318,7 +335,29 @@ function CompactThreadCardBase({ viewModel, onClick, attachment, badges }: Compa
   );
 }
 
+/** A fork's card, whose badge and label name the thread it was forked from. */
+function ForkCompactThreadCard({
+  room,
+  parent,
+  ...props
+}: Omit<CompactThreadCardProps, 'room'> & { room: Room; parent: ThreadForkRef }) {
+  const { t } = useTranslation();
+  const title = useThreadTitle(room, parent.threadId, undefined, undefined);
+  return (
+    <CompactThreadCardBase {...props} forkedFromLabel={t('threadFork.forkedFrom', { title })} />
+  );
+}
+
+function CompactThreadCardOfThread({ room, ...props }: CompactThreadCardProps) {
+  const parent = props.viewModel.forkedFrom;
+  return room && parent ? (
+    <ForkCompactThreadCard {...props} room={room} parent={parent} />
+  ) : (
+    <CompactThreadCardBase {...props} />
+  );
+}
+
 // Memoized: the compact overview re-renders on every thread-index refresh
 // (each streaming edit anywhere in the room); with content-stable view models
 // only the cards whose content changed re-render.
-export const CompactThreadCard = memo(CompactThreadCardBase);
+export const CompactThreadCard = memo(CompactThreadCardOfThread);

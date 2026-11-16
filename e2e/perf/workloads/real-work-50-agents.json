@@ -1,0 +1,59 @@
+{
+  "name": "real-work-50-agents",
+  "quietRooms": 200,
+  "quietMessages": 10,
+  "threads": 170,
+  "resolvedThreads": 120,
+  "heavy": {
+    "threads": 6,
+    "turns": {
+      "p50": 10,
+      "p90": 44,
+      "max": 54
+    }
+  },
+  "agents": 17,
+  "turns": {
+    "p50": 2,
+    "p90": 4,
+    "max": 10
+  },
+  "reply": {
+    "words": {
+      "p50": 150,
+      "p90": 800,
+      "max": 2800
+    },
+    "wps": 30,
+    "reasoning": {
+      "p50": 600,
+      "p90": 3000,
+      "max": 8000
+    },
+    "tools": {
+      "p50": 2,
+      "p90": 7,
+      "max": 11
+    },
+    "toolsec": {
+      "p50": 10,
+      "p90": 60,
+      "max": 120
+    },
+    "links": {
+      "p50": 0,
+      "p90": 0,
+      "max": 1
+    }
+  },
+  "live": {
+    "streams": 50,
+    "pauseSeconds": {
+      "p50": 2,
+      "p90": 5,
+      "max": 10
+    },
+    "stuckSeconds": 1800
+  },
+  "historyStreams": 20
+}

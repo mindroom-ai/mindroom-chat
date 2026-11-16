@@ -77,6 +77,8 @@ vi.mock('./Reasoning.css', () => ({
   Reasoning: 'Reasoning',
   Line: 'ReasoningLine',
   Toggle: 'ReasoningToggle',
+  BulbIcon: 'ReasoningBulbIcon',
+  Bulb: 'ReasoningBulb',
   CogRow: 'ReasoningCogRow',
   CollapseEnd: 'ReasoningCollapseEnd',
   Label: 'ReasoningLabel',

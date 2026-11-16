@@ -8,6 +8,7 @@ import { Icons, config, type IconSrc } from 'folds';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThreadActionsMenu, type ThreadActionsMenuProps } from './ThreadActionsMenu';
 import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
+import { ForkIcon } from '../messages/ForkIcon';
 import { getDefaultStore } from 'jotai';
 import { getSettings, settingsAtom } from '../preferences/settings';
 import type { RegisteredPlugin } from '../plugins/registry';
@@ -18,6 +19,8 @@ import { clearToolCallOverrides } from '../messages/toolCallVisibility';
 vi.unmock('../ui/glass/GlassPrimitives');
 
 vi.mock('./ThreadContextBanner.css', () => ({ TagPickerInput: 'i', TagPickerInputContainer: 'c' }));
+const startFork = vi.hoisted(() => vi.fn());
+vi.mock('./fork/useStartThreadFork', () => ({ useStartThreadFork: () => startFork }));
 vi.mock('../ui/styles/Motion.css', () => ({
   motion: { duration: { Normal: '0ms', Fast: '0ms' }, easing: { Standard: 'linear' } },
 }));
@@ -28,7 +31,9 @@ const state = vi.hoisted(() => ({
   snoozedUntilTs: undefined as number | undefined,
   pinned: [] as string[],
   members: [] as { userId: string; membership: string }[],
+  threadMode: undefined as 'room' | 'thread' | 'mixed' | undefined,
 }));
+vi.mock('../matrix/hooks/useRoomThreadMode', () => ({ useRoomThreadMode: () => state.threadMode }));
 vi.mock('./tags/useThreadTags', () => ({
   useThreadTags: () => ({
     displayTags: ['triage'],
@@ -91,6 +96,7 @@ beforeEach(() => {
   mutations.snooze.mockReset();
   mutations.unsnooze.mockReset();
   state.members = [];
+  state.threadMode = undefined;
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
@@ -138,6 +144,7 @@ describe('ThreadActionsMenu rows', () => {
       { action: 'resolve', label: 'Resolve', icon: glyph(Icons.CheckTwice) },
       { action: 'snooze', label: 'Snooze', icon: glyph(Icons.Clock) },
       { action: 'pin', label: 'Pin thread', icon: glyph(Icons.Pin) },
+      { action: 'fork', label: 'Fork thread', icon: glyph(ForkIcon) },
       { action: 'copy', label: 'Copy thread link', icon: glyph(Icons.Link) },
       { action: 'hideDetails', label: 'Hide thread details', icon: glyph(Icons.ChevronTop) },
     ]);
@@ -211,6 +218,52 @@ describe('ThreadActionsMenu rows', () => {
       label: 'Reopen thread',
       icon: glyph(Icons.Reload),
     });
+  });
+
+  it('copies the open thread as a fork at its latest message the server confirmed', () => {
+    startFork.mockClear();
+    const reply = (id: string, ts: number) =>
+      new MatrixEvent({
+        event_id: id,
+        room_id: '!room:test',
+        type: 'm.room.message',
+        sender: '@me:test',
+        origin_server_ts: ts,
+        content: {
+          msgtype: 'm.text',
+          body: id,
+          'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+        },
+      });
+    const thread = {
+      rootEvent,
+      events: [reply('$first', 2), reply('$latest', 3)],
+      getUnfilteredTimelineSet: () => ({
+        getLiveTimeline: () => ({ getNeighbouringTimeline: () => null }),
+      }),
+    };
+    const onClose = vi.fn();
+    const items = renderMenu({
+      room: { ...room, getThread: () => thread } as unknown as Room,
+      onClose,
+    });
+
+    act(() => rowOf(items, 'fork')?.click());
+    expect(startFork).toHaveBeenCalledWith({ threadId: '$root', eventId: '$latest' });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('offers Fork thread only for the open thread, not on its card', () => {
+    const items = renderMenu({ onOpenThread: () => undefined });
+
+    expect(rowOf(items, 'fork')).toBeUndefined();
+  });
+
+  it('offers no Fork thread in a room whose agents answer in the room, where a fork stays empty', () => {
+    state.threadMode = 'room';
+    expect(rowOf(renderMenu(), 'fork')).toBeUndefined();
+    state.threadMode = 'mixed';
+    expect(rowOf(renderMenu(), 'fork')).toBeDefined();
   });
 
   it('opens at least 220px wide with the large corner radius, as the original menu measures', () => {

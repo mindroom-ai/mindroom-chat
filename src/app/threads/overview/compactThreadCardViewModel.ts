@@ -19,6 +19,7 @@ import type {
   ThreadRecord,
   ThreadParticipantViewModel,
 } from '../../event-store/threads/types';
+import { parseThreadForkRef, type ThreadForkRef } from '../../event-store/threads/threadFork';
 import { getThreadResolverDisplayName } from '../threadResolutionAttribution';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 
@@ -123,9 +124,22 @@ const getCompactThreadParticipants = ({
     };
   });
 
+/**
+ * The thread a fork was made from, read from its root when the room holds it. A thread root is in
+ * the room's main timeline, which is searched alone (`room.findEventById` searches every thread).
+ */
+export const getForkedFrom = (room: Room, threadRootId: string): ThreadForkRef | undefined => {
+  const rootEvent =
+    room.getThread(threadRootId)?.rootEvent ??
+    room.getUnfilteredTimelineSet().findEventById(threadRootId);
+  return rootEvent ? parseThreadForkRef(rootEvent.getOriginalContent()) : undefined;
+};
+
 type BuildCompactThreadCardViewModelFromRecordOptions = {
   record: ThreadRecord;
   room: Room;
+  /** The thread it was forked from (`getForkedFrom`), for a fork. */
+  forkedFrom?: ThreadForkRef;
   currentUserId?: string;
   mx: MatrixClient;
   useAuthentication: boolean;
@@ -136,6 +150,7 @@ type BuildCompactThreadCardViewModelFromRecordOptions = {
 export const buildCompactThreadCardViewModelFromRecord = ({
   record,
   room,
+  forkedFrom,
   currentUserId,
   mx,
   useAuthentication,
@@ -250,6 +265,7 @@ export const buildCompactThreadCardViewModelFromRecord = ({
       status.lastActivityTs !== undefined
         ? new Date(status.lastActivityTs).toLocaleString(locale)
         : undefined,
+    forkedFrom,
   };
 };
 
@@ -316,11 +332,14 @@ export const useCompactThreadCardViewModels = ({
       const record = threadRecordMap.get(threadRootId);
       if (!record) return;
 
+      const forkedFrom = getForkedFrom(room, threadRootId);
       const inputSignature = JSON.stringify([
         record.roomId,
         record.threadRootId,
         record.presentation,
         record.status,
+        // Read from the SDK room, which may not hold the root yet when the record is built.
+        forkedFrom,
       ]);
       const cached = previousCache?.models.get(threadRootId);
       // Scheduled labels read the clock; keep their existing refresh cadence.
@@ -337,6 +356,7 @@ export const useCompactThreadCardViewModels = ({
       const freshViewModel = buildCompactThreadCardViewModelFromRecord({
         record,
         room,
+        forkedFrom,
         currentUserId,
         mx,
         useAuthentication,
