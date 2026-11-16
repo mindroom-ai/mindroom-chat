@@ -350,9 +350,9 @@ describe('useThreadForkPrefix and a redaction of a prefix message', () => {
       mx.emit(ClientEvent.Event, redaction());
     });
 
+    expect(mainTimeline(room)).toEqual([]);
     expect(cache.load).toHaveBeenCalledTimes(2);
     expect(ids(view.results.at(-1)!.events)).toEqual(['$p', '$b']);
-    expect(mainTimeline(room)).toEqual([]);
     await view.unmount();
     session.value = undefined;
     cache.events = undefined;
