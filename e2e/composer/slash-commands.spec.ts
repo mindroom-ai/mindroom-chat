@@ -123,8 +123,10 @@ test('slash commands: the menu, a message command, commands that act, and a refu
   await page.keyboard.type('/zz');
   await page.keyboard.press('Enter');
   await expect(page.getByRole('alert').filter({ hasText: '/zz is not a command' })).toBeVisible();
-  await page.keyboard.press('ControlOrMeta+a');
-  await page.keyboard.press('Backspace');
+  // The refused text stays; delete it key by key, as select-all does not reliably reach the editor.
+  await expect(composer(page)).toContainText('/zz');
+  for (let i = 0; i < '/zz'.length; i++) await page.keyboard.press('Backspace');
+  await expect(composer(page)).not.toContainText('/zz');
 
   // A command that acts sends no message: the invite lands and the composer empties.
   const before = (await latestMessages(token, roomId)).length;
