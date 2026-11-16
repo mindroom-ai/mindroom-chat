@@ -285,16 +285,19 @@ function SecretRequestAnswer({
 /**
  * An agent's request for a key (`io.mindroom.secret_request`): the service, the agent's reason
  * and the hosts the key may go to, with a field for the person asked while it is pending.
- * `agentUserId` is the card's sender, whose own MindRoom server takes the answer.
+ * `agentUserId` is the card's sender, whose own MindRoom server takes the answer. A `readOnly`
+ * card (another thread's view, such as a fork's prefix) shows the request without the field.
  */
 export function SecretRequestCard({
   request,
   roomId,
   agentUserId,
+  readOnly = false,
 }: {
   request: SecretRequest;
   roomId: string;
   agentUserId: string;
+  readOnly?: boolean;
 }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
@@ -306,7 +309,8 @@ export function SecretRequestCard({
   const [clockTick, setClockTick] = useState(0);
   const keyboardAnswer = useRef(false);
   const now = Date.now();
-  const isRequester = request.requesterId === viewerId;
+  // The person asked, where the card can take their answer.
+  const isRequester = request.requesterId === viewerId && !readOnly;
   // The agent's edit decides; until it comes, an answer the server took holds whatever the clock says.
   const waitingForEdit = request.status === 'pending';
   const status: SecretRequestStatus =

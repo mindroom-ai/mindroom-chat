@@ -305,6 +305,7 @@ export const renderAgentMessageContent = ({
         request={secretRequest}
         roomId={secretRequestRoomId}
         agentUserId={secretRequestSender}
+        readOnly={readOnly}
       />
     );
   }
