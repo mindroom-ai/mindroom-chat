@@ -84,26 +84,35 @@ const sameFollowing = (a: Following | undefined, b: Following | undefined): bool
     a.userIds.every((userId, index) => userId === b.userIds[index]));
 
 /**
- * The followers of the room or thread, read again when receipts, events or members arrive. An
- * unchanged answer keeps the previous object, so a streamed reply's edits do not re-render the row.
+ * The followers of the room or thread, read again when receipts, members or a new newest event
+ * arrive. An unchanged answer keeps the previous object, so a streamed reply's edits do not
+ * re-render the row.
  */
 const useFollowers = (room: Room, threadId: string | undefined, myUserId: string | null) => {
   const [following, setFollowing] = useState(() => readFollowers(room, threadId, myUserId));
 
   useEffect(() => {
+    let readEventId: string | undefined;
     const refresh = () => {
       const next = readFollowers(room, threadId, myUserId);
+      readEventId = next?.eventId;
       setFollowing((previous) => (sameFollowing(previous, next) ? previous : next));
     };
+    // Who has read the newest event changes with a receipt, a member, or a new newest event. Each
+    // refresh asks every member's receipt, so a timeline event that leaves the newest event as it
+    // was (older history loading, an edit, the events of a thread being opened) asks none: on a
+    // long thread those come by the hundred.
+    const refreshForNewestEvent = () => {
+      if (latestSyncedEvent(room, threadId)?.getId() !== readEventId) refresh();
+    };
     // The room passes on the events and receipts of all its threads, many a second while agents
-    // stream, and each refresh asks every member's receipt; only those of the shown timeline can
-    // change who has read its newest event.
+    // stream; only those of the shown timeline can change who has read its newest event.
     const refreshForTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (...[, , , , data]) => {
       if (data?.timeline && data.timeline !== shownTimeline(room, threadId)) return;
-      refresh();
+      refreshForNewestEvent();
     };
     const refreshForThread = (thread: Thread) => {
-      if (thread.id === threadId) refresh();
+      if (thread.id === threadId) refreshForNewestEvent();
     };
     const refreshForReceipt = (receiptEvent: MatrixEvent | undefined) => {
       if (hasShownTimelineReceipt(receiptEvent, threadId)) refresh();

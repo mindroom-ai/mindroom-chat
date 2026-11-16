@@ -152,6 +152,27 @@ it('does not draw the row again for events that leave the same readers', () => {
   expect(getMember.mock.calls.length).toBe(namedOnFirstDraw);
 });
 
+it('asks no receipts for timeline events that leave the newest event as it was', () => {
+  const room = makeRoom();
+  room.read.add('@avery:example.org');
+  const hasUserReadEvent = vi.spyOn(
+    room as unknown as { hasUserReadEvent: () => boolean },
+    'hasUserReadEvent'
+  );
+  const view = render(room);
+  const askedOnFirstDraw = hasUserReadEvent.mock.calls.length;
+
+  // Older history loading above the view, and a reply's edits: each is a timeline event, and
+  // none changes the newest event or anyone's receipt.
+  act(() => {
+    for (let older = 0; older < 50; older += 1) {
+      room.emit('Room.timeline', {}, room, true, false, { timeline: room.liveTimeline });
+    }
+  });
+  expect(hasUserReadEvent.mock.calls.length).toBe(askedOnFirstDraw);
+  expect(strip(view)?.textContent).toContain('Avery');
+});
+
 it('asks no receipts for the events and receipts of threads the room view does not show', () => {
   const room = makeRoom();
   room.read.add('@avery:example.org');
