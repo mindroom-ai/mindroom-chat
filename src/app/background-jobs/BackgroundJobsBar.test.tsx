@@ -492,8 +492,12 @@ const subagentName = 'mindroomUi.backgroundJobs.subagent{"tool":"run_subagent"}'
 const tr = (key: string, values: Record<string, unknown>) => `${key}${JSON.stringify(values)}`;
 
 it("opens the room's Sub-agents panel from a sub-agent job's name in its row, and from no other", async () => {
-  state.jobs = [job('a', { kind: 'subagent', tool: 'run_subagent' }), job('b')];
-  render('$thread', true, true);
+  // The room's bar lists every thread's jobs: the panel opens for the job's own thread.
+  state.jobs = [
+    job('a', { kind: 'subagent', tool: 'run_subagent', threadId: '$other' }),
+    job('b'),
+  ];
+  render(null, true, true);
   expand();
   const [subagent, tool] = [...container.querySelectorAll('li')];
   const link = subagent?.querySelector('button:not([data-cancel-job])');
@@ -504,7 +508,10 @@ it("opens the room's Sub-agents panel from a sub-agent job's name in its row, an
   );
   expect(tool?.querySelector('button:not([data-cancel-job])')).toBeNull();
   await click(subagentName);
-  expect(getDefaultStore().get(subagentsPanelAtom)).toEqual({ roomId: room.roomId });
+  expect(getDefaultStore().get(subagentsPanelAtom)).toEqual({
+    roomId: room.roomId,
+    threadId: '$other',
+  });
   // The list stays as it was; the panel opens beside it.
   expect(container.querySelectorAll('li')).toHaveLength(2);
 });
@@ -521,7 +528,10 @@ it("opens the room's Sub-agents panel from beside the title of one sub-agent job
   );
   expect(button(tr('mindroomUi.backgroundJobs.stopJob', { tool: subagentName }))).toBeDefined();
   await click('mindroomUi.subagents.show');
-  expect(getDefaultStore().get(subagentsPanelAtom)).toEqual({ roomId: room.roomId });
+  expect(getDefaultStore().get(subagentsPanelAtom)).toEqual({
+    roomId: room.roomId,
+    threadId: '$thread',
+  });
 
   // One tool job has no such button.
   getDefaultStore().set(subagentsPanelAtom, undefined);

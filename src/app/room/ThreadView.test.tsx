@@ -11,7 +11,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createClient, EventStatus, MatrixEvent, Room, type RoomMember } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { Editable, ReactEditor, Slate } from 'slate-react';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
 import { composerReplyDraftAtom, composerUploadItemsAtom } from '../composer/roomInputDrafts';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
@@ -38,9 +38,20 @@ const state = vi.hoisted(() => ({
   dropTarget: undefined as HTMLElement | null | undefined,
   composerViews: [] as (string | undefined)[],
   approvals: undefined as Omit<ApprovalProps, 'children'> | undefined,
+  composer: undefined as
+    | {
+        threadId?: string;
+        forkFrom?: { threadId: string; eventId: string };
+        onRoomMessageSent?: (eventId: string) => boolean | void;
+      }
+    | undefined,
+  navigateRoomThread: vi.fn(),
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
+vi.mock('../navigation/useRoomNavigate', () => ({
+  useRoomNavigate: () => ({ navigateRoomThread: state.navigateRoomThread }),
+}));
 vi.mock('../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => state.members }));
 vi.mock('../matrix/hooks/usePowerLevels', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../matrix/hooks/usePowerLevels')>()),
@@ -100,12 +111,17 @@ vi.mock('../composer/RoomInput', () => ({
   RoomInput: ({
     editor,
     threadId,
+    forkFrom,
+    onRoomMessageSent,
     fileDropContainerRef,
   }: {
     editor: Editor;
     threadId?: string;
+    forkFrom?: { threadId: string; eventId: string };
+    onRoomMessageSent?: (eventId: string) => boolean | void;
     fileDropContainerRef: RefObject<HTMLElement>;
   }) => {
+    state.composer = { threadId, forkFrom, onRoomMessageSent };
     const view = useContext(ConversationViewContext);
     useEffect(() => {
       state.dropTarget = fileDropContainerRef.current;
@@ -128,6 +144,8 @@ beforeEach(() => {
   state.dropTarget = undefined;
   state.composerViews = [];
   state.approvals = undefined;
+  state.composer = undefined;
+  state.navigateRoomThread.mockReset();
 });
 afterEach(cleanup);
 
@@ -428,4 +446,62 @@ it('takes the focus to its reply box as it opens only when asked to', () => {
   unmount();
   render(<ThreadView room={room} threadId={THREAD} autoFocus />);
   expect(document.activeElement).toBe(composer());
+});
+
+describe('a fork draft', () => {
+  it('shows the thread up to the fork point, then a focused composer that starts a new thread there', () => {
+    const focus = vi.spyOn(ReactEditor, 'focus');
+    render(<ThreadView room={room} threadId={THREAD} forkAt="$point" />);
+    expect(state.timeline).toMatchObject({ threadId: THREAD, forkAt: '$point' });
+    // From the start: text typed while the thread loads belongs to the draft, never to the thread.
+    expect(state.composer).toMatchObject({
+      threadId: undefined,
+      forkFrom: { threadId: THREAD, eventId: '$point' },
+    });
+    expect(focus).toHaveBeenCalledTimes(1);
+
+    // The sent message opens its thread in the draft's place.
+    let opened: boolean | void = false;
+    act(() => {
+      opened = state.composer?.onRoomMessageSent?.('$fork');
+    });
+    expect(opened).toBe(true);
+    expect(state.navigateRoomThread).toHaveBeenCalledWith(room.roomId, '$fork', undefined, {
+      replace: true,
+    });
+    focus.mockRestore();
+  });
+
+  it('drops the reply chosen in its thread once the fork starts, so it takes nothing back there', () => {
+    const store = getDefaultStore();
+    render(<ThreadView room={room} threadId={THREAD} forkAt="$point" />);
+    const replyAtom = composerReplyDraftAtom(room.roomId, state.composerViews.at(-1));
+    act(() => {
+      store.set(replyAtom, { userId: '@bob:example.org', eventId: '$reply', body: 'Reply' });
+    });
+
+    act(() => {
+      state.composer?.onRoomMessageSent?.('$fork');
+    });
+    expect(store.get(replyAtom)).toBeUndefined();
+  });
+
+  it('asks the timeline for no draft at a point the server has not confirmed', () => {
+    render(<ThreadView room={room} threadId={THREAD} forkAt="~!room:example.org:m1.1" />);
+
+    expect(state.timeline?.forkAt).toBeUndefined();
+    expect(state.composer).toMatchObject({ threadId: THREAD, forkFrom: undefined });
+  });
+
+  it("follows the fork point, and goes back to the thread's composer when the draft closes", () => {
+    const { rerender } = render(<ThreadView room={room} threadId={THREAD} forkAt="$point" />);
+    expect(state.composer?.forkFrom).toEqual({ threadId: THREAD, eventId: '$point' });
+
+    rerender(<ThreadView room={room} threadId={THREAD} forkAt="$other" />);
+    expect(state.composer?.forkFrom).toEqual({ threadId: THREAD, eventId: '$other' });
+
+    // Closing the draft leaves the thread on screen, with its composer at once.
+    rerender(<ThreadView room={room} threadId={THREAD} />);
+    expect(state.composer).toMatchObject({ threadId: THREAD, forkFrom: undefined });
+  });
 });

@@ -26,6 +26,7 @@ import { installOverlayFocus } from '../lib/overlayFocus';
 import { useErrorReporting } from '../bug-reports/error-reporting/errorReporting';
 import { ConfigConfigError, ConfigConfigLoading } from './ConfigConfig';
 import { createRouter } from './Router';
+import { withPhonePageSlide } from '../navigation/phonePageSlide';
 import { PersistentParticleBackgroundProvider } from '../ui/particle-background/PersistentParticleBackground';
 import { deploymentBranding } from '../ui/branding/deploymentBranding';
 import '../ui/particle-background/particleCanvasReveal.css';
@@ -58,6 +59,8 @@ function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
   // One router while the app is mounted: a refreshed configuration replaces this one only when it
   // routes the same (ClientConfigLoader), so pages keep their state. Screen size reaches pages by context.
   const [router] = useState(() => createRouter(clientConfig));
+  // On a phone a new location slides in (navigation/phonePageSlide.ts).
+  const [slidingRouter] = useState(() => withPhonePageSlide(router));
   // Error reports, when the configuration names a collector, follow the router's pages.
   useErrorReporting(clientConfig, router);
   // A configured brand names the browser tab too. A layout effect, so the unread count's title
@@ -74,7 +77,7 @@ function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
   }, [setDeploymentTheme, deploymentTheme]);
   return (
     <ScreenSizeProvider value={screenSize}>
-      <RouterProvider router={router} />
+      <RouterProvider router={slidingRouter} />
     </ScreenSizeProvider>
   );
 }

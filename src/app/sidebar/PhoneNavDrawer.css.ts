@@ -9,6 +9,12 @@ import { cardRadius } from '../ui/page/floatingCards.css';
 const SLIDE = motion.duration.Slower;
 const EASE = motion.easing.Standard;
 
+// Where the browser slides the whole page between two pictures (navigation/phonePageSlide.ts), the
+// drawer is out or away at once: the picture that slides in shows the page as it is, and the
+// drawer's own slide would play inside it.
+const IN_PAGE_SLIDE =
+  'html[data-page-slide] &[data-animate], html[data-page-slide] &[data-animate][data-open]';
+
 // Both layers cover the area below the top bar; the bar stays usable above them.
 const belowTopBar = {
   position: 'absolute',
@@ -43,6 +49,7 @@ export const Scrim = style([
       '&[data-open]': { opacity: 1, visibility: 'visible', pointerEvents: 'auto' },
       '&[data-animate]': { transition: `opacity ${SLIDE} ${EASE}, visibility 0s ${SLIDE}` },
       '&[data-animate][data-open]': { transition: `opacity ${SLIDE} ${EASE}` },
+      [IN_PAGE_SLIDE]: { transition: 'none' },
     },
   },
 ]);
@@ -79,6 +86,7 @@ export const Panel = style([
       '&[data-open], [dir=rtl] &[data-open]': { transform: 'none', visibility: 'visible' },
       '&[data-animate]': { transition: `transform ${SLIDE} ${EASE}, visibility 0s ${SLIDE}` },
       '&[data-animate][data-open]': { transition: `transform ${SLIDE} ${EASE}` },
+      [IN_PAGE_SLIDE]: { transition: 'none' },
       // A page without a list (Threads, Canvases): the rail alone.
       '&:has(> [data-nav-slot]:empty)': { inlineSize: 'auto' },
     },

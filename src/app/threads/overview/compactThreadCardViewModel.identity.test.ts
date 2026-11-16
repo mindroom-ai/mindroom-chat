@@ -21,6 +21,9 @@ import { useCompactThreadCardViewModels } from './compactThreadCardViewModel';
 const makeRoom = (): Room =>
   ({
     roomId: '!room:server',
+    getThread: () => null,
+    findEventById: () => undefined,
+    getUnfilteredTimelineSet: () => ({ findEventById: () => undefined }),
     getMember: () => undefined,
     getMembers: () => [],
   } as unknown as Room);
@@ -123,6 +126,90 @@ describe('useCompactThreadCardViewModels identity reuse', () => {
     expect(latest[0]!.messageCount).toBe(4);
     expect(latest[1]).toBe(firstB);
 
+    act(() => {
+      renderer?.unmount();
+    });
+  });
+});
+
+describe('a fork whose root the room loads later', () => {
+  it('shows its badge once the root is there, though the record is unchanged', () => {
+    const forkRoot = {
+      getOriginalContent: () => ({
+        'io.mindroom.fork': { thread_id: '$p', event_id: '$a' },
+      }),
+    };
+    let known = false;
+    const room = {
+      ...makeRoom(),
+      getThread: () => (known ? { rootEvent: forkRoot } : null),
+      getUnfilteredTimelineSet: () => ({ findEventById: () => (known ? forkRoot : undefined) }),
+    } as unknown as Room;
+    let latest: CompactThreadCardViewModel[] = [];
+    const render = () =>
+      React.createElement(Harness, {
+        room,
+        threadRootIds: ['$a'],
+        threadRecordMap: new Map([['$a', makeRecord('$a', 3)]]),
+        onViewModels: (viewModels) => {
+          latest = viewModels;
+        },
+      });
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(render());
+    });
+    expect(latest[0]?.forkedFrom).toBeUndefined();
+
+    known = true;
+    act(() => {
+      renderer?.update(render());
+    });
+    expect(latest[0]?.forkedFrom).toEqual({ threadId: '$p', eventId: '$a' });
+  });
+});
+
+describe('the roots of the cards', () => {
+  it('are each read once as the cards are built, from the main timeline of the room', () => {
+    const forkRoot = {
+      getOriginalContent: () => ({
+        'io.mindroom.fork': { thread_id: '$p', event_id: '$x' },
+      }),
+    };
+    // Thread roots are in the main timeline; the room's own lookup also searches every thread.
+    const findInMainTimeline = vi.fn((eventId: string) =>
+      eventId === '$a' ? forkRoot : undefined
+    );
+    const findAnywhere = vi.fn(() => undefined);
+    const room = {
+      ...makeRoom(),
+      findEventById: findAnywhere,
+      getUnfilteredTimelineSet: () => ({ findEventById: findInMainTimeline }),
+    } as unknown as Room;
+    let latest: CompactThreadCardViewModel[] = [];
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, {
+          room,
+          threadRootIds: ['$a', '$b'],
+          threadRecordMap: new Map([
+            ['$a', makeRecord('$a', 3)],
+            ['$b', makeRecord('$b', 5)],
+          ]),
+          onViewModels: (viewModels) => {
+            latest = viewModels;
+          },
+        })
+      );
+    });
+
+    expect(latest.map((viewModel) => viewModel.forkedFrom)).toEqual([
+      { threadId: '$p', eventId: '$x' },
+      undefined,
+    ]);
+    expect(findInMainTimeline.mock.calls.map(([eventId]) => eventId)).toEqual(['$a', '$b']);
+    expect(findAnywhere).not.toHaveBeenCalled();
     act(() => {
       renderer?.unmount();
     });

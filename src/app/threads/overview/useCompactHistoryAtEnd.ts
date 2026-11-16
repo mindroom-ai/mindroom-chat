@@ -28,7 +28,10 @@ export const useCompactHistoryAtEnd = ({
   enabled: boolean;
   /** The room shown; a new room mounts a new compact view. */
   roomId: string;
-  /** An element holding the compact view (`[data-compact-room-view]`). */
+  /**
+   * An element holding the compact view (`[data-compact-room-view]`), marked
+   * `data-cards-pending` while some of its cards are still to mount.
+   */
   hostRef: RefObject<HTMLElement>;
   canPaginateBack: boolean;
   hasMoreCachedBack: boolean;
@@ -51,7 +54,8 @@ export const useCompactHistoryAtEnd = ({
       const state = stateRef.current;
       if (!alive || inFlight || pages <= 0) return;
       if (!state.canPaginateBack && !state.hasMoreCachedBack) return;
-      if (!isNearCardsEnd(view)) return;
+      // While cards still mount, the view ends before the cards do.
+      if (view.hasAttribute('data-cards-pending') || !isNearCardsEnd(view)) return;
       inFlight = true;
       pages -= 1;
       state

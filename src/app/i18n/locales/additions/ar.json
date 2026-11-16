@@ -422,7 +422,9 @@
       },
       "about": {
         "thirdPartyNotices": "إشعارات الجهات الخارجية",
-        "soundsCredit": "أصوات الإشعارات والدعوات نغمات مُركَّبة صُنعت لهذا التطبيق."
+        "soundsCredit": "أصوات الإشعارات والدعوات نغمات مُركَّبة صُنعت لهذا التطبيق.",
+        "debugMode": "وضع التصحيح",
+        "debugModeDescription": "يسجّل التشخيصات على هذا الجهاز لتتمكن من تصديرها وتفعيل التتبع التشخيصي المفصل."
       }
     },
     "createChat": {
@@ -758,6 +760,29 @@
         "noLongerActive": "لم يعد هذا الطلب نشطًا. اطلب من الوكيل مرة أخرى.",
         "unavailable": "إدخال المفاتيح غير متاح على هذا الخادم.",
         "unavailableHint": "لإدخال المفاتيح هنا، اضبط خادم MindRoom الخاص بك في الإعدادات → ⁨{{page}}⁩ → ⁨{{field}}⁩.",
+        "replaces": "يستبدل المفتاح المحفوظ حاليًا.",
+        "replaceKey": "استبدال المفتاح",
+        "temporary": {
+          "label": "طلب سر",
+          "title": "سر لـ ⁨{{agent}}⁩",
+          "givenAs": "يُعطى لأوامر ⁨{{agent}}⁩ في هذه المحادثة باسم ⁨{{variable}}⁩.",
+          "field": "سر لـ ⁨{{variable}}⁩",
+          "placeholder": "الصق السر أو اكتبه",
+          "show": "إظهار السر",
+          "hide": "إخفاء السر",
+          "keepFor": "مدة الاحتفاظ",
+          "keep": {
+            "memory": "⁨{{duration}}⁩، في الذاكرة فقط",
+            "disk": "⁨{{duration}}⁩، في ملف على الخادم"
+          },
+          "kept": {
+            "memory": "يُحتفظ به لمدة ⁨{{duration}}⁩، في الذاكرة فقط.",
+            "disk": "يُحتفظ به لمدة ⁨{{duration}}⁩، في ملف على الخادم."
+          },
+          "send": "إرسال",
+          "sent": "تم الإرسال",
+          "sentWaiting": "تم الإرسال، في انتظار الوكيل"
+        },
         "status": {
           "waitingForYou": "في انتظارك",
           "pending": "معلق",
@@ -860,6 +885,7 @@
       "title": "الوكلاء الفرعيون",
       "close": "إغلاق",
       "empty": "لا يعمل أي وكيل فرعي في هذه الغرفة.",
+      "emptyThread": "لا يعمل أي وكيل فرعي في هذه السلسلة.",
       "back": "رجوع",
       "nested_zero": "الوكلاء الفرعيون: ⁨{{count}}⁩",
       "nested_one": "الوكلاء الفرعيون: ⁨{{count}}⁩",
@@ -909,6 +935,10 @@
     "dismissLostFiles": "إخفاء"
   },
   "commandPalette": {
+    "state": {
+      "on": "تشغيل",
+      "off": "إيقاف"
+    },
     "people": "الأشخاص",
     "tabsLabel": "أنواع النتائج",
     "switchTabs": "تبديل علامة التبويب",
@@ -993,6 +1023,20 @@
     "nextMonday": "الاثنين القادم 09:00",
     "pickDateTime": "اختيار التاريخ والوقت",
     "pastTime": "اختر وقتًا في المستقبل"
+  },
+  "threadFork": {
+    "forkedFrom": "متفرّع من ⁨{{title}}⁩",
+    "openInOriginalThread": "فتح في سلسلة المحادثة الأصلية",
+    "forkFromHere": "التفريع من هنا",
+    "forkThread": "تفريع سلسلة المحادثة",
+    "forking": "تفريع ⁨{{title}}⁩",
+    "continueInNewThread": "المتابعة في سلسلة محادثة جديدة",
+    "forkCount_zero": "⁨{{count}}⁩ تفريعة",
+    "forkCount_one": "⁨{{count}}⁩ تفريعة",
+    "forkCount_two": "⁨{{count}}⁩ تفريعتان",
+    "forkCount_few": "⁨{{count}}⁩ تفريعات",
+    "forkCount_many": "⁨{{count}}⁩ تفريعةً",
+    "forkCount_other": "⁨{{count}}⁩ تفريعة"
   },
   "activity": {
     "title": "النشاط",
@@ -1323,6 +1367,17 @@
       "settingsKeywords": "جولة، شرح، دليل، مساعدة، مقدمة، تعريف، سلاسل المحادثات",
       "howThreadsWork": "كيف تعمل سلاسل المحادثات",
       "noThreadsHint": "أرسل رسالة في الأسفل لبدء واحدة."
+    }
+  },
+  "threadNav": {
+    "layout": "تخطيط سلاسل المحادثات",
+    "layoutRecent": "الأحدث",
+    "layoutSections": "أقسام",
+    "sections": {
+      "working": "قيد العمل",
+      "snoozed": "مؤجلة",
+      "idle": "خاملة",
+      "resolved": "محلولة"
     }
   }
 }

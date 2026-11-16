@@ -3,6 +3,7 @@ import React from 'react';
 import { create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { persistAttachmentEvents } from '../../event-store/cache/__tests__/attachmentFixtures';
+import { CHAT_UI_ACTION_KEY } from '../../matrix/protocol/chatUiProtocol';
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from '../../matrix/protocol/messageExtrasData';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
@@ -53,6 +54,9 @@ vi.mock('../html/HtmlBlocks', () => ({
   useToolTraceMarkerParserOptions: toolTraceParserOptionsMock,
 }));
 
+vi.mock('../../ui-actions/ChatUiActionButton', () => ({
+  ChatUiActionButton: () => React.createElement('button', { 'data-ui-action': true }),
+}));
 vi.mock('../thread-summary/ThreadSummaryCard', () => ({
   ThreadSummaryCard: ({ summaryInfo }: { summaryInfo: { summaryText?: string } }) =>
     React.createElement('div', { 'data-renderer': 'summary-card' }, summaryInfo.summaryText),
@@ -64,13 +68,15 @@ vi.mock('../../approvals/ToolApprovalCard', () => ({
     eventId,
     roomId,
     threadId,
+    readOnly,
   }: {
     approval: { toolName: string };
     eventId?: string;
     roomId?: string;
     threadId?: string;
+    readOnly?: boolean;
   }) => {
-    toolApprovalCardMock({ approval, eventId, roomId, threadId });
+    toolApprovalCardMock({ approval, eventId, roomId, threadId, readOnly });
     return React.createElement('div', { 'data-renderer': 'tool-approval' }, approval.toolName);
   },
 }));
@@ -80,6 +86,7 @@ vi.mock('../../approvals/SecretRequestCard', () => ({
     request: { displayName: string };
     roomId: string;
     agentUserId: string;
+    readOnly?: boolean;
   }) => {
     secretRequestCardMock(props);
     return React.createElement(
@@ -651,9 +658,10 @@ describe('renderAgentMessageContent', () => {
         expires_at: 4_102_444_800_000,
       },
     };
-    const render = async (fromMindroomAgent: boolean) => {
+    const render = async (fromMindroomAgent: boolean, readOnly?: boolean) => {
       const { MatrixEvent } = await import('matrix-js-sdk');
       return renderNode({
+        readOnly,
         mEvent: new MatrixEvent({
           type: 'm.room.message',
           sender: '@mindroom_assistant:example.org',
@@ -681,6 +689,16 @@ describe('renderAgentMessageContent', () => {
       });
     });
 
+    it("hands a read-only row's card no field", async () => {
+      secretRequestCardMock.mockReset();
+
+      await render(true, true);
+
+      expect(secretRequestCardMock).toHaveBeenCalledWith(
+        expect.objectContaining({ roomId: '!room:example.org', readOnly: true })
+      );
+    });
+
     it('renders no card and no field from anyone else', async () => {
       secretRequestCardMock.mockReset();
 
@@ -692,6 +710,29 @@ describe('renderAgentMessageContent', () => {
       expect(rendered).not.toContain('"input"');
       expect(rendered).toContain('Open MindRoom Chat to enter it.');
     });
+  });
+
+  it("offers a canvas request's button, except on a read-only row", async () => {
+    const { MatrixEvent } = await import('matrix-js-sdk');
+    const content = {
+      msgtype: 'm.notice',
+      body: 'Open MindRoom Chat to see the canvas.',
+      [CHAT_UI_ACTION_KEY]: { action: 'show_canvas' },
+    };
+    const button = async (readOnly: boolean) =>
+      JSON.stringify(
+        (
+          await renderNode({
+            msgType: 'm.notice',
+            content,
+            mEvent: new MatrixEvent({ type: 'm.room.message', content }),
+            readOnly,
+          })
+        ).toJSON()
+      ).includes('data-ui-action');
+
+    expect(await button(false)).toBe(true);
+    expect(await button(true)).toBe(false);
   });
 
   it('renders extras for MindRoom long-text text paths', async () => {
@@ -1149,6 +1190,38 @@ describe('renderAgentMessageContent', () => {
       eventId: '$approval',
       threadId: '$thread-root',
     });
+
+    renderer.unmount();
+  });
+
+  it("hands a read-only row's approval card no decisions", async () => {
+    toolApprovalCardMock.mockReset();
+
+    const renderer = await renderNode({
+      fromMindroomAgent: true,
+      eventType: 'io.mindroom.tool_approval',
+      roomId: '!room:example.org',
+      eventId: '$approval',
+      threadId: '$parent',
+      msgType: '',
+      readOnly: true,
+      content: {
+        approval_id: 'approval-1',
+        tool_name: 'web_search',
+        arguments: { query: 'release date' },
+        agent_name: 'research',
+        status: 'pending',
+        requested_at: '2026-04-10T12:00:00Z',
+        expires_at: '2026-04-17T12:00:00Z',
+        resolved_at: null,
+        resolved_by: null,
+        resolution_reason: null,
+      },
+    });
+
+    expect(toolApprovalCardMock).toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: '$parent', readOnly: true })
+    );
 
     renderer.unmount();
   });

@@ -3,19 +3,23 @@ import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RelationType, Room } from 'matrix-js-sdk';
+import { Transforms } from 'slate';
 import { RoomInput } from '../RoomInput';
 import { createRoomUploadItems } from '../../matrix/send/roomInputUploadPreparation';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { MATRIX_AUDIO_DETAILS_PROPERTY_NAME } from '../../matrix/types/common';
 import {
+  getRoomInputDraftKey,
   IReplyDraft,
   type PendingVoiceSendContext,
   pendingVoiceSendDraftAtom,
+  roomIdToMsgDraftAtomFamily,
   roomIdToReplyDraftAtomFamily,
   roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
   voiceAutoSendPendingAtom,
 } from '../roomInputDrafts';
+import type { ThreadForkRef } from '../../event-store/threads/threadFork';
 import { TUploadItem, Upload, UploadStatus } from '../../matrix/state/upload';
 import { ConversationViewContext, composerStateKey } from '../../navigation/conversationView';
 import { VOICE_WAVEFORM_BAR_COUNT } from '../../lib/audioWaveform';
@@ -64,6 +68,7 @@ const {
           onChange?: () => void;
           onKeyDown?: (evt: { key: string; preventDefault: () => void }) => void;
           onKeyUp?: (evt: { key: string; preventDefault: () => void }) => void;
+          placeholder?: string;
         }
       | undefined,
     replyContextRenderCount: 0,
@@ -72,6 +77,8 @@ const {
     plainText: '',
     customHtml: '',
     htmlEqualsPlainText: true,
+    // The composer's text box counts as empty unless a test says otherwise.
+    emptyEditor: true,
   },
   mediaConfigState: {
     maxUploadSize: Infinity,
@@ -249,8 +256,10 @@ vi.mock('../../editor/Editor', () => ({
     onKeyDown,
     onKeyUp,
     onPaste,
+    placeholder,
   }: {
     style?: React.CSSProperties;
+    placeholder?: string;
     top?: React.ReactNode;
     before?: React.ReactNode;
     after?: React.ReactNode;
@@ -259,7 +268,7 @@ vi.mock('../../editor/Editor', () => ({
     onKeyUp?: (evt: { key: string; preventDefault: () => void }) => void;
     onPaste?: (evt: { clipboardData: DataTransfer; preventDefault: () => void }) => void;
   }) => {
-    customEditorState.props = { onChange, onKeyDown, onKeyUp, onPaste };
+    customEditorState.props = { onChange, onKeyDown, onKeyUp, onPaste, placeholder };
     return React.createElement(
       'div',
       { style },
@@ -293,7 +302,7 @@ vi.mock('../../editor/utils', async (importOriginal) => ({
   getMentions: () => ({ users: new Set<string>(), room: false }),
   getPrevWorldRange: () => (customEditorState.autocompleteQuery ? {} : undefined),
   moveCursor: editorMocks.moveCursor,
-  isEmptyEditor: () => true,
+  isEmptyEditor: () => editorOutputState.emptyEditor,
   resetEditor: editorMocks.resetEditor,
   resetEditorHistory: editorMocks.resetEditorHistory,
   restoreEditorContent: editorMocks.restoreEditorContent,
@@ -786,6 +795,7 @@ const createRoomInputTree = (
     onRoomMessageSent?: (eventId: string) => boolean | void;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
+    forkFrom?: ThreadForkRef;
   }
 ) =>
   React.createElement(
@@ -800,6 +810,7 @@ const createRoomInputTree = (
       threadId: props?.threadId,
       threadingEnabled: props?.threadingEnabled,
       onRoomMessageSent: props?.onRoomMessageSent,
+      forkFrom: props?.forkFrom,
     })
   );
 
@@ -812,6 +823,7 @@ const renderRoomInput = async (
     onRoomMessageSent?: (eventId: string) => boolean | void;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
+    forkFrom?: ThreadForkRef;
   }
 ): Promise<{ renderer: ReactTestRenderer; store: ReturnType<typeof createStore> }> => {
   let renderer!: ReactTestRenderer;
@@ -833,6 +845,7 @@ const updateRoomInput = async (
     onRoomMessageSent?: (eventId: string) => boolean | void;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
+    forkFrom?: ThreadForkRef;
   }
 ) => {
   await act(async () => {
@@ -868,6 +881,7 @@ afterEach(() => {
   editorOutputState.plainText = '';
   editorOutputState.customHtml = '';
   editorOutputState.htmlEqualsPlainText = true;
+  editorOutputState.emptyEditor = true;
   mediaConfigState.maxUploadSize = Infinity;
   mxState.cancelUpload.mockReset();
   mxState.getUserId.mockReset();
@@ -4195,5 +4209,138 @@ describe('RoomInput', () => {
       expect(mxState.sendMessage).not.toHaveBeenCalled();
       act(() => renderer.unmount());
     });
+  });
+});
+
+describe('RoomInput in a fork draft', () => {
+  const forkFrom = { threadId: '$parent', eventId: '$point' };
+  const draftOf = (store: ReturnType<typeof createStore>, threadId: string) =>
+    store.get(
+      roomIdToMsgDraftAtomFamily(getRoomInputDraftKey('@me:example.org', ROOM_ID, threadId))
+    );
+
+  it('asks to continue in a new thread and sends a new top-level message with the reference, past a reply chosen in the thread', async () => {
+    const store = createStore();
+    store.set(
+      roomIdToReplyDraftAtomFamily(ROOM_ID),
+      createReplyDraft('$p1', {
+        rel_type: RelationType.Thread,
+        event_id: '$parent',
+        is_falling_back: false,
+        'm.in_reply_to': { event_id: '$p1' },
+      })
+    );
+    const onRoomMessageSent = vi.fn(() => true);
+    const { renderer } = await renderRoomInput(store, { forkFrom, onRoomMessageSent });
+
+    expect(customEditorState.props?.placeholder).toBe('Continue in a new thread');
+    stageComposerText('Try Porto instead');
+    await submitComposer();
+
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    const content = mxState.sendMessage.mock.calls[0]![1];
+    expect(content).toMatchObject({
+      body: 'Try Porto instead',
+      'io.mindroom.fork': { thread_id: '$parent', event_id: '$point' },
+    });
+    expect(content).not.toHaveProperty('m.relates_to');
+    expect(onRoomMessageSent).toHaveBeenCalledWith(`~${ROOM_ID}:txn-room-input`);
+
+    renderer.unmount();
+  });
+
+  it('offers no stickers: one would start a thread instead of the fork', async () => {
+    // The emoji board, whose sticker tab only a composer that takes stickers offers.
+    const boardProps = (renderer: ReactTestRenderer) =>
+      renderer.root.findAll(
+        (node) => typeof node.props.content?.props?.onEmojiSelect === 'function'
+      )[0]!.props.content.props;
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { threadId: '$parent' });
+    expect(boardProps(renderer).onStickerSelect).toBeTypeOf('function');
+
+    await updateRoomInput(renderer, store, { forkFrom });
+    expect(boardProps(renderer).onStickerSelect).toBeUndefined();
+    expect(boardProps(renderer).tab).toBe('Emoji');
+
+    renderer.unmount();
+  });
+
+  it('records no voice: a voice message alone would start a thread instead of the fork', async () => {
+    const microphones = (renderer: ReactTestRenderer) =>
+      renderer.root.findAll(
+        (node) =>
+          node.type === 'button' &&
+          String(node.props['aria-label'] ?? '').startsWith('Record voice message')
+      );
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { threadId: '$parent' });
+    expect(microphones(renderer)).not.toHaveLength(0);
+
+    await updateRoomInput(renderer, store, { forkFrom });
+    expect(microphones(renderer)).toHaveLength(0);
+
+    renderer.unmount();
+  });
+
+  it('leaves a recording begun in its thread to the thread: Enter sends the text as the fork', async () => {
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { threadId: '$parent' });
+    await openVoiceRecorder(renderer);
+    expect(voiceRecorderState.byView.size).toBe(1);
+
+    await updateRoomInput(renderer, store, { forkFrom });
+    expect(voiceRecorderState.byView.size).toBe(0);
+    stageComposerText('Try Porto instead');
+    await submitComposer();
+
+    expect(voiceRecorderState.send).not.toHaveBeenCalled();
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
+      'io.mindroom.fork': { thread_id: '$parent', event_id: '$point' },
+    });
+    renderer.unmount();
+  });
+
+  it("keeps the draft's text apart from its thread's: closed unsent, it sends nothing and leaves the thread's draft as it was", async () => {
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { threadId: '$parent' });
+    await updateRoomInput(renderer, store, { forkFrom });
+
+    editorOutputState.emptyEditor = false;
+    setEditorText('half a thought');
+    act(() => customEditorState.props!.onChange?.());
+    act(() => renderer.unmount());
+
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(draftOf(store, '$parent')).toEqual([]);
+    expect(draftOf(store, 'fork:$parent:$point')).toEqual([
+      { type: 'paragraph', children: [{ text: 'half a thought' }] },
+    ]);
+  });
+
+  it("brings the thread's text back as the draft closes, and keeps the draft's under its own key", async () => {
+    const paragraph = (text: string) => [{ type: 'paragraph', children: [{ text }] }];
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { threadId: '$parent' });
+    editorOutputState.emptyEditor = false;
+    setEditorText('for the thread');
+    act(() => customEditorState.props!.onChange?.());
+
+    await updateRoomInput(renderer, store, { forkFrom });
+    setEditorText('for the fork');
+    act(() => customEditorState.props!.onChange?.());
+    vi.mocked(Transforms.insertFragment).mockClear();
+    // The same composer, the draft gone: the thread's own again.
+    await updateRoomInput(renderer, store, { threadId: '$parent' });
+
+    expect(Transforms.insertFragment).toHaveBeenLastCalledWith(
+      customEditorState.editor,
+      paragraph('for the thread')
+    );
+    expect(draftOf(store, '$parent')).toEqual(paragraph('for the thread'));
+    expect(draftOf(store, 'fork:$parent:$point')).toEqual(paragraph('for the fork'));
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
   });
 });

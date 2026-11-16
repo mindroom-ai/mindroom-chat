@@ -1,5 +1,6 @@
-import { MatrixEvent } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
+import { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { describe, expect, it, vi } from 'vitest';
+import { MINDROOM_MESSAGE_EXTRAS_KEY } from '../matrix/protocol/messageExtrasData';
 import { estimateThreadEventRowHeight } from '../event-store/threads/threadRenderUtils';
 import {
   estimateFormattedBodyPx,
@@ -95,6 +96,63 @@ describe('estimateMessageRowHeight', () => {
       content: { msgtype: 'm.image', body: 'cat.png', info: { w: 800, h: 400 } },
     });
     expect(estimateMessageRowHeight(image, { compact: false })).toBe(10 + 200);
+  });
+});
+
+describe('estimateMessageRowHeight reuse', () => {
+  it('prices a row once until what it shows changes', () => {
+    const reply = makeEvent({ content: { msgtype: 'm.text', body: 'one\ntwo' } });
+    const relation = vi.spyOn(reply, 'getRelation');
+    expect(estimateMessageRowHeight(reply, { compact: false })).toBe(10 + 2 * 20);
+    const reads = relation.mock.calls.length;
+    expect(reads).toBeGreaterThan(0);
+    // The virtual list prices every unmeasured row again at each render.
+    expect(estimateMessageRowHeight(reply, { compact: false })).toBe(10 + 2 * 20);
+    expect(relation.mock.calls.length).toBe(reads);
+
+    expect(estimateMessageRowHeight(reply, { compact: true })).toBe(6 + 2 * 20);
+
+    // An edit gives the row other content.
+    const edit = makeEvent({
+      id: '$edit',
+      content: {
+        msgtype: 'm.text',
+        body: '* one',
+        'm.new_content': { msgtype: 'm.text', body: 'one' },
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$event' },
+      },
+    });
+    reply.makeReplaced(edit);
+    expect(estimateMessageRowHeight(reply, { compact: false })).toBe(10 + 20);
+
+    // Metadata an older edit lends is written into the shown content in place.
+    reply.getContent()[MINDROOM_MESSAGE_EXTRAS_KEY] = {
+      version: 1,
+      sections: [{ title: 'Sources', content_type: 'text/plain', content: 'a' }],
+    };
+    expect(estimateMessageRowHeight(reply, { compact: false })).toBe(
+      estimateThreadEventRowHeight(reply, { compact: false })
+    );
+    expect(estimateMessageRowHeight(reply, { compact: false })).toBeGreaterThan(10 + 20);
+  });
+
+  it('prices a redacted row again', () => {
+    const reply = makeEvent({ content: { msgtype: 'm.text', body: 'one\ntwo\nthree' } });
+    expect(estimateMessageRowHeight(reply, { compact: false })).toBe(10 + 3 * 20);
+    reply.makeRedacted(
+      new MatrixEvent({
+        type: 'm.room.redaction',
+        redacts: '$event',
+        event_id: '$redaction',
+        sender: '@alice:example.org',
+        content: {},
+      }),
+      new Room('!room:example.org', {} as MatrixClient, '@alice:example.org')
+    );
+    expect(estimateMessageRowHeight(reply, { compact: false })).toBe(
+      estimateThreadEventRowHeight(reply, { compact: false })
+    );
+    expect(estimateMessageRowHeight(reply, { compact: false })).not.toBe(10 + 3 * 20);
   });
 });
 

@@ -2,7 +2,10 @@
 import { createStore } from 'jotai';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { THREAD_NAV_CATEGORY_ID } from '../sidebar/threads/ThreadNavCategory';
+import {
+  THREAD_NAV_CATEGORY_ID,
+  threadNavSectionCategoryId,
+} from '../sidebar/threads/ThreadNavCategory';
 import { RECENTLY_OPENED_NAV_CATEGORY_ID } from '../sidebar/threads/recentlyOpenedCategory';
 import type { ClosedNavCategoriesAtom } from '../ui/nav/closedNavCategories';
 import { useClosedNavCategoriesAtom } from '../ui/nav/useClosedNavCategories';
@@ -37,9 +40,11 @@ describe('ClientInitStorageAtom collapsed categories', () => {
     localStorage.clear();
   });
 
-  it('starts THREADS and Recently Opened collapsed for an account that never touched them', () => {
+  it('starts THREADS, its Resolved section and Recently Opened collapsed for a new account', () => {
     const closed = createStore().get(mountAtom());
     expect(closed.has(THREAD_NAV_CATEGORY_ID)).toBe(true);
+    expect(closed.has(threadNavSectionCategoryId('resolved'))).toBe(true);
+    expect(closed.has(threadNavSectionCategoryId('idle'))).toBe(false);
     expect(closed.has(RECENTLY_OPENED_NAV_CATEGORY_ID)).toBe(true);
     // Rooms keeps its default: open.
     expect(closed.has('home|room')).toBe(false);
@@ -54,7 +59,12 @@ describe('ClientInitStorageAtom collapsed categories', () => {
     localStorage.setItem(CLOSED_KEY, JSON.stringify(['home|room']));
     const closed = createStore().get(mountAtom());
     expect(closed).toEqual(
-      new Set(['home|room', RECENTLY_OPENED_NAV_CATEGORY_ID, THREAD_NAV_CATEGORY_ID])
+      new Set([
+        'home|room',
+        RECENTLY_OPENED_NAV_CATEGORY_ID,
+        THREAD_NAV_CATEGORY_ID,
+        threadNavSectionCategoryId('resolved'),
+      ])
     );
   });
 });

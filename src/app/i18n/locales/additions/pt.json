@@ -407,7 +407,9 @@
       },
       "about": {
         "thirdPartyNotices": "Avisos de terceiros",
-        "soundsCredit": "Os sons de notificação e de convite são toques sintetizados para este aplicativo."
+        "soundsCredit": "Os sons de notificação e de convite são toques sintetizados para este aplicativo.",
+        "debugMode": "Modo de depuração",
+        "debugModeDescription": "Regista diagnósticos neste dispositivo para que os possa exportar e ativar o rastreio de diagnóstico detalhado."
       }
     },
     "createChat": {
@@ -731,6 +733,29 @@
         "noLongerActive": "Este pedido já não está ativo. Peça novamente ao agente.",
         "unavailable": "Não é possível introduzir chaves neste servidor.",
         "unavailableHint": "Para introduzir chaves aqui, defina o seu servidor MindRoom em Definições → {{page}} → {{field}}.",
+        "replaces": "Substitui a chave guardada agora.",
+        "replaceKey": "Substituir chave",
+        "temporary": {
+          "label": "Pedido de segredo",
+          "title": "Segredo para {{agent}}",
+          "givenAs": "É entregue aos comandos de {{agent}} nesta conversa como {{variable}}.",
+          "field": "Segredo para {{variable}}",
+          "placeholder": "Cole ou escreva o segredo",
+          "show": "Mostrar segredo",
+          "hide": "Ocultar segredo",
+          "keepFor": "Manter durante",
+          "keep": {
+            "memory": "{{duration}}, apenas na memória",
+            "disk": "{{duration}}, num ficheiro no servidor"
+          },
+          "kept": {
+            "memory": "Mantido durante {{duration}}, apenas na memória.",
+            "disk": "Mantido durante {{duration}}, num ficheiro no servidor."
+          },
+          "send": "Enviar",
+          "sent": "Enviado",
+          "sentWaiting": "Enviado, a aguardar o agente"
+        },
         "status": {
           "waitingForYou": "À sua espera",
           "pending": "Pendente",
@@ -827,6 +852,7 @@
       "title": "Subagentes",
       "close": "Fechar",
       "empty": "Nenhum subagente está em execução nesta sala.",
+      "emptyThread": "Nenhum subagente está em execução neste tópico.",
       "back": "Voltar",
       "nested_one": "{{count}} subagente",
       "nested_many": "{{count}} subagentes",
@@ -864,6 +890,10 @@
     "dismissLostFiles": "Dispensar"
   },
   "commandPalette": {
+    "state": {
+      "on": "Ativado",
+      "off": "Desativado"
+    },
     "people": "Pessoas",
     "tabsLabel": "Tipos de resultado",
     "switchTabs": "Mudar de separador",
@@ -948,6 +978,17 @@
     "nextMonday": "Próxima segunda-feira 09:00",
     "pickDateTime": "Escolher data e hora",
     "pastTime": "Escolha um horário no futuro"
+  },
+  "threadFork": {
+    "forkedFrom": "Bifurcado de {{title}}",
+    "openInOriginalThread": "Abrir no tópico original",
+    "forkFromHere": "Bifurcar a partir daqui",
+    "forkThread": "Bifurcar tópico",
+    "forking": "Bifurcando {{title}}",
+    "continueInNewThread": "Continuar em um novo tópico",
+    "forkCount_one": "{{count}} bifurcação",
+    "forkCount_many": "{{count}} bifurcações",
+    "forkCount_other": "{{count}} bifurcações"
   },
   "activity": {
     "title": "Atividade",
@@ -1254,6 +1295,17 @@
       "settingsKeywords": "visita guiada, tour, tutorial, guia, ajuda, introdução, tópicos",
       "howThreadsWork": "Como funcionam os tópicos",
       "noThreadsHint": "Envie uma mensagem abaixo para iniciar um."
+    }
+  },
+  "threadNav": {
+    "layout": "Disposição dos tópicos",
+    "layoutRecent": "Recentes",
+    "layoutSections": "Secções",
+    "sections": {
+      "working": "Em curso",
+      "snoozed": "Adiados",
+      "idle": "Inativos",
+      "resolved": "Resolvidos"
     }
   }
 }

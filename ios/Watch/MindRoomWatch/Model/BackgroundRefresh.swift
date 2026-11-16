@@ -21,7 +21,7 @@ enum BackgroundRefresh {
         await session.setActive(true)
         // Room state and threads arrive with the first sync; give it a few seconds.
         try? await Task.sleep(nanoseconds: 8_000_000_000)
-        let model = RoomModel(room: room, userId: userId, session: try? client.session())
+        let model = RoomModel(room: room, userId: userId, client: client)
         await model.refreshNow()
         // The person may have opened the app meanwhile: its sync stays on.
         if WKApplication.shared().applicationState != .active { await session.setActive(false) }

@@ -84,6 +84,23 @@ describe('useCompactHistoryAtEnd', () => {
     expect(paginateBack).toHaveBeenCalledTimes(2 * COMPACT_HISTORY_PAGES_PER_APPROACH);
   });
 
+  it('loads nothing while cards are still to mount below the view', async () => {
+    const { host, view } = mountView(2_000, 1_500);
+    view.setAttribute('data-cards-pending', 'true');
+    const paginateBack = vi.fn(async () => undefined);
+    render(host, { paginateBack });
+
+    view.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
+    await settle();
+    expect(paginateBack).not.toHaveBeenCalled();
+
+    // Once they have mounted, the reader moving on at the end loads older pages.
+    view.removeAttribute('data-cards-pending');
+    view.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
+    await settle();
+    expect(paginateBack).toHaveBeenCalled();
+  });
+
   it('loads nothing once the room has no older history', async () => {
     const { host, view } = mountView(600, 100);
     const paginateBack = vi.fn(async () => undefined);

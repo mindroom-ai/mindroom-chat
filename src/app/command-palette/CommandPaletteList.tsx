@@ -4,12 +4,16 @@ import { useTranslation } from 'react-i18next';
 import { type TFunction } from 'i18next';
 import { UnreadBadge } from '../ui/UnreadBadge';
 import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
+import { ShortcutKeys } from '../shortcuts/ShortcutKeys';
 import { UserAvatar } from '../avatars/UserAvatar';
 import { nameInitials } from '../lib/common';
 import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import { useRelativeTime } from '../i18n/useRelativeTime';
 import { makeHighlightRegex } from '../search/highlightRegex';
+import type { CommandPaletteMarks } from './commandPaletteSearch';
+import type { TextRange } from './fuzzyMatch';
 import type {
+  CommandPaletteActionItem,
   CommandPaletteItem,
   CommandPaletteMessageItem,
   CommandPaletteSectionId,
@@ -29,6 +33,8 @@ export type CommandPaletteListSection = {
   id: CommandPaletteSectionId;
   title: string;
   items: CommandPaletteItem[];
+  /** What to mark in each row that matched typed text, by row ID. */
+  marks?: ReadonlyMap<string, CommandPaletteMarks>;
   /** Lines between the title and the rows. */
   notes?: CommandPaletteListNote[];
   /** Lines after the rows, so rows already shown stay where they are when one appears. */
@@ -96,7 +102,7 @@ const getItemDescription = (item: CommandPaletteItem, t: TFunction): string | un
 const getItemIcon = (item: CommandPaletteItem): IconSrc => {
   switch (item.kind) {
     case 'action':
-      return Icons.Terminal;
+      return item.icon ?? Icons.Terminal;
     case 'thread':
       return Icons.Message;
     case 'room':
@@ -128,6 +134,77 @@ const markMatches = (text: string, highlights: readonly string[]): ReactNode => 
     last = start + match[0].length;
   }
   if (last < text.length) parts.push(text.slice(last));
+  return parts;
+};
+
+/** A field of a row as the search read it, and the ranges of it that matched typed text. */
+type MarkedField = { text: string; ranges: readonly TextRange[] | undefined };
+
+/** The field a row's title shows, where it shows one. */
+const getTitleField = (
+  item: CommandPaletteItem,
+  marks: CommandPaletteMarks
+): MarkedField | undefined => {
+  switch (item.kind) {
+    case 'action':
+      return { text: item.title, ranges: marks.title };
+    case 'room':
+    case 'space':
+      return { text: item.name, ranges: marks.name };
+    case 'user':
+      // A typed ID's title is a sentence about the ID.
+      return item.typedId ? undefined : { text: item.displayName, ranges: marks.displayName };
+    case 'thread':
+      return { text: item.summaryText, ranges: marks.summaryText };
+    default:
+      return undefined;
+  }
+};
+
+/** The field the line under a row's title shows, where it shows one. */
+const getDescriptionField = (
+  item: CommandPaletteItem,
+  marks: CommandPaletteMarks
+): MarkedField | undefined => {
+  switch (item.kind) {
+    case 'action':
+      return item.description === undefined
+        ? undefined
+        : { text: item.description, ranges: marks.description };
+    case 'room':
+    case 'space':
+      if (item.topic) return { text: item.topic, ranges: marks.topic };
+      return item.canonicalAlias
+        ? { text: item.canonicalAlias, ranges: marks.canonicalAlias }
+        : undefined;
+    case 'user':
+      return item.typedId ? undefined : { text: item.userId, ranges: marks.userId };
+    case 'thread':
+      return { text: item.roomName, ranges: marks.roomName };
+    default:
+      return undefined;
+  }
+};
+
+/**
+ * `shown` with the parts that matched typed text marked. Text the row shows differently from the
+ * field the search read, such as a name with its direction controls revealed, gets no marks:
+ * the ranges are of the field.
+ */
+const markField = (shown: string, field: MarkedField | undefined): ReactNode => {
+  if (!field?.ranges?.length || field.text !== shown) return shown;
+  const parts: ReactNode[] = [];
+  let last = 0;
+  field.ranges.forEach(([start, end]) => {
+    if (start > last) parts.push(shown.slice(last, start));
+    parts.push(
+      <mark key={start} className={css.TitleMatch} data-match="">
+        {shown.slice(start, end)}
+      </mark>
+    );
+    last = end;
+  });
+  if (last < shown.length) parts.push(shown.slice(last));
   return parts;
 };
 
@@ -181,20 +258,70 @@ function MessageRowText({ item }: { item: CommandPaletteMessageItem }) {
   return (
     <span className={css.RowText}>
       <span className={css.RowHeading}>
-        <span className={css.RowTitle} {...ownDirectionLine}>{item.senderName}</span>
+        <span className={css.RowTitle} {...ownDirectionLine}>
+          {item.senderName}
+        </span>
         {/* Room, then thread, in the interface's order; each name keeps its own direction. */}
         <span className={css.RowPlace}>
           <bdi>{revealDirectionControls(item.roomName)}</bdi>
-          {thread !== undefined && <> › <bdi>{thread}</bdi></>}
+          {thread !== undefined && (
+            <>
+              {' '}
+              › <bdi>{thread}</bdi>
+            </>
+          )}
         </span>
         <MessageTime timestamp={item.timestamp} />
       </span>
-      <span className={css.RowDescription} {...ownDirectionLine}>{markMatches(revealDirectionControls(item.snippet), item.highlights)}</span>
+      <span className={css.RowDescription} {...ownDirectionLine}>
+        {markMatches(revealDirectionControls(item.snippet), item.highlights)}
+      </span>
     </span>
   );
 }
 
-function ItemText({ item }: { item: CommandPaletteItem }) {
+/** The aria-checked of an action row: its state when it flips something, else whether it is the current choice. */
+const getChecked = (item: CommandPaletteItem): boolean | undefined => {
+  if (item.kind !== 'action') return undefined;
+  if (item.state !== undefined) return item.state === 'on';
+  return item.current;
+};
+
+/** What an action row shows before its enter mark: keys, state, a check and a chevron. */
+function ActionRowEnd({ item }: { item: CommandPaletteActionItem }) {
+  const { t } = useTranslation();
+  if (!item.shortcut && !item.state && !item.current && !item.page) return null;
+  return (
+    <span className={css.RowEnd}>
+      {item.shortcut && <ShortcutKeys id={item.shortcut} />}
+      {item.state && (
+        <span className={css.RowState} data-row-state={item.state}>
+          {t(item.state === 'on' ? 'commandPalette.state.on' : 'commandPalette.state.off')}
+        </span>
+      )}
+      {item.current && (
+        <span aria-hidden="true" data-row-current="">
+          <Icon size="200" src={Icons.Check} />
+        </span>
+      )}
+      {item.page && (
+        <span aria-hidden="true" data-row-page="">
+          <Icon size="200" src={Icons.ChevronRight} data-directional />
+        </span>
+      )}
+    </span>
+  );
+}
+
+const NO_MARKS: CommandPaletteMarks = {};
+
+function ItemText({
+  item,
+  marks = NO_MARKS,
+}: {
+  item: CommandPaletteItem;
+  marks?: CommandPaletteMarks;
+}) {
   const { t } = useTranslation();
   if (item.kind === 'message') return <MessageRowText item={item} />;
   if (item.kind === 'search-page') {
@@ -211,13 +338,24 @@ function ItemText({ item }: { item: CommandPaletteItem }) {
   return (
     <span className={css.RowText}>
       <span className={css.RowHeading}>
-        <span className={css.RowTitle} {...ownDirectionLine}>{getItemTitle(item, t)}</span>
+        <span
+          className={css.RowTitle}
+          {...ownDirectionLine}
+          lang={item.kind === 'action' ? item.lang : undefined}
+        >
+          {markField(getItemTitle(item, t), getTitleField(item, marks))}
+        </span>
+        {item.kind === 'action' && item.tag && <span className={css.Tag}>{item.tag}</span>}
         {item.kind === 'space' && <span className={css.Tag}>{t('commandPalette.space')}</span>}
         {isPerson(item) && isMindroomAgentUserId(item.userId) && (
           <span className={css.Tag}>{t('threadActions.agent')}</span>
         )}
       </span>
-      {description && <span className={css.RowDescription} {...ownDirectionLine}>{description}</span>}
+      {description && (
+        <span className={css.RowDescription} {...ownDirectionLine}>
+          {markField(description, getDescriptionField(item, marks))}
+        </span>
+      )}
     </span>
   );
 }
@@ -271,6 +409,7 @@ export function CommandPaletteList({
                   ref={isSelected ? selectedRef : undefined}
                   role="option"
                   aria-selected={isSelected}
+                  aria-checked={getChecked(item)}
                   tabIndex={-1}
                   className={css.Row}
                   data-item-id={item.id}
@@ -291,11 +430,12 @@ export function CommandPaletteList({
                       <Icon size="200" src={getItemIcon(item)} />
                     </span>
                   )}
-                  <ItemText item={item} />
+                  <ItemText item={item} marks={section.marks?.get(item.id)} />
                   {(item.kind === 'room' || item.kind === 'space') &&
                     item.unreadCount !== undefined && (
                       <UnreadBadge highlight={!!item.unreadHighlight} count={item.unreadCount} />
                     )}
+                  {item.kind === 'action' && <ActionRowEnd item={item} />}
                   <span className={css.RowEnter} aria-hidden="true">
                     ↵
                   </span>

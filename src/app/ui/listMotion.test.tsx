@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 import { useRef } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   type MotionPlay,
   ROW_HEIGHT,
   ROW_WIDTH,
   standInForListMotion,
 } from './__tests__/listMotionStandIn';
-import { MOST_ROWS_IN_MOTION, useListMotion } from './listMotion';
+import { LONGEST_PLAY_MS, MOST_ROWS_IN_MOTION, useListMotion } from './listMotion';
 
 const GLIDE = { duration: 280, easing: 'cubic-bezier(0.2, 0, 0, 1)' };
 
@@ -45,6 +45,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   motion.restore();
   Reflect.deleteProperty(window, 'matchMedia');
   Reflect.deleteProperty(document, 'visibilityState');
@@ -196,6 +197,25 @@ describe('useListMotion', () => {
     rerender(<List order={['a', 'b']} />);
 
     expect(motion.cancel).toHaveBeenCalledTimes(running);
+  });
+
+  it('ends a play the browser does not end: no row stays away from its place or after it left', async () => {
+    // On a phone, cards that left stayed where they stood. Whatever a browser does with an
+    // animation, a row is not left as the play's first frame shows it.
+    vi.useFakeTimers();
+    const { rerender } = render(<List order={['a', 'b', 'c']} />);
+    rerender(<List order={['a', 'c']} />);
+    const [left] = motion.left();
+    const running = motion.plays.length;
+    expect(running).toBeGreaterThan(1);
+
+    await vi.advanceTimersByTimeAsync(LONGEST_PLAY_MS - 1);
+    expect(motion.cancel).not.toHaveBeenCalled();
+    expect(left?.isConnected).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(motion.cancel).toHaveBeenCalledTimes(running);
+    expect(left?.isConnected).toBe(false);
   });
 
   it('plays nothing with reduced motion', () => {

@@ -84,9 +84,10 @@ final class ThreadModel: ObservableObject {
         Task {
             repeat {
                 fetchAgain = false
-                // Coalesces a streaming reply's edits: at most about one read a second.
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                // The first read starts at once (the thread just opened); the wait after each coalesces a
+                // streaming reply's edits to about one read a second.
                 await fetch()
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
             } while fetchAgain
             fetching = false
         }
@@ -102,6 +103,7 @@ final class ThreadModel: ObservableObject {
         }
         snapshot = next
         #if DEBUG
+        E2EHooks.log("thread \(rootId) \(next.entries.map(\.id).joined(separator: ","))")
         for card in next.approvals { log.notice("card \(card.eventId, privacy: .public) \(card.status.rawValue, privacy: .public)") }
         E2EHooks.act(on: next, model: self)
         #endif

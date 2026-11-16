@@ -35,6 +35,12 @@ const plan = (
     threadId: '$root',
   });
 
+/** Prices a fork's parent rows `$p0` and `$p1`; the root's price would show if it were folded. */
+const parentPrice = (eventId: string) => {
+  if (eventId === '$p0') return 40;
+  return eventId === '$p1' ? 50 : 999;
+};
+
 describe('planThreadLedgerRender', () => {
   it('folds nothing without a committed anchor or for the anchored list itself', () => {
     const list = events('$root', '$a', '$b');
@@ -87,6 +93,33 @@ describe('planThreadLedgerRender', () => {
     expect(plan(anchorOn(previous, '$reader'), events('$root', '$other'))).toEqual({
       foldPx: 0,
       probe: 'threadPrependFoldAnchorLost',
+    });
+  });
+
+  it("folds a fork's parent rows that land above its root, but not the root", () => {
+    const previous = events('$root', '$a', '$reader');
+    const next = events('$p0', '$p1', '$root', '$a', '$reader');
+    const priceRow = vi.fn(parentPrice);
+
+    expect(plan(anchorOn(previous, '$reader'), next, priceRow)).toEqual({ foldPx: 90 });
+    expect(priceRow.mock.calls.map(([eventId]) => eventId)).toEqual(['$p0', '$p1']);
+  });
+
+  it("takes a fork's parent rows' height away when they leave, but not the root's", () => {
+    const previous = events('$p0', '$p1', '$root', '$a', '$reader');
+    const next = events('$root', '$a', '$reader');
+    const previousPrice = vi.fn(parentPrice);
+
+    expect(plan(anchorOn(previous, '$reader', previousPrice), next)).toEqual({ foldPx: -90 });
+  });
+
+  it("anchors on a fork's parent row above the root when the reader's rows left", () => {
+    const previous = events('$p0', '$p1', '$root', '$gone', '$reader');
+    const next = events('$new', '$p0', '$p1', '$root', '$other');
+
+    expect(plan(anchorOn(previous, '$reader'), next)).toEqual({
+      foldPx: 10,
+      probe: 'threadPrependFoldAnchorFallback',
     });
   });
 

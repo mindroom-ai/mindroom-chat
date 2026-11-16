@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Icon, IconButton, Icons, Text } from 'folds';
 import { useInterval } from '../lib/hooks/useInterval';
+import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useLoadedRoomMembers } from '../matrix/hooks/useLoadedRoomMembers';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
@@ -10,10 +11,12 @@ import { isActiveSubagentStatus } from '../matrix/protocol/subagentFrame';
 import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../messages/html/react-custom-html-parser';
 import {
   countActiveSubagents,
+  runsStartedIn,
   useRoomSubagentRuns,
   type SubagentRun,
 } from '../messages/live/subagentRunStore';
 import { useMentionClickHandler } from '../messages/useMentionClickHandler';
+import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { Header as SidePanelHeader } from '../ui/panels/SidePanel.css';
 import { SubagentRunCard, latestTurn, type SubagentNode } from './SubagentRunCard';
 import { SubagentRunView } from './SubagentRunView';
@@ -87,14 +90,24 @@ const subagentsById = (nodes: readonly SubagentNode[]): Map<string, SubagentNode
 
 /**
  * The room's live sub-agents, in the room's side panel, as the room's compact view shows threads:
- * a card per sub-agent its agents started, with how many are still at it in the header. Pressing
- * a card shows that sub-agent's turns as a thread, with cards for the sub-agents it started; Back
- * leads to the sub-agent that started it, or to the list.
+ * a card per sub-agent its agents started in the conversation on screen (`threadId`, as
+ * `runsStartedIn` takes it), with how many are still at it in the header. Pressing a card shows
+ * that sub-agent's turns as a thread, with cards for the sub-agents it started; Back leads to the
+ * sub-agent that started it, or to the list.
  */
-export function SubagentsPanel({ room, onClose }: { room: Room; onClose: () => void }) {
+export function SubagentsPanel({
+  room,
+  threadId,
+  onClose,
+}: {
+  room: Room;
+  threadId?: string | null;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
-  const runs = useRoomSubagentRuns(room.roomId);
+  const roomRuns = useRoomSubagentRuns(room.roomId);
+  const runs = useMemo(() => runsStartedIn(roomRuns, threadId), [roomRuns, threadId]);
   const nodes = useMemo(() => nestSubagents(runs), [runs]);
   const byId = useMemo(() => subagentsById(nodes), [nodes]);
   const active = countActiveSubagents(runs);
@@ -114,6 +127,10 @@ export function SubagentsPanel({ room, onClose }: { room: Room; onClose: () => v
     setReturnTo(open?.id ?? null);
     setOpenId(open?.parent ?? null);
   }, [open]);
+  // On a phone the panel covers the conversation, whose thread then leaves its back swipe: a swipe
+  // from the screen's left edge goes back as Back does, and from the list closes the panel.
+  const mobile = useScreenSizeContext() === ScreenSize.Mobile;
+  useEdgeSwipeBack(open ? back : onClose, mobile);
   useLayoutEffect(() => {
     if (returnTo === null) return;
     const cards = section.current?.querySelectorAll<HTMLElement>('[data-subagent]') ?? [];
@@ -184,7 +201,7 @@ export function SubagentsPanel({ room, onClose }: { room: Room; onClose: () => v
           <div className={css.Body}>
             {nodes.length === 0 ? (
               <Text size="T300" priority="300" className={css.Empty}>
-                {t('mindroomUi.subagents.empty')}
+                {t(threadId ? 'mindroomUi.subagents.emptyThread' : 'mindroomUi.subagents.empty')}
               </Text>
             ) : (
               <ul className={css.List}>

@@ -25,10 +25,14 @@ type FakeTrack = {
   addEventListener: ReturnType<typeof vi.fn>;
   removeEventListener: () => void;
   ownerDocument: {
+    visibilityState: 'visible' | 'hidden';
     addEventListener: (type: string, listener: (event: unknown) => void) => void;
     removeEventListener: () => void;
   };
 };
+
+/** The strip under the card that names the action. */
+type FakeStrip = { style: { display: string } };
 
 /** The element that holds the cards. */
 type FakeList = {
@@ -39,8 +43,13 @@ type FakeList = {
 };
 
 let track: FakeTrack;
+let strip: FakeStrip;
 let list: FakeList;
 let documentTouchStarts: Array<(event: unknown) => void>;
+let documentListeners: Record<string, Array<(event: unknown) => void>>;
+/** Tells the document's listeners of `type`, as the browser tells them of every touch. */
+const tellDocument = (type: string, event: Record<string, unknown> = {}) =>
+  act(() => (documentListeners[type] ?? []).forEach((listener) => listener({ type, ...event })));
 let direction: 'ltr' | 'rtl';
 let renderers: ReactTestRenderer[];
 
@@ -52,12 +61,15 @@ beforeEach(() => {
     addEventListener: vi.fn(),
     removeEventListener: () => undefined,
     ownerDocument: {
+      visibilityState: 'visible',
       addEventListener: (type, listener) => {
         if (type === 'touchstart') documentTouchStarts.push(listener);
+        (documentListeners[type] ??= []).push(listener);
       },
       removeEventListener: () => undefined,
     },
   };
+  strip = { style: { display: '' } };
   list = {
     addEventListener: (type, listener, options) => {
       if (type !== 'touchmove') return;
@@ -67,6 +79,7 @@ beforeEach(() => {
     removeEventListener: vi.fn(),
   };
   documentTouchStarts = [];
+  documentListeners = {};
   direction = 'ltr';
   renderers = [];
   vi.stubGlobal('window', { innerWidth: VIEWPORT_WIDTH });
@@ -103,7 +116,10 @@ const render = (props: Partial<Props> = {}) => {
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(element(props), {
-      createNodeMock: (host) => (host.props['data-list'] ? list : track),
+      createNodeMock: (host) => {
+        if (host.props['data-list']) return list;
+        return host.props['data-compact-card-swipe'] === 'action' ? strip : track;
+      },
     });
   });
   renderers.push(renderer);
@@ -400,6 +416,150 @@ describe('CompactCardSwipe', () => {
     pointer('onPointerUp', 100);
     expect(onSwipe).not.toHaveBeenCalled();
     expect(track.style.transform).toBe('');
+  });
+
+  // On a phone a card was left swiped with its strip showing, and no resolve was sent: the touch
+  // had ended without the card being told. However a touch ends, no swipe outlives it.
+  it('lets go of a swipe whose end never came when the next touch starts', () => {
+    const { onSwipe, pointer, actionStrip } = render();
+    vi.useFakeTimers();
+
+    pointer('onPointerDown', 300);
+    pointer('onPointerMove', 290);
+    pointer('onPointerMove', 150);
+    expect(track.style.transform).toBe('translateX(-140px)');
+    // One finger on the screen: the one that swiped is gone.
+    tellDocument('touchstart', { touches: [{}] });
+
+    expect(track.style.transform).toBe('');
+    expect(onSwipe).not.toHaveBeenCalled();
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(actionStrip()).toHaveLength(0);
+  });
+
+  it('keeps the swipe of a touch whose own start the document hears', () => {
+    const { onSwipe, pointer } = render();
+
+    pointer('onPointerDown', 300);
+    tellDocument('touchstart', { touches: [{}] });
+    pointer('onPointerMove', 290);
+    pointer('onPointerMove', 150);
+    pointer('onPointerUp', 150);
+
+    expect(onSwipe).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets go of a swipe whose end never came when the card is touched again', () => {
+    const { onSwipe, pointer } = render();
+
+    pointer('onPointerDown', 300);
+    pointer('onPointerMove', 290);
+    pointer('onPointerMove', 150);
+    pointer('onPointerDown', 300, 100, { pointerId: 2 });
+    expect(track.style.transform).toBe('');
+    expect(onSwipe).not.toHaveBeenCalled();
+
+    // The new touch swipes as any other.
+    pointer('onPointerMove', 290, 100, { pointerId: 2 });
+    pointer('onPointerMove', 150, 100, { pointerId: 2 });
+    pointer('onPointerUp', 150, 100, { pointerId: 2 });
+    expect(onSwipe).toHaveBeenCalledTimes(1);
+    expect(track.style.transform).toBe('');
+  });
+
+  it('runs the action when the finger lifts and the card is not told', () => {
+    const { onSwipe, pointer } = render();
+    vi.useFakeTimers();
+
+    pointer('onPointerDown', 300);
+    pointer('onPointerMove', 290);
+    pointer('onPointerMove', 150);
+    tellDocument('touchend', { touches: [] });
+    // The card's own pointer event of the lift comes first where it comes.
+    expect(onSwipe).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+
+    expect(onSwipe).toHaveBeenCalledTimes(1);
+    expect(onSwipe).toHaveBeenCalledWith(false);
+    expect(track.style.transform).toBe('');
+  });
+
+  it('runs the action once when the card is told of the lift too', () => {
+    const { onSwipe, pointer } = render();
+    vi.useFakeTimers();
+
+    pointer('onPointerDown', 300);
+    pointer('onPointerMove', 290);
+    pointer('onPointerMove', 150);
+    tellDocument('touchend', { touches: [] });
+    pointer('onPointerUp', 150);
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    expect(onSwipe).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets go without the action when the browser cancels a touch the card is not told of', () => {
+    const { onSwipe, pointer } = render();
+    vi.useFakeTimers();
+
+    pointer('onPointerDown', 300);
+    pointer('onPointerMove', 290);
+    pointer('onPointerMove', 150);
+    tellDocument('touchcancel', { touches: [] });
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+
+    expect(onSwipe).not.toHaveBeenCalled();
+    expect(track.style.transform).toBe('');
+  });
+
+  it('keeps the swipe while another finger lifts', () => {
+    const { onSwipe, pointer } = render();
+    vi.useFakeTimers();
+
+    pointer('onPointerDown', 300);
+    pointer('onPointerMove', 290);
+    pointer('onPointerMove', 150);
+    tellDocument('touchend', { touches: [{}] });
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+
+    expect(onSwipe).not.toHaveBeenCalled();
+    expect(track.style.transform).toBe('translateX(-140px)');
+  });
+
+  it('lets go of a swipe without its action when the page goes out of sight', () => {
+    const { onSwipe, pointer } = render();
+
+    pointer('onPointerDown', 300);
+    pointer('onPointerMove', 290);
+    pointer('onPointerMove', 150);
+    track.ownerDocument.visibilityState = 'hidden';
+    tellDocument('visibilitychange');
+
+    expect(onSwipe).not.toHaveBeenCalled();
+    expect(track.style.transform).toBe('');
+  });
+
+  it('leaves a card that goes mid-swipe at rest, without its strip', () => {
+    // The list shows a card that left a moment longer as a copy (ui/listMotion.tsx).
+    const { renderer, pointer } = render();
+
+    pointer('onPointerDown', 300);
+    pointer('onPointerMove', 290);
+    pointer('onPointerMove', 150);
+    act(() => renderer.unmount());
+
+    expect(track.style.transform).toBe('');
+    expect(strip.style.display).toBe('none');
   });
 
   it('swallows the click that ends a swipe but not a keyboard click or a later tap', async () => {

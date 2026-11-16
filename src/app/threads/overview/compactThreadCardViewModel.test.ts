@@ -2,7 +2,10 @@ import { EventStatus, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk'
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { describe, expect, it, vi } from 'vitest';
 import { createInstance } from 'i18next';
-import { buildCompactThreadCardViewModelFromRecord } from './compactThreadCardViewModel';
+import {
+  buildCompactThreadCardViewModelFromRecord,
+  getForkedFrom,
+} from './compactThreadCardViewModel';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
 
 it('updates generated media previews without changing cached records or user-authored summaries', async () => {
@@ -71,6 +74,7 @@ const makeEvent = ({
     threadRootId,
     getSender: () => sender,
     getContent: () => content ?? (body ? { body, msgtype: 'm.text' } : {}),
+    getOriginalContent: () => content ?? (body ? { body, msgtype: 'm.text' } : {}),
     getType: () => 'm.room.message',
     getRelation: () => (threadRootId ? { rel_type: 'm.thread' } : undefined),
     isRelation: (relType: string) => !!threadRootId && relType === 'm.thread',
@@ -138,6 +142,36 @@ const buildModel = (
 };
 
 describe('buildCompactThreadCardViewModelFromRecord', () => {
+  it("names the thread a fork was made from, read from its root's original content", () => {
+    const forkRoot = (content: Record<string, unknown>) =>
+      makeEvent({ eventId: '$root', sender: '@me:server', content });
+    const forkedFromOf = (content: Record<string, unknown>) =>
+      getForkedFrom(
+        makeRoom({ thread: { rootEvent: forkRoot(content) } as ReturnType<Room['getThread']> }),
+        '$root'
+      );
+    const text = { msgtype: 'm.text', body: 'Lisbon by train' };
+    expect(
+      forkedFromOf({ ...text, 'io.mindroom.fork': { thread_id: '$p', event_id: '$a' } })
+    ).toEqual({ threadId: '$p', eventId: '$a' });
+    expect(forkedFromOf(text)).toBeUndefined();
+    expect(
+      forkedFromOf({ ...text, 'io.mindroom.fork': { thread_id: 'p', event_id: '$a' } })
+    ).toBeUndefined();
+    // The builder takes it as found.
+    const room = makeRoom({ rootEvent: forkRoot(text) });
+    const record = buildThreadRecord({ room, threadRootId: '$root', currentUserId: '@me:server' });
+    expect(
+      buildCompactThreadCardViewModelFromRecord({
+        record,
+        room,
+        forkedFrom: { threadId: '$p', eventId: '$a' },
+        mx: makeMx(),
+        useAuthentication: false,
+      }).forkedFrom
+    ).toEqual({ threadId: '$p', eventId: '$a' });
+  });
+
   it('carries the snooze time, and none once the thread is resolved', () => {
     const snoozed = {
       set_by: '@me:server',

@@ -11,6 +11,10 @@ export type UseThreadTimelineStateOptions = {
   threadInitialSdkLoaded?: boolean;
   timelineRevision?: number;
   debugTraceId?: string;
+  /** A fork's parent messages up to its fork point, shown before its own. */
+  prefixEvents?: MatrixEvent[];
+  /** A fork draft's fork point, where the rows end. */
+  forkAt?: string;
 };
 
 export const useThreadTimelineState = ({
@@ -20,6 +24,8 @@ export const useThreadTimelineState = ({
   threadInitialSdkLoaded,
   timelineRevision,
   debugTraceId,
+  prefixEvents,
+  forkAt,
 }: UseThreadTimelineStateOptions) => {
   const thread = threadId ? room.getThread(threadId) : null;
   const [, refresh] = useReducer((revision: number) => revision + 1, 0);
@@ -43,6 +49,8 @@ export const useThreadTimelineState = ({
     threadInitialSdkLoaded,
     timelineRevision,
     debugTraceId,
+    prefixEvents,
+    forkAt,
   });
 
   const threadEventMap = useMemo(() => {

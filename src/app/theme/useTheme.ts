@@ -173,3 +173,21 @@ export const useTheme = (): Theme => {
   const active = useActiveTheme();
   return provided ?? active;
 };
+
+/**
+ * The settings after the System Theme switch is set. Turned on, the deployment's default theme
+ * becomes the pick of its kind, so the switch applies where it was the fixed theme only because no
+ * theme had been picked; a stored pick of that kind stays.
+ */
+export const withSystemTheme = <T extends ThemeSettings>(
+  settings: T,
+  deploymentTheme: Theme | undefined,
+  on: boolean
+): T => {
+  const kindPick = deploymentTheme?.kind === ThemeKind.Dark ? 'darkThemeId' : 'lightThemeId';
+  return {
+    ...settings,
+    useSystemTheme: on,
+    ...(on && deploymentTheme ? { [kindPick]: settings[kindPick] ?? deploymentTheme.id } : {}),
+  };
+};
