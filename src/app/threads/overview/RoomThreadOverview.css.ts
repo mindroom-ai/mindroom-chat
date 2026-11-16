@@ -319,6 +319,8 @@ export const WorkflowTabs = style({
   display: 'flex',
   flexShrink: 0,
   gap: WORKFLOW_GAP,
+  overflowX: 'auto',
+  scrollbarWidth: 'none',
   height: TOGGLE_SIZE,
   maxWidth: '100%',
   borderRadius: config.radii.R400,
@@ -330,9 +332,12 @@ export const WorkflowTabs = style({
 export const WorkflowTab = style([
   FilterButton,
   {
+    flexShrink: 0,
     borderColor: 'transparent',
     background: 'transparent',
     selectors: {
+      // Keep the inherited focus ring inside the scrollport.
+      '&:focus-visible': { outlineOffset: `calc(-1 * ${config.borderWidth.B400})` },
       '&[aria-pressed="true"]': {
         background: color.Primary.Container,
         color: color.Primary.OnContainer,
