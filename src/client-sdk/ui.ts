@@ -59,17 +59,24 @@ export const sanitizeHtml = (html: string): string => sanitizeCustomHtml(html);
 /**
  * The sanitized HTML of `markdown` as the app renders an agent's reply, or undefined until the
  * Markdown renderer has loaded; it starts loading it and renders again once it has.
+ * Images keep only `mxc://` sources unless `options.imageSource` is given: the plugin's own mapping
+ * then decides which other images load, and from where, by returning an absolute `https:` URL
+ * without credentials for an image's source, or undefined to drop the image.
  */
-export const useMarkdownHtml = (markdown: string): string | undefined => {
+export const useMarkdownHtml = (
+  markdown: string,
+  options?: { imageSource?: (src: string) => string | undefined }
+): string | undefined => {
   const ready = useLiveMarkdownReady();
   // The deployment's link schemes, which the timeline allows in an agent's reply too.
   const schemes = useOptionalClientConfig()?.messageRendering?.additionalAllowedUriSchemes;
+  const imageSource = options?.imageSource;
   return useMemo(() => {
     const html = ready ? renderLiveMarkdown(markdown) : undefined;
     return html === undefined
       ? undefined
-      : sanitizeCustomHtml(html, { additionalAllowedUriSchemes: schemes });
-  }, [ready, markdown, schemes]);
+      : sanitizeCustomHtml(html, { additionalAllowedUriSchemes: schemes, imageSource });
+  }, [ready, markdown, schemes, imageSource]);
 };
 
 /**

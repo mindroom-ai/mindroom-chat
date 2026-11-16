@@ -994,7 +994,8 @@
     "unsnooze": "Cancelar adiamento",
     "status": {
       "snoozed": "Adiado"
-    }
+    },
+    "renameHint": "Faça duplo clique para mudar o nome"
   },
   "threadSnooze": {
     "title": "Adiar até",
@@ -1332,6 +1333,23 @@
       "snoozed": "Adiados",
       "idle": "Inativos",
       "resolved": "Resolvidos"
+    },
+    "live": {
+      "tools": "Ferramentas",
+      "toolsRunning_one": "{{count}} em execução",
+      "toolsRunning_many": "{{count}} em execução",
+      "toolsRunning_other": "{{count}} em execução",
+      "toolsRunningNamed_one": "{{count}} em execução: {{names}}",
+      "toolsRunningNamed_many": "{{count}} em execução: {{names}}",
+      "toolsRunningNamed_other": "{{count}} em execução: {{names}}",
+      "background": "Segundo plano",
+      "jobs_one": "{{count}} tarefa",
+      "jobs_many": "{{count}} tarefas",
+      "jobs_other": "{{count}} tarefas",
+      "jobsWaiting_one": "{{jobs}}, {{count}} aguardando aprovação",
+      "jobsWaiting_many": "{{jobs}}, {{count}} aguardando aprovação",
+      "jobsWaiting_other": "{{jobs}}, {{count}} aguardando aprovação",
+      "waitingForAnswer": "Aguardando uma resposta"
     }
   },
   "threadBoard": {
