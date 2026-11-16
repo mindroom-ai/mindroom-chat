@@ -66,24 +66,20 @@ describe('receiptReadTs', () => {
     expect(receiptReadTs(room, room, '$sent', 5000)).toBe(1000);
   });
 
-  it('finds the named event in a thread that came with it', () => {
+  it("finds the named event once a thread's timeline holds it", () => {
     expect(receiptReadTs(room, room, '$reply', 5000)).toBe(5000);
     const before = receiptEventsVersion(room);
     const reply = message('$reply', 1000);
-    const thread = {
-      findEventById: (eventId: string) => (eventId === '$reply' ? reply : undefined),
-    };
     vi.spyOn(room, 'findEventById').mockImplementation((eventId) =>
       eventId === '$reply' ? reply : undefined
     );
 
-    room.emit(ThreadEvent.New, thread as unknown as Thread, false);
+    // As the room passes on what a thread's timeline takes.
+    room.emit(RoomEvent.Timeline, reply, room, false, false, {
+      timeline: new EventTimelineSet(room, {}).getLiveTimeline(),
+    });
 
     expect(receiptReadTs(room, room, '$reply', 5000)).toBe(1000);
-    expect(receiptEventsVersion(room)).toBe(before + 1);
-    // A thread without the event leaves the answer as it is.
-    expect(receiptReadTs(room, room, '$other', 5000)).toBe(5000);
-    room.emit(ThreadEvent.New, thread as unknown as Thread, false);
     expect(receiptEventsVersion(room)).toBe(before + 1);
   });
 

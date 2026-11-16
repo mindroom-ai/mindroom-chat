@@ -10,21 +10,14 @@ import {
 } from './threadRecord';
 import type { ThreadRecord } from './types';
 
-const list = vi.hoisted(() => ({
-  listed: false,
-  receiptEvents: 0,
-  receiptEventsOf: undefined as unknown,
-}));
+const mocked = vi.hoisted(() => ({ listed: false, receiptEventsVersion: vi.fn(() => 0) }));
 vi.mock('../../matrix/receiptReadTs', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../matrix/receiptReadTs')>()),
-  receiptEventsVersion: (ofRoom: unknown) => {
-    list.receiptEventsOf = ofRoom;
-    return list.receiptEvents;
-  },
+  receiptEventsVersion: mocked.receiptEventsVersion,
 }));
 vi.mock('./roomThreadList', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./roomThreadList')>()),
-  roomThreadListIsListed: () => list.listed,
+  roomThreadListIsListed: () => mocked.listed,
 }));
 
 // A build keeps the records of the threads nothing changed for, so a room event costs the record
@@ -49,7 +42,8 @@ let changes: ThreadRecordChanges;
 let room: Room;
 
 beforeEach(() => {
-  list.listed = false;
+  mocked.listed = false;
+  mocked.receiptEventsVersion.mockReturnValue(0);
   clearSeenThreadRoots(ME);
   roots = new Map(IDS.map((id) => [id, root(id)]));
   receiptTs = undefined;
@@ -121,6 +115,18 @@ describe('buildThreadRecordMap reuse', () => {
 
     expect(unread(second)).toEqual([false, false]);
     expect(build(second).get('$b')).toBe(second.get('$b'));
+  });
+
+  it('builds the record of a thread marked before the room was', () => {
+    markThreadRecordChange(changes, '$a');
+    const first = build();
+
+    receiptTs = 3000;
+    markThreadRecordChange(changes);
+    const second = build(first);
+
+    expect(second.get('$a')).not.toBe(first.get('$a'));
+    expect(unread(second)).toEqual([false, false]);
   });
 
   it('keeps no record built before a change that an older build did not see', () => {
@@ -221,12 +227,13 @@ describe('buildThreadRecordMap reuse', () => {
     const second = build(first);
 
     expect(unread(second)).toEqual([true, false]);
+    expect(second.get('$a')).not.toBe(first.get('$a'));
   });
 
   it("builds every record once the room's thread list is in", () => {
     const first = build();
 
-    list.listed = true;
+    mocked.listed = true;
     const second = build(first);
 
     expect(second.get('$a')).not.toBe(first.get('$a'));
@@ -237,24 +244,11 @@ describe('buildThreadRecordMap reuse', () => {
   it("builds every record once the events its room's receipts name change", () => {
     const first = build();
 
-    list.receiptEvents += 1;
+    mocked.receiptEventsVersion.mockReturnValue(1);
     const second = build(first);
 
     expect(second.get('$a')).not.toBe(first.get('$a'));
     expect(second.get('$b')).not.toBe(first.get('$b'));
-    expect(list.receiptEventsOf).toBe(room);
-  });
-
-  it('keeps nothing without the records of the build before', () => {
-    const first = build();
-
-    const second = buildThreadRecordMap({
-      room,
-      threadRootIds: IDS,
-      threadRootEventMap: roots,
-      currentUserId: ME,
-    });
-
-    expect(second.get('$a')).not.toBe(first.get('$a'));
+    expect(mocked.receiptEventsVersion).toHaveBeenLastCalledWith(room);
   });
 });

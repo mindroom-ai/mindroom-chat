@@ -41,7 +41,7 @@ export type BuildThreadIndexRecordMapsOptions = {
   scheduledStatusMap: ReadonlyMap<string, ThreadScheduledStatus>;
   /** The maps of the build before, whose records are kept for the threads without a change. */
   previous?: ThreadIndexRecordMaps;
-  changes?: ThreadRecordChanges;
+  changes: ThreadRecordChanges;
 };
 
 export type ThreadIndexRecordMaps = {
@@ -100,7 +100,7 @@ export const buildThreadIndexRecordMaps = ({
     threadRootEventMap: visibleThreadRootEventMap,
     rootPreviewTextMap: visibleThreadRootData.bodyMap,
     absoluteIndexMap: visibleThreadRootData.indexMap,
-    reuse: changes && { previous: previous?.normalThreadRecordMap, changes },
+    reuse: { previous: previous?.normalThreadRecordMap, changes },
   });
   const compactThreadRecordMap = compactViewRequested
     ? buildThreadRecordMap({
@@ -109,7 +109,7 @@ export const buildThreadIndexRecordMaps = ({
         threadRootEventMap: compactThreadRootEventMap,
         rootPreviewTextMap: compactThreadRootBodyMap,
         absoluteIndexMap: compactThreadRootData.indexMap,
-        reuse: changes && { previous: previous?.compactThreadRecordMap, changes },
+        reuse: { previous: previous?.compactThreadRecordMap, changes },
       })
     : normalThreadRecordMap;
 

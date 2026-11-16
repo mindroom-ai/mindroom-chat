@@ -66,7 +66,7 @@ export const keepUnthreadedReceiptEvents = (mx: MatrixClient): (() => void) => {
 // What a room was asked for the events its receipts name. Asking the room for an event it does
 // not hold costs a lookup in each of its threads, and the callers ask for every thread and receipt
 // type, so an answer of "not held" is kept until the room gains an event of that ID: one a
-// timeline takes, one a local echo is renamed to, or one a new thread holds.
+// timeline of the room or of a thread takes, or one a local echo is renamed to.
 type NamedEvents = {
   /** Every ID asked for. */
   asked: Set<string>;
@@ -90,36 +90,30 @@ const holdsEvents = (room: Room, timelineSet: EventTimelineSet): boolean =>
   !(room.threadsTimelineSets as readonly EventTimelineSet[]).includes(timelineSet);
 
 const namedEventsOf = (room: Room): NamedEvents | undefined => {
-  let named = namedEvents.get(room);
-  // Optional: room stand-ins in tests often tell nothing of their events, so nothing is kept.
-  if (!named && typeof room.prependListener === 'function') {
-    const kept: NamedEvents = { asked: new Set(), unheld: new Set(), version: 0 };
-    // First, so the views that update on an event find it.
-    room.prependListener(RoomEvent.Timeline, (event, _room, _toStart, removed, data) => {
-      // A reply moves its thread's root in the lists of threads, which hold no event for lookups.
-      const lost = removed && holdsEvents(room, data.timeline.getTimelineSet());
-      if (lost || kept.unheld.delete(event.getId() ?? '')) kept.version += 1;
-    });
-    room.prependListener(RoomEvent.LocalEchoUpdated, (event) => {
-      const eventId = event.getId() ?? '';
-      kept.unheld.delete(eventId);
-      if (kept.asked.has(eventId)) kept.version += 1;
-    });
-    room.prependListener(ThreadEvent.New, (thread: Thread) => {
-      kept.unheld.forEach((id) => {
-        if (thread.findEventById(id) && kept.unheld.delete(id)) kept.version += 1;
-      });
-    });
-    room.prependListener(RoomEvent.TimelineReset, (_room, timelineSet) => {
-      if (holdsEvents(room, timelineSet)) kept.version += 1;
-    });
-    room.prependListener(ThreadEvent.Delete, () => {
-      kept.version += 1;
-    });
-    namedEvents.set(room, kept);
-    named = kept;
-  }
-  return named;
+  const known = namedEvents.get(room);
+  if (known) return known;
+  // Room stand-ins in tests often tell nothing of their events, so nothing is kept for them.
+  if (typeof room.prependListener !== 'function') return undefined;
+  const kept: NamedEvents = { asked: new Set(), unheld: new Set(), version: 0 };
+  // First, so the views that update on an event find it.
+  room.prependListener(RoomEvent.Timeline, (event, _room, _toStart, removed, data) => {
+    // A reply moves its thread's root in the lists of threads, which hold no event for lookups.
+    const lost = removed && holdsEvents(room, data.timeline.getTimelineSet());
+    if (lost || kept.unheld.delete(event.getId() ?? '')) kept.version += 1;
+  });
+  room.prependListener(RoomEvent.LocalEchoUpdated, (event) => {
+    const eventId = event.getId() ?? '';
+    kept.unheld.delete(eventId);
+    if (kept.asked.has(eventId)) kept.version += 1;
+  });
+  room.prependListener(RoomEvent.TimelineReset, (_room, timelineSet) => {
+    if (holdsEvents(room, timelineSet)) kept.version += 1;
+  });
+  room.prependListener(ThreadEvent.Delete, () => {
+    kept.version += 1;
+  });
+  namedEvents.set(room, kept);
+  return kept;
 };
 
 const findNamedEvent = (

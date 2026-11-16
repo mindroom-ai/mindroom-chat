@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { EventEmitter } from 'events';
 import { act, renderHook } from '@testing-library/react';
 import {
   ClientEvent,
@@ -19,25 +20,8 @@ import {
 // What the room's thread records are told of each event: the thread it may have changed, or the
 // whole room. The records of the other threads are kept (`ThreadRecordReuse`), so each source a
 // record reads has to be told here, also the ones that raise no count.
-type Listener = (...args: unknown[]) => void;
-
 const ROOM_ID = '!room:example.org';
 const ME = '@me:example.org';
-
-const emitter = () => {
-  const listeners = new Map<string, Set<Listener>>();
-  return {
-    on: (name: string, listener: Listener) => {
-      listeners.set(name, (listeners.get(name) ?? new Set<Listener>()).add(listener));
-    },
-    removeListener: (name: string, listener: Listener) => {
-      listeners.get(name)?.delete(listener);
-    },
-    emit: (name: string, ...args: unknown[]) => {
-      [...(listeners.get(name) ?? [])].forEach((listener) => listener(...args));
-    },
-  };
-};
 
 type FakeEvent = {
   id?: string;
@@ -83,16 +67,15 @@ const setup = (threadId?: string) => {
     ['$reply', event({ id: '$reply', threadRootId: '$root' })],
     ['$plain', event({ id: '$plain' })],
   ]);
-  const client = { ...emitter(), getUserId: () => ME };
+  const client = Object.assign(new EventEmitter(), { getUserId: () => ME });
   const oldest = { ts: Infinity };
-  const room = {
-    ...emitter(),
+  const room = Object.assign(new EventEmitter(), {
     getOldestThreadedReceiptTs: () => oldest.ts,
     roomId: ROOM_ID,
     client,
     findEventById: (eventId: string) => held.get(eventId),
     getThread: () => null,
-  };
+  });
   const hook = renderHook(() => useThreadOverviewRefreshCounter(room as unknown as Room, threadId));
   const state = () => hook.result.current;
   /** Runs `change` and tells what it marked (`'room'`, or the threads) and whether it counted. */
@@ -120,7 +103,9 @@ describe('useThreadOverviewRefreshCounter changes', () => {
   it('marks nothing while a thread is open', () => {
     const { room, state } = setup('$open');
 
-    act(() => room.emit(ThreadEvent.Update, { id: '$root' }));
+    act(() => {
+      room.emit(ThreadEvent.Update, { id: '$root' });
+    });
 
     expect(state().overviewChanges.count).toBe(0);
   });
@@ -255,7 +240,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     });
   });
 
-  // Sources a record reads that raise no count: main showed each at the next count of any event.
+  // Sources a record reads that raise no count: each shows at the next count of any event.
   it('marks the thread of a local echo that moves on without a count', () => {
     const { room, told } = setup();
     const echo = event({ id: '$new', threadRootId: '$root' });
@@ -334,11 +319,11 @@ describe('useThreadOverviewRefreshCounter changes', () => {
   });
 
   it.each([
-    ['its encryption', 'm.room.encryption', 'room'],
+    ['marks the room for', 'its encryption', 'm.room.encryption', 'room'],
     // The sync repeats member events that change nothing; a member's change has its own events.
-    ['a member event', 'm.room.member', []],
-    ['its topic', 'm.room.topic', []],
-  ])('marks the room for a change of %s', (_name, type, marked) => {
+    ['marks nothing for', 'a member event', 'm.room.member', []],
+    ['marks nothing for', 'its topic', 'm.room.topic', []],
+  ])('%s a change of %s', (_what, _name, type, marked) => {
     const { client, told } = setup();
     const emit = (roomId: string) => () =>
       client.emit(RoomStateEvent.Events, event({ id: '$state', type }), { roomId });

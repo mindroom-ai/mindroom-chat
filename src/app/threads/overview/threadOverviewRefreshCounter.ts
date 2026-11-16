@@ -48,12 +48,11 @@ const receiptThreadIds = (receipt: MatrixEvent, userId: string): string[] | unde
       : []
   );
   for (const data of own) {
-    if (isRecord(data)) {
-      if (typeof data.thread_id !== 'string' || data.thread_id === MAIN_ROOM_TIMELINE) {
-        return undefined;
-      }
-      threadIds.push(data.thread_id);
+    if (!isRecord(data)) continue;
+    if (typeof data.thread_id !== 'string' || data.thread_id === MAIN_ROOM_TIMELINE) {
+      return undefined;
     }
+    threadIds.push(data.thread_id);
   }
   return threadIds;
 };
@@ -118,13 +117,13 @@ export const useThreadOverviewRefreshCounter = (
       setCounter((count) => count + 1);
     };
     const markEvent = (mEvent: MatrixEvent) => {
-      const threadId = changedThreadId(room, mEvent);
+      const changedId = changedThreadId(room, mEvent);
       const eventId = mEvent.getId();
       // A message of the room that answers another one may be a root itself.
-      if (threadId && !mEvent.threadRootId && eventId && eventId !== threadId) {
+      if (changedId && !mEvent.threadRootId && eventId && eventId !== changedId) {
         markThreadRecordChange(overviewChanges, eventId);
       }
-      markThreadRecordChange(overviewChanges, threadId);
+      markThreadRecordChange(overviewChanges, changedId);
     };
     const handleTimeline = (
       mEvent: MatrixEvent,
@@ -159,7 +158,6 @@ export const useThreadOverviewRefreshCounter = (
     const handleRoomEvent = (mEvent: MatrixEvent) => {
       if (mEvent.getRoomId() === room.roomId && mEvent.getId()) markEvent(mEvent);
     };
-    const handleEcho = (mEvent: MatrixEvent) => markEvent(mEvent);
     // By then the redacted event has left its thread, which the room names.
     const handleRedaction = (mEvent: MatrixEvent, _room: Room, threadRootId?: string) => {
       if (threadRootId) markThreadRecordChange(overviewChanges, threadRootId);
@@ -199,7 +197,7 @@ export const useThreadOverviewRefreshCounter = (
 
     room.on(RoomEvent.Timeline, handleTimeline);
     room.on(RoomEvent.Receipt, handleReceipt);
-    room.on(RoomEvent.LocalEchoUpdated, handleEcho);
+    room.on(RoomEvent.LocalEchoUpdated, markEvent);
     room.on(RoomEvent.Redaction, handleRedaction);
     room.on(RoomEvent.TimelineReset, handleReset);
     client?.on?.(MatrixEventEvent.Decrypted, handleDecrypted);
@@ -215,7 +213,7 @@ export const useThreadOverviewRefreshCounter = (
     return () => {
       room.removeListener(RoomEvent.Timeline, handleTimeline);
       room.removeListener(RoomEvent.Receipt, handleReceipt);
-      room.removeListener(RoomEvent.LocalEchoUpdated, handleEcho);
+      room.removeListener(RoomEvent.LocalEchoUpdated, markEvent);
       room.removeListener(RoomEvent.Redaction, handleRedaction);
       room.removeListener(RoomEvent.TimelineReset, handleReset);
       client?.removeListener?.(MatrixEventEvent.Decrypted, handleDecrypted);

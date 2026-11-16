@@ -1,7 +1,11 @@
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { createThreadRecordChanges } from '../../event-store/threads/threadRecord';
-import { buildThreadIndexRecordMaps } from './threadIndexRecords';
+import {
+  buildThreadIndexRecordMaps,
+  type BuildThreadIndexRecordMapsOptions,
+} from './threadIndexRecords';
+import { createEmptyThreadOverviewCachedMetadata } from './threadOverviewCacheMetadata';
 
 const makeEvent = ({
   eventId,
@@ -54,6 +58,27 @@ const compactRootData = {
   indexMap: new Map([['$root', 7]]),
   bodyMap: new Map([['$root', 'compact live preview']]),
 };
+
+/** Options that give no thread anything but its place and preview. */
+const emptyOptions = (room: Room): BuildThreadIndexRecordMapsOptions => ({
+  threadId: undefined,
+  compactViewRequested: true,
+  room,
+  visibleThreadRootData: visibleRootData,
+  compactThreadRootData: compactRootData,
+  visibleThreadRootEventMap: new Map(),
+  compactThreadRootEventMap: new Map(),
+  compactThreadRootBodyMap: new Map(),
+  summaryMap: new Map(),
+  fallbackSummaryMap: new Map(),
+  fallbackReplyCountMap: new Map(),
+  cachedMetadata: createEmptyThreadOverviewCachedMetadata(),
+  fallbackParticipantMap: new Map(),
+  threadResolutionMap: new Map(),
+  currentUserId: undefined,
+  scheduledStatusMap: new Map(),
+  changes: createThreadRecordChanges(),
+});
 
 describe('buildThreadIndexRecordMaps', () => {
   it('shares one record-building policy for normal and compact room surfaces', () => {
@@ -115,6 +140,7 @@ describe('buildThreadIndexRecordMaps', () => {
           },
         ],
       ]),
+      changes: createThreadRecordChanges(),
     });
 
     expect(records.normalThreadRecordMap.get('$root')).toMatchObject({
@@ -156,28 +182,8 @@ describe('buildThreadIndexRecordMaps', () => {
 
   it('does not build room overview records while inside a thread route', () => {
     const records = buildThreadIndexRecordMaps({
+      ...emptyOptions(makeRoom()),
       threadId: '$thread',
-      compactViewRequested: true,
-      room: makeRoom(),
-      visibleThreadRootData: visibleRootData,
-      compactThreadRootData: compactRootData,
-      visibleThreadRootEventMap: new Map(),
-      compactThreadRootEventMap: new Map(),
-      compactThreadRootBodyMap: new Map(),
-      summaryMap: new Map(),
-      fallbackSummaryMap: new Map(),
-      fallbackReplyCountMap: new Map(),
-      cachedMetadata: {
-        latestReplyPreviewMap: new Map(),
-        lastSenderIdMap: new Map(),
-        messageCountMap: new Map(),
-        lastActivityTsMap: new Map(),
-        coverageMap: new Map(),
-      },
-      fallbackParticipantMap: new Map(),
-      threadResolutionMap: new Map(),
-      currentUserId: undefined,
-      scheduledStatusMap: new Map(),
     });
 
     expect(records.normalThreadRecordMap.size).toBe(0);
@@ -187,30 +193,10 @@ describe('buildThreadIndexRecordMaps', () => {
   it('keeps the records of both surfaces from the build before when nothing changed', () => {
     const rootEvent = makeEvent({ eventId: '$root' });
     const options = {
-      threadId: undefined,
-      compactViewRequested: true,
-      room: makeRoom(rootEvent),
-      visibleThreadRootData: visibleRootData,
-      compactThreadRootData: compactRootData,
+      ...emptyOptions(makeRoom(rootEvent)),
       visibleThreadRootEventMap: new Map([['$root', rootEvent]]),
       compactThreadRootEventMap: new Map([['$root', rootEvent]]),
-      compactThreadRootBodyMap: new Map<string, string>(),
-      summaryMap: new Map(),
-      fallbackSummaryMap: new Map(),
-      fallbackReplyCountMap: new Map(),
-      cachedMetadata: {
-        latestReplyPreviewMap: new Map(),
-        latestReplyTsMap: new Map(),
-        lastSenderIdMap: new Map(),
-        messageCountMap: new Map(),
-        lastActivityTsMap: new Map(),
-        coverageMap: new Map(),
-      },
-      fallbackParticipantMap: new Map(),
-      threadResolutionMap: new Map(),
       currentUserId: '@me:server',
-      scheduledStatusMap: new Map(),
-      changes: createThreadRecordChanges(),
     };
     const first = buildThreadIndexRecordMaps(options);
 

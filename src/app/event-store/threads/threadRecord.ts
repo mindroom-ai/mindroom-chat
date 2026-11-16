@@ -529,17 +529,20 @@ export const buildThreadRecordMap = ({
       reuse &&
       kept &&
       keptFrom &&
-      keptFrom.builtAt >=
-        Math.max(reuse.changes.room, reuse.changes.threads.get(threadRootId) ?? 0) &&
+      // A mark of the room drops the threads' marks, so a thread's mark is the newer one.
+      keptFrom.builtAt >= (reuse.changes.threads.get(threadRootId) ?? reuse.changes.room) &&
       sameOption(keptFrom.roomSources, roomSources) &&
       sameOptions(keptFrom.options, options)
     ) {
       // The room's threads trade places with every reply; a thread that only moved keeps its
       // record, with its new place.
       const index = options.absoluteIndex ?? 0;
-      const moved = kept.absoluteIndex === index ? kept : { ...kept, absoluteIndex: index };
-      if (moved !== kept) recordSources.set(moved, keptFrom);
-      records.set(threadRootId, moved);
+      let record = kept;
+      if (kept.absoluteIndex !== index) {
+        record = { ...kept, absoluteIndex: index };
+        recordSources.set(record, keptFrom);
+      }
+      records.set(threadRootId, record);
       return;
     }
     const record = buildThreadRecord(options);
