@@ -8,6 +8,9 @@ import { MatrixEvent } from 'matrix-js-sdk';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { renderAgentMessageContent } from './renderAgentMessageContent';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
+import { splitFinishedWork } from '../agent-run/finishedWorkSplit';
+import { LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
+import { MINDROOM_THINKING_PLACEHOLDER_BODY } from '../../matrix/protocol/thinkingPlaceholder';
 
 // The folded work shows its tool calls once open, so these tests show them.
 beforeEach(showToolCalls);
@@ -39,6 +42,12 @@ vi.mock('./BrokenContent', async () => {
   };
 });
 
+// The real split, counted.
+vi.mock('../agent-run/finishedWorkSplit', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../agent-run/finishedWorkSplit')>();
+  return { ...actual, splitFinishedWork: vi.fn(actual.splitFinishedWork) };
+});
+
 vi.mock('./FallbackContent', () => ({ MessageEmptyContent: () => null }));
 
 vi.mock('../html/react-custom-html-parser', () => ({
@@ -63,7 +72,17 @@ vi.mock('../../approvals/ApprovalArgumentFields.css', () => ({
   Count: 'Count',
 }));
 
-vi.mock('../agent-run/Reasoning.css', () => ({}));
+vi.mock('../agent-run/Reasoning.css', () => ({
+  Reasoning: 'Reasoning',
+  Line: 'Line',
+  Toggle: 'Toggle',
+  CogRow: 'CogRow',
+  CollapseEnd: 'CollapseEnd',
+  Label: 'Label',
+  Chevron: 'Chevron',
+  Body: 'Body',
+  ActivityCode: 'ActivityCode',
+}));
 vi.mock('../html/HtmlBlocks.css', () => ({
   Block: 'Block',
   BlockBody: 'BlockBody',
@@ -139,7 +158,7 @@ let replyId = '$reply';
 let replyHeight = 2000;
 const createNodeMock = () => {
   const element = document.createElement('div');
-  element.getBoundingClientRect = () => ({ height: replyHeight } as DOMRect);
+  element.getBoundingClientRect = () => ({ width: 600, height: replyHeight } as DOMRect);
   return element;
 };
 
@@ -171,6 +190,10 @@ const render = (
 const text = () => JSON.stringify(renderer?.toJSON());
 const textOf = (node: ReactTestInstance | string): string =>
   typeof node === 'string' ? node : node.children.map(textOf).join('');
+const firstParagraph = () =>
+  renderer!.root.find((node) => node.type === 'p' && textOf(node) === 'Let me look.');
+const reasoningToggle = () =>
+  renderer!.root.find((node) => node.type === 'button' && textOf(node).startsWith('Thinking'));
 const workedRow = () =>
   renderer!.root.find((node) => node.type === 'button' && textOf(node).startsWith('Worked'));
 const toolCalls = () =>
@@ -273,13 +296,53 @@ describe('finished agent work', () => {
 
   it('keeps a short reply in place when it finishes on screen', () => {
     replyHeight = 500;
-    const firstParagraph = () =>
-      renderer!.root.find((node) => node.type === 'p' && textOf(node) === 'Let me look.');
     render(reply('streaming'));
     const before = firstParagraph();
 
     render(reply('completed'));
     expect(text()).not.toContain('Worked');
     expect(firstParagraph()).toBe(before);
+  });
+
+  it('keeps the reasoning and body in place as the first tool call streams in', () => {
+    const streaming = (body: string, html?: string) => ({
+      ...reply('streaming', html),
+      body,
+      ...(html === undefined ? { formatted_body: undefined, format: undefined } : {}),
+      [LIVE_REASONING_KEY]: 'Considering the question.',
+    });
+
+    render(streaming(MINDROOM_THINKING_PLACEHOLDER_BODY));
+    act(() => {
+      reasoningToggle().props.onClick();
+    });
+    expect(reasoningToggle().props['aria-expanded']).toBe(false);
+
+    // Two blocks: the parser keys the blocks of a body with more than one, so the first block of
+    // any reply mounts again as its second arrives.
+    const blocks = '<p>Let me look.</p><p>Searching.</p>';
+    render(streaming('Let me look. Searching.', blocks));
+    expect(reasoningToggle().props['aria-expanded']).toBe(false);
+    const before = firstParagraph();
+
+    render(streaming('Let me look. Searching.', `${blocks}${marker('web_search', 1)}`));
+    expect(reasoningToggle().props['aria-expanded']).toBe(false);
+    // Compared as a boolean: a failed toBe would print the whole fiber tree.
+    expect(firstParagraph() === before).toBe(true);
+    expect(toolCalls()).toEqual(['web_search']);
+  });
+
+  it('does not split a reply again that fits on the screen', () => {
+    replyHeight = 500;
+    render(reply('completed'));
+    expect(text()).not.toContain('Worked');
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    vi.mocked(splitFinishedWork).mockClear();
+
+    render(reply('completed'));
+    expect(text()).not.toContain('Worked');
+    expect(text()).toContain('Let me look.');
+    expect(splitFinishedWork).not.toHaveBeenCalled();
   });
 });

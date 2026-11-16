@@ -27,7 +27,10 @@ A MindRoom agent reply folds when all of these hold:
    before it paints, its rendered height is measured once against the viewport height
    (`window.innerHeight`), and only a taller reply folds, so the reader sees no jump. The verdict
    is remembered per reply (a bounded map), so a virtualization remount folds or stays open on
-   its first paint without measuring again.
+   its first paint without measuring again. A reply measured at zero width or height (a hidden
+   panel) has no verdict yet; it is measured again once it lays out with a size.
+   Showing or hiding tool calls changes the height, so each setting has its own verdict, and
+   toggling it measures the reply again.
 5. It is not a search result or a highlighted row (`highlightRegex` set); those show the whole
    reply.
 6. A long reply whose body is in a sidecar folds only once the sidecar is read; the truncated
@@ -72,10 +75,17 @@ tool call and replies that fit on one screen render as today, with no row.
   every streamed edit re-renders the row.
 - **Fold component:** `FinishedWorkFold` in `src/app/messages/agent-run/`. Renders the reply
   whole, measures it in a layout effect, and when it is taller than the viewport renders the
-  row, the work when open, and the answer. Reuse the disclosure styling of `ToolCallsFold`/`Reasoning` where it
-  fits; no new design language.
-- **Wiring:** the agent text path in `renderAgentMessageContent.tsx` (`renderBody` and the
-  long-text path, so hydrated sidecar replies fold too). When the split applies, render
+  row, the work when open, and the answer. The row uses the reasoning header's styles
+  (`Reasoning.css.ts`); no new design language.
+- **Measuring:** a zero-size measurement is not cached; a `ResizeObserver` on the whole reply
+  measures again once it has a size, and disconnects after that measurement. The verdict is
+  keyed on the fold key and `useToolCallsShown(roomId, threadId)`, read as `ToolCallsFold`
+  reads it. A reply whose verdict for the current key is "fits on screen" is not split.
+- **Wiring:** the agent text path in `renderAgentMessageContent.tsx` (`renderBody`, the
+  thinking placeholder and the long-text path, so hydrated sidecar replies fold too). Every
+  agent body renders through `AgentWorkBody` and `FinishedWorkFold` from its first streamed
+  frame, with or without a tool marker, so collapsed reasoning and the body's elements stay
+  as the first marker arrives. When the split applies, render
   `FinishedWorkFold` around the reasoning header, cog and head body, then the tail body.
   Keep `ToolCallsFold` as the outer provider so the cog still counts all calls.
 - **Strings:** `Worked for {{duration}}` and `Worked` in `en.json` and all 16 overlay files.

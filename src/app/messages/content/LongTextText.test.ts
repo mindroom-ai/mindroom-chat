@@ -126,14 +126,13 @@ vi.mock('../../approvals/ApprovalArgumentFields.css', () => ({
   Count: 'Count',
 }));
 
-vi.mock('../agent-run/Reasoning.css', () => ({}));
-vi.mock('../agent-run/FinishedWorkFold.css', () => ({
-  Fold: 'Fold',
+vi.mock('../agent-run/Reasoning.css', () => ({
+  Reasoning: 'Reasoning',
   Toggle: 'Toggle',
   Label: 'Label',
   Chevron: 'Chevron',
-  Work: 'Work',
 }));
+vi.mock('../agent-run/FinishedWorkFold.css', () => ({ Work: 'Work' }));
 vi.mock('../html/HtmlBlocks.css', () => ({
   Block: 'MindroomBlock',
   BlockBody: 'MindroomBlockBody',
@@ -1566,7 +1565,7 @@ describe('a finished agent reply in a sidecar', () => {
             linkifyOpts: {},
           })
         ),
-        { createNodeMock: () => ({ getBoundingClientRect: () => ({ height: 2000 }) }) }
+        { createNodeMock: () => ({ getBoundingClientRect: () => ({ width: 600, height: 2000 }) }) }
       );
     });
     const worked = () => JSON.stringify(renderer.toJSON()).includes('Worked');

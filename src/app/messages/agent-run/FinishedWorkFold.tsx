@@ -6,18 +6,41 @@ import {
   ManualExpansionStateContext,
   rememberManualExpansionState,
 } from '../manualExpansionState';
+import { useToolCallsShown } from '../toolCallVisibility';
+import { ToolCallMessageContext } from './toolCallStatus';
 import { formatWorkDuration } from '../../lib/time';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
+import * as reasoningCss from './Reasoning.css';
 import * as css from './FinishedWorkFold.css';
 
-// Whether each finished reply was taller than the screen when it was measured, by fold key, so a
-// row that virtualization mounts again folds or stays open on its first paint without measuring.
+// Whether each finished reply was taller than the screen when it was measured, by fold key and
+// whether its tool calls showed, so a row that virtualization mounts again folds or stays open on
+// its first paint without measuring.
 const tallerThanScreen = new Map<string, boolean>();
 
-/** Whether the element is taller than the viewport; undefined when there is nothing to measure. */
+/**
+ * Where the reply's verdict is cached: showing or hiding its tool calls changes its height, so
+ * each setting has its own, read as ToolCallsFold reads the setting.
+ */
+const useVerdictKey = (foldKey: string): string => {
+  const message = useContext(ToolCallMessageContext);
+  const [toolCallsShown] = useToolCallsShown(message?.roomId, message?.threadId);
+  return `${foldKey}:${toolCallsShown ? 'tool-calls-shown' : 'tool-calls-hidden'}`;
+};
+
+/** Whether the reply measured shorter than the screen as it shows now: it need not be split. */
+export const useFitsOnScreen = (foldKey: string): boolean =>
+  tallerThanScreen.get(useVerdictKey(foldKey)) === false;
+
+/**
+ * Whether the element is taller than the viewport; undefined when there is nothing to measure,
+ * also while it has no size, as in a hidden panel.
+ */
 const measureTallerThanScreen = (element: HTMLElement | null): boolean | undefined => {
   if (!element || typeof window === 'undefined') return undefined;
-  return element.getBoundingClientRect().height > window.innerHeight;
+  const { width, height } = element.getBoundingClientRect();
+  if (!width || !height) return undefined;
+  return height > window.innerHeight;
 };
 
 type FinishedWorkFoldProps = {
@@ -53,7 +76,9 @@ export function FinishedWorkFold({ foldKey, durationMs, whole, folded }: Finishe
   const manualExpansionState = useContext(ManualExpansionStateContext);
   const expandAllInit = useContext(ExpandAllInitContext);
   const wholeRef = useRef<HTMLDivElement>(null);
-  const [tall, setTall] = useState(() => tallerThanScreen.get(foldKey));
+  const verdictKey = useVerdictKey(foldKey);
+  const [measured, setMeasured] = useState<{ key: string; tall: boolean }>();
+  const tall = measured?.key === verdictKey ? measured.tall : tallerThanScreen.get(verdictKey);
   const [open, setOpen] = useState(
     () => manualExpansionState?.get(foldKey) ?? expandAllInit ?? false
   );
@@ -61,15 +86,25 @@ export function FinishedWorkFold({ foldKey, durationMs, whole, folded }: Finishe
 
   const foldable = folded !== undefined;
 
-  // Once per mount, as soon as the reply may fold and before it paints, so a tall one never
-  // shows unfolded first.
+  // Once per mount and tool-call setting, as soon as the reply may fold and before it paints, so
+  // a tall one never shows unfolded first. A reply without a size yet is measured once it has one.
   useLayoutEffect(() => {
-    if (!foldable || tall !== undefined) return;
-    const measured = measureTallerThanScreen(wholeRef.current);
-    if (measured === undefined) return;
-    rememberManualExpansionState(tallerThanScreen, foldKey, measured);
-    setTall(measured);
-  }, [foldable, foldKey, tall]);
+    if (!foldable || tall !== undefined) return undefined;
+    const element = wholeRef.current;
+    const measure = () => {
+      const result = measureTallerThanScreen(element);
+      if (result === undefined) return false;
+      rememberManualExpansionState(tallerThanScreen, verdictKey, result);
+      setMeasured({ key: verdictKey, tall: result });
+      return true;
+    };
+    if (measure() || !element || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => {
+      if (measure()) observer.disconnect();
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [foldable, verdictKey, tall]);
 
   // As CollapsibleMessage: expand all opens the work and collapse all folds it, unless the reader
   // chose for this reply since.
@@ -95,11 +130,16 @@ export function FinishedWorkFold({ foldKey, durationMs, whole, folded }: Finishe
         });
   return (
     <>
-      <div className={css.Fold}>
-        <button type="button" className={css.Toggle} aria-expanded={open} onClick={toggle}>
+      <div className={reasoningCss.Reasoning}>
+        <button
+          type="button"
+          className={reasoningCss.Toggle}
+          aria-expanded={open}
+          onClick={toggle}
+        >
           <Icon size="50" src={Icons.RecentClock} aria-hidden />
-          <span className={css.Label}>{label}</span>
-          <Icon size="50" src={Icons.ChevronRight} className={css.Chevron} aria-hidden />
+          <span className={reasoningCss.Label}>{label}</span>
+          <Icon size="50" src={Icons.ChevronRight} className={reasoningCss.Chevron} aria-hidden />
         </button>
         {open && <div className={css.Work}>{folded.work}</div>}
       </div>

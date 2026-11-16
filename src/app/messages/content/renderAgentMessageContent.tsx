@@ -16,17 +16,13 @@ import {
 import { useToolTraceMarkerParserOptions } from '../html/HtmlBlocks';
 import type { ToolMetadataStatus } from '../../matrix/protocol/toolTrace';
 import { getAiRunInfo, isAiRunStreaming } from '../../matrix/protocol/aiRun';
-import {
-  MINDROOM_TOOL_REF_ICON,
-  formatMarkdownTextBodyAsHtml,
-  formatMessageTextBodyAsHtml,
-} from '../html/blocks';
+import { formatMarkdownTextBodyAsHtml, formatMessageTextBodyAsHtml } from '../html/blocks';
 import { getLongTextSource, hasLongTextMetadata } from '../../matrix/protocol/longText';
 import { LongTextKind, LongTextText } from './LongTextText';
 import { PasteAttachmentContent } from './PasteAttachmentContent';
 import { ThinkingPlaceholder } from '../agent-run/ThinkingPlaceholder';
 import { withReasoning } from '../agent-run/Reasoning';
-import { FinishedWorkFold } from '../agent-run/FinishedWorkFold';
+import { FinishedWorkFold, useFitsOnScreen } from '../agent-run/FinishedWorkFold';
 import { splitFinishedWork } from '../agent-run/finishedWorkSplit';
 import { LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
 import { TranscribingPlaceholder } from '../agent-run/TranscribingPlaceholder';
@@ -108,20 +104,22 @@ function AgentRenderBody({
 }
 
 type AgentWorkBodyProps = {
-  html: string;
+  /** The body's HTML; undefined for a plain body or the thinking placeholder. */
+  html?: string;
   foldKey: string;
   /** Whether the reply finished and may fold its work. */
   finished: boolean;
   durationMs?: number;
   /** The body of the given HTML. */
-  renderHtml: (customBody: string) => ReactNode;
+  renderHtml: (customBody: string | undefined) => ReactNode;
   /** The reasoning header and tool-call cog around a body. */
   wrapWithReasoning: (body: ReactNode) => ReactNode;
 };
 
 /**
- * An agent reply with tool calls, in the same tree while it streams and after, its work folded
- * once it finished with an answer after its last tool call.
+ * An agent reply, in the same tree from its first streamed frame on, with or without tool calls,
+ * so the state inside it, such as collapsed reasoning, stays as they come; its work folded once it
+ * finished with an answer after its last tool call.
  */
 function AgentWorkBody({
   html,
@@ -132,8 +130,13 @@ function AgentWorkBody({
   wrapWithReasoning,
 }: AgentWorkBodyProps) {
   // A timeline renders its rows again on each streamed edit of any reply; the split waits for this
-  // reply's own HTML to change, and for it to finish.
-  const split = useMemo(() => (finished ? splitFinishedWork(html) : undefined), [finished, html]);
+  // reply's own HTML to change, and for it to finish. A reply known to fit on the screen is not
+  // split at all.
+  const fits = useFitsOnScreen(foldKey);
+  const split = useMemo(
+    () => (finished && !fits && html !== undefined ? splitFinishedWork(html) : undefined),
+    [finished, fits, html]
+  );
   return (
     <FinishedWorkFold
       foldKey={foldKey}
@@ -236,7 +239,7 @@ export const renderAgentMessageContent = ({
     renderHtml: (customBody: string | undefined) => ReactNode,
     canFold = true
   ) => {
-    if (!foldsWork || !html?.includes(MINDROOM_TOOL_REF_ICON) || foldEventId === undefined) {
+    if (!foldsWork || foldEventId === undefined) {
       return wrapWithReasoning(bodyContent, renderHtml(html));
     }
     return (
@@ -426,7 +429,13 @@ export const renderAgentMessageContent = ({
           content={content}
           renderStateSuffix={getMessageStateSuffix()}
           renderBody={() =>
-            wrapWithReasoning(content, <ThinkingPlaceholder startedAt={mEvent?.getTs()} />)
+            // In the reply's own tree, so its reasoning stays as the first text replaces this.
+            wrapAgentBody(
+              content,
+              undefined,
+              () => <ThinkingPlaceholder startedAt={mEvent?.getTs()} />,
+              false
+            )
           }
           renderAfterBody={renderMessageExtras(content)}
         />

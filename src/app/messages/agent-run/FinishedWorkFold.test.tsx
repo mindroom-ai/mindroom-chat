@@ -1,16 +1,51 @@
 // @vitest-environment jsdom
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getDefaultStore } from 'jotai';
 import { ExpandAllInitContext, ManualExpansionStateContext } from '../manualExpansionState';
+import { getSettings, settingsAtom } from '../../preferences/settings';
 import { FinishedWorkFold } from './FinishedWorkFold';
 
-vi.mock('./FinishedWorkFold.css', () => ({
-  Fold: 'Fold',
+vi.mock('./FinishedWorkFold.css', () => ({ Work: 'Work' }));
+vi.mock('./Reasoning.css', () => ({
+  Reasoning: 'Reasoning',
   Toggle: 'Toggle',
   Label: 'Label',
   Chevron: 'Chevron',
-  Work: 'Work',
 }));
+
+const setToolCallsShown = (shown: boolean) =>
+  act(() => {
+    getDefaultStore().set(settingsAtom, { ...getSettings(), showToolCalls: shown });
+  });
+
+// jsdom has no ResizeObserver: the observers the fold starts, to resize what they observe.
+const observers: { callback: ResizeObserverCallback; observed: number }[] = [];
+class FakeResizeObserver {
+  private readonly entry: { callback: ResizeObserverCallback; observed: number };
+
+  constructor(callback: ResizeObserverCallback) {
+    this.entry = { callback, observed: 0 };
+    observers.push(this.entry);
+  }
+
+  observe() {
+    this.entry.observed += 1;
+  }
+
+  disconnect() {
+    this.entry.observed = 0;
+  }
+
+  unobserve() {
+    this.entry.observed = 0;
+  }
+}
+const observing = () => observers.filter((observer) => observer.observed > 0);
+const resize = () =>
+  act(() => {
+    observing().forEach((observer) => observer.callback([], {} as ResizeObserver));
+  });
 
 // Each test folds a reply of its own: the fold remembers per key whether a reply was tall.
 let keys = 0;
@@ -22,21 +57,31 @@ const nextKey = () => {
 describe('FinishedWorkFold', () => {
   let renderer: ReactTestRenderer | undefined;
   let measured = 0;
+  // The reply's size as it lays out: 0 by 0 while it is hidden.
+  let size = { width: 600, height: 2000 };
+
+  beforeEach(() => {
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+  });
 
   afterEach(() => {
     act(() => renderer?.unmount());
     renderer = undefined;
     measured = 0;
+    observers.length = 0;
+    vi.unstubAllGlobals();
+    setToolCallsShown(false);
   });
 
   /** Renders with the reply `height` pixels tall; jsdom's viewport is 768 pixels. */
   const render = (element: JSX.Element, height = 2000) => {
+    size = { width: height === 0 ? 0 : 600, height };
     act(() => {
       renderer = create(element, {
         createNodeMock: () => ({
           getBoundingClientRect: () => {
             measured += 1;
-            return { height };
+            return size;
           },
         }),
       });
@@ -114,6 +159,50 @@ describe('FinishedWorkFold', () => {
 
     expect(measured).toBe(1);
     expect(rows()).toHaveLength(1);
+  });
+
+  it('measures a hidden reply again once it lays out, and folds a tall one', () => {
+    const key = nextKey();
+    render(fold(key), 0);
+
+    expect(measured).toBe(1);
+    expect(rows()).toHaveLength(0);
+    expect(observing()).toHaveLength(1);
+
+    size = { width: 600, height: 2000 };
+    resize();
+
+    expect(measured).toBe(2);
+    expect(rows()).toHaveLength(1);
+    expect(observing()).toHaveLength(0);
+  });
+
+  it('does not remember the size of a hidden reply', () => {
+    const key = nextKey();
+    render(fold(key), 0);
+    act(() => renderer!.unmount());
+    render(fold(key), 2000);
+
+    expect(measured).toBe(2);
+    expect(rows()).toHaveLength(1);
+  });
+
+  it('measures a reply again when its tool calls show or hide', () => {
+    const key = nextKey();
+    setToolCallsShown(false);
+    render(fold(key), 500);
+    expect(rows()).toHaveLength(0);
+
+    // Its tool calls showing make it taller than the screen.
+    size = { width: 600, height: 2000 };
+    setToolCallsShown(true);
+    expect(measured).toBe(2);
+    expect(rows()).toHaveLength(1);
+
+    // Each setting keeps its own verdict.
+    setToolCallsShown(false);
+    expect(measured).toBe(2);
+    expect(rows()).toHaveLength(0);
   });
 
   it('names how long the work took', () => {
