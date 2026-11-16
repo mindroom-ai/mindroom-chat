@@ -20,6 +20,8 @@ export type TimelineMessageData = {
   approvalTimeline: ReturnType<typeof useThreadApprovalTimeline>;
   threadSummaryTimeline: ThreadSummaryTimelinePlan;
   handleOpenReply: MouseEventHandler;
+  /** In a fork, the IDs of its parent's messages shown before its own: rows read-only here. */
+  forkPrefixEventIds?: ReadonlySet<string>;
 };
 
 export type { TimelineMessageKind } from '../../event-store/timeline/timelineRowTypes';

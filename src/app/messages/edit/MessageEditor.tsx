@@ -33,6 +33,7 @@ import { trimReplyFromBody } from '../../matrix/room';
 import { buildEditContent } from './longEdit';
 import { useEditableContent } from './useEditableContent';
 import { TEXT_MSGTYPES } from '../../event-store/timeline/timelineRowTypes';
+import { keepThreadForkRef } from '../../event-store/threads/threadFork';
 
 const CUSTOM_HTML = 'org.matrix.custom.html';
 
@@ -191,7 +192,9 @@ function LoadedMessageEditor({
     }
     setStatus('saving');
     try {
-      const edit = await buildEditContent(client, room, edited, {
+      // A fork's root stays a fork: MindRoom reads the reference from the edited message.
+      const newContent = keepThreadForkRef(mEvent.getOriginalContent(), edited);
+      const edit = await buildEditContent(client, room, newContent, {
         rel_type: RelationType.Replace,
         event_id: eventId,
       });

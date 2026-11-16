@@ -3,6 +3,7 @@ import React, {
   type RefObject,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
@@ -92,6 +93,7 @@ export function CompactCardSwipe({
   children,
 }: CompactCardSwipeProps) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const stripRef = useRef<HTMLDivElement>(null);
   const gestureRef = useRef<Gesture>();
   const swipedRef = useRef(false);
   const settleTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -120,19 +122,57 @@ export function CompactCardSwipe({
     };
   }, []);
 
-  // A second finger makes the touch a pinch, which changes the page zoom
-  // (theme/usePinchToZoom.ts): the swipe lets go without its action. That finger may land
-  // anywhere, so the whole document listens for it.
-  const cancelRef = useLatestRef(() => finish(false));
+  // A card that leaves the list mid-swipe may show a moment longer as a copy
+  // (ui/listMotion.tsx): at rest, without the strip.
+  useLayoutEffect(() => {
+    const track = trackRef.current;
+    return () => {
+      if (track) track.style.transform = '';
+      // The strip comes with a swipe, after this effect ran: read as the card goes.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      if (stripRef.current) stripRef.current.style.display = 'none';
+    };
+  }, []);
+
+  // A touch can end without the card being told. A second finger makes it a pinch, which
+  // changes the page zoom (theme/usePinchToZoom.ts); the page goes out of sight under the
+  // finger; or the browser tells of the lift elsewhere, or not at all: on a phone a card was
+  // left swiped with its strip showing, and nothing was sent. No swipe outlives its touch: it
+  // lets go, with its action only where the finger lifted. The fingers may land and lift
+  // anywhere, so the whole document listens for them.
+  const finishRef = useLatestRef((commit: boolean) => finish(commit));
   useEffect(() => {
     const doc = trackRef.current?.ownerDocument;
     if (!doc) return undefined;
     const handleTouchStart = (event: TouchEvent) => {
-      if (event.touches.length > 1 && gestureRef.current) cancelRef.current();
+      const gesture = gestureRef.current;
+      // A second finger, or the first finger of a new touch while a swipe is still on: its own
+      // finger is gone. (A touch's own start comes before it is a swipe.)
+      if (gesture && (event.touches.length > 1 || gesture.swipe)) finishRef.current(false);
     };
-    doc.addEventListener('touchstart', handleTouchStart, { capture: true, passive: true });
-    return () => doc.removeEventListener('touchstart', handleTouchStart, { capture: true });
-  }, [cancelRef]);
+    const handleTouchEnd = (event: TouchEvent) => {
+      const gesture = gestureRef.current;
+      if (!gesture?.swipe || event.touches.length > 0) return;
+      // After the card's own pointer event of this lift, which ends the swipe where it comes.
+      setTimeout(() => {
+        if (gestureRef.current === gesture) finishRef.current(event.type === 'touchend');
+      }, 0);
+    };
+    const handleVisibilityChange = () => {
+      if (doc.visibilityState === 'hidden') finishRef.current(false);
+    };
+    const early = { capture: true, passive: true };
+    doc.addEventListener('touchstart', handleTouchStart, early);
+    doc.addEventListener('touchend', handleTouchEnd, early);
+    doc.addEventListener('touchcancel', handleTouchEnd, early);
+    doc.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      doc.removeEventListener('touchstart', handleTouchStart, early);
+      doc.removeEventListener('touchend', handleTouchEnd, early);
+      doc.removeEventListener('touchcancel', handleTouchEnd, early);
+      doc.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [finishRef]);
 
   const finish = (commit: boolean) => {
     const swipe = gestureRef.current?.swipe;
@@ -153,6 +193,8 @@ export function CompactCardSwipe({
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    // A new first finger: a swipe whose end never came lets go before it.
+    if (event.isPrimary) finish(false);
     swipedRef.current = false;
     if (!enabled || event.pointerType !== 'touch' || !event.isPrimary) return;
     // Edge swipes navigate back and forward; leave those touches to them.
@@ -225,6 +267,7 @@ export function CompactCardSwipe({
     <>
       {strip && (
         <div
+          ref={stripRef}
           className={css.SwipeAction}
           data-compact-card-swipe="action"
           data-armed={armed ? 'true' : undefined}

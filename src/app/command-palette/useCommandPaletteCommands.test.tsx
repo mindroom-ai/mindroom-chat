@@ -10,7 +10,7 @@ import type { RoomCommand } from '../navigation/roomCommands';
 import { MessageLayout, settingsAtom } from '../preferences/settings';
 import type { SettingsContext } from '../preferences/settingsRegistry';
 import type { SettingsSearchValues } from '../settings/settingsSearchIndex';
-import { THEMES } from '../theme/useTheme';
+import { THEMES, themePreviewAtom } from '../theme/useTheme';
 import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
 import { commandPaletteSearchConfig, matchCommandPaletteSection } from './commandPaletteSearch';
 import type { CommandPaletteActionItem, Executable } from './commandPaletteTypes';
@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
 const CONTEXT: SettingsContext = {
   native: false,
   nativeIOS: false,
+  diagnostics: false,
   localMindroom: true,
   serverAdmin: false,
   useSystemTheme: true,
@@ -82,7 +83,7 @@ vi.mock('../calls/agent/agentCaller', () => ({
 }));
 vi.mock('../theme/useTheme', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../theme/useTheme')>();
-  return { ...actual, useTheme: () => actual.MidnightTheme };
+  return { ...actual, useChosenTheme: () => actual.MidnightTheme };
 });
 vi.mock('../navigation/roomCommands', () => ({ getRoomCommands: () => mocks.roomCommands }));
 vi.mock('../shortcuts/useShortcut', () => ({
@@ -232,6 +233,23 @@ describe('useCommandPaletteCommands pages', () => {
 
     expect(store.get(settingsAtom).useSystemTheme).toBe(true);
     expect(find(result.current.pages.theme.items, 'theme:system').state).toBe('on');
+  });
+
+  it('a theme row shows its theme for a look and takes it back, storing nothing', () => {
+    const { store, result } = render();
+    const before = store.get(settingsAtom);
+
+    let undo: (() => void) | undefined;
+    act(() => {
+      undo = find(result.current.pages.theme.items, 'theme:dracula-theme').preview?.();
+    });
+    expect(store.get(themePreviewAtom)).toBe('dracula-theme');
+    expect(store.get(settingsAtom)).toBe(before);
+
+    act(() => undo?.());
+    expect(store.get(themePreviewAtom)).toBeUndefined();
+    // System Theme is a switch: it shows nothing until it is flipped.
+    expect(find(result.current.pages.theme.items, 'theme:system').preview).toBeUndefined();
   });
 
   it('lists the three message layouts, and the check mark follows the stored one', () => {

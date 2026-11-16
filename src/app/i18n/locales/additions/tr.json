@@ -402,7 +402,9 @@
       },
       "about": {
         "thirdPartyNotices": "Üçüncü taraf bildirimleri",
-        "soundsCredit": "Bildirim ve davet sesleri bu uygulama için sentezlenmiş zil sesleridir."
+        "soundsCredit": "Bildirim ve davet sesleri bu uygulama için sentezlenmiş zil sesleridir.",
+        "debugMode": "Hata ayıklama modu",
+        "debugModeDescription": "Bu cihazda tanılama verilerini kaydeder; böylece bunları dışa aktarabilir ve ayrıntılı tanılama izlemeyi açabilirsiniz."
       }
     },
     "createChat": {
@@ -839,6 +841,7 @@
       "title": "Alt ajanlar",
       "close": "Kapat",
       "empty": "Bu odada çalışan alt ajan yok.",
+      "emptyThread": "Bu konuda çalışan alt ajan yok.",
       "back": "Geri",
       "nested_one": "{{count}} alt ajan",
       "nested_other": "{{count}} alt ajan",
@@ -960,6 +963,16 @@
     "nextMonday": "Gelecek pazartesi 09:00",
     "pickDateTime": "Tarih ve saat seç",
     "pastTime": "Gelecekte bir zaman seçin"
+  },
+  "threadFork": {
+    "forkedFrom": "{{title}} konusundan ayrıldı",
+    "openInOriginalThread": "Asıl konuda aç",
+    "forkFromHere": "Buradan ayır",
+    "forkThread": "Konuyu ayır",
+    "forking": "{{title}} konusundan ayrılıyor",
+    "continueInNewThread": "Yeni bir konuda devam et",
+    "forkCount_one": "{{count}} ayrım",
+    "forkCount_other": "{{count}} ayrım"
   },
   "activity": {
     "title": "Etkinlik",
@@ -1258,6 +1271,17 @@
       "settingsKeywords": "tur, eğitim, kılavuz, rehber, yardım, tanıtım, konular",
       "howThreadsWork": "Konular nasıl çalışır",
       "noThreadsHint": "Bir konu başlatmak için aşağıdan mesaj gönderin."
+    }
+  },
+  "threadNav": {
+    "layout": "Konu düzeni",
+    "layoutRecent": "Son",
+    "layoutSections": "Bölümler",
+    "sections": {
+      "working": "Çalışıyor",
+      "snoozed": "Ertelenenler",
+      "idle": "Boşta",
+      "resolved": "Çözülenler"
     }
   }
 }

@@ -156,7 +156,12 @@ const timedPendingApproval: ToolApprovalData = {
   autoApproveOptions: [300, 600, 1800],
 };
 
-const approvalContext = {
+const approvalContext: {
+  roomId: string;
+  eventId: string;
+  threadId: string;
+  readOnly?: boolean;
+} = {
   roomId: '!room:example.org',
   eventId: '$approval',
   threadId: '$thread-root',
@@ -545,6 +550,40 @@ describe('ToolApprovalCard', () => {
       renderer.unmount();
     }
   );
+
+  it("shows a pending approval in another thread's view without its decisions", () => {
+    const renderer = renderCard(timedPendingApproval, { readOnly: true });
+    const text = getNodeText(renderer.root);
+    const buttonLabels = renderer.root.findAllByType('button').map((node) => getNodeText(node));
+
+    expect(text).toContain('web_search');
+    expect(text).toContain('release date');
+    expect(buttonLabels.some((label) => /approve|deny/i.test(label))).toBe(false);
+    expect(findButtonByText(renderer.root, 'Approve')).toBeUndefined();
+    expect(findButtonByText(renderer.root, 'Deny')).toBeUndefined();
+
+    renderer.unmount();
+  });
+
+  it("shows an active auto-approval in another thread's view without Stop", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime('2026-04-10T12:05:00Z');
+    const renderer = renderCard(
+      {
+        ...timedPendingApproval,
+        status: 'approved',
+        resolvedAt: '2026-04-10T12:01:00Z',
+        resolvedBy: '@alice:example.org',
+        autoApproval: { grantId: 'grant-1', expiresAt: '2026-04-10T12:11:00Z', revokedAt: null },
+      },
+      { readOnly: true }
+    );
+
+    expect(getNodeText(renderer.root)).toContain('Auto-approval active');
+    expect(findButtonByText(renderer.root, 'Stop auto-approval')).toBeUndefined();
+
+    renderer.unmount();
+  });
 
   it('renders pending approvals with action buttons', () => {
     const renderer = renderCard();

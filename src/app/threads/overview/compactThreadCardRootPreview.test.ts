@@ -19,6 +19,7 @@ const event = (fields: {
     threadRootId: fields.threadRootId,
     getSender: () => fields.sender,
     getContent: () => fields.content,
+    getOriginalContent: () => fields.content,
     getType: () => 'm.room.message',
     getRelation: () => (fields.threadRootId ? { rel_type: 'm.thread' } : undefined),
     isRelation: (relType: string) => !!fields.threadRootId && relType === 'm.thread',

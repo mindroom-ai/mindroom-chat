@@ -99,6 +99,10 @@ const {
   threadRenderStateMock: {
     threadEventIndexMapRef: { current: new Map() },
     threadEvents: [] as unknown[],
+    // The thread's own rows without a fork's prefix; the rows themselves when left unset.
+    ownThreadEvents: undefined as unknown[] | undefined,
+    // In a fork draft, the row of its fork point, the last row shown.
+    forkPointIndex: undefined as number | undefined,
     threadInitialRenderMode: 'live',
     setSupplementalThreadEvents: vi.fn(),
     resetThreadRenderState: vi.fn(),
@@ -1026,6 +1030,7 @@ vi.mock('../../matrix/protocol/threadSummary', async (importOriginal) => {
 vi.mock('../useThreadRenderState', () => ({
   useThreadRenderState: () => ({
     ...threadRenderStateMock,
+    ownThreadEvents: threadRenderStateMock.ownThreadEvents ?? threadRenderStateMock.threadEvents,
     threadEventIndexMap: threadRenderStateMock.threadEventIndexMapRef.current,
   }),
 }));
@@ -1440,6 +1445,8 @@ beforeEach(() => {
   clearThreadOpenSeedSnapshotsForTests();
   threadRenderStateMock.threadEventIndexMapRef.current = new Map();
   threadRenderStateMock.threadEvents = [];
+  threadRenderStateMock.ownThreadEvents = undefined;
+  threadRenderStateMock.forkPointIndex = undefined;
   threadRenderStateMock.threadInitialRenderMode = 'live';
   pluginRowHiddenMock.test = undefined;
   settingsState.showHiddenEvents = false;
@@ -1671,6 +1678,7 @@ const createControlledRoomTimelineHarness = (
     initialViewMode = 'threaded',
     initialThreadSortFrozen = false,
     viewModeControl,
+    forkAt,
   }: {
     room: ReturnType<typeof makeRoom>;
     eventId?: string;
@@ -1683,6 +1691,7 @@ const createControlledRoomTimelineHarness = (
     initialViewMode?: 'threaded' | 'compact' | 'classic';
     initialThreadSortFrozen?: boolean;
     viewModeControl?: ViewModeControl;
+    forkAt?: string;
   }) {
     const [threadFilterState, setThreadFilterState] = React.useState<
       import('../../event-store/threads/roomThreadOverviewModel').ThreadFilterState
@@ -1757,6 +1766,7 @@ const createControlledRoomTimelineHarness = (
         viewMode,
         compactRoomScrollStateRef,
         editor,
+        forkAt,
       }),
     });
   };

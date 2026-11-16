@@ -24,6 +24,7 @@ type MockRoomViewProps = {
   eventId?: string;
   focusEventInRoom?: boolean;
   threadId?: string;
+  forkAt?: string;
   onThreadLoadError?: (threadId: string) => void;
   onComputerToggle?: () => void;
 };
@@ -378,6 +379,18 @@ describe('Room', { timeout: 30_000 }, () => {
 
     expect(navigateRoomThreadMock).not.toHaveBeenCalled();
     expect(navigateRoomMock).not.toHaveBeenCalled();
+  });
+
+  it("hands the room view the fork point of a fork draft's address", async () => {
+    roomState.search = '?threadId=%24thread&forkAt=%24point';
+    roomState.routedEvent = { getId: () => '$thread', isSending: () => false };
+    const { Room } = await import('../Room');
+
+    await act(async () => {
+      create(React.createElement(Room));
+    });
+
+    expect(roomState.roomViewProps).toMatchObject({ threadId: '$thread', forkAt: '$point' });
   });
 
   it.each(['Desktop', 'Tablet', 'Mobile'])(

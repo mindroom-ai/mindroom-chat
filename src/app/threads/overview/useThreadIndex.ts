@@ -465,12 +465,9 @@ export const useThreadIndex = ({
     }));
     return [...entries, ...roomSurfaceEventEntries];
   }, [pinnedThreadEvents, room, roomSurfaceEventEntries]);
-  const { compactThreadRootData, hasZeroReplyRootCoverage } = useMemo(() => {
+  const { compactThreadRootData, zeroReplyRootCount } = useMemo(() => {
     if (threadId || !compactViewRequested) {
-      return {
-        compactThreadRootData: visibleThreadRootData,
-        hasZeroReplyRootCoverage: false,
-      };
+      return { compactThreadRootData: visibleThreadRootData, zeroReplyRootCount: 0 };
     }
 
     const baseCompactThreadRootData = buildCompactThreadRootData({
@@ -502,12 +499,7 @@ export const useThreadIndex = ({
         baseCompactThreadRootData,
         compactZeroReplyRootData
       ),
-      hasZeroReplyRootCoverage:
-        roomThreadListLoadedSuccessfully &&
-        !!room.threadsTimelineSets[0]?.getLiveTimeline() &&
-        roomThreadListFullyLoaded &&
-        !roomThreadListLoading &&
-        compactZeroReplyRootData.ids.length > 0,
+      zeroReplyRootCount: compactZeroReplyRootData.ids.length,
     };
   }, [
     threadId,
@@ -516,11 +508,15 @@ export const useThreadIndex = ({
     compactRoomSurfaceEntries,
     visibleThreadRootData,
     roomThreadListThreads,
-    roomThreadListLoading,
-    roomThreadListLoadedSuccessfully,
-    roomThreadListFullyLoaded,
     threadReplyCountMap,
   ]);
+  // Apart from the roots: the thread list's loading state alone rebuilds no thread record.
+  const hasZeroReplyRootCoverage =
+    roomThreadListLoadedSuccessfully &&
+    !!room.threadsTimelineSets[0]?.getLiveTimeline() &&
+    roomThreadListFullyLoaded &&
+    !roomThreadListLoading &&
+    zeroReplyRootCount > 0;
   const cachedMetadata = useThreadOverviewCachedMetadata(room.roomId);
 
   const compactThreadRootBodyMap = useMemo(() => {

@@ -30,7 +30,7 @@ import { IconTooltip } from '../../ui/IconTooltip';
 import { useListMotion } from '../../ui/listMotion';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
-import { useStagedCardIds } from './useStagedCardIds';
+import { firstRenderCardCount, useStagedCardIds } from './useStagedCardIds';
 import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import { ThreadCardBadges } from './ThreadCardBadges';
@@ -161,6 +161,7 @@ const CompactThreadCardRow = React.memo(
                   onClick={onThreadClick}
                   attachment={callRow && <LazyCallRow {...callRow} />}
                   badges={badges}
+                  room={room}
                 />
               )}
             />
@@ -270,8 +271,13 @@ export function CompactRoomView({
   const focusHeld = focusInside && !!contentRef.current?.contains(document.activeElement);
   const orderHeld = pointerInside || focusHeld || !!menu;
   const shownRootIds = useHeldThreadOrder(threadRootIds, orderHeld, viewRef);
-  // A filter change mounts the cards it brings back a chunk at a time.
-  const stagedRootIds = useStagedCardIds(room.roomId, shownRootIds);
+  // A filter change mounts the cards it brings back a chunk at a time, and so does a mount after
+  // the cards of its first screen, or of the place the reader left (`useScrollAnchorMemory`).
+  const stagedRootIds = useStagedCardIds(
+    room.roomId,
+    shownRootIds,
+    firstRenderCardCount(shownRootIds, compactRoomScrollStateRef.current.get(room.roomId))
+  );
   const cardViewModels = useCompactThreadCardViewModels({
     room,
     threadRootIds: stagedRootIds,
@@ -408,7 +414,14 @@ export function CompactRoomView({
   };
 
   return (
-    <Box ref={viewRef} className={css.View} data-compact-room-view="true" tabIndex={-1}>
+    <Box
+      ref={viewRef}
+      className={css.View}
+      data-compact-room-view="true"
+      // Cards still to mount: the cards' end is further down than the view's.
+      data-cards-pending={stagedRootIds.length < shownRootIds.length || undefined}
+      tabIndex={-1}
+    >
       <Box
         ref={contentRef}
         className={`${SwipeList} ${css.Cards}`}

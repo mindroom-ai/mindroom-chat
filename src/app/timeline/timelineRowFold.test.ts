@@ -40,17 +40,32 @@ const toEvent = ({ id, sender, type, minute, stateKey, replyTo, fallback, edits 
   } as unknown as MatrixEvent;
 };
 
-const fold = (rows: Row[]) => {
+const fold = (rows: Row[], groupStartIndex?: number) => {
   const events = rows.map(toEvent);
   const contexts = foldTimelineRowContexts({
     indexes: events.map((_, index) => index),
     getEvent: (index) => events[index],
     isSkipped: () => false,
+    groupStartIndex,
   });
   return rows.map((row, index) => [row.id, contexts.get(index)?.collapse]);
 };
 
 describe('foldTimelineRowContexts', () => {
+  it("starts a fork's root under its own author line after the parent's last row", () => {
+    // Forked from the sender's own message and written a minute later.
+    const rows = [
+      { id: '$parent', sender: '@maya:x', type: 'm.room.message', minute: 0 },
+      { id: '$fork', sender: '@maya:x', type: 'm.room.message', minute: 1 },
+      { id: '$more', sender: '@maya:x', type: 'm.room.message', minute: 1 },
+    ];
+    expect(fold(rows, 1)).toEqual([
+      ['$parent', false],
+      ['$fork', false],
+      ['$more', true],
+    ]);
+  });
+
   it('keeps an agent reply, its approval card and its summary notice under one author line', () => {
     expect(
       fold([

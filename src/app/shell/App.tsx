@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useLayoutEffect, useState } from 'react';
-import { Provider as JotaiProvider, useSetAtom } from 'jotai';
+import { Provider as JotaiProvider, useAtomValue, useSetAtom } from 'jotai';
 import { RouterProvider } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -11,6 +11,8 @@ import {
   ThemeContextProvider,
   deploymentDefaultTheme,
   deploymentThemeAtom,
+  getThemeById,
+  themePreviewAtom,
   useSignedOutTheme,
   useTheme,
 } from '../theme/useTheme';
@@ -26,6 +28,7 @@ import { installOverlayFocus } from '../lib/overlayFocus';
 import { useErrorReporting } from '../bug-reports/error-reporting/errorReporting';
 import { ConfigConfigError, ConfigConfigLoading } from './ConfigConfig';
 import { createRouter } from './Router';
+import { withPhonePageSlide } from '../navigation/phonePageSlide';
 import { PersistentParticleBackgroundProvider } from '../ui/particle-background/PersistentParticleBackground';
 import { deploymentBranding } from '../ui/branding/deploymentBranding';
 import '../ui/particle-background/particleCanvasReveal.css';
@@ -37,13 +40,14 @@ setImperativeJotaiStore(appJotaiStore);
  * Applies the theme to the document whenever it changes (a new setting, the system switching
  * between light and dark, signing in or out) and provides it to the app. Signed out, the app
  * shows the deployment's default theme or follows the system, as the startup theme does; signed
- * in, it uses the theme settings.
+ * in, it uses the theme settings. A theme shown for a look (`themePreviewAtom`) goes before both.
  */
 export function AppTheme({ children }: { children: ReactNode }) {
   const signedIn = !!useActiveSession();
   const settingsTheme = useTheme();
   const signedOutTheme = useSignedOutTheme();
-  const theme = signedIn ? settingsTheme : signedOutTheme;
+  const preview = getThemeById(useAtomValue(themePreviewAtom));
+  const theme = preview ?? (signedIn ? settingsTheme : signedOutTheme);
   usePageZoom();
 
   useEffect(() => {
@@ -58,6 +62,8 @@ function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
   // One router while the app is mounted: a refreshed configuration replaces this one only when it
   // routes the same (ClientConfigLoader), so pages keep their state. Screen size reaches pages by context.
   const [router] = useState(() => createRouter(clientConfig));
+  // On a phone a new location slides in (navigation/phonePageSlide.ts).
+  const [slidingRouter] = useState(() => withPhonePageSlide(router));
   // Error reports, when the configuration names a collector, follow the router's pages.
   useErrorReporting(clientConfig, router);
   // A configured brand names the browser tab too. A layout effect, so the unread count's title
@@ -74,7 +80,7 @@ function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
   }, [setDeploymentTheme, deploymentTheme]);
   return (
     <ScreenSizeProvider value={screenSize}>
-      <RouterProvider router={router} />
+      <RouterProvider router={slidingRouter} />
     </ScreenSizeProvider>
   );
 }

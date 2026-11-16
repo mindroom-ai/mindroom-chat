@@ -12,18 +12,21 @@ const THREAD_SIDEBAR_PREFERENCES = 'threadSidebarPreferences';
 const THREAD_SIDEBAR_PREFERENCES_VERSION = 1;
 const MAX_PINNED_SIDEBAR_THREADS = 50;
 
+/** Recent: one list by latest activity. Sections: Working, Snoozed, Idle and Resolved. */
+export type ThreadSidebarLayout = 'recent' | 'sections';
+
 export type ThreadSidebarPreferences = {
   pinnedThreadKeys: string[];
+  layout: ThreadSidebarLayout;
 };
 
 type ThreadSidebarPreferencesStore = ThreadSidebarPreferences & {
   v: typeof THREAD_SIDEBAR_PREFERENCES_VERSION;
 };
 
-export type ThreadSidebarPreferencesAction = {
-  type: 'TOGGLE_PIN';
-  threadKey: string;
-};
+export type ThreadSidebarPreferencesAction =
+  | { type: 'TOGGLE_PIN'; threadKey: string }
+  | { type: 'SET_LAYOUT'; layout: ThreadSidebarLayout };
 
 type ThreadSidebarPreferencesAtom = WritableAtom<
   ThreadSidebarPreferences,
@@ -33,6 +36,7 @@ type ThreadSidebarPreferencesAtom = WritableAtom<
 
 export const DEFAULT_THREAD_SIDEBAR_PREFERENCES: ThreadSidebarPreferences = {
   pinnedThreadKeys: [],
+  layout: 'recent',
 };
 
 const isValidThreadKey = (value: unknown): value is string =>
@@ -52,6 +56,8 @@ export const sanitizeThreadSidebarPreferences = (value: unknown): ThreadSidebarP
 
   return {
     pinnedThreadKeys,
+    // Preferences stored before the layout existed read as Recent, the list they showed.
+    layout: value.layout === 'sections' ? 'sections' : 'recent',
   };
 };
 
@@ -77,6 +83,10 @@ const createThreadSidebarPreferencesAtom = (userId: string): ThreadSidebarPrefer
     (get) => get(persistedAtom),
     (get, set, action) => {
       const current = get(persistedAtom);
+      if (action.type === 'SET_LAYOUT') {
+        set(persistedAtom, { ...current, layout: action.layout });
+        return;
+      }
 
       if (!isValidThreadKey(action.threadKey)) return;
       const isPinned = current.pinnedThreadKeys.includes(action.threadKey);

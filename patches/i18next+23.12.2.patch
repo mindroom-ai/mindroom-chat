@@ -1,8 +1,38 @@
 diff --git a/node_modules/i18next/dist/cjs/i18next.js b/node_modules/i18next/dist/cjs/i18next.js
-index 7add9e5..f365f4b 100644
+index 7add9e5..af2f378 100644
 --- a/node_modules/i18next/dist/cjs/i18next.js
 +++ b/node_modules/i18next/dist/cjs/i18next.js
-@@ -1365,10 +1365,10 @@ class Interpolator {
+@@ -1183,6 +1183,7 @@ class PluralResolver {
+       this.logger.error('Your environment seems not to be Intl API compatible, use an Intl.PluralRules polyfill. Will fallback to the compatibilityJSON v3 format handling.');
+     }
+     this.rules = createRules();
++    this.pluralRulesCache = new Map();
+   }
+   addRule(lng, obj) {
+     this.rules[lng] = obj;
+@@ -1190,10 +1191,19 @@ class PluralResolver {
+   getRule(code) {
+     let options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+     if (this.shouldUseIntlApi()) {
++      // MindRoom: a plural rule never changes, and building one for every plural lookup cost more
++      // than the rest of a translation.
++      const cleanedCode = getCleanedCode(code === 'dev' ? 'en' : code);
++      const type = options.ordinal ? 'ordinal' : 'cardinal';
++      const cacheKey = `${cleanedCode}|${type}`;
++      const cached = this.pluralRulesCache.get(cacheKey);
++      if (cached) return cached;
+       try {
+-        return new Intl.PluralRules(getCleanedCode(code === 'dev' ? 'en' : code), {
+-          type: options.ordinal ? 'ordinal' : 'cardinal'
++        const rule = new Intl.PluralRules(cleanedCode, {
++          type
+         });
++        this.pluralRulesCache.set(cacheKey, rule);
++        return rule;
+       } catch (err) {
+         return;
+       }
+@@ -1365,10 +1375,10 @@ class Interpolator {
      const skipOnVariables = options && options.interpolation && options.interpolation.skipOnVariables !== undefined ? options.interpolation.skipOnVariables : this.options.interpolation.skipOnVariables;
      const todos = [{
        regex: this.regexpUnescape,
@@ -15,7 +45,7 @@ index 7add9e5..f365f4b 100644
      }];
      todos.forEach(todo => {
        replaces = 0;
-@@ -1391,10 +1391,10 @@ class Interpolator {
+@@ -1391,10 +1401,10 @@ class Interpolator {
          } else if (typeof value !== 'string' && !this.useRawValueToEscape) {
            value = makeString(value);
          }
@@ -30,10 +60,40 @@ index 7add9e5..f365f4b 100644
          } else {
            todo.regex.lastIndex = 0;
 diff --git a/node_modules/i18next/dist/esm/i18next.js b/node_modules/i18next/dist/esm/i18next.js
-index 4ed6991..fc84786 100644
+index 4ed6991..b7a7d3c 100644
 --- a/node_modules/i18next/dist/esm/i18next.js
 +++ b/node_modules/i18next/dist/esm/i18next.js
-@@ -1363,10 +1363,10 @@ class Interpolator {
+@@ -1181,6 +1181,7 @@ class PluralResolver {
+       this.logger.error('Your environment seems not to be Intl API compatible, use an Intl.PluralRules polyfill. Will fallback to the compatibilityJSON v3 format handling.');
+     }
+     this.rules = createRules();
++    this.pluralRulesCache = new Map();
+   }
+   addRule(lng, obj) {
+     this.rules[lng] = obj;
+@@ -1188,10 +1189,19 @@ class PluralResolver {
+   getRule(code) {
+     let options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+     if (this.shouldUseIntlApi()) {
++      // MindRoom: a plural rule never changes, and building one for every plural lookup cost more
++      // than the rest of a translation.
++      const cleanedCode = getCleanedCode(code === 'dev' ? 'en' : code);
++      const type = options.ordinal ? 'ordinal' : 'cardinal';
++      const cacheKey = `${cleanedCode}|${type}`;
++      const cached = this.pluralRulesCache.get(cacheKey);
++      if (cached) return cached;
+       try {
+-        return new Intl.PluralRules(getCleanedCode(code === 'dev' ? 'en' : code), {
+-          type: options.ordinal ? 'ordinal' : 'cardinal'
++        const rule = new Intl.PluralRules(cleanedCode, {
++          type
+         });
++        this.pluralRulesCache.set(cacheKey, rule);
++        return rule;
+       } catch (err) {
+         return;
+       }
+@@ -1363,10 +1373,10 @@ class Interpolator {
      const skipOnVariables = options && options.interpolation && options.interpolation.skipOnVariables !== undefined ? options.interpolation.skipOnVariables : this.options.interpolation.skipOnVariables;
      const todos = [{
        regex: this.regexpUnescape,
@@ -46,7 +106,7 @@ index 4ed6991..fc84786 100644
      }];
      todos.forEach(todo => {
        replaces = 0;
-@@ -1389,10 +1389,10 @@ class Interpolator {
+@@ -1389,10 +1399,10 @@ class Interpolator {
          } else if (typeof value !== 'string' && !this.useRawValueToEscape) {
            value = makeString(value);
          }

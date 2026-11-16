@@ -66,6 +66,7 @@ const translator =
 const SETTINGS_CONTEXT: SettingsContext = {
   native: false,
   nativeIOS: false,
+  diagnostics: false,
   localMindroom: true,
   serverAdmin: false,
   useSystemTheme: true,

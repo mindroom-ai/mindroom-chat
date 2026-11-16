@@ -407,7 +407,9 @@
       },
       "about": {
         "thirdPartyNotices": "Avvisi di terze parti",
-        "soundsCredit": "I suoni di notifica e di invito sono rintocchi sintetizzati per questa app."
+        "soundsCredit": "I suoni di notifica e di invito sono rintocchi sintetizzati per questa app.",
+        "debugMode": "Modalità debug",
+        "debugModeDescription": "Registra la diagnostica su questo dispositivo per poterla esportare e attivare il tracciamento diagnostico approfondito."
       }
     },
     "createChat": {
@@ -850,6 +852,7 @@
       "title": "Sottoagenti",
       "close": "Chiudi",
       "empty": "Nessun sottoagente è in esecuzione in questa stanza.",
+      "emptyThread": "Nessun sottoagente è in esecuzione in questo thread.",
       "back": "Indietro",
       "nested_one": "{{count}} sottoagente",
       "nested_many": "{{count}} sottoagenti",
@@ -975,6 +978,17 @@
     "nextMonday": "Lunedì prossimo 09:00",
     "pickDateTime": "Scegli data e ora",
     "pastTime": "Scegli un orario nel futuro"
+  },
+  "threadFork": {
+    "forkedFrom": "Diramato da {{title}}",
+    "openInOriginalThread": "Apri nel thread originale",
+    "forkFromHere": "Dirama da qui",
+    "forkThread": "Dirama il thread",
+    "forking": "Diramazione di {{title}}",
+    "continueInNewThread": "Continua in un nuovo thread",
+    "forkCount_one": "{{count}} diramazione",
+    "forkCount_many": "{{count}} diramazioni",
+    "forkCount_other": "{{count}} diramazioni"
   },
   "activity": {
     "title": "Attività",
@@ -1281,6 +1295,17 @@
       "settingsKeywords": "tour, tutorial, guida, aiuto, introduzione, primi passi, thread",
       "howThreadsWork": "Come funzionano i thread",
       "noThreadsHint": "Invia un messaggio qui sotto per iniziarne uno."
+    }
+  },
+  "threadNav": {
+    "layout": "Disposizione dei thread",
+    "layoutRecent": "Recenti",
+    "layoutSections": "Sezioni",
+    "sections": {
+      "working": "In corso",
+      "snoozed": "Posticipati",
+      "idle": "Inattivi",
+      "resolved": "Risolti"
     }
   }
 }
