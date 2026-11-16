@@ -56,8 +56,9 @@ const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean
  */
 export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
   const [open, setOpenNow] = useAtom(phoneNavDrawerOpenAtom);
-  // What a person does to the drawer slides the page (`slidePhonePage`); what follows a navigation
-  // is part of that navigation's slide.
+  // What a person does to the drawer goes through `slidePhonePage`, which slides the page when it
+  // brings the drawer out (putting it away, the drawer slides on its own); what follows a
+  // navigation is part of that navigation's slide.
   const setOpen = useCallback(
     (next: boolean) => slidePhonePage(() => setOpenNow(next)),
     [setOpenNow]
