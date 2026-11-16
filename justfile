@@ -83,10 +83,10 @@ agent-stack slot *args:
 e2e-suite *args:
     bash scripts/e2e-suite.sh {{args}}
 
-# Tests of the e2e tooling, the notices generator, the bundle report and the iOS test fixture generators (scripts/e2e-results-tsv.test.mjs, scripts/third-party-notices.test.mjs, scripts/ios-routing-test-routes.test.mjs, scripts/ios-canvas-test-fixtures.test.mjs and scripts/perf/bundle-report.test.mjs with Node's test runner, scripts/test_matrix_http.py, scripts/reference/test_seed.py, scripts/agent-stack/test_stack.py, scripts/test_e2e_plugin_dirs.py and scripts/watch/test_check_sdk_licenses.py with unittest).
+# Tests of the e2e tooling, the notices generator, the bundle report and the iOS test fixture generators (scripts/e2e-results-tsv.test.mjs, scripts/third-party-notices.test.mjs, scripts/ios-routing-test-routes.test.mjs, scripts/ios-canvas-test-fixtures.test.mjs and scripts/perf/bundle-report.test.mjs with Node's test runner, scripts/test_matrix_http.py, scripts/reference/test_seed.py, scripts/agent-stack/test_stack.py, scripts/test_e2e_plugin_dirs.py, scripts/watch/test_check_sdk_licenses.py and scripts/perf/real-work/test_driver.py with unittest).
 script-tests:
     node --test scripts/e2e-results-tsv.test.mjs scripts/third-party-notices.test.mjs scripts/ios-routing-test-routes.test.mjs scripts/ios-canvas-test-fixtures.test.mjs scripts/perf/bundle-report.test.mjs
-    python3 -m unittest scripts/test_matrix_http.py scripts/reference/test_seed.py scripts/agent-stack/test_stack.py scripts/test_e2e_plugin_dirs.py scripts/watch/test_check_sdk_licenses.py
+    python3 -m unittest scripts/test_matrix_http.py scripts/reference/test_seed.py scripts/agent-stack/test_stack.py scripts/test_e2e_plugin_dirs.py scripts/watch/test_check_sdk_licenses.py scripts/perf/real-work/test_driver.py
 
 # Build the watch app's Rust SDK (matrix-sdk-ffi) into ios/Watch/MatrixRustSDK/ on a Mac with rustup; `--fetch` downloads the published build instead. Options: the scripts/watch/build-sdk.sh header.
 watch-sdk *args:

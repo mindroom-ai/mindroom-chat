@@ -1,0 +1,44 @@
+{
+  "name": "real-work-50",
+  "quietRooms": 200,
+  "quietMessages": 10,
+  "threads": 50,
+  "turns": {
+    "p50": 2,
+    "p90": 4,
+    "max": 10
+  },
+  "reply": {
+    "words": {
+      "p50": 150,
+      "p90": 800,
+      "max": 2800
+    },
+    "wps": 30,
+    "reasoning": {
+      "p50": 600,
+      "p90": 3000,
+      "max": 8000
+    },
+    "tools": {
+      "p50": 2,
+      "p90": 7,
+      "max": 11
+    },
+    "toolsec": {
+      "p50": 10,
+      "p90": 60,
+      "max": 120
+    }
+  },
+  "live": {
+    "streams": 50,
+    "pauseSeconds": {
+      "p50": 2,
+      "p90": 5,
+      "max": 10
+    },
+    "stuckSeconds": 600
+  },
+  "historyStreams": 20
+}
