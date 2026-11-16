@@ -154,6 +154,15 @@ describe('firstRenderCardCount', () => {
     expect(firstRenderCardCount(all, { scrollTop: 9000, anchors })).toBe(105 + FIRST_SCREEN_CARDS);
   });
 
+  it('reaches the card that takes the focus as the list shows', () => {
+    expect(firstRenderCardCount(all, undefined, '$40')).toBe(41);
+    expect(firstRenderCardCount(all, undefined, '$3')).toBe(FIRST_SCREEN_CARDS);
+    expect(firstRenderCardCount(all, undefined, '$gone')).toBe(FIRST_SCREEN_CARDS);
+    const place = { scrollTop: 9000, anchors: [{ key: '$100', offset: 0 }] };
+    expect(firstRenderCardCount(all, place, '$300')).toBe(301);
+    expect(firstRenderCardCount(all, place, '$40')).toBe(101 + FIRST_SCREEN_CARDS);
+  });
+
   it('is the whole list when that place has no listed card to find', () => {
     expect(
       firstRenderCardCount(all, { scrollTop: 9000, anchors: [{ key: '$gone', offset: 0 }] })

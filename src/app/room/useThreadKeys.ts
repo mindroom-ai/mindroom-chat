@@ -13,6 +13,8 @@ import {
   focusCompactCard,
   focusedCompactCard,
   stepCompactThread,
+  wantCompactCard,
+  wantedCompactCard,
 } from '../threads/overview/compactCardKeys';
 
 type UseThreadKeysOptions = {
@@ -92,23 +94,27 @@ export const useThreadKeys = ({
   });
 
   // The thread these keys left: its card takes the focus once the room shows without the thread,
-  // which a step back in the browser's history does a moment after the key.
-  const leftByKey = useRef<string>();
+  // which a step back in the browser's history does a moment after the key. The cards mount down
+  // to it for that (`CompactRoomView`). Only focus the closed thread left on the page moves: a
+  // control the reader went to meanwhile keeps it.
   const shownThreadId = useRef(openThreadId);
   useEffect(() => {
     const closed = shownThreadId.current;
     shownThreadId.current = openThreadId;
-    const wanted = leftByKey.current;
     if (openThreadId === closed) return;
-    leftByKey.current = undefined;
-    if (openThreadId || !wanted || wanted !== closed || focusedCompactCard(areaRef.current)) return;
+    const wanted = wantedCompactCard(roomId);
+    wantCompactCard(roomId, undefined);
+    const doc = areaRef.current?.ownerDocument;
+    const focusLeft = !!doc && (!doc.activeElement || doc.activeElement === doc.body);
+    if (openThreadId || !wanted || wanted !== closed || !focusLeft) return;
     focusCompactCard(cards().find((card) => card.dataset.threadRootId === wanted));
   });
+  useEffect(() => () => wantCompactCard(roomId, undefined), [roomId]);
 
   useShortcut('leaveThread', () => {
     if (openThreadId) {
       if (threadHidden()) return false;
-      leftByKey.current = openThreadId;
+      wantCompactCard(roomId, openThreadId);
       onExitThread();
       return true;
     }

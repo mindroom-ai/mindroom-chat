@@ -124,6 +124,16 @@ describe('useThreadKeys', () => {
     expect(document.activeElement).toBe(document.body);
   });
 
+  it('leaves the focus alone when the reader moved it before the thread closed', () => {
+    const elsewhere = document.createElement('button');
+    document.body.append(elsewhere);
+    const { rerender } = mount('$b');
+    expect(press('leaveThread')).toBe(true);
+    elsewhere.focus();
+    rerender({ threadId: undefined });
+    expect(document.activeElement).toBe(elsewhere);
+  });
+
   it('in a thread that fills the page, opens the thread above or below once per press', () => {
     area.innerHTML = '';
     mount('$b');

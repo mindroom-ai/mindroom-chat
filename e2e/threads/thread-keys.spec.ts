@@ -58,10 +58,15 @@ test.beforeEach(async () => {
 });
 
 /** A Compact room of one thread per topic, open on a page `width` wide: its cards' thread IDs. */
-const openOrchard = async (page: Page, tag: string, width: number): Promise<string[]> => {
+const openOrchard = async (
+  page: Page,
+  tag: string,
+  width: number,
+  topics: readonly string[] = TOPICS
+): Promise<string[]> => {
   const me = await registerDisposableUser(`thread_keys_${tag}_${RUN}`, PASSWORD);
   const roomId = await createRoom(HOMESERVER, me.accessToken, { name: 'Orchard' });
-  for (const topic of TOPICS) {
+  for (const topic of topics) {
     // eslint-disable-next-line no-await-in-loop
     const rootId = await sendRoomMessage(HOMESERVER, me.accessToken, roomId, {
       msgtype: 'm.text',
@@ -88,7 +93,7 @@ const openOrchard = async (page: Page, tag: string, width: number): Promise<stri
   });
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
   await setRoomCompact(page, true);
-  await expect(cards(page)).toHaveCount(TOPICS.length, { timeout: 30_000 });
+  await expect(cards(page)).toHaveCount(topics.length, { timeout: 30_000 });
   return cardOrder(page);
 };
 
@@ -286,4 +291,24 @@ test('beside the cards, the keys resolve the open thread and step on from it', a
   // And they step on to the thread below it.
   await page.keyboard.press('ControlOrMeta+Alt+ArrowDown');
   await expect.poll(() => openThread(page)).toBe(third);
+});
+
+test('a thread left far down a long list hands the focus to its card', async ({ page }) => {
+  test.setTimeout(240_000);
+  // More cards than the list mounts at first on the way back from a thread.
+  const topics = Array.from({ length: 30 }, (_, index) => `Row ${index + 1} of the orchard`);
+  const order = await openOrchard(page, 'long', 1280, topics);
+
+  await card(page, order[0] ?? '').click();
+  await expect(banner(page)).toBeVisible({ timeout: 30_000 });
+  for (const threadId of order.slice(1, 28)) {
+    // eslint-disable-next-line no-await-in-loop
+    await page.keyboard.press('ControlOrMeta+Alt+ArrowDown');
+    // eslint-disable-next-line no-await-in-loop
+    await expect.poll(() => openThread(page)).toBe(threadId);
+  }
+
+  await page.keyboard.press('Alt+ArrowLeft');
+  await expect(banner(page)).toHaveCount(0);
+  await expect(card(page, order[27] ?? '')).toBeFocused();
 });

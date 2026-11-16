@@ -44,6 +44,7 @@ import {
   focusedCompactCard,
   handleCardArrowKey,
   noteCompactCardOrder,
+  wantedCompactCard,
 } from './compactCardKeys';
 
 const ThreadActionsMenu = lazy(() =>
@@ -290,11 +291,16 @@ export function CompactRoomView({
   const orderHeld = pointerInside || focusHeld || !!menu;
   const shownRootIds = useHeldThreadOrder(threadRootIds, orderHeld, viewRef);
   // A filter change mounts the cards it brings back a chunk at a time, and so does a mount after
-  // the cards of its first screen, or of the place the reader left (`useScrollAnchorMemory`).
+  // the cards of its first screen, or of the place the reader left (`useScrollAnchorMemory`), and
+  // down to the card of a thread the keys left, which takes the focus (`useThreadKeys`).
   const stagedRootIds = useStagedCardIds(
     room.roomId,
     shownRootIds,
-    firstRenderCardCount(shownRootIds, compactRoomScrollStateRef.current.get(room.roomId))
+    firstRenderCardCount(
+      shownRootIds,
+      compactRoomScrollStateRef.current.get(room.roomId),
+      wantedCompactCard(room.roomId)
+    )
   );
   const cardViewModels = useCompactThreadCardViewModels({
     room,

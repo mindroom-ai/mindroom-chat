@@ -94,3 +94,14 @@ export const stepCompactThread = (
   const index = order?.indexOf(threadId) ?? -1;
   return index < 0 ? undefined : order?.[index + step];
 };
+
+// The card the keys want focused once the room shows it: that of the thread they left.
+let wantedCard: { roomId: string; threadId: string } | undefined;
+
+export const wantCompactCard = (roomId: string, threadId: string | undefined): void => {
+  wantedCard = threadId === undefined ? undefined : { roomId, threadId };
+};
+
+/** The thread whose card the keys want focused in the room, if any. */
+export const wantedCompactCard = (roomId: string): string | undefined =>
+  wantedCard?.roomId === roomId ? wantedCard.threadId : undefined;
