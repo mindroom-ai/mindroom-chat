@@ -50,12 +50,15 @@ const roomWithJobs = (initial: MatrixEvent) => {
   const getStateEvents = vi.fn((type: string) =>
     type === MINDROOM_BACKGROUND_JOBS_EVENT ? [jobs] : []
   );
+  // Each thread's loaded events, as the SDK's thread holds them.
+  const threads = new Map<string, { events: MatrixEvent[] }>();
   const room = Object.assign(emitter, {
     roomId: ROOM_ID,
     myUserId: '@me:example.org',
     client: {},
     currentState: { getStateEvents },
     getMember: (userId: string) => ({ userId, membership: 'join' }),
+    getThread: (rootId: string) => threads.get(rootId) ?? null,
   }) as unknown as Room;
   const publish = (next: MatrixEvent) => {
     jobs = next;
@@ -63,7 +66,7 @@ const roomWithJobs = (initial: MatrixEvent) => {
       emitter.emit(RoomStateEvent.Events, next);
     });
   };
-  return { room, publish, getStateEvents };
+  return { room, publish, getStateEvents, threads };
 };
 
 const record = (rootId: string, isResolved = false): ThreadRecord =>
@@ -211,5 +214,43 @@ describe('useCompactThreadSections', () => {
     index(entry('$a', 1), repliedB);
     rerender({ recordMap: recordsWith(true) });
     expect(readsOf(repliedB)).toBe(1);
+  });
+
+  it("reads an Idle thread's signals again when its own events change, its entry the same", () => {
+    signalsRead.mockClear();
+    const store = createStore();
+    const entryB = {
+      key: getCrossRoomThreadIndexKey(ROOM_ID, '$b'),
+      roomId: ROOM_ID,
+      threadRootId: '$b',
+      generation: 0,
+    } as CrossRoomThreadIndexEntry;
+    act(() => {
+      store.set(crossRoomThreadIndexAtom, {
+        ...emptyCrossRoomThreadIndexSnapshot(),
+        entries: new Map([[entryB.key, entryB]]),
+      });
+    });
+    const { room, threads } = roomWithJobs(jobsState([]));
+    const reply = (id: string) => new MatrixEvent({ event_id: id, type: 'm.room.message' });
+    threads.set('$b', { events: [reply('$r1'), reply('$r2')] });
+    const { rerender } = renderHook(
+      ({ recordMap }: { recordMap: ReadonlyMap<string, ThreadRecord> }) =>
+        useCompactThreadSections({
+          room,
+          enabled: true,
+          threadRootIds: ['$b'],
+          threadRecordMap: recordMap,
+          pinnedRootIds: [],
+        }),
+      { wrapper: wrapperOf(store), initialProps: { recordMap: new Map([['$b', record('$b')]]) } }
+    );
+    const mountReads = signalsRead.mock.calls.length;
+
+    // An edit of an older reply arrives: the thread holds it, the index entry stays equivalent.
+    threads.set('$b', { events: [reply('$r1'), reply('$r2'), reply('$edit-of-r1')] });
+    rerender({ recordMap: new Map([['$b', record('$b')]]) });
+
+    expect(signalsRead.mock.calls.length).toBe(mountReads + 1);
   });
 });

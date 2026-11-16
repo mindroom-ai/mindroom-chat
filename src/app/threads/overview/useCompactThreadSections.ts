@@ -48,6 +48,17 @@ const roomEntriesAtom = (roomId: string): Atom<RoomEntries> => {
   return entriesAtom;
 };
 
+type KeptSignals = { entry: CrossRoomThreadIndexEntry; version: string; signals: ThreadSignals };
+
+/** What of a thread's own events its signals read, as the shared cache keys it. */
+const threadVersion = (room: Room, rootId: string): string => {
+  const thread = room.getThread(rootId);
+  const events = thread?.events ?? [];
+  return [events.length, events.at(-1)?.getId() ?? '', thread?.replyToEvent?.getId() ?? ''].join(
+    ':'
+  );
+};
+
 /**
  * The Compact room's listed cards in sections (`buildCompactThreadSections`) while `enabled`,
  * else undefined. It reads the room's background jobs from its agents' state, and the threads'
@@ -84,10 +95,11 @@ export const useCompactThreadSections = ({
       [enabled, threadRecordMap, threadRootIds]
     )
   );
-  // Each Idle thread's signals, kept by its index entry, which is new whenever that thread
-  // changed: the shared cache reads every thread of the room again on any event in it, so a
-  // stream chunk in one thread would read them all.
-  const [signalsByEntry] = useState(() => new WeakMap<CrossRoomThreadIndexEntry, ThreadSignals>());
+  // Each Idle thread's signals, read again only when that thread changed: its index entry, or the
+  // events its thread holds (an edit of an older reply leaves the entry as it was). The shared
+  // cache reads every thread of the room again on any event in it, so a stream chunk in one
+  // thread would read them all.
+  const [signalsByThread] = useState(() => new Map<string, KeptSignals>());
   return useMemo(() => {
     if (!enabled) return undefined;
     // The client's shared signals cache, which Activity and the sidebar keep filled.
@@ -98,11 +110,11 @@ export const useCompactThreadSections = ({
       jobThreadIds,
       entryOf: (rootId) => entries.get(rootId),
       signalsOf: (entry) => {
-        let signals = signalsByEntry.get(entry);
-        if (!signals) {
-          signals = reader.read(room, entry, room.myUserId, now);
-          signalsByEntry.set(entry, signals);
-        }
+        const version = threadVersion(room, entry.threadRootId);
+        const kept = signalsByThread.get(entry.key);
+        if (kept?.entry === entry && kept.version === version) return kept.signals;
+        const signals = reader.read(room, entry, room.myUserId, now);
+        signalsByThread.set(entry.key, { entry, version, signals });
         return signals;
       },
       pinnedRootIds,
@@ -115,7 +127,7 @@ export const useCompactThreadSections = ({
     now,
     pinnedRootIds,
     room,
-    signalsByEntry,
+    signalsByThread,
     threadRecordMap,
     threadRootIds,
   ]);
