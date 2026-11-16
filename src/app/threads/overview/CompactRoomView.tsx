@@ -340,7 +340,11 @@ export function CompactRoomView({
   const stagedRows = useStagedCardIds(
     room.roomId,
     shownRootIds,
-    firstRenderCardCount(shownRootIds, compactRoomScrollStateRef.current.get(room.roomId))
+    firstRenderCardCount(
+      shownRootIds,
+      compactRoomScrollStateRef.current.get(room.roomId),
+      threadRootIds
+    )
   );
   const stagedRootIds = useMemo(
     () => (threadSections ? stagedRows.filter((key) => !sectionOfRow(key)) : stagedRows),

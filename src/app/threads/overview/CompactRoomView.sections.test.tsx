@@ -6,6 +6,7 @@ import type { CompactThreadCardViewModel } from '../../event-store/threads/types
 import type { CompactThreadSection } from './compactThreadSections';
 import { clearCompactRoomSectionsStore } from './compactRoomSections';
 import { CompactRoomView } from './CompactRoomView';
+import { FIRST_SCREEN_CARDS } from './useStagedCardIds';
 
 const ROOM_ID = '!room:example.org';
 const ME = '@me:example.org';
@@ -111,6 +112,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   clearCompactRoomSectionsStore(ME);
   localStorage.clear();
 });
@@ -284,6 +286,37 @@ describe('the Compact room in sections', () => {
 
       expect(rows()).toEqual(['#working 1', '$new', '#idle 1', '$a']);
     });
+  });
+
+  it('mounts the first screenful on the way back from a card in folded Resolved', () => {
+    const idle = Array.from({ length: 60 }, (_unused, index) => `$idle${index}`);
+    state.sections = [
+      { id: 'idle', rootIds: idle },
+      { id: 'resolved', rootIds: ['$done'] },
+    ];
+    const place = { scrollTop: 9000, anchors: [{ key: '$done', offset: 0 }] };
+    // jsdom has none; the list follows the place the reader left while its cards mount.
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe = vi.fn();
+        disconnect = vi.fn();
+      }
+    );
+    render(
+      <CompactRoomView
+        room={room}
+        threadRootIds={[...idle, '$done']}
+        threadRecordMap={new Map()}
+        onThreadClick={vi.fn()}
+        compactRoomScrollStateRef={{ current: new Map([[ROOM_ID, place]]) }}
+        sections
+      />
+    );
+
+    // The section's header is a row of the first screenful too, and Resolved stays folded.
+    expect(rows()).toHaveLength(FIRST_SCREEN_CARDS);
+    expect(rows()).not.toContain('$done');
   });
 
   it('shows the cards as before while Sections are off', () => {
