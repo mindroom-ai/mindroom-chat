@@ -313,6 +313,22 @@ describe('the Compact room in sections', () => {
     });
   });
 
+  it('shows the header of the section a mounted card moves to while cards still mount', () => {
+    const working = Array.from({ length: 100 }, (_unused, index) => `$w${index}`);
+    state.sections = [{ id: 'working', rootIds: ['$a', ...working] }];
+    const { rerender } = render(view(['$a', ...working]));
+    expect(rows()).toContain('$a');
+
+    // $a finishes before the rest of the cards have mounted: it opens an Idle section.
+    state.sections = [
+      { id: 'working', rootIds: working },
+      { id: 'idle', rootIds: ['$a'] },
+    ];
+    rerender(view(['$a', ...working]));
+
+    expect(rows().slice(-2)).toEqual(['#idle 1', '$a']);
+  });
+
   it('mounts the first screenful on the way back from a card in folded Resolved', () => {
     const idle = Array.from({ length: 60 }, (_unused, index) => `$idle${index}`);
     state.sections = [
@@ -339,8 +355,8 @@ describe('the Compact room in sections', () => {
       />
     );
 
-    // The section's header is a row of the first screenful too, and Resolved stays folded.
-    expect(rows()).toHaveLength(FIRST_SCREEN_CARDS);
+    // The first screenful of cards, under their headers, and Resolved stays folded.
+    expect(rows().filter((row) => !row.startsWith('#'))).toHaveLength(FIRST_SCREEN_CARDS);
     expect(rows()).not.toContain('$done');
   });
 

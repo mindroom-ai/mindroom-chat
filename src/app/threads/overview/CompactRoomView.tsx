@@ -334,10 +334,16 @@ export function CompactRoomView({
         : threadRootIds,
     [folded, heldSections, threadRootIds]
   );
-  const shownRootIds = useHeldThreadOrder(listedRows, orderHeld && !heldSections, viewRef);
+  const shownRows = useHeldThreadOrder(listedRows, orderHeld && !heldSections, viewRef);
+  // Only cards mount a chunk at a time: a header shows with its section, so a card that shows
+  // always has its header, and the headers take none of the cards' budget.
+  const shownRootIds = useMemo(
+    () => (heldSections ? shownRows.filter((key) => !sectionOfRow(key)) : shownRows),
+    [heldSections, shownRows]
+  );
   // A filter change mounts the cards it brings back a chunk at a time, and so does a mount after
   // the cards of its first screen, or of the place the reader left (`useScrollAnchorMemory`).
-  const stagedRows = useStagedCardIds(
+  const stagedRootIds = useStagedCardIds(
     room.roomId,
     shownRootIds,
     firstRenderCardCount(
@@ -345,10 +351,6 @@ export function CompactRoomView({
       compactRoomScrollStateRef.current.get(room.roomId),
       threadRootIds
     )
-  );
-  const stagedRootIds = useMemo(
-    () => (threadSections ? stagedRows.filter((key) => !sectionOfRow(key)) : stagedRows),
-    [stagedRows, threadSections]
   );
   const cardViewModels = useCompactThreadCardViewModels({
     room,
@@ -394,7 +396,7 @@ export function CompactRoomView({
     (threadSections ?? []).map(({ id, rootIds }) => [id, rootIds.length] as const)
   );
   const sectionRows = threadSections
-    ? stagedRows.filter((key) => sectionOfRow(key) || modelByRootId.has(key))
+    ? shownRows.filter((key) => sectionOfRow(key) || modelByRootId.has(key))
     : [];
   // The cards glide to a new order or to the place the filter bar leaves them, a new one fades
   // in and one that left fades out. After the hook that holds the order: it scrolls the list
@@ -536,7 +538,7 @@ export function CompactRoomView({
       className={css.View}
       data-compact-room-view="true"
       // Cards still to mount: the cards' end is further down than the view's.
-      data-cards-pending={stagedRows.length < shownRootIds.length || undefined}
+      data-cards-pending={stagedRootIds.length < shownRootIds.length || undefined}
       tabIndex={-1}
     >
       <Box
