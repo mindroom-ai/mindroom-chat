@@ -40,12 +40,31 @@ function metricsOf(result) {
   return out;
 }
 
-/** label to metric to values (one per run), leaving out results measured under a short load. */
+// The share of the target streams a window must have held, as the spec checks it.
+const SHARE = 0.8;
+
+/**
+ * Why a result is left out of the medians, or undefined when it counts: the driver had stopped
+ * (`driverExit`), the scenario threw inside its window (`failed`), or the window held under 80 %
+ * of the streams asked for (the spec's soft failure). External results have no target.
+ */
+export function exclusion(result) {
+  if (result.driverExit !== undefined) return `driverExit ${result.driverExit}`;
+  if (result.failed !== undefined) return 'failed';
+  const target = num(result.target);
+  if (target > 0) {
+    const streaming = num(result.achieved?.streaming);
+    if (!(streaming >= SHARE * target)) return `held ${streaming ?? 'no'} of ${target} streams`;
+  }
+  return undefined;
+}
+
+/** label to metric to values (one per run), leaving out the results `exclusion` names. */
 function collect(runs) {
   const labels = new Map();
   for (const run of runs) {
     for (const result of run) {
-      if (!result?.label || result.driverExit !== undefined) continue;
+      if (!result?.label || exclusion(result) !== undefined) continue;
       const metrics = labels.get(result.label) ?? new Map();
       labels.set(result.label, metrics);
       for (const [name, value] of Object.entries(metricsOf(result))) {
@@ -56,15 +75,23 @@ function collect(runs) {
   return labels;
 }
 
+/** Each result left out, as `<label> (<reason>)`, sorted. */
 export function excludedLabels(base, head) {
   const out = new Set();
   for (const run of [...base, ...head]) {
-    for (const r of run) if (r?.label && r.driverExit !== undefined) out.add(r.label);
+    for (const r of run) {
+      const reason = r?.label ? exclusion(r) : undefined;
+      if (reason !== undefined) out.add(`${r.label} (${reason})`);
+    }
   }
   return [...out].sort();
 }
 
-/** One row per label and metric present on both sides. */
+/**
+ * One row per label and metric present on both sides, except a metric that is 0 in every run of
+ * both: a statistic with nothing to count, such as `frames.p95` of `cold-load` (the reload loses
+ * the page's frames) or `metrics.busy` in an engine without Chrome's metrics.
+ */
 export function compareRuns(base, head) {
   const b = collect(base);
   const h = collect(head);
@@ -73,6 +100,7 @@ export function compareRuns(base, head) {
     for (const [metric, baseValues] of b.get(label)) {
       const headValues = h.get(label).get(metric);
       if (!headValues) continue;
+      if ([...baseValues, ...headValues].every((v) => v === 0)) continue;
       const baseMedian = median(baseValues);
       const headMedian = median(headValues);
       rows.push({
@@ -89,11 +117,20 @@ export function compareRuns(base, head) {
 }
 
 function loadDir(dir) {
+  if (!fs.existsSync(dir)) throw new Error(`${dir}: no such directory`);
+  if (!fs.statSync(dir).isDirectory()) throw new Error(`${dir}: not a directory`);
   return fs
     .readdirSync(dir)
     .filter((f) => f.endsWith('.json'))
     .sort()
-    .map((f) => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')))
+    .map((f) => {
+      const file = path.join(dir, f);
+      try {
+        return JSON.parse(fs.readFileSync(file, 'utf8'));
+      } catch (error) {
+        throw new Error(`${file}: ${error.message}`);
+      }
+    })
     .filter((r) => r && typeof r.label === 'string');
 }
 
@@ -119,7 +156,7 @@ function main() {
   const head = args.head.map(loadDir);
   const excluded = excludedLabels(base, head);
   if (excluded.length) {
-    console.error(`warning: left out results measured under a short load (driverExit): ${excluded.join(', ')}`);
+    console.error(`warning: left out results the spec failed or measured under a short load: ${excluded.join(', ')}`);
   }
   const rows = compareRuns(base, head);
   if (args.json) {
@@ -137,4 +174,11 @@ function main() {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) main();
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  try {
+    main();
+  } catch (error) {
+    console.error(`compare.mjs: ${error.message}`);
+    process.exit(2);
+  }
+}
