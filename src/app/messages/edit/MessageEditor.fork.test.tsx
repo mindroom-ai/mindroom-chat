@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { createEditor, type Editor } from 'slate';
@@ -31,17 +30,8 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
 vi.mock('../../emoji/useImagePackRooms', () => ({ useImagePackRooms: () => [] }));
 vi.mock('../../config/useClientConfig', () => ({ useOptionalClientConfig: () => undefined }));
 vi.mock('../../preferences/useSettingValue', () => ({ useSettingValue: () => false }));
-vi.mock('folds', () => ({
-  Box: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
-  Button: ({ children, onClick }: { children?: React.ReactNode; onClick?: () => void }) => (
-    <button type="button" onClick={onClick}>
-      {children}
-    </button>
-  ),
-  Spinner: () => null,
-  Text: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
-  color: { Critical: { Main: 'red' } },
-  config: { space: { S100: '4px' } },
+vi.mock('../../editor/autocomplete/EmoticonAutocomplete', () => ({
+  EmoticonAutocomplete: () => null,
 }));
 
 afterEach(cleanup);
@@ -63,7 +53,9 @@ it("keeps a fork root's reference in the edit, which MindRoom reads as the messa
   state.editor = editor;
   const onDone = vi.fn();
 
-  render(<MessageEditor room={{ roomId: '!room:example.org' } as Room} mEvent={root} onDone={onDone} />);
+  render(
+    <MessageEditor room={{ roomId: '!room:example.org' } as Room} mEvent={root} onDone={onDone} />
+  );
   await act(async () => {
     fireEvent.click(screen.getByText('Save'));
   });
@@ -72,7 +64,7 @@ it("keeps a fork root's reference in the edit, which MindRoom reads as the messa
   const [, , edit] = state.sendMessage.mock.calls[0] as unknown as [
     string,
     unknown,
-    Record<string, unknown>,
+    Record<string, unknown>
   ];
   expect(edit['m.new_content']).toMatchObject({
     body: 'Try Porto and Braga',

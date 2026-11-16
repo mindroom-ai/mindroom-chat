@@ -546,7 +546,9 @@ describe('Fork from here', () => {
     );
 
     act(() => {
-      renderer.root.findAllByType(Message).forEach(({ props }) => props.onForkClick?.(props.mEvent.getId()));
+      renderer.root
+        .findAllByType(Message)
+        .forEach(({ props }) => props.onForkClick?.(props.mEvent.getId()));
     });
     expect(forkRefs()).toEqual([
       { threadId: '$parent', eventId: '$parent' },

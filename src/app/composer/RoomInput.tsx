@@ -282,7 +282,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const userId = mx.getUserId() ?? '';
     // A fork draft keeps its text under a key of its own, not its thread's.
     const draftThreadId = forkFrom ? threadForkDraftId(forkFrom) : threadId;
-    const draftKey = draftThreadId ? getRoomInputDraftKey(userId, roomId, draftThreadId) : undefined;
+    const draftKey = draftThreadId
+      ? getRoomInputDraftKey(userId, roomId, draftThreadId)
+      : undefined;
     // Another view of the room (a plugin's thread view) has a reply of its own. A fork draft takes
     // none: the reply chosen in its thread stays for the thread.
     const view = useContext(ConversationViewContext);
@@ -752,9 +754,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           editableName="RoomInput"
           // The composer floats over the timeline and the cards, which scroll beneath it.
           className={glassDenseOverBackdrop}
-          placeholder={
-            forkFrom ? t('threadFork.continueInNewThread') : t('composer.placeholder')
-          }
+          placeholder={forkFrom ? t('threadFork.continueInNewThread') : t('composer.placeholder')}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onKeyUp={resyncAfterKey}

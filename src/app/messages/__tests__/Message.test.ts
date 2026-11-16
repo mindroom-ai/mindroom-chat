@@ -463,9 +463,12 @@ const getButtonByText = (
 
 /** The text of every button, in order: the open menu's entries among them. */
 const buttonTexts = (renderer: ReactTestRenderer): string[] =>
-  renderer.root
-    .findAllByType('button')
-    .map((node) => node.findAllByType('span').map((span) => span.children.join('')).join(''));
+  renderer.root.findAllByType('button').map((node) =>
+    node
+      .findAllByType('span')
+      .map((span) => span.children.join(''))
+      .join('')
+  );
 
 const getButtonByAriaLabel = (
   renderer: ReactTestRenderer,
@@ -673,6 +676,8 @@ describe('Message from another thread, in a fork', () => {
       getButtonByText(renderer, 'Open in original thread')?.props.onClick();
     });
     expect(onOpenInOriginalThread).toHaveBeenCalledTimes(1);
+    // Choosing an entry closed the menu.
+    await openContextMenu(renderer);
     await act(async () => {
       getButtonByText(renderer, 'Fork from here')?.props.onClick();
     });

@@ -315,7 +315,9 @@ export const buildLongTextPreview = (content: Record<string, unknown>) => {
     body: `${start}${LONG_TEXT_CONTINUATION_NOTE}`,
     ...(content['m.mentions'] === undefined ? {} : { 'm.mentions': content['m.mentions'] }),
     ...(content['m.relates_to'] === undefined ? {} : { 'm.relates_to': content['m.relates_to'] }),
-    ...(content[THREAD_FORK_TAG] === undefined ? {} : { [THREAD_FORK_TAG]: content[THREAD_FORK_TAG] }),
+    ...(content[THREAD_FORK_TAG] === undefined
+      ? {}
+      : { [THREAD_FORK_TAG]: content[THREAD_FORK_TAG] }),
   };
 };
 

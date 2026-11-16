@@ -25,8 +25,8 @@ describe('useStartThreadFork', () => {
     expect(url.pathname).toBe('/home/!room:example.org/');
     expect(Object.fromEntries(url.searchParams)).toEqual({ threadId: '$parent', forkAt: '$point' });
     // Like any thread it opens, the draft's back button returns to where the person was.
-    expect((opts?.state as Record<string, unknown>)[ROOM_THREAD_EXIT_TARGET_STATE_KEY]).toMatchObject(
-      { roomId: '!room:example.org', threadId: '$parent' }
-    );
+    expect(
+      (opts?.state as Record<string, unknown>)[ROOM_THREAD_EXIT_TARGET_STATE_KEY]
+    ).toMatchObject({ roomId: '!room:example.org', threadId: '$parent' });
   });
 });

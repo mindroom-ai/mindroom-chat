@@ -19,7 +19,10 @@ export const useStartThreadFork = (room: Room): ((ref: ThreadForkRef) => void) =
         roomId: room.roomId,
         threadId: ref.threadId,
         navigateRoomThreadDirect: (roomId, threadId, eventId, opts) =>
-          navigatePath(withSearchParam(roomPath(roomId, eventId), { threadId, forkAt: ref.eventId }), opts),
+          navigatePath(
+            withSearchParam(roomPath(roomId, eventId), { threadId, forkAt: ref.eventId }),
+            opts
+          ),
         location: currentHistoryLocation(),
       }),
     [navigatePath, room.roomId, roomPath]

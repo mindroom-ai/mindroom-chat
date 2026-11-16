@@ -212,7 +212,7 @@ describe('ThreadActionsMenu rows', () => {
     });
   });
 
-  it("copies the open thread as a fork at its latest message the server confirmed", () => {
+  it('copies the open thread as a fork at its latest message the server confirmed', () => {
     startFork.mockClear();
     const reply = (id: string, ts: number) =>
       new MatrixEvent({

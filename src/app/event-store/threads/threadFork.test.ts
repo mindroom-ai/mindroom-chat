@@ -125,7 +125,9 @@ describe('forkTargetFor', () => {
   });
   // The parent's readers count only messages, so nothing else can be a fork point.
   it('is undefined for an edit, a redacted message and anything but a message', () => {
-    expect(forkTargetFor(makeEvent('$e', 1, '$p', false, { relType: 'm.replace' }))).toBeUndefined();
+    expect(
+      forkTargetFor(makeEvent('$e', 1, '$p', false, { relType: 'm.replace' }))
+    ).toBeUndefined();
     expect(forkTargetFor(makeEvent('$e', 1, '$p', false, { redacted: true }))).toBeUndefined();
     expect(
       forkTargetFor(makeEvent('$e', 1, '$p', false, { type: 'io.mindroom.tool_approval' }))
@@ -181,9 +183,11 @@ describe('keepThreadForkRef', () => {
   const ref = { threadId: '$p', eventId: '$e' };
 
   it("gives an edit of a fork's root the reference its original carries", () => {
-    expect(keepThreadForkRef(threadForkContent(ref), { msgtype: 'm.text', body: 'new' })).toEqual(
-      { msgtype: 'm.text', body: 'new', ...threadForkContent(ref) }
-    );
+    expect(keepThreadForkRef(threadForkContent(ref), { msgtype: 'm.text', body: 'new' })).toEqual({
+      msgtype: 'm.text',
+      body: 'new',
+      ...threadForkContent(ref),
+    });
   });
 
   it('leaves the edit of any other message as it is', () => {

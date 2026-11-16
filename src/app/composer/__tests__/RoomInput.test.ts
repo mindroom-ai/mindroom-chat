@@ -4214,7 +4214,9 @@ describe('RoomInput', () => {
 describe('RoomInput in a fork draft', () => {
   const forkFrom = { threadId: '$parent', eventId: '$point' };
   const draftOf = (store: ReturnType<typeof createStore>, threadId: string) =>
-    store.get(roomIdToMsgDraftAtomFamily(getRoomInputDraftKey('@me:example.org', ROOM_ID, threadId)));
+    store.get(
+      roomIdToMsgDraftAtomFamily(getRoomInputDraftKey('@me:example.org', ROOM_ID, threadId))
+    );
 
   it('asks to continue in a new thread and sends a new top-level message with the reference, past a reply chosen in the thread', async () => {
     const store = createStore();
