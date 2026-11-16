@@ -1736,7 +1736,7 @@ export const noteThreadOpened = (
 /**
  * Fallback for redaction cleanup: given only a room + event id, delete the
  * event's thread-scoped records (all scopes != ''), found through the
- * room-and-event index. Room-timeline records (scope=='') are skipped —
+ * room-and-event index. Room-timeline records (scope=='') are skipped:
  * the redaction path calls `deleteRoomEventsFromCache` separately for
  * those.
  *

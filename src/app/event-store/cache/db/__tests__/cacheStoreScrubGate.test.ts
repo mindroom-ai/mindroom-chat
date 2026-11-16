@@ -2,7 +2,7 @@
  * Regression coverage for the redacted-relation scrub gate.
  *
  * The room/thread save paths only run the scrub for redacted ids that
- * have never been marked before — once an id has a marker row, its
+ * have never been marked before: once an id has a marker row, its
  * historical repair is complete and re-scrubbing on later saves is pure
  * work. This test observes the gate through spy counts on the index
  * lookups the scrub finds an event's copies with (`getAllKeys`).
