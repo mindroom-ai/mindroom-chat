@@ -19,7 +19,12 @@ const root = (
     sender: '@maya:example.org',
     type: 'm.room.message',
     origin_server_ts: ts,
-    content: { msgtype: 'm.text', body: eventId, ...(fork ? { 'io.mindroom.fork': fork } : {}), ...extra },
+    content: {
+      msgtype: 'm.text',
+      body: eventId,
+      ...(fork ? { 'io.mindroom.fork': fork } : {}),
+      ...extra,
+    },
   });
 
 describe('groupThreadForks', () => {
@@ -41,9 +46,14 @@ describe('groupThreadForks', () => {
   });
 
   it('ignores the forks of other threads, plain roots, malformed references and replies', () => {
-    const reply = root('$r', 5, { thread_id: '$p', event_id: '$a' }, {
-      'm.relates_to': { rel_type: 'm.thread', event_id: '$other' },
-    });
+    const reply = root(
+      '$r',
+      5,
+      { thread_id: '$p', event_id: '$a' },
+      {
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$other' },
+      }
+    );
     const forks = groupThreadForks(
       [
         root('$other-fork', 1, { thread_id: '$q', event_id: '$a' }),

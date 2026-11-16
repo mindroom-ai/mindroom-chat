@@ -1,11 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import {
-  RoomEvent,
-  ThreadEvent,
-  type MatrixEvent,
-  type Room,
-  type Thread,
-} from 'matrix-js-sdk';
+import { RoomEvent, ThreadEvent, type MatrixEvent, type Room, type Thread } from 'matrix-js-sdk';
 import { parseThreadForkRef } from '../../event-store/threads/threadFork';
 import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
 
@@ -46,7 +40,10 @@ const NO_FORKS = new Map<string, ThreadFork[]>();
 /** The roots the room knows: those of its threads, and its loaded timeline's events. */
 const knownRoots = (room: Room): MatrixEvent[] => [
   ...room.getThreads().flatMap(({ rootEvent }) => rootEvent ?? []),
-  ...room.getUnfilteredTimelineSet().getTimelines().flatMap((timeline) => timeline.getEvents()),
+  ...room
+    .getUnfilteredTimelineSet()
+    .getTimelines()
+    .flatMap((timeline) => timeline.getEvents()),
 ];
 
 const makesForkOf = (event: MatrixEvent | undefined, threadId: string): boolean =>

@@ -213,7 +213,8 @@ export const buildCompactThreadCardViewModelFromRecord = ({
     t
   );
   const resolvedByDisplayName = getThreadResolverDisplayName(room, status.resolvedByUserId);
-  const rootEvent = room.getThread(record.threadRootId)?.rootEvent ?? room.findEventById(record.threadRootId);
+  const rootEvent =
+    room.getThread(record.threadRootId)?.rootEvent ?? room.findEventById(record.threadRootId);
   const forkedFrom = rootEvent ? parseThreadForkRef(rootEvent.getOriginalContent()) : undefined;
 
   return {
