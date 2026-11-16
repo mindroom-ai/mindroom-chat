@@ -10,6 +10,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -83,12 +84,16 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
  *                      heap it compares is what stays (a busy page lets garbage pile up between
  *                      collections, which the plain samples count); its result has `collected`
  *
- * External mode, for an account that is already there: PERF_TARGET=external with PERF_HOMESERVER
- * (which must be on 127.0.0.1 or localhost), PERF_USERNAME, PERF_PASSWORD and PERF_ROOM (a room
- * ID). No stack and no driver: the page signs in, every request and WebSocket to another host is
- * aborted, there is no service worker, Chromium may not send WebRTC traffic except through a proxy
- * (there is none, and no external scenario starts a call), and `thread-open`, `thread-type`, `switch`, `cold-load` and
- * `compact-scroll` run on what the room holds. Results end in `-external`.
+ * External mode, for an account that is already there, in Chromium only (any other engine is
+ * refused): PERF_TARGET=external with PERF_HOMESERVER (which must be on 127.0.0.1 or localhost),
+ * PERF_USERNAME, PERF_PASSWORD and PERF_ROOM (a room ID). No stack and no driver: the page signs
+ * in, there is no service worker, and `thread-open`, `thread-type`, `switch`, `cold-load` and
+ * `compact-scroll` run on what the room holds. Nothing the page does reaches another host: `route`
+ * aborts every request to one, a WebSocket to one is closed before it connects, and Chromium starts
+ * with a proxy on a closed loopback port, which it never uses for loopback, so a request that
+ * `route` does not see (a redirect from this machine to another host) fails at the proxy, and WebRTC,
+ * which may only use the proxy, cannot leave this machine over UDP or TCP (no external scenario
+ * starts a call). Results end in `-external`.
  */
 
 const enabled = process.env.PERF_REAL_WORK === '1';
@@ -648,24 +653,41 @@ test.use({
   hasTouch: PHONE,
   ...(AGENTS > 1 ? { agentStackArgs: ['--agents', String(AGENTS)] } : {}),
 });
+/** A loopback port that nothing listens on: it was free a moment ago and is closed again. */
+const closedLoopbackPort = (): Promise<number> =>
+  new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address() as AddressInfo;
+      server.close(() => resolve(port));
+    });
+  });
+
 if (external) {
-  // WebRTC cannot be routed: Chromium may then only use a proxy for it, and there is none, so a
-  // call could not leave this machine. No external scenario starts one. (Launch options cannot
-  // be set inside a describe.)
+  // `route` does not see a redirect, and WebRTC cannot be routed at all, so Chromium also sends
+  // everything but loopback to a proxy on a closed port, written as a raw argument: Playwright's
+  // `proxy` option would send loopback through it as well. Chromium never proxies loopback, so the
+  // homeserver and the app stay reachable; a request to another host fails at the proxy, and WebRTC
+  // may only use the proxy (no UDP of its own, TCP through the dead proxy), so a call cannot leave
+  // this machine. No external scenario starts one. Other engines are refused in the describe's
+  // `beforeAll`. (Launch options cannot be set inside a describe.)
   test.use({
     launchOptions: [
       async ({ launchOptions, browserName }, use) => {
-        await use(
-          browserName === 'chromium'
-            ? {
-                ...launchOptions,
-                args: [
-                  ...(launchOptions.args ?? []),
-                  '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
-                ],
-              }
-            : launchOptions
-        );
+        if (browserName !== 'chromium') {
+          await use(launchOptions);
+          return;
+        }
+        const port = await closedLoopbackPort();
+        await use({
+          ...launchOptions,
+          args: [
+            ...(launchOptions.args ?? []),
+            `--proxy-server=http://127.0.0.1:${port}`,
+            '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
+          ],
+        });
       },
       { scope: 'worker' },
     ],
@@ -941,8 +963,13 @@ test.describe('PERF: real work on an external account', () => {
   test.skip(!enabled || !external, 'PERF_REAL_WORK=1 with PERF_TARGET=external runs it');
   test.describe.configure({ mode: 'default' });
 
-  // Before any fixture, so a refused homeserver starts no browser.
-  test.beforeAll(() => {
+  // Before any fixture that starts a browser, so a refused homeserver or engine starts none.
+  test.beforeAll(({ browserName }) => {
+    if (browserName !== 'chromium') {
+      throw new Error(
+        `external mode runs in Chromium only: its guard against requests to other hosts is a Chromium proxy setting, and this is ${browserName}`
+      );
+    }
     loopbackHomeserver();
     for (const name of ['PERF_USERNAME', 'PERF_PASSWORD', 'PERF_ROOM']) {
       if (!process.env[name]) throw new Error(`external mode needs ${name}`);
