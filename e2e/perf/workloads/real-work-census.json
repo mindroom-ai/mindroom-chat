@@ -2,7 +2,8 @@
   "name": "real-work-census",
   "quietRooms": 200,
   "quietMessages": 10,
-  "threads": 39,
+  "threads": 520,
+  "resolvedThreads": 481,
   "turns": {
     "p50": 2,
     "p90": 4,

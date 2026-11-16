@@ -16,10 +16,13 @@ The stack's stub model answers each `#work` prompt this script posts as the stac
 (scripts/agent-stack/stub_model.py), so the real backend writes the events: live frames, edits, jobs state.
 
 history  creates the profile's quiet rooms, then gives each of its threads its turns in the lobby, `historyStreams`
-         (or --streams) replies at once, with the stub at full speed (`wps=0 toolsec=0`). Writes --out as
-         {"room": str, "threads": [root ID...], "quietRooms": [room ID...]} and exits 0 once every thread has its
-         turns; a reply that never ends, or no turn posted or ended, for the profile's `live.stuckSeconds` fails
-         the run with exit 1.
+         (or --streams) replies at once, with the stub at full speed (`wps=0 toolsec=0`). A profile's
+         `resolvedThreads` (default 0) of them get their turns first and are then marked resolved, as the person
+         does to a thread that is done; Chat's Compact view leaves those out, and the live phase gives them no
+         turn. Writes --out as {"room": str, "threads": [root ID of an open thread...], "resolvedThreads": [root
+         ID...], "quietRooms": [room ID...]} and exits 0 once every thread has its turns; a reply that never ends,
+         no turn posted or ended for the profile's `live.stuckSeconds`, or a thread the homeserver did not let
+         the tester resolve fails the run with exit 1.
 live     reads that file (--history) and keeps `live.streams` (or --streams) replies streaming in its threads at the
          profile's pace: a thread whose reply ended gets its next turn after a pause from `live.pauseSeconds`. Every
          5 s it appends one JSON line to --out, {"t": unix s, "target", "streaming", "frames", "edits", "jobs",
@@ -64,6 +67,7 @@ ENDED_STATUSES = frozenset({"complete", "completed", "done", "error", "failed", 
 STREAM_STATUS = "io.mindroom.stream_status"
 LIVE_FRAME = "io.mindroom.live"
 JOBS_STATE = "io.mindroom.background_jobs"
+THREAD_TAGS = "com.mindroom.thread.tags"
 DIST_KEYS = ("p50", "p90", "max")
 DISTS = ("turns", "reply.words", "reply.reasoning", "reply.tools", "reply.toolsec", "live.pauseSeconds")
 PROFILE_KEYS = (
@@ -94,6 +98,10 @@ def check_profile(profile: dict) -> dict:
     agents = profile.setdefault("agents", 1)
     if not isinstance(agents, int) or isinstance(agents, bool) or agents < 1:
         raise ValueError("the profile's agents must be an integer of 1 or more")
+    # Old profiles resolve no thread.
+    resolved = profile.setdefault("resolvedThreads", 0)
+    if not isinstance(resolved, int) or isinstance(resolved, bool) or not 0 <= resolved < profile["threads"]:
+        raise ValueError("the profile's resolvedThreads must be an integer from 0 to one under its threads")
     return profile
 
 
@@ -327,6 +335,7 @@ class Lobby:
     def __init__(self, stack: dict) -> None:
         self.homeserver: str = stack["homeserver"]
         self.token: str = stack["tester"]["accessToken"]
+        self.user: str = stack["tester"].get("userId", "")
         self.room: str = stack["rooms"]["lobby"]
         members = call(
             self.homeserver, "GET", f"/_matrix/client/v3/rooms/{quote(self.room)}/joined_members", self.token
@@ -380,6 +389,20 @@ class Lobby:
             return None
 
 
+    def resolve(self, root: str) -> bool:
+        """Marks the thread of `root` resolved, as the person does in Chat: the room state `com.mindroom.thread.tags`
+        with the state key ["<root>","resolved"]. False when the homeserver refused it."""
+        key = json.dumps([root, "resolved"], separators=(",", ":"))
+        content = {"set_by": self.user, "set_at": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())}
+        path = f"/_matrix/client/v3/rooms/{quote(self.room)}/state/{THREAD_TAGS}/{quote(key)}"
+        try:
+            call(self.homeserver, "PUT", path, self.token, content)
+        except (RuntimeError, ValueError) as error:
+            log(f"a thread was not resolved: {error}")
+            return False
+        return True
+
+
 def log(text: str) -> None:
     print(f"driver: {text}", file=sys.stderr, flush=True)
 
@@ -411,7 +434,11 @@ def run_history(lobby: Lobby, profile: dict, streams: int, rng: random.Random, o
     total = sum(turns_left.values())
     roots: dict[str, str] = {}
     thread_of_root: dict[str, str] = {}
-    for thread in turns_left:
+    # The threads numbered from `open_threads` on are resolved once they have their turns. They get their turns
+    # first, so the open threads are the room's newest, and keep the numbers (and so the workers) the live phase
+    # gives the threads it reads.
+    open_threads = profile["threads"] - profile["resolvedThreads"]
+    for thread in sorted(turns_left, key=lambda name: (int(name) < open_threads, int(name))):
         scheduler.add(thread)
     lobby.sync()
     reported = progressed = time.monotonic()
@@ -437,6 +464,8 @@ def run_history(lobby: Lobby, profile: dict, streams: int, rng: random.Random, o
             if turns_left[thread] == 0:
                 del turns_left[thread]
                 scheduler.drop(thread)
+                if int(thread) >= open_threads and not lobby.resolve(roots[thread]):
+                    return 1
         stuck = scheduler.sweep_stuck(now)
         if stuck:
             log(f"no reply ended within {scheduler.stuck_seconds} s in: {', '.join(roots[thread] for thread in stuck)}")
@@ -447,8 +476,15 @@ def run_history(lobby: Lobby, profile: dict, streams: int, rng: random.Random, o
         if now - reported >= WINDOW_SECONDS:
             reported = now
             log(f"history: {total - sum(turns_left.values())} of {total} turns, {scheduler.posted()} under way")
-    out.write_text(json.dumps({"room": lobby.room, "threads": [roots[thread] for thread in sorted(roots, key=int)], "quietRooms": quiet_rooms}) + "\n")
-    log(f"history: {len(roots)} threads with {total} turns")
+    numbered = [roots[thread] for thread in sorted(roots, key=int)]
+    history = {
+        "room": lobby.room,
+        "threads": numbered[:open_threads],
+        "resolvedThreads": numbered[open_threads:],
+        "quietRooms": quiet_rooms,
+    }
+    out.write_text(json.dumps(history) + "\n")
+    log(f"history: {len(roots)} threads with {total} turns, {len(history['resolvedThreads'])} of them resolved")
     return 0
 
 

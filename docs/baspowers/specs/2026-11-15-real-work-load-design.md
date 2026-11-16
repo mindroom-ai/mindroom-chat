@@ -84,11 +84,11 @@ Approach 1 is still used once, as ground truth: the same scenarios run against t
 
 - `account`: rooms besides the measured one (the census: about 210, most quiet), with how many events each, and spaces.
 - `room`: number of people, and `agents`: how many agent accounts take the replies (1 in Bas's rooms; more to load the client past the homeserver's frame cap, see Spike findings). Unencrypted, as Bas's agent rooms are.
-- `history`: threads, turns per thread (a distribution), and per turn the reply shape below.
+- `history`: threads, how many of them are resolved (`resolvedThreads`: the Compact view leaves those out, and the client still lists every one), turns per thread (a distribution), and per turn the reply shape below.
 - `reply`: words (distribution, long enough that the p99 reply crosses the backend's long-text limit), pace in words per second, reasoning characters, tool calls (distribution) with their run time, so each call writes jobs state twice as in production.
 - `live`: concurrent streams, the pause before a thread's next turn (distribution), and how long the measured window lasts.
 
-`real-work-50.json` is the target; `real-work-census.json` reproduces the room Bas named (39 threads, up to 7 streams) at its real size for calibration.
+`real-work-50.json` is the target; `real-work-census.json` reproduces the room Bas named (520 threads, 481 of them resolved, which leaves the 39 of the last 60 days open; up to 7 streams) for calibration.
 
 ### 3. Load: real backend, stub model, driver
 

@@ -371,6 +371,8 @@ class FakeLobby:
         self.failed_posts = 0
         self.answer = lambda now, posts: counts()
         self._failing_posts = failing_posts
+        self.resolved: list[str] = []
+        self.resolves = True
 
     def clock(self) -> float:
         return self.now
@@ -385,6 +387,66 @@ class FakeLobby:
             return None
         self.posts.append((self.now, root))
         return f"$turn{len(self.posts)}"
+
+    def resolve(self, root: str) -> bool:
+        if self.resolves:
+            self.resolved.append(root)
+        return self.resolves
+
+
+class RunHistoryTest(unittest.TestCase):
+    def run_history(self, lobby: FakeLobby, **profile_values: object) -> tuple[int, dict]:
+        profile = json.loads((WORKLOADS / "real-work-smoke.json").read_text())
+        profile |= {"quietRooms": 0, "threads": 5, "turns": {"p50": 1, "p90": 1, "max": 1}} | profile_values
+        driver.check_profile(profile)
+
+        def answer(now: float, posts: list[tuple[float, str | None]]) -> dict:
+            """Each turn's reply starts and ends in the sync after it; a new thread's root is its own post."""
+            seen = counts()
+            for index, (_, root) in enumerate(posts):
+                reply = f"$reply{index}"
+                if reply not in lobby.reply_roots:
+                    lobby.reply_roots[reply] = root or f"$turn{index + 1}"
+                    seen["started"].append(reply)
+                    seen["finished"].append(reply)
+            return seen
+
+        lobby.answer = answer
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stderr(io.StringIO()):
+            out = Path(directory) / "history.json"
+            code = driver.run_history(lobby, profile, 2, random.Random(1), out)
+            return code, json.loads(out.read_text()) if out.exists() else {}
+
+    def test_every_thread_is_open_without_resolved_threads(self) -> None:
+        lobby = FakeLobby()
+        code, history = self.run_history(lobby)
+        self.assertEqual(code, 0)
+        self.assertEqual(len(history["threads"]), 5)
+        self.assertEqual(history["resolvedThreads"], [])
+        self.assertEqual(lobby.resolved, [])
+
+    def test_resolved_threads_come_first_and_get_no_live_turns(self) -> None:
+        lobby = FakeLobby()
+        code, history = self.run_history(lobby, resolvedThreads=3)
+        self.assertEqual(code, 0)
+        # The first turns posted are the resolved threads' roots: the open threads are the newest.
+        self.assertEqual(history["resolvedThreads"], ["$turn1", "$turn2", "$turn3"])
+        self.assertEqual(history["threads"], ["$turn4", "$turn5"])
+        self.assertEqual(lobby.resolved, history["resolvedThreads"])
+
+    def test_refused_resolve_fails_the_history(self) -> None:
+        lobby = FakeLobby()
+        lobby.resolves = False
+        code, history = self.run_history(lobby, resolvedThreads=3)
+        self.assertEqual(code, 1)
+        self.assertEqual(history, {})
+
+    def test_resolved_threads_leave_one_open(self) -> None:
+        profile = json.loads((WORKLOADS / "real-work-smoke.json").read_text())
+        self.assertEqual(driver.check_profile(dict(profile))["resolvedThreads"], 0)
+        for bad in (profile["threads"], -1, 1.5, True):
+            with self.assertRaisesRegex(ValueError, "resolvedThreads"):
+                driver.check_profile(profile | {"resolvedThreads": bad})
 
 
 class RunLiveTest(unittest.TestCase):
