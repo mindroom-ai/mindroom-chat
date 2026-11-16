@@ -162,6 +162,30 @@ describe('buildThreadRecordMap reuse', () => {
     expect(third.get('$b')?.status.isResolved).toBe(false);
   });
 
+  it('builds the record given a longer list, an object with another key, or another event', () => {
+    const first = build(undefined, {
+      fallbackParticipantMap: new Map([['$a', ['@bob:example.org']]]),
+      threadResolutionMap: new Map([['$b', { isResolved: false }]]),
+    });
+
+    const second = build(first, {
+      fallbackParticipantMap: new Map([['$a', ['@bob:example.org', '@carol:example.org']]]),
+      threadResolutionMap: new Map([['$b', { isResolved: false, tags: { bug: {} } }]]),
+    });
+
+    expect(second.get('$a')).not.toBe(first.get('$a'));
+    expect(second.get('$b')?.status.tags).toEqual(['bug']);
+
+    // Another copy of the root, as a page of history brings, is another event.
+    roots = new Map(IDS.map((id) => [id, root(id)]));
+    const third = build(second, {
+      fallbackParticipantMap: new Map([['$a', ['@bob:example.org', '@carol:example.org']]]),
+      threadResolutionMap: new Map([['$b', { isResolved: false, tags: { bug: {} } }]]),
+    });
+
+    expect(third.get('$a')).not.toBe(second.get('$a'));
+  });
+
   it('builds every record after the reader opened a root on this device', () => {
     const first = build();
 

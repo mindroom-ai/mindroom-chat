@@ -1,5 +1,6 @@
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
+import { createThreadRecordChanges } from '../../event-store/threads/threadRecord';
 import { buildThreadIndexRecordMaps } from './threadIndexRecords';
 
 const makeEvent = ({
@@ -181,5 +182,48 @@ describe('buildThreadIndexRecordMaps', () => {
 
     expect(records.normalThreadRecordMap.size).toBe(0);
     expect(records.compactThreadRecordMap.size).toBe(0);
+  });
+
+  it('keeps the records of both surfaces from the build before when nothing changed', () => {
+    const rootEvent = makeEvent({ eventId: '$root' });
+    const options = {
+      threadId: undefined,
+      compactViewRequested: true,
+      room: makeRoom(rootEvent),
+      visibleThreadRootData: visibleRootData,
+      compactThreadRootData: compactRootData,
+      visibleThreadRootEventMap: new Map([['$root', rootEvent]]),
+      compactThreadRootEventMap: new Map([['$root', rootEvent]]),
+      compactThreadRootBodyMap: new Map<string, string>(),
+      summaryMap: new Map(),
+      fallbackSummaryMap: new Map(),
+      fallbackReplyCountMap: new Map(),
+      cachedMetadata: {
+        latestReplyPreviewMap: new Map(),
+        latestReplyTsMap: new Map(),
+        lastSenderIdMap: new Map(),
+        messageCountMap: new Map(),
+        lastActivityTsMap: new Map(),
+        coverageMap: new Map(),
+      },
+      fallbackParticipantMap: new Map(),
+      threadResolutionMap: new Map(),
+      currentUserId: '@me:server',
+      scheduledStatusMap: new Map(),
+      changes: createThreadRecordChanges(),
+    };
+    const first = buildThreadIndexRecordMaps(options);
+
+    const second = buildThreadIndexRecordMaps({ ...options, previous: first });
+
+    expect(second.normalThreadRecordMap.get('$root')).toBe(
+      first.normalThreadRecordMap.get('$root')
+    );
+    expect(second.compactThreadRecordMap.get('$root')).toBe(
+      first.compactThreadRecordMap.get('$root')
+    );
+    expect(second.compactThreadRecordMap.get('$root')).not.toBe(
+      second.normalThreadRecordMap.get('$root')
+    );
   });
 });

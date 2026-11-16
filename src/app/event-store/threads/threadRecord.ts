@@ -151,16 +151,10 @@ const getRoomSources = (room: Room): readonly unknown[] => [
   heldReceiptEventsVersion(),
 ];
 
-const sameValues = (left: readonly unknown[], right: readonly unknown[]): boolean =>
-  left.length === right.length && left.every((value, index) => Object.is(value, right[index]));
-
-/** The same value, or two lists or plain objects that hold the same values. */
+/** The same value, or two lists or objects that hold the same values. */
 const sameOption = (left: unknown, right: unknown): boolean => {
   if (Object.is(left, right)) return true;
-  if (Array.isArray(left) || Array.isArray(right)) {
-    return Array.isArray(left) && Array.isArray(right) && sameValues(left, right);
-  }
-  if (!isPlainObject(left) || !isPlainObject(right)) return false;
+  if (!isRecordOrList(left) || !isRecordOrList(right)) return false;
   const keys = Object.keys(left);
   return (
     keys.length === Object.keys(right).length &&
@@ -168,8 +162,8 @@ const sameOption = (left: unknown, right: unknown): boolean => {
   );
 };
 
-const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && Object.getPrototypeOf(value) === Object.prototype;
+const isRecordOrList = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
 
 const sameOptions = (left: BuildThreadRecordOptions, right: BuildThreadRecordOptions): boolean =>
   (Object.keys(left) as Array<keyof BuildThreadRecordOptions>).every((key) =>
@@ -535,7 +529,7 @@ export const buildThreadRecordMap = ({
       keptFrom &&
       keptFrom.builtAt >=
         Math.max(reuse.changes.room, reuse.changes.threads.get(threadRootId) ?? 0) &&
-      sameValues(keptFrom.roomSources, roomSources) &&
+      sameOption(keptFrom.roomSources, roomSources) &&
       sameOptions(keptFrom.options, options)
     ) {
       records.set(threadRootId, kept);

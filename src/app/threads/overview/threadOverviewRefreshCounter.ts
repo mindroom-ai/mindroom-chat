@@ -23,11 +23,9 @@ import { isRecord } from '../../lib/isRecord';
  * when it relates to an event the room does not hold, whose thread is then unknown.
  */
 const changedThreadId = (room: Room, mEvent: MatrixEvent): string | undefined => {
-  const eventId = mEvent.getId();
   if (mEvent.threadRootId) return mEvent.threadRootId;
-  if (mEvent.isThreadRoot) return eventId;
   const relatedId = mEvent.getAssociatedId() ?? mEvent.getRelation()?.event_id;
-  if (!relatedId) return eventId;
+  if (!relatedId) return mEvent.getId();
   const related = room.findEventById(relatedId);
   return related && (related.threadRootId ?? relatedId);
 };

@@ -577,11 +577,11 @@ export const useThreadIndex = ({
       threadResolutionMap,
       currentUserId,
       scheduledStatusMap,
-      // An open thread hears nothing of the room, so nothing is kept from before it.
-      previous: threadId ? undefined : builtRecordMapsRef.current,
+      previous: builtRecordMapsRef.current,
       changes: overviewChanges,
     });
-    builtRecordMapsRef.current = threadId ? undefined : built;
+    // An open thread has no records, so nothing is kept from before it.
+    builtRecordMapsRef.current = built;
     return built;
   }, [
     threadId,
