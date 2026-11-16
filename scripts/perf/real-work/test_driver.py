@@ -418,11 +418,13 @@ class RunLiveTest(unittest.TestCase):
     def test_reply_that_never_ends_is_swept_and_counted(self) -> None:
         lobby = FakeLobby()
         lobby.answer = self.replies(lobby, ends_after=None)
+        lobby.tick = 1.5  # syncs that do not land on the windows' ends
         code, lines, _ = self.run_live(lobby, 29, stuck_seconds=20)
         self.assertEqual(code, 0)
-        self.assertEqual([line["stuck"] for line in lines], [0, 0, 0, 0, 3])
-        # The second turns wait a tick for their replies.
-        self.assertEqual([line["streaming"] for line in lines], [3, 3, 3, 3, 2])
+        self.assertEqual([line["t"] - lines[0]["t"] for line in lines], [0, 5, 10, 15, 20])
+        self.assertEqual([line["stuck"] for line in lines], [0, 0, 0, 3, 0])
+        # No reply is live between the sweep and the next sync.
+        self.assertEqual([line["streaming"] for line in lines], [3, 3, 3, 2, 3])
         # Each thread got its next turn once its first was given up.
         self.assertEqual(sorted(root for _, root in lobby.posts), ["$r0", "$r0", "$r1", "$r1", "$r2", "$r2"])
 

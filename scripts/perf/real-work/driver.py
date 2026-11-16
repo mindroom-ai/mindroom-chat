@@ -461,9 +461,10 @@ def run_live(
                     break
                 scheduler.started(root, now)
             if now >= window_end:
-                window_end += WINDOW_SECONDS
                 live = round(live_seconds / (now - window_started))
-                line = {"t": round(unix_offset + now), "target": streams, "streaming": live, **window}
+                # The time the window was due, so lines are 5 s apart however long the last /sync took.
+                line = {"t": round(unix_offset + window_end), "target": streams, "streaming": live, **window}
+                window_end += WINDOW_SECONDS
                 window_started, live_seconds = now, 0.0
                 windows.append(line)
                 lines.write(json.dumps(line) + "\n")
