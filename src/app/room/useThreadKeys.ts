@@ -21,7 +21,8 @@ type UseThreadKeysOptions = {
   areaRef: RefObject<HTMLElement>;
   openThreadId: string | undefined;
   viewMode: RoomViewMode;
-  onOpenThread: (threadId: string) => void;
+  /** With `replace`, the thread takes the open one's place in the browser's history. */
+  onOpenThread: (threadId: string, replace?: boolean) => void;
   onExitThread: () => void;
   onFocusComposer: () => void;
 };
@@ -65,8 +66,9 @@ export const useThreadKeys = ({
       if (viewMode !== 'compact' || threadHidden()) return false;
       const next = stepCompactThread(roomId, openThreadId, direction);
       if (!next) return false;
-      // Held keys walk the cards, but open one thread per press.
-      if (!event.repeat) onOpenThread(next);
+      // Held keys walk the cards, but open one thread per press. The thread takes this one's
+      // place in the history, so leaving it still steps back to the room.
+      if (!event.repeat) onOpenThread(next, true);
       return true;
     }
     return focusCompactCard(cardBeside(shown, leftThreadId(), direction));

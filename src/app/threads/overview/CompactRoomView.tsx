@@ -385,7 +385,7 @@ export function CompactRoomView({
   }, []);
 
   // On a focused card, the keys that resolve the open thread resolve or reopen the card's, and
-  // the focus moves on to the next card: a resolved one may leave the list.
+  // the focus moves on to the next card: under a filter, either may take the card off the list.
   useShortcut('resolveThread', () => {
     const card = focusedCompactCard(viewRef.current);
     const rootId = card?.dataset.threadRootId;
@@ -397,11 +397,9 @@ export function CompactRoomView({
       !isConfirmedMatrixEventId(rootId) ||
       updatingThreadRootIds.has(rootId);
     if (fixed) return true;
-    if (!viewModel.isResolved) {
-      const cards = compactCardsIn(viewRef.current);
-      const index = cards.indexOf(card);
-      focusCompactCard(cards[index + 1] ?? cards[index - 1]);
-    }
+    const cards = compactCardsIn(viewRef.current);
+    const index = cards.indexOf(card);
+    focusCompactCard(cards[index + 1] ?? cards[index - 1]);
     handleSetResolved(rootId, !viewModel.isResolved);
     return true;
   });

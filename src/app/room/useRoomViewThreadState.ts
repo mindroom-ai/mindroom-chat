@@ -78,7 +78,8 @@ export type RoomViewThreadState = {
   handleClearPeople: () => void;
   handleClearTags: () => void;
   handleExitThread: () => void;
-  handleOpenThread: (threadId: string) => void;
+  /** Opens a thread; with `replace`, in the place of the open one in the browser's history. */
+  handleOpenThread: (threadId: string, replace?: boolean) => void;
   handleThreadRootDeleted: () => void;
   /** The open thread failed to load in this room (`ThreadView`'s `onThreadLoadError`). */
   handleThreadLoadError: (threadId: string) => void;
@@ -265,7 +266,8 @@ export const useRoomViewThreadState = ({
   );
 
   const handleOpenThread = useCallback(
-    (openedThreadId: string) => navigateRoomThread(roomId, openedThreadId),
+    (openedThreadId: string, replace?: boolean) =>
+      navigateRoomThread(roomId, openedThreadId, undefined, replace ? { replace } : undefined),
     [navigateRoomThread, roomId]
   );
 

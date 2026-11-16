@@ -128,9 +128,9 @@ describe('useThreadKeys', () => {
     area.innerHTML = '';
     mount('$b');
     expect(press('nextThread')).toBe(true);
-    expect(onOpenThread).toHaveBeenLastCalledWith('$c');
+    expect(onOpenThread).toHaveBeenLastCalledWith('$c', true);
     expect(press('previousThread')).toBe(true);
-    expect(onOpenThread).toHaveBeenLastCalledWith('$a');
+    expect(onOpenThread).toHaveBeenLastCalledWith('$a', true);
     expect(press('nextThread', { repeat: true })).toBe(true);
     expect(onOpenThread).toHaveBeenCalledTimes(2);
   });

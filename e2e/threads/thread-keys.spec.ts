@@ -234,4 +234,25 @@ test('the keyboard goes into a thread, to the next one, and out again', async ({
     await page.keyboard.press('ControlOrMeta+/');
     await expect(row('nextThread')).toHaveCount(0);
   });
+
+  await test.step("stepping between threads leaves one entry in the browser's history", async () => {
+    await composer(page).click();
+    await page.keyboard.press('Alt+ArrowRight');
+    await expect(cards(page).and(page.locator(':focus'))).toHaveCount(1);
+    const shown = await cardOrder(page);
+    await page.keyboard.press('Alt+ArrowRight');
+    await expect(banner(page)).toBeVisible();
+    const opened = openThread(page);
+    const arrow = shown.indexOf(opened ?? '') === 0 ? 'ArrowDown' : 'ArrowUp';
+    await page.keyboard.press(`ControlOrMeta+Alt+${arrow}`);
+    await expect.poll(() => openThread(page)).not.toBe(opened);
+    await page.keyboard.press('Alt+ArrowLeft');
+    await expect(banner(page)).toHaveCount(0);
+    expect(openThread(page)).toBeNull();
+    // The browser's Back leaves the room; it does not reopen the thread stepped away from.
+    await page.goBack();
+    await settle(page);
+    expect(openThread(page)).toBeNull();
+    await expect(banner(page)).toHaveCount(0);
+  });
 });
