@@ -1282,5 +1282,16 @@
       "howThreadsWork": "Come funzionano i thread",
       "noThreadsHint": "Invia un messaggio qui sotto per iniziarne uno."
     }
+  },
+  "threadNav": {
+    "layout": "Disposizione dei thread",
+    "layoutRecent": "Recenti",
+    "layoutSections": "Sezioni",
+    "sections": {
+      "working": "In corso",
+      "snoozed": "Posticipati",
+      "idle": "Inattivi",
+      "resolved": "Risolti"
+    }
   }
 }

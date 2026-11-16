@@ -1259,5 +1259,16 @@
       "howThreadsWork": "So funktionieren Threads",
       "noThreadsHint": "Sende unten eine Nachricht, um einen zu starten."
     }
+  },
+  "threadNav": {
+    "layout": "Anordnung der Threads",
+    "layoutRecent": "Zuletzt",
+    "layoutSections": "Abschnitte",
+    "sections": {
+      "working": "In Arbeit",
+      "snoozed": "Zurückgestellt",
+      "idle": "Inaktiv",
+      "resolved": "Gelöst"
+    }
   }
 }

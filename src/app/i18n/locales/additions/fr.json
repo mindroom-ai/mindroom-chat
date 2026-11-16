@@ -1282,5 +1282,16 @@
       "howThreadsWork": "Comment fonctionnent les fils",
       "noThreadsHint": "Envoyez un message ci-dessous pour en démarrer un."
     }
+  },
+  "threadNav": {
+    "layout": "Disposition des fils",
+    "layoutRecent": "Récents",
+    "layoutSections": "Sections",
+    "sections": {
+      "working": "En cours",
+      "snoozed": "Reportés",
+      "idle": "Inactifs",
+      "resolved": "Résolus"
+    }
   }
 }

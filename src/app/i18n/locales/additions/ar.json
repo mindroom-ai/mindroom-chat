@@ -1351,5 +1351,16 @@
       "howThreadsWork": "كيف تعمل سلاسل المحادثات",
       "noThreadsHint": "أرسل رسالة في الأسفل لبدء واحدة."
     }
+  },
+  "threadNav": {
+    "layout": "تخطيط سلاسل المحادثات",
+    "layoutRecent": "الأحدث",
+    "layoutSections": "أقسام",
+    "sections": {
+      "working": "قيد العمل",
+      "snoozed": "مؤجلة",
+      "idle": "خاملة",
+      "resolved": "محلولة"
+    }
   }
 }
