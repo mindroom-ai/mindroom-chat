@@ -19,6 +19,17 @@ const inner = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+const temporary = (overrides: Record<string, unknown> = {}) => ({
+  request_id: 'req-1',
+  requester_id: '@person:example.org',
+  env: 'SUDO_PASSWORD',
+  reason: 'To restart the web server',
+  status: 'pending',
+  expires_at: 1_000,
+  keep: { memory: 900, disk: 86_400 },
+  ...overrides,
+});
+
 const content = (value: unknown) => ({
   msgtype: 'm.notice',
   body: 'Key needed',
@@ -28,15 +39,79 @@ const content = (value: unknown) => ({
 describe('parseSecretRequestContent', () => {
   it('parses the backend contract object', () => {
     expect(parseSecretRequestContent(content(inner()))).toEqual({
+      kind: 'key',
       requestId: 'req-1',
       requesterId: '@person:example.org',
       service: 'openrouter',
       displayName: 'OpenRouter',
       hosts: ['openrouter.ai'],
+      replaces: false,
       reason: 'To call models',
       status: 'pending',
       expiresAt: 1_000,
     });
+  });
+
+  it('reads replaces only when it is true', () => {
+    const replaces = (value: unknown) => {
+      const request = parseSecretRequestContent(content(inner({ replaces: value })));
+      return request?.kind === 'key' ? request.replaces : undefined;
+    };
+    expect(replaces(true)).toBe(true);
+    expect(replaces(false)).toBe(false);
+    expect(replaces('true')).toBe(false);
+    expect(replaces(1)).toBe(false);
+  });
+
+  it('parses a temporary secret, which has a variable and keeps in place of a service', () => {
+    expect(parseSecretRequestContent(content(temporary()))).toEqual({
+      kind: 'temporary',
+      requestId: 'req-1',
+      requesterId: '@person:example.org',
+      env: 'SUDO_PASSWORD',
+      keep: { memory: 900, disk: 86_400 },
+      kept: null,
+      reason: 'To restart the web server',
+      status: 'pending',
+      expiresAt: 1_000,
+    });
+  });
+
+  it('reads the keep an answered temporary secret has', () => {
+    const kept = (value: unknown) => {
+      const request = parseSecretRequestContent(
+        content(temporary({ status: 'saved', kept: value }))
+      );
+      return request?.kind === 'temporary' ? request.kept : undefined;
+    };
+    expect(kept('disk')).toBe('disk');
+    expect(kept('memory')).toBe('memory');
+    expect(kept('forever')).toBeNull();
+    expect(kept(undefined)).toBeNull();
+  });
+
+  it('keeps only the keeps it knows, with a lifetime in seconds', () => {
+    const keep = (value: unknown) => {
+      const request = parseSecretRequestContent(content(temporary({ keep: value })));
+      return request?.kind === 'temporary' ? request.keep : request;
+    };
+    expect(keep({ memory: 60 })).toEqual({ memory: 60 });
+    expect(keep({ memory: 60, forever: 1, disk: '86400' })).toEqual({ memory: 60 });
+    expect(keep({ memory: 0, disk: 86_400 })).toEqual({ disk: 86_400 });
+    expect(keep({})).toBeNull();
+    expect(keep({ memory: -1 })).toBeNull();
+    expect(keep(['memory'])).toBeNull();
+    expect(keep(undefined)).toBeNull();
+  });
+
+  it('rejects a temporary secret whose variable no shell takes, or that also names a service', () => {
+    ['', '1PASSWORD', 'SUDO-PASSWORD', 'SUDO PASSWORD', 'A=B', 'A'.repeat(65), 7].forEach((env) =>
+      expect(parseSecretRequestContent(content(temporary({ env })))).toBeNull()
+    );
+    expect(parseSecretRequestContent(content(temporary({ env: 'A'.repeat(64) })))).not.toBeNull();
+    expect(parseSecretRequestContent(content(temporary({ service: 'openrouter' })))).toBeNull();
+    expect(parseSecretRequestContent(content(temporary({ hosts: [] })))).toBeNull();
+    expect(parseSecretRequestContent(content(temporary({ display_name: 'X' })))).toBeNull();
   });
 
   it('prefers m.new_content', () => {
