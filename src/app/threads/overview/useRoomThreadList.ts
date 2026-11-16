@@ -14,7 +14,10 @@ import {
   serializeThreadCacheEvents,
 } from '../../event-store/cache/eventRepository';
 import { restoreCachedRoomThreads } from '../../event-store/sdk/roomTimelineSdk';
-import { keepHeldThreadSummaries, readOnlyEventMapper } from '../../event-store/sdk/readOnlyEventMapper';
+import {
+  keepHeldThreadSummaries,
+  readOnlyEventMapper,
+} from '../../event-store/sdk/readOnlyEventMapper';
 import { getSummaryLatestEvent } from '../../event-store/cache/cachedThreadSummary';
 import { isVisibleThreadReplyEvent } from '../../event-store/threads/threadUtils';
 
@@ -114,7 +117,10 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
     (signal: AbortSignal) => {
       const persist = engine.persist.forRoom(room);
       const saved = getSavedRootRevisions(room, persist.isCurrent);
-      const mapper = readOnlyEventMapper(room, createPreferLiveEventMapper(room, mx.getEventMapper()));
+      const mapper = readOnlyEventMapper(
+        room,
+        createPreferLiveEventMapper(room, mx.getEventMapper())
+      );
       const saveRoot = (threadId: string, rootEvent: MatrixEvent) => {
         if (signal.aborted) return;
         // Later pages can update the same SDK object, including its edits.
@@ -124,36 +130,48 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
         // Keep the listed reply as an edit target when sync did not include its original event.
         // One bundled reply does not prove the thread's history or tail was downloaded.
         const latest = getSummaryLatestEvent(rootEvent.event);
-        const reply = latest && (!latest.room_id || latest.room_id === room.roomId)
-          ? mapper({ ...latest, room_id: room.roomId } as IEvent)
-          : undefined;
-        const replies = reply && isVisibleThreadReplyEvent(reply) && reply.threadRootId === threadId
-          ? [reply]
-          : [];
+        const reply =
+          latest && (!latest.room_id || latest.room_id === room.roomId)
+            ? mapper({ ...latest, room_id: room.roomId } as IEvent)
+            : undefined;
+        const replies =
+          reply && isVisibleThreadReplyEvent(reply) && reply.threadRootId === threadId
+            ? [reply]
+            : [];
         persist.persistThreadEventCache(threadId, replies, rootEvent);
       };
+      // A page checks the roots this load has not checked yet, not every listed root again; once a
+      // list of several pages ends, every root is checked once more for changes made meanwhile.
+      const checked = new Set<string>();
+      let pages = 0;
+      const saveRoots = (all: boolean) =>
+        room.getThreads().forEach(({ id, rootEvent }) => {
+          if (!rootEvent || (!all && checked.has(id))) return;
+          checked.add(id);
+          // Save a root that is being decrypted with its clear content and attachments.
+          const decryption = rootEvent.isBeingDecrypted() && rootEvent.getDecryptionPromise();
+          const save = () => saveRoot(id, rootEvent);
+          if (!decryption) {
+            save();
+            return;
+          }
+          decryption.then(save, save).catch((err: unknown) => {
+            // eslint-disable-next-line no-console
+            console.warn('[threadList] saving a decrypted root failed:', err);
+          });
+        });
       return loadRoomThreads(
         room,
         () => {
           if (signal.aborted) return;
-          room.getThreads().forEach(({ id, rootEvent }) => {
-            if (!rootEvent) return;
-            // Save a root that is being decrypted with its clear content and attachments.
-            const decryption = rootEvent.isBeingDecrypted() && rootEvent.getDecryptionPromise();
-            const save = () => saveRoot(id, rootEvent);
-            if (!decryption) {
-              save();
-              return;
-            }
-            decryption.then(save, save).catch((err: unknown) => {
-              // eslint-disable-next-line no-console
-              console.warn('[threadList] saving a decrypted root failed:', err);
-            });
-          });
+          pages += 1;
+          saveRoots(false);
           handleThreadListProgress();
         },
         signal
-      );
+      ).finally(() => {
+        if (pages > 1) saveRoots(true);
+      });
     },
     [engine.persist, handleThreadListProgress, mx, room]
   );
