@@ -54,6 +54,8 @@ vi.mock('./ThreadCardBadges', () => ({ ThreadCardBadges: () => null }));
 vi.mock('../../ui/InsetScrollbar', () => ({ InsetScrollbar: () => null }));
 vi.mock('../ThreadActionsMenu', () => ({ ThreadActionsMenu: () => null }));
 vi.mock('../../i18n/useRelativeTime', () => ({ useRelativeTime: () => '' }));
+// The sections read the threads' signals, whose modules load the app's translations.
+vi.mock('./useCompactThreadSections', () => ({ useCompactThreadSections: () => undefined }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ i18n: { language: 'en' }, t: (key: string) => key }),
 }));

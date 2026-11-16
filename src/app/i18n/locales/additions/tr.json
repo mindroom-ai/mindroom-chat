@@ -1277,6 +1277,7 @@
     "layout": "Konu düzeni",
     "layoutRecent": "Son",
     "layoutSections": "Bölümler",
+    "sectionsHint": "Konuları Çalışıyor, Ertelenenler, Boşta ve Çözülenler olarak grupla",
     "sections": {
       "working": "Çalışıyor",
       "snoozed": "Ertelenenler",

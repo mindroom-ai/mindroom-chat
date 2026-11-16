@@ -277,6 +277,8 @@ export function RoomView({
     onClearTags: threadState.handleClearTags,
     onApplyPreset: threadState.handleApplyPreset,
     onSearchQueryChange: threadState.handleSearchQueryChange,
+    threadSections: threadState.threadSections,
+    onToggleThreadSections: threadState.handleToggleThreadSections,
     viewMode,
     compactRoomScrollStateRef,
     threadReturnPlaceRef,

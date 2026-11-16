@@ -1301,6 +1301,7 @@
     "layout": "Disposición de los hilos",
     "layoutRecent": "Recientes",
     "layoutSections": "Secciones",
+    "sectionsHint": "Agrupar los hilos en En curso, Pospuestos, Inactivos y Resueltos",
     "sections": {
       "working": "En curso",
       "snoozed": "Pospuestos",

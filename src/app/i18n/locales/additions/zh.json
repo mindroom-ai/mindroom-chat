@@ -1253,6 +1253,7 @@
     "layout": "讨论串布局",
     "layoutRecent": "最近",
     "layoutSections": "分区",
+    "sectionsHint": "将讨论串分为进行中、已延后、空闲和已解决",
     "sections": {
       "working": "进行中",
       "snoozed": "已延后",

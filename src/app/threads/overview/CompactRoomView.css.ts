@@ -48,6 +48,12 @@ export const CardMotion = style({
   position: 'relative',
 });
 
+// A section's header among the cards (Sections): it folds the section, as the sidebar's do.
+export const SectionHeader = style({
+  display: 'flex',
+  paddingBlockStart: config.space.S200,
+});
+
 export const PinnedSection = style({
   paddingBlockEnd: config.space.S300,
 });

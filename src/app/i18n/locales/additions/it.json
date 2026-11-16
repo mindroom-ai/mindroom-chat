@@ -1301,6 +1301,7 @@
     "layout": "Disposizione dei thread",
     "layoutRecent": "Recenti",
     "layoutSections": "Sezioni",
+    "sectionsHint": "Raggruppa i thread in In corso, Posticipati, Inattivi e Risolti",
     "sections": {
       "working": "In corso",
       "snoozed": "Posticipati",

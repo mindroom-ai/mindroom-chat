@@ -18,6 +18,7 @@ import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { useEdgeSwipeForward } from '../navigation/useEdgeSwipeForward';
 import { lastExitedThreadAtom } from '../threads/lastExitedThread';
 import { bumpRecentThread } from '../event-store/threads/recentThreads';
+import { getCompactRoomSectionsAtom } from '../threads/overview/compactRoomSections';
 import { useRoomViewThreadState, type RoomViewThreadState } from './useRoomViewThreadState';
 
 const USER_ID = '@alice:example.org';
@@ -367,5 +368,56 @@ describe('useRoomViewThreadState', () => {
     act(() => current().handleToggleThreadSortFreeze());
 
     expect(current().threadSortFreezeState).toBeNull();
+  });
+
+  it('shows resolved and snoozed threads in Compact Sections and keeps every other filter', () => {
+    storeFilter({
+      ...createDefaultThreadFilterState(),
+      resolved: 'exclude',
+      snoozed: 'exclude',
+      unread: 'include',
+      freeText: 'launch',
+    });
+    const { store, current } = mountThreadState({ advancedFilters: true });
+    expect(current().threadSections).toBe(false);
+
+    act(() => current().handleToggleThreadSections());
+
+    expect(current().threadSections).toBe(true);
+    expect(current().threadFilterState).toMatchObject({
+      resolved: 'any',
+      snoozed: 'any',
+      unread: 'include',
+      freeText: 'launch',
+    });
+    // The room's stored filter stays as the reader set it, and the choice is the account's.
+    expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID))).toMatchObject({
+      resolved: 'exclude',
+      snoozed: 'exclude',
+    });
+    expect(store.get(getCompactRoomSectionsAtom(USER_ID)).on).toBe(true);
+
+    act(() => current().handleToggleThreadSections());
+    expect(current().threadFilterState).toMatchObject({ resolved: 'exclude', snoozed: 'exclude' });
+  });
+
+  it('keeps the sort lock off while Compact shows sections, which have their own order', () => {
+    const { current } = mountThreadState({ advancedFilters: true });
+    act(() => current().handleToggleThreadSections());
+
+    act(() => current().handleToggleThreadSortFreeze());
+
+    expect(current().threadSortFreezeState).toBeNull();
+  });
+
+  it('leaves the filters of the Threads view alone when Compact shows sections', () => {
+    storeFilter({ ...createDefaultThreadFilterState(), resolved: 'exclude' });
+    viewMode.current = 'threaded';
+    const { current } = mountThreadState({ advancedFilters: true });
+
+    act(() => current().handleToggleThreadSections());
+
+    expect(current().threadSections).toBe(false);
+    expect(current().threadFilterState.resolved).toBe('exclude');
   });
 });

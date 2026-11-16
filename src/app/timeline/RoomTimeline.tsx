@@ -204,6 +204,10 @@ export type RoomTimelineProps = {
   onClearTags?: () => void;
   onApplyPreset?: (preset: FilterPreset) => void;
   onSearchQueryChange?: (query: string) => void;
+  /** Compact shows its cards in sections (Working, Snoozed, Idle, Resolved). */
+  threadSections?: boolean;
+  /** The Compact filter bar's switch for `threadSections`. */
+  onToggleThreadSections?: () => void;
   viewMode: RoomViewMode;
   compactRoomScrollStateRef?: MutableRefObject<ScrollAnchorMemory>;
   /** Where the room's rows were when a thread opened over them (`useThreadReturnPlace`). */
@@ -1553,6 +1557,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
         onClearTags={props.onClearTags ?? ignoreFilterChange}
         onApplyPreset={props.onApplyPreset ?? ignoreFilterChange}
         onSearchQueryChange={props.onSearchQueryChange ?? ignoreFilterChange}
+        threadSections={compactCards && props.threadSections === true}
+        onToggleThreadSections={compactCards ? props.onToggleThreadSections : undefined}
         peopleFilter={
           props.onTogglePerson && (
             <ThreadPeopleFilter
@@ -1616,6 +1622,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
           onThreadClick={(rootId) => navigateRoomThread(room.roomId, rootId)}
           compactRoomScrollStateRef={compactRoomScrollStateRef}
           filterBarShown={filterBarShown}
+          sections={props.threadSections === true}
         />
       </Box>
     );

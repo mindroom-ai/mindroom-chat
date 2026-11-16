@@ -41,6 +41,8 @@ vi.mock('folds', async (importOriginal) => {
 });
 
 vi.mock('../useInitializeShownThread', () => ({ useInitializeShownThread: () => undefined }));
+// The sections read the threads' signals, whose modules load the app's translations.
+vi.mock('./useCompactThreadSections', () => ({ useCompactThreadSections: () => undefined }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));

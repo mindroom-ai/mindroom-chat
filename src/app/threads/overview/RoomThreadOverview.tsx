@@ -569,7 +569,40 @@ export type RoomThreadOverviewProps = {
   onSearchQueryChange: (query: string) => void;
   /** The People dropdown (ThreadPeopleFilter), shown with the advanced filters. */
   peopleFilter?: React.ReactNode;
+  /** The cards show in sections (Working, Snoozed, Idle, Resolved), each in its own order. */
+  threadSections?: boolean;
+  /** Turns the sections on or off; the switch shows beside the sort only when given (Compact). */
+  onToggleThreadSections?: () => void;
 };
+
+/** Compact's switch between the sorted cards and their sections, beside the sort. */
+function ThreadSectionsSwitch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <TooltipProvider
+      position="Bottom"
+      align="Center"
+      tooltip={
+        <Tooltip style={{ maxWidth: toRem(220) }}>
+          <Text size="T200">{t('threadNav.sectionsHint')}</Text>
+        </Tooltip>
+      }
+    >
+      {(triggerRef) => (
+        <button
+          ref={triggerRef}
+          type="button"
+          className={classNames(css.SortButton, on && css.SortButtonActive)}
+          aria-pressed={on}
+          onClick={onToggle}
+          data-thread-sections="true"
+        >
+          <Text size="T200">{t('threadNav.layoutSections')}</Text>
+        </button>
+      )}
+    </TooltipProvider>
+  );
+}
 
 function ThreadSortControl({
   state,
@@ -644,6 +677,8 @@ export function RoomThreadOverview({
   onApplyPreset,
   onSearchQueryChange,
   peopleFilter,
+  threadSections = false,
+  onToggleThreadSections,
 }: RoomThreadOverviewProps) {
   const [lastAppliedPreset, setLastAppliedPreset] = useState<string | null>(null);
   const glassRef = useLiquidGlass<HTMLDivElement>();
@@ -835,6 +870,12 @@ export function RoomThreadOverview({
     </TooltipProvider>
   );
 
+  // Sections order their cards themselves and show resolved and snoozed threads in their own
+  // sections, so the sort, its lock and the filters for those two make way for the switch.
+  const sectionsSwitch = onToggleThreadSections && (
+    <ThreadSectionsSwitch on={threadSections} onToggle={onToggleThreadSections} />
+  );
+
   // Simple mode keeps the sorting choice plus one agent-room filter: hide
   // resolved threads or show everything. The upstream filter state is already
   // projected onto this visible subspace.
@@ -854,9 +895,9 @@ export function RoomThreadOverview({
           role="toolbar"
           aria-label={t('mindroomUi.threads.roomThreadOverview.threadFilters')}
         >
-          {hasMindroomAgents && (
+          {hasMindroomAgents && countBadge}
+          {hasMindroomAgents && !threadSections && (
             <>
-              {countBadge}
               <TooltipProvider
                 position="Bottom"
                 align="Center"
@@ -885,7 +926,10 @@ export function RoomThreadOverview({
               </TooltipProvider>
             </>
           )}
-          <ThreadSortControl state={state} onChange={handleSortWithPresetClear} />
+          {!threadSections && (
+            <ThreadSortControl state={state} onChange={handleSortWithPresetClear} />
+          )}
+          {sectionsSwitch}
           {filterModeSwitch}
         </div>
         {hasMindroomAgents && emptyFilteredState}
@@ -918,23 +962,27 @@ export function RoomThreadOverview({
             role="group"
             aria-label={t('mindroomUi.threads.roomThreadOverview.statusFilters')}
           >
-            <TriStateIconToggle
-              filterKey="resolved"
-              state={state.resolved}
-              isOrMode={isOrModeStatusChip(state, 'resolved')}
-              onToggle={handleToggleWithPresetClear}
-            >
-              <Icon size="50" src={Icons.CheckTwice} />
-            </TriStateIconToggle>
+            {!threadSections && (
+              <>
+                <TriStateIconToggle
+                  filterKey="resolved"
+                  state={state.resolved}
+                  isOrMode={isOrModeStatusChip(state, 'resolved')}
+                  onToggle={handleToggleWithPresetClear}
+                >
+                  <Icon size="50" src={Icons.CheckTwice} />
+                </TriStateIconToggle>
 
-            <TriStateIconToggle
-              filterKey="snoozed"
-              state={state.snoozed}
-              isOrMode={isOrModeStatusChip(state, 'snoozed')}
-              onToggle={handleToggleWithPresetClear}
-            >
-              <IconClock size={14} stroke={1.8} aria-hidden="true" />
-            </TriStateIconToggle>
+                <TriStateIconToggle
+                  filterKey="snoozed"
+                  state={state.snoozed}
+                  isOrMode={isOrModeStatusChip(state, 'snoozed')}
+                  onToggle={handleToggleWithPresetClear}
+                >
+                  <IconClock size={14} stroke={1.8} aria-hidden="true" />
+                </TriStateIconToggle>
+              </>
+            )}
 
             <TriStateIconToggle
               filterKey="streaming"
@@ -1012,12 +1060,15 @@ export function RoomThreadOverview({
           onSearchQueryChange={handleSearchWithPresetClear}
         />
 
-        <ThreadSortControl
-          state={state}
-          active={filtersActive}
-          onChange={handleSortWithPresetClear}
-        />
-        {hasMindroomAgents && state.sortBy !== 'natural' && (
+        {!threadSections && (
+          <ThreadSortControl
+            state={state}
+            active={filtersActive}
+            onChange={handleSortWithPresetClear}
+          />
+        )}
+        {sectionsSwitch}
+        {hasMindroomAgents && !threadSections && state.sortBy !== 'natural' && (
           <TooltipProvider
             position="Bottom"
             align="Center"

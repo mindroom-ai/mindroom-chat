@@ -1301,6 +1301,7 @@
     "layout": "Disposition des fils",
     "layoutRecent": "Récents",
     "layoutSections": "Sections",
+    "sectionsHint": "Regrouper les fils en En cours, Reportés, Inactifs et Résolus",
     "sections": {
       "working": "En cours",
       "snoozed": "Reportés",

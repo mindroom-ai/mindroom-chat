@@ -11,6 +11,7 @@ import { clearThreadSidebarPreferencesStore } from '../../threads/cross-room/thr
 import { clearQuickCaptureRoomStore } from '../../preferences/quickCaptureRoom';
 import { clearThreadsScopeStore } from '../../threads/page/threadsScope';
 import { clearRoomThreadFiltersStore } from '../../threads/overview/roomThreadFilterState';
+import { clearCompactRoomSectionsStore } from '../../threads/overview/compactRoomSections';
 import { clearRoomViewModeStore } from '../../navigation/roomViewMode';
 import { clearToolCallOverrides } from '../../messages/toolCallVisibility';
 import { clearThreadSummarySharedState } from '../../event-store/threads/threadSummaryState';
@@ -103,6 +104,7 @@ export const clearUserUiState = (userId: string): void => {
   void clearSavedVoiceDraft(userId);
   removeStorageItemSafe(getSafeLocalStorage(), `${LEGACY_LAST_OPEN_THREAD_STORE_PREFIX}${userId}`);
   clearRoomThreadFiltersStore(userId);
+  clearCompactRoomSectionsStore(userId);
   removeStorageItemSafe(getSafeLocalStorage(), `${LEGACY_CROSS_ROOM_THREAD_FILTERS_PREFIX}${userId}`);
   clearThreadsScopeStore(userId);
   clearQuickCaptureRoomStore(userId);

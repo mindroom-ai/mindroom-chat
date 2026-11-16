@@ -1253,6 +1253,7 @@
     "layout": "Tata letak utas",
     "layoutRecent": "Terbaru",
     "layoutSections": "Bagian",
+    "sectionsHint": "Kelompokkan utas ke Sedang berjalan, Ditunda, Tidak aktif, dan Selesai",
     "sections": {
       "working": "Sedang berjalan",
       "snoozed": "Ditunda",

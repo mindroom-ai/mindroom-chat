@@ -1277,6 +1277,7 @@
     "layout": "Thread layout",
     "layoutRecent": "Recent",
     "layoutSections": "Sections",
+    "sectionsHint": "Group the threads into Working, Snoozed, Idle and Resolved",
     "sections": {
       "working": "Working",
       "snoozed": "Snoozed",

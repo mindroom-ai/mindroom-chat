@@ -10,7 +10,8 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Box, Icon, IconButton, Icons, Text, type RectCords } from 'folds';
+import { Box, Button, Icon, IconButton, Icons, Text, type RectCords } from 'folds';
+import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useCompactThreadCardViewModels } from './compactThreadCardViewModel';
@@ -34,6 +35,9 @@ import { firstRenderCardCount, useStagedCardIds } from './useStagedCardIds';
 import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import { ThreadCardBadges } from './ThreadCardBadges';
+import { useCompactThreadSections } from './useCompactThreadSections';
+import { getCompactRoomSectionsAtom } from './compactRoomSections';
+import type { ThreadSectionId } from '../threadSections';
 
 const ThreadActionsMenu = lazy(() =>
   import('../ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -47,7 +51,17 @@ export type CompactRoomViewProps = {
   compactRoomScrollStateRef: MutableRefObject<ScrollAnchorMemory>;
   /** Whether the thread filter bar floats over the cards: they move down for it, and glide. */
   filterBarShown?: boolean;
+  /** The cards show in sections: Working, Snoozed, Idle and Resolved, each folding on its own. */
+  sections?: boolean;
 };
+
+// A section's header among the cards' rows; no event ID starts with it.
+const SECTION_ROW_PREFIX = 'section:';
+const sectionRowKey = (id: ThreadSectionId): string => `${SECTION_ROW_PREFIX}${id}`;
+const sectionOfRow = (key: string): ThreadSectionId | undefined =>
+  key.startsWith(SECTION_ROW_PREFIX)
+    ? (key.slice(SECTION_ROW_PREFIX.length) as ThreadSectionId)
+    : undefined;
 
 type ThreadActionsMenuState = {
   roomId: string;
@@ -258,6 +272,7 @@ export function CompactRoomView({
   onThreadClick,
   compactRoomScrollStateRef,
   filterBarShown = false,
+  sections = false,
 }: CompactRoomViewProps) {
   const { t } = useTranslation();
   const viewRef = useRef<HTMLDivElement>(null);
@@ -270,13 +285,45 @@ export function CompactRoomView({
   const [focusInside, setFocusInside] = useState(false);
   const focusHeld = focusInside && !!contentRef.current?.contains(document.activeElement);
   const orderHeld = pointerInside || focusHeld || !!menu;
-  const shownRootIds = useHeldThreadOrder(threadRootIds, orderHeld, viewRef);
+  const pinning = useThreadPinning(room);
+  const pinnedRootIds = useMemo(
+    () => threadRootIds.filter((rootId) => pinning.pinnedEventIds.includes(rootId)),
+    [pinning.pinnedEventIds, threadRootIds]
+  );
+  const threadSections = useCompactThreadSections({
+    room,
+    enabled: sections,
+    threadRootIds,
+    threadRecordMap,
+    pinnedRootIds,
+  });
+  const [sectionsChoice, updateSectionsChoice] = useAtom(
+    useMemo(() => getCompactRoomSectionsAtom(room.myUserId ?? ''), [room.myUserId])
+  );
+  const { folded } = sectionsChoice;
+  // In sections, the list's rows are each section's header and, unless it is folded, its cards:
+  // the order the hook below holds is theirs, so a card stays in its section while held too.
+  const listedRows = useMemo(
+    () =>
+      threadSections
+        ? threadSections.flatMap(({ id, rootIds }) => [
+            sectionRowKey(id),
+            ...(folded.includes(id) ? [] : rootIds),
+          ])
+        : threadRootIds,
+    [folded, threadRootIds, threadSections]
+  );
+  const shownRootIds = useHeldThreadOrder(listedRows, orderHeld, viewRef);
   // A filter change mounts the cards it brings back a chunk at a time, and so does a mount after
   // the cards of its first screen, or of the place the reader left (`useScrollAnchorMemory`).
-  const stagedRootIds = useStagedCardIds(
+  const stagedRows = useStagedCardIds(
     room.roomId,
     shownRootIds,
     firstRenderCardCount(shownRootIds, compactRoomScrollStateRef.current.get(room.roomId))
+  );
+  const stagedRootIds = useMemo(
+    () => (threadSections ? stagedRows.filter((key) => !sectionOfRow(key)) : stagedRows),
+    [stagedRows, threadSections]
   );
   const cardViewModels = useCompactThreadCardViewModels({
     room,
@@ -284,7 +331,6 @@ export function CompactRoomView({
     threadRecordMap,
   });
   const { canToggle, setResolved, updatingThreadRootIds, error } = useToggleThreadResolution(room);
-  const pinning = useThreadPinning(room);
   const menuRef = useRef<ThreadActionsMenuState>();
   const openMenu = useCallback((nextMenu: ThreadActionsMenuState) => {
     menuRef.current = nextMenu;
@@ -309,12 +355,22 @@ export function CompactRoomView({
     menuRef.current = undefined;
     setMenu(undefined);
   }, [room.roomId]);
-  const pinnedCards = cardViewModels.filter((model) =>
-    pinning.pinnedEventIds.includes(model.id.threadRootId)
+  // Sections lead each with its pinned cards, so only the sorted list has a Pinned list of them.
+  const pinnedCards = threadSections
+    ? []
+    : cardViewModels.filter((model) => pinning.pinnedEventIds.includes(model.id.threadRootId));
+  const ordinaryCards = threadSections
+    ? cardViewModels
+    : cardViewModels.filter((model) => !pinning.pinnedEventIds.includes(model.id.threadRootId));
+  const modelByRootId = new Map(cardViewModels.map((model) => [model.id.threadRootId, model]));
+  // Each header counts its section's threads now: one that a held order still shows after it
+  // emptied counts none until the order is let go.
+  const sectionCounts = new Map(
+    (threadSections ?? []).map(({ id, rootIds }) => [id, rootIds.length] as const)
   );
-  const ordinaryCards = cardViewModels.filter(
-    (model) => !pinning.pinnedEventIds.includes(model.id.threadRootId)
-  );
+  const sectionRows = threadSections
+    ? stagedRows.filter((key) => sectionOfRow(key) || modelByRootId.has(key))
+    : [];
   // The cards glide to a new order or to the place the filter bar leaves them, a new one fades
   // in and one that left fades out. After the hook that holds the order: it scrolls the list
   // where the browser does not anchor it.
@@ -322,7 +378,9 @@ export function CompactRoomView({
     models.map((model) => model.id.threadRootId).join(',');
   const listMotion = useListMotion(
     contentRef,
-    `${filterBarShown}|${rootIdsOf(pinnedCards)}|${rootIdsOf(ordinaryCards)}`
+    threadSections
+      ? `${filterBarShown}|${sectionRows.join(',')}`
+      : `${filterBarShown}|${rootIdsOf(pinnedCards)}|${rootIdsOf(ordinaryCards)}`
   );
 
   // A fully stable click handler keeps the memoized cards from re-rendering
@@ -413,13 +471,46 @@ export function CompactRoomView({
     );
   };
 
+  const renderSectionHeader = (id: ThreadSectionId) => {
+    const key = sectionRowKey(id);
+    const closed = folded.includes(id);
+    const count = sectionCounts.get(id) ?? 0;
+    return (
+      <div key={key} className={css.SectionHeader} data-motion-row={key} data-compact-section={id}>
+        <Button
+          size="300"
+          variant="Secondary"
+          fill="None"
+          radii="300"
+          aria-expanded={!closed}
+          onClick={() => updateSectionsChoice({ type: 'TOGGLE_FOLD', id })}
+          before={
+            <Icon
+              size="100"
+              src={closed ? Icons.ChevronRight : Icons.ChevronBottom}
+              data-directional={closed || undefined}
+            />
+          }
+        >
+          <Text size="B300">{`${t(`threadNav.sections.${id}`)} · ${count}`}</Text>
+        </Button>
+      </div>
+    );
+  };
+  const renderRow = (key: string) => {
+    const sectionId = sectionOfRow(key);
+    if (sectionId) return renderSectionHeader(sectionId);
+    const model = modelByRootId.get(key);
+    return model ? renderCard(model) : null;
+  };
+
   return (
     <Box
       ref={viewRef}
       className={css.View}
       data-compact-room-view="true"
       // Cards still to mount: the cards' end is further down than the view's.
-      data-cards-pending={stagedRootIds.length < shownRootIds.length || undefined}
+      data-cards-pending={stagedRows.length < shownRootIds.length || undefined}
       tabIndex={-1}
     >
       <Box
@@ -471,6 +562,8 @@ export function CompactRoomView({
               {t('mindroomUi.threads.compactRoomView.noThreads')}
             </Text>
           </Box>
+        ) : threadSections ? (
+          sectionRows.map(renderRow)
         ) : (
           ordinaryCards.map(renderCard)
         )}

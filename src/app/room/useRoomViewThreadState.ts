@@ -47,6 +47,7 @@ import {
   updateThreadFilterKey,
 } from '../event-store/threads/roomThreadOverviewModel';
 import { roomThreadFilterAtomFamily } from '../threads/overview/roomThreadFilterState';
+import { getCompactRoomSectionsAtom } from '../threads/overview/compactRoomSections';
 import type { RoomViewMode } from '../navigation/roomViewMode';
 import {
   applyParsedThreadFilterQuery,
@@ -87,6 +88,8 @@ export type RoomViewThreadState = {
   handleSortDirectionChange: () => void;
   handleToggle: (key: ThreadFilterKey) => void;
   handleToggleThreadSortFreeze: () => void;
+  /** Turns Compact's Sections on or off, for every room of the account. */
+  handleToggleThreadSections: () => void;
   handleToggleUnresolvedOnly: () => void;
   handleTogglePerson: (userId: string) => void;
   handleRoomMessageSent: (eventId: string) => boolean;
@@ -96,6 +99,8 @@ export type RoomViewThreadState = {
   threadFilterState: ThreadFilterState;
   threadSortFreezeState: ThreadSortFreezeState | null;
   threadSummaryInfo?: ThreadSummaryInfo;
+  /** Compact shows its cards in sections: Working, Snoozed, Idle and Resolved. */
+  threadSections: boolean;
   /** The open thread is not in this room, and no joined room the client knows holds it. */
   threadNotFound: boolean;
   viewMode: RoomViewMode;
@@ -141,23 +146,29 @@ export const useRoomViewThreadState = ({
   // cause, but remain stored so they can be restored when those controls
   // become available again.
   const [simpleMode] = useSetting(settingsAtom, 'simpleThreadFilters');
-  const effectiveThreadFilterState = useMemo(() => {
-    if (simpleMode) {
-      return hasMindroomAgents
+  const [compactSections, updateCompactSections] = useAtom(
+    useMemo(() => getCompactRoomSectionsAtom(userId), [userId])
+  );
+  const threadSections = effectiveViewMode === 'compact' && compactSections.on;
+  const effectiveThreadFilterState = useMemo<ThreadFilterState>(() => {
+    const projected = simpleMode
+      ? hasMindroomAgents
         ? simplifyThreadFilterState(threadFilterState)
-        : simplifyAgentlessSimpleThreadFilterState(threadFilterState);
-    }
-    return hasMindroomAgents
+        : simplifyAgentlessSimpleThreadFilterState(threadFilterState)
+      : hasMindroomAgents
       ? threadFilterState
       : simplifyAgentlessThreadFilterState(threadFilterState);
-  }, [hasMindroomAgents, simpleMode, threadFilterState]);
+    // Sections show resolved and snoozed threads in sections of their own instead of hiding them;
+    // the stored filter keeps its choice for when they are off.
+    return threadSections ? { ...projected, resolved: 'any', snoozed: 'any' } : projected;
+  }, [hasMindroomAgents, simpleMode, threadFilterState, threadSections]);
   const lastExitedThread = useAtomValue(lastExitedThreadAtom);
   const setLastExitedThread = useSetAtom(lastExitedThreadAtom);
   const [threadSortFreezeState, setThreadSortFreezeState] = useState<ThreadSortFreezeState | null>(
     null
   );
   const effectiveThreadSortFreezeState =
-    hasMindroomAgents && !simpleMode ? threadSortFreezeState : null;
+    hasMindroomAgents && !simpleMode && !threadSections ? threadSortFreezeState : null;
   const { summaryMap, storeThreadSummary } = useRoomThreadSummaryState({
     roomId,
     sessionId,
@@ -399,6 +410,10 @@ export const useRoomViewThreadState = ({
     );
   }, []);
 
+  const handleToggleThreadSections = useCallback(() => {
+    updateCompactSections({ type: 'SET_ON', on: !compactSections.on });
+  }, [compactSections.on, updateCompactSections]);
+
   const handleReset = useCallback(() => {
     // Reset discards a pending typed query outright — flushing it first
     // would resurrect the filters the user is clearing.
@@ -516,6 +531,7 @@ export const useRoomViewThreadState = ({
     handleSortDirectionChange,
     handleToggle,
     handleToggleThreadSortFreeze,
+    handleToggleThreadSections,
     handleToggleUnresolvedOnly,
     handleTogglePerson,
     handleRoomMessageSent,
@@ -525,6 +541,7 @@ export const useRoomViewThreadState = ({
     threadFilterState: effectiveThreadFilterState,
     threadSortFreezeState: effectiveThreadSortFreezeState,
     threadSummaryInfo,
+    threadSections,
     threadNotFound,
     viewMode: effectiveViewMode,
   };
