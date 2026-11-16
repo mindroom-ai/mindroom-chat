@@ -1,5 +1,5 @@
 import { act, create } from 'react-test-renderer';
-import { createClient, MatrixEvent, Room, type MatrixClient, type Thread } from 'matrix-js-sdk';
+import { createClient, MatrixEvent, Room, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel, ThreadRecord } from '../../event-store/threads/types';
 import { useCompactThreadCardViewModels } from './compactThreadCardViewModel';
@@ -130,52 +130,6 @@ describe('compact card formatting work', () => {
     harness.unmount();
   });
 
-  it("keeps a room's cards when its list mounts again, as on the way back from a thread", () => {
-    const format = vi.spyOn(Intl.NumberFormat.prototype as { format: unknown }, 'format', 'get');
-    const first = mount(room, [record('$a'), record('$b')]);
-    const original = first.models;
-    first.unmount();
-    expect(format).toHaveBeenCalledTimes(4);
-
-    // Each mount of `useTranslation` gives a function of its own for the same language.
-    state.t = vi.fn(state.t.getMockImplementation());
-    const again = mount(room, [record('$a'), record('$b', 1001)]);
-    expect(again.models[0]).toBe(original[0]);
-    expect(again.models[1]!.messageCount).toBe(1001);
-    expect(format).toHaveBeenCalledTimes(6);
-    again.unmount();
-
-    // Another room builds its own cards.
-    const other = new Room('!other:server', state.mx!, '@me:server');
-    const elsewhere = mount(other, [{ ...record('$a'), roomId: '!other:server' }]);
-    expect(elsewhere.models[0]).not.toBe(original[0]);
-    expect(elsewhere.models[0]!.id.roomId).toBe('!other:server');
-    elsewhere.unmount();
-  });
-
-  it('keeps the cards a render leaves out while their threads are listed, as cards mount in chunks', () => {
-    const records = [record('$a'), record('$b'), record('$c')];
-    let latest: CompactThreadCardViewModel[] = [];
-    const Harness = ({ ids }: { ids: string[] }) => {
-      latest = useCompactThreadCardViewModels({
-        room,
-        threadRootIds: ids,
-        threadRecordMap: new Map(records.map((value) => [value.threadRootId, value])),
-      });
-      return null;
-    };
-    let renderer: ReturnType<typeof create>;
-    act(() => {
-      renderer = create(<Harness ids={['$a', '$b', '$c']} />);
-    });
-    const all = latest;
-    act(() => renderer.update(<Harness ids={['$a']} />));
-    act(() => renderer.update(<Harness ids={['$a', '$b', '$c']} />));
-    expect(latest).toEqual(all);
-    latest.forEach((model, index) => expect(model).toBe(all[index]));
-    act(() => renderer.unmount());
-  });
-
   it('refreshes mutable member names, avatars, resolver names, and newly loaded inline mentions', () => {
     const first = record('$a');
     first.status.isResolved = true;
@@ -193,45 +147,6 @@ describe('compact card formatting work', () => {
     expect(harness.models[0]!.resolvedByDisplayName).toBe('Alicia');
     expect(harness.models[0]!.participants[0]!.avatarUrl).not.toBe(oldAvatar);
     harness.unmount();
-  });
-
-  it('names a member with their user ID once a nameless member it reads as joins', () => {
-    const setMembership = (userId: string, membership: string) =>
-      room.currentState.setStateEvents([
-        new MatrixEvent({
-          type: 'm.room.member',
-          room_id: room.roomId,
-          state_key: userId,
-          sender: userId,
-          event_id: `$${membership}${userId}`,
-          content: { membership },
-        }),
-      ]);
-    setMember(room, '@alice:server', 'carol');
-    setMembership('@carol:server', 'leave');
-    const first = mount(room, [record('$a')]);
-    expect(first.models[0]!.previewText.startsWith('carol: ')).toBe(true);
-    first.unmount();
-
-    // The nameless member, who shows as their localpart, comes back while the list is unmounted.
-    setMembership('@carol:server', 'join');
-    const again = mount(room, [record('$a')]);
-    expect(again.models[0]!.previewText.startsWith('carol (⁦@alice:server⁩): ')).toBe(true);
-    again.unmount();
-  });
-
-  it("names the root's sender once the root loads after the card was built", () => {
-    const rootPreview = record('$a');
-    rootPreview.presentation.latestReplyPreviewText = undefined;
-    const first = mount(room, [rootPreview]);
-    expect(first.models[0]!.previewText).toBe('Conversation with Alice');
-    first.unmount();
-
-    const rootEvent = new MatrixEvent({ event_id: '$a', sender: '@alice:server' });
-    vi.spyOn(room, 'getThread').mockReturnValue({ rootEvent } as unknown as Thread);
-    const again = mount(room, [structuredClone(rootPreview)]);
-    expect(again.models[0]!.previewText).toBe('Alice: Conversation with Alice');
-    again.unmount();
   });
 
   it('refreshes locale, media authentication, and native token changes', () => {

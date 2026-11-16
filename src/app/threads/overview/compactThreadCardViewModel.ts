@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import type { MatrixClient } from 'matrix-js-sdk';
@@ -265,19 +265,6 @@ type CachedCardViewModel = {
   viewModel: CompactThreadCardViewModel;
 };
 
-type CardViewModelCache = {
-  mx: MatrixClient;
-  contextSignature: string;
-  models: Map<string, CachedCardViewModel>;
-};
-
-/**
- * The cards last built for each room. Per room, not per mount: on a phone, opening a thread
- * unmounts the room's cards and going back mounts them again, which rebuilt every card of a
- * room with hundreds of threads before the first frame.
- */
-const viewModelCaches = new WeakMap<Room, CardViewModelCache>();
-
 export const useCompactThreadCardViewModels = ({
   room,
   threadRootIds,
@@ -290,13 +277,18 @@ export const useCompactThreadCardViewModels = ({
   const currentUserId = mx.getUserId() ?? undefined;
   // Records are rebuilt on every index refresh. Snapshot their values before
   // formatting so an unrelated streaming edit does not rebuild every card.
+  const viewModelCacheRef = useRef<{
+    mx: MatrixClient;
+    room: Room;
+    t: TFunction;
+    contextSignature: string;
+    models: Map<string, CachedCardViewModel>;
+  }>();
+
   return useMemo(() => {
-    const previousCache = viewModelCaches.get(room);
+    const previousCache = viewModelCacheRef.current;
     // SDK member objects mutate in place. Include all members because titles
-    // and previews can mention people outside the thread's participant list, and
-    // their memberships too: whether a name needs its user ID depends on who else
-    // is in the room. The language stands for `t`, which each mount of
-    // `useTranslation` gives anew.
+    // and previews can mention people outside the thread's participant list.
     const contextSignature = JSON.stringify([
       currentUserId,
       language,
@@ -310,16 +302,13 @@ export const useCompactThreadCardViewModels = ({
       new Intl.DateTimeFormat().resolvedOptions().timeZone,
       room
         .getMembers()
-        .map((member) => [
-          member.userId,
-          member.rawDisplayName,
-          member.name,
-          member.membership,
-          member.getMxcAvatarUrl(),
-        ]),
+        .map((member) => [member.userId, member.rawDisplayName, member.getMxcAvatarUrl()]),
     ]);
     const canReuseInputs =
-      previousCache?.mx === mx && previousCache.contextSignature === contextSignature;
+      previousCache?.mx === mx &&
+      previousCache.room === room &&
+      previousCache.t === t &&
+      previousCache.contextSignature === contextSignature;
     const nextCache = new Map<string, CachedCardViewModel>();
     const viewModels: CompactThreadCardViewModel[] = [];
 
@@ -327,14 +316,11 @@ export const useCompactThreadCardViewModels = ({
       const record = threadRecordMap.get(threadRootId);
       if (!record) return;
 
-      // A card previewing its root names the root's sender, and the root may load after the
-      // card was built.
       const inputSignature = JSON.stringify([
         record.roomId,
         record.threadRootId,
         record.presentation,
         record.status,
-        room.getThread(threadRootId)?.rootEvent?.getSender(),
       ]);
       const cached = previousCache?.models.get(threadRootId);
       // Scheduled labels read the clock; keep their existing refresh cadence.
@@ -364,16 +350,7 @@ export const useCompactThreadCardViewModels = ({
       viewModels.push(viewModel);
     });
 
-    // A render of some cards (the first ones, while the others mount a chunk at a time) keeps the
-    // cards of the room's other listed threads for the renders that show them.
-    if (canReuseInputs) {
-      previousCache?.models.forEach((cached, threadRootId) => {
-        if (!nextCache.has(threadRootId) && threadRecordMap.has(threadRootId)) {
-          nextCache.set(threadRootId, cached);
-        }
-      });
-    }
-    viewModelCaches.set(room, { mx, contextSignature, models: nextCache });
+    viewModelCacheRef.current = { mx, room, t, contextSignature, models: nextCache };
     return viewModels;
   }, [currentUserId, language, mx, room, t, threadRecordMap, threadRootIds, useAuthentication]);
 };

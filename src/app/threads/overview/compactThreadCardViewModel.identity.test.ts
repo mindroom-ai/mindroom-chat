@@ -23,7 +23,6 @@ const makeRoom = (): Room =>
     roomId: '!room:server',
     getMember: () => undefined,
     getMembers: () => [],
-    getThread: () => null,
   } as unknown as Room);
 
 const makeRecord = (threadRootId: string, messageCount: number): ThreadRecord =>
