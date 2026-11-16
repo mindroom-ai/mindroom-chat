@@ -575,9 +575,22 @@ const report = (
   );
 };
 
+/**
+ * Slows the page's CPU; a rate above 1 needs Chromium. Each scenario sets it again: in the
+ * Chromium that Playwright installs on a Mac a rate set once held for the first scenario only
+ * (the probe detaches its developer tools session at the end of each window, and the rate was 1
+ * after that). This session therefore stays attached.
+ */
+const throttleCpu = async (page: Page, rate: number): Promise<void> => {
+  if (rate === 1) return;
+  const session = await page.context().newCDPSession(page);
+  await session.send('Emulation.setCPUThrottlingRate', { rate });
+};
+
 const runScenario = async (run: Run, name: Scenario): Promise<void> => {
   const { page, driver } = run;
   const label = `${name}-${run.engine}-${run.throttle}x-${run.suffix}`;
+  await throttleCpu(page, run.throttle);
   const prepared = await SCENARIO[name].prepare(run);
   expectDriverRuns(label, driver);
   const from = Date.now();
@@ -615,15 +628,7 @@ const runScenario = async (run: Run, name: Scenario): Promise<void> => {
   report(result, extra, achieved, driver);
 };
 
-/** Slows the page's CPU; a rate above 1 needs Chromium. */
-const throttleCpu = async (page: Page, rate: number): Promise<void> => {
-  if (rate === 1) return;
-  const session = await page.context().newCDPSession(page);
-  await session.send('Emulation.setCPUThrottlingRate', { rate });
-};
-
 const runScenarios = async (run: Run): Promise<void> => {
-  await throttleCpu(run.page, run.throttle);
   for (const name of scenarios) {
     await test.step(name, () => runScenario(run, name));
   }
