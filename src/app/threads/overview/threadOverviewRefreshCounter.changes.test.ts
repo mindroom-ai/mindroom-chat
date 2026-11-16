@@ -223,21 +223,24 @@ describe('useThreadOverviewRefreshCounter changes', () => {
   });
 
   it('marks the thread of every event that decrypts, also while a count is due', async () => {
-    const { client, told } = setup();
+    const { client, told, state: stateOf } = setup();
     const first = event({ id: '$a1', threadRootId: '$a' });
     const second = event({ id: '$b1', threadRootId: '$b' });
 
+    const counter = stateOf().overviewRefreshCounter;
     expect(
       told(() => {
         client.emit(MatrixEventEvent.Decrypted, first);
         client.emit(MatrixEventEvent.Decrypted, second);
-      }).marked
-    ).toEqual(['$a', '$b']);
+      })
+    ).toEqual({ marked: ['$a', '$b'], counted: 0 });
     await act(async () => {
       await new Promise((resolve) => {
         setTimeout(resolve, 0);
       });
     });
+    // Both events wait for the one count of their batch.
+    expect(stateOf().overviewRefreshCounter).toBe(counter + 1);
   });
 
   // Sources a record reads that raise no count: each shows at the next count of any event.
