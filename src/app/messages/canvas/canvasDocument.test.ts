@@ -1,6 +1,9 @@
 import { JSDOM } from 'jsdom';
 import { describe, expect, it } from 'vitest';
 import {
+  CANVAS_SIZE_MESSAGE,
+  readCanvasSize,
+  clampInlineCanvasHeight,
   buildCanvasDocument,
   buildCanvasPage,
   CANVAS_CSP,
@@ -207,9 +210,18 @@ describe('kept inputs', () => {
   const open = (html: string, inputs?: string) => {
     const { window } = new JSDOM(buildCanvasPage(html, 'light', undefined, false, { inputs }), {
       runScripts: 'dangerously',
+      beforeParse(win) {
+        Object.defineProperty(win, 'ResizeObserver', {
+          value: class {
+            observe() {}
+          },
+        });
+      },
     });
     const sent: string[] = [];
-    window.addEventListener('message', (event) => sent.push(event.data.inputs));
+    window.addEventListener('message', (event) => {
+      if (event.data.type === CANVAS_STATE_MESSAGE) sent.push(event.data.inputs);
+    });
     const $ = <T extends Element = HTMLInputElement>(selector: string) =>
       window.document.querySelector(selector) as unknown as T;
     const use = (selector: string, set: (control: HTMLInputElement) => void, type = 'input') => {
@@ -512,11 +524,18 @@ describe('kept inputs', () => {
     const { window } = new JSDOM(buildCanvasPage(RATE, 'light'), {
       runScripts: 'dangerously',
       beforeParse(win) {
+        Object.defineProperty(win, 'ResizeObserver', {
+          value: class {
+            observe() {}
+          },
+        });
         Object.defineProperty(win.navigator, 'userActivation', { value: { hasBeenActive: false } });
       },
     });
     const sent: Array<Record<string, unknown>> = [];
-    window.addEventListener('message', (event) => sent.push(event.data));
+    window.addEventListener('message', (event) => {
+      if (event.data.type === CANVAS_STATE_MESSAGE) sent.push(event.data);
+    });
     await settle();
     (window.document.querySelector('#rate') as HTMLInputElement).value = '7';
     window.document
@@ -775,5 +794,58 @@ describe('canvasFrameWindow', () => {
     });
     const panelFrame = { contentWindow: { frames } } as unknown as HTMLIFrameElement;
     expect(canvasFrameWindow(panelFrame)).toBeUndefined();
+  });
+});
+
+describe('inline canvas sizing', () => {
+  const frame = {} as Window;
+  const message = (height: unknown, overrides: Partial<MessageEvent> = {}) =>
+    ({
+      source: frame,
+      origin: 'null',
+      data: { type: 'mindroom.canvas.size', version: 1, height },
+      ...overrides,
+    } as MessageEvent);
+
+  it('reads only finite positive sizes from its opaque canvas frame', () => {
+    expect(readCanvasSize(message(412.3), frame)).toBe(412.3);
+    for (const height of [NaN, Infinity, 0, -1, '412', undefined]) {
+      expect(readCanvasSize(message(height), frame)).toBeUndefined();
+    }
+    for (const overrides of [
+      { source: {} as Window },
+      { origin: 'https://example.org' },
+      { data: { type: 'mindroom.canvas.size', version: 2, height: 400 } },
+      { data: { type: 'mindroom.canvas.submit', version: 1, height: 400 } },
+      { data: null },
+    ])
+      expect(readCanvasSize(message(400, overrides), frame)).toBeUndefined();
+    expect(readCanvasSize(message(400), undefined)).toBeUndefined();
+  });
+
+  it.each([
+    [10, 80],
+    [412.3, 413],
+    [50000, 20000],
+  ])('clamps %s to %s pixels', (height, expected) => {
+    expect(clampInlineCanvasHeight(height)).toBe(expected);
+  });
+
+  it('reports changed document sizes after resize and load in every canvas', () => {
+    const page = buildCanvasPage('<p>hi</p>', 'light');
+    expect(page).toContain('new ResizeObserver(');
+    expect(page).toContain('observe(document.documentElement)');
+    expect(page).toContain('observe(document.body)');
+    expect(page).toContain("addEventListener('load',");
+    expect(page).toContain(`type: '${CANVAS_SIZE_MESSAGE}'`);
+  });
+
+  it('uses transparent padded inline pages without changing panel defaults', () => {
+    const page = buildCanvasPage('', 'light', undefined, false, {}, true);
+    expect(page).toContain('padding:8px;background:transparent');
+    expect(buildCanvasPage('', 'light')).toContain('padding:16px;background:var(--mr-bg)');
+    expect(buildCanvasDocument('', 'light', undefined, '', false, {}, true)).toContain(
+      'padding:8px;background:transparent'
+    );
   });
 });

@@ -4,6 +4,33 @@ export const CANVAS_SUBMIT_MESSAGE = 'mindroom.canvas.submit';
 export const CANVAS_ESCAPE_MESSAGE = 'mindroom.canvas.escaped';
 export const CANVAS_ERROR_MESSAGE = 'mindroom.canvas.error';
 export const CANVAS_STATE_MESSAGE = 'mindroom.canvas.state';
+export const CANVAS_SIZE_MESSAGE = 'mindroom.canvas.size';
+
+/** Only the opaque page inside this host may resize its frame. */
+export const readCanvasSize = (
+  event: MessageEvent,
+  frame: Window | null | undefined
+): number | undefined => {
+  if (!frame || event.source !== frame || event.origin !== 'null') return undefined;
+  const data: unknown = event.data;
+  if (
+    !data ||
+    typeof data !== 'object' ||
+    !('type' in data) ||
+    data.type !== CANVAS_SIZE_MESSAGE ||
+    !('version' in data) ||
+    data.version !== 1 ||
+    !('height' in data) ||
+    typeof data.height !== 'number' ||
+    !Number.isFinite(data.height) ||
+    data.height <= 0
+  )
+    return undefined;
+  return data.height;
+};
+
+export const clampInlineCanvasHeight = (height: number): number =>
+  Math.min(20000, Math.max(80, Math.ceil(height)));
 
 /** The JSON a page may save as its state, in characters. */
 export const CANVAS_STATE_MAX_LENGTH = 256 * 1024;
@@ -234,6 +261,22 @@ const bridgeScript = (
     try { delete window[name]; } catch (error) {}
     try { Object.defineProperty(window, name, { value: undefined, configurable: false }); } catch (error) {}
   });
+  let lastHeight;
+  const reportSize = () => {
+    const root = document.documentElement;
+    const height = Math.ceil(root.scrollHeight > root.clientHeight
+      ? root.scrollHeight : root.getBoundingClientRect().height);
+    if (height === lastHeight) return;
+    lastHeight = height;
+    parent.parent.postMessage({ type: '${CANVAS_SIZE_MESSAGE}', version: 1, height }, '*');
+  };
+  document.addEventListener('DOMContentLoaded', () => {
+    const observer = new ResizeObserver(reportSize);
+    observer.observe(document.documentElement);
+    if (document.body) observer.observe(document.body);
+    reportSize();
+  });
+  addEventListener('load', reportSize);
   const post = (data, options) => {
     const label = options && typeof options.label === 'string' ? options.label : undefined;
     parent.parent.postMessage({ type: '${CANVAS_SUBMIT_MESSAGE}', version: 1, data, label }, '*');
@@ -323,7 +366,8 @@ export const buildCanvasPage = (
   colorScheme: CanvasColorScheme,
   theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme],
   libraries = false,
-  saved: CanvasSaved = {}
+  saved: CanvasSaved = {},
+  inline = false
 ): string => {
   const head = (lineOffset: number) =>
     [
@@ -331,7 +375,14 @@ export const buildCanvasPage = (
       `<meta http-equiv="Content-Security-Policy" content="${canvasPolicy(libraries)}">`,
       `<meta name="color-scheme" content="${colorScheme}">`,
       '<meta name="viewport" content="width=device-width, initial-scale=1">',
-      `<style>${canvasThemeCss(theme)}${BASE_STYLE}</style>`,
+      `<style>${canvasThemeCss(theme)}${
+        inline
+          ? BASE_STYLE.replace(
+              'padding:16px;background:var(--mr-bg)',
+              'padding:8px;background:transparent'
+            )
+          : BASE_STYLE
+      }</style>`,
       `<script>${bridgeScript(colorScheme, lineOffset, saved)}</script>`,
       '</head><body>',
     ].join('');
@@ -351,7 +402,8 @@ export const buildCanvasDocument = (
   theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme],
   title = '',
   libraries = false,
-  saved: CanvasSaved = {}
+  saved: CanvasSaved = {},
+  inline = false
 ): string =>
   [
     '<!doctype html><html><head><meta charset="utf-8">',
@@ -370,7 +422,9 @@ export const buildCanvasDocument = (
     '  loads += 1;',
     `  if (loads > 1) parent.postMessage({ type: '${CANVAS_ESCAPE_MESSAGE}' }, '*');`,
     '});',
-    `frame.srcdoc = ${scriptLiteral(buildCanvasPage(html, colorScheme, theme, libraries, saved))};`,
+    `frame.srcdoc = ${scriptLiteral(
+      buildCanvasPage(html, colorScheme, theme, libraries, saved, inline)
+    )};`,
     'document.body.append(frame);',
     '})();</script></body></html>',
   ].join('');
