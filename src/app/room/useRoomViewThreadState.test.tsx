@@ -444,6 +444,45 @@ describe('useRoomViewThreadState', () => {
       expect(current().threadFilterState).toMatchObject(hidden);
     });
 
+    it('survive Sections going off while a typed query still waits', () => {
+      vi.useFakeTimers();
+      const { store, current } = mountThreadState({ advancedFilters: true });
+      act(() => current().handleToggleThreadSections());
+
+      act(() => current().handleSearchQueryChange('foo'));
+      act(() => current().handleToggleThreadSections());
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+
+      // The room's defaults: a fresh Compact room hides resolved and snoozed threads.
+      expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID))).toMatchObject({
+        ...hidden,
+        freeText: 'foo',
+      });
+      expect(current().threadFilterState).toMatchObject({ ...hidden, freeText: 'foo' });
+    });
+
+    it.each([
+      ['Reset', (state: RoomViewThreadState) => state.handleReset()],
+      [
+        'the All preset',
+        (state: RoomViewThreadState) =>
+          state.handleApplyPreset(FILTER_PRESETS.find((preset) => preset.id === 'all')!),
+      ],
+    ])('go back to the room defaults with %s', (_name, clear) => {
+      vi.useFakeTimers();
+      storeFilter({ ...createDefaultThreadFilterState(), resolved: 'include', snoozed: 'any' });
+      const { store, current } = mountThreadState({ advancedFilters: true });
+      act(() => current().handleToggleThreadSections());
+
+      act(() => clear(current()));
+
+      expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID))).toMatchObject(hidden);
+      act(() => current().handleToggleThreadSections());
+      expect(current().threadFilterState).toMatchObject(hidden);
+    });
+
     it('survive a preset', () => {
       const { current, stored, sectionsOff } = mountWithSections();
       const archived = FILTER_PRESETS.find((preset) => preset.id === 'archived')!;

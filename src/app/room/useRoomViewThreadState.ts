@@ -132,15 +132,15 @@ export const useRoomViewThreadState = ({
   );
   const [storedThreadFilterState, setThreadFilterState] = useAtom(threadFilterAtom);
   // Until the reader sets a filter in the room, Compact hides resolved and snoozed threads.
-  const threadFilterState = useMemo<ThreadFilterState>(
-    () =>
-      storedThreadFilterState ?? {
-        ...createDefaultThreadFilterState(),
-        resolved: effectiveViewMode === 'compact' ? 'exclude' : 'any',
-        snoozed: effectiveViewMode === 'compact' ? 'exclude' : 'any',
-      },
-    [effectiveViewMode, storedThreadFilterState]
+  const roomDefaultThreadFilterState = useMemo<ThreadFilterState>(
+    () => ({
+      ...createDefaultThreadFilterState(),
+      resolved: effectiveViewMode === 'compact' ? 'exclude' : 'any',
+      snoozed: effectiveViewMode === 'compact' ? 'exclude' : 'any',
+    }),
+    [effectiveViewMode]
   );
+  const threadFilterState = storedThreadFilterState ?? roomDefaultThreadFilterState;
   // Project stored filters onto the controls that are currently visible.
   // Persisted advanced filters must not keep hiding threads with no visible
   // cause, but remain stored so they can be restored when those controls
@@ -319,12 +319,15 @@ export const useRoomViewThreadState = ({
   useEffect(() => () => globalThis.clearTimeout(searchQueryDebounceRef.current), []);
 
   // Sections hide the resolved and snoozed filters, so while they are on every write keeps those
-  // two as stored: a search, a status token or a preset changes nothing the reader cannot see.
+  // two as stored (`hidden`): a search, a status token or a preset changes nothing the reader
+  // cannot see. Only a reset of everything sets them, to the room's defaults.
   const storeThreadFilterState = useCallback(
-    (next: ThreadFilterState): ThreadFilterState => {
-      const stored = threadFilterStateRef.current;
+    (
+      next: ThreadFilterState,
+      hidden: Pick<ThreadFilterState, 'resolved' | 'snoozed'> = threadFilterStateRef.current
+    ): ThreadFilterState => {
       const kept = threadSectionsRef.current
-        ? { ...next, resolved: stored.resolved, snoozed: stored.snoozed }
+        ? { ...next, resolved: hidden.resolved, snoozed: hidden.snoozed }
         : next;
       threadFilterStateRef.current = kept;
       setThreadFilterState(kept);
@@ -425,9 +428,11 @@ export const useRoomViewThreadState = ({
     );
   }, []);
 
+  // A typed query still waiting applies first, with the filters it was typed against.
   const handleToggleThreadSections = useCallback(() => {
+    flushPendingSearchQuery();
     updateCompactSections({ type: 'SET_ON', on: !compactSections.on });
-  }, [compactSections.on, updateCompactSections]);
+  }, [compactSections.on, flushPendingSearchQuery, updateCompactSections]);
 
   const handleReset = useCallback(() => {
     // Reset discards a pending typed query outright — flushing it first
@@ -435,8 +440,8 @@ export const useRoomViewThreadState = ({
     globalThis.clearTimeout(searchQueryDebounceRef.current);
     searchQueryDebounceRef.current = undefined;
     pendingSearchQueryRef.current = undefined;
-    storeThreadFilterState(resetThreadFilterState());
-  }, [storeThreadFilterState]);
+    storeThreadFilterState(resetThreadFilterState(), roomDefaultThreadFilterState);
+  }, [roomDefaultThreadFilterState, storeThreadFilterState]);
 
   const handleAddTag = useCallback(
     (tag: string) => {
@@ -454,9 +459,12 @@ export const useRoomViewThreadState = ({
 
   const handleApplyPreset = useCallback(
     (preset: FilterPreset) => {
-      storeThreadFilterState(applyPreset(flushPendingSearchQuery(), preset));
+      storeThreadFilterState(
+        applyPreset(flushPendingSearchQuery(), preset),
+        preset.id === 'all' ? roomDefaultThreadFilterState : undefined
+      );
     },
-    [flushPendingSearchQuery, storeThreadFilterState]
+    [flushPendingSearchQuery, roomDefaultThreadFilterState, storeThreadFilterState]
   );
 
   const handleRoomMessageSent = useCallback(
