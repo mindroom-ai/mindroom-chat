@@ -20,8 +20,9 @@ import { hasShortcutHandler, runShortcut } from '../shortcuts/useShortcut';
 import {
   THEMES,
   deploymentThemeAtom,
+  themePreviewAtom,
   themeSettingsAtom,
-  useTheme,
+  useChosenTheme,
   withSystemTheme,
 } from '../theme/useTheme';
 import {
@@ -62,7 +63,7 @@ const SHORTCUT_COMMANDS: readonly (readonly [ShortcutId, number])[] = [
 ];
 
 /** A choice of a page and what choosing it does. */
-type Choice = CommandPaletteChoice & { choose: () => void };
+type Choice = CommandPaletteChoice & { choose: () => void; preview?: () => () => void };
 
 const choiceRows = (
   pageId: CommandPalettePageId,
@@ -71,6 +72,7 @@ const choiceRows = (
   getCommandPalettePageRows(pageId, choices).map((row, index) => ({
     ...row,
     onSelect: choices[index]?.choose,
+    preview: choices[index]?.preview,
   }));
 
 /**
@@ -89,7 +91,8 @@ export const useCommandPaletteCommands = ({
   const store = useStore();
   const settings = useAtomValue(settingsAtom);
   const { useSystemTheme } = useAtomValue(themeSettingsAtom);
-  const themeId = useTheme().id;
+  // The chosen theme, not the one shown for a look: the check mark stays on what is stored.
+  const themeId = useChosenTheme().id;
   const languageCode = useAppLanguageCode();
   const searchValues = useSettingsSearchValues();
   // The context is a new object on every render; the settings it shows keep their list until
@@ -151,6 +154,11 @@ export const useCommandPaletteCommands = ({
             themeId: theme.id,
             useSystemTheme: false,
           }),
+        // The whole app shows the highlighted theme; nothing is stored until it is chosen.
+        preview: () => {
+          store.set(themePreviewAtom, theme.id);
+          return () => store.set(themePreviewAtom, undefined);
+        },
       })
     );
     const systemTheme: Executable<CommandPaletteActionItem> = {

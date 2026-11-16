@@ -23,8 +23,11 @@ type CommandPaletteBaseItem = {
 
 export type CommandPalettePageId = 'theme' | 'message-layout' | 'language';
 
-/** A row together with what choosing it does. */
-export type Executable<T> = T & { onSelect?: () => void };
+/**
+ * A row together with what choosing it does. `preview` shows what choosing it would do while the
+ * row is highlighted in its page, and returns what takes that back.
+ */
+export type Executable<T> = T & { onSelect?: () => void; preview?: () => () => void };
 
 export type CommandPaletteActionItem = CommandPaletteBaseItem & {
   kind: 'action';

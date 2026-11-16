@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useLayoutEffect, useState } from 'react';
-import { Provider as JotaiProvider, useSetAtom } from 'jotai';
+import { Provider as JotaiProvider, useAtomValue, useSetAtom } from 'jotai';
 import { RouterProvider } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -11,6 +11,8 @@ import {
   ThemeContextProvider,
   deploymentDefaultTheme,
   deploymentThemeAtom,
+  getThemeById,
+  themePreviewAtom,
   useSignedOutTheme,
   useTheme,
 } from '../theme/useTheme';
@@ -38,13 +40,14 @@ setImperativeJotaiStore(appJotaiStore);
  * Applies the theme to the document whenever it changes (a new setting, the system switching
  * between light and dark, signing in or out) and provides it to the app. Signed out, the app
  * shows the deployment's default theme or follows the system, as the startup theme does; signed
- * in, it uses the theme settings.
+ * in, it uses the theme settings. A theme shown for a look (`themePreviewAtom`) goes before both.
  */
 export function AppTheme({ children }: { children: ReactNode }) {
   const signedIn = !!useActiveSession();
   const settingsTheme = useTheme();
   const signedOutTheme = useSignedOutTheme();
-  const theme = signedIn ? settingsTheme : signedOutTheme;
+  const preview = getThemeById(useAtomValue(themePreviewAtom));
+  const theme = preview ?? (signedIn ? settingsTheme : signedOutTheme);
   usePageZoom();
 
   useEffect(() => {

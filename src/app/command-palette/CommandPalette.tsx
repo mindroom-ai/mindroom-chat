@@ -345,6 +345,14 @@ export function CommandPalette({
     inputRef.current?.focus();
   }, []);
 
+  // A page's highlighted choice shows what it would do (the Theme page: the theme), taken back
+  // as the highlight moves on, the page closes or the palette goes. A row that typed text finds
+  // on the first list shows nothing: the highlight lands there without the person's doing.
+  const preview = pageId
+    ? source.pages[pageId].items.find((choice) => choice.id === selectedItem?.id)?.preview
+    : undefined;
+  useEffect(() => preview?.(), [preview]);
+
   const startOver = () => {
     setHighlight({ index: 0 });
     if (resultsRef.current) resultsRef.current.scrollTop = 0;
