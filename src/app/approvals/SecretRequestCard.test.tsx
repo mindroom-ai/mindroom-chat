@@ -491,12 +491,23 @@ describe('SecretRequestCard', () => {
       expect(document.activeElement).toBe(card());
     });
 
-    it('moves no focus after an answer by pointer', async () => {
+    /** Focuses the field, as typing in it does, and counts the blurs it gets. */
+    const focusField = () => {
+      const field = input();
+      if (!field) throw new Error('no input');
+      const blurred = vi.fn();
+      field.addEventListener('blur', blurred);
+      act(() => field.focus());
+      return blurred;
+    };
+
+    // Safari and iOS leave the focus in the field when a pointer clicks or taps Save, and the field
+    // matches :focus-visible, so where focus sits cannot tell a tap from Enter.
+    it('blurs the field after an answer by pointer and gives the card no focus', async () => {
       env.send.mockResolvedValue(answer(204));
       render();
       type('ghp_secret');
-      // Safari leaves focus in the field when the pointer clicks Save.
-      act(() => input()?.focus());
+      const blurred = focusField();
 
       await act(async () => {
         button('Save')?.dispatchEvent(
@@ -507,6 +518,33 @@ describe('SecretRequestCard', () => {
 
       expect(env.send).toHaveBeenCalledTimes(1);
       expect(status()?.textContent).toBe('Saved, waiting for the agent');
+      expect(blurred).toHaveBeenCalledTimes(1);
+      expect(document.activeElement).toBe(document.body);
+    });
+
+    it("blurs the field when the agent's edit comes with no answer on its way", () => {
+      const value = request();
+      render(value);
+      const blurred = focusField();
+
+      render({ ...value, status: 'saved' });
+
+      expect(blurred).toHaveBeenCalledTimes(1);
+      expect(document.activeElement).toBe(document.body);
+    });
+
+    it('blurs the field at the deadline and gives the card no focus', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-11-15T12:00:00Z'));
+      render(request({ expiresAt: Date.now() + 1_000 }));
+      const blurred = focusField();
+
+      act(() => {
+        vi.advanceTimersByTime(1_000);
+      });
+
+      expect(chip()).toBe('Expired');
+      expect(blurred).toHaveBeenCalledTimes(1);
       expect(document.activeElement).toBe(document.body);
     });
 

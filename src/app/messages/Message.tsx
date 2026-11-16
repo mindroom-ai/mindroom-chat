@@ -55,7 +55,7 @@ import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { MessageLayout, type MessageSpacing } from '../preferences/settings';
 import { canEditEvent, getMemberAvatarMxc, getMemberDisplayName } from '../matrix/room';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../matrix/matrix';
-import { copyToClipboard, isKeyboardFocus, selectableTextNear } from '../lib/dom';
+import { copyToClipboard, selectableTextNear } from '../lib/dom';
 import { getMatrixToRoomEvent } from '../matrix/matrix-to';
 import { getViaServers } from '../matrix/via-servers';
 import { MessageEditor } from './edit/MessageEditor';
@@ -63,7 +63,7 @@ import { MessageBugReportItem } from '../bug-reports/MessageBugReportItem';
 import { useThreadPinning } from '../event-store/threads/useThreadPinning';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { AvatarModelMark, ModelBadge } from './agent-run/ModelBadge';
-import { useToolbarClearance } from './hoverToolbarPlacement';
+import { isKeyboardFocus, useToolbarClearance } from './hoverToolbarPlacement';
 import { getSenderNameTone } from './senderNameTone';
 import {
   AiRunControls,

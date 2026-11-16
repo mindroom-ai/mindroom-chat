@@ -1,8 +1,14 @@
-import { useEffect, useId, useRef, useState, type MutableRefObject } from 'react';
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { Box, Button, Icon, IconButton, Icons, Input, Text } from 'folds';
-import { isKeyboardFocus } from '../lib/dom';
 import { isRecord } from '../lib/isRecord';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -70,17 +76,17 @@ function SecretRequestAnswer({
   request,
   roomId,
   agentUserId,
-  keyboardFocus,
+  keyboardAnswer,
   onAnswer,
 }: {
   request: SecretRequest;
   roomId: string;
   agentUserId: string;
   /**
-   * Whether keyboard focus is in the form. Leaving the form clears it; the form going away fires
-   * no focusout, so it stays set then, and the card uses it to take the focus.
+   * Whether an answer from the keyboard is on its way or was taken; the card then takes the focus
+   * when the form goes away.
    */
-  keyboardFocus: MutableRefObject<boolean>;
+  keyboardAnswer: MutableRefObject<boolean>;
   onAnswer: (answer: Answer) => void;
 }) {
   const { t } = useTranslation();
@@ -92,14 +98,29 @@ function SecretRequestAnswer({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string>();
   const errorId = useId();
+  const form = useRef<HTMLFormElement>(null);
   // A second press before the first answer arrives sends nothing, on a busy button too.
   const sendingRef = useRef(false);
-  // A pointer that clicks Save or Decline answers without the keyboard, also where focus stayed in
-  // the field (Safari). Enter in the field clicks Save with no pointer (`detail` 0), as a key on a
-  // focused button does.
-  const notePointer = (event: { detail: number }) => {
-    if (event.detail > 0) keyboardFocus.current = false;
+  // Whether a pointer pressed Save or Decline for the answer about to start; where focus sits says
+  // nothing, as Safari and iOS leave it in the field after a tap on Save. Enter in the field clicks
+  // Save with no pointer (`detail` 0), as a key on a focused button does.
+  const pointerPress = useRef(false);
+  const notePress = (event: { detail: number }) => {
+    pointerPress.current = event.detail > 0;
   };
+
+  // Gone without an answer from the keyboard (after a pointer answer, at the deadline, or with the
+  // agent's edit): focus left in the form goes before it does, since removing the focused element
+  // fires no blur. Left there, it would keep the row's toolbar and a phone's keyboard up.
+  useLayoutEffect(() => {
+    const element = form.current;
+    return () => {
+      const focused = document.activeElement;
+      if (!keyboardAnswer.current && focused instanceof HTMLElement && element?.contains(focused)) {
+        focused.blur();
+      }
+    };
+  }, [keyboardAnswer]);
 
   if (!pending && !apiUrl) {
     // Never the published host: a person who trusts their own MindRoom server names it in Settings.
@@ -120,9 +141,13 @@ function SecretRequestAnswer({
 
   const send = async (decline: boolean) => {
     const secret = field.current?.value ?? '';
+    const byPointer = pointerPress.current;
+    pointerPress.current = false;
     if (pending || !apiUrl || sendingRef.current) return;
     if (!decline && secret.trim() === '') return;
     sendingRef.current = true;
+    keyboardAnswer.current = !byPointer;
+    let answered = false;
     setSending(true);
     setError(undefined);
     try {
@@ -138,6 +163,7 @@ function SecretRequestAnswer({
         }
       );
       if (response.ok || response.status === 404) {
+        answered = true;
         if (field.current) field.current.value = '';
         onAnswer(response.status === 404 ? 'inactive' : decline ? 'declined' : 'saved');
         return;
@@ -157,6 +183,8 @@ function SecretRequestAnswer({
       );
     } finally {
       sendingRef.current = false;
+      // The form stays for a retry; nothing is on its way any more.
+      if (!answered) keyboardAnswer.current = false;
       setSending(false);
     }
   };
@@ -164,16 +192,11 @@ function SecretRequestAnswer({
   return (
     <>
       <form
+        ref={form}
         className={sectionCss.DenyRow}
         onSubmit={(event) => {
           event.preventDefault();
           void send(false);
-        }}
-        onFocus={(event) => {
-          keyboardFocus.current = isKeyboardFocus(event.target);
-        }}
-        onBlur={() => {
-          keyboardFocus.current = false;
         }}
       >
         <Input
@@ -229,7 +252,7 @@ function SecretRequestAnswer({
             className={css.Busy}
             disabled={!ready || !hasKey}
             aria-disabled={sending || undefined}
-            onClick={notePointer}
+            onClick={notePress}
           >
             <Text size="B300">{t('mindroomUi.messages.secretRequestCard.save')}</Text>
           </Button>
@@ -244,7 +267,7 @@ function SecretRequestAnswer({
             disabled={!ready}
             aria-disabled={sending || undefined}
             onClick={(event: { detail: number }) => {
-              notePointer(event);
+              notePress(event);
               void send(true);
             }}
           >
@@ -288,7 +311,7 @@ export function SecretRequestCard({
   const room = useApprovalRoom(roomId);
   const [answer, setAnswer] = useState<Answer>();
   const [clockTick, setClockTick] = useState(0);
-  const keyboardFocus = useRef(false);
+  const keyboardAnswer = useRef(false);
   const now = Date.now();
   const isRequester = request.requesterId === viewerId;
   // The agent's edit decides; until it comes, an answer the server took holds whatever the clock says.
@@ -311,14 +334,15 @@ export function SecretRequestCard({
     return () => clearTimeout(timer);
   }, [open, request.expiresAt, clockTick]);
 
-  // The form went away, after the answer or with the agent's edit, whichever came first, while it
-  // held keyboard focus: the card, which stays through the edit, takes the focus the page got.
-  // Focus moved elsewhere on purpose stays there, and after a pointer answer none moves: focus put
-  // in the row would show the row's toolbar as if it came from the keyboard.
+  // The form went away, after the answer or with the agent's edit, whichever came first, while an
+  // answer from the keyboard was on its way: the card, which stays through the edit, takes the
+  // focus the page got. Focus moved elsewhere on purpose stays there. Without such an answer none
+  // moves (the form gave up its focus): focus put in the row would show the row's toolbar as if it
+  // came from the keyboard.
   const formShown = open && isRequester;
   useEffect(() => {
-    if (formShown || !keyboardFocus.current) return;
-    keyboardFocus.current = false;
+    if (formShown || !keyboardAnswer.current) return;
+    keyboardAnswer.current = false;
     if (document.activeElement === document.body || document.activeElement === null) {
       card.current?.focus({ preventScroll: true });
     }
@@ -395,7 +419,7 @@ export function SecretRequestCard({
             request={request}
             roomId={roomId}
             agentUserId={agentUserId}
-            keyboardFocus={keyboardFocus}
+            keyboardAnswer={keyboardAnswer}
             onAnswer={setAnswer}
           />
         )}

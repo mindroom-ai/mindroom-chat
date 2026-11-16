@@ -5,11 +5,32 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   TIMELINE_OVERLAY_ATTRIBUTE,
+  isKeyboardFocus,
   toolbarOffset,
   useToolbarClearance,
 } from './hoverToolbarPlacement';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+describe('isKeyboardFocus', () => {
+  it('counts focus the browser shows as keyboard focus', () => {
+    expect(isKeyboardFocus({ matches: () => true } as unknown as Element)).toBe(true);
+  });
+
+  it('ignores the focus a click leaves on the row', () => {
+    expect(isKeyboardFocus({ matches: () => false } as unknown as Element)).toBe(false);
+    expect(isKeyboardFocus(null)).toBe(false);
+  });
+
+  it('counts the focus where the engine does not know the selector', () => {
+    const element = {
+      matches: () => {
+        throw new SyntaxError('unknown pseudo-class');
+      },
+    };
+    expect(isKeyboardFocus(element as unknown as Element)).toBe(true);
+  });
+});
 
 type Rect = { top: number; bottom: number; left: number; right: number };
 const rectOf = ({ top, bottom, left, right }: Rect) =>
