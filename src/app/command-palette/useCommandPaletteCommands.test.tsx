@@ -16,6 +16,10 @@ import { useCommandPaletteCommands } from './useCommandPaletteCommands';
 
 const mocks = vi.hoisted(() => ({
   candidates: [] as { userId: string; displayName: string }[],
+  /** What the deployment's call service discovery answered. */
+  support: 'supported' as 'checking' | 'supported' | 'unsupported',
+  /** The room whose call panel shows the active call, if any. */
+  callShownIn: undefined as string | undefined,
   call: vi.fn(),
   roomCommands: [] as RoomCommand[],
   handlers: new Set<string>(),
@@ -56,8 +60,20 @@ vi.mock('../settings/useSettingsContext', () => ({
 vi.mock('../settings/useSettingsSearchValues', () => ({
   useSettingsSearchValues: () => SEARCH_VALUES,
 }));
-vi.mock('../calls/agent/AgentCallHeaderButton', () => ({
-  useAgentCallCandidates: () => mocks.candidates,
+// The room's voice agents are the candidates given here; the rule for offering them is real.
+vi.mock('../matrix/hooks/useMatrixClient', () => ({
+  useMatrixClient: () => ({ getUserId: () => '@alice:example.org' }),
+}));
+vi.mock('../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => [] }));
+vi.mock('../calls/agent/agentPresence', () => ({ usePresenceStatuses: () => new Map() }));
+vi.mock('../calls/agent/agentCallCandidates', () => ({
+  getAgentCallCandidates: () => mocks.candidates,
+  keepThreadSenders: (candidates: unknown[]) => candidates,
+}));
+vi.mock('../calls/callSupport', () => ({ useCallSupport: () => mocks.support }));
+vi.mock('../calls/callStore', () => ({
+  useActiveCall: () => mocks.callShownIn,
+  isActiveCallShownIn: (shownIn: string | undefined, roomId: string) => shownIn === roomId,
 }));
 vi.mock('../calls/agent/agentCaller', () => ({
   useAgentCaller: () => ({ call: mocks.call }),
@@ -106,6 +122,8 @@ const find = (
 afterEach(() => {
   localStorage.clear();
   mocks.candidates = [];
+  mocks.support = 'supported';
+  mocks.callShownIn = undefined;
   mocks.roomCommands = [];
   mocks.handlers.clear();
   mocks.call.mockReset();
@@ -259,6 +277,27 @@ describe('useCommandPaletteCommands agent calls', () => {
 
     expect(ids({ inRoom: false })).not.toContain(`call-agent:${research.userId}`);
     expect(ids({ room: makeRoom({ callRoom: true }) })).not.toContain(
+      `call-agent:${research.userId}`
+    );
+  });
+
+  it.each(['checking', 'unsupported'] as const)(
+    'offers no call while the call service is %s, as the header offers none',
+    (support) => {
+      mocks.candidates = [research];
+      mocks.support = support;
+
+      expect(render().result.current.actions.map((item) => item.id)).not.toContain(
+        `call-agent:${research.userId}`
+      );
+    }
+  );
+
+  it('offers no call while a call shows in the room, as the header offers none', () => {
+    mocks.candidates = [research];
+    mocks.callShownIn = makeRoom().roomId;
+
+    expect(render().result.current.actions.map((item) => item.id)).not.toContain(
       `call-agent:${research.userId}`
     );
   });

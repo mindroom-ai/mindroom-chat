@@ -3,8 +3,8 @@ import { useAtomValue, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Icons } from 'folds';
 import type { Room } from 'matrix-js-sdk';
-import { useAgentCallCandidates } from '../calls/agent/AgentCallHeaderButton';
 import { useAgentCaller } from '../calls/agent/agentCaller';
+import { useAgentCallOffer } from '../calls/agent/useAgentCallOffer';
 import { APP_LANGUAGES } from '../i18n/i18nLanguages';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { getRoomCommands } from '../navigation/roomCommands';
@@ -98,8 +98,9 @@ export const useCommandPaletteCommands = ({
     () => shownIds.split('\n').flatMap((id) => getSettingDefinition(id) ?? []),
     [shownIds]
   );
-  // Hooks run with the stand-in room too; its rows are left out below.
-  const candidates = useAgentCallCandidates(room, threadId);
+  // The agents the room header's call button offers. Hooks run with the stand-in room too; its
+  // rows are left out below.
+  const candidates = useAgentCallOffer(room, threadId);
   const { call } = useAgentCaller({ announce: true });
   // The header's commands and the shortcuts with a handler, read once as the palette opens: what
   // they belong to sits behind the palette while it is open.
@@ -222,25 +223,24 @@ export const useCommandPaletteCommands = ({
   );
 
   const actions = useMemo(() => {
-    // A call is about a conversation; a call room has its call in the room itself.
-    const callRows =
-      inRoom && !room.isCallRoom()
-        ? candidates.map(
-            ({ userId, displayName }): Executable<CommandPaletteActionItem> => ({
-              id: `call-agent:${userId}`,
-              kind: 'action',
-              title: t('mindroomUi.calls.agentCallHeaderButton.callAgent', { name: displayName }),
-              description: room.name,
-              icon: Icons.Phone,
-              sortRank: 75,
-              keywords: ['voice', 'agent'],
-              // A call that does not start is reported by the account's call notices.
-              onSelect: () => {
-                void call({ agentUserId: userId, displayName, roomId: room.roomId, threadId });
-              },
-            })
-          )
-        : [];
+    // A call is about a conversation.
+    const callRows = inRoom
+      ? candidates.map(
+          ({ userId, displayName }): Executable<CommandPaletteActionItem> => ({
+            id: `call-agent:${userId}`,
+            kind: 'action',
+            title: t('mindroomUi.calls.agentCallHeaderButton.callAgent', { name: displayName }),
+            description: room.name,
+            icon: Icons.Phone,
+            sortRank: 75,
+            keywords: ['voice', 'agent'],
+            // A call that does not start is reported by the account's call notices.
+            onSelect: () => {
+              void call({ agentUserId: userId, displayName, roomId: room.roomId, threadId });
+            },
+          })
+        )
+      : [];
     // A room command closes the palette: it was read once, so the palette could not show what
     // the command changed.
     const roomCommandRows = roomCommands.map(
