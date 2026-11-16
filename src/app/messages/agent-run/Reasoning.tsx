@@ -1,4 +1,4 @@
-import { useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import parse, { type HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
@@ -8,6 +8,7 @@ import { LIVE_ACTIVITY_KEY, LIVE_REASONING_KEY } from '../live/useLiveReplyConte
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 import { ACTIVE_STREAM_STATUSES, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
 import { revealDirectionControls } from '../../ui/directional';
+import { OutlineComet } from './OutlineComet';
 import { ToolCallsCogContext } from './toolCallStatus';
 import * as css from './Reasoning.css';
 
@@ -15,6 +16,28 @@ import * as css from './Reasoning.css';
 const MINDROOM_REASONING_KEY = 'io.mindroom.reasoning';
 
 type FinalReasoning = { text: string; durationMs?: number };
+
+/** How long the bulb's comet keeps lapping after the live reasoning last grew. */
+export const THINKING_GLOW_MS = 2000;
+
+// The middle of the bulb's rim (folds' Bulb icon), which is 1.5 wide: a circle of radius 7.25 with
+// the stem under it, drawn clockwise from where the stem's left side meets the circle.
+const BULB_OUTLINE = 'M8.75 16.4807A7.25 7.25 0 1 1 15.25 16.4807V21.25H8.75Z';
+
+/** Whether `value` changed in the last `holdMs`: false at first, true from a change to `holdMs`
+ * after the last one. */
+const useChangedRecently = (value: unknown, holdMs: number): boolean => {
+  const [changed, setChanged] = useState(false);
+  const last = useRef(value);
+  useEffect(() => {
+    if (Object.is(last.current, value)) return undefined;
+    last.current = value;
+    setChanged(true);
+    const timer = setTimeout(setChanged, holdMs, false);
+    return () => clearTimeout(timer);
+  }, [value, holdMs]);
+  return changed;
+};
 
 const parseFinalReasoning = (value: unknown): FinalReasoning | undefined => {
   if (typeof value !== 'object' || value === null) return undefined;
@@ -56,6 +79,8 @@ type ReasoningBlockProps = {
   label: string;
   text: string;
   defaultExpanded: boolean;
+  /** A comet laps the bulb, as it laps the cog while a call runs. */
+  thinking?: boolean;
   htmlReactParserOptions: HTMLReactParserOptions;
 };
 
@@ -63,6 +88,7 @@ function ReasoningBlock({
   label,
   text,
   defaultExpanded,
+  thinking = false,
   htmlReactParserOptions,
 }: ReasoningBlockProps) {
   const { t } = useTranslation();
@@ -85,7 +111,10 @@ function ReasoningBlock({
           aria-expanded={expanded}
           onClick={() => setExpanded((value) => !value)}
         >
-          <Icon size="50" src={Icons.Bulb} aria-hidden />
+          <span className={css.BulbIcon} data-thinking={thinking || undefined} aria-hidden>
+            <Icon size="50" src={Icons.Bulb} className={css.Bulb} />
+            {thinking && <OutlineComet outline={BULB_OUTLINE} width={1.5} />}
+          </span>
           <span className={css.Label}>{label}</span>
           <Icon size="50" src={Icons.ChevronRight} className={css.Chevron} aria-hidden />
         </button>
@@ -149,6 +178,9 @@ function ReasoningHeader({
   htmlReactParserOptions: HTMLReactParserOptions;
 }) {
   const { t } = useTranslation();
+  // The model thinks while its live reasoning grows, and a little after: not when a reply that has
+  // some already comes into view.
+  const thinking = useChangedRecently(live, THINKING_GLOW_MS);
   if (live !== undefined) {
     return (
       <ReasoningBlock
@@ -156,6 +188,7 @@ function ReasoningHeader({
         label={t('mindroomUi.messages.mindroomReasoning.thinking')}
         text={live}
         defaultExpanded
+        thinking={thinking}
         htmlReactParserOptions={htmlReactParserOptions}
       />
     );

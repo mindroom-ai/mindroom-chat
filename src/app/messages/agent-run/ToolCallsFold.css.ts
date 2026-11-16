@@ -1,12 +1,8 @@
 import { keyframes, style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
-
-const glow = (of: string) =>
-  `drop-shadow(0 0 ${toRem(1.5)} color-mix(in srgb, ${of} 75%, transparent))`;
+import { glow } from './OutlineComet.css';
 
 const turnBack = keyframes({ to: { transform: 'rotate(-360deg)' } });
-// The outline is 100 long (its pathLength in ToolCallsFold.tsx), so this is one lap of it.
-const lap = keyframes({ to: { strokeDashoffset: '-100' } });
 const breathe = keyframes({
   '50%': { color: color.Warning.MainLine, filter: glow(color.Warning.Main) },
 });
@@ -112,43 +108,6 @@ export const CogGear = style({
     },
   },
 });
-
-// The comet's glow. It is on this box, not on the comet: WebKit applies a filter to no shape inside
-// an SVG, and clips what an SVG draws outside a filtered box, as the ripple does.
-export const CogGlow = style({
-  position: 'absolute',
-  inset: 0,
-  filter: glow(color.Primary.Main),
-  pointerEvents: 'none',
-});
-
-// A drawing over the gear, in the gear's own units: what moves on its outline, which is all motion.
-export const CogOutline = style({
-  display: 'none',
-  '@media': {
-    '(prefers-reduced-motion: no-preference)': {
-      position: 'absolute',
-      inset: 0,
-      display: 'block',
-      inlineSize: '100%',
-      blockSize: '100%',
-      // The ripple grows past the icon's box.
-      overflow: 'visible',
-      pointerEvents: 'none',
-    },
-  },
-});
-
-// Three dashes that end at one point, the longer the fainter: a comet that laps the outline.
-export const CogComet = style({
-  stroke: color.Primary.Main,
-  strokeWidth: '1.62',
-  strokeLinecap: 'round',
-  strokeLinejoin: 'round',
-  animation: `${lap} 2.4s linear infinite`,
-});
-
-export const CogCometHead = style({ stroke: color.Primary.MainLine });
 
 // A click sheds the gear's outline, which grows and fades.
 export const CogRipple = style({

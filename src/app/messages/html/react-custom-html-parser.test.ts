@@ -110,25 +110,25 @@ vi.mock('folds', async () => {
 
 // The folds stand-in above has no colors, which these styles read; their class names will do.
 vi.mock('../agent-run/ToolCallsFold.css', () =>
-  Object.fromEntries(
-    [
-      'Fold',
-      'Cog',
-      'CogIcon',
-      'CogGear',
-      'CogGlow',
-      'CogOutline',
-      'CogComet',
-      'CogCometHead',
-      'CogRipple',
-    ].map((name) => [name, name])
-  )
+  Object.fromEntries(['Fold', 'Cog', 'CogIcon', 'CogGear', 'CogRipple'].map((name) => [name, name]))
+);
+vi.mock('../agent-run/OutlineComet.css', () =>
+  Object.fromEntries(['Glow', 'Outline', 'Comet', 'CometHead'].map((name) => [name, name]))
 );
 vi.mock('../agent-run/Reasoning.css', () =>
   Object.fromEntries(
-    ['Reasoning', 'Line', 'Toggle', 'CogRow', 'CollapseEnd', 'Label', 'Chevron', 'Body'].map(
-      (name) => [name, name]
-    )
+    [
+      'Reasoning',
+      'Line',
+      'Toggle',
+      'BulbIcon',
+      'Bulb',
+      'CogRow',
+      'CollapseEnd',
+      'Label',
+      'Chevron',
+      'Body',
+    ].map((name) => [name, name])
   )
 );
 
@@ -935,16 +935,16 @@ describe('useToolTraceMarkerParserOptions', () => {
       const reply = renderReply(twoRunsHtml(true), { shownByDefault: false });
       const drawn = (className: string) =>
         reply.cog().findAll((node) => node.props.className === className);
-      expect(drawn('CogComet')).toHaveLength(1);
+      expect(drawn('Comet')).toHaveLength(1);
       expect(drawn('CogRipple')).toHaveLength(0);
 
       reply.update(twoRunsHtml(false));
-      expect(drawn('CogOutline')).toHaveLength(0);
+      expect(drawn('Outline')).toHaveLength(0);
 
       await act(() => reply.cogButton().props.onClick());
       expect(reply.cogButton().props['aria-expanded']).toBe(true);
       expect(drawn('CogRipple')).toHaveLength(1);
-      expect(drawn('CogComet')).toHaveLength(0);
+      expect(drawn('Comet')).toHaveLength(0);
       reply.unmount();
     });
 
