@@ -4,7 +4,7 @@ import FocusTrap from 'focus-trap-react';
 import { Icon, Text, config, type RectCords } from 'folds';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import type { Room } from 'matrix-js-sdk';
-import { ForkIcon } from '../../messages/forkIcon';
+import { ForkIcon } from '../../messages/ForkIcon';
 import * as reactionCss from '../../messages/reactions/Reaction.css';
 import { useRelativeTime } from '../../i18n/useRelativeTime';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';

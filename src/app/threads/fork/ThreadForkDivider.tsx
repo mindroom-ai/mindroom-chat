@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Text } from 'folds';
-import { IconGitFork } from '@tabler/icons-react';
+import { Icon, Text } from 'folds';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { useCachedThreadRoot } from '../../event-store/sdk/cachedThreadRoots';
 import type { ThreadForkRef } from '../../event-store/threads/threadFork';
@@ -10,6 +9,7 @@ import {
   resolveThreadPresentationSnapshot,
 } from '../../event-store/threads/threadPresentation';
 import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import { ForkIcon } from '../../messages/ForkIcon';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import * as css from './ThreadForkDivider.css';
 
@@ -66,7 +66,7 @@ export function ThreadForkDivider({
   const title = useThreadTitle(room, parent.threadId, root, summaryInfo);
   const label = (
     <>
-      <IconGitFork size={14} stroke={1.8} aria-hidden />
+      <Icon size="100" src={ForkIcon} aria-hidden="true" />
       <Text as="span" size="L400" truncate>
         {variant === 'forking'
           ? t('threadFork.forking', { title })

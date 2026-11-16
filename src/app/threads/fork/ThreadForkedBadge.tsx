@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { Icon } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import type { ThreadForkRef } from '../../event-store/threads/threadFork';
-import { ForkIcon } from '../../messages/forkIcon';
+import { ForkIcon } from '../../messages/ForkIcon';
 import { useThreadTitle } from './ThreadForkDivider';
 
 /** The mark on a fork's card; its tooltip names the thread it was forked from. */

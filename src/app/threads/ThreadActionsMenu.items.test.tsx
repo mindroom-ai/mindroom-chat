@@ -8,7 +8,7 @@ import { Icons, config, type IconSrc } from 'folds';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThreadActionsMenu, type ThreadActionsMenuProps } from './ThreadActionsMenu';
 import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
-import { ForkIcon } from '../messages/forkIcon';
+import { ForkIcon } from '../messages/ForkIcon';
 import { getDefaultStore } from 'jotai';
 import { getSettings, settingsAtom } from '../preferences/settings';
 import { clearToolCallOverrides } from '../messages/toolCallVisibility';

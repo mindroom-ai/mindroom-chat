@@ -34,7 +34,7 @@ import { DialogOpenerContext } from '../ui/ModalLayer';
 import { Menu } from '../ui/glass/GlassPrimitives';
 import { ActionDialog } from '../ui/ActionDialog';
 import { MenuEntry } from '../ui/MenuEntry';
-import { ForkIcon } from './forkIcon';
+import { ForkIcon } from './ForkIcon';
 import { IconTooltip } from '../ui/IconTooltip';
 import { EmojiBoard } from '../emoji/board/LazyEmojiBoard';
 import { useMemberEventParser } from './useMemberEventParser';

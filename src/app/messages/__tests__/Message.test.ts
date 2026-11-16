@@ -298,7 +298,7 @@ vi.mock('../reactions/ReactionViewer', () => ({
   ReactionViewer: () => React.createElement('div', null, 'reactions'),
 }));
 
-vi.mock('../forkIcon', () => ({ ForkIcon: 'Fork' }));
+vi.mock('../ForkIcon', () => ({ ForkIcon: 'Fork' }));
 vi.mock('../edit/MessageEditor', () => ({
   MessageEditor: () => React.createElement('div', null, 'editor'),
 }));

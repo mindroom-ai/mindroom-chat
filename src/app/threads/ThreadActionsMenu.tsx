@@ -35,7 +35,7 @@ import { isSnoozedAt } from '../event-store/threads/threadSnooze';
 import { useSnoozeNow } from './tags/useSnoozeNow';
 import { SnoozePicker } from './tags/SnoozePicker';
 import { latestForkPoint } from '../event-store/threads/threadFork';
-import { ForkIcon } from '../messages/forkIcon';
+import { ForkIcon } from '../messages/ForkIcon';
 import { useStartThreadFork } from './fork/useStartThreadFork';
 
 export type ThreadActionsMenuProps = {
