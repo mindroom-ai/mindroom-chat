@@ -124,15 +124,22 @@ const getCompactThreadParticipants = ({
     };
   });
 
-/** The thread a fork was made from, read from its root when the room holds it. */
+/**
+ * The thread a fork was made from, read from its root when the room holds it. A thread root is in
+ * the room's main timeline, which is searched alone (`room.findEventById` searches every thread).
+ */
 export const getForkedFrom = (room: Room, threadRootId: string): ThreadForkRef | undefined => {
-  const rootEvent = room.getThread(threadRootId)?.rootEvent ?? room.findEventById(threadRootId);
+  const rootEvent =
+    room.getThread(threadRootId)?.rootEvent ??
+    room.getUnfilteredTimelineSet().findEventById(threadRootId);
   return rootEvent ? parseThreadForkRef(rootEvent.getOriginalContent()) : undefined;
 };
 
 type BuildCompactThreadCardViewModelFromRecordOptions = {
   record: ThreadRecord;
   room: Room;
+  /** The thread it was forked from (`getForkedFrom`), for a fork. */
+  forkedFrom?: ThreadForkRef;
   currentUserId?: string;
   mx: MatrixClient;
   useAuthentication: boolean;
@@ -143,6 +150,7 @@ type BuildCompactThreadCardViewModelFromRecordOptions = {
 export const buildCompactThreadCardViewModelFromRecord = ({
   record,
   room,
+  forkedFrom,
   currentUserId,
   mx,
   useAuthentication,
@@ -219,7 +227,6 @@ export const buildCompactThreadCardViewModelFromRecord = ({
     t
   );
   const resolvedByDisplayName = getThreadResolverDisplayName(room, status.resolvedByUserId);
-  const forkedFrom = getForkedFrom(room, record.threadRootId);
 
   return {
     id: {
@@ -349,6 +356,7 @@ export const useCompactThreadCardViewModels = ({
       const freshViewModel = buildCompactThreadCardViewModelFromRecord({
         record,
         room,
+        forkedFrom,
         currentUserId,
         mx,
         useAuthentication,

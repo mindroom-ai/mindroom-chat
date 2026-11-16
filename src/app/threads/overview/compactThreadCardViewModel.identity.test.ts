@@ -23,6 +23,7 @@ const makeRoom = (): Room =>
     roomId: '!room:server',
     getThread: () => null,
     findEventById: () => undefined,
+    getUnfilteredTimelineSet: () => ({ findEventById: () => undefined }),
     getMember: () => undefined,
     getMembers: () => [],
   } as unknown as Room);
@@ -142,7 +143,7 @@ describe('a fork whose root the room loads later', () => {
     const room = {
       ...makeRoom(),
       getThread: () => (known ? { rootEvent: forkRoot } : null),
-      findEventById: () => (known ? forkRoot : undefined),
+      getUnfilteredTimelineSet: () => ({ findEventById: () => (known ? forkRoot : undefined) }),
     } as unknown as Room;
     let latest: CompactThreadCardViewModel[] = [];
     const render = () =>
