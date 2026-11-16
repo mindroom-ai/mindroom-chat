@@ -745,6 +745,10 @@
           "declined": "已拒绝",
           "expired": "已到期"
         }
+      },
+      "finishedWork": {
+        "workedFor": "工作了 {{duration}}",
+        "worked": "已工作"
       }
     },
     "message-search": {

@@ -745,6 +745,10 @@
           "declined": "拒否済み",
           "expired": "期限切れ"
         }
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} 作業しました",
+        "worked": "作業しました"
       }
     },
     "message-search": {

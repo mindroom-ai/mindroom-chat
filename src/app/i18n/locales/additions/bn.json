@@ -754,6 +754,10 @@
           "declined": "প্রত্যাখ্যাত",
           "expired": "মেয়াদ শেষ"
         }
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} কাজ করেছে",
+        "worked": "কাজ করেছে"
       }
     },
     "message-search": {

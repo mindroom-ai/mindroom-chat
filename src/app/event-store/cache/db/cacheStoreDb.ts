@@ -7,12 +7,15 @@ import {
   ATTACHMENTS_BY_ACCESS_BYTES_INDEX,
   ATTACHMENT_REFERENCES_BY_OWNER_INDEX,
   CACHE_STORE_DB_VERSION,
+  EMBEDDED_EVENTS_STORE,
   EVENTS_BY_SCOPE_TS_INDEX,
   EVENTS_BY_ROOM_EVENT_INDEX,
   EVENTS_STORE,
   META_STORE,
   MINDROOM_CACHE_DB_BASE_NAME,
+  PRE_V7_ROWS_KEY,
   ROOM_LEDGER_STORE,
+  THREAD_SUMMARIES_BY_ROOM_EVENT_INDEX,
   THREAD_SUMMARIES_BY_ROOM_INDEX,
   THREAD_SUMMARIES_STORE,
 } from './cacheStoreSchema';
@@ -40,6 +43,7 @@ export const getCacheStoreDbName = (sessionId: string): string =>
 const REQUIRED_STORES = [
   ATTACHMENTS_STORE,
   ATTACHMENT_REFERENCES_STORE,
+  EMBEDDED_EVENTS_STORE,
   EVENTS_STORE,
   META_STORE,
   ROOM_LEDGER_STORE,
@@ -67,7 +71,14 @@ const deleteIndexedDb = async (dbName: string): Promise<void> => {
   });
 };
 
-const applyUpgrade = (db: IDBDatabase, transaction: IDBTransaction): void => {
+const applyUpgrade = (db: IDBDatabase, transaction: IDBTransaction, oldVersion: number): void => {
+  if (!db.objectStoreNames.contains(EMBEDDED_EVENTS_STORE)) {
+    // Creating it reads no row. Rows an earlier version wrote are listed room by room, by the
+    // first redaction each room saves (`runScrubRedactedRelationsTxn`); listing them here, or an
+    // index over the events, reads every cached event before the cache opens (seconds).
+    const embedded = db.createObjectStore(EMBEDDED_EVENTS_STORE);
+    if (oldVersion > 0) embedded.put(1, PRE_V7_ROWS_KEY);
+  }
   if (!db.objectStoreNames.contains(ATTACHMENTS_STORE)) {
     db.createObjectStore(ATTACHMENTS_STORE, { keyPath: 'mxcUri' });
   }
@@ -114,6 +125,11 @@ const applyUpgrade = (db: IDBDatabase, transaction: IDBTransaction): void => {
     });
     summariesStore.createIndex(THREAD_SUMMARIES_BY_ROOM_INDEX, 'roomId', { unique: false });
   }
+  const summaries = transaction.objectStore(THREAD_SUMMARIES_STORE);
+  if (!summaries.indexNames.contains(THREAD_SUMMARIES_BY_ROOM_EVENT_INDEX)) {
+    // Over fields the rows already have, so the browser fills it from them.
+    summaries.createIndex(THREAD_SUMMARIES_BY_ROOM_EVENT_INDEX, ['roomId', 'eventId']);
+  }
 };
 
 // D8 legacy-wipe step: after a unified-cache open we delete the three legacy
@@ -139,8 +155,8 @@ export const openCacheStore = (
     const request = indexedDB.open(dbName, CACHE_STORE_DB_VERSION);
     let blocked = false;
 
-    request.onupgradeneeded = () => {
-      applyUpgrade(request.result, request.transaction!);
+    request.onupgradeneeded = (event) => {
+      applyUpgrade(request.result, request.transaction!, event.oldVersion);
     };
 
     request.onsuccess = () => {

@@ -10,8 +10,9 @@ const SLIDE = motion.duration.Slower;
 const EASE = motion.easing.Standard;
 
 // Where the browser slides the whole page between two pictures (navigation/phonePageSlide.ts), the
-// drawer is out or away at once: the picture that slides in shows the page as it is, and the
-// drawer's own slide would play inside it.
+// drawer is out at once: the picture that slides in shows the page as it is, and the drawer's own
+// slide would play inside it. (Going away it keeps its own slide, since nothing slides from the
+// list; only a page slide that starts meanwhile cuts it short.)
 const IN_PAGE_SLIDE =
   'html[data-page-slide] &[data-animate], html[data-page-slide] &[data-animate][data-open]';
 

@@ -754,6 +754,10 @@
           "declined": "Abgelehnt",
           "expired": "Abgelaufen"
         }
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} gearbeitet",
+        "worked": "Gearbeitet"
       }
     },
     "message-search": {
