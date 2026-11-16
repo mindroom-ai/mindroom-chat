@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { EventEmitter } from 'events';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { MatrixEvent, type Room } from 'matrix-js-sdk';
+import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
 import { STREAM_IDLE_LIMIT_MS } from '../matrix/client/streamingReplies';
+import { finishingEdit, streamingReply } from './test-utils/jobReplies';
 import { JOBS_HOLD_MS, useJobsHeldBetweenCalls } from './useJobsHeldBetweenCalls';
 
 const AGENT = '@mindroom_helper:example.org';
@@ -19,16 +20,24 @@ vi.mock('../matrix/client/streamingReplies', async (importOriginal) => ({
   isStreamingReplyCurrent: (_room: Room, event: MatrixEvent) => !unvouched.has(event.getId()!),
 }));
 
-const timelineSet = (events: () => MatrixEvent[]) => ({
-  getLiveTimeline: () => ({ getEvents: events, getNeighbouringTimeline: () => null }),
-  relations: { getChildEventsForEvent: () => undefined },
-});
+const timelineSet = (events: () => MatrixEvent[]) => {
+  const set = {
+    getLiveTimeline: () => ({
+      getEvents: events,
+      getNeighbouringTimeline: () => null,
+      getTimelineSet: () => set,
+    }),
+    relations: { getChildEventsForEvent: () => undefined },
+  };
+  return set;
+};
 
 /** A room as the jobs bar reads it: a thread's events and the main timeline's. */
 const makeRoom = () => {
   const main: MatrixEvent[] = [];
   const threadEvents: MatrixEvent[] = [];
   const thread = Object.assign(new EventEmitter(), {
+    id: THREAD,
     getUnfilteredTimelineSet: () => timelineSet(() => threadEvents),
     lastReply: () => threadEvents.at(-1) ?? null,
   });
@@ -41,19 +50,7 @@ const makeRoom = () => {
   });
   /** A reply that streams, in the thread or (`null`) in the main timeline; it arrives at once. */
   const streamReply = (id: string, sender = AGENT, threadId: string | null = THREAD) => {
-    const event = new MatrixEvent({
-      event_id: id,
-      room_id: room.roomId,
-      sender,
-      type: 'm.room.message',
-      origin_server_ts: Date.now(),
-      content: {
-        msgtype: 'm.text',
-        body: 'Working on it',
-        'io.mindroom.stream_status': 'streaming',
-        ...(threadId ? { 'm.relates_to': { rel_type: 'm.thread', event_id: threadId } } : {}),
-      },
-    });
+    const event = streamingReply(room.roomId, id, sender, threadId);
     if (threadId) {
       threadEvents.push(event);
       act(() => {
@@ -63,7 +60,9 @@ const makeRoom = () => {
     } else {
       main.push(event);
       act(() => {
-        room.emit('Room.timeline', event, room);
+        room.emit('Room.timeline', event, room, false, false, {
+          timeline: room.getLiveTimeline(),
+        });
       });
     }
     return event;
@@ -71,25 +70,7 @@ const makeRoom = () => {
   /** The reply's finishing edit arrives. */
   const finish = (reply: MatrixEvent) =>
     act(() => {
-      reply.makeReplaced(
-        new MatrixEvent({
-          event_id: `${reply.getId()}-done`,
-          room_id: room.roomId,
-          sender: reply.getSender(),
-          type: 'm.room.message',
-          origin_server_ts: Date.now(),
-          content: {
-            msgtype: 'm.text',
-            body: '* Done',
-            'm.new_content': {
-              msgtype: 'm.text',
-              body: 'Done',
-              'io.mindroom.stream_status': 'completed',
-            },
-            'm.relates_to': { rel_type: 'm.replace', event_id: reply.getId() },
-          },
-        })
-      );
+      reply.makeReplaced(finishingEdit(reply));
     });
   return { room: room as unknown as Room, streamReply, finish };
 };
@@ -208,7 +189,7 @@ it('holds the bar for a reply the client did not see stream yet, as after a relo
 
 it.each([
   ['a reply the client saw stream', false],
-  ['a reply it took at its jobs\' word after a reload', true],
+  ["a reply it took at its jobs' word after a reload", true],
 ])('lets the bar go 2 s after %s stalls without an edit', (_case, reloaded) => {
   room.streamReply('$reply');
   if (reloaded) unvouched.add('$reply');
