@@ -54,11 +54,9 @@ final class RoomModel: ObservableObject {
     /// The thread rows as last read from the server, kept when the list cannot be read (offline).
     private var threadRows: [ThreadRow] = []
     private var threadRoots: [String] = []
-    /// Whether a refresh has run to its end, online or not: until then nothing says which of the person's older
-    /// messages are marked done.
-    private var refreshed = false
-    /// The event ids of the messages this watch sent since the model started. Their rows show before the first
-    /// refresh, and stay when they are answered until the thread list has their thread.
+    /// The person's messages nobody answered, as the last refresh found them.
+    private var unanswered: [ThreadRow] = []
+    /// The event ids of the messages this watch sent since the model started.
     private var sentHere: Set<String> = []
     private let client: Client
     private let session: Session?
@@ -114,8 +112,9 @@ final class RoomModel: ObservableObject {
                                                  content: String(decoding: data, as: UTF8.self))
             resolved.insert(rootId)
             threadRows.removeAll { $0.rootId == rootId }
-            rows.removeAll { $0.rootId == rootId }
-            // A refresh that read the room's state before the tag was there would bring the thread back.
+            unanswered.removeAll { $0.rootId == rootId }
+            // Shows the rows without it now. A refresh that read the room's state before the tag was there
+            // would bring the thread back.
             scheduleRefresh()
         } catch {
             log.error("resolve failed: \(String(describing: error), privacy: .public)")
@@ -142,7 +141,7 @@ final class RoomModel: ObservableObject {
     }
 
     func scheduleRefresh() {
-        showLocalRows()
+        publish()
         if refreshing { refreshAgain = true; return }
         refreshing = true
         Task {
@@ -166,8 +165,8 @@ final class RoomModel: ObservableObject {
         // Offline the list cannot be read: keep its rows (and the widget) as they were, with the person's own
         // messages, queued or failed, kept current.
         do { try await threads.paginate() } catch {
-            refreshed = true
-            showLocalRows()
+            unanswered = ownRows(sentHere: false, notIn: Set(threadRoots).union(resolved))
+            publish()
             return
         }
         if let resolved = await resolvedRoots() { self.resolved = resolved }
@@ -205,21 +204,20 @@ final class RoomModel: ObservableObject {
         }
         threadRows = rows
         threadRoots = roots
-        rows += ownRoots(notIn: Set(roots).union(resolved))
-        refreshed = true
-        self.rows = rows.sorted { $0.ts > $1.ts }
+        unanswered = ownRows(sentHere: false, notIn: Set(roots).union(resolved))
+        publish()
         publishWidgetSnapshot()
     }
 
-    /// The rows without a read of the server, which takes several requests: the threads as last read, and the
-    /// person's own messages as the room's timeline has them now, so one just recorded shows at once.
-    private func showLocalRows() {
+    /// Shows the threads and the person's unanswered messages as the last refresh found them, and with them the
+    /// messages this watch is sending or sent since it started, as the room's timeline has them now. A refresh
+    /// takes several requests: a message just recorded shows at once, and stays until the thread list has its
+    /// thread.
+    private func publish() {
         for item in feed.events {
             if case let .sent(eventId) = item.localSendState { sentHere.insert(eventId) }
         }
-        var own = ownRoots(notIn: Set(threadRoots).union(resolved))
-        // Before the first refresh, only what is still to send and what this watch sent.
-        if !refreshed { own.removeAll { row in row.rootId.map { !sentHere.contains($0) } ?? false } }
+        let own = unanswered + ownRows(sentHere: true, notIn: Set(threadRoots).union(resolved))
         let rows = (threadRows + own).sorted { $0.ts > $1.ts }
         if rows != self.rows { self.rows = rows }
     }
@@ -237,9 +235,11 @@ final class RoomModel: ObservableObject {
                          rootTs: snapshot.rootTs, voiceFile: snapshot.voiceFile)
     }
 
-    /// The user's own messages in the room that no thread holds yet: a voice message just sent, still sending,
-    /// or failed. One this watch sent keeps its row when it is answered, until `roots` has its thread.
-    private func ownRoots(notIn roots: Set<String>) -> [ThreadRow] {
+    /// The user's own messages in the room that none of these threads holds, as rows. With `sentHere`: the ones
+    /// this watch is sending or sent since the model started, answered or not (one still to send always shows,
+    /// with its Delete: a message the server refused holds up every message queued behind it). Without: the
+    /// others that nobody answered, among the newest 20 events.
+    private func ownRows(sentHere wanted: Bool, notIn roots: Set<String>) -> [ThreadRow] {
         let events = feed.events
         return events.enumerated().compactMap { index, item -> ThreadRow? in
             guard item.isOwn, case let .msgLike(content) = item.content, content.threadRoot == nil,
@@ -250,10 +250,9 @@ final class RoomModel: ObservableObject {
             case let .eventId(eventId): id = eventId; rootId = eventId
             case let .transactionId(transactionId): id = transactionId
             }
-            if content.threadSummary != nil, !(rootId.map(sentHere.contains) ?? false) { return nil }
-            // A sent message counts among the newest 20 events. One still to send always shows, with its
-            // Delete: a message the server refused holds up every message queued behind it.
-            if let rootId, roots.contains(rootId) || index < events.count - 20 { return nil }
+            guard (item.localSendState != nil || sentHere.contains(id)) == wanted,
+                  !(rootId.map(roots.contains) ?? false) else { return nil }
+            if !wanted, content.threadSummary != nil || index < events.count - 20 { return nil }
             var queued = false, failed = false
             switch item.localSendState {
             case .notSentYet: queued = true

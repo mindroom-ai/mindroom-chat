@@ -317,6 +317,27 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(text(captioned, [edit(plain)]), "")
     }
 
+    func testAnEditReplacesAnAudioMessageWhole() {
+        let spoken = event("$spoken", 4, inThread(["msgtype": "m.audio", "body": "voice-message.opus", "url": "mxc://x/answer"]))
+        let edit = { (content: JSON) in event("$edit", 5, ["m.new_content": content,
+                                                           "m.relates_to": ["rel_type": "m.replace", "event_id": "$spoken"] as JSON]) }
+        // Taken back in words: text, with nothing to play.
+        let corrected = ThreadSnapshot.build(root: voiceRoot, related: [spoken, edit(["msgtype": "m.text", "body": "Wrong recording, ignore it"])],
+                                             ownUserId: me, now: now).reply
+        XCTAssertEqual(corrected?.text, "Wrong recording, ignore it")
+        XCTAssertNil(corrected?.audio)
+        // Recorded again: the new file plays.
+        let again = ThreadSnapshot.build(root: voiceRoot, related: [spoken, edit(["msgtype": "m.audio", "body": "voice-message.opus", "url": "mxc://x/second"])],
+                                         ownUserId: me, now: now).reply
+        XCTAssertEqual(source(again)?["url"] as? String, "mxc://x/second")
+        XCTAssertEqual(again?.isVoiceOnly, true)
+        // The same for the message that starts the thread, which names it.
+        let root = event("$root", 1, ["msgtype": "m.audio", "body": "voice-message.opus", "url": "mxc://x/answer"])
+        let retitled = event("$rootEdit", 2, ["m.new_content": ["msgtype": "m.text", "body": "Call me back"] as JSON,
+                                              "m.relates_to": ["rel_type": "m.replace", "event_id": "$root"] as JSON])
+        XCTAssertEqual(ThreadSnapshot.build(root: root, related: [retitled], ownUserId: me, now: now).title, "Call me back")
+    }
+
     func testTheHeadingIsATitleTheFirstMessageDoesNotGive() {
         let root = event("$root", 1, sender: me, ["msgtype": "m.text", "body": "Book a table"])
         let summary = event("$sum", 6, sender: "@mindroom_router:x", inThread(["msgtype": "m.notice", "body": "Dinner",
@@ -365,6 +386,11 @@ final class ThreadSnapshotTests: XCTestCase {
         XCTAssertEqual(ThreadSnapshot.build(root: voiceRoot, related: [answer, mine], ownUserId: me, now: now).focusId, "$answer")
         XCTAssertEqual(ThreadSnapshot.build(root: voiceRoot, related: [answer, question("$q", 6)], ownUserId: me, now: now).focusId, "$q")
         XCTAssertEqual(ThreadSnapshot.build(root: voiceRoot, related: [answer, question("$q", 6), card("$card", 7)], ownUserId: me, now: now).focusId, "$card")
+        // The question still comes before the newest answer when someone else wrote after it.
+        let annas = event("$annas", 7, sender: "@anna:x", inThread(["msgtype": "m.text", "body": "Any of them"]))
+        let asked = ThreadSnapshot.build(root: voiceRoot, related: [question("$q", 6), annas], ownUserId: me, now: now)
+        XCTAssertEqual(asked.reply?.eventId, "$annas")
+        XCTAssertEqual(asked.focusId, "$q")
     }
 
     func testUndecryptableEventsAreSkipped() {

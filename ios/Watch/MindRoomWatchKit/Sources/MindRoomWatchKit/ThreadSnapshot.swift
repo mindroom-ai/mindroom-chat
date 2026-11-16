@@ -93,6 +93,10 @@ public struct ThreadSnapshot: Equatable, Sendable {
         }
         let cardEdits = edits.filter { $0["type"] as? String == ApprovalCard.eventType }
         let edit = { (event: JSON) in latestEdits[event.eventId ?? ""] }
+        // An edit replaces the whole content, what kind of message it is included (one that names no kind keeps it).
+        let isAudio = { (event: JSON) in
+            (effectiveContent(event, latestEdit: edit(event))["msgtype"] ?? event.content["msgtype"]) as? String == "m.audio"
+        }
 
         let isVoiceRoot = root.content["org.matrix.msc3245.voice"] is JSON || root.content["m.voice"] is JSON
         // What the router wrote out of each voice message.
@@ -112,11 +116,10 @@ public struct ThreadSnapshot: Equatable, Sendable {
         } ?? message }
         let rootText = PlainText.of(markdown: effectiveContent(root, latestEdit: edit(root))["body"] as? String ?? "")
         let encryptedRoot = root["type"] as? String == "m.room.encrypted"
-        // Audio's body is its file's name, with the voice mark or without it.
-        let audioRoot = isVoiceRoot || root.content["msgtype"] as? String == "m.audio"
         let summary = ThreadSummary.title(from: notices)
+        // Audio's body is its file's name, with the voice mark or without it.
         let title = summary ?? transcript
-            ?? (audioRoot ? String(localized: "Voice message") : encryptedRoot ? String(localized: "Encrypted message") : rootText)
+            ?? (isAudio(root) ? String(localized: "Voice message") : encryptedRoot ? String(localized: "Encrypted message") : rootText)
 
         // The conversation: what people and agents said, without the router's echo and titles.
         let conversation = messages.filter { message in
@@ -127,11 +130,10 @@ public struct ThreadSnapshot: Equatable, Sendable {
             let sender = event["sender"] as? String ?? ""
             let content = effectiveContent(event, latestEdit: edit(event))
             var plain = PlainText.withToolCount(content["body"] as? String ?? "")
-            if event.content["msgtype"] as? String == "m.audio" {
-                plain = (transcripts[id] ?? AudioCaption.of(content) ?? "", 0)
-            }
+            let audio = isAudio(event)
+            if audio { plain = (transcripts[id] ?? AudioCaption.of(content) ?? "", 0) }
             return Message(eventId: id, sender: sender, isOwn: sender == ownUserId, text: plain.text,
-                           audio: event.content["msgtype"] as? String == "m.audio" ? mediaSource(event.content) : nil,
+                           audio: audio ? mediaSource(content) ?? mediaSource(event.content) : nil,
                            tools: plain.tools, run: RunState.of(event, latestEdit: edit(event)))
         }
         // The router's relay of a message hands it to an agent; it is not an answer.
