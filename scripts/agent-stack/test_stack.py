@@ -1365,5 +1365,43 @@ class StubScenarioTests(unittest.TestCase):
         self.assertEqual(message["content"], f"The stub's scenario #dict of {module} failed: it gave dict, not a text")
 
 
+class WorkScenarioTests(unittest.TestCase):
+    def test_knobs_default_and_parse(self) -> None:
+        defaults = {"words": 200, "wps": 30, "reasoning": 0, "tools": 0, "toolsec": 0, "seed": 1}
+        self.assertEqual(stub_model.work_knobs("#work"), defaults)
+        self.assertEqual(
+            stub_model.work_knobs("please #work words=50 wps=0 tools=2 toolsec=1.5 seed=9"),
+            {**defaults, "words": 50, "wps": 0, "tools": 2, "toolsec": 1.5, "seed": 9},
+        )
+
+    def test_text_is_deterministic_and_sized(self) -> None:
+        text = stub_model.work_text(300, 7)
+        self.assertEqual(text, stub_model.work_text(300, 7))
+        self.assertNotEqual(text, stub_model.work_text(300, 8))
+        self.assertEqual(len(text.split()), 300)
+        self.assertIn("\n## ", text)
+        self.assertIn("\n- ", text)
+
+    def test_plan_runs_tools_then_streams(self) -> None:
+        prompt = "#work words=10 tools=2 toolsec=0 wps=0"
+        shell = "run_shell_command"
+        self.assertEqual(stub_model.plan(chat(prompt), {}), ("tool", shell, {"args": "sleep 0; echo work step 1"}))
+        one = stub_model.plan(chat(prompt, {"role": "tool", "content": "a"}), {})
+        self.assertEqual(one, ("tool", shell, {"args": "sleep 0; echo work step 2"}))
+        two = stub_model.plan(chat(prompt, {"role": "tool", "content": "a"}, {"role": "tool", "content": "b"}), {})
+        self.assertEqual(two[0], "work")
+        self.assertEqual((two[1], two[3]), ("", 0))
+        self.assertEqual(len(two[2].split()), 10)
+
+    def test_reasoning_section(self) -> None:
+        self.assertEqual(stub_model.work_reasoning(0, 1), "")
+        self.assertTrue(450 <= len(stub_model.work_reasoning(500, 1)) <= 550)
+
+    def test_no_tools_streams_at_once(self) -> None:
+        kind, reasoning, text, seconds = stub_model.plan(chat("#work words=5"), {})
+        self.assertEqual((kind, reasoning, seconds), ("work", "", 1 / 30))
+        self.assertEqual(len(text.split()), 5)
+
+
 if __name__ == "__main__":
     unittest.main()
