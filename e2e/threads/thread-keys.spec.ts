@@ -280,7 +280,8 @@ test('beside the cards, the keys resolve the open thread and step on from it', a
     .click();
   await expect(cards(page)).toHaveCount(TOPICS.length);
 
-  // From the thread's own composer, the keys resolve the open thread, whose card stays beside it.
+  // From the thread's own composer, the keys resolve the open thread. Its card stays beside it:
+  // a room without agents hides no resolved thread (the unit tests cover a card that leaves).
   await page.getByTestId('thread-column').getByRole('textbox').last().click();
   await page.keyboard.press('ControlOrMeta+Shift+Enter');
   await expect(card(page, second).locator('[data-compact-card-resolved-badge]')).toBeVisible({

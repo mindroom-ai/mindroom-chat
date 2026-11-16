@@ -7,6 +7,7 @@ import {
   focusCompactCard,
   focusedCompactCard,
   handleCardArrowKey,
+  holdCompactThreadPlace,
   noteCompactCardOrder,
   stepCompactThread,
 } from './compactCardKeys';
@@ -56,6 +57,10 @@ describe('compactCardsIn and focusedCompactCard', () => {
       '$b',
     ]);
     expect(compactCardsIn(null)).toEqual([]);
+    // A card that is fading out of the list is inert, and no card to go to.
+    card('$a').parentElement!.setAttribute('inert', '');
+    expect(compactCardsIn(view).map((element) => element.dataset.threadRootId)).toEqual(['$b']);
+    card('$a').parentElement!.removeAttribute('inert');
     expect(focusedCompactCard(view)).toBeUndefined();
     card('$b').focus();
     expect(focusedCompactCard(view)).toBe(card('$b'));
@@ -134,6 +139,22 @@ describe('stepCompactThread', () => {
     // A thread without a card, and a room whose cards never showed.
     expect(stepCompactThread('!room', '$x', 1)).toBeUndefined();
     expect(stepCompactThread('!other', '$b', 1)).toBeUndefined();
+  });
+
+  it("keeps the open thread's place when its card leaves the list", () => {
+    noteCompactCardOrder('!room', ['$a', '$b', '$c', '$d']);
+    holdCompactThreadPlace('!room', '$b');
+    // Resolved under a filter that hides resolved threads, then the list changes again.
+    noteCompactCardOrder('!room', ['$a', '$c', '$d']);
+    expect(stepCompactThread('!room', '$b', -1)).toBe('$a');
+    noteCompactCardOrder('!room', ['$c', '$d']);
+    expect(stepCompactThread('!room', '$b', 1)).toBe('$c');
+    expect(stepCompactThread('!room', '$b', -1)).toBeUndefined();
+    // Another room's thread holds no place here, and a closed thread none at all.
+    holdCompactThreadPlace('!second', '$b');
+    noteCompactCardOrder('!room', ['$c', '$d']);
+    expect(stepCompactThread('!room', '$b', 1)).toBeUndefined();
+    holdCompactThreadPlace('!second', undefined);
   });
 
   it('keeps the order of each room', () => {

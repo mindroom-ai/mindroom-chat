@@ -163,6 +163,17 @@ describe('useThreadKeys', () => {
     expect(onOpenThread).not.toHaveBeenCalled();
   });
 
+  it('steps on from an open thread whose card left the list beside it', () => {
+    mount('$b');
+    // Resolved under a filter that hides resolved threads.
+    card('$b').remove();
+    noteCompactCardOrder(ROOM, ['$a', '$c']);
+    expect(press('nextThread')).toBe(true);
+    expect(onOpenThread).toHaveBeenLastCalledWith('$c', true);
+    expect(press('previousThread')).toBe(true);
+    expect(onOpenThread).toHaveBeenLastCalledWith('$a', true);
+  });
+
   it('leaves a thread behind a side panel alone', () => {
     area.innerHTML = '';
     store.set(conversationBehindPanelAtom, true);

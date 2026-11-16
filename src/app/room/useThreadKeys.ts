@@ -12,6 +12,7 @@ import {
   compactCardsIn,
   focusCompactCard,
   focusedCompactCard,
+  holdCompactThreadPlace,
   stepCompactThread,
   wantCompactCard,
   wantedCompactCard,
@@ -56,6 +57,12 @@ export const useThreadKeys = ({
     const left = store.get(lastExitedThreadAtom);
     return left?.roomId === roomId ? left.threadId : undefined;
   };
+
+  // The open thread keeps its place in the cards' order when its card leaves the list beside it.
+  useEffect(() => {
+    holdCompactThreadPlace(roomId, openThreadId);
+    return () => holdCompactThreadPlace(roomId, undefined);
+  }, [roomId, openThreadId]);
 
   const step = (direction: -1 | 1, event: KeyboardEvent): boolean => {
     const shown = cards();

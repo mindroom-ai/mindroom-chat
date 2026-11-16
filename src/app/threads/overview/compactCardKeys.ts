@@ -19,9 +19,11 @@ export const focusCompactCard = (card: HTMLElement | undefined): boolean => {
   return true;
 };
 
-/** The Compact cards under `root`, in the order they show. */
+/** The Compact cards under `root`, in the order they show; not one that is fading out (inert). */
 export const compactCardsIn = (root: ParentNode | null | undefined): HTMLElement[] =>
-  Array.from(root?.querySelectorAll<HTMLElement>(CARD_SELECTOR) ?? []);
+  Array.from(root?.querySelectorAll<HTMLElement>(CARD_SELECTOR) ?? []).filter(
+    (card) => !card.closest('[inert]')
+  );
 
 /** The card that has the keyboard's focus, under `root` when one is given. */
 export const focusedCompactCard = (root?: Node | null): HTMLElement | undefined => {
@@ -79,9 +81,32 @@ export const handleCardArrowKey = (event: ReactKeyboardEvent<HTMLElement>): void
 // The room's cards unmount under a thread that fills the page, so the order they last showed
 // stays here, per room, for stepping from that thread to the next.
 const shownOrders = new Map<string, readonly string[]>();
+let openThread: { roomId: string; threadId: string } | undefined;
+
+/**
+ * Names the room's open thread. It keeps its place in the order when its card leaves the list
+ * beside it (resolved or snoozed under a filter that hides such threads), so the keys still step
+ * on from it.
+ */
+export const holdCompactThreadPlace = (roomId: string, threadId: string | undefined): void => {
+  openThread = threadId === undefined ? undefined : { roomId, threadId };
+};
 
 export const noteCompactCardOrder = (roomId: string, threadIds: readonly string[]): void => {
-  shownOrders.set(roomId, threadIds);
+  const before = shownOrders.get(roomId);
+  const held = openThread?.roomId === roomId ? openThread.threadId : undefined;
+  const place = held === undefined || threadIds.includes(held) ? -1 : before?.indexOf(held) ?? -1;
+  if (held === undefined || !before || place < 0) {
+    shownOrders.set(roomId, threadIds);
+    return;
+  }
+  // After the nearest card above it that still shows, or first.
+  const above = before
+    .slice(0, place)
+    .reverse()
+    .find((threadId) => threadIds.includes(threadId));
+  const at = above === undefined ? 0 : threadIds.indexOf(above) + 1;
+  shownOrders.set(roomId, [...threadIds.slice(0, at), held, ...threadIds.slice(at)]);
 };
 
 /** The thread `step` cards from `threadId` in the order the room's cards last showed. */

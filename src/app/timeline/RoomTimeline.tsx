@@ -1616,6 +1616,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
           onThreadClick={(rootId) => navigateRoomThread(room.roomId, rootId)}
           compactRoomScrollStateRef={compactRoomScrollStateRef}
           filterBarShown={filterBarShown}
+          keysStepHere
         />
       </Box>
     );
