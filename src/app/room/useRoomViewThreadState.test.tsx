@@ -10,9 +10,12 @@ import {
 } from '../threads/overview/roomThreadFilterState';
 import {
   createDefaultThreadFilterState,
+  hasActiveThreadFilters,
   serializeThreadFilterState,
   type ThreadFilterState,
 } from '../event-store/threads/roomThreadOverviewModel';
+import { matchesThreadRecordFilterState } from '../event-store/threads/threadRecordOverview';
+import type { ThreadRecord } from '../event-store/threads/types';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { useEdgeSwipeForward } from '../navigation/useEdgeSwipeForward';
@@ -284,17 +287,56 @@ describe('useRoomViewThreadState', () => {
     expect(mountThreadState().current().threadFilterState.snoozed).toBe('any');
   });
 
-  it('defaults advanced agent rooms to Needs you until a tab is chosen', () => {
+  it('defaults only advanced Compact agent rooms to Needs you and preserves a chosen tab', () => {
     const { current, rerender } = mountThreadState({ advancedFilters: true });
     expect(current().threadFilterState.tab).toBe('needsYou');
     expect(current().threadFilterState.resolved).toBe('any');
     viewMode.current = 'threaded';
     rerender();
-    expect(current().threadFilterState.tab).toBe('needsYou');
+    expect(current().threadFilterState.tab).toBeUndefined();
+    expect(hasActiveThreadFilters(current().threadFilterState)).toBe(false);
     act(() => current().handleSelectTab('working'));
     viewMode.current = 'compact';
     rerender();
     expect(current().threadFilterState.tab).toBe('working');
+  });
+
+  it('keeps a sending root visible when it starts streaming in default advanced Threads', () => {
+    viewMode.current = 'threaded';
+    const { current } = mountThreadState({ advancedFilters: true });
+    const root: ThreadRecord = {
+      roomId: ROOM_ID,
+      threadRootId: '$sending',
+      presentation: {
+        summaryInfo: undefined,
+        summaryText: undefined,
+        rootPreviewText: undefined,
+        latestReplyPreviewText: undefined,
+        lastSenderId: undefined,
+        lastSenderDisplayName: undefined,
+        messageCount: 0,
+        participantIds: [],
+        replyParticipantIds: [],
+        primarySummaryText: undefined,
+        recentThreadSummaryText: undefined,
+      },
+      cache: { eventCount: 0, relationSnapshotComplete: false, tailLoaded: false },
+      absoluteIndex: 0,
+      status: {
+        isKnownThreadRoot: true,
+        replyCount: 0,
+        isResolved: false,
+        isUnread: false,
+        isStreaming: false,
+        hasPendingSend: true,
+        scheduledTaskCount: 0,
+        tags: [],
+      },
+    };
+    expect(matchesThreadRecordFilterState(root, current().threadFilterState)).toBe(true);
+    root.status.hasPendingSend = false;
+    root.status.isStreaming = true;
+    expect(matchesThreadRecordFilterState(root, current().threadFilterState)).toBe(true);
   });
 
   it('shows resolved threads by default outside Compact', () => {

@@ -128,7 +128,8 @@ export const useRoomViewThreadState = ({
   const threadFilterState = useMemo<ThreadFilterState>(() => {
     if (storedThreadFilterState) return storedThreadFilterState;
     const defaults = createDefaultThreadFilterState();
-    if (hasMindroomAgents && !simpleMode) return selectThreadWorkflowTab(defaults, 'needsYou');
+    if (hasMindroomAgents && !simpleMode && effectiveViewMode === 'compact')
+      return selectThreadWorkflowTab(defaults, 'needsYou');
     return {
       ...defaults,
       resolved: effectiveViewMode === 'compact' ? 'exclude' : 'any',
