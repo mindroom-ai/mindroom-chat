@@ -41,6 +41,7 @@ import * as overlay from '../ui/styles/RoomOverlay.css';
 import { ThreadTimelineHeader } from '../threads/ThreadTimelineHeader';
 import { TimelineMinimap } from './TimelineMinimap';
 import { buildImageSlides, ImageSlidesContext } from '../messages/content/imageSlides';
+import { forkPrefixThreadId, rowEditTimelineSet } from './forkPrefixTimelineSet';
 import { useTimelineMessageFeature } from './message-rendering/useTimelineMessageFeature';
 import type { TimelineMessageData } from './message-rendering/types';
 import type { RoomViewMode } from '../navigation/roomViewMode';
@@ -774,7 +775,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // keeps its identity, so a timeline update does not render the open viewer again.
   const imageSlideSourceRef = useLatestRef({
     events: threadId ? threadEvents : roomRows,
-    timelineSet: rowTimelineSet,
+    rowTimelineSet,
+    forkPrefixEventIds,
     isHiddenByPlugin,
     ignoredUsersSet,
   });
@@ -782,11 +784,17 @@ export function RoomTimeline(props: RoomTimelineProps) {
     const source = imageSlideSourceRef.current;
     return buildImageSlides(
       source.events,
-      source.timelineSet,
+      // As its row does.
+      (event) =>
+        rowEditTimelineSet(
+          room,
+          forkPrefixThreadId(event, event.getId() ?? '', source.forkPrefixEventIds),
+          source.rowTimelineSet
+        ),
       source.isHiddenByPlugin,
       source.ignoredUsersSet
     );
-  }, [imageSlideSourceRef]);
+  }, [imageSlideSourceRef, room]);
   // What each agent reply of the open thread and the thread so far cost, for Reply details.
   const threadConversationCost = useThreadConversationCostSummary(
     threadId ? threadEvents : undefined,

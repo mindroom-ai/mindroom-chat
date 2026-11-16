@@ -31,13 +31,13 @@ export const ImageSlidesContext = createContext<(() => readonly ImageSlide[]) | 
 
 /**
  * The pictures among `events`, in their order, as the timeline shows them: at their newest edit
- * among `timelineSet`'s relations, the set their rows read edits from, with that revision as the
- * owner. Left out: stickers, redacted and undecrypted events, spoilers, rows `isHidden` hides,
+ * among the relations of `timelineSetFor(event)`, the set its row reads edits from, with that
+ * revision as the owner. Left out: stickers, redacted and undecrypted events, spoilers, rows `isHidden` hides,
  * images of senders the reader ignores, and images the timeline shows as a file row.
  */
 export const buildImageSlides = (
   events: readonly MatrixEvent[],
-  timelineSet: Pick<EventTimelineSet, 'relations'> | undefined,
+  timelineSetFor: (event: MatrixEvent) => Pick<EventTimelineSet, 'relations'> | undefined,
   isHidden: (event: MatrixEvent) => boolean,
   ignoredUserIds: ReadonlySet<string>
 ): ImageSlide[] =>
@@ -45,7 +45,7 @@ export const buildImageSlides = (
     const eventId = event.getId();
     if (!eventId || event.getType() !== 'm.room.message' || event.isRedacted()) return [];
     if (event.isDecryptionFailure() || ignoredUserIds.has(event.getSender() ?? '')) return [];
-    const edit = getEditedEvent(eventId, event, timelineSet);
+    const edit = getEditedEvent(eventId, event, timelineSetFor(event));
     const content = getLatestMessageContent(event, edit) as Record<string, unknown>;
     if (content.msgtype !== MsgType.Image || content[MEDIA_SPOILER_PROPERTY] === true) return [];
     const image = readImageAttachment(content);

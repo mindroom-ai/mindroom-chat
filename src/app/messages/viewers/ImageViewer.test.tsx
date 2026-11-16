@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImageViewer } from './ImageViewer';
 
@@ -291,6 +291,29 @@ describe('ImageViewer loading', () => {
 });
 
 describe('ImageViewer download', () => {
+  it("keeps the next picture's save showing Saving when the one before finishes later", async () => {
+    saveFile.mockClear();
+    let finishA!: (saved: boolean) => void;
+    saveFile.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishA = resolve;
+        })
+    );
+    saveFile.mockImplementationOnce(() => new Promise<boolean>(() => undefined));
+    const { rerender } = render(<ImageViewer src="blob:a" alt="a.png" requestClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    await screen.findByRole('button', { name: 'Saving...' });
+
+    rerender(<ImageViewer src="blob:b" alt="b.png" requestClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    await screen.findByRole('button', { name: 'Saving...' });
+    await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(2));
+
+    await act(async () => finishA(true));
+    expect(screen.getByRole('button', { name: 'Saving...' })).toBeTruthy();
+  });
+
   it('starts each picture with a plain Download, even after the last one failed to save', async () => {
     saveFile.mockRejectedValueOnce(new Error('disk full'));
     const { rerender } = render(<ImageViewer src="blob:a" alt="a.png" requestClose={vi.fn()} />);

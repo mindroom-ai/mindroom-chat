@@ -27,7 +27,7 @@ const image = (name: string, info: Content = { mimetype: 'image/png' }): Content
 
 type RelationsSet = Pick<EventTimelineSet, 'relations'>;
 /** No timeline set: each event shows its own content. */
-const noSet: RelationsSet | undefined = undefined;
+const noSet = (): RelationsSet | undefined => undefined;
 const nothingHidden = () => false;
 const nobodyIgnored: ReadonlySet<string> = new Set();
 
@@ -164,7 +164,7 @@ describe('buildImageSlides', () => {
       },
     } as unknown as RelationsSet;
 
-    const [slide] = buildImageSlides([original], roomSet, nothingHidden, nobodyIgnored);
+    const [slide] = buildImageSlides([original], () => roomSet, nothingHidden, nobodyIgnored);
     expect(slide?.body).toBe('new.png');
     expect(slide?.url).toBe('mxc://example.org/new.png');
     expect(slide?.owner).toMatchObject({
@@ -175,5 +175,35 @@ describe('buildImageSlides', () => {
 
     const [unedited] = buildImageSlides([original], noSet, nothingHidden, nobodyIgnored);
     expect(unedited?.body).toBe('old.png');
+  });
+
+  it("reads each event's edits from the set its row reads them from, a fork prefix's parent's", () => {
+    const prefixed = event('$prefix', image('old.png'));
+    const edit = event(
+      '$edit',
+      {
+        ...image('* new.png'),
+        'm.new_content': image('new.png'),
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$prefix' },
+      },
+      { origin_server_ts: 2000 }
+    );
+    const parentSet = {
+      relations: {
+        getChildEventsForEvent: (eventId: string) =>
+          eventId === '$prefix' ? { getRelations: () => [edit] } : undefined,
+      },
+    } as unknown as RelationsSet;
+    const forkSet = {
+      relations: { getChildEventsForEvent: () => undefined },
+    } as unknown as RelationsSet;
+
+    const [slide] = buildImageSlides(
+      [prefixed],
+      (mEvent) => (mEvent.getId() === '$prefix' ? parentSet : forkSet),
+      nothingHidden,
+      nobodyIgnored
+    );
+    expect(slide?.body).toBe('new.png');
   });
 });

@@ -31,15 +31,18 @@ const useSaveMedia = (src: string, fileName: string) => {
 
   const save = async () => {
     if (state === 'saving') return;
+    // A save that ends after another picture's started leaves that one's state alone.
+    const finish = (next: DownloadState) =>
+      setSaved((prev) => (prev?.src === src ? { src, state: next } : prev));
     setSaved({ src, state: 'saving' });
     try {
       if (blobRef.current?.src !== src) {
         blobRef.current = { src, blob: await downloadMedia(src) };
       }
       await saveFile(new Blob([blobRef.current.blob], { type: DOWNLOAD_MIME_TYPE }), fileName);
-      setSaved({ src, state: 'idle' });
+      finish('idle');
     } catch {
-      setSaved({ src, state: 'failed' });
+      finish('failed');
     }
   };
 
