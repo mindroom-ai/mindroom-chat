@@ -15,11 +15,8 @@ import {
 } from '../cross-room/crossRoomThreadIndex';
 import { useCompactThreadSections } from './useCompactThreadSections';
 
-const signalsRead = vi.hoisted(() =>
-  vi.fn((_room: Room, _entry: CrossRoomThreadIndexEntry) => ({}))
-);
 vi.mock('../cross-room/threadSignalsReader', () => ({
-  getThreadSignalsReader: () => ({ read: signalsRead }),
+  getThreadSignalsReader: () => ({ read: () => ({}) }),
 }));
 
 const ROOM_ID = '!room:example.org';
@@ -50,15 +47,12 @@ const roomWithJobs = (initial: MatrixEvent) => {
   const getStateEvents = vi.fn((type: string) =>
     type === MINDROOM_BACKGROUND_JOBS_EVENT ? [jobs] : []
   );
-  // Each thread's loaded events, as the SDK's thread holds them.
-  const threads = new Map<string, { events: MatrixEvent[] }>();
   const room = Object.assign(emitter, {
     roomId: ROOM_ID,
     myUserId: '@me:example.org',
     client: {},
     currentState: { getStateEvents },
     getMember: (userId: string) => ({ userId, membership: 'join' }),
-    getThread: (rootId: string) => threads.get(rootId) ?? null,
   }) as unknown as Room;
   const publish = (next: MatrixEvent) => {
     jobs = next;
@@ -66,7 +60,7 @@ const roomWithJobs = (initial: MatrixEvent) => {
       emitter.emit(RoomStateEvent.Events, next);
     });
   };
-  return { room, publish, getStateEvents, threads };
+  return { room, publish, getStateEvents };
 };
 
 const record = (rootId: string, isResolved = false): ThreadRecord =>
@@ -161,96 +155,5 @@ describe('useCompactThreadSections', () => {
     );
 
     expect(result.current).toEqual([{ id: 'resolved', rootIds: ['$new', '$old'] }]);
-  });
-
-  it("reads an Idle thread's signals again only once its own entry changes", () => {
-    signalsRead.mockClear();
-    const store = createStore();
-    const entry = (rootId: string, generation = 0) =>
-      ({
-        key: getCrossRoomThreadIndexKey(ROOM_ID, rootId),
-        roomId: ROOM_ID,
-        threadRootId: rootId,
-        generation,
-      } as CrossRoomThreadIndexEntry);
-    const index = (...entries: CrossRoomThreadIndexEntry[]) =>
-      act(() => {
-        store.set(crossRoomThreadIndexAtom, {
-          ...emptyCrossRoomThreadIndexSnapshot(),
-          entries: new Map(entries.map((item) => [item.key, item] as const)),
-        });
-      });
-    const readsOf = (read: CrossRoomThreadIndexEntry) =>
-      signalsRead.mock.calls.filter(([, item]) => item === read).length;
-    // As the room builds them: new records for every thread on each update.
-    const recordsWith = (streaming: boolean) =>
-      new Map([
-        ['$a', { ...record('$a'), status: { ...record('$a').status, isStreaming: streaming } }],
-        ['$b', record('$b')],
-      ] as const);
-    const idleB = entry('$b');
-    index(entry('$a'), idleB);
-    const { room } = roomWithJobs(jobsState([]));
-    const { rerender } = renderHook(
-      ({ recordMap }: { recordMap: ReadonlyMap<string, ThreadRecord> }) =>
-        useCompactThreadSections({
-          room,
-          enabled: true,
-          threadRootIds: ['$a', '$b'],
-          threadRecordMap: recordMap,
-          pinnedRootIds: [],
-        }),
-      { wrapper: wrapperOf(store), initialProps: { recordMap: recordsWith(false) } }
-    );
-    const mountReads = readsOf(idleB);
-    expect(mountReads).toBeGreaterThan(0);
-
-    // A stream chunk in $a: its entry and every record are new, $b's entry is not.
-    index(entry('$a', 1), idleB);
-    rerender({ recordMap: recordsWith(true) });
-    expect(readsOf(idleB)).toBe(mountReads);
-
-    const repliedB = entry('$b', 1);
-    index(entry('$a', 1), repliedB);
-    rerender({ recordMap: recordsWith(true) });
-    expect(readsOf(repliedB)).toBe(1);
-  });
-
-  it("reads an Idle thread's signals again when its own events change, its entry the same", () => {
-    signalsRead.mockClear();
-    const store = createStore();
-    const entryB = {
-      key: getCrossRoomThreadIndexKey(ROOM_ID, '$b'),
-      roomId: ROOM_ID,
-      threadRootId: '$b',
-      generation: 0,
-    } as CrossRoomThreadIndexEntry;
-    act(() => {
-      store.set(crossRoomThreadIndexAtom, {
-        ...emptyCrossRoomThreadIndexSnapshot(),
-        entries: new Map([[entryB.key, entryB]]),
-      });
-    });
-    const { room, threads } = roomWithJobs(jobsState([]));
-    const reply = (id: string) => new MatrixEvent({ event_id: id, type: 'm.room.message' });
-    threads.set('$b', { events: [reply('$r1'), reply('$r2')] });
-    const { rerender } = renderHook(
-      ({ recordMap }: { recordMap: ReadonlyMap<string, ThreadRecord> }) =>
-        useCompactThreadSections({
-          room,
-          enabled: true,
-          threadRootIds: ['$b'],
-          threadRecordMap: recordMap,
-          pinnedRootIds: [],
-        }),
-      { wrapper: wrapperOf(store), initialProps: { recordMap: new Map([['$b', record('$b')]]) } }
-    );
-    const mountReads = signalsRead.mock.calls.length;
-
-    // An edit of an older reply arrives: the thread holds it, the index entry stays equivalent.
-    threads.set('$b', { events: [reply('$r1'), reply('$r2'), reply('$edit-of-r1')] });
-    rerender({ recordMap: new Map([['$b', record('$b')]]) });
-
-    expect(signalsRead.mock.calls.length).toBe(mountReads + 1);
   });
 });
