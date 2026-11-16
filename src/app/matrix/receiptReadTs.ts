@@ -2,7 +2,6 @@ import { RoomEvent, type MatrixClient, type MatrixEvent, type Room } from 'matri
 import { MAIN_ROOM_TIMELINE, ReceiptType } from 'matrix-js-sdk/lib/@types/read_receipts';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { isRecord } from '../lib/isRecord';
-import { findRoomEvent } from './roomEventLookup';
 
 // How far a receipt reads, by the server's rule since mindroom-tuwunel #140 (v1.9.4-mindroom.31):
 // up to the event it names, so an older receipt leaves the events after its event unread. Before,
@@ -70,11 +69,9 @@ export const receiptReadTs = (
 ): number => {
   // Optional calls here and below: room and thread stand-ins in tests often lack receipts, events
   // or, for a thread, its room.
-  let named: MatrixEvent | undefined;
-  if (eventId) {
-    if (context !== room) named = context.findEventById?.(eventId);
-    named ??= findRoomEvent(room, eventId);
-  }
+  const named = eventId
+    ? context.findEventById?.(eventId) ?? room.findEventById?.(eventId)
+    : undefined;
   return named?.getTs() ?? takenTs;
 };
 

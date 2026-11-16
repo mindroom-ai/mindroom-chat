@@ -2,7 +2,6 @@ import { Filter, MatrixClient, type IStartClientOpts } from 'matrix-js-sdk';
 import { buildFeatureSupportMap, Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { readCachedSpecVersions } from '../cachedSpecVersions';
 import { keepUnthreadedReceiptEvents } from '../receiptReadTs';
-import { keepRoomEventLookupsCurrent } from '../roomEventLookup';
 import { getSafeLocalStorage, removeStorageItemSafe } from '../../lib/safeLocalStorage';
 import { dropRoomsForgottenElsewhere } from './roomsForgottenElsewhere';
 import { keepBundledEditsInTheirRoom } from './bundledEditRoom';
@@ -102,7 +101,6 @@ export const startClient = async (
     dropRoomsForgottenElsewhere(mx);
     keepSyncedEdits(mx);
     keepUnthreadedReceiptEvents(mx);
-    keepRoomEventLookupsCurrent(mx);
     keepEncryptedRoomCounts(mx);
     keepUnsentMessages(mx);
     // Before the first sync, whose rings may come before the pages that watch for them load.
