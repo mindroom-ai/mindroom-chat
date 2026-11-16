@@ -401,8 +401,21 @@ export const startProbe = async (
     page.off('response', onResponse);
     const wallMs = Date.now() - startedAt;
 
-    // Answers that arrived inside the window may still be parsing.
-    await Promise.all(parsing);
+    // Answers that arrived inside the window may still be parsing. One that a page load cut off
+    // never settles in Chromium, so the wait has an end.
+    let waited: NodeJS.Timeout | undefined;
+    const unparsed = await Promise.race([
+      Promise.all(parsing).then(() => 0),
+      new Promise<number>((resolve) => {
+        waited = setTimeout(() => resolve(parsing.size), 5000);
+      }),
+    ]);
+    clearTimeout(waited);
+    if (unparsed > 0) {
+      notes.push(
+        `${unparsed} /sync answers never finished loading (a page load cut them off): load leaves them out`
+      );
+    }
     mkdirSync(outDir, { recursive: true });
     if (session && profiling) {
       const { profile: cpuProfile } = await session.send('Profiler.stop');
