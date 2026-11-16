@@ -27,7 +27,7 @@ vi.mock('./cross-room/threadSignals', async (importOriginal) => {
   return {
     ...actual,
     readThreadSignals: (...args: Parameters<typeof actual.readThreadSignals>) =>
-      signals.read ? signals.read(args[3]) : actual.readThreadSignals(...args),
+      signals.read ? signals.read(args[3] ?? Date.now()) : actual.readThreadSignals(...args),
   };
 });
 
@@ -47,11 +47,11 @@ const ROOT = '$root';
 const started = (name: string) => ({ type: 'tool_call_started', tool_name: name });
 const completed = (name: string) => ({ type: 'tool_call_completed', tool_name: name });
 
-const reply = (id: string, ts: number, content: Record<string, unknown>) =>
+const reply = (id: string, ts: number, content: Record<string, unknown>, sender = AGENT) =>
   new MatrixEvent({
     event_id: id,
     room_id: ROOM_ID,
-    sender: AGENT,
+    sender,
     type: 'm.room.message',
     origin_server_ts: ts,
     content: {
@@ -232,6 +232,54 @@ describe('ThreadLiveStatusRows', () => {
     expect(textOf(rows)).toContain('1 running: grep');
   });
 
+  it('counts the tools of every reply that streams in the thread', async () => {
+    const other = reply(
+      '$other',
+      3500,
+      {
+        'io.mindroom.stream_status': 'streaming',
+        'io.mindroom.tool_trace': { version: 2, events: [started('read'), started('shell')] },
+      },
+      '@mindroom_research:example.org'
+    );
+    const { mx, room } = await setup([streamingReply, other]);
+
+    expect(textOf(render(mx, room, true))).toContain('4 running: shell, grep, …');
+  });
+
+  it('shows the durable trace once it covers the live frames', async () => {
+    const SID = '1762790000123-0a1b2c3d';
+    const checkpointed = reply('$streaming', 3000, {
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.live_checkpoint': { sid: SID, seq: 1 },
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [completed('shell'), completed('grep'), started('read')],
+      },
+    });
+    const { mx, room } = await setup([checkpointed]);
+    // A frame the durable write already covers.
+    getLiveReplyStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      {
+        reply: '$streaming',
+        sid: SID,
+        seq: 1,
+        snapshot: {
+          md: 'Working',
+          reasoning: '',
+          tools: [started('shell'), started('grep')],
+          status: 'streaming',
+          activity: '',
+        },
+      },
+      Date.now()
+    );
+
+    expect(textOf(render(mx, room, true))).toContain('1 running: read');
+  });
+
   it('counts no tool once the reply stopped streaming', async () => {
     const { mx, room } = await setup([streamingReply]);
 
@@ -292,7 +340,7 @@ describe('ThreadLiveStatusRows', () => {
     expect(textOf(rows)).toEqual([]);
 
     // What the edit says becomes readable, with the run's cost.
-    edit.setClearData({
+    edit['setClearData']({
       clearEvent: {
         type: 'm.room.message',
         content: {
@@ -304,7 +352,7 @@ describe('ThreadLiveStatusRows', () => {
           },
         },
       },
-    } as Parameters<MatrixEvent['setClearData']>[0]);
+    });
     act(() => {
       mx.emit(MatrixEventEvent.Decrypted, edit);
     });

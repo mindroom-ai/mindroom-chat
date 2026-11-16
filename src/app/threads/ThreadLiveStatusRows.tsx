@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { Fragment, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Text } from 'folds';
@@ -8,10 +8,11 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { getEditedEvent, getLatestMessageContent } from '../matrix/room';
 import { getContentToolTraceEvents, runningToolCalls } from '../matrix/protocol/toolTrace';
 import { jobsInView } from '../matrix/protocol/backgroundJobsContract';
-import { getThreadStreamingReply } from '../event-store/threads/useThreadStreamingState';
+import { getThreadStreamingReplies } from '../event-store/threads/useThreadStreamingState';
 import { useThreadEventRefresh } from '../event-store/threads/useThreadEventRefresh';
 import { summarizeLoadedThreadCost } from '../event-store/threads/threadConversationCost';
 import { getLiveReplyStore } from '../messages/live/liveReplyStore';
+import { getLiveVerdict } from '../messages/live/useLiveReplyContent';
 import { useRoomSubagentCounts } from '../messages/live/subagentRunStore';
 import { useRoomBackgroundJobs } from '../background-jobs/useRoomBackgroundJobs';
 import type { CrossRoomThreadIndexEntry } from './cross-room/crossRoomThreadIndex';
@@ -22,38 +23,45 @@ import { threadLiveStatusRows } from './threadLiveStatus';
 const NO_EVENTS: MatrixEvent[] = [];
 
 /**
- * The tool calls the thread's streaming reply runs: from its live frames while they arrive, else
- * from its latest edit's tool trace. Read again on each frame, edit and thread update.
+ * The tool calls the thread's streaming replies run, several agents' at once: each reply's live
+ * frames while they show over it, else its latest edit's tool trace. Read again on each frame,
+ * edit and thread update.
  */
 const useRunningTools = (room: Room, threadId: string, streaming: boolean) => {
   const mx = useMatrixClient();
   const [version, refresh] = useForceUpdate();
+  const [frames, framed] = useForceUpdate();
   const thread = room.getThread(threadId) ?? undefined;
-  const reply = useMemo(() => {
+  const replies = useMemo(() => {
     void version;
-    return streaming ? getThreadStreamingReply(room, threadId) : undefined;
+    return streaming ? getThreadStreamingReplies(room, threadId) : NO_EVENTS;
   }, [room, streaming, threadId, version]);
-  const tracked = useMemo(() => (reply ? [reply] : NO_EVENTS), [reply]);
-  useThreadEventRefresh(thread, tracked, refresh);
+  useThreadEventRefresh(thread, replies, refresh);
 
   const store = getLiveReplyStore(mx);
-  const replyId = reply?.getId();
-  const subscribe = useCallback(
-    (onChange: () => void) =>
-      replyId ? store.subscribe(room.roomId, replyId, onChange) : () => undefined,
-    [replyId, room.roomId, store]
-  );
-  const live = useSyncExternalStore(subscribe, () =>
-    replyId ? store.get(room.roomId, replyId) : undefined
-  );
-  const durable = useMemo(() => {
-    void version;
-    if (!reply) return undefined;
-    const edit = getEditedEvent(reply.getId() ?? '', reply, thread?.timelineSet);
-    return getContentToolTraceEvents(getLatestMessageContent(reply, edit));
-  }, [reply, thread, version]);
-  const events = live && live.sender === reply?.getSender() ? live.docs.tools : durable;
-  return runningToolCalls(events, !!reply);
+  useEffect(() => {
+    const unsubscribes = replies.map((reply) =>
+      store.subscribe(room.roomId, reply.getId() ?? '', framed)
+    );
+    return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
+  }, [framed, replies, room.roomId, store]);
+
+  return useMemo(() => {
+    void frames;
+    const now = Date.now();
+    const events = replies.flatMap((reply) => {
+      const replyId = reply.getId() ?? '';
+      const content = getLatestMessageContent(
+        reply,
+        getEditedEvent(replyId, reply, thread?.timelineSet)
+      );
+      // The reply's row shows its frames only while they are newer than what it wrote.
+      const live = store.get(room.roomId, replyId);
+      const shown = live && getLiveVerdict(reply, content, live, now) === 'show';
+      return (shown ? live.docs.tools : getContentToolTraceEvents(content)) ?? [];
+    });
+    return runningToolCalls(events, replies.length > 0);
+  }, [frames, replies, room.roomId, store, thread]);
 };
 
 type ThreadLiveStatusRowsProps = {

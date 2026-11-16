@@ -6,7 +6,7 @@ import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  getThreadStreamingReply,
+  getThreadStreamingReplies,
   getThreadStreamingState,
   useThreadStreamingState,
 } from './useThreadStreamingState';
@@ -210,31 +210,36 @@ const renderHookHarness = (
   };
 };
 
-describe('getThreadStreamingReply', () => {
-  it('finds the reply that streams, and none once it finished', () => {
+describe('getThreadStreamingReplies', () => {
+  it('finds every reply that streams, and none once they finished', () => {
     const relationMap = new Map<string, MockRelations>();
     const earlier = makeThreadReplyEvent('$earlier', 100);
-    const reply = makeThreadReplyEvent('$reply', 200, {
+    const first = makeThreadReplyEvent('$first', 200, {
       'io.mindroom.stream_status': 'streaming',
     });
-    const thread = makeThread({ relationMap, timelineEvents: [earlier, reply] });
+    const second = makeThreadReplyEvent('$second', 250, {
+      'io.mindroom.stream_status': 'streaming',
+    });
+    const thread = makeThread({ relationMap, timelineEvents: [earlier, first, second] });
     const room = makeRoom({
       rootEventId: '$root',
       thread,
       roomTimelineSet: makeTimelineSet(relationMap, () => []),
     });
 
-    expect(getThreadStreamingReply(room, '$root')).toBe(reply);
-    expect(getThreadStreamingReply(room, '$other')).toBeUndefined();
+    expect(getThreadStreamingReplies(room, '$root')).toEqual([first, second]);
+    expect(getThreadStreamingReplies(room, '$other')).toEqual([]);
 
-    reply.setUnsigned({
-      'm.relations': {
-        'm.replace': makeEditEvent('$done', 300, '$reply', {
-          'io.mindroom.stream_status': 'completed',
-        }).event,
-      },
-    });
-    expect(getThreadStreamingReply(room, '$root')).toBeUndefined();
+    [first, second].forEach((reply) =>
+      reply.setUnsigned({
+        'm.relations': {
+          'm.replace': makeEditEvent(`${reply.getId()}-done`, 300, reply.getId()!, {
+            'io.mindroom.stream_status': 'completed',
+          }).event,
+        },
+      })
+    );
+    expect(getThreadStreamingReplies(room, '$root')).toEqual([]);
   });
 });
 
