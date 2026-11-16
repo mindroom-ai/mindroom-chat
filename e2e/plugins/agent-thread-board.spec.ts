@@ -74,7 +74,17 @@ type StateEvent = {
   type: string;
   state_key: string;
   sender: string;
-  content: { thread_id?: string };
+  content: { status?: string; thread_id?: string; workflow?: string };
+};
+
+/** The thread a schedule posts in: at the top of its content, or in its workflow. */
+const scheduleThread = ({ content }: StateEvent): string | undefined => {
+  if (content.thread_id) return content.thread_id;
+  try {
+    return (JSON.parse(content.workflow ?? '{}') as { thread_id?: string }).thread_id;
+  } catch {
+    return undefined;
+  }
 };
 
 /** Cancels the thread's pending schedules as the agent account that made them. */
@@ -85,7 +95,10 @@ const cancelSchedules = async (stack: AgentStack, rootId: string) => {
     { accessToken: stack.tester.accessToken }
   );
   const tasks = state.filter(
-    (event) => event.type === SCHEDULE_EVENT && event.content.thread_id === rootId
+    (event) =>
+      event.type === SCHEDULE_EVENT &&
+      event.content.status === 'pending' &&
+      scheduleThread(event) === rootId
   );
   expect(tasks.map((task) => task.sender)).toEqual([stack.agents.router]);
   await Promise.all(
