@@ -59,6 +59,9 @@ type Glide = { animation: Animation; fromSteps: number };
 
 // Each new sample moves the bars a step left. Rather than jump, the strip starts that far to
 // the right and glides back over one sample interval, from wherever a glide still running left it.
+// The glide moves the strip's end inset, not its transform. A transform glide runs on the
+// compositor in a layer as wide as every bar recorded so far, and iOS WebKit draws that layer blank
+// for the whole glide once it is some screens wide, so the bars flickered with every sample.
 const useLiveGlide = (stripRef: RefObject<HTMLDivElement>, sampleCount: number | undefined) => {
   const lastCountRef = useRef(sampleCount);
   const glideRef = useRef<Glide>();
@@ -83,7 +86,7 @@ const useLiveGlide = (stripRef: RefObject<HTMLDivElement>, sampleCount: number |
       added + (running && typeof progress === 'number' ? running.fromSteps * (1 - progress) : 0)
     );
     const animation = strip.animate(
-      [{ transform: `translateX(${toRem(fromSteps * BAR_STEP)})` }, { transform: 'none' }],
+      [{ insetInlineEnd: toRem(-fromSteps * BAR_STEP) }, { insetInlineEnd: '0' }],
       { duration: VOICE_WAVEFORM_SAMPLE_INTERVAL_MS, easing: 'linear' }
     );
     // Start at the frame on screen rather than the next one, which would hold the bars still
