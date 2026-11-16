@@ -936,7 +936,11 @@
   },
   "threadFork": {
     "forkedFrom": "{{title}} से शाखा बनाई गई",
-    "openInOriginalThread": "मूल थ्रेड में खोलें"
+    "openInOriginalThread": "मूल थ्रेड में खोलें",
+    "forkFromHere": "यहाँ से शाखा बनाएँ",
+    "forkThread": "थ्रेड की शाखा बनाएँ",
+    "forking": "{{title}} की शाखा बनाई जा रही है",
+    "continueInNewThread": "नए थ्रेड में जारी रखें"
   },
   "activity": {
     "title": "गतिविधि",

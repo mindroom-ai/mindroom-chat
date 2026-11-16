@@ -98,6 +98,7 @@ import {
 import { useRoomInputVoice } from './useRoomInputVoice';
 import { type HeldSend, useUnconfirmedRootSends } from './useUnconfirmedRootSends';
 import { useSavedVoiceDraft } from './voice/savedVoiceDraft';
+import { type ThreadForkRef, threadForkDraftId } from '../event-store/threads/threadFork';
 
 export type RoomInputProps = {
   editor: Editor;
@@ -111,6 +112,11 @@ export type RoomInputProps = {
   threadingEnabled?: boolean;
   /** Called with the ID of a sent room-level message; return true when the timeline shows it. */
   onRoomMessageSent?: (eventId: string) => boolean | void;
+  /**
+   * A fork draft's composer: it writes no thread but a new top-level message that starts the fork,
+   * keeps its text apart from the thread's, and takes no reply.
+   */
+  forkFrom?: ThreadForkRef;
 };
 
 const isEnter = isKeyHotkey('enter');
@@ -264,6 +270,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       threadId,
       threadingEnabled = true,
       onRoomMessageSent,
+      forkFrom,
     },
     ref
   ) => {
@@ -273,10 +280,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [isMarkdown] = useSetting(settingsAtom, 'isMarkdown');
     const [enterForNewline] = useSetting(settingsAtom, 'enterForNewline');
     const userId = mx.getUserId() ?? '';
-    const draftKey = threadId ? getRoomInputDraftKey(userId, roomId, threadId) : undefined;
-    // Another view of the room (a plugin's thread view) has a reply of its own.
+    // A fork draft keeps its text under a key of its own, not its thread's.
+    const draftThreadId = forkFrom ? threadForkDraftId(forkFrom) : threadId;
+    const draftKey = draftThreadId ? getRoomInputDraftKey(userId, roomId, draftThreadId) : undefined;
+    // Another view of the room (a plugin's thread view) has a reply of its own. A fork draft takes
+    // none: the reply chosen in its thread stays for the thread.
     const view = useContext(ConversationViewContext);
-    const replyDraft = useAtomValue(composerReplyDraftAtom(roomId, view));
+    const viewReplyDraft = useAtomValue(composerReplyDraftAtom(roomId, view));
+    const replyDraft = forkFrom ? undefined : viewReplyDraft;
     const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
     const sendTypingStatus = useTypingStatusUpdater(mx, roomId, hideActivity);
     const isComposing = useComposingCheck();
@@ -316,7 +327,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       userId,
       onConfirmedRef: rootConfirmedRef,
     });
-    const saveDraft = useRoomInputDraft(editor, userId, roomId, threadId);
+    const saveDraft = useRoomInputDraft(editor, userId, roomId, draftThreadId);
     const { lostFileNames, dismissLostFiles } = useKeptComposerState(userId, roomId);
     const linkSchemes = useOptionalClientConfig()?.messageRendering?.additionalAllowedUriSchemes;
     const commands = useCommands(room, threadingEnabled ? threadId : undefined);
@@ -395,6 +406,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         buildUploadMessageContent(mx, item, mxc, signalBridgedRoom),
       restoreComposerFallbackForRoom,
       onRoomMessageSent,
+      forkFrom,
     });
 
     const composer = useMemo(
@@ -593,12 +605,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       // Only an edit changes the saved draft. A draft put back into the editor (opening its
       // room, switching accounts, reloading) or a moved cursor leaves it as it was, and is
       // not typing.
-      const draftAtom = roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(userId, roomId, threadId));
+      const draftAtom = roomIdToMsgDraftAtomFamily(
+        getRoomInputDraftKey(userId, roomId, draftThreadId)
+      );
       const draftBefore = store.get(draftAtom);
       saveDraft();
       attachments.onEditorChange();
       if (store.get(draftAtom) !== draftBefore) sendTypingStatus(!isEmptyEditor(editor));
-    }, [attachments, editor, roomId, saveDraft, sendTypingStatus, store, threadId, userId]);
+    }, [attachments, draftThreadId, editor, roomId, saveDraft, sendTypingStatus, store, userId]);
 
     const closeAutocomplete = useCallback(() => setAutocompleteQuery(undefined), []);
     const insertEmoji = useCallback(
@@ -738,7 +752,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           editableName="RoomInput"
           // The composer floats over the timeline and the cards, which scroll beneath it.
           className={glassDenseOverBackdrop}
-          placeholder={t('composer.placeholder')}
+          placeholder={
+            forkFrom ? t('threadFork.continueInNewThread') : t('composer.placeholder')
+          }
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onKeyUp={resyncAfterKey}

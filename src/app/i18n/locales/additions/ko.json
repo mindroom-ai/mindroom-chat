@@ -921,7 +921,11 @@
   },
   "threadFork": {
     "forkedFrom": "{{title}}에서 분기됨",
-    "openInOriginalThread": "원래 스레드에서 열기"
+    "openInOriginalThread": "원래 스레드에서 열기",
+    "forkFromHere": "여기서 분기",
+    "forkThread": "스레드 분기",
+    "forking": "{{title}} 분기 중",
+    "continueInNewThread": "새 스레드에서 계속"
   },
   "activity": {
     "title": "활동",

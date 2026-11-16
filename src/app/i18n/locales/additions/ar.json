@@ -996,7 +996,11 @@
   },
   "threadFork": {
     "forkedFrom": "متفرّع من ⁨{{title}}⁩",
-    "openInOriginalThread": "فتح في سلسلة المحادثة الأصلية"
+    "openInOriginalThread": "فتح في سلسلة المحادثة الأصلية",
+    "forkFromHere": "التفريع من هنا",
+    "forkThread": "تفريع سلسلة المحادثة",
+    "forking": "تفريع ⁨{{title}}⁩",
+    "continueInNewThread": "المتابعة في سلسلة محادثة جديدة"
   },
   "activity": {
     "title": "النشاط",

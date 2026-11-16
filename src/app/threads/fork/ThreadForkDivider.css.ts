@@ -17,23 +17,30 @@ export const Rule = style({
   background: color.SurfaceVariant.ContainerLine,
 });
 
-export const Link = style({
+// The label's own line: the icon and the text, as the link shows them.
+export const Label = style({
   display: 'inline-flex',
   alignItems: 'center',
   gap: config.space.S100,
   minWidth: 0,
   paddingBlock: config.space.S100,
   paddingInline: config.space.S200,
-  border: 'none',
-  borderRadius: config.radii.R300,
-  background: 'none',
-  color: 'inherit',
-  font: 'inherit',
-  cursor: 'pointer',
-  selectors: {
-    '&:hover, &:focus-visible': {
-      color: color.Primary.Main,
-      backgroundColor: color.SurfaceVariant.ContainerHover,
+});
+
+export const Link = style([
+  Label,
+  {
+    border: 'none',
+    borderRadius: config.radii.R300,
+    background: 'none',
+    color: 'inherit',
+    font: 'inherit',
+    cursor: 'pointer',
+    selectors: {
+      '&:hover, &:focus-visible': {
+        color: color.Primary.Main,
+        backgroundColor: color.SurfaceVariant.ContainerHover,
+      },
     },
   },
-});
+]);

@@ -33,6 +33,9 @@ import { useToolCallsShown } from '../messages/toolCallVisibility';
 import { isSnoozedAt } from '../event-store/threads/threadSnooze';
 import { useSnoozeNow } from './tags/useSnoozeNow';
 import { SnoozePicker } from './tags/SnoozePicker';
+import { latestForkPoint } from '../event-store/threads/threadFork';
+import { ForkIcon } from '../messages/forkIcon';
+import { useStartThreadFork } from './fork/useStartThreadFork';
 
 export type ThreadActionsMenuProps = {
   room: Room;
@@ -67,7 +70,10 @@ const fieldStyle: React.CSSProperties = {
   color: 'inherit',
 };
 
-/** Thread options: open, tags, edit or regenerate the summary, resolve, snooze, pin, copy a link. */
+/**
+ * Thread options: open, tags, edit or regenerate the summary, resolve, snooze, pin, fork (the copy),
+ * copy a link.
+ */
 export function ThreadActionsMenu({
   room,
   rootId,
@@ -86,6 +92,7 @@ export function ThreadActionsMenu({
   const pinning = useThreadPinning(room);
   const members = useRoomMembers(mx, room.roomId);
   const [toolCallsShown, setToolCallsShown] = useToolCallsShown(room.roomId, rootId);
+  const startFork = useStartThreadFork(room);
 
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -380,8 +387,8 @@ export function ThreadActionsMenu({
   };
 
   // The thread's own details (tags, title) first, then its state (resolved, snoozed, pinned), then
-  // the link, whether it shows tool calls, and the banner's Show beside and Hide; each label has its
-  // icon at the end of the row.
+  // its copy, the link, whether it shows tool calls, and the banner's Show beside and Hide; each
+  // label has its icon at the end of the row.
   const items: Array<{
     action: string;
     label: string;
@@ -460,6 +467,19 @@ export function ThreadActionsMenu({
       icon: Icons.Pin,
       onSelect: () => {
         void pinning.setPinned(rootId, !pinned);
+      },
+    });
+  }
+  // The copy of the open thread (the card's has Open instead): a fork at its latest message.
+  const forkPoint = onOpenThread ? undefined : latestForkPoint(room, rootId);
+  if (forkPoint) {
+    items.push({
+      action: 'fork',
+      label: t('threadFork.forkThread'),
+      icon: ForkIcon,
+      onSelect: () => {
+        startFork(forkPoint);
+        onClose();
       },
     });
   }

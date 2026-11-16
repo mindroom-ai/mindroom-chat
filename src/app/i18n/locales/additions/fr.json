@@ -951,7 +951,11 @@
   },
   "threadFork": {
     "forkedFrom": "Dérivé de {{title}}",
-    "openInOriginalThread": "Ouvrir dans le fil d'origine"
+    "openInOriginalThread": "Ouvrir dans le fil d'origine",
+    "forkFromHere": "Dériver à partir d'ici",
+    "forkThread": "Dériver le fil",
+    "forking": "Dérivation de {{title}}",
+    "continueInNewThread": "Continuer dans un nouveau fil"
   },
   "activity": {
     "title": "Activité",

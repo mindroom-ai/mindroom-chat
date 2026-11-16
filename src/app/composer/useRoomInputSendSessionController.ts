@@ -45,11 +45,17 @@ import {
   RoomInputSendSessionState,
 } from './roomInputSendSession';
 import { getRoomMessageSentNotificationEventId } from '../event-store/timeline/roomMessageSent';
+import {
+  type ThreadForkRef,
+  threadForkContent,
+  threadForkDraftId,
+} from '../event-store/threads/threadFork';
 
 type SendSession = RoomInputSendSessionState & {
   room: Room;
   roomId: string;
   threadId: string | undefined;
+  forkFrom: ThreadForkRef | undefined;
   replyDraft: IReplyDraft | undefined;
   threadingEnabled: boolean;
   textContent?: IContent;
@@ -172,6 +178,8 @@ export type RoomInputSendContext = {
   replyDraft: IReplyDraft | undefined;
   threadingEnabled: boolean;
   signalBridgedRoom: boolean;
+  /** Sent from a fork draft: the message without a relation starts the fork, so it carries this. */
+  forkFrom?: ThreadForkRef;
 };
 
 export type StartRoomInputSendSessionOptions = {
@@ -213,6 +221,8 @@ type UseRoomInputSendSessionControllerOptions = {
     threadId?: string
   ) => void;
   onRoomMessageSent?: (eventId: string) => boolean | void;
+  /** A fork draft's composer (`RoomInput`): its sends start the fork. */
+  forkFrom?: ThreadForkRef;
 };
 
 const getTextContentStrings = (content: IContent | undefined): string[] => {
@@ -271,6 +281,7 @@ const createSendSession = (
   replyDraft: context.replyDraft,
   threadingEnabled: context.threadingEnabled,
   signalBridgedRoom: context.signalBridgedRoom,
+  forkFrom: context.forkFrom,
   replyCleared: false,
   ...createRoomInputSendSessionState({
     files,
@@ -280,6 +291,29 @@ const createSendSession = (
     threadingEnabled: context.threadingEnabled,
   }),
 });
+
+/**
+ * A fork draft's send to its room's top level, a voice message's too, starts the fork: its message
+ * without a relation carries the reference.
+ */
+const withForkFrom = (
+  context: RoomInputSendContext,
+  roomId: string,
+  forkFrom: ThreadForkRef | undefined
+): RoomInputSendContext =>
+  forkFrom && !context.forkFrom && context.roomId === roomId && !context.threadId
+    ? { ...context, forkFrom }
+    : context;
+
+/** The content of a session's message with the relation it gets; the one with none starts a fork. */
+const withRelation = (
+  session: SendSession,
+  content: IContent,
+  relation: IContent['m.relates_to'] | undefined
+): IContent => {
+  if (relation) return { ...content, 'm.relates_to': relation };
+  return session.forkFrom ? { ...content, ...threadForkContent(session.forkFrom) } : content;
+};
 
 const clearReplyDraftForSession = (session: SendSession) => {
   if (session.replyCleared) return;
@@ -337,6 +371,7 @@ export const useRoomInputSendSessionController = ({
   buildUploadMessageContent,
   restoreComposerFallbackForRoom,
   onRoomMessageSent,
+  forkFrom,
 }: UseRoomInputSendSessionControllerOptions): {
   hasActiveSendSession: () => boolean;
   /** A send this composer took over from one that unmounted is still going out. */
@@ -349,10 +384,12 @@ export const useRoomInputSendSessionController = ({
   const [slot, setSlot] = useState(createSendSlot);
   const slotRef = useRef(slot);
   slotRef.current = slot;
-  const composerKey = voiceComposerKey({ roomId, threadId, threadView });
+  // A fork draft keeps its text, and its sends' text to put back, apart from its thread's.
+  const composerThreadId = forkFrom ? threadForkDraftId(forkFrom) : threadId;
+  const composerKey = voiceComposerKey({ roomId, threadId: composerThreadId, threadView });
   const composerKeyRef = useLatestRef(composerKey);
-  const composerContextRef = useRef({ roomId, threadId });
-  composerContextRef.current = { roomId, threadId };
+  const composerContextRef = useRef({ roomId, threadId: composerThreadId });
+  composerContextRef.current = { roomId, threadId: composerThreadId };
   const onRoomMessageSentRef = useLatestRef(onRoomMessageSent);
 
   const isMounted = useCallback(() => mountedRef?.current ?? true, [mountedRef]);
@@ -382,12 +419,7 @@ export const useRoomInputSendSessionController = ({
       if (!session.textContent) return;
 
       const relation = getTextRelationForSendSession(session);
-      const content: IContent = relation
-        ? {
-            ...session.textContent,
-            'm.relates_to': relation,
-          }
-        : session.textContent;
+      const content = withRelation(session, session.textContent, relation);
       // Content too large for one event goes as a long-text sidecar, as MindRoom's long replies do.
       // A failed upload throws before anything is sent, so the text returns to the composer.
       const eventContent =
@@ -453,12 +485,7 @@ export const useRoomInputSendSessionController = ({
 
       const content = await buildUploadMessageContent(fileItem, mxc, session.signalBridgedRoom);
       const relation = getUploadRelationForSendSession(session, isRoot);
-      const contentWithRelation: IContent = relation
-        ? {
-            ...content,
-            'm.relates_to': relation,
-          }
-        : content;
+      const contentWithRelation = withRelation(session, content, relation);
       const txnId = mx.makeTxnId();
       const response = await mx
         .sendMessage(session.roomId, contentWithRelation as any, txnId)
@@ -604,15 +631,19 @@ export const useRoomInputSendSessionController = ({
           resetEditor(editor); resetEditorHistory(editor);
           sendTypingStatus(false);
         }
-        const nextContext: RoomInputSendContext = context ?? {
+        const nextContext = withForkFrom(
+          context ?? {
+            roomId,
+            room,
+            threadId,
+            replyDraft: replyDraft === existingSession.replyDraft ? undefined : replyDraft,
+            threadingEnabled,
+            signalBridgedRoom: isSignalBridgeRoom(room),
+          },
           roomId,
-          room,
-          threadId,
-          replyDraft: replyDraft === existingSession.replyDraft ? undefined : replyDraft,
-          threadingEnabled,
-          signalBridgedRoom: isSignalBridgeRoom(room),
-        };
-        const nextComposerContext = composerContext ?? { roomId, threadId };
+          forkFrom
+        );
+        const nextComposerContext = composerContext ?? { roomId, threadId: composerThreadId };
         if (isSessionStalled(existingSession)) {
           // The session waits for the person to retry an attachment; the text does not wait
           // with it and gets its row at once.
@@ -663,18 +694,22 @@ export const useRoomInputSendSessionController = ({
       attachments.enroll(sendItems);
 
       const session = createSendSession(
-        context ?? {
+        withForkFrom(
+          context ?? {
+            roomId,
+            room,
+            threadId,
+            replyDraft,
+            threadingEnabled,
+            signalBridgedRoom: isSignalBridgeRoom(room),
+          },
           roomId,
-          room,
-          threadId,
-          replyDraft,
-          threadingEnabled,
-          signalBridgedRoom: isSignalBridgeRoom(room),
-        },
+          forkFrom
+        ),
         sendFiles,
         {
           textContent,
-          composerContext: composerContext ?? { roomId, threadId },
+          composerContext: composerContext ?? { roomId, threadId: composerThreadId },
           failFast: completeWithinCall,
           uploads: batch?.uploads,
           onUploadSent,
@@ -726,6 +761,8 @@ export const useRoomInputSendSessionController = ({
       threadView,
       roomId,
       threadId,
+      composerThreadId,
+      forkFrom,
       replyDraft,
       threadingEnabled,
       room,

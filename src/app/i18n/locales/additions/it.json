@@ -951,7 +951,11 @@
   },
   "threadFork": {
     "forkedFrom": "Diramato da {{title}}",
-    "openInOriginalThread": "Apri nel thread originale"
+    "openInOriginalThread": "Apri nel thread originale",
+    "forkFromHere": "Dirama da qui",
+    "forkThread": "Dirama il thread",
+    "forking": "Diramazione di {{title}}",
+    "continueInNewThread": "Continua in un nuovo thread"
   },
   "activity": {
     "title": "Attività",

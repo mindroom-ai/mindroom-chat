@@ -951,7 +951,11 @@
   },
   "threadFork": {
     "forkedFrom": "Bifurcado de {{title}}",
-    "openInOriginalThread": "Abrir en el hilo original"
+    "openInOriginalThread": "Abrir en el hilo original",
+    "forkFromHere": "Bifurcar desde aquí",
+    "forkThread": "Bifurcar hilo",
+    "forking": "Bifurcando {{title}}",
+    "continueInNewThread": "Continuar en un hilo nuevo"
   },
   "activity": {
     "title": "Actividad",

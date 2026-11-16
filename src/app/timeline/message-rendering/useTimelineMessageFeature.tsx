@@ -85,7 +85,8 @@ import { shouldShowLinkFavicons } from '../../rich-text/linkFaviconPolicy';
 import { renderThreadBadge } from '../ThreadBadge';
 import { buildRoomTimelineReplyDraft } from '../roomTimelineReplyDraft';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
-import { ownThreadId } from '../../event-store/threads/threadFork';
+import { forkTargetFor, ownThreadId } from '../../event-store/threads/threadFork';
+import { useStartThreadFork } from '../../threads/fork/useStartThreadFork';
 import { canPinRoomEvents } from '../../event-store/threads/threadPinning';
 import { getLinkedTimelines } from '../../event-store/timeline/linkedTimelines';
 import { genuineReplyEventId } from '../timelineRowFold';
@@ -405,6 +406,7 @@ export const useTimelineMessageFeature = ({
   const view = useContext(ConversationViewContext);
   const setReplyDraft = useSetAtom(composerReplyDraftAtom(room.roomId, view));
   const { navigateRoomThread } = useRoomNavigate();
+  const startFork = useStartThreadFork(room);
   const handleReplyClick = useCallback(
     (replyEventId: string, startThread = false) => {
       const reply = buildRoomTimelineReplyDraft(room, replyEventId, startThread);
@@ -578,6 +580,9 @@ export const useTimelineMessageFeature = ({
         !event.isRedacted() &&
         (event.getSender() === userId || canRedactOthers);
       const canSendReaction = !readOnly && kind !== 'sticker';
+      // Inside a thread a message can start a fork, also one from a parent shown in a fork: that
+      // forks its own thread.
+      const forkTarget = threadId ? forkTargetFor(event) : undefined;
       // Room rows show the thread they start under their reactions once it has a reply; a message
       // without one, resolved or not, shows none (Reply in Thread on its toolbar starts one). An
       // open thread shows none, and neither does the classic view, which shows the replies.
@@ -653,6 +658,7 @@ export const useTimelineMessageFeature = ({
                 ? () => navigateRoomThread(room.roomId, prefixThreadId, eventId)
                 : undefined
             }
+            onForkClick={forkTarget ? () => startFork(forkTarget) : undefined}
             onUserClick={handleSenderClick}
             onUsernameClick={handleSenderClick}
             onReactionToggle={
@@ -739,6 +745,7 @@ export const useTimelineMessageFeature = ({
       room,
       showThreadRepliesInRoom,
       showUrlPreview,
+      startFork,
       threadId,
       toggleReaction,
       userId,

@@ -4,6 +4,8 @@ import { IEncryptedFile } from '../types/common';
 const LONG_TEXT_TAG = 'io.mindroom.long_text';
 const LONG_TEXT_V2_ENCODING = 'matrix_event_content_json';
 const TOOL_TRACE_TAG = 'io.mindroom.tool_trace';
+/** A fork root's reference to its parent (`event-store/threads/threadFork.ts`). */
+const THREAD_FORK_TAG = 'io.mindroom.fork';
 const MAIN_EVENT_SNAPSHOT_KEY = '<== MAIN_EVENT ==>';
 const REPLACEMENT_EVENT_SNAPSHOT_KEY_REG = /^<== REPLACEMENT_EVENT_(\d+) ==>$/;
 
@@ -303,7 +305,7 @@ const MESSAGE_PREVIEW_LENGTH = 2000;
 
 /**
  * The event for a typed message sent as a long-text sidecar: the start of its text, and the
- * mentions and relation that route it. The file holds the whole message.
+ * mentions, relation and fork reference that route it. The file holds the whole message.
  */
 export const buildLongTextPreview = (content: Record<string, unknown>) => {
   const body = typeof content.body === 'string' ? content.body : '';
@@ -313,6 +315,7 @@ export const buildLongTextPreview = (content: Record<string, unknown>) => {
     body: `${start}${LONG_TEXT_CONTINUATION_NOTE}`,
     ...(content['m.mentions'] === undefined ? {} : { 'm.mentions': content['m.mentions'] }),
     ...(content['m.relates_to'] === undefined ? {} : { 'm.relates_to': content['m.relates_to'] }),
+    ...(content[THREAD_FORK_TAG] === undefined ? {} : { [THREAD_FORK_TAG]: content[THREAD_FORK_TAG] }),
   };
 };
 

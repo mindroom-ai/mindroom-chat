@@ -921,7 +921,11 @@
   },
   "threadFork": {
     "forkedFrom": "分支自 {{title}}",
-    "openInOriginalThread": "在原讨论串中打开"
+    "openInOriginalThread": "在原讨论串中打开",
+    "forkFromHere": "从此处分支",
+    "forkThread": "分支讨论串",
+    "forking": "正在从 {{title}} 分支",
+    "continueInNewThread": "在新讨论串中继续"
   },
   "activity": {
     "title": "动态",

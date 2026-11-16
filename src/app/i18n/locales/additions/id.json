@@ -921,7 +921,11 @@
   },
   "threadFork": {
     "forkedFrom": "Bercabang dari {{title}}",
-    "openInOriginalThread": "Buka di utas asli"
+    "openInOriginalThread": "Buka di utas asli",
+    "forkFromHere": "Cabangkan dari sini",
+    "forkThread": "Cabangkan utas",
+    "forking": "Mencabangkan {{title}}",
+    "continueInNewThread": "Lanjutkan di utas baru"
   },
   "activity": {
     "title": "Aktivitas",

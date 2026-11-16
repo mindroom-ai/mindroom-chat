@@ -7,12 +7,15 @@ import {
   useId,
   useMemo,
   useRef,
+  useState,
 } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { RoomInput } from '../composer/RoomInput';
 import { useEditor } from '../editor/Editor';
+import type { ThreadForkRef } from '../event-store/threads/threadFork';
 import {
+  isConfirmedMatrixEventId,
   isLocalEchoEventId,
   resolveCanonicalThreadRootId,
 } from '../event-store/threads/threadRouteUtils';
@@ -38,6 +41,7 @@ import {
 } from '../composer/roomInputDrafts';
 import { RoomTimeline, type RoomTimelineProps } from '../timeline/RoomTimeline';
 import { usePanelFrame } from '../ui/panels/panelFrameContext';
+import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { MessageLinkCards } from './MessageLinkCards';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { ComposerNotice, ConversationLayout } from './ConversationLayout';
@@ -62,12 +66,15 @@ const BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_cancel';
  * `fileDropContainerRef` (the column's header takes dropped files too), the event its address
  * names, the focus as it opens (`autoFocus`, read as a thread opens or changes), `hidden` while a
  * side panel takes the page's place, the page's handler of a thread that does not load,
- * `onUnmount`, which gets the thread it showed last as it goes, and `focusRef`.
+ * `onUnmount`, which gets the thread it showed last as it goes, and `focusRef`. With `forkAt` it is
+ * a fork draft: the thread up to that message and a composer whose first message starts the fork,
+ * then opens it here.
  */
 export function ThreadView({
   room,
   threadId,
   eventId,
+  forkAt,
   header,
   autoFocus = false,
   hidden = false,
@@ -82,6 +89,8 @@ export function ThreadView({
   room: Room;
   threadId: string;
   eventId?: string;
+  /** A fork draft's fork point, a message of the thread (`?forkAt=`). */
+  forkAt?: string;
   header?: ReactNode;
   autoFocus?: boolean;
   hidden?: boolean;
@@ -140,6 +149,28 @@ export function ThreadView({
     [last, roomsShown, view]
   );
 
+  // The fork draft. Its composer starts the fork once the timeline shows the fork point among the
+  // thread's own messages; until then, and for a point that is not one of them, the thread shows as
+  // it is. Its first message opens the fork in the draft's place.
+  const { navigateRoomThread } = useRoomNavigate();
+  const [shownForkPoint, setShownForkPoint] = useState<ThreadForkRef>();
+  const onForkPointShown = useCallback(
+    (forkPointId: string | undefined) =>
+      setShownForkPoint(forkPointId ? { threadId, eventId: forkPointId } : undefined),
+    [threadId]
+  );
+  const forkFrom =
+    shownForkPoint?.threadId === threadId && shownForkPoint.eventId === forkAt
+      ? shownForkPoint
+      : undefined;
+  const openFork = useCallback(
+    (forkRootId: string) => {
+      navigateRoomThread(roomId, forkRootId, undefined, { replace: true });
+      return true;
+    },
+    [navigateRoomThread, roomId]
+  );
+
   const focusConversation = useCallback(() => ReactEditor.focus(editor), [editor]);
   useEffect(() => {
     if (!focusRef) return undefined;
@@ -160,6 +191,11 @@ export function ThreadView({
       isLocalEchoEventId(previous) && resolveCanonicalThreadRootId(room, previous) === threadId;
     if (autoFocusRef.current && !rootConfirmed) focusConversation();
   }, [autoFocusRef, focusConversation, room, threadId]);
+  // A fork draft opens to its composer.
+  const forkKey = forkFrom && `${forkFrom.threadId}\n${forkFrom.eventId}`;
+  useEffect(() => {
+    if (forkKey) focusConversation();
+  }, [focusConversation, forkKey]);
 
   return (
     <ConversationViewContext.Provider value={view}>
@@ -175,6 +211,8 @@ export function ThreadView({
                 room={room}
                 threadId={threadId}
                 eventId={eventId}
+                forkAt={isConfirmedMatrixEventId(forkAt) ? forkAt : undefined}
+                onForkPointShown={onForkPointShown}
                 threadHeader={header}
                 onThreadLoadError={onThreadLoadError}
                 viewMode="threaded"
@@ -200,7 +238,9 @@ export function ThreadView({
                 <RoomInput
                   room={room}
                   roomId={roomId}
-                  threadId={threadId}
+                  threadId={forkFrom ? undefined : threadId}
+                  forkFrom={forkFrom}
+                  onRoomMessageSent={forkFrom ? openFork : undefined}
                   editor={editor}
                   fileDropContainerRef={fileDropContainerRef ?? viewRef}
                 />

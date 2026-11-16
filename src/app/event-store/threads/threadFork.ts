@@ -1,4 +1,6 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
+import type { Room } from 'matrix-js-sdk/lib/models/room';
+import { getThreadTimelineEvents } from '../timeline/linkedTimelines';
 import { compareThreadRenderOrder } from './threadRenderUtils';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
 import { eventBelongsToThread } from './threadUtils';
@@ -24,6 +26,22 @@ export const threadForkContent = (ref: ThreadForkRef): Record<string, unknown> =
   [THREAD_FORK_KEY]: { thread_id: ref.threadId, event_id: ref.eventId },
 });
 
+/**
+ * `content` with the reference `original` carries: an edit of a fork's root keeps it, as MindRoom
+ * reads a message's latest revision.
+ */
+export const keepThreadForkRef = <T extends Record<string, unknown>>(
+  original: unknown,
+  content: T
+): T => {
+  const ref = parseThreadForkRef(original);
+  return ref ? { ...content, ...threadForkContent(ref) } : content;
+};
+
+/** The thread ID a fork draft keeps its composer text under, apart from its thread's own. */
+export const threadForkDraftId = (ref: ThreadForkRef): string =>
+  `fork:${ref.threadId}:${ref.eventId}`;
+
 /** The thread an event belongs to: its thread root, or its own ID when it is one. */
 export const ownThreadId = (event: MatrixEvent): string | undefined =>
   event.threadRootId ?? (event.isThreadRoot ? event.getId() : undefined);
@@ -40,10 +58,28 @@ export const cutThreadAtForkPoint = (
   return index === -1 ? undefined : own.slice(0, index + 1);
 };
 
-/** The fork point of "fork from here" on a row: its owning thread and ID; undefined for a local echo. */
+/**
+ * The fork point of "fork from here" on a thread's row: its owning thread and ID. A row without a
+ * thread relation is a thread's root, also a root copied from the cache, which has no thread object
+ * to say so. Undefined for a local echo and for anything a thread's readers do not count as a
+ * message: an edit, a redacted message, another event type.
+ */
 export const forkTargetFor = (event: MatrixEvent): ThreadForkRef | undefined => {
   const eventId = event.getId();
-  const threadId = ownThreadId(event);
-  if (!isConfirmedMatrixEventId(eventId) || !threadId) return undefined;
-  return { threadId, eventId };
+  if (!isConfirmedMatrixEventId(eventId) || event.getType() !== 'm.room.message') return undefined;
+  if (event.isRedacted() || event.getRelation()?.rel_type === 'm.replace') return undefined;
+  return { threadId: ownThreadId(event) ?? eventId, eventId };
+};
+
+/** "Fork thread": the latest message of the thread the room holds, the fork point of its copy. */
+export const latestForkPoint = (room: Room, threadId: string): ThreadForkRef | undefined => {
+  const thread = room.getThread(threadId);
+  const root = thread?.rootEvent ?? room.findEventById(threadId);
+  const events = [...(root ? [root] : []), ...(thread ? getThreadTimelineEvents(thread) : [])];
+  events.sort(compareThreadRenderOrder);
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const ref = forkTargetFor(events[index]!);
+    if (ref?.threadId === threadId) return ref;
+  }
+  return undefined;
 };

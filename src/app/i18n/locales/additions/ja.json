@@ -921,7 +921,11 @@
   },
   "threadFork": {
     "forkedFrom": "{{title}} から分岐",
-    "openInOriginalThread": "元のスレッドで開く"
+    "openInOriginalThread": "元のスレッドで開く",
+    "forkFromHere": "ここから分岐",
+    "forkThread": "スレッドを分岐",
+    "forking": "{{title}} を分岐中",
+    "continueInNewThread": "新しいスレッドで続ける"
   },
   "activity": {
     "title": "アクティビティ",

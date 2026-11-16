@@ -936,7 +936,11 @@
   },
   "threadFork": {
     "forkedFrom": "Abgezweigt von {{title}}",
-    "openInOriginalThread": "Im ursprünglichen Thread öffnen"
+    "openInOriginalThread": "Im ursprünglichen Thread öffnen",
+    "forkFromHere": "Ab hier abzweigen",
+    "forkThread": "Thread abzweigen",
+    "forking": "Abzweigen von {{title}}",
+    "continueInNewThread": "In einem neuen Thread fortsetzen"
   },
   "activity": {
     "title": "Aktivität",

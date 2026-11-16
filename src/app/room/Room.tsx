@@ -143,7 +143,10 @@ type PanelEntry = RoomPanel & {
   show?: () => void;
 };
 
-/** What the room's URL asks for: an event, a thread, and whether to show the event in place. */
+/**
+ * What the room's URL asks for: an event, a thread, whether to show the event in place, and the
+ * fork point of a fork draft of the thread.
+ */
 const useRoomRoute = () => {
   const params = useParams();
   const [search] = useSearchParams();
@@ -151,6 +154,7 @@ const useRoomRoute = () => {
     eventId: params.eventId,
     routedThreadId: search.get('threadId') ?? undefined,
     focusEventInRoom: search.get('focusEvent') === '1',
+    forkAt: search.get('forkAt') ?? undefined,
   };
 };
 
@@ -169,7 +173,7 @@ export function Room() {
 
 function RoomContent() {
   const room = useRoom();
-  const { eventId, routedThreadId, focusEventInRoom } = useRoomRoute();
+  const { eventId, routedThreadId, focusEventInRoom, forkAt } = useRoomRoute();
   const { roomId } = room;
   const client = useMatrixClient();
   const ownUserId = client.getSafeUserId();
@@ -775,6 +779,7 @@ function RoomContent() {
                 room={room}
                 eventId={eventId}
                 threadId={routedThreadId}
+                forkAt={forkAt}
                 focusEventInRoom={focusEventInRoom}
                 hasMindroomAgents={hasMindroomAgents}
                 joinRequestCount={joinRequestCount}

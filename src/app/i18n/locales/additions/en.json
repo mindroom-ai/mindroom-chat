@@ -936,7 +936,11 @@
   },
   "threadFork": {
     "forkedFrom": "Forked from {{title}}",
-    "openInOriginalThread": "Open in original thread"
+    "openInOriginalThread": "Open in original thread",
+    "forkFromHere": "Fork from here",
+    "forkThread": "Fork thread",
+    "forking": "Forking {{title}}",
+    "continueInNewThread": "Continue in a new thread"
   },
   "activity": {
     "title": "Activity",

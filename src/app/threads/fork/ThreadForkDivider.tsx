@@ -43,13 +43,15 @@ const useThreadTitle = (
 
 /**
  * The line between a fork's parent messages and its own: "Forked from <the parent's title>",
- * which opens the parent thread at the fork point.
+ * which opens the parent thread at the fork point. In a fork draft (`variant` `forking`) it sits
+ * under the fork point of the thread on screen: "Forking <its title>", which goes nowhere.
  */
 export function ThreadForkDivider({
   room,
   parent,
   root,
   summaryInfo,
+  variant = 'forked',
 }: {
   room: Room;
   parent: ThreadForkRef;
@@ -57,23 +59,35 @@ export function ThreadForkDivider({
   root?: MatrixEvent;
   /** The parent's AI title, when the room knows it. */
   summaryInfo?: ThreadSummaryInfo;
+  variant?: 'forked' | 'forking';
 }) {
   const { t } = useTranslation();
   const { navigateRoomThread } = useRoomNavigate();
   const title = useThreadTitle(room, parent.threadId, root, summaryInfo);
+  const label = (
+    <>
+      <IconGitFork size={14} stroke={1.8} aria-hidden />
+      <Text as="span" size="L400" truncate>
+        {variant === 'forking'
+          ? t('threadFork.forking', { title })
+          : t('threadFork.forkedFrom', { title })}
+      </Text>
+    </>
+  );
   return (
     <div className={css.Divider}>
       <span className={css.Rule} aria-hidden />
-      <button
-        type="button"
-        className={css.Link}
-        onClick={() => navigateRoomThread(room.roomId, parent.threadId, parent.eventId)}
-      >
-        <IconGitFork size={14} stroke={1.8} aria-hidden />
-        <Text as="span" size="L400" truncate>
-          {t('threadFork.forkedFrom', { title })}
-        </Text>
-      </button>
+      {variant === 'forking' ? (
+        <span className={css.Label}>{label}</span>
+      ) : (
+        <button
+          type="button"
+          className={css.Link}
+          onClick={() => navigateRoomThread(room.roomId, parent.threadId, parent.eventId)}
+        >
+          {label}
+        </button>
+      )}
       <span className={css.Rule} aria-hidden />
     </div>
   );

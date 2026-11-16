@@ -936,7 +936,11 @@
   },
   "threadFork": {
     "forkedFrom": "Afgesplitst van {{title}}",
-    "openInOriginalThread": "Openen in oorspronkelijke thread"
+    "openInOriginalThread": "Openen in oorspronkelijke thread",
+    "forkFromHere": "Hier afsplitsen",
+    "forkThread": "Thread afsplitsen",
+    "forking": "{{title}} afsplitsen",
+    "continueInNewThread": "Verdergaan in een nieuwe thread"
   },
   "activity": {
     "title": "Activiteit",

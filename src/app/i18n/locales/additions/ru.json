@@ -966,7 +966,11 @@
   },
   "threadFork": {
     "forkedFrom": "Ответвление от {{title}}",
-    "openInOriginalThread": "Открыть в исходной ветке"
+    "openInOriginalThread": "Открыть в исходной ветке",
+    "forkFromHere": "Ответвить отсюда",
+    "forkThread": "Ответвить ветку",
+    "forking": "Создаётся ответвление от {{title}}",
+    "continueInNewThread": "Продолжить в новой ветке"
   },
   "activity": {
     "title": "Активность",

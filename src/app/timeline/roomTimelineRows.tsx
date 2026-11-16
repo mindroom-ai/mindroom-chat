@@ -279,7 +279,8 @@ function UnreadDivider({ separatorRef }: { separatorRef: Ref<HTMLDivElement> }) 
  * The tiles of the rows the virtual list mounts. A row groups with the one above it and gets its
  * date and unread dividers from the fold over the mounted window (timelineRowFold); rows the
  * thread's plans hide, replies a plugin hides, ignored senders and redactions take no place in
- * that walk. A fork's divider goes above the row it names, before that row's own dividers.
+ * that walk. A fork's divider goes above the row it names, before that row's own dividers; a fork
+ * draft's divider goes under the row it names.
  */
 export const renderTimelineTiles = ({
   virtualItems,
@@ -298,6 +299,7 @@ export const renderTimelineTiles = ({
   isHiddenByPluginId,
   renderEvent,
   forkDivider,
+  forkingDivider,
   unreadMarkerRef,
   measureElement,
   ledgerPxAtRender,
@@ -321,6 +323,8 @@ export const renderTimelineTiles = ({
   renderEvent: (row: TimelineMessageRow, data: TimelineMessageData) => ReactNode | null;
   /** In a fork, the line between its parent's messages and its first row of its own (`index`). */
   forkDivider?: { index: number; node: ReactNode };
+  /** In a fork draft, the line under its fork point (`index`), the last row it shows. */
+  forkingDivider?: { index: number; node: ReactNode };
   /** Receives the "New messages" line, so the timeline knows when it is in view. */
   unreadMarkerRef: Ref<HTMLDivElement>;
   measureElement: (node: Element | null) => void;
@@ -386,6 +390,7 @@ export const renderTimelineTiles = ({
                 {context.unreadDivider && <UnreadDivider separatorRef={unreadMarkerRef} />}
                 {context.dayDivider && <DayDivider ts={event.getTs()} />}
                 {rendered}
+                {forkingDivider?.index === item.index && forkingDivider.node}
               </>
             );
           }}
