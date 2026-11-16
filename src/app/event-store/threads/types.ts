@@ -139,8 +139,6 @@ export type CompactThreadCardViewModel = {
   resolvedByDisplayName?: string;
   isUnread: boolean;
   isStreaming: boolean;
-  hasBackgroundJob?: boolean;
-  hasBackgroundApproval?: boolean;
   hasPendingSend?: boolean;
   hasFailedSend?: boolean;
   /** When the snooze ends; absent once resolved. The card shows it only while it is ahead. */

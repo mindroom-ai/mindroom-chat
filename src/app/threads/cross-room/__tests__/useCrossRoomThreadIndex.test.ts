@@ -419,22 +419,24 @@ describe('useCrossRoomThreadIndex', () => {
     });
     await flushScheduledWork();
     const rootId = roots[0]!.getId()!;
-    const publish = async (status: string) => {
+    const publish = async (status?: string) => {
       const event = new StateMatrixEvent({
         type: 'io.mindroom.background_jobs',
         state_key: agent,
         sender: agent,
         content: {
-          jobs: [
-            {
-              job_id: 'job',
-              thread_id: rootId,
-              status,
-              kind: 'tool',
-              tool: 'shell',
-              started_at: '2026-11-15T00:00:00Z',
-            },
-          ],
+          jobs: status
+            ? [
+                {
+                  job_id: 'job',
+                  thread_id: rootId,
+                  status,
+                  kind: 'tool',
+                  tool: 'shell',
+                  started_at: '2026-11-15T00:00:00Z',
+                },
+              ]
+            : [],
         },
       });
       jobs = [event];
@@ -485,7 +487,7 @@ describe('useCrossRoomThreadIndex', () => {
     await membership('leave');
     expect(entry().threadRecord.status.hasBackgroundJob).toBeUndefined();
     await membership('join');
-    await publish('finished');
+    await publish();
     expect(entry().threadRecord.status.hasBackgroundJob).toBeUndefined();
     await act(async () => {
       renderer.unmount();

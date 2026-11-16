@@ -146,8 +146,8 @@ for (const width of [1280, 390]) {
     await expect(overview.locator('[data-thread-count]')).toHaveText('1');
     await page.reload();
     await expect(tab('working')).toHaveAttribute('aria-pressed', 'true', { timeout: 60_000 });
-    // The live state subscription moves a finished job back to Needs you, without a reload.
-    await publishJobs([job(roots[1]!, 'finished'), job(roots[2]!, 'awaiting_approval')]);
+    // Removing a completed job from published live jobs moves its thread back to Needs you.
+    await publishJobs([job(roots[2]!, 'awaiting_approval')]);
     await expect(tab('working')).toContainText('0');
     await expect(tab('needsYou')).toContainText('3');
     await tab('all').click();

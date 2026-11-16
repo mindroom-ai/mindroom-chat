@@ -1,7 +1,7 @@
 # Room workflow tabs
 
 Advanced filters in agent rooms use Needs you, Working, Later, Done and All, with counts.
-New room preferences start on Needs you. Simple mode still uses its existing Unresolved toggle
+New Compact room preferences start on Needs you; Threads starts unfiltered (All). Simple mode still uses its existing Unresolved toggle
 and sort controls. Rooms without agents retain their existing controls.
 
 One pure classifier, `event-store/threads/threadWorkflow.ts`, serves the room overview and the
@@ -14,9 +14,12 @@ sidebar Sections layout. The first match wins:
 5. Scheduled tasks: Later.
 6. Otherwise: Needs you, including read, idle threads.
 
-Only jobs whose `thread_id` matches the root count. `finished` jobs and room-wide jobs do not.
-All other job statuses except `awaiting_approval` count as live work. The sidebar retains its
-existing section names: Done maps to Resolved, Later to Snoozed, and Needs you to Idle.
+Only published live jobs whose `thread_id` matches the root count; room-wide jobs do not.
+Completion removes a job from the published list. `finished` is only an internal jobs-bar display
+status, not an incoming job status. All published statuses except `awaiting_approval` count as
+live work. In the sidebar, Done maps to Resolved, Later stays Later, and Needs you maps to Idle.
+Later sorts by active snooze end or next scheduled time, soonest first; unknown return times
+follow by latest activity. Pins still lead the section, and its cap and tie ordering are unchanged.
 Pending sends alone do not constitute Working. Resolved and snoozed now precede streaming there too.
 
 ## Saved filters and search
@@ -35,7 +38,10 @@ not added. Simple mode projects away the tab without overwriting the stored adva
 Its Unresolved toggle retains its own stored resolved restriction. On returning to advanced mode,
 a stored tab is authoritative: the effective advanced filter clears legacy status restrictions
 without changing the stored Simple preference. Thus Done still shows resolved threads after a
-Simple-mode Unresolved toggle, and returning to Simple restores that toggle.
+Simple-mode Unresolved toggle, and returning to Simple restores that toggle unless search was
+edited while a tab was selected. Applying a search query through `applyParsedThreadFilterQuery`
+clears the legacy status fields in that case, including Simple's stored Unresolved restriction;
+returning to Simple then does not restore it.
 Reset clears all filters; it does not silently reapply Needs you. The tab is part of the frozen-sort
 control signature, so changing tabs refreshes the frozen order as other filter changes do.
 

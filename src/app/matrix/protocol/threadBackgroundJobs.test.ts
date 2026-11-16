@@ -11,11 +11,10 @@ const job = (threadId: string | null, status: string): BackgroundJob => ({
   tool: 'shell',
   startedAt: '2026-11-15T00:00:00Z',
 });
-it('joins by root only, ignores finished and room-wide jobs, and retains approval alongside work', () => {
+it('joins by root only, ignores room-wide jobs, and retains approval alongside work', () => {
   expect(
     indexThreadBackgroundJobs([
       job(null, 'running'),
-      job('$done', 'finished'),
       job('$active', 'running'),
       job('$active', 'awaiting_approval'),
       job('$queued', 'queued'),
@@ -65,6 +64,16 @@ it('reuses the room join until trusted state or agent membership changes', async
     hasBackgroundApproval: true,
     hasBackgroundJob: false,
   });
+  events = [
+    new MatrixEvent({
+      type: 'io.mindroom.background_jobs',
+      state_key: agent,
+      sender: agent,
+      content: { jobs: [] },
+    }),
+  ];
+  expect(roomThreadBackgroundJobs(room).size).toBe(0);
+  events = [event('running')];
   membership = 'leave';
   expect(roomThreadBackgroundJobs(room).size).toBe(0);
   membership = 'join';

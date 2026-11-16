@@ -142,7 +142,8 @@ describe('useThreadIndex background updates', () => {
     publish('awaiting_approval');
     expect(latest.normalThreadRecordMap.get('$job')?.status.hasBackgroundApproval).toBe(true);
     expect(latest.normalThreadRecordMap.get('$other')).toBe(other);
-    publish('finished');
+    live.jobs = [];
+    act(() => renderer.update(<Probe />));
     expect(latest.normalThreadRecordMap.get('$job')).toBe(original);
     expect(buildThreadIndexRecordMaps).not.toHaveBeenCalled();
     expect(getThread).not.toHaveBeenCalled();

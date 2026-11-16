@@ -8,13 +8,13 @@ import {
 
 export type ThreadBackgroundState = { hasBackgroundJob: boolean; hasBackgroundApproval: boolean };
 
-/** One pass over listed jobs, never assign room-wide jobs to a thread. */
+/** One pass over published live jobs, never assign room-wide jobs to a thread. */
 export const indexThreadBackgroundJobs = (
   jobs: readonly BackgroundJob[]
 ): Map<string, ThreadBackgroundState> => {
   const result = new Map<string, ThreadBackgroundState>();
   for (const job of jobs) {
-    if (!job.threadId || job.status === 'finished') continue;
+    if (!job.threadId) continue;
     const state = result.get(job.threadId) ?? {
       hasBackgroundJob: false,
       hasBackgroundApproval: false,
