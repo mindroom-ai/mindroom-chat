@@ -46,8 +46,10 @@ live     reads that file (--history) and keeps `live.streams` (or --streams) rep
          tried again, so a homeserver or backend that stays away ends the run the same way.
 
 A profile's distributions are {"p50": n, "p90": n, "max": n}; a draw is piecewise linear through 0, the median, the
-90th percentile and the maximum. --seed (default 1) fixes every draw. A profile's `reply.links` (a distribution,
-default none) is how many links a reply's text holds (the stub's `links=` knob).
+90th percentile and the maximum. --seed (default 1) fixes the sequence of draws (the replies' shapes and the
+pauses, in the order the run asks for them), not which thread gets which: that follows the order in which the
+backend ends the replies. A profile's `reply.links` (a distribution, default none) is how many links a reply's
+text holds (the stub's `links=` knob).
 """
 
 from __future__ import annotations
