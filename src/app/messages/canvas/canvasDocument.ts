@@ -63,16 +63,20 @@ export const CANVAS_LIBRARY_SOURCE = 'https://cdn.jsdelivr.net/npm/';
  * Agent HTML may run inline code but cannot connect anywhere or load external images. With
  * libraries on, it may also load scripts, styles, and fonts from the library source; the CDN then
  * sees which files a viewer loads, and a page can put data in those addresses, so deployments opt in.
+ * With remote assets on, it may load scripts, styles, fonts, images, and media from any https:
+ * address, for previews that use a site's real assets; the same exposure, to any host, so that is
+ * a separate opt-in. Connections, frames, workers, and form submissions stay blocked either way.
  */
-export const canvasPolicy = (libraries: boolean): string => {
-  const source = libraries ? ` ${CANVAS_LIBRARY_SOURCE}` : '';
+export const canvasPolicy = (libraries: boolean, remote = false): string => {
+  const https = remote ? ' https:' : '';
+  const source = `${libraries ? ` ${CANVAS_LIBRARY_SOURCE}` : ''}${https}`;
   return [
     "default-src 'none'",
     `script-src 'unsafe-inline'${source}`,
     `style-src 'unsafe-inline'${source}`,
-    'img-src data: blob:',
+    `img-src data: blob:${https}`,
     `font-src data:${source}`,
-    'media-src data: blob:',
+    `media-src data: blob:${https}`,
     "connect-src 'none'",
     "form-action 'none'",
     "frame-src 'none'",
@@ -251,14 +255,18 @@ const sizeScript = `
   let sizeQueued = false;
   // The body's own extent: it follows the content down and up, and the frame's height never enters it,
   // so a page cannot grow by being given room. Inline pages make the body the containing block, so
-  // absolutely positioned content counts too.
+  // absolutely positioned content counts too; raw pages keep the browser's defaults, so for them
+  // content positioned against the viewport does not count.
   const reportSize = () => {
     sizeQueued = false;
     const body = document.body;
     if (!body) return;
     const box = body.getBoundingClientRect();
-    const height = Math.ceil(box.top + scrollY + Math.max(body.scrollHeight, box.height)
-      + (parseFloat(getComputedStyle(body).marginBottom) || 0));
+    const height = Math.ceil(Math.max(
+      box.top + scrollY + Math.max(body.scrollHeight, box.height)
+        + (parseFloat(getComputedStyle(body).marginBottom) || 0),
+      document.documentElement.getBoundingClientRect().height
+    ));
     if (height === lastHeight) return;
     lastHeight = height;
     parent.parent.postMessage({ type: '${CANVAS_SIZE_MESSAGE}', version: 1, height }, '*');
@@ -381,6 +389,22 @@ ${inline ? sizeScript : ''}  const post = (data, options) => {
 const BASE_STYLE =
   'body{margin:0;padding:16px;background:var(--mr-bg);color:var(--mr-text);font:14px/1.5 var(--mr-font)}';
 
+/**
+ * How a page is shown: in the thread, fitted to its height (`inline`); exactly as written, with no
+ * theme variables, base style, or color scheme from Chat (`raw`); and with remote assets (`remote`).
+ */
+export type CanvasDisplay = { inline?: boolean; raw?: boolean; remote?: boolean };
+
+const pageStyle = (theme: CanvasTheme, inline: boolean): string =>
+  `<style>${canvasThemeCss(theme)}${
+    inline
+      ? BASE_STYLE.replace(
+          'padding:16px;background:var(--mr-bg)',
+          'padding:8px;background:transparent;position:relative'
+        )
+      : BASE_STYLE
+  }</style>`;
+
 /** Wrap agent HTML in a document whose policy and bridge are fixed before the agent's markup. */
 export const buildCanvasPage = (
   html: string,
@@ -388,22 +412,15 @@ export const buildCanvasPage = (
   theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme],
   libraries = false,
   saved: CanvasSaved = {},
-  inline = false
+  { inline = false, raw = false, remote = false }: CanvasDisplay = {}
 ): string => {
   const head = (lineOffset: number) =>
     [
       '<!doctype html><html><head><meta charset="utf-8">',
-      `<meta http-equiv="Content-Security-Policy" content="${canvasPolicy(libraries)}">`,
-      `<meta name="color-scheme" content="${colorScheme}">`,
+      `<meta http-equiv="Content-Security-Policy" content="${canvasPolicy(libraries, remote)}">`,
+      raw ? '' : `<meta name="color-scheme" content="${colorScheme}">`,
       '<meta name="viewport" content="width=device-width, initial-scale=1">',
-      `<style>${canvasThemeCss(theme)}${
-        inline
-          ? BASE_STYLE.replace(
-              'padding:16px;background:var(--mr-bg)',
-              'padding:8px;background:transparent;position:relative'
-            )
-          : BASE_STYLE
-      }</style>`,
+      raw ? '' : pageStyle(theme, inline),
       `<script>${bridgeScript(colorScheme, lineOffset, saved, inline)}</script>`,
       '</head><body>',
     ].join('');
@@ -424,11 +441,14 @@ export const buildCanvasDocument = (
   title = '',
   libraries = false,
   saved: CanvasSaved = {},
-  inline = false
+  display: CanvasDisplay = {}
 ): string =>
   [
     '<!doctype html><html><head><meta charset="utf-8">',
-    `<meta http-equiv="Content-Security-Policy" content="${canvasPolicy(libraries)}">`,
+    `<meta http-equiv="Content-Security-Policy" content="${canvasPolicy(
+      libraries,
+      display.remote
+    )}">`,
     `<meta name="color-scheme" content="${colorScheme}">`,
     '<style>html,body{margin:0;height:100%;overflow:hidden}',
     'iframe{display:block;border:0;width:100%;height:100%}</style>',
@@ -444,7 +464,7 @@ export const buildCanvasDocument = (
     `  if (loads > 1) parent.postMessage({ type: '${CANVAS_ESCAPE_MESSAGE}' }, '*');`,
     '});',
     `frame.srcdoc = ${scriptLiteral(
-      buildCanvasPage(html, colorScheme, theme, libraries, saved, inline)
+      buildCanvasPage(html, colorScheme, theme, libraries, saved, display)
     )};`,
     'document.body.append(frame);',
     '})();</script></body></html>',

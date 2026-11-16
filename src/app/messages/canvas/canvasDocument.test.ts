@@ -832,7 +832,7 @@ describe('inline canvas sizing', () => {
   });
 
   it('reports the size of inline pages only, on resize, DOM changes, transitions and loads', () => {
-    const page = buildCanvasPage('<p>hi</p>', 'light', undefined, false, {}, true);
+    const page = buildCanvasPage('<p>hi</p>', 'light', undefined, false, {}, { inline: true });
     expect(page).toContain('new ResizeObserver(queueSize).observe(document.body)');
     expect(page).toContain('new MutationObserver(queueSize).observe(document.body');
     expect(page).toContain("['transitionend', 'animationend', 'load']");
@@ -842,12 +842,53 @@ describe('inline canvas sizing', () => {
   });
 
   it('uses transparent padded inline pages without changing panel defaults', () => {
-    const page = buildCanvasPage('', 'light', undefined, false, {}, true);
+    const page = buildCanvasPage('', 'light', undefined, false, {}, { inline: true });
     expect(page).toContain('padding:8px;background:transparent;position:relative');
     expect(buildCanvasPage('', 'light')).toContain('padding:16px;background:var(--mr-bg)');
     expect(buildCanvasPage('', 'light')).not.toContain('position:relative');
-    expect(buildCanvasDocument('', 'light', undefined, '', false, {}, true)).toContain(
+    expect(buildCanvasDocument('', 'light', undefined, '', false, {}, { inline: true })).toContain(
       'padding:8px;background:transparent;position:relative'
     );
+  });
+
+  it('shows raw pages exactly as written: no theme, base style, or color scheme from Chat', () => {
+    const page = buildCanvasPage(
+      '<p>hi</p>',
+      'dark',
+      undefined,
+      false,
+      {},
+      { inline: true, raw: true }
+    );
+    expect(page).not.toContain('<style>');
+    expect(page).not.toContain('name="color-scheme"');
+    expect(page).not.toContain('--mr-');
+    // The bridge still runs, so the frame still fits the page.
+    expect(page).toContain(`type: '${CANVAS_SIZE_MESSAGE}'`);
+    expect(page).toContain('<p>hi</p>');
+  });
+
+  it('lets remote assets load only when the deployment allows them, and never connections', () => {
+    expect(canvasPolicy(false)).not.toContain('https:');
+    const remote = canvasPolicy(false, true);
+    for (const directive of ['script-src', 'style-src', 'img-src', 'font-src', 'media-src']) {
+      expect(remote).toMatch(new RegExp(`${directive} [^;]*https:`));
+    }
+    for (const directive of ['connect-src', 'form-action', 'frame-src', 'worker-src']) {
+      expect(remote).toContain(`${directive} 'none'`);
+    }
+    expect(canvasPolicy(true, true)).toContain(
+      `script-src 'unsafe-inline' ${CANVAS_LIBRARY_SOURCE} https:`
+    );
+    const doc = buildCanvasDocument(
+      '<p>hi</p>',
+      'light',
+      undefined,
+      '',
+      false,
+      {},
+      { remote: true }
+    );
+    expect(doc.match(/img-src data: blob: https:/g)).toHaveLength(2);
   });
 });

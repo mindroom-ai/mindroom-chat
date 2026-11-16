@@ -23,6 +23,8 @@ type RoomCanvasPanelProps = {
   expanded: boolean;
   onToggleExpanded: () => void;
   libraries: boolean;
+  /** The deployment lets pages load remote assets. */
+  remote?: boolean;
 };
 
 type ShowCanvas = {
@@ -47,6 +49,7 @@ function LoadedCanvasPanel({
   expanded,
   onToggleExpanded,
   libraries,
+  remote = false,
 }: Omit<RoomCanvasPanelProps, 'event'> & { request: MatrixEvent; action: ShowCanvas }) {
   const { t } = useTranslation();
   const appTheme = useTheme();
@@ -89,12 +92,14 @@ function LoadedCanvasPanel({
         threadId: action.threadId,
         title: shown.canvas.title,
         html: loaded ? loaded.html : '',
+        ...(shown.canvas.raw ? { raw: true as const } : {}),
         ...(loaded ? {} : { status: page.status === 'ready' ? 'loading' : page.status }),
       }}
       agentName={agentName}
       colorScheme={colorScheme}
       theme={theme}
       libraries={libraries}
+      remote={remote}
       onClose={onClose}
       onRetry={() => setAttempt((count) => count + 1)}
       expanded={!mobile && expanded}

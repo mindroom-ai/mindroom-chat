@@ -20,9 +20,25 @@ import {
 
 type CanvasAction = Extract<ChatUiAction, { action: 'show_canvas' }>;
 
-function SizedFrame({ doc, title }: { doc: string; title: string }) {
+/** How much a page rendered `width` pixels wide shrinks to fit a column; it never grows. */
+export const inlineCanvasScale = (column: number, width: number | undefined): number =>
+  width === undefined || column <= 0 ? 1 : Math.min(1, column / width);
+
+function SizedFrame({
+  doc,
+  title,
+  width,
+  raw,
+}: {
+  doc: string;
+  title: string;
+  width?: number;
+  raw: boolean;
+}) {
+  const box = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(160);
+  const [column, setColumn] = useState(0);
   useEffect(() => {
     // Inline pages are display-only: no submission, saved state, or error handlers.
     const resize = (event: MessageEvent) => {
@@ -32,16 +48,43 @@ function SizedFrame({ doc, title }: { doc: string; title: string }) {
     window.addEventListener('message', resize);
     return () => window.removeEventListener('message', resize);
   }, []);
+  useEffect(() => {
+    const element = box.current;
+    if (width === undefined || !element) return undefined;
+    setColumn(element.clientWidth);
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setColumn(entry.contentRect.width);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [width]);
+  // A page with its own viewport width renders at that width and shrinks to the column, so a
+  // desktop layout keeps its desktop breakpoint; the frame's box takes the shrunk height.
+  const scale = inlineCanvasScale(column, width);
   return (
-    <iframe
-      ref={frame}
-      title={title}
-      srcDoc={doc}
-      sandbox={CANVAS_WRAPPER_SANDBOX}
-      allow={CANVAS_PERMISSIONS}
-      referrerPolicy="no-referrer"
-      style={{ width: '100%', height, display: 'block', border: 0 }}
-    />
+    // A preview is placed, not read: it starts at the left edge in every language, so its scale's
+    // origin and its overflow stay on the same side.
+    <div ref={box} dir="ltr" style={{ height: height * scale, overflow: 'hidden' }}>
+      <iframe
+        ref={frame}
+        title={title}
+        srcDoc={doc}
+        sandbox={CANVAS_WRAPPER_SANDBOX}
+        allow={CANVAS_PERMISSIONS}
+        referrerPolicy="no-referrer"
+        style={{
+          width: width === undefined ? '100%' : width,
+          height,
+          display: 'block',
+          border: 0,
+          // A raw page is a page in a browser: its canvas is white until its own CSS says otherwise.
+          background: raw ? '#fff' : undefined,
+          transform: scale === 1 ? undefined : `scale(${scale})`,
+          // eslint-disable-next-line no-restricted-syntax -- the box above is dir=ltr on purpose.
+          transformOrigin: 'top left',
+        }}
+      />
+    </div>
   );
 }
 
@@ -50,11 +93,13 @@ function LoadedInlineCanvas({
   roomId,
   action,
   libraries,
+  remote,
 }: {
   mx: MatrixClient;
   roomId: string;
   action: CanvasAction;
   libraries: boolean;
+  remote: boolean;
 }) {
   const { t } = useTranslation();
   const appTheme = useTheme();
@@ -72,8 +117,20 @@ function LoadedInlineCanvas({
     () =>
       html === undefined
         ? undefined
-        : buildCanvasDocument(html, colorScheme, theme, action.canvas.title, libraries, {}, true),
-    [html, colorScheme, theme, action.canvas.title, libraries]
+        : buildCanvasDocument(
+            html,
+            colorScheme,
+            theme,
+            action.canvas.title,
+            libraries,
+            {},
+            {
+              inline: true,
+              raw: action.canvas.raw === true,
+              remote,
+            }
+          ),
+    [html, colorScheme, theme, action.canvas.title, action.canvas.raw, libraries, remote]
   );
   if (doc === undefined)
     return (
@@ -101,6 +158,8 @@ function LoadedInlineCanvas({
       key={`${action.revisionEventId}:${canvasDocumentKey(doc)}`}
       doc={doc}
       title={action.canvas.title}
+      width={action.canvas.width}
+      raw={action.canvas.raw === true}
     />
   );
 }
@@ -131,6 +190,7 @@ export function InlineCanvasFrame({ event }: { event: MatrixEvent }) {
       roomId={room.roomId}
       action={action}
       libraries={config.mindroom.canvas.libraries === true}
+      remote={config.mindroom.canvas.remoteAssets === true}
     />
   );
 }

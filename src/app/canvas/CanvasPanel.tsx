@@ -41,6 +41,8 @@ export type CanvasView = {
   threadId?: string;
   title: string;
   html: string;
+  /** Shown exactly as written, without Chat's styles. */
+  raw?: true;
   /** An uploaded page that is still downloading, or could not be loaded. */
   status?: 'loading' | 'failed';
 };
@@ -54,6 +56,8 @@ export type CanvasPanelProps = {
   theme: CanvasTheme;
   /** The deployment lets pages load libraries from the library source. */
   libraries?: boolean;
+  /** The deployment lets pages load remote assets. */
+  remote?: boolean;
   onClose: () => void;
   onRetry?: () => void;
   expanded?: boolean;
@@ -122,6 +126,7 @@ export function CanvasPanel({
   colorScheme,
   theme,
   libraries = false,
+  remote = false,
   onClose,
   onRetry,
   expanded = false,
@@ -151,10 +156,11 @@ export function CanvasPanel({
         displayed.theme,
         displayed.title,
         libraries,
-        savedState?.()
+        savedState?.(),
+        { raw: displayed.raw === true, remote }
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [displayed, libraries, reloads]
+    [displayed, libraries, remote, reloads]
   );
   const docKey = useMemo(() => canvasDocumentKey(doc), [doc]);
   const frameKey = `${displayed.revisionEventId}:${docKey}:${reloads}`;

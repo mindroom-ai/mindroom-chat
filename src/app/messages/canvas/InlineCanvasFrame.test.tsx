@@ -6,7 +6,7 @@ import { MatrixEvent } from 'matrix-js-sdk';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { makeUiEvent, makeUiRoom } from '../../ui-actions/testUtils';
-import { InlineCanvasFrame } from './InlineCanvasFrame';
+import { InlineCanvasFrame, inlineCanvasScale } from './InlineCanvasFrame';
 import { canvasFrameWindow, CANVAS_WRAPPER_SANDBOX } from './canvasDocument';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -33,11 +33,11 @@ let container: HTMLDivElement;
 let fixture: ReturnType<typeof makeUiRoom>;
 const canvas = { title: 'A mockup', html: '<p>Preview</p>' };
 const event = () => makeUiEvent({ action: 'show_canvas', inline: true, canvas });
-const render = (request = event(), enabled = true) =>
+const render = (request = event(), enabled = true, remoteAssets = false) =>
   act(() =>
     root.render(
       <MatrixClientProvider value={fixture.mx}>
-        <ClientConfigProvider value={{ mindroom: { canvas: { enabled } } }}>
+        <ClientConfigProvider value={{ mindroom: { canvas: { enabled, remoteAssets } } }}>
           <InlineCanvasFrame event={request} />
         </ClientConfigProvider>
       </MatrixClientProvider>
@@ -157,5 +157,42 @@ describe('InlineCanvasFrame', () => {
     expect(frame().title).toBe('Updated');
     expect(frame().style.height).toBe('160px');
     expect(frame().srcdoc).toContain('Latest');
+  });
+
+  it('renders a page with its own width at that width, shrunk to fit the column', () => {
+    const observed: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          observed.push(callback);
+        }
+        observe() {}
+        disconnect() {}
+      }
+    );
+    const page = { title: 'Site', html: '<p>Site</p>', raw: true, width: 1440 };
+    render(makeUiEvent({ action: 'show_canvas', inline: true, canvas: page }), true, true);
+    act(() =>
+      observed.forEach((callback) =>
+        callback([{ contentRect: { width: 720 } } as ResizeObserverEntry], {} as ResizeObserver)
+      )
+    );
+    expect(frame().style.width).toBe('1440px');
+    expect(frame().style.transform).toBe('scale(0.5)');
+    expect(frame().style.background).toContain('rgb(255, 255, 255)');
+    post({ type: 'mindroom.canvas.size', version: 1, height: 1000 });
+    expect(frame().style.height).toBe('1000px');
+    expect((frame().parentElement as HTMLElement).style.height).toBe('500px');
+    // A raw page carries none of Chat's styles, and the deployment's remote assets are allowed.
+    expect(frame().srcdoc).not.toContain('padding:8px');
+    expect(frame().srcdoc).toContain('img-src data: blob: https:');
+    vi.unstubAllGlobals();
+  });
+  it('shrinks a wide page to its column and never enlarges a narrow one', () => {
+    expect(inlineCanvasScale(720, 1440)).toBe(0.5);
+    expect(inlineCanvasScale(720, 390)).toBe(1);
+    expect(inlineCanvasScale(720, undefined)).toBe(1);
+    expect(inlineCanvasScale(0, 1440)).toBe(1);
   });
 });

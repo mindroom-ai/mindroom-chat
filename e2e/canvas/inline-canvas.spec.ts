@@ -13,7 +13,12 @@ test.afterEach(async ({ context }) => {
   await context.unrouteAll({ behavior: 'ignoreErrors' });
 });
 
-const sendInlineCanvas = (room: PanelRoom, title: string, html: string) =>
+const sendInlineCanvas = (
+  room: PanelRoom,
+  title: string,
+  html: string,
+  presentation: { raw?: true; width?: number } = {}
+) =>
   sendRoomMessage(HOMESERVER, room.agent.accessToken, room.roomId, {
     msgtype: 'm.notice',
     body: `Interactive panel: ${title}. Open it in MindRoom Chat to respond.`,
@@ -26,7 +31,7 @@ const sendInlineCanvas = (room: PanelRoom, title: string, html: string) =>
       room_id: room.roomId,
       thread_id: room.rootId,
       inline: true,
-      canvas: { title, html },
+      canvas: { title, html, ...presentation },
     },
   });
 
@@ -88,4 +93,71 @@ test('an inline canvas follows absolutely positioned content through transitions
   await expect.poll(height, { timeout: 10_000 }).toBe(700);
   await toggle.click();
   await expect.poll(height, { timeout: 10_000 }).toBe(250);
+});
+
+// One pixel PNG for the remote image.
+const PIXEL = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+  'base64'
+);
+
+test('a raw page renders at its own width, shrunk to the column, with remote assets', async ({
+  context,
+  page,
+}) => {
+  await context.route('https://assets.example.test/**', (route) =>
+    route.fulfill({ contentType: 'image/png', body: PIXEL })
+  );
+  const room = await openPanelRoom(context, page, { canvas: { remoteAssets: true } });
+  await sendInlineCanvas(
+    room,
+    'Site preview',
+    `<div id="hero" style="height:600px"><span id="width"></span>
+      <img id="remote" src="https://assets.example.test/dot.png" width="40" height="40"></div>
+     <script>document.getElementById('width').textContent = String(innerWidth);</script>`,
+    { raw: true, width: 1440 }
+  );
+  const frame = page.locator('iframe[title="Site preview"]');
+  await expect(frame).toBeVisible({ timeout: 60_000 });
+  const inner = page.frameLocator('iframe[title="Site preview"]').frameLocator('iframe');
+  // The page lays out at 1440 CSS pixels, its desktop breakpoint, whatever the column's width.
+  await expect(inner.locator('#width')).toHaveText('1440');
+  // Raw: the browser's own 8px body margin and white page, nothing from Chat.
+  expect(await inner.locator('body').evaluate((body) => getComputedStyle(body).marginTop)).toBe(
+    '8px'
+  );
+  await expect
+    .poll(() => inner.locator('#remote').evaluate((image: HTMLImageElement) => image.naturalWidth))
+    .toBe(1);
+  // 600px of content plus the 8px margins, shown at the column's scale.
+  const column = await frame.evaluate((element) => element.parentElement!.clientWidth);
+  const scale = Math.min(1, column / 1440);
+  await expect
+    .poll(async () => (await frame.locator('xpath=..').boundingBox())?.height ?? 0, {
+      timeout: 20_000,
+    })
+    .toBeCloseTo(616 * scale, 0);
+  expect((await frame.boundingBox())?.width).toBeCloseTo(1440 * scale, 0);
+});
+
+test('without the deployment switch, a remote asset stays blocked', async ({ context, page }) => {
+  let requested = false;
+  await context.route('https://assets.example.test/**', (route) => {
+    requested = true;
+    return route.fulfill({ contentType: 'image/png', body: PIXEL });
+  });
+  const room = await openPanelRoom(context, page);
+  await sendInlineCanvas(
+    room,
+    'Blocked preview',
+    '<img id="remote" src="https://assets.example.test/dot.png" width="40" height="40">',
+    { raw: true }
+  );
+  const inner = page.frameLocator('iframe[title="Blocked preview"]').frameLocator('iframe');
+  await expect(inner.locator('#remote')).toBeAttached({ timeout: 60_000 });
+  await page.waitForTimeout(1_000);
+  expect(
+    await inner.locator('#remote').evaluate((image: HTMLImageElement) => image.naturalWidth)
+  ).toBe(0);
+  expect(requested).toBe(false);
 });
