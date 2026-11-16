@@ -124,6 +124,20 @@ describe('useThreadIndex record builds', () => {
     expect(result.current.compactThreadRecordMap).toBe(records);
   });
 
+  it('keeps no record from before a thread was open', () => {
+    const fixed = options();
+    const { result, rerender } = renderHook(useThreadIndex, { initialProps: fixed });
+    const before = result.current.compactThreadRecordMap.get('$root');
+    expect(before).toBeDefined();
+
+    rerender({ ...fixed, threadId: '$root' });
+    expect(result.current.compactThreadRecordMap.size).toBe(0);
+    rerender(fixed);
+
+    expect(result.current.compactThreadRecordMap.get('$root')).toBeDefined();
+    expect(result.current.compactThreadRecordMap.get('$root')).not.toBe(before);
+  });
+
   // The index as the room view runs it: the room's events raise the count and say what changed.
   const renderListeningIndex = () => {
     state.pinnedEvents = [root('$a'), root('$b')];

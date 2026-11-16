@@ -1,6 +1,14 @@
-import { createClient, EventStatus, MatrixEvent, Room, type MatrixClient } from 'matrix-js-sdk';
+import {
+  createClient,
+  EventStatus,
+  MatrixEvent,
+  Room,
+  ThreadEvent,
+  type MatrixClient,
+  type Thread,
+} from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { receiptReadTs } from './receiptReadTs';
+import { heldReceiptEventsVersion, receiptReadTs } from './receiptReadTs';
 
 let mx: MatrixClient;
 let room: Room;
@@ -54,6 +62,34 @@ describe('receiptReadTs', () => {
     room.updatePendingEvent(echo, EventStatus.SENT, '$sent');
 
     expect(receiptReadTs(room, room, '$sent', 5000)).toBe(1000);
+  });
+
+  it('finds the named event in a thread that came with it', () => {
+    expect(receiptReadTs(room, room, '$reply', 5000)).toBe(5000);
+    const before = heldReceiptEventsVersion();
+    const reply = message('$reply', 1000);
+    const thread = {
+      findEventById: (eventId: string) => (eventId === '$reply' ? reply : undefined),
+    };
+    vi.spyOn(room, 'findEventById').mockImplementation((eventId) =>
+      eventId === '$reply' ? reply : undefined
+    );
+
+    room.emit(ThreadEvent.New, thread as unknown as Thread, false);
+
+    expect(receiptReadTs(room, room, '$reply', 5000)).toBe(1000);
+    expect(heldReceiptEventsVersion()).toBe(before + 1);
+    // A thread without the event leaves the answer as it is.
+    expect(receiptReadTs(room, room, '$other', 5000)).toBe(5000);
+    room.emit(ThreadEvent.New, thread as unknown as Thread, false);
+    expect(heldReceiptEventsVersion()).toBe(before + 1);
+  });
+
+  it('asks the thread a receipt is read in first, also for an event the room did not hold', () => {
+    expect(receiptReadTs(room, room, '$reply', 5000)).toBe(5000);
+    const thread = { findEventById: () => message('$reply', 1000) } as unknown as Thread;
+
+    expect(receiptReadTs(room, thread, '$reply', 5000)).toBe(1000);
   });
 
   it('keeps no answer for a room stand-in that tells nothing of its events', () => {
