@@ -76,11 +76,11 @@ Action rows get an icon of their own in place of the one terminal icon they shar
 ### Room commands
 
 - The open room's header publishes the actions it draws itself and that need no place to open from: Compact view, Thread filters, Show tool calls, Show or Hide Computer, Sub-agents, Members, each plugin side panel and each plugin action. The palette lists them, described by the room's name, a toggle with its `On` or `Off` and Members with its keys.
-- Enter runs the action and closes the palette.
+- Enter runs the action and closes the palette. It runs what the header offers under that name at that moment, and nothing when the header is gone: the open room can change while the palette is open.
 
 ### Shortcuts
 
-- `Show keyboard shortcuts`, `Next unread room`, `Previous unread room` and `Show or hide the room list` are rows, named as the help dialog names them, each offered while its shortcut has a handler mounted. Enter runs that handler.
+- `Show keyboard shortcuts`, `Next unread room`, `Previous unread room` and `Show or hide the room list` are rows, named as the help dialog names them, each offered while its shortcut has a handler mounted, and the two unread ones only while some room is unread. Enter runs that handler.
 - `Open Settings` and `Resolve Current Thread` (and its reverse) show their keys.
 
 ### What shows before typing
@@ -123,7 +123,7 @@ Action rows get an icon of their own in place of the one terminal icon they shar
 
 - A setting's write goes through `settingsAtom`, as from Settings; a roaming one is sent to the account the same way.
 - A failed agent call: the account-wide call notice (`useAgentCaller({ announce: true })`).
-- A room command whose room went away between opening the palette and Enter does what its header's button would do in that state: its closure belongs to the header.
+- A room command whose room went away between opening the palette and Enter does nothing: the palette looks the command up again in the header that is mounted then.
 
 ### Strings
 

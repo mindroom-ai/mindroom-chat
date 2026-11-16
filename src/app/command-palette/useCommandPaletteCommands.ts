@@ -7,6 +7,7 @@ import { useAgentCaller } from '../calls/agent/agentCaller';
 import { useAgentCallOffer } from '../calls/agent/useAgentCallOffer';
 import { APP_LANGUAGES } from '../i18n/i18nLanguages';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
+import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
 import { getRoomCommands } from '../navigation/roomCommands';
 import { settingsModalAtom } from '../navigation/settingsModal';
 import { settingsAtom } from '../preferences/settings';
@@ -114,6 +115,8 @@ export const useCommandPaletteCommands = ({
   const [shortcutCommands] = useState(() =>
     SHORTCUT_COMMANDS.filter(([id]) => hasShortcutHandler(id))
   );
+  // The steps to an unread room have nowhere to go while no room is unread.
+  const someUnread = useAtomValue(roomToUnreadAtom).size > 0;
 
   const settingRows = useMemo(
     () =>
@@ -268,10 +271,12 @@ export const useCommandPaletteCommands = ({
         )
       : [];
     // The open room's header commands, so none without a room open. A room command closes the
-    // palette: it was read once, so the palette could not show what the command changed.
+    // palette: it was read once, so the palette could not show what the command changed. It runs
+    // what the header offers under its name at that moment, and nothing once the header is gone:
+    // what was read as the palette opened may belong to a room that is no longer the open one.
     const roomCommandRows = inRoom
       ? roomCommands.map(
-          ({ id, label, icon, shortcut, pressed, run }): Executable<CommandPaletteActionItem> => ({
+          ({ id, label, icon, shortcut, pressed }): Executable<CommandPaletteActionItem> => ({
             id: `room-command:${id}`,
             kind: 'action',
             title: label,
@@ -280,24 +285,29 @@ export const useCommandPaletteCommands = ({
             shortcut,
             state: pressed === undefined ? undefined : pressed ? 'on' : 'off',
             sortRank: 45,
-            onSelect: run,
+            onSelect: () =>
+              getRoomCommands()
+                .find((command) => command.id === id)
+                ?.run(),
           })
         )
       : [];
-    const shortcutRows = shortcutCommands.map(
-      ([id, sortRank]): Executable<CommandPaletteActionItem> => ({
-        id: `shortcut:${id}`,
-        kind: 'action',
-        title: t(SHORTCUTS[id].labelKey),
-        shortcut: id,
-        sortRank,
-        onSelect: () => {
-          runShortcut(id, new KeyboardEvent('keydown'));
-        },
-      })
-    );
+    const shortcutRows = shortcutCommands
+      .filter(([id]) => someUnread || (id !== 'nextUnread' && id !== 'previousUnread'))
+      .map(
+        ([id, sortRank]): Executable<CommandPaletteActionItem> => ({
+          id: `shortcut:${id}`,
+          kind: 'action',
+          title: t(SHORTCUTS[id].labelKey),
+          shortcut: id,
+          sortRank,
+          onSelect: () => {
+            runShortcut(id, new KeyboardEvent('keydown'));
+          },
+        })
+      );
     return [...callRows, ...roomCommandRows, ...shortcutRows];
-  }, [call, candidates, inRoom, room, roomCommands, shortcutCommands, t, threadId]);
+  }, [call, candidates, inRoom, room, roomCommands, shortcutCommands, someUnread, t, threadId]);
 
   return useMemo(() => ({ actions, searchCommands, pages }), [actions, pages, searchCommands]);
 };

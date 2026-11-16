@@ -11,6 +11,7 @@ import { MessageLayout, settingsAtom } from '../preferences/settings';
 import type { SettingsContext } from '../preferences/settingsRegistry';
 import type { SettingsSearchValues } from '../settings/settingsSearchIndex';
 import { THEMES } from '../theme/useTheme';
+import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
 import type { CommandPaletteActionItem, Executable } from './commandPaletteTypes';
 import { useCommandPaletteCommands } from './useCommandPaletteCommands';
 
@@ -368,6 +369,44 @@ describe('useCommandPaletteCommands room commands and shortcuts', () => {
     expect(render({ inRoom: false }).result.current.actions.map((item) => item.id)).not.toContain(
       'room-command:viewSwitch'
     );
+  });
+
+  it("runs the header's command as it is at that moment, and nothing once it is gone", () => {
+    const opened = vi.fn();
+    const now = vi.fn();
+    const command = { id: 'viewSwitch', label: 'Compact view', icon: Icons.Message };
+    mocks.roomCommands = [{ ...command, run: opened }];
+    const { result } = render();
+    const row = find(result.current.actions, 'room-command:viewSwitch');
+
+    // Another room's header took the place of the one the palette opened over.
+    mocks.roomCommands = [{ ...command, run: now }];
+    act(() => row.onSelect?.());
+    expect(opened).not.toHaveBeenCalled();
+    expect(now).toHaveBeenCalledTimes(1);
+
+    mocks.roomCommands = [];
+    act(() => row.onSelect?.());
+    expect(now).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers the steps to an unread room only while a room is unread', () => {
+    mocks.handlers.add('nextUnread');
+    mocks.handlers.add('previousUnread');
+    const { result, store } = render();
+    const ids = () => result.current.actions.map((item) => item.id);
+
+    expect(ids()).not.toContain('shortcut:nextUnread');
+    expect(ids()).not.toContain('shortcut:previousUnread');
+
+    act(() =>
+      store.set(roomToUnreadAtom, {
+        type: 'PUT',
+        unreadInfo: { roomId: '!other:example.org', highlight: 0, total: 1 },
+      })
+    );
+    expect(ids()).toContain('shortcut:nextUnread');
+    expect(ids()).toContain('shortcut:previousUnread');
   });
 
   it('offers a shortcut as a command only while it has a handler', () => {
