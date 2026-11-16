@@ -1508,6 +1508,15 @@ class WorkScenarioTests(unittest.TestCase):
         self.assertEqual(len(three), 3)
         self.assertEqual("".join(three), stub_model.work_text(3, 1))
 
+    def test_a_reply_that_is_not_streamed_has_the_text_without_the_reasoning(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            stub = stub_model.Stub(Path(root) / "requests.jsonl", [], [])
+            request = mock.Mock(json=mock.AsyncMock(return_value=chat("#work words=3 reasoning=200")))
+            with mock.patch.object(stub_model, "web") as web:
+                asyncio.run(stub.completions(request))
+        message = web.json_response.call_args.args[0]["choices"][0]["message"]
+        self.assertEqual(message, {"role": "assistant", "content": stub_model.work_text(3, 1)})
+
     def test_no_tools_streams_at_once(self) -> None:
         kind, reasoning, text, seconds = stub_model.plan(chat("#work words=5"), {})
         self.assertEqual((kind, reasoning, seconds), ("work", "", 1 / 30))

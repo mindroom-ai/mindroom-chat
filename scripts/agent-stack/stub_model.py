@@ -541,7 +541,9 @@ class Stub:
                 {"error": {"message": "stub provider failure", "type": "server_error"}}, status=500
             )
         if not body.get("stream"):
-            message: dict = {"role": "assistant", "content": None if step[0] == "tool" else step[1]}
+            # A work step's reply is its text; its reasoning is not part of the content.
+            content = None if step[0] == "tool" else step[2] if step[0] == "work" else step[1]
+            message: dict = {"role": "assistant", "content": content}
             if step[0] == "tool":
                 message["tool_calls"] = [tool_call(step[1], step[2])]
             return web.json_response(
