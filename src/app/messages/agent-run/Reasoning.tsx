@@ -178,8 +178,8 @@ function ReasoningHeader({
   htmlReactParserOptions: HTMLReactParserOptions;
 }) {
   const { t } = useTranslation();
-  // The model thinks while its live reasoning grows, and a little after: not when a reply that has
-  // some already comes into view.
+  // The model thinks while its live reasoning comes or grows, and a little after: not when a reply
+  // that has some already comes into view.
   const thinking = useChangedRecently(live, THINKING_GLOW_MS);
   if (live !== undefined) {
     return (
@@ -242,16 +242,11 @@ export const withReasoning = (
   const reasoning = live !== undefined || !!final;
 
   // One shape with or without reasoning, the cog and activity, so the body keeps its place, and the
-  // state inside it such as an open tool-call list, when warm-up lines or reasoning come and go.
+  // state inside it such as an open tool-call list, when warm-up lines or reasoning come and go. The
+  // header stays mounted without reasoning, so the first reasoning that comes is news to it.
   return (
     <>
-      {reasoning && (
-        <ReasoningHeader
-          live={live}
-          final={final}
-          htmlReactParserOptions={htmlReactParserOptions}
-        />
-      )}
+      <ReasoningHeader live={live} final={final} htmlReactParserOptions={htmlReactParserOptions} />
       {!reasoning && <ToolCallsCogRow />}
       {body}
       {activity !== undefined && <LiveActivity text={activity} />}

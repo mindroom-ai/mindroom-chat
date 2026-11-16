@@ -936,6 +936,11 @@ describe('useToolTraceMarkerParserOptions', () => {
       const drawn = (className: string) =>
         reply.cog().findAll((node) => node.props.className === className);
       expect(drawn('Comet')).toHaveLength(1);
+      // Drawn at the middle of the gear's rim, which it is as wide as.
+      expect(drawn('Comet')[0]!.props).toMatchObject({
+        strokeWidth: 1.62,
+        transform: 'translate(12 12) scale(0.925) translate(-12 -12)',
+      });
       expect(drawn('CogRipple')).toHaveLength(0);
 
       reply.update(twoRunsHtml(false));

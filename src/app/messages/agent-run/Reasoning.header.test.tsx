@@ -65,9 +65,12 @@ describe('reasoning header', () => {
   const parts = (button: ReactTestInstance) =>
     (button.children as ReactTestInstance[]).map((child) => {
       if (child.props.className === 'BulbIcon') {
+        const comet = child.findAllByType(OutlineComet).length > 0;
+        // The bulb dims under the comet, as the cog's gear does.
+        expect(child.props['data-thinking']).toBe(comet || undefined);
         return {
           icon: ICON_NAMES.get(child.findByType(Icon).props.src) ?? 'other',
-          comet: child.findAllByType(OutlineComet).length > 0,
+          comet,
           hidden: child.props['aria-hidden'] as boolean,
         };
       }
@@ -161,6 +164,28 @@ describe('reasoning header', () => {
 
       // The same reasoning again, as the next frame of the reply's answer carries it, is no news.
       act(() => renderer!.update(<>{live('Comparing options, then')}</>));
+      expect(comet()).toMatchObject({ comet: false });
+    });
+
+    it('laps the bulb when the first reasoning comes to a reply on screen', () => {
+      vi.useFakeTimers();
+      act(() => {
+        renderer = create(
+          <>
+            {withReasoning(
+              { body: 'Thinking...', 'io.mindroom.stream_status': 'streaming' },
+              <p>Answer</p>,
+              {}
+            )}
+          </>
+        );
+      });
+      act(() => renderer!.update(<>{live('Comparing')}</>));
+      expect(comet()).toEqual({ icon: 'bulb', comet: true, hidden: true });
+
+      act(() => {
+        vi.advanceTimersByTime(THINKING_GLOW_MS);
+      });
       expect(comet()).toMatchObject({ comet: false });
     });
 
