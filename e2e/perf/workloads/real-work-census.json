@@ -52,7 +52,7 @@
       "p90": 120,
       "max": 300
     },
-    "stuckSeconds": 600
+    "stuckSeconds": 1800
   },
   "historyStreams": 20
 }
