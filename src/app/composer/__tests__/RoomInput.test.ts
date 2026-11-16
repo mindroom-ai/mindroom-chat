@@ -4248,6 +4248,23 @@ describe('RoomInput in a fork draft', () => {
     renderer.unmount();
   });
 
+  it('offers no stickers: one would start a thread instead of the fork', async () => {
+    // The emoji board, whose sticker tab only a composer that takes stickers offers.
+    const boardProps = (renderer: ReactTestRenderer) =>
+      renderer.root.findAll(
+        (node) => typeof node.props.content?.props?.onEmojiSelect === 'function'
+      )[0]!.props.content.props;
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { threadId: '$parent' });
+    expect(boardProps(renderer).onStickerSelect).toBeTypeOf('function');
+
+    await updateRoomInput(renderer, store, { forkFrom });
+    expect(boardProps(renderer).onStickerSelect).toBeUndefined();
+    expect(boardProps(renderer).tab).toBe('Emoji');
+
+    renderer.unmount();
+  });
+
   it("keeps the draft's text apart from its thread's: closed unsent, it sends nothing and leaves the thread's draft as it was", async () => {
     const store = createStore();
     const { renderer } = await renderRoomInput(store, { threadId: '$parent' });

@@ -1912,6 +1912,88 @@ describe('useRoomInputSendSessionController in a fork draft', () => {
     expect(sent).not.toHaveProperty('m.relates_to');
   });
 
+  /** The bodies of the sent messages that carry the reference: the fork's start. */
+  const forkStarts = (mx: ReturnType<typeof renderHarness>['mx']) =>
+    mx.sendMessage.mock.calls
+      .map((call) => call[1] as Record<string, unknown>)
+      .filter((content) => 'io.mindroom.fork' in content)
+      .map((content) => content.body);
+  const relationOf = (mx: ReturnType<typeof renderHarness>['mx'], index: number) =>
+    (mx.sendMessage.mock.calls[index]![1] as Record<string, unknown>)['m.relates_to'];
+
+  it('joins a message sent while the root still uploads to the fork that root starts', async () => {
+    const onRoomMessageSent = vi.fn(() => true);
+    const { api, mx } = renderHarness({ forkFrom: ref, onRoomMessageSent });
+    const file = createFile('itinerary.pdf');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'With this plan' } });
+    });
+    // The draft is still open with nothing sent: another message waits behind the first.
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'And Braga' } });
+    });
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+
+    api.uploadsRef.current = [successUpload(file)];
+    await act(async () => {
+      getDefaultStore().set(roomUploadAtomFamily(file), { mxc: 'mxc://mindroom/itinerary.pdf' });
+      await Promise.resolve();
+    });
+
+    await vi.waitFor(() => expect(mx.sendMessage).toHaveBeenCalledTimes(3));
+    expect(sentBodies(mx)).toEqual(['itinerary.pdf', 'With this plan', 'And Braga']);
+    expect(forkStarts(mx)).toEqual(['itinerary.pdf']);
+    expect(relationOf(mx, 2)).toMatchObject({ rel_type: 'm.thread', event_id: '$event-0' });
+    expect(onRoomMessageSent.mock.calls).toEqual([['$event-0']]);
+  });
+
+  it('joins a message typed while the root waits to be sent again to the fork its caption started', async () => {
+    const onRoomMessageSent = vi.fn(() => true);
+    const { api, mx } = renderHarness({ forkFrom: ref, onRoomMessageSent });
+    const file = createFile('itinerary.pdf');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    // The root's upload failed: the caption goes on alone and starts the fork.
+    api.uploadsRef.current = [prepErrorUpload(file)];
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'With this plan' } });
+    });
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'And Braga' } });
+    });
+
+    expect(sentBodies(mx)).toEqual(['With this plan', 'And Braga']);
+    expect(forkStarts(mx)).toEqual(['With this plan']);
+    expect(relationOf(mx, 1)).toMatchObject({ rel_type: 'm.thread', event_id: '$event-0' });
+    expect(onRoomMessageSent.mock.calls).toEqual([['~!room:example.org:txn-0']]);
+  });
+
+  it('joins a root sent again after its send failed to the fork its caption started', async () => {
+    const { api, mx } = renderHarness({ forkFrom: ref, onRoomMessageSent: () => true });
+    const file = createFile('itinerary.pdf');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [successUpload(file)];
+    mx.sendMessage.mockRejectedValueOnce(new Error('root send failed'));
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'With this plan' } });
+    });
+    // The root's send failed; the caption went on alone and started the fork.
+    expect(sentBodies(mx)).toEqual(['itinerary.pdf', 'With this plan']);
+    expect(relationOf(mx, 1)).toBeUndefined();
+    expect(mx.sendMessage.mock.calls[1]![1]).toMatchObject(threadForkContent(ref));
+
+    // Send again.
+    await act(async () => {
+      await api.startSendSession();
+    });
+
+    expect(sentBodies(mx)).toEqual(['itinerary.pdf', 'With this plan', 'itinerary.pdf']);
+    expect(mx.sendMessage.mock.calls[2]![1]).not.toHaveProperty('io.mindroom.fork');
+    expect(relationOf(mx, 2)).toMatchObject({ rel_type: 'm.thread', event_id: '$event-0' });
+    expect(api.hasActiveSendSession()).toBe(false);
+  });
+
   it("puts a caption that fails before it has a row back into the draft's own text, not the thread's", async () => {
     const { api, mx, restoreComposerFallbackForRoom, unmount } = renderHarness({ forkFrom: ref });
     mx.uploadContent.mockRejectedValueOnce(new Error('offline'));
