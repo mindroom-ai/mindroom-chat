@@ -32,8 +32,8 @@ const changedThreadId = (room: Room, mEvent: MatrixEvent): string | undefined =>
   return related && (related.threadRootId ?? relatedId);
 };
 
-/** How often a count marks the whole room for what no event tells of. */
-export const ROOM_MARK_INTERVAL_MS = 1000;
+/** How long a kept thread record waits for the mark of the room that has it built again. */
+export const KEPT_RECORD_CHECK_MS = 1000;
 
 /**
  * The threads the receipts of `userId` in a receipt event are for; a thread record reads no one
@@ -78,8 +78,8 @@ const receiptThreadIds = (receipt: MatrixEvent, userId: string): string[] | unde
  * edits kept from the sync are in by then), an edit put on or taken off an event, a local echo's
  * progress, a redaction, a timeline that starts over, a member's new name or membership, and the
  * room's encryption. Someone
- * else's receipt changes no record. The first count of each second marks the whole room
- * (`ROOM_MARK_INTERVAL_MS`), for what no event tells of.
+ * else's receipt changes no record. A build that kept a record is followed within a second
+ * (`KEPT_RECORD_CHECK_MS`) by a mark of the whole room and a count, for what no event tells of.
  */
 export const useThreadOverviewRefreshCounter = (
   room: Room,
@@ -104,17 +104,18 @@ export const useThreadOverviewRefreshCounter = (
 
     // What happened to the room before these listeners heard it.
     markThreadRecordChange(overviewChanges);
-    // What no event of the room tells of reaches the records at the first count of each second:
-    // a store that drops its oldest entries, a stream that ends by the clock, an old name of a
-    // member who left that a page of history brings.
-    let roomMarkedAt = Date.now();
-    const bump = () => {
-      const now = Date.now();
-      if (now - roomMarkedAt >= ROOM_MARK_INTERVAL_MS) {
-        roomMarkedAt = now;
+    const bump = () => setCounter((count) => count + 1);
+    // What no event of the room tells of reaches a kept record within a second: a store that
+    // drops its oldest entries, a stream that ends by the clock, an old name of a member who left
+    // that a page of history brings. The build that follows keeps no record, so a quiet room
+    // counts once more and then rests.
+    let keptCheck: ReturnType<typeof setTimeout> | undefined;
+    overviewChanges.onKept = () => {
+      keptCheck ??= setTimeout(() => {
+        keptCheck = undefined;
         markThreadRecordChange(overviewChanges);
-      }
-      setCounter((count) => count + 1);
+        bump();
+      }, KEPT_RECORD_CHECK_MS);
     };
     const markEvent = (mEvent: MatrixEvent) => {
       const changedId = changedThreadId(room, mEvent);
@@ -223,6 +224,8 @@ export const useThreadOverviewRefreshCounter = (
       client?.removeListener?.(RoomMemberEvent.Name, handleMember);
       client?.removeListener?.(RoomMemberEvent.Membership, handleMember);
       clearTimeout(decryptedBump);
+      clearTimeout(keptCheck);
+      overviewChanges.onKept = undefined;
       room.removeListener(ThreadEvent.New, handleThread);
       room.removeListener(ThreadEvent.Update, handleThread);
       room.removeListener(ThreadEvent.NewReply, handleThread);

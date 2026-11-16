@@ -56,7 +56,10 @@ import { buildThreadIndexRecordMaps } from './threadIndexRecords';
 // eslint-disable-next-line import/first
 import { useThreadIndex, type UseThreadIndexOptions } from './useThreadIndex';
 // eslint-disable-next-line import/first
-import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter';
+import {
+  KEPT_RECORD_CHECK_MS,
+  useThreadOverviewRefreshCounter,
+} from './threadOverviewRefreshCounter';
 
 let mx: MatrixClient;
 let room: Room;
@@ -80,12 +83,12 @@ beforeEach(() => {
   // A pinned root nobody answered: a zero-reply root of the Compact list.
   state.pinnedEvents = [root('$root')];
   state.list = { ...state.list, loading: true };
-  // The first count of each second builds every record; no test here takes that long on its clock.
-  vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+  // A second after a build kept a record, every record is built again: on the tests' own clock.
+  vi.useFakeTimers();
 });
 
 afterEach(() => {
-  vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 const options = (): UseThreadIndexOptions => ({
@@ -225,5 +228,26 @@ describe('useThreadIndex record builds', () => {
 
     expect(records().get('$a')).not.toBe(before.get('$a'));
     expect(records().get('$b')).not.toBe(before.get('$b'));
+  });
+
+  it('builds every record a second after it kept one, in a room where nothing more happens', () => {
+    const records = renderListeningIndex();
+    act(() => {
+      room.emit(ThreadEvent.Update, { id: '$a' } as Thread);
+    });
+    const kept = records();
+
+    act(() => {
+      vi.advanceTimersByTime(KEPT_RECORD_CHECK_MS);
+    });
+
+    expect(records().get('$a')).not.toBe(kept.get('$a'));
+    expect(records().get('$b')).not.toBe(kept.get('$b'));
+    // That build kept none, so the room rests.
+    const rested = records();
+    act(() => {
+      vi.advanceTimersByTime(KEPT_RECORD_CHECK_MS);
+    });
+    expect(records()).toBe(rested);
   });
 });

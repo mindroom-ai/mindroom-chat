@@ -66,7 +66,7 @@ describe('receiptReadTs', () => {
     expect(receiptReadTs(room, room, '$sent', 5000)).toBe(1000);
   });
 
-  it("finds the named event once a thread's timeline holds it", () => {
+  it("finds the named event once the room passes on that a thread's timeline took it", () => {
     expect(receiptReadTs(room, room, '$reply', 5000)).toBe(5000);
     const before = receiptEventsVersion(room);
     const reply = message('$reply', 1000);
@@ -123,6 +123,11 @@ describe('receiptReadTs', () => {
       timeline: threadList.getLiveTimeline(),
     });
     room.emit(RoomEvent.TimelineReset, room, threadList, true);
+    // Nor for a root the room does not hold that the lists take again.
+    expect(receiptReadTs(room, room, '$listed', 5000)).toBe(5000);
+    room.emit(RoomEvent.Timeline, message('$listed', 1000), room, false, false, {
+      timeline: threadList.getLiveTimeline(),
+    });
 
     expect(receiptEventsVersion(room)).toBe(before);
   });

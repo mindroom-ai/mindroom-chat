@@ -13,7 +13,7 @@ import {
 } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  ROOM_MARK_INTERVAL_MS,
+  KEPT_RECORD_CHECK_MS,
   useThreadOverviewRefreshCounter,
 } from './threadOverviewRefreshCounter';
 
@@ -90,7 +90,7 @@ const setup = (threadId?: string) => {
         : [...after.threads].filter(([, count]) => count > before).map(([id]) => id);
     return { marked, counted: state().overviewRefreshCounter - overviewRefreshCounter };
   };
-  return { room, client, state, told, oldest };
+  return { room, client, state, told, oldest, unmount: hook.unmount };
 };
 
 describe('useThreadOverviewRefreshCounter changes', () => {
@@ -288,18 +288,37 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     ).toEqual([]);
   });
 
-  it('marks the room at the first count of each second, for what no event tells of', () => {
-    const now = vi.spyOn(Date, 'now').mockReturnValue(10_000);
-    const { room, told } = setup();
-    const update = () => room.emit(ThreadEvent.Update, { id: '$root' });
+  it('marks the room and counts once, a second after a build kept a record', () => {
+    vi.useFakeTimers();
+    const { state, told } = setup();
+    const kept = () => state().overviewChanges.onKept?.();
 
-    now.mockReturnValue(10_000 + ROOM_MARK_INTERVAL_MS - 1);
-    expect(told(update).marked).toEqual(['$root']);
-    now.mockReturnValue(10_000 + ROOM_MARK_INTERVAL_MS);
-    // The room's mark comes after the thread's, so it stands.
-    expect(told(update).marked).toBe('room');
-    expect(told(update).marked).toEqual(['$root']);
-    now.mockRestore();
+    // Two builds that kept records wait for one check.
+    expect(told(kept)).toEqual({ marked: [], counted: 0 });
+    expect(told(() => vi.advanceTimersByTime(KEPT_RECORD_CHECK_MS - 1)).counted).toBe(0);
+    kept();
+    expect(told(() => vi.advanceTimersByTime(1))).toEqual({ marked: 'room', counted: 1 });
+    // The build that follows keeps none, so nothing more comes.
+    expect(told(() => vi.advanceTimersByTime(KEPT_RECORD_CHECK_MS)).counted).toBe(0);
+    // A later kept build is checked again.
+    kept();
+    expect(told(() => vi.advanceTimersByTime(KEPT_RECORD_CHECK_MS)).marked).toBe('room');
+    vi.useRealTimers();
+  });
+
+  it('checks no kept record once it stops listening', () => {
+    vi.useFakeTimers();
+    const { state, unmount } = setup();
+    const changes = state().overviewChanges;
+    changes.onKept?.();
+
+    unmount();
+    const before = changes.count;
+    vi.advanceTimersByTime(KEPT_RECORD_CHECK_MS);
+
+    expect(changes.count).toBe(before);
+    expect(changes.onKept).toBeUndefined();
+    vi.useRealTimers();
   });
 
   it('marks the thread of each event the client hears of this room, without a count', () => {

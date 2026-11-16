@@ -98,8 +98,8 @@ const namedEventsOf = (room: Room): NamedEvents | undefined => {
   // First, so the views that update on an event find it.
   room.prependListener(RoomEvent.Timeline, (event, _room, _toStart, removed, data) => {
     // A reply moves its thread's root in the lists of threads, which hold no event for lookups.
-    const lost = removed && holdsEvents(room, data.timeline.getTimelineSet());
-    if (lost || kept.unheld.delete(event.getId() ?? '')) kept.version += 1;
+    if (!holdsEvents(room, data.timeline.getTimelineSet())) return;
+    if (removed || kept.unheld.delete(event.getId() ?? '')) kept.version += 1;
   });
   room.prependListener(RoomEvent.LocalEchoUpdated, (event) => {
     const eventId = event.getId() ?? '';

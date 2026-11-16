@@ -99,6 +99,11 @@ export type ThreadRecordChanges = {
   room: number;
   /** The count at the last change of each thread, by root, since the room's last. */
   threads: Map<string, number>;
+  /**
+   * Called by a build that kept a record. The listener answers with a mark of the room soon
+   * after, for what a record reads that no event tells of.
+   */
+  onKept?: () => void;
 };
 
 export const createThreadRecordChanges = (): ThreadRecordChanges => ({
@@ -500,6 +505,7 @@ export const buildThreadRecordMap = ({
   const records = new Map<string, ThreadRecord>();
   const roomSources = getRoomSources(room);
   const builtAt = reuse?.changes.count ?? 0;
+  let keptAny = false;
 
   threadRootIds.forEach((threadRootId) => {
     const options: BuildThreadRecordOptions = {
@@ -543,12 +549,14 @@ export const buildThreadRecordMap = ({
         recordSources.set(record, keptFrom);
       }
       records.set(threadRootId, record);
+      keptAny = true;
       return;
     }
     const record = buildThreadRecord(options);
     if (reuse) recordSources.set(record, { options, builtAt, roomSources });
     records.set(threadRootId, record);
   });
+  if (keptAny) reuse?.changes.onKept?.();
 
   return records;
 };
