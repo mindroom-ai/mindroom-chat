@@ -938,6 +938,13 @@
     "unsnooze": "スヌーズを解除",
     "status": {
       "snoozed": "スヌーズ中"
+    },
+    "workflow": {
+      "needsYou": "あなたの対応待ち",
+      "working": "作業中",
+      "later": "後で",
+      "done": "完了",
+      "all": "すべて"
     }
   },
   "threadSnooze": {

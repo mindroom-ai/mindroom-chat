@@ -968,6 +968,13 @@
     "unsnooze": "Annulla posticipo",
     "status": {
       "snoozed": "Posticipato"
+    },
+    "workflow": {
+      "needsYou": "Serve il tuo intervento",
+      "working": "In corso",
+      "later": "Più tardi",
+      "done": "Completati",
+      "all": "Tutti"
     }
   },
   "threadSnooze": {

@@ -1,3 +1,4 @@
+import type { ThreadWorkflowTab } from '../event-store/threads/threadWorkflow';
 import {
   type Dispatch,
   type SetStateAction,
@@ -202,6 +203,7 @@ export type RoomTimelineProps = {
   onAddTag?: (tag: string) => void;
   onRemoveTag?: (tag: string) => void;
   onClearTags?: () => void;
+  onSelectTab?: (tab: ThreadWorkflowTab) => void;
   onApplyPreset?: (preset: FilterPreset) => void;
   onSearchQueryChange?: (query: string) => void;
   viewMode: RoomViewMode;
@@ -1539,6 +1541,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
             .length
         }
         statusCounts={threadIndex.statusCounts}
+        bucketCounts={threadIndex.bucketCounts}
+        onSelectTab={props.onSelectTab ?? ignoreFilterChange}
         tagCounts={threadIndex.tagCounts}
         state={threadFilterState}
         availableTags={threadIndex.availableRoomTags}

@@ -968,6 +968,13 @@
     "unsnooze": "Annuler le report",
     "status": {
       "snoozed": "Reporté"
+    },
+    "workflow": {
+      "needsYou": "À vous de jouer",
+      "working": "En cours",
+      "later": "Plus tard",
+      "done": "Terminé",
+      "all": "Tous"
     }
   },
   "threadSnooze": {

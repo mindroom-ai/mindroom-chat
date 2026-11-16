@@ -1,3 +1,6 @@
+import { useRoomBackgroundJobs } from '../../background-jobs/useRoomBackgroundJobs';
+import { indexThreadBackgroundJobs } from '../../matrix/protocol/threadBackgroundJobs';
+import type { ThreadWorkflowCounts } from '../../event-store/threads/threadWorkflow';
 import { useMemo } from 'react';
 import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { buildThreadSummaryMap, type ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
@@ -21,6 +24,7 @@ import {
 import type { RoomViewMode } from '../../navigation/roomViewMode';
 import {
   computeThreadRecordStatusCounts,
+  computeThreadWorkflowCounts,
   computeThreadRecordTagCounts,
   resolveThreadRecordOverviewRootIds,
 } from '../../event-store/threads/threadRecordOverview';
@@ -94,6 +98,7 @@ export type ThreadIndexSnapshot = {
   activeLiveOverviewThreadRootIds: string[];
   overviewThreadRootIds: string[];
   statusCounts: StatusCounts;
+  bucketCounts: ThreadWorkflowCounts;
   tagCounts: Record<string, number>;
   searchQuery: string;
   threadSortControlSignature: string;
@@ -284,6 +289,12 @@ export const resolveThreadIndexSnapshot = ({
     roomOverviewOrderActive,
     activeLiveOverviewThreadRootIds,
     overviewThreadRootIds,
+    bucketCounts: computeThreadWorkflowCounts(
+      countThreadRootIds,
+      threadRecordMap,
+      threadFilterState,
+      now
+    ),
     statusCounts: computeThreadRecordStatusCounts(countThreadRootIds, threadRecordMap, now),
     tagCounts: computeThreadRecordTagCounts(countThreadRootIds, threadRecordMap),
     searchQuery,
@@ -549,10 +560,12 @@ export const useThreadIndex = ({
     () => buildThreadRootEventMap(compactRoomSurfaceEntries, compactThreadRootData.indexMap),
     [compactRoomSurfaceEntries, compactThreadRootData.indexMap]
   );
+  const { jobs } = useRoomBackgroundJobs(room);
+  const jobStates = useMemo(() => indexThreadBackgroundJobs(jobs), [jobs]);
   const { normalThreadRecordMap, compactThreadRecordMap } = useMemo(() => {
     // External hydration can refresh mutable SDK/cache-backed sources without changing map identity.
     void overviewRefreshCounter;
-    return buildThreadIndexRecordMaps({
+    const maps = buildThreadIndexRecordMaps({
       threadId,
       compactViewRequested,
       room,
@@ -570,7 +583,15 @@ export const useThreadIndex = ({
       currentUserId,
       scheduledStatusMap,
     });
+    for (const records of new Set([maps.normalThreadRecordMap, maps.compactThreadRecordMap])) {
+      for (const [id, record] of records) {
+        const jobState = jobStates.get(id);
+        if (jobState) records.set(id, { ...record, status: { ...record.status, ...jobState } });
+      }
+    }
+    return maps;
   }, [
+    jobStates,
     threadId,
     compactViewRequested,
     room,

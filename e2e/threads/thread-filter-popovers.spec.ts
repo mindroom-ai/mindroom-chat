@@ -91,10 +91,7 @@ const check = async (browser: Browser, engine: string, phone: boolean, baseURL?:
     const advanced = bar.locator('[data-thread-filter-mode-switch]');
     // eslint-disable-next-line no-await-in-loop
     if ((await advanced.getAttribute('aria-pressed')) !== 'true') await advanced.click();
-    for (const [trigger, panel] of [
-      ['[data-preset-button]', '[data-preset-dropdown]'],
-      ['[data-info-button]', '[data-info-popover]'],
-    ] as const) {
+    for (const [trigger, panel] of [['[data-info-button]', '[data-info-popover]']] as const) {
       // eslint-disable-next-line no-await-in-loop
       await bar.locator(trigger).click();
       // eslint-disable-next-line no-await-in-loop

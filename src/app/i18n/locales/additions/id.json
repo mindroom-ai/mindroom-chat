@@ -938,6 +938,13 @@
     "unsnooze": "Batalkan penundaan",
     "status": {
       "snoozed": "Ditunda"
+    },
+    "workflow": {
+      "needsYou": "Perlu Anda",
+      "working": "Sedang dikerjakan",
+      "later": "Nanti",
+      "done": "Selesai",
+      "all": "Semua"
     }
   },
   "threadSnooze": {

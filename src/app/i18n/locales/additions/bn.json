@@ -953,6 +953,13 @@
     "unsnooze": "স্থগিত বাতিল করুন",
     "status": {
       "snoozed": "স্নুজ করা"
+    },
+    "workflow": {
+      "needsYou": "আপনাকে প্রয়োজন",
+      "working": "কাজ চলছে",
+      "later": "পরে",
+      "done": "সম্পন্ন",
+      "all": "সব"
     }
   },
   "threadSnooze": {

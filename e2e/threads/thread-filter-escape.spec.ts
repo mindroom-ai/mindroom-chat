@@ -106,10 +106,7 @@ test('Escape closes the filter bar panels without reading the threads', async ({
   const bar = page.getByRole('toolbar').filter({ has: page.locator('[data-thread-count]') });
   const advanced = bar.locator('[data-thread-filter-mode-switch]');
   if ((await advanced.getAttribute('aria-pressed')) !== 'true') await advanced.click();
-  for (const [trigger, panel] of [
-    ['[data-preset-button]', '[data-preset-dropdown]'],
-    ['[data-info-button]', '[data-info-popover]'],
-  ] as const) {
+  for (const [trigger, panel] of [['[data-info-button]', '[data-info-popover]']] as const) {
     // eslint-disable-next-line no-await-in-loop
     await bar.locator(trigger).click();
     // eslint-disable-next-line no-await-in-loop

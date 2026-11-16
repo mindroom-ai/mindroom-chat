@@ -968,6 +968,13 @@
     "unsnooze": "Cancelar adiamento",
     "status": {
       "snoozed": "Adiado"
+    },
+    "workflow": {
+      "needsYou": "Precisa de você",
+      "working": "Em andamento",
+      "later": "Mais tarde",
+      "done": "Concluído",
+      "all": "Todos"
     }
   },
   "threadSnooze": {

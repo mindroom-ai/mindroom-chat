@@ -953,6 +953,13 @@
     "unsnooze": "Snooze opheffen",
     "status": {
       "snoozed": "Gesnoozed"
+    },
+    "workflow": {
+      "needsYou": "Jij bent aan zet",
+      "working": "Bezig",
+      "later": "Later",
+      "done": "Klaar",
+      "all": "Alle"
     }
   },
   "threadSnooze": {

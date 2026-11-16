@@ -1,3 +1,5 @@
+import type { ThreadWorkflowTab } from '../event-store/threads/threadWorkflow';
+import { selectThreadWorkflowTab } from '../event-store/threads/roomThreadOverviewModel';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -74,6 +76,7 @@ type UseRoomViewThreadStateOptions = {
 export type RoomViewThreadState = {
   effectiveThreadId?: string;
   handleAddTag: (tag: string) => void;
+  handleSelectTab: (tab: ThreadWorkflowTab) => void;
   handleApplyPreset: (preset: FilterPreset) => void;
   handleClearPeople: () => void;
   handleClearTags: () => void;
@@ -126,21 +129,22 @@ export const useRoomViewThreadState = ({
     [roomId, userId]
   );
   const [storedThreadFilterState, setThreadFilterState] = useAtom(threadFilterAtom);
-  // Until the reader sets a filter in the room, Compact hides resolved and snoozed threads.
-  const threadFilterState = useMemo<ThreadFilterState>(
-    () =>
-      storedThreadFilterState ?? {
-        ...createDefaultThreadFilterState(),
-        resolved: effectiveViewMode === 'compact' ? 'exclude' : 'any',
-        snoozed: effectiveViewMode === 'compact' ? 'exclude' : 'any',
-      },
-    [effectiveViewMode, storedThreadFilterState]
-  );
+  const [simpleMode] = useSetting(settingsAtom, 'simpleThreadFilters');
+  // New advanced agent rooms start on Needs you; Simple mode keeps its existing default.
+  const threadFilterState = useMemo<ThreadFilterState>(() => {
+    if (storedThreadFilterState) return storedThreadFilterState;
+    const defaults = createDefaultThreadFilterState();
+    if (hasMindroomAgents && !simpleMode) return selectThreadWorkflowTab(defaults, 'needsYou');
+    return {
+      ...defaults,
+      resolved: effectiveViewMode === 'compact' ? 'exclude' : 'any',
+      snoozed: effectiveViewMode === 'compact' ? 'exclude' : 'any',
+    };
+  }, [effectiveViewMode, storedThreadFilterState, hasMindroomAgents, simpleMode]);
   // Project stored filters onto the controls that are currently visible.
   // Persisted advanced filters must not keep hiding threads with no visible
   // cause, but remain stored so they can be restored when those controls
   // become available again.
-  const [simpleMode] = useSetting(settingsAtom, 'simpleThreadFilters');
   const effectiveThreadFilterState = useMemo(() => {
     if (simpleMode) {
       return hasMindroomAgents
@@ -422,6 +426,13 @@ export const useRoomViewThreadState = ({
     [flushPendingSearchQuery, setThreadFilterState]
   );
 
+  const handleSelectTab = useCallback(
+    (tab: ThreadWorkflowTab) => {
+      setThreadFilterState(selectThreadWorkflowTab(flushPendingSearchQuery(), tab));
+    },
+    [flushPendingSearchQuery, setThreadFilterState]
+  );
+
   const handleApplyPreset = useCallback(
     (preset: FilterPreset) => {
       setThreadFilterState(applyPreset(flushPendingSearchQuery(), preset));
@@ -505,6 +516,7 @@ export const useRoomViewThreadState = ({
     effectiveThreadId,
     handleAddTag,
     handleApplyPreset,
+    handleSelectTab,
     handleClearPeople,
     handleClearTags,
     handleExitThread,

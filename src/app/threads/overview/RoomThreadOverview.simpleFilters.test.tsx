@@ -77,7 +77,8 @@ describe('thread filter bar modes', () => {
     expect(store.get(settingsAtom).simpleThreadFilters).toBe(false);
     expect(modeSwitch().props['aria-pressed']).toBe(true);
     expect(modeSwitch().props.className).toContain(css.PauseButtonActive);
-    expect(statusToggles().length).toBeGreaterThan(0);
+    expect(byData('data-thread-tab')).toHaveLength(5);
+    expect(statusToggles()).toHaveLength(0);
     expect(unresolvedToggles()).toHaveLength(0);
 
     act(() => {

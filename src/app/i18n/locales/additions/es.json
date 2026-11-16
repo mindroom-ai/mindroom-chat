@@ -968,6 +968,13 @@
     "unsnooze": "Dejar de posponer",
     "status": {
       "snoozed": "Pospuesto"
+    },
+    "workflow": {
+      "needsYou": "Te necesita",
+      "working": "En curso",
+      "later": "Más tarde",
+      "done": "Hecho",
+      "all": "Todos"
     }
   },
   "threadSnooze": {

@@ -953,6 +953,13 @@
     "unsnooze": "Ertelemeyi kaldır",
     "status": {
       "snoozed": "Ertelendi"
+    },
+    "workflow": {
+      "needsYou": "Sizi bekliyor",
+      "working": "Çalışıyor",
+      "later": "Sonra",
+      "done": "Tamamlandı",
+      "all": "Tümü"
     }
   },
   "threadSnooze": {

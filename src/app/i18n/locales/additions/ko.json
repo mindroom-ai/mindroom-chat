@@ -938,6 +938,13 @@
     "unsnooze": "일시 중지 해제",
     "status": {
       "snoozed": "다시 알림"
+    },
+    "workflow": {
+      "needsYou": "내 응답 필요",
+      "working": "작업 중",
+      "later": "나중에",
+      "done": "완료",
+      "all": "전체"
     }
   },
   "threadSnooze": {

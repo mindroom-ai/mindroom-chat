@@ -953,6 +953,13 @@
     "unsnooze": "Nicht mehr zurückstellen",
     "status": {
       "snoozed": "Zurückgestellt"
+    },
+    "workflow": {
+      "needsYou": "Du bist gefragt",
+      "working": "In Arbeit",
+      "later": "Später",
+      "done": "Erledigt",
+      "all": "Alle"
     }
   },
   "threadSnooze": {

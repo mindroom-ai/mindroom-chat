@@ -1,12 +1,13 @@
+import {
+  THREAD_WORKFLOW_TABS,
+  type ThreadWorkflowTab,
+  type ThreadWorkflowCounts,
+} from '../../event-store/threads/threadWorkflow';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, Icon, Icons, Text, Tooltip, toRem } from 'folds';
 import { TooltipProvider } from '../../ui/directional';
 import { useTranslation } from 'react-i18next';
-import { type TFunction } from 'i18next';
 import {
-  IconCalendarEvent,
-  IconChevronDown,
-  IconClock,
   IconFilter,
   IconInfoCircle,
   IconLock,
@@ -14,7 +15,6 @@ import {
   IconMessages,
   IconSortAscending,
   IconSortDescending,
-  IconZzz,
 } from '@tabler/icons-react';
 import classNames from 'classnames';
 import { Surface } from '../../ui/glass/GlassPrimitives';
@@ -22,22 +22,18 @@ import { useLiquidGlass } from '../../ui/glass/liquid/useLiquidGlass';
 import { useSetting } from '../../preferences/useSetting';
 import { settingsAtom } from '../../preferences/settings';
 import * as css from './RoomThreadOverview.css';
-import * as threadIndicatorCss from '../../messages/ThreadIndicator.css';
-import { ThreadStreamingDot } from '../ThreadStreamingDot';
 import { ThreadTagFilter } from './ThreadTagFilter';
 import { useKeepInsideToolbar } from './useKeepInsideToolbar';
 import { localDigits } from '../../lib/localDigits';
 import type {
   ThreadFilterState,
   ThreadFilterKey,
-  TriState,
   StatusCounts,
   FilterPreset,
 } from '../../event-store/threads/roomThreadOverviewModel';
 import {
   hasActiveThreadFilters,
-  FILTER_PRESETS,
-  isOrModeStatusChip,
+  THREAD_FILTER_KEYS,
   normalizeThreadSearchText,
 } from '../../event-store/threads/roomThreadOverviewModel';
 import {
@@ -57,290 +53,6 @@ const VISUALLY_HIDDEN = {
 } as const;
 
 export type { ThreadFilterState, ThreadFilterKey };
-
-// ─── Tooltip text helpers ────────────────────────────────────────────────────
-
-const FILTER_LABEL_KEYS = {
-  resolved: 'thread.status.resolved',
-  snoozed: 'thread.status.snoozed',
-  streaming: 'thread.status.streaming',
-  scheduled: 'thread.status.scheduled',
-  unread: 'thread.status.unread',
-  idle: 'thread.status.idleFilter',
-} as const satisfies Record<ThreadFilterKey, string>;
-
-const getTooltipText = (t: TFunction, key: ThreadFilterKey, state: TriState): string => {
-  const label = t(FILTER_LABEL_KEYS[key]);
-  switch (state) {
-    case 'any':
-      return t('thread.filterTooltip.any', { label });
-    case 'include':
-      return t('thread.filterTooltip.include', { label });
-    case 'exclude':
-      return t('thread.filterTooltip.exclude', { label });
-    default:
-      return label;
-  }
-};
-
-const getAriaValueText = (t: TFunction, state: TriState): string => {
-  switch (state) {
-    case 'any':
-      return t('thread.filterTooltip.stateAny');
-    case 'include':
-      return t('thread.filterTooltip.stateInclude');
-    case 'exclude':
-      return t('thread.filterTooltip.stateExclude');
-    default:
-      return state;
-  }
-};
-
-// ─── TriStateIconToggle ──────────────────────────────────────────────────────
-
-function TriStateIconToggle({
-  filterKey,
-  state,
-  isOrMode,
-  onToggle,
-  children,
-}: {
-  filterKey: ThreadFilterKey;
-  state: TriState;
-  isOrMode: boolean;
-  onToggle: (key: ThreadFilterKey) => void;
-  children: React.ReactNode;
-}) {
-  const { t } = useTranslation();
-  const tooltipText = getTooltipText(t, filterKey, state);
-
-  return (
-    <TooltipProvider
-      position="Bottom"
-      align="Center"
-      tooltip={
-        <Tooltip style={{ maxWidth: toRem(280) }}>
-          <Text size="T200">{tooltipText}</Text>
-        </Tooltip>
-      }
-    >
-      {(toggleAnchor) => (
-        <button
-          type="button"
-          ref={toggleAnchor}
-          className={classNames(
-            css.ToggleButton,
-            state === 'include' && (isOrMode ? css.ToggleIncludeOr : css.ToggleInclude),
-            state === 'exclude' && css.ToggleExclude
-          )}
-          onClick={() => onToggle(filterKey)}
-          aria-roledescription="tri-state toggle"
-          aria-valuetext={getAriaValueText(t, state)}
-          aria-label={tooltipText}
-          data-filter-key={filterKey}
-          data-filter-state={state}
-        >
-          {children}
-        </button>
-      )}
-    </TooltipProvider>
-  );
-}
-
-// ─── ThreadPresetDropdown ───────────────────────────────────────────────────
-
-function ThreadPresetDropdown({
-  onApplyPreset,
-  activePresetLabel,
-}: {
-  onApplyPreset: (preset: FilterPreset) => void;
-  activePresetLabel: string | null;
-}) {
-  const { t } = useTranslation();
-  const filterPresets = FILTER_PRESETS.map((preset) => {
-    switch (preset.id) {
-      case 'needs-attention':
-        return {
-          ...preset,
-          label: t('mindroomUi.threads.roomThreadOverview.presets.needs-attention.label'),
-          description: t(
-            'mindroomUi.threads.roomThreadOverview.presets.needs-attention.description'
-          ),
-        };
-      case 'working':
-        return {
-          ...preset,
-          label: t('mindroomUi.threads.roomThreadOverview.presets.working.label'),
-          description: t('mindroomUi.threads.roomThreadOverview.presets.working.description'),
-        };
-      case 'review-queue':
-        return {
-          ...preset,
-          label: t('mindroomUi.threads.roomThreadOverview.presets.review-queue.label'),
-          description: t('mindroomUi.threads.roomThreadOverview.presets.review-queue.description'),
-        };
-      case 'snoozed':
-        return {
-          ...preset,
-          label: t('mindroomUi.threads.roomThreadOverview.presets.snoozed.label'),
-          description: t('mindroomUi.threads.roomThreadOverview.presets.snoozed.description'),
-        };
-      case 'archived':
-        return {
-          ...preset,
-          label: t('mindroomUi.threads.roomThreadOverview.presets.archived.label'),
-          description: t('mindroomUi.threads.roomThreadOverview.presets.archived.description'),
-        };
-      case 'all':
-        return {
-          ...preset,
-          label: t('mindroomUi.threads.roomThreadOverview.presets.all.label'),
-          description: t('mindroomUi.threads.roomThreadOverview.presets.all.description'),
-        };
-      default:
-        return preset;
-    }
-  });
-  const [open, setOpen] = useState(false);
-  const [focusedIndex, setFocusedIndex] = useState(-1);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  useKeepInsideToolbar(panelRef);
-
-  const handleToggle = useCallback(() => {
-    setOpen((prev) => {
-      if (!prev) setFocusedIndex(0);
-      return !prev;
-    });
-  }, []);
-
-  const handleSelect = useCallback(
-    (preset: FilterPreset) => {
-      onApplyPreset(preset);
-      setOpen(false);
-      setFocusedIndex(-1);
-    },
-    [onApplyPreset]
-  );
-
-  const handleBlur = useCallback((e: React.FocusEvent) => {
-    if (containerRef.current && !containerRef.current.contains(e.relatedTarget as Node)) {
-      setOpen(false);
-      setFocusedIndex(-1);
-    }
-  }, []);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (!open) return;
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault();
-          setFocusedIndex((prev) => (prev + 1) % filterPresets.length);
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          setFocusedIndex((prev) => (prev - 1 + filterPresets.length) % filterPresets.length);
-          break;
-        case 'Enter': {
-          e.preventDefault();
-          const preset = filterPresets[focusedIndex];
-          if (preset) handleSelect(preset);
-          break;
-        }
-        case 'Escape':
-          // Escape closes the list only: the room's own Escape (focus the composer, which
-          // reads the room and every thread in it) must not run as well.
-          e.preventDefault();
-          e.stopPropagation();
-          setOpen(false);
-          setFocusedIndex(-1);
-          containerRef.current?.querySelector<HTMLElement>('[data-preset-button]')?.focus();
-          break;
-        default:
-          break;
-      }
-    },
-    [filterPresets, open, focusedIndex, handleSelect]
-  );
-
-  return (
-    <div
-      ref={containerRef}
-      className={css.PresetContainer}
-      onBlur={handleBlur}
-      onKeyDown={handleKeyDown}
-    >
-      <button
-        type="button"
-        className={css.PresetButton}
-        onMouseDown={(e) => {
-          // Safari focuses no button on a press: the open list would lose the focus to nothing
-          // and close, and the click would open it again. The button takes the focus instead.
-          if (open) {
-            e.preventDefault();
-            e.currentTarget.focus();
-          }
-        }}
-        onClick={handleToggle}
-        aria-label={t('mindroomUi.threads.roomThreadOverview.filterPresets')}
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        data-preset-button="true"
-      >
-        <Text size="T200">
-          {activePresetLabel ?? t('mindroomUi.threads.roomThreadOverview.preset')}
-        </Text>
-        <IconChevronDown size={14} stroke={1.8} aria-hidden="true" />
-      </button>
-      {open && (
-        <Surface
-          ref={panelRef}
-          level="overlay"
-          variant="SurfaceVariant"
-          className={css.PresetDropdown}
-          role="listbox"
-          aria-label={t('mindroomUi.threads.roomThreadOverview.filterPresets')}
-          data-preset-dropdown="true"
-        >
-          {filterPresets.map((preset, index) => (
-            <TooltipProvider
-              key={preset.id}
-              position="Right"
-              align="Center"
-              tooltip={
-                <Tooltip style={{ maxWidth: toRem(220) }}>
-                  <Text size="T200">{preset.description}</Text>
-                </Tooltip>
-              }
-            >
-              {(triggerRef) => (
-                <button
-                  ref={(el) => {
-                    if (index === focusedIndex) el?.focus();
-                    if (typeof triggerRef === 'function') triggerRef(el);
-                  }}
-                  type="button"
-                  className={css.PresetOption}
-                  role="option"
-                  aria-selected={index === focusedIndex}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    handleSelect(preset);
-                  }}
-                  data-preset-option={preset.id}
-                  data-focused={index === focusedIndex || undefined}
-                >
-                  <Text size="T200">{preset.label}</Text>
-                </button>
-              )}
-            </TooltipProvider>
-          ))}
-        </Surface>
-      )}
-    </div>
-  );
-}
 
 // ─── ThreadInfoPopover ──────────────────────────────────────────────────────
 
@@ -551,6 +263,8 @@ export type RoomThreadOverviewProps = {
   threadCount: number;
   totalThreadCount: number;
   statusCounts?: StatusCounts;
+  bucketCounts?: ThreadWorkflowCounts;
+  onSelectTab?: (tab: ThreadWorkflowTab) => void;
   tagCounts?: Record<string, number>;
   state: ThreadFilterState;
   availableTags: string[];
@@ -629,11 +343,12 @@ export function RoomThreadOverview({
   threadCount,
   totalThreadCount,
   statusCounts,
+  bucketCounts,
+  onSelectTab,
   tagCounts,
   state,
   availableTags,
   isThreadSortFrozen = false,
-  onToggle,
   onSortDirectionChange,
   onToggleThreadSortFreeze,
   onToggleUnresolvedOnly,
@@ -641,11 +356,9 @@ export function RoomThreadOverview({
   onAddTag,
   onRemoveTag,
   onClearTags,
-  onApplyPreset,
   onSearchQueryChange,
   peopleFilter,
 }: RoomThreadOverviewProps) {
-  const [lastAppliedPreset, setLastAppliedPreset] = useState<string | null>(null);
   const glassRef = useLiquidGlass<HTMLDivElement>();
   const { t, i18n } = useTranslation();
   const [simpleMode, setSimpleMode] = useSetting(settingsAtom, 'simpleThreadFilters');
@@ -662,30 +375,12 @@ export function RoomThreadOverview({
     pendingSearchCanonicalRef.current = undefined;
     setSearchQueryDraft(canonicalSearchQuery);
   }, [canonicalSearchQuery]);
-  const handleToggleWithPresetClear = useCallback(
-    (key: ThreadFilterKey) => {
-      setLastAppliedPreset(null);
-      onToggle(key);
-    },
-    [onToggle]
-  );
-
-  const handlePresetApply = useCallback(
-    (preset: FilterPreset) => {
-      setLastAppliedPreset(preset.id === 'all' ? null : preset.label);
-      onApplyPreset(preset);
-    },
-    [onApplyPreset]
-  );
-
-  const handleSortWithPresetClear = useCallback(() => {
-    setLastAppliedPreset(null);
+  const handleSort = useCallback(() => {
     onSortDirectionChange();
   }, [onSortDirectionChange]);
 
-  const handleSearchWithPresetClear = useCallback(
+  const handleSearch = useCallback(
     (query: string) => {
-      setLastAppliedPreset(null);
       setSearchQueryDraft(query);
       pendingSearchCanonicalRef.current = hasMindroomAgents
         ? serializeThreadFilterQuery(
@@ -696,27 +391,6 @@ export function RoomThreadOverview({
     },
     [hasMindroomAgents, onSearchQueryChange, state]
   );
-
-  const handleAddTagWithPresetClear = useCallback(
-    (tag: string) => {
-      setLastAppliedPreset(null);
-      onAddTag(tag);
-    },
-    [onAddTag]
-  );
-
-  const handleRemoveTagWithPresetClear = useCallback(
-    (tag: string) => {
-      setLastAppliedPreset(null);
-      onRemoveTag(tag);
-    },
-    [onRemoveTag]
-  );
-
-  const handleClearTagsWithPresetClear = useCallback(() => {
-    setLastAppliedPreset(null);
-    onClearTags();
-  }, [onClearTags]);
 
   const filterSummary = filtersActive
     ? t('mindroomUi.threads.roomThreadOverview.showingFilteredThreads', {
@@ -885,7 +559,7 @@ export function RoomThreadOverview({
               </TooltipProvider>
             </>
           )}
-          <ThreadSortControl state={state} onChange={handleSortWithPresetClear} />
+          <ThreadSortControl state={state} onChange={handleSort} />
           {filterModeSwitch}
         </div>
         {hasMindroomAgents && emptyFilteredState}
@@ -911,80 +585,33 @@ export function RoomThreadOverview({
         {/* Count */}
         {hasMindroomAgents && countBadge}
 
-        {/* Status toggles */}
         {hasMindroomAgents && (
           <div
-            className={css.ToggleGroup}
+            className={css.WorkflowTabs}
             role="group"
             aria-label={t('mindroomUi.threads.roomThreadOverview.statusFilters')}
           >
-            <TriStateIconToggle
-              filterKey="resolved"
-              state={state.resolved}
-              isOrMode={isOrModeStatusChip(state, 'resolved')}
-              onToggle={handleToggleWithPresetClear}
-            >
-              <Icon size="50" src={Icons.CheckTwice} />
-            </TriStateIconToggle>
-
-            <TriStateIconToggle
-              filterKey="snoozed"
-              state={state.snoozed}
-              isOrMode={isOrModeStatusChip(state, 'snoozed')}
-              onToggle={handleToggleWithPresetClear}
-            >
-              <IconClock size={14} stroke={1.8} aria-hidden="true" />
-            </TriStateIconToggle>
-
-            <TriStateIconToggle
-              filterKey="streaming"
-              state={state.streaming}
-              isOrMode={isOrModeStatusChip(state, 'streaming')}
-              onToggle={handleToggleWithPresetClear}
-            >
-              <ThreadStreamingDot aria-hidden="true" />
-            </TriStateIconToggle>
-
-            <TriStateIconToggle
-              filterKey="scheduled"
-              state={state.scheduled}
-              isOrMode={isOrModeStatusChip(state, 'scheduled')}
-              onToggle={handleToggleWithPresetClear}
-            >
-              <IconCalendarEvent
-                size={14}
-                stroke={1.8}
-                className={threadIndicatorCss.ThreadScheduledIcon}
-                aria-hidden="true"
-              />
-            </TriStateIconToggle>
-
-            <TriStateIconToggle
-              filterKey="unread"
-              state={state.unread}
-              isOrMode={isOrModeStatusChip(state, 'unread')}
-              onToggle={handleToggleWithPresetClear}
-            >
-              <Icon size="50" src={Icons.MessageUnread} />
-            </TriStateIconToggle>
-
-            <TriStateIconToggle
-              filterKey="idle"
-              state={state.idle}
-              isOrMode={isOrModeStatusChip(state, 'idle')}
-              onToggle={handleToggleWithPresetClear}
-            >
-              <IconZzz size={14} stroke={1.8} aria-hidden="true" />
-            </TriStateIconToggle>
+            {THREAD_WORKFLOW_TABS.map((tab) => (
+              <button
+                type="button"
+                key={tab}
+                data-thread-tab={tab}
+                className={css.WorkflowTab}
+                aria-pressed={
+                  (state.tab ??
+                    (THREAD_FILTER_KEYS.some((key) => state[key] !== 'any')
+                      ? undefined
+                      : 'all')) === tab
+                }
+                onClick={() => onSelectTab?.(tab)}
+              >
+                <span>{t(`thread.workflow.${tab}`)}</span>
+                <span className={css.WorkflowCount}>
+                  {localDigits(String(bucketCounts?.[tab] ?? 0), i18n.language)}
+                </span>
+              </button>
+            ))}
           </div>
-        )}
-
-        {/* Preset dropdown */}
-        {hasMindroomAgents && (
-          <ThreadPresetDropdown
-            onApplyPreset={handlePresetApply}
-            activePresetLabel={lastAppliedPreset}
-          />
         )}
         {peopleFilter}
         {hasMindroomAgents && (state.tags.size > 0 || availableTags.length > 0) && (
@@ -992,9 +619,9 @@ export function RoomThreadOverview({
             tags={availableTags}
             counts={tagCounts}
             selected={state.tags}
-            onAdd={handleAddTagWithPresetClear}
-            onRemove={handleRemoveTagWithPresetClear}
-            onClear={handleClearTagsWithPresetClear}
+            onAdd={onAddTag}
+            onRemove={onRemoveTag}
+            onClear={onClearTags}
           />
         )}
 
@@ -1007,16 +634,9 @@ export function RoomThreadOverview({
             totalThreadCount={totalThreadCount}
           />
         )}
-        <ThreadSearchBar
-          searchQuery={searchQueryDraft}
-          onSearchQueryChange={handleSearchWithPresetClear}
-        />
+        <ThreadSearchBar searchQuery={searchQueryDraft} onSearchQueryChange={handleSearch} />
 
-        <ThreadSortControl
-          state={state}
-          active={filtersActive}
-          onChange={handleSortWithPresetClear}
-        />
+        <ThreadSortControl state={state} active={filtersActive} onChange={handleSort} />
         {hasMindroomAgents && state.sortBy !== 'natural' && (
           <TooltipProvider
             position="Bottom"

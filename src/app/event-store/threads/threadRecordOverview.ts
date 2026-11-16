@@ -1,5 +1,6 @@
 import {
   applyFrozenThreadOrder,
+  selectThreadWorkflowTab,
   matchesTagFilters,
   matchesTriState,
   THREAD_FILTER_KEYS,
@@ -8,6 +9,7 @@ import {
   type ThreadFilterState,
   type ThreadSortFreezeState,
 } from './roomThreadOverviewModel';
+import { classifyThreadWorkflow, type ThreadWorkflowCounts } from './threadWorkflow';
 import { matchesThreadPeopleFilter } from './threadPeopleFilter';
 import { isSnoozedAt } from './threadSnooze';
 import type { ThreadRecord } from './types';
@@ -41,6 +43,7 @@ const getThreadRecordDimension = (
 };
 
 const hasStatusOrTagFilters = (state: ThreadFilterState): boolean =>
+  (state.tab !== undefined && state.tab !== 'all') ||
   THREAD_FILTER_KEYS.some((key) => state[key] !== 'any') ||
   state.tags.size > 0 ||
   (state.people?.length ?? 0) > 0;
@@ -51,6 +54,8 @@ export const matchesThreadRecordFilterState = (
   state: ThreadFilterState,
   now = Date.now()
 ): boolean => {
+  if (state.tab && state.tab !== 'all' && classifyThreadWorkflow(record.status, now) !== state.tab)
+    return false;
   if (!matchesThreadPeopleFilter(record, state.people)) return false;
   if (state.statusMode === 'or') {
     for (const key of THREAD_FILTER_KEYS) {
@@ -226,5 +231,28 @@ export const computeThreadRecordTagCounts = (
     });
   });
 
+  return counts;
+};
+
+/** Counts reflect people, tags and text, but not the selected status tab or legacy statuses. */
+export const computeThreadWorkflowCounts = (
+  ids: string[],
+  records: ReadonlyMap<string, ThreadRecord>,
+  state: ThreadFilterState,
+  now: number
+): ThreadWorkflowCounts => {
+  const counts: ThreadWorkflowCounts = { needsYou: 0, working: 0, later: 0, done: 0, all: 0 };
+  const matching = filterThreadRecordsBySearch(
+    filterThreadRecordRootIds(ids, selectThreadWorkflowTab(state, 'all'), records, now),
+    state.freeText,
+    records
+  );
+  for (const id of matching) {
+    const record = records.get(id);
+    if (record) {
+      counts[classifyThreadWorkflow(record.status, now)] += 1;
+      counts.all += 1;
+    }
+  }
   return counts;
 };

@@ -953,6 +953,13 @@
     "unsnooze": "स्थगन हटाएँ",
     "status": {
       "snoozed": "स्नूज़ किया गया"
+    },
+    "workflow": {
+      "needsYou": "आपकी ज़रूरत है",
+      "working": "काम जारी है",
+      "later": "बाद में",
+      "done": "पूरा हुआ",
+      "all": "सभी"
     }
   },
   "threadSnooze": {

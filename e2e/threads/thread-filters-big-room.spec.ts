@@ -248,11 +248,13 @@ const expectShown = async (page: Page, room: SeededRoom, expected: string[], lab
   ).toHaveText(String(expected.length));
 };
 
-const applyPreset = async (page: Page, preset: string) => {
+const selectTab = async (page: Page, preset: string) => {
   const overview = page.locator('[data-room-thread-overview]');
-  await overview.locator('[data-preset-button]').click();
-  await overview.locator(`[data-preset-option="${preset}"]`).click();
-  await expect(overview.locator('[data-preset-dropdown]')).toHaveCount(0);
+  await overview.locator(`[data-thread-tab="${preset}"]`).click();
+  await expect(overview.locator(`[data-thread-tab="${preset}"]`)).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  );
 };
 
 /** Each person's thread count in the open People list. */
@@ -277,7 +279,7 @@ const checkFilters = async (page: Page, room: SeededRoom, engine: string) => {
   const modeSwitch = overview.locator('[data-thread-filter-mode-switch]');
   await expect(async () => {
     if ((await modeSwitch.getAttribute('aria-pressed')) !== 'true') await modeSwitch.click();
-    await expect(overview.locator('[data-preset-button]')).toBeVisible({ timeout: 2_000 });
+    await expect(overview.locator('[data-thread-tab="all"]')).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 30_000 });
   // Compact opens with resolved threads hidden; every thread shows once the filter is off.
   await showResolvedThreads(page);
@@ -288,10 +290,10 @@ const checkFilters = async (page: Page, room: SeededRoom, engine: string) => {
   const pinnedIndexes = new Set(PINNED);
   const isResolved = (plan: ThreadPlan, index: number) =>
     plan.resolved && !pinnedIndexes.has(index);
-  await applyPreset(page, 'archived');
+  await selectTab(page, 'done');
   await expectShown(page, room, rootsWhere(room, isResolved), `${engine} archived`);
   await shot(page, `${engine}-preset-archived`);
-  await applyPreset(page, 'needs-attention');
+  await selectTab(page, 'needsYou');
   await expectShown(
     page,
     room,
@@ -300,11 +302,11 @@ const checkFilters = async (page: Page, room: SeededRoom, engine: string) => {
   );
   await shot(page, `${engine}-preset-needs-attention`);
   // Nothing is scheduled or streaming: Working keeps no thread, pinned ones included.
-  await applyPreset(page, 'working');
+  await selectTab(page, 'working');
   await expectShown(page, room, [], `${engine} working`);
   await expect(page.locator('[data-pinned-threads]')).toHaveCount(0);
   await shot(page, `${engine}-preset-working`);
-  await applyPreset(page, 'all');
+  await selectTab(page, 'all');
   await expectShown(page, room, room.rootIds, `${engine} all`);
 
   // The search: only threads 4, 12, 20, ... carry the topic, and no pinned thread does.

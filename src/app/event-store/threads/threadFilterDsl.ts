@@ -99,6 +99,7 @@ export const applyParsedThreadFilterQuery = (
   STATUS_KEYS.forEach((key) => {
     next[key] = parsed.status[key] ?? 'any';
   });
+  if (Object.keys(parsed.status).length > 0) next.tab = undefined;
   next.statusMode = parsed.statusMode;
   next.freeText = parsed.freeText;
   next.unsupportedQuery = parsed.unsupportedTail;

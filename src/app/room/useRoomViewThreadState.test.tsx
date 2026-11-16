@@ -280,18 +280,17 @@ describe('useRoomViewThreadState', () => {
     expect(mountThreadState().current().threadFilterState.snoozed).toBe('any');
   });
 
-  it('follows the view for its default until the reader chooses a filter', () => {
+  it('defaults advanced agent rooms to Needs you until a tab is chosen', () => {
     const { current, rerender } = mountThreadState({ advancedFilters: true });
-    expect(current().threadFilterState.resolved).toBe('exclude');
-
+    expect(current().threadFilterState.tab).toBe('needsYou');
+    expect(current().threadFilterState.resolved).toBe('any');
     viewMode.current = 'threaded';
     rerender();
-    expect(current().threadFilterState.resolved).toBe('any');
-
-    act(() => current().handleToggle('resolved'));
+    expect(current().threadFilterState.tab).toBe('needsYou');
+    act(() => current().handleSelectTab('working'));
     viewMode.current = 'compact';
     rerender();
-    expect(current().threadFilterState.resolved).toBe('include');
+    expect(current().threadFilterState.tab).toBe('working');
   });
 
   it('shows resolved threads by default outside Compact', () => {
@@ -368,4 +367,13 @@ describe('useRoomViewThreadState', () => {
 
     expect(current().threadSortFreezeState).toBeNull();
   });
+});
+
+it('keeps the default Needs you tab while changing the sort or adding a tag', () => {
+  const { current } = mountThreadState({ advancedFilters: true });
+  act(() => current().handleSortDirectionChange());
+  expect(current().threadFilterState.tab).toBe('needsYou');
+  act(() => current().handleAddTag('review'));
+  expect(current().threadFilterState.tab).toBe('needsYou');
+  expect(current().threadFilterState.tags.get('review')).toBe('include');
 });

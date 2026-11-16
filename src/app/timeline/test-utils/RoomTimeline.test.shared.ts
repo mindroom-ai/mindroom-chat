@@ -1831,3 +1831,9 @@ export {
   wrapWithSyncEngine,
   isTimelineAtLiveEndMock,
 };
+
+// Background-job subscriptions are exercised by their own hook and real-room e2e tests.
+vi.mock('../../background-jobs/useRoomBackgroundJobs', () => {
+  const snapshot = { jobs: [], total: 0 };
+  return { useRoomBackgroundJobs: () => snapshot };
+});

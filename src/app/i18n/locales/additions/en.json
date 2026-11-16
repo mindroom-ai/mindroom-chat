@@ -953,6 +953,13 @@
     "unsnooze": "Unsnooze",
     "status": {
       "snoozed": "Snoozed"
+    },
+    "workflow": {
+      "needsYou": "Needs you",
+      "working": "Working",
+      "later": "Later",
+      "done": "Done",
+      "all": "All"
     }
   },
   "threadSnooze": {

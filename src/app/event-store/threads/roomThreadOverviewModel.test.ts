@@ -418,3 +418,62 @@ describe('roomThreadOverviewModel', () => {
     });
   });
 });
+
+describe('workflow tab persistence', () => {
+  it('round trips the selected tab without changing the storage version', async () => {
+    const {
+      createDefaultThreadFilterState,
+      serializeThreadFilterState,
+      deserializeThreadFilterState,
+    } = await import('./roomThreadOverviewModel');
+    const state = { ...createDefaultThreadFilterState(), tab: 'working' as const };
+    const stored = serializeThreadFilterState(state);
+    expect(stored.v).toBe(2);
+    expect(deserializeThreadFilterState(stored).tab).toBe('working');
+  });
+});
+
+it('changes the frozen-order signature when the tab changes', async () => {
+  const { createDefaultThreadFilterState, createThreadSortControlSignature } = await import(
+    './roomThreadOverviewModel'
+  );
+  const state = createDefaultThreadFilterState();
+  expect(createThreadSortControlSignature({ state: { ...state, tab: 'working' } })).not.toBe(
+    createThreadSortControlSignature({ state: { ...state, tab: 'needsYou' } })
+  );
+});
+
+it('selecting a tab replaces legacy statuses but preserves people, tags, search and sort', async () => {
+  const {
+    createDefaultThreadFilterState,
+    selectThreadWorkflowTab,
+    serializeThreadFilterState,
+    deserializeThreadFilterState,
+    simplifyThreadFilterState,
+  } = await import('./roomThreadOverviewModel');
+  const state = {
+    ...createDefaultThreadFilterState(),
+    resolved: 'include' as const,
+    unread: 'exclude' as const,
+    snoozed: 'exclude' as const,
+    statusMode: 'or' as const,
+    people: ['@alice:example.org'],
+    tags: new Map([['review', 'include' as const]]),
+    freeText: 'release',
+    sortDirection: 'asc' as const,
+  };
+  const selected = selectThreadWorkflowTab(state, 'working');
+  expect(selected).toEqual({
+    ...state,
+    tab: 'working',
+    resolved: 'any',
+    unread: 'any',
+    snoozed: 'any',
+    statusMode: 'and',
+  });
+  expect(deserializeThreadFilterState(serializeThreadFilterState(state))).toEqual(state);
+  expect(
+    deserializeThreadFilterState({ ...serializeThreadFilterState(state), tab: 'bogus' }).tab
+  ).toBeUndefined();
+  expect(simplifyThreadFilterState(selected).tab).toBeUndefined();
+});

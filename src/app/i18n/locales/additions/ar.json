@@ -1013,6 +1013,13 @@
     "unsnooze": "إلغاء التأجيل",
     "status": {
       "snoozed": "مؤجلة"
+    },
+    "workflow": {
+      "needsYou": "بحاجة إليك",
+      "working": "قيد العمل",
+      "later": "لاحقًا",
+      "done": "مكتمل",
+      "all": "الكل"
     }
   },
   "threadSnooze": {

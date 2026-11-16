@@ -938,6 +938,13 @@
     "unsnooze": "取消延後",
     "status": {
       "snoozed": "已延後"
+    },
+    "workflow": {
+      "needsYou": "需要你處理",
+      "working": "處理中",
+      "later": "稍後",
+      "done": "已完成",
+      "all": "全部"
     }
   },
   "threadSnooze": {

@@ -983,6 +983,13 @@
     "unsnooze": "Вернуть",
     "status": {
       "snoozed": "Отложена"
+    },
+    "workflow": {
+      "needsYou": "Нужно ваше участие",
+      "working": "В работе",
+      "later": "Позже",
+      "done": "Готово",
+      "all": "Все"
     }
   },
   "threadSnooze": {
