@@ -1,4 +1,5 @@
 import { RoomEvent, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 
 // A room's lookups of events, kept until the task ends. The room's lookup of an event it does not
 // hold searches every thread, and the views of a room's threads ask for events no timeline keeps
@@ -7,23 +8,30 @@ import { RoomEvent, type MatrixClient, type MatrixEvent, type Room } from 'matri
 // on every streamed edit.
 type RoomLookups = {
   found: Map<string, MatrixEvent | undefined>;
-  /** Every event the room's threads hold, by ID, read once on the first miss. */
-  inThreads?: Map<string, MatrixEvent>;
+  /** The thread that holds each event, read once on the first miss; null when unreadable. */
+  inThreads?: Map<string, Thread> | null;
 };
 let lookups: WeakMap<Room, RoomLookups> | undefined;
 
-const readThreadEvents = (room: Room): Map<string, MatrixEvent> => {
-  const events = new Map<string, MatrixEvent>();
-  room.getThreads().forEach((thread) =>
-    thread.timelineSet.getTimelines().forEach((timeline) =>
-      timeline.getEvents().forEach((event) => {
-        const eventId = event.getId();
-        // The first thread that holds it, as `Room.findEventById` finds it.
-        if (eventId && !events.has(eventId)) events.set(eventId, event);
-      })
-    )
-  );
-  return events;
+/**
+ * The IDs a thread holds, as its `findEventById` reads them: the SDK's private index, which also
+ * covers a timeline `getTimelines()` no longer lists, such as one a page filled after a reset.
+ */
+const heldEventIds = (thread: Thread): IterableIterator<string> | undefined => {
+  const index: unknown = (thread.timelineSet as unknown as { _eventIdToTimeline?: unknown })
+    ._eventIdToTimeline;
+  return index instanceof Map ? (index as Map<string, unknown>).keys() : undefined;
+};
+
+const readThreadIndex = (room: Room): Map<string, Thread> | null => {
+  const byEventId = new Map<string, Thread>();
+  for (const thread of room.getThreads()) {
+    const eventIds = heldEventIds(thread);
+    if (!eventIds) return null;
+    // The first thread that holds it, as `Room.findEventById` searches them.
+    for (const eventId of eventIds) if (!byEventId.has(eventId)) byEventId.set(eventId, thread);
+  }
+  return byEventId;
 };
 
 const lookUp = (room: Room, roomLookups: RoomLookups, eventId: string): MatrixEvent | undefined => {
@@ -33,8 +41,12 @@ const lookUp = (room: Room, roomLookups: RoomLookups, eventId: string): MatrixEv
     return room.findEventById?.(eventId);
   const inMain = main.findEventById(eventId);
   if (inMain) return inMain;
-  roomLookups.inThreads ??= readThreadEvents(room);
-  return roomLookups.inThreads.get(eventId);
+  if (roomLookups.inThreads === undefined) roomLookups.inThreads = readThreadIndex(room);
+  // An SDK whose index this cannot read: its own search.
+  if (!roomLookups.inThreads) return room.findEventById(eventId);
+  const thread = roomLookups.inThreads.get(eventId);
+  // A held ID its timeline no longer shows: the SDK's search decides, as it would.
+  return thread && (thread.findEventById(eventId) ?? room.findEventById(eventId));
 };
 
 /**

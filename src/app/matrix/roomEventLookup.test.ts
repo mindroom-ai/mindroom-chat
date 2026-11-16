@@ -1,5 +1,11 @@
 import { EventEmitter } from 'events';
-import { MatrixEvent, RoomEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
+import {
+  EventTimelineSet,
+  MatrixEvent,
+  RoomEvent,
+  type MatrixClient,
+  type Room,
+} from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { isKnownRedactedEventId } from './eventRevision';
 import { findRoomEvent, keepRoomEventLookupsCurrent } from './roomEventLookup';
@@ -51,33 +57,62 @@ describe('findRoomEvent', () => {
   });
 });
 
-// A room with threads that hold events, as `findEventById` reads it: its main timelines first, then
-// each thread's timelines, in the room's order.
-const makeThreadedRoom = (threadEvents: MatrixEvent[][]) => {
-  const threads = threadEvents.map((events) => ({
-    timelineSet: { getTimelines: () => [{ getEvents: () => events }] },
+// A room with threads that hold events in real SDK timeline sets: `Room.findEventById` reads its
+// main timelines first, then each thread's set, in the room's order.
+const timelineSetOf = (events: MatrixEvent[]) => {
+  const timelineSet = new EventTimelineSet(undefined, { timelineSupport: true });
+  events.forEach((event) =>
+    timelineSet.addEventToTimeline(event, timelineSet.getLiveTimeline(), {
+      toStartOfTimeline: false,
+      addToState: false,
+    })
+  );
+  return timelineSet;
+};
+
+const makeThreadedRoom = (timelineSets: EventTimelineSet[]) => {
+  const threads = timelineSets.map((timelineSet) => ({
+    timelineSet,
+    findEventById: (eventId: string) => timelineSet.findEventById(eventId),
   }));
   const getThreads = vi.fn(() => threads);
   const room = {
     roomId: '!threads:example.org',
-    getUnfilteredTimelineSet: () => ({ findEventById: () => undefined }),
+    getUnfilteredTimelineSet: () => timelineSetOf([]),
     getThreads,
   } as unknown as Room;
   return { room, getThreads };
 };
 
+const event = (eventId: string) =>
+  new MatrixEvent({ event_id: eventId, origin_server_ts: 50, type: 'm.room.message' });
+
 describe('findRoomEvent in a room of threads', () => {
   it('reads the threads once for every event they do not hold', () => {
-    const { room, getThreads } = makeThreadedRoom([[reply], []]);
+    const held = event('$held');
+    const { room, getThreads } = makeThreadedRoom([timelineSetOf([held]), timelineSetOf([])]);
     for (let i = 0; i < 50; i += 1) expect(findRoomEvent(room, `$edit${i}`)).toBeUndefined();
-    expect(findRoomEvent(room, '$reply')).toBe(reply);
+    expect(findRoomEvent(room, '$held')).toBe(held);
     expect(getThreads).toHaveBeenCalledTimes(1);
+  });
+
+  it('finds an event a page added to a timeline after a reset, as the room does', () => {
+    // A reset without a forward token drops the old timelines from the set's list; a page that
+    // was on its way still lands in the old one, which the set's lookup reads.
+    const timelineSet = timelineSetOf([]);
+    const old = timelineSet.getLiveTimeline();
+    timelineSet.resetLiveTimeline();
+    const paged = event('$paged');
+    timelineSet.addEventsToTimeline([paged], true, false, old);
+    expect(timelineSet.getTimelines()).not.toContain(old);
+    const { room } = makeThreadedRoom([timelineSet]);
+    expect(findRoomEvent(room, '$paged')).toBe(paged);
   });
 });
 
 describe('isKnownRedactedEventId', () => {
   it('reads the threads once for the edits of every thread, which no timeline holds', () => {
-    const { room, getThreads } = makeThreadedRoom([[reply]]);
+    const { room, getThreads } = makeThreadedRoom([timelineSetOf([event('$held')])]);
     for (let i = 0; i < 50; i += 1) expect(isKnownRedactedEventId(room, `$edit${i}`)).toBe(false);
     expect(getThreads).toHaveBeenCalledTimes(1);
   });
