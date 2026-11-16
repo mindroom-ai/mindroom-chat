@@ -94,6 +94,23 @@ fs.appendFileSync(process.env.TEST_COMMANDS, JSON.stringify({name, args, release
 };
 
 describe('isolated Mac Store CI and archive entry points', () => {
+  it.each(['iOS', 'tvOS', ''])(
+    'rejects a Store scheme/platform mismatch (%s) without mutation',
+    (platform) => {
+      for (const script of ['ci_pre_xcodebuild.sh', 'ci_post_xcodebuild.sh']) {
+        const { project, run } = fixture();
+        const before = project();
+        const result = run(`ios/App/ci_scripts/${script}`, platform, {
+          CI_XCODE_SCHEME: 'AppStoreMac',
+        });
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain('AppStoreMac requires CI_PRODUCT_PLATFORM=macOS');
+        expect(project()).toBe(before);
+        expect(result.commands).toEqual([]);
+      }
+    }
+  );
+
   it.each(['macOS', 'iOS'])('versions only the targets of the %s action', (platform) => {
     const { project, run } = fixture();
     const before = project();
@@ -155,6 +172,57 @@ describe('isolated Mac Store CI and archive entry points', () => {
     });
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain('CI_ARCHIVE_PATH');
+  });
+
+  it('refuses a Store archive without its signed export', () => {
+    const result = fixture().run('ios/App/ci_scripts/ci_post_xcodebuild.sh', 'macOS', {
+      CI_ARCHIVE_PATH: '/archive',
+      CI_APP_STORE_SIGNED_APP_PATH: '',
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('CI_APP_STORE_SIGNED_APP_PATH');
+  });
+
+  it.each([false, true])('enforces the full signed-export check (rejected=%s)', (rejected) => {
+    const { root, run } = fixture();
+    writeFileSync(
+      join(root, 'scripts/macos-store-preflight.mjs'),
+      `import fs from 'node:fs';
+      const inspect = (input) => {
+        fs.appendFileSync(process.env.TEST_COMMANDS, JSON.stringify({name:'inspect',...input})+'\\n');
+        return {problems: !input.structureOnly && process.env.TEST_REJECT_SIGNING === '1' ? ['Signed export rejected'] : [], signingChecked: !input.structureOnly};
+      };
+      export const inspectMacStoreArtifact = inspect;
+      export const inspectMacStoreExport = inspect;`
+    );
+    const result = run('ios/App/ci_scripts/ci_post_xcodebuild.sh', 'macOS', {
+      CI_ARCHIVE_PATH: '/archive',
+      CI_APP_STORE_SIGNED_APP_PATH: '/signed-export',
+      TEST_REJECT_SIGNING: rejected ? '1' : '0',
+    });
+    expect(result.commands).toContainEqual(
+      expect.objectContaining({
+        name: 'inspect',
+        artifact: '/signed-export',
+        version: '2026.11.225',
+        build: '809',
+        commit,
+        structureOnly: false,
+      })
+    );
+    expect(result.status, result.stderr).toBe(rejected ? 1 : 0);
+    if (rejected) expect(result.stderr).toContain('Signed export rejected');
+  });
+
+  it('rejects a zero Mac Cloud build number before versioning', () => {
+    const { project, run } = fixture();
+    const before = project();
+    const result = run('ios/App/ci_scripts/ci_pre_xcodebuild.sh', 'macOS', {
+      CI_BUILD_NUMBER: '0',
+    });
+    expect(result.status).not.toBe(0);
+    expect(project()).toBe(before);
+    expect(result.commands).toEqual([]);
   });
 
   it.each([

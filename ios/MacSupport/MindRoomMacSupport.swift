@@ -22,7 +22,8 @@ final class MindRoomMacSupport: NSObject, MindRoomMacSupportProtocol {
 
     func window(titled title: String) -> NSObject? {
         guard !title.isEmpty else { return nil }
-        return NSApplication.shared.windows.first { $0.title == title }
+        let matches = NSApplication.shared.windows.filter { $0.title == title }
+        return matches.count == 1 ? matches[0] : nil
     }
 
     func pointScale(of window: NSObject, uiWidth: Double) -> Double {
@@ -99,11 +100,7 @@ final class MindRoomMacSupport: NSObject, MindRoomMacSupportProtocol {
     }
 
     private func activate() {
-        if #available(macOS 14.0, *) {
-            NSApplication.shared.activate()
-        } else {
-            NSApplication.shared.activate(ignoringOtherApps: true)
-        }
+        NSApplication.shared.activate(ignoringOtherApps: true)
     }
 
     func displayID(of handle: NSObject) -> NSNumber? {

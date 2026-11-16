@@ -125,9 +125,7 @@ describe('Mac Catalyst shell', () => {
     );
     const disconnect = (source: string) =>
       source.match(/func sceneDidDisconnect\(_ scene: UIScene\) \{[\s\S]*?\n {4}\}/)?.[0] ?? '';
-    const main = disconnect(sceneSource).match(
-      /#if targetEnvironment\(macCatalyst\)([\s\S]*?)#endif/
-    )?.[1];
+    const main = disconnect(sceneSource);
     expect(main).toMatch(/if let window \{/);
     expect(main).toContain('requestSceneSessionDestruction(widget.session');
     expect(main).toMatch(/QuickCapture\.stopPage\(of: window\)\s*self\.window = nil/);

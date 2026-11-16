@@ -51,9 +51,15 @@ enum MacScreenshot {
             filter = SCContentFilter(desktopIndependentWindow: window)
             label = window.owningApplication?.applicationName ?? "Window"
         case .screen:
+#if MINDROOM_MAC_APP_STORE
+            guard let screen = content.displays.first(where: { $0.displayID == display }) else {
+                throw Failure.noWindow
+            }
+#else
             guard let screen = content.displays.first(where: { $0.displayID == display }) ?? content.displays.first else {
                 throw Failure.captureFailed
             }
+#endif
             let own = content.applications.filter { $0.processID == getpid() }
             filter = SCContentFilter(display: screen, excludingApplications: own, exceptingWindows: [])
             label = "Screen"

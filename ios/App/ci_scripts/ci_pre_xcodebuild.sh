@@ -1,6 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
+if [[ "${CI_XCODE_SCHEME:-}" == AppStoreMac && "${CI_PRODUCT_PLATFORM:-}" != macOS ]]; then
+  echo 'Error: AppStoreMac requires CI_PRODUCT_PLATFORM=macOS.' >&2
+  exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${CI_PRIMARY_REPOSITORY_PATH:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 source "$SCRIPT_DIR/ci_common.sh"
@@ -44,6 +49,10 @@ CURRENT_PROJECT_VERSION_SOURCE="$(get_metadata_value build_number_source)"
 
 if [[ "$APPLE_PLATFORM_LABEL" == 'Mac Store' && ! "$APPLE_MARKETING_VERSION" =~ ^[1-9][0-9]{3}[.]([1-9]|1[0-2])[.](0|[1-9][0-9]*)$ ]]; then
   echo 'Error: Mac Store MARKETING_VERSION must be a calendar version YYYY.M.N.' >&2
+  exit 1
+fi
+if [[ "$APPLE_PLATFORM_LABEL" == 'Mac Store' && ! "$CURRENT_PROJECT_VERSION" =~ ^[1-9][0-9]*$ ]]; then
+  echo 'Error: Mac Store CURRENT_PROJECT_VERSION must be a positive integer.' >&2
   exit 1
 fi
 

@@ -25,6 +25,7 @@ plutil -replace CFBundleShortVersionString -string 1.0.0 "$bundle/Contents/Info.
 plutil -replace CFBundleVersion -string 1 "$bundle/Contents/Info.plist"
 xcrun swiftc \
   "$repo_root/ios/MacSupport/MindRoomMacSupportProtocol.swift" \
+  "$repo_root/ios/App/App/MacWindowingStore.swift" \
   "$repo_root/ios/MacSupportTests/Contract.swift" \
   -o "$test_directory/contract"
 "$test_directory/contract" "$bundle"

@@ -1,7 +1,8 @@
 // @ts-check
 // Checks emitted Mac Store artifacts. Structure-only checks do not establish signing or eligibility.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -198,6 +199,57 @@ export const inspectMacStoreArtifact = ({
   };
 };
 
+/**
+ * Inspect the Cloud export, including a flat installer package, without installing it.
+ * Temporary extraction is removed before returning. Unknown/ambiguous layouts fail closed.
+ * @param {{artifact: string, version: string, build: string, commit: string, structureOnly?: false}} input
+ */
+export const inspectMacStoreExport = (input) => {
+  let artifact = input.artifact;
+  if (!existsSync(artifact)) throw new Error('The Store-signed export is missing.');
+  if (
+    !artifact.endsWith('.app') &&
+    !artifact.endsWith('.pkg') &&
+    !artifact.endsWith('.xcarchive')
+  ) {
+    const candidates = readdirSync(artifact).filter((name) => /\.(app|pkg)$/.test(name));
+    if (candidates.length !== 1 || !candidates[0])
+      throw new Error('The Store export must contain exactly one app or installer package.');
+    artifact = path.join(artifact, candidates[0]);
+  }
+  if (!artifact.endsWith('.pkg'))
+    return inspectMacStoreArtifact({ ...input, artifact, structureOnly: false });
+  if (!statSync(artifact).isFile()) throw new Error('The Store installer must be a flat package.');
+  const signature = execFileSync('pkgutil', ['--check-signature', artifact], { encoding: 'utf8' });
+  if (
+    !/1\.\s+(?:3rd Party Mac Developer Installer|Mac Installer Distribution):[^\n]+\(DNA6966LGZ\)/.test(
+      signature
+    )
+  ) {
+    throw new Error(
+      'The Store installer must use Mac App Store installer signing for team DNA6966LGZ.'
+    );
+  }
+  const scratch = mkdtempSync(path.join(tmpdir(), 'mindroom-store-export-'));
+  try {
+    const expanded = path.join(scratch, 'expanded');
+    execFileSync('pkgutil', ['--expand-full', artifact, expanded], { stdio: 'pipe' });
+    /** @param {string} directory @returns {string[]} */
+    const appsIn = (directory) =>
+      readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+        if (!entry.isDirectory()) return [];
+        const file = path.join(directory, entry.name);
+        return entry.name.endsWith('.app') ? [file] : appsIn(file);
+      });
+    const apps = appsIn(expanded);
+    if (apps.length !== 1 || !apps[0])
+      throw new Error('The Store installer must contain exactly one app.');
+    return inspectMacStoreArtifact({ ...input, artifact: apps[0], structureOnly: false });
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+};
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [artifact, version, build, commit, mode, ...extra] = process.argv.slice(2);
   try {
@@ -210,16 +262,19 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       extra.length
     ) {
       throw new Error(
-        'Usage: node scripts/macos-store-preflight.mjs <xcarchive-or-app> <version> <build> <commit> [--structure-only]'
+        'Usage: node scripts/macos-store-preflight.mjs <archive-app-or-export> <version> <build> <commit> [--structure-only]'
       );
     }
-    const result = inspectMacStoreArtifact({
+    const input = {
       artifact,
       version,
       build,
       commit,
-      structureOnly: mode === '--structure-only',
-    });
+    };
+    const result =
+      mode === '--structure-only'
+        ? inspectMacStoreArtifact({ ...input, structureOnly: true })
+        : inspectMacStoreExport(input);
     if (result.problems.length) throw new Error(result.problems.join('\n'));
     console.log(
       JSON.stringify({

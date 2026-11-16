@@ -51,6 +51,11 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
         if activeStatusBarStyle != .default {
             bridge?.statusBarStyle = activeStatusBarStyle
         }
+#if targetEnvironment(macCatalyst) && MINDROOM_MAC_APP_STORE
+        if let scene = view.window?.windowScene, scene.delegate is SceneDelegate {
+            MacWindowing.mainBridgeDidAppear(scene)
+        }
+#endif
 
 #if DEBUG
         guard ProcessInfo.processInfo.environment["MINDROOM_FILE_SAVE_ACCEPTANCE"] == "1",
