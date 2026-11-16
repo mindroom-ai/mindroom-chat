@@ -53,7 +53,8 @@ const setup = () => {
     getThread: (threadId: string) => (threadId === '$p' ? thread : null),
     findEventById: (eventId: string) => parentEvents.find((event) => event.getId() === eventId),
   } as unknown as Room;
-  const forkRoot = message('$f', 10, undefined, threadForkContent({ threadId: '$p', eventId: '$b' }));
+  const fork = threadForkContent({ threadId: '$p', eventId: '$b' });
+  const forkRoot = message('$f', 10, undefined, fork);
   const mx = createClient({ baseUrl: 'https://example.org', userId: '@me:example.org' });
   const engine = { scheduler: {} } as unknown as SyncEngine;
   return { room, forkRoot, mx, engine };

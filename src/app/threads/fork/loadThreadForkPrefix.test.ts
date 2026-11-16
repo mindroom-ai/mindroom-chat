@@ -83,8 +83,9 @@ describe('loadThreadForkPrefix', () => {
     // $t1 forks $t2 at its root, ... $t9 forks $t10, which is no fork.
     const threads: Record<string, MatrixEvent[]> = {};
     for (let level = 1; level <= 10; level += 1) {
-      const next = level < 10 ? { threadId: `$t${level + 1}`, eventId: `$t${level + 1}` } : undefined;
-      threads[`$t${level}`] = [root(`$t${level}`, 100 - level, next)];
+      const next = `$t${level + 1}`;
+      const fork = level < 10 ? { threadId: next, eventId: next } : undefined;
+      threads[`$t${level}`] = [root(`$t${level}`, 100 - level, fork)];
     }
     const loadThreadEvents = loaderOf(threads);
     const prefix = await loadThreadForkPrefix(
