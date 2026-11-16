@@ -15,6 +15,7 @@ import {
   makeRoom,
   createControlledRoomTimelineHarness,
   flushAsyncWork,
+  matrixClientMock,
   navigateRoomThreadMock,
   threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
@@ -609,6 +610,26 @@ describe('Fork from here', () => {
 
     const inRoom = await mountFeature([rowFor(makeEvent('$m') as unknown as MatrixEvent)]);
     expect(inRoom.renderer.root.findByType(Message).props.onForkClick).toBeUndefined();
+  });
+
+  it('is not offered in a room whose agents answer in the room, where a fork stays empty', async () => {
+    const { Message } = await import('../../messages/Message');
+    const roomMode = {
+      currentState: {
+        getStateEvents: (type: string) =>
+          type === 'io.mindroom.thread_mode' ? { getContent: () => ({ mode: 'room' }) } : null,
+      },
+    };
+    matrixClientMock.getRoom.mockImplementation(() => roomMode as never);
+    try {
+      const { renderer } = await mountFeature(
+        [rowFor(makeEvent('$r1', { threadRootId: '$thread' }) as unknown as MatrixEvent)],
+        '$thread'
+      );
+      expect(renderer.root.findByType(Message).props.onForkClick).toBeUndefined();
+    } finally {
+      matrixClientMock.getRoom.mockImplementation(() => null);
+    }
   });
 });
 

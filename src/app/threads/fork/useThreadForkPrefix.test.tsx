@@ -4,9 +4,9 @@ import {
   ClientEvent,
   createClient,
   MatrixEvent,
+  Room,
   type IEvent,
   type MatrixClient,
-  type Room,
   type Thread,
 } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
@@ -20,7 +20,22 @@ import {
 import { threadForkContent } from '../../event-store/threads/threadFork';
 import { useThreadForkPrefix } from './useThreadForkPrefix';
 
-vi.mock('../../matrix/session/useSessionStore', () => ({ useActiveSession: () => undefined }));
+const session = vi.hoisted(() => ({ value: undefined as { sessionId: string } | undefined }));
+vi.mock('../../matrix/session/useSessionStore', () => ({ useActiveSession: () => session.value }));
+// The event cache: the whole parent thread when `events` is set.
+const cache = vi.hoisted(() => ({
+  events: undefined as MatrixEvent[] | undefined,
+  load: vi.fn(),
+}));
+vi.mock('../../event-store/cache/eventRepository', async (original) => ({
+  ...(await original<typeof import('../../event-store/cache/eventRepository')>()),
+  loadThreadCachedSnapshot: cache.load.mockImplementation(async () =>
+    cache.events ? { events: cache.events } : undefined
+  ),
+}));
+vi.mock('../../event-store/cache/threadCacheSnapshot', () => ({
+  isCompleteCachedThreadSnapshot: () => true,
+}));
 
 const roomId = '!room:example.org';
 const bob = '@bob:example.org';
@@ -49,20 +64,25 @@ const forkRoot = () =>
 
 const ids = (events: MatrixEvent[]) => events.map((event) => event.getId());
 
-/** A room holding `$p`'s events; with `sdkThread`, an SDK thread for `$p` loaded from its start. */
-const makeRoom = (parentEvents: MatrixEvent[], sdkThread: boolean) => {
+/** An SDK thread for `$p` loaded from its start, holding `events`, and `rootEvent` as its root. */
+const sdkThreadOf = (events: MatrixEvent[], rootEvent: MatrixEvent | undefined) => {
   const timeline = {
-    getEvents: () => parentEvents,
+    getEvents: () => events,
     getNeighbouringTimeline: () => null,
     getPaginationToken: () => null,
   };
-  const thread = {
+  return {
     id: '$p',
-    rootEvent: parentEvents[0],
+    rootEvent,
     initialEventsFetched: true,
-    events: parentEvents,
+    events,
     getUnfilteredTimelineSet: () => ({ getLiveTimeline: () => timeline }),
   } as unknown as Thread;
+};
+
+/** A room holding `$p`'s events; with `sdkThread`, an SDK thread for `$p` loaded from its start. */
+const makeRoom = (parentEvents: MatrixEvent[], sdkThread: boolean) => {
+  const thread = sdkThreadOf(parentEvents, parentEvents[0]);
   return {
     roomId,
     getThread: (threadId: string) => (sdkThread && threadId === '$p' ? thread : null),
@@ -232,6 +252,130 @@ describe('useThreadForkPrefix', () => {
     expect(last.loading).toBe(false);
     expect(ids(last.events)).toEqual(['$p', '$a', '$b']);
     expect(last.complete).toBe(false);
+    await view.unmount();
+  });
+  it("puts the parent's root first when its SDK thread does not hold the root yet", async () => {
+    const root = message('$p', 1);
+    const replies = [message('$a', 2, '$p'), message('$b', 3, '$p'), message('$c', 4, '$p')];
+    const thread = sdkThreadOf(replies, undefined);
+    const room = {
+      roomId,
+      getThread: (threadId: string) => (threadId === '$p' ? thread : null),
+      findEventById: (eventId: string) => (eventId === '$p' ? root : undefined),
+    } as unknown as Room;
+    const view = await renderPrefix(room, newClient(), {} as BackfillScheduler, forkRoot());
+    expect(ids(view.results.at(-1)!.events)).toEqual(['$p', '$a', '$b']);
+    await view.unmount();
+  });
+
+  it('takes no parent reply that comes after it loaded, and a later edit of its message', async () => {
+    const parentEvents = [message('$p', 1), message('$a', 2, '$p'), message('$b', 3, '$p')];
+    const mx = newClient();
+    const view = await renderPrefix(
+      makeRoom(parentEvents, true),
+      mx,
+      {} as BackfillScheduler,
+      forkRoot()
+    );
+    const loaded = view.results.at(-1)!;
+    expect(ids(loaded.events)).toEqual(['$p', '$a', '$b']);
+
+    // The parent goes on after the fork point.
+    const reply = message('$d', 5, '$p');
+    parentEvents.push(reply);
+    await act(async () => {
+      mx.emit(ClientEvent.Event, reply);
+    });
+    expect(ids(view.results.at(-1)!.events)).toEqual(['$p', '$a', '$b']);
+
+    const edit = message('$edit', 20, undefined, {
+      body: '* edited',
+      'm.new_content': { msgtype: 'm.text', body: 'edited' },
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$b' },
+    });
+    await act(async () => {
+      mx.emit(ClientEvent.Event, edit);
+    });
+    const edited = view.results.at(-1)!;
+    expect(ids(edited.events)).toEqual(['$p', '$a', '$b']);
+    expect(edited.events[2]!.getContent().body).toBe('edited');
+    await view.unmount();
+  });
+});
+
+describe('useThreadForkPrefix and a redaction of a prefix message', () => {
+  const redaction = () =>
+    new MatrixEvent({
+      event_id: '$redaction',
+      room_id: roomId,
+      sender: bob,
+      type: 'm.room.redaction',
+      redacts: '$a',
+      origin_server_ts: 30,
+      content: { redacts: '$a' },
+    });
+  /** A room the client knows, whose main timeline shows whether anything was put there. */
+  const realRoom = (mx: MatrixClient, thread?: Thread) => {
+    const room = new Room(roomId, mx, '@me:example.org');
+    vi.spyOn(room, 'getThread').mockImplementation((threadId) =>
+      thread && threadId === '$p' ? thread : null
+    );
+    return room;
+  };
+  const mainTimeline = (room: Room) => room.getLiveTimeline().getEvents().map((e) => e.getId());
+
+  it('loads a cached prefix again, and leaves the main timeline of the room alone', async () => {
+    session.value = { sessionId: 'session' };
+    cache.load.mockClear();
+    const mx = newClient();
+    const room = realRoom(mx);
+    cache.events = [
+      message('$p', 1),
+      message('$a', 2, '$p'),
+      message('$b', 3, '$p'),
+      message('$c', 4, '$p'),
+    ];
+    const view = await renderPrefix(room, mx, {} as BackfillScheduler, forkRoot());
+    expect(ids(view.results.at(-1)!.events)).toEqual(['$p', '$a', '$b']);
+    expect(cache.load).toHaveBeenCalledTimes(1);
+
+    // The cache as the engine keeps it once the redaction came: `$a` pruned, in no thread.
+    const redacted = new MatrixEvent({
+      ...raw('$a', 2),
+      content: {},
+      unsigned: { redacted_because: redaction().event as IEvent },
+    });
+    cache.events = [message('$p', 1), redacted, message('$b', 3, '$p'), message('$c', 4, '$p')];
+    await act(async () => {
+      mx.emit(ClientEvent.Event, redaction());
+    });
+
+    expect(cache.load).toHaveBeenCalledTimes(2);
+    expect(ids(view.results.at(-1)!.events)).toEqual(['$p', '$b']);
+    expect(mainTimeline(room)).toEqual([]);
+    await view.unmount();
+    session.value = undefined;
+    cache.events = undefined;
+  });
+
+  it("reads the SDK's thread again once the SDK took the redaction", async () => {
+    const mx = newClient();
+    const parentEvents = [message('$p', 1), message('$a', 2, '$p'), message('$b', 3, '$p')];
+    const room = realRoom(mx, sdkThreadOf(parentEvents, parentEvents[0]));
+    const view = await renderPrefix(room, mx, {} as BackfillScheduler, forkRoot());
+    expect(ids(view.results.at(-1)!.events)).toEqual(['$p', '$a', '$b']);
+
+    // The SDK redacts its own copy and takes it out of the thread, into the main timeline.
+    const sdkRedaction = redaction();
+    parentEvents[1]!.makeRedacted(sdkRedaction, room);
+    parentEvents.splice(1, 1);
+    const before = mainTimeline(room);
+    await act(async () => {
+      mx.emit(ClientEvent.Event, sdkRedaction);
+    });
+
+    expect(ids(view.results.at(-1)!.events)).toEqual(['$p', '$b']);
+    expect(mainTimeline(room)).toEqual(before);
     await view.unmount();
   });
 });

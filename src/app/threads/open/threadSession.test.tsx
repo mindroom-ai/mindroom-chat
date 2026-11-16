@@ -586,6 +586,31 @@ describe('thread session opening', () => {
     view.unmount();
   });
 
+  it('settles an open once its loads are done, the route event among them', async () => {
+    vi.mocked(loadThreadCachedSnapshot).mockReset().mockResolvedValue(undefined);
+    const fixture = openFixture();
+    const target = deferred<typeof fixture.timeline>();
+    fixture.context.mockImplementation(async (_timelineSet, eventId) =>
+      eventId === '$reply' ? target.promise : fixture.timeline
+    );
+    const view = renderOpen(fixture.runtime, {
+      roomId: fixture.runtime.room.roomId,
+      threadId: '$a',
+      eventId: '$reply',
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(view.session.snapshot.open.settled).toBe(false);
+
+    await act(async () => {
+      target.resolve(fixture.timeline);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(view.session.snapshot.open.settled).toBe(true);
+    view.unmount();
+  });
+
   it('seeds local echo roots without server-thread resets or cache/bootstrap requests', () => {
     const log = vi.spyOn(timelineDebug, 'logTimelineDebug');
     vi.mocked(loadThreadCachedSnapshot).mockReset();

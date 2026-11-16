@@ -25,6 +25,20 @@ const forkPrefix = vi.hoisted(() => ({
 vi.mock('../../threads/fork/useThreadForkPrefix', () => ({
   useThreadForkPrefix: () => forkPrefix.value,
 }));
+// While `gate` is pending, the thread's open waits on the server.
+const opening = vi.hoisted(() => ({ gate: undefined as Promise<void> | undefined }));
+vi.mock('../../threads/open/threadOpenSdkBootstrap', async (original) => {
+  const actual = await original<typeof import('../../threads/open/threadOpenSdkBootstrap')>();
+  return {
+    ...actual,
+    runThreadOpenSdkBootstrap: async (
+      ...args: Parameters<typeof actual.runThreadOpenSdkBootstrap>
+    ) => {
+      await opening.gate;
+      return actual.runThreadOpenSdkBootstrap(...args);
+    },
+  };
+});
 vi.mock('../../threads/fork/ThreadForkDivider', async () => {
   const ReactImport = await import('react');
   return {
@@ -206,7 +220,7 @@ describe('a fork draft', () => {
     }
   });
 
-  it('says it shows no fork point when the thread does not hold it', async () => {
+  it('says it shows no fork point once the thread opened without it, and not before', async () => {
     const { RoomTimeline } = await import('../RoomTimeline');
     const root = makeEvent('$parent', { isThreadRoot: true, ts: 1_000 });
     forkPrefix.value = { events: [], parent: undefined, complete: true, loading: false };
@@ -227,6 +241,10 @@ describe('a fork draft', () => {
     const onForkPointShown = vi.fn();
     const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
     let renderer: ReturnType<typeof create> | undefined;
+    let open: () => void = () => undefined;
+    opening.gate = new Promise<void>((resolve) => {
+      open = resolve;
+    });
     try {
       await act(async () => {
         renderer = create(
@@ -239,12 +257,19 @@ describe('a fork draft', () => {
         );
         await flushAsyncWork();
       });
+      // The point may still come with the thread's loads.
+      expect(onForkPointShown).not.toHaveBeenCalled();
 
+      await act(async () => {
+        open();
+        await flushAsyncWork();
+      });
       expect(renderer!.root.findAll((node) => (node.type as unknown) === 'fork-divider')).toEqual(
         []
       );
       expect(onForkPointShown).toHaveBeenLastCalledWith(undefined);
     } finally {
+      opening.gate = undefined;
       act(() => renderer?.unmount());
     }
   });

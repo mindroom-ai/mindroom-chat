@@ -167,3 +167,50 @@ describe('a fork whose root the room loads later', () => {
     expect(latest[0]?.forkedFrom).toEqual({ threadId: '$p', eventId: '$a' });
   });
 });
+
+describe('the roots of the cards', () => {
+  it('are each read once as the cards are built, from the main timeline of the room', () => {
+    const forkRoot = {
+      getOriginalContent: () => ({
+        'io.mindroom.fork': { thread_id: '$p', event_id: '$x' },
+      }),
+    };
+    // Thread roots are in the main timeline; the room's own lookup also searches every thread.
+    const findInMainTimeline = vi.fn((eventId: string) =>
+      eventId === '$a' ? forkRoot : undefined
+    );
+    const findAnywhere = vi.fn(() => undefined);
+    const room = {
+      ...makeRoom(),
+      findEventById: findAnywhere,
+      getUnfilteredTimelineSet: () => ({ findEventById: findInMainTimeline }),
+    } as unknown as Room;
+    let latest: CompactThreadCardViewModel[] = [];
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, {
+          room,
+          threadRootIds: ['$a', '$b'],
+          threadRecordMap: new Map([
+            ['$a', makeRecord('$a', 3)],
+            ['$b', makeRecord('$b', 5)],
+          ]),
+          onViewModels: (viewModels) => {
+            latest = viewModels;
+          },
+        })
+      );
+    });
+
+    expect(latest.map((viewModel) => viewModel.forkedFrom)).toEqual([
+      { threadId: '$p', eventId: '$x' },
+      undefined,
+    ]);
+    expect(findInMainTimeline.mock.calls.map(([eventId]) => eventId)).toEqual(['$a', '$b']);
+    expect(findAnywhere).not.toHaveBeenCalled();
+    act(() => {
+      renderer?.unmount();
+    });
+  });
+});

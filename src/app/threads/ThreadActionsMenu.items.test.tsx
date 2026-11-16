@@ -26,7 +26,9 @@ const state = vi.hoisted(() => ({
   snoozedUntilTs: undefined as number | undefined,
   pinned: [] as string[],
   members: [] as { userId: string; membership: string }[],
+  threadMode: undefined as 'room' | 'thread' | 'mixed' | undefined,
 }));
+vi.mock('../matrix/hooks/useRoomThreadMode', () => ({ useRoomThreadMode: () => state.threadMode }));
 vi.mock('./tags/useThreadTags', () => ({
   useThreadTags: () => ({
     displayTags: ['triage'],
@@ -89,6 +91,7 @@ beforeEach(() => {
   mutations.snooze.mockReset();
   mutations.unsnooze.mockReset();
   state.members = [];
+  state.threadMode = undefined;
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
@@ -249,6 +252,13 @@ describe('ThreadActionsMenu rows', () => {
     const items = renderMenu({ onOpenThread: () => undefined });
 
     expect(rowOf(items, 'fork')).toBeUndefined();
+  });
+
+  it('offers no Fork thread in a room whose agents answer in the room, where a fork stays empty', () => {
+    state.threadMode = 'room';
+    expect(rowOf(renderMenu(), 'fork')).toBeUndefined();
+    state.threadMode = 'mixed';
+    expect(rowOf(renderMenu(), 'fork')).toBeDefined();
   });
 
   it('opens at least 220px wide with the large corner radius, as the original menu measures', () => {

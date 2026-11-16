@@ -587,6 +587,10 @@ describe('the badge of a fork', () => {
     const badge = container.querySelector('[data-compact-card-fork-badge]') as HTMLElement;
     expect(badge.title).toBe('Forked from Plan the trip to Lisbon');
     expect(container.querySelector('[data-compact-card-metadata]')?.contains(badge)).toBe(true);
+    // The card's button has a label of its own, which screen readers read instead of the badge.
+    expect(
+      container.querySelector('[data-thread-root-id]')?.getAttribute('aria-label')?.split('. ')
+    ).toContain('Forked from Plan the trip to Lisbon');
   });
 
   it('marks a plain thread with none', () => {
@@ -594,5 +598,8 @@ describe('the badge of a fork', () => {
       <CompactThreadCard viewModel={makeViewModel()} room={room} onClick={vi.fn()} />
     );
     expect(container.querySelector('[data-compact-card-fork-badge]')).toBeNull();
+    expect(
+      container.querySelector('[data-thread-root-id]')?.getAttribute('aria-label')
+    ).not.toContain('Forked from');
   });
 });

@@ -3,6 +3,7 @@ import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RelationType, Room } from 'matrix-js-sdk';
+import { Transforms } from 'slate';
 import { RoomInput } from '../RoomInput';
 import { createRoomUploadItems } from '../../matrix/send/roomInputUploadPreparation';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
@@ -4280,5 +4281,30 @@ describe('RoomInput in a fork draft', () => {
     expect(draftOf(store, 'fork:$parent:$point')).toEqual([
       { type: 'paragraph', children: [{ text: 'half a thought' }] },
     ]);
+  });
+
+  it("brings the thread's text back as the draft closes, and keeps the draft's under its own key", async () => {
+    const paragraph = (text: string) => [{ type: 'paragraph', children: [{ text }] }];
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { threadId: '$parent' });
+    editorOutputState.emptyEditor = false;
+    setEditorText('for the thread');
+    act(() => customEditorState.props!.onChange?.());
+
+    await updateRoomInput(renderer, store, { forkFrom });
+    setEditorText('for the fork');
+    act(() => customEditorState.props!.onChange?.());
+    vi.mocked(Transforms.insertFragment).mockClear();
+    // The same composer, the draft gone: the thread's own again.
+    await updateRoomInput(renderer, store, { threadId: '$parent' });
+
+    expect(Transforms.insertFragment).toHaveBeenLastCalledWith(
+      customEditorState.editor,
+      paragraph('for the thread')
+    );
+    expect(draftOf(store, '$parent')).toEqual(paragraph('for the thread'));
+    expect(draftOf(store, 'fork:$parent:$point')).toEqual(paragraph('for the fork'));
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
   });
 });

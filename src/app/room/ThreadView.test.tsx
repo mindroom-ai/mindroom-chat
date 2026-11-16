@@ -453,8 +453,9 @@ describe('a fork draft', () => {
     const focus = vi.spyOn(ReactEditor, 'focus');
     render(<ThreadView room={room} threadId={THREAD} forkAt="$point" />);
     expect(state.timeline).toMatchObject({ threadId: THREAD, forkAt: '$point' });
-    // Until the timeline shows the point among the thread's messages, the composer is the thread's.
-    expect(state.composer).toMatchObject({ threadId: THREAD, forkFrom: undefined });
+    // Until the timeline shows the point among the thread's messages, there is no composer: text
+    // typed into the thread's would go to the thread.
+    expect(state.composer).toBeUndefined();
     expect(focus).not.toHaveBeenCalled();
 
     act(() => state.timeline?.onForkPointShown?.('$point'));
@@ -478,6 +479,8 @@ describe('a fork draft', () => {
 
   it('shows the plain thread for a point that is not among its messages', () => {
     render(<ThreadView room={room} threadId={THREAD} forkAt="$elsewhere" />);
+    expect(state.composer).toBeUndefined();
+    // The timeline opened the thread and did not find the point.
     act(() => state.timeline?.onForkPointShown?.(undefined));
 
     expect(state.composer).toMatchObject({
@@ -491,5 +494,23 @@ describe('a fork draft', () => {
     render(<ThreadView room={room} threadId={THREAD} forkAt="~!room:example.org:m1.1" />);
 
     expect(state.timeline?.forkAt).toBeUndefined();
+    expect(state.composer).toMatchObject({ threadId: THREAD, forkFrom: undefined });
+  });
+
+  it("waits for each new fork point, and goes back to the thread's composer when the draft closes", () => {
+    const { rerender } = render(<ThreadView room={room} threadId={THREAD} forkAt="$point" />);
+    act(() => state.timeline?.onForkPointShown?.('$point'));
+    expect(state.composer?.forkFrom).toEqual({ threadId: THREAD, eventId: '$point' });
+
+    // Another point of the same thread: no composer until the timeline shows it.
+    state.composer = undefined;
+    rerender(<ThreadView room={room} threadId={THREAD} forkAt="$other" />);
+    expect(state.composer).toBeUndefined();
+    act(() => state.timeline?.onForkPointShown?.('$other'));
+    expect(state.composer?.forkFrom).toEqual({ threadId: THREAD, eventId: '$other' });
+
+    // Closing the draft leaves the thread on screen, with its composer at once.
+    rerender(<ThreadView room={room} threadId={THREAD} />);
+    expect(state.composer).toMatchObject({ threadId: THREAD, forkFrom: undefined });
   });
 });
