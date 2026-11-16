@@ -835,6 +835,59 @@ describe('SecretRequestCard', () => {
     expect(chip()).toBe('Waiting for you');
   });
 
+  it("titles a temporary secret's card with what the agent calls the secret", () => {
+    render(temporary({ label: 'GitHub token' }));
+
+    expect(host.querySelector(`.${css.Title}`)?.textContent).toBe('GitHub token');
+    expect(text()).not.toContain('Secret for Ada');
+    expect(text()).toContain("Given to Ada's commands in this conversation as SUDO_PASSWORD.");
+  });
+
+  it('gives the requester a button that names the host of the page the agent chose and opens it', () => {
+    render(temporary({ url: 'https://github.com/settings/tokens?type=beta' }));
+
+    const link = host.querySelector('a');
+    expect(link?.textContent).toBe('Open github.com');
+    expect(link?.getAttribute('href')).toBe('https://github.com/settings/tokens?type=beta');
+    expect(link?.getAttribute('target')).toBe('_blank');
+    expect(link?.getAttribute('rel')).toBe('noreferrer noopener');
+  });
+
+  it('names the host as the browser reads it, whatever the link looks like', () => {
+    render(request({ url: 'https://github.com.example.org:8443/github.com/login' }));
+
+    expect(host.querySelector('a')?.textContent).toBe('Open github.com.example.org:8443');
+  });
+
+  it('shows no link on a card that names none', () => {
+    render(temporary());
+
+    expect(host.querySelector('a')).toBeNull();
+  });
+
+  it('shows the link only with the field: not to anyone else, in a read-only view, or once answered', () => {
+    const url = 'https://github.com/settings/tokens';
+
+    env.viewer = '@bob:example.org';
+    render(temporary({ url }));
+    expect(host.querySelector('a')).toBeNull();
+
+    env.viewer = ALICE;
+    render(temporary({ url }), true);
+    expect(host.querySelector('a')).toBeNull();
+
+    render(temporary({ url, status: 'saved', kept: 'memory' }));
+    expect(host.querySelector('a')).toBeNull();
+  });
+
+  it("hints at the secret's form with the agent's placeholder", () => {
+    render(temporary({ placeholder: 'ghp_…' }));
+    expect(input()?.getAttribute('placeholder')).toBe('ghp_…');
+
+    render(request({ placeholder: 'sk-…' }));
+    expect(input()?.getAttribute('placeholder')).toBe('sk-…');
+  });
+
   it('offers only the keeps the card names', () => {
     render(temporary({ keep: { disk: 3_600 } }));
 
