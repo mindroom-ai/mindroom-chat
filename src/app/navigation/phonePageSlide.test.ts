@@ -97,22 +97,36 @@ describe('slidePhonePage', () => {
     expect(page.start).not.toHaveBeenCalled();
   });
 
-  it('slides forward when the list gives way to a page', async () => {
+  it('plays nothing when the list gives way to a page: the drawer slides away on its own', async () => {
     const page = browser();
     showList(true);
     const change = vi.fn(() => showList(false));
     slidePhonePage(change);
-    // The picture of the list is not taken yet: the list stays.
+    // The picture of the list is not taken yet: the list stays, and nothing turns off the
+    // drawer's own slide.
     expect(change).not.toHaveBeenCalled();
-    expect(root.dataset.pageSlide).toBe('');
+    expect(root.dataset.pageSlide).toBeUndefined();
 
     page.takePicture();
     expect(change).toHaveBeenCalledWith(true);
-    expect(root.dataset.pageSlide).toBe('forward');
-    expect(page.skipTransition).not.toHaveBeenCalled();
+    expect(page.skipTransition).toHaveBeenCalledTimes(1);
+    expect(root.dataset.pageSlide).toBeUndefined();
 
     await page.finish();
     expect(root.dataset.pageSlide).toBeUndefined();
+  });
+
+  it('plays nothing either when the list gives way to a thread that fills the page', async () => {
+    const page = browser();
+    showList(true);
+    slidePhonePage(() => {
+      showList(false);
+      showThread(true);
+    });
+    page.takePicture();
+    expect(page.skipTransition).toHaveBeenCalledTimes(1);
+    expect(root.dataset.pageSlide).toBeUndefined();
+    await page.finish();
   });
 
   it('slides forward when a thread fills the page', async () => {
@@ -163,7 +177,9 @@ describe('slidePhonePage', () => {
 
     page.takePicture();
     expect(order).toEqual(['list away', 'room']);
-    expect(root.dataset.pageSlide).toBe('forward');
+    // The list went away: the drawer's slide shows it, not the page's.
+    expect(page.skipTransition).toHaveBeenCalledTimes(1);
+    expect(root.dataset.pageSlide).toBeUndefined();
     await page.finish();
   });
 
@@ -191,9 +207,8 @@ describe('slidePhonePage', () => {
 describe('slidePhonePage, where its pictures would not fit', () => {
   it('plays nothing under a dialog that stays open, which the pictures would cover', async () => {
     const page = browser();
-    showList(true);
     overlay.open = true;
-    const change = vi.fn(() => showList(false));
+    const change = vi.fn(() => showThread(true));
     slidePhonePage(change);
     page.takePicture();
 
@@ -203,13 +218,12 @@ describe('slidePhonePage, where its pictures would not fit', () => {
     await page.finish();
   });
 
-  it('slides when the dialog goes with the change, as a search that opens a room does', async () => {
+  it('slides when the dialog goes with the change, as a search that opens a thread does', async () => {
     const page = browser();
-    showList(true);
     overlay.open = true;
     slidePhonePage(() => {
       overlay.open = false;
-      showList(false);
+      showThread(true);
     });
     page.takePicture();
 

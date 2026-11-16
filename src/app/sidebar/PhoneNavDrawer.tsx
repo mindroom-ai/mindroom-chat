@@ -103,6 +103,22 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
       setSliding(true);
       return undefined;
     }
+    // Until its slide out ends, where the browser plays one. A room tapped in the drawer can hold
+    // the main thread longer than the slide takes before its first frame, so a clock started now
+    // would empty the drawer as it starts to slide. Asking for the slide starts it.
+    const slide = panelRef.current
+      ?.getAnimations?.()
+      .find((each) => (each as CSSTransition).transitionProperty === 'transform');
+    if (slide) {
+      let current = true;
+      const slidOut = () => {
+        if (current) setSliding(false);
+      };
+      slide.finished.then(slidOut, slidOut);
+      return () => {
+        current = false;
+      };
+    }
     const timer = window.setTimeout(() => setSliding(false), PHONE_SLIDE_OUT_MS);
     return () => window.clearTimeout(timer);
   }, [open]);
