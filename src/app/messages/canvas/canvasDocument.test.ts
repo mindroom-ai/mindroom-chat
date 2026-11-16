@@ -891,4 +891,13 @@ describe('inline canvas sizing', () => {
     );
     expect(doc.match(/img-src data: blob: https:/g)).toHaveLength(2);
   });
+
+  it("gives a raw page's frames the browser's color scheme instead of Chat's", () => {
+    const raw = buildCanvasDocument('<p>hi</p>', 'dark', undefined, '', false, {}, { raw: true });
+    expect(raw).toContain('<meta name="color-scheme" content="light dark">');
+    expect(raw).toContain('color-scheme:light dark');
+    const themed = buildCanvasDocument('<p>hi</p>', 'dark', undefined, '', false, {});
+    expect(themed).toContain('<meta name="color-scheme" content="dark">');
+    expect(themed).not.toContain('light dark');
+  });
 });

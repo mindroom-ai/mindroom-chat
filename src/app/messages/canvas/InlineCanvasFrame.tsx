@@ -15,6 +15,7 @@ import {
   CANVAS_WRAPPER_SANDBOX,
   CANVAS_PERMISSIONS,
   clampInlineCanvasHeight,
+  RAW_COLOR_SCHEME,
   readCanvasSize,
 } from './canvasDocument';
 
@@ -79,6 +80,7 @@ function SizedFrame({
           border: 0,
           // A raw page is a page in a browser: its canvas is white until its own CSS says otherwise.
           background: raw ? '#fff' : undefined,
+          colorScheme: raw ? RAW_COLOR_SCHEME : undefined,
           transform: scale === 1 ? undefined : `scale(${scale})`,
           // eslint-disable-next-line no-restricted-syntax -- the box above is dir=ltr on purpose.
           transformOrigin: 'top left',

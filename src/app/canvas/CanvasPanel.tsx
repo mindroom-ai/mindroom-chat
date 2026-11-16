@@ -8,6 +8,7 @@ import {
   CANVAS_ESCAPE_MESSAGE,
   CANVAS_PERMISSIONS,
   CANVAS_WRAPPER_SANDBOX,
+  RAW_COLOR_SCHEME,
   canvasFrameWindow,
   type CanvasColorScheme,
   type CanvasSaved,
@@ -684,6 +685,8 @@ export function CanvasPanel({
           srcDoc={doc}
           referrerPolicy="no-referrer"
           onLoad={handleLoad}
+          // A raw page is a page in a browser: white, in the browser's color scheme.
+          style={displayed.raw ? { background: '#fff', colorScheme: RAW_COLOR_SCHEME } : undefined}
         />
       )}
 

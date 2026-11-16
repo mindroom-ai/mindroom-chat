@@ -395,6 +395,9 @@ const BASE_STYLE =
  */
 export type CanvasDisplay = { inline?: boolean; raw?: boolean; remote?: boolean };
 
+/** A frame with both schemes uses the browser's preferred one, whatever Chat's theme is. */
+export const RAW_COLOR_SCHEME = 'light dark';
+
 const pageStyle = (theme: CanvasTheme, inline: boolean): string =>
   `<style>${canvasThemeCss(theme)}${
     inline
@@ -449,9 +452,13 @@ export const buildCanvasDocument = (
       libraries,
       display.remote
     )}">`,
-    `<meta name="color-scheme" content="${colorScheme}">`,
+    // A raw page's prefers-color-scheme follows its frame's color scheme, so its frames take the
+    // browser's preference instead of Chat's theme, as if the page were opened on its own.
+    `<meta name="color-scheme" content="${display.raw ? RAW_COLOR_SCHEME : colorScheme}">`,
     '<style>html,body{margin:0;height:100%;overflow:hidden}',
-    'iframe{display:block;border:0;width:100%;height:100%}</style>',
+    `iframe{display:block;border:0;width:100%;height:100%${
+      display.raw ? `;color-scheme:${RAW_COLOR_SCHEME}` : ''
+    }}</style>`,
     '</head><body><script>(() => {',
     "const frame = document.createElement('iframe');",
     `frame.setAttribute('sandbox', '${CANVAS_SANDBOX}');`,

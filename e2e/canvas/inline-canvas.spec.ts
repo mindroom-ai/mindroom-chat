@@ -161,3 +161,41 @@ test('without the deployment switch, a remote asset stays blocked', async ({ con
   ).toBe(0);
   expect(requested).toBe(false);
 });
+
+test("a raw page follows the browser's color scheme, not Chat's theme, inline and in the panel", async ({
+  browser,
+}) => {
+  // The browser prefers light while Chat shows its dark theme.
+  const context = await browser.newContext({
+    colorScheme: 'light',
+    viewport: { width: 1280, height: 900 },
+  });
+  const page = await context.newPage();
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'settings',
+      JSON.stringify({ useSystemTheme: false, themeId: 'dark-theme' })
+    );
+  });
+  const room = await openPanelRoom(context, page);
+  await sendInlineCanvas(
+    room,
+    'Scheme preview',
+    `<p id="scheme"></p><script>
+      document.getElementById('scheme').textContent =
+        matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    </script>`,
+    { raw: true }
+  );
+  const inline = page.frameLocator('iframe[title="Scheme preview"]').frameLocator('iframe');
+  await expect(inline.locator('#scheme')).toHaveText('light', { timeout: 60_000 });
+  await page.getByRole('button', { name: 'Open canvas', exact: true }).last().click();
+  const panel = page
+    .locator('aside[aria-label="Canvas panel"] iframe')
+    .contentFrame()
+    .locator('iframe')
+    .contentFrame();
+  await expect(panel.locator('#scheme')).toHaveText('light', { timeout: 30_000 });
+  await context.unrouteAll({ behavior: 'ignoreErrors' });
+  await context.close();
+});
