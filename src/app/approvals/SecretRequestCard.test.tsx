@@ -102,11 +102,11 @@ afterEach(() => {
   setPersonalServer(null);
 });
 
-const render = (value: SecretRequest = request()) => {
+const render = (value: SecretRequest = request(), readOnly?: boolean) => {
   act(() =>
     root.render(
       <ClientConfigProvider value={{ mindroom: { computers } }}>
-        <SecretRequestCard request={value} roomId={ROOM} agentUserId={AGENT} />
+        <SecretRequestCard request={value} roomId={ROOM} agentUserId={AGENT} readOnly={readOnly} />
       </ClientConfigProvider>
     )
   );
@@ -207,6 +207,16 @@ describe('SecretRequestCard', () => {
 
     act(() => button('Hide key')?.click());
     expect(input()?.parentElement?.classList.contains(css.Masked)).toBe(true);
+  });
+
+  it("shows the person asked a request in another thread's view (a fork) with no field", () => {
+    render(request(), true);
+
+    expect(text()).toContain('GitHub key');
+    expect(chip()).toBe('Pending');
+    expect(input()).toBeNull();
+    expect(button('Save')).toBeUndefined();
+    expect(button('Decline')).toBeUndefined();
   });
 
   it('shows anyone else who it waits for, with no field', () => {

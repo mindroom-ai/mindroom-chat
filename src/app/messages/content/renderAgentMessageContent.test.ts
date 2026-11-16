@@ -82,6 +82,7 @@ vi.mock('../../approvals/SecretRequestCard', () => ({
     request: { displayName: string };
     roomId: string;
     agentUserId: string;
+    readOnly?: boolean;
   }) => {
     secretRequestCardMock(props);
     return React.createElement(
@@ -653,9 +654,10 @@ describe('renderAgentMessageContent', () => {
         expires_at: 4_102_444_800_000,
       },
     };
-    const render = async (fromMindroomAgent: boolean) => {
+    const render = async (fromMindroomAgent: boolean, readOnly?: boolean) => {
       const { MatrixEvent } = await import('matrix-js-sdk');
       return renderNode({
+        readOnly,
         mEvent: new MatrixEvent({
           type: 'm.room.message',
           sender: '@mindroom_assistant:example.org',
@@ -681,6 +683,16 @@ describe('renderAgentMessageContent', () => {
         roomId: '!room:example.org',
         agentUserId: '@mindroom_assistant:example.org',
       });
+    });
+
+    it("hands a read-only row's card no field", async () => {
+      secretRequestCardMock.mockReset();
+
+      await render(true, true);
+
+      expect(secretRequestCardMock).toHaveBeenCalledWith(
+        expect.objectContaining({ roomId: '!room:example.org', readOnly: true })
+      );
     });
 
     it('renders no card and no field from anyone else', async () => {

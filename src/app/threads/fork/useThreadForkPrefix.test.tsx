@@ -151,6 +151,40 @@ describe('useThreadForkPrefix', () => {
     await view.unmount();
   });
 
+  it('keeps the prefix through a new copy of the root, also one waiting to be decrypted', async () => {
+    const parentEvents = [message('$p', 1), message('$a', 2, '$p'), message('$b', 3, '$p')];
+    const view = await renderPrefix(
+      makeRoom(parentEvents, true),
+      newClient(),
+      {} as BackfillScheduler,
+      forkRoot()
+    );
+    const loadedAt = view.results.findIndex((result) => !result.loading);
+    expect(loadedAt).toBeGreaterThanOrEqual(0);
+
+    // The SDK's copy replaces the cache's, first still encrypted, then readable.
+    await view.setRoot(
+      new MatrixEvent({
+        event_id: '$f',
+        room_id: roomId,
+        sender: bob,
+        type: 'm.room.encrypted',
+        origin_server_ts: 10,
+        content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'opaque' },
+      })
+    );
+    await view.setRoot(forkRoot());
+
+    const after = view.results.slice(loadedAt);
+    expect(after.length).toBeGreaterThan(2);
+    after.forEach((result) => {
+      expect(result.loading).toBe(false);
+      expect(ids(result.events)).toEqual(['$p', '$a', '$b']);
+      expect(result.parent).toEqual({ threadId: '$p', eventId: '$b' });
+    });
+    await view.unmount();
+  });
+
   it('gets the prefix when a new root instance joins the backfill still running', async () => {
     const mx = newClient();
     let release: () => void = () => undefined;
