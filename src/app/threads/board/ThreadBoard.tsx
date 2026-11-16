@@ -1,4 +1,4 @@
-import { useCallback, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useId, useMemo, useRef, useState } from 'react';
 import { Box, Button, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -22,13 +22,6 @@ import * as css from './ThreadBoard.css';
 /** How many threads Open and Done show at first, and how many more each Show more adds. */
 const PAGE = 20;
 const PAGED: ReadonlySet<ThreadBoardColumn> = new Set(['open', 'done']);
-
-// The board is no room page: the cards read none of the page's floating header and footer.
-const NO_INSETS = {
-  '--room-header-height': '0px',
-  '--room-footer-height': '0px',
-  '--room-overview-height': '0px',
-} as CSSProperties;
 
 type ColumnProps = {
   room: Room;
@@ -110,7 +103,7 @@ export function ThreadBoard({ room }: { room: Room }) {
     if (!threads) line = t('threadBoard.compactOnly');
     else if (threads.loading) line = t('sharedUi.threadsView.loadingThreads');
     return (
-      <Box className={css.Line} style={NO_INSETS} alignItems="Center" justifyContent="Center">
+      <Box className={css.Line} alignItems="Center" justifyContent="Center">
         <Text size="T300" priority="300">
           {line}
         </Text>
@@ -118,7 +111,7 @@ export function ThreadBoard({ room }: { room: Room }) {
     );
   }
   return (
-    <div className={css.Board} style={NO_INSETS} role="group" aria-label={t('threadBoard.label')}>
+    <div className={css.Board} role="group" aria-label={t('threadBoard.label')}>
       {THREAD_BOARD_COLUMNS.map((column) => (
         <BoardColumn
           key={column}
