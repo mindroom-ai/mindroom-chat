@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
+import type { ReactNode } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ThreadForksChip } from './ThreadForksChip';
 
 const navigation = vi.hoisted(() => ({ navigateRoomThread: vi.fn() }));
+// The trap wants a tabbable node, which the stand-in menu of a DOM test has too few of.
+vi.mock('focus-trap-react', () => ({ default: ({ children }: { children: ReactNode }) => children }));
 vi.mock('../../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => navigation }));
 vi.mock('../../event-store/sdk/cachedThreadRoots', () => ({
   useCachedThreadRoot: () => undefined,

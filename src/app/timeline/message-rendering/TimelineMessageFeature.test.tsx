@@ -36,7 +36,7 @@ const forksByPoint = vi.hoisted(() => ({
 vi.mock('../../threads/fork/useThreadForks', () => ({
   useThreadForks: (room: { roomId: string }, threadId: string | undefined) => {
     forksByPoint.asked.push([room.roomId, threadId]);
-    return forksByPoint.value;
+    return threadId ? forksByPoint.value : new Map();
   },
 }));
 vi.mock('../../threads/fork/ThreadForksChip', async () => {
