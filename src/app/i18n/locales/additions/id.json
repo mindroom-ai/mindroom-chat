@@ -696,7 +696,31 @@
         "tooLargeToApprove": "Argumen terlalu besar untuk ditinjau, jadi permintaan ini hanya dapat ditolak."
       },
       "showToolCalls": "Tampilkan panggilan alat",
-      "showToolCallsDescription": "Bawaan untuk setiap ruangan: balasan agen mencantumkan alat yang mereka jalankan, atau hanya menampilkan roda gigi kecil di atas balasan yang menghitungnya dan menampilkannya saat diklik. Menu ruangan atau utas mengubahnya di sana."
+      "showToolCallsDescription": "Bawaan untuk setiap ruangan: balasan agen mencantumkan alat yang mereka jalankan, atau hanya menampilkan roda gigi kecil di atas balasan yang menghitungnya dan menampilkannya saat diklik. Menu ruangan atau utas mengubahnya di sana.",
+      "secretRequestCard": {
+        "label": "Permintaan kunci",
+        "title": "Kunci {{name}}",
+        "usedOnlyFor": "Hanya digunakan untuk {{hosts}}",
+        "waitingFor": "Menunggu {{name}}",
+        "placeholder": "Tempel atau ketik kunci",
+        "showKey": "Tampilkan kunci",
+        "hideKey": "Sembunyikan kunci",
+        "sentTo": "Dikirim ke {{host}}",
+        "save": "Simpan",
+        "decline": "Tolak",
+        "savedWaiting": "Tersimpan, menunggu agen",
+        "declinedWaiting": "Ditolak, menunggu agen",
+        "noLongerActive": "Permintaan ini sudah tidak aktif. Minta lagi kepada agen.",
+        "unavailable": "Memasukkan kunci tidak tersedia di server ini.",
+        "unavailableHint": "Untuk memasukkan kunci di sini, atur server MindRoom Anda di Pengaturan → {{page}} → {{field}}.",
+        "status": {
+          "waitingForYou": "Menunggu Anda",
+          "pending": "Menunggu",
+          "saved": "Tersimpan",
+          "declined": "Ditolak",
+          "expired": "Kedaluwarsa"
+        }
+      }
     },
     "message-search": {
       "messageSearch": {
@@ -1095,7 +1119,7 @@
       "back": "Kembali",
       "next": "Berikutnya",
       "done": "Selesai",
-      "keepGoing": "Lanjutkan (6 langkah lagi)",
+      "keepGoing": "Lanjutkan (4 langkah lagi)",
       "replay": "Putar ulang"
     },
     "chapters": {
@@ -1144,8 +1168,8 @@
         "text": "Sematkan utas menjaga utas tetap di bagian atas daftar. Edit tag di Opsi utas memberi tag pada utas, dan Anda bisa memfilter menurut tag."
       },
       "filters": {
-        "title": "Filter dan urutkan",
-        "text": "Filter utas, di header ruang atau menunya, menampilkan dan menyembunyikan bilah ini. Belum selesai menyembunyikan yang sudah tuntas, Balasan terakhir mengubah urutan, dan ikon filter di ujung bilah membuka Filter lanjutan, yang menemukan sisanya, termasuk utas yang ditunda."
+        "title": "Filter menyembunyikan utas yang sudah selesai",
+        "text": "Filter utas, di header ruang atau menunya, menampilkan dan menyembunyikan bilah ini. Filter Belum selesai menyembunyikan utas yang sudah selesai: matikan untuk melihatnya lagi. Balasan terakhir mengubah urutan, dan ikon filter di ujung bilah membuka Filter lanjutan, yang menemukan sisanya, termasuk utas yang ditunda."
       },
       "views": {
         "title": "Dua tampilan untuk satu ruang",

@@ -714,7 +714,31 @@
         "tooLargeToApprove": "Os argumentos são grandes demais para rever, por isso este pedido só pode ser recusado."
       },
       "showToolCalls": "Mostrar chamadas de ferramentas",
-      "showToolCallsDescription": "O padrão de todas as salas: as respostas dos agentes listam as ferramentas que executaram, ou mostram no topo apenas uma pequena engrenagem que as conta e as mostra com um clique. O menu de uma sala ou de um tópico muda isso ali."
+      "showToolCallsDescription": "O padrão de todas as salas: as respostas dos agentes listam as ferramentas que executaram, ou mostram no topo apenas uma pequena engrenagem que as conta e as mostra com um clique. O menu de uma sala ou de um tópico muda isso ali.",
+      "secretRequestCard": {
+        "label": "Pedido de chave",
+        "title": "Chave de {{name}}",
+        "usedOnlyFor": "Usada apenas para {{hosts}}",
+        "waitingFor": "A aguardar {{name}}",
+        "placeholder": "Cole ou escreva a chave",
+        "showKey": "Mostrar chave",
+        "hideKey": "Ocultar chave",
+        "sentTo": "Enviada para {{host}}",
+        "save": "Guardar",
+        "decline": "Recusar",
+        "savedWaiting": "Guardada, a aguardar o agente",
+        "declinedWaiting": "Recusada, a aguardar o agente",
+        "noLongerActive": "Este pedido já não está ativo. Peça novamente ao agente.",
+        "unavailable": "Não é possível introduzir chaves neste servidor.",
+        "unavailableHint": "Para introduzir chaves aqui, defina o seu servidor MindRoom em Definições → {{page}} → {{field}}.",
+        "status": {
+          "waitingForYou": "À sua espera",
+          "pending": "Pendente",
+          "saved": "Guardada",
+          "declined": "Recusada",
+          "expired": "Expirada"
+        }
+      }
     },
     "message-search": {
       "messageSearch": {
@@ -1141,7 +1165,7 @@
       "back": "Voltar",
       "next": "Seguinte",
       "done": "Concluir",
-      "keepGoing": "Continuar (mais 6 passos)",
+      "keepGoing": "Continuar (mais 4 passos)",
       "replay": "Repetir"
     },
     "chapters": {
@@ -1190,8 +1214,8 @@
         "text": "Fixar tópico mantém um tópico no topo da lista. Editar etiquetas, em Opções do tópico, atribui etiquetas a um tópico, e pode filtrar por etiqueta."
       },
       "filters": {
-        "title": "Filtrar e ordenar",
-        "text": "A opção Filtros de tópicos, no cabeçalho da sala ou no menu da sala, mostra e oculta esta barra. Não resolvidos oculta o que está concluído, Última resposta altera a ordem e o ícone de filtro no fim da barra abre Filtros avançados, que encontram o resto, incluindo os tópicos adiados."
+        "title": "Os filtros ocultam os tópicos resolvidos",
+        "text": "A opção Filtros de tópicos, no cabeçalho da sala ou no menu da sala, mostra e oculta esta barra. Não resolvidos oculta os tópicos resolvidos: desative-o para voltar a vê-los. Última resposta altera a ordem e o ícone de filtro no fim da barra abre Filtros avançados, que encontram o resto, incluindo os tópicos adiados."
       },
       "views": {
         "title": "Duas vistas de uma sala",

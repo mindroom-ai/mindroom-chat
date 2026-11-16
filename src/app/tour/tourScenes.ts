@@ -14,6 +14,7 @@ export type TourPart =
   | 'menuSnooze'
   | 'filterButton'
   | 'filterBar'
+  | 'filterUnresolved'
   | 'viewSwitch'
   | 'bell';
 
@@ -41,6 +42,11 @@ export type TourScene = {
   roomMenu: boolean;
   /** Whether the thread filters' bar shows under the header. */
   filterBar: boolean;
+  /**
+   * Whether Unresolved is on, which keeps resolved threads out of the list, as a room has it
+   * until someone turns it off in the bar.
+   */
+  unresolvedOnly: boolean;
   /** Whether the Activity bell shows: on the rail, or in a phone's top bar. */
   bell: boolean;
   /** Whether the bell's list is open. */
@@ -72,6 +78,7 @@ const room = (cards: readonly SceneCard[]): TourScene => ({
   cards,
   roomMenu: false,
   filterBar: false,
+  unresolvedOnly: true,
   bell: false,
   activity: false,
 });
@@ -99,6 +106,11 @@ const AFTER_REPLY: readonly SceneCard[] = [
   card('budget'),
   card('website'),
 ];
+
+/** The same list with the vendor thread resolved, as it shows before the list drops the card. */
+const WITH_RESOLVED: readonly SceneCard[] = AFTER_REPLY.map(({ id, state }) =>
+  id === 'vendor' ? card(id, { ...state, resolved: true }) : card(id, state)
+);
 
 /** The list after the vendor thread was resolved, as the second and third chapter show it. */
 const TIDY: readonly SceneCard[] = [card('launch'), card('budget'), card('website')];
@@ -177,10 +189,7 @@ const scenesOf = (step: TourStepId, phone: boolean, typedLength: number): TourSc
           composer: !phone,
         },
       ];
-    case 'resolve': {
-      const resolved = AFTER_REPLY.map(({ id, state }) =>
-        id === 'vendor' ? card(id, { ...state, resolved: true }) : card(id, state)
-      );
+    case 'resolve':
       return [
         {
           ...room(AFTER_REPLY),
@@ -188,8 +197,20 @@ const scenesOf = (step: TourStepId, phone: boolean, typedLength: number): TourSc
           // A touch screen has no check on the card: the card is swiped.
           spotlight: phone ? 'card:vendor' : 'resolveButton',
         },
-        { ...room(resolved), spotlight: 'card:vendor' },
+        { ...room(WITH_RESOLVED), spotlight: 'card:vendor' },
         room(TIDY),
+      ];
+    case 'filters': {
+      const bar: TourScene = { ...room(TIDY), filterBar: true };
+      // With Unresolved off, the thread the step before resolved is in the list again.
+      const all: TourScene = { ...bar, cards: WITH_RESOLVED, unresolvedOnly: false };
+      return [
+        // A phone keeps the button in its room menu.
+        { ...room(TIDY), roomMenu: phone, spotlight: 'filterButton' },
+        { ...bar, spotlight: 'filterBar' },
+        { ...all, spotlight: 'filterUnresolved' },
+        { ...all, spotlight: 'card:vendor' },
+        { ...bar, spotlight: 'filterUnresolved' },
       ];
     }
     case 'snooze': {
@@ -205,12 +226,6 @@ const scenesOf = (step: TourStepId, phone: boolean, typedLength: number): TourSc
       return [
         { ...room(TAGGED), spotlight: 'card:budget' },
         { ...room(toTop(TAGGED, 'budget')), pinned: ['budget'], spotlight: 'card:budget' },
-      ];
-    case 'filters':
-      return [
-        // A phone keeps the button in its room menu.
-        { ...room(TIDY), roomMenu: phone, spotlight: 'filterButton' },
-        { ...room(TIDY), filterBar: true, spotlight: 'filterBar' },
       ];
     case 'views':
       return [

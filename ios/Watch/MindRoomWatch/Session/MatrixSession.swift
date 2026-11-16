@@ -17,7 +17,8 @@ final class MatrixSession: ObservableObject {
         /// The login token ran out or was used: connect again from the iPhone.
         case expired
         case signedIn(Client)
-        case failed
+        /// With what went wrong, for the person to pass on: a watch's log is out of reach.
+        case failed(String)
     }
 
     @Published private(set) var state: State = .signedOut
@@ -46,8 +47,27 @@ final class MatrixSession: ObservableObject {
         await task.value
     }
 
+    /// Credentials not used yet: the sign-in runs only while the app is in front (WaitingCredentials).
+    private var waiting = WaitingCredentials()
+    /// Whether the app is in front, as its scene last said.
+    private var inFront = false
+
     func connect(_ message: WatchLinkMessage) async {
-        await serially { await self.connectNow(message) }
+        waiting.received(message)
+        await serially { await self.connectWaiting() }
+    }
+
+    /// Asks whether the app is in front when its turn comes, not when the credentials did.
+    private func connectWaiting() async {
+        guard let message = waiting.take(inFront: inFront) else { return }
+        await connectNow(message)
+    }
+
+    /// The app's scene came to the front or left it: sync follows, and credentials that waited sign in.
+    func sceneChanged(inFront: Bool) async {
+        self.inFront = inFront
+        await setActive(inFront)
+        if self.inFront, !waiting.isEmpty { await serially { await self.connectWaiting() } }
     }
 
     private func connectNow(_ message: WatchLinkMessage) async {
@@ -94,7 +114,9 @@ final class MatrixSession: ObservableObject {
             if !signedIn { state = .expired }
         } catch {
             log.error("connect failed: \(String(describing: type(of: error)), privacy: .public)")
-            if !signedIn { state = .failed }
+            // Only the sign-in request throws one: the token is tried again when the app next comes forward.
+            if error is URLError { waiting.notSent(message) }
+            if !signedIn { state = .failed(Self.describe(error)) }
         }
     }
 
@@ -118,13 +140,22 @@ final class MatrixSession: ObservableObject {
             try await start(session)
         } catch {
             log.error("restore failed: \(String(describing: error), privacy: .public)")
-            state = .failed
+            state = .failed(Self.describe(error))
         }
+    }
+
+    /// The system's words for a network error, the error's own name for the rest.
+    private static func describe(_ error: Error) -> String {
+        error is URLError ? error.localizedDescription : String(describing: error)
     }
 
     /// Logs the device out on the server when it can, then forgets everything on the watch.
     func signOut() async {
-        await serially { await self.signOutNow() }
+        await serially {
+            // In its turn: a sign-in still under way puts its credentials back when the network fails it.
+            self.waiting.clear()
+            await self.signOutNow()
+        }
     }
 
     private func signOutNow() async {
@@ -172,15 +203,22 @@ final class MatrixSession: ObservableObject {
         let paths = SessionStore.paths(session)
         let store = SqliteStoreBuilder(dataPath: paths.data.path, cachePath: paths.cache.path)
             .passphrase(passphrase: try SessionStore.passphrase())
-        let client = try await ClientBuilder()
+        let builder = ClientBuilder()
             .homeserverUrl(url: session.homeserverUrl)
             .sqliteStore(config: store)
             .slidingSyncVersionBuilder(versionBuilder: .native)
             // Fetch a room's keys from the account's key backup when a message there does not decrypt. The
             // iPhone's secrets bundle turns that backup on here; the watch never creates one of its own.
             .backupDownloadStrategy(backupDownloadStrategy: .afterDecryptionFailure)
-            .userAgent(userAgent: "MindRoom Apple Watch")
-            .build()
+            // A watch gives an app no sockets: the SDK's requests go out through URLSession instead.
+            .httpTransport(transport: URLSessionTransport.shared)
+        #if DEBUG
+        // The simulator allows the sockets a watch refuses, so there a request that went around the transport
+        // would pass every run and fail on the wrist. Behind this dead proxy it fails in the simulator too.
+        let client = try await builder.proxy(url: "http://127.0.0.1:9").build()
+        #else
+        let client = try await builder.build()
+        #endif
         try await client.restoreSession(session: session)
         let deviceId = session.deviceId
         if let handle = try client.setDelegate(delegate: AuthErrorDelegate { [weak self] in

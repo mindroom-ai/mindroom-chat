@@ -714,7 +714,31 @@
         "tooLargeToApprove": "Gli argomenti sono troppo grandi per essere esaminati, quindi questa richiesta può solo essere rifiutata."
       },
       "showToolCalls": "Mostra chiamate a strumenti",
-      "showToolCallsDescription": "L'impostazione predefinita per ogni stanza: le risposte degli agenti elencano gli strumenti eseguiti, oppure mostrano in alto solo un piccolo ingranaggio che li conta e li mostra con un clic. Il menu di una stanza o di un thread la cambia lì."
+      "showToolCallsDescription": "L'impostazione predefinita per ogni stanza: le risposte degli agenti elencano gli strumenti eseguiti, oppure mostrano in alto solo un piccolo ingranaggio che li conta e li mostra con un clic. Il menu di una stanza o di un thread la cambia lì.",
+      "secretRequestCard": {
+        "label": "Richiesta di chiave",
+        "title": "Chiave {{name}}",
+        "usedOnlyFor": "Usata solo per {{hosts}}",
+        "waitingFor": "In attesa di {{name}}",
+        "placeholder": "Incolla o digita la chiave",
+        "showKey": "Mostra chiave",
+        "hideKey": "Nascondi chiave",
+        "sentTo": "Inviata a {{host}}",
+        "save": "Salva",
+        "decline": "Rifiuta",
+        "savedWaiting": "Salvata, in attesa dell’agente",
+        "declinedWaiting": "Rifiutata, in attesa dell’agente",
+        "noLongerActive": "Questa richiesta non è più attiva. Chiedi di nuovo all’agente.",
+        "unavailable": "L’inserimento delle chiavi non è disponibile su questo server.",
+        "unavailableHint": "Per inserire chiavi qui, imposta il tuo server MindRoom in Impostazioni → {{page}} → {{field}}.",
+        "status": {
+          "waitingForYou": "Ti sta aspettando",
+          "pending": "In sospeso",
+          "saved": "Salvata",
+          "declined": "Rifiutata",
+          "expired": "Scaduta"
+        }
+      }
     },
     "message-search": {
       "messageSearch": {
@@ -1141,7 +1165,7 @@
       "back": "Indietro",
       "next": "Avanti",
       "done": "Fine",
-      "keepGoing": "Continua (altri 6 passaggi)",
+      "keepGoing": "Continua (altri 4 passaggi)",
       "replay": "Rivedi"
     },
     "chapters": {
@@ -1190,8 +1214,8 @@
         "text": "Fissa thread tiene un thread in cima all’elenco. Modifica tag, in Opzioni del thread, assegna tag a un thread, e puoi filtrare per tag."
       },
       "filters": {
-        "title": "Filtra e ordina",
-        "text": "Filtri dei thread, nell’intestazione della stanza o nel suo menu, mostra e nasconde questa barra. Irrisolto nasconde ciò che è concluso, Ultima risposta cambia l’ordine e l’icona del filtro alla fine della barra apre Filtri avanzati, che trovano il resto, anche i thread posticipati."
+        "title": "I filtri nascondono i thread risolti",
+        "text": "Filtri dei thread, nell’intestazione della stanza o nel suo menu, mostra e nasconde questa barra. Irrisolto nasconde i thread risolti: disattivalo per rivederli. Ultima risposta cambia l’ordine e l’icona del filtro alla fine della barra apre Filtri avanzati, che trovano il resto, anche i thread posticipati."
       },
       "views": {
         "title": "Due viste di una stanza",

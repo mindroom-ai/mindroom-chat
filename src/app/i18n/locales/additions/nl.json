@@ -705,7 +705,31 @@
         "tooLargeToApprove": "De argumenten zijn te groot om te beoordelen, dus dit verzoek kan alleen worden geweigerd."
       },
       "showToolCalls": "Toolaanroepen tonen",
-      "showToolCallsDescription": "De standaard voor elke kamer: antwoorden van agents tonen de tools die ze hebben uitgevoerd, of alleen een klein tandwiel bovenaan dat ze telt en ze bij een klik toont. Het menu van een kamer of thread wijzigt het daar."
+      "showToolCallsDescription": "De standaard voor elke kamer: antwoorden van agents tonen de tools die ze hebben uitgevoerd, of alleen een klein tandwiel bovenaan dat ze telt en ze bij een klik toont. Het menu van een kamer of thread wijzigt het daar.",
+      "secretRequestCard": {
+        "label": "Sleutelverzoek",
+        "title": "{{name}}-sleutel",
+        "usedOnlyFor": "Alleen gebruikt voor {{hosts}}",
+        "waitingFor": "Wacht op {{name}}",
+        "placeholder": "Plak of typ de sleutel",
+        "showKey": "Sleutel tonen",
+        "hideKey": "Sleutel verbergen",
+        "sentTo": "Gaat naar {{host}}",
+        "save": "Opslaan",
+        "decline": "Weigeren",
+        "savedWaiting": "Opgeslagen, wacht op de agent",
+        "declinedWaiting": "Geweigerd, wacht op de agent",
+        "noLongerActive": "Dit verzoek is niet meer actief. Vraag het de agent opnieuw.",
+        "unavailable": "Sleutels invoeren is op deze server niet beschikbaar.",
+        "unavailableHint": "Stel je MindRoom-server in via Instellingen → {{page}} → {{field}} om hier sleutels in te voeren.",
+        "status": {
+          "waitingForYou": "Wacht op jou",
+          "pending": "In behandeling",
+          "saved": "Opgeslagen",
+          "declined": "Geweigerd",
+          "expired": "Verlopen"
+        }
+      }
     },
     "message-search": {
       "messageSearch": {
@@ -1118,7 +1142,7 @@
       "back": "Terug",
       "next": "Volgende",
       "done": "Klaar",
-      "keepGoing": "Doorgaan (nog 6 stappen)",
+      "keepGoing": "Doorgaan (nog 4 stappen)",
       "replay": "Opnieuw afspelen"
     },
     "chapters": {
@@ -1167,8 +1191,8 @@
         "text": "Thread vastmaken houdt een thread bovenaan de lijst. Met Tags bewerken in Threadopties geef je een thread tags, en je kunt op tag filteren."
       },
       "filters": {
-        "title": "Filteren en sorteren",
-        "text": "Threadfilters, in de kopbalk van de kamer of in het kamermenu, toont en verbergt deze balk. Onopgelost verbergt wat klaar is, Laatste antwoord verandert de volgorde en het filterpictogram aan het eind van de balk opent Geavanceerde filters, waarmee je de rest vindt, ook gesnoozede threads."
+        "title": "Filters verbergen opgeloste threads",
+        "text": "Threadfilters, in de kopbalk van de kamer of in het kamermenu, toont en verbergt deze balk. Onopgelost verbergt opgeloste threads: zet het uit om ze weer te zien. Laatste antwoord verandert de volgorde en het filterpictogram aan het eind van de balk opent Geavanceerde filters, waarmee je de rest vindt, ook gesnoozede threads."
       },
       "views": {
         "title": "Twee weergaven van een kamer",

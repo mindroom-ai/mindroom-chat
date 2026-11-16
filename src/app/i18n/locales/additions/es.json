@@ -714,7 +714,31 @@
         "tooLargeToApprove": "Los argumentos son demasiado grandes para revisarlos, así que esta solicitud solo se puede rechazar."
       },
       "showToolCalls": "Mostrar llamadas a herramientas",
-      "showToolCallsDescription": "El valor predeterminado de cada sala: las respuestas de los agentes muestran las herramientas que ejecutaron, o solo un pequeño engranaje arriba que las cuenta y las muestra al pulsarlo. El menú de una sala o de un hilo lo cambia allí."
+      "showToolCallsDescription": "El valor predeterminado de cada sala: las respuestas de los agentes muestran las herramientas que ejecutaron, o solo un pequeño engranaje arriba que las cuenta y las muestra al pulsarlo. El menú de una sala o de un hilo lo cambia allí.",
+      "secretRequestCard": {
+        "label": "Solicitud de clave",
+        "title": "Clave de {{name}}",
+        "usedOnlyFor": "Solo se usa para {{hosts}}",
+        "waitingFor": "Esperando a {{name}}",
+        "placeholder": "Pega o escribe la clave",
+        "showKey": "Mostrar clave",
+        "hideKey": "Ocultar clave",
+        "sentTo": "Se envía a {{host}}",
+        "save": "Guardar",
+        "decline": "Rechazar",
+        "savedWaiting": "Guardada, esperando al agente",
+        "declinedWaiting": "Rechazada, esperando al agente",
+        "noLongerActive": "Esta solicitud ya no está activa. Vuelve a pedírselo al agente.",
+        "unavailable": "No se pueden introducir claves en este servidor.",
+        "unavailableHint": "Para introducir claves aquí, configura tu servidor de MindRoom en Ajustes → {{page}} → {{field}}.",
+        "status": {
+          "waitingForYou": "Esperándote",
+          "pending": "Pendiente",
+          "saved": "Guardada",
+          "declined": "Rechazada",
+          "expired": "Caducada"
+        }
+      }
     },
     "message-search": {
       "messageSearch": {
@@ -1141,7 +1165,7 @@
       "back": "Atrás",
       "next": "Siguiente",
       "done": "Listo",
-      "keepGoing": "Seguir (6 pasos más)",
+      "keepGoing": "Seguir (4 pasos más)",
       "replay": "Repetir"
     },
     "chapters": {
@@ -1190,8 +1214,8 @@
         "text": "«Fijar hilo» mantiene un hilo al principio de la lista. «Editar etiquetas», en «Opciones del hilo», etiqueta un hilo, y puedes filtrar por etiqueta."
       },
       "filters": {
-        "title": "Filtrar y ordenar",
-        "text": "«Filtros de hilos», en la cabecera de la sala o en su menú, muestra y oculta esta barra. «No resueltos» oculta lo terminado, «Última respuesta» cambia el orden y el icono de filtro al final de la barra abre «Filtros avanzados», que encuentran el resto, también los hilos pospuestos."
+        "title": "Los filtros ocultan los hilos resueltos",
+        "text": "«Filtros de hilos», en la cabecera de la sala o en su menú, muestra y oculta esta barra. «No resueltos» oculta los hilos resueltos: desactívalo para volver a verlos. «Última respuesta» cambia el orden y el icono de filtro al final de la barra abre «Filtros avanzados», que encuentran el resto, también los hilos pospuestos."
       },
       "views": {
         "title": "Dos vistas de una sala",

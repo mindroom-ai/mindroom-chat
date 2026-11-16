@@ -705,7 +705,31 @@
         "tooLargeToApprove": "Die Argumente sind zu groß zum Prüfen, daher kann diese Anfrage nur abgelehnt werden."
       },
       "showToolCalls": "Tool-Aufrufe anzeigen",
-      "showToolCallsDescription": "Die Vorgabe für jeden Raum: Antworten von Agenten listen die ausgeführten Tools auf oder zeigen oben nur ein kleines Zahnrad, das sie zählt und bei einem Klick anzeigt. Das Menü eines Raums oder Threads ändert es dort."
+      "showToolCallsDescription": "Die Vorgabe für jeden Raum: Antworten von Agenten listen die ausgeführten Tools auf oder zeigen oben nur ein kleines Zahnrad, das sie zählt und bei einem Klick anzeigt. Das Menü eines Raums oder Threads ändert es dort.",
+      "secretRequestCard": {
+        "label": "Schlüsselanfrage",
+        "title": "Schlüssel für {{name}}",
+        "usedOnlyFor": "Wird nur für {{hosts}} verwendet",
+        "waitingFor": "Wartet auf {{name}}",
+        "placeholder": "Schlüssel einfügen oder eingeben",
+        "showKey": "Schlüssel anzeigen",
+        "hideKey": "Schlüssel verbergen",
+        "sentTo": "Wird an {{host}} gesendet",
+        "save": "Speichern",
+        "decline": "Ablehnen",
+        "savedWaiting": "Gespeichert, wartet auf den Agenten",
+        "declinedWaiting": "Abgelehnt, wartet auf den Agenten",
+        "noLongerActive": "Diese Anfrage ist nicht mehr aktiv. Frag den Agenten erneut.",
+        "unavailable": "Auf diesem Server lassen sich keine Schlüssel eingeben.",
+        "unavailableHint": "Um hier Schlüssel einzugeben, lege deinen MindRoom-Server unter Einstellungen → {{page}} → {{field}} fest.",
+        "status": {
+          "waitingForYou": "Wartet auf dich",
+          "pending": "Ausstehend",
+          "saved": "Gespeichert",
+          "declined": "Abgelehnt",
+          "expired": "Abgelaufen"
+        }
+      }
     },
     "message-search": {
       "messageSearch": {
@@ -1118,7 +1142,7 @@
       "back": "Zurück",
       "next": "Weiter",
       "done": "Fertig",
-      "keepGoing": "Weitermachen (6 weitere Schritte)",
+      "keepGoing": "Weitermachen (4 weitere Schritte)",
       "replay": "Erneut abspielen"
     },
     "chapters": {
@@ -1167,8 +1191,8 @@
         "text": "„Thread anheften“ hält einen Thread oben in der Liste. Mit „Tags bearbeiten“ in den Thread-Optionen versiehst du einen Thread mit Tags, und du kannst nach Tags filtern."
       },
       "filters": {
-        "title": "Filtern und sortieren",
-        "text": "„Thread-Filter“, in der Kopfzeile des Raums oder in seinem Menü, blendet diese Leiste ein und aus. „Ungelöst“ blendet Erledigtes aus, „Letzte Antwort“ ändert die Reihenfolge, und das Filtersymbol am Ende der Leiste öffnet „Erweiterte Filter“, die den Rest finden, auch zurückgestellte Threads."
+        "title": "Filter blenden gelöste Threads aus",
+        "text": "„Thread-Filter“, in der Kopfzeile des Raums oder in seinem Menü, blendet diese Leiste ein und aus. „Ungelöst“ blendet gelöste Threads aus: Schalte es aus, um sie wieder zu sehen. „Letzte Antwort“ ändert die Reihenfolge, und das Filtersymbol am Ende der Leiste öffnet „Erweiterte Filter“, die den Rest finden, auch zurückgestellte Threads."
       },
       "views": {
         "title": "Zwei Ansichten eines Raums",

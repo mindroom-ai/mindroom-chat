@@ -696,7 +696,31 @@
         "tooLargeToApprove": "参数太大，无法审阅，因此此请求只能拒绝。"
       },
       "showToolCalls": "显示工具调用",
-      "showToolCallsDescription": "所有房间的默认设置：智能体的回复会列出运行过的工具，或只在顶部显示一个小齿轮，它会统计这些工具，点击后显示它们。房间或讨论串的菜单可在该处更改。"
+      "showToolCallsDescription": "所有房间的默认设置：智能体的回复会列出运行过的工具，或只在顶部显示一个小齿轮，它会统计这些工具，点击后显示它们。房间或讨论串的菜单可在该处更改。",
+      "secretRequestCard": {
+        "label": "密钥请求",
+        "title": "{{name}} 密钥",
+        "usedOnlyFor": "仅用于 {{hosts}}",
+        "waitingFor": "等待 {{name}} 处理",
+        "placeholder": "粘贴或输入密钥",
+        "showKey": "显示密钥",
+        "hideKey": "隐藏密钥",
+        "sentTo": "发送到 {{host}}",
+        "save": "保存",
+        "decline": "拒绝",
+        "savedWaiting": "已保存，等待智能体",
+        "declinedWaiting": "已拒绝，等待智能体",
+        "noLongerActive": "此请求已失效。请再次向智能体请求。",
+        "unavailable": "此服务器不支持输入密钥。",
+        "unavailableHint": "要在此输入密钥，请在设置 → {{page}} → {{field}} 中设置您的 MindRoom 服务器。",
+        "status": {
+          "waitingForYou": "等您处理",
+          "pending": "待处理",
+          "saved": "已保存",
+          "declined": "已拒绝",
+          "expired": "已到期"
+        }
+      }
     },
     "message-search": {
       "messageSearch": {
@@ -1095,7 +1119,7 @@
       "back": "上一步",
       "next": "下一步",
       "done": "完成",
-      "keepGoing": "继续（还有 6 步）",
+      "keepGoing": "继续（还有 4 步）",
       "replay": "重播"
     },
     "chapters": {
@@ -1144,8 +1168,8 @@
         "text": "“置顶讨论串”会让讨论串保持在列表顶部。“讨论串选项”中的“编辑标签”可为讨论串添加标签，之后可以按标签过滤。"
       },
       "filters": {
-        "title": "过滤和排序",
-        "text": "房间标题栏或其菜单中的“讨论串过滤器”可显示或隐藏这个过滤栏。“未解决”会隐藏已完成的讨论串，“最后回复”会更改排序，过滤栏末端的过滤器图标则可打开“高级过滤器”，从中找出其余的，包括已延后的讨论串。"
+        "title": "过滤器会隐藏已解决的讨论串",
+        "text": "房间标题栏或其菜单中的“讨论串过滤器”可显示或隐藏这个过滤栏。“未解决”会隐藏已解决的讨论串，关闭它即可重新看到。“最后回复”会更改排序，过滤栏末端的过滤器图标则可打开“高级过滤器”，从中找出其余的，包括已延后的讨论串。"
       },
       "views": {
         "title": "房间的两种视图",

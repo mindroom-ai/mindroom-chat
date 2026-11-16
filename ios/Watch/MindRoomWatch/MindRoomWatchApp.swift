@@ -37,8 +37,9 @@ struct MindRoomWatchApp: App {
                 if url.host == "record" { RecordRequest.shared.pending = true }
             }
         }
-        .onChange(of: scenePhase) { _, phase in
-            Task { await session.setActive(phase == .active) }
+        // From the start: credentials that came before the app was in front wait for this.
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            Task { await session.sceneChanged(inFront: phase == .active) }
             if phase == .background { BackgroundRefresh.schedule() }
         }
         WKNotificationScene(controller: NotificationController.self, category: PushedEvent.category)

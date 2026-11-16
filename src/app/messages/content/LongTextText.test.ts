@@ -159,6 +159,9 @@ vi.mock('../thread-summary/ThreadSummaryCard', () => ({
 vi.mock('../../approvals/ToolApprovalCard', () => ({
   ToolApprovalCard: () => null,
 }));
+vi.mock('../../approvals/SecretRequestCard', () => ({
+  SecretRequestCard: () => null,
+}));
 vi.mock('./CallTranscriptCard', () => ({
   CallTranscriptCard: () => null,
 }));

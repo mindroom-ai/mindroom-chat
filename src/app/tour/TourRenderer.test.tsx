@@ -169,7 +169,7 @@ describe('TourRenderer', () => {
 
     // The same opening, now at the Full level.
     expect(dialog()?.getAttribute('data-tour-level')).toBe('full');
-    expect(dialog()?.getAttribute('data-tour-step')).toBe('resolve');
+    expect(dialog()?.getAttribute('data-tour-step')).toBe('snooze');
     for (let step = QUICK_STEP_COUNT + 1; step < 12; step += 1) press('next');
     press('done');
     tick();

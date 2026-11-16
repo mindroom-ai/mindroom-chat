@@ -714,7 +714,31 @@
         "tooLargeToApprove": "Les arguments sont trop volumineux pour être examinés : cette demande ne peut qu’être refusée."
       },
       "showToolCalls": "Afficher les appels d'outils",
-      "showToolCallsDescription": "Le réglage par défaut de chaque salon : les réponses des agents listent les outils exécutés, ou n'affichent en haut qu'un petit engrenage qui les compte et les montre d'un clic. Le menu d'un salon ou d'un fil le change à cet endroit."
+      "showToolCallsDescription": "Le réglage par défaut de chaque salon : les réponses des agents listent les outils exécutés, ou n'affichent en haut qu'un petit engrenage qui les compte et les montre d'un clic. Le menu d'un salon ou d'un fil le change à cet endroit.",
+      "secretRequestCard": {
+        "label": "Demande de clé",
+        "title": "Clé {{name}}",
+        "usedOnlyFor": "Utilisée uniquement pour {{hosts}}",
+        "waitingFor": "En attente de {{name}}",
+        "placeholder": "Collez ou saisissez la clé",
+        "showKey": "Afficher la clé",
+        "hideKey": "Masquer la clé",
+        "sentTo": "Envoyée à {{host}}",
+        "save": "Enregistrer",
+        "decline": "Refuser",
+        "savedWaiting": "Enregistrée, en attente de l’agent",
+        "declinedWaiting": "Refusée, en attente de l’agent",
+        "noLongerActive": "Cette demande n’est plus active. Redemandez à l’agent.",
+        "unavailable": "La saisie de clés n’est pas disponible sur ce serveur.",
+        "unavailableHint": "Pour saisir des clés ici, définissez votre serveur MindRoom dans Paramètres → {{page}} → {{field}}.",
+        "status": {
+          "waitingForYou": "Vous attend",
+          "pending": "En attente",
+          "saved": "Enregistrée",
+          "declined": "Refusée",
+          "expired": "Expirée"
+        }
+      }
     },
     "message-search": {
       "messageSearch": {
@@ -1141,7 +1165,7 @@
       "back": "Précédent",
       "next": "Suivant",
       "done": "Terminé",
-      "keepGoing": "Continuer (6 étapes de plus)",
+      "keepGoing": "Continuer (4 étapes de plus)",
       "replay": "Rejouer"
     },
     "chapters": {
@@ -1190,8 +1214,8 @@
         "text": "Épingler le fil garde un fil en haut de la liste. Modifier les étiquettes, dans Options du fil, ajoute des étiquettes à un fil, et vous pouvez filtrer par étiquette."
       },
       "filters": {
-        "title": "Filtrer et trier",
-        "text": "Filtres de fils, dans l’en-tête de la salle ou dans son menu, affiche et masque cette barre. Non résolus masque ce qui est terminé, Dernière réponse change l’ordre, et l’icône de filtre au bout de la barre ouvre Filtres avancés, qui trouvent le reste, y compris les fils reportés."
+        "title": "Les filtres masquent les fils résolus",
+        "text": "Filtres de fils, dans l’en-tête de la salle ou dans son menu, affiche et masque cette barre. Non résolus masque les fils résolus : désactivez-le pour les revoir. Dernière réponse change l’ordre, et l’icône de filtre au bout de la barre ouvre Filtres avancés, qui trouvent le reste, y compris les fils reportés."
       },
       "views": {
         "title": "Deux vues d’une salle",
