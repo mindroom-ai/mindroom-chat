@@ -119,7 +119,7 @@ export const renderAgentMessageContent = ({
   renderUrlsPreview,
   showMessageExtras = false,
   hydrateLongText = true,
-  readOnly = false,
+  readOnly,
 }: RenderAgentMessageContentOptions): ReactNode | undefined => {
   const withToolRefFormattedBodyFallback = (bodyContent: Record<string, unknown>) => {
     if (typeof bodyContent.formatted_body === 'string') return bodyContent;

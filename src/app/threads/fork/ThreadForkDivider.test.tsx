@@ -6,7 +6,9 @@ import { ThreadForkDivider } from './ThreadForkDivider';
 const navigation = vi.hoisted(() => ({ navigateRoomThread: vi.fn() }));
 vi.mock('../../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => navigation }));
 // The parent's root is in the room; nothing is read from the event cache.
-vi.mock('../../event-store/sdk/cachedThreadRoots', () => ({ useCachedThreadRoot: () => undefined }));
+vi.mock('../../event-store/sdk/cachedThreadRoots', () => ({
+  useCachedThreadRoot: () => undefined,
+}));
 
 const ROOM = '!room:example.org';
 

@@ -458,7 +458,11 @@ describe("a fork's rows of its parent thread", () => {
     const messages = renderer.root.findAllByType(Message).map((node) => node.props);
     const [first, second, root, reply] = messages;
     [first, second].forEach((prefix) => {
-      expect(prefix).toMatchObject({ canDelete: false, canSendReaction: false, canPinEvent: false });
+      expect(prefix).toMatchObject({
+        canDelete: false,
+        canSendReaction: false,
+        canPinEvent: false,
+      });
       expect(prefix?.onReplyClick).toBeUndefined();
       expect(prefix?.onReactionToggle).toBeUndefined();
       expect(prefix?.onEditId).toBeUndefined();
@@ -469,15 +473,17 @@ describe("a fork's rows of its parent thread", () => {
       expect(own?.onOpenInOriginalThread).toBeUndefined();
     });
 
-    act(() => first?.onOpenInOriginalThread());
-    act(() => second?.onOpenInOriginalThread());
+    act(() => {
+      first?.onOpenInOriginalThread();
+      second?.onOpenInOriginalThread();
+    });
     expect(navigateRoomThreadMock.mock.calls).toEqual([
       ['!room:example.org', '$parent', '$parent'],
       ['!room:example.org', '$parent', '$p1'],
     ]);
   });
 
-  it("answers its cards in the parent thread and shows an approval and a question without their buttons", async () => {
+  it('answers its cards in the parent thread and shows an approval and a question without their buttons', async () => {
     const { Message } = await import('../../messages/Message');
     const approval = parentMessage('$approval', {
       type: MINDROOM_TOOL_APPROVAL_EVENT,

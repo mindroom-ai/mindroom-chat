@@ -1225,10 +1225,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     refreshLatestThreadSlice,
     onRoomRefresh: handleRoomRefresh,
   });
-  const getLoadedThreadEvents = useCallback(
-    () => ownThreadEventsRef.current,
-    [ownThreadEventsRef]
-  );
+  const getLoadedThreadEvents = useCallback(() => ownThreadEventsRef.current, [ownThreadEventsRef]);
   useThreadGapRecovery({
     engine,
     room,

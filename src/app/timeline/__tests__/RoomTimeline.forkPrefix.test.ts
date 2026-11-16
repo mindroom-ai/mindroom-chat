@@ -121,7 +121,9 @@ describe('a forked thread', () => {
       // The fork's title and count come from its own messages, never from the parent's.
       const stored = onStoreThreadSummary.mock.calls.filter(([threadId]) => threadId === '$fork');
       expect(stored.length).toBeGreaterThan(0);
-      const storedInfos = stored.flatMap(([, ...infos]) => infos as (ThreadSummaryInfo | undefined)[]);
+      const storedInfos = stored.flatMap(
+        ([, ...infos]) => infos as (ThreadSummaryInfo | undefined)[]
+      );
       expect(storedInfos.some((info) => info?.summaryText === 'Lisbon trip')).toBe(false);
     } finally {
       act(() => renderer?.unmount());
