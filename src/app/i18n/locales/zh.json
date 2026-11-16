@@ -1275,6 +1275,7 @@
     },
     "commands": {
       "CommandMe": "发送操作消息",
+      "CommandNotice": "发送通知消息",
       "CommandShrug": "将 ¯\\_(ツ)_/¯ 作为消息发送",
       "CommandStartDm": "与用户开始私信。示例：/startdm userId1",
       "CommandJoin": "通过地址加入房间。示例：/join address1 address2",

@@ -1295,6 +1295,7 @@
     },
     "commands": {
       "CommandMe": "Отправить сообщение-действие",
+      "CommandNotice": "Отправить сообщение-уведомление",
       "CommandShrug": "Отправить ¯\\_(ツ)_/¯ сообщением",
       "CommandStartDm": "Начать личную переписку с пользователем. Пример: /startdm userId1",
       "CommandJoin": "Войти в комнату по адресу. Пример: /join address1 address2",

@@ -2085,6 +2085,7 @@
       "CommandKick": "उपयोगकर्ता को रूम से निकालें। उदाहरण: /kick userId1 userId2 servername [-r reason]",
       "CommandLeave": "वर्तमान रूम छोड़ें.",
       "CommandMe": "कार्रवाई संदेश भेजें",
+      "CommandNotice": "सूचना संदेश भेजें",
       "CommandShrug": "¯\\_(ツ)_/¯ को संदेश के रूप में भेजें",
       "CommandStartDm": "उपयोगकर्ता के साथ सीधा संदेश प्रारंभ करें. उदाहरण: /startdm userId1",
       "CommandUnBan": "उपयोगकर्ता का रूम प्रतिबंध हटाएँ। उदाहरण: /unban userId1 userId2",

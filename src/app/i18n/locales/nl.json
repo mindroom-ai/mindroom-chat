@@ -1279,6 +1279,7 @@
     },
     "commands": {
       "CommandMe": "Actiebericht verzenden",
+      "CommandNotice": "Meldingsbericht verzenden",
       "CommandShrug": "¯\\_(ツ)_/¯ als bericht verzenden",
       "CommandStartDm": "Direct bericht met gebruiker starten. Voorbeeld: /startdm userId1",
       "CommandJoin": "Deelnemen aan kamer via adres. Voorbeeld: /join address1 address2",

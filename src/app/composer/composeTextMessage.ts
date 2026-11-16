@@ -14,19 +14,21 @@ import { type Command, SHRUG } from './commands/useCommands';
 /** The slash commands that change the message being sent, typed at the very start of it. */
 type MessageCommand = Extract<
   Command,
-  'me' | 'plain' | 'shrug'
+  'me' | 'notice' | 'plain' | 'shrug'
 >;
 const MESSAGE_COMMANDS: readonly string[] = [
   'me',
+  'notice',
   'plain',
   'shrug',
 ] satisfies MessageCommand[];
 
 const isMessageCommand = (name: string): name is MessageCommand => MESSAGE_COMMANDS.includes(name);
 
-/** The message type `/me` picks. */
+/** The message types `/me` and `/notice` pick. */
 const MSGTYPE_BY_COMMAND: ReadonlyMap<MessageCommand, MsgType> = new Map([
   ['me', MsgType.Emote],
+  ['notice', MsgType.Notice],
 ]);
 
 /** The face each face command puts before the message. */
@@ -41,7 +43,7 @@ const isParagraph = (node: Descendant | undefined): node is ParagraphElement =>
   !!node && 'type' in node && node.type === BlockType.Paragraph;
 
 /**
- * Splits a leading message command (`/me`, `/plain`, `/shrug`) off the composer's text: the command, and the document without it.
+ * Splits a leading message command (`/me`, `/notice`, `/plain`, `/shrug`) off the composer's text: the command, and the document without it.
  * Only plain text at the start of the first paragraph counts, so a command inside a code block
  * or a quote is sent as written, and so is any other `/word`.
  */

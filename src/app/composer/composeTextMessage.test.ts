@@ -65,6 +65,16 @@ describe('composeTextMessage', () => {
     });
   });
 
+  it('sends /notice as a notice, and keeps the formatting of the rest', () => {
+    expect(compose([line({ text: '/notice the build is **green**' })])).toEqual({
+      msgtype: MsgType.Notice,
+      body: 'the build is **green**',
+      format: 'org.matrix.custom.html',
+      formatted_body: 'the build is <strong data-md="**">green</strong>',
+      'm.mentions': {},
+    });
+  });
+
   it('takes the command off a line of its own', () => {
     expect(compose([line({ text: '/me' }), line({ text: 'stretches' })])).toMatchObject({
       msgtype: MsgType.Emote,

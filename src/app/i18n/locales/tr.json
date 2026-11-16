@@ -1275,6 +1275,7 @@
     },
     "commands": {
       "CommandMe": "Eylem mesajı gönder",
+      "CommandNotice": "Bilgilendirme mesajı gönder",
       "CommandShrug": "Mesaj olarak ¯\\_(ツ)_/¯ gönder",
       "CommandStartDm": "Kullanıcıyla doğrudan mesaj başlat. Örnek: /startdm userId1",
       "CommandJoin": "Adresiyle odaya katıl. Örnek: /join address1 address2",

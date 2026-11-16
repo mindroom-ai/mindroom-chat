@@ -448,6 +448,7 @@ vi.mock('../commands/CommandAutocomplete', () => ({
 vi.mock('../commands/useCommands', () => ({
   Command: {
     Me: 'me',
+    Notice: 'notice',
     Shrug: 'shrug',
   },
   SHRUG: 'SHRUG',

@@ -19,6 +19,7 @@ import { usage } from './commandRefusal';
  */
 export const Command = {
   Me: 'me',
+  Notice: 'notice',
   Plain: 'plain',
   Shrug: 'shrug',
   Join: 'join',

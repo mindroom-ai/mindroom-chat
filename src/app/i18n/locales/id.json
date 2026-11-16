@@ -1275,6 +1275,7 @@
     },
     "commands": {
       "CommandMe": "Kirim pesan tindakan",
+      "CommandNotice": "Kirim pesan pemberitahuan",
       "CommandShrug": "Kirim ¯\\_(ツ)_/¯ sebagai pesan",
       "CommandStartDm": "Mulai pesan langsung dengan pengguna. Contoh: /startdm userId1",
       "CommandJoin": "Bergabung ke ruang dengan alamat. Contoh: /join address1 address2",

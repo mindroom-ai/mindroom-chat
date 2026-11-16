@@ -86,7 +86,7 @@ describe('slash commands', () => {
       Object.values(Command)
         .filter((name) => !isActingCommand(name))
         .sort()
-    ).toEqual(['me', 'plain', 'shrug']);
+    ).toEqual(['me', 'notice', 'plain', 'shrug']);
   });
 
   it('invites each user with the reason after -r', async () => {
