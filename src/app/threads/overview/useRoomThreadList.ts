@@ -144,9 +144,9 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
       // meanwhile, such as a root a later page listed again.
       const checked = new Set<string>();
       let pages = 0;
-      const saveRoots = (all: boolean) =>
+      const saveRoots = () =>
         room.getThreads().forEach(({ id, rootEvent }) => {
-          if (!rootEvent || (!all && checked.has(id))) return;
+          if (!rootEvent || checked.has(id)) return;
           checked.add(id);
           // Save a root that is being decrypted with its clear content and attachments.
           const decryption = rootEvent.isBeingDecrypted() && rootEvent.getDecryptionPromise();
@@ -163,7 +163,10 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
       const checkAll = () => {
         signal.removeEventListener('abort', checkAll);
         try {
-          if (pages > 1) saveRoots(true);
+          if (pages > 1) {
+            checked.clear();
+            saveRoots();
+          }
         } catch (err) {
           // The list loaded; a root that cannot be saved must not turn it into an error.
           // eslint-disable-next-line no-console
@@ -177,7 +180,7 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
         () => {
           if (signal.aborted) return;
           pages += 1;
-          saveRoots(false);
+          saveRoots();
           handleThreadListProgress();
         },
         signal

@@ -168,84 +168,146 @@ it('restores 400 cached threads while only one is in the SDK and discovery is pe
   expect(room.getThread('$root-1')?.events).toHaveLength(0);
 }, 30_000);
 
-const failedDecryption = { decryptEvent: () => Promise.reject(new Error('Missing key')) };
-const decryption = (body: string) => ({
-  decryptEvent: () =>
-    Promise.resolve({
-      clearEvent: { room_id: roomId, type: 'm.room.message', content: { msgtype: 'm.text', body } },
+class ListingClient extends MatrixClient {
+  constructor() {
+    super({ baseUrl: 'https://example.org', userId });
+    this.clientOpts = { threadSupport: true };
+    this.threadSupportPending = Promise.resolve();
+  }
+}
+
+type Engine = ReturnType<typeof createSyncEngine>;
+type RootSave = Parameters<ReturnType<Engine['persist']['forRoom']>['persistThreadEventCache']>;
+
+const setUpRoom = () => {
+  const mx = new ListingClient();
+  const room = new Room(roomId, mx, userId, { timelineSupport: true });
+  mx.store.storeRoom(room);
+  const engine = createSyncEngine({ mx });
+  sessionId = engine.sessionId;
+  return { mx, room, engine };
+};
+
+/** Calls `record` with each root save as it starts, then saves. */
+const recordSaves = (engine: Engine, record: (...args: RootSave) => void) => {
+  const forRoom = engine.persist.forRoom.bind(engine.persist);
+  vi.spyOn(engine.persist, 'forRoom').mockImplementation((target) => {
+    const persist = forRoom(target);
+    return {
+      ...persist,
+      persistThreadEventCache: (...args) => {
+        record(...args);
+        return persist.persistThreadEventCache(...args);
+      },
+    };
+  });
+};
+
+/** The room lists its threads in pages, starting with one more page before its first. */
+const listInPages = (room: Room) => {
+  Thread.hasServerSideListSupport = FeatureSupport.Stable;
+  const list = room.getUnfilteredTimelineSet();
+  room.threadsTimelineSets[0] = list;
+  room.threadsTimelineSets[1] = list;
+  const timeline = list.getLiveTimeline();
+  timeline.setPaginationToken('older-roots', Direction.Backward);
+  return timeline;
+};
+
+const listedRoot = (eventId: string, body = eventId) =>
+  new MatrixEvent({
+    event_id: eventId,
+    room_id: roomId,
+    sender: userId,
+    origin_server_ts: 1000,
+    type: 'm.room.message',
+    content: { msgtype: 'm.text', body },
+  });
+
+const encryptedListedRoot = (eventId: string) =>
+  new MatrixEvent({
+    event_id: eventId,
+    room_id: roomId,
+    sender: userId,
+    origin_server_ts: 1000,
+    type: 'm.room.encrypted',
+    content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: eventId },
+  });
+
+const rootEdit = (eventId: string, body: string) =>
+  new MatrixEvent({
+    event_id: '$edit',
+    room_id: roomId,
+    sender: userId,
+    origin_server_ts: 2000,
+    type: 'm.room.message',
+    content: {
+      msgtype: 'm.text',
+      body: `* ${body}`,
+      'm.new_content': { msgtype: 'm.text', body },
+      'm.relates_to': { rel_type: 'm.replace', event_id: eventId },
+    },
+  });
+
+/** Decrypts `root` to a message with `body` once `result` settles; a rejected one fails it. */
+const decryptRoot = (root: MatrixEvent, result: Promise<string>) =>
+  root.attemptDecryption({
+    decryptEvent: async () => ({
+      clearEvent: { room_id: roomId, type: 'm.room.message', content: { body: await result } },
     }),
-});
+  } as unknown as CryptoBackend);
+
+/** Shows the room's thread list; `list.current` is the hook's latest result. */
+const showList = (mx: MatrixClient, engine: Engine, room: Room) => {
+  const list: { current?: ReturnType<typeof useRoomThreadList> } = {};
+  function Harness() {
+    list.current = useRoomThreadList(room);
+    return null;
+  }
+  renderer = create(
+    <MatrixClientProvider value={mx}>
+      <SyncEngineProvider engine={engine}>
+        <Harness />
+      </SyncEngineProvider>
+    </MatrixClientProvider>
+  );
+  return list;
+};
+
+const closeList = async () => {
+  await act(async () => renderer?.unmount());
+  renderer = undefined;
+};
 
 it.each([undefined, 'edit', 'redaction', 'decryption'] as const)(
   'saves server-listed roots, and again when one changes before a later page, without claiming replies downloaded (change: %s)',
   async (change) => {
-    class Client extends MatrixClient {
-      constructor() {
-        super({ baseUrl: 'https://example.org', userId });
-        this.clientOpts = { threadSupport: true };
-        this.threadSupportPending = Promise.resolve();
-      }
-    }
-    const mx = new Client();
-    const room = new Room(roomId, mx, userId, { timelineSupport: true });
-    mx.store.storeRoom(room);
-    const engine = createSyncEngine({ mx });
-    const persist = engine.persist.forRoom(room);
-    const persistRoot = persist.persistThreadEventCache.bind(persist);
+    const { mx, room, engine } = setUpRoom();
     const failedSaves: boolean[] = [];
-    const saveRoot = vi.spyOn(persist, 'persistThreadEventCache').mockImplementation((...args) => {
-      failedSaves.push(!!args[2]?.isDecryptionFailure());
-      return persistRoot(...args);
-    });
-    vi.spyOn(engine.persist, 'forRoom').mockReturnValue(persist);
-    sessionId = engine.sessionId;
-    const root = new MatrixEvent({
-      event_id: '$listed',
-      room_id: roomId,
-      sender: userId,
-      origin_server_ts: 1000,
-      ...(change === 'decryption'
-        ? {
-            type: 'm.room.encrypted',
-            content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'listed' },
-          }
-        : { type: 'm.room.message', content: { msgtype: 'm.text', body: 'Listed by server' } }),
-    });
+    recordSaves(engine, (_threadId, _replies, root) =>
+      failedSaves.push(!!root?.isDecryptionFailure())
+    );
+    const root =
+      change === 'decryption'
+        ? encryptedListedRoot('$listed')
+        : listedRoot('$listed', 'Listed by server');
     if (change === 'decryption') {
-      await root.attemptDecryption(failedDecryption as unknown as CryptoBackend);
+      await decryptRoot(root, Promise.reject(new Error('Missing key')));
     }
     if (change) {
-      Thread.hasServerSideListSupport = FeatureSupport.Stable;
-      const list = room.getUnfilteredTimelineSet();
-      room.threadsTimelineSets[0] = list;
-      room.threadsTimelineSets[1] = list;
-      list.getLiveTimeline().setPaginationToken('older-roots', Direction.Backward);
+      const timeline = listInPages(room);
       let changed = false;
       vi.spyOn(mx, 'paginateEventTimeline').mockImplementation(async () => {
         if (changed) {
           // A further unchanged page must not rewrite all restored roots.
-          list.getLiveTimeline().setPaginationToken(null, Direction.Backward);
+          timeline.setPaginationToken(null, Direction.Backward);
           return false;
         }
         // First progress callback has already saved this same root.
-        await vi.waitFor(() => expect(saveRoot).toHaveBeenCalledTimes(1));
+        await vi.waitFor(() => expect(failedSaves).toHaveLength(1));
         changed = true;
         if (change === 'edit') {
-          root.makeReplaced(
-            new MatrixEvent({
-              event_id: '$edit',
-              room_id: roomId,
-              sender: userId,
-              origin_server_ts: 2000,
-              type: 'm.room.message',
-              content: {
-                msgtype: 'm.text',
-                body: '* Newer server title',
-                'm.new_content': { msgtype: 'm.text', body: 'Newer server title' },
-                'm.relates_to': { rel_type: 'm.replace', event_id: '$listed' },
-              },
-            })
-          );
+          root.makeReplaced(rootEdit('$listed', 'Newer server title'));
         } else if (change === 'redaction') {
           root.makeRedacted(
             new MatrixEvent({
@@ -260,28 +322,17 @@ it.each([undefined, 'edit', 'redaction', 'decryption'] as const)(
             room
           );
         } else {
-          await root.attemptDecryption(decryption('Clear title') as unknown as CryptoBackend);
+          await decryptRoot(root, Promise.resolve('Clear title'));
         }
-        list.getLiveTimeline().setPaginationToken('unchanged-page', Direction.Backward);
+        timeline.setPaginationToken('unchanged-page', Direction.Backward);
         return true;
       });
     }
     vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
       room.processThreadRoots([root], false);
     });
-    let loading = true;
-    function Harness() {
-      loading = useRoomThreadList(room).loading;
-      return null;
-    }
     await act(async () => {
-      renderer = create(
-        <MatrixClientProvider value={mx}>
-          <SyncEngineProvider engine={engine}>
-            <Harness />
-          </SyncEngineProvider>
-        </MatrixClientProvider>
-      );
+      const list = showList(mx, engine, room);
       await vi.waitFor(async () => {
         const cached = await loadLatestCachedThreadEvents(sessionId, roomId, '$listed', 1);
         if (change === 'edit')
@@ -293,10 +344,9 @@ it.each([undefined, 'edit', 'redaction', 'decryption'] as const)(
         expect(cached.events).toEqual([]);
         expect(cached.tailLoaded).toBe(false);
         expect(cached.snapshotComplete).toBe(false);
-        expect(loading).toBe(false);
+        expect(list.current?.loading).toBe(false);
       });
     });
-    expect(saveRoot).toHaveBeenCalledTimes(change ? 2 : 1);
     expect(failedSaves).toEqual(
       change === 'decryption' ? [true, false] : change ? [false, false] : [false]
     );
@@ -304,80 +354,32 @@ it.each([undefined, 'edit', 'redaction', 'decryption'] as const)(
 );
 
 it('saves a root that changed before a later page when the overview closes before the list ends', async () => {
-  class Client extends MatrixClient {
-    constructor() {
-      super({ baseUrl: 'https://example.org', userId });
-      this.clientOpts = { threadSupport: true };
-      this.threadSupportPending = Promise.resolve();
-    }
-  }
-  const mx = new Client();
-  const room = new Room(roomId, mx, userId, { timelineSupport: true });
-  mx.store.storeRoom(room);
-  const engine = createSyncEngine({ mx });
-  sessionId = engine.sessionId;
-  const persist = engine.persist.forRoom(room);
-  const saveRoot = vi.spyOn(persist, 'persistThreadEventCache');
-  vi.spyOn(engine.persist, 'forRoom').mockReturnValue(persist);
-  const root = new MatrixEvent({
-    event_id: '$listed',
-    room_id: roomId,
-    sender: userId,
-    origin_server_ts: 1000,
-    type: 'm.room.message',
-    content: { msgtype: 'm.text', body: 'Cached title' },
-  });
-  Thread.hasServerSideListSupport = FeatureSupport.Stable;
-  const list = room.getUnfilteredTimelineSet();
-  room.threadsTimelineSets[0] = list;
-  room.threadsTimelineSets[1] = list;
-  list.getLiveTimeline().setPaginationToken('older-roots', Direction.Backward);
+  const { mx, room, engine } = setUpRoom();
+  let saves = 0;
+  recordSaves(engine, () => (saves += 1));
+  const root = listedRoot('$listed', 'Cached title');
+  const timeline = listInPages(room);
   let finishLastPage!: (more: boolean) => void;
   let pages = 0;
   vi.spyOn(mx, 'paginateEventTimeline').mockImplementation(async () => {
     pages += 1;
     if (pages > 1) return new Promise<boolean>((resolve) => (finishLastPage = resolve));
-    await vi.waitFor(() => expect(saveRoot).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(saves).toBe(1));
     // This page lists the root with a newer title.
-    root.makeReplaced(
-      new MatrixEvent({
-        event_id: '$edit',
-        room_id: roomId,
-        sender: userId,
-        origin_server_ts: 2000,
-        type: 'm.room.message',
-        content: {
-          msgtype: 'm.text',
-          body: '* Listed title',
-          'm.new_content': { msgtype: 'm.text', body: 'Listed title' },
-          'm.relates_to': { rel_type: 'm.replace', event_id: '$listed' },
-        },
-      })
-    );
-    list.getLiveTimeline().setPaginationToken('older-page', Direction.Backward);
+    root.makeReplaced(rootEdit('$listed', 'Listed title'));
+    timeline.setPaginationToken('older-page', Direction.Backward);
     return true;
   });
   vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
     room.processThreadRoots([root], false);
   });
-  function Harness() {
-    useRoomThreadList(room);
-    return null;
-  }
   await act(async () => {
-    renderer = create(
-      <MatrixClientProvider value={mx}>
-        <SyncEngineProvider engine={engine}>
-          <Harness />
-        </SyncEngineProvider>
-      </MatrixClientProvider>
-    );
+    showList(mx, engine, room);
     await vi.waitFor(() => expect(pages).toBe(2));
   });
   // The reader leaves the room while its list still loads.
-  await act(async () => renderer?.unmount());
-  renderer = undefined;
-  expect(saveRoot).toHaveBeenCalledTimes(2);
+  await closeList();
+  expect(saves).toBe(2);
   await vi.waitFor(async () => {
     const cached = await loadLatestCachedThreadEvents(sessionId, roomId, '$listed', 1);
     expect(JSON.stringify(cached.rootEvent)).toContain('Listed title');
@@ -393,33 +395,11 @@ it('saves a root that changed before a later page when the overview closes befor
 });
 
 it('keeps a loaded list free of errors when checking its roots at the end fails', async () => {
-  class Client extends MatrixClient {
-    constructor() {
-      super({ baseUrl: 'https://example.org', userId });
-      this.clientOpts = { threadSupport: true };
-      this.threadSupportPending = Promise.resolve();
-    }
-  }
-  const mx = new Client();
-  const room = new Room(roomId, mx, userId, { timelineSupport: true });
-  mx.store.storeRoom(room);
-  const engine = createSyncEngine({ mx });
-  sessionId = engine.sessionId;
-  const root = new MatrixEvent({
-    event_id: '$listed',
-    room_id: roomId,
-    sender: userId,
-    origin_server_ts: 1000,
-    type: 'm.room.message',
-    content: { msgtype: 'm.text', body: 'Listed' },
-  });
-  Thread.hasServerSideListSupport = FeatureSupport.Stable;
-  const list = room.getUnfilteredTimelineSet();
-  room.threadsTimelineSets[0] = list;
-  room.threadsTimelineSets[1] = list;
-  list.getLiveTimeline().setPaginationToken('older-roots', Direction.Backward);
+  const { mx, room, engine } = setUpRoom();
+  const root = listedRoot('$listed');
+  const timeline = listInPages(room);
   vi.spyOn(mx, 'paginateEventTimeline').mockImplementation(async () => {
-    list.getLiveTimeline().setPaginationToken(null, Direction.Backward);
+    timeline.setPaginationToken(null, Direction.Backward);
     failNextRevision = true;
     return false;
   });
@@ -427,24 +407,14 @@ it('keeps a loaded list free of errors when checking its roots at the end fails'
     room.processThreadRoots([root], false);
   });
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-  let state: ReturnType<typeof useRoomThreadList> | undefined;
-  function Harness() {
-    state = useRoomThreadList(room);
-    return null;
-  }
+  let list: ReturnType<typeof showList> = {};
   await act(async () => {
-    renderer = create(
-      <MatrixClientProvider value={mx}>
-        <SyncEngineProvider engine={engine}>
-          <Harness />
-        </SyncEngineProvider>
-      </MatrixClientProvider>
-    );
-    await vi.waitFor(() => expect(state?.loading).toBe(false));
+    list = showList(mx, engine, room);
+    await vi.waitFor(() => expect(list.current?.loading).toBe(false));
   });
   expect(failNextRevision).toBe(false);
-  expect(state?.error).toBeUndefined();
-  expect(state?.loadedSuccessfully).toBe(true);
+  expect(list.current?.error).toBeUndefined();
+  expect(list.current?.loadedSuccessfully).toBe(true);
   expect(warn).toHaveBeenCalledWith(
     '[threadList] checking listed roots failed:',
     expect.any(Error)
@@ -452,46 +422,12 @@ it('keeps a loaded list free of errors when checking its roots at the end fails'
 });
 
 it('checks each listed root with its page and once more as the load ends, not once per page', async () => {
-  class Client extends MatrixClient {
-    constructor() {
-      super({ baseUrl: 'https://example.org', userId });
-      this.clientOpts = { threadSupport: true };
-      this.threadSupportPending = Promise.resolve();
-    }
-  }
-  const mx = new Client();
-  const room = new Room(roomId, mx, userId, { timelineSupport: true });
-  mx.store.storeRoom(room);
-  const engine = createSyncEngine({ mx });
-  sessionId = engine.sessionId;
+  const { mx, room, engine } = setUpRoom();
   const saved: string[] = [];
-  const forRoom = engine.persist.forRoom.bind(engine.persist);
-  vi.spyOn(engine.persist, 'forRoom').mockImplementation((target) => {
-    const persist = forRoom(target);
-    return {
-      ...persist,
-      persistThreadEventCache: (...args) => {
-        saved.push(args[0]);
-        return persist.persistThreadEventCache(...args);
-      },
-    };
-  });
-  const listedRoot = (eventId: string) =>
-    new MatrixEvent({
-      event_id: eventId,
-      room_id: roomId,
-      sender: userId,
-      origin_server_ts: 1000,
-      type: 'm.room.message',
-      content: { msgtype: 'm.text', body: eventId },
-    });
-  const firstPage = ['$first-0', '$first-1', '$first-2'].map(listedRoot);
-  const laterPages = ['$page-1', '$page-2'].map(listedRoot);
-  Thread.hasServerSideListSupport = FeatureSupport.Stable;
-  const list = room.getUnfilteredTimelineSet();
-  room.threadsTimelineSets[0] = list;
-  room.threadsTimelineSets[1] = list;
-  list.getLiveTimeline().setPaginationToken('older-roots', Direction.Backward);
+  recordSaves(engine, (threadId) => saved.push(threadId));
+  const firstPage = ['$first-0', '$first-1', '$first-2'].map((id) => listedRoot(id));
+  const laterPages = ['$page-1', '$page-2'].map((id) => listedRoot(id));
+  const timeline = listInPages(room);
   let page = 0;
   vi.spyOn(mx, 'paginateEventTimeline').mockImplementation(async () => {
     // Each page's new root is saved with its page, before the next one.
@@ -499,31 +435,19 @@ it('checks each listed root with its page and once more as the load ends, not on
     room.processThreadRoots([laterPages[page]!], false);
     page += 1;
     const more = page < laterPages.length;
-    list.getLiveTimeline().setPaginationToken(more ? `page-${page}` : null, Direction.Backward);
+    timeline.setPaginationToken(more ? `page-${page}` : null, Direction.Backward);
     return more;
   });
   vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
     room.processThreadRoots(firstPage, false);
   });
   revisedRoots.length = 0;
-  let loading = true;
-  function Harness() {
-    loading = useRoomThreadList(room).loading;
-    return null;
-  }
   const showOverview = async () => {
     await act(async () => {
-      renderer = create(
-        <MatrixClientProvider value={mx}>
-          <SyncEngineProvider engine={engine}>
-            <Harness />
-          </SyncEngineProvider>
-        </MatrixClientProvider>
-      );
-      await vi.waitFor(() => expect(loading).toBe(false));
+      const list = showList(mx, engine, room);
+      await vi.waitFor(() => expect(list.current?.loading).toBe(false));
     });
-    await act(async () => renderer?.unmount());
-    renderer = undefined;
+    await closeList();
   };
 
   await showOverview();
@@ -531,7 +455,7 @@ it('checks each listed root with its page and once more as the load ends, not on
   expect(saved).toEqual(all);
   // One check per root as its page arrives, and one more of every root once the list is complete.
   expect(revisedRoots.slice(0, all.length)).toEqual(all);
-  expect([...revisedRoots.slice(all.length)].sort()).toEqual([...all].sort());
+  expect(revisedRoots.slice(all.length).sort()).toEqual([...all].sort());
 
   // A list that arrives in one page checks each root once.
   revisedRoots.length = 0;
@@ -736,68 +660,25 @@ it('saves encrypted listed roots once decrypted, and again when a failed one dec
 });
 
 it('saves a listed root that is still being decrypted when the overview closes', async () => {
-  class Client extends MatrixClient {
-    constructor() {
-      super({ baseUrl: 'https://example.org', userId });
-      this.clientOpts = { threadSupport: true };
-      this.threadSupportPending = Promise.resolve();
-    }
-  }
-  const mx = new Client();
-  const room = new Room(roomId, mx, userId, { timelineSupport: true });
-  mx.store.storeRoom(room);
-  const engine = createSyncEngine({ mx });
-  sessionId = engine.sessionId;
+  const { mx, room, engine } = setUpRoom();
   const saved: string[] = [];
-  const forRoom = engine.persist.forRoom.bind(engine.persist);
-  vi.spyOn(engine.persist, 'forRoom').mockImplementation((target) => {
-    const persist = forRoom(target);
-    return {
-      ...persist,
-      persistThreadEventCache: (...args) => {
-        saved.push(`${args[0]} ${args[2]?.getType()}`);
-        return persist.persistThreadEventCache(...args);
-      },
-    };
-  });
-  const root = new MatrixEvent({
-    event_id: '$decrypting',
-    room_id: roomId,
-    sender: userId,
-    origin_server_ts: 1000,
-    type: 'm.room.encrypted',
-    content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'decrypting' },
-  });
+  recordSaves(engine, (threadId, _replies, root) => saved.push(`${threadId} ${root?.getType()}`));
+  const root = encryptedListedRoot('$decrypting');
   let releaseKey!: () => void;
-  const decrypted = root.attemptDecryption({
-    decryptEvent: () =>
-      new Promise((resolve) => {
-        releaseKey = () =>
-          resolve({
-            clearEvent: { room_id: roomId, type: 'm.room.message', content: { body: 'Clear' } },
-          });
-      }),
-  } as unknown as CryptoBackend);
+  const decrypted = decryptRoot(
+    root,
+    new Promise((resolve) => {
+      releaseKey = () => resolve('Clear');
+    })
+  );
   vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
     room.processThreadRoots([root], false);
   });
-  let loading = true;
-  function Harness() {
-    loading = useRoomThreadList(room).loading;
-    return null;
-  }
   await act(async () => {
-    renderer = create(
-      <MatrixClientProvider value={mx}>
-        <SyncEngineProvider engine={engine}>
-          <Harness />
-        </SyncEngineProvider>
-      </MatrixClientProvider>
-    );
-    await vi.waitFor(() => expect(loading).toBe(false));
+    const list = showList(mx, engine, room);
+    await vi.waitFor(() => expect(list.current?.loading).toBe(false));
   });
-  await act(async () => renderer?.unmount());
-  renderer = undefined;
+  await closeList();
   expect(saved).toEqual([]);
   releaseKey();
   await decrypted;
