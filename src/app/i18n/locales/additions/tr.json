@@ -158,6 +158,7 @@
     "appUpdate": {
       "available": "MindRoom'un yeni bir sürümü kullanılabilir.",
       "reload": "Yeniden yükle",
+      "updating": "Güncelleniyor…",
       "dismiss": "Kapat",
       "reloadToUse": "Kullanmak için yeniden yükleyin."
     },

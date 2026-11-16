@@ -2,10 +2,19 @@
 // a signed-in start (src/sw/sw.ts), so a page loads its other chunks from the server the first time it
 // needs them, and a deployment that removed the previous build's files leaves the page unable to
 // load them. When the server publishes another version than this page's (version.json), the page
-// says a new version is available (NewVersionNotice) and offers to reload. It asks when the page
-// starts, when a part fails to load, when the page is shown again or comes back online, and every
-// five minutes while shown. The start matters most: the previous build's worker answers a reload
-// (and a discarded tab or a phone app that comes back) with the previous build.
+// knows a new version is available and offers to reload. It asks when the page starts, when a part
+// fails to load, when the page is shown again or comes back online, and every five minutes while
+// shown. The start matters most: the previous build's worker answers a reload (and a discarded tab
+// or a phone app that comes back) with the previous build.
+//
+// The card that offers the reload (NewVersionNotice) waits until the new build's worker has
+// installed; the page stages that worker at once if the version monitor has not. The worker
+// precaches its files one at a time, from a server that has just been deployed to, and a reload
+// before it is done waits for it, or gives up and loads the app from the server: tens of seconds
+// behind a pressed button. The card shows once the worker is done installing, also when its
+// install failed (the reload then loads from the server), at once without a worker, and after two
+// minutes at the latest. A broken page (AppErrorBoundary) offers the new version as soon as it is
+// known.
 //
 // A failed chunk can also outlive a reload: Safari 26 (and so the iOS app) answers a module the
 // page failed to load from that failure again after the reload, without a request, until the file
@@ -34,10 +43,15 @@ import { ensureBasePathTrailingSlash, getAppBasePath } from '../lib/basePath';
 /** How long a reload waits for the new worker to install and take over before it goes ahead. */
 export const TAKE_OVER_TIMEOUT_MS = 10_000;
 
+/** How long the new version waits for its worker to install before it is offered anyway. */
+export const NEW_WORKER_READY_TIMEOUT_MS = 2 * 60_000;
+
 /** Vite's event for a chunk or style sheet of a dynamic import that failed to load. */
 const PRELOAD_ERROR_EVENT = 'vite:preloadError';
 
 let newVersion: string | undefined;
+/** The new version once its worker is ready for a quick reload, or the wait for it gave up. */
+let readyVersion: string | undefined;
 /** Build files whose module preload failed in this page (Vite preloads every chunk it imports). */
 const failedModules = new Set<string>();
 let checking: Promise<void> | undefined;
@@ -46,12 +60,21 @@ const listeners = new Set<() => void>();
 /** The version the server publishes when it is not this page's, once the page asked. */
 export const getNewVersion = (): string | undefined => newVersion;
 
+/** The new version once its worker has installed, so a reload takes a moment (see the header). */
+export const getReadyVersion = (): string | undefined => readyVersion;
+
+/** Calls `listener` when the new version becomes known, and again when it becomes ready. */
 export const subscribeToNewVersion = (listener: () => void): (() => void) => {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
   };
 };
+
+const notify = () => listeners.forEach((listener) => listener());
+
+const serviceWorkers = (): ServiceWorkerContainer | undefined =>
+  typeof navigator === 'undefined' ? undefined : navigator.serviceWorker;
 
 /**
  * Asks the server which version it publishes. Offline, or when the server still has this page's
@@ -64,7 +87,10 @@ export const checkForNewVersion = (): Promise<void> => {
     .then((published) => {
       if (!published || published === APP_BUILD_VERSION) return;
       newVersion = published;
-      listeners.forEach((listener) => listener());
+      const container = serviceWorkers();
+      if (container) awaitNewWorker(container, published);
+      else readyVersion = published;
+      notify();
     })
     .finally(() => {
       checking = undefined;
@@ -161,15 +187,13 @@ const waitForNewController = (container: ServiceWorkerContainer, timeoutMs: numb
   });
 
 /**
- * Hands this page to the new build's worker. Resolves false when the new worker failed to install
- * or did not take over in time, and true otherwise, including when there was nothing to hand over.
+ * The new build's worker: the one waiting or installing, else one this page registers for the new
+ * version now. Null when the page has no registration or there is no new worker.
  */
-const handOverToNewWorker = async (timeoutMs: number): Promise<boolean> => {
-  const container = typeof navigator === 'undefined' ? undefined : navigator.serviceWorker;
-  if (!container) return true;
+const stageNewWorker = async (container: ServiceWorkerContainer): Promise<ServiceWorker | null> => {
   const scope = ensureBasePathTrailingSlash(getAppBasePath());
   let registration = await container.getRegistration(scope);
-  if (!registration) return true;
+  if (!registration) return null;
   let worker = registration.waiting ?? registration.installing;
   if (!worker && newVersion !== undefined) {
     // The version monitor stages a new build every five minutes at most; this one cannot wait.
@@ -180,6 +204,35 @@ const handOverToNewWorker = async (timeoutMs: number): Promise<boolean> => {
     });
     worker = registration.waiting ?? registration.installing;
   }
+  return worker;
+};
+
+/**
+ * Makes `version` ready once its worker has left `installing` (or could not be staged), or after
+ * NEW_WORKER_READY_TIMEOUT_MS, whichever comes first.
+ */
+const awaitNewWorker = (container: ServiceWorkerContainer, version: string): void => {
+  const ready = () => {
+    clearTimeout(timer);
+    if (readyVersion !== undefined) return;
+    readyVersion = version;
+    notify();
+  };
+  const timer = setTimeout(ready, NEW_WORKER_READY_TIMEOUT_MS);
+  stageNewWorker(container)
+    .then((worker) => worker && waitWhile(worker, 'installing', NEW_WORKER_READY_TIMEOUT_MS))
+    .catch(() => undefined)
+    .finally(ready);
+};
+
+/**
+ * Hands this page to the new build's worker. Resolves false when the new worker failed to install
+ * or did not take over in time, and true otherwise, including when there was nothing to hand over.
+ */
+const handOverToNewWorker = async (timeoutMs: number): Promise<boolean> => {
+  const container = serviceWorkers();
+  if (!container) return true;
+  const worker = await stageNewWorker(container);
   if (!worker) return true;
   await waitWhile(worker, 'installing', timeoutMs);
   // An activating or activated worker claims the page itself.

@@ -158,6 +158,7 @@
     "appUpdate": {
       "available": "MindRoom का नया संस्करण उपलब्ध है।",
       "reload": "फिर से लोड करें",
+      "updating": "अपडेट हो रहा है…",
       "dismiss": "हटाएँ",
       "reloadToUse": "इसका उपयोग करने के लिए फिर से लोड करें।"
     },

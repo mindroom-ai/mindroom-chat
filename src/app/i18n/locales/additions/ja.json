@@ -155,6 +155,7 @@
     "appUpdate": {
       "available": "MindRoom の新しいバージョンがあります。",
       "reload": "再読み込み",
+      "updating": "更新中…",
       "dismiss": "閉じる",
       "reloadToUse": "使うには再読み込みしてください。"
     },

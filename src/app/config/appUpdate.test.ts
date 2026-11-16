@@ -372,6 +372,113 @@ describe('reloadForNewVersion', () => {
   });
 });
 
+describe('ready new version', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', publishes('build-2'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('is ready only once the installing worker has left installing', async () => {
+    const { worker, moveTo } = fakeWorker('installing');
+    fakeContainer({ waiting: null, installing: worker });
+    const { checkForNewVersion, getNewVersion, getReadyVersion, subscribeToNewVersion } =
+      await loadAppUpdate();
+    const listener = vi.fn();
+    subscribeToNewVersion(listener);
+
+    await checkForNewVersion();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(getNewVersion()).toBe('build-2');
+    expect(getReadyVersion()).toBeUndefined();
+    expect(listener).toHaveBeenCalledOnce();
+
+    moveTo('installed');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getReadyVersion()).toBe('build-2');
+    expect(listener).toHaveBeenCalledTimes(2);
+  });
+
+  it('stages the new worker itself and waits for its install', async () => {
+    const { worker, moveTo } = fakeWorker('installing');
+    const container = fakeContainer({ waiting: null, installing: null, active: {} });
+    container.register.mockResolvedValue({ waiting: null, installing: worker });
+    const { checkForNewVersion, getReadyVersion } = await loadAppUpdate();
+
+    await checkForNewVersion();
+    await vi.advanceTimersByTimeAsync(0);
+    const [scriptUrl] = container.register.mock.calls[0] as unknown as [URL];
+    expect(scriptUrl.searchParams.get('version')).toBe('build-2');
+    expect(getReadyVersion()).toBeUndefined();
+
+    moveTo('installed');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getReadyVersion()).toBe('build-2');
+  });
+
+  it('is ready at once with a waiting worker, without a registration or a service worker', async () => {
+    const { worker } = fakeWorker('installed');
+    fakeContainer({ waiting: worker, installing: null });
+    let update = await loadAppUpdate();
+    await update.checkForNewVersion();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(update.getReadyVersion()).toBe('build-2');
+
+    fakeContainer(undefined);
+    update = await loadAppUpdate();
+    await update.checkForNewVersion();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(update.getReadyVersion()).toBe('build-2');
+
+    vi.stubGlobal('navigator', {});
+    update = await loadAppUpdate();
+    await update.checkForNewVersion();
+    // Without a service worker it is ready as soon as it is known.
+    expect(update.getReadyVersion()).toBe('build-2');
+  });
+
+  it('is ready when the install fails or the worker cannot be registered, so the reload can retire the old one', async () => {
+    const { worker, moveTo } = fakeWorker('installing');
+    fakeContainer({ waiting: null, installing: worker });
+    let update = await loadAppUpdate();
+    await update.checkForNewVersion();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(update.getReadyVersion()).toBeUndefined();
+    moveTo('redundant');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(update.getReadyVersion()).toBe('build-2');
+
+    const container = fakeContainer({ waiting: null, installing: null });
+    container.register.mockRejectedValue(new TypeError('Failed to register a ServiceWorker'));
+    update = await loadAppUpdate();
+    await update.checkForNewVersion();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(update.getReadyVersion()).toBe('build-2');
+  });
+
+  it('is ready after the time limit when the worker never finishes installing or registering', async () => {
+    const { worker } = fakeWorker('installing');
+    fakeContainer({ waiting: null, installing: worker });
+    let update = await loadAppUpdate();
+    await update.checkForNewVersion();
+    await vi.advanceTimersByTimeAsync(update.NEW_WORKER_READY_TIMEOUT_MS - 1);
+    expect(update.getReadyVersion()).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(update.getReadyVersion()).toBe('build-2');
+
+    const container = fakeContainer({ waiting: null, installing: null });
+    container.register.mockReturnValue(new Promise(() => {}));
+    update = await loadAppUpdate();
+    await update.checkForNewVersion();
+    await vi.advanceTimersByTimeAsync(update.NEW_WORKER_READY_TIMEOUT_MS);
+    expect(update.getReadyVersion()).toBe('build-2');
+  });
+});
+
 describe('failed modules', () => {
   afterEach(() => {
     vi.unstubAllGlobals();

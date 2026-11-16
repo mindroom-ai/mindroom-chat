@@ -170,6 +170,7 @@
     "appUpdate": {
       "available": "يتوفر إصدار جديد من MindRoom.",
       "reload": "إعادة التحميل",
+      "updating": "جارٍ التحديث…",
       "dismiss": "تجاهل",
       "reloadToUse": "أعد التحميل لاستخدامه."
     },
