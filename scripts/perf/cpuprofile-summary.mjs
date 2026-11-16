@@ -61,14 +61,17 @@ const consumerFor = (url) => {
     );
   } else if (chosen && !Number.isNaN(target)) {
     const built = chosen.slice(0, -4);
-    const extra = size(path.join(assets, built)) - target;
-    // The sourcemap build's chunk ends with a line that names its map.
-    const comment = `\n//# sourceMappingURL=${built}.map`.length;
-    if (extra !== comment) {
+    // The sourcemap build's chunk ends with a line that names its map, and its chunk names carry
+    // other hashes (the map is part of a chunk's hash): both are left out, the rest must match.
+    // A hash keeps its length, so the positions of the code after it stay the same.
+    const code = (file) =>
+      readFileSync(file, 'utf8')
+        .replace(/\/\/# sourceMappingURL=\S*\s*$/, '')
+        .replace(/-[\w-]{8}\.(js|css)\b/g, '-########.$1')
+        .trimEnd();
+    if (code(path.join(assets, built)) !== code(path.join(buildDir, 'assets', base))) {
       console.error(
-        `warning: ${base}: the sourcemap build's ${built} is ${
-          extra - comment
-        } bytes off the served chunk; its frames may carry a neighbour's name`
+        `warning: ${base}: the sourcemap build's ${built} differs from the served chunk; its frames may carry a neighbour's name`
       );
     }
   }
