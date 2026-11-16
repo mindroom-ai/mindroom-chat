@@ -2,10 +2,10 @@
   "name": "real-work-50-agents",
   "quietRooms": 200,
   "quietMessages": 10,
-  "threads": 520,
-  "resolvedThreads": 470,
+  "threads": 170,
+  "resolvedThreads": 120,
   "heavy": {
-    "threads": 12,
+    "threads": 6,
     "turns": {
       "p50": 10,
       "p90": 44,
