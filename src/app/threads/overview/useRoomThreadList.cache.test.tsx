@@ -19,12 +19,18 @@ import { buildCompactThreadRootData } from '../../event-store/threads/compactThr
 
 /** Roots whose revision the hook computed, in order. */
 const revisedRoots: string[] = [];
+/** Makes the next revision throw. */
+let failNextRevision = false;
 vi.mock('../../event-store/cache/eventRepository', async (original) => {
   const actual = await original<typeof import('../../event-store/cache/eventRepository')>();
   return {
     ...actual,
     serializeThreadCacheEvents: (...args: Parameters<typeof actual.serializeThreadCacheEvents>) => {
       revisedRoots.push(args[2]?.getId() ?? '');
+      if (failNextRevision) {
+        failNextRevision = false;
+        throw new Error('Unreadable root');
+      }
       return actual.serializeThreadCacheEvents(...args);
     },
   };
@@ -384,6 +390,65 @@ it('saves a root that changed before a later page when the overview closes befor
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
   expect(revisedRoots).toHaveLength(revised);
+});
+
+it('keeps a loaded list free of errors when checking its roots at the end fails', async () => {
+  class Client extends MatrixClient {
+    constructor() {
+      super({ baseUrl: 'https://example.org', userId });
+      this.clientOpts = { threadSupport: true };
+      this.threadSupportPending = Promise.resolve();
+    }
+  }
+  const mx = new Client();
+  const room = new Room(roomId, mx, userId, { timelineSupport: true });
+  mx.store.storeRoom(room);
+  const engine = createSyncEngine({ mx });
+  sessionId = engine.sessionId;
+  const root = new MatrixEvent({
+    event_id: '$listed',
+    room_id: roomId,
+    sender: userId,
+    origin_server_ts: 1000,
+    type: 'm.room.message',
+    content: { msgtype: 'm.text', body: 'Listed' },
+  });
+  Thread.hasServerSideListSupport = FeatureSupport.Stable;
+  const list = room.getUnfilteredTimelineSet();
+  room.threadsTimelineSets[0] = list;
+  room.threadsTimelineSets[1] = list;
+  list.getLiveTimeline().setPaginationToken('older-roots', Direction.Backward);
+  vi.spyOn(mx, 'paginateEventTimeline').mockImplementation(async () => {
+    list.getLiveTimeline().setPaginationToken(null, Direction.Backward);
+    failNextRevision = true;
+    return false;
+  });
+  vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
+    room.processThreadRoots([root], false);
+  });
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  let state: ReturnType<typeof useRoomThreadList> | undefined;
+  function Harness() {
+    state = useRoomThreadList(room);
+    return null;
+  }
+  await act(async () => {
+    renderer = create(
+      <MatrixClientProvider value={mx}>
+        <SyncEngineProvider engine={engine}>
+          <Harness />
+        </SyncEngineProvider>
+      </MatrixClientProvider>
+    );
+    await vi.waitFor(() => expect(state?.loading).toBe(false));
+  });
+  expect(failNextRevision).toBe(false);
+  expect(state?.error).toBeUndefined();
+  expect(state?.loadedSuccessfully).toBe(true);
+  expect(warn).toHaveBeenCalledWith(
+    '[threadList] checking listed roots failed:',
+    expect.any(Error)
+  );
 });
 
 it('checks each listed root once per page load, not once per page', async () => {

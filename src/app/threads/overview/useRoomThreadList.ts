@@ -162,7 +162,13 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
         });
       const checkAll = () => {
         signal.removeEventListener('abort', checkAll);
-        if (pages > 1) saveRoots(true);
+        try {
+          if (pages > 1) saveRoots(true);
+        } catch (err) {
+          // The list loaded; a root that cannot be saved must not turn it into an error.
+          // eslint-disable-next-line no-console
+          console.warn('[threadList] checking listed roots failed:', err);
+        }
         pages = 0;
       };
       signal.addEventListener('abort', checkAll);
