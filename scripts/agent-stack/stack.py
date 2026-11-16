@@ -458,7 +458,10 @@ def alive(pid: int | None, marker: str) -> bool:
     try:
         cmdline = Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace")
     except OSError:
-        return False
+        # No /proc (macOS), or the process is gone: ps prints nothing for a PID that is not there.
+        cmdline = subprocess.run(
+            ["ps", "-ww", "-o", "command=", "-p", str(pid)], capture_output=True, text=True, check=False
+        ).stdout
     return marker in cmdline
 
 

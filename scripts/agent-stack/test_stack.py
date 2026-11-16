@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import unittest
 import urllib.parse
 from pathlib import Path
@@ -888,6 +889,39 @@ case "$1" in
     touch "$FAKE_DOCKER_DIR/built" ;;
 esac
 """
+
+
+class AliveTests(unittest.TestCase):
+    def test_own_process_is_found_by_its_command_line(self) -> None:
+        with subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)  # alive-marker-a"]) as process:
+            try:
+                # Until the child has replaced the interpreter that forked it, its command line is this test's.
+                deadline = time.monotonic() + 10
+                while not stack.alive(process.pid, "alive-marker-a") and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(stack.alive(process.pid, "alive-marker-a"))
+                self.assertFalse(stack.alive(process.pid, "another-marker"))
+            finally:
+                process.kill()
+        self.assertFalse(stack.alive(process.pid, "alive-marker-a"))
+        self.assertFalse(stack.alive(None, "alive-marker-a"))
+
+    def test_without_proc_the_command_line_comes_from_ps(self) -> None:
+        """macOS has no /proc: a start there must not read as a backend that exited."""
+        ps = mock.Mock(return_value=subprocess.CompletedProcess([], 0, stdout="/venv/bin/mindroom run --config /slot-7/c\n"))
+        with (
+            mock.patch.object(Path, "read_bytes", side_effect=FileNotFoundError),
+            mock.patch.object(stack.subprocess, "run", ps),
+        ):
+            self.assertTrue(stack.alive(4242, "/slot-7"))
+            self.assertFalse(stack.alive(4242, "/slot-8"))
+        self.assertEqual(ps.call_args.args[0], ["ps", "-ww", "-o", "command=", "-p", "4242"])
+        gone = mock.Mock(return_value=subprocess.CompletedProcess([], 1, stdout=""))
+        with (
+            mock.patch.object(Path, "read_bytes", side_effect=FileNotFoundError),
+            mock.patch.object(stack.subprocess, "run", gone),
+        ):
+            self.assertFalse(stack.alive(4242, "/slot-7"))
 
 
 class WorkerImageTests(unittest.TestCase):
