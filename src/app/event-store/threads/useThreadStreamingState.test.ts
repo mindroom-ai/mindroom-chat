@@ -425,6 +425,44 @@ describe('useThreadStreamingState', () => {
     renderer.unmount();
   });
 
+  it('reads the tail once for a burst of thread updates, as history loading sends', () => {
+    const relationMap = new Map<string, MockRelations>();
+    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
+    const reply = makeThreadReplyEvent('$reply', 200);
+    const thread = makeThread({ lastReply: reply, relationMap, timelineEvents: [reply] });
+    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
+    const { getSnapshot, renderer } = renderHookHarness(room);
+    const lookups = vi.mocked(thread.getUnfilteredTimelineSet().relations.getChildEventsForEvent);
+    lookups.mockClear();
+
+    act(() => {
+      thread.emit(ThreadEvent.Update, thread);
+    });
+    const lookupsForOneUpdate = lookups.mock.calls.length;
+    expect(lookupsForOneUpdate).toBeGreaterThan(0);
+    lookups.mockClear();
+
+    // The SDK sends one update for every event a page of older history adds.
+    act(() => {
+      for (let i = 0; i < 50; i += 1) thread.emit(ThreadEvent.Update, thread);
+    });
+    expect(lookups.mock.calls.length).toBe(lookupsForOneUpdate);
+    expect(getSnapshot()).toBe(false);
+
+    // An update the burst carries still shows.
+    const streamingReply = makeThreadReplyEvent('$streaming', 300, {
+      'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+    });
+    act(() => {
+      thread.setTimelineEvents([reply, streamingReply]);
+      thread.setLastReply(streamingReply);
+      for (let i = 0; i < 50; i += 1) thread.emit(ThreadEvent.Update, thread);
+    });
+    expect(getSnapshot()).toBe(true);
+
+    renderer.unmount();
+  });
+
   it('updates when the thread switches to a new streaming reply', () => {
     const relationMap = new Map<string, MockRelations>();
     const roomTimelineSet = makeTimelineSet(relationMap, () => []);
