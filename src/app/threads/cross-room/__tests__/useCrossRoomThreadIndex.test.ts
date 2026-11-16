@@ -408,7 +408,7 @@ describe('useCrossRoomThreadIndex', () => {
     let jobs: StateMatrixEvent[] = [];
     Object.defineProperty(room, 'myUserId', { value: '@me:example.org' });
     Object.defineProperty(room, 'currentState', { value: { getStateEvents: () => jobs } });
-    room.getMember.mockReturnValue(null);
+    room.getMember.mockReturnValue({ membership: 'join' } as never);
     const client = makeClient(room);
     matrixClientMock.mockReturnValue(client);
     const store = createStore();
@@ -453,21 +453,38 @@ describe('useCrossRoomThreadIndex', () => {
     expect(room.getThread.mock.calls.every(([id]) => id === rootId)).toBe(true);
     await publish('awaiting_approval');
     expect(entry().threadRecord.status.hasBackgroundApproval).toBe(true);
+    const membership = async (value: 'join' | 'leave') => {
+      const event = new StateMatrixEvent({
+        type: 'm.room.member',
+        state_key: agent,
+        sender: agent,
+        content: { membership: value },
+      });
+      await act(async () => {
+        // The SDK emits Events before it updates the member, then Members afterwards.
+        client.emit(RoomStateEvent.Events, event, { roomId: room.roomId });
+        room.getMember.mockReturnValue({ membership: value } as never);
+        client.emit(RoomStateEvent.Members, event, { roomId: room.roomId }, room.getMember(agent));
+      });
+      await flushScheduledWork();
+    };
     room.getThread.mockClear();
-    await act(async () => {
-      client.emit(
-        RoomStateEvent.Events,
-        new StateMatrixEvent({
-          type: 'm.room.member',
-          state_key: agent,
-          sender: agent,
-          content: { membership: 'join' },
-        }),
-        { roomId: room.roomId }
-      );
-    });
-    await flushScheduledWork();
+    await membership('join');
     expect(room.getThread).not.toHaveBeenCalled();
+    await membership('leave');
+    expect(entry().threadRecord.status.hasBackgroundJob).toBeFalsy();
+    expect(entry().threadRecord.status.hasBackgroundApproval).toBeUndefined();
+    expect(room.getThread.mock.calls.every(([id]) => id === rootId)).toBe(true);
+    room.getThread.mockClear();
+    await membership('leave');
+    expect(room.getThread).not.toHaveBeenCalled();
+    await membership('join');
+    expect(entry().threadRecord.status.hasBackgroundApproval).toBe(true);
+    await publish('running');
+    expect(entry().threadRecord.status.hasBackgroundJob).toBe(true);
+    await membership('leave');
+    expect(entry().threadRecord.status.hasBackgroundJob).toBeUndefined();
+    await membership('join');
     await publish('finished');
     expect(entry().threadRecord.status.hasBackgroundJob).toBeUndefined();
     await act(async () => {
@@ -662,6 +679,10 @@ describe('useCrossRoomThreadIndex', () => {
     expect(room.on).toHaveBeenCalledWith(RoomEvent.LocalEchoUpdated, expect.any(Function));
     expect(room.on).toHaveBeenCalledWith(ThreadEvent.NewReply, expect.any(Function));
     expect(mx.on).toHaveBeenCalledWith(RoomEvent.MyMembership, expect.any(Function));
+    const membersHandler = mx.on.mock.calls.find(
+      ([event]) => event === RoomStateEvent.Members
+    )?.[1];
+    expect(membersHandler).toBeTypeOf('function');
     expect(mx.on).toHaveBeenCalledWith(MatrixEventEvent.Decrypted, expect.any(Function));
 
     await act(async () => {
@@ -673,6 +694,7 @@ describe('useCrossRoomThreadIndex', () => {
       expect.any(Function)
     );
     expect(mx.removeListener).toHaveBeenCalledWith(RoomStateEvent.Events, expect.any(Function));
+    expect(mx.removeListener).toHaveBeenCalledWith(RoomStateEvent.Members, membersHandler);
   });
 
   it('keeps bootstrapped false for dirty thread flushes before lazy bootstrap drains', async () => {

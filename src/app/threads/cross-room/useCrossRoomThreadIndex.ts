@@ -573,10 +573,34 @@ export const useCrossRoomThreadIndex = () => {
     };
     const unsubscribePendingPins = subscribePendingPins(handlePinChange);
 
+    const refreshBackgroundJobs = (room: Room) => {
+      const states = roomThreadBackgroundJobs(room);
+      if (lastBackgroundJobs.get(room) === states) return;
+      lastBackgroundJobs.set(room, states);
+      // Lazy member state can arrive unchanged with every sync. Only rebuild roots whose
+      // workflow flags actually changed, including jobs that disappeared from state.
+      snapshotRef.current.entries.forEach((entry) => {
+        if (entry.roomId !== room.roomId) return;
+        const next = states.get(entry.threadRootId);
+        const previous = entry.threadRecord.status;
+        if (
+          !!next?.hasBackgroundJob !== !!previous.hasBackgroundJob ||
+          !!next?.hasBackgroundApproval !== !!previous.hasBackgroundApproval
+        ) {
+          enqueueThread(room.roomId, entry.threadRootId);
+        }
+      });
+    };
+
+    const handleMembers = (_event: MatrixEvent, roomState: { roomId?: string }) => {
+      const room = roomState.roomId ? mx.getRoom(roomState.roomId) : undefined;
+      if (room && roomDisposers.has(room.roomId)) refreshBackgroundJobs(room);
+    };
+
     const handleStateEvent = (event: MatrixEvent, roomState: { roomId?: string }) => {
       const type = event.getType();
       const pinsChanged = matchesEnum(type, StateEvent.RoomPinnedEvents);
-      const jobsChanged = type === MINDROOM_BACKGROUND_JOBS_EVENT || type === 'm.room.member';
+      const jobsChanged = type === MINDROOM_BACKGROUND_JOBS_EVENT;
       const schedulesChanged = type === MINDROOM_SCHEDULED_TASK_EVENT;
       if (type !== MINDROOM_THREAD_TAGS_EVENT && !pinsChanged && !jobsChanged && !schedulesChanged)
         return;
@@ -602,22 +626,7 @@ export const useCrossRoomThreadIndex = () => {
             enqueueThread(room.roomId, entry.threadRootId);
         });
       } else if (jobsChanged) {
-        const states = roomThreadBackgroundJobs(room);
-        if (lastBackgroundJobs.get(room) === states) return;
-        lastBackgroundJobs.set(room, states);
-        // Lazy member state can arrive unchanged with every sync. Only rebuild roots whose
-        // workflow flags actually changed, including jobs that disappeared from state.
-        snapshotRef.current.entries.forEach((entry) => {
-          if (entry.roomId !== room.roomId) return;
-          const next = states.get(entry.threadRootId);
-          const previous = entry.threadRecord.status;
-          if (
-            !!next?.hasBackgroundJob !== !!previous.hasBackgroundJob ||
-            !!next?.hasBackgroundApproval !== !!previous.hasBackgroundApproval
-          ) {
-            enqueueThread(room.roomId, entry.threadRootId);
-          }
-        });
+        refreshBackgroundJobs(room);
       } else if (pinsChanged) {
         handlePinChange(room);
       } else {
@@ -648,6 +657,8 @@ export const useCrossRoomThreadIndex = () => {
 
     mx.on(RoomEvent.MyMembership, handleMembership);
     mx.on(RoomStateEvent.Events, handleStateEvent);
+    // Members fires after the SDK updates getMember(); Events fires before it.
+    mx.on(RoomStateEvent.Members, handleMembers);
     mx.on(MatrixEventEvent.Decrypted, handleDecrypted);
 
     return () => {
@@ -661,6 +672,7 @@ export const useCrossRoomThreadIndex = () => {
       Array.from(roomDisposers.keys()).forEach(removeRoomListeners);
       mx.removeListener(RoomEvent.MyMembership, handleMembership);
       mx.removeListener(RoomStateEvent.Events, handleStateEvent);
+      mx.removeListener(RoomStateEvent.Members, handleMembers);
       mx.removeListener(MatrixEventEvent.Decrypted, handleDecrypted);
     };
   }, [activeSession?.sessionId, mx, setSnapshot, userId]);
