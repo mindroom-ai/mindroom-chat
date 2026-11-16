@@ -124,6 +124,15 @@ for (const width of [1280, 390]) {
       await expect(tab(name)).toContainText(String(count));
     }
     await expect(overview.locator('[data-thread-count]')).toHaveText('2');
+    // Simple mode's toggle must not contradict the saved advanced Done bucket.
+    await tab('done').click();
+    await expect(overview.locator('[data-thread-count]')).toHaveText('1');
+    await overview.locator('[data-thread-filter-mode-switch]').click();
+    await overview.locator('[data-simple-unresolved-toggle]').click();
+    await expect(overview.locator('[data-thread-count]')).toHaveText('5');
+    await overview.locator('[data-thread-filter-mode-switch]').click();
+    await expect(tab('done')).toHaveAttribute('aria-pressed', 'true');
+    await expect(overview.locator('[data-thread-count]')).toHaveText('1');
     await tab('working').click();
     await expect(overview.locator('[data-thread-count]')).toHaveText('1');
     await page.reload();

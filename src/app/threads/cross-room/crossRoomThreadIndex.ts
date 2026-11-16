@@ -1,3 +1,7 @@
+import {
+  getRoomThreadScheduledStatusMap,
+  type ThreadScheduledStatus,
+} from '../../event-store/threads/threadScheduledStatus';
 import { roomThreadBackgroundJobs } from '../../matrix/protocol/threadBackgroundJobs';
 import { atom } from 'jotai';
 import type { MatrixEvent } from 'matrix-js-sdk';
@@ -358,6 +362,7 @@ export const buildCrossRoomThreadIndexEntry = ({
   summaryInfo,
   currentUserId,
   tagSnapshot,
+  scheduledStatus,
 }: {
   room: Room;
   threadRootId: string;
@@ -366,6 +371,7 @@ export const buildCrossRoomThreadIndexEntry = ({
   currentUserId?: string;
   /** null is an explicitly untagged root in a shared room snapshot. */
   tagSnapshot?: ThreadTagSnapshot | null;
+  scheduledStatus?: ThreadScheduledStatus;
 }): CrossRoomThreadIndexEntry | undefined => {
   const thread = room.getThread(threadRootId);
   const resolvedRootEvent =
@@ -382,6 +388,7 @@ export const buildCrossRoomThreadIndexEntry = ({
     threadRootEvent: resolvedRootEvent,
     summaryInfo,
     rootPreviewText,
+    scheduledStatus: scheduledStatus ?? getRoomThreadScheduledStatusMap(room).get(threadRootId),
     threadResolution: resolvedTagSnapshot
       ? {
           isResolved: isThreadResolved(

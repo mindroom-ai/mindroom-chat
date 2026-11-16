@@ -377,3 +377,17 @@ it('keeps the default Needs you tab while changing the sort or adding a tag', ()
   expect(current().threadFilterState.tab).toBe('needsYou');
   expect(current().threadFilterState.tags.get('review')).toBe('include');
 });
+
+it('restores the authoritative Done tab after toggling Unresolved in Simple mode', () => {
+  const { current, store } = mountThreadState({ advancedFilters: true });
+  act(() => current().handleSelectTab('done'));
+  act(() => store.set(settingsAtom, { ...store.get(settingsAtom), simpleThreadFilters: true }));
+  act(() => current().handleToggleUnresolvedOnly());
+  expect(current().threadFilterState.resolved).toBe('exclude');
+  expect(current().threadFilterState.tab).toBeUndefined();
+  act(() => store.set(settingsAtom, { ...store.get(settingsAtom), simpleThreadFilters: false }));
+  expect(current().threadFilterState.tab).toBe('done');
+  expect(current().threadFilterState.resolved).toBe('any');
+  act(() => store.set(settingsAtom, { ...store.get(settingsAtom), simpleThreadFilters: true }));
+  expect(current().threadFilterState.resolved).toBe('exclude');
+});

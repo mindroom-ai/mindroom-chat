@@ -1,5 +1,11 @@
+import type { Room } from 'matrix-js-sdk';
+import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
+import { MINDROOM_SCHEDULED_TASK_EVENT } from '../../matrix/protocol/scheduledTaskContract';
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
-import { parseScheduleTimestamp, parseScheduledTaskStateEvent } from '../../matrix/protocol/scheduledTaskContract';
+import {
+  parseScheduleTimestamp,
+  parseScheduledTaskStateEvent,
+} from '../../matrix/protocol/scheduledTaskContract';
 
 export type ThreadScheduledStatus = {
   scheduledTaskCount: number;
@@ -65,3 +71,11 @@ export const getThreadScheduledStatus = (
   threadRootId
     ? scheduledStatusMap.get(threadRootId) ?? EMPTY_THREAD_SCHEDULED_STATUS
     : EMPTY_THREAD_SCHEDULED_STATUS;
+
+/** Same sender trust rule as the room's scheduled-task controls. Read once per index flush. */
+export const getRoomThreadScheduledStatusMap = (room: Room): Map<string, ThreadScheduledStatus> =>
+  buildRoomThreadScheduledStatusMap(
+    room.currentState
+      .getStateEvents(MINDROOM_SCHEDULED_TASK_EVENT)
+      .filter((event) => isMindroomAgentUserIdForViewer(event.getSender(), room.myUserId))
+  );

@@ -562,10 +562,10 @@ export const useThreadIndex = ({
   );
   const { jobs } = useRoomBackgroundJobs(room);
   const jobStates = useMemo(() => indexThreadBackgroundJobs(jobs), [jobs]);
-  const { normalThreadRecordMap, compactThreadRecordMap } = useMemo(() => {
+  const baseRecordMaps = useMemo(() => {
     // External hydration can refresh mutable SDK/cache-backed sources without changing map identity.
     void overviewRefreshCounter;
-    const maps = buildThreadIndexRecordMaps({
+    return buildThreadIndexRecordMaps({
       threadId,
       compactViewRequested,
       room,
@@ -583,15 +583,7 @@ export const useThreadIndex = ({
       currentUserId,
       scheduledStatusMap,
     });
-    for (const records of new Set([maps.normalThreadRecordMap, maps.compactThreadRecordMap])) {
-      for (const [id, record] of records) {
-        const jobState = jobStates.get(id);
-        if (jobState) records.set(id, { ...record, status: { ...record.status, ...jobState } });
-      }
-    }
-    return maps;
   }, [
-    jobStates,
     threadId,
     compactViewRequested,
     room,
@@ -610,6 +602,38 @@ export const useThreadIndex = ({
     scheduledStatusMap,
     overviewRefreshCounter,
   ]);
+  // Base records read SDK timelines. Job-only updates must only overlay their two flags.
+  // Weak keys retain unchanged overlays without retaining old record/history snapshots.
+  const jobOverlays = useMemo(() => new WeakMap<ThreadRecord, ThreadRecord>(), []);
+  const { normalThreadRecordMap, compactThreadRecordMap } = useMemo(() => {
+    const overlay = (records: Map<string, ThreadRecord>) => {
+      let result = records;
+      for (const [id, record] of records) {
+        const flags = jobStates.get(id);
+        if (!flags) continue;
+        let joined = jobOverlays.get(record);
+        if (
+          !joined ||
+          joined.status.hasBackgroundJob !== flags.hasBackgroundJob ||
+          joined.status.hasBackgroundApproval !== flags.hasBackgroundApproval
+        ) {
+          joined = { ...record, status: { ...record.status, ...flags } };
+          jobOverlays.set(record, joined);
+        }
+        if (result === records) result = new Map(records);
+        result.set(id, joined);
+      }
+      return result;
+    };
+    const normal = overlay(baseRecordMaps.normalThreadRecordMap);
+    return {
+      normalThreadRecordMap: normal,
+      compactThreadRecordMap:
+        baseRecordMaps.compactThreadRecordMap === baseRecordMaps.normalThreadRecordMap
+          ? normal
+          : overlay(baseRecordMaps.compactThreadRecordMap),
+    };
+  }, [baseRecordMaps, jobStates, jobOverlays]);
   // Renewed when a snooze ends, so its thread comes back into the list.
   const snoozeNow = useSnoozeNow(
     useMemo(

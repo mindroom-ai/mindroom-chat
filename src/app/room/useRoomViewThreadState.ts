@@ -152,7 +152,9 @@ export const useRoomViewThreadState = ({
         : simplifyAgentlessSimpleThreadFilterState(threadFilterState);
     }
     return hasMindroomAgents
-      ? threadFilterState
+      ? threadFilterState.tab
+        ? selectThreadWorkflowTab(threadFilterState, threadFilterState.tab)
+        : threadFilterState
       : simplifyAgentlessThreadFilterState(threadFilterState);
   }, [hasMindroomAgents, simpleMode, threadFilterState]);
   const lastExitedThread = useAtomValue(lastExitedThreadAtom);

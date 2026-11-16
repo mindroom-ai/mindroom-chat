@@ -333,6 +333,72 @@ describe('useCrossRoomThreadIndex', () => {
     clearThreadSummarySharedState();
   });
 
+  it('joins trusted schedules at bootstrap and refreshes only affected roots', async () => {
+    const { room } = makeRoomWithThreads('!room:example.org', [
+      { id: '$scheduled', body: 'Scheduled' },
+      { id: '$other', body: 'Other' },
+    ]);
+    const schedule = (
+      threadId: string,
+      status = 'pending',
+      sender = '@mindroom_agent:example.org'
+    ) =>
+      new StateMatrixEvent({
+        type: 'com.mindroom.scheduled.task',
+        state_key: 'task',
+        sender,
+        content: { status, thread_id: threadId, cron_description: 'Every day' },
+      });
+    let events = [schedule('$scheduled')];
+    Object.defineProperty(room, 'myUserId', { value: '@me:example.org' });
+    const getStateEvents = vi.fn((type: string) =>
+      type === 'com.mindroom.scheduled.task' ? events : []
+    );
+    Object.defineProperty(room, 'currentState', { value: { getStateEvents } });
+    const client = makeClient(room);
+    matrixClientMock.mockReturnValue(client);
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+    const entry = (id: string) =>
+      store.get(crossRoomThreadIndexAtom).entries.get(getCrossRoomThreadIndexKey(room.roomId, id))!;
+    expect(entry('$scheduled').threadRecord.status.scheduledTaskCount).toBe(1);
+    expect(
+      getStateEvents.mock.calls.filter(([type]) => type === 'com.mindroom.scheduled.task')
+    ).toHaveLength(1);
+    const other = entry('$other');
+    const publish = async (event: StateMatrixEvent) => {
+      events = [event];
+      await act(async () => {
+        client.emit(RoomStateEvent.Events, event, { roomId: room.roomId });
+      });
+      await flushScheduledWork();
+    };
+    room.getThread.mockClear();
+    await publish(schedule('$scheduled', 'completed'));
+    expect(entry('$scheduled').threadRecord.status.scheduledTaskCount).toBe(0);
+    expect(entry('$other')).toBe(other);
+    expect(room.getThread.mock.calls.every(([id]) => id === '$scheduled')).toBe(true);
+    await publish(schedule('$scheduled'));
+    expect(entry('$scheduled').threadRecord.status.scheduledTaskCount).toBe(1);
+    // Moving a task must refresh both its former and new root.
+    await publish(schedule('$other'));
+    expect(entry('$scheduled').threadRecord.status.scheduledTaskCount).toBe(0);
+    expect(entry('$other').threadRecord.status.scheduledTaskCount).toBe(1);
+    await publish(schedule('$other', 'pending', '@mallory:example.org'));
+    expect(entry('$other').threadRecord.status.scheduledTaskCount).toBe(0);
+    room.getThread.mockClear();
+    await publish(events[0]!);
+    expect(room.getThread).not.toHaveBeenCalled();
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
   it('refreshes only changed background-job threads and ignores repeated membership state', async () => {
     const { room, roots } = makeRoomWithThreads('!room:example.org', [
       { id: '$job', body: 'Job' },

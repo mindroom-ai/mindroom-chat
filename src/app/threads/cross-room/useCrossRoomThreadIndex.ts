@@ -1,3 +1,8 @@
+import {
+  getRoomThreadScheduledStatusMap,
+  getThreadScheduledStatus,
+} from '../../event-store/threads/threadScheduledStatus';
+import { MINDROOM_SCHEDULED_TASK_EVENT } from '../../matrix/protocol/scheduledTaskContract';
 import { roomThreadBackgroundJobs } from '../../matrix/protocol/threadBackgroundJobs';
 import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../../matrix/protocol/backgroundJobsContract';
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
@@ -225,7 +230,8 @@ export const useCrossRoomThreadIndex = () => {
     const buildEntry = (
       roomId: string,
       threadRootId: string,
-      roomTagSnapshots: Map<string, ReturnType<typeof getRoomThreadTagSnapshotMap>>
+      roomTagSnapshots: Map<string, ReturnType<typeof getRoomThreadTagSnapshotMap>>,
+      roomSchedules: Map<string, ReturnType<typeof getRoomThreadScheduledStatusMap>>
     ) => {
       if (!roomDisposers.has(roomId)) return undefined;
 
@@ -245,12 +251,19 @@ export const useCrossRoomThreadIndex = () => {
         roomTagSnapshots.set(roomId, tagSnapshots);
       }
 
+      let schedules = roomSchedules.get(roomId);
+      if (!schedules) {
+        schedules = getRoomThreadScheduledStatusMap(room);
+        roomSchedules.set(roomId, schedules);
+      }
+
       return buildCrossRoomThreadIndexEntry({
         room,
         threadRootId,
         summaryInfo: summaryMap.get(threadRootId),
         currentUserId: userIdRef.current,
         tagSnapshot: tagSnapshots.get(threadRootId) ?? null,
+        scheduledStatus: getThreadScheduledStatus(schedules, threadRootId),
       });
     };
 
@@ -265,11 +278,18 @@ export const useCrossRoomThreadIndex = () => {
         // Scope reuse to this synchronous flush so later state events always win.
         const roomTagSnapshots = new Map<string, ReturnType<typeof getRoomThreadTagSnapshotMap>>();
 
+        const roomSchedules = new Map<string, ReturnType<typeof getRoomThreadScheduledStatusMap>>();
+
         keys.forEach((key) => {
           const parsed = parseCrossRoomThreadIndexKey(key);
           if (!parsed) return;
 
-          const entry = buildEntry(parsed.roomId, parsed.threadRootId, roomTagSnapshots);
+          const entry = buildEntry(
+            parsed.roomId,
+            parsed.threadRootId,
+            roomTagSnapshots,
+            roomSchedules
+          );
           if (!entry) {
             removals.push(parsed);
             return;
@@ -557,7 +577,9 @@ export const useCrossRoomThreadIndex = () => {
       const type = event.getType();
       const pinsChanged = matchesEnum(type, StateEvent.RoomPinnedEvents);
       const jobsChanged = type === MINDROOM_BACKGROUND_JOBS_EVENT || type === 'm.room.member';
-      if (type !== MINDROOM_THREAD_TAGS_EVENT && !pinsChanged && !jobsChanged) return;
+      const schedulesChanged = type === MINDROOM_SCHEDULED_TASK_EVENT;
+      if (type !== MINDROOM_THREAD_TAGS_EVENT && !pinsChanged && !jobsChanged && !schedulesChanged)
+        return;
       const roomId =
         roomState?.roomId ?? (event as unknown as { getRoomId?: () => string }).getRoomId?.();
       if (!roomId) return;
@@ -566,7 +588,20 @@ export const useCrossRoomThreadIndex = () => {
       if (!room) return;
       if (!roomDisposers.has(room.roomId)) return;
 
-      if (jobsChanged) {
+      if (schedulesChanged) {
+        const schedules = getRoomThreadScheduledStatusMap(room);
+        snapshotRef.current.entries.forEach((entry) => {
+          if (entry.roomId !== room.roomId) return;
+          const next = getThreadScheduledStatus(schedules, entry.threadRootId);
+          const previous = entry.threadRecord.status;
+          if (
+            next.scheduledTaskCount !== previous.scheduledTaskCount ||
+            next.nextScheduledTs !== previous.nextScheduledTs ||
+            next.cronDescription !== previous.cronDescription
+          )
+            enqueueThread(room.roomId, entry.threadRootId);
+        });
+      } else if (jobsChanged) {
         const states = roomThreadBackgroundJobs(room);
         if (lastBackgroundJobs.get(room) === states) return;
         lastBackgroundJobs.set(room, states);

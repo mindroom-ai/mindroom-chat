@@ -32,15 +32,24 @@ tags and text, but ignore the selected bucket and legacy status restrictions.
 Legacy `is:` and `-is:` tokens still work. Entering a status token leaves bucket mode and uses the
 legacy status expression. Text-only or tag-only search keeps the selected tab. Bucket tokens are
 not added. Simple mode projects away the tab without overwriting the stored advanced preference.
+Its Unresolved toggle retains its own stored resolved restriction. On returning to advanced mode,
+a stored tab is authoritative: the effective advanced filter clears legacy status restrictions
+without changing the stored Simple preference. Thus Done still shows resolved threads after a
+Simple-mode Unresolved toggle, and returning to Simple restores that toggle.
 Reset clears all filters; it does not silently reapply Needs you. The tab is part of the frozen-sort
 control signature, so changing tabs refreshes the frozen order as other filter changes do.
 
 ## Updates and cost
 
 Room overviews subscribe through `useRoomBackgroundJobs`. Jobs are indexed once per jobs snapshot
-change, then joined to refreshed records by root ID. Sidebar index entries share a per-room jobs index, invalidated by
+change, then joined to memoized base records by root ID. Job-only updates do not rebuild base
+records or reread timeline history. The overlay never mutates base maps; unchanged records and
+unchanged job-flag overlays retain identity. Sidebar index entries share a per-room jobs index, invalidated by
 trusted state content or membership changes. Background-job and membership state events refresh
-only cross-room entries whose job flags changed; repeated lazy membership state does no rebuild. Neither path introduces `findEventById` calls in classification.
+only cross-room entries whose job flags changed; repeated lazy membership state does no rebuild. Scheduled tasks use the same trusted sender rule as the room schedule controls. The cross-room
+index reads schedules once per room per flush, not per root. Schedule state updates refresh only
+roots whose scheduled status changed, including a task's former root when moved or removed.
+Neither path introduces `findEventById` calls in classification.
 
 Pending tool approvals and questions from `threads/cross-room/threadSignals.ts` are not included.
 Room overview records do not already carry those signals; computing them there would introduce
