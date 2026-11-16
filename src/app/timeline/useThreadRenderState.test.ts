@@ -148,6 +148,7 @@ type HarnessProps = {
   thread: Thread | null;
   threadInitialCacheHydrated: boolean;
   prefixEvents?: MatrixEvent[];
+  forkAt?: string;
   onRender: (snapshot: HookSnapshot) => void;
 };
 
@@ -1294,6 +1295,69 @@ describe('useThreadRenderState in a fork', () => {
 
     expect(getSnapshot().threadEvents).toEqual([]);
     expect(getSnapshot().threadInitialRenderMode).toBe('loading');
+
+    renderer.unmount();
+  });
+});
+
+describe('useThreadRenderState in a fork draft', () => {
+  const ids = (events: readonly MatrixEvent[]) => events.map((event) => event.getId());
+  const renderDraft = (forkAt: string | undefined, prefixEvents?: MatrixEvent[]) => {
+    const rootEvent = makeMessageEvent('$root', 1);
+    const replies = [
+      makeThreadReplyEvent('$a', 2, '$root'),
+      makeThreadReplyEvent('$b', 3, '$root'),
+      makeThreadReplyEvent('$c', 4, '$root'),
+    ];
+    return renderHookHarness({
+      room: makeRoom(rootEvent),
+      roomTimelineSet: makeTimelineSet(),
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread: makeThread(rootEvent, replies),
+      threadInitialCacheHydrated: true,
+      prefixEvents,
+      forkAt,
+    });
+  };
+
+  it('shows the thread up to the fork point and says where that is, while its own events stay whole', () => {
+    const { getSnapshot, renderer } = renderDraft('$a');
+
+    expect(ids(getSnapshot().threadEvents)).toEqual(['$root', '$a']);
+    expect(getSnapshot().forkPointIndex).toBe(1);
+    expect(getSnapshot().threadEventIndexMap.has('$b')).toBe(false);
+    // What the thread loads, counts and titles is all of it.
+    expect(ids(getSnapshot().ownThreadEvents)).toEqual(['$root', '$a', '$b', '$c']);
+
+    renderer.unmount();
+  });
+
+  it('forks a fork after its own messages, under its own parent messages', () => {
+    const parentRoot = makeMessageEvent('$parent', 0);
+    const { getSnapshot, renderer } = renderDraft('$b', [parentRoot]);
+
+    expect(ids(getSnapshot().threadEvents)).toEqual(['$parent', '$root', '$a', '$b']);
+    expect(getSnapshot().forkPointIndex).toBe(3);
+
+    renderer.unmount();
+  });
+
+  it('shows the whole thread for a point that is not one of its own messages', () => {
+    const parentRoot = makeMessageEvent('$parent', 0);
+    const { getSnapshot, renderer } = renderDraft('$parent', [parentRoot]);
+
+    expect(ids(getSnapshot().threadEvents)).toEqual(['$parent', '$root', '$a', '$b', '$c']);
+    expect(getSnapshot().forkPointIndex).toBeUndefined();
+
+    renderer.unmount();
+  });
+
+  it('shows the whole thread outside a draft', () => {
+    const { getSnapshot, renderer } = renderDraft(undefined);
+
+    expect(ids(getSnapshot().threadEvents)).toEqual(['$root', '$a', '$b', '$c']);
+    expect(getSnapshot().forkPointIndex).toBeUndefined();
 
     renderer.unmount();
   });

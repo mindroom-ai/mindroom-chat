@@ -11,6 +11,7 @@ vi.mock('./ThreadContextBanner.css', () => ({
   TagPickerInput: 'input',
   TagPickerInputContainer: 'container',
 }));
+vi.mock('./fork/useStartThreadFork', () => ({ useStartThreadFork: () => () => undefined }));
 vi.mock('../ui/styles/Motion.css', () => ({
   motion: { duration: { Normal: '0ms', Fast: '0ms' }, easing: { Standard: 'linear' } },
 }));

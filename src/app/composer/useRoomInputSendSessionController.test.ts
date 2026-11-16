@@ -14,6 +14,7 @@ import { TUploadContent, toMatrixUploadError } from '../matrix/matrix';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
 import { createPasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
 import { parseLongTextJsonSidecar } from '../matrix/protocol/longText';
+import { threadForkContent, type ThreadForkRef } from '../event-store/threads/threadFork';
 import {
   StartRoomInputSendSessionOptions,
   openedThreadParkKey,
@@ -118,6 +119,7 @@ const TestHarness = ({
   clearReplyDraft,
   restoreComposerFallbackForRoom,
   threadId,
+  forkFrom,
   roomId = '!room:example.org',
 }: {
   onReady: (api: HarnessApi) => void;
@@ -135,6 +137,7 @@ const TestHarness = ({
   clearReplyDraft: ReturnType<typeof vi.fn>;
   restoreComposerFallbackForRoom: ReturnType<typeof vi.fn>;
   threadId?: string;
+  forkFrom?: ThreadForkRef;
   roomId?: string;
 }) => {
   const selectedFilesRef = useRef<TUploadItem[]>([]);
@@ -200,6 +203,7 @@ const TestHarness = ({
     } as never,
     roomId,
     threadId,
+    forkFrom,
     replyDraft,
     clearReplyDraft,
     editor: editor as never,
@@ -232,6 +236,7 @@ const TestHarness = ({
 const renderHarness = (
   options: {
     threadId?: string;
+    forkFrom?: ThreadForkRef;
     onRoomMessageSent?: (eventId: string) => boolean | void;
     replyDraft?: Parameters<typeof TestHarness>[0]['replyDraft'];
   } = {}
@@ -271,6 +276,7 @@ const renderHarness = (
     clearReplyDraft,
     restoreComposerFallbackForRoom,
     onRoomMessageSent: options.onRoomMessageSent,
+    forkFrom: options.forkFrom,
     onReady: (nextApi: HarnessApi) => {
       api = nextApi;
     },
@@ -1840,6 +1846,91 @@ describe('openedThreadParkKey', () => {
   it('names no view of a thread that has none mounted', () => {
     expect(openedThreadParkKey(room, '!room:example.org', '$event-0', [viewKey('$other')])).toBe(
       undefined
+    );
+  });
+});
+
+describe('useRoomInputSendSessionController in a fork draft', () => {
+  const ref = { threadId: '$parent', eventId: '$point' };
+
+  beforeEach(() => {
+    mocks.resetEditor.mockReset();
+    mocks.resetEditorHistory.mockReset();
+    mocks.restoreEditorContent.mockReset();
+  });
+
+  it('sends the text as one new top-level message that carries the reference, and opens its thread', async () => {
+    const onRoomMessageSent = vi.fn(() => true);
+    const { api, mx } = renderHarness({ forkFrom: ref, onRoomMessageSent });
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Try Porto instead' } });
+    });
+
+    expect(mx.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mx.sendMessage.mock.calls[0]![1]).toEqual({
+      msgtype: 'm.text',
+      body: 'Try Porto instead',
+      ...threadForkContent(ref),
+    });
+    expect(onRoomMessageSent).toHaveBeenCalledWith('~!room:example.org:txn-0');
+  });
+
+  it('puts the reference on the root upload, and the caption joins the thread it opens', async () => {
+    const onRoomMessageSent = vi.fn(() => true);
+    const { api, mx } = renderHarness({ forkFrom: ref, onRoomMessageSent });
+    const file = createFile('itinerary.pdf');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [successUpload(file)];
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'With this plan' } });
+    });
+
+    expect(sentBodies(mx)).toEqual(['itinerary.pdf', 'With this plan']);
+    expect(mx.sendMessage.mock.calls[0]![1]).toMatchObject(threadForkContent(ref));
+    expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty('m.relates_to');
+    const caption = mx.sendMessage.mock.calls[1]![1] as Record<string, unknown>;
+    expect(caption['m.relates_to']).toMatchObject({ rel_type: 'm.thread', event_id: '$event-0' });
+    expect(caption).not.toHaveProperty('io.mindroom.fork');
+    expect(onRoomMessageSent).toHaveBeenCalledTimes(1);
+    expect(onRoomMessageSent).toHaveBeenCalledWith('$event-0');
+  });
+
+  it('keeps the reference on the event of a first message too large for one', async () => {
+    const { api, mx } = renderHarness({ forkFrom: ref });
+    const longBody = 'word '.repeat(10_000).trim();
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: longBody } });
+    });
+
+    const uploaded = parseLongTextJsonSidecar(await mx.uploadContent.mock.calls[0]![0].text());
+    expect(uploaded).toMatchObject(threadForkContent(ref));
+    const sent = mx.sendMessage.mock.calls[0]![1] as Record<string, unknown>;
+    expect(sent).toMatchObject({ msgtype: 'm.file', ...threadForkContent(ref) });
+    expect(sent).not.toHaveProperty('m.relates_to');
+  });
+
+  it("puts a caption that fails before it has a row back into the draft's own text, not the thread's", async () => {
+    const { api, mx, restoreComposerFallbackForRoom, unmount } = renderHarness({ forkFrom: ref });
+    mx.uploadContent.mockRejectedValueOnce(new Error('offline'));
+    let sending!: Promise<void>;
+    act(() => {
+      sending = api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'word '.repeat(10_000).trim() },
+      });
+    });
+    unmount();
+    await act(async () => {
+      await sending;
+    });
+
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+    expect(restoreComposerFallbackForRoom).toHaveBeenCalledWith(
+      '!room:example.org',
+      expect.anything(),
+      'fork:$parent:$point'
     );
   });
 });

@@ -26,6 +26,9 @@ import type { ThreadRecord } from '../../event-store/threads/types';
 import type { TimelineMessageRow } from './types';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
+const startFork = vi.hoisted(() => vi.fn());
+vi.mock('../../threads/fork/useStartThreadFork', () => ({ useStartThreadFork: () => startFork }));
+
 vi.mock('../../messages/thread-summary/ThreadSummaryMarker', async () => {
   const ReactImport = await import('react');
   return {
@@ -519,5 +522,55 @@ describe("a fork's rows of its parent thread", () => {
       .findAllByType(Message)
       .map(({ props }) => props.reactions.props.children[0].props.canSendReaction);
     expect(chipsCanReact).toEqual([false, false, true]);
+  });
+});
+
+describe('Fork from here', () => {
+  const forkRefs = () => startFork.mock.calls.map(([ref]) => ref as unknown);
+
+  it("forks a thread's message in its own thread, a parent's message in the fork in the parent's", async () => {
+    const { Message } = await import('../../messages/Message');
+    startFork.mockClear();
+    // The parent's root copied from the cache does not know it starts a thread; nor does the
+    // fork's root before the SDK has its thread.
+    const rows = [
+      makeEvent('$parent'),
+      makeEvent('$p1', { threadRootId: '$parent' }),
+      makeEvent('$fork'),
+      makeEvent('$r1', { threadRootId: '$fork' }),
+    ] as unknown as MatrixEvent[];
+    const { renderer } = await mountFeature(
+      rows.map((event, index) => rowFor(event, index)),
+      '$fork',
+      new Set(['$parent', '$p1'])
+    );
+
+    act(() => {
+      renderer.root.findAllByType(Message).forEach(({ props }) => props.onForkClick?.(props.mEvent.getId()));
+    });
+    expect(forkRefs()).toEqual([
+      { threadId: '$parent', eventId: '$parent' },
+      { threadId: '$parent', eventId: '$p1' },
+      { threadId: '$fork', eventId: '$fork' },
+      { threadId: '$fork', eventId: '$r1' },
+    ]);
+  });
+
+  it('is offered on messages the server confirmed inside a thread, and nowhere else', async () => {
+    const { Message } = await import('../../messages/Message');
+    const rows = [
+      makeEvent('~!room:example.org:txn-1', { threadRootId: '$thread' }),
+      makeEvent('$approval', { threadRootId: '$thread', type: MINDROOM_TOOL_APPROVAL_EVENT }),
+    ] as unknown as MatrixEvent[];
+    const inThread = await mountFeature(
+      rows.map((event, index) => rowFor(event, index)),
+      '$thread'
+    );
+    expect(
+      inThread.renderer.root.findAllByType(Message).map(({ props }) => props.onForkClick)
+    ).toEqual([undefined, undefined]);
+
+    const inRoom = await mountFeature([rowFor(makeEvent('$m') as unknown as MatrixEvent)]);
+    expect(inRoom.renderer.root.findByType(Message).props.onForkClick).toBeUndefined();
   });
 });

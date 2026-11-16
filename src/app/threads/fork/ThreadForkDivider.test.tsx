@@ -66,3 +66,21 @@ describe('ThreadForkDivider', () => {
     expect(text(renderer.root.findByType('button'))).toBe('Forked from Lisbon trip');
   });
 });
+
+describe('ThreadForkDivider in a fork draft', () => {
+  it('names the thread being forked under its fork point, and goes nowhere', () => {
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        <ThreadForkDivider
+          room={room}
+          parent={{ threadId: '$parent', eventId: '$p2' }}
+          variant="forking"
+        />
+      );
+    });
+
+    expect(text(renderer.root)).toBe('Forking Plan the trip to Lisbon');
+    expect(renderer.root.findAllByType('button')).toHaveLength(0);
+  });
+});

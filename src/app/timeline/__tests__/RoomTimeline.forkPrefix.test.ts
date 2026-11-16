@@ -130,3 +130,122 @@ describe('a forked thread', () => {
     }
   });
 });
+
+describe('a fork draft', () => {
+  it('shows the thread up to its fork point, read-only, with the Forking divider under that row', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const { Message } = await import('../../messages/Message');
+    const root = makeEvent('$parent', { isThreadRoot: true, ts: 1_000 });
+    const a = makeEvent('$a', { threadRootId: '$parent', ts: 2_000 });
+    const b = makeEvent('$b', { threadRootId: '$parent', ts: 3_000 });
+    const later = makeEvent('$later', { threadRootId: '$parent', ts: 4_000 });
+    forkPrefix.value = { events: [], parent: undefined, complete: true, loading: false };
+    const rows = [root, a, b];
+    const timeline = makeTimeline([root, a, b, later], { backwardToken: null });
+    const timelineSet = {
+      getLiveTimeline: () => timeline,
+      getTimelineForEvent: () => undefined,
+    };
+    const room = makeRoom({ liveEvents: [root] });
+    room.getThread = () =>
+      ({
+        rootEvent: root,
+        events: [a, b, later],
+        getUnfilteredTimelineSet: () => timelineSet,
+      } as never);
+    // The render state cut the thread at $b; its own events stay whole.
+    threadRenderStateMock.threadEvents = rows as never;
+    threadRenderStateMock.ownThreadEvents = [...rows, later] as never;
+    threadRenderStateMock.forkPointIndex = 2;
+    threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+      rows.map((event, index) => [event.getId(), index])
+    );
+    roomTimelineVirtualizerState.virtualIndexes = rows.map((_, index) => index);
+    const onForkPointShown = vi.fn();
+    const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(Harness, {
+            room,
+            threadId: '$parent',
+            forkAt: '$b',
+            onForkPointShown,
+          })
+        );
+        await flushAsyncWork();
+      });
+
+      const dividers = renderer!.root
+        .findAll((node) => node.type === 'div' && node.props['data-virtual-index'] !== undefined)
+        .map((tile: ReactTestInstance) => [
+          tile.props['data-virtual-index'],
+          tile
+            .findAll((node) => (node.type as unknown) === 'fork-divider')
+            .map((divider) => divider.props.variant),
+        ]);
+      expect(dividers).toEqual([
+        [0, []],
+        [1, []],
+        [2, ['forking']],
+      ]);
+      const divider = renderer!.root.find((node) => (node.type as unknown) === 'fork-divider');
+      expect(divider.props.parent).toEqual({ threadId: '$parent', eventId: '$b' });
+      expect(onForkPointShown).toHaveBeenLastCalledWith('$b');
+
+      // What the fork will show of its parent, as the fork shows it: nothing to answer here.
+      const messages = renderer!.root.findAllByType(Message);
+      expect(messages).toHaveLength(3);
+      messages.forEach(({ props }) => {
+        expect(props.onReplyClick).toBeUndefined();
+        expect(props.onOpenInOriginalThread).toBeDefined();
+      });
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
+
+  it('says it shows no fork point when the thread does not hold it', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const root = makeEvent('$parent', { isThreadRoot: true, ts: 1_000 });
+    forkPrefix.value = { events: [], parent: undefined, complete: true, loading: false };
+    const timeline = makeTimeline([root], { backwardToken: null });
+    const room = makeRoom({ liveEvents: [root] });
+    room.getThread = () =>
+      ({
+        rootEvent: root,
+        events: [],
+        getUnfilteredTimelineSet: () => ({
+          getLiveTimeline: () => timeline,
+          getTimelineForEvent: () => undefined,
+        }),
+      } as never);
+    threadRenderStateMock.threadEvents = [root] as never;
+    threadRenderStateMock.threadEventIndexMapRef.current = new Map([['$parent', 0]]);
+    roomTimelineVirtualizerState.virtualIndexes = [0];
+    const onForkPointShown = vi.fn();
+    const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(Harness, {
+            room,
+            threadId: '$parent',
+            forkAt: '$elsewhere',
+            onForkPointShown,
+          })
+        );
+        await flushAsyncWork();
+      });
+
+      expect(renderer!.root.findAll((node) => (node.type as unknown) === 'fork-divider')).toEqual(
+        []
+      );
+      expect(onForkPointShown).toHaveBeenLastCalledWith(undefined);
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
+});

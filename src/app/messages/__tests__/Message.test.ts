@@ -298,6 +298,7 @@ vi.mock('../reactions/ReactionViewer', () => ({
   ReactionViewer: () => React.createElement('div', null, 'reactions'),
 }));
 
+vi.mock('../forkIcon', () => ({ ForkIcon: 'Fork' }));
 vi.mock('../edit/MessageEditor', () => ({
   MessageEditor: () => React.createElement('div', null, 'editor'),
 }));
@@ -459,6 +460,12 @@ const getButtonByText = (
     .find((node) =>
       node.findAllByType('span').some((spanNode) => spanNode.children.join('') === text)
     );
+
+/** The text of every button, in order: the open menu's entries among them. */
+const buttonTexts = (renderer: ReactTestRenderer): string[] =>
+  renderer.root
+    .findAllByType('button')
+    .map((node) => node.findAllByType('span').map((span) => span.children.join('')).join(''));
 
 const getButtonByAriaLabel = (
   renderer: ReactTestRenderer,
@@ -626,6 +633,7 @@ describe('Message from another thread, in a fork', () => {
   it('offers copying and the way to its own thread, and nothing that would write there', async () => {
     const Message = await getMessageComponent();
     const onOpenInOriginalThread = vi.fn();
+    const onForkClick = vi.fn();
     let renderer!: ReactTestRenderer;
     await act(async () => {
       renderer = create(
@@ -639,6 +647,7 @@ describe('Message from another thread, in a fork', () => {
             messageLayout: MessageLayout.Modern,
             messageSpacing: '400',
             onOpenInOriginalThread,
+            onForkClick,
           },
           React.createElement('div', null, 'message body')
         )
@@ -656,11 +665,64 @@ describe('Message from another thread, in a fork', () => {
     for (const label of ['Reply', 'Reply in Thread', 'Add Reaction', 'Pin Message', 'Delete']) {
       expect(getButtonByText(renderer, label), label).toBeUndefined();
     }
+    // Forking it forks its own thread, which needs nothing written there.
+    const texts = buttonTexts(renderer);
+    expect(texts.indexOf('Fork from here')).toBe(texts.indexOf('Open in original thread') + 1);
 
     await act(async () => {
       getButtonByText(renderer, 'Open in original thread')?.props.onClick();
     });
     expect(onOpenInOriginalThread).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      getButtonByText(renderer, 'Fork from here')?.props.onClick();
+    });
+    expect(onForkClick).toHaveBeenCalledWith('$event');
+  });
+});
+
+describe('Message Fork from here', () => {
+  const renderForkable = async (eventId: string) => {
+    const Message = await getMessageComponent();
+    const onForkClick = vi.fn();
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          Message,
+          {
+            room: createRoom(),
+            mEvent: createMessageEvent({ msgtype: 'm.text', body: 'a reply' }, eventId),
+            collapse: true,
+            highlight: false,
+            messageLayout: MessageLayout.Modern,
+            messageSpacing: '400',
+            onReplyClick: vi.fn(),
+            onForkClick,
+          },
+          React.createElement('div', null, 'message body')
+        )
+      );
+    });
+    await openContextMenu(renderer);
+    return { renderer, onForkClick };
+  };
+
+  it('comes right after Reply in Thread and forks at this message', async () => {
+    const { renderer, onForkClick } = await renderForkable('$event');
+
+    const texts = buttonTexts(renderer);
+    expect(texts.indexOf('Reply in Thread')).toBeGreaterThan(-1);
+    expect(texts.indexOf('Fork from here')).toBe(texts.indexOf('Reply in Thread') + 1);
+    await act(async () => {
+      getButtonByText(renderer, 'Fork from here')?.props.onClick();
+    });
+    expect(onForkClick).toHaveBeenCalledWith('$event');
+  });
+
+  it('is not offered for a message the server has not confirmed', async () => {
+    const { renderer } = await renderForkable('~!room:example.org:txn-1');
+
+    expect(getButtonByText(renderer, 'Fork from here')).toBeUndefined();
   });
 });
 

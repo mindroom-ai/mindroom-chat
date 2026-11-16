@@ -1,19 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
+import type { Room } from 'matrix-js-sdk/lib/models/room';
 import {
   MAX_FORK_DEPTH,
   THREAD_FORK_KEY,
   cutThreadAtForkPoint,
   forkTargetFor,
+  keepThreadForkRef,
+  latestForkPoint,
   ownThreadId,
   parseThreadForkRef,
   threadForkContent,
+  threadForkDraftId,
 } from './threadFork';
 
-const makeEvent = (id: string, ts: number, threadRootId?: string, isThreadRoot = false) =>
+const makeEvent = (
+  id: string,
+  ts: number,
+  threadRootId?: string,
+  isThreadRoot = false,
+  { type = 'm.room.message', redacted = false, relType = undefined as string | undefined } = {}
+) =>
   ({
     getId: () => id,
     getTs: () => ts,
+    getType: () => type,
+    isRedacted: () => redacted,
+    getRelation: () => (relType ? { rel_type: relType, event_id: '$x' } : null),
     threadRootId,
     isThreadRoot,
   } as unknown as MatrixEvent);
@@ -105,7 +118,76 @@ describe('forkTargetFor', () => {
   it('is undefined for a local echo', () => {
     expect(forkTargetFor(makeEvent('~txn', 1, '$p'))).toBeUndefined();
   });
-  it('is undefined for a message in no thread', () => {
-    expect(forkTargetFor(makeEvent('$m', 1))).toBeUndefined();
+  // A thread's row without a thread relation is its root, also a parent's root the cache gave,
+  // which has no thread object to say so.
+  it('names a root without a thread object by itself', () => {
+    expect(forkTargetFor(makeEvent('$p', 1))).toEqual({ threadId: '$p', eventId: '$p' });
+  });
+  // The parent's readers count only messages, so nothing else can be a fork point.
+  it('is undefined for an edit, a redacted message and anything but a message', () => {
+    expect(forkTargetFor(makeEvent('$e', 1, '$p', false, { relType: 'm.replace' }))).toBeUndefined();
+    expect(forkTargetFor(makeEvent('$e', 1, '$p', false, { redacted: true }))).toBeUndefined();
+    expect(
+      forkTargetFor(makeEvent('$e', 1, '$p', false, { type: 'io.mindroom.tool_approval' }))
+    ).toBeUndefined();
+    expect(forkTargetFor(makeEvent('$e', 1, '$p', false, { type: 'm.sticker' }))).toBeUndefined();
+  });
+});
+
+describe('latestForkPoint', () => {
+  const root = makeEvent('$p', 1, undefined, true);
+  const a = makeEvent('$a', 2, '$p');
+  const b = makeEvent('$b', 4, '$p');
+  const edit = makeEvent('$edit', 5, '$p', false, { relType: 'm.replace' });
+  const pending = makeEvent('~txn', 6, '$p');
+  const roomWith = (rootEvent: MatrixEvent | undefined, events: MatrixEvent[]) =>
+    ({
+      getThread: () =>
+        events.length > 0 || rootEvent
+          ? {
+              rootEvent,
+              events,
+              getUnfilteredTimelineSet: () => ({
+                getLiveTimeline: () => ({ getNeighbouringTimeline: () => null }),
+              }),
+            }
+          : null,
+      findEventById: (eventId: string) => (eventId === '$p' ? rootEvent : undefined),
+    } as unknown as Room);
+
+  it("is the thread's latest message the server confirmed, past edits and sends under way", () => {
+    expect(latestForkPoint(roomWith(root, [a, edit, b, pending]), '$p')).toEqual({
+      threadId: '$p',
+      eventId: '$b',
+    });
+  });
+
+  it('is the root of a thread without replies', () => {
+    expect(latestForkPoint(roomWith(root, []), '$p')).toEqual({ threadId: '$p', eventId: '$p' });
+  });
+
+  it('is undefined while the room holds nothing of the thread', () => {
+    expect(latestForkPoint(roomWith(undefined, []), '$p')).toBeUndefined();
+  });
+});
+
+describe('threadForkDraftId', () => {
+  it("keys a fork draft's composer text apart from its thread's", () => {
+    expect(threadForkDraftId({ threadId: '$p', eventId: '$e' })).toBe('fork:$p:$e');
+  });
+});
+
+describe('keepThreadForkRef', () => {
+  const ref = { threadId: '$p', eventId: '$e' };
+
+  it("gives an edit of a fork's root the reference its original carries", () => {
+    expect(keepThreadForkRef(threadForkContent(ref), { msgtype: 'm.text', body: 'new' })).toEqual(
+      { msgtype: 'm.text', body: 'new', ...threadForkContent(ref) }
+    );
+  });
+
+  it('leaves the edit of any other message as it is', () => {
+    const edited = { msgtype: 'm.text', body: 'new' };
+    expect(keepThreadForkRef({ body: 'old' }, edited)).toBe(edited);
   });
 });

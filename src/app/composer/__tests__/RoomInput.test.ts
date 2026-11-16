@@ -8,14 +8,17 @@ import { createRoomUploadItems } from '../../matrix/send/roomInputUploadPreparat
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { MATRIX_AUDIO_DETAILS_PROPERTY_NAME } from '../../matrix/types/common';
 import {
+  getRoomInputDraftKey,
   IReplyDraft,
   type PendingVoiceSendContext,
   pendingVoiceSendDraftAtom,
+  roomIdToMsgDraftAtomFamily,
   roomIdToReplyDraftAtomFamily,
   roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
   voiceAutoSendPendingAtom,
 } from '../roomInputDrafts';
+import type { ThreadForkRef } from '../../event-store/threads/threadFork';
 import { TUploadItem, Upload, UploadStatus } from '../../matrix/state/upload';
 import { ConversationViewContext, composerStateKey } from '../../navigation/conversationView';
 import { VOICE_WAVEFORM_BAR_COUNT } from '../../lib/audioWaveform';
@@ -64,6 +67,7 @@ const {
           onChange?: () => void;
           onKeyDown?: (evt: { key: string; preventDefault: () => void }) => void;
           onKeyUp?: (evt: { key: string; preventDefault: () => void }) => void;
+          placeholder?: string;
         }
       | undefined,
     replyContextRenderCount: 0,
@@ -72,6 +76,8 @@ const {
     plainText: '',
     customHtml: '',
     htmlEqualsPlainText: true,
+    // The composer's text box counts as empty unless a test says otherwise.
+    emptyEditor: true,
   },
   mediaConfigState: {
     maxUploadSize: Infinity,
@@ -249,8 +255,10 @@ vi.mock('../../editor/Editor', () => ({
     onKeyDown,
     onKeyUp,
     onPaste,
+    placeholder,
   }: {
     style?: React.CSSProperties;
+    placeholder?: string;
     top?: React.ReactNode;
     before?: React.ReactNode;
     after?: React.ReactNode;
@@ -259,7 +267,7 @@ vi.mock('../../editor/Editor', () => ({
     onKeyUp?: (evt: { key: string; preventDefault: () => void }) => void;
     onPaste?: (evt: { clipboardData: DataTransfer; preventDefault: () => void }) => void;
   }) => {
-    customEditorState.props = { onChange, onKeyDown, onKeyUp, onPaste };
+    customEditorState.props = { onChange, onKeyDown, onKeyUp, onPaste, placeholder };
     return React.createElement(
       'div',
       { style },
@@ -293,7 +301,7 @@ vi.mock('../../editor/utils', async (importOriginal) => ({
   getMentions: () => ({ users: new Set<string>(), room: false }),
   getPrevWorldRange: () => (customEditorState.autocompleteQuery ? {} : undefined),
   moveCursor: editorMocks.moveCursor,
-  isEmptyEditor: () => true,
+  isEmptyEditor: () => editorOutputState.emptyEditor,
   resetEditor: editorMocks.resetEditor,
   resetEditorHistory: editorMocks.resetEditorHistory,
   restoreEditorContent: editorMocks.restoreEditorContent,
@@ -786,6 +794,7 @@ const createRoomInputTree = (
     onRoomMessageSent?: (eventId: string) => boolean | void;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
+    forkFrom?: ThreadForkRef;
   }
 ) =>
   React.createElement(
@@ -800,6 +809,7 @@ const createRoomInputTree = (
       threadId: props?.threadId,
       threadingEnabled: props?.threadingEnabled,
       onRoomMessageSent: props?.onRoomMessageSent,
+      forkFrom: props?.forkFrom,
     })
   );
 
@@ -812,6 +822,7 @@ const renderRoomInput = async (
     onRoomMessageSent?: (eventId: string) => boolean | void;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
+    forkFrom?: ThreadForkRef;
   }
 ): Promise<{ renderer: ReactTestRenderer; store: ReturnType<typeof createStore> }> => {
   let renderer!: ReactTestRenderer;
@@ -833,6 +844,7 @@ const updateRoomInput = async (
     onRoomMessageSent?: (eventId: string) => boolean | void;
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
+    forkFrom?: ThreadForkRef;
   }
 ) => {
   await act(async () => {
@@ -868,6 +880,7 @@ afterEach(() => {
   editorOutputState.plainText = '';
   editorOutputState.customHtml = '';
   editorOutputState.htmlEqualsPlainText = true;
+  editorOutputState.emptyEditor = true;
   mediaConfigState.maxUploadSize = Infinity;
   mxState.cancelUpload.mockReset();
   mxState.getUserId.mockReset();
@@ -4195,5 +4208,58 @@ describe('RoomInput', () => {
       expect(mxState.sendMessage).not.toHaveBeenCalled();
       act(() => renderer.unmount());
     });
+  });
+});
+
+describe('RoomInput in a fork draft', () => {
+  const forkFrom = { threadId: '$parent', eventId: '$point' };
+  const draftOf = (store: ReturnType<typeof createStore>, threadId: string) =>
+    store.get(roomIdToMsgDraftAtomFamily(getRoomInputDraftKey('@me:example.org', ROOM_ID, threadId)));
+
+  it('asks to continue in a new thread and sends a new top-level message with the reference, past a reply chosen in the thread', async () => {
+    const store = createStore();
+    store.set(
+      roomIdToReplyDraftAtomFamily(ROOM_ID),
+      createReplyDraft('$p1', {
+        rel_type: RelationType.Thread,
+        event_id: '$parent',
+        is_falling_back: false,
+        'm.in_reply_to': { event_id: '$p1' },
+      })
+    );
+    const onRoomMessageSent = vi.fn(() => true);
+    const { renderer } = await renderRoomInput(store, { forkFrom, onRoomMessageSent });
+
+    expect(customEditorState.props?.placeholder).toBe('Continue in a new thread');
+    stageComposerText('Try Porto instead');
+    await submitComposer();
+
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    const content = mxState.sendMessage.mock.calls[0]![1];
+    expect(content).toMatchObject({
+      body: 'Try Porto instead',
+      'io.mindroom.fork': { thread_id: '$parent', event_id: '$point' },
+    });
+    expect(content).not.toHaveProperty('m.relates_to');
+    expect(onRoomMessageSent).toHaveBeenCalledWith(`~${ROOM_ID}:txn-room-input`);
+
+    renderer.unmount();
+  });
+
+  it("keeps the draft's text apart from its thread's: closed unsent, it sends nothing and leaves the thread's draft as it was", async () => {
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { threadId: '$parent' });
+    await updateRoomInput(renderer, store, { forkFrom });
+
+    editorOutputState.emptyEditor = false;
+    setEditorText('half a thought');
+    act(() => customEditorState.props!.onChange?.());
+    act(() => renderer.unmount());
+
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(draftOf(store, '$parent')).toEqual([]);
+    expect(draftOf(store, 'fork:$parent:$point')).toEqual([
+      { type: 'paragraph', children: [{ text: 'half a thought' }] },
+    ]);
   });
 });
