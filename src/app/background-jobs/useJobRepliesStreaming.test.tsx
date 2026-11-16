@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { EventEmitter } from 'events';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { MatrixEvent, RoomEvent, type Room } from 'matrix-js-sdk';
+import { RoomEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
 import { STREAM_IDLE_LIMIT_MS } from '../matrix/client/streamingReplies';
+import { finishingEdit, streamingReply } from './test-utils/jobReplies';
 import { useJobRepliesStreaming } from './useJobRepliesStreaming';
 
 const AGENT = '@mindroom_helper:example.org';
@@ -18,16 +19,16 @@ vi.mock('../matrix/client/streamingReplies', async (importOriginal) => ({
   isStreamingReplyCurrent: (_room: Room, event: MatrixEvent) => !unvouched.has(event.getId()!),
 }));
 
-/** A room of threads and a main timeline that counts how often each one's events are read. */
+/** A room of threads and a main timeline that notes which ones' events are read. */
 const makeRoom = () => {
-  const reads = new Map<string | null, number>();
+  const reads = new Set<string | null>();
   const lists = new Map<string | null, MatrixEvent[]>();
   const sets = new Map<string | null, ReturnType<typeof makeSet>>();
   const threads = new Map<string, ReturnType<typeof makeThread>>();
   const makeSet = (id: string | null) => {
     const timeline = {
       getEvents: () => {
-        reads.set(id, (reads.get(id) ?? 0) + 1);
+        reads.add(id);
         return lists.get(id) ?? [];
       },
       getNeighbouringTimeline: () => null,
@@ -59,23 +60,9 @@ const makeRoom = () => {
   });
 
   /** A reply in a thread or (`MAIN`) the main timeline, which nothing announces. */
-  const put = (id: string, conversation: string | null, status = 'streaming') => {
+  const put = (id: string, conversation: string | null) => {
     setOf(conversation);
-    const event = new MatrixEvent({
-      event_id: id,
-      room_id: room.roomId,
-      sender: AGENT,
-      type: 'm.room.message',
-      origin_server_ts: Date.now(),
-      content: {
-        msgtype: 'm.text',
-        body: 'Working on it',
-        'io.mindroom.stream_status': status,
-        ...(conversation
-          ? { 'm.relates_to': { rel_type: 'm.thread', event_id: conversation } }
-          : {}),
-      },
-    });
+    const event = streamingReply(room.roomId, id, AGENT, conversation);
     lists.set(conversation, [...(lists.get(conversation) ?? []), event]);
     return event;
   };
@@ -95,26 +82,7 @@ const makeRoom = () => {
       room.emit(ThreadEvent.NewReply, threads.get(conversation), event),
   };
   /** The reply's finishing edit arrives. */
-  const finish = (reply: MatrixEvent) =>
-    reply.makeReplaced(
-      new MatrixEvent({
-        event_id: `${reply.getId()}-done`,
-        room_id: room.roomId,
-        sender: reply.getSender(),
-        type: 'm.room.message',
-        origin_server_ts: Date.now(),
-        content: {
-          msgtype: 'm.text',
-          body: '* Done',
-          'm.new_content': {
-            msgtype: 'm.text',
-            body: 'Done',
-            'io.mindroom.stream_status': 'completed',
-          },
-          'm.relates_to': { rel_type: 'm.replace', event_id: reply.getId() },
-        },
-      })
-    );
+  const finish = (reply: MatrixEvent) => reply.makeReplaced(finishingEdit(reply));
   const clear = (conversation: string | null) => lists.set(conversation, []);
   /** Puts a message that another conversation holds into this one too, as a thread's root is. */
   const share = (event: MatrixEvent, conversation: string) => {
@@ -149,6 +117,18 @@ const show = (jobs: BackgroundJob[], live = true) =>
     else renderer = create(<Probe jobs={jobs} live={live} />);
   });
 
+const wait = (ms: number) =>
+  act(() => {
+    vi.advanceTimersByTime(ms);
+  });
+
+/** The conversations whose events were read while `run` ran. */
+const readsOf = (run: () => void, from = room) => {
+  from.reads.clear();
+  act(run);
+  return [...from.reads];
+};
+
 beforeEach(() => {
   vi.useFakeTimers();
   room = makeRoom();
@@ -167,12 +147,6 @@ it('reads only the conversation an event belongs to', () => {
   room.put('$m1', MAIN);
   show([job('$a'), job('$b'), job(MAIN)]);
   expect(streaming).toBe(true);
-
-  const readsOf = (run: () => void) => {
-    room.reads.clear();
-    act(run);
-    return [...room.reads.keys()];
-  };
   const sayAll = (conversation: string) => () => {
     const event = room.put(`${conversation}-next`, conversation);
     room.announce.timeline(event, conversation);
@@ -234,11 +208,7 @@ it('reads the new room when the room changes, and no longer hears the old one', 
   room = makeRoom();
   show([job('$a')]);
   expect(streaming).toBe(false);
-  old.reads.clear();
-  act(() => {
-    old.announce.update('$a');
-  });
-  expect([...old.reads.keys()]).toEqual([]);
+  expect(readsOf(() => old.announce.update('$a'), old)).toEqual([]);
 });
 
 it('hears news of a main timeline reply that began a thread, which comes by that thread', () => {
@@ -305,27 +275,20 @@ it('keeps streaming while another conversation of the jobs still does', () => {
 it('reads everything again when the first reply stalls, and stops when the last one does', () => {
   room.put('$a1', '$a');
   show([job('$a'), job('$b')]);
-  act(() => {
-    vi.advanceTimersByTime(60_000);
-  });
+  wait(60_000);
   const later = room.put('$b1', '$b');
   act(() => {
     room.announce.timeline(later, '$b');
   });
-  room.reads.clear();
-  act(() => {
-    vi.advanceTimersByTime(STREAM_IDLE_LIMIT_MS - 60_000 + 1);
-  });
-  // The first one stalled, which is when everything is read again; the second has a minute left.
-  expect([...room.reads.keys()]).toEqual(['$a', '$b']);
+  // The first one stalls, which is when everything is read again; the second has a minute left.
+  expect(readsOf(() => vi.advanceTimersByTime(STREAM_IDLE_LIMIT_MS - 60_000 + 1))).toEqual([
+    '$a',
+    '$b',
+  ]);
   expect(streaming).toBe(true);
-  act(() => {
-    vi.advanceTimersByTime(60_000 - 1);
-  });
+  wait(60_000 - 1);
   expect(streaming).toBe(true);
-  act(() => {
-    vi.advanceTimersByTime(1);
-  });
+  wait(1);
   expect(streaming).toBe(false);
 });
 
@@ -338,11 +301,7 @@ it('reads a conversation whose job starts, and forgets one whose jobs are gone',
   show([job('$b')]);
   expect(streaming).toBe(false);
   // The dropped thread's events are not read any more.
-  room.reads.clear();
-  act(() => {
-    room.announce.update('$a');
-  });
-  expect([...room.reads.keys()]).toEqual([]);
+  expect(readsOf(() => room.announce.update('$a'))).toEqual([]);
 });
 
 it('takes a reply it cannot vouch for at its word only while the jobs run', () => {

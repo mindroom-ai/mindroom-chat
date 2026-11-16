@@ -20,10 +20,13 @@ import {
 } from '../matrix/client/streamingReplies';
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT } from '../matrix/thread';
 
-/** `stallsAt`: when the first streaming reply stops counting without an edit, by `Date.now()`. */
-type Snapshot = { streaming: boolean; replies: MatrixEvent[]; stallsAt?: number };
+/**
+ * `stallsAt`: when the first streaming reply stops counting without an edit, by `Date.now()`;
+ * absent while none streams.
+ */
+type Snapshot = { replies: MatrixEvent[]; stallsAt?: number };
 
-const NONE: Snapshot = { streaming: false, replies: [] };
+const NONE: Snapshot = { replies: [] };
 
 // One key per conversation and agent, so the jobs' list changing alone reads nothing again.
 const SEPARATOR = '\u0000';
@@ -52,7 +55,6 @@ const read = (
   live: boolean
 ): Snapshot => {
   const replies = repliesOf(room, threadId, agents);
-  let streaming = false;
   let stallsAt: number | undefined;
   replies.forEach((event) => {
     const id = event.getId();
@@ -65,26 +67,22 @@ const read = (
     if (Date.now() >= stalls) return;
     if (live) vouched.add(id);
     // Asks the server about a reply the client cannot vouch for, so its copy gets the newest edit.
-    if (isStreamingReplyCurrent(room, event) || vouched.has(id)) {
-      streaming = true;
+    if (isStreamingReplyCurrent(room, event) || vouched.has(id))
       stallsAt = Math.min(stallsAt ?? stalls, stalls);
-    }
   });
-  return { streaming, replies, stallsAt };
+  return { replies, stallsAt };
 };
 
 /** The conversations as one: streaming while any of them is, until the first of them stalls. */
 const merge = (conversations: Snapshot[]): Snapshot => {
   const stalls = conversations.flatMap((conversation) => conversation.stallsAt ?? []);
   return {
-    streaming: conversations.some((conversation) => conversation.streaming),
     replies: conversations.flatMap((conversation) => conversation.replies),
     stallsAt: stalls.length > 0 ? Math.min(...stalls) : undefined,
   };
 };
 
 const sameSnapshot = (a: Snapshot, b: Snapshot): boolean =>
-  a.streaming === b.streaming &&
   a.stallsAt === b.stallsAt &&
   a.replies.length === b.replies.length &&
   a.replies.every((event, index) => event === b.replies[index]);
@@ -128,12 +126,17 @@ export const useJobRepliesStreaming = (
   const refresh = useCallback(
     (threadId?: string) => {
       const known = conversations.current;
-      if (threadId === undefined) known.clear();
-      else if (!agentsByThread.has(threadId)) return;
-      agentsByThread.forEach((agents, id) => {
-        if (room && (threadId === undefined || threadId === id))
-          known.set(id, read(room, id, agents, vouched.current, live));
-      });
+      if (threadId === undefined) {
+        known.clear();
+        if (room)
+          agentsByThread.forEach((agents, id) =>
+            known.set(id, read(room, id, agents, vouched.current, live))
+          );
+      } else {
+        const agents = agentsByThread.get(threadId);
+        if (!room || !agents) return;
+        known.set(threadId, read(room, threadId, agents, vouched.current, live));
+      }
       const next = merge([...known.values()]);
       setSnapshot((previous) => (sameSnapshot(previous, next) ? previous : next));
     },
@@ -195,5 +198,5 @@ export const useJobRepliesStreaming = (
     };
   }, [refresh, snapshot.replies]);
 
-  return snapshot.streaming;
+  return snapshot.stallsAt !== undefined;
 };
