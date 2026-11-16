@@ -34,6 +34,8 @@ const depth = (): number => {
 /** The changes of the slide that waits for the browser's picture of the page as it is. */
 let waiting: Change[] | undefined;
 let playing = false;
+/** The slide from its call until it has played, waiting for its picture or playing. */
+let active: ViewTransition | undefined;
 
 /**
  * Runs `change`, which may change what a phone shows, and slides when it shows deeper or less
@@ -100,8 +102,10 @@ export const slidePhonePage = (change: Change): void => {
       transition.skipTransition();
     } else root.dataset.pageSlide = to > from ? 'forward' : 'back';
   });
+  active = transition;
   const done = () => {
     playing = false;
+    if (active === transition) active = undefined;
     delete root.dataset.pageSlide;
   };
   transition.finished.then(done, done);
@@ -121,14 +125,33 @@ export const afterWaitingSlide = (change: () => void): void => {
 /**
  * Brings a phone's navigation drawer out or puts it away, as a person does (the menu button, a
  * swipe, Escape): `set` changes it. The drawer is over the page, not a level of it, so nothing
- * slides but the drawer itself (sidebar/PhoneNavDrawer.css.ts). Brought out, it comes after the
- * changes that wait for a slide's picture, never inside the slide, whose marker would turn off
- * its own slide. Put away, it goes through `slidePhonePage`, so a tap on a link in it and the
- * navigation that follows run together from the list, where nothing slides.
+ * slides but the drawer itself (sidebar/PhoneNavDrawer.css.ts).
+ *
+ * Brought out, it never comes inside a page slide, whose marker turns off the drawer's own slide
+ * and whose depth would slide the whole page back. The person's gesture wins: a slide that waits
+ * for its picture is skipped (its changes still run, with nothing sliding), one that plays jumps
+ * to its end, and the drawer comes out once the slide is over and its marker gone. It stays away
+ * if the phone layout went meanwhile (a phone turned sideways), which takes the drawer with it.
+ *
+ * Put away, it goes through `slidePhonePage`, so a tap on a link in it and the navigation that
+ * follows run together from the list, where nothing slides.
  */
 export const movePhoneNavDrawer = (open: boolean, set: (open: boolean) => void): void => {
-  if (open) afterWaitingSlide(() => set(true));
-  else slidePhonePage(() => set(false));
+  if (!open) {
+    slidePhonePage(() => set(false));
+    return;
+  }
+  const slide = active;
+  if (!slide) {
+    set(true);
+    return;
+  }
+  slide.skipTransition();
+  const bringOut = () => {
+    if (document.querySelector(`[${PHONE_STAGE}]`)) set(true);
+  };
+  // After the slide's own end (`done` in `slidePhonePage`), which takes its marker away.
+  slide.finished.then(bringOut, bringOut);
 };
 
 /**

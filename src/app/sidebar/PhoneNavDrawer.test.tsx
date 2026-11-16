@@ -100,18 +100,20 @@ describe('PhoneNavDrawer', () => {
     }
   });
 
-  it('stays put away when it unmounts while its opening waits for a page slide', () => {
-    // A browser with view transitions takes a picture of the page before a navigation shows.
+  it('stays put away when the phone layout goes while its opening waits for a page slide', async () => {
+    // A browser with view transitions takes a picture of the page before a navigation shows; the
+    // swipe skips that slide, and the drawer would come out once it is over.
     let takePicture: () => void = () => undefined;
+    let end: () => void = () => undefined;
+    const skipTransition = vi.fn();
     Object.defineProperty(document, 'startViewTransition', {
       configurable: true,
       value: (update: () => void) => {
         takePicture = update;
-        return {
-          finished: Promise.resolve(),
-          ready: Promise.resolve(),
-          skipTransition: () => undefined,
-        };
+        const finished = new Promise<void>((resolve) => {
+          end = resolve;
+        });
+        return { finished, ready: Promise.resolve(), skipTransition };
       },
     });
     const stage = document.createElement('div');
@@ -129,13 +131,19 @@ describe('PhoneNavDrawer', () => {
           </Provider>
         );
       });
-      // A navigation waits for the picture; the drawer's opening comes after it.
       slidePhonePage(() => undefined);
       swipeFromLeftEdge();
+      expect(skipTransition).toHaveBeenCalledTimes(1);
       expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
 
+      // The phone layout goes (a phone turned sideways), and the skipped slide runs and ends.
       act(() => renderer?.unmount());
+      stage.remove();
       act(() => takePicture());
+      await act(async () => {
+        end();
+        await Promise.resolve();
+      });
       expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
     } finally {
       stage.remove();
