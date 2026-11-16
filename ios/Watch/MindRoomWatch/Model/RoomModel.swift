@@ -29,7 +29,13 @@ final class RoomModel: ObservableObject {
     let room: Room
     let userId: String
     let roomName: String
-    @Published private(set) var rows: [ThreadRow] = []
+    @Published private(set) var rows: [ThreadRow] = [] {
+        didSet {
+            #if DEBUG
+            for row in rows.prefix(3) { E2EHooks.log("row \(row.rootId ?? row.id) \(String(describing: row.state)) \(row.voiceFile ?? "")") }
+            #endif
+        }
+    }
     @Published private(set) var gone = false
     /// Display names of the room's members met so far.
     @Published private(set) var names: [String: String] = [:]
@@ -48,12 +54,18 @@ final class RoomModel: ObservableObject {
     /// The thread rows as last read from the server, kept when the list cannot be read (offline).
     private var threadRows: [ThreadRow] = []
     private var threadRoots: [String] = []
+    /// The person's messages nobody answered, as the last refresh found them.
+    private var unanswered: [ThreadRow] = []
+    /// The event ids of the messages this watch sent since the model started.
+    private var sentHere: Set<String> = []
+    private let client: Client
     private let session: Session?
 
-    init(room: Room, userId: String, session: Session?) {
+    init(room: Room, userId: String, client: Client) {
         self.room = room
         self.userId = userId
-        self.session = session
+        self.client = client
+        session = try? client.session()
         roomName = room.displayName() ?? room.id()
         threads = room.threadListService()
         weak var model: RoomModel?
@@ -100,8 +112,9 @@ final class RoomModel: ObservableObject {
                                                  content: String(decoding: data, as: UTF8.self))
             resolved.insert(rootId)
             threadRows.removeAll { $0.rootId == rootId }
-            rows.removeAll { $0.rootId == rootId }
-            // A refresh that read the room's state before the tag was there would bring the thread back.
+            unanswered.removeAll { $0.rootId == rootId }
+            // Shows the rows without it now. A refresh that read the room's state before the tag was there
+            // would bring the thread back.
             scheduleRefresh()
         } catch {
             log.error("resolve failed: \(String(describing: error), privacy: .public)")
@@ -109,6 +122,11 @@ final class RoomModel: ObservableObject {
     }
 
     func snapshot(of rootId: String) -> ThreadSnapshot? { snapshots[rootId] }
+
+    /// A voice message's audio (`ThreadSnapshot.Message.audio`), decrypted.
+    func audio(_ source: String) async throws -> Data {
+        try await client.getMediaContent(mediaSource: MediaSource.fromJson(json: source))
+    }
 
     func name(_ userId: String) -> String { names[userId] ?? agentName(userId) }
 
@@ -123,6 +141,7 @@ final class RoomModel: ObservableObject {
     }
 
     func scheduleRefresh() {
+        publish()
         if refreshing { refreshAgain = true; return }
         refreshing = true
         Task {
@@ -146,7 +165,8 @@ final class RoomModel: ObservableObject {
         // Offline the list cannot be read: keep its rows (and the widget) as they were, with the person's own
         // messages, queued or failed, kept current.
         do { try await threads.paginate() } catch {
-            rows = (threadRows + ownUnansweredRoots(excluding: Set(threadRoots).union(resolved))).sorted { $0.ts > $1.ts }
+            unanswered = ownRows(sentHere: false, notIn: Set(threadRoots).union(resolved))
+            publish()
             return
         }
         if let resolved = await resolvedRoots() { self.resolved = resolved }
@@ -184,18 +204,29 @@ final class RoomModel: ObservableObject {
         }
         threadRows = rows
         threadRoots = roots
-        rows += ownUnansweredRoots(excluding: Set(roots).union(resolved))
-        self.rows = rows.sorted { $0.ts > $1.ts }
+        unanswered = ownRows(sentHere: false, notIn: Set(roots).union(resolved))
+        publish()
         publishWidgetSnapshot()
-        #if DEBUG
-        for row in self.rows.prefix(3) { E2EHooks.log("row \(row.rootId ?? row.id) \(String(describing: row.state)) \(row.voiceFile ?? "")") }
-        #endif
+    }
+
+    /// Shows the threads and the person's unanswered messages as the last refresh found them, and with them the
+    /// messages this watch is sending or sent since it started, as the room's timeline has them now. A refresh
+    /// takes several requests: a message just recorded shows at once, and stays until the thread list has its
+    /// thread.
+    private func publish() {
+        for item in feed.events {
+            if case let .sent(eventId) = item.localSendState { sentHere.insert(eventId) }
+        }
+        let own = unanswered + ownRows(sentHere: true, notIn: Set(threadRoots).union(resolved))
+        let rows = (threadRows + own).sorted { $0.ts > $1.ts }
+        if rows != self.rows { self.rows = rows }
     }
 
     private func row(_ snapshot: ThreadSnapshot) -> ThreadRow {
         let line: String
         if let reply = snapshot.reply {
-            line = "\(name(reply.sender)): \(reply.text.isEmpty ? "…" : named(reply.text))"
+            let text = reply.isVoiceOnly ? String(localized: "Voice message") : reply.text.isEmpty ? "…" : named(reply.text)
+            line = "\(name(reply.sender)): \(text)"
         } else {
             line = String(localized: "Sent")
         }
@@ -204,22 +235,24 @@ final class RoomModel: ObservableObject {
                          rootTs: snapshot.rootTs, voiceFile: snapshot.voiceFile)
     }
 
-    /// The user's own messages in the room that no thread holds yet: a voice message just sent,
-    /// still sending, or failed.
-    private func ownUnansweredRoots(excluding roots: Set<String>) -> [ThreadRow] {
+    /// The user's own messages in the room that none of these threads holds, as rows. With `sentHere`: the ones
+    /// this watch is sending or sent since the model started, answered or not (one still to send always shows,
+    /// with its Delete: a message the server refused holds up every message queued behind it). Without: the
+    /// others that nobody answered, among the newest 20 events.
+    private func ownRows(sentHere wanted: Bool, notIn roots: Set<String>) -> [ThreadRow] {
         let events = feed.events
         return events.enumerated().compactMap { index, item -> ThreadRow? in
             guard item.isOwn, case let .msgLike(content) = item.content, content.threadRoot == nil,
-                  content.threadSummary == nil, case let .message(message) = content.kind else { return nil }
+                  case let .message(message) = content.kind else { return nil }
             var id = ""
             var rootId: String?
             switch item.eventOrTransactionId {
             case let .eventId(eventId): id = eventId; rootId = eventId
             case let .transactionId(transactionId): id = transactionId
             }
-            // A sent message counts among the newest 20 events. One still to send always shows, with its
-            // Delete: a message the server refused holds up every message queued behind it.
-            if let rootId, roots.contains(rootId) || index < events.count - 20 { return nil }
+            guard (item.localSendState != nil || sentHere.contains(id)) == wanted,
+                  !(rootId.map(roots.contains) ?? false) else { return nil }
+            if !wanted, content.threadSummary != nil || index < events.count - 20 { return nil }
             var queued = false, failed = false
             switch item.localSendState {
             case .notSentYet: queued = true
