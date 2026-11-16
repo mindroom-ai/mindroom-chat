@@ -66,3 +66,28 @@ The `show_canvas` docstring and the `_FUNCTION_INSTRUCTIONS["show_canvas"]` line
 - Backend: `show_canvas(inline=True)` puts `"inline": true` in the request; an update keeps the original's value and ignores a different one; the chat UI contract fixture includes an inline canvas.
 - Chat unit tests: protocol parses `inline` and rejects an edit that changes it; the bridge posts a size message; the inline host fits the height within bounds and ignores messages from other windows; inline requests do not auto open; panel canvases still do.
 - Playwright screenshot spec (throwaway) on desktop and phone widths, light and dark, for the PR.
+
+## Page mode: accurate previews (added 2026-11-16)
+
+Bas mostly previews work that has nothing to do with MindRoom, such as elements of a website he is building, so the page must render as a browser would show it, not in MindRoom's style.
+
+### Protocol
+
+Each canvas revision may carry two presentation fields inside `canvas`, beside `title` and `html` or `document`:
+- `raw: true`: Chat injects no style: no theme variables, no base style, no `color-scheme`. Browser defaults apply (white page, Times, 8px body margin) until the page's own CSS says otherwise.
+- `width: <int>`, 320 to 2560: the page's viewport width in CSS pixels. An inline frame renders the page at that width and scales it down to fit the column (never up), so a desktop layout shows its desktop breakpoint. The height fit works in page pixels and is scaled the same way. Without `width`, the frame is as wide as the column, as before.
+
+Both belong to the revision, so an update states them again; they are not authority fields. The panel honours `raw`; it ignores `width`, because the panel itself is resizable up to the whole room.
+
+### Remote assets: a deployment switch
+
+`mindroom.canvas.remoteAssets: true` in Chat's config lets canvas pages load images, styles, fonts, media and scripts from any `https:` source. `connect-src`, `frame-src`, `form-action` and `worker-src` stay `'none'`. This is the viewer's decision, like `libraries`: the asset hosts see the viewer's address and when they view, and a page can encode data in the addresses it loads. Off by default.
+The backend toolkit option `enable_canvas_remote_assets` (like `enable_canvas_libraries`) tells the agent that remote assets work.
+
+### Backend
+
+`show_canvas(..., raw=False, width=None)`. `raw=True` adds `"raw": true` to the canvas; `width` is validated (integer, 320 to 2560) and added as `"width"`. The guidance says: use `raw=True` with `inline=True` to preview a website or app as it will look, and `width` for its target viewport (for example 1440 for desktop, 390 for a phone).
+
+### Measuring a raw page
+
+Raw pages get no `position:relative` on `body`, so the height is the larger of the body's extent and the root element's box. Content positioned against the viewport is not counted; such a page should give its own wrapper a height.
