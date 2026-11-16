@@ -82,6 +82,7 @@ vi.mock('../../plugins/registry', () => ({
           },
         },
       ],
+      threadDetails: [],
     },
   ],
 }));

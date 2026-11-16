@@ -51,9 +51,15 @@ enum MacScreenshot {
             filter = SCContentFilter(desktopIndependentWindow: window)
             label = window.owningApplication?.applicationName ?? "Window"
         case .screen:
+#if MINDROOM_MAC_APP_STORE
+            guard let screen = content.displays.first(where: { $0.displayID == display }) else {
+                throw Failure.noWindow
+            }
+#else
             guard let screen = content.displays.first(where: { $0.displayID == display }) ?? content.displays.first else {
                 throw Failure.captureFailed
             }
+#endif
             let own = content.applications.filter { $0.processID == getpid() }
             filter = SCContentFilter(display: screen, excludingApplications: own, exceptingWindows: [])
             label = "Screen"
@@ -86,6 +92,9 @@ enum MacScreenshot {
 
     /// Window numbers of the on-screen windows, front to back.
     private static func windowOrder() -> [CGWindowID: Int] {
+#if MINDROOM_MAC_APP_STORE
+        return MacWindowing.windowOrder()
+#else
         typealias CopyWindowInfo = @convention(c) (UInt32, CGWindowID) -> Unmanaged<CFArray>?
         guard let graphics = dlopen("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", RTLD_LAZY),
               let symbol = dlsym(graphics, "CGWindowListCopyWindowInfo") else { return [:] }
@@ -99,6 +108,7 @@ enum MacScreenshot {
             }
         }
         return order
+#endif
     }
 
     @available(macCatalyst 18.2, *)

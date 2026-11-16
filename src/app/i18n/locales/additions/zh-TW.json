@@ -745,6 +745,21 @@
           "declined": "已拒絕",
           "expired": "已到期"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "已更新技能 <code>{{skill}}</code>",
+        "createdOne": "已建立技能 <code>{{skill}}</code>",
+        "updatedMany_other": "已更新 {{count}} 個技能",
+        "createdMany_other": "已建立 {{count}} 個技能",
+        "created": "已建立",
+        "updated": "已更新",
+        "removed": "已刪除",
+        "diffTruncated": "差異已截斷",
+        "diffLabel": "{{path}} 的差異"
+      },
+      "finishedWork": {
+        "workedFor": "工作了 {{duration}}",
+        "worked": "已工作"
       }
     },
     "message-search": {
@@ -1259,5 +1274,12 @@
       "idle": "閒置",
       "resolved": "已解決"
     }
+  },
+  "threadBoard": {
+    "label": "依狀態分列的討論串",
+    "working": "進行中",
+    "later": "稍後",
+    "open": "未完成",
+    "done": "已完成"
   }
 }

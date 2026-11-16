@@ -754,6 +754,23 @@
           "declined": "Geweigerd",
           "expired": "Verlopen"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Skill <code>{{skill}}</code> bijgewerkt",
+        "createdOne": "Skill <code>{{skill}}</code> aangemaakt",
+        "updatedMany_one": "{{count}} skill bijgewerkt",
+        "updatedMany_other": "{{count}} skills bijgewerkt",
+        "createdMany_one": "{{count}} skill aangemaakt",
+        "createdMany_other": "{{count}} skills aangemaakt",
+        "created": "aangemaakt",
+        "updated": "bijgewerkt",
+        "removed": "verwijderd",
+        "diffTruncated": "Diff ingekort",
+        "diffLabel": "Diff van {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} gewerkt",
+        "worked": "Gewerkt"
       }
     },
     "message-search": {
@@ -1283,5 +1300,12 @@
       "idle": "Inactief",
       "resolved": "Opgelost"
     }
+  },
+  "threadBoard": {
+    "label": "Threads per status",
+    "working": "Bezig",
+    "later": "Later",
+    "open": "Open",
+    "done": "Klaar"
   }
 }

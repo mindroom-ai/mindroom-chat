@@ -754,6 +754,23 @@
           "declined": "अस्वीकृत",
           "expired": "खत्म हो चुका"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "स्किल <code>{{skill}}</code> अपडेट किया गया",
+        "createdOne": "स्किल <code>{{skill}}</code> बनाया गया",
+        "updatedMany_one": "{{count}} स्किल अपडेट किया गया",
+        "updatedMany_other": "{{count}} स्किल अपडेट किए गए",
+        "createdMany_one": "{{count}} स्किल बनाया गया",
+        "createdMany_other": "{{count}} स्किल बनाए गए",
+        "created": "बनाया गया",
+        "updated": "अपडेट किया गया",
+        "removed": "हटाया गया",
+        "diffTruncated": "डिफ़ छोटा किया गया",
+        "diffLabel": "{{path}} का डिफ़"
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} तक काम किया",
+        "worked": "काम किया"
       }
     },
     "message-search": {
@@ -1283,5 +1300,12 @@
       "idle": "निष्क्रिय",
       "resolved": "सुलझे हुए"
     }
+  },
+  "threadBoard": {
+    "label": "स्थिति के अनुसार थ्रेड",
+    "working": "काम जारी",
+    "later": "बाद में",
+    "open": "खुले",
+    "done": "पूरे"
   }
 }

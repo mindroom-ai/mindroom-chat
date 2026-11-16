@@ -105,6 +105,28 @@ const fetchedGreeting = {
   content: { ...greeting.content },
 };
 
+/** A room with a greeting root and a plain root loaded. */
+function greetingRoom(): Room {
+  const root = (eventId: string, content: Record<string, unknown>) =>
+    new MatrixEvent({
+      event_id: eventId,
+      room_id: '!lobby:example.org',
+      type: 'm.room.message',
+      sender: greeting.sender,
+      content,
+    });
+  const roots = new Map([
+    ['$greeting', root('$greeting', { ...greeting.content })],
+    ['$plain', root('$plain', { body: 'Plain' })],
+  ]);
+  // The room as far as the badge and details read it: the thread roots it has loaded.
+  return {
+    roomId: '!lobby:example.org',
+    getThread: () => null,
+    findEventById: (eventId: string) => roots.get(eventId),
+  } as unknown as Room;
+}
+
 describe('example plugin', () => {
   // Its panel asks the client's homeserver through `fetch` whether it binds sign-in tokens; the
   // stub keeps that off the network, and its answer counts as no.
@@ -875,24 +897,7 @@ describe('example plugin', () => {
   it('marks the card of a thread a greeting begins, and no other thread', async () => {
     const [badge] = plugin.threadCardBadges ?? [];
     if (!badge) throw new Error('the example plugin has no thread card badge');
-    const root = (eventId: string, content: Record<string, unknown>) =>
-      new MatrixEvent({
-        event_id: eventId,
-        room_id: '!lobby:example.org',
-        type: 'm.room.message',
-        sender: greeting.sender,
-        content,
-      });
-    const roots = new Map([
-      ['$greeting', root('$greeting', { ...greeting.content })],
-      ['$plain', root('$plain', { body: 'Plain' })],
-    ]);
-    // The room as far as the badge reads it: the thread roots it has loaded.
-    const room = {
-      roomId: '!lobby:example.org',
-      getThread: () => null,
-      findEventById: (eventId: string) => roots.get(eventId),
-    } as unknown as Room;
+    const room = greetingRoom();
     const view = await renderPluginComponent(
       <>
         {['$greeting', '$plain', '$unknown'].map((threadId) => (
@@ -913,5 +918,23 @@ describe('example plugin', () => {
       ['$plain', ''],
       ['$unknown', ''],
     ]);
+  });
+
+  it('gives the details of a thread a greeting begins, and of no other thread', async () => {
+    const [details] = plugin.threadDetails ?? [];
+    if (!details) throw new Error('the example plugin has no thread details');
+    const room = greetingRoom();
+    expect(['$greeting', '$plain', '$unknown'].map((id) => details.shows?.(room, id))).toEqual([
+      true,
+      false,
+      false,
+    ]);
+    const view = await renderPluginComponent(
+      <details.Component room={room} threadId="$greeting" />,
+      { id: 'example', plugin }
+    );
+    expect(view.container.querySelector('[data-example-plugin-details]')?.textContent).toBe(
+      'GreetingHello'
+    );
   });
 });

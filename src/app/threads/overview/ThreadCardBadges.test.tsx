@@ -42,6 +42,7 @@ const plugin = (id: string, threadCardBadges: ThreadCardBadge[]): RegisteredPlug
   roomActions: [],
   messageLinks: [],
   threadCardBadges,
+  threadDetails: [],
 });
 
 /** What a thread's card shows of these plugins' badges, under this config.json. */

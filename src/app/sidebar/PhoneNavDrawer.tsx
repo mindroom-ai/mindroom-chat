@@ -56,8 +56,9 @@ const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean
  */
 export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
   const [open, setOpenNow] = useAtom(phoneNavDrawerOpenAtom);
-  // What a person does to the drawer slides the page (`slidePhonePage`); what follows a navigation
-  // is part of that navigation's slide.
+  // What a person does to the drawer goes through `slidePhonePage`, which slides the page when it
+  // brings the drawer out (putting it away, the drawer slides on its own); what follows a
+  // navigation is part of that navigation's slide.
   const setOpen = useCallback(
     (next: boolean) => slidePhonePage(() => setOpenNow(next)),
     [setOpenNow]
@@ -102,6 +103,22 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
     if (open) {
       setSliding(true);
       return undefined;
+    }
+    // Until its slide out ends, where the browser plays one. A room tapped in the drawer can hold
+    // the main thread longer than the slide takes before its first frame, so a clock started now
+    // would empty the drawer as it starts to slide. Asking for the slide starts it.
+    const slide = panelRef.current
+      ?.getAnimations?.()
+      .find((each) => (each as CSSTransition).transitionProperty === 'transform');
+    if (slide) {
+      let current = true;
+      const slidOut = () => {
+        if (current) setSliding(false);
+      };
+      slide.finished.then(slidOut, slidOut);
+      return () => {
+        current = false;
+      };
     }
     const timer = window.setTimeout(() => setSliding(false), PHONE_SLIDE_OUT_MS);
     return () => window.clearTimeout(timer);
