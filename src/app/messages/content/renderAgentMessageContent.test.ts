@@ -3,6 +3,7 @@ import React from 'react';
 import { create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { persistAttachmentEvents } from '../../event-store/cache/__tests__/attachmentFixtures';
+import { CHAT_UI_ACTION_KEY } from '../../matrix/protocol/chatUiProtocol';
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from '../../matrix/protocol/messageExtrasData';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
@@ -53,6 +54,9 @@ vi.mock('../html/HtmlBlocks', () => ({
   useToolTraceMarkerParserOptions: toolTraceParserOptionsMock,
 }));
 
+vi.mock('../../ui-actions/ChatUiActionButton', () => ({
+  ChatUiActionButton: () => React.createElement('button', { 'data-ui-action': true }),
+}));
 vi.mock('../thread-summary/ThreadSummaryCard', () => ({
   ThreadSummaryCard: ({ summaryInfo }: { summaryInfo: { summaryText?: string } }) =>
     React.createElement('div', { 'data-renderer': 'summary-card' }, summaryInfo.summaryText),
@@ -706,6 +710,29 @@ describe('renderAgentMessageContent', () => {
       expect(rendered).not.toContain('"input"');
       expect(rendered).toContain('Open MindRoom Chat to enter it.');
     });
+  });
+
+  it("offers a canvas request's button, except on a read-only row", async () => {
+    const { MatrixEvent } = await import('matrix-js-sdk');
+    const content = {
+      msgtype: 'm.notice',
+      body: 'Open MindRoom Chat to see the canvas.',
+      [CHAT_UI_ACTION_KEY]: { action: 'show_canvas' },
+    };
+    const button = async (readOnly: boolean) =>
+      JSON.stringify(
+        (
+          await renderNode({
+            msgType: 'm.notice',
+            content,
+            mEvent: new MatrixEvent({ type: 'm.room.message', content }),
+            readOnly,
+          })
+        ).toJSON()
+      ).includes('data-ui-action');
+
+    expect(await button(false)).toBe(true);
+    expect(await button(true)).toBe(false);
   });
 
   it('renders extras for MindRoom long-text text paths', async () => {

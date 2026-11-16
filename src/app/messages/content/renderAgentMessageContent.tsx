@@ -479,7 +479,8 @@ export const renderAgentMessageContent = ({
                 )
               : renderBody(content)
           }
-          renderAfterBody={<ChatUiActionButton event={mEvent} />}
+          // A read-only row (a fork's parent message) answers nothing: its canvas is the parent's.
+          renderAfterBody={readOnly ? undefined : <ChatUiActionButton event={mEvent} />}
         />
       );
     }
