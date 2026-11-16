@@ -32,8 +32,8 @@ export type SubagentMeta = {
   startedAt: number;
   endedAt: number | null;
   /**
-   * The model the run's agent is configured with, as `io.mindroom.ai_run` names it. MindRoom before
-   * the field sends none.
+   * The model the run is on, which can be a `run_subagent` override or a mid-run switch, as
+   * `io.mindroom.ai_run` names it. MindRoom before the field sends none.
    */
   model?: AiRunModelInfo;
   /** Only on snapshots. */

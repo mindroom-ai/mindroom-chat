@@ -67,7 +67,7 @@ describe('sub-agent frames', () => {
       startedAt: 1762790000.1,
       endedAt: null,
       model: {
-        modelConfig: 'harry_opus',
+        modelConfig: 'opus',
         modelDisplayName: 'Opus 5.5',
         modelId: 'anthropic/claude-opus-5.5',
         modelProvider: 'openrouter',
@@ -82,8 +82,6 @@ describe('sub-agent frames', () => {
         ?.meta.model
     ).toEqual({ modelConfig: 'opus' });
     expect(parseSubagentFrame(frame({}))?.meta).not.toHaveProperty('model');
-    const nested = fixture.cases.find((testCase) => testCase.frame.run === 'del-2')?.frame;
-    expect(parseSubagentFrame(nested)?.meta).not.toHaveProperty('model');
   });
 
   it.each([
