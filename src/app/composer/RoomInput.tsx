@@ -831,9 +831,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                     tab={forkFrom ? 'Emoji' : boardTab}
                     onTabChange={setBoardTab}
                     onStickerSelect={
-                      forkFrom
-                        ? undefined
-                        : (mxc, _shortcode, label) => sendSticker(mxc, label)
+                      forkFrom ? undefined : (mxc, _shortcode, label) => sendSticker(mxc, label)
                     }
                     returnFocusOnDeactivate={false}
                     requestClose={() => setEmojiAnchor(undefined)}
