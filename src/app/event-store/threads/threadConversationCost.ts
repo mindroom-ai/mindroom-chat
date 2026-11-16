@@ -14,7 +14,10 @@ type ConversationCostTotal = {
 };
 
 export type ThreadConversationCost = {
-  /** Whether the thread's first event is loaded, so no older reply is missing from the sums. */
+  /**
+   * Whether the sums are exact: the thread's first event is loaded, so no older reply is missing,
+   * and no agent's run ended without a cost (stopped or failed), so none is left out.
+   */
   complete: boolean;
   /** The conversation's cost through each priced reply. */
   byEventId: ReadonlyMap<string, ConversationCostTotal>;
@@ -33,6 +36,9 @@ type SummarizeOptions = {
 
 // The backend rounds each cost to micro-dollars, so integer sums are exact.
 const MICROS_PER_USD = 1_000_000;
+// Runs that ended so: their usage can be unknown, and then the backend leaves the cost out. A
+// completed run leaves it out only when it used no priced model, so it cost nothing.
+const UNKNOWN_COST_ENDINGS = new Set(['cancelled', 'error']);
 
 export const summarizeThreadConversationCost = (
   events: readonly MatrixEvent[],
@@ -47,14 +53,19 @@ export const summarizeThreadConversationCost = (
   const replies: { eventId: string; usd: number }[] = [];
   let micros = 0;
   let replyCount = 0;
+  let unknownCost = false;
   events.forEach((event) => {
     const eventId = event.getId();
     const sender = event.getSender() ?? '';
     // Edits and reactions carry no cost of their own; a reply's latest edit is read through it.
     if (!eventId || reactionOrEditEvent(event) || event.isRedacted()) return;
     if (!isTrustedSender(sender) || ignoredUserIds?.has(sender)) return;
-    const costUsd = getAiRunInfo(getContent(event))?.costUsd;
-    if (costUsd === undefined) return;
+    const run = getAiRunInfo(getContent(event));
+    const costUsd = run?.costUsd;
+    if (costUsd === undefined) {
+      if (run?.status && UNKNOWN_COST_ENDINGS.has(run.status)) unknownCost = true;
+      return;
+    }
     const replyMicros = Math.round(costUsd * MICROS_PER_USD);
     micros += replyMicros;
     replyCount += 1;
@@ -63,7 +74,11 @@ export const summarizeThreadConversationCost = (
   });
   if (replyCount === 0) return undefined;
   return {
-    complete: history.sdkLoaded && !history.canPaginateBack && !history.hasMoreCachedBack,
+    complete:
+      !unknownCost &&
+      history.sdkLoaded &&
+      !history.canPaginateBack &&
+      !history.hasMoreCachedBack,
     byEventId,
     replies,
   };

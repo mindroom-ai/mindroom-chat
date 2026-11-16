@@ -108,6 +108,22 @@ describe('summarizeThreadConversationCost', () => {
     expect(cost?.byEventId.has('$r1')).toBe(false);
   });
 
+  it("is a lower bound when an agent's run stopped or failed without a cost", () => {
+    const ended = (id: string, status: string, sender = AGENT) =>
+      message(id, sender, undefined, { 'io.mindroom.ai_run': { version: 1, status } });
+    const complete = (events: MatrixEvent[]) =>
+      summarizeThreadConversationCost([message('$r1', AGENT, '0.01'), ...events], {
+        history: loaded,
+        isTrustedSender,
+      })?.complete;
+
+    expect(complete([ended('$r2', 'cancelled')])).toBe(false);
+    expect(complete([ended('$r2', 'error')])).toBe(false);
+    // A completed run without a cost used no priced model, and only agents' metadata counts.
+    expect(complete([ended('$r2', 'completed')])).toBe(true);
+    expect(complete([ended('$r2', 'cancelled', PERSON)])).toBe(true);
+  });
+
   it('returns undefined when nothing is priced', () => {
     expect(
       summarizeThreadConversationCost([message('$root', PERSON), message('$r1', AGENT)], {
