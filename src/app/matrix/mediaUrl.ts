@@ -111,8 +111,9 @@ const buildMediaUrl = (
 };
 
 // Every timeline row builds its avatar's URL at each render, and building one parses URLs three
-// times. A URL without a token depends only on the client's homeserver and the arguments, so it
-// is kept per client; one that carries the token is built each time, with the current token.
+// times. A URL without a token depends only on the client's homeserver, which a client never
+// changes, and the arguments, so it is kept per client by its arguments; one that carries the
+// token is built each time, with the current token.
 const MAX_CACHED_URLS = 1000;
 const tokenFreeUrls = new WeakMap<MediaClient, Map<string, string | null>>();
 
@@ -131,7 +132,7 @@ export const mxcUrlToHttp = (
     urls = new Map();
     tokenFreeUrls.set(mx, urls);
   }
-  const key = JSON.stringify([mx.getHomeserverUrl(), mxcUrl, useAuthentication, ...extras]);
+  const key = JSON.stringify([mxcUrl, useAuthentication, ...extras]);
   const known = urls.get(key);
   if (known !== undefined) return known;
   const url = buildMediaUrl(mx, mxcUrl, useAuthentication, ...extras);
