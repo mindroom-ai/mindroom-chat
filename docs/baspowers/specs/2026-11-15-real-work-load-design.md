@@ -84,11 +84,11 @@ Approach 1 is still used once, as ground truth: the same scenarios run against t
 
 - `account`: rooms besides the measured one (the census: about 210, most quiet), with how many events each, and spaces.
 - `room`: number of people, and `agents`: how many agent accounts take the replies (1 in Bas's rooms; more to load the client past the homeserver's frame cap, see Spike findings). Unencrypted, as Bas's agent rooms are.
-- `history`: threads, how many of them are resolved (`resolvedThreads`: the Compact view leaves those out, and the client still lists every one), turns per thread (a distribution), and per turn the reply shape below.
+- `history`: threads, how many of them are resolved (`resolvedThreads`: the Compact view leaves those out, and the client still lists every one), turns per thread (a distribution), `heavy` (how many open threads get a real long thread's turns instead: the census's 22 replies at the median and 98 at p90, capped at 120), and per turn the reply shape below. The person's read state is part of it: one unthreaded read receipt from early in the history, on an event a client no longer holds, and a read receipt in every open thread.
 - `reply`: words (distribution, long enough that the p99 reply crosses the backend's long-text limit), pace in words per second, reasoning characters, tool calls (distribution) with their run time, so each call writes jobs state twice as in production.
 - `live`: concurrent streams, the pause before a thread's next turn (distribution), and how long the measured window lasts.
 
-`real-work-50.json` is the target; `real-work-census.json` reproduces the room Bas named (520 threads, 481 of them resolved, which leaves the 39 of the last 60 days open; up to 7 streams) for calibration.
+`real-work-50.json` is the target; `real-work-census.json` reproduces the room Bas named (520 threads, of which the profile resolves 481 (the room has 486 resolved), which leaves the 39 of the last 60 days open, 12 of them heavy; up to 7 streams) for calibration.
 
 ### 3. Load: real backend, stub model, driver
 
@@ -127,7 +127,9 @@ The same spec with `PERF_TARGET=external`, a homeserver, an account and a room f
 
 ### 7. Calibration
 
-With `real-work-census.json` (the measured room's real size and pace), the synthetic load must land within a factor of 1.5 of the production copy on each static scenario's main-thread time, and within a factor of 2 of the replayed streams at 3 and 7 streams; the CPU profiles must share most of their top 15 self-time functions. Where they differ, the profile or the stub scenario lacks something real (a content feature, a kind of event, the account's other rooms) and gets it before any fix is measured against the synthetic load.
+With `real-work-census.json` (the measured room's real size and pace), the synthetic load must land within a factor of 1.5 of the production copy on each static scenario's main-thread time; the CPU profiles must share most of their top 15 self-time functions.
+
+Under streams the real backend is the reference for the shape of a stream: which events a reply produces, and how often. The replay of the real-data baseline streamed text for the whole window and wrote jobs state every 1.5 s for each stream, a shape of its own making, so its busy share is not a target. Live calibration compares the cost of an event instead: the main-thread time of a window divided by the live frames, edits and jobs state writes the page received in it must be within a factor of 2 of the replay's at 3 and at 7 streams, in the Compact view and in an open thread, in windows of a steady state (after the spec's ramp, over which the driver spreads the first replies' starts). The absolute busy share is reported with it and not gated. Where they differ, the profile or the stub scenario lacks something real (a content feature, a kind of event, the account's other rooms) and gets it before any fix is measured against the synthetic load.
 
 ### 8. Runs across machines, comparison
 
