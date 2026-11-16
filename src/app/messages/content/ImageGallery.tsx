@@ -17,7 +17,7 @@ type Original = { key: string; src?: string; failed?: boolean };
 
 /** What a slide's original is loaded from: its event's revision and its file. */
 const slideKey = ({ eventId, owner, url, encInfo }: ImageSlide): string =>
-  [eventId, owner?.revisionTs ?? '', url, encInfo?.iv ?? ''].join('|');
+  [eventId, owner?.revisionTs ?? '', owner?.revisionId ?? '', url, encInfo?.iv ?? ''].join('|');
 
 /**
  * One open image viewer, paging through the conversation's pictures (`ImageSlidesContext`) from
@@ -34,11 +34,14 @@ export function ImageGallery({ slide: origin, requestClose }: ImageGalleryProps)
   const [attempt, setAttempt] = useState(0);
   const [original, setOriginal] = useState<Original>();
 
-  const readSlides = (): readonly ImageSlide[] => {
-    const listed = getSlides?.();
-    return listed?.some((slide) => slide.eventId === origin.eventId) ? listed : [origin];
-  };
-  const [slides, setSlides] = useState(readSlides);
+  // Joined when the opening picture was among the conversation's: from then on the viewer pages
+  // the conversation's pictures, whichever of them remain.
+  const [view, setView] = useState(() => {
+    const listed = getSlides?.() ?? [];
+    const joined = listed.some((slide) => slide.eventId === origin.eventId);
+    return { joined, slides: joined ? listed : [origin] };
+  });
+  const { slides } = view;
   const index = slides.findIndex((slide) => slide.eventId === currentId);
   const current = slides[index];
 
@@ -80,8 +83,9 @@ export function ImageGallery({ slide: origin, requestClose }: ImageGalleryProps)
   const shown = original?.key === key ? original : undefined;
 
   const step = (delta: -1 | 1) => {
-    const fresh = readSlides();
-    setSlides(fresh);
+    if (!view.joined) return;
+    const fresh = getSlides?.() ?? [];
+    setView({ joined: true, slides: fresh });
     const at = fresh.findIndex((slide) => slide.eventId === currentId);
     // A shown picture that is gone closes the viewer (the effect above); at an end nothing moves.
     const next = at < 0 ? undefined : fresh[at + delta];

@@ -766,12 +766,15 @@ export function RoomTimeline(props: RoomTimelineProps) {
         : EMPTY_IDS,
     [threadRowHidden, threadEvents, isHiddenByPlugin]
   );
+  // Rows read edits from the open thread's set, or in the room view from the room's.
+  const rowTimelineSet =
+    (threadId && threadState.threadTimelineSet) || room.getUnfilteredTimelineSet();
   // The image viewer pages through the pictures of the conversation on screen, as its rows show
   // them. It reads them when it opens and on each step, so newly loaded ones join; the getter
   // keeps its identity, so a timeline update does not render the open viewer again.
   const imageSlideSourceRef = useLatestRef({
     events: threadId ? threadEvents : roomRows,
-    getRowContent,
+    timelineSet: rowTimelineSet,
     isHiddenByPlugin,
     ignoredUsersSet,
   });
@@ -779,7 +782,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     const source = imageSlideSourceRef.current;
     return buildImageSlides(
       source.events,
-      source.getRowContent,
+      source.timelineSet,
       source.isHiddenByPlugin,
       source.ignoredUsersSet
     );
@@ -1693,7 +1696,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     readUptoAbsoluteIndex: latestAtTop ? undefined : windowState.readUptoAbsoluteIndex,
     ignoredUsersSet,
     showHiddenEvents,
-    timelineSet: (threadId && threadState.threadTimelineSet) || room.getUnfilteredTimelineSet(),
+    timelineSet: rowTimelineSet,
     focusItem,
     messageData,
     isHiddenByPlugin,

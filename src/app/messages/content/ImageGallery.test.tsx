@@ -216,6 +216,29 @@ describe('ImageGallery', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
+  it('closes on the next step when the picture it opened on is redacted while shown', () => {
+    const { rerender } = render(<Conversation slides={[A, B]} origin={A} />);
+    rerender(<Conversation slides={[B]} origin={A} />);
+    press('ArrowRight');
+    expect(requestClose).toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('keeps paging after the picture it opened on is redacted behind it', () => {
+    const { rerender } = render(<Conversation slides={[A, B, C]} origin={A} />);
+    press('ArrowRight');
+    rerender(<Conversation slides={[B, C]} origin={A} />);
+
+    press('ArrowRight');
+    expect(requestClose).not.toHaveBeenCalled();
+    expect(screen.getByText('2 / 2')).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: 'c.png' })).toBeTruthy();
+
+    press('ArrowLeft');
+    expect(screen.getByText('1 / 2')).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: 'b.png' })).toBeTruthy();
+  });
+
   it('does not read the pictures again when the conversation updates, only on its next step', () => {
     const { rerender } = render(<Conversation slides={[A, B]} origin={B} />);
     const reads = slideReads.mock.calls.length;

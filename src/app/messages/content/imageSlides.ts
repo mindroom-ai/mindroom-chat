@@ -1,5 +1,5 @@
 import { createContext } from 'react';
-import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
+import { MsgType, type EventTimelineSet, type MatrixEvent } from 'matrix-js-sdk';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import type { IImageInfo } from '../../matrix/types/common';
 import {
@@ -7,6 +7,7 @@ import {
   type EventAttachmentOwner,
 } from '../../matrix/protocol/eventAttachments';
 import { MEDIA_SPOILER_PROPERTY } from '../../matrix/send/msgContent';
+import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
 import { readImageAttachment } from './MsgTypeRenderers';
 
 /** One picture the image viewer can page to: an `m.image` event the timeline shows as an image. */
@@ -29,14 +30,14 @@ export const ImageSlidesContext = createContext<(() => readonly ImageSlide[]) | 
 );
 
 /**
- * The pictures among `events`, in their order, as the timeline shows them (`getContent` gives a
- * row's shown content, its newest edit's). Left out: stickers, redacted and undecrypted events,
- * spoilers, rows `isHidden` hides, images of senders the reader ignores, and images the timeline
- * shows as a file row.
+ * The pictures among `events`, in their order, as the timeline shows them: at their newest edit
+ * among `timelineSet`'s relations, the set their rows read edits from, with that revision as the
+ * owner. Left out: stickers, redacted and undecrypted events, spoilers, rows `isHidden` hides,
+ * images of senders the reader ignores, and images the timeline shows as a file row.
  */
 export const buildImageSlides = (
   events: readonly MatrixEvent[],
-  getContent: (event: MatrixEvent) => Record<string, unknown>,
+  timelineSet: Pick<EventTimelineSet, 'relations'> | undefined,
   isHidden: (event: MatrixEvent) => boolean,
   ignoredUserIds: ReadonlySet<string>
 ): ImageSlide[] =>
@@ -44,9 +45,11 @@ export const buildImageSlides = (
     const eventId = event.getId();
     if (!eventId || event.getType() !== 'm.room.message' || event.isRedacted()) return [];
     if (event.isDecryptionFailure() || ignoredUserIds.has(event.getSender() ?? '')) return [];
-    const content = getContent(event);
+    const edit = getEditedEvent(eventId, event, timelineSet);
+    const content = getLatestMessageContent(event, edit) as Record<string, unknown>;
     if (content.msgtype !== MsgType.Image || content[MEDIA_SPOILER_PROPERTY] === true) return [];
     const image = readImageAttachment(content);
     if (!image || image === 'file' || isHidden(event)) return [];
-    return [{ eventId, ...image, owner: getEventAttachmentOwner(event) }];
+    const owner = edit ? getEventAttachmentOwner(edit, event) : getEventAttachmentOwner(event);
+    return [{ eventId, ...image, owner }];
   });

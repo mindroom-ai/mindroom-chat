@@ -11,7 +11,7 @@ import { imageViewerOpenAtom } from '../../navigation/imageViewerState';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
 
 /** Marks the history entry pushed while an image viewer is open, so Back closes the viewer. */
-export const IMAGE_VIEWER_HISTORY_MARKER = '__mindroomImageViewer';
+const IMAGE_VIEWER_HISTORY_MARKER = '__mindroomImageViewer';
 
 // The viewer pinches its own picture: the page zoom leaves pinches over its frame alone, its
 // safe-area padding on a phone included (theme/usePinchToZoom.ts).

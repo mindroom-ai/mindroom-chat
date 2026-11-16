@@ -1,4 +1,4 @@
-import { MatrixEvent } from 'matrix-js-sdk';
+import { MatrixEvent, type EventTimelineSet } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import { MEDIA_SPOILER_PROPERTY } from '../../matrix/send/msgContent';
 import { buildImageSlides } from './imageSlides';
@@ -25,22 +25,24 @@ const image = (name: string, info: Content = { mimetype: 'image/png' }): Content
   info,
 });
 
-const ownContent = (mEvent: MatrixEvent) => mEvent.getContent();
+type RelationsSet = Pick<EventTimelineSet, 'relations'>;
+/** No timeline set: each event shows its own content. */
+const noSet: RelationsSet | undefined = undefined;
 const nothingHidden = () => false;
 const nobodyIgnored: ReadonlySet<string> = new Set();
 
 const ids = (
   events: MatrixEvent[],
-  getContent = ownContent,
+  timelineSet = noSet,
   isHidden: (mEvent: MatrixEvent) => boolean = nothingHidden,
   ignoredUserIds = nobodyIgnored
-) => buildImageSlides(events, getContent, isHidden, ignoredUserIds).map((slide) => slide.eventId);
+) => buildImageSlides(events, timelineSet, isHidden, ignoredUserIds).map((slide) => slide.eventId);
 
 describe('buildImageSlides', () => {
   it('turns a plain image into a slide with its name, file, type, info and owner', () => {
     const [slide] = buildImageSlides(
       [event('$a', image('a.png'))],
-      ownContent,
+      noSet,
       nothingHidden,
       nobodyIgnored
     );
@@ -73,7 +75,7 @@ describe('buildImageSlides', () => {
           info: { mimetype: 'image/jpeg' },
         }),
       ],
-      ownContent,
+      noSet,
       nothingHidden,
       nobodyIgnored
     );
@@ -124,15 +126,13 @@ describe('buildImageSlides', () => {
 
   it('leaves out the rows a plugin hides', () => {
     const events = [event('$hidden', image('h.png')), event('$shown', image('s.png'))];
-    expect(ids(events, ownContent, (mEvent) => mEvent.getId() === '$hidden')).toEqual(['$shown']);
+    expect(ids(events, noSet, (mEvent) => mEvent.getId() === '$hidden')).toEqual(['$shown']);
   });
 
   it('leaves out the images of a sender the reader ignores, as the timeline does', () => {
     const ignored = event('$ignored', image('i.png'), { sender: '@spam:example.org' });
     const events = [ignored, event('$kept', image('k.png'))];
-    expect(ids(events, ownContent, nothingHidden, new Set(['@spam:example.org']))).toEqual([
-      '$kept',
-    ]);
+    expect(ids(events, noSet, nothingHidden, new Set(['@spam:example.org']))).toEqual(['$kept']);
   });
 
   it('leaves out an image the timeline shows as a file row (SVG, not an image type, no file)', () => {
@@ -145,16 +145,35 @@ describe('buildImageSlides', () => {
     expect(ids(events)).toEqual(['$png']);
   });
 
-  it('reads the content the timeline shows, such as an edit', () => {
+  it('reads the newest edit from the timeline set the rows use, with that revision as owner', () => {
     const original = event('$edited', image('old.png'));
-    const edited = { ...image('new.png') };
-    const [slide] = buildImageSlides(
-      [original],
-      (mEvent) => (mEvent.getId() === '$edited' ? edited : mEvent.getContent()),
-      nothingHidden,
-      nobodyIgnored
+    const edit = event(
+      '$edit',
+      {
+        ...image('* new.png'),
+        'm.new_content': image('new.png'),
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$edited' },
+      },
+      { origin_server_ts: 2000 }
     );
+    // The SDK has not applied the edit: only the set's relations know it, as in the room view.
+    const roomSet = {
+      relations: {
+        getChildEventsForEvent: (eventId: string) =>
+          eventId === '$edited' ? { getRelations: () => [edit] } : undefined,
+      },
+    } as unknown as RelationsSet;
+
+    const [slide] = buildImageSlides([original], roomSet, nothingHidden, nobodyIgnored);
     expect(slide?.body).toBe('new.png');
     expect(slide?.url).toBe('mxc://example.org/new.png');
+    expect(slide?.owner).toMatchObject({
+      eventId: '$edited',
+      revisionTs: 2000,
+      revisionId: '$edit',
+    });
+
+    const [unedited] = buildImageSlides([original], noSet, nothingHidden, nobodyIgnored);
+    expect(unedited?.body).toBe('old.png');
   });
 });
