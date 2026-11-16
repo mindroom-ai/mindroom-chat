@@ -40,7 +40,11 @@ export function ThreadForksChip({ room, forks }: { room: Room; forks: ThreadFork
   const { t } = useTranslation();
   const { navigateRoomThread } = useRoomNavigate();
   const [anchor, setAnchor] = useState<RectCords>();
-  const closeMenu = () => setAnchor(undefined);
+  // A click outside or Escape closes it; the trap then lets the click through.
+  const closeMenu = () => {
+    setAnchor(undefined);
+    return true;
+  };
   return (
     <>
       <button
@@ -79,7 +83,7 @@ export function ThreadForksChip({ room, forks }: { room: Room; forks: ThreadFork
                       room={room}
                       fork={fork}
                       onOpen={() => {
-                        closeMenu();
+                        setAnchor(undefined);
                         navigateRoomThread(room.roomId, fork.threadId);
                       }}
                     />

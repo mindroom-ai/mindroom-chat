@@ -78,9 +78,9 @@ export const useThreadForks = (
       room.off(ThreadEvent.New, onThread);
     };
   }, [room, threadId, bump]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- `version` renews the read
-  return useMemo(
-    () => (threadId ? groupThreadForks(knownRoots(room), threadId) : NO_FORKS),
-    [room, threadId, version]
-  );
+  return useMemo(() => {
+    // The roots live in the SDK's mutable timelines: `version` renews the read.
+    void version;
+    return threadId ? groupThreadForks(knownRoots(room), threadId) : NO_FORKS;
+  }, [room, threadId, version]);
 };
