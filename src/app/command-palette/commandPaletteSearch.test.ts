@@ -269,6 +269,19 @@ describe('searchCommandPaletteSection', () => {
     expect(searchUsers(items, 'room')).toEqual(['mindy']);
   });
 
+  it('finds a room by its name or alias typed with the # of an alias', () => {
+    const items = [
+      room('!gen:example.org', 'General'),
+      room('!eng:example.org', 'Engineering', { canonicalAlias: '#eng-team:example.org' }),
+    ];
+
+    expect(searchRooms(items, '#general')).toEqual(['!gen:example.org']);
+    expect(searchRooms(items, '#eng-team')).toEqual(['!eng:example.org']);
+    expect(searchRooms(items, '#eng-team:example.org')).toEqual(['!eng:example.org']);
+    // The sign alone is no text.
+    expect(searchRooms(items, '#')).toHaveLength(2);
+  });
+
   it('ignores a field that is missing, empty or an empty list', () => {
     const items = [
       room('!bare:example.org', 'Bare', { topic: '', parentNames: [], canonicalAlias: undefined }),

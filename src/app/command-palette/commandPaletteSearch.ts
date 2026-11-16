@@ -99,6 +99,8 @@ export const commandPaletteSearchConfig = {
       { key: 'parentNames', get: (item) => item.parentNames, weight: 0.5 },
     ],
     limit: 8,
+    // The sign of an alias, so "#general" finds the room named General too.
+    word: (word) => (word.startsWith('#') ? word.slice(1) : word),
   } satisfies CommandPaletteSearchConfig<CommandPaletteRoomItem>,
   users: {
     fields: [
