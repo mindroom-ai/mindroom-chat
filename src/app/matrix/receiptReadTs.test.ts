@@ -57,7 +57,7 @@ describe('receiptReadTs', () => {
   });
 
   it('keeps no answer for a room stand-in that tells nothing of its events', () => {
-    const findEventById = vi.fn<[string], MatrixEvent | undefined>(() => undefined);
+    const findEventById = vi.fn<(eventId: string) => MatrixEvent | undefined>(() => undefined);
     const standIn = { findEventById } as unknown as Room;
 
     expect(receiptReadTs(standIn, standIn, '$late', 5000)).toBe(5000);
