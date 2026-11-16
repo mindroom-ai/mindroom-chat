@@ -235,6 +235,32 @@ describe('SubagentsPanel', () => {
     );
   });
 
+  it("shows the model of a sub-agent's newest turn after its agent, and none it was not sent", () => {
+    ingest('modeled', meta('completed', { subagent: 'modeled', model: 'sonnet' }), docs('A.'));
+    ingest(
+      'modeled-2',
+      meta('running', { subagent: 'modeled', model: 'harry_opus', startedAt: NOW - 10 }),
+      docs('B.')
+    );
+    ingest('old', meta('running', { startedAt: NOW - 5 }), docs('C.'));
+    render();
+
+    const model = card('modeled').querySelector('[data-subagent-model]');
+    expect(model?.textContent).toBe('harry_opus');
+    // After the agent's name, before its status.
+    const name = [...card('modeled').querySelectorAll('span')].find(
+      (element) => element.textContent === 'Research Desk'
+    );
+    expect(name?.compareDocumentPosition(model as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(model?.nextElementSibling?.textContent).toBe('Running');
+    expect(card('old').querySelector('[data-subagent-model]')).toBeNull();
+
+    open('modeled');
+    const standing = container.querySelector('header [data-subagent-model]');
+    expect(standing?.textContent).toBe('harry_opus');
+    expect(standing?.nextElementSibling?.textContent).toBe('Running');
+  });
+
   it('lists finished runs after the running ones, the one that ended last first', () => {
     ingest('old', meta('completed', { endedAt: NOW - 300 }), docs('A', [], false));
     ingest('busy', meta('running'), docs('B'));

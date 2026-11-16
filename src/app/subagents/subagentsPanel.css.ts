@@ -88,6 +88,29 @@ export const Meta = style({
   marginBlockStart: space.S100,
 });
 
+/** The agent's name, which gives way only once the model beside it has. */
+export const AgentName = style({ flex: '0 1 auto', minWidth: 0 });
+
+/**
+ * The model the agent runs on, set off from its name by a dot; it shrinks before the name does.
+ */
+export const Model = style({
+  flex: '0 1000 auto',
+  minWidth: 0,
+  selectors: {
+    '&::before': { content: '"·"', marginInlineEnd: space.S200 },
+  },
+});
+
+/** The open run's model, before its status; a long one is cut short rather than wrapped. */
+export const StandingModel = style({
+  minWidth: 0,
+  maxWidth: '100%',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+});
+
 /** How many turns it took and how many sub-agents it started, at the end of the line. */
 export const Counts = style({
   display: 'flex',

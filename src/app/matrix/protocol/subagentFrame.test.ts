@@ -66,8 +66,21 @@ describe('sub-agent frames', () => {
       status: 'running',
       startedAt: 1762790000.1,
       endedAt: null,
+      model: 'harry_opus',
       task: 'Find when version 2 shipped.',
     });
+  });
+
+  it("keeps the run's model, and has none from MindRoom before the field", () => {
+    expect(parseSubagentFrame(frame({ meta: { ...meta, model: 'opus' } }))?.meta.model).toBe(
+      'opus'
+    );
+    expect(parseSubagentFrame(frame({}))?.meta).not.toHaveProperty('model');
+    expect(parseSubagentFrame(frame({ meta: { ...meta, model: '' } }))?.meta).not.toHaveProperty(
+      'model'
+    );
+    const nested = fixture.cases.find((testCase) => testCase.frame.run === 'del-2')?.frame;
+    expect(parseSubagentFrame(nested)?.meta).not.toHaveProperty('model');
   });
 
   it('takes a frame without a sub-agent as a turn of a sub-agent of its own', () => {
@@ -109,6 +122,7 @@ describe('sub-agent frames', () => {
     ['a non-numeric start', { meta: { ...meta, started_at: '1' } }],
     ['an undefined end', { meta: { ...meta, ended_at: undefined } }],
     ['a numeric parent', { meta: { ...meta, parent: 3 } }],
+    ['a numeric model', { meta: { ...meta, model: 3 } }],
     ['a bad live frame', { sid: 'x' }],
   ])('rejects a frame with %s', (_name, body) => {
     expect(parseSubagentFrame(frame(body))).toBeNull();

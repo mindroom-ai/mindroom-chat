@@ -120,8 +120,8 @@ type CardProps = {
 /**
  * One sub-agent as the room's compact view shows a thread: its first task as the title, how long
  * its newest turn has been at it or how long ago it ended, a line of what that turn wrote, then the
- * agent, how it stands, how many turns it took and how many sub-agents it started. Pressing it
- * opens the sub-agent.
+ * agent, the model that turn ran on, how it stands, how many turns it took and how many
+ * sub-agents it started. Pressing it opens the sub-agent.
  */
 export const SubagentRunCard = memo(function SubagentRunCard({
   room,
@@ -172,9 +172,21 @@ export const SubagentRunCard = memo(function SubagentRunCard({
       </Text>
       <span className={css.Meta}>
         <AgentAvatar agent={agent} size="200" />
-        <Text as="span" size="T200" truncate>
+        <Text as="span" size="T200" className={css.AgentName} truncate>
           {agent.name}
         </Text>
+        {meta.model && (
+          <Text
+            as="span"
+            size="T200"
+            priority="300"
+            className={css.Model}
+            data-subagent-model=""
+            truncate
+          >
+            {meta.model}
+          </Text>
+        )}
         <Text as="span" size="T200" priority="300">
           <RunStatus status={meta.status} />
         </Text>

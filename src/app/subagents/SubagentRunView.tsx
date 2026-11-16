@@ -251,6 +251,11 @@ export function SubagentRunView({
             {agent.name}
           </Text>
           <Text as="div" size="T200" priority="300" className={css.Standing}>
+            {meta.model && (
+              <span className={css.StandingModel} data-subagent-model="">
+                {meta.model}
+              </span>
+            )}
             <RunStatus status={meta.status} />
             {elapsed !== undefined && <span>{formatCallDuration(elapsed, language)}</span>}
           </Text>
