@@ -733,6 +733,29 @@
         "noLongerActive": "Cette demande n’est plus active. Redemandez à l’agent.",
         "unavailable": "La saisie de clés n’est pas disponible sur ce serveur.",
         "unavailableHint": "Pour saisir des clés ici, définissez votre serveur MindRoom dans Paramètres → {{page}} → {{field}}.",
+        "replaces": "Remplace la clé enregistrée actuellement.",
+        "replaceKey": "Remplacer la clé",
+        "temporary": {
+          "label": "Demande de secret",
+          "title": "Secret pour {{agent}}",
+          "givenAs": "Transmis aux commandes de {{agent}} dans cette conversation sous le nom {{variable}}.",
+          "field": "Secret pour {{variable}}",
+          "placeholder": "Collez ou saisissez le secret",
+          "show": "Afficher le secret",
+          "hide": "Masquer le secret",
+          "keepFor": "Conserver pendant",
+          "keep": {
+            "memory": "{{duration}}, en mémoire uniquement",
+            "disk": "{{duration}}, dans un fichier sur le serveur"
+          },
+          "kept": {
+            "memory": "Conservé pendant {{duration}}, en mémoire uniquement.",
+            "disk": "Conservé pendant {{duration}}, dans un fichier sur le serveur."
+          },
+          "send": "Envoyer",
+          "sent": "Envoyé",
+          "sentWaiting": "Envoyé, en attente de l’agent"
+        },
         "status": {
           "waitingForYou": "Vous attend",
           "pending": "En attente",
@@ -866,6 +889,10 @@
     "dismissLostFiles": "Ignorer"
   },
   "commandPalette": {
+    "state": {
+      "on": "Activé",
+      "off": "Désactivé"
+    },
     "people": "Personnes",
     "tabsLabel": "Types de résultats",
     "switchTabs": "Changer d'onglet",
@@ -1256,6 +1283,17 @@
       "settingsKeywords": "visite, visite guidée, tutoriel, guide, aide, introduction, prise en main, fils",
       "howThreadsWork": "Comment fonctionnent les fils",
       "noThreadsHint": "Envoyez un message ci-dessous pour en démarrer un."
+    }
+  },
+  "threadNav": {
+    "layout": "Disposition des fils",
+    "layoutRecent": "Récents",
+    "layoutSections": "Sections",
+    "sections": {
+      "working": "En cours",
+      "snoozed": "Reportés",
+      "idle": "Inactifs",
+      "resolved": "Résolus"
     }
   }
 }

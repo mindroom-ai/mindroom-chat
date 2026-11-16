@@ -4,8 +4,13 @@ import nl from '../i18n/locales/nl.json';
 import nlAdditions from '../i18n/locales/additions/nl.json';
 import { mergeLocaleTrees } from '../i18n/englishResources';
 import { translateFromEn } from '../../test/utils/i18n';
-import { SETTINGS, getShownSettings, type SettingsContext } from '../preferences/settingsRegistry';
-import { searchSettings, type SettingsTranslate } from './settingsSearchIndex';
+import {
+  SETTINGS,
+  getSettingDefinition,
+  getShownSettings,
+  type SettingsContext,
+} from '../preferences/settingsRegistry';
+import { getSettingText, searchSettings, type SettingsTranslate } from './settingsSearchIndex';
 
 const english: SettingsTranslate = (key, values) => translateFromEn(key, values);
 const VALUES = {
@@ -81,5 +86,33 @@ describe('settings search', () => {
     // A Dutch keyword ("donkere modus") finds the theme; the English one does not.
     expect(ids('donkere modus', dutch)).toContain('darkTheme');
     expect(ids('dark mode', dutch)).toEqual([]);
+  });
+});
+
+describe('getSettingText', () => {
+  const textOf = (id: string) => {
+    const setting = getSettingDefinition(id);
+    if (!setting) throw new Error(`no setting ${id}`);
+    return getSettingText(setting, english, VALUES);
+  };
+
+  it('gives the label, description, search words and place of a setting, unfolded', () => {
+    expect(textOf('enterForNewline')).toStrictEqual({
+      label: 'ENTER for Newline',
+      description: 'Use Ctrl + ENTER to send message and ENTER for newline.',
+      keywords: ['keyboard', 'shortcut', 'send', 'line break', 'formatting'],
+      location: ['Chats', 'Editor'],
+    });
+  });
+
+  it('ends the place of an advanced setting with Advanced, and names a group once', () => {
+    expect(textOf('messageSpacing')).toStrictEqual({
+      label: 'Message Spacing',
+      description: '',
+      keywords: ['bubbles', 'compact', 'modern', 'density'],
+      location: ['Appearance', 'Display', 'Advanced'],
+    });
+    // The Computers page holds its settings under a group of the same name.
+    expect(textOf('computerServer').location).toStrictEqual(['Computers', 'Advanced']);
   });
 });

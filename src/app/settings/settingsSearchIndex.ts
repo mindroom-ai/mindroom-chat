@@ -15,9 +15,12 @@ export type SettingsSearchValues = Record<string, string>;
 /** The active language's text for a key. */
 export type SettingsTranslate = (key: ParseKeys, values?: SettingsSearchValues) => string;
 
-// Lower case, and Latin letters without their accents, so "theme" finds "Thème". Other scripts
-// keep their marks: an Indic vowel sign or a Japanese voicing mark changes the word.
-const fold = (text: string): string =>
+/**
+ * Text as the search compares it: lower case, one space between words, and Latin letters without
+ * their accents, so "theme" finds "Thème". Other scripts keep their marks: an Indic vowel sign or
+ * a Japanese voicing mark changes the word.
+ */
+export const foldSearchText = (text: string): string =>
   text
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -28,6 +31,51 @@ const fold = (text: string): string =>
 
 // The comma of each script, so every translation can list its words its own way.
 const KEYWORD_SEPARATORS = /[,،、，;]/;
+
+/** A setting's text in the active language: what its search and its rows elsewhere show. */
+export type SettingText = {
+  label: string;
+  /** Empty when the setting has none. */
+  description: string;
+  keywords: string[];
+  /** Where the setting lives: its page, its group on the page, and the Advanced fold. */
+  location: string[];
+};
+
+const translator =
+  (t: SettingsTranslate, values: SettingsSearchValues) =>
+  (key: ParseKeys | undefined): string =>
+    key ? t(key, values) : '';
+
+// The labels of the page and of the group on it that hold a setting; a missing one is empty.
+const placeLabels = (setting: SettingDefinition, text: ReturnType<typeof translator>) => ({
+  page: text(SETTINGS_PAGES.find((candidate) => candidate.id === setting.page)?.labelKey),
+  group: text(setting.group),
+});
+
+/**
+ * The text of `setting` as its page shows it, with the placeholders of `values` filled in: the
+ * search words split at the language's commas, and the location without a part that repeats.
+ */
+export const getSettingText = (
+  setting: SettingDefinition,
+  t: SettingsTranslate,
+  values: SettingsSearchValues = {}
+): SettingText => {
+  const text = translator(t, values);
+  const { page, group } = placeLabels(setting, text);
+  return {
+    label: text(setting.labelKey),
+    description: text(setting.descriptionKey),
+    keywords: text(setting.keywordsKey)
+      .split(KEYWORD_SEPARATORS)
+      .map((keyword) => keyword.trim())
+      .filter(Boolean),
+    location: [page, group, setting.advanced ? text('featureUi.settings.advanced') : '']
+      .filter(Boolean)
+      .filter((part, index, parts) => parts.indexOf(part) === index),
+  };
+};
 
 const words = (text: string): string[] => text.split(/[^\p{L}\p{N}@]+/u).filter(Boolean);
 
@@ -76,29 +124,24 @@ export const searchSettings = (
   t: SettingsTranslate,
   values: SettingsSearchValues = {}
 ): SettingsSearchResult[] => {
-  const queryWords = fold(query).split(' ').filter(Boolean);
+  const queryWords = foldSearchText(query).split(' ').filter(Boolean);
   if (queryWords.length === 0) return [];
-  const text = (key: ParseKeys | undefined) => (key ? t(key, values) : '');
-  const advanced = text('featureUi.settings.advanced');
+  const text = translator(t, values);
 
   return settings
     .map((setting, order) => {
-      const page = SETTINGS_PAGES.find((candidate) => candidate.id === setting.page);
-      const label = text(setting.labelKey);
-      const pageLabel = text(page?.labelKey);
-      const groupLabel = text(setting.group);
+      const { label, description, keywords, location } = getSettingText(setting, t, values);
+      // The group counts even where the location leaves it out for repeating the page's name.
+      const { page, group } = placeLabels(setting, text);
       const fields: Fields = {
-        label: fold(label),
-        keywords: text(setting.keywordsKey).split(KEYWORD_SEPARATORS).map(fold).filter(Boolean),
-        group: fold(groupLabel),
-        description: fold(text(setting.descriptionKey)),
-        page: fold(pageLabel),
+        label: foldSearchText(label),
+        keywords: keywords.map(foldSearchText).filter(Boolean),
+        group: foldSearchText(group),
+        description: foldSearchText(description),
+        page: foldSearchText(page),
       };
       const scores = queryWords.map((word) => scoreWord(word, fields));
       const exact = fields.label === queryWords.join(' ') ? WEIGHTS.labelStart : 0;
-      const location = [pageLabel, groupLabel, setting.advanced ? advanced : '']
-        .filter(Boolean)
-        .filter((part, index, parts) => parts.indexOf(part) === index);
       return {
         result: { setting, label, location },
         score: scores.includes(0) ? 0 : scores.reduce((sum, score) => sum + score, exact),

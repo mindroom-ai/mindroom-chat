@@ -724,6 +724,29 @@
         "noLongerActive": "Bu istek artık etkin değil. Ajandan yeniden isteyin.",
         "unavailable": "Bu sunucuda anahtar girilemez.",
         "unavailableHint": "Burada anahtar girmek için MindRoom sunucunuzu Ayarlar → {{page}} → {{field}} bölümünde ayarlayın.",
+        "replaces": "Şu an kayıtlı anahtarın yerini alır.",
+        "replaceKey": "Anahtarı değiştir",
+        "temporary": {
+          "label": "Gizli bilgi isteği",
+          "title": "{{agent}} için gizli bilgi",
+          "givenAs": "Bu konuşmada {{agent}} adlı ajanın komutlarına {{variable}} olarak verilir.",
+          "field": "{{variable}} için gizli bilgi",
+          "placeholder": "Gizli bilgiyi yapıştırın veya yazın",
+          "show": "Gizli bilgiyi göster",
+          "hide": "Gizli bilgiyi gizle",
+          "keepFor": "Saklama süresi",
+          "keep": {
+            "memory": "{{duration}}, yalnızca bellekte",
+            "disk": "{{duration}}, sunucudaki bir dosyada"
+          },
+          "kept": {
+            "memory": "{{duration}} boyunca saklanır, yalnızca bellekte.",
+            "disk": "{{duration}} boyunca saklanır, sunucudaki bir dosyada."
+          },
+          "send": "Gönder",
+          "sent": "Gönderildi",
+          "sentWaiting": "Gönderildi, ajan bekleniyor"
+        },
         "status": {
           "waitingForYou": "Sizi bekliyor",
           "pending": "Bekliyor",
@@ -851,6 +874,10 @@
     "dismissLostFiles": "Kapat"
   },
   "commandPalette": {
+    "state": {
+      "on": "Açık",
+      "off": "Kapalı"
+    },
     "people": "Kişiler",
     "tabsLabel": "Sonuç türleri",
     "switchTabs": "Sekme değiştir",
@@ -1233,6 +1260,17 @@
       "settingsKeywords": "tur, eğitim, kılavuz, rehber, yardım, tanıtım, konular",
       "howThreadsWork": "Konular nasıl çalışır",
       "noThreadsHint": "Bir konu başlatmak için aşağıdan mesaj gönderin."
+    }
+  },
+  "threadNav": {
+    "layout": "Konu düzeni",
+    "layoutRecent": "Son",
+    "layoutSections": "Bölümler",
+    "sections": {
+      "working": "Çalışıyor",
+      "snoozed": "Ertelenenler",
+      "idle": "Boşta",
+      "resolved": "Çözülenler"
     }
   }
 }
