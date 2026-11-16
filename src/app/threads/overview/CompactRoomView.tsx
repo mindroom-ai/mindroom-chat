@@ -34,6 +34,7 @@ import { useStagedCardIds } from './useStagedCardIds';
 import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import { ThreadCardBadges } from './ThreadCardBadges';
+import { ThreadCardDetails } from './ThreadCardDetails';
 
 const ThreadActionsMenu = lazy(() =>
   import('../ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -468,6 +469,7 @@ export function CompactRoomView({
         className={overlay.Scrollbar}
         label={t('threadNav.messages')}
       />
+      <ThreadCardDetails room={room} listRef={contentRef} menuOpen={!!menu} />
       {menu && menuModel && (
         <Suspense fallback={null}>
           <ThreadActionsMenu
