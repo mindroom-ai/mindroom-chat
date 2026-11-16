@@ -887,6 +887,10 @@
     "dismissLostFiles": "Ignorer"
   },
   "commandPalette": {
+    "state": {
+      "on": "Activé",
+      "off": "Désactivé"
+    },
     "people": "Personnes",
     "tabsLabel": "Types de résultats",
     "switchTabs": "Changer d'onglet",
@@ -1277,6 +1281,17 @@
       "settingsKeywords": "visite, visite guidée, tutoriel, guide, aide, introduction, prise en main, fils",
       "howThreadsWork": "Comment fonctionnent les fils",
       "noThreadsHint": "Envoyez un message ci-dessous pour en démarrer un."
+    }
+  },
+  "threadNav": {
+    "layout": "Disposition des fils",
+    "layoutRecent": "Récents",
+    "layoutSections": "Sections",
+    "sections": {
+      "working": "En cours",
+      "snoozed": "Reportés",
+      "idle": "Inactifs",
+      "resolved": "Résolus"
     }
   }
 }

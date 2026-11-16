@@ -887,6 +887,10 @@
     "dismissLostFiles": "Ignora"
   },
   "commandPalette": {
+    "state": {
+      "on": "Attivo",
+      "off": "Spento"
+    },
     "people": "Persone",
     "tabsLabel": "Tipi di risultato",
     "switchTabs": "Cambia scheda",
@@ -1277,6 +1281,17 @@
       "settingsKeywords": "tour, tutorial, guida, aiuto, introduzione, primi passi, thread",
       "howThreadsWork": "Come funzionano i thread",
       "noThreadsHint": "Invia un messaggio qui sotto per iniziarne uno."
+    }
+  },
+  "threadNav": {
+    "layout": "Disposizione dei thread",
+    "layoutRecent": "Recenti",
+    "layoutSections": "Sezioni",
+    "sections": {
+      "working": "In corso",
+      "snoozed": "Posticipati",
+      "idle": "Inattivi",
+      "resolved": "Risolti"
     }
   }
 }

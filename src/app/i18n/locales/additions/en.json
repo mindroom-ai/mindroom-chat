@@ -872,6 +872,10 @@
     "dismissLostFiles": "Dismiss"
   },
   "commandPalette": {
+    "state": {
+      "on": "On",
+      "off": "Off"
+    },
     "people": "People",
     "tabsLabel": "Result types",
     "switchTabs": "Switch tabs",
@@ -1254,6 +1258,17 @@
       "settingsKeywords": "tour, tutorial, guide, help, onboarding, threads",
       "howThreadsWork": "How threads work",
       "noThreadsHint": "Send a message below to start one."
+    }
+  },
+  "threadNav": {
+    "layout": "Thread layout",
+    "layoutRecent": "Recent",
+    "layoutSections": "Sections",
+    "sections": {
+      "working": "Working",
+      "snoozed": "Snoozed",
+      "idle": "Idle",
+      "resolved": "Resolved"
     }
   }
 }

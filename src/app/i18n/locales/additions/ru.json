@@ -902,6 +902,10 @@
     "dismissLostFiles": "Скрыть"
   },
   "commandPalette": {
+    "state": {
+      "on": "Вкл",
+      "off": "Выкл"
+    },
     "people": "Люди",
     "tabsLabel": "Типы результатов",
     "switchTabs": "Сменить вкладку",
@@ -1300,6 +1304,17 @@
       "settingsKeywords": "тур, обучение, руководство, справка, помощь, знакомство, ветки",
       "howThreadsWork": "Как работают ветки",
       "noThreadsHint": "Отправьте сообщение ниже, чтобы начать ветку."
+    }
+  },
+  "threadNav": {
+    "layout": "Вид списка веток",
+    "layoutRecent": "Недавние",
+    "layoutSections": "Разделы",
+    "sections": {
+      "working": "В работе",
+      "snoozed": "Отложенные",
+      "idle": "Неактивные",
+      "resolved": "Решённые"
     }
   }
 }

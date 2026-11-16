@@ -857,6 +857,10 @@
     "dismissLostFiles": "關閉"
   },
   "commandPalette": {
+    "state": {
+      "on": "開",
+      "off": "關"
+    },
     "people": "人員",
     "tabsLabel": "結果類型",
     "switchTabs": "切換分頁",
@@ -1231,6 +1235,17 @@
       "settingsKeywords": "導覽, 教學, 指南, 說明, 入門, 引導, 討論串",
       "howThreadsWork": "討論串如何運作",
       "noThreadsHint": "在下方傳送一則訊息即可發起討論串。"
+    }
+  },
+  "threadNav": {
+    "layout": "討論串版面",
+    "layoutRecent": "最近",
+    "layoutSections": "分區",
+    "sections": {
+      "working": "進行中",
+      "snoozed": "已延後",
+      "idle": "閒置",
+      "resolved": "已解決"
     }
   }
 }

@@ -168,11 +168,12 @@ A domain imports only domains in a strictly lower layer. Runtime, type-only and 
 | 8 | `canvas`, `composer`, `notifications`, `schedules`, `search`, `subagents` |
 | 9 | `rooms`, `threads` |
 | 10 | `account`, `activity`, `quick-capture`, `spaces`, `timeline` |
-| 11 | `command-palette`, `local-mindroom`, `room` |
+| 11 | `local-mindroom`, `room` |
 | 12 | `settings`, `tour` |
-| 13 | `sidebar` |
-| 14 | `shell` |
-| 15 | `src/index.tsx`, `src/client-sdk` |
+| 13 | `command-palette` |
+| 14 | `sidebar` |
+| 15 | `shell` |
+| 16 | `src/index.tsx`, `src/client-sdk` |
 
 `just lint` enforces it: `.eslintrc.cjs` builds `import/no-restricted-paths` zones from the `LAYERS` list, and every violation names its domain and layer and points here. The resolver setting beside it lets the rule see extensionless TypeScript imports; without it the rule would skip them silently. `src/test/layering.test.ts` lints probe imports under made-up paths and fails when the zones go silent, when a folder of `src/app` has no layer, or when a zone names a folder that does not exist. A new domain needs a place in `LAYERS`.
 

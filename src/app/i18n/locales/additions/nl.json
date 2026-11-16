@@ -872,6 +872,10 @@
     "dismissLostFiles": "Sluiten"
   },
   "commandPalette": {
+    "state": {
+      "on": "Aan",
+      "off": "Uit"
+    },
     "people": "Personen",
     "tabsLabel": "Soorten resultaten",
     "switchTabs": "Tabblad wisselen",
@@ -1254,6 +1258,17 @@
       "settingsKeywords": "rondleiding, tour, uitleg, handleiding, gids, hulp, introductie, threads",
       "howThreadsWork": "Hoe threads werken",
       "noThreadsHint": "Stuur hieronder een bericht om er een te starten."
+    }
+  },
+  "threadNav": {
+    "layout": "Indeling van threads",
+    "layoutRecent": "Recent",
+    "layoutSections": "Secties",
+    "sections": {
+      "working": "Bezig",
+      "snoozed": "Gesnoozed",
+      "idle": "Inactief",
+      "resolved": "Opgelost"
     }
   }
 }

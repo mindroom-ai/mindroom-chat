@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Icon, IconButton, Icons, Text } from 'folds';
 import { useInterval } from '../lib/hooks/useInterval';
+import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useLoadedRoomMembers } from '../matrix/hooks/useLoadedRoomMembers';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
@@ -14,6 +15,7 @@ import {
   type SubagentRun,
 } from '../messages/live/subagentRunStore';
 import { useMentionClickHandler } from '../messages/useMentionClickHandler';
+import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { Header as SidePanelHeader } from '../ui/panels/SidePanel.css';
 import { SubagentRunCard, latestTurn, type SubagentNode } from './SubagentRunCard';
 import { SubagentRunView } from './SubagentRunView';
@@ -114,6 +116,10 @@ export function SubagentsPanel({ room, onClose }: { room: Room; onClose: () => v
     setReturnTo(open?.id ?? null);
     setOpenId(open?.parent ?? null);
   }, [open]);
+  // On a phone the panel covers the conversation, whose thread then leaves its back swipe: a swipe
+  // from the screen's left edge goes back as Back does, and from the list closes the panel.
+  const mobile = useScreenSizeContext() === ScreenSize.Mobile;
+  useEdgeSwipeBack(open ? back : onClose, mobile);
   useLayoutEffect(() => {
     if (returnTo === null) return;
     const cards = section.current?.querySelectorAll<HTMLElement>('[data-subagent]') ?? [];

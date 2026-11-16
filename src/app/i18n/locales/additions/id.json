@@ -857,6 +857,10 @@
     "dismissLostFiles": "Tutup"
   },
   "commandPalette": {
+    "state": {
+      "on": "Aktif",
+      "off": "Nonaktif"
+    },
     "people": "Orang",
     "tabsLabel": "Jenis hasil",
     "switchTabs": "Ganti tab",
@@ -1231,6 +1235,17 @@
       "settingsKeywords": "tur, tutorial, panduan, bantuan, pengenalan, perkenalan, utas",
       "howThreadsWork": "Cara kerja utas",
       "noThreadsHint": "Kirim pesan di bawah untuk memulai utas."
+    }
+  },
+  "threadNav": {
+    "layout": "Tata letak utas",
+    "layoutRecent": "Terbaru",
+    "layoutSections": "Bagian",
+    "sections": {
+      "working": "Sedang berjalan",
+      "snoozed": "Ditunda",
+      "idle": "Tidak aktif",
+      "resolved": "Selesai"
     }
   }
 }
