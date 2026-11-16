@@ -262,18 +262,32 @@ const bridgeScript = (
     try { Object.defineProperty(window, name, { value: undefined, configurable: false }); } catch (error) {}
   });
   let lastHeight;
+  let sizeQueued = false;
+  // The body's own extent: it follows the content down and up, and the frame's height never enters it,
+  // so a page cannot grow by being given room. Inline pages make the body the containing block, so
+  // absolutely positioned content counts too.
   const reportSize = () => {
-    const root = document.documentElement;
-    const height = Math.ceil(root.scrollHeight > root.clientHeight
-      ? root.scrollHeight : root.getBoundingClientRect().height);
+    sizeQueued = false;
+    const body = document.body;
+    if (!body) return;
+    const box = body.getBoundingClientRect();
+    const height = Math.ceil(box.top + scrollY + Math.max(body.scrollHeight, box.height)
+      + (parseFloat(getComputedStyle(body).marginBottom) || 0));
     if (height === lastHeight) return;
     lastHeight = height;
     parent.parent.postMessage({ type: '${CANVAS_SIZE_MESSAGE}', version: 1, height }, '*');
   };
+  // Content outside the body's flow can change without resizing the body.
+  const queueSize = () => {
+    if (sizeQueued) return;
+    sizeQueued = true;
+    requestAnimationFrame(reportSize);
+  };
   document.addEventListener('DOMContentLoaded', () => {
-    const observer = new ResizeObserver(reportSize);
-    observer.observe(document.documentElement);
-    if (document.body) observer.observe(document.body);
+    new ResizeObserver(queueSize).observe(document.body);
+    new MutationObserver(queueSize).observe(document.body, {
+      subtree: true, childList: true, attributes: true, characterData: true,
+    });
     reportSize();
   });
   addEventListener('load', reportSize);
@@ -379,7 +393,7 @@ export const buildCanvasPage = (
         inline
           ? BASE_STYLE.replace(
               'padding:16px;background:var(--mr-bg)',
-              'padding:8px;background:transparent'
+              'padding:8px;background:transparent;position:relative'
             )
           : BASE_STYLE
       }</style>`,
