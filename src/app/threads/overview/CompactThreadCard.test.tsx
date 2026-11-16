@@ -3,6 +3,7 @@ import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { standInForListMotion } from '../../ui/__tests__/listMotionStandIn';
 import { CompactThreadCard } from './CompactThreadCard';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 
@@ -95,6 +96,83 @@ const makeViewModel = (
   isUnread: false,
   isStreaming: false,
   ...overrides,
+});
+
+describe('a card whose thread changes while it shows', () => {
+  const MINUTE = 60_000;
+  /** What tinted: the plays on a card's own overlay. */
+  const tints = (motion: ReturnType<typeof standInForListMotion>) =>
+    motion.plays.filter(({ options }) => options.pseudoElement === '::after');
+  /** Renders a card, then the same card as `after`, and returns what played. */
+  const change = (
+    before: Partial<CompactThreadCardViewModel>,
+    after: Partial<CompactThreadCardViewModel>
+  ) => {
+    const motion = standInForListMotion();
+    try {
+      const { rerender } = render(
+        <CompactThreadCard viewModel={makeViewModel(before)} onClick={vi.fn()} />
+      );
+      expect(motion.plays).toEqual([]);
+      rerender(<CompactThreadCard viewModel={makeViewModel(after)} onClick={vi.fn()} />);
+      return motion;
+    } finally {
+      motion.restore();
+      cleanup();
+    }
+  };
+
+  it('tints once and brings in the new preview when a reply just came', () => {
+    const motion = change(
+      { lastActivityTs: Date.now() - 10 * MINUTE, previewText: 'Tom: first', messageCount: 1 },
+      {
+        lastActivityTs: Date.now(),
+        previewText: 'Mara: second',
+        messageCount: 2,
+        messageCountText: '2',
+      }
+    );
+
+    expect(tints(motion).map(({ element }) => element.className)).toEqual(['Card']);
+    const moved = motion.plays.map(({ element }) => element.textContent);
+    expect(moved).toContain('Mara: second');
+    // The reply count, which went up, pops.
+    expect(moved).toContain('2');
+  });
+
+  it('stays as it is when what loads is older activity, not something that just happened', () => {
+    const motion = change(
+      { lastActivityTs: Date.now() - 60 * MINUTE, previewText: 'Tom: first' },
+      { lastActivityTs: Date.now() - 10 * MINUTE, previewText: 'Mara: second' }
+    );
+
+    expect(motion.plays).toEqual([]);
+  });
+
+  it('waits for an agent to finish: tints when its run ends, not on each part of the answer', () => {
+    const streaming = { isStreaming: true, lastActivityTs: Date.now() - 1000 };
+    expect(change({ lastActivityTs: Date.now() - 10 * MINUTE }, streaming).plays).toEqual([]);
+    expect(change(streaming, { ...streaming, lastActivityTs: Date.now() }).plays).toEqual([]);
+
+    const done = change(streaming, { ...streaming, isStreaming: false });
+    expect(tints(done)).toHaveLength(1);
+  });
+
+  it('plays nothing with reduced motion', () => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({ matches: query.includes('prefers-reduced-motion') }),
+    });
+    try {
+      const motion = change(
+        { lastActivityTs: Date.now() - 10 * MINUTE },
+        { lastActivityTs: Date.now(), previewText: 'Mara: second' }
+      );
+      expect(motion.plays).toEqual([]);
+    } finally {
+      Reflect.deleteProperty(window, 'matchMedia');
+    }
+  });
 });
 
 describe('CompactThreadCard', () => {

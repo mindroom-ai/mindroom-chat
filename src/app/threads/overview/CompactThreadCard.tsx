@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from 'react';
+import { memo, type ReactNode, type RefObject, useEffect, useRef } from 'react';
 import { Avatar, Box, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { IconCalendarEvent, IconClock } from '@tabler/icons-react';
@@ -12,6 +12,7 @@ import { FailedSendIndicator, PendingSendIndicator } from '../../ui/PendingSendI
 import { ThreadStreamingDot } from '../ThreadStreamingDot';
 import { ThreadTagPill } from '../tags/ThreadTagPill';
 import { ownDirectionBlock } from '../../ui/directional';
+import { playsMotion } from '../../ui/listMotion';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { OverflowChip } from '../ThreadContextBanner.css';
 
@@ -29,6 +30,51 @@ export type CompactThreadCardProps = {
    * or the memoized card renders again for it.
    */
   badges?: ReactNode;
+};
+
+/** How long ago a thread's last activity may be for its card to show it as just happened. */
+const JUST_NOW_MS = 60_000;
+
+type Shown = Pick<CompactThreadCardViewModel, 'lastActivityTs' | 'isStreaming' | 'messageCount'>;
+
+/**
+ * Shows that a thread changed while its card was up: a reply that just came, or an agent's run
+ * that ended, tints the card once, brings in the new preview and pops a reply count that grew.
+ * Activity that only loads (older than a minute) plays nothing, and neither does each part of an
+ * answer still being written: the card would glow for as long as the agent writes.
+ */
+const useShowChange = (cardRef: RefObject<HTMLElement>, now: Shown): void => {
+  const { lastActivityTs, isStreaming, messageCount } = now;
+  const shownRef = useRef<Shown>(now);
+  useEffect(() => {
+    const before = shownRef.current;
+    shownRef.current = { lastActivityTs, isStreaming, messageCount };
+    const card = cardRef.current;
+    const justReplied =
+      !isStreaming &&
+      lastActivityTs !== undefined &&
+      lastActivityTs > (before.lastActivityTs ?? 0) &&
+      Date.now() - lastActivityTs < JUST_NOW_MS;
+    const runEnded = before.isStreaming && !isStreaming;
+    if (!card || !(justReplied || runEnded) || !playsMotion(card)) return;
+    // The card's own overlay (`Card` in CompactRoomView.css.ts), so nothing repaints the card.
+    card.animate([{ opacity: 0.16 }, { opacity: 0 }], {
+      duration: 1500,
+      easing: 'ease-out',
+      pseudoElement: '::after',
+    });
+    card
+      .querySelector('[data-compact-card-preview]')
+      ?.animate([{ opacity: 0, translate: '0px 4px' }, {}], {
+        duration: 200,
+        easing: 'cubic-bezier(0, 0, 0, 1)',
+      });
+    if (messageCount > before.messageCount) {
+      card
+        .querySelector('[data-compact-card-reply-count]')
+        ?.animate([{ scale: 1 }, { scale: 1.25 }, { scale: 1 }], { duration: 240 });
+    }
+  }, [cardRef, lastActivityTs, isStreaming, messageCount]);
 };
 
 // As many whole tags as the thread banner shows, then a count of the rest.
@@ -63,6 +109,9 @@ function CompactThreadCardBase({ viewModel, onClick, attachment, badges }: Compa
     lastActivityTitle,
     primarySummaryText,
   } = viewModel;
+  // The card is a button, or a box around one: the same node either way for what plays on it.
+  const cardRef = useRef<HTMLButtonElement & HTMLDivElement>(null);
+  useShowChange(cardRef, { lastActivityTs, isStreaming, messageCount });
   const relativeTime = useRelativeTime(lastActivityTs, 'compact');
   const snoozedText = useSnoozedUntilText(snoozedUntilTs);
   // A thread nobody has replied to shows no count, as the Threads view shows no chip under it.
@@ -105,6 +154,7 @@ function CompactThreadCardBase({ viewModel, onClick, attachment, badges }: Compa
 
   const card = (
     <button
+      ref={attachment ? undefined : cardRef}
       className={attachment ? css.CardButton : cardClassName}
       type="button"
       onClick={() => onClick(id.threadRootId, primarySummaryText)}
@@ -146,6 +196,7 @@ function CompactThreadCardBase({ viewModel, onClick, attachment, badges }: Compa
           size="T200"
           priority="300"
           truncate
+          data-compact-card-preview="true"
           {...ownDirectionBlock}
         >
           {previewText}
@@ -260,7 +311,7 @@ function CompactThreadCardBase({ viewModel, onClick, attachment, badges }: Compa
   );
   if (!attachment) return card;
   return (
-    <div className={cardClassName}>
+    <div ref={cardRef} className={cardClassName}>
       {card}
       {attachment}
     </div>

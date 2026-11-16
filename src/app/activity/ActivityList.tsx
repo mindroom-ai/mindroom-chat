@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useMemo, useState } from 'react';
+import { Fragment, useCallback, useMemo, useRef, useState } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { Button, Chip, Icon, IconButton, Icons, Spinner, Switch, Text, Tooltip } from 'folds';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -13,6 +13,7 @@ import { settingsAtom } from '../preferences/settings';
 import { useSetting } from '../preferences/useSetting';
 import { getActivityInvitesPath, getActivityRoomPath, withSearchParam } from '../routes/pathUtils';
 import { TooltipProvider } from '../ui/directional';
+import { useListMotion } from '../ui/listMotion';
 import {
   activityDay,
   filterActivityRows,
@@ -106,6 +107,15 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
   const invites = waiting.flatMap((row) => (row.type === 'invite' ? [row] : []));
   const gathered = invites.length >= INVITES_GATHERED_FROM;
   const waitingRows = gathered ? waiting.filter((row) => row.type !== 'invite') : waiting;
+
+  // A row that was answered or read fades where it stood, a new one fades in, the rest glide.
+  // The rows that wait come first, so their number tells when one moves under the day's divider
+  // while the order stays.
+  const rowsRef = useRef<HTMLDivElement>(null);
+  const listMotion = useListMotion(
+    rowsRef,
+    `${waiting.length}|${gathered}|${shown.map((row) => row.key).join(',')}`
+  );
   const openInvites = () => {
     navigate(getActivityInvitesPath());
     onNavigate?.();
@@ -203,9 +213,10 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
           )}
         </div>
       ) : (
-        <div role="list" className={css.Rows}>
+        <div ref={rowsRef} role="list" className={css.Rows}>
+          {listMotion}
           {waitingRows.map((row) => (
-            <div role="listitem" key={row.key}>
+            <div role="listitem" key={row.key} data-motion-row={row.key}>
               <ActivityRowItem
                 row={row}
                 onOpen={open}
@@ -215,7 +226,7 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
             </div>
           ))}
           {gathered && (
-            <div role="listitem">
+            <div role="listitem" data-motion-row="invites">
               <ActivityInvitesRow invites={invites} onOpen={openInvites} />
             </div>
           )}
@@ -226,11 +237,17 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
             return (
               <Fragment key={row.key}>
                 {divider && (
-                  <Text size="L400" priority="300" className={css.Divider} role="presentation">
+                  <Text
+                    size="L400"
+                    priority="300"
+                    className={css.Divider}
+                    role="presentation"
+                    data-motion-row={`day:${day}`}
+                  >
                     {t(`activity.days.${day}`)}
                   </Text>
                 )}
-                <div role="listitem">
+                <div role="listitem" data-motion-row={row.key}>
                   <ActivityRowItem
                     row={row}
                     onOpen={open}
