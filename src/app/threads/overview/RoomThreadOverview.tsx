@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Icon, Icons, Text, Tooltip, toRem } from 'folds';
 import { TooltipProvider } from '../../ui/directional';
 import { useTranslation } from 'react-i18next';
@@ -759,6 +759,17 @@ export function RoomThreadOverview({
     onClearTags();
   }, [onClearTags]);
 
+  // A preset applied before may filter resolved or snoozed threads, which Sections show instead.
+  const handleToggleSectionsWithPresetClear = useMemo(
+    () =>
+      onToggleThreadSections &&
+      (() => {
+        setLastAppliedPreset(null);
+        onToggleThreadSections();
+      }),
+    [onToggleThreadSections]
+  );
+
   const filterSummary = filtersActive
     ? t('mindroomUi.threads.roomThreadOverview.showingFilteredThreads', {
         count: threadCount,
@@ -879,8 +890,8 @@ export function RoomThreadOverview({
   // Sections order their cards themselves and show resolved and snoozed threads in their own
   // sections, so the sort, its lock and the filters and presets for those two make way for the
   // switch.
-  const sectionsSwitch = onToggleThreadSections && (
-    <ThreadSectionsSwitch on={threadSections} onToggle={onToggleThreadSections} />
+  const sectionsSwitch = handleToggleSectionsWithPresetClear && (
+    <ThreadSectionsSwitch on={threadSections} onToggle={handleToggleSectionsWithPresetClear} />
   );
 
   // Simple mode keeps the sorting choice plus one agent-room filter: hide

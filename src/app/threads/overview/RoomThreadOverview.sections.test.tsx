@@ -104,4 +104,27 @@ describe('the Sections switch of the Compact filter bar', () => {
       'all',
     ]);
   });
+
+  it('drops the label of an applied preset when Sections turn on', () => {
+    renderBar(false, { onToggleThreadSections: noop });
+    const presetLabel = () =>
+      byData('data-preset-button')[0]?.findAll((node) => typeof node.props.children === 'string')[0]
+        ?.props.children as string;
+    const unset = presetLabel();
+    act(() => {
+      byData('data-preset-button')[0]?.props.onClick();
+    });
+    act(() => {
+      byData('data-preset-option')
+        .find((node) => node.props['data-preset-option'] === 'archived')
+        ?.props.onMouseDown({ preventDefault: noop });
+    });
+    expect(presetLabel()).not.toBe(unset);
+
+    act(() => {
+      sectionsSwitch()?.props.onClick();
+    });
+
+    expect(presetLabel()).toBe(unset);
+  });
 });
