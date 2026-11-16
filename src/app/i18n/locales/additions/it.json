@@ -972,7 +972,8 @@
     "unsnooze": "Annulla posticipo",
     "status": {
       "snoozed": "Posticipato"
-    }
+    },
+    "renameHint": "Fai doppio clic per rinominare"
   },
   "threadSnooze": {
     "title": "Posticipa fino a",

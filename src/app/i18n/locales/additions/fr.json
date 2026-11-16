@@ -972,7 +972,8 @@
     "unsnooze": "Annuler le report",
     "status": {
       "snoozed": "Reporté"
-    }
+    },
+    "renameHint": "Double-cliquez pour renommer"
   },
   "threadSnooze": {
     "title": "Reporter jusqu'à",

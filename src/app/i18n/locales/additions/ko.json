@@ -942,7 +942,8 @@
     "unsnooze": "일시 중지 해제",
     "status": {
       "snoozed": "다시 알림"
-    }
+    },
+    "renameHint": "두 번 클릭하여 이름 바꾸기"
   },
   "threadSnooze": {
     "title": "일시 중지 종료 시각",

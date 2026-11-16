@@ -972,7 +972,8 @@
     "unsnooze": "Dejar de posponer",
     "status": {
       "snoozed": "Pospuesto"
-    }
+    },
+    "renameHint": "Haz doble clic para cambiar el nombre"
   },
   "threadSnooze": {
     "title": "Posponer hasta",

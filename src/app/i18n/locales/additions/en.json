@@ -957,7 +957,8 @@
     "unsnooze": "Unsnooze",
     "status": {
       "snoozed": "Snoozed"
-    }
+    },
+    "renameHint": "Double-click to rename"
   },
   "threadSnooze": {
     "title": "Snooze until",

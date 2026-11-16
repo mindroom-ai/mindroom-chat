@@ -942,7 +942,8 @@
     "unsnooze": "Batalkan penundaan",
     "status": {
       "snoozed": "Ditunda"
-    }
+    },
+    "renameHint": "Klik dua kali untuk mengganti nama"
   },
   "threadSnooze": {
     "title": "Tunda hingga",

@@ -957,7 +957,8 @@
     "unsnooze": "Ertelemeyi kaldır",
     "status": {
       "snoozed": "Ertelendi"
-    }
+    },
+    "renameHint": "Yeniden adlandırmak için çift tıklayın"
   },
   "threadSnooze": {
     "title": "Şu zamana kadar ertele",
