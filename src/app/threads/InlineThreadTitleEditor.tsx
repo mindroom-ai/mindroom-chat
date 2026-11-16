@@ -6,6 +6,7 @@ import { useOptionalMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { describeError } from '../lib/describeError';
 import { ownDirectionLine } from '../ui/directional';
+import { isComposingKey } from '../shortcuts/shortcuts';
 import {
   getThreadSummaryActionError,
   normalizeSummaryText,
@@ -135,14 +136,23 @@ export function InlineThreadTitleEditor({
         disabled={shown.saving}
         onChange={(event) => update({ ...shown, draft: event.target.value })}
         onBlur={save}
+        // The banner's own menu waits: right-click and the menu keys keep the field's native menu.
+        onContextMenu={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
-          if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+          if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+            event.stopPropagation();
+            return;
+          }
+          // An input method's Enter and Escape confirm or drop its candidate, not the title.
+          const composing = isComposingKey(event.nativeEvent);
+          if (event.key === 'Enter' && !composing) {
             event.preventDefault();
             save();
           } else if (event.key === 'Escape') {
             // The thread's own Escape (back to the composer, read) waits for the field to close.
-            event.preventDefault();
             event.stopPropagation();
+            if (composing) return;
+            event.preventDefault();
             update(undefined);
           }
         }}

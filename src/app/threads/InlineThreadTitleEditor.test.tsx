@@ -62,10 +62,15 @@ const type = (renderer: ReactTestRenderer, value: string) =>
   act(() => {
     input(renderer).props.onChange({ target: { value } });
   });
-const press = async (renderer: ReactTestRenderer, key: string) => {
+const press = async (
+  renderer: ReactTestRenderer,
+  key: string,
+  extra: { shiftKey?: boolean; nativeEvent?: Record<string, unknown> } = {}
+) => {
   const event = {
     key,
-    nativeEvent: { isComposing: false },
+    shiftKey: extra.shiftKey ?? false,
+    nativeEvent: { key, isComposing: false, keyCode: 0, ...extra.nativeEvent },
     preventDefault: vi.fn(),
     stopPropagation: vi.fn(),
   };
@@ -155,6 +160,41 @@ describe('InlineThreadTitleEditor', () => {
     expect(state.save).not.toHaveBeenCalled();
     expect(renderer.root.findAllByType('input')).toHaveLength(0);
     expect(title(renderer).children).toEqual(['image.png']);
+  });
+
+  it('leaves Enter and Escape to an input method that is composing', async () => {
+    const renderer = render();
+    startEditing(renderer);
+    type(renderer, 'にほん');
+    // Safari reports the Enter that confirms a candidate with keyCode 229 and isComposing false.
+    const enter = await press(renderer, 'Enter', { nativeEvent: { keyCode: 229 } });
+    expect(enter.preventDefault).not.toHaveBeenCalled();
+    const escape = await press(renderer, 'Escape', { nativeEvent: { isComposing: true } });
+    expect(escape.preventDefault).not.toHaveBeenCalled();
+    expect(escape.stopPropagation).toHaveBeenCalled();
+    expect(state.save).not.toHaveBeenCalled();
+    expect(input(renderer).props.value).toBe('にほん');
+  });
+
+  it("keeps the field's native menu from opening the banner's", async () => {
+    const renderer = render();
+    startEditing(renderer);
+    const click = { preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    await act(async () => {
+      input(renderer).props.onContextMenu(click);
+    });
+    expect(click.stopPropagation).toHaveBeenCalled();
+    expect(click.preventDefault).not.toHaveBeenCalled();
+    for (const [key, shiftKey] of [
+      ['ContextMenu', false],
+      ['F10', true],
+    ] as const) {
+      // eslint-disable-next-line no-await-in-loop
+      const event = await press(renderer, key, { shiftKey });
+      expect(event.stopPropagation).toHaveBeenCalled();
+      expect(event.preventDefault).not.toHaveBeenCalled();
+    }
+    expect(input(renderer).props.value).toBe('image.png');
   });
 
   it('sends nothing for an unchanged or empty title', async () => {
