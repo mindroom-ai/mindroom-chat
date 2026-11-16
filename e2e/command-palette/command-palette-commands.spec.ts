@@ -73,6 +73,37 @@ test('a theme from the Theme page', async ({ page }) => {
   await expect(page.locator('body')).toHaveClass(/(^|\s)dracula-theme(\s|$)/);
 });
 
+test('the highlighted theme shows for a look and goes with the page', async ({ page }) => {
+  test.setTimeout(120_000);
+  await signIn(page, await register('look'));
+  const bodyClass = (themeId: string) => new RegExp(`(^|\\s)${themeId}(\\s|$)`);
+  const highlighted = async () => {
+    const id = await palette(page)
+      .locator('[role="option"][aria-selected="true"]')
+      .getAttribute('data-item-id');
+    return (id ?? '').replace(/^theme:/, '');
+  };
+  await pressPaletteShortcut(page);
+  await findRow(page, 'theme', 'page-theme');
+  await page.keyboard.press('Enter');
+  await expect(palette(page).locator('[data-page-chip]')).toHaveText('Theme');
+
+  // The page opens on the theme in effect.
+  const chosen = await highlighted();
+  await expect(page.locator('body')).toHaveClass(bodyClass(chosen));
+  await page.keyboard.press('ArrowDown');
+  const looked = await highlighted();
+  expect(looked).not.toBe(chosen);
+  await expect(page.locator('body')).toHaveClass(bodyClass(looked));
+  // The check mark stays on the chosen theme.
+  await expect(row(page, `theme:${chosen}`).locator('[data-row-current]')).toBeVisible();
+  await expect(row(page, `theme:${looked}`).locator('[data-row-current]')).toHaveCount(0);
+
+  await page.keyboard.press('Escape');
+  await expect(palette(page).locator('[data-page-chip]')).toHaveCount(0);
+  await expect(page.locator('body')).toHaveClass(bodyClass(chosen));
+});
+
 test('a switch setting flips in place', async ({ page }) => {
   test.setTimeout(120_000);
   await signIn(page, await register('switch'));
