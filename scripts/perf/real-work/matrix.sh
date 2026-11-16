@@ -15,7 +15,8 @@
 #          two runs on one host need different slots, and a slot must not be in use by another session
 #   NAME=VALUE  environment for the spec, passed with --env: PERF_WORKLOAD, PERF_STREAMS,
 #          PERF_CPU_THROTTLE, PERF_SCENARIOS, PERF_PROFILE, ... (see the spec's header);
-#          PERF_REAL_WORK=1 is always set
+#          PERF_REAL_WORK=1 is always set; E2E_SNAPSHOT_ROOT, E2E_AGENT_STACK_ROOT and TMPDIR are
+#          the script's own and refused here
 #
 # Example:
 #   scripts/perf/real-work/matrix.sh "$(git rev-parse HEAD)" /tmp/rw gce:81,gce:82 -- \
@@ -30,8 +31,14 @@
 # Check a MacBook's power and load first with ~/repos/machines.sh: no jobs on battery. Start more
 # than 8 jobs on gce in waves.
 #
-# On gce every run keeps its temporary files, snapshot and agent stack under /work/tmp/<run>, the
-# encrypted disk, with TMPDIR=/work/tmp; the run directory is left behind (remove it by hand).
+# Every run keeps its snapshot and agent stack in a run directory of its own,
+# rw-<commit>-<host>-<slot> (the commit's first 8 characters), under /tmp, or on gce and gce-dev
+# under /work/tmp, the encrypted disk, with TMPDIR=/work/tmp for its other temporary files. A trap
+# on the host removes the run directory when the job's shell exits, on success and on failure
+# alike, and removes nothing whose name is not that run's. A job killed with SIGKILL (a runner that
+# kills hard on a timeout), or Ctrl-C on this script, can skip the trap and leave the run directory
+# and a running agent stack behind: stop the stack with `scripts/e2e-slot.sh <slot> down` and that
+# run's E2E_AGENT_STACK_ROOT=<run directory>/agents, then remove the directory by hand.
 # Exits non-zero when any run failed or left no results, and lists which.
 set -euo pipefail
 
@@ -56,6 +63,10 @@ if [ "$#" -gt 0 ]; then
     case "$assignment" in
       PERF_TARGET=* | PERF_HOMESERVER=* | PERF_USERNAME=* | PERF_PASSWORD=* | PERF_ROOM=*)
         echo "matrix: ${assignment%%=*} belongs to the spec's real-data mode; this script runs the synthetic load only (run real-data jobs on the M5 directly)" >&2
+        exit 2
+        ;;
+      E2E_SNAPSHOT_ROOT=* | E2E_AGENT_STACK_ROOT=* | TMPDIR=*)
+        echo "matrix: ${assignment%%=*} is set by this script (each run's directory, which its trap removes); it cannot be given" >&2
         exit 2
         ;;
       [A-Za-z_]*=*) env_args+=(--env "$assignment") ;;
@@ -88,17 +99,19 @@ run_one() {
   local log="$out/$name.log" run="rw-${commit:0:8}-$name"
   local base=/tmp
   local run_env=(--env PERF_REAL_WORK=1)
-  if [ "$host" = gce ]; then
-    base=/work/tmp
-    run_env+=(--env TMPDIR=/work/tmp)
-  fi
+  case "$host" in
+    gce | gce-dev)
+      base=/work/tmp
+      run_env+=(--env TMPDIR=/work/tmp)
+      ;;
+  esac
   run_env+=(--env "E2E_SNAPSHOT_ROOT=$base/$run/snap" --env "E2E_AGENT_STACK_ROOT=$base/$run/agents")
   # The inner script runs on the host, in the commit's worktree. A snapshot run leaves its
   # test-results/ in the snapshot, so it copies the perf results into the worktree's, which
   # --artifacts brings back, and beside them the scripts of the build it served (only when there
   # are results, so a run without any still counts as failed); the trap then removes the run's
-  # directory (snapshot, build, agent stack) on every exit path, and the exit code stays
-  # Playwright's.
+  # directory (snapshot, build, agent stack) on every exit path, only when it is an absolute path
+  # whose last part is this run's name, and the exit code stays Playwright's.
   local inner
   inner=": \"\${E2E_SNAPSHOT_ROOT:?}\" \"\${E2E_AGENT_STACK_ROOT:?}\"
 run_dir=\"\$(dirname \"\${E2E_SNAPSHOT_ROOT:?}\")\"
@@ -110,7 +123,7 @@ finish() {
     cp \"\$E2E_SNAPSHOT_ROOT/builds/$commit/assets/\"*.js test-results/perf/real-work/served-build/assets/ || true
   fi
   case \"\$run_dir\" in
-    /*/rw-*) cd / && rm -rf \"\$run_dir\" ;;
+    /*/$run) cd / && rm -rf \"\$run_dir\" ;;
     *) echo \"matrix: not removing \$run_dir\" >&2 ;;
   esac
 }
