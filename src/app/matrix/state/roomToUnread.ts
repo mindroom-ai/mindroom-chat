@@ -239,6 +239,7 @@ export const useBindRoomToUnreadAtom = (
     // the counts of each thread one by one, with an event each, so the room is counted once
     // after the burst and not once per thread: each count is a sum over all of them.
     const updateAfterCounts = (room: Room) => {
+      if (pendingCounts.has(room.roomId)) return;
       pendingCounts.add(room.roomId);
       queueMicrotask(() => {
         if (pendingCounts.has(room.roomId)) update(room);

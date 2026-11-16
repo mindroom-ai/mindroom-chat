@@ -119,6 +119,7 @@ describe('useBindRoomToUnreadAtom', () => {
   it('counts the room once for a burst of count changes, with the last counts', async () => {
     const { room, entry } = setUp();
     room.getUnreadNotificationCount.mockClear();
+    const queued = vi.spyOn(globalThis, 'queueMicrotask');
     for (let total = 1; total <= 100; total += 1) {
       room.state.thread.total = total;
       room.emit(RoomEvent.UnreadNotifications, room.state.thread, THREAD_ID);
@@ -127,6 +128,9 @@ describe('useBindRoomToUnreadAtom', () => {
     expect(entry()).toEqual({ total: 100, highlight: 0 });
     // One count: the total and the highlights.
     expect(room.getUnreadNotificationCount).toHaveBeenCalledTimes(2);
+    // A sync of a room with hundreds of threads announces a thousand changes.
+    expect(queued).toHaveBeenCalledTimes(1);
+    queued.mockRestore();
 
     room.state.thread.total = 101;
     room.emit(RoomEvent.UnreadNotifications, room.state.thread, THREAD_ID);
