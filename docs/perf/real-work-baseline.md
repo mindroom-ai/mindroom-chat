@@ -1,6 +1,6 @@
 # Real-work baseline and hotspot list (2026-11-16)
 
-What the Compact room view and an open thread cost at 7, 25 and 50 streaming replies, measured with `e2e/perf/real-work.live.spec.ts` on commit `3b54c062e` (the app's `src` tree is that of main at `51e8e9ac0`), and where the time goes. The budgets are the Success criteria of `docs/baspowers/specs/2026-11-15-real-work-load-design.md`. Each hotspot below is meant to start one fix pull request; it names the profile evidence and how the fix is measured with the same harness.
+What the Compact room view and an open thread cost at 7, 25 and 50 streaming replies, measured with `e2e/perf/real-work.live.spec.ts` on commit `3b54c062e` (the app's `src` tree is that of main at `51e8e9ac0`), and where the time goes. The budgets are listed under "Result against the budgets"; they are set for the MacBook M5 in Chromium, with and without a 4x CPU slowdown. Each hotspot below is meant to start one fix pull request; it names the profile evidence and how the fix is measured with the same harness.
 
 Numbers, source paths and method only. Numbers labeled "production copy" are aggregates (busy share, counts, times) from a private copy of a real homeserver on a personal machine; nothing else of it is here.
 
