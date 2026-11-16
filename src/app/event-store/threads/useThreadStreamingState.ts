@@ -197,5 +197,11 @@ export const useThreadStreamingState = (
     };
   }, [refresh, snapshot.trackedRelations]);
 
+  // The render that switched threads checked the new one before the effects above listen to it;
+  // check once more now that they do.
+  useEffect(() => {
+    refresh();
+  }, [room, threadRootId]);
+
   return snapshot.isStreaming;
 };

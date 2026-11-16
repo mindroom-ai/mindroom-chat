@@ -463,6 +463,44 @@ describe('useThreadStreamingState', () => {
     renderer.unmount();
   });
 
+  it('checks a thread it switches to again once it listens to it', () => {
+    const relationMap = new Map<string, MockRelations>();
+    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
+    const first = makeThread({ lastReply: makeThreadReplyEvent('$first-reply', 200), relationMap });
+    const quietReply = makeThreadReplyEvent('$second-reply', 200);
+    const second = makeThread({ lastReply: quietReply, relationMap });
+    const threads: Record<string, MockThread> = { $first: first, $second: second };
+    const room = {
+      getThread: (threadRootId: string) => threads[threadRootId],
+      getUnfilteredTimelineSet: () => roomTimelineSet,
+    } as unknown as Room;
+    let latest: HookValue = false;
+    // A reply of the new thread starts streaming after the switch rendered, before the hook
+    // listens to that thread.
+    function Switching({ threadRootId }: { threadRootId: string }) {
+      latest = useThreadStreamingState(room, threadRootId);
+      React.useLayoutEffect(() => {
+        if (threadRootId !== '$second') return;
+        const streaming = makeThreadReplyEvent('$second-streaming', 300, {
+          'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+        });
+        second.setTimelineEvents([quietReply, streaming]);
+        second.setLastReply(streaming);
+        second.emit(ThreadEvent.NewReply, second, streaming);
+      }, [threadRootId]);
+      return null;
+    }
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(React.createElement(Switching, { threadRootId: '$first' }));
+    });
+    expect(latest).toBe(false);
+
+    act(() => renderer!.update(React.createElement(Switching, { threadRootId: '$second' })));
+    expect(latest).toBe(true);
+    act(() => renderer!.unmount());
+  });
+
   it('updates when the thread switches to a new streaming reply', () => {
     const relationMap = new Map<string, MockRelations>();
     const roomTimelineSet = makeTimelineSet(relationMap, () => []);
