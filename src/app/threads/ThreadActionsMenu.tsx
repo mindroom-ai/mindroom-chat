@@ -1,8 +1,19 @@
-import React, { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
-import { Box, Button, Icon, Icons, Text, config, toRem, type IconSrc, type RectCords } from 'folds';
+import {
+  Box,
+  Button,
+  Icon,
+  Icons,
+  Line,
+  Text,
+  config,
+  toRem,
+  type IconSrc,
+  type RectCords,
+} from 'folds';
 import { PopOut } from '../ui/directional';
 import {
   getThreadSummaryActionError,
@@ -34,6 +45,12 @@ import { useToolCallsShown } from '../messages/toolCallVisibility';
 import { isSnoozedAt } from '../event-store/threads/threadSnooze';
 import { useSnoozeNow } from './tags/useSnoozeNow';
 import { SnoozePicker } from './tags/SnoozePicker';
+import { useOptionalClientConfig } from '../config/useClientConfig';
+import { registeredPlugins, type RegisteredPlugin } from '../plugins/registry';
+import { shownThreadDetails } from '../plugins/threadDetails';
+import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
+import { ThreadDetailsList } from './ThreadDetailsList';
+import * as css from './ThreadActionsMenu.css';
 import { latestForkPoint } from '../event-store/threads/threadFork';
 import { ForkIcon } from '../messages/ForkIcon';
 import { useStartThreadFork } from './fork/useStartThreadFork';
@@ -41,6 +58,7 @@ import { useStartThreadFork } from './fork/useStartThreadFork';
 export type ThreadActionsMenuProps = {
   room: Room;
   rootId: string;
+  plugins?: readonly RegisteredPlugin[];
   /** Current thread title, the starting text of Edit summary. */
   summaryText?: string;
   anchor: RectCords;
@@ -85,6 +103,7 @@ export function ThreadActionsMenu({
   onHideDetails,
   onShowBeside,
   onShowFull,
+  plugins = registeredPlugins,
 }: ThreadActionsMenuProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
@@ -188,6 +207,44 @@ export function ThreadActionsMenu({
     void copyToClipboard(getMatrixToRoomEvent(room.roomId, rootId, getViaServers(room)));
     onClose();
   };
+
+  const clientConfig = useOptionalClientConfig();
+  // Keep the contributions selected when this opening mounted.
+  const [details] = useState(() =>
+    isConfirmedMatrixEventId(rootId) ? shownThreadDetails(plugins, clientConfig, room, rootId) : []
+  );
+  const detailsId = useId();
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  const [placed, setPlaced] = useState({ anchor, copy: anchor });
+  const menuAnchor = placed.anchor === anchor ? placed.copy : anchor;
+  const [described, setDescribed] = useState(false);
+
+  useEffect(() => {
+    const surface = surfaceRef.current;
+    if (!surface) return undefined;
+    // Details that render nothing (empty, loading or failed) describe nothing.
+    const measure = () =>
+      setDescribed(surface.querySelector('[data-thread-detail]:not(:empty)') !== null);
+    measure();
+    // A height-capped menu need not resize when its details become empty or appear.
+    const mutations = new MutationObserver(measure);
+    const detailsSurface = surface.querySelector('[data-thread-details]');
+    if (detailsSurface) {
+      mutations.observe(detailsSurface, { childList: true, subtree: true, characterData: true });
+    }
+    const observer =
+      typeof ResizeObserver === 'undefined'
+        ? undefined
+        : new ResizeObserver(() => {
+            // Folds repositions when its anchor changes; lazy details can resize without a window resize.
+            setPlaced({ anchor, copy: { ...anchor } });
+          });
+    observer?.observe(surface);
+    return () => {
+      mutations.disconnect();
+      observer?.disconnect();
+    };
+  }, [anchor, dialog]);
 
   if (dialog === 'snooze') {
     return (
@@ -543,7 +600,7 @@ export function ThreadActionsMenu({
   // The menu opens under its trigger, its end edge on the trigger's end edge.
   return (
     <PopOut
-      anchor={anchor}
+      anchor={menuAnchor}
       offset={4}
       align="End"
       position="Bottom"
@@ -556,24 +613,45 @@ export function ThreadActionsMenu({
             escapeDeactivates: closeMenu,
           }}
         >
-          <Menu role="menu" aria-label={t('threadActions.more')} style={menuStyle}>
-            <MenuGroup>
-              {items.map((item) => (
-                <MenuEntry
-                  key={item.action}
-                  role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
-                  aria-checked={item.checked}
-                  label={item.label}
-                  icon={item.icon}
-                  after={item.checked ? <Icon size="100" src={Icons.Check} /> : undefined}
-                  shortcut={item.shortcut}
-                  data-thread-action={item.action}
-                  disabled={item.mutates && saving}
-                  aria-busy={item.mutates && saving ? true : undefined}
-                  onSelect={() => item.onSelect()}
-                />
-              ))}
-            </MenuGroup>
+          <Menu
+            ref={surfaceRef}
+            role="menu"
+            aria-label={t('threadActions.more')}
+            aria-describedby={described ? detailsId : undefined}
+            className={css.ThreadMenu}
+            style={menuStyle}
+          >
+            <div className={css.ThreadMenuRows}>
+              {details.length > 0 && (
+                <div className={css.ThreadMenuDetails}>
+                  <div
+                    id={detailsId}
+                    data-thread-details=""
+                    style={{ maxWidth: toRem(320), padding: config.space.S300 }}
+                  >
+                    <ThreadDetailsList room={room} threadId={rootId} details={details} />
+                  </div>
+                  <Line variant="Surface" size="300" />
+                </div>
+              )}
+              <MenuGroup>
+                {items.map((item) => (
+                  <MenuEntry
+                    key={item.action}
+                    role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+                    aria-checked={item.checked}
+                    label={item.label}
+                    icon={item.icon}
+                    after={item.checked ? <Icon size="100" src={Icons.Check} /> : undefined}
+                    shortcut={item.shortcut}
+                    data-thread-action={item.action}
+                    disabled={item.mutates && saving}
+                    aria-busy={item.mutates && saving ? true : undefined}
+                    onSelect={() => item.onSelect()}
+                  />
+                ))}
+              </MenuGroup>
+            </div>
           </Menu>
         </FocusTrap>
       }

@@ -30,6 +30,7 @@ const plugin = (id: string, slashCommands: PluginSlashCommand[]): RegisteredPlug
   roomActions: [],
   messageLinks: [],
   threadCardBadges: [],
+  threadDetails: [],
 });
 
 const room = { roomId: '!room:example.org' } as Room;
