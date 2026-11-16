@@ -1,13 +1,11 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
+import { THREAD_FORK_KEY } from '../../matrix/protocol/threadFork';
 import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 import { getThreadTimelineEvents } from '../timeline/linkedTimelines';
 import { compareThreadRenderOrder } from './threadRenderUtils';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
 import { eventBelongsToThread } from './threadUtils';
-
-/** Content key on a fork's root: `{thread_id, event_id}` of the parent and its last included message. */
-export const THREAD_FORK_KEY = 'io.mindroom.fork';
 
 /** A chain of forks is followed through at most this many parents. */
 export const MAX_FORK_DEPTH = 8;

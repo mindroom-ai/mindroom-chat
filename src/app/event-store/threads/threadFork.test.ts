@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
+import { THREAD_FORK_KEY } from '../../matrix/protocol/threadFork';
 import {
   MAX_FORK_DEPTH,
-  THREAD_FORK_KEY,
   cutThreadAtForkPoint,
   forkTargetFor,
   keepThreadForkRef,

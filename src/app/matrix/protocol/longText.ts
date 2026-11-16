@@ -1,11 +1,10 @@
 import type { EventAttachmentOwner } from './eventAttachments';
 import { IEncryptedFile } from '../types/common';
+import { THREAD_FORK_KEY } from './threadFork';
 
 const LONG_TEXT_TAG = 'io.mindroom.long_text';
 const LONG_TEXT_V2_ENCODING = 'matrix_event_content_json';
 const TOOL_TRACE_TAG = 'io.mindroom.tool_trace';
-/** A fork root's reference to its parent (`event-store/threads/threadFork.ts`). */
-const THREAD_FORK_TAG = 'io.mindroom.fork';
 const MAIN_EVENT_SNAPSHOT_KEY = '<== MAIN_EVENT ==>';
 const REPLACEMENT_EVENT_SNAPSHOT_KEY_REG = /^<== REPLACEMENT_EVENT_(\d+) ==>$/;
 
@@ -315,9 +314,9 @@ export const buildLongTextPreview = (content: Record<string, unknown>) => {
     body: `${start}${LONG_TEXT_CONTINUATION_NOTE}`,
     ...(content['m.mentions'] === undefined ? {} : { 'm.mentions': content['m.mentions'] }),
     ...(content['m.relates_to'] === undefined ? {} : { 'm.relates_to': content['m.relates_to'] }),
-    ...(content[THREAD_FORK_TAG] === undefined
+    ...(content[THREAD_FORK_KEY] === undefined
       ? {}
-      : { [THREAD_FORK_TAG]: content[THREAD_FORK_TAG] }),
+      : { [THREAD_FORK_KEY]: content[THREAD_FORK_KEY] }),
   };
 };
 
