@@ -41,6 +41,7 @@ import { ThreadView } from './ThreadView';
 import { ComposerNotice, ConversationLayout } from './ConversationLayout';
 import { useLocalEchoRoot } from './useLocalEchoRoot';
 import { noteThreadColumnKey } from './useRoomEscapeReadReceipts';
+import { useThreadKeys } from './useThreadKeys';
 import { THREAD_COLUMN_WIDTH_KEY, useThreadLayout } from './threadLayout';
 
 const BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_cancel';
@@ -150,6 +151,14 @@ export function RoomView({
     },
     [handleThreadLoadError, onThreadLoadError]
   );
+  useThreadKeys({
+    roomId,
+    areaRef,
+    openThreadId,
+    viewMode,
+    onOpenThread: threadState.handleOpenThread,
+    onExitThread: threadState.handleExitThread,
+  });
   const threadLayout = useThreadLayout(pageRef);
   // Every open thread shows in the column: beside the room's messages while the person chose that
   // and the page has room, else filling the page, over the room's conversation, which goes.

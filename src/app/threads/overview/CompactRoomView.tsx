@@ -34,6 +34,15 @@ import { firstRenderCardCount, useStagedCardIds } from './useStagedCardIds';
 import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import { ThreadCardBadges } from './ThreadCardBadges';
+import { useShortcut } from '../../shortcuts/useShortcut';
+import {
+  KEY_FOCUS_ATTRIBUTE,
+  compactCardsIn,
+  focusCompactCard,
+  focusedCompactCard,
+  handleCardArrowKey,
+  noteCompactCardOrder,
+} from './compactCardKeys';
 
 const ThreadActionsMenu = lazy(() =>
   import('../ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -245,7 +254,7 @@ const CompactThreadCardRow = React.memo(
 
 const isKeyboardFocus = (element: Element): boolean => {
   try {
-    return element.matches(':focus-visible');
+    return element.matches(`:focus-visible, [${KEY_FOCUS_ATTRIBUTE}]`);
   } catch {
     return true;
   }
@@ -325,6 +334,19 @@ export function CompactRoomView({
     `${filterBarShown}|${rootIdsOf(pinnedCards)}|${rootIdsOf(ordinaryCards)}`
   );
 
+  // The order the cards show in, pinned ones first, for the keys that step from an open thread
+  // to the next (`useThreadKeys`): the cards themselves unmount under a thread that fills the page.
+  const { pinnedEventIds } = pinning;
+  useLayoutEffect(() => {
+    const pinned = shownRootIds.filter((rootId) => pinnedEventIds.includes(rootId));
+    noteCompactCardOrder(
+      room.roomId,
+      pinned.length === 0
+        ? shownRootIds
+        : [...pinned, ...shownRootIds.filter((rootId) => !pinnedEventIds.includes(rootId))]
+    );
+  }, [room.roomId, shownRootIds, pinnedEventIds]);
+
   // A fully stable click handler keeps the memoized cards from re-rendering
   // when unrelated threads update; the per-thread summary text and the latest
   // onThreadClick are resolved through refs at click time.
@@ -352,6 +374,28 @@ export function CompactRoomView({
   const handlePin = useCallback((threadRootId: string, pinned: boolean) => {
     void setPinnedRef.current(threadRootId, !pinned);
   }, []);
+
+  // On a focused card, the keys that resolve the open thread resolve or reopen the card's, and
+  // the focus moves on to the next card: a resolved one may leave the list.
+  useShortcut('resolveThread', () => {
+    const card = focusedCompactCard(viewRef.current);
+    const rootId = card?.dataset.threadRootId;
+    const viewModel = rootId === undefined ? undefined : viewModelByRootRef.current.get(rootId);
+    if (!card || !rootId || !viewModel) return false;
+    const fixed =
+      !canToggle ||
+      pinnedEventIds.includes(rootId) ||
+      !isConfirmedMatrixEventId(rootId) ||
+      updatingThreadRootIds.has(rootId);
+    if (fixed) return true;
+    if (!viewModel.isResolved) {
+      const cards = compactCardsIn(viewRef.current);
+      const index = cards.indexOf(card);
+      focusCompactCard(cards[index + 1] ?? cards[index - 1]);
+    }
+    handleSetResolved(rootId, !viewModel.isResolved);
+    return true;
+  });
 
   useEffect(() => {
     if (error) {
@@ -431,6 +475,7 @@ export function CompactRoomView({
         shrink="No"
         data-order-held={orderHeld || undefined}
         {...pointerHandlers}
+        onKeyDown={handleCardArrowKey}
         // Keyboard focus only: a card a mouse click left focused does not hold the order.
         onFocus={(event: React.FocusEvent<HTMLDivElement>) =>
           setFocusInside(isKeyboardFocus(event.target))
