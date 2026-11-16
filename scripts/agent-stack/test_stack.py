@@ -923,6 +923,13 @@ class AliveTests(unittest.TestCase):
         ):
             self.assertFalse(stack.alive(4242, "/slot-7"))
 
+    def test_a_gone_process_on_a_host_without_ps_is_not_alive(self) -> None:
+        with (
+            mock.patch.object(Path, "read_bytes", side_effect=FileNotFoundError),
+            mock.patch.object(stack.subprocess, "run", side_effect=FileNotFoundError("ps")),
+        ):
+            self.assertFalse(stack.alive(4242, "/slot-7"))
+
 
 class WorkerImageTests(unittest.TestCase):
     DOCKERFILE = "local/instances/deploy/Dockerfile.mindroom"
@@ -1477,6 +1484,29 @@ class WorkScenarioTests(unittest.TestCase):
     def test_reasoning_section(self) -> None:
         self.assertEqual(stub_model.work_reasoning(0, 1), "")
         self.assertTrue(450 <= len(stub_model.work_reasoning(500, 1)) <= 550)
+
+    def streamed_content(self, text: str) -> list[str]:
+        """The content deltas the stub streams for the person's `text`, after its opening role chunk."""
+        with tempfile.TemporaryDirectory() as root:
+            stub = stub_model.Stub(Path(root) / "requests.jsonl", [], [])
+            request = mock.Mock(json=mock.AsyncMock(return_value={**chat(text), "stream": True}))
+            with mock.patch.object(stub_model, "web") as web:
+                response = web.StreamResponse.return_value
+                response.prepare = mock.AsyncMock()
+                response.write = mock.AsyncMock()
+                response.write_eof = mock.AsyncMock()
+                asyncio.run(stub.completions(request))
+        lines = [call.args[0].decode() for call in response.write.call_args_list]
+        payloads = [json.loads(line.removeprefix("data: ")) for line in lines if line.startswith("data: {")]
+        deltas = [payload["choices"][0]["delta"] for payload in payloads if payload.get("choices")]
+        self.assertEqual(deltas[0], {"role": "assistant", "content": ""})
+        return [delta["content"] for delta in deltas[1:] if "content" in delta]
+
+    def test_a_reply_of_no_words_streams_no_content_chunk(self) -> None:
+        self.assertEqual(self.streamed_content("#work words=0 wps=0"), [])
+        three = self.streamed_content("#work words=3 wps=0")
+        self.assertEqual(len(three), 3)
+        self.assertEqual("".join(three), stub_model.work_text(3, 1))
 
     def test_no_tools_streams_at_once(self) -> None:
         kind, reasoning, text, seconds = stub_model.plan(chat("#work words=5"), {})

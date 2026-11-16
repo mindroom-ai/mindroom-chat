@@ -595,7 +595,8 @@ class Stub:
             reasoning = step[1]
             for start in range(0, len(reasoning), 40):
                 await send(chunk(model, {"reasoning_content": reasoning[start : start + 40]}))
-            words = step[2].split(" ")
+            # No text (words=0) sends no content chunk at all, not one empty one.
+            words = step[2].split(" ") if step[2] else []
             for position, word in enumerate(words):
                 await send(chunk(model, {"content": word if position == len(words) - 1 else word + " "}))
                 if step[3] > 0:
