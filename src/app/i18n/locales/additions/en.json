@@ -1283,5 +1283,12 @@
       "idle": "Idle",
       "resolved": "Resolved"
     }
+  },
+  "threadBoard": {
+    "label": "Threads by state",
+    "working": "Working",
+    "later": "Later",
+    "open": "Open",
+    "done": "Done"
   }
 }

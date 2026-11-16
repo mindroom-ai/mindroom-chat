@@ -1283,5 +1283,12 @@
       "idle": "Boşta",
       "resolved": "Çözülenler"
     }
+  },
+  "threadBoard": {
+    "label": "Duruma göre ileti dizileri",
+    "working": "Çalışılıyor",
+    "later": "Sonra",
+    "open": "Açık",
+    "done": "Bitti"
   }
 }

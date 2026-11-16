@@ -1307,5 +1307,12 @@
       "idle": "Inattivi",
       "resolved": "Risolti"
     }
+  },
+  "threadBoard": {
+    "label": "Thread per stato",
+    "working": "In corso",
+    "later": "Più tardi",
+    "open": "Aperti",
+    "done": "Fatti"
   }
 }
