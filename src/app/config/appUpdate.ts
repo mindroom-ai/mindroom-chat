@@ -14,7 +14,8 @@
 // behind a pressed button. The card shows once the worker is done installing, also when its
 // install failed (the reload then loads from the server), at once without a worker, and after two
 // minutes at the latest. A broken page (AppErrorBoundary) offers the new version as soon as it is
-// known.
+// known. The checks go on after the first find: a later deployment replaces the new version, and
+// the reload goes to the newest one. A card already shown stays.
 //
 // A failed chunk can also outlive a reload: Safari 26 (and so the iOS app) answers a module the
 // page failed to load from that failure again after the reload, without a request, until the file
@@ -57,13 +58,13 @@ const failedModules = new Set<string>();
 let checking: Promise<void> | undefined;
 const listeners = new Set<() => void>();
 
-/** The version the server publishes when it is not this page's, once the page asked. */
+/** The version the server last published when it was not this page's, once the page asked. */
 export const getNewVersion = (): string | undefined => newVersion;
 
 /** The new version once its worker has installed, so a reload takes a moment (see the header). */
 export const getReadyVersion = (): string | undefined => readyVersion;
 
-/** Calls `listener` when the new version becomes known, and again when it becomes ready. */
+/** Calls `listener` when the new version becomes known or changes, and when it becomes ready. */
 export const subscribeToNewVersion = (listener: () => void): (() => void) => {
   listeners.add(listener);
   return () => {
@@ -78,18 +79,20 @@ const serviceWorkers = (): ServiceWorkerContainer | undefined =>
 
 /**
  * Asks the server which version it publishes. Offline, or when the server still has this page's
- * version, nothing changes: a part that failed to load failed for another reason and loads again
- * on its next use.
+ * version or the new version already known, nothing changes: a part that failed to load failed for
+ * another reason and loads again on its next use. A version not yet ready waits for its own worker.
  */
 export const checkForNewVersion = (): Promise<void> => {
-  if (newVersion !== undefined) return Promise.resolve();
   checking ??= fetchPublishedAppVersion()
     .then((published) => {
-      if (!published || published === APP_BUILD_VERSION) return;
+      if (!published || published === APP_BUILD_VERSION || published === newVersion) return;
       newVersion = published;
-      const container = serviceWorkers();
-      if (container) awaitNewWorker(container, published);
-      else readyVersion = published;
+      // A version already ready keeps the card shown; the reload goes to the newest version.
+      if (readyVersion === undefined) {
+        const container = serviceWorkers();
+        if (container) awaitNewWorker(container, published);
+        else readyVersion = published;
+      }
       notify();
     })
     .finally(() => {
@@ -226,7 +229,8 @@ const stageNewWorker = async (
 const awaitNewWorker = (container: ServiceWorkerContainer, version: string): void => {
   const ready = () => {
     clearTimeout(timer);
-    if (readyVersion !== undefined) return;
+    // A newer version found meanwhile waits for its own worker.
+    if (readyVersion !== undefined || version !== newVersion) return;
     readyVersion = version;
     notify();
   };
