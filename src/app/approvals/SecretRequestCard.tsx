@@ -234,7 +234,7 @@ function SecretRequestAnswer({
           fill="Soft"
           after={<Icon size="100" src={Icons.External} />}
         >
-          <Text size="B300" truncate>
+          <Text size="B300" className={css.LinkText}>
             <IsolatedText
               text={t('mindroomUi.messages.secretRequestCard.openLink', {
                 host: isolateInSentence(new URL(request.url).host),
@@ -373,7 +373,7 @@ function SecretRequestAnswer({
  * asked while it is pending: a service's key, with the agent's reason and the hosts the key may go
  * to, or a temporary secret, with the variable the agent's commands receive it as. The agent may
  * also name the secret (a temporary one's title), hint at its form in the empty field, and name
- * the page that gives it, which the person asked opens with a button beside the field.
+ * the page that gives it, which the person asked opens with a button above the field.
  * `agentUserId` is the card's sender, whose own MindRoom server takes the answer. A `readOnly`
  * card (another thread's view, such as a fork's prefix) shows the request without the field.
  */
