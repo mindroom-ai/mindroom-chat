@@ -748,6 +748,18 @@ class LobbySyncTest(unittest.TestCase):
         self.assertEqual(seen, counts(edits=1, active=["$reply"], finished=["$reply"]))
         self.assertIn("since=s2", self.sync(lobby, (200, {"next_batch": "s3"}))[1])
 
+    def test_an_answer_that_leaves_events_out_stops_the_driver(self) -> None:
+        lobby = self.lobby()
+        limited = {ROOM: {"timeline": {"events": [], "limited": True}}}
+        # The first answer leaves the room's older events out; that is where the driver starts.
+        _, url = self.sync(lobby, (200, {"next_batch": "s1", "rooms": {"join": limited}}))
+        self.assertIn('"timeline":{"limit":5000}', urllib.parse.unquote(url))
+        with self.assertRaises(SystemExit) as stopped:
+            self.sync(lobby, (200, {"next_batch": "s2", "rooms": {"join": limited}}))
+        message = str(stopped.exception.code)
+        self.assertIn(ROOM, message)
+        self.assertIn("since s1", message)
+
     def test_failed_post_gives_none(self) -> None:
         lobby = self.lobby()
         with contextlib.redirect_stderr(io.StringIO()) as errors:

@@ -386,7 +386,8 @@ class Lobby:
             "room": {
                 "rooms": [self.room],
                 "ephemeral": {"types": [LIVE_FRAME]},
-                "timeline": {"limit": 100},
+                # More events than any answer since the last one holds, so none is left out.
+                "timeline": {"limit": 5000},
             }
         }
         self._query = f"timeout=1000&filter={quote(json.dumps(sync_filter, separators=(',', ':')))}"
@@ -410,7 +411,11 @@ class Lobby:
             time.sleep(0.5)
             batch = {}
         elif self._since and (joined_room(batch, self.room).get("timeline") or {}).get("limited"):
-            log("a /sync answer left events out (over 100 since the last one); a reply's end may go unseen")
+            # A reply's start or end it left out would hold its turn until stuckSeconds.
+            raise SystemExit(
+                f"driver: the /sync answer since {self._since} (next batch {batch['next_batch']}) left events of "
+                f"{self.room} out (timeline limited); stopping, as its observations of the replies are incomplete"
+            )
         self._since = batch.get("next_batch", self._since)
         if self.jobs_event is None:
             self.jobs_event = jobs_state_event(batch, self.room, self.agents)
