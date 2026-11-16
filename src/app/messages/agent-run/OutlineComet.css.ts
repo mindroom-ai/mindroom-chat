@@ -1,9 +1,6 @@
 import { keyframes, style } from '@vanilla-extract/css';
-import { color, toRem } from 'folds';
-
-/** A soft light around what it is on, in the given color. */
-export const glow = (of: string) =>
-  `drop-shadow(0 0 ${toRem(1.5)} color-mix(in srgb, ${of} 75%, transparent))`;
+import { color } from 'folds';
+import { glow } from './glow';
 
 // The outline is 100 long (its pathLength in OutlineComet.tsx), so this is one lap of it.
 const lap = keyframes({ to: { strokeDashoffset: '-100' } });

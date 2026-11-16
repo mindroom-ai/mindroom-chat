@@ -1,6 +1,6 @@
 import { keyframes, style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
-import { glow } from './OutlineComet.css';
+import { glow } from './glow';
 
 const turnBack = keyframes({ to: { transform: 'rotate(-360deg)' } });
 const breathe = keyframes({
