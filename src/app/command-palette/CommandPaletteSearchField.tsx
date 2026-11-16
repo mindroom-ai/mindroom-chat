@@ -6,7 +6,7 @@ import { commandPaletteOpenAtom } from './commandPaletteState';
 import {
   getCommandPaletteAriaKeyShortcuts,
   getCommandPaletteShortcutLabel,
-} from './commandPaletteShortcut';
+} from '../shortcuts/paletteShortcut';
 import * as css from './CommandPaletteSearchField.css';
 
 type CommandPaletteSearchFieldProps = {

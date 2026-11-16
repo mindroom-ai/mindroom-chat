@@ -407,7 +407,9 @@
       },
       "about": {
         "thirdPartyNotices": "Avis de tiers",
-        "soundsCredit": "Les sons de notification et d'invitation sont des carillons synthétisés pour cette application."
+        "soundsCredit": "Les sons de notification et d'invitation sont des carillons synthétisés pour cette application.",
+        "debugMode": "Mode débogage",
+        "debugModeDescription": "Enregistre des diagnostics sur cet appareil pour que vous puissiez les exporter et activer le traçage de diagnostic approfondi."
       }
     },
     "createChat": {
@@ -731,6 +733,29 @@
         "noLongerActive": "Cette demande n’est plus active. Redemandez à l’agent.",
         "unavailable": "La saisie de clés n’est pas disponible sur ce serveur.",
         "unavailableHint": "Pour saisir des clés ici, définissez votre serveur MindRoom dans Paramètres → {{page}} → {{field}}.",
+        "replaces": "Remplace la clé enregistrée actuellement.",
+        "replaceKey": "Remplacer la clé",
+        "temporary": {
+          "label": "Demande de secret",
+          "title": "Secret pour {{agent}}",
+          "givenAs": "Transmis aux commandes de {{agent}} dans cette conversation sous le nom {{variable}}.",
+          "field": "Secret pour {{variable}}",
+          "placeholder": "Collez ou saisissez le secret",
+          "show": "Afficher le secret",
+          "hide": "Masquer le secret",
+          "keepFor": "Conserver pendant",
+          "keep": {
+            "memory": "{{duration}}, en mémoire uniquement",
+            "disk": "{{duration}}, dans un fichier sur le serveur"
+          },
+          "kept": {
+            "memory": "Conservé pendant {{duration}}, en mémoire uniquement.",
+            "disk": "Conservé pendant {{duration}}, dans un fichier sur le serveur."
+          },
+          "send": "Envoyer",
+          "sent": "Envoyé",
+          "sentWaiting": "Envoyé, en attente de l’agent"
+        },
         "status": {
           "waitingForYou": "Vous attend",
           "pending": "En attente",
@@ -827,6 +852,7 @@
       "title": "Sous-agents",
       "close": "Fermer",
       "empty": "Aucun sous-agent n’est en cours dans ce salon.",
+      "emptyThread": "Aucun sous-agent n’est en cours dans ce fil.",
       "back": "Retour",
       "nested_one": "{{count}} sous-agent",
       "nested_many": "{{count}} sous-agents",
@@ -864,6 +890,10 @@
     "dismissLostFiles": "Ignorer"
   },
   "commandPalette": {
+    "state": {
+      "on": "Activé",
+      "off": "Désactivé"
+    },
     "people": "Personnes",
     "tabsLabel": "Types de résultats",
     "switchTabs": "Changer d'onglet",
@@ -948,6 +978,17 @@
     "nextMonday": "Lundi prochain 09:00",
     "pickDateTime": "Choisir la date et l'heure",
     "pastTime": "Choisissez une heure dans le futur"
+  },
+  "threadFork": {
+    "forkedFrom": "Dérivé de {{title}}",
+    "openInOriginalThread": "Ouvrir dans le fil d'origine",
+    "forkFromHere": "Dériver à partir d'ici",
+    "forkThread": "Dériver le fil",
+    "forking": "Dérivation de {{title}}",
+    "continueInNewThread": "Continuer dans un nouveau fil",
+    "forkCount_one": "{{count}} dérivation",
+    "forkCount_many": "{{count}} dérivations",
+    "forkCount_other": "{{count}} dérivations"
   },
   "activity": {
     "title": "Activité",
@@ -1254,6 +1295,17 @@
       "settingsKeywords": "visite, visite guidée, tutoriel, guide, aide, introduction, prise en main, fils",
       "howThreadsWork": "Comment fonctionnent les fils",
       "noThreadsHint": "Envoyez un message ci-dessous pour en démarrer un."
+    }
+  },
+  "threadNav": {
+    "layout": "Disposition des fils",
+    "layoutRecent": "Récents",
+    "layoutSections": "Sections",
+    "sections": {
+      "working": "En cours",
+      "snoozed": "Reportés",
+      "idle": "Inactifs",
+      "resolved": "Résolus"
     }
   }
 }

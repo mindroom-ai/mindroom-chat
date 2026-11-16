@@ -397,7 +397,9 @@
       },
       "about": {
         "thirdPartyNotices": "Pemberitahuan pihak ketiga",
-        "soundsCredit": "Suara notifikasi dan undangan adalah nada yang disintesis untuk aplikasi ini."
+        "soundsCredit": "Suara notifikasi dan undangan adalah nada yang disintesis untuk aplikasi ini.",
+        "debugMode": "Mode debug",
+        "debugModeDescription": "Merekam diagnostik di perangkat ini agar Anda dapat mengekspornya dan mengaktifkan pelacakan diagnostik mendalam."
       }
     },
     "createChat": {
@@ -713,6 +715,29 @@
         "noLongerActive": "Permintaan ini sudah tidak aktif. Minta lagi kepada agen.",
         "unavailable": "Memasukkan kunci tidak tersedia di server ini.",
         "unavailableHint": "Untuk memasukkan kunci di sini, atur server MindRoom Anda di Pengaturan → {{page}} → {{field}}.",
+        "replaces": "Menggantikan kunci yang tersimpan sekarang.",
+        "replaceKey": "Ganti kunci",
+        "temporary": {
+          "label": "Permintaan rahasia",
+          "title": "Rahasia untuk {{agent}}",
+          "givenAs": "Diberikan ke perintah {{agent}} dalam percakapan ini sebagai {{variable}}.",
+          "field": "Rahasia untuk {{variable}}",
+          "placeholder": "Tempel atau ketik rahasia",
+          "show": "Tampilkan rahasia",
+          "hide": "Sembunyikan rahasia",
+          "keepFor": "Simpan selama",
+          "keep": {
+            "memory": "{{duration}}, hanya di memori",
+            "disk": "{{duration}}, dalam berkas di server"
+          },
+          "kept": {
+            "memory": "Disimpan selama {{duration}}, hanya di memori.",
+            "disk": "Disimpan selama {{duration}}, dalam berkas di server."
+          },
+          "send": "Kirim",
+          "sent": "Terkirim",
+          "sentWaiting": "Terkirim, menunggu agen"
+        },
         "status": {
           "waitingForYou": "Menunggu Anda",
           "pending": "Menunggu",
@@ -805,6 +830,7 @@
       "title": "Subagen",
       "close": "Tutup",
       "empty": "Tidak ada subagen yang berjalan di ruangan ini.",
+      "emptyThread": "Tidak ada subagen yang berjalan di utas ini.",
       "back": "Kembali",
       "nested_other": "{{count}} subagen",
       "turns_other": "{{count}} giliran",
@@ -834,6 +860,10 @@
     "dismissLostFiles": "Tutup"
   },
   "commandPalette": {
+    "state": {
+      "on": "Aktif",
+      "off": "Nonaktif"
+    },
     "people": "Orang",
     "tabsLabel": "Jenis hasil",
     "switchTabs": "Ganti tab",
@@ -918,6 +948,15 @@
     "nextMonday": "Senin depan 09:00",
     "pickDateTime": "Pilih tanggal dan waktu",
     "pastTime": "Pilih waktu di masa depan"
+  },
+  "threadFork": {
+    "forkedFrom": "Bercabang dari {{title}}",
+    "openInOriginalThread": "Buka di utas asli",
+    "forkFromHere": "Cabangkan dari sini",
+    "forkThread": "Cabangkan utas",
+    "forking": "Mencabangkan {{title}}",
+    "continueInNewThread": "Lanjutkan di utas baru",
+    "forkCount_other": "{{count}} cabang"
   },
   "activity": {
     "title": "Aktivitas",
@@ -1208,6 +1247,17 @@
       "settingsKeywords": "tur, tutorial, panduan, bantuan, pengenalan, perkenalan, utas",
       "howThreadsWork": "Cara kerja utas",
       "noThreadsHint": "Kirim pesan di bawah untuk memulai utas."
+    }
+  },
+  "threadNav": {
+    "layout": "Tata letak utas",
+    "layoutRecent": "Terbaru",
+    "layoutSections": "Bagian",
+    "sections": {
+      "working": "Sedang berjalan",
+      "snoozed": "Ditunda",
+      "idle": "Tidak aktif",
+      "resolved": "Selesai"
     }
   }
 }

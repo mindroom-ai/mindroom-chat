@@ -402,7 +402,9 @@
       },
       "about": {
         "thirdPartyNotices": "Kennisgevingen van derden",
-        "soundsCredit": "De meldings- en uitnodigingsgeluiden zijn klanken die voor deze app zijn gesynthetiseerd."
+        "soundsCredit": "De meldings- en uitnodigingsgeluiden zijn klanken die voor deze app zijn gesynthetiseerd.",
+        "debugMode": "Debugmodus",
+        "debugModeDescription": "Legt diagnostiek vast op dit apparaat, zodat je die kunt exporteren en uitgebreide diagnostische tracering kunt inschakelen."
       }
     },
     "createChat": {
@@ -722,6 +724,29 @@
         "noLongerActive": "Dit verzoek is niet meer actief. Vraag het de agent opnieuw.",
         "unavailable": "Sleutels invoeren is op deze server niet beschikbaar.",
         "unavailableHint": "Stel je MindRoom-server in via Instellingen → {{page}} → {{field}} om hier sleutels in te voeren.",
+        "replaces": "Vervangt de sleutel die nu is opgeslagen.",
+        "replaceKey": "Sleutel vervangen",
+        "temporary": {
+          "label": "Geheimverzoek",
+          "title": "Geheim voor {{agent}}",
+          "givenAs": "Gaat naar de opdrachten van {{agent}} in dit gesprek als {{variable}}.",
+          "field": "Geheim voor {{variable}}",
+          "placeholder": "Plak of typ het geheim",
+          "show": "Geheim tonen",
+          "hide": "Geheim verbergen",
+          "keepFor": "Bewaren voor",
+          "keep": {
+            "memory": "{{duration}}, alleen in het geheugen",
+            "disk": "{{duration}}, in een bestand op de server"
+          },
+          "kept": {
+            "memory": "Bewaard voor {{duration}}, alleen in het geheugen.",
+            "disk": "Bewaard voor {{duration}}, in een bestand op de server."
+          },
+          "send": "Versturen",
+          "sent": "Verstuurd",
+          "sentWaiting": "Verstuurd, wacht op de agent"
+        },
         "status": {
           "waitingForYou": "Wacht op jou",
           "pending": "In behandeling",
@@ -816,6 +841,7 @@
       "title": "Subagenten",
       "close": "Sluiten",
       "empty": "Er zijn geen subagenten actief in deze kamer.",
+      "emptyThread": "Er zijn geen subagenten actief in deze thread.",
       "back": "Terug",
       "nested_one": "{{count}} subagent",
       "nested_other": "{{count}} subagenten",
@@ -849,6 +875,10 @@
     "dismissLostFiles": "Sluiten"
   },
   "commandPalette": {
+    "state": {
+      "on": "Aan",
+      "off": "Uit"
+    },
     "people": "Personen",
     "tabsLabel": "Soorten resultaten",
     "switchTabs": "Tabblad wisselen",
@@ -933,6 +963,16 @@
     "nextMonday": "Volgende maandag 09:00",
     "pickDateTime": "Datum en tijd kiezen",
     "pastTime": "Kies een tijd in de toekomst"
+  },
+  "threadFork": {
+    "forkedFrom": "Afgesplitst van {{title}}",
+    "openInOriginalThread": "Openen in oorspronkelijke thread",
+    "forkFromHere": "Hier afsplitsen",
+    "forkThread": "Thread afsplitsen",
+    "forking": "{{title}} afsplitsen",
+    "continueInNewThread": "Verdergaan in een nieuwe thread",
+    "forkCount_one": "{{count}} afsplitsing",
+    "forkCount_other": "{{count}} afsplitsingen"
   },
   "activity": {
     "title": "Activiteit",
@@ -1231,6 +1271,17 @@
       "settingsKeywords": "rondleiding, tour, uitleg, handleiding, gids, hulp, introductie, threads",
       "howThreadsWork": "Hoe threads werken",
       "noThreadsHint": "Stuur hieronder een bericht om er een te starten."
+    }
+  },
+  "threadNav": {
+    "layout": "Indeling van threads",
+    "layoutRecent": "Recent",
+    "layoutSections": "Secties",
+    "sections": {
+      "working": "Bezig",
+      "snoozed": "Gesnoozed",
+      "idle": "Inactief",
+      "resolved": "Opgelost"
     }
   }
 }

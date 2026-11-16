@@ -1,5 +1,6 @@
 import type { EventAttachmentOwner } from './eventAttachments';
 import { IEncryptedFile } from '../types/common';
+import { THREAD_FORK_KEY } from './threadFork';
 
 const LONG_TEXT_TAG = 'io.mindroom.long_text';
 const LONG_TEXT_V2_ENCODING = 'matrix_event_content_json';
@@ -303,7 +304,7 @@ const MESSAGE_PREVIEW_LENGTH = 2000;
 
 /**
  * The event for a typed message sent as a long-text sidecar: the start of its text, and the
- * mentions and relation that route it. The file holds the whole message.
+ * mentions, relation and fork reference that route it. The file holds the whole message.
  */
 export const buildLongTextPreview = (content: Record<string, unknown>) => {
   const body = typeof content.body === 'string' ? content.body : '';
@@ -313,6 +314,9 @@ export const buildLongTextPreview = (content: Record<string, unknown>) => {
     body: `${start}${LONG_TEXT_CONTINUATION_NOTE}`,
     ...(content['m.mentions'] === undefined ? {} : { 'm.mentions': content['m.mentions'] }),
     ...(content['m.relates_to'] === undefined ? {} : { 'm.relates_to': content['m.relates_to'] }),
+    ...(content[THREAD_FORK_KEY] === undefined
+      ? {}
+      : { [THREAD_FORK_KEY]: content[THREAD_FORK_KEY] }),
   };
 };
 

@@ -163,6 +163,7 @@ vi.mock('./ThreadView', async () => {
     ThreadView: ({
       threadId,
       eventId,
+      forkAt,
       header,
       autoFocus,
       hidden,
@@ -203,6 +204,7 @@ vi.mock('./ThreadView', async () => {
           data-testid="thread-view"
           data-thread={threadId}
           data-event={eventId}
+          data-fork-at={forkAt}
           data-autofocus={autoFocus}
           data-hidden={hidden}
         >
@@ -357,6 +359,12 @@ it('opens every thread in the column, filling the page with the layout full', ()
   expect(screen.getByRole('button', { name: 'Beside' })).toBeDefined();
   expect(screen.queryByRole('button', { name: 'Full' })).toBeNull();
 });
+it("opens a fork draft in the thread's column at the fork point its address names", () => {
+  // The fork point is the address's event too, which the thread's view loads around.
+  renderView({ eventId: '$point', forkAt: '$point' });
+  expect(column()?.dataset).toMatchObject({ thread: '$thread', event: '$point', forkAt: '$point' });
+});
+
 it("shows the thread in its own column beside the room's messages once chosen, as it opens", () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   renderView({ eventId: '$reply' });

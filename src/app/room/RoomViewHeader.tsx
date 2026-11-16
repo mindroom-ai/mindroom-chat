@@ -33,7 +33,7 @@ import { useParentRooms } from '../matrix/state/subRooms';
 import { getDirectPath, getHomePath, getSpacePath } from '../routes/pathUtils';
 import { previousHistoryOrigin, showsRoom } from '../routes/historyStack';
 import { RoomPinMenu } from '../messages/pins/RoomPinMenu';
-import { useRoomSubagentCounts } from '../messages/live/subagentRunStore';
+import { subagentConversation, useRoomSubagentCounts } from '../messages/live/subagentRunStore';
 import { SubagentsIcon } from '../subagents/SubagentsIcon';
 import {
   RoomSchedulesButton,
@@ -48,6 +48,7 @@ import type { SidePanel } from '../plugins/sidePanels';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
 import type { RoomViewMode } from '../navigation/roomViewMode';
+import { useRoomCommands } from '../navigation/roomCommands';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import {
   hasChosenThreadFilters,
@@ -307,14 +308,13 @@ export function RoomViewHeader({
   const canToggleComputer = !!computerAvailable && !!onComputerToggle;
   const showCanvases = !!canvases && !!onCanvasOpen && !!onCanvasClose;
   // The Sub-agents toggle shows while the room keeps a sub-agent run (a working one, or one paused
-  // or ended not long ago) started in the conversation on screen: the open thread, or while none
-  // is open the room's own timeline, so the room's threads do not put it on the thread list. The
-  // Classic view shows every thread's replies in the room's timeline, so there every run counts.
-  // Its count is of those runs still at it. It stays while the panel shows, so a panel opened
-  // elsewhere (a sub-agent job in the jobs bar) or whose last run expired can still be hidden.
+  // or ended not long ago) started in the conversation on screen (`subagentConversation`), whose
+  // runs alone the panel lists. Its count is of those runs still at it. It stays while the panel
+  // shows, so a panel opened elsewhere (a sub-agent job in the jobs bar) or whose last run expired
+  // can still be hidden.
   const { total: keptSubagents, active: activeSubagents } = useRoomSubagentCounts(
     room.roomId,
-    openThreadId ?? (viewMode === 'classic' ? undefined : null)
+    subagentConversation(openThreadId, viewMode === 'classic')
   );
   const subagentsVisible = shownPanel === 'subagents';
   const subagentsLabel = subagentsVisible
@@ -495,6 +495,20 @@ export function RoomViewHeader({
     },
   ];
   const entries = listed.filter((entry): entry is RoomHeaderEntry => !!entry);
+  // The command palette offers the actions the header draws, bar the ones that need their button's place.
+  useRoomCommands(
+    entries
+      .filter(drawnByHeader)
+      .filter((entry) => !entry.popup)
+      .map(({ id, label, icon, pressed, shortcut, run }) => ({
+        id,
+        label,
+        icon,
+        pressed,
+        shortcut,
+        run: () => run(undefined),
+      }))
+  );
   const inRow = (entry: RoomHeaderEntry) => showsInRow(entry.placement, mobile);
   const menuEntries = entries.filter((entry) => !inRow(entry));
   // What only works in the open room, before the room's own actions in the menu.

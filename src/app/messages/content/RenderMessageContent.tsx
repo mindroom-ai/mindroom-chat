@@ -87,6 +87,8 @@ type RenderMessageContentProps = BodyOptions & {
   /** Draw a hairline around attachments that sit on a surface of their own color. */
   outlineAttachment?: boolean;
   showMessageExtras?: boolean;
+  /** Shown in another thread's view (a fork's prefix): its cards offer no decisions there. */
+  readOnly?: boolean;
 };
 
 type Content = Record<string, unknown>;
@@ -134,6 +136,7 @@ function CoreMessageContent({
   pendingSend,
   failedSend,
   hydrateLongText,
+  readOnly,
 }: RenderMessageContentProps) {
   const client = useMatrixClient();
   const content = getContent<Content>();
@@ -190,6 +193,7 @@ function CoreMessageContent({
     renderUrlsPreview,
     showMessageExtras,
     hydrateLongText,
+    readOnly,
   });
   // An agent reply's tool rows find the approval cards MindRoom posted for its calls by its ID.
   const agentMessage = agentContent !== undefined && (

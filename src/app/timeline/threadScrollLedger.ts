@@ -4,7 +4,8 @@ export type ThreadLedgerEvent = {
 
 /**
  * The reader's first visible row in the last committed thread render, with the
- * event list and row prices of that render. Index 0 is the thread root.
+ * event list and row prices of that render. The thread root is the row whose ID
+ * is `threadId`: index 0, or after a fork's parent rows.
  */
 export type ThreadLedgerAnchor = {
   threadId: string;
@@ -36,7 +37,7 @@ const sameRowsAbove = (
   next: readonly ThreadLedgerEvent[],
   boundaryIndex: number
 ): boolean => {
-  for (let index = 1; index < boundaryIndex; index += 1) {
+  for (let index = 0; index < boundaryIndex; index += 1) {
     if (previous[index]?.getId() !== next[index]?.getId()) return false;
   }
   return true;
@@ -65,10 +66,11 @@ export const planThreadLedgerRender = ({
   let boundaryIndex = eventIndexMap.get(anchor.eventId);
   let probe: ThreadLedgerFoldProbe | undefined;
   if (boundaryIndex === undefined) {
-    // The reader's row left; hold the nearest row above it that survived.
-    for (previousIndex = anchor.index - 1; previousIndex >= 1; previousIndex -= 1) {
+    // The reader's row left; hold the nearest row above it that survived, other than the root.
+    for (previousIndex = anchor.index - 1; previousIndex >= 0; previousIndex -= 1) {
       const eventId = anchor.events[previousIndex]?.getId();
-      boundaryIndex = eventId === undefined ? undefined : eventIndexMap.get(eventId);
+      boundaryIndex =
+        eventId === undefined || eventId === threadId ? undefined : eventIndexMap.get(eventId);
       if (boundaryIndex !== undefined) break;
     }
     if (boundaryIndex === undefined) return { foldPx: 0, probe: 'threadPrependFoldAnchorLost' };
@@ -85,15 +87,18 @@ export const planThreadLedgerRender = ({
     return result(0);
   }
 
+  // The root is not folded: the reader sees it arrive. A fork's parent rows above it are.
   const previousAbove = new Map<string, number>();
-  for (let index = 1; index < previousIndex; index += 1) {
+  for (let index = 0; index < previousIndex; index += 1) {
     const eventId = anchor.events[index]?.getId();
-    if (eventId) previousAbove.set(eventId, index);
+    if (eventId && eventId !== threadId) previousAbove.set(eventId, index);
   }
   let foldPx = 0;
-  for (let index = 1; index < boundaryIndex; index += 1) {
+  for (let index = 0; index < boundaryIndex; index += 1) {
     const eventId = threadEvents[index]?.getId();
-    if (eventId && !previousAbove.delete(eventId)) foldPx += priceRow(eventId, index);
+    if (eventId && eventId !== threadId && !previousAbove.delete(eventId)) {
+      foldPx += priceRow(eventId, index);
+    }
   }
   // Rows that left the space above the reader take their committed height with them.
   previousAbove.forEach((index, eventId) => {

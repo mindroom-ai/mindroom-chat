@@ -79,18 +79,18 @@ describe('VoiceWaveform live glide', () => {
     expect(animations).toHaveLength(1);
     expect(animations[0]!.target.className).toBe('CompactStrip');
     expect(animations[0]!.keyframes).toEqual([
-      { transform: 'translateX(0.1875rem)' },
-      { transform: 'none' },
+      { insetInlineEnd: '-0.1875rem' },
+      { insetInlineEnd: '0' },
     ]);
 
     progress = 0.5;
     render(3);
     expect(animations[0]!.cancel).toHaveBeenCalled();
-    expect(animations[1]!.keyframes[0]).toEqual({ transform: 'translateX(0.2813rem)' });
+    expect(animations[1]!.keyframes[0]).toEqual({ insetInlineEnd: '-0.2813rem' });
 
     // Never farther than the strip reaches past its start: many samples at once jump the rest.
     render(13);
-    expect(animations[2]!.keyframes[0]).toEqual({ transform: 'translateX(0.375rem)' });
+    expect(animations[2]!.keyframes[0]).toEqual({ insetInlineEnd: '-0.375rem' });
 
     render(0);
     expect(animations[2]!.cancel).toHaveBeenCalled();

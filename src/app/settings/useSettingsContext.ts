@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { useAtomValue } from 'jotai';
 import { useShowLocalMindroom } from '../local-mindroom/useShowLocalMindroom';
 import { isNativeIOS } from '../native/nativeSso';
+import { getDebugModeEnabled } from '../diagnostics/debugMode';
 import { useOfferedRailButtons } from './railButtons';
 import { useClientConfig } from '../config/useClientConfig';
 import { useCapabilities } from '../matrix/hooks/useCapabilities';
@@ -23,6 +24,7 @@ export const useSettingsContext = (): SettingsContext => {
   return {
     native: Capacitor.isNativePlatform(),
     nativeIOS: isNativeIOS(),
+    diagnostics: isNativeIOS() || getDebugModeEnabled(),
     localMindroom,
     serverAdmin,
     useSystemTheme,

@@ -24,6 +24,8 @@ export type CrossRoomThreadIndexEntry = {
   indexedEventIds: string[];
   threadRecord: ThreadRecord;
   rootSenderId?: string;
+  /** When the root was sent, while it is loaded; unlike `lastActivityTs`, replies leave it. */
+  rootTs?: number;
   lastActivityTs: number;
   isUnread: boolean;
   isResolved: boolean;
@@ -418,6 +420,7 @@ export const buildCrossRoomThreadIndexEntry = ({
   const lastActivityTs = hasPendingOwnReply
     ? Math.max(baseLastActivityTs, pendingOwnReplyEvent.getTs())
     : baseLastActivityTs;
+  const rootTs = resolvedRootEvent?.getTs?.();
   const isResolved = threadRecord.status.isResolved;
   const resolvedTs = isResolved ? resolvedTagSnapshot?.resolvedTs : undefined;
   const hasAttention =
@@ -442,6 +445,7 @@ export const buildCrossRoomThreadIndexEntry = ({
     indexedEventIds: Array.from(indexedEventIds),
     threadRecord,
     rootSenderId: resolvedRootEvent?.getSender?.(),
+    ...(rootTs !== undefined ? { rootTs } : {}),
     lastActivityTs,
     isUnread: threadRecord.status.isUnread,
     isResolved,

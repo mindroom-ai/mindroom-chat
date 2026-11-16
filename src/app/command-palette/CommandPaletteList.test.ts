@@ -25,9 +25,12 @@ vi.mock('./CommandPalette.css', () => ({
   RowTime: 'RowTime',
   Tag: 'Tag',
   Match: 'Match',
+  TitleMatch: 'TitleMatch',
   Note: 'Note',
   RowDescription: 'RowDescription',
   RowEnter: 'RowEnter',
+  RowEnd: 'RowEnd',
+  RowState: 'RowState',
   Key: 'Key',
   Footer: 'Footer',
   KeyboardHints: 'KeyboardHints',
@@ -37,16 +40,22 @@ vi.mock('./CommandPalette.css', () => ({
   EmptyDescription: 'EmptyDescription',
 }));
 
+const reactModule = await vi.hoisted(async () => import('react'));
+
 vi.mock('folds', () => ({
-  Icon: () => null,
+  Icon: ({ src, ...props }: { src: string }) =>
+    reactModule.createElement('row-icon', { ...props, src }),
   Spinner: () => null,
   Avatar: ({ children }: { children: React.ReactNode }) => children,
   AvatarImage: () => null,
   AvatarFallback: ({ children }: { children: React.ReactNode }) => children,
-  Text: ({ children }: { children: React.ReactNode }) => children,
+  Text: ({ children, ...props }: { children: React.ReactNode }) =>
+    reactModule.createElement('text', props, children),
   Icons: {
     Hash: 'hash',
     Terminal: 'terminal',
+    Check: 'check',
+    ChevronRight: 'chevron-right',
     Space: 'space',
     Message: 'message',
     Search: 'search',
@@ -229,5 +238,213 @@ describe('CommandPaletteList', () => {
     const place = renderer.root.findByProps({ className: 'RowPlace' });
     expect(place.findAllByType('bdi').map((name) => name.children)).toEqual([['Ops'], ['Thread']]);
     expect(renderer.root.findAllByType('mark')).toHaveLength(0);
+  });
+
+  describe('action rows', () => {
+    const renderAction = (item: Record<string, unknown>) =>
+      renderList({
+        sections: [
+          {
+            id: 'actions',
+            title: 'Actions',
+            items: [{ id: 'action:a', kind: 'action', title: 'Dark mode', ...item }],
+          },
+        ],
+      });
+    const option = (renderer: ReturnType<typeof renderAction>) =>
+      renderer.root.findByProps({ role: 'option' });
+    const marked = (renderer: ReturnType<typeof renderAction>, attribute: string) =>
+      renderer.root.findAll((node) => typeof node.type === 'string' && attribute in node.props);
+
+    it('shows what a row that flips something is now', () => {
+      const on = renderAction({ state: 'on' });
+      expect(marked(on, 'data-row-state')[0]?.props['data-row-state']).toBe('on');
+      expect(marked(on, 'data-row-state')[0]?.children).toEqual(['On']);
+      expect(option(on).props['aria-checked']).toBe(true);
+      const off = renderAction({ state: 'off' });
+      expect(marked(off, 'data-row-state')[0]?.children).toEqual(['Off']);
+      expect(option(off).props['aria-checked']).toBe(false);
+    });
+
+    it('marks the choice that is in effect', () => {
+      const current = renderAction({ current: true });
+      expect(marked(current, 'data-row-current')).toHaveLength(1);
+      expect(option(current).props['aria-checked']).toBe(true);
+      const other = renderAction({ current: false });
+      expect(marked(other, 'data-row-current')).toHaveLength(0);
+      expect(option(other).props['aria-checked']).toBe(false);
+    });
+
+    it('marks a row that opens a page, with a chevron that turns in right-to-left', () => {
+      const page = marked(renderAction({ page: 'theme' }), 'data-row-page');
+      expect(page).toHaveLength(1);
+      expect(page[0]?.findByType('row-icon' as never).props['data-directional']).toBe(true);
+    });
+
+    it('shows the keys of the same action', () => {
+      expect(marked(renderAction({ shortcut: 'settings' }), 'data-shortcut-keys')).toHaveLength(1);
+    });
+
+    it('shows a tag and its own icon, else the terminal', () => {
+      const renderer = renderAction({ tag: 'Settings', icon: 'sun' });
+      const heading = renderer.root.findByProps({ className: 'RowHeading' });
+      expect(heading.findByProps({ className: 'Tag' }).children).toEqual(['Settings']);
+      expect(renderer.root.findByType('row-icon' as never).props.src).toBe('sun');
+      expect(renderAction({}).root.findByType('row-icon' as never).props.src).toBe('terminal');
+    });
+
+    it('leaves aria-checked and the end off a plain row', () => {
+      const plain = renderAction({});
+      expect(option(plain).props['aria-checked']).toBeUndefined();
+      expect(plain.root.findAllByProps({ className: 'RowEnd' })).toHaveLength(0);
+    });
+
+    it('gives a title in another language than the app its language', () => {
+      const title = (item: Record<string, unknown>) =>
+        renderAction(item).root.findByProps({ className: 'RowTitle' });
+      expect(title({ title: 'Nederlands', lang: 'nl' }).props.lang).toBe('nl');
+      expect(title({}).props.lang).toBeUndefined();
+    });
+  });
+});
+
+describe('CommandPaletteList marks', () => {
+  type Rendered = ReturnType<typeof renderList>;
+
+  /** The marked parts of the row's element with `className`, as text. */
+  const marksIn = (renderer: Rendered, className: string): string[] =>
+    renderer.root
+      .findByProps({ className })
+      .findAll((node) => node.type === 'mark' && node.props['data-match'] !== undefined)
+      .map((node) => node.children.join(''));
+
+  const textOf = (renderer: Rendered, className: string): string => {
+    const read = (node: unknown): string => {
+      if (typeof node === 'string') return node;
+      if (node && typeof node === 'object' && 'children' in node && Array.isArray(node.children)) {
+        return node.children.map(read).join('');
+      }
+      return '';
+    };
+    return read(renderer.root.findByProps({ className }));
+  };
+
+  const withMarks = (
+    item: CommandPaletteListSection['items'][number],
+    marks: Record<string, [number, number][]>
+  ) =>
+    renderList({
+      sections: [
+        { id: 'rooms', title: 'Rooms', items: [item], marks: new Map([[item.id, marks]]) },
+      ],
+    });
+
+  it('marks what matched in a room name and leaves the name as it reads', () => {
+    const renderer = withMarks(ROOM_SECTION.items[0]!, { name: [[0, 3]] });
+    expect(marksIn(renderer, 'RowTitle')).toEqual(['Gen']);
+    expect(textOf(renderer, 'RowTitle')).toBe('General');
+    expect(marksIn(renderer, 'RowDescription')).toEqual([]);
+  });
+
+  it('marks several parts of a title', () => {
+    const renderer = withMarks(
+      { id: 'create-room', kind: 'action', title: 'Create Room' },
+      {
+        title: [
+          [0, 1],
+          [7, 8],
+          [10, 11],
+        ],
+      }
+    );
+    expect(marksIn(renderer, 'RowTitle')).toEqual(['C', 'R', 'm']);
+    expect(textOf(renderer, 'RowTitle')).toBe('Create Room');
+  });
+
+  it('marks the line under the title when that is where the text matched', () => {
+    const topic = withMarks(ROOM_SECTION.items[0]!, { topic: [[0, 4]] });
+    expect(marksIn(topic, 'RowTitle')).toEqual([]);
+    expect(marksIn(topic, 'RowDescription')).toEqual(['Team']);
+
+    const person = withMarks(
+      {
+        id: 'user:@jsmith:example.org',
+        kind: 'user',
+        displayName: 'John Smith',
+        userId: '@jsmith:example.org',
+        localpart: 'jsmith',
+      },
+      { userId: [[1, 7]] }
+    );
+    expect(marksIn(person, 'RowDescription')).toEqual(['jsmith']);
+
+    const thread = withMarks(
+      {
+        id: 'thread:1',
+        kind: 'thread',
+        roomId: '!a:example.org',
+        threadId: '$1',
+        summaryText: 'Login issue',
+        roomName: 'Frontend',
+      },
+      { roomName: [[0, 5]], summaryText: [[0, 5]] }
+    );
+    expect(marksIn(thread, 'RowTitle')).toEqual(['Login']);
+    expect(marksIn(thread, 'RowDescription')).toEqual(['Front']);
+  });
+
+  it('marks the alias only where the row shows it', () => {
+    const alias = { canonicalAlias: [[1, 4]] as [number, number][] };
+    const shown = withMarks(
+      {
+        id: '!eng:example.org',
+        kind: 'room',
+        name: 'Engineering',
+        canonicalAlias: '#eng:example.org',
+      },
+      alias
+    );
+    expect(marksIn(shown, 'RowDescription')).toEqual(['eng']);
+    // With a topic, the row shows that in the alias's place.
+    const hidden = withMarks(
+      {
+        id: '!eng:example.org',
+        kind: 'room',
+        name: 'Engineering',
+        topic: 'Code',
+        canonicalAlias: '#eng:example.org',
+      },
+      alias
+    );
+    expect(marksIn(hidden, 'RowDescription')).toEqual([]);
+  });
+
+  it('marks nothing in a name shown with its direction controls revealed', () => {
+    const renderer = withMarks(
+      { id: '!odd:example.org', kind: 'room', name: 'Gen\u202eeral' },
+      { name: [[0, 3]] }
+    );
+    expect(marksIn(renderer, 'RowTitle')).toEqual([]);
+    expect(textOf(renderer, 'RowTitle')).toBe('Gen<U+202E>eral');
+  });
+
+  it('marks nothing in the row of a Matrix ID typed in full', () => {
+    const renderer = withMarks(
+      {
+        id: 'user:@new:example.org',
+        kind: 'user',
+        displayName: 'new',
+        userId: '@new:example.org',
+        localpart: 'new',
+        typedId: true,
+      },
+      { displayName: [[0, 3]], userId: [[1, 4]] }
+    );
+    expect(marksIn(renderer, 'RowTitle')).toEqual([]);
+  });
+
+  it('marks nothing without marks', () => {
+    const renderer = renderList();
+    expect(renderer.root.findAll((node) => node.type === 'mark')).toEqual([]);
   });
 });

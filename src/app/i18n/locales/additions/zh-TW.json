@@ -397,7 +397,9 @@
       },
       "about": {
         "thirdPartyNotices": "第三方聲明",
-        "soundsCredit": "通知和邀請提示音是為本應用程式合成的鈴聲。"
+        "soundsCredit": "通知和邀請提示音是為本應用程式合成的鈴聲。",
+        "debugMode": "除錯模式",
+        "debugModeDescription": "在此裝置上記錄診斷資訊，以便匯出並開啟深度診斷追蹤。"
       }
     },
     "createChat": {
@@ -713,6 +715,29 @@
         "noLongerActive": "此請求已失效。請再次向代理程式提出。",
         "unavailable": "此伺服器不支援輸入金鑰。",
         "unavailableHint": "若要在此輸入金鑰，請在設定 → {{page}} → {{field}} 中設定您的 MindRoom 伺服器。",
+        "replaces": "將取代目前儲存的金鑰。",
+        "replaceKey": "取代金鑰",
+        "temporary": {
+          "label": "機密要求",
+          "title": "給 {{agent}} 的機密",
+          "givenAs": "在此對話中以 {{variable}} 提供給 {{agent}} 的指令。",
+          "field": "{{variable}} 的機密",
+          "placeholder": "貼上或輸入機密",
+          "show": "顯示機密",
+          "hide": "隱藏機密",
+          "keepFor": "保留時間",
+          "keep": {
+            "memory": "{{duration}}，僅在記憶體中",
+            "disk": "{{duration}}，儲存在伺服器上的檔案中"
+          },
+          "kept": {
+            "memory": "保留 {{duration}}，僅在記憶體中。",
+            "disk": "保留 {{duration}}，儲存在伺服器上的檔案中。"
+          },
+          "send": "傳送",
+          "sent": "已傳送",
+          "sentWaiting": "已傳送，等待代理程式"
+        },
         "status": {
           "waitingForYou": "等您處理",
           "pending": "待處理",
@@ -805,6 +830,7 @@
       "title": "子代理",
       "close": "關閉",
       "empty": "此聊天室中沒有正在執行的子代理。",
+      "emptyThread": "此討論串中沒有正在執行的子代理。",
       "back": "返回",
       "nested_other": "{{count}} 個子代理",
       "turns_other": "{{count}} 輪",
@@ -834,6 +860,10 @@
     "dismissLostFiles": "關閉"
   },
   "commandPalette": {
+    "state": {
+      "on": "開",
+      "off": "關"
+    },
     "people": "人員",
     "tabsLabel": "結果類型",
     "switchTabs": "切換分頁",
@@ -918,6 +948,15 @@
     "nextMonday": "下週一 09:00",
     "pickDateTime": "選擇日期和時間",
     "pastTime": "請選擇未來的時間"
+  },
+  "threadFork": {
+    "forkedFrom": "分支自 {{title}}",
+    "openInOriginalThread": "在原討論串中開啟",
+    "forkFromHere": "從此處分支",
+    "forkThread": "分支討論串",
+    "forking": "正在從 {{title}} 分支",
+    "continueInNewThread": "在新討論串中繼續",
+    "forkCount_other": "{{count}} 個分支"
   },
   "activity": {
     "title": "動態",
@@ -1208,6 +1247,17 @@
       "settingsKeywords": "導覽, 教學, 指南, 說明, 入門, 引導, 討論串",
       "howThreadsWork": "討論串如何運作",
       "noThreadsHint": "在下方傳送一則訊息即可發起討論串。"
+    }
+  },
+  "threadNav": {
+    "layout": "討論串版面",
+    "layoutRecent": "最近",
+    "layoutSections": "分區",
+    "sections": {
+      "working": "進行中",
+      "snoozed": "已延後",
+      "idle": "閒置",
+      "resolved": "已解決"
     }
   }
 }

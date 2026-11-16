@@ -17,6 +17,7 @@ import { searchSettings } from '../settings/settingsSearchIndex';
 const WEB: SettingsContext = {
   native: false,
   nativeIOS: false,
+  diagnostics: false,
   localMindroom: true,
   serverAdmin: false,
   useSystemTheme: true,
@@ -114,6 +115,15 @@ describe('settings registry', () => {
     expect(webSettings).not.toContain('errorReports');
     expect(getShownSettings({ ...WEB, errorReporting: true }).map((s) => s.id)).toContain(
       'errorReports'
+    );
+    // Debug mode outside the iOS app; the diagnostics wherever they record.
+    expect(webSettings).toContain('debugMode');
+    expect(webSettings).not.toContain('diagnosticsExport');
+    expect(getShownSettings({ ...WEB, diagnostics: true }).map((s) => s.id)).toEqual(
+      expect.arrayContaining(['debugMode', 'diagnosticsExport', 'deepTrace'])
+    );
+    expect(getShownSettings({ ...app, diagnostics: true }).map((s) => s.id)).not.toContain(
+      'debugMode'
     );
   });
 
