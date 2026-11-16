@@ -116,10 +116,8 @@ describe('renderNoticeText', () => {
     expect(html('| a | b |')).toBe('| a | b |');
   });
 
-  it('renders underscores as italics, as chat messages do', () => {
-    expect(html('__init__ and snake_case_name')).toBe(
-      '<i><i>init</i></i> and snake<i>case</i>name'
-    );
+  it('renders underscores as italics, as chat messages do, but not inside words', () => {
+    expect(html('__init__ and snake_case_name')).toBe('<i><i>init</i></i> and snake_case_name');
     expect(html('\\_\\_init\\_\\_')).toBe('__init__');
   });
 
