@@ -841,6 +841,7 @@
       "title": "Subagenten",
       "close": "Sluiten",
       "empty": "Er zijn geen subagenten actief in deze kamer.",
+      "emptyThread": "Er zijn geen subagenten actief in deze thread.",
       "back": "Terug",
       "nested_one": "{{count}} subagent",
       "nested_other": "{{count}} subagenten",
