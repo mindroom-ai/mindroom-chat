@@ -2,6 +2,8 @@
 
 Bas Nijholt asked on 2026-11-15 to "make the command panel much richer but trying to keep it easy to use. Eg changing settings and themes and other things too. Like calling agent and more".
 
+How typed text finds and orders these rows was replaced afterwards: settings and page choices are no longer matched by exact words and listed after the actions (`searchCommands`), they are ranked with the actions by one matcher. See `2026-11-15-command-palette-fuzzy-search-design.md`.
+
 ## Understanding
 
 - The palette finds rooms, threads, people and messages well, and offers 15 fixed actions. It should also do what the app's settings and buttons do: change a setting, pick a theme, call an agent, run what the open room's header offers.
