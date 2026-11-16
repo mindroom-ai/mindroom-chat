@@ -2,6 +2,9 @@ import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 
 export const MINDROOM_SCHEDULED_TASK_EVENT = 'com.mindroom.scheduled.task';
 
+/** Whether a task with this status is still to run: the only tasks the client shows or keeps. */
+export const isPendingScheduledTaskStatus = (status: unknown): boolean => status === 'pending';
+
 type ScheduledTaskStateEventContent = Record<string, unknown> & {
   status?: unknown;
   workflow?: unknown;
