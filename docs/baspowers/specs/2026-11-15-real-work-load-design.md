@@ -23,7 +23,7 @@ From MindRoom's backend (origin/main 2026-11-15), not from the client's existing
 
 - A reply starts as a "Thinking..." message with a stop reaction, then streams as **ephemeral `io.mindroom.live` frames every 100 ms** (`src/mindroom/live_frames/publisher.py`: a delta while the text changes, a full snapshot every 5 s), Megolm-encrypted in an encrypted room and sent over the homeserver's MSC2477 ephemeral route.
 - Durable `m.replace` edits follow every 0.5 s at the start, ramping to every 5 s over 15 s (`StreamingConfig`), each carrying `io.mindroom.live_checkpoint`; the final edit carries `ai_run`, `tool_trace` and the final `stream_status`.
-- 50 streaming threads are therefore up to 500 frames a second for the client to render while text streams, plus about 10 durable edits a second, plus the jobs state writes described below (about 25 a second at the census's pace).
+- 50 streaming threads are therefore up to 500 frames a second for the client to render while text streams, plus about 10 durable edits a second, plus the jobs state writes described below (measured: about 6 a second at 50 streams of census-shaped replies, `docs/perf/real-work-baseline.md`).
 
 No existing perf spec sends live frames: `busy-room-typing`, `thread-scroll-jitter` and `compact-filter-timing` hand-roll one edit a second. This is the most likely reason the specs look fine while real use does not.
 
@@ -78,7 +78,7 @@ Approach 1 is still used once, as ground truth: the same scenarios run against t
 
 ### 1. Census (private)
 
-`~/mindroom-investigations/client-perf/census.py`, run on the MacBook M5 against a local Tuwunel on a copy of `mindroom-hetzner:/var/lib/tuwunel` (federation off; the main account's password reset on the copy only). For every room active in the last 60 days it records numbers and content keys only: events by type, threads, replies and edits per thread, final message sizes, Markdown features (code fences, tables, lines), tool-call keys, edits per streamed reply and their spacing, how many threads and streams are active in the same minute, reactions, redactions, members and agents, encryption, and the size and time of the initial sync. Room names go to a separate local file. Neither leaves the personal machines; the workload profile below holds the derived numbers only.
+`~/mindroom-investigations/client-perf/census.py`, run on the MacBook M5 against a local Tuwunel on a copy of the production homeserver (federation off; the main account's password reset on the copy only). For every room active in the last 60 days it records numbers and content keys only: events by type, threads, replies and edits per thread, final message sizes, Markdown features (code fences, tables, lines), tool-call keys, edits per streamed reply and their spacing, how many threads and streams are active in the same minute, reactions, redactions, members and agents, encryption, and the size and time of the initial sync. Room names go to a separate local file. Neither leaves the personal machines; the workload profile below holds the derived numbers only.
 
 ### 2. Workload profile
 
@@ -123,11 +123,11 @@ The existing specs move to it where that removes their copy; that is a follow-up
 7. `cold-load`: reload with the room open.
 8. `soak` (separate opt-in): 20 minutes of `compact-idle` and `thread-idle` alternating, heap and nodes sampled.
 
-Knobs: `PERF_WORKLOAD` (profile file), `PERF_STREAMS` (overrides the profile's concurrent streams; `7,25,50` gives the scaling curve from today's peak to the target), `PERF_SCENARIOS`, `PERF_CPU_THROTTLE` (default `1,4`), `PERF_VIEWPORT` (`desktop`, `phone`); repeated runs come from the matrix runner (component 8). The scenarios run in the engine of the Playwright project: Chromium by default, and WebKit in the `webkit` project, which takes only tests tagged `@webkit`; the spec's tests carry no tag, so a WebKit check adds the tag in a throwaway commit (`docs/perf/real-work-baseline.md` "WebKit check"). Results go to `test-results/perf/real-work/<scenario>-<engine>-<throttle>.json` with the CPU profiles beside them.
+Knobs: `PERF_WORKLOAD` (profile file), `PERF_STREAMS` (overrides the profile's concurrent streams; `7,25,50` gives the scaling curve from today's peak to the target), `PERF_SCENARIOS`, `PERF_CPU_THROTTLE` (default `1,4`), `PERF_VIEWPORT` (`desktop`, `phone`); repeated runs come from the matrix runner (component 8). The scenarios run in the engine of the Playwright project: Chromium by default, and WebKit in the `webkit` project, which takes only tests tagged `@webkit`; the spec's tests carry no tag, so a WebKit check adds the tag in a throwaway commit (`docs/perf/real-work-baseline.md` "WebKit check"). Results go to `test-results/perf/real-work/<scenario>-<engine>-<throttle>x-<streams>s.json` (`-external` in place of `-<streams>s` in real-data mode) with the CPU profiles beside them.
 
 ### 6. Real-data mode (private)
 
-The same spec with `PERF_TARGET=external`, a homeserver, an account and a room from the environment, runs the scenarios that need no streaming (`thread-open`, `switch`, `cold-load`, scrolling, typing) against the production copy on the MacBook M5, refusing any homeserver off the loopback interface and aborting every request to another host (room state points the app at the real backend). The first baseline (2026-11-15) also replays 1, 3 and 7 streams into the copy as the room's own agent account with a private hand-written replayer, to see the struggle Bas reported on real history. Results stay in `~/mindroom-investigations/client-perf/`.
+The same spec with `PERF_TARGET=external`, a homeserver, an account and a room from the environment, in Chromium only, runs the scenarios that need no streaming (`thread-open`, `switch`, `cold-load`, scrolling, typing) against the production copy on the MacBook M5, refusing any homeserver off the loopback interface and aborting every request to another host (room state points the app at the real backend). The first baseline (2026-11-15) also replays 1, 3 and 7 streams into the copy as the room's own agent account with a private hand-written replayer, to see the struggle Bas reported on real history. Results stay in `~/mindroom-investigations/client-perf/`.
 
 ### 7. Calibration
 
@@ -135,10 +135,12 @@ With `real-work-census.json` (the measured room's real size and pace), the synth
 
 Under streams the real backend is the reference for the shape of a stream: which events a reply produces, and how often. The replay of the real-data baseline streamed text for the whole window and wrote jobs state every 1.5 s for each stream, a shape of its own making, so its busy share is not a target. Live calibration compares the cost of an event instead: the main-thread time of a window divided by the live frames, edits and jobs state writes the page received in it must be within a factor of 2 of the replay's at 3 and at 7 streams, in the Compact view and in an open thread, in windows of a steady state (after the spec's ramp, over which the driver spreads the first replies' starts). The absolute busy share is reported with it and not gated. Where they differ, the profile or the stub scenario lacks something real (a content feature, a kind of event, the account's other rooms) and gets it before any fix is measured against the synthetic load.
 
+Outcome (2026-11-16, both sides on the MacBook M5, after the rounds that closed gaps in history size, read state, thread weight and the ramp): static, 3 of 5 scenarios are within the factor of 1.5 (cold load 0.77, Compact scrolling 0.84, typing 0.98) and share 8 to 12 of their top 15 functions; opening a thread (0.37) and switching threads (0.48) are not, because real replies render far more DOM each (`docs/perf/real-work-baseline.md` "Limits"). Live, with the census profile only 1 of 4 cells is within the factor of 2: Compact at 7 streams (1.3); Compact at 3 streams (6.0) and the open thread at 3 and at 7 streams (11.4, 2.7) are not. The same history with replies shaped like the replay's (2,700 words at 30 words a second, 2 one-second tool calls, no pause; a diagnostic variant, not a committed profile) is within the factor in 4 of 4 cells (1.0 to 1.7). The census load delivers 1 to 13 events a second against the replay's 32 to 36, so the view's cost without any event and the dearer durable events (edits and jobs state) dominate the quotient; with the replay's mix of events the client's cost per event is reproduced, and what differs is how many events, and of which kind, the real backend sends for census-shaped replies. The remaining misses were therefore accepted without a further round, at this cost: the live load's absolute busy shares may understate real use. A fix is measured before and after on the same load, which this does not change.
+
 ### 8. Runs across machines, comparison
 
 - `scripts/perf/real-work/matrix.sh`: runs the scenario matrix for one commit across the runners through `~/repos/dev/scripts/mac-runner/remote-test.sh` (gce-dev for the agent stack and many parallel runs, the M5 for Apple-like numbers), each run in its own slot with `--snapshot --preview`, and copies the results back.
-- `scripts/perf/real-work/compare.mjs`: a baseline and a candidate, each run several times; per scenario and metric the medians, the change, and whether the runs overlap; the top self-time functions that changed, de-minified with `scripts/perf/cpuprofile-summary.mjs`.
+- `scripts/perf/real-work/compare.mjs`: a baseline and a candidate, each run several times; per scenario and metric the medians, the change, and whether the runs overlap. It compares metrics only. The functions are compared per side, by hand: each side's profiles are summarized with `scripts/perf/cpuprofile-summary.mjs --build`, against the scripts that side's run served and a sourcemap build of its commit, following the baseline's "Measure a fix" recipe (`docs/perf/real-work-baseline.md`), because builds are not reproducible (a build of one commit comes out in one of two forms), so each side's profiles map only through a build checked against what that side served.
 
 ### 9. From profiles to fixes
 
@@ -147,7 +149,7 @@ The baseline's profiles become a ranked list of hotspots, each with its evidence
 ## Error handling
 
 - The driver stops the run, with the achieved and target rates, when the load falls short; the spec fails a scenario whose recorded load is under the target instead of reporting good numbers for a light load.
-- A run that loses its backend or homeserver fails with the stack's log tail, never with partial results counted as a pass.
+- A run that loses its backend or homeserver fails with the tail of the driver's stderr, never with partial results counted as a pass.
 - Real-data mode refuses a homeserver that is not on the loopback interface.
 
 ## Testing
