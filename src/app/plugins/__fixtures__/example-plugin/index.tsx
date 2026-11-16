@@ -126,6 +126,7 @@ import {
   type PluginEvent,
   type PluginPageProps,
   type ThreadCardBadgeProps,
+  type ThreadDetailProps,
 } from '@mindroom/client-sdk/core';
 import {
   getMemberDisplayName,
@@ -1104,14 +1105,28 @@ function ItemCard({ href, close }: MessageLinkCardProps) {
   );
 }
 
+/** The text of the greeting that begins a thread, if its loaded root is a greeting. */
+function greetingOf(room: Room, threadId: string): string | undefined {
+  const root = room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId);
+  return root ? greetingText(root.getContent()) : undefined;
+}
+
+function GreetingDetails({ room, threadId }: ThreadDetailProps) {
+  return (
+    <div data-example-plugin-details>
+      <div>Greeting</div>
+      <div>{greetingOf(room, threadId)}</div>
+    </div>
+  );
+}
+
 /**
  * Its thread card badge: "Greeting" on the card of a thread a greeting begins, on one line and with
  * no control of its own, so a click on it opens the thread as a click on the card does. A greeting
  * stays as it was sent, so the badge reads the thread's root once, as the card shows it.
  */
 function GreetingBadge({ room, threadId }: ThreadCardBadgeProps) {
-  const root = room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId);
-  if (!root || greetingText(root.getContent()) === undefined) return null;
+  if (greetingOf(room, threadId) === undefined) return null;
   return (
     <span
       data-example-plugin-badge
@@ -1226,6 +1241,12 @@ const plugin: ClientPlugin = {
     },
   ],
   threadCardBadges: [{ Component: GreetingBadge }],
+  threadDetails: [
+    {
+      shows: (room, threadId) => greetingOf(room, threadId) !== undefined,
+      Component: GreetingDetails,
+    },
+  ],
   roomActions: [
     {
       id: 'info',

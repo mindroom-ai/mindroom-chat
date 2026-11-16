@@ -13,8 +13,13 @@ import {
 } from './voiceRecorderMime';
 import { getMicrophoneAccessErrorMessage } from './microphoneAccess';
 import { publishVoiceCaptureState, releaseVoiceCaptureState } from './voiceCaptureDiagnostics';
+import { recordDeepTraceEvent } from '../../diagnostics/deepTrace';
 
 export const VOICE_RECORDER_AUDIO_BITS_PER_SECOND = 32_000;
+// Audio reaches the app as it is recorded, so a native stop that never arrives loses at most this.
+export const VOICE_RECORDER_TIMESLICE_MS = 1_000;
+// WebKit can skip the stop event; finish with the delivered audio instead of waiting forever.
+export const VOICE_RECORDER_STOP_TIMEOUT_MS = 5_000;
 export const VOICE_RECORDER_AUDIO_CONSTRAINTS: MediaTrackConstraints = {
   channelCount: 1,
   sampleRate: 24_000,
@@ -87,6 +92,8 @@ type Generation = {
   buffer?: Uint8Array;
   timer?: ReturnType<typeof setInterval>;
   sampleTimer?: ReturnType<typeof setInterval>;
+  stopTimer?: ReturnType<typeof setTimeout>;
+  finishStop?: () => void;
   chunks: Blob[];
   samples: number[];
   elapsedMs: number;
@@ -170,8 +177,14 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     });
     generation.startedAt = undefined;
   };
+  // An accepted stop keeps its deadline through releaseOwner; only the end of the generation clears it.
+  const clearStopTimer = (generation: Generation) => {
+    if (generation.stopTimer !== undefined) clearTimeout(generation.stopTimer);
+    generation.stopTimer = undefined;
+  };
   const retire = (generation: Generation) => {
     generation.acceptsEvents = false;
+    clearStopTimer(generation);
     generation.detach?.();
     generation.detach = undefined;
     if (generation.recorder && generation.recorder.state !== 'inactive') {
@@ -245,6 +258,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
   ) => {
     if (!generation.acceptsEvents) return;
     generation.acceptsEvents = false;
+    clearStopTimer(generation);
     generation.detach?.();
     generation.detach = undefined;
     releaseResources(generation);
@@ -350,13 +364,14 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
         if (generation.acceptsEvents && event.data.size > 0) generation.chunks.push(event.data);
       };
       const onStop = () => finishStop(generation, recorder, mimeType);
+      generation.finishStop = onStop;
       recorder.addEventListener('dataavailable', onData);
       recorder.addEventListener('stop', onStop);
       generation.detach = () => {
         recorder.removeEventListener?.('dataavailable', onData);
         recorder.removeEventListener?.('stop', onStop);
       };
-      recorder.start();
+      recorder.start(VOICE_RECORDER_TIMESLICE_MS);
       generation.startedAt = now();
       startTimers(generation);
       if (!isRecording(generation)) return false;
@@ -393,6 +408,12 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       if (!generation.acceptsEvents) return;
       try {
         generation.recorder!.stop();
+        generation.stopTimer = setTimeout(() => {
+          recordDeepTraceEvent('voice.capture.stop_timeout', {
+            chunk_count: generation.chunks.length,
+          });
+          generation.finishStop?.();
+        }, VOICE_RECORDER_STOP_TIMEOUT_MS);
       } catch (err) {
         generation.resolve = undefined;
         retire(generation);

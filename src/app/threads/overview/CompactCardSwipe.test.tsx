@@ -169,6 +169,32 @@ const render = (props: Partial<Props> = {}) => {
 };
 
 describe('CompactCardSwipe', () => {
+  it('cancels a pending touch when disabled even if enabled again before that finger moves', () => {
+    const { pointer, rerender, onSwipe, actionStrip } = render();
+    pointer('onPointerDown', 300);
+    rerender({ enabled: false });
+    rerender({ enabled: true });
+    pointer('onPointerMove', 290);
+    pointer('onPointerMove', 150);
+    pointer('onPointerUp', 150);
+    expect(onSwipe).not.toHaveBeenCalled();
+    expect(actionStrip()).toHaveLength(0);
+    expect(track.style.transform).toBe('');
+  });
+
+  it('uses the shared finish path to cancel an armed swipe when disabled', () => {
+    const { pointer, rerender, onSwipe } = render();
+    pointer('onPointerDown', 300);
+    pointer('onPointerMove', 290);
+    pointer('onPointerMove', 150);
+    expect(track.style.transform).toBe('translateX(-140px)');
+    rerender({ enabled: false });
+    expect(track.style.transform).toBe('');
+    rerender({ enabled: true });
+    pointer('onPointerUp', 150);
+    expect(onSwipe).not.toHaveBeenCalled();
+  });
+
   it('fires the swipe action when a touch swipe toward the start passes the threshold', () => {
     const { onSwipe, swipe } = render();
 
