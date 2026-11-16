@@ -107,7 +107,7 @@ export const ItalicRule1: InlineMDRule = {
 };
 
 /**
- * `_italic_`, never inside a word, as in CommonMark, so `snake_case_name` and `ANTHROPIC_API_KEY`
+ * `_italic_`, never inside a word, as in CommonMark, so `snake_case_name` and `MAX_RETRY_COUNT`
  * stay as written. `__init__` nests two italics; the closer is the last of a run of underscores.
  */
 export const ItalicRule2: InlineMDRule = {

@@ -39,7 +39,7 @@ describe('LinkRule', () => {
 });
 
 describe('ItalicRule2', () => {
-  it.each(['ANTHROPIC_AP_API_KEY', 'snake_case_name', 'a_b_', '_a_b', '1_000_000', 'a__b__'])(
+  it.each(['MAX_RETRY_COUNT', 'snake_case_name', 'a_b_', '_a_b', '1_000_000', 'a__b__'])(
     'keeps underscores inside %s as written',
     (markdown) => {
       expect(parseInlineMD(markdown)).toBe(markdown);
