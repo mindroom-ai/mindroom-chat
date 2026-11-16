@@ -156,29 +156,26 @@ const prepareRows = <T>(
   items: readonly T[],
   fields: readonly CommandPaletteSearchField<T>[]
 ): Row<T>[] =>
-  items.map((item) => ({
-    item,
-    texts: fields.flatMap(({ key, get, weight, name, context }): RowText[] => {
-      const value = get(item);
-      if (value === undefined) return [];
-      const text = (written: string, single: boolean): RowText[] =>
-        written
-          ? [
-              {
-                key,
-                weight,
-                name: !!name,
-                context: !!context,
-                prepared: prepareText(written),
-                written: single ? written : undefined,
-              },
-            ]
-          : [];
-      return typeof value === 'string'
-        ? text(value, true)
-        : value.flatMap((entry) => text(entry, false));
-    }),
-  }));
+  items.map((item) => {
+    const texts: RowText[] = [];
+    const add = (field: CommandPaletteSearchField<T>, written: string, single: boolean) => {
+      if (!written) return;
+      texts.push({
+        key: field.key,
+        weight: field.weight,
+        name: !!field.name,
+        context: !!field.context,
+        prepared: prepareText(written),
+        written: single ? written : undefined,
+      });
+    };
+    fields.forEach((field) => {
+      const value = field.get(item);
+      if (typeof value === 'string') add(field, value, true);
+      else value?.forEach((entry) => add(field, entry, false));
+    });
+    return { item, texts };
+  });
 
 const getRows = <T>(
   items: readonly T[],

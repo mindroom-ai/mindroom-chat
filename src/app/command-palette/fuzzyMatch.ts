@@ -68,26 +68,28 @@ const ASCII = /^[\t\n\r -~]*$/;
 // Marks a folded letter loses: the accents of Latin, Greek and Cyrillic letters, the points of
 // Hebrew ones, and the vowel marks and the lengthening stroke of Arabic ones. Marks of other
 // scripts stay: an Indic vowel sign or a Japanese voicing mark changes the word.
-const DROPPED_MARKS = /[̀-֑ͯ-ׇֽֿׁׂًׅׄ-ٰٟ]|ـ/g;
+const DROPPED_MARKS =
+  /[\u0300-\u036f\u0591-\u05bd\u05bf\u05c1\u05c2\u05c4\u05c5\u05c7\u064b-\u065f\u0670]|\u0640/g;
 
 // Letters that have no accent to drop and are still typed as plain ones.
 const PLAIN_LETTERS: Readonly<Record<string, string>> = {
-  ß: 'ss',
-  æ: 'ae',
-  œ: 'oe',
-  ø: 'o',
-  đ: 'd',
-  ð: 'd',
-  þ: 'th',
-  ł: 'l',
-  ı: 'i',
+  '\u00df': 'ss',
+  '\u00e6': 'ae',
+  '\u0153': 'oe',
+  '\u00f8': 'o',
+  '\u0111': 'd',
+  '\u00f0': 'd',
+  '\u00fe': 'th',
+  '\u0142': 'l',
+  '\u0131': 'i',
   // The Greek sigma at the end of a word.
-  ς: 'σ',
+  '\u03c2': '\u03c3',
 };
-const PLAIN_LETTER = /[ßæœøđðþłıς]/g;
+const PLAIN_LETTER = /[\u00df\u00e6\u0153\u00f8\u0111\u00f0\u00fe\u0142\u0131\u03c2]/g;
 
-// A character with the marks that follow it, and a Korean syllable written as its letters.
-const UNIT = /[^\p{M}ᅠ-ᇿ][\p{M}ᅠ-ᇿ]*|[\p{M}ᅠ-ᇿ]+/gu;
+// What belongs to the character before it: a mark, or a vowel or final letter of a Korean
+// syllable written as its letters.
+const FOLLOWS = /[\p{M}\u1160-\u11ff]/u;
 
 const WORD_LETTER = /^[\p{L}\p{N}]/u;
 const SMALL_LETTER = /^\p{Ll}/u;
@@ -102,14 +104,6 @@ const foldUnit = (unit: string): string =>
     .normalize('NFC')
     .toLowerCase()
     .replace(PLAIN_LETTER, (letter) => PLAIN_LETTERS[letter] ?? letter);
-
-/**
- * Text as the matcher compares it: lower case, Latin, Greek and Cyrillic letters without their
- * accents, Arabic and Hebrew ones without their vowel marks, and the sharp s, the o with a
- * stroke and their like as the plain letters people type for them.
- */
-export const foldText = (text: string): string =>
-  ASCII.test(text) ? text.toLowerCase() : text.replace(UNIT, foldUnit);
 
 /** How a piece of text that folds on its own, a character with its marks, is compared. */
 type Unit = {
@@ -139,6 +133,40 @@ const unitOf = (unit: string): Unit => {
   if (unitCache.size >= UNIT_CACHE_SIZE) unitCache.clear();
   unitCache.set(unit, made);
   return made;
+};
+
+/** `text` in the pieces that fold on their own: a character with what follows it as part of it. */
+const unitsOf = (text: string): string[] => {
+  const units: string[] = [];
+  let start = 0;
+  while (start < text.length) {
+    const first = text.charCodeAt(start);
+    // Both halves of a character of two code units.
+    let end = start + (first >= 0xd800 && first <= 0xdbff ? 2 : 1);
+    // Nothing below U+0300 follows another character.
+    while (end < text.length && text.charCodeAt(end) >= 0x300) {
+      const next = String.fromCodePoint(text.codePointAt(end) ?? 0);
+      if (!FOLLOWS.test(next)) break;
+      end += next.length;
+    }
+    units.push(text.slice(start, end));
+    start = end;
+  }
+  return units;
+};
+
+/**
+ * Text as the matcher compares it: lower case, Latin, Greek and Cyrillic letters without their
+ * accents, Arabic and Hebrew ones without their vowel marks, and the sharp s, the o with a
+ * stroke and their like as the plain letters people type for them.
+ */
+export const foldText = (text: string): string => {
+  if (ASCII.test(text)) return text.toLowerCase();
+  let folded = '';
+  unitsOf(text).forEach((unit) => {
+    folded += unitOf(unit).folded;
+  });
+  return folded;
 };
 
 /** Sets the flags of a text one character at a time, in order. */
@@ -227,15 +255,14 @@ const prepareAscii = (text: string): PreparedText => {
  */
 export const prepareText = (text: string): PreparedText => {
   if (ASCII.test(text)) return prepareAscii(text);
-  const units = text.match(UNIT) ?? [];
+  const units = unitsOf(text).map(unitOf);
   let folded = '';
   units.forEach((unit) => {
-    folded += unitOf(unit).folded;
+    folded += unit.folded;
   });
   const marker = flagger(folded.length);
   let at = 0;
-  units.forEach((unit) => {
-    const { folded: part, word, small, capital, unspaced } = unitOf(unit);
+  units.forEach(({ folded: part, word, small, capital, unspaced }) => {
     marker.add(at, part.length, word, small, capital, unspaced);
     at += part.length;
   });
@@ -259,7 +286,7 @@ export const originalRanges = (text: string, ranges: readonly TextRange[]): Text
   const starts: number[] = [];
   const ends: number[] = [];
   let at = 0;
-  (text.match(UNIT) ?? []).forEach((unit) => {
+  unitsOf(text).forEach((unit) => {
     const { length } = unitOf(unit).folded;
     for (let index = 0; index < length; index += 1) {
       starts.push(at);
