@@ -5,10 +5,7 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { IEncryptedFile } from '../../matrix/types/common';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { trimReplyFromBody } from '../../matrix/room';
-import {
-  MINDROOM_MESSAGE_EXTRAS_KEY,
-  parseMessageExtras,
-} from '../../matrix/protocol/messageExtrasData';
+import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMessageExtras } from '../../matrix/protocol/messageExtrasData';
 import { clearLongTextHydrationCache, LongTextSource } from '../../matrix/protocol/longText';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
@@ -40,9 +37,7 @@ vi.mock('../../matrix/matrix', () => ({
   mxcUrlToHttp: matrixMocks.mxcUrlToHttp,
 }));
 vi.mock('../../matrix/protocol/longText', async () => {
-  const actual = await vi.importActual<typeof import('../../matrix/protocol/longText')>(
-    '../../matrix/protocol/longText'
-  );
+  const actual = await vi.importActual<typeof import('../../matrix/protocol/longText')>('../../matrix/protocol/longText');
   return {
     ...actual,
     hydrateLongTextSource: longTextMocks.hydrateMindroomLongTextSource,
@@ -189,7 +184,9 @@ const getShouldResetResolvedContentToPreview = async () =>
   (await import('./LongTextText')).shouldResetResolvedContentToPreview;
 const mockMx = hookMocks.mx as unknown as MatrixClient;
 
-const createLongTextSource = (overrides: Partial<LongTextSource> = {}): LongTextSource => ({
+const createLongTextSource = (
+  overrides: Partial<LongTextSource> = {}
+): LongTextSource => ({
   previewContent: {
     msgtype: 'm.file',
     'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
@@ -467,7 +464,11 @@ describe('downloadLongTextSidecarBlob', () => {
     const blob = new Blob(['raw-content'], { type: 'application/json' });
     matrixMocks.networkBody.mockResolvedValue(blob);
 
-    const downloadedBlob = await downloadLongTextSidecarBlob(mockMx, createLongTextSource(), true);
+    const downloadedBlob = await downloadLongTextSidecarBlob(
+      mockMx,
+      createLongTextSource(),
+      true
+    );
 
     expect(matrixMocks.mxcUrlToHttp).toHaveBeenCalledWith(mockMx, 'mxc://server/content', false);
     expect(matrixMocks.networkBody).toHaveBeenCalledWith(
@@ -645,9 +646,7 @@ describe('LongTextText hydration identity', () => {
     const content = createPreviewContent();
     const source = createLongTextSource({ previewContent: content });
     // Warm the REAL cache the way the prewarm pool does.
-    const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>(
-      '../../matrix/protocol/longText'
-    );
+    const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>('../../matrix/protocol/longText');
     await actualLongText.hydrateLongTextSource(
       source,
       async () => JSON.stringify({ msgtype: 'm.text', body: 'Full prewarmed response' }),
@@ -684,9 +683,7 @@ describe('LongTextText hydration identity', () => {
     const { LongTextKind, LongTextText } = await getLongTextTextModule();
     const content = createPreviewContent();
     const source = createLongTextSource({ previewContent: content });
-    const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>(
-      '../../matrix/protocol/longText'
-    );
+    const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>('../../matrix/protocol/longText');
     await actualLongText.hydrateLongTextSource(
       source,
       async () => JSON.stringify({ msgtype: 'm.text', body: 'Full prewarmed response' }),
@@ -1471,17 +1468,19 @@ describe('LongTextText hydration identity', () => {
       });
 
     longTextMocks.hydrateMindroomLongTextSource.mockReset();
-    longTextMocks.hydrateMindroomLongTextSource.mockImplementation((source: LongTextSource) => {
-      if (source.mxcUri === 'mxc://server/stream-a') {
-        return Promise.resolve({
-          body: 'Hydrated A',
-          formatted_body: '<p>Hydrated A</p>',
-          msgtype: 'm.text',
-          'io.mindroom.tool_trace': toolTrace,
-        });
+    longTextMocks.hydrateMindroomLongTextSource.mockImplementation(
+      (source: LongTextSource) => {
+        if (source.mxcUri === 'mxc://server/stream-a') {
+          return Promise.resolve({
+            body: 'Hydrated A',
+            formatted_body: '<p>Hydrated A</p>',
+            msgtype: 'm.text',
+            'io.mindroom.tool_trace': toolTrace,
+          });
+        }
+        return secondDeferred.promise;
       }
-      return secondDeferred.promise;
-    });
+    );
 
     await act(async () => {
       renderer = create(render(firstPreviewContent));
@@ -1528,18 +1527,14 @@ describe('useLongTextResolvedContent', () => {
       'https://example.org/_matrix/media/v3/download/server/content'
     );
 
-    const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>(
-      '../../matrix/protocol/longText'
-    );
+    const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>('../../matrix/protocol/longText');
     longTextMocks.hydrateMindroomLongTextSource.mockImplementation(
       actualLongText.hydrateLongTextSource
     );
   });
 
   it('returns cached content synchronously without fetching again', async () => {
-    const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>(
-      '../../matrix/protocol/longText'
-    );
+    const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>('../../matrix/protocol/longText');
     const source = createLongTextSource({
       previewContent: {
         ...createPreviewContent(),
@@ -1664,9 +1659,7 @@ describe('useLongTextResolvedContent', () => {
   });
 
   it('does not return stale resolved content when the source mxcUri changes', async () => {
-    const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>(
-      '../../matrix/protocol/longText'
-    );
+    const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>('../../matrix/protocol/longText');
     const sourceA = createLongTextSource({
       previewContent: {
         ...createPreviewContent(),
