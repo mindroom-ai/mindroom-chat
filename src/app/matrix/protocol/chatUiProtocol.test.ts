@@ -248,6 +248,7 @@ describe('readChatUiAction', () => {
         { canvas: { title: '', html: '' } },
         // An edit cannot start sharing what the user does in a page that never said so.
         { share_state: true },
+        { inline: true },
       ].forEach((metadata) => {
         const original = makeUiEvent({ action: 'show_canvas', canvas });
         original.makeReplaced(canvasEdit({ canvas, ...metadata }));
@@ -278,6 +279,26 @@ describe('readChatUiAction', () => {
       expect(
         readChatUiAction(makeUiEvent({ action: 'show_canvas', canvas }), viewerId, room)
       ).not.toHaveProperty('shareState');
+    });
+
+    it('keeps inline presentation fixed through revisions', () => {
+      const { room } = makeUiRoom();
+      const original = makeUiEvent({ action: 'show_canvas', canvas, inline: true });
+      original.makeReplaced(
+        canvasEdit({ canvas: { title: 'New', html: '<p>new</p>' }, inline: true })
+      );
+      expect(readChatUiAction(original, viewerId, room)).toMatchObject({
+        inline: true,
+        revisionEventId: '$edit',
+      });
+      original.makeReplaced(canvasEdit({ canvas: { title: 'Panel', html: '<p>panel</p>' } }));
+      expect(readChatUiAction(original, viewerId, room)).toMatchObject({
+        inline: true,
+        revisionEventId: '$request',
+      });
+      expect(
+        readChatUiAction(makeUiEvent({ action: 'show_canvas', canvas }), viewerId, room)
+      ).not.toHaveProperty('inline');
     });
 
     it('never treats the edit event itself as a request', () => {

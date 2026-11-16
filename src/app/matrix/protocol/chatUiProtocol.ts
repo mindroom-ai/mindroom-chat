@@ -43,6 +43,7 @@ export type ChatUiAction = ChatUiTarget &
         event: MatrixEvent;
         /** The agent may read what the user does in the page; fixed by the request, so edits keep it. */
         shareState?: true;
+        inline?: true;
       }
   );
 
@@ -134,6 +135,7 @@ const AUTHORITY_FIELDS = [
   'room_id',
   'thread_id',
   'share_state',
+  'inline',
 ];
 
 export type LatestCanvas = {
@@ -268,7 +270,8 @@ export const readChatUiAction = (
     const latest = readLatestCanvas(event, eventId, sender, data);
     if (!latest) return undefined;
     const shared = data.share_state === true ? { shareState: true as const } : {};
-    return { ...target, action: 'show_canvas', ...latest, event, ...shared };
+    const inline = data.inline === true ? { inline: true as const } : {};
+    return { ...target, action: 'show_canvas', ...latest, event, ...shared, ...inline };
   }
   return undefined;
 };
