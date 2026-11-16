@@ -58,19 +58,19 @@ Action rows get an icon of their own in place of the one terminal icon they shar
   - **Theme:** `System Theme` as an on/off row, then every theme by its name, light ones first, as Settings orders them. Choosing a theme makes it the fixed theme and turns the system theme off, as the fixed pick in Settings does. The check mark is on the theme showing now.
   - **Message Layout:** Modern, Compact, Bubble.
   - **App Language:** every app language by its own name.
-- A page's choices are also found from the palette's first list by typing ("dracula"), each tagged with its page's title (`Theme`). There Enter applies the choice and closes the palette.
+- A page's choices are also found from the palette's first list by typing ("dracula"): those whose name holds the typed text, without fuzzy matching, each tagged with its page's title (`Theme`) and listed after the actions that match. There Enter applies the choice and closes the palette.
 - `Toggle Theme` stays.
 
 ### Settings
 
-- With text typed, the Actions section also searches every setting the Settings dialog offers this account on this device now (`getShownSettings`), by its label, its search words and its description, in the app's language. Without text they are not listed.
+- With text typed, the Actions section also searches every setting the Settings dialog offers this account on this device now (`getShownSettings`), as the dialog's own search does (`searchSettings`): every typed word has to appear in the setting's label, search words, group, description or page name, in the app's language, and the best match comes first. There is no fuzzy matching, so a person's name or a room's topic word brings no setting into the list. The settings follow the actions that match. Without text they are not listed.
 - A setting whose page shows a plain switch for it is an on/off row: ENTER for Newline, Markdown Formatting, Hide Membership Change, Hide Profile Change, Show tool calls, Disable Media Auto Load, Url Preview, Hide Typing & Read Receipts, Url Preview in Encrypted Room, Enable Developer Tools, Show Hidden Events, Send error reports, Notification Sound. The row's state is what the switch shows (so `Disable Media Auto Load` is `On` while media does not load).
 - Every other setting is a row that opens Settings on its page with the setting scrolled to, highlighted and focused, as a result of the dialog's own search does. Its description says where it is: `Appearance › Display`.
 - The settings the pages cover (the theme picks, the system theme, the message layout, the app language) and the tour's setting (already two actions) are left out, so nothing shows twice.
 
 ### Calling an agent
 
-- In a room that is not a call room, each voice-capable agent the header's call button would offer (`useAgentCallCandidates`: the room's agents whose presence advertises voice calls; in a thread those that took part in it, when any did) is a row `Call <name>`, described by the room's name.
+- Each voice-capable agent the header's call button would offer is a row `Call <name>`, described by the room's name, and only while the header would show that button: calls are supported (the browser and the homeserver's call service), the room is not a call room, and no call is showing in the room. The agents are those of `useAgentCallCandidates`: the room's agents whose presence advertises voice calls; in a thread those that took part in it, when any did. One hook holds this rule for the header and the palette.
 - Enter closes the palette and starts the call about the open thread, or the room outside one. A call that does not start is reported by the account's call notices, as from the header button.
 
 ### Room commands
@@ -107,8 +107,8 @@ Action rows get an icon of their own in place of the one terminal icon they shar
 | `command-palette/commandPaletteSettings.ts` (new) | Pure: the registry's shown settings to action rows (title, location, search words, tag, state for the switch settings). Holds the map of switch settings to their `settingsAtom` key and whether the switch is inverted. |
 | `command-palette/commandPalettePages.ts` (new) | Pure: the rows of the three pages from the themes, layouts and languages, with the current one marked, and their tagged copies for the first list's search. |
 | `command-palette/useCommandPaletteCommands.ts` (new) | The hook that makes those rows executable and adds the agent calls, room commands and shortcut commands. Returns `actions` (extra rows for the first list), `searchOnly` (settings and page choices) and `pages`. |
-| `command-palette/commandPaletteItems.ts` | `CommandPaletteSource` gains `searchActions` (all action rows, for typed text) and `pages`; `actions` gains the extra rows. |
-| `command-palette/CommandPalette.tsx` | The open page with the text and highlight to return to; a `keepOpen` row keeps the palette open, a choice does inside its page; typed text searches `searchActions`. |
+| `command-palette/commandPaletteItems.ts` | `CommandPaletteSource` gains `searchCommands(text)` (the settings and page choices that match typed text, best first) and `pages`; `actions` gains the extra rows. |
+| `command-palette/CommandPalette.tsx` | The open page with the text and highlight to return to; a `keepOpen` row keeps the palette open, a choice does inside its page; typed text lists the matching actions, then `searchCommands(text)`. |
 | `command-palette/CommandPaletteList.tsx` | Draws the row's icon, tag and end (state, check, chevron, keys). |
 | `navigation/roomCommands.ts` (new) | A module-level registration like `useShortcut`'s: `useRoomCommands(commands)` for the header that is mounted, `getRoomCommands()` for the palette, which reads once as it opens. |
 | `room/RoomViewHeader.tsx` | Publishes its header-drawn actions without a `popup`. |
@@ -131,6 +131,6 @@ Two new ones, `commandPalette.state.on` and `commandPalette.state.off`, in `loca
 
 ## Testing
 
-- Unit: the settings rows (state, inversion, what is left out, location), the page rows (current choice), the registry of room commands, the palette (a page opens, filters, applies and stays, goes back with the text and highlight; a state row stays open; a choice from the first list closes), the list (state, check, chevron, keys, tag), Settings opening at a setting, the source hook (agent call rows and what Enter calls, shortcut rows only with a handler).
+- Unit: the settings rows (state, inversion, what is left out, location), the page rows (current choice), the registry of room commands, the palette (a page opens, filters, applies and stays, goes back with the text and highlight; a state row stays open; a choice from the first list closes; a name-like word brings no setting), the list (state, check, chevron, keys, tag), Settings opening at a setting, the source hook (agent call rows and what Enter calls, shortcut rows only with a handler).
 - e2e (`e2e/command-palette/command-palette-commands.spec.ts`): a theme picked from the Theme page changes the document's theme class and survives Back; typing a switch setting flips it and the Settings page shows the new value; typing another setting opens Settings at it; in a room, Compact view from the palette switches the view.
 - Not run: a real agent call from the palette (it calls the header button's `useAgentCaller` with the same arguments; a live call needs the agent stack with a voice agent).
