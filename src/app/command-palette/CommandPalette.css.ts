@@ -311,6 +311,17 @@ export const Match = style({
   fontWeight: 600,
 });
 
+// The letters of a title, or of the line under it, that matched the typed text. The weight
+// stays as it is, so a row keeps its width and Arabic letters keep their joins.
+export const TitleMatch = style({
+  background: 'none',
+  color: color.Primary.Main,
+  fontWeight: 'inherit',
+  textDecoration: 'underline',
+  textDecorationThickness: 1,
+  textUnderlineOffset: 2,
+});
+
 export const RowDescription = style({
   overflow: 'hidden',
   textOverflow: 'ellipsis',

@@ -25,6 +25,7 @@ vi.mock('./CommandPalette.css', () => ({
   RowTime: 'RowTime',
   Tag: 'Tag',
   Match: 'Match',
+  TitleMatch: 'TitleMatch',
   Note: 'Note',
   RowDescription: 'RowDescription',
   RowEnter: 'RowEnter',
@@ -304,5 +305,146 @@ describe('CommandPaletteList', () => {
       expect(title({ title: 'Nederlands', lang: 'nl' }).props.lang).toBe('nl');
       expect(title({}).props.lang).toBeUndefined();
     });
+  });
+});
+
+describe('CommandPaletteList marks', () => {
+  type Rendered = ReturnType<typeof renderList>;
+
+  /** The marked parts of the row's element with `className`, as text. */
+  const marksIn = (renderer: Rendered, className: string): string[] =>
+    renderer.root
+      .findByProps({ className })
+      .findAll((node) => node.type === 'mark' && node.props['data-match'] !== undefined)
+      .map((node) => node.children.join(''));
+
+  const textOf = (renderer: Rendered, className: string): string => {
+    const read = (node: unknown): string => {
+      if (typeof node === 'string') return node;
+      if (node && typeof node === 'object' && 'children' in node && Array.isArray(node.children)) {
+        return node.children.map(read).join('');
+      }
+      return '';
+    };
+    return read(renderer.root.findByProps({ className }));
+  };
+
+  const withMarks = (
+    item: CommandPaletteListSection['items'][number],
+    marks: Record<string, [number, number][]>
+  ) =>
+    renderList({
+      sections: [
+        { id: 'rooms', title: 'Rooms', items: [item], marks: new Map([[item.id, marks]]) },
+      ],
+    });
+
+  it('marks what matched in a room name and leaves the name as it reads', () => {
+    const renderer = withMarks(ROOM_SECTION.items[0]!, { name: [[0, 3]] });
+    expect(marksIn(renderer, 'RowTitle')).toEqual(['Gen']);
+    expect(textOf(renderer, 'RowTitle')).toBe('General');
+    expect(marksIn(renderer, 'RowDescription')).toEqual([]);
+  });
+
+  it('marks several parts of a title', () => {
+    const renderer = withMarks(
+      { id: 'create-room', kind: 'action', title: 'Create Room' },
+      {
+        title: [
+          [0, 1],
+          [7, 8],
+          [10, 11],
+        ],
+      }
+    );
+    expect(marksIn(renderer, 'RowTitle')).toEqual(['C', 'R', 'm']);
+    expect(textOf(renderer, 'RowTitle')).toBe('Create Room');
+  });
+
+  it('marks the line under the title when that is where the text matched', () => {
+    const topic = withMarks(ROOM_SECTION.items[0]!, { topic: [[0, 4]] });
+    expect(marksIn(topic, 'RowTitle')).toEqual([]);
+    expect(marksIn(topic, 'RowDescription')).toEqual(['Team']);
+
+    const person = withMarks(
+      {
+        id: 'user:@jsmith:example.org',
+        kind: 'user',
+        displayName: 'John Smith',
+        userId: '@jsmith:example.org',
+        localpart: 'jsmith',
+      },
+      { userId: [[1, 7]] }
+    );
+    expect(marksIn(person, 'RowDescription')).toEqual(['jsmith']);
+
+    const thread = withMarks(
+      {
+        id: 'thread:1',
+        kind: 'thread',
+        roomId: '!a:example.org',
+        threadId: '$1',
+        summaryText: 'Login issue',
+        roomName: 'Frontend',
+      },
+      { roomName: [[0, 5]], summaryText: [[0, 5]] }
+    );
+    expect(marksIn(thread, 'RowTitle')).toEqual(['Login']);
+    expect(marksIn(thread, 'RowDescription')).toEqual(['Front']);
+  });
+
+  it('marks the alias only where the row shows it', () => {
+    const alias = { canonicalAlias: [[1, 4]] as [number, number][] };
+    const shown = withMarks(
+      {
+        id: '!eng:example.org',
+        kind: 'room',
+        name: 'Engineering',
+        canonicalAlias: '#eng:example.org',
+      },
+      alias
+    );
+    expect(marksIn(shown, 'RowDescription')).toEqual(['eng']);
+    // With a topic, the row shows that in the alias's place.
+    const hidden = withMarks(
+      {
+        id: '!eng:example.org',
+        kind: 'room',
+        name: 'Engineering',
+        topic: 'Code',
+        canonicalAlias: '#eng:example.org',
+      },
+      alias
+    );
+    expect(marksIn(hidden, 'RowDescription')).toEqual([]);
+  });
+
+  it('marks nothing in a name shown with its direction controls revealed', () => {
+    const renderer = withMarks(
+      { id: '!odd:example.org', kind: 'room', name: 'Gen\u202eeral' },
+      { name: [[0, 3]] }
+    );
+    expect(marksIn(renderer, 'RowTitle')).toEqual([]);
+    expect(textOf(renderer, 'RowTitle')).toBe('Gen<U+202E>eral');
+  });
+
+  it('marks nothing in the row of a Matrix ID typed in full', () => {
+    const renderer = withMarks(
+      {
+        id: 'user:@new:example.org',
+        kind: 'user',
+        displayName: 'new',
+        userId: '@new:example.org',
+        localpart: 'new',
+        typedId: true,
+      },
+      { displayName: [[0, 3]], userId: [[1, 4]] }
+    );
+    expect(marksIn(renderer, 'RowTitle')).toEqual([]);
+  });
+
+  it('marks nothing without marks', () => {
+    const renderer = renderList();
+    expect(renderer.root.findAll((node) => node.type === 'mark')).toEqual([]);
   });
 });

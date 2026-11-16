@@ -114,6 +114,7 @@ vi.mock('./CommandPalette.css', () => ({
   RowTime: 'RowTime',
   Tag: 'Tag',
   Match: 'Match',
+  TitleMatch: 'TitleMatch',
   Note: 'Note',
   RowDescription: 'RowDescription',
   RowEnter: 'RowEnter',
@@ -1293,8 +1294,15 @@ describe('CommandPalette pages and rows that keep it open', () => {
     expect(optionIds(actionsTab)).toContain('page-theme');
   });
 
-  it('lists the actions that match before the settings and choices', async () => {
+  it('ranks the actions, settings and choices as one list', async () => {
     const createRoom = { id: 'create-room', kind: 'action' as const, title: 'Create Room' };
+    const roomInfo = {
+      id: 'room-info',
+      kind: 'action' as const,
+      title: 'Show Details',
+      description: 'About this room',
+      sortRank: 50,
+    };
     const archivedRooms = {
       id: 'setting:archivedRooms',
       kind: 'action' as const,
@@ -1307,12 +1315,35 @@ describe('CommandPalette pages and rows that keep it open', () => {
       initialTab: 'actions',
       source: {
         ...FIXTURE_SOURCE,
-        actions: [...FIXTURE_ACTIONS, createRoom],
+        actions: [...FIXTURE_ACTIONS, createRoom, roomInfo],
         commands: [archivedRooms],
       },
     });
+    // The action named by the whole word, the setting whose name starts with it, then the
+    // action that only mentions it.
     await type(renderer, 'room');
-    expect(optionIds(renderer)).toEqual(['create-room', 'setting:archivedRooms']);
+    expect(optionIds(renderer)).toEqual(['create-room', 'setting:archivedRooms', 'room-info']);
+    // A setting named by the text goes first.
+    await type(renderer, 'archived');
+    expect(optionIds(renderer)).toEqual(['setting:archivedRooms']);
+  });
+
+  it('marks what matched in the rows, on the first list and in a page', async () => {
+    const marked = (renderer: ReturnType<typeof create>, itemId: string) =>
+      renderer.root
+        .findByProps({ role: 'option', 'data-item-id': itemId })
+        .findAll((node) => node.type === 'mark' && node.props['data-match'] !== undefined)
+        .map((node) => node.children.join(''));
+
+    const renderer = renderPalette();
+    await type(renderer, 'gen');
+    expect(marked(renderer, '!general:example.org')).toEqual(['Gen']);
+
+    await type(renderer, 'theme');
+    await hover(renderer, 'page-theme');
+    await press(renderer, 'Enter');
+    await type(renderer, 'dra');
+    expect(marked(renderer, 'theme:dracula')).toEqual(['Dra']);
   });
 
   it('a keepOpen row keeps the palette open', async () => {
