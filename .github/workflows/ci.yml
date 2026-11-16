@@ -56,6 +56,10 @@ jobs:
         run: npx tsc --noEmit -p config/tsconfig.strict.json
       - name: Lint
         if: ${{ !cancelled() }}
+        # The type-aware rules load the same program as the strict check, and ran out of Node's
+        # default heap (about 4 GB) on a runner.
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: npm run lint
       - name: Unit tests
         if: ${{ !cancelled() }}
