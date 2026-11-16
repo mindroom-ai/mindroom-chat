@@ -145,6 +145,14 @@ describe('useThreadKeys', () => {
     expect(onOpenThread).not.toHaveBeenCalled();
   });
 
+  it('opens no thread in the Classic view', () => {
+    area.innerHTML = '';
+    store.set(lastExitedThreadAtom, { roomId: ROOM, threadId: '$b' });
+    mount(undefined, 'classic');
+    expect(press('openThread')).toBe(false);
+    expect(onOpenThread).not.toHaveBeenCalled();
+  });
+
   it('leaves a thread behind a side panel alone', () => {
     area.innerHTML = '';
     store.set(conversationBehindPanelAtom, true);

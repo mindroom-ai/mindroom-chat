@@ -135,4 +135,11 @@ describe('stepCompactThread', () => {
     expect(stepCompactThread('!room', '$x', 1)).toBeUndefined();
     expect(stepCompactThread('!other', '$b', 1)).toBeUndefined();
   });
+
+  it('keeps the order of each room', () => {
+    noteCompactCardOrder('!room', ['$a', '$b']);
+    noteCompactCardOrder('!second', ['$x', '$y']);
+    expect(stepCompactThread('!room', '$a', 1)).toBe('$b');
+    expect(stepCompactThread('!second', '$y', -1)).toBe('$x');
+  });
 });

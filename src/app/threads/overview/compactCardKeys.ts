@@ -77,11 +77,11 @@ export const handleCardArrowKey = (event: ReactKeyboardEvent<HTMLElement>): void
 };
 
 // The room's cards unmount under a thread that fills the page, so the order they last showed
-// stays here for stepping from that thread to the next.
-let shownOrder: { roomId: string; threadIds: readonly string[] } | undefined;
+// stays here, per room, for stepping from that thread to the next.
+const shownOrders = new Map<string, readonly string[]>();
 
 export const noteCompactCardOrder = (roomId: string, threadIds: readonly string[]): void => {
-  shownOrder = { roomId, threadIds };
+  shownOrders.set(roomId, threadIds);
 };
 
 /** The thread `step` cards from `threadId` in the order the room's cards last showed. */
@@ -90,7 +90,7 @@ export const stepCompactThread = (
   threadId: string,
   step: -1 | 1
 ): string | undefined => {
-  if (shownOrder?.roomId !== roomId) return undefined;
-  const index = shownOrder.threadIds.indexOf(threadId);
-  return index < 0 ? undefined : shownOrder.threadIds[index + step];
+  const order = shownOrders.get(roomId);
+  const index = order?.indexOf(threadId) ?? -1;
+  return index < 0 ? undefined : order?.[index + step];
 };

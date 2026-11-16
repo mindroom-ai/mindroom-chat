@@ -57,9 +57,9 @@ test.beforeEach(async () => {
   );
 });
 
-test('the keyboard goes into a thread, to the next one, and out again', async ({ page }) => {
-  test.setTimeout(180_000);
-  const me = await registerDisposableUser(`thread_keys_${RUN}`, PASSWORD);
+/** A Compact room of one thread per topic, open on a page `width` wide: its cards' thread IDs. */
+const openOrchard = async (page: Page, tag: string, width: number): Promise<string[]> => {
+  const me = await registerDisposableUser(`thread_keys_${tag}_${RUN}`, PASSWORD);
   const roomId = await createRoom(HOMESERVER, me.accessToken, { name: 'Orchard' });
   for (const topic of TOPICS) {
     // eslint-disable-next-line no-await-in-loop
@@ -80,7 +80,7 @@ test('the keyboard goes into a thread, to the next one, and out again', async ({
     });
   }
 
-  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.setViewportSize({ width, height: 800 });
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
     username: me.username,
@@ -89,7 +89,12 @@ test('the keyboard goes into a thread, to the next one, and out again', async ({
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
   await setRoomCompact(page, true);
   await expect(cards(page)).toHaveCount(TOPICS.length, { timeout: 30_000 });
-  const order = await cardOrder(page);
+  return cardOrder(page);
+};
+
+test('the keyboard goes into a thread, to the next one, and out again', async ({ page }) => {
+  test.setTimeout(180_000);
+  const order = await openOrchard(page, 'full', 1280);
   const [first, second, third, fourth] = order as [string, string, string, string];
 
   await test.step('Alt and the right arrow goes from the composer to the cards, the left arrow back', async () => {
@@ -255,4 +260,30 @@ test('the keyboard goes into a thread, to the next one, and out again', async ({
     expect(openThread(page)).toBeNull();
     await expect(banner(page)).toHaveCount(0);
   });
+});
+
+test('beside the cards, the keys resolve the open thread and step on from it', async ({ page }) => {
+  test.setTimeout(180_000);
+  const order = await openOrchard(page, 'beside', 1600);
+  const [, second, third] = order as [string, string, string, string];
+
+  await card(page, second).click();
+  await expect(banner(page)).toBeVisible({ timeout: 30_000 });
+  await banner(page).getByRole('button', { name: 'Thread options', exact: true }).click();
+  await page
+    .getByRole('menuitem', { name: 'Show the thread beside the messages', exact: true })
+    .click();
+  await expect(cards(page)).toHaveCount(TOPICS.length);
+
+  // From the thread's own composer, the keys resolve the open thread, whose card stays beside it.
+  await page.getByTestId('thread-column').getByRole('textbox').last().click();
+  await page.keyboard.press('ControlOrMeta+Shift+Enter');
+  await expect(card(page, second).locator('[data-compact-card-resolved-badge]')).toBeVisible({
+    timeout: 15_000,
+  });
+  expect(openThread(page)).toBe(second);
+
+  // And they step on to the thread below it.
+  await page.keyboard.press('ControlOrMeta+Alt+ArrowDown');
+  await expect.poll(() => openThread(page)).toBe(third);
 });
