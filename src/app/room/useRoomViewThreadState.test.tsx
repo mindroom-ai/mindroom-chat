@@ -10,6 +10,7 @@ import {
 } from '../threads/overview/roomThreadFilterState';
 import {
   createDefaultThreadFilterState,
+  FILTER_PRESETS,
   serializeThreadFilterState,
   type ThreadFilterState,
 } from '../event-store/threads/roomThreadOverviewModel';
@@ -399,6 +400,60 @@ describe('useRoomViewThreadState', () => {
 
     act(() => current().handleToggleThreadSections());
     expect(current().threadFilterState).toMatchObject({ resolved: 'exclude', snoozed: 'exclude' });
+  });
+
+  describe('while Compact shows sections, the stored resolved and snoozed filters', () => {
+    const hidden = { resolved: 'exclude', snoozed: 'exclude' } as const;
+    /** Mounts with both stored as `exclude`, Sections on, and fake timers for the search pause. */
+    const mountWithSections = () => {
+      vi.useFakeTimers();
+      storeFilter({ ...createDefaultThreadFilterState(), ...hidden });
+      const mounted = mountThreadState({ advancedFilters: true });
+      act(() => mounted.current().handleToggleThreadSections());
+      const stored = () => mounted.store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID));
+      const search = (query: string) => {
+        act(() => mounted.current().handleSearchQueryChange(query));
+        act(() => {
+          vi.advanceTimersByTime(300);
+        });
+      };
+      const sectionsOff = () => act(() => mounted.current().handleToggleThreadSections());
+      return { ...mounted, stored, search, sectionsOff };
+    };
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('survive a search edit, and apply again once Sections are off', () => {
+      const { current, stored, search, sectionsOff } = mountWithSections();
+
+      search('launch');
+
+      expect(stored()).toMatchObject({ ...hidden, freeText: 'launch' });
+      sectionsOff();
+      expect(current().threadFilterState).toMatchObject({ ...hidden, freeText: 'launch' });
+    });
+
+    it('survive the status tokens of a search', () => {
+      const { current, stored, search, sectionsOff } = mountWithSections();
+
+      search('is:resolved is:snoozed launch');
+
+      expect(stored()).toMatchObject({ ...hidden, freeText: 'launch' });
+      sectionsOff();
+      expect(current().threadFilterState).toMatchObject(hidden);
+    });
+
+    it('survive a preset', () => {
+      const { current, stored, sectionsOff } = mountWithSections();
+      const archived = FILTER_PRESETS.find((preset) => preset.id === 'archived')!;
+
+      act(() => current().handleApplyPreset(archived));
+
+      expect(stored()).toMatchObject(hidden);
+      sectionsOff();
+      expect(current().threadFilterState).toMatchObject(hidden);
+    });
   });
 
   it('keeps the sort lock off while Compact shows sections, which have their own order', () => {

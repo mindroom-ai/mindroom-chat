@@ -91,4 +91,17 @@ describe('the Sections switch of the Compact filter bar', () => {
     expect(filterKeys()).toEqual(['streaming', 'scheduled', 'unread', 'idle']);
     expect(byData('data-search-toggle')).toHaveLength(1);
   });
+
+  it('offers only the presets that leave resolved and snoozed threads alone', () => {
+    renderBar(false, { onToggleThreadSections: noop, threadSections: true });
+
+    act(() => {
+      byData('data-preset-button')[0]?.props.onClick();
+    });
+
+    expect(byData('data-preset-option').map((node) => node.props['data-preset-option'])).toEqual([
+      'working',
+      'all',
+    ]);
+  });
 });

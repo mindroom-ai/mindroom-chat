@@ -312,9 +312,26 @@ export const useRoomViewThreadState = ({
   const pendingSearchQueryRef = useRef<string>();
   const threadFilterStateRef = useRef(threadFilterState);
   const hasMindroomAgentsRef = useRef(hasMindroomAgents);
+  const threadSectionsRef = useRef(threadSections);
   threadFilterStateRef.current = threadFilterState;
   hasMindroomAgentsRef.current = hasMindroomAgents;
+  threadSectionsRef.current = threadSections;
   useEffect(() => () => globalThis.clearTimeout(searchQueryDebounceRef.current), []);
+
+  // Sections hide the resolved and snoozed filters, so while they are on every write keeps those
+  // two as stored: a search, a status token or a preset changes nothing the reader cannot see.
+  const storeThreadFilterState = useCallback(
+    (next: ThreadFilterState): ThreadFilterState => {
+      const stored = threadFilterStateRef.current;
+      const kept = threadSectionsRef.current
+        ? { ...next, resolved: stored.resolved, snoozed: stored.snoozed }
+        : next;
+      threadFilterStateRef.current = kept;
+      setThreadFilterState(kept);
+      return kept;
+    },
+    [setThreadFilterState]
+  );
 
   const flushPendingSearchQuery = useCallback((): ThreadFilterState => {
     if (searchQueryDebounceRef.current !== undefined) {
@@ -337,10 +354,8 @@ export const useRoomViewThreadState = ({
           freeText: normalizeThreadSearchText(pendingQuery),
           unsupportedQuery: '',
         };
-    threadFilterStateRef.current = applied;
-    setThreadFilterState(applied);
-    return applied;
-  }, [setThreadFilterState]);
+    return storeThreadFilterState(applied);
+  }, [storeThreadFilterState]);
 
   const handleSearchQueryChange = useCallback(
     (query: string) => {
@@ -356,9 +371,9 @@ export const useRoomViewThreadState = ({
 
   const handleToggle = useCallback(
     (key: ThreadFilterKey) => {
-      setThreadFilterState(updateThreadFilterKey(flushPendingSearchQuery(), key));
+      storeThreadFilterState(updateThreadFilterKey(flushPendingSearchQuery(), key));
     },
-    [flushPendingSearchQuery, setThreadFilterState]
+    [flushPendingSearchQuery, storeThreadFilterState]
   );
 
   // Simple mode's single binary control: unresolved-only on/off. Flips only
@@ -367,37 +382,37 @@ export const useRoomViewThreadState = ({
   // keeps, so flipping the raw value matches what the user sees.)
   const handleToggleUnresolvedOnly = useCallback(() => {
     const base = flushPendingSearchQuery();
-    setThreadFilterState({
+    storeThreadFilterState({
       ...base,
       resolved: base.resolved === 'exclude' ? 'any' : 'exclude',
     });
-  }, [flushPendingSearchQuery, setThreadFilterState]);
+  }, [flushPendingSearchQuery, storeThreadFilterState]);
 
   // The People filter: checks or unchecks one person.
   const handleTogglePerson = useCallback(
     (userId: string) => {
       const base = flushPendingSearchQuery();
-      setThreadFilterState({ ...base, people: toggleThreadPerson(base.people, userId) });
+      storeThreadFilterState({ ...base, people: toggleThreadPerson(base.people, userId) });
     },
-    [flushPendingSearchQuery, setThreadFilterState]
+    [flushPendingSearchQuery, storeThreadFilterState]
   );
 
   // The Clear buttons of the People and Tags dropdowns: one change, so no choice survives.
   const handleClearPeople = useCallback(() => {
-    setThreadFilterState({ ...flushPendingSearchQuery(), people: [] });
-  }, [flushPendingSearchQuery, setThreadFilterState]);
+    storeThreadFilterState({ ...flushPendingSearchQuery(), people: [] });
+  }, [flushPendingSearchQuery, storeThreadFilterState]);
 
   const handleClearTags = useCallback(() => {
-    setThreadFilterState({ ...flushPendingSearchQuery(), tags: new Map() });
-  }, [flushPendingSearchQuery, setThreadFilterState]);
+    storeThreadFilterState({ ...flushPendingSearchQuery(), tags: new Map() });
+  }, [flushPendingSearchQuery, storeThreadFilterState]);
 
   const handleSortDirectionChange = useCallback(() => {
     const base = flushPendingSearchQuery();
-    setThreadFilterState({
+    storeThreadFilterState({
       ...base,
       ...cycleSortMode(base),
     });
-  }, [flushPendingSearchQuery, setThreadFilterState]);
+  }, [flushPendingSearchQuery, storeThreadFilterState]);
 
   const handleToggleThreadSortFreeze = useCallback(() => {
     setThreadSortFreezeState((currentState) =>
@@ -420,28 +435,28 @@ export const useRoomViewThreadState = ({
     globalThis.clearTimeout(searchQueryDebounceRef.current);
     searchQueryDebounceRef.current = undefined;
     pendingSearchQueryRef.current = undefined;
-    setThreadFilterState(resetThreadFilterState());
-  }, [setThreadFilterState]);
+    storeThreadFilterState(resetThreadFilterState());
+  }, [storeThreadFilterState]);
 
   const handleAddTag = useCallback(
     (tag: string) => {
-      setThreadFilterState(addTagFilter(flushPendingSearchQuery(), tag));
+      storeThreadFilterState(addTagFilter(flushPendingSearchQuery(), tag));
     },
-    [flushPendingSearchQuery, setThreadFilterState]
+    [flushPendingSearchQuery, storeThreadFilterState]
   );
 
   const handleRemoveTag = useCallback(
     (tag: string) => {
-      setThreadFilterState(removeTagFilter(flushPendingSearchQuery(), tag));
+      storeThreadFilterState(removeTagFilter(flushPendingSearchQuery(), tag));
     },
-    [flushPendingSearchQuery, setThreadFilterState]
+    [flushPendingSearchQuery, storeThreadFilterState]
   );
 
   const handleApplyPreset = useCallback(
     (preset: FilterPreset) => {
-      setThreadFilterState(applyPreset(flushPendingSearchQuery(), preset));
+      storeThreadFilterState(applyPreset(flushPendingSearchQuery(), preset));
     },
-    [flushPendingSearchQuery, setThreadFilterState]
+    [flushPendingSearchQuery, storeThreadFilterState]
   );
 
   const handleRoomMessageSent = useCallback(

@@ -152,12 +152,18 @@ function TriStateIconToggle({
 function ThreadPresetDropdown({
   onApplyPreset,
   activePresetLabel,
+  threadSections,
 }: {
   onApplyPreset: (preset: FilterPreset) => void;
   activePresetLabel: string | null;
+  /** Sections show resolved and snoozed threads themselves: presets that filter them go. */
+  threadSections: boolean;
 }) {
   const { t } = useTranslation();
-  const filterPresets = FILTER_PRESETS.map((preset) => {
+  const presets = threadSections
+    ? FILTER_PRESETS.filter(({ apply }) => !apply.resolved && !apply.snoozed)
+    : FILTER_PRESETS;
+  const filterPresets = presets.map((preset) => {
     switch (preset.id) {
       case 'needs-attention':
         return {
@@ -871,7 +877,8 @@ export function RoomThreadOverview({
   );
 
   // Sections order their cards themselves and show resolved and snoozed threads in their own
-  // sections, so the sort, its lock and the filters for those two make way for the switch.
+  // sections, so the sort, its lock and the filters and presets for those two make way for the
+  // switch.
   const sectionsSwitch = onToggleThreadSections && (
     <ThreadSectionsSwitch on={threadSections} onToggle={onToggleThreadSections} />
   );
@@ -1032,6 +1039,7 @@ export function RoomThreadOverview({
           <ThreadPresetDropdown
             onApplyPreset={handlePresetApply}
             activePresetLabel={lastAppliedPreset}
+            threadSections={threadSections}
           />
         )}
         {peopleFilter}
