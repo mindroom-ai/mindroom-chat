@@ -771,6 +771,13 @@
       "finishedWork": {
         "workedFor": "{{duration}} কাজ করেছে",
         "worked": "কাজ করেছে"
+      },
+      "questionCard": {
+        "title": "প্রশ্ন",
+        "waiting": "আপনার অপেক্ষায়",
+        "answered": "উত্তর দেওয়া হয়েছে",
+        "youChose": "আপনি বেছে নিয়েছেন",
+        "nameChose": "{{name}} বেছে নিয়েছেন"
       }
     },
     "message-search": {

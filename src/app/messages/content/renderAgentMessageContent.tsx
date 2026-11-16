@@ -51,6 +51,9 @@ import { CanvasResponseReceipt } from '../canvas/CanvasResponseReceipt';
 import { CanvasResponseSidecarReceipt } from '../canvas/CanvasResponseSidecarReceipt';
 import { readCallTranscript } from '../../matrix/protocol/callTranscript';
 import { CallTranscriptCard } from './CallTranscriptCard';
+import { readInteractiveQuestion } from '../../matrix/protocol/interactiveQuestion';
+import { QuestionCard } from '../question/QuestionCard';
+import { QuestionReply } from '../question/QuestionReply';
 import { ownDirectionLine } from '../../ui/directional';
 import { matchesEnum } from '../../lib/matchesEnum';
 
@@ -240,25 +243,55 @@ export const renderAgentMessageContent = ({
   const workDurationMs =
     finalEditTs === undefined || mEvent === undefined ? undefined : finalEditTs - mEvent.getTs();
 
-  /** The reply's reasoning and body, the work folded when it finished. */
+  // A MindRoom agent's question shows as a card with a button per option.
+  const question = fromMindroomAgent
+    ? readInteractiveQuestion(content, mEvent?.getOriginalContent())
+    : undefined;
+  const renderQuestionCard =
+    question && mEvent
+      ? (showText: boolean) => (
+          <QuestionCard
+            question={question}
+            mEvent={mEvent}
+            roomId={roomId ?? mEvent.getRoomId()}
+            threadId={threadId}
+            readOnly={readOnly}
+            showText={showText}
+          />
+        )
+      : undefined;
+
+  /** The reply's reasoning and body, the work folded when it finished, and its question card. */
   const wrapAgentBody = (
     bodyContent: Record<string, unknown>,
     html: string | undefined,
     renderHtml: (customBody: string | undefined) => ReactNode,
     canFold = true
   ) => {
-    if (!foldsWork || foldEventId === undefined) {
-      return wrapWithReasoning(bodyContent, renderHtml(html));
-    }
+    const wrap = (render: (customBody: string | undefined) => ReactNode) => {
+      if (!foldsWork || foldEventId === undefined) {
+        return wrapWithReasoning(bodyContent, render(html));
+      }
+      return (
+        <AgentWorkBody
+          body={typeof bodyContent.body === 'string' ? bodyContent.body : ''}
+          html={html}
+          foldKey={`finished-work:${foldEventId}`}
+          finished={finished && canFold}
+          durationMs={workDurationMs}
+          renderHtml={render}
+          wrapWithReasoning={(body) => wrapWithReasoning(bodyContent, body)}
+        />
+      );
+    };
+    if (!question || !renderQuestionCard || html === undefined) return wrap(renderHtml);
     return (
-      <AgentWorkBody
-        body={typeof bodyContent.body === 'string' ? bodyContent.body : ''}
+      <QuestionReply
         html={html}
-        foldKey={`finished-work:${foldEventId}`}
-        finished={finished && canFold}
-        durationMs={workDurationMs}
+        question={question}
+        renderCard={renderQuestionCard}
         renderHtml={renderHtml}
-        wrapWithReasoning={(body) => wrapWithReasoning(bodyContent, body)}
+        renderBody={wrap}
       />
     );
   };

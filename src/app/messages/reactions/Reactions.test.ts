@@ -261,6 +261,46 @@ describe('Reactions', () => {
     );
   });
 
+  it("hides the option chips of a MindRoom agent's question, whose card shows them", () => {
+    const chip = (sender: string) =>
+      new Set([
+        {
+          getSender: () => sender,
+          getTs: () => 0,
+          getRelation: () => ({ rel_type: 'm.annotation' }),
+          isRedacted: () => false,
+        } as MatrixEvent,
+      ]);
+    const relations = new MockRelations([
+      ['🔴', chip('@mindroom_code:mindroom.chat')],
+      ['👍', chip('@bas:mindroom.chat')],
+    ]);
+    const targetEvent = {
+      getSender: () => '@mindroom_code:mindroom.chat',
+      getContent: () => ({
+        'io.mindroom.interactive': {
+          question_text: 'Which color?',
+          options: { '🔴': 'red', '1': 'red' },
+          option_labels: { '🔴': 'Red', '1': 'Red' },
+        },
+      }),
+    } as unknown as MatrixEvent;
+
+    render(
+      React.createElement(Reactions, {
+        room: {} as never,
+        mEventId: '$event',
+        targetEvent,
+        canSendReaction: true,
+        relations: relations as never,
+        onReactionToggle: vi.fn(),
+      })
+    );
+
+    expect(reactionRenderSpy).not.toHaveBeenCalledWith(expect.objectContaining({ reaction: '🔴' }));
+    expect(reactionRenderSpy).toHaveBeenCalledWith(expect.objectContaining({ reaction: '👍' }));
+  });
+
   it.each([
     ["labels the agent's stop button", '@agent:mindroom.chat', 'Stop'],
     ["counts a person's stop reaction", '@bas:mindroom.chat', undefined],

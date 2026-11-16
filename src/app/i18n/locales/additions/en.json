@@ -771,6 +771,13 @@
       "finishedWork": {
         "workedFor": "Worked for {{duration}}",
         "worked": "Worked"
+      },
+      "questionCard": {
+        "title": "Question",
+        "waiting": "Waiting for you",
+        "answered": "Answered",
+        "youChose": "You chose",
+        "nameChose": "{{name}} chose"
       }
     },
     "message-search": {

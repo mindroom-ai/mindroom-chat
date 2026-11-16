@@ -793,6 +793,13 @@
       "finishedWork": {
         "workedFor": "Работал {{duration}}",
         "worked": "Работал"
+      },
+      "questionCard": {
+        "title": "Вопрос",
+        "waiting": "Ждёт вас",
+        "answered": "Ответ дан",
+        "youChose": "Ваш выбор",
+        "nameChose": "Выбор: {{name}}"
       }
     },
     "message-search": {
