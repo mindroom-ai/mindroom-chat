@@ -15,13 +15,15 @@ import {
 } from '../../matrix/protocol/messageExtrasData';
 import { useToolTraceMarkerParserOptions } from '../html/HtmlBlocks';
 import type { ToolMetadataStatus } from '../../matrix/protocol/toolTrace';
-import { isAiRunStreaming } from '../../matrix/protocol/aiRun';
+import { getAiRunInfo, isAiRunStreaming } from '../../matrix/protocol/aiRun';
 import { formatMarkdownTextBodyAsHtml, formatMessageTextBodyAsHtml } from '../html/blocks';
 import { getLongTextSource } from '../../matrix/protocol/longText';
 import { LongTextKind, LongTextText } from './LongTextText';
 import { PasteAttachmentContent } from './PasteAttachmentContent';
 import { ThinkingPlaceholder } from '../agent-run/ThinkingPlaceholder';
 import { withReasoning } from '../agent-run/Reasoning';
+import { FinishedWorkFold } from '../agent-run/FinishedWorkFold';
+import { splitFinishedWork } from '../agent-run/finishedWorkSplit';
 import { LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
 import { TranscribingPlaceholder } from '../agent-run/TranscribingPlaceholder';
 import { ThreadSummaryCard } from '../thread-summary/ThreadSummaryCard';
@@ -49,6 +51,9 @@ import { readCallTranscript } from '../../matrix/protocol/callTranscript';
 import { CallTranscriptCard } from './CallTranscriptCard';
 import { ownDirectionLine } from '../../ui/directional';
 import { matchesEnum } from '../../lib/matchesEnum';
+
+/** Run statuses of a reply that finished on its own; a failed or stopped one keeps its work open. */
+const FINISHED_AI_RUN_STATUSES = new Set(['completed', 'cached']);
 
 export type RenderAgentMessageContentOptions = {
   mEvent?: MatrixEvent;
@@ -166,6 +171,39 @@ export const renderAgentMessageContent = ({
   const wrapWithReasoning = (bodyContent: Record<string, unknown>, body: ReactNode) =>
     withReasoning(bodyContent, body, htmlReactParserOptions, linkifyOpts);
 
+  // A finished reply folds its work, everything up to its last tool call, behind one row, as T3
+  // Code folds a finished turn; the answer after it stays. The work took from the reply's first
+  // event to its final edit.
+  const foldEventId = eventId ?? mEvent?.getId();
+  const status = getAiRunInfo(content)?.status;
+  const foldsFinishedWork =
+    fromMindroomAgent &&
+    foldEventId !== undefined &&
+    !!status &&
+    FINISHED_AI_RUN_STATUSES.has(status);
+  const finalEditTs = mEvent?.replacingEvent()?.getTs();
+  const workDurationMs =
+    finalEditTs === undefined || mEvent === undefined ? undefined : finalEditTs - mEvent.getTs();
+
+  /** The reply's reasoning and body, the work folded when it finished. */
+  const wrapAgentBody = (
+    bodyContent: Record<string, unknown>,
+    html: string | undefined,
+    renderHtml: (customBody: string | undefined) => ReactNode,
+    canFold = true
+  ) => {
+    const split = foldsFinishedWork && canFold && html ? splitFinishedWork(html) : undefined;
+    if (!split) return wrapWithReasoning(bodyContent, renderHtml(html));
+    return (
+      <>
+        <FinishedWorkFold foldKey={`finished-work:${foldEventId}`} durationMs={workDurationMs}>
+          {wrapWithReasoning(bodyContent, renderHtml(split.head))}
+        </FinishedWorkFold>
+        {renderHtml(split.tail)}
+      </>
+    );
+  };
+
   const renderBody =
     (bodyContent: Record<string, unknown>) => (props: { body: string; customBody?: string }) => {
       const { body, customBody: providedCustomBody } = props;
@@ -179,17 +217,16 @@ export const renderAgentMessageContent = ({
           ? renderableContent.formatted_body
           : undefined);
 
-      return wrapWithReasoning(
-        renderableContent,
+      return wrapAgentBody(renderableContent, customBody, (html) => (
         <AgentRenderBody
           {...props}
-          customBody={customBody}
+          customBody={html}
           highlightRegex={highlightRegex}
           htmlReactParserOptions={htmlReactParserOptions}
           markerContent={renderableContent}
           linkifyOpts={linkifyOpts}
         />
-      );
+      ));
     };
 
   // A long call's transcript is only in the sidecar; until it is hydrated, and when the card may
@@ -217,19 +254,25 @@ export const renderAgentMessageContent = ({
   ) =>
     renderLongCallTranscript(
       resolvedContent,
-      wrapWithReasoning(
+      wrapAgentBody(
         // The live reasoning rides on the outer content, not on the preview or the sidecar.
         content[LIVE_REASONING_KEY] === undefined
           ? resolvedContent
           : { ...resolvedContent, [LIVE_REASONING_KEY]: content[LIVE_REASONING_KEY] },
-        <AgentRenderBody
-          {...props}
-          highlightRegex={highlightRegex}
-          htmlReactParserOptions={htmlReactParserOptions}
-          markerContent={resolvedContent}
-          metadataStatus={metadataStatus}
-          linkifyOpts={linkifyOpts}
-        />
+        props.customBody,
+        (html) => (
+          <AgentRenderBody
+            {...props}
+            customBody={html}
+            highlightRegex={highlightRegex}
+            htmlReactParserOptions={htmlReactParserOptions}
+            markerContent={resolvedContent}
+            metadataStatus={metadataStatus}
+            linkifyOpts={linkifyOpts}
+          />
+        ),
+        // The preview stops partway; the split waits for the whole reply in the sidecar.
+        metadataStatus !== 'loading'
       )
     );
 

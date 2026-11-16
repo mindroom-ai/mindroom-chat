@@ -73,7 +73,10 @@ const computeSplit = (html: string): FinishedWorkSplit | undefined => {
   const tailNodes = nodes.slice(last + 1);
   if (extractTextFromChildren(tailNodes).trim() === '') return undefined;
   return {
-    head: nodes.slice(0, last + 1).map(serialize).join(''),
+    head: nodes
+      .slice(0, last + 1)
+      .map(serialize)
+      .join(''),
     tail: tailNodes.map(serialize).join(''),
   };
 };

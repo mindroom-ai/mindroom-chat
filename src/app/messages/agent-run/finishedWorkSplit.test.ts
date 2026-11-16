@@ -50,7 +50,10 @@ describe('splitFinishedWork', () => {
   it('keeps entities, attributes and void elements', () => {
     expect(
       splitFinishedWork(
-        `<p>a &amp; &lt;b&gt;</p>${marker('shell', 1)}<p><a href="https://x.test/?a=1&amp;b=&quot;2&quot;">l</a><br>c</p>`
+        `<p>a &amp; &lt;b&gt;</p>${marker(
+          'shell',
+          1
+        )}<p><a href="https://x.test/?a=1&amp;b=&quot;2&quot;">l</a><br>c</p>`
       )
     ).toEqual({
       head: `<p>a &amp; &lt;b&gt;</p>${marker('shell', 1)}`,

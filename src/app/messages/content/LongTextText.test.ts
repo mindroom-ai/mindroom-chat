@@ -127,6 +127,7 @@ vi.mock('../../approvals/ApprovalArgumentFields.css', () => ({
 }));
 
 vi.mock('../agent-run/Reasoning.css', () => ({}));
+vi.mock('../agent-run/FinishedWorkFold.css', () => ({}));
 vi.mock('../html/HtmlBlocks.css', () => ({
   Block: 'MindroomBlock',
   BlockBody: 'MindroomBlockBody',

@@ -57,11 +57,15 @@ describe('FinishedWorkFold', () => {
     expect(toggle().props['aria-expanded']).toBe(false);
     expect(work()).toHaveLength(0);
 
-    act(() => toggle().props.onClick());
+    act(() => {
+      toggle().props.onClick();
+    });
     expect(toggle().props['aria-expanded']).toBe(true);
     expect(work()).toHaveLength(1);
 
-    act(() => toggle().props.onClick());
+    act(() => {
+      toggle().props.onClick();
+    });
     expect(toggle().props['aria-expanded']).toBe(false);
     expect(work()).toHaveLength(0);
   });
@@ -76,7 +80,9 @@ describe('FinishedWorkFold', () => {
       </ManualExpansionStateContext.Provider>
     );
     render(fold);
-    act(() => toggle().props.onClick());
+    act(() => {
+      toggle().props.onClick();
+    });
     expect(state.get('finished-work:$a')).toBe(true);
 
     act(() => renderer!.unmount());
