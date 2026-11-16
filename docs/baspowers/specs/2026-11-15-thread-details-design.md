@@ -33,13 +33,13 @@ Out:
 
 ## SDK: `threadDetails`
 
-`ClientPlugin.threadDetails` is the eleventh kind: a list of `{ shows?, Component }` (`src/app/plugins/threadDetails.ts`).
+`ClientPlugin.threadDetails` is the eleventh kind: a list of `{ shows?, Component }` (`src/app/plugins/threadDetails.ts`), typed `ThreadDetail` and `ThreadDetailProps` in `core`.
 
 - `shows(room, threadId)`, pure and synchronous, says whether the thread has details from this contribution; without it, every thread does. One that throws counts as false, logged with `[plugin <id>@<version>]`. Room menu entries' `shows(room)` is the precedent.
 - `Component` gets `{ room, threadId }`, as a thread card badge does, and draws rows of text: no button, no link, nothing that takes the focus. It renders inside the room's page, so the room hooks work.
 - The app reads `shows` when a surface opens, not continuously: a hover card or menu that is open keeps its contributions until it closes.
 - A `Component` that throws shows nothing in its place, logged and reported with the plugin tag, and the other contributions still show.
-- A lazy `Component` shows nothing until it has loaded.
+- A lazy `Component` shows nothing until it has loaded. A hover card whose contributions all drew nothing hides, so no empty surface shows at the pointer.
 - `plugins.<id>.enabled: false` and `?plugins=off` turn the kind off.
 - `CLIENT_PLUGIN_API_VERSION` goes from 56 to 57; `docs/client-plugins.md` gets a "Thread details" section and the version list a 57 entry.
 - The example plugin (`src/app/plugins/__fixtures__/example-plugin/`) gets a `threadDetails` contribution, since it has one of each kind.
@@ -63,8 +63,8 @@ Out:
 `ThreadActionsMenu` gets a first group with the contributions that `shows` for its thread, above Open and the other actions, separated from them by the menu's group divider.
 
 - Every place the menu opens shows it: the Compact card's More Options button, a right-click, the ContextMenu key, the new long press, and the open thread's banner (`ThreadContextBanner`).
-- The group is not a menu item and is not in the focus order; the menu's first item still takes the focus.
-- It scrolls with the menu when the menu's height is capped.
+- The group is not a menu item and is not in the focus order; the menu's first item still takes the focus. The group is the menu's description (`aria-describedby`), so a screen reader hears it as the menu opens.
+- It scrolls with the menu when the menu's height is capped. The thread's menu has no cap today; on touch screens it gets the room menu's (`calc(100dvh - 4.5rem)`, rows scrolling inside the rim, `src/app/room/RoomActionsMenu.css.ts`).
 - No contribution `shows`: no group.
 
 ### Long press on a Compact card
@@ -78,15 +78,15 @@ A long press on a Compact card's shell (`useLongPress`, as sidebar rows and mess
 
 `src/ThreadDetails.tsx` in `mindroom-ai/pull-request-client-plugin`, with `apiVersion` 57.
 
-- `shows(room, threadId)`: the thread has a linked pull request or a worktree, read synchronously from the room's state with `snapshotOf(room)`, the snapshot `useRoomPullRequests` already builds.
+- `shows(room, threadId)`: the thread has a linked pull request or a worktree, read synchronously from the room's state with `snapshotOf(room)`, the snapshot `useRoomPullRequests` already builds, through a new export of `src/threadPullRequests.ts`, `threadHasDetails` (`snapshotOf` stays private).
 - One block per pull request, all of them (the card shows at most two):
   1. State icon, `owner/repo #123`, and the checks mark when a token is stored.
   2. The title, at most two lines.
-  3. Branch icon, `head → base`, each middle truncated; `headOwner:head` when the head is in a fork (`headRepo` differs from `baseRepo`).
-  4. `+120 −30 · 5 files · @author · updated 2 h ago`.
+  3. Branch icon, `head → base`, each middle truncated; `headOwner:head` when the head is in a fork (`headRepo` differs from `baseRepo`); a deleted fork (`headRepo` null) shows the head alone.
+  4. `+120 -30 · 5 files · @author · updated 2 hours ago`, with the panel's own diff count and relative time.
 - Until GitHub answers, or when it refuses, only line 1 without state, from the link itself.
 - A worktree block: branch icon and branch, and folder icon and path.
-- Requests reuse `usePullRequest` and `useChecks` with the chips' query keys and `NO_FOCUS_REFETCH`, so a hover costs no request for a pull request whose chip has loaded; the ones past the card's two load on the first hover.
+- Requests reuse `usePullRequest` and `useChecks` with the chips' query keys and `NO_FOCUS_REFETCH`, so a hover costs no request for a pull request whose chip has loaded; the ones past the card's two load on the first hover. `NO_FOCUS_REFETCH` moves from the chip to `src/queries.ts`, and the chip's state and checks logic to a shared `usePullRequestStatus`.
 - Strings in `strings.ts`, English.
 
 ## Testing
@@ -105,6 +105,7 @@ Plugin (vitest with `renderPluginComponent`):
 
 End to end and screenshots, for both pull requests:
 
+- The app's `e2e/plugins/thread-details.spec.ts`, with the example plugin: the hover card in light and dark themes, the menu's group after a right-click, and the menu after a long press on a phone viewport.
 - The plugin's spec (GitHub answered by the page): the hover card on a desktop card in light and dark themes, and the thread's menu after a long press on a phone viewport.
 
 ## Delivery
