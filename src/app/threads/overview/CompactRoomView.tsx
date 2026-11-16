@@ -261,8 +261,9 @@ const CompactThreadCardRow = React.memo(
 );
 
 const isKeyboardFocus = (element: Element): boolean => {
+  if (element.hasAttribute(KEY_FOCUS_ATTRIBUTE)) return true;
   try {
-    return element.matches(`:focus-visible, [${KEY_FOCUS_ATTRIBUTE}]`);
+    return element.matches(':focus-visible');
   } catch {
     return true;
   }
