@@ -1232,5 +1232,16 @@
       "howThreadsWork": "थ्रेड कैसे काम करते हैं",
       "noThreadsHint": "थ्रेड शुरू करने के लिए नीचे संदेश भेजें।"
     }
+  },
+  "threadNav": {
+    "layout": "थ्रेड का लेआउट",
+    "layoutRecent": "हाल के",
+    "layoutSections": "अनुभाग",
+    "sections": {
+      "working": "काम जारी",
+      "snoozed": "स्नूज़ किए गए",
+      "idle": "निष्क्रिय",
+      "resolved": "सुलझे हुए"
+    }
   }
 }

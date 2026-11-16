@@ -1232,5 +1232,16 @@
       "howThreadsWork": "Konular nasıl çalışır",
       "noThreadsHint": "Bir konu başlatmak için aşağıdan mesaj gönderin."
     }
+  },
+  "threadNav": {
+    "layout": "Konu düzeni",
+    "layoutRecent": "Son",
+    "layoutSections": "Bölümler",
+    "sections": {
+      "working": "Çalışıyor",
+      "snoozed": "Ertelenenler",
+      "idle": "Boşta",
+      "resolved": "Çözülenler"
+    }
   }
 }

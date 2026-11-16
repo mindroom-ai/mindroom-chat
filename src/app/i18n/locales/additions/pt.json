@@ -1255,5 +1255,16 @@
       "howThreadsWork": "Como funcionam os tópicos",
       "noThreadsHint": "Envie uma mensagem abaixo para iniciar um."
     }
+  },
+  "threadNav": {
+    "layout": "Disposição dos tópicos",
+    "layoutRecent": "Recentes",
+    "layoutSections": "Secções",
+    "sections": {
+      "working": "Em curso",
+      "snoozed": "Adiados",
+      "idle": "Inativos",
+      "resolved": "Resolvidos"
+    }
   }
 }

@@ -1278,5 +1278,16 @@
       "howThreadsWork": "Как работают ветки",
       "noThreadsHint": "Отправьте сообщение ниже, чтобы начать ветку."
     }
+  },
+  "threadNav": {
+    "layout": "Вид списка веток",
+    "layoutRecent": "Недавние",
+    "layoutSections": "Разделы",
+    "sections": {
+      "working": "В работе",
+      "snoozed": "Отложенные",
+      "idle": "Неактивные",
+      "resolved": "Решённые"
+    }
   }
 }

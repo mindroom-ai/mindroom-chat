@@ -1255,5 +1255,16 @@
       "howThreadsWork": "Cómo funcionan los hilos",
       "noThreadsHint": "Envía un mensaje abajo para empezar uno."
     }
+  },
+  "threadNav": {
+    "layout": "Disposición de los hilos",
+    "layoutRecent": "Recientes",
+    "layoutSections": "Secciones",
+    "sections": {
+      "working": "En curso",
+      "snoozed": "Pospuestos",
+      "idle": "Inactivos",
+      "resolved": "Resueltos"
+    }
   }
 }
