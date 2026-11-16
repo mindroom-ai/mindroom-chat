@@ -6,6 +6,7 @@ import { phoneNavDrawerOpenAtom } from './phoneNavDrawer';
 import {
   PHONE_STAGE,
   afterWaitingSlide,
+  movePhoneNavDrawer,
   slidePhonePage,
   withPhonePageSlide,
 } from './phonePageSlide';
@@ -137,7 +138,9 @@ describe('slidePhonePage', () => {
     await page.finish();
   });
 
-  it('slides back when a thread closes, and when the list comes back', async () => {
+  // A navigation back to the list, as the room header's Back: a person brings it out with
+  // `movePhoneNavDrawer`, which plays no slide.
+  it('slides back when a thread closes, and when a navigation brings the list back', async () => {
     const page = browser();
     showThread(true);
     slidePhonePage(() => showThread(false));
@@ -265,6 +268,56 @@ describe('afterWaitingSlide', () => {
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
     // The list never showed: nothing slides.
     expect(page.skipTransition).toHaveBeenCalledTimes(1);
+    await page.finish();
+  });
+});
+
+describe('movePhoneNavDrawer', () => {
+  const set = (open: boolean) => showList(open);
+
+  it('brings the list out at once over the page, which stays put', () => {
+    const page = browser();
+    movePhoneNavDrawer(true, set);
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
+    // Nothing turns off the drawer's own slide, not even for a moment.
+    expect(page.start).not.toHaveBeenCalled();
+    expect(root.dataset.pageSlide).toBeUndefined();
+  });
+
+  it('brings the list out after the changes that wait for a slide, outside the slide', async () => {
+    const page = browser();
+    const order: string[] = [];
+    slidePhonePage(() => {
+      order.push('thread');
+      showThread(true);
+    });
+    movePhoneNavDrawer(true, (open) => {
+      order.push('list');
+      set(open);
+    });
+    expect(order).toEqual([]);
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+
+    page.takePicture();
+    expect(order).toEqual(['thread', 'list']);
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
+    expect(page.start).toHaveBeenCalledTimes(1);
+    await page.finish();
+  });
+
+  it('puts the list away through slidePhonePage, where nothing slides from the list', async () => {
+    const page = browser();
+    showList(true);
+    movePhoneNavDrawer(false, set);
+    // It waits for the picture with the navigation a tap on a link in the list starts.
+    expect(page.start).toHaveBeenCalledTimes(1);
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
+    expect(root.dataset.pageSlide).toBeUndefined();
+
+    page.takePicture();
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+    expect(page.skipTransition).toHaveBeenCalledTimes(1);
+    expect(root.dataset.pageSlide).toBeUndefined();
     await page.finish();
   });
 });

@@ -39,7 +39,9 @@ let playing = false;
  * Runs `change`, which may change what a phone shows, and slides when it shows deeper or less
  * deep after it: a thread over its room comes in from the end edge, and a thread or a room leaves
  * to it on the way back to the room or the list, the page under them moving a third as far
- * (phonePageSlide.css.ts). The page stays put where the list goes away, as it does for a tap on a
+ * (phonePageSlide.css.ts). The way back to the list slides only for a navigation (the room
+ * header's Back): a person brings the list out over the page without one
+ * (`movePhoneNavDrawer`). The page stays put where the list goes away, as it does for a tap on a
  * room in it: the drawer slides away to the start edge on its own over the page the change shows
  * (sidebar/PhoneNavDrawer.css.ts).
  *
@@ -114,6 +116,19 @@ export const slidePhonePage = (change: Change): void => {
 export const afterWaitingSlide = (change: () => void): void => {
   if (waiting) waiting.push(change);
   else change();
+};
+
+/**
+ * Brings a phone's navigation drawer out or puts it away, as a person does (the menu button, a
+ * swipe, Escape): `set` changes it. The drawer is over the page, not a level of it, so nothing
+ * slides but the drawer itself (sidebar/PhoneNavDrawer.css.ts). Brought out, it comes after the
+ * changes that wait for a slide's picture, never inside the slide, whose marker would turn off
+ * its own slide. Put away, it goes through `slidePhonePage`, so a tap on a link in it and the
+ * navigation that follows run together from the list, where nothing slides.
+ */
+export const movePhoneNavDrawer = (open: boolean, set: (open: boolean) => void): void => {
+  if (open) afterWaitingSlide(() => set(true));
+  else slidePhonePage(() => set(false));
 };
 
 /**

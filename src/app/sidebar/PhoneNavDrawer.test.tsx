@@ -10,7 +10,7 @@ import {
   phoneNavSectionRootAtom,
   useMarkPhoneSectionRoot,
 } from '../navigation/phoneNavDrawer';
-import { PHONE_STAGE } from '../navigation/phonePageSlide';
+import { PHONE_STAGE, slidePhonePage } from '../navigation/phonePageSlide';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { PhoneNavDrawer } from './PhoneNavDrawer';
 import { followRouterSignalsInNode } from '../../test/utils/nodeSignalRequests';
@@ -66,8 +66,42 @@ describe('PhoneNavDrawer', () => {
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
   });
 
-  it('stays put away when it unmounts while its opening waits for the page slide', () => {
-    // A browser with view transitions takes a picture of the page before the drawer opens.
+  it('comes out over the page with no page slide, not even a moment of one', () => {
+    // A browser with view transitions, on the phone layout.
+    const startViewTransition = vi.fn();
+    Object.defineProperty(document, 'startViewTransition', {
+      configurable: true,
+      value: startViewTransition,
+    });
+    const stage = document.createElement('div');
+    stage.setAttribute(PHONE_STAGE, '');
+    document.body.append(stage);
+    try {
+      const store = createStore();
+      let renderer: ReturnType<typeof create> | undefined;
+      act(() => {
+        renderer = create(
+          <Provider store={store}>
+            <MemoryRouter initialEntries={['/home/!room:example.org/']}>
+              <PhoneNavDrawer nav={null} />
+            </MemoryRouter>
+          </Provider>
+        );
+      });
+      swipeFromLeftEdge();
+      expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
+      // The drawer slides in on its own: nothing turns its slide off.
+      expect(startViewTransition).not.toHaveBeenCalled();
+      expect(document.documentElement.dataset.pageSlide).toBeUndefined();
+      act(() => renderer?.unmount());
+    } finally {
+      stage.remove();
+      Reflect.deleteProperty(document, 'startViewTransition');
+    }
+  });
+
+  it('stays put away when it unmounts while its opening waits for a page slide', () => {
+    // A browser with view transitions takes a picture of the page before a navigation shows.
     let takePicture: () => void = () => undefined;
     Object.defineProperty(document, 'startViewTransition', {
       configurable: true,
@@ -95,8 +129,9 @@ describe('PhoneNavDrawer', () => {
           </Provider>
         );
       });
+      // A navigation waits for the picture; the drawer's opening comes after it.
+      slidePhonePage(() => undefined);
       swipeFromLeftEdge();
-      // The picture is not taken yet.
       expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
 
       act(() => renderer?.unmount());
@@ -105,6 +140,7 @@ describe('PhoneNavDrawer', () => {
     } finally {
       stage.remove();
       Reflect.deleteProperty(document, 'startViewTransition');
+      delete document.documentElement.dataset.pageSlide;
     }
   });
 
