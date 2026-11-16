@@ -117,7 +117,10 @@ export const useThreadOverviewRefreshCounter = (
       if (member.roomId === room.roomId) markThreadRecordChange(overviewChanges);
     };
     const handleState = (mEvent: MatrixEvent, state: RoomState) => {
-      if (state.roomId === room.roomId && mEvent.getType() === (EventType.RoomEncryption as string)) {
+      if (
+        state.roomId === room.roomId &&
+        mEvent.getType() === (EventType.RoomEncryption as string)
+      ) {
         markThreadRecordChange(overviewChanges);
       }
     };
