@@ -47,6 +47,10 @@ if [ "$#" -gt 0 ]; then
   shift
   for assignment in "$@"; do
     case "$assignment" in
+      PERF_TARGET=* | PERF_HOMESERVER=* | PERF_USERNAME=* | PERF_PASSWORD=* | PERF_ROOM=*)
+        echo "matrix: ${assignment%%=*} belongs to the spec's real-data mode; this script runs the synthetic load only (run real-data jobs on the M5 directly)" >&2
+        exit 2
+        ;;
       [A-Za-z_]*=*) env_args+=(--env "$assignment") ;;
       *) echo "matrix: not a NAME=VALUE assignment: $assignment" >&2; exit 2 ;;
     esac
@@ -83,11 +87,21 @@ run_one() {
   fi
   run_env+=(--env "E2E_SNAPSHOT_ROOT=$base/$run/snap" --env "E2E_AGENT_STACK_ROOT=$base/$run/agents")
   # The inner script runs on the host, in the commit's worktree. A snapshot run leaves its
-  # test-results/ in the snapshot, so the script copies the perf results into the worktree's, which
-  # --artifacts brings back.
+  # test-results/ in the snapshot, so it copies the perf results into the worktree's, which
+  # --artifacts brings back; the trap then removes the run's directory (snapshot, build, agent
+  # stack) on every exit path, and the exit code stays Playwright's.
+  local inner
+  inner="run_dir=\"\$(dirname \"\$E2E_SNAPSHOT_ROOT\")\"
+finish() {
+  mkdir -p test-results/perf
+  cp -a \"\$E2E_SNAPSHOT_ROOT/slot-$slot/test-results/perf/real-work\" test-results/perf/ || true
+  cd / && rm -rf \"\$run_dir\"
+}
+trap finish EXIT
+mkdir -p \"\$E2E_SNAPSHOT_ROOT\" \"\$E2E_AGENT_STACK_ROOT\"
+scripts/e2e-slot.sh $slot --snapshot --preview npx playwright test e2e/perf/real-work.live.spec.ts"
   "$runner" --artifacts --timeout "$timeout_s" "${run_env[@]}" "${env_args[@]}" \
-    "$host" "$commit" exec bash -c \
-    "mkdir -p \"\$E2E_SNAPSHOT_ROOT\" \"\$E2E_AGENT_STACK_ROOT\"; rc=0; scripts/e2e-slot.sh $slot --snapshot --preview npx playwright test e2e/perf/real-work.live.spec.ts || rc=\$?; mkdir -p test-results/perf; cp -a \"\$E2E_SNAPSHOT_ROOT/slot-$slot/test-results/perf/real-work\" test-results/perf/ || true; exit \$rc" \
+    "$host" "$commit" exec bash -c "$inner" \
     >"$log" 2>&1
 }
 
@@ -103,6 +117,11 @@ for i in "${!names[@]}"; do
   wait "${pids[$i]}" || rc=$?
   log="$out/$name.log"
   # remote-test.sh names the job's result directory in its output; copy at once (others clean it up).
+  if grep -q 'running the job on macbook-m5 instead' "$log" && [ "${name%-*}" != m5 ]; then
+    echo "matrix: $name ran on macbook-m5 instead (battery or low disk): marked failed, not comparable (log: $log)" >&2
+    failed+=("$name (ran on m5 instead)")
+    continue
+  fi
   results=$(sed -n 's/^mrc: test results in //p' "$log" | tail -n 1)
   if [ -n "$results" ] && [ -d "$results/perf/real-work" ]; then
     rm -rf "${out:?}/$name"
