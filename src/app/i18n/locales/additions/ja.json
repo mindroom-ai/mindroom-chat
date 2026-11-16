@@ -953,7 +953,8 @@
     "unsnooze": "スヌーズを解除",
     "status": {
       "snoozed": "スヌーズ中"
-    }
+    },
+    "renameHint": "ダブルクリックで名前を変更"
   },
   "threadSnooze": {
     "title": "スヌーズの終了日時",

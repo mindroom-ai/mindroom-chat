@@ -970,7 +970,8 @@
     "unsnooze": "Nicht mehr zurückstellen",
     "status": {
       "snoozed": "Zurückgestellt"
-    }
+    },
+    "renameHint": "Zum Umbenennen doppelklicken"
   },
   "threadSnooze": {
     "title": "Zurückstellen bis",

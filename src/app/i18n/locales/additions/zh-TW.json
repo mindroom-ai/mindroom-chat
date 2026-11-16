@@ -953,7 +953,8 @@
     "unsnooze": "取消延後",
     "status": {
       "snoozed": "已延後"
-    }
+    },
+    "renameHint": "按兩下以重新命名"
   },
   "threadSnooze": {
     "title": "延後至",

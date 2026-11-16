@@ -970,7 +970,8 @@
     "unsnooze": "Snooze opheffen",
     "status": {
       "snoozed": "Gesnoozed"
-    }
+    },
+    "renameHint": "Dubbelklik om de naam te wijzigen"
   },
   "threadSnooze": {
     "title": "Snoozen tot",

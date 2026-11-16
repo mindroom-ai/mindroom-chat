@@ -319,7 +319,6 @@ export function ThreadActionsMenu({
               aria-label={t('threadActions.summary')}
               style={{ ...fieldStyle, minHeight: '5rem', resize: 'vertical' }}
               value={draft}
-              maxLength={SUMMARY_MAX_LENGTH * 2}
               disabled={busy}
               onChange={(evt) => setDraft(evt.target.value)}
             />

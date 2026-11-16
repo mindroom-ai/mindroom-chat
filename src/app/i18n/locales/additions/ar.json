@@ -1038,7 +1038,8 @@
     "unsnooze": "إلغاء التأجيل",
     "status": {
       "snoozed": "مؤجلة"
-    }
+    },
+    "renameHint": "انقر نقرًا مزدوجًا لإعادة التسمية"
   },
   "threadSnooze": {
     "title": "تأجيل حتى",

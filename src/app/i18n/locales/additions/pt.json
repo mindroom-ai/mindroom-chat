@@ -987,7 +987,8 @@
     "unsnooze": "Cancelar adiamento",
     "status": {
       "snoozed": "Adiado"
-    }
+    },
+    "renameHint": "Faça duplo clique para mudar o nome"
   },
   "threadSnooze": {
     "title": "Adiar até",
