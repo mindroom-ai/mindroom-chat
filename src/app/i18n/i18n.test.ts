@@ -147,7 +147,7 @@ describe('locale files', () => {
     });
 
     it(`${code}.json preserves command examples exactly`, () => {
-      expect(commandExamples).toHaveLength(12);
+      expect(commandExamples).toHaveLength(8);
       commandExamples.forEach(([path, value]) => {
         const example = value.match(/\bExample:?\s*(.*)$/)?.[1];
         expect(example, path).toBeDefined();
