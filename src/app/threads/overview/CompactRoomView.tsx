@@ -30,7 +30,7 @@ import { IconTooltip } from '../../ui/IconTooltip';
 import { useListMotion } from '../../ui/listMotion';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
-import { useStagedCardIds } from './useStagedCardIds';
+import { firstRenderCardCount, useStagedCardIds } from './useStagedCardIds';
 import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import { ThreadCardBadges } from './ThreadCardBadges';
@@ -270,8 +270,13 @@ export function CompactRoomView({
   const focusHeld = focusInside && !!contentRef.current?.contains(document.activeElement);
   const orderHeld = pointerInside || focusHeld || !!menu;
   const shownRootIds = useHeldThreadOrder(threadRootIds, orderHeld, viewRef);
-  // A filter change mounts the cards it brings back a chunk at a time.
-  const stagedRootIds = useStagedCardIds(room.roomId, shownRootIds);
+  // A filter change mounts the cards it brings back a chunk at a time, and so does a mount after
+  // the cards of its first screen, or of the place the reader left (`useScrollAnchorMemory`).
+  const stagedRootIds = useStagedCardIds(
+    room.roomId,
+    shownRootIds,
+    firstRenderCardCount(shownRootIds, compactRoomScrollStateRef.current.get(room.roomId))
+  );
   const cardViewModels = useCompactThreadCardViewModels({
     room,
     threadRootIds: stagedRootIds,
@@ -312,11 +317,20 @@ export function CompactRoomView({
   // The cards glide to a new order or to the place the filter bar leaves them, a new one fades
   // in and one that left fades out. After the hook that holds the order: it scrolls the list
   // where the browser does not anchor it.
-  const rootIdsOf = (models: CompactThreadCardViewModel[]) =>
-    models.map((model) => model.id.threadRootId).join(',');
+  // Cards mounting after the others at the list's end (`useStagedCardIds`) move none of them, so
+  // while the cards shown are the list's first ones the list plays by the whole list's order: a
+  // chunk that mounts plays nothing and reads no card.
+  const stagingTail =
+    stagedRootIds.length < shownRootIds.length &&
+    stagedRootIds.every((rootId, index) => shownRootIds[index] === rootId);
+  const orderRootIds = stagingTail
+    ? shownRootIds
+    : cardViewModels.map((model) => model.id.threadRootId);
+  const pinnedOrder = orderRootIds.filter((rootId) => pinning.pinnedEventIds.includes(rootId));
+  const ordinaryOrder = orderRootIds.filter((rootId) => !pinning.pinnedEventIds.includes(rootId));
   const listMotion = useListMotion(
     contentRef,
-    `${filterBarShown}|${rootIdsOf(pinnedCards)}|${rootIdsOf(ordinaryCards)}`
+    `${filterBarShown}|${pinnedOrder.join(',')}|${ordinaryOrder.join(',')}`
   );
 
   // A fully stable click handler keeps the memoized cards from re-rendering
