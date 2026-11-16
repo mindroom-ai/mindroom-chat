@@ -218,6 +218,7 @@ vi.mock('./CommandPalette.css', () => ({
   Input: 'Input',
   Close: 'Close',
   PageChip: 'PageChip',
+  PageChipTitle: 'PageChipTitle',
   Tabs: 'Tabs',
   Tab: 'Tab',
   ClearSearch: 'ClearSearch',

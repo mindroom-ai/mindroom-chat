@@ -484,8 +484,12 @@ export function CommandPalette({
       if (!startingRef.current) setChatStart(undefined);
       return;
     }
-    if (page && (event.key === 'Escape' || (event.key === 'Backspace' && query === ''))) {
-      // Back to the first list; the dialog must not close on the same key.
+    if (
+      page &&
+      (event.key === 'Escape' || (event.key === 'Backspace' && query === '' && !event.repeat))
+    ) {
+      // Back to the first list; the dialog must not close on the same key. A Backspace held to
+      // empty the field does not leave the page as it repeats past the text's start.
       event.preventDefault();
       event.stopPropagation?.();
       goBack();
@@ -571,7 +575,7 @@ export function CommandPalette({
             type="button"
             className={css.PageChip}
             data-page-chip={page.id}
-            aria-label={t('thread.back')}
+            aria-label={`${t('thread.back')} ${pageTitle ?? ''}`}
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => {
               goBack();
@@ -579,7 +583,7 @@ export function CommandPalette({
             }}
           >
             <Icon src={Icons.ChevronLeft} size="100" aria-hidden data-directional />
-            {pageTitle}
+            <span className={css.PageChipTitle}>{pageTitle}</span>
           </button>
         )}
         <input
@@ -596,7 +600,7 @@ export function CommandPalette({
             selectedItem ? getCommandPaletteOptionId(listId, selectedItem.id) : undefined
           }
           aria-label={pageTitle ?? t('commandPalette.inputAria')}
-          placeholder={t('commandPalette.placeholder')}
+          placeholder={t(page ? 'commandPalette.filterLabel' : 'commandPalette.placeholder')}
           value={query}
           readOnly={chatStart?.state === 'starting'}
           onChange={handleChange}
@@ -657,7 +661,10 @@ export function CommandPalette({
           <div className={css.Empty}>
             <Icon src={Icons.Search} size="400" />
             <span className={css.EmptyTitle}>{t('commandPalette.noResults')}</span>
-            <span className={css.EmptyDescription}>{t('commandPalette.emptyDescription')}</span>
+            {/* It says to choose another category, and a page has none. */}
+            {!page && (
+              <span className={css.EmptyDescription}>{t('commandPalette.emptyDescription')}</span>
+            )}
             {query && (
               <button
                 type="button"

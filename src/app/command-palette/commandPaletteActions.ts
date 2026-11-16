@@ -6,6 +6,7 @@ import {
   getHomeSearchPath,
   getActivityPath,
 } from '../routes/pathUtils';
+import { COMMAND_PALETTE_PAGE_ICONS } from './commandPalettePages';
 import type { CommandPaletteActionItem } from './commandPaletteTypes';
 
 export type CommandPaletteQuickActionId =
@@ -118,7 +119,7 @@ export const getCommandPaletteQuickActions = (
     }),
     actionItem('page-theme', t('settings.general.appearance.theme'), 25, {
       keywords: ['appearance', 'dark', 'light', 'colors'],
-      icon: Icons.Sun,
+      icon: COMMAND_PALETTE_PAGE_ICONS.theme,
       page: 'theme',
     }),
     actionItem('toggle-theme', t('commandPalette.actions.toggleTheme'), 20, {
@@ -128,12 +129,12 @@ export const getCommandPaletteQuickActions = (
     }),
     actionItem('page-message-layout', t('settings.general.messages.messageLayout'), 18, {
       keywords: ['modern', 'compact', 'bubble'],
-      icon: Icons.Message,
+      icon: COMMAND_PALETTE_PAGE_ICONS['message-layout'],
       page: 'message-layout',
     }),
     actionItem('page-language', t('settings.general.language.appLanguage'), 17, {
       keywords: ['locale', 'translation'],
-      icon: Icons.Globe,
+      icon: COMMAND_PALETTE_PAGE_ICONS.language,
       page: 'language',
     }),
     actionItem('take-quick-tour', t('tour.entries.paletteQuick'), 16, tour),

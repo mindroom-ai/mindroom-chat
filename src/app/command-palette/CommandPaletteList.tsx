@@ -215,6 +215,7 @@ const getChecked = (item: CommandPaletteItem): boolean | undefined => {
 /** What an action row shows before its enter mark: keys, state, a check and a chevron. */
 function ActionRowEnd({ item }: { item: CommandPaletteActionItem }) {
   const { t } = useTranslation();
+  if (!item.shortcut && !item.state && !item.current && !item.page) return null;
   return (
     <span className={css.RowEnd}>
       {item.shortcut && <ShortcutKeys id={item.shortcut} />}
@@ -230,7 +231,7 @@ function ActionRowEnd({ item }: { item: CommandPaletteActionItem }) {
       )}
       {item.page && (
         <span aria-hidden="true" data-row-page="">
-          <Icon size="200" src={Icons.ChevronRight} />
+          <Icon size="200" src={Icons.ChevronRight} data-directional />
         </span>
       )}
     </span>
@@ -254,7 +255,11 @@ function ItemText({ item }: { item: CommandPaletteItem }) {
   return (
     <span className={css.RowText}>
       <span className={css.RowHeading}>
-        <span className={css.RowTitle} {...ownDirectionLine}>
+        <span
+          className={css.RowTitle}
+          {...ownDirectionLine}
+          lang={item.kind === 'action' ? item.lang : undefined}
+        >
           {getItemTitle(item, t)}
         </span>
         {item.kind === 'action' && item.tag && <span className={css.Tag}>{item.tag}</span>}

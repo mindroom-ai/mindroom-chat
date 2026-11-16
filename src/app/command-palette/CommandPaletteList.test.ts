@@ -42,7 +42,8 @@ vi.mock('./CommandPalette.css', () => ({
 const reactModule = await vi.hoisted(async () => import('react'));
 
 vi.mock('folds', () => ({
-  Icon: ({ src }: { src: string }) => reactModule.createElement('row-icon', { src }),
+  Icon: ({ src, ...props }: { src: string }) =>
+    reactModule.createElement('row-icon', { ...props, src }),
   Spinner: () => null,
   Avatar: ({ children }: { children: React.ReactNode }) => children,
   AvatarImage: () => null,
@@ -273,8 +274,10 @@ describe('CommandPaletteList', () => {
       expect(option(other).props['aria-checked']).toBe(false);
     });
 
-    it('marks a row that opens a page', () => {
-      expect(marked(renderAction({ page: 'theme' }), 'data-row-page')).toHaveLength(1);
+    it('marks a row that opens a page, with a chevron that turns in right-to-left', () => {
+      const page = marked(renderAction({ page: 'theme' }), 'data-row-page');
+      expect(page).toHaveLength(1);
+      expect(page[0]?.findByType('row-icon' as never).props['data-directional']).toBe(true);
     });
 
     it('shows the keys of the same action', () => {
@@ -289,8 +292,17 @@ describe('CommandPaletteList', () => {
       expect(renderAction({}).root.findByType('row-icon' as never).props.src).toBe('terminal');
     });
 
-    it('leaves aria-checked off a plain row', () => {
-      expect(option(renderAction({})).props['aria-checked']).toBeUndefined();
+    it('leaves aria-checked and the end off a plain row', () => {
+      const plain = renderAction({});
+      expect(option(plain).props['aria-checked']).toBeUndefined();
+      expect(plain.root.findAllByProps({ className: 'RowEnd' })).toHaveLength(0);
+    });
+
+    it('gives a title in another language than the app its language', () => {
+      const title = (item: Record<string, unknown>) =>
+        renderAction(item).root.findByProps({ className: 'RowTitle' });
+      expect(title({ title: 'Nederlands', lang: 'nl' }).props.lang).toBe('nl');
+      expect(title({}).props.lang).toBeUndefined();
     });
   });
 });

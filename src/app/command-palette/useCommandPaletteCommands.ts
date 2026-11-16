@@ -25,6 +25,7 @@ import {
   withSystemTheme,
 } from '../theme/useTheme';
 import {
+  COMMAND_PALETTE_PAGE_ICONS,
   type CommandPaletteChoice,
   getCommandPalettePageRows,
   tagCommandPalettePageRows,
@@ -54,7 +55,8 @@ type CommandPaletteCommandsOptions = {
   threadId: string | undefined;
 };
 
-// The shortcuts offered as commands, with their ranks: below every other action row.
+// The shortcuts offered as commands, with their ranks: among the least used actions, below the
+// quick tour and above Logout.
 const SHORTCUT_COMMANDS: readonly (readonly [ShortcutId, number])[] = [
   ['help', 15],
   ['nextUnread', 14],
@@ -156,6 +158,7 @@ export const useCommandPaletteCommands = ({
       id: 'theme:system',
       kind: 'action',
       title: t('settings.general.appearance.systemTheme'),
+      icon: COMMAND_PALETTE_PAGE_ICONS.theme,
       state: useSystemTheme ? 'on' : 'off',
       keepOpen: true,
       sortRank: choices.length + 1,
@@ -201,6 +204,7 @@ export const useCommandPaletteCommands = ({
         APP_LANGUAGES.map(({ code, nativeName }) => ({
           value: code,
           title: nativeName,
+          lang: code,
           current: code === languageCode,
           choose: () => {
             void i18n.changeLanguage(code);
@@ -263,21 +267,23 @@ export const useCommandPaletteCommands = ({
           })
         )
       : [];
-    // A room command closes the palette: it was read once, so the palette could not show what
-    // the command changed.
-    const roomCommandRows = roomCommands.map(
-      ({ id, label, icon, shortcut, pressed, run }): Executable<CommandPaletteActionItem> => ({
-        id: `room-command:${id}`,
-        kind: 'action',
-        title: label,
-        description: room.name,
-        icon,
-        shortcut,
-        state: pressed === undefined ? undefined : pressed ? 'on' : 'off',
-        sortRank: 45,
-        onSelect: run,
-      })
-    );
+    // The open room's header commands, so none without a room open. A room command closes the
+    // palette: it was read once, so the palette could not show what the command changed.
+    const roomCommandRows = inRoom
+      ? roomCommands.map(
+          ({ id, label, icon, shortcut, pressed, run }): Executable<CommandPaletteActionItem> => ({
+            id: `room-command:${id}`,
+            kind: 'action',
+            title: label,
+            description: room.name,
+            icon,
+            shortcut,
+            state: pressed === undefined ? undefined : pressed ? 'on' : 'off',
+            sortRank: 45,
+            onSelect: run,
+          })
+        )
+      : [];
     const shortcutRows = shortcutCommands.map(
       ([id, sortRank]): Executable<CommandPaletteActionItem> => ({
         id: `shortcut:${id}`,

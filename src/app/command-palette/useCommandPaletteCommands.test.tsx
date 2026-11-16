@@ -198,6 +198,8 @@ describe('useCommandPaletteCommands pages', () => {
       'theme:midnight-theme',
     ]);
     expect(items[0]).toMatchObject({ title: 'System Theme', keepOpen: true });
+    // Each row carries the page row's icon.
+    expect(new Set(items.map((item) => item.icon))).toEqual(new Set([Icons.Sun]));
     const ranks = items.map((item) => item.sortRank ?? 0);
     expect(ranks).toEqual([...ranks].sort((left, right) => right - left));
   });
@@ -223,6 +225,9 @@ describe('useCommandPaletteCommands pages', () => {
     const { store, result } = render();
     const titles = () => result.current.pages['message-layout'].items.map((item) => item.title);
     expect(titles()).toEqual(['Modern', 'Compact', 'Bubble']);
+    expect(new Set(result.current.pages['message-layout'].items.map((item) => item.icon))).toEqual(
+      new Set([Icons.Message])
+    );
 
     act(() =>
       find(
@@ -244,7 +249,10 @@ describe('useCommandPaletteCommands pages', () => {
     const { items } = result.current.pages.language;
 
     expect(items).toHaveLength(17);
-    expect(find(items, 'language:nl').title).toBe('Nederlands');
+    expect(new Set(items.map((item) => item.icon))).toEqual(new Set([Icons.Globe]));
+    // Each name is in its own language.
+    expect(find(items, 'language:nl')).toMatchObject({ title: 'Nederlands', lang: 'nl' });
+    expect(items.every((item) => item.lang === item.id.slice('language:'.length))).toBe(true);
     expect(items.filter((item) => item.current).map((item) => item.id)).toEqual(['language:en']);
 
     act(() => find(items, 'language:nl').onSelect?.());
@@ -350,6 +358,16 @@ describe('useCommandPaletteCommands room commands and shortcuts', () => {
     expect(row.keepOpen).toBeUndefined();
     act(() => row.onSelect?.());
     expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists no header command while no room is open', () => {
+    mocks.roomCommands = [
+      { id: 'viewSwitch', label: 'Compact view', pressed: true, icon: Icons.Message, run: vi.fn() },
+    ];
+
+    expect(render({ inRoom: false }).result.current.actions.map((item) => item.id)).not.toContain(
+      'room-command:viewSwitch'
+    );
   });
 
   it('offers a shortcut as a command only while it has a handler', () => {

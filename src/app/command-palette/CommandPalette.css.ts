@@ -73,7 +73,8 @@ export const Close = style({
 });
 
 // The open page's title before the text; a click goes back. 12 px from its neighbours, so to a
-// finger it reaches 6 px out to each side and is 44 px tall.
+// finger it reaches 6 px out to each side and is 44 px tall. A long title leaves the field most
+// of a phone's width: the chip takes at most 45 % and cuts the title short.
 export const PageChip = style([
   touchTarget('6px'),
   {
@@ -81,6 +82,8 @@ export const PageChip = style([
     alignItems: 'center',
     gap: 2,
     flex: 'none',
+    maxWidth: '45%',
+    minWidth: 0,
     minHeight: 28,
     paddingBlock: 4,
     paddingInlineStart: 6,
@@ -99,6 +102,13 @@ export const PageChip = style([
     ':focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: 2 },
   },
 ]);
+
+// The chip's title, clipped inside it, so the chip's reach for a finger stays whole.
+export const PageChipTitle = style({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+});
 
 // One row of tabs under the field; on a narrow screen it scrolls sideways.
 export const Tabs = style({

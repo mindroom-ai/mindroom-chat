@@ -29,6 +29,8 @@ export type Executable<T> = T & { onSelect?: () => void };
 export type CommandPaletteActionItem = CommandPaletteBaseItem & {
   kind: 'action';
   title: string;
+  /** The language of the title, when it is not the app's. */
+  lang?: string;
   description?: string;
   keywords?: string[];
   /** Its own icon; without one, the terminal. */

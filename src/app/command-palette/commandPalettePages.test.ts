@@ -1,3 +1,4 @@
+import { Icons } from 'folds';
 import { describe, expect, it } from 'vitest';
 import { commandPaletteSearchConfig, searchCommandPaletteSection } from './commandPaletteSearch';
 import type { CommandPaletteActionItem } from './commandPaletteTypes';
@@ -10,10 +11,29 @@ const rows = () =>
   ]);
 
 describe('getCommandPalettePageRows', () => {
-  it('makes a row per choice, in the given order, with only a title to search', () => {
+  it("makes a row per choice, in the given order, with only a title to search and the page's icon", () => {
+    const row = { kind: 'action', icon: Icons.Sun };
     expect(rows()).toStrictEqual([
-      { id: 'theme:light-theme', kind: 'action', title: 'Light', current: false, sortRank: 2 },
-      { id: 'theme:dark-theme', kind: 'action', title: 'Dark', current: true, sortRank: 1 },
+      { ...row, id: 'theme:light-theme', title: 'Light', current: false, sortRank: 2 },
+      { ...row, id: 'theme:dark-theme', title: 'Dark', current: true, sortRank: 1 },
+    ]);
+  });
+
+  it('gives a title in its own language that language', () => {
+    expect(
+      getCommandPalettePageRows('language', [
+        { value: 'nl', title: 'Nederlands', current: false, lang: 'nl' },
+      ])
+    ).toStrictEqual([
+      {
+        id: 'language:nl',
+        kind: 'action',
+        title: 'Nederlands',
+        icon: Icons.Globe,
+        current: false,
+        sortRank: 1,
+        lang: 'nl',
+      },
     ]);
   });
 });

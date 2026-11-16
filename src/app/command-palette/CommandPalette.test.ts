@@ -97,6 +97,7 @@ vi.mock('./CommandPalette.css', () => ({
   Input: 'Input',
   Close: 'Close',
   PageChip: 'PageChip',
+  PageChipTitle: 'PageChipTitle',
   Tabs: 'Tabs',
   Tab: 'Tab',
   ClearSearch: 'ClearSearch',
@@ -371,13 +372,18 @@ const type = async (renderer: ReturnType<typeof create>, value: string) =>
 const press = async (
   renderer: ReturnType<typeof create>,
   key: string,
-  { caret, shiftKey = false }: { caret?: number; shiftKey?: boolean } = {}
+  {
+    caret,
+    shiftKey = false,
+    repeat = false,
+  }: { caret?: number; shiftKey?: boolean; repeat?: boolean } = {}
 ) => {
   const value: string = getInput(renderer).props.value;
   const at = caret ?? value.length;
   const event = {
     key,
     shiftKey,
+    repeat,
     altKey: false,
     ctrlKey: false,
     metaKey: false,
@@ -735,6 +741,7 @@ describe('CommandPalette', () => {
     await type(renderer, 'zxqnotfound');
     expect(getOptions(renderer)).toHaveLength(0);
     expect(getInput(renderer).props['aria-activedescendant']).toBeUndefined();
+    expect(renderer.root.findAllByProps({ className: 'EmptyDescription' })).toHaveLength(1);
     const clear = renderer.root.find(
       (node) => node.type === 'button' && node.props['aria-label'] === 'Clear search'
     );
@@ -1138,6 +1145,7 @@ describe('CommandPalette pages and rows that keep it open', () => {
   it('Enter on a page row opens the page', async () => {
     const requestClose = vi.fn();
     const renderer = renderPalette({ initialTab: 'actions', requestClose });
+    expect(getInput(renderer).props.placeholder).toBe('Search or run a command…');
     await openThemePage(renderer);
     expect(optionIds(renderer)).toEqual(['theme:light', 'theme:dark', 'theme:dracula']);
     // The current choice is highlighted.
@@ -1146,9 +1154,11 @@ describe('CommandPalette pages and rows that keep it open', () => {
     const chips = findChips(renderer);
     expect(chips).toHaveLength(1);
     expect(textOf(chips[0]!)).toContain('Theme');
-    expect(chips[0]!.props['aria-label']).toBe('Back');
+    // The chip's name holds what it shows.
+    expect(chips[0]!.props['aria-label']).toBe('Back Theme');
     expect(getInput(renderer).props.value).toBe('');
     expect(getInput(renderer).props['aria-label']).toBe('Theme');
+    expect(getInput(renderer).props.placeholder).toBe('Filter results');
     expect(requestClose).not.toHaveBeenCalled();
   });
 
@@ -1208,6 +1218,33 @@ describe('CommandPalette pages and rows that keep it open', () => {
     expect(requestClose).not.toHaveBeenCalled();
   });
 
+  it('a held Backspace in the empty field keeps the page open', async () => {
+    const renderer = renderPalette({ initialTab: 'actions' });
+    await openThemePage(renderer, 'the');
+    await type(renderer, 'd');
+    // Held down to empty the field, it repeats past the text's start.
+    await type(renderer, '');
+    const repeat = await press(renderer, 'Backspace', { repeat: true });
+    expect(repeat.preventDefault).not.toHaveBeenCalled();
+    expect(findChips(renderer)).toHaveLength(1);
+    await press(renderer, 'Backspace');
+    expect(findChips(renderer)).toHaveLength(0);
+    expect(getInput(renderer).props.value).toBe('the');
+  });
+
+  it('the arrows switch no tab in a page', async () => {
+    const renderer = renderPalette({ initialTab: 'actions' });
+    await openThemePage(renderer);
+    for (const key of ['ArrowRight', 'ArrowLeft']) {
+      // The arrow moves the caret, and the current choice keeps the highlight.
+      const arrow = await press(renderer, key);
+      expect(arrow.preventDefault).not.toHaveBeenCalled();
+      expect(selectedId(renderer)).toBe('theme:dark');
+    }
+    await press(renderer, 'Escape');
+    expect(selectedTab(renderer)).toBe('actions');
+  });
+
   it('Backspace in the empty field does not go back while composing', async () => {
     const renderer = renderPalette({ initialTab: 'actions' });
     await openThemePage(renderer);
@@ -1242,6 +1279,8 @@ describe('CommandPalette pages and rows that keep it open', () => {
     await openThemePage(renderer);
     await type(renderer, 'zxqnotfound');
     expect(getOptions(renderer)).toHaveLength(0);
+    // It would say to choose another category, and a page has none.
+    expect(renderer.root.findAllByProps({ className: 'EmptyDescription' })).toHaveLength(0);
     const clear = renderer.root.find(
       (node) => node.type === 'button' && node.props['aria-label'] === 'Clear search'
     );
