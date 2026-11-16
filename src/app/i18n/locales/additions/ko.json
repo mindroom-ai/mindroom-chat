@@ -713,6 +713,29 @@
         "noLongerActive": "이 요청은 더 이상 활성 상태가 아닙니다. 에이전트에게 다시 요청하세요.",
         "unavailable": "이 서버에서는 키를 입력할 수 없습니다.",
         "unavailableHint": "여기에서 키를 입력하려면 설정 → {{page}} → {{field}}에서 MindRoom 서버를 설정하세요.",
+        "replaces": "지금 저장된 키를 대체합니다.",
+        "replaceKey": "키 교체",
+        "temporary": {
+          "label": "비밀 요청",
+          "title": "{{agent}}에게 줄 비밀",
+          "givenAs": "이 대화에서 {{agent}}의 명령에 {{variable}}(으)로 전달됩니다.",
+          "field": "{{variable}}용 비밀",
+          "placeholder": "비밀을 붙여넣거나 입력하세요",
+          "show": "비밀 표시",
+          "hide": "비밀 숨기기",
+          "keepFor": "보관 기간",
+          "keep": {
+            "memory": "{{duration}}, 메모리에만",
+            "disk": "{{duration}}, 서버의 파일에"
+          },
+          "kept": {
+            "memory": "{{duration}} 동안 메모리에만 보관됩니다.",
+            "disk": "{{duration}} 동안 서버의 파일에 보관됩니다."
+          },
+          "send": "보내기",
+          "sent": "보냄",
+          "sentWaiting": "보냄, 에이전트를 기다리는 중"
+        },
         "status": {
           "waitingForYou": "내 응답 대기 중",
           "pending": "대기 중",
