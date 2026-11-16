@@ -1,6 +1,8 @@
-import { useCallback, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Box, Button, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
+import { useAtomValue } from 'jotai';
+import { selectAtom } from 'jotai/utils';
 import type { Room } from 'matrix-js-sdk';
 import { useRoomBackgroundJobs } from '../../background-jobs/useRoomBackgroundJobs';
 import { useScheduledTaskEvents } from '../../schedules/useScheduledTaskEvents';
@@ -10,11 +12,19 @@ import type { ThreadRecord } from '../../event-store/threads/types';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { CompactRoomView } from '../overview/CompactRoomView';
 import { useSnoozeNow } from '../tags/useSnoozeNow';
-import { useCompactThreads } from './compactThreads';
+import {
+  crossRoomThreadIndexAtom,
+  crossRoomThreadIndexBootstrappedAtom,
+} from '../cross-room/crossRoomThreadIndex';
+import {
+  loadRoomThreads,
+  roomThreadListIsComplete,
+} from '../../event-store/threads/roomThreadList';
 import {
   groupThreadBoard,
   THREAD_BOARD_COLUMNS,
   threadBoardWakeTimes,
+  withThreadSchedules,
   type ThreadBoardColumn,
 } from './threadBoardColumns';
 import * as css from './ThreadBoard.css';
@@ -70,61 +80,110 @@ function BoardColumn({ room, column, rootIds, records, onThreadClick }: ColumnPr
   );
 }
 
+const sameRecords = (a: ReadonlyMap<string, ThreadRecord>, b: ReadonlyMap<string, ThreadRecord>) =>
+  a.size === b.size && Array.from(a).every(([rootId, record]) => b.get(rootId) === record);
+
 /**
- * The threads the room's page lists in Compact, in a column each by state: Working, Later, Open,
- * Done (`threadBoardColumns.ts`). It reads the records the page builds, so it shows threads only
- * while the page shows the room in Compact. It fills its parent and scrolls inside it.
+ * The room's threads as the app-wide thread index holds them, by root ID: the same map until one
+ * of them changes, so a change in another room renders nothing here.
+ */
+const useRoomThreadRecords = (roomId: string): ReadonlyMap<string, ThreadRecord> =>
+  useAtomValue(
+    useMemo(
+      () =>
+        selectAtom(
+          crossRoomThreadIndexAtom,
+          ({ entries }): ReadonlyMap<string, ThreadRecord> => {
+            const records = new Map<string, ThreadRecord>();
+            entries.forEach((entry) => {
+              if (entry.roomId === roomId) records.set(entry.threadRootId, entry.threadRecord);
+            });
+            return records;
+          },
+          sameRecords
+        ),
+      [roomId]
+    )
+  );
+
+/** Whether the room's whole thread list has arrived; its other pages load while the board shows. */
+const useRoomThreadListComplete = (room: Room): boolean => {
+  const [, setPages] = useState(0);
+  useEffect(() => {
+    const leave = new AbortController();
+    const loaded = () => setPages((count) => count + 1);
+    loadRoomThreads(room, loaded, leave.signal).then(loaded, loaded);
+    return () => leave.abort();
+  }, [room]);
+  return roomThreadListIsComplete(room);
+};
+
+/**
+ * The room's threads, those with a reply, in a column each by state: Working, Later, Open, Done
+ * (`threadBoardColumns.ts`), from the app-wide thread index, in any view of the room and beside
+ * any page. It fills its parent and scrolls inside it.
  */
 export function ThreadBoard({ room }: { room: Room }) {
   const { t } = useTranslation();
   const { navigateRoomThread } = useRoomNavigate();
-  const threads = useCompactThreads(room.roomId);
+  const indexed = useRoomThreadRecords(room.roomId);
+  const scanned = useAtomValue(crossRoomThreadIndexBootstrappedAtom);
+  const listed = useRoomThreadListComplete(room);
   const { jobs } = useRoomBackgroundJobs(room);
   const scheduledTaskEvents = useScheduledTaskEvents(room);
-  const records = threads?.records;
   // Renewed when a snooze ends or a one-time schedule's time comes, so its thread leaves Later.
   const now = useSnoozeNow(
     useMemo(
-      () => threadBoardWakeTimes(records ?? new Map(), scheduledTaskEvents),
-      [records, scheduledTaskEvents]
+      () => threadBoardWakeTimes(indexed, scheduledTaskEvents),
+      [indexed, scheduledTaskEvents]
     )
   );
-  const columns = useMemo(
-    () =>
-      threads &&
-      groupThreadBoard(threads.rootIds, threads.records, { jobs, scheduledTaskEvents, now }),
-    [threads, jobs, scheduledTaskEvents, now]
+  const records = useMemo(
+    () => withThreadSchedules(indexed, scheduledTaskEvents, now),
+    [indexed, scheduledTaskEvents, now]
   );
+  const columns = useMemo(() => groupThreadBoard(records, { jobs, now }), [records, jobs, now]);
   const { roomId } = room;
   const openThread = useCallback(
     (rootId: string) => navigateRoomThread(roomId, rootId),
     [navigateRoomThread, roomId]
   );
 
-  if (!threads || !columns || threads.rootIds.length === 0) {
-    let line = t('mindroomUi.threads.compactRoomView.noThreads');
-    if (!threads) line = t('threadBoard.compactOnly');
-    else if (threads.loading) line = t('sharedUi.threadsView.loadingThreads');
+  // Until the index has scanned the rooms and the room's thread list is in, it may lack threads.
+  const loading = !scanned || !listed;
+  const loadingLine = (
+    <Text className={css.Line} size="T300" priority="300">
+      {t('sharedUi.threadsView.loadingThreads')}
+    </Text>
+  );
+  if (records.size === 0) {
     return (
-      <Box className={css.Line} alignItems="Center" justifyContent="Center">
-        <Text size="T300" priority="300">
-          {line}
-        </Text>
+      <Box className={css.Empty} alignItems="Center" justifyContent="Center">
+        {loading ? (
+          loadingLine
+        ) : (
+          <Text className={css.Line} size="T300" priority="300">
+            {t('mindroomUi.threads.compactRoomView.noThreads')}
+          </Text>
+        )}
       </Box>
     );
   }
   return (
-    <div className={css.Board} role="group" aria-label={t('threadBoard.label')}>
-      {THREAD_BOARD_COLUMNS.map((column) => (
-        <BoardColumn
-          key={column}
-          room={room}
-          column={column}
-          rootIds={columns[column]}
-          records={threads.records}
-          onThreadClick={openThread}
-        />
-      ))}
-    </div>
+    <Box className={css.Frame} direction="Column">
+      {loading && loadingLine}
+      <div className={css.Board} role="group" aria-label={t('threadBoard.label')}>
+        {THREAD_BOARD_COLUMNS.map((column) => (
+          <BoardColumn
+            key={column}
+            room={room}
+            column={column}
+            rootIds={columns[column]}
+            records={records}
+            onThreadClick={openThread}
+          />
+        ))}
+      </div>
+    </Box>
   );
 }

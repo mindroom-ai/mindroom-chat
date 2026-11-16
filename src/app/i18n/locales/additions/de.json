@@ -1289,7 +1289,6 @@
     "working": "In Arbeit",
     "later": "Später",
     "open": "Offen",
-    "done": "Erledigt",
-    "compactOnly": "Stelle diesen Raum auf Kompakt um, um seine Threads hier zu sehen"
+    "done": "Erledigt"
   }
 }

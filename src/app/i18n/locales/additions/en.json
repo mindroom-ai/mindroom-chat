@@ -1289,7 +1289,6 @@
     "working": "Working",
     "later": "Later",
     "open": "Open",
-    "done": "Done",
-    "compactOnly": "Switch this room to Compact to see its threads here"
+    "done": "Done"
   }
 }

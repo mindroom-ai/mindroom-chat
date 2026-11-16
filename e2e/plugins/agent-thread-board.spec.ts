@@ -3,13 +3,19 @@ import {
   expect,
   openLobby,
   routerToken,
+  showPath,
   startThread,
   test,
   uniqueWord,
   waitForThreadEvent,
   type AgentStack,
 } from '../helpers/agentStack';
-import { matrixFetch, sendStateEvent } from '../helpers/matrix';
+import {
+  createDefaultThreadFilterState,
+  matrixFetch,
+  seedRoomOverviewState,
+  sendStateEvent,
+} from '../helpers/matrix';
 import { roomMoreOptions } from '../helpers/roomMenu';
 
 // The client SDK's `ThreadBoard` end to end: a production build with the example client plugin
@@ -18,8 +24,9 @@ import { roomMoreOptions } from '../helpers/roomMenu';
 // reload: a reply that streams puts its thread in Working until it ends (Open), and so does a
 // background job; the board's own card actions resolve a thread (Done), reopen it (Open) and
 // snooze it (Later, saying until when); a snooze whose time passes wakes its thread (Open); a
-// schedule puts its thread in Later with its next run, until it runs or is cancelled; and choosing
-// a card opens its thread in the room's page beside the board.
+// schedule puts its thread in Later with its next run, until it runs or is cancelled; choosing a
+// card opens its thread filling the room's page, and the board stays live beside it; and in the
+// room's Threads and Classic views the board shows the same threads and moves them too.
 //   MINDROOM_CLIENT_PLUGINS=$PWD/src/app/plugins/__fixtures__/example-plugin \
 //     scripts/e2e-slot.sh <slot> --preview npx playwright test e2e/plugins/agent-thread-board.spec.ts
 test.skip(
@@ -214,10 +221,39 @@ test("a plugin's board keeps each thread in the column of its state, without a r
   await cancelSchedules(stack, cancelRoot);
   await expect(cardIn(panel, 'open', cancelRoot)).toBeVisible({ timeout: 30_000 });
 
-  // Choosing a card opens its thread in the room's page; the board stays.
+  // Choosing a card opens its thread filling the room's page; the board stays, and stays live.
   await cardIn(panel, 'done', doneRoot).click();
   await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 60_000 });
   await expect(page).toHaveURL(new RegExp(`threadId=${encodeURIComponent(doneRoot)}`));
+  await expect(page.locator('[data-compact-room-view]')).toHaveCount(0);
   await expect(cardIn(panel, 'done', doneRoot)).toBeVisible();
+  await tag(stack, streamRoot, 'resolved');
+  await expect(cardIn(panel, 'done', streamRoot)).toBeVisible({ timeout: 30_000 });
   await shot(page, 'opened');
+
+  // In the room's Threads view and in its Classic view the board shows its threads and moves them.
+  await showPath(page, `/home/${encodeURIComponent(stack.rooms.lobby)}`);
+  for (const [viewMode, rootId] of [
+    ['threaded', wakeRoot],
+    ['classic', jobRoot],
+  ] as const) {
+    // eslint-disable-next-line no-await-in-loop
+    await seedRoomOverviewState({
+      page,
+      roomId: stack.rooms.lobby,
+      userId: stack.tester.userId,
+      viewMode,
+      filterState: createDefaultThreadFilterState(),
+    });
+    // eslint-disable-next-line no-await-in-loop
+    await expect(page.locator('[data-compact-room-view]')).toHaveCount(0, { timeout: 30_000 });
+    // eslint-disable-next-line no-await-in-loop
+    await expect(cardIn(panel, 'open', rootId)).toBeVisible({ timeout: 30_000 });
+    // eslint-disable-next-line no-await-in-loop
+    await tag(stack, rootId, 'resolved');
+    // eslint-disable-next-line no-await-in-loop
+    await expect(cardIn(panel, 'done', rootId)).toBeVisible({ timeout: 30_000 });
+    // eslint-disable-next-line no-await-in-loop
+    await shot(page, viewMode);
+  }
 });

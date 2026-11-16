@@ -6,7 +6,6 @@ export const Board = style({
   display: 'flex',
   flex: '1 1 auto',
   minBlockSize: 0,
-  blockSize: '100%',
   columnGap: config.space.S200,
   paddingInline: config.space.S200,
   overflowX: 'auto',
@@ -44,8 +43,18 @@ export const More = style({
   marginInline: config.space.S300,
 });
 
-export const Line = style({
+export const Frame = style({
+  display: 'flex',
   flex: '1 1 auto',
-  padding: config.space.S400,
+  minBlockSize: 0,
+  blockSize: '100%',
+});
+
+export const Empty = style({
+  flex: '1 1 auto',
+});
+
+export const Line = style({
+  padding: config.space.S300,
   textAlign: 'center',
 });

@@ -3,13 +3,10 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import type { BackgroundJob } from '../../matrix/protocol/backgroundJobsContract';
 import type { ThreadRecord, ThreadStatusSnapshot } from '../../event-store/threads/types';
 import {
-  buildRoomThreadScheduledStatusMap,
-  getThreadScheduledStatus,
-} from '../../event-store/threads/threadScheduledStatus';
-import {
   groupThreadBoard,
   threadBoardColumn,
   threadBoardWakeTimes,
+  withThreadSchedules,
   type ThreadBoardColumn,
 } from './threadBoardColumns';
 
@@ -81,18 +78,16 @@ const job = (threadId: string | null): BackgroundJob => ({
 
 // Each state alone, as a record, the room's jobs and schedules make it.
 type Facts = { status?: Partial<ThreadStatusSnapshot>; job?: boolean; scheduledAt?: number | null };
-const columnOf = ({ status, job: hasJob = false, scheduledAt }: Facts, now = NOW) =>
-  threadBoardColumn(makeRecord('$t', status), {
-    hasJob,
-    scheduled: getThreadScheduledStatus(
-      buildRoomThreadScheduledStatusMap(
-        scheduledAt === undefined ? [] : [scheduleEvent('$t', scheduledAt)],
-        now
-      ),
-      '$t'
-    ),
-    now,
-  });
+const columnOf = ({ status, job: hasJob = false, scheduledAt }: Facts, now = NOW) => {
+  const records = withThreadSchedules(
+    new Map([['$t', makeRecord('$t', status)]]),
+    scheduledAt === undefined ? [] : [scheduleEvent('$t', scheduledAt)],
+    now
+  );
+  const record = records.get('$t');
+  if (!record) throw new Error('no record');
+  return threadBoardColumn(record, { hasJob, now });
+};
 
 const streaming: Facts['status'] = { isStreaming: true };
 const resolved: Facts['status'] = { isResolved: true };
@@ -143,23 +138,58 @@ describe('threadBoardColumn', () => {
   });
 });
 
-describe('groupThreadBoard', () => {
-  const records = (entries: [string, Partial<ThreadStatusSnapshot>][]) =>
-    new Map(entries.map(([id, status]) => [id, makeRecord(id, status)]));
+const records = (entries: [string, Partial<ThreadStatusSnapshot>][]) =>
+  new Map(entries.map(([id, status]) => [id, makeRecord(id, status)]));
 
-  it('puts every listed thread in exactly one column, and skips one it has no record of', () => {
+/** The board of these threads, with the room's jobs and schedules, at `now`. */
+const board = (
+  entries: [string, Partial<ThreadStatusSnapshot>][],
+  { jobs = [] as BackgroundJob[], events = [] as MatrixEvent[], now = NOW } = {}
+) => groupThreadBoard(withThreadSchedules(records(entries), events, now), { jobs, now });
+
+describe('withThreadSchedules', () => {
+  it('gives a record its pending schedules at the clock, and keeps the others as they were', () => {
     const map = records([
-      ['$open', {}],
-      ['$done', resolved],
-      ['$later', snoozed],
-      ['$working', streaming],
+      ['$scheduled', {}],
+      ['$past', {}],
+      ['$plain', {}],
     ]);
-    const columns = groupThreadBoard(['$open', '$done', '$later', '$working', '$unknown'], map, {
-      jobs: [],
-      scheduledTaskEvents: [],
-      now: NOW,
+    const result = withThreadSchedules(
+      map,
+      [scheduleEvent('$scheduled', NOW + HOUR), scheduleEvent('$past', NOW - 1)],
+      NOW
+    );
+    expect(result.get('$scheduled')?.status).toMatchObject({
+      scheduledTaskCount: 1,
+      nextScheduledTs: NOW + HOUR,
     });
-    expect(columns).toEqual({
+    expect(result.get('$past')).toBe(map.get('$past'));
+    expect(result.get('$plain')).toBe(map.get('$plain'));
+  });
+
+  it('carries a recurring schedule description for the card', () => {
+    const result = withThreadSchedules(
+      records([['$cron', {}]]),
+      [scheduleEvent('$cron', null)],
+      NOW
+    );
+    expect(result.get('$cron')?.status).toMatchObject({
+      scheduledTaskCount: 1,
+      cronDescription: 'Every Monday at 9:00',
+    });
+  });
+});
+
+describe('groupThreadBoard', () => {
+  it('puts every thread in exactly one column', () => {
+    expect(
+      board([
+        ['$open', {}],
+        ['$done', resolved],
+        ['$later', snoozed],
+        ['$working', streaming],
+      ])
+    ).toEqual({
       working: ['$working'],
       later: ['$later'],
       open: ['$open'],
@@ -167,120 +197,94 @@ describe('groupThreadBoard', () => {
     });
   });
 
-  it('moves no thread for a job whose threadId is null, nor for one of a thread not listed', () => {
-    const map = records([
-      ['$a', {}],
-      ['$b', {}],
-    ]);
-    const columns = groupThreadBoard(['$a', '$b'], map, {
-      jobs: [job(null), job('$other')],
-      scheduledTaskEvents: [],
-      now: NOW,
-    });
+  it('moves no thread for a job whose threadId is null, nor for one of another thread', () => {
+    const columns = board(
+      [
+        ['$a', {}],
+        ['$b', {}],
+      ],
+      { jobs: [job(null), job('$other')] }
+    );
     expect(columns.working).toEqual([]);
     expect(columns.open).toEqual(['$a', '$b']);
   });
 
   it('puts a thread a live job names in Working', () => {
-    const columns = groupThreadBoard(
-      ['$a', '$b'],
-      records([
+    const columns = board(
+      [
         ['$a', {}],
         ['$b', {}],
-      ]),
-      {
-        jobs: [job('$b')],
-        scheduledTaskEvents: [],
-        now: NOW,
-      }
+      ],
+      { jobs: [job('$b')] }
     );
     expect(columns.working).toEqual(['$b']);
   });
 
   it('reads the schedules at its clock: one whose time passed leaves Later', () => {
-    const map = records([
-      ['$past', {}],
-      ['$future', {}],
-    ]);
-    const columns = groupThreadBoard(['$past', '$future'], map, {
-      jobs: [],
-      scheduledTaskEvents: [scheduleEvent('$past', NOW - 1), scheduleEvent('$future', NOW + HOUR)],
-      now: NOW,
-    });
+    const columns = board(
+      [
+        ['$past', {}],
+        ['$future', {}],
+      ],
+      { events: [scheduleEvent('$past', NOW - 1), scheduleEvent('$future', NOW + HOUR)] }
+    );
     expect(columns.later).toEqual(['$future']);
     expect(columns.open).toEqual(['$past']);
   });
 
-  it('reads only pending schedules of existing threads', () => {
-    const columns = groupThreadBoard(
-      ['$a', '$b'],
-      records([
+  it('reads only pending schedules of a thread', () => {
+    const columns = board(
+      [
         ['$a', {}],
         ['$b', {}],
-      ]),
+      ],
       {
-        jobs: [],
-        scheduledTaskEvents: [
+        events: [
           scheduleEvent('$a', NOW + HOUR, { status: 'cancelled' }),
           scheduleEvent(null, NOW + HOUR),
         ],
-        now: NOW,
       }
     );
     expect(columns.later).toEqual([]);
   });
 
   it('orders Working and Done by newest activity first', () => {
-    const map = records([
+    const columns = board([
       ['$w-old', { isStreaming: true, lastActivityTs: 1 }],
-      ['$w-new', { isStreaming: true, lastActivityTs: 3 }],
       ['$d-old', { isResolved: true, lastActivityTs: 2 }],
+      ['$w-new', { isStreaming: true, lastActivityTs: 3 }],
       ['$d-new', { isResolved: true, lastActivityTs: 4 }],
     ]);
-    const columns = groupThreadBoard(['$w-old', '$d-old', '$w-new', '$d-new'], map, {
-      jobs: [],
-      scheduledTaskEvents: [],
-      now: NOW,
-    });
     expect(columns.working).toEqual(['$w-new', '$w-old']);
     expect(columns.done).toEqual(['$d-new', '$d-old']);
   });
 
   it('puts unread threads first in Open, each part newest first', () => {
-    const map = records([
+    const columns = board([
       ['$read-new', { lastActivityTs: 4 }],
       ['$unread-old', { isUnread: true, lastActivityTs: 1 }],
       ['$read-old', { lastActivityTs: 2 }],
       ['$unread-new', { isUnread: true, lastActivityTs: 3 }],
     ]);
-    const columns = groupThreadBoard(
-      ['$read-new', '$unread-old', '$read-old', '$unread-new'],
-      map,
-      { jobs: [], scheduledTaskEvents: [], now: NOW }
-    );
     expect(columns.open).toEqual(['$unread-new', '$unread-old', '$read-new', '$read-old']);
   });
 
   it('orders Later soonest first, by snooze end or next run, a schedule without a time last', () => {
-    const map = records([
-      ['$snooze-late', { snoozedUntilTs: NOW + 3 * HOUR }],
-      ['$cron', {}],
-      ['$run-soon', {}],
-      ['$snooze-soon', { snoozedUntilTs: NOW + HOUR }],
-      // Snoozed past its next run: that run comes first.
-      ['$both', { snoozedUntilTs: NOW + 5 * HOUR }],
-    ]);
-    const columns = groupThreadBoard(
-      ['$snooze-late', '$cron', '$run-soon', '$snooze-soon', '$both'],
-      map,
+    const columns = board(
+      [
+        ['$snooze-late', { snoozedUntilTs: NOW + 3 * HOUR }],
+        ['$cron', {}],
+        ['$run-soon', {}],
+        ['$snooze-soon', { snoozedUntilTs: NOW + HOUR }],
+        // Snoozed past its next run: that run comes first.
+        ['$both', { snoozedUntilTs: NOW + 5 * HOUR }],
+      ],
       {
-        jobs: [],
-        scheduledTaskEvents: [
+        events: [
           scheduleEvent('$cron', null),
           scheduleEvent('$run-soon', NOW + 2 * HOUR),
           scheduleEvent('$both', NOW + 2.5 * HOUR),
         ],
-        now: NOW,
       }
     );
     expect(columns.later).toEqual(['$snooze-soon', '$run-soon', '$both', '$snooze-late', '$cron']);

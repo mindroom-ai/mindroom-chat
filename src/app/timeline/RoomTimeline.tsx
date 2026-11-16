@@ -92,7 +92,6 @@ import { getLiveReplyStore } from '../messages/live/liveReplyStore';
 import { useThreadOverviewRefreshCounter } from '../threads/overview/threadOverviewRefreshCounter';
 import { useTimelineDebugTraceIds } from './timelineDebugController';
 import { useThreadIndex } from '../threads/overview/useThreadIndex';
-import { useShareCompactThreads } from '../threads/board/compactThreads';
 import { useRoomThreadResolutionMap } from '../threads/tags/useRoomThreadTags';
 import { useThreadTimelineState } from './useThreadTimelineState';
 import { useCachedThreadRoot } from '../event-store/sdk/cachedThreadRoots';
@@ -592,35 +591,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const lastRoomTimeline = timeline.linkedTimelines[timeline.linkedTimelines.length - 1];
   const canPaginateRoomFront =
     typeof lastRoomTimeline?.getPaginationToken(Direction.Forward) === 'string';
-
-  // A board beside the page (a client plugin's `ThreadBoard`) lists the threads the cards list with
-  // no filter chosen, from these records. Like the cards it waits while the room's cache and the
-  // client's first catch-up are out (`noThreadYet` below), and says the room has no thread only
-  // once its history reached the room's start, as the timeline the cards give way to does.
-  const compactThreadIds = threadIndex.compactThreadRootData.ids;
-  const compactThreadsLoading = roomInitialCacheHydratedKey !== room.roomId || clientCatchingUp;
-  const olderThreadsUnknown =
-    compactThreadIds.length === 0 && (canPaginateRoomBack || roomHasMoreCachedBack);
-  useShareCompactThreads(
-    room.roomId,
-    useMemo(
-      () =>
-        compactViewRequested
-          ? {
-              rootIds: compactThreadIds,
-              records: threadIndex.compactThreadRecordMap,
-              loading: compactThreadsLoading || olderThreadsUnknown,
-            }
-          : undefined,
-      [
-        compactViewRequested,
-        compactThreadIds,
-        threadIndex.compactThreadRecordMap,
-        compactThreadsLoading,
-        olderThreadsUnknown,
-      ]
-    )
-  );
 
   // Opening a thread: render and viewport ports for the session, and the runtime it opens with.
   const viewKeyRef = useLatestRef(viewKey);
@@ -1609,7 +1579,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // the bar instead, which pages back to the room's start and there says it has no thread (not
   // the intro: the header already names the room). A filter that hides every thread keeps the
   // cards and their empty state.
-  const noThreadYet = compactCards && !threadIndex.showCompactRoomView && compactThreadsLoading;
+  const noThreadYet =
+    compactCards &&
+    !threadIndex.showCompactRoomView &&
+    (roomInitialCacheHydratedKey !== room.roomId || clientCatchingUp);
   if (noThreadYet) {
     return (
       <Box grow="Yes" alignItems="Center" justifyContent="Center">

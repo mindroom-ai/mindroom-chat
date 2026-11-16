@@ -7,7 +7,6 @@ import {
 import {
   buildRoomThreadScheduledStatusMap,
   getThreadScheduledStatus,
-  type ThreadScheduledStatus,
 } from '../../event-store/threads/threadScheduledStatus';
 import { isSnoozedAt } from '../../event-store/threads/threadSnooze';
 import type { ThreadRecord } from '../../event-store/threads/types';
@@ -22,76 +21,86 @@ export type ThreadBoardColumn = (typeof THREAD_BOARD_COLUMNS)[number];
  * schedule is done.
  */
 export const threadBoardColumn = (
-  record: ThreadRecord,
+  { status }: ThreadRecord,
   {
     hasJob,
-    scheduled,
     now,
   }: {
     /** Whether a live background job names the thread. */
     hasJob: boolean;
-    /** The thread's pending schedules at `now`. */
-    scheduled: ThreadScheduledStatus;
     now: number;
   }
 ): ThreadBoardColumn => {
-  const { status } = record;
   if (status.isStreaming || hasJob) return 'working';
   if (status.isResolved) return 'done';
-  if (isSnoozedAt(status.snoozedUntilTs, now) || scheduled.scheduledTaskCount > 0) return 'later';
+  if (isSnoozedAt(status.snoozedUntilTs, now) || status.scheduledTaskCount > 0) return 'later';
   return 'open';
+};
+
+/**
+ * The records with the room's pending schedules at `now` (`scheduledTaskCount`, `nextScheduledTs`,
+ * `cronDescription`), which the card shows; a record whose schedules are unchanged stays the same.
+ */
+export const withThreadSchedules = (
+  records: ReadonlyMap<string, ThreadRecord>,
+  scheduledTaskEvents: readonly MatrixEvent[],
+  now: number
+): ReadonlyMap<string, ThreadRecord> => {
+  const scheduledMap = buildRoomThreadScheduledStatusMap(scheduledTaskEvents, now);
+  const result = new Map<string, ThreadRecord>();
+  records.forEach((record, rootId) => {
+    const { scheduledTaskCount, nextScheduledTs, cronDescription } = getThreadScheduledStatus(
+      scheduledMap,
+      rootId
+    );
+    const { status } = record;
+    const same =
+      status.scheduledTaskCount === scheduledTaskCount &&
+      status.nextScheduledTs === nextScheduledTs &&
+      status.cronDescription === cronDescription;
+    result.set(
+      rootId,
+      same
+        ? record
+        : { ...record, status: { ...status, scheduledTaskCount, nextScheduledTs, cronDescription } }
+    );
+  });
+  return result;
 };
 
 const newestFirst = (a: ThreadRecord, b: ThreadRecord) =>
   (b.status.lastActivityTs ?? 0) - (a.status.lastActivityTs ?? 0);
 
 /**
- * The listed threads `rootIds` in their columns: Working and Done newest activity first, Open its
+ * The threads of `records` in their columns: Working and Done newest activity first, Open its
  * unread threads first, Later soonest first (the snooze's end or the next run, a schedule without
- * a time last). A thread without a record is in none.
+ * a time last).
  */
 export const groupThreadBoard = (
-  rootIds: readonly string[],
   records: ReadonlyMap<string, ThreadRecord>,
-  {
-    jobs,
-    scheduledTaskEvents,
-    now,
-  }: { jobs: readonly BackgroundJob[]; scheduledTaskEvents: readonly MatrixEvent[]; now: number }
+  { jobs, now }: { jobs: readonly BackgroundJob[]; now: number }
 ): Record<ThreadBoardColumn, string[]> => {
   // A job of no thread (null) names none.
   const jobThreadIds = new Set(jobs.map((job) => job.threadId));
-  const scheduledMap = buildRoomThreadScheduledStatusMap(scheduledTaskEvents, now);
   const columns: Record<ThreadBoardColumn, ThreadRecord[]> = {
     working: [],
     later: [],
     open: [],
     done: [],
   };
-  const laterTs = new Map<string, number>();
-  rootIds.forEach((rootId) => {
-    const record = records.get(rootId);
-    if (!record) return;
-    const scheduled = getThreadScheduledStatus(scheduledMap, rootId);
-    const column = threadBoardColumn(record, {
-      hasJob: jobThreadIds.has(rootId),
-      scheduled,
-      now,
-    });
-    columns[column].push(record);
-    if (column !== 'later') return;
-    const snoozedUntilTs = isSnoozedAt(record.status.snoozedUntilTs, now)
-      ? record.status.snoozedUntilTs
-      : undefined;
-    const ts = Math.min(snoozedUntilTs ?? Infinity, scheduled.nextScheduledTs ?? Infinity);
-    laterTs.set(rootId, ts);
+  records.forEach((record, rootId) => {
+    columns[threadBoardColumn(record, { hasJob: jobThreadIds.has(rootId), now })].push(record);
   });
-  const ids = (list: ThreadRecord[]) => list.map((record) => record.threadRootId);
+  const laterTs = ({ status }: ThreadRecord) =>
+    Math.min(
+      isSnoozedAt(status.snoozedUntilTs, now) ? status.snoozedUntilTs ?? Infinity : Infinity,
+      status.nextScheduledTs ?? Infinity
+    );
   const soonest = (a: ThreadRecord, b: ThreadRecord) =>
-    (laterTs.get(a.threadRootId) ?? Infinity) - (laterTs.get(b.threadRootId) ?? Infinity) ||
-    newestFirst(a, b);
+    laterTs(a) - laterTs(b) || newestFirst(a, b);
   const unreadFirst = (a: ThreadRecord, b: ThreadRecord) =>
     Number(b.status.isUnread) - Number(a.status.isUnread) || newestFirst(a, b);
+  const ids = (list: ThreadRecord[]) => list.map((record) => record.threadRootId);
   return {
     working: ids(columns.working.sort(newestFirst)),
     later: ids(columns.later.sort(soonest)),

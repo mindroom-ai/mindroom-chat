@@ -1289,7 +1289,6 @@
     "working": "Bezig",
     "later": "Later",
     "open": "Open",
-    "done": "Klaar",
-    "compactOnly": "Zet deze kamer op Compact om hier de threads te zien"
+    "done": "Klaar"
   }
 }
