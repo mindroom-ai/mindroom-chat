@@ -347,6 +347,8 @@ export const renderTimelineTiles = ({
       ? undefined
       : (index) => roomRowEntries[windowStart + index]?.absoluteIndex,
     readUptoAbsoluteIndex: threadId ? undefined : readUptoAbsoluteIndex,
+    // The fork's first own row starts its group under the divider, whoever wrote the row above.
+    groupStartIndex: forkDivider?.index,
   });
 
   const renderTile = (item: VirtualItem): ReactNode => {
