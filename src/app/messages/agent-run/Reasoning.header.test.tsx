@@ -2,13 +2,22 @@ import { useState } from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Icon, Icons } from 'folds';
-import { withReasoning } from './Reasoning';
+import { THINKING_GLOW_MS, withReasoning } from './Reasoning';
+import { OutlineComet } from './OutlineComet';
 import { ToolCallsCogContext } from './toolCallStatus';
 
+vi.mock('./OutlineComet.css', () => ({
+  Glow: 'Glow',
+  Outline: 'Outline',
+  Comet: 'Comet',
+  CometHead: 'CometHead',
+}));
 vi.mock('./Reasoning.css', () => ({
   Reasoning: 'Reasoning',
   Line: 'Line',
   Toggle: 'Toggle',
+  BulbIcon: 'BulbIcon',
+  Bulb: 'Bulb',
   CogRow: 'CogRow',
   CollapseEnd: 'CollapseEnd',
   Label: 'Label',
@@ -51,17 +60,28 @@ describe('reasoning header', () => {
       (node) => node.type === 'button' && node.props.className === 'CollapseEnd'
     );
 
-  // The button's direct children: icons by their source, the label by its text.
+  // The button's direct children: icons by their source, the bulb by whether a comet laps it, the
+  // label by its text.
   const parts = (button: ReactTestInstance) =>
-    (button.children as ReactTestInstance[]).map((child) =>
-      child.type === Icon
+    (button.children as ReactTestInstance[]).map((child) => {
+      if (child.props.className === 'BulbIcon') {
+        const comet = child.findAllByType(OutlineComet).length > 0;
+        // The bulb dims under the comet, as the cog's gear does.
+        expect(child.props['data-thinking']).toBe(comet || undefined);
+        return {
+          icon: ICON_NAMES.get(child.findByType(Icon).props.src) ?? 'other',
+          comet,
+          hidden: child.props['aria-hidden'] as boolean,
+        };
+      }
+      return child.type === Icon
         ? {
             icon: ICON_NAMES.get(child.props.src) ?? 'other',
             className: child.props.className as string | undefined,
             hidden: child.props['aria-hidden'] as boolean,
           }
-        : { label: child.children.join('') }
-    );
+        : { label: child.children.join('') };
+    });
 
   it('shows a bulb, the label and one chevron that CSS turns when it opens', () => {
     const button = toggle({
@@ -71,7 +91,7 @@ describe('reasoning header', () => {
     });
 
     expect(parts(button)).toEqual([
-      { icon: 'bulb', className: undefined, hidden: true },
+      { icon: 'bulb', comet: false, hidden: true },
       { label: 'Thought for 8 s' },
       { icon: 'chevron', className: 'Chevron', hidden: true },
     ]);
@@ -93,11 +113,105 @@ describe('reasoning header', () => {
     });
 
     expect(parts(button)).toEqual([
-      { icon: 'bulb', className: undefined, hidden: true },
+      { icon: 'bulb', comet: false, hidden: true },
       { label: 'Thinking' },
       { icon: 'chevron', className: 'Chevron', hidden: true },
     ]);
     expect(button.props['aria-expanded']).toBe(true);
+  });
+
+  describe("the bulb's comet", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const live = (reasoning: string) =>
+      withReasoning(
+        {
+          body: 'Thinking...',
+          'io.mindroom.stream_status': 'streaming',
+          'io.mindroom.live_reasoning': reasoning,
+        },
+        <p>Answer</p>,
+        {}
+      );
+    const comet = () => parts(renderer!.root.findByProps({ className: 'Toggle' }))[0];
+
+    it('laps the bulb while live reasoning grows and for a while after it last grew', () => {
+      vi.useFakeTimers();
+      act(() => {
+        renderer = create(<>{live('Comparing')}</>);
+      });
+      // Reasoning a reply already has when it comes into view is not news.
+      expect(comet()).toEqual({ icon: 'bulb', comet: false, hidden: true });
+
+      act(() => renderer!.update(<>{live('Comparing options')}</>));
+      expect(comet()).toEqual({ icon: 'bulb', comet: true, hidden: true });
+
+      act(() => {
+        vi.advanceTimersByTime(THINKING_GLOW_MS - 500);
+      });
+      act(() => renderer!.update(<>{live('Comparing options, then')}</>));
+      act(() => {
+        vi.advanceTimersByTime(THINKING_GLOW_MS - 1);
+      });
+      expect(comet()).toMatchObject({ comet: true });
+
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(comet()).toMatchObject({ comet: false });
+
+      // The same reasoning again, as the next frame of the reply's answer carries it, is no news.
+      act(() => renderer!.update(<>{live('Comparing options, then')}</>));
+      expect(comet()).toMatchObject({ comet: false });
+    });
+
+    it('laps the bulb when the first reasoning comes to a reply on screen', () => {
+      vi.useFakeTimers();
+      act(() => {
+        renderer = create(
+          <>
+            {withReasoning(
+              { body: 'Thinking...', 'io.mindroom.stream_status': 'streaming' },
+              <p>Answer</p>,
+              {}
+            )}
+          </>
+        );
+      });
+      act(() => renderer!.update(<>{live('Comparing')}</>));
+      expect(comet()).toEqual({ icon: 'bulb', comet: true, hidden: true });
+
+      act(() => {
+        vi.advanceTimersByTime(THINKING_GLOW_MS);
+      });
+      expect(comet()).toMatchObject({ comet: false });
+    });
+
+    it('never laps the bulb of finished reasoning', () => {
+      vi.useFakeTimers();
+      act(() => {
+        renderer = create(<>{live('Comparing')}</>);
+      });
+      act(() => renderer!.update(<>{live('Comparing options')}</>));
+      act(() =>
+        renderer!.update(
+          <>
+            {withReasoning(
+              {
+                body: 'Answer',
+                'io.mindroom.stream_status': 'completed',
+                'io.mindroom.reasoning': { text: 'Comparing options', duration_ms: 900 },
+              },
+              <p>Answer</p>,
+              {}
+            )}
+          </>
+        )
+      );
+      expect(comet()).toEqual({ icon: 'bulb', comet: false, hidden: true });
+    });
   });
 
   it('puts a chevron up and Collapse under open reasoning, which fold it and focus the header', () => {

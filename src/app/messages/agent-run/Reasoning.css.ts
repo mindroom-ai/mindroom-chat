@@ -42,6 +42,23 @@ export const Toggle = style({
   },
 });
 
+/** The bulb's box, which the comet of live reasoning laps (OutlineComet.tsx) while the model thinks. */
+export const BulbIcon = style({
+  position: 'relative',
+  display: 'flex',
+  flexShrink: 0,
+});
+
+/** Dim while the model thinks, so the comet on its outline stands out, as the cog's gear is. */
+export const Bulb = style({
+  '@media': {
+    '(prefers-reduced-motion: no-preference)': {
+      transition: 'opacity 300ms ease',
+      selectors: { [`${BulbIcon}[data-thinking] &`]: { opacity: 0.42 } },
+    },
+  },
+});
+
 /** The cog of a reply without reasoning, alone at the top of the reply where the toggle goes. */
 export const CogRow = style({
   display: 'flex',
