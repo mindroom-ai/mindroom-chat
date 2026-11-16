@@ -64,6 +64,7 @@ describe('useThreadIndex background updates', () => {
     const getThread = vi.fn(() => undefined);
     const room = {
       roomId: '!room:example.org',
+      threadsTimelineSets: [],
       getThread,
       findEventById: (id: string) => roots.find((event) => event.getId() === id),
       getUnfilteredTimelineSet: () => ({ relations: { getChildEventsForEvent: () => undefined } }),
