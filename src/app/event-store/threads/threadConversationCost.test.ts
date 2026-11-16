@@ -124,6 +124,22 @@ describe('summarizeThreadConversationCost', () => {
     expect(complete([ended('$r2', 'cancelled', PERSON)])).toBe(true);
   });
 
+  it("is a lower bound when an agent's reply ended in a stopped or failed note without run metadata", () => {
+    // The backend's terminal note: the reply's text and stream status, no io.mindroom.ai_run.
+    const note = (id: string, status: string) =>
+      message(id, AGENT, undefined, { 'io.mindroom.stream_status': status });
+    const complete = (events: MatrixEvent[]) =>
+      summarizeThreadConversationCost([message('$r1', AGENT, '0.01'), ...events], {
+        history: loaded,
+        isTrustedSender,
+      })?.complete;
+
+    expect(complete([note('$r2', 'cancelled')])).toBe(false);
+    expect(complete([note('$r2', 'error')])).toBe(false);
+    expect(complete([note('$r2', 'interrupted')])).toBe(false);
+    expect(complete([note('$r2', 'completed')])).toBe(true);
+  });
+
   it('returns undefined when nothing is priced', () => {
     expect(
       summarizeThreadConversationCost([message('$root', PERSON), message('$r1', AGENT)], {

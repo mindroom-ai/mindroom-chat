@@ -1,7 +1,7 @@
 import { Direction, type MatrixEvent } from 'matrix-js-sdk';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { getEditedEvent, getLatestMessageContent, reactionOrEditEvent } from '../../matrix/room';
-import { getAiRunInfo } from '../../matrix/protocol/aiRun';
+import { getAiRunInfo, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { hasLoadedFirstThreadPage } from '../sdk/threadBootstrapSdk';
 import { getLinkedTimelines, getThreadTimelineEvents } from '../timeline/linkedTimelines';
@@ -36,9 +36,10 @@ type SummarizeOptions = {
 
 // The backend rounds each cost to micro-dollars, so integer sums are exact.
 const MICROS_PER_USD = 1_000_000;
-// Runs that ended so: their usage can be unknown, and then the backend leaves the cost out. A
-// completed run leaves it out only when it used no priced model, so it cost nothing.
-const UNKNOWN_COST_ENDINGS = new Set(['cancelled', 'error']);
+// Replies that ended so, by their run's status or, on a terminal note without run metadata, their
+// stream status: their usage can be unknown, and then the backend leaves the cost out. A completed
+// run leaves it out only when it used no priced model, so it cost nothing.
+const UNKNOWN_COST_ENDINGS = new Set(['cancelled', 'error', 'interrupted']);
 
 export const summarizeThreadConversationCost = (
   events: readonly MatrixEvent[],
@@ -60,10 +61,12 @@ export const summarizeThreadConversationCost = (
     // Edits and reactions carry no cost of their own; a reply's latest edit is read through it.
     if (!eventId || reactionOrEditEvent(event) || event.isRedacted()) return;
     if (!isTrustedSender(sender) || ignoredUserIds?.has(sender)) return;
-    const run = getAiRunInfo(getContent(event));
+    const content = getContent(event);
+    const run = getAiRunInfo(content);
     const costUsd = run?.costUsd;
     if (costUsd === undefined) {
-      if (run?.status && UNKNOWN_COST_ENDINGS.has(run.status)) unknownCost = true;
+      const endings = [run?.status, getStreamStatusFromContent(content)];
+      if (endings.some((ending) => ending && UNKNOWN_COST_ENDINGS.has(ending))) unknownCost = true;
       return;
     }
     const replyMicros = Math.round(costUsd * MICROS_PER_USD);
