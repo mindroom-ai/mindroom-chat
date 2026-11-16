@@ -1,3 +1,4 @@
+import { roomThreadBackgroundJobs } from '../../matrix/protocol/threadBackgroundJobs';
 import { atom } from 'jotai';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
@@ -392,6 +393,13 @@ export const buildCrossRoomThreadIndexEntry = ({
       : undefined,
     currentUserId,
   });
+  threadRecord = {
+    ...threadRecord,
+    status: {
+      ...threadRecord.status,
+      ...roomThreadBackgroundJobs(room).get(threadRootId),
+    },
+  };
   const pendingOwnReplyEvent =
     threadRecord.status.replyCount === 0
       ? getPendingOwnThreadReply(room, threadRootId, currentUserId)

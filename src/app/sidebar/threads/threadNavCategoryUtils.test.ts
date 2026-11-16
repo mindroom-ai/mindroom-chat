@@ -163,10 +163,9 @@ describe('buildSidebarThreadSections', () => {
     expect(
       sectionKeys(buildSidebarThreadSections(entries, [], new Set(), 100, NO_SIGNALS))
     ).toEqual([
-      ['working', ['streaming-resolved', 'sending']],
-      ['snoozed', ['snoozed']],
+      ['snoozed', ['sending', 'snoozed']],
       ['idle', ['idle']],
-      ['resolved', ['resolved-snoozed']],
+      ['resolved', ['resolved-snoozed', 'streaming-resolved']],
     ]);
     expect(
       sectionKeys(
@@ -374,5 +373,32 @@ describe('buildSidebarThreadSections', () => {
         )
       )
     ).toEqual([['idle', ['room']]]);
+  });
+});
+
+describe('shared workflow precedence', () => {
+  it('keeps resolved and snoozed threads out of Working even while streaming', () => {
+    const entries = [
+      makeSectionEntry({ key: 'done', isResolved: true, isStreaming: true }),
+      makeSectionEntry({ key: 'later', snoozedUntilTs: 1000, isStreaming: true }),
+    ];
+    expect(
+      sectionKeys(buildSidebarThreadSections(entries, [], new Set(), 100, NO_SIGNALS))
+    ).toEqual([
+      ['snoozed', ['later']],
+      ['resolved', ['done']],
+    ]);
+  });
+  it('includes live background work, but approval wins over streaming', () => {
+    const job = makeSectionEntry({ key: 'job' });
+    const approval = makeSectionEntry({ key: 'approval', isStreaming: true });
+    job.threadRecord.status.hasBackgroundJob = true;
+    approval.threadRecord.status.hasBackgroundApproval = true;
+    expect(
+      sectionKeys(buildSidebarThreadSections([job, approval], [], new Set(), 100, NO_SIGNALS))
+    ).toEqual([
+      ['working', ['job']],
+      ['idle', ['approval']],
+    ]);
   });
 });

@@ -1,3 +1,5 @@
+import { roomThreadBackgroundJobs } from '../../matrix/protocol/threadBackgroundJobs';
+import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../../matrix/protocol/backgroundJobsContract';
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
@@ -14,7 +16,10 @@ import {
   getThreadSummaryStateSnapshot,
   subscribeToThreadSummaryState,
 } from '../../event-store/threads/threadSummaryState';
-import { MINDROOM_THREAD_TAGS_EVENT, parsePerTagStateKey } from '../../event-store/threads/threadTags';
+import {
+  MINDROOM_THREAD_TAGS_EVENT,
+  parsePerTagStateKey,
+} from '../../event-store/threads/threadTags';
 import { getRoomThreadTagSnapshotMap } from '../tags/threadTagSnapshots';
 import { StateEvent } from '../../matrix/types/room';
 import { subscribePendingPins } from '../../event-store/threads/threadPinning';
@@ -201,6 +206,7 @@ export const useCrossRoomThreadIndex = () => {
   useEffect(() => {
     if (!userId) return undefined;
 
+    const lastBackgroundJobs = new WeakMap<Room, ReturnType<typeof roomThreadBackgroundJobs>>();
     let disposed = false;
     let idleHandle: number | undefined;
     const effectSessionId = activeSession?.sessionId;
@@ -550,7 +556,8 @@ export const useCrossRoomThreadIndex = () => {
     const handleStateEvent = (event: MatrixEvent, roomState: { roomId?: string }) => {
       const type = event.getType();
       const pinsChanged = matchesEnum(type, StateEvent.RoomPinnedEvents);
-      if (type !== MINDROOM_THREAD_TAGS_EVENT && !pinsChanged) return;
+      const jobsChanged = type === MINDROOM_BACKGROUND_JOBS_EVENT || type === 'm.room.member';
+      if (type !== MINDROOM_THREAD_TAGS_EVENT && !pinsChanged && !jobsChanged) return;
       const roomId =
         roomState?.roomId ?? (event as unknown as { getRoomId?: () => string }).getRoomId?.();
       if (!roomId) return;
@@ -559,7 +566,24 @@ export const useCrossRoomThreadIndex = () => {
       if (!room) return;
       if (!roomDisposers.has(room.roomId)) return;
 
-      if (pinsChanged) {
+      if (jobsChanged) {
+        const states = roomThreadBackgroundJobs(room);
+        if (lastBackgroundJobs.get(room) === states) return;
+        lastBackgroundJobs.set(room, states);
+        // Lazy member state can arrive unchanged with every sync. Only rebuild roots whose
+        // workflow flags actually changed, including jobs that disappeared from state.
+        snapshotRef.current.entries.forEach((entry) => {
+          if (entry.roomId !== room.roomId) return;
+          const next = states.get(entry.threadRootId);
+          const previous = entry.threadRecord.status;
+          if (
+            !!next?.hasBackgroundJob !== !!previous.hasBackgroundJob ||
+            !!next?.hasBackgroundApproval !== !!previous.hasBackgroundApproval
+          ) {
+            enqueueThread(room.roomId, entry.threadRootId);
+          }
+        });
+      } else if (pinsChanged) {
         handlePinChange(room);
       } else {
         const stateKey = event.getStateKey();

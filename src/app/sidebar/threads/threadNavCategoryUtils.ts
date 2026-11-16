@@ -1,6 +1,7 @@
 import type { CrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
 import { compareCrossRoomThreadEntries } from '../../threads/cross-room/crossRoomThreadOrder';
 import type { ThreadSignals } from '../../threads/cross-room/threadSignals';
+import { classifyThreadWorkflow } from '../../event-store/threads/threadWorkflow';
 import { isSnoozedAt } from '../../event-store/threads/threadSnooze';
 
 export const MAX_SIDEBAR_THREADS = 50;
@@ -57,11 +58,21 @@ export type SidebarThreadSection = {
 const SECTION_ORDER: SidebarThreadSectionId[] = ['working', 'snoozed', 'idle', 'resolved'];
 
 const sectionOf = (entry: CrossRoomThreadIndexEntry, now: number): SidebarThreadSectionId => {
-  const { isStreaming, hasPendingSend } = entry.threadRecord.status;
-  if (isStreaming || hasPendingSend === true) return 'working';
-  if (entry.isResolved) return 'resolved';
-  if (isSnoozedAt(entry.snoozedUntilTs, now)) return 'snoozed';
-  return 'idle';
+  const bucket = classifyThreadWorkflow(
+    {
+      ...entry.threadRecord.status,
+      isResolved: entry.isResolved,
+      snoozedUntilTs: entry.snoozedUntilTs,
+    },
+    now
+  );
+  const sections = {
+    working: 'working',
+    done: 'resolved',
+    later: 'snoozed',
+    needsYou: 'idle',
+  } as const;
+  return sections[bucket];
 };
 
 /** Newest first by `tsOf`, ties in the usual cross-room order. */
@@ -72,8 +83,7 @@ const byTsDesc =
 
 /**
  * The sidebar's THREADS in sections, each shown only when it holds a thread, a thread in the
- * first that fits: Working (an agent streams or the user's message is on its way), Resolved,
- * Snoozed at `now`, else Idle. Pinned threads lead their own section. Working keeps the order the
+ * shared workflow bucket: Working, Done (Resolved), Later (Snoozed), or Needs you (Idle). Pinned threads lead their own section. Working keeps the order the
  * threads started in, so a streamed reply moves no row; Idle goes by the newest of when the last
  * run finished and the newest message (`signalsOf`) and the activity, so a run's end counts, not
  * its start, and an old run does not outrank a newer message; Snoozed by the end of the snooze;
