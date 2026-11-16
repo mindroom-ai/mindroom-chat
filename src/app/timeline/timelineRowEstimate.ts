@@ -147,9 +147,10 @@ type RowEstimate = {
 /**
  * The last estimate of each row. The virtual list prices every unmeasured row again at each
  * render, and a long thread has hundreds, so a row keeps its estimate while what it shows stays:
- * the same content object (an edit, a decryption or a redaction by the server gives another),
- * with as many keys (an older edit's metadata is written into the shown content, and a local
- * redaction deletes its keys), in the same layout.
+ * the same content object (an edit, a decryption or a pending local redaction gives another),
+ * with as many keys (an older edit's metadata is written into the shown content, and the
+ * server's redaction deletes its keys), in the same layout. This holds while content changes in
+ * place only by gaining or losing keys, never by a key taking another value.
  */
 const rowEstimates = new WeakMap<MatrixEvent, RowEstimate>();
 
