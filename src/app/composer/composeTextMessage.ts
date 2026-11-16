@@ -12,10 +12,7 @@ import { BlockType } from '../editor/types';
 import { type Command, SHRUG } from './commands/useCommands';
 
 /** The slash commands that change the message being sent, typed at the very start of it. */
-type MessageCommand = Extract<
-  Command,
-  'me' | 'notice' | 'plain' | 'shrug'
->;
+type MessageCommand = Extract<Command, 'me' | 'notice' | 'plain' | 'shrug'>;
 const MESSAGE_COMMANDS: readonly string[] = [
   'me',
   'notice',
@@ -32,9 +29,7 @@ const MSGTYPE_BY_COMMAND: ReadonlyMap<MessageCommand, MsgType> = new Map([
 ]);
 
 /** The face each face command puts before the message. */
-const FACE_BY_COMMAND: ReadonlyMap<MessageCommand, string> = new Map([
-  ['shrug', SHRUG],
-]);
+const FACE_BY_COMMAND: ReadonlyMap<MessageCommand, string> = new Map([['shrug', SHRUG]]);
 
 /** A `/command` as a word of its own at the start, and the blank space after it. */
 const LEADING_COMMAND = /^\/([a-z]+)(?:\s+|$)/;

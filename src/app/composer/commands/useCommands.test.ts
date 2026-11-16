@@ -174,5 +174,4 @@ describe('slash commands', () => {
     await runCommandAction(Command.StartDm, context, '@friend:home.org');
     expect(context.openPath).toHaveBeenCalledWith('/direct/create/?userId=%40friend%3Ahome.org');
   });
-
 });

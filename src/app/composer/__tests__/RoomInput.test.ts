@@ -539,9 +539,14 @@ vi.mock('../RoomInputExtensions', async () => {
       replyDraft: IReplyDraft | undefined;
       threadingEnabled: boolean;
     }) =>
-      getMessageRelation(context.replyDraft?.eventId, context.replyDraft?.relation, context.threadId, {
-        allowThreadRelation: context.threadingEnabled,
-      }),
+      getMessageRelation(
+        context.replyDraft?.eventId,
+        context.replyDraft?.relation,
+        context.threadId,
+        {
+          allowThreadRelation: context.threadingEnabled,
+        }
+      ),
     isRoomInputAutocompleteQuery: (query?: { prefix?: string }) => query?.prefix === '!',
     RoomInputAutocomplete: () => null,
     RoomInputReplyContext: ({

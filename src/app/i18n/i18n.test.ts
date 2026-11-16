@@ -69,9 +69,10 @@ describe('app languages', () => {
 
   it('registers every locale file as a selectable language', () => {
     localeFileCodes.forEach((code) => {
-      expect(APP_LANGUAGE_CODES, `src/app/i18n/locales/${code}.json is not in APP_LANGUAGES`).toContain(
-        code
-      );
+      expect(
+        APP_LANGUAGE_CODES,
+        `src/app/i18n/locales/${code}.json is not in APP_LANGUAGES`
+      ).toContain(code);
     });
   });
 
