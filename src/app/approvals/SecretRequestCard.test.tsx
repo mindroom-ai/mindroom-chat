@@ -114,6 +114,7 @@ const button = (label: string) =>
 const text = () => host.textContent ?? '';
 const chip = () => host.querySelector('[data-secret-request-status]')?.textContent;
 const status = () => host.querySelector('[role="status"]');
+const card = () => host.querySelector('[aria-label="Key request"]');
 
 const type = (value: string) => {
   const field = input();
@@ -290,6 +291,7 @@ describe('SecretRequestCard', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ secret: 'ghp_secret' }),
+      redirect: 'error',
     });
   });
 
@@ -303,6 +305,7 @@ describe('SecretRequestCard', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ decline: true }),
+      redirect: 'error',
     });
     await settle();
     expect(status()?.textContent).toBe('Declined, waiting for the agent');
@@ -344,20 +347,90 @@ describe('SecretRequestCard', () => {
     expect(status()?.textContent).toBe('');
   });
 
-  it('drops the key after a 204, says it waits for the agent and moves focus there', async () => {
+  it('drops the key after a 204 and says it waits for the agent', async () => {
     env.send.mockResolvedValue(answer(204));
     render();
+
+    await save();
+
+    expect(status()?.textContent).toBe('Saved, waiting for the agent');
+    expect(chip()).toBe('Saved');
+    expect(input()).toBeNull();
+    expect(host.innerHTML).not.toContain('ghp_secret');
+  });
+
+  it('gives keyboard focus to the card, which keeps it through the agent edit', async () => {
+    env.send.mockResolvedValue(answer(204));
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+    const value = request();
+    render(value);
     type('ghp_secret');
     input()?.focus();
 
     await pressEnter();
     await settle();
 
-    expect(status()?.textContent).toBe('Saved, waiting for the agent');
-    expect(document.activeElement).toBe(status());
+    expect(document.activeElement).toBe(card());
+    expect(focus).toHaveBeenLastCalledWith({ preventScroll: true });
+    render({ ...value, status: 'saved' });
     expect(chip()).toBe('Saved');
-    expect(input()).toBeNull();
-    expect(host.innerHTML).not.toContain('ghp_secret');
+    expect(document.activeElement).toBe(card());
+    focus.mockRestore();
+  });
+
+  it('moves no focus after an answer by pointer', async () => {
+    env.send.mockResolvedValue(answer(204));
+    render();
+    type('ghp_secret');
+    // Safari leaves focus in the field when the pointer clicks Save.
+    input()?.focus();
+
+    await act(async () => {
+      button('Save')?.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })
+      );
+    });
+    await settle();
+
+    expect(env.send).toHaveBeenCalledTimes(1);
+    expect(status()?.textContent).toBe('Saved, waiting for the agent');
+    expect(document.activeElement).not.toBe(card());
+    expect(card()?.contains(document.activeElement)).toBe(false);
+  });
+
+  it('refuses a redirect, which would replay the key to another origin, and keeps the key', async () => {
+    // As a browser does: `redirect: 'error'` fails the request on the 307; following it would
+    // send the body to the other origin, which answers 204.
+    const elsewhere = vi.fn(() => answer(204));
+    const fetchStub = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).endsWith('/api/client-sessions'))
+        return Response.json({ session_token: 'session', expires_at: Date.now() / 1000 + 3600 });
+      if (init?.redirect === 'error') throw new TypeError('Failed to fetch');
+      return elsewhere();
+    });
+    env.clientSessions.mockImplementation(
+      (_mx: unknown, apiUrl: string) =>
+        new ClientSessions({
+          apiUrl,
+          getOpenIdToken: async () => ({
+            access_token: 'openid',
+            token_type: 'Bearer',
+            matrix_server_name: 'example.org',
+            expires_in: 3600,
+          }),
+          request: fetchStub,
+        })
+    );
+    render();
+
+    await save();
+
+    expect(elsewhere).not.toHaveBeenCalled();
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(
+      "Couldn't reach the server. Check your connection and try again."
+    );
+    expect(chip()).toBe('Waiting for you');
+    expect(input()?.value).toBe('ghp_secret');
   });
 
   it('keeps saying it waits for the agent after the deadline passes', async () => {

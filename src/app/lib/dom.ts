@@ -57,6 +57,20 @@ export const copyToClipboard = async (text: string): Promise<boolean> => {
   return copyWithSelection(text);
 };
 
+/**
+ * Whether focus that just landed on `target` came from the keyboard. A click on a message gives
+ * focus to its row as well; the browser marks only keyboard focus `:focus-visible`.
+ */
+export const isKeyboardFocus = (target: EventTarget | null): boolean => {
+  if (!target || typeof (target as Element).matches !== 'function') return false;
+  try {
+    return (target as Element).matches(':focus-visible');
+  } catch {
+    // Engines without the selector: count the focus, as before.
+    return true;
+  }
+};
+
 const TEXT_ENTRY_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 
 /** Whether keyboard input goes to a field now: an input, a select, or editable content has focus. */

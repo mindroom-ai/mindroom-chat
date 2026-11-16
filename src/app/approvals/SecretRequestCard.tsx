@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { Box, Button, Icon, IconButton, Icons, Input, Text } from 'folds';
+import { isKeyboardFocus } from '../lib/dom';
 import { isRecord } from '../lib/isRecord';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -73,8 +74,8 @@ function SecretRequestAnswer({
   request: SecretRequest;
   roomId: string;
   agentUserId: string;
-  /** `hadFocus`: whether focus was in the form, which unmounts with the answer. */
-  onAnswer: (answer: Answer, hadFocus: boolean) => void;
+  /** `keyboardFocus`: whether the form, which unmounts with the answer, held keyboard focus. */
+  onAnswer: (answer: Answer, keyboardFocus: boolean) => void;
 }) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
@@ -86,6 +87,12 @@ function SecretRequestAnswer({
   const form = useRef<HTMLFormElement>(null);
   // A second press before the first answer arrives sends nothing.
   const sendingRef = useRef(false);
+  // Whether a pointer pressed Save or Decline. Enter in the field clicks Save too, with no pointer
+  // (`detail` 0), as a key on a focused button does.
+  const pointerAnswer = useRef(false);
+  const notePointer = (event: { detail: number }) => {
+    pointerAnswer.current = event.detail > 0;
+  };
 
   if (!pending && !apiUrl) {
     return <Text size="T200">{t('mindroomUi.messages.secretRequestCard.unavailable')}</Text>;
@@ -96,6 +103,8 @@ function SecretRequestAnswer({
   const send = async (decline: boolean) => {
     if (pending || !apiUrl || sendingRef.current) return;
     if (!decline && secret.trim() === '') return;
+    const byPointer = pointerAnswer.current;
+    pointerAnswer.current = false;
     sendingRef.current = true;
     setSending(true);
     setError(undefined);
@@ -106,6 +115,9 @@ function SecretRequestAnswer({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(decline ? { decline: true } : { secret }),
+          // A redirect would replay the body, the key, to wherever it points; it fails instead,
+          // as a request with no answer does, and the key stays for a retry.
+          redirect: 'error',
         }
       );
       if (response.ok || response.status === 404) {
@@ -113,7 +125,7 @@ function SecretRequestAnswer({
         setSecret('');
         onAnswer(
           response.status === 404 ? 'inactive' : decline ? 'declined' : 'saved',
-          !focused || focused === document.body || !!form.current?.contains(focused)
+          !byPointer && !!form.current?.contains(focused) && isKeyboardFocus(focused)
         );
         return;
       }
@@ -193,6 +205,7 @@ function SecretRequestAnswer({
             outlined
             radii="300"
             disabled={!ready || secret.trim() === ''}
+            onClick={notePointer}
           >
             <Text size="B300">{t('mindroomUi.messages.secretRequestCard.save')}</Text>
           </Button>
@@ -204,7 +217,8 @@ function SecretRequestAnswer({
             outlined
             radii="300"
             disabled={!ready}
-            onClick={() => {
+            onClick={(event) => {
+              notePointer(event);
               void send(true);
             }}
           >
@@ -237,13 +251,13 @@ export function SecretRequestCard({
 }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-  const glassRef = useGlassHighlight<HTMLDivElement>();
+  const card = useRef<HTMLDivElement>(null);
+  const glassRef = useGlassHighlight<HTMLDivElement>(card);
   const viewerId = useMatrixClient().getUserId();
   const room = useApprovalRoom(roomId);
   const [answer, setAnswer] = useState<Answer>();
   const [clockTick, setClockTick] = useState(0);
-  const statusRegion = useRef<HTMLDivElement>(null);
-  const focusStatus = useRef(false);
+  const focusCard = useRef(false);
   const now = Date.now();
   const isRequester = request.requesterId === viewerId;
   // The agent's edit decides; until it comes, an answer the server took holds whatever the clock says.
@@ -266,15 +280,17 @@ export function SecretRequestCard({
     return () => clearTimeout(timer);
   }, [open, request.expiresAt, clockTick]);
 
-  // The answer took away the control that had focus; the status that says what happened gets it.
+  // The answer took away the control that held keyboard focus; the card, which stays through the
+  // agent's edit, takes it. After a pointer answer focus moves nowhere: focus put in the row there
+  // would show the row's toolbar as if it came from the keyboard.
   useEffect(() => {
-    if (!answer || !focusStatus.current) return;
-    focusStatus.current = false;
-    statusRegion.current?.focus();
+    if (!answer || !focusCard.current) return;
+    focusCard.current = false;
+    card.current?.focus({ preventScroll: true });
   }, [answer]);
 
-  const onAnswer = (value: Answer, hadFocus: boolean) => {
-    focusStatus.current = hadFocus;
+  const onAnswer = (value: Answer, keyboardFocus: boolean) => {
+    focusCard.current = keyboardFocus;
     setAnswer(value);
   };
 
@@ -284,6 +300,8 @@ export function SecretRequestCard({
       className={cardCss.Card}
       direction="Column"
       gap="200"
+      role="group"
+      tabIndex={-1}
       aria-label={t('mindroomUi.messages.secretRequestCard.label')}
     >
       <div className={sectionCss.SectionHeader}>
@@ -329,7 +347,7 @@ export function SecretRequestCard({
           </Text>
         )}
         {isRequester && waitingForEdit && (open || answer) && (
-          <div ref={statusRegion} role="status" tabIndex={-1} className={css.Status}>
+          <div role="status" className={css.Status}>
             {answer && <Text size="T200">{t(ANSWER_KEYS[answer])}</Text>}
           </div>
         )}

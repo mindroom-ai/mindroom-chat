@@ -1,19 +1,5 @@
 import { type RefObject, useLayoutEffect, useRef, useState } from 'react';
 
-/**
- * Whether focus that just landed on `target` came from the keyboard. A click on a message gives
- * focus to its row as well; the browser marks only keyboard focus `:focus-visible`.
- */
-export const isKeyboardFocus = (target: EventTarget | null): boolean => {
-  if (!target || typeof (target as Element).matches !== 'function') return false;
-  try {
-    return (target as Element).matches(':focus-visible');
-  } catch {
-    // Engines without the selector: count the focus, as before.
-    return true;
-  }
-};
-
 const scrollsVertically = (element: Element): boolean => {
   const { overflowY } = getComputedStyle(element);
   return overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay';
