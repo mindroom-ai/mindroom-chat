@@ -289,6 +289,8 @@ describe('a fork draft', () => {
     threadRenderStateMock.threadEvents = [root] as never;
     threadRenderStateMock.threadEventIndexMapRef.current = new Map([['$parent', 0]]);
     roomTimelineVirtualizerState.virtualIndexes = [0];
+    // ThreadView's callback is new for every thread it shows.
+    const onOtherForkPointShown = vi.fn();
     const onForkPointShown = vi.fn();
     const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
     let renderer: ReturnType<typeof create> | undefined;
@@ -297,11 +299,14 @@ describe('a fork draft', () => {
       // The previous thread opened in this same view.
       await act(async () => {
         renderer = create(
-          React.createElement(Harness, { room, threadId: '$other', onForkPointShown })
+          React.createElement(Harness, {
+            room,
+            threadId: '$other',
+            onForkPointShown: onOtherForkPointShown,
+          })
         );
         await flushAsyncWork();
       });
-      onForkPointShown.mockClear();
       opening.gate = new Promise<void>((resolve) => {
         open = resolve;
       });
