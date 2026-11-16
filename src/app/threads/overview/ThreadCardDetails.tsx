@@ -62,6 +62,10 @@ export function ThreadCardDetails({
       const found = target instanceof Element ? target.closest('[data-scroll-anchor]') : null;
       return found && list.contains(found) ? found : undefined;
     };
+    const dismiss = (event: Event) => {
+      close();
+      card = cardAt(event.target);
+    };
     const move = (event: PointerEvent) => {
       if (event.pointerType === 'touch' || !globalThis.matchMedia?.(HOVER_POINTER_QUERY).matches)
         return;
@@ -96,16 +100,16 @@ export function ThreadCardDetails({
 
     list.addEventListener('pointermove', move);
     list.addEventListener('pointerleave', reset);
-    list.addEventListener('pointerdown', close, true);
-    list.addEventListener('click', close, true);
+    list.addEventListener('pointerdown', dismiss, true);
+    list.addEventListener('click', dismiss, true);
     win.addEventListener('scroll', scroll, { capture: true, passive: true });
     return () => {
       clearTimeout(timer);
       resetRef.current = undefined;
       list.removeEventListener('pointermove', move);
       list.removeEventListener('pointerleave', reset);
-      list.removeEventListener('pointerdown', close, true);
-      list.removeEventListener('click', close, true);
+      list.removeEventListener('pointerdown', dismiss, true);
+      list.removeEventListener('click', dismiss, true);
       win.removeEventListener('scroll', scroll, true);
     };
   }, [listRef, latest]);

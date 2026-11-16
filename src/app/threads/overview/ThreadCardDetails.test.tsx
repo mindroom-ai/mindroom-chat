@@ -227,6 +227,43 @@ describe('ThreadCardDetails', () => {
       expect(shown()).toBeNull();
     }
   );
+  it.each(['pointerdown', 'click'])(
+    'dismisses the card receiving %s before any eligible pointermove',
+    (type) => {
+      const { getByTestId } = render(<Harness />);
+      point(getByTestId('b'), type);
+      point(getByTestId('b'));
+      advance(1000);
+      expect(shown()).toBeNull();
+      point(getByTestId('gap'));
+      point(getByTestId('b'));
+      advance();
+      expect(shown()?.textContent).toBe('Details of $b');
+    }
+  );
+  it.each(['pointerdown', 'click'])(
+    'dismisses the card receiving %s after scrolling changed the card under the pointer',
+    (type) => {
+      const { getByTestId } = render(<Harness />);
+      point(getByTestId('a'));
+      advance();
+      expect(shown()?.textContent).toBe('Details of $a');
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: () => getByTestId('b'),
+      });
+      scroll();
+      expect(shown()).toBeNull();
+      point(getByTestId('b'), type);
+      point(getByTestId('b'), 'pointermove', 41, 51);
+      advance(1000);
+      expect(shown()).toBeNull();
+      point(getByTestId('gap'));
+      point(getByTestId('b'));
+      advance();
+      expect(shown()?.textContent).toBe('Details of $b');
+    }
+  );
   it('keeps the hover card and the pending wait on a scroll while the same card stays under the pointer', () => {
     const { getByTestId } = render(<Harness />);
     const hit = vi.fn(() => getByTestId('a'));
