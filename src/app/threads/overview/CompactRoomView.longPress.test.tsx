@@ -226,3 +226,31 @@ it('releases the touch order hold when a long press consumes the click and its m
   act(() => props.onClose()); // Escape and other menu dismissals share this callback.
   expect(order()).toEqual(['$b', '$a']);
 });
+
+it('keeps another card swipeable while the pressed card menu is open', async () => {
+  render(list(['$a', '$b']));
+  const first = document.querySelector<HTMLElement>('[data-scroll-anchor="$a"]')!;
+  fireEvent.touchStart(first, { touches: [finger(100, 60)] });
+  act(() => {
+    vi.advanceTimersByTime(LONG_PRESS_MS);
+  });
+  await act(async () => {});
+  expect(menuProps).toHaveBeenLastCalledWith(expect.objectContaining({ rootId: '$a' }));
+  fireEvent.touchEnd(first, { touches: [] });
+
+  const track = document.querySelector<HTMLElement>(
+    '[data-scroll-anchor="$b"] [data-compact-card-swipe="track"]'
+  )!;
+  vi.spyOn(track, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 300, 100));
+  track.setPointerCapture = vi.fn();
+  const pointer = (type: string, x: number) => {
+    const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: 60 });
+    Object.assign(event, { pointerId: 2, pointerType: 'touch', isPrimary: true });
+    fireEvent(track, event);
+  };
+  pointer('pointerdown', 300);
+  pointer('pointermove', 290);
+  pointer('pointermove', 150);
+  pointer('pointerup', 150);
+  expect(setResolved).toHaveBeenCalledWith('$b', true);
+});
