@@ -101,16 +101,21 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
     [mx, navigate, onNavigate]
   );
 
-  // A row that was answered or read fades where it stood, a new one fades in, the rest glide.
-  const rowsRef = useRef<HTMLDivElement>(null);
-  const listMotion = useListMotion(rowsRef, shown.map((row) => row.key).join(','));
-
   const waiting = shown.filter(needsYou);
   const rest = shown.filter((row) => !needsYou(row));
   // Many invites, often a bridge's stale ones, show as one row after what else waits.
   const invites = waiting.flatMap((row) => (row.type === 'invite' ? [row] : []));
   const gathered = invites.length >= INVITES_GATHERED_FROM;
   const waitingRows = gathered ? waiting.filter((row) => row.type !== 'invite') : waiting;
+
+  // A row that was answered or read fades where it stood, a new one fades in, the rest glide.
+  // The rows that wait come first, so their number tells when one moves under the day's divider
+  // while the order stays.
+  const rowsRef = useRef<HTMLDivElement>(null);
+  const listMotion = useListMotion(
+    rowsRef,
+    `${waiting.length}|${gathered}|${shown.map((row) => row.key).join(',')}`
+  );
   const openInvites = () => {
     navigate(getActivityInvitesPath());
     onNavigate?.();
