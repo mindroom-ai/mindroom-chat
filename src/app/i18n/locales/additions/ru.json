@@ -772,6 +772,22 @@
           "declined": "Отклонён",
           "expired": "Истёк"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Навык <code>{{skill}}</code> обновлён",
+        "createdOne": "Навык <code>{{skill}}</code> создан",
+        "updatedMany_one": "Обновлён {{count}} навык",
+        "updatedMany_few": "Обновлено {{count}} навыка",
+        "updatedMany_many": "Обновлено {{count}} навыков",
+        "updatedMany_other": "Обновлено {{count}} навыка",
+        "createdMany_one": "Создан {{count}} навык",
+        "createdMany_few": "Создано {{count}} навыка",
+        "createdMany_many": "Создано {{count}} навыков",
+        "createdMany_other": "Создано {{count}} навыка",
+        "created": "создан",
+        "updated": "обновлён",
+        "removed": "удалён",
+        "diffTruncated": "Diff обрезан"
       }
     },
     "message-search": {

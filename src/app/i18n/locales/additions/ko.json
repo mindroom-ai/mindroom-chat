@@ -745,6 +745,16 @@
           "declined": "거절됨",
           "expired": "만료됨"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "<code>{{skill}}</code> 스킬 업데이트됨",
+        "createdOne": "<code>{{skill}}</code> 스킬 생성됨",
+        "updatedMany_other": "스킬 {{count}}개 업데이트됨",
+        "createdMany_other": "스킬 {{count}}개 생성됨",
+        "created": "생성됨",
+        "updated": "업데이트됨",
+        "removed": "삭제됨",
+        "diffTruncated": "차이가 잘렸습니다"
       }
     },
     "message-search": {

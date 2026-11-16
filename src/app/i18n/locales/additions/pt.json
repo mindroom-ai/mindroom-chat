@@ -763,6 +763,20 @@
           "declined": "Recusada",
           "expired": "Expirada"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Habilidade <code>{{skill}}</code> atualizada",
+        "createdOne": "Habilidade <code>{{skill}}</code> criada",
+        "updatedMany_one": "{{count}} habilidade atualizada",
+        "updatedMany_many": "{{count}} habilidades atualizadas",
+        "updatedMany_other": "{{count}} habilidades atualizadas",
+        "createdMany_one": "{{count}} habilidade criada",
+        "createdMany_many": "{{count}} habilidades criadas",
+        "createdMany_other": "{{count}} habilidades criadas",
+        "created": "criado",
+        "updated": "atualizado",
+        "removed": "removido",
+        "diffTruncated": "Diff truncado"
       }
     },
     "message-search": {

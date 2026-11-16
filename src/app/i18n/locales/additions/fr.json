@@ -763,6 +763,20 @@
           "declined": "Refusée",
           "expired": "Expirée"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Compétence <code>{{skill}}</code> mise à jour",
+        "createdOne": "Compétence <code>{{skill}}</code> créée",
+        "updatedMany_one": "{{count}} compétence mise à jour",
+        "updatedMany_many": "{{count}} compétences mises à jour",
+        "updatedMany_other": "{{count}} compétences mises à jour",
+        "createdMany_one": "{{count}} compétence créée",
+        "createdMany_many": "{{count}} compétences créées",
+        "createdMany_other": "{{count}} compétences créées",
+        "created": "créé",
+        "updated": "mis à jour",
+        "removed": "supprimé",
+        "diffTruncated": "Diff tronqué"
       }
     },
     "message-search": {

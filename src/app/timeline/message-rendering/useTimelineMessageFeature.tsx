@@ -81,6 +81,8 @@ import { ThreadSummaryMarker } from '../../messages/thread-summary/ThreadSummary
 import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { readSnoozeEndedNote } from '../../matrix/protocol/threadSnooze';
 import { SnoozeEndedMarker } from '../../messages/SnoozeEndedMarker';
+import { readSkillReviewNotice } from '../../matrix/protocol/skillReview';
+import { SkillReviewMarker } from '../../messages/SkillReviewMarker';
 import { getToolApprovalRenderContent } from '../../matrix/protocol/toolApproval';
 import { shouldShowLinkFavicons } from '../../rich-text/linkFaviconPolicy';
 import { renderThreadBadge } from '../ThreadBadge';
@@ -496,14 +498,13 @@ export const useTimelineMessageFeature = ({
           </MessageAside>
         );
       }
-      // Inside a thread, the backend's snooze-ended message is one quiet line, not an agent's
-      // reply: no avatar, name or toolbar. Only a MindRoom agent's counts.
-      const snoozeEndedNote =
-        threadId &&
+      // Inside a thread, the backend's snooze-ended and skill review messages are one quiet
+      // line, not an agent's reply: no avatar, name or toolbar. Only a MindRoom agent's count.
+      const agentNotice =
+        !!threadId &&
         kind === 'message' &&
-        isMindroomAgentUserIdForViewer(event.getSender() ?? undefined, userId ?? undefined)
-          ? readSnoozeEndedNote(content)
-          : null;
+        isMindroomAgentUserIdForViewer(event.getSender() ?? undefined, userId ?? undefined);
+      const snoozeEndedNote = agentNotice ? readSnoozeEndedNote(content) : null;
       if (snoozeEndedNote !== null) {
         return (
           <MessageAside
@@ -513,6 +514,19 @@ export const useTimelineMessageFeature = ({
             spaced
           >
             <SnoozeEndedMarker note={snoozeEndedNote} />
+          </MessageAside>
+        );
+      }
+      const skillReview = agentNotice ? readSkillReviewNotice(content) : null;
+      if (skillReview) {
+        return (
+          <MessageAside
+            key={eventId}
+            data-message-id={eventId}
+            data-message-item={row.index}
+            spaced
+          >
+            <SkillReviewMarker review={skillReview} />
           </MessageAside>
         );
       }

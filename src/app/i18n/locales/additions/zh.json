@@ -745,6 +745,16 @@
           "declined": "已拒绝",
           "expired": "已到期"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "已更新技能 <code>{{skill}}</code>",
+        "createdOne": "已创建技能 <code>{{skill}}</code>",
+        "updatedMany_other": "已更新 {{count}} 个技能",
+        "createdMany_other": "已创建 {{count}} 个技能",
+        "created": "已创建",
+        "updated": "已更新",
+        "removed": "已删除",
+        "diffTruncated": "差异已截断"
       }
     },
     "message-search": {

@@ -754,6 +754,18 @@
           "declined": "প্রত্যাখ্যাত",
           "expired": "মেয়াদ শেষ"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "স্কিল <code>{{skill}}</code> আপডেট হয়েছে",
+        "createdOne": "স্কিল <code>{{skill}}</code> তৈরি হয়েছে",
+        "updatedMany_one": "{{count}}টি স্কিল আপডেট হয়েছে",
+        "updatedMany_other": "{{count}}টি স্কিল আপডেট হয়েছে",
+        "createdMany_one": "{{count}}টি স্কিল তৈরি হয়েছে",
+        "createdMany_other": "{{count}}টি স্কিল তৈরি হয়েছে",
+        "created": "তৈরি হয়েছে",
+        "updated": "আপডেট হয়েছে",
+        "removed": "সরানো হয়েছে",
+        "diffTruncated": "ডিফ ছোট করা হয়েছে"
       }
     },
     "message-search": {
