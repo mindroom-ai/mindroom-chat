@@ -29,6 +29,26 @@ import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 const startFork = vi.hoisted(() => vi.fn());
 vi.mock('../../threads/fork/useStartThreadFork', () => ({ useStartThreadFork: () => startFork }));
 
+const forksByPoint = vi.hoisted(() => ({
+  value: new Map<string, Array<{ threadId: string; ts: number }>>(),
+  asked: [] as Array<[string | undefined, string | undefined]>,
+}));
+vi.mock('../../threads/fork/useThreadForks', () => ({
+  useThreadForks: (room: { roomId: string }, threadId: string | undefined) => {
+    forksByPoint.asked.push([room.roomId, threadId]);
+    return forksByPoint.value;
+  },
+}));
+vi.mock('../../threads/fork/ThreadForksChip', async () => {
+  const ReactImport = await import('react');
+  return {
+    ThreadForksChip: (props: Record<string, unknown>) =>
+      ReactImport.createElement('forks-chip', props),
+  };
+});
+const forkChips = (renderer: ReturnType<typeof create>) =>
+  renderer.root.findAll((node) => (node.type as unknown) === 'forks-chip');
+
 vi.mock('../../messages/thread-summary/ThreadSummaryMarker', async () => {
   const ReactImport = await import('react');
   return {
@@ -574,5 +594,58 @@ describe('Fork from here', () => {
 
     const inRoom = await mountFeature([rowFor(makeEvent('$m') as unknown as MatrixEvent)]);
     expect(inRoom.renderer.root.findByType(Message).props.onForkClick).toBeUndefined();
+  });
+});
+
+describe('the forks made at a message', () => {
+  const forks = [
+    { threadId: '$f1', ts: 10 },
+    { threadId: '$f2', ts: 20 },
+  ];
+
+  it('shows a chip under the fork-point message of the thread, and under no other', async () => {
+    forksByPoint.value = new Map([['$p2', forks]]);
+    forksByPoint.asked.length = 0;
+    const rows = [
+      makeEvent('$p1', { threadRootId: '$parent' }),
+      makeEvent('$p2', { threadRootId: '$parent' }),
+      makeEvent('$p3', { threadRootId: '$parent' }),
+    ] as unknown as MatrixEvent[];
+    const { renderer } = await mountFeature(
+      rows.map((event, index) => rowFor(event, index)),
+      '$parent'
+    );
+
+    const chips = forkChips(renderer);
+    expect(chips).toHaveLength(1);
+    expect(chips[0]?.props.forks).toBe(forks);
+    expect(chips[0]?.props.room).toBeDefined();
+    expect(forksByPoint.asked[0]?.[1]).toBe('$parent');
+  });
+
+  it("shows none on the rows of a parent shown inside a fork, only on the fork's own", async () => {
+    forksByPoint.value = new Map([
+      ['$p1', forks],
+      ['$r1', [{ threadId: '$g', ts: 30 }]],
+    ]);
+    const rows = [
+      makeEvent('$p1', { threadRootId: '$parent' }),
+      makeEvent('$r1', { threadRootId: '$fork' }),
+    ] as unknown as MatrixEvent[];
+    const { renderer } = await mountFeature(
+      rows.map((event, index) => rowFor(event, index)),
+      '$fork',
+      new Set(['$p1'])
+    );
+
+    const chips = forkChips(renderer);
+    expect(chips).toHaveLength(1);
+    expect(chips[0]?.props.forks).toEqual([{ threadId: '$g', ts: 30 }]);
+  });
+
+  it('shows none outside a thread', async () => {
+    forksByPoint.value = new Map([['$m', forks]]);
+    const { renderer } = await mountFeature([rowFor(makeEvent('$m') as unknown as MatrixEvent)]);
+    expect(forkChips(renderer)).toHaveLength(0);
   });
 });

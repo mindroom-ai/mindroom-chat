@@ -970,7 +970,11 @@
     "forkFromHere": "Ответвить отсюда",
     "forkThread": "Ответвить ветку",
     "forking": "Создаётся ответвление от {{title}}",
-    "continueInNewThread": "Продолжить в новой ветке"
+    "continueInNewThread": "Продолжить в новой ветке",
+    "forkCount_one": "{{count}} ответвление",
+    "forkCount_few": "{{count}} ответвления",
+    "forkCount_many": "{{count}} ответвлений",
+    "forkCount_other": "{{count}} ответвления"
   },
   "activity": {
     "title": "Активность",

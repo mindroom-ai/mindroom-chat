@@ -940,7 +940,9 @@
     "forkFromHere": "यहाँ से शाखा बनाएँ",
     "forkThread": "थ्रेड की शाखा बनाएँ",
     "forking": "{{title}} की शाखा बनाई जा रही है",
-    "continueInNewThread": "नए थ्रेड में जारी रखें"
+    "continueInNewThread": "नए थ्रेड में जारी रखें",
+    "forkCount_one": "{{count}} शाखा",
+    "forkCount_other": "{{count}} शाखाएँ"
   },
   "activity": {
     "title": "गतिविधि",

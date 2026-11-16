@@ -138,6 +138,26 @@ const buildModel = (
 };
 
 describe('buildCompactThreadCardViewModelFromRecord', () => {
+  it("names the thread a fork was made from, read from its root's original content", () => {
+    const forkRoot = (content: Record<string, unknown>) =>
+      ({
+        ...makeEvent({ eventId: '$root', sender: '@me:server', content }),
+        getOriginalContent: () => content,
+      } as unknown as MatrixEvent);
+    const modelOf = (content: Record<string, unknown>) => {
+      const rootEvent = forkRoot(content);
+      return buildModel(makeRoom({ rootEvent }), { threadRootEvent: rootEvent });
+    };
+    const text = { msgtype: 'm.text', body: 'Lisbon by train' };
+    expect(
+      modelOf({ ...text, 'io.mindroom.fork': { thread_id: '$p', event_id: '$a' } }).forkedFrom
+    ).toEqual({ threadId: '$p', eventId: '$a' });
+    expect(modelOf(text).forkedFrom).toBeUndefined();
+    expect(
+      modelOf({ ...text, 'io.mindroom.fork': { thread_id: 'p', event_id: '$a' } }).forkedFrom
+    ).toBeUndefined();
+  });
+
   it('carries the snooze time, and none once the thread is resolved', () => {
     const snoozed = {
       set_by: '@me:server',

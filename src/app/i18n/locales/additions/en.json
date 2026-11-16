@@ -940,7 +940,9 @@
     "forkFromHere": "Fork from here",
     "forkThread": "Fork thread",
     "forking": "Forking {{title}}",
-    "continueInNewThread": "Continue in a new thread"
+    "continueInNewThread": "Continue in a new thread",
+    "forkCount_one": "{{count}} fork",
+    "forkCount_other": "{{count}} forks"
   },
   "activity": {
     "title": "Activity",

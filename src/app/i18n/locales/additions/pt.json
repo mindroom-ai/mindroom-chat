@@ -955,7 +955,10 @@
     "forkFromHere": "Bifurcar a partir daqui",
     "forkThread": "Bifurcar tópico",
     "forking": "Bifurcando {{title}}",
-    "continueInNewThread": "Continuar em um novo tópico"
+    "continueInNewThread": "Continuar em um novo tópico",
+    "forkCount_one": "{{count}} bifurcação",
+    "forkCount_many": "{{count}} bifurcações",
+    "forkCount_other": "{{count}} bifurcações"
   },
   "activity": {
     "title": "Atividade",

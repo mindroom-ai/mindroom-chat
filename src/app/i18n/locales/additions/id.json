@@ -925,7 +925,8 @@
     "forkFromHere": "Cabangkan dari sini",
     "forkThread": "Cabangkan utas",
     "forking": "Mencabangkan {{title}}",
-    "continueInNewThread": "Lanjutkan di utas baru"
+    "continueInNewThread": "Lanjutkan di utas baru",
+    "forkCount_other": "{{count}} cabang"
   },
   "activity": {
     "title": "Aktivitas",

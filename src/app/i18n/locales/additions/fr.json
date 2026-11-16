@@ -955,7 +955,10 @@
     "forkFromHere": "Dériver à partir d'ici",
     "forkThread": "Dériver le fil",
     "forking": "Dérivation de {{title}}",
-    "continueInNewThread": "Continuer dans un nouveau fil"
+    "continueInNewThread": "Continuer dans un nouveau fil",
+    "forkCount_one": "{{count}} dérivation",
+    "forkCount_many": "{{count}} dérivations",
+    "forkCount_other": "{{count}} dérivations"
   },
   "activity": {
     "title": "Activité",

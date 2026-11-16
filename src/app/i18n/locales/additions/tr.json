@@ -940,7 +940,9 @@
     "forkFromHere": "Buradan ayır",
     "forkThread": "Konuyu ayır",
     "forking": "{{title}} konusundan ayrılıyor",
-    "continueInNewThread": "Yeni bir konuda devam et"
+    "continueInNewThread": "Yeni bir konuda devam et",
+    "forkCount_one": "{{count}} ayrım",
+    "forkCount_other": "{{count}} ayrım"
   },
   "activity": {
     "title": "Etkinlik",

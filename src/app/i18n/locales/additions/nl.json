@@ -940,7 +940,9 @@
     "forkFromHere": "Hier afsplitsen",
     "forkThread": "Thread afsplitsen",
     "forking": "{{title}} afsplitsen",
-    "continueInNewThread": "Verdergaan in een nieuwe thread"
+    "continueInNewThread": "Verdergaan in een nieuwe thread",
+    "forkCount_one": "{{count}} afsplitsing",
+    "forkCount_other": "{{count}} afsplitsingen"
   },
   "activity": {
     "title": "Activiteit",

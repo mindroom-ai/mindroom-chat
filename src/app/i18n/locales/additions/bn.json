@@ -940,7 +940,9 @@
     "forkFromHere": "এখান থেকে শাখা তৈরি করুন",
     "forkThread": "থ্রেডের শাখা তৈরি করুন",
     "forking": "{{title}} থেকে শাখা তৈরি হচ্ছে",
-    "continueInNewThread": "নতুন থ্রেডে চালিয়ে যান"
+    "continueInNewThread": "নতুন থ্রেডে চালিয়ে যান",
+    "forkCount_one": "{{count}}টি শাখা",
+    "forkCount_other": "{{count}}টি শাখা"
   },
   "activity": {
     "title": "কার্যকলাপ",

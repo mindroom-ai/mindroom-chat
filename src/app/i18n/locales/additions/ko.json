@@ -925,7 +925,8 @@
     "forkFromHere": "여기서 분기",
     "forkThread": "스레드 분기",
     "forking": "{{title}} 분기 중",
-    "continueInNewThread": "새 스레드에서 계속"
+    "continueInNewThread": "새 스레드에서 계속",
+    "forkCount_other": "분기 {{count}}개"
   },
   "activity": {
     "title": "활동",

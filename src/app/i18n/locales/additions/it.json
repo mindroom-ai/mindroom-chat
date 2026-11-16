@@ -955,7 +955,10 @@
     "forkFromHere": "Dirama da qui",
     "forkThread": "Dirama il thread",
     "forking": "Diramazione di {{title}}",
-    "continueInNewThread": "Continua in un nuovo thread"
+    "continueInNewThread": "Continua in un nuovo thread",
+    "forkCount_one": "{{count}} diramazione",
+    "forkCount_many": "{{count}} diramazioni",
+    "forkCount_other": "{{count}} diramazioni"
   },
   "activity": {
     "title": "Attività",

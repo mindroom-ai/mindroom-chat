@@ -940,7 +940,9 @@
     "forkFromHere": "Ab hier abzweigen",
     "forkThread": "Thread abzweigen",
     "forking": "Abzweigen von {{title}}",
-    "continueInNewThread": "In einem neuen Thread fortsetzen"
+    "continueInNewThread": "In einem neuen Thread fortsetzen",
+    "forkCount_one": "{{count}} Abzweigung",
+    "forkCount_other": "{{count}} Abzweigungen"
   },
   "activity": {
     "title": "Aktivität",
