@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { RoomEvent, ThreadEvent, type MatrixEvent, type Room, type Thread } from 'matrix-js-sdk';
+import { MatrixEventEvent, RoomEvent, ThreadEvent, type MatrixEvent, type Room, type Thread } from 'matrix-js-sdk';
 import { getLinkedTimelines } from '../../event-store/timeline/linkedTimelines';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { parseThreadForkRef } from '../../event-store/threads/threadFork';
@@ -75,10 +75,16 @@ export const useThreadForks = (
     const onRoomEvent = (event: MatrixEvent, eventRoom: Room | undefined) => {
       if (eventRoom?.roomId === room.roomId) onEvent(event);
     };
+    // A fork root of an encrypted room arrives unreadable and decrypts later.
+    const onDecrypted = (event: MatrixEvent) => {
+      if (event.getRoomId() === room.roomId) onEvent(event);
+    };
     mx.on(RoomEvent.Timeline, onRoomEvent);
+    mx.on(MatrixEventEvent.Decrypted, onDecrypted);
     room.on(ThreadEvent.New, onThread);
     return () => {
       mx.removeListener(RoomEvent.Timeline, onRoomEvent);
+      mx.removeListener(MatrixEventEvent.Decrypted, onDecrypted);
       room.removeListener(ThreadEvent.New, onThread);
     };
   }, [mx, room, threadId, bump]);

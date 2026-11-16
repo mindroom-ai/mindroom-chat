@@ -19,7 +19,7 @@ import type {
   ThreadRecord,
   ThreadParticipantViewModel,
 } from '../../event-store/threads/types';
-import { parseThreadForkRef } from '../../event-store/threads/threadFork';
+import { parseThreadForkRef, type ThreadForkRef } from '../../event-store/threads/threadFork';
 import { getThreadResolverDisplayName } from '../threadResolutionAttribution';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 
@@ -124,6 +124,12 @@ const getCompactThreadParticipants = ({
     };
   });
 
+/** The thread a fork was made from, read from its root when the room holds it. */
+export const getForkedFrom = (room: Room, threadRootId: string): ThreadForkRef | undefined => {
+  const rootEvent = room.getThread(threadRootId)?.rootEvent ?? room.findEventById(threadRootId);
+  return rootEvent ? parseThreadForkRef(rootEvent.getOriginalContent()) : undefined;
+};
+
 type BuildCompactThreadCardViewModelFromRecordOptions = {
   record: ThreadRecord;
   room: Room;
@@ -213,9 +219,7 @@ export const buildCompactThreadCardViewModelFromRecord = ({
     t
   );
   const resolvedByDisplayName = getThreadResolverDisplayName(room, status.resolvedByUserId);
-  const rootEvent =
-    room.getThread(record.threadRootId)?.rootEvent ?? room.findEventById(record.threadRootId);
-  const forkedFrom = rootEvent ? parseThreadForkRef(rootEvent.getOriginalContent()) : undefined;
+  const forkedFrom = getForkedFrom(room, record.threadRootId);
 
   return {
     id: {
@@ -321,11 +325,14 @@ export const useCompactThreadCardViewModels = ({
       const record = threadRecordMap.get(threadRootId);
       if (!record) return;
 
+      const forkedFrom = getForkedFrom(room, threadRootId);
       const inputSignature = JSON.stringify([
         record.roomId,
         record.threadRootId,
         record.presentation,
         record.status,
+        // Read from the SDK room, which may not hold the root yet when the record is built.
+        forkedFrom,
       ]);
       const cached = previousCache?.models.get(threadRootId);
       // Scheduled labels read the clock; keep their existing refresh cadence.

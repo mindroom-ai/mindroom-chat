@@ -130,3 +130,40 @@ describe('useCompactThreadCardViewModels identity reuse', () => {
     });
   });
 });
+
+describe('a fork whose root the room loads later', () => {
+  it('shows its badge once the root is there, though the record is unchanged', () => {
+    const forkRoot = {
+      getOriginalContent: () => ({
+        'io.mindroom.fork': { thread_id: '$p', event_id: '$a' },
+      }),
+    };
+    let known = false;
+    const room = {
+      ...makeRoom(),
+      getThread: () => (known ? { rootEvent: forkRoot } : null),
+      findEventById: () => (known ? forkRoot : undefined),
+    } as unknown as Room;
+    let latest: CompactThreadCardViewModel[] = [];
+    const render = () =>
+      React.createElement(Harness, {
+        room,
+        threadRootIds: ['$a'],
+        threadRecordMap: new Map([['$a', makeRecord('$a', 3)]]),
+        onViewModels: (viewModels) => {
+          latest = viewModels;
+        },
+      });
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(render());
+    });
+    expect(latest[0]?.forkedFrom).toBeUndefined();
+
+    known = true;
+    act(() => {
+      renderer?.update(render());
+    });
+    expect(latest[0]?.forkedFrom).toEqual({ threadId: '$p', eventId: '$a' });
+  });
+});

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { EventEmitter } from 'events';
 import { act, renderHook } from '@testing-library/react';
-import { MatrixEvent, RoomEvent, ThreadEvent, type Room } from 'matrix-js-sdk';
+import { MatrixEvent, MatrixEventEvent, RoomEvent, ThreadEvent, type Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { groupThreadForks, useThreadForks } from './useThreadForks';
 
@@ -147,5 +147,31 @@ describe('useThreadForks', () => {
       emitter.emit(ThreadEvent.New, { rootEvent: lateThread });
     });
     expect(result.current.get('$a')?.map((f) => f.threadId)).toEqual(['$f', '$g']);
+  });
+
+  it('follows a fork root of an encrypted room once it decrypts, and lets go on unmount', () => {
+    const { room, state, clientEmitter } = makeRoom([], []);
+    const { result, unmount } = renderHook(() => useThreadForks(room, '$p'));
+    // It arrives unreadable: nothing in it names a fork yet.
+    const sealed = root('$f', 20);
+    state.timelineEvents = [sealed];
+    act(() => {
+      clientEmitter.emit(RoomEvent.Timeline, sealed, room);
+    });
+    expect(result.current.size).toBe(0);
+
+    sealed.event.content = {
+      msgtype: 'm.text',
+      body: 'x',
+      'io.mindroom.fork': { thread_id: '$p', event_id: '$a' },
+    };
+    act(() => {
+      clientEmitter.emit(MatrixEventEvent.Decrypted, sealed);
+    });
+    expect(result.current.get('$a')).toEqual([{ threadId: '$f', ts: 20 }]);
+
+    unmount();
+    expect(clientEmitter.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
+    expect(clientEmitter.listenerCount(RoomEvent.Timeline)).toBe(0);
   });
 });

@@ -5,6 +5,7 @@ import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ThreadForksChip } from './ThreadForksChip';
 
+const language = vi.hoisted(() => ({ value: 'en' }));
 const navigation = vi.hoisted(() => ({ navigateRoomThread: vi.fn() }));
 // The trap wants a tabbable node, which the stand-in menu of a DOM test has too few of.
 vi.mock('focus-trap-react', () => ({
@@ -14,6 +15,7 @@ vi.mock('../../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => navi
 vi.mock('../../event-store/sdk/cachedThreadRoots', () => ({
   useCachedThreadRoot: () => undefined,
 }));
+vi.mock('../../i18n/useAppLanguageCode', () => ({ useAppLanguageCode: () => language.value }));
 vi.mock('../../i18n/useRelativeTime', () => ({
   useRelativeTime: (ts: number | undefined) => `t${ts}`,
 }));
@@ -85,8 +87,23 @@ describe('ThreadForksChip', () => {
       'Lisbon by planet20',
     ]);
 
+    // The full date follows the app's language.
+    const times = screen.getAllByText(/^t\d+$/);
+    expect(times[0]?.title).toBe(new Date(10).toLocaleString('en'));
     fireEvent.click(items[1]!);
     expect(navigation.navigateRoomThread).toHaveBeenCalledWith(ROOM, '$f2');
     expect(screen.queryAllByRole('menuitem')).toHaveLength(0);
+  });
+});
+
+describe('ThreadForksChip placement and language', () => {
+  it('keeps off the message above it and dates a fork in the app language', () => {
+    language.value = 'de';
+    render(<ThreadForksChip room={room} forks={[{ threadId: '$f1', ts: 10 }]} />);
+    const button = screen.getByRole('button');
+    expect(button.style.marginBlockStart).not.toBe('');
+    fireEvent.click(button);
+    expect(screen.getByText('t10').title).toBe(new Date(10).toLocaleString('de'));
+    language.value = 'en';
   });
 });

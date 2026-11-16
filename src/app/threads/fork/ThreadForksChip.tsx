@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import { Icon, Text, type RectCords } from 'folds';
+import { Icon, Text, config, type RectCords } from 'folds';
+import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import type { Room } from 'matrix-js-sdk';
 import { ForkIcon } from '../../messages/forkIcon';
 import * as reactionCss from '../../messages/reactions/Reaction.css';
@@ -16,13 +17,14 @@ import type { ThreadFork } from './useThreadForks';
 function ForkEntry({ room, fork, onOpen }: { room: Room; fork: ThreadFork; onOpen: () => void }) {
   const title = useThreadTitle(room, fork.threadId, undefined, undefined);
   const time = useRelativeTime(fork.ts, 'compact');
+  const language = useAppLanguageCode();
   return (
     <MenuEntry
       role="menuitem"
       label={title}
       icon={ForkIcon}
       after={
-        <Text as="span" size="T200" priority="300" title={new Date(fork.ts).toLocaleString()}>
+        <Text as="span" size="T200" priority="300" title={new Date(fork.ts).toLocaleString(language)}>
           {time}
         </Text>
       }
@@ -53,6 +55,8 @@ export function ThreadForksChip({ room, forks }: { room: Room; forks: ThreadFork
         aria-haspopup="menu"
         aria-expanded={anchor !== undefined}
         data-thread-forks-chip
+        // Never flush under the message, as the thread badge keeps off it.
+        style={{ marginBlockStart: config.space.S200 }}
         onClick={(evt) => setAnchor(evt.currentTarget.getBoundingClientRect())}
       >
         <Icon size="100" src={ForkIcon} aria-hidden="true" />
