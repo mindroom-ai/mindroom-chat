@@ -762,20 +762,20 @@
         "replaceKey": "استبدال المفتاح",
         "temporary": {
           "label": "طلب سر",
-          "title": "سر لـ {{agent}}",
-          "givenAs": "يُعطى لأوامر {{agent}} في هذه المحادثة باسم {{variable}}.",
-          "field": "سر لـ {{variable}}",
+          "title": "سر لـ ⁨{{agent}}⁩",
+          "givenAs": "يُعطى لأوامر ⁨{{agent}}⁩ في هذه المحادثة باسم ⁨{{variable}}⁩.",
+          "field": "سر لـ ⁨{{variable}}⁩",
           "placeholder": "الصق السر أو اكتبه",
           "show": "إظهار السر",
           "hide": "إخفاء السر",
           "keepFor": "مدة الاحتفاظ",
           "keep": {
-            "memory": "{{duration}}، في الذاكرة فقط",
-            "disk": "{{duration}}، في ملف على الخادم"
+            "memory": "⁨{{duration}}⁩، في الذاكرة فقط",
+            "disk": "⁨{{duration}}⁩، في ملف على الخادم"
           },
           "kept": {
-            "memory": "يُحتفظ به لمدة {{duration}}، في الذاكرة فقط.",
-            "disk": "يُحتفظ به لمدة {{duration}}، في ملف على الخادم."
+            "memory": "يُحتفظ به لمدة ⁨{{duration}}⁩، في الذاكرة فقط.",
+            "disk": "يُحتفظ به لمدة ⁨{{duration}}⁩، في ملف على الخادم."
           },
           "send": "إرسال",
           "sent": "تم الإرسال",
