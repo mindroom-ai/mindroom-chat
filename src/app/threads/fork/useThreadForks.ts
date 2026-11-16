@@ -1,5 +1,12 @@
 import { useEffect, useMemo } from 'react';
-import { MatrixEventEvent, RoomEvent, ThreadEvent, type MatrixEvent, type Room, type Thread } from 'matrix-js-sdk';
+import {
+  MatrixEventEvent,
+  RoomEvent,
+  ThreadEvent,
+  type MatrixEvent,
+  type Room,
+  type Thread,
+} from 'matrix-js-sdk';
 import { getLinkedTimelines } from '../../event-store/timeline/linkedTimelines';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { parseThreadForkRef } from '../../event-store/threads/threadFork';

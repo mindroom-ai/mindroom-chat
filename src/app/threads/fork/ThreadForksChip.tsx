@@ -24,7 +24,12 @@ function ForkEntry({ room, fork, onOpen }: { room: Room; fork: ThreadFork; onOpe
       label={title}
       icon={ForkIcon}
       after={
-        <Text as="span" size="T200" priority="300" title={new Date(fork.ts).toLocaleString(language)}>
+        <Text
+          as="span"
+          size="T200"
+          priority="300"
+          title={new Date(fork.ts).toLocaleString(language)}
+        >
           {time}
         </Text>
       }
