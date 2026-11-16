@@ -186,25 +186,37 @@ const waitForNewController = (container: ServiceWorkerContainer, timeoutMs: numb
     container.addEventListener('controllerchange', onChange);
   });
 
+/** Whether `worker` runs the build of `version` (createServiceWorkerUrl names it). */
+const isWorkerFor = (worker: ServiceWorker, version: string): boolean =>
+  new URL(worker.scriptURL).searchParams.get('version') === version;
+
 /**
- * The new build's worker: the one waiting or installing, else one this page registers for the new
- * version now. Null when the page has no registration or there is no new worker.
+ * The worker of `version`'s build, waiting or installing, else one this page registers for it now.
+ * An older build's worker may still wait beside it, so it is picked by its version, not its slot.
+ * Null when the page has no registration or nothing new to stage. Without a known version, the
+ * waiting or installing worker, whichever build it is.
  */
-const stageNewWorker = async (container: ServiceWorkerContainer): Promise<ServiceWorker | null> => {
+const stageNewWorker = async (
+  container: ServiceWorkerContainer,
+  version: string | undefined
+): Promise<ServiceWorker | null> => {
   const scope = ensureBasePathTrailingSlash(getAppBasePath());
-  let registration = await container.getRegistration(scope);
+  const registration = await container.getRegistration(scope);
   if (!registration) return null;
-  let worker = registration.waiting ?? registration.installing;
-  if (!worker && newVersion !== undefined) {
+  if (version === undefined) return registration.waiting ?? registration.installing;
+  const workerFor = ({ waiting, installing }: ServiceWorkerRegistration) =>
+    [waiting, installing].find((worker) => worker && isWorkerFor(worker, version)) ?? null;
+  return (
+    workerFor(registration) ??
     // The version monitor stages a new build every five minutes at most; this one cannot wait.
-    registration = await container.register(createServiceWorkerUrl(newVersion), {
-      scope,
-      type: 'classic',
-      updateViaCache: 'none',
-    });
-    worker = registration.waiting ?? registration.installing;
-  }
-  return worker;
+    workerFor(
+      await container.register(createServiceWorkerUrl(version), {
+        scope,
+        type: 'classic',
+        updateViaCache: 'none',
+      })
+    )
+  );
 };
 
 /**
@@ -219,7 +231,7 @@ const awaitNewWorker = (container: ServiceWorkerContainer, version: string): voi
     notify();
   };
   const timer = setTimeout(ready, NEW_WORKER_READY_TIMEOUT_MS);
-  stageNewWorker(container)
+  stageNewWorker(container, version)
     .then((worker) => worker && waitWhile(worker, 'installing', NEW_WORKER_READY_TIMEOUT_MS))
     .catch(() => undefined)
     .finally(ready);
@@ -232,7 +244,7 @@ const awaitNewWorker = (container: ServiceWorkerContainer, version: string): voi
 const handOverToNewWorker = async (timeoutMs: number): Promise<boolean> => {
   const container = serviceWorkers();
   if (!container) return true;
-  const worker = await stageNewWorker(container);
+  const worker = await stageNewWorker(container, newVersion);
   if (!worker) return true;
   await waitWhile(worker, 'installing', timeoutMs);
   // An activating or activated worker claims the page itself.
