@@ -4,9 +4,18 @@ import { restoreCodeSource } from './code';
 import type { InlineMDMatcher, InlineMDRule } from './type';
 
 const WHITESPACE = /\s/;
-// What CommonMark counts as inside a word: anything but whitespace, punctuation and symbols. Checked
-// one UTF-16 unit at a time, so half of an astral letter and a combining accent count too.
-const WORD_CHARACTER = /[^\s\p{P}\p{S}]/u;
+// A letter, digit or combining mark, read as a whole code point so astral letters count and emoji
+// and the private-use placeholders of protected code spans do not.
+const WORD_CHARACTER_BEFORE = /[\p{L}\p{N}\p{M}]$/u;
+const WORD_CHARACTER_AFTER = /^[\p{L}\p{N}\p{M}]/u;
+
+/** Whether the character ending just before `index` belongs to a word. */
+const wordBefore = (text: string, index: number): boolean =>
+  WORD_CHARACTER_BEFORE.test(text.slice(Math.max(0, index - 2), index));
+
+/** Whether the character starting at `index` belongs to a word. */
+const wordAfter = (text: string, index: number): boolean =>
+  WORD_CHARACTER_AFTER.test(text.slice(index, index + 2));
 
 const isEscaped = (text: string, index: number): boolean => {
   let backslashes = 0;
@@ -31,7 +40,7 @@ type DelimiterOptions = {
   notBeforeCloser?: string;
   /** Characters that keep a delimiter in front of them from closing. */
   notAfterCloser?: string;
-  /** Whether the delimiters may sit inside a word, with a word character on their outer side. */
+  /** Whether the delimiters may sit inside a word, with a letter or digit on their outer side. */
   intraword?: boolean;
 };
 
@@ -70,7 +79,7 @@ const delimitedMatcher =
         !WHITESPACE.test(before ?? '') &&
         !isOneOf(before, notBeforeCloser) &&
         !isOneOf(after, notAfterCloser) &&
-        (intraword || !WORD_CHARACTER.test(after ?? ''))
+        (intraword || !wordAfter(text, at + size))
       ) {
         return toMatch(
           [text.slice(opener, at + size), text.slice(opener + size, at)],
@@ -83,7 +92,7 @@ const delimitedMatcher =
         after !== undefined &&
         !WHITESPACE.test(after) &&
         !isOneOf(after, notAfterOpener) &&
-        (intraword || !WORD_CHARACTER.test(text[runStart - 1] ?? ''))
+        (intraword || !wordBefore(text, runStart))
       ) {
         opener = at;
       }

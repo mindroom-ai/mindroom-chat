@@ -59,6 +59,10 @@ describe('ItalicRule2', () => {
     ['(_a_)', '(<i data-md="_">a</i>)'],
     ['&quot;_a_&quot;', '&quot;<i data-md="_">a</i>&quot;'],
     ['_a_.', '<i data-md="_">a</i>.'],
+    ['_a_😀', '<i data-md="_">a</i>😀'],
+    ['😀_a_', '😀<i data-md="_">a</i>'],
+    ['`x`_a_', '<code data-md="`">x</code><i data-md="_">a</i>'],
+    ['_a_`x`', '<i data-md="_">a</i><code data-md="`">x</code>'],
     ['_snake_case_', '<i data-md="_">snake_case</i>'],
   ])('italicizes %s', (markdown, html) => {
     expect(parseInlineMD(markdown)).toBe(html);
