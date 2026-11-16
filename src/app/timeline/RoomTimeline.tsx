@@ -1557,7 +1557,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
         onClearTags={props.onClearTags ?? ignoreFilterChange}
         onApplyPreset={props.onApplyPreset ?? ignoreFilterChange}
         onSearchQueryChange={props.onSearchQueryChange ?? ignoreFilterChange}
-        threadSections={compactCards && props.threadSections === true}
+        // The same flag the room's filters follow (`useRoomViewThreadState`), so the bar never
+        // offers a control those filters ignore.
+        threadSections={props.threadSections === true}
         onToggleThreadSections={compactCards ? props.onToggleThreadSections : undefined}
         peopleFilter={
           props.onTogglePerson && (
