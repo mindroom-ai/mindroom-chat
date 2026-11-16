@@ -1065,7 +1065,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const hideOpeningThreadRows = useThreadOpeningReveal({
     viewKey,
     opensAtLatest: !!threadId && !eventId && !isLocalEchoEventId(threadId),
-    rowCount: threadEvents.length,
+    rows: threadEvents,
     scrollRef,
     readerTookOver: () =>
       readerScrolledRef.current.value || backController.isOpenBottomPinSuppressed(),
