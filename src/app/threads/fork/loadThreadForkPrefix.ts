@@ -12,12 +12,18 @@ export type ThreadForkPrefix = {
   events: MatrixEvent[];
   /** The root's own reference; undefined when the root is no fork. */
   parent?: ThreadForkRef;
-  /** Whether every reference in the chain resolved, up to a thread that is no fork. */
+  /**
+   * Whether every reference in the chain resolved, up to a thread that is no fork, and every
+   * parent was read from its start.
+   */
   complete: boolean;
 };
 
-/** A thread's events; `forkPointId` is the last of them the prefix needs. */
-export type LoadThreadEvents = (threadId: string, forkPointId: string) => Promise<MatrixEvent[]>;
+/** A thread's events, and whether they reach back to its start (none of its first are missing). */
+export type ThreadEventsRead = { events: MatrixEvent[]; fromStart: boolean };
+
+/** Reads a thread; `forkPointId` is the last of its events the prefix needs. */
+export type LoadThreadEvents = (threadId: string, forkPointId: string) => Promise<ThreadEventsRead>;
 
 /**
  * Follows the fork references from `root` through its parents. Each parent is cut at the fork
@@ -31,10 +37,11 @@ export const loadThreadForkPrefix = async (
   const parent = parseThreadForkRef(root.getOriginalContent());
   const segments: MatrixEvent[][] = [];
   const visited = new Set([root.getId()]);
-  const prefix = (complete: boolean): ThreadForkPrefix => ({
+  let fromStart = true;
+  const prefix = (resolved: boolean): ThreadForkPrefix => ({
     events: segments.flat(),
     parent,
-    complete,
+    complete: resolved && fromStart,
   });
 
   let ref = parent;
@@ -49,7 +56,9 @@ export const loadThreadForkPrefix = async (
       return prefix(false);
     }
     visited.add(threadId);
-    const events = await loadThreadEvents(threadId, eventId);
+    const read = await loadThreadEvents(threadId, eventId);
+    const { events } = read;
+    fromStart &&= read.fromStart;
     const cut = cutThreadAtForkPoint(threadId, events, eventId);
     if (!cut) return prefix(false);
     segments.unshift(cut);

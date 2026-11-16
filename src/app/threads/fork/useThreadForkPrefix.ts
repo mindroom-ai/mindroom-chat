@@ -33,7 +33,11 @@ import { isUnreadableYet } from '../../matrix/decryptionWaits';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { getAppliedEdit } from '../../matrix/protocol/untrustedContent';
 import { useActiveSession } from '../../matrix/session/useSessionStore';
-import { loadThreadForkPrefix, type ThreadForkPrefix } from './loadThreadForkPrefix';
+import {
+  loadThreadForkPrefix,
+  type ThreadEventsRead,
+  type ThreadForkPrefix,
+} from './loadThreadForkPrefix';
 
 type Sources = {
   mx: MatrixClient;
@@ -101,25 +105,32 @@ const cachedThreadEvents = async (
   return whole ? snapshot.events : undefined;
 };
 
-/** The thread from the server's `/relations`, through the engine's backfill job, with its root. */
+/**
+ * The thread from the server's `/relations`, through the engine's backfill job, with its root. The
+ * job may be shared with other consumers, so the engine owns its cancellation; a fetch that
+ * stopped before the thread's start keeps the newest events it read.
+ */
 const backfilledThreadEvents = async (
   { mx, room, scheduler, fetchRoomEvent, isCurrent }: Sources,
   threadId: string
-) => {
+): Promise<ThreadEventsRead> => {
+  if (!isCurrent()) return { events: [], fromStart: false };
   const page = await enqueueThreadBackfillJob({
     mx,
     scheduler,
     room,
     threadId,
     priority: 0,
-    shouldContinue: isCurrent,
   }).catch(() => null);
-  if (!page) return [];
+  if (!page) return { events: [], fromStart: false };
   const root =
     room.getThread(threadId)?.rootEvent ??
     room.findEventById(threadId) ??
     (await fetchRoomEvent(threadId, threadId).catch(() => undefined));
-  return uniqueEvents([root, ...page.events]);
+  return {
+    events: uniqueEvents([root, ...page.events]),
+    fromStart: typeof page.nextBatchToken !== 'string',
+  };
 };
 
 /**
@@ -130,19 +141,20 @@ const loadParentThreadEvents = async (
   sources: Sources,
   threadId: string,
   forkPointId: string
-): Promise<MatrixEvent[]> => {
+): Promise<ThreadEventsRead> => {
   const sdkEvents = sdkThreadEvents(sources.room, threadId, forkPointId);
-  if (sdkEvents) return sdkEvents;
-  const events =
-    (await cachedThreadEvents(sources, threadId, forkPointId)) ??
-    (await backfilledThreadEvents(sources, threadId));
-  hydrateCachedEvents({ room: sources.room, events });
+  if (sdkEvents) return { events: sdkEvents, fromStart: true };
+  const cached = await cachedThreadEvents(sources, threadId, forkPointId);
+  const read = cached
+    ? { events: cached, fromStart: true }
+    : await backfilledThreadEvents(sources, threadId);
+  hydrateCachedEvents({ room: sources.room, events: read.events });
   await Promise.all(
-    events
+    read.events
       .flatMap((event) => [event, getAppliedEdit(event)])
       .map((event) => event && sources.mx.decryptEventIfNeeded(event).catch(() => undefined))
   );
-  return events;
+  return read;
 };
 
 /** The message an edit or a redaction changes. */
@@ -193,13 +205,11 @@ export const useThreadForkPrefix = (
     const loadThreadEvents = (threadId: string, forkPointId: string) =>
       loadParentThreadEvents(sources, threadId, forkPointId);
     void loadThreadForkPrefix({ loadThreadEvents }, root)
-      .catch(
-        (): ThreadForkPrefix => ({
-          events: [],
-          parent: parseThreadForkRef(root.getOriginalContent()),
-          complete: false,
-        })
-      )
+      .catch((error: unknown): ThreadForkPrefix => {
+        console.warn('[threadFork] prefix load failed', error);
+        const parent = parseThreadForkRef(root.getOriginalContent());
+        return { events: [], parent, complete: false };
+      })
       .then((prefix) => {
         if (current) setLoaded({ root, parentKey, prefix });
       });

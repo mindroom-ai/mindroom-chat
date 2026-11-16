@@ -25,9 +25,11 @@ const root = (id: string, ts: number, fork?: Fork) =>
 
 const ids = (events: MatrixEvent[]) => events.map((event) => event.getId());
 
-/** A loader over fixed threads; a thread it does not know has no events. */
-const loaderOf = (threads: Record<string, MatrixEvent[]>) =>
-  vi.fn((threadId: string) => Promise.resolve(threads[threadId] ?? []));
+/** A loader over fixed threads, read from their start unless `partial`; unknown ones are empty. */
+const loaderOf = (threads: Record<string, MatrixEvent[]>, partial: string[] = []) =>
+  vi.fn((threadId: string) =>
+    Promise.resolve({ events: threads[threadId] ?? [], fromStart: !partial.includes(threadId) })
+  );
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -112,6 +114,17 @@ describe('loadThreadForkPrefix', () => {
     expect(ids(prefix.events)).toEqual(['$q', '$p', '$p1']);
     expect(prefix.complete).toBe(false);
     expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a parent read only from its newest end, as incomplete', async () => {
+    const parent = { threadId: '$p', eventId: '$b' };
+    const loadThreadEvents = loaderOf(
+      { $p: [root('$p', 1), message('$b', 3, '$p'), message('$c', 4, '$p')] },
+      ['$p']
+    );
+    const prefix = await loadThreadForkPrefix({ loadThreadEvents }, root('$f', 10, parent));
+    expect(ids(prefix.events)).toEqual(['$p', '$b']);
+    expect(prefix.complete).toBe(false);
   });
 
   it('ignores a parent without messages', async () => {
