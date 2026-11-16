@@ -88,6 +88,41 @@ A release's DMG is never replaced, so its bytes and the cask's checksum stay fix
 
 The job needs these repository secrets: `MACOS_CODESIGN_CERTIFICATE_BASE64` and `MACOS_CODESIGN_CERTIFICATE_PASSWORD` (the Developer ID Application certificate of team `DNA6966LGZ` as a base64 `.p12`), `MACOS_KEYCHAIN_PASSWORD` (any value, for the runner's temporary keychain), `MACOS_PROVISIONING_PROFILE_BASE64` (the Developer ID profile `MindRoom Chat Developer ID` for `chat.mindroom.app`, base64), `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID` (for `notarytool`), and `RELEASE_BOT_PRIVATE_KEY` with the variable `RELEASE_BOT_APP_ID` (the release bot GitHub App, which may dispatch to the tap).
 
+## Mac App Store
+
+`AppStoreMac` is a separate shared Catalyst scheme and application target for the Mac App Store, under the existing `chat.mindroom.app` identifier and team `DNA6966LGZ`. It reuses the client, plugins and scenes with separate sandbox entitlements and Mac category/copyright metadata. `App` and `scripts/build-macos-app.sh --sign` remain the Developer ID DMG route above. The Store target has no Watch dependency or Watch embed phase.
+
+Quick Capture keeps its global Control+Option+Space shortcut and floating window. A native macOS `MindRoomMacSupport.bundle` performs the AppKit, Carbon and window-ordering operations using typed public APIs. The Store Catalyst executable identifies its scenes by public window titles and contains no private `uiWindows` lookup. **Apple DTS calls the Catalyst/AppKit-bundle configuration unsupported** ([761049](https://developer.apple.com/forums/thread/761049), [769279](https://developer.apple.com/forums/thread/769279)). An unsigned build does not establish Store acceptance. Signed upload validation, a sandboxed TestFlight run and App Review are required before treating this route as accepted. Do not silently drop Quick Capture features or replace the Mac shell if validation fails.
+
+For local structural verification, commit source changes first, then set `version` and `build` explicitly to the values being checked. The wrapper requires a clean checkout so it cannot stamp uncommitted code as HEAD; the generated, untracked Podfile.lock is excluded from that check.
+
+```bash
+scripts/test-macos-support.sh
+MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$build" scripts/build-macos-store.sh --unsigned
+```
+
+The unsigned command stamps the bundled web assets with HEAD and the chosen marketing version, archives `AppStoreMac` into `build/mac-app-store/MindRoomChat.xcarchive`, then checks bundle IDs, versions, commit, Mac metadata, every architecture, the native support bundle and the absence of Watch products/private window selectors. It never signs, notarizes, uploads or starts a cloud build. A new sandboxed Store installation may require a new sign-in and Matrix verification; it does not migrate or modify the DMG's existing data.
+
+Configure a **separate Xcode Cloud workflow**, keeping the existing iOS workflow unchanged:
+
+1. Source repository `mindroom-ai/mindroom-chat`, branch changes on `main`, shared scheme `AppStoreMac`, workspace `ios/App/App.xcworkspace`.
+2. Archive action `Archive - macOS`, platform macOS, destination Mac Catalyst, distribution preparation **App Store Connect** / **TestFlight and App Store**.
+3. Internal TestFlight post-action for the Mac archive and the existing `MindRoom Testers` group. Add no external testing.
+
+The pre-build script recognizes `CI_PRODUCT_PLATFORM=macOS` together with `CI_XCODE_SCHEME=AppStoreMac`. It versions only AppStoreMac and its native support bundle using the product's increasing `CI_BUILD_NUMBER`, and stamps web content with the actual checkout commit. iOS actions continue versioning App and the Watch targets. The post-build hook checks the emitted Mac archive's structure and source identity; it exits without inspecting other schemes/platforms. PRs exercise the native contract and both unsigned Mac archive paths and publish neither.
+
+Inspect the exported Store-signed `.app` separately, after extracting its downloaded package if necessary:
+
+```bash
+node scripts/macos-store-preflight.mjs "$app" "$version" "$build" "$commit"
+```
+
+Without `--structure-only`, this also verifies signatures, team `DNA6966LGZ`, Mac App Store distribution identities and signed sandbox/media/user-selected-file/network entitlements, production APNs and associated domains. Confirm Apple's processed build is App Store eligible; do not substitute Developer ID or development signing. Reuse Xcode Cloud signing instead of adding notarization credentials to this workflow.
+
+Before review, exercise login/logout and encrypted history after restart, SSO/custom/universal links, notifications, voice messages, calls with microphone/camera permission denial and recovery, file selection/export/drag-drop, and Quick Capture from another app and full-screen Spaces, both screenshot targets and keyboard return. Screenshots require macOS 15.2 or later, as the existing ScreenCaptureKit guard specifies. Decide whether incoming-network access is needed from real WebRTC tests and sandbox evidence; do not grant broad filesystem access. Keep test accounts and captures separate from existing user data.
+
+Add the macOS platform and safe Mac screenshots/review instructions to the existing App Store record only after reviewed fixes and validation. Mac versions have their own submission; preserve any pending iOS/Watch submission. Use the actual processed version/build and its release-tag source commit, show the concrete submission before final approval, and retain automatic release after approval. Stop on an Apple error, unanswered questionnaire, required agreement/tax/bank acceptance, or sign-in/2FA prompt. The iOS fastlane screenshot/submission lane is not the Mac release path.
+
 ## Moving the App Store app to this repository
 
 The app keeps its App Store record (MindRoom AI, Apple ID 6760272172), bundle identifier `chat.mindroom.app` and team `DNA6966LGZ`; this repository's Xcode project already uses them. Only the repository Xcode Cloud builds from changes, so people who have the app get the next version as an ordinary update. These steps happen in GitHub, App Store Connect and the dev repository's `app-store/` tooling; nothing in them can be done from this repository.
