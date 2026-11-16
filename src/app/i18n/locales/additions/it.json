@@ -1306,6 +1306,23 @@
       "snoozed": "Posticipati",
       "idle": "Inattivi",
       "resolved": "Risolti"
+    },
+    "live": {
+      "tools": "Strumenti",
+      "toolsRunning_one": "{{count}} in esecuzione",
+      "toolsRunning_many": "{{count}} in esecuzione",
+      "toolsRunning_other": "{{count}} in esecuzione",
+      "toolsRunningNamed_one": "{{count}} in esecuzione: {{names}}",
+      "toolsRunningNamed_many": "{{count}} in esecuzione: {{names}}",
+      "toolsRunningNamed_other": "{{count}} in esecuzione: {{names}}",
+      "background": "Background",
+      "jobs_one": "{{count}} attività",
+      "jobs_many": "{{count}} attività",
+      "jobs_other": "{{count}} attività",
+      "jobsWaiting_one": "{{jobs}}, {{count}} in attesa di approvazione",
+      "jobsWaiting_many": "{{jobs}}, {{count}} in attesa di approvazione",
+      "jobsWaiting_other": "{{jobs}}, {{count}} in attesa di approvazione",
+      "waitingForAnswer": "In attesa di una risposta"
     }
   }
 }

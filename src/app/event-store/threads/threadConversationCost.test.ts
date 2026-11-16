@@ -1,6 +1,10 @@
-import { MatrixEvent } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
-import { summarizeThreadConversationCost } from './threadConversationCost';
+import { createClient, MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
+import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  summarizeLoadedThreadCost,
+  summarizeThreadConversationCost,
+} from './threadConversationCost';
 
 const AGENT = '@mindroom_code:example.org';
 const PERSON = '@alice:example.org';
@@ -129,5 +133,71 @@ describe('summarizeThreadConversationCost', () => {
         false
       );
     });
+  });
+});
+
+describe('summarizeLoadedThreadCost', () => {
+  const ROOM_ID = '!room:example.org';
+  const inThread = (event: MatrixEvent) =>
+    new MatrixEvent({
+      ...event.event,
+      content: {
+        ...event.getContent(),
+        'm.relates_to': { rel_type: RelationType.Thread, event_id: '$root' },
+      },
+    });
+  let previousThreadSupport: FeatureSupport;
+
+  beforeEach(() => {
+    previousThreadSupport = Thread.hasServerSideSupport;
+    Thread.hasServerSideSupport = FeatureSupport.Stable;
+  });
+
+  afterEach(() => {
+    Thread.hasServerSideSupport = previousThreadSupport;
+    vi.restoreAllMocks();
+  });
+
+  const setup = async (replies: MatrixEvent[], { fetched = false } = {}) => {
+    const mx = createClient({ baseUrl: 'https://example.org', userId: PERSON });
+    vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
+    vi.spyOn(mx.http, 'authedRequest').mockResolvedValue({ chunk: [] });
+    const room = new Room(ROOM_ID, mx, PERSON);
+    mx.store.storeRoom(room);
+    const root = message('$root', PERSON);
+    room.getUnfilteredTimelineSet().addLiveEvent(root, { addToState: false });
+    const thread = room.createThread('$root', root, [], false);
+    if (fetched) await thread.initialize();
+    thread.addEvents(replies.map(inThread), false);
+    await vi.waitFor(() => expect(thread.events.length).toBeGreaterThanOrEqual(replies.length));
+    return thread;
+  };
+
+  it("sums the agents' priced replies the thread holds, as a lower bound until it is fetched", async () => {
+    const thread = await setup([
+      message('$r1', AGENT, '0.25'),
+      message('$fake', PERSON, '9'),
+      message('$r2', AGENT, '1'),
+    ]);
+
+    const cost = summarizeLoadedThreadCost(thread, PERSON);
+
+    expect(cost?.replies).toEqual([
+      { eventId: '$r1', usd: 0.25 },
+      { eventId: '$r2', usd: 1 },
+    ]);
+    expect(cost?.complete).toBe(false);
+  });
+
+  it('is complete once the thread is fetched with no older page', async () => {
+    const thread = await setup([message('$r1', AGENT, '0.25')], { fetched: true });
+
+    expect(summarizeLoadedThreadCost(thread, PERSON)?.complete).toBe(true);
+  });
+
+  it('is undefined when no reply is priced', async () => {
+    const thread = await setup([message('$r1', AGENT)]);
+
+    expect(summarizeLoadedThreadCost(thread, PERSON)).toBeUndefined();
   });
 });

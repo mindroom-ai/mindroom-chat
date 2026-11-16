@@ -23,6 +23,8 @@ import { getFinishingEdit, hasStreamEnded } from '../../matrix/client/syncedEdit
 
 type ThreadStreamingSnapshot = {
   isStreaming: boolean;
+  /** The tail reply that streams. */
+  reply?: MatrixEvent;
   trackedEvents: MatrixEvent[];
   trackedRelations: Relations[];
 };
@@ -137,7 +139,7 @@ const getThreadStreamingSnapshot = (
   const thread = room.getThread(threadRootId);
   const timelineSet = thread?.getUnfilteredTimelineSet?.() ?? room.getUnfilteredTimelineSet();
   const trackedRelations: Relations[] = [];
-  let isStreaming = false;
+  let reply: MatrixEvent | undefined;
 
   trackedEvents.forEach((mEvent) => {
     const eventId = mEvent.getId();
@@ -147,21 +149,27 @@ const getThreadStreamingSnapshot = (
     }
 
     if (
-      !isStreaming &&
+      !reply &&
       isEventStreaming(mEvent, relations, timelineSet) &&
       isStreamingReplyCurrent(room, mEvent)
     ) {
-      isStreaming = true;
+      reply = mEvent;
     }
   });
 
-  return { isStreaming, trackedEvents, trackedRelations };
+  return { isStreaming: !!reply, reply, trackedEvents, trackedRelations };
 };
 
 export const getThreadStreamingState = (
   room: Room | undefined,
   threadRootId: string | undefined
 ): boolean => getThreadStreamingSnapshot(room, threadRootId).isStreaming;
+
+/** The reply of the thread's tail that streams now, whose tool trace says what it runs. */
+export const getThreadStreamingReply = (
+  room: Room | undefined,
+  threadRootId: string | undefined
+): MatrixEvent | undefined => getThreadStreamingSnapshot(room, threadRootId).reply;
 
 export const useThreadStreamingState = (
   room: Room | undefined,

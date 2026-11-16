@@ -1,6 +1,9 @@
-import type { MatrixEvent } from 'matrix-js-sdk';
-import { reactionOrEditEvent } from '../../matrix/room';
+import { Direction, type MatrixEvent } from 'matrix-js-sdk';
+import type { Thread } from 'matrix-js-sdk/lib/models/thread';
+import { getEditedEvent, getLatestMessageContent, reactionOrEditEvent } from '../../matrix/room';
 import { getAiRunInfo } from '../../matrix/protocol/aiRun';
+import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
+import { hasLoadedFirstThreadPage } from '../sdk/threadBootstrapSdk';
 import type { ThreadSummaryHistory } from './threadSummaryTimeline';
 
 type ConversationCostTotal = {
@@ -63,4 +66,29 @@ export const summarizeThreadConversationCost = (
     byEventId,
     replies,
   };
+};
+
+/**
+ * What the replies a thread holds cost, for a surface that shows the thread without opening it:
+ * no page is loaded for it, so the sum is complete only when the SDK fetched the thread and holds
+ * no older page. Only agents' cost counts.
+ */
+export const summarizeLoadedThreadCost = (
+  thread: Thread,
+  viewerId: string | undefined
+): ThreadConversationCost | undefined => {
+  const timeline = thread.liveTimeline;
+  return summarizeThreadConversationCost(timeline.getEvents(), {
+    history: {
+      sdkLoaded: hasLoadedFirstThreadPage(thread),
+      canPaginateBack: typeof timeline.getPaginationToken(Direction.Backward) === 'string',
+      hasMoreCachedBack: false,
+    },
+    isTrustedSender: (userId) => isMindroomAgentUserIdForViewer(userId, viewerId),
+    getContent: (event) =>
+      getLatestMessageContent(
+        event,
+        getEditedEvent(event.getId() ?? '', event, thread.timelineSet)
+      ) as Record<string, unknown>,
+  });
 };

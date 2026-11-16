@@ -1282,6 +1282,19 @@
       "snoozed": "স্নুজ করা",
       "idle": "নিষ্ক্রিয়",
       "resolved": "সমাধান করা"
+    },
+    "live": {
+      "tools": "টুল",
+      "toolsRunning_one": "{{count}}টি চলছে",
+      "toolsRunning_other": "{{count}}টি চলছে",
+      "toolsRunningNamed_one": "{{count}}টি চলছে: {{names}}",
+      "toolsRunningNamed_other": "{{count}}টি চলছে: {{names}}",
+      "background": "ব্যাকগ্রাউন্ড",
+      "jobs_one": "{{count}}টি কাজ",
+      "jobs_other": "{{count}}টি কাজ",
+      "jobsWaiting_one": "{{jobs}}, {{count}}টি অনুমোদনের অপেক্ষায়",
+      "jobsWaiting_other": "{{jobs}}, {{count}}টি অনুমোদনের অপেক্ষায়",
+      "waitingForAnswer": "উত্তরের অপেক্ষায়"
     }
   }
 }

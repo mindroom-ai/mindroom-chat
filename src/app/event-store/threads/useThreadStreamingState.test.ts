@@ -5,7 +5,11 @@ import { RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
 import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { getThreadStreamingState, useThreadStreamingState } from './useThreadStreamingState';
+import {
+  getThreadStreamingReply,
+  getThreadStreamingState,
+  useThreadStreamingState,
+} from './useThreadStreamingState';
 
 const THREAD_ROOT_ID = '$root';
 
@@ -205,6 +209,34 @@ const renderHookHarness = (
     renderer: renderer as ReactTestRenderer,
   };
 };
+
+describe('getThreadStreamingReply', () => {
+  it('finds the reply that streams, and none once it finished', () => {
+    const relationMap = new Map<string, MockRelations>();
+    const earlier = makeThreadReplyEvent('$earlier', 100);
+    const reply = makeThreadReplyEvent('$reply', 200, {
+      'io.mindroom.stream_status': 'streaming',
+    });
+    const thread = makeThread({ relationMap, timelineEvents: [earlier, reply] });
+    const room = makeRoom({
+      rootEventId: '$root',
+      thread,
+      roomTimelineSet: makeTimelineSet(relationMap, () => []),
+    });
+
+    expect(getThreadStreamingReply(room, '$root')).toBe(reply);
+    expect(getThreadStreamingReply(room, '$other')).toBeUndefined();
+
+    reply.setUnsigned({
+      'm.relations': {
+        'm.replace': makeEditEvent('$done', 300, '$reply', {
+          'io.mindroom.stream_status': 'completed',
+        }).event,
+      },
+    });
+    expect(getThreadStreamingReply(room, '$root')).toBeUndefined();
+  });
+});
 
 describe('useThreadStreamingState', () => {
   it('copies bundled edits shallowly without changing them and observes newer bundles', () => {
