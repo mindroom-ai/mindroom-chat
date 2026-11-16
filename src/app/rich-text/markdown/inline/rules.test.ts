@@ -38,6 +38,28 @@ describe('LinkRule', () => {
   });
 });
 
+describe('ItalicRule2', () => {
+  it.each(['ANTHROPIC_AP_API_KEY', 'snake_case_name', 'a_b_', '_a_b', '1_000_000', 'a__b__'])(
+    'keeps underscores inside %s as written',
+    (markdown) => {
+      expect(parseInlineMD(markdown)).toBe(markdown);
+    }
+  );
+
+  it.each([
+    ['_a_', '<i data-md="_">a</i>'],
+    ['rename _this_ one', 'rename <i data-md="_">this</i> one'],
+    ['(_a_)', '(<i data-md="_">a</i>)'],
+    ['_snake_case_', '<i data-md="_">snake_case</i>'],
+  ])('italicizes %s', (markdown, html) => {
+    expect(parseInlineMD(markdown)).toBe(html);
+  });
+
+  it('still italicizes inside words with stars', () => {
+    expect(parseInlineMD('a*b*c')).toBe('a<i data-md="*">b</i>c');
+  });
+});
+
 describe('nested inline Markdown', () => {
   it('keeps text nested deeper than the limit as written', () => {
     // Each pair of underscores around the rest nests one more italic.
@@ -49,6 +71,7 @@ describe('nested inline Markdown', () => {
 
   it.each([
     ['underscores', '_'.repeat(16_000)],
+    ['underscores after a word', `a${'_'.repeat(16_000)}`],
     ['stars', '*'.repeat(16_000)],
     ['bold pairs', `${'**'.repeat(8_000)}a${'**'.repeat(8_000)}`],
     ['strikethrough pairs', `${'~~'.repeat(8_000)}a${'~~'.repeat(8_000)}`],
