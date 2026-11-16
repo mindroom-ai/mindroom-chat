@@ -831,13 +831,14 @@ describe('inline canvas sizing', () => {
     expect(clampInlineCanvasHeight(height)).toBe(expected);
   });
 
-  it('reports changed document sizes after resize and load in every canvas', () => {
-    const page = buildCanvasPage('<p>hi</p>', 'light');
-    expect(page).toContain('new ResizeObserver(');
+  it('reports the size of inline pages only, on resize, DOM changes, transitions and loads', () => {
+    const page = buildCanvasPage('<p>hi</p>', 'light', undefined, false, {}, true);
     expect(page).toContain('new ResizeObserver(queueSize).observe(document.body)');
     expect(page).toContain('new MutationObserver(queueSize).observe(document.body');
-    expect(page).toContain("addEventListener('load',");
+    expect(page).toContain("['transitionend', 'animationend', 'load']");
+    expect(page).toContain("addEventListener('load', reportSize)");
     expect(page).toContain(`type: '${CANVAS_SIZE_MESSAGE}'`);
+    expect(buildCanvasPage('<p>hi</p>', 'light')).not.toContain(CANVAS_SIZE_MESSAGE);
   });
 
   it('uses transparent padded inline pages without changing panel defaults', () => {

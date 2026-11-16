@@ -245,22 +245,8 @@ const inputsScript = (inputs: string | undefined): string => `
     restore(controls().map((entry) => entry.key));
   }));`;
 
-// Runs before any agent script. Forms are captured here because the sandbox
-// cannot submit them anywhere; everything else calls window.mindroom.submit,
-// which only offers a snapshot to the host. The host decides whether to send it.
-// Errors, failed loads, and loads the policy blocks are reported so the user can pass them on.
-// Removing WebRTC constructors is defense in depth: CSP cannot block STUN traffic.
-const bridgeScript = (
-  colorScheme: CanvasColorScheme,
-  lineOffset: number,
-  saved: CanvasSaved
-): string => `(() => {
-  // Whether the user has clicked or typed in this page, which no script can fake; undefined where unknown.
-  const userActive = () => navigator.userActivation ? navigator.userActivation.hasBeenActive : undefined;
-  ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel', 'RTCIceCandidate'].forEach((name) => {
-    try { delete window[name]; } catch (error) {}
-    try { Object.defineProperty(window, name, { value: undefined, configurable: false }); } catch (error) {}
-  });
+/** Only inline pages report their height: their host fits the frame to it. */
+const sizeScript = `
   let lastHeight;
   let sizeQueued = false;
   // The body's own extent: it follows the content down and up, and the frame's height never enters it,
@@ -290,8 +276,29 @@ const bridgeScript = (
     });
     reportSize();
   });
+  // A transition, an animation or an image can change positioned content after the change that started it.
+  ['transitionend', 'animationend', 'load'].forEach((type) => document.addEventListener(type, queueSize, true));
   addEventListener('load', reportSize);
-  const post = (data, options) => {
+`;
+
+// Runs before any agent script. Forms are captured here because the sandbox
+// cannot submit them anywhere; everything else calls window.mindroom.submit,
+// which only offers a snapshot to the host. The host decides whether to send it.
+// Errors, failed loads, and loads the policy blocks are reported so the user can pass them on.
+// Removing WebRTC constructors is defense in depth: CSP cannot block STUN traffic.
+const bridgeScript = (
+  colorScheme: CanvasColorScheme,
+  lineOffset: number,
+  saved: CanvasSaved,
+  inline: boolean
+): string => `(() => {
+  // Whether the user has clicked or typed in this page, which no script can fake; undefined where unknown.
+  const userActive = () => navigator.userActivation ? navigator.userActivation.hasBeenActive : undefined;
+  ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel', 'RTCIceCandidate'].forEach((name) => {
+    try { delete window[name]; } catch (error) {}
+    try { Object.defineProperty(window, name, { value: undefined, configurable: false }); } catch (error) {}
+  });
+${inline ? sizeScript : ''}  const post = (data, options) => {
     const label = options && typeof options.label === 'string' ? options.label : undefined;
     parent.parent.postMessage({ type: '${CANVAS_SUBMIT_MESSAGE}', version: 1, data, label }, '*');
   };
@@ -397,7 +404,7 @@ export const buildCanvasPage = (
             )
           : BASE_STYLE
       }</style>`,
-      `<script>${bridgeScript(colorScheme, lineOffset, saved)}</script>`,
+      `<script>${bridgeScript(colorScheme, lineOffset, saved, inline)}</script>`,
       '</head><body>',
     ].join('');
   // The agent's markup starts on the line after this many line breaks; the number adds none.

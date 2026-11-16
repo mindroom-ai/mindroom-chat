@@ -48,7 +48,10 @@ test('an inline canvas fits its page in the thread and leaves the panel closed',
   // 400px of content, its 1px border and the page's 8px gutter above and below.
   await expect.poll(frameHeight(page, 'Flow mockup'), { timeout: 20_000 }).toBe(418);
   await expect(
-    page.frameLocator('iframe[title="Flow mockup"]').frameLocator('iframe').getByText('Flow mockup body')
+    page
+      .frameLocator('iframe[title="Flow mockup"]')
+      .frameLocator('iframe')
+      .getByText('Flow mockup body')
   ).toBeVisible();
 
   await page.waitForTimeout(1_500);
@@ -57,7 +60,7 @@ test('an inline canvas fits its page in the thread and leaves the panel closed',
   await expect(panelLocator(page, 'canvas')).toBeVisible({ timeout: 30_000 });
 });
 
-test('an inline canvas follows absolutely positioned content as it grows and shrinks', async ({
+test('an inline canvas follows absolutely positioned content through transitions as it grows and shrinks', async ({
   context,
   page,
 }) => {
@@ -65,13 +68,14 @@ test('an inline canvas follows absolutely positioned content as it grows and shr
   await sendInlineCanvas(
     room,
     'Positioned mockup',
-    `<div id="box" style="position:absolute;top:0;left:0;right:0;height:400px">
+    `<div id="box" style="position:absolute;top:0;left:0;right:0;height:400px;transition:height 0.3s linear">
       <button id="toggle" onclick="box.style.height = box.style.height === '700px' ? '250px' : '700px'">Resize</button>
     </div>`
   );
   await expect(page.locator('iframe[title="Positioned mockup"]')).toBeVisible({ timeout: 60_000 });
   const height = frameHeight(page, 'Positioned mockup');
-  // Out-of-flow content keeps its height once the frame has made room for it.
+  // Out-of-flow content keeps its height once the frame has made room for it, and the frame
+  // follows its height to the end of each transition.
   await expect.poll(height, { timeout: 20_000 }).toBe(400);
   await page.waitForTimeout(1_000);
   expect(await height()).toBe(400);
