@@ -317,20 +317,11 @@ export function CompactRoomView({
   // The cards glide to a new order or to the place the filter bar leaves them, a new one fades
   // in and one that left fades out. After the hook that holds the order: it scrolls the list
   // where the browser does not anchor it.
-  // Cards mounting after the others at the list's end (`useStagedCardIds`) move none of them, so
-  // while the cards shown are the list's first ones the list plays by the whole list's order: a
-  // chunk that mounts plays nothing and reads no card.
-  const stagingTail =
-    stagedRootIds.length < shownRootIds.length &&
-    stagedRootIds.every((rootId, index) => shownRootIds[index] === rootId);
-  const orderRootIds = stagingTail
-    ? shownRootIds
-    : cardViewModels.map((model) => model.id.threadRootId);
-  const pinnedOrder = orderRootIds.filter((rootId) => pinning.pinnedEventIds.includes(rootId));
-  const ordinaryOrder = orderRootIds.filter((rootId) => !pinning.pinnedEventIds.includes(rootId));
+  const rootIdsOf = (models: CompactThreadCardViewModel[]) =>
+    models.map((model) => model.id.threadRootId).join(',');
   const listMotion = useListMotion(
     contentRef,
-    `${filterBarShown}|${pinnedOrder.join(',')}|${ordinaryOrder.join(',')}`
+    `${filterBarShown}|${rootIdsOf(pinnedCards)}|${rootIdsOf(ordinaryCards)}`
   );
 
   // A fully stable click handler keeps the memoized cards from re-rendering

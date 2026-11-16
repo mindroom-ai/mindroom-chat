@@ -1,11 +1,10 @@
 // @vitest-environment jsdom
 import type { Room } from 'matrix-js-sdk';
-import { cleanup, render, waitFor } from '@testing-library/react';
+import { cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 import { standInForListMotion } from '../../ui/__tests__/listMotionStandIn';
 import { CompactRoomView } from './CompactRoomView';
-import { FIRST_SCREEN_CARDS } from './useStagedCardIds';
 
 const ROOM_ID = '!room:example.org';
 
@@ -91,12 +90,6 @@ afterEach(() => {
   motion.restore();
 });
 
-/** How often a card's moving part was measured. */
-const readsOfCards = () =>
-  motion.rects.mock.contexts.filter((element) =>
-    (element as HTMLElement).hasAttribute('data-motion-row')
-  ).length;
-
 describe('the compact thread list in motion', () => {
   it('glides the cards after one that left, and fades that one where it stood', () => {
     const { rerender } = render(list(['$a', '$b', '$c']));
@@ -117,21 +110,12 @@ describe('the compact thread list in motion', () => {
     expect(glided().sort()).toEqual(['$a', '$b']);
   });
 
-  it('reads no card as the cards past the first screen mount after it, a chunk at a time', async () => {
-    const ids = Array.from({ length: 100 }, (_unused, index) => `$${index}`);
-    render(list(ids));
-    expect(document.querySelectorAll('[data-motion-row]')).toHaveLength(FIRST_SCREEN_CARDS);
-    motion.rects.mockClear();
-
-    await waitFor(
-      () => expect(document.querySelectorAll('[data-motion-row]')).toHaveLength(ids.length),
-      { timeout: 5_000 }
-    );
-    expect(readsOfCards()).toBe(0);
-    expect(motion.plays).toHaveLength(0);
-  });
-
   it('reads the cards when the filter bar comes or goes, which moves them all', () => {
+    /** How often a card's moving part was measured. */
+    const readsOfCards = () =>
+      motion.rects.mock.contexts.filter((element) =>
+        (element as HTMLElement).hasAttribute('data-motion-row')
+      ).length;
     const { rerender } = render(list(['$a', '$b']));
     motion.rects.mockClear();
     rerender(list(['$a', '$b']));
