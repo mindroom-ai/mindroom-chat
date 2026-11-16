@@ -53,12 +53,15 @@ Worktree: `/home/basnijholt/repos/mindroom-client-worktrees/thread-details-hover
 ### Task 1: The `threadDetails` kind, its registry entry and SDK version 57
 
 **Files:**
+
 - Create: `src/app/plugins/threadDetails.ts`, `src/app/plugins/threadDetails.test.ts`
 - Modify: `src/app/plugins/registry.ts` (imports, `ClientPlugin`, `RegisteredPlugin`, `register`), `src/app/plugins/registry.test.ts` (entries, expectations at lines 193-198, frozen check at 218), `src/client-sdk/core.ts:30`, `scripts/client-plugins.mjs:22`
 - Modify (add `threadDetails: [],` after `threadCardBadges`): `src/app/plugins/{PluginPageRoute,messageRenderers,threadCardBadges,roomActions,slashCommands,headerActions,messageLinks}.test.tsx`, `src/app/threads/overview/ThreadCardBadges.test.tsx`, `src/app/room/RoomActionsMenu.test.tsx:378`, the registry mock of `src/app/threads/overview/CompactRoomView.callRow.test.tsx:77`
 
 **Interfaces:**
+
 - Produces, in `src/app/plugins/threadDetails.ts`:
+
   - `type ThreadDetailProps = { room: Room; threadId: string }`
   - `type ThreadDetail = { shows?: (room: Room, threadId: string) => boolean; Component: ComponentType<ThreadDetailProps> }`
   - `isThreadDetail(value: unknown): value is ThreadDetail` (Component a function or a component object, as `isThreadCardBadge`; `shows` undefined or a function)
@@ -95,17 +98,29 @@ it("lists the details of the enabled plugins whose shows takes the thread, in bu
         { Component: B, shows: () => false },
         { Component: C, shows: (r, id) => r === room && id === '$root' },
       ]),
-      plugin('broken', [{ Component: D, shows: () => { throw failure; } }]),
+      plugin('broken', [
+        {
+          Component: D,
+          shows: () => {
+            throw failure;
+          },
+        },
+      ]),
       plugin('beta', [{ Component: E }]),
     ],
-    config, room, '$root'
+    config,
+    room,
+    '$root'
   );
   expect(shown).toEqual([
     { key: 'alpha/0', tag: 'alpha@1.0.0', Component: A },
     { key: 'alpha/2', tag: 'alpha@1.0.0', Component: C },
     { key: 'beta/0', tag: 'beta@1.0.0', Component: E },
   ]);
-  expect(logged).toHaveBeenCalledWith("[plugin broken@1.0.0] its thread details' shows failed", failure);
+  expect(logged).toHaveBeenCalledWith(
+    "[plugin broken@1.0.0] its thread details' shows failed",
+    failure
+  );
 });
 ```
 
@@ -133,12 +148,15 @@ git -c commit.gpgsign=false commit -m "Client plugins: thread details, a contrib
 ### Task 2: The details group in the thread's menu, with the shared renderer
 
 **Files:**
+
 - Create: `src/app/threads/ThreadDetailsList.tsx`, `src/app/threads/ThreadDetailsList.css.ts`, `src/app/threads/ThreadDetailsList.test.tsx`, `src/app/threads/ThreadActionsMenu.css.ts`
 - Modify: `src/app/threads/ThreadActionsMenu.tsx` (props at 37-52, hooks before the first early return at 182, markup at 536-554), `src/app/threads/ThreadActionsMenu.items.test.tsx`
 
 **Interfaces:**
+
 - Consumes: `shownThreadDetails`, `ShownThreadDetail`, `ThreadDetailProps` (Task 1); `isConfirmedMatrixEventId` (`src/app/event-store/threads/threadRouteUtils.ts:10`); `useOptionalClientConfig` (`src/app/config/useClientConfig`); `reportBoundaryError` and `pluginFailure` as `ThreadCardBadges.tsx` uses them.
 - Produces:
+
   - `ThreadDetailsList({ room, threadId, details }: { room: Room; threadId: string; details: readonly ShownThreadDetail[] })`: each contribution in a `<div className={css.ThreadDetail} data-thread-detail={key}>` holding `ErrorBoundary` (fallback `null`, logs `[plugin ${tag}] failed to render its thread details` and reports `pluginFailure(tag, thrown)`) around `Suspense` (fallback `null`) around `<Component room threadId />`.
   - `css.ThreadDetail`: `'&:empty'` hidden; `'&:not(:empty) ~ &:not(:empty)'` gets the hairline (`borderBlockStart: ${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`, `paddingBlockStart` and `marginBlockStart` `config.space.S200`), so a contribution that draws nothing leaves no stray line.
   - `ThreadActionsMenuProps.plugins?: readonly RegisteredPlugin[]` (default `registeredPlugins`, as `ThreadCardBadges` takes it).
@@ -158,16 +176,23 @@ it('keeps the page and the other details while one waits for its code', ...)
 
 ```ts
 it('shows the details first, above Open, with nothing that takes the focus, as the description of the menu', () => {
-  const items = renderMenu({ plugins: [plugin('alpha', [{ Component: Branch }])], onOpenThread: () => undefined });
+  const items = renderMenu({
+    plugins: [plugin('alpha', [{ Component: Branch }])],
+    onOpenThread: () => undefined,
+  });
   const group = host.querySelector<HTMLElement>('[data-thread-details]');
   const menu = host.querySelector<HTMLElement>('[role="menu"]');
   expect(group?.textContent).toBe('Branch main');
   expect(menu?.getAttribute('aria-describedby')).toBe(group?.id);
   expect(group!.compareDocumentPosition(items[0]!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   expect(items[0]?.dataset.threadAction).toBe('open');
-  expect(group!.querySelectorAll('button, a[href], input, select, textarea, [tabindex]')).toHaveLength(0);
+  expect(
+    group!.querySelectorAll('button, a[href], input, select, textarea, [tabindex]')
+  ).toHaveLength(0);
   // The arrow keys still go to the first item.
-  act(() => { menu!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); });
+  act(() => {
+    menu!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  });
   expect(document.activeElement).toBe(items[0]);
 });
 it('shows no group and no description when no plugin shows details for the thread', () => {
@@ -213,10 +238,12 @@ git -c commit.gpgsign=false commit -m "Thread menu: client plugins' thread detai
 ### Task 3: The hover card on Compact thread cards
 
 **Files:**
+
 - Create: `src/app/threads/overview/ThreadCardDetails.tsx`, `src/app/threads/overview/ThreadCardDetails.css.ts`, `src/app/threads/overview/ThreadCardDetails.test.tsx`
 - Modify: `src/app/threads/overview/CompactRoomView.tsx` (render it after `InsetScrollbar`, line 465-470), `src/app/threads/overview/CompactRoomView.motion.test.tsx` (add `vi.mock('./ThreadCardDetails', () => ({ ThreadCardDetails: () => null }));` beside the `ThreadCardBadges` mock: the file stubs react-i18next, which the registry's translations cannot use)
 
 **Interfaces:**
+
 - Consumes: `shownThreadDetails` (Task 1), `ThreadDetailsList` (Task 2), `PopOut` from `src/app/ui/directional.tsx`, `Menu` from `src/app/ui/glass/GlassPrimitives`, `isConfirmedMatrixEventId`.
 - Produces:
   - `THREAD_CARD_DETAILS_DELAY_MS = 500`, `HOVER_POINTER_QUERY = '(hover: hover) and (pointer: fine)'`
@@ -225,6 +252,7 @@ git -c commit.gpgsign=false commit -m "Thread menu: client plugins' thread detai
   - CompactRoomView renders `<ThreadCardDetails room={room} listRef={contentRef} menuOpen={!!menu} />`.
 
 Behavior (native listeners on `listRef.current` in one effect, as `useCompactCardSwipeList`; latest `room`, `plugins`, config and `menuOpen` read through refs):
+
 - `pointermove`: ignored for `pointerType === 'touch'` or when `globalThis.matchMedia?.(HOVER_POINTER_QUERY).matches` is not true. The card is `(event.target as Element).closest('[data-scroll-anchor]')` inside the list; its root ID is that attribute. The last pointer point is kept. A different card (or none) than the current one closes the card, cancels the wait and forgets the dismissal; a new confirmed (`$`) card that is not dismissed starts one 500 ms timer. Moves within the same card change nothing else.
 - Timer: unless `menuOpen`, `shownThreadDetails(...)` for that root; none, nothing opens (and no new wait until the pointer leaves the card); else open with `anchor = { x, y, width: 0, height: 0 }` at the last point, `position` `'Top'` when `y > window.innerHeight / 2` else `'Bottom'`, `align="Start"`, `offset={16}` (clears the cursor).
 - `pointerleave` on the list: close, cancel, forget the dismissal. `pointerdown` or `click` (capture) in the list: close, cancel, dismiss the current card. `scroll` on `window` (capture, passive): close, cancel, dismiss the current card.
@@ -277,10 +305,12 @@ git -c commit.gpgsign=false commit -m "Compact view: a hover card with a thread'
 ### Task 4: A long press on a Compact card opens the thread's menu
 
 **Files:**
+
 - Create: `src/app/threads/overview/CompactRoomView.longPress.test.tsx` (jsdom; `CompactRoomView.test.ts` runs in node, where `useLongPress` has no `window`)
 - Modify: `src/app/threads/overview/CompactRoomView.tsx:100-147` (`CompactThreadCardRow`)
 
 **Interfaces:**
+
 - Consumes: `useLongPress(onLongPress: (x: number, y: number, element: HTMLElement) => void, canStart: (evt: TouchEvent<HTMLElement>) => boolean)` and `LONG_PRESS_MS` from `src/app/lib/hooks/useLongPress.ts`.
 - Produces: in the row, `openMenuAt(x: number, y: number, shell: HTMLElement)` calling `onOpenMenu({ roomId, rootId, viewModel, anchor: { x, y, width: 0, height: 0 }, trigger: shell.querySelector<HTMLButtonElement>('[data-thread-root-id]') ?? undefined })`, used by `onContextMenu` (with `event.clientX`, `event.clientY`, `event.currentTarget`) and by `useLongPress(openMenuAt, (evt) => evt.currentTarget.contains(evt.target as Node))`, whose four handlers spread on the `CardShell` div.
 
@@ -294,16 +324,22 @@ it("opens the thread's menu at the finger after a long press on its card, and th
   render(list(['$a'], onThreadClick));
   const shell = document.querySelector<HTMLElement>('[data-scroll-anchor="$a"]')!;
   fireEvent.touchStart(shell, { touches: [finger(40, 60)] });
-  act(() => { vi.advanceTimersByTime(LONG_PRESS_MS); });
+  act(() => {
+    vi.advanceTimersByTime(LONG_PRESS_MS);
+  });
   await act(async () => {}); // the menu is lazy
-  expect(menuProps).toHaveBeenLastCalledWith(expect.objectContaining({ rootId: '$a', anchor: { x: 40, y: 60, width: 0, height: 0 } }));
+  expect(menuProps).toHaveBeenLastCalledWith(
+    expect.objectContaining({ rootId: '$a', anchor: { x: 40, y: 60, width: 0, height: 0 } })
+  );
   expect(fireEvent.touchEnd(shell, { touches: [] })).toBe(false);
   expect(onThreadClick).not.toHaveBeenCalled();
 });
 it('opens no menu for a finger that swipes the card sideways', () => {
   fireEvent.touchStart(shell, { touches: [finger(40, 60)] });
   fireEvent.touchMove(shell, { touches: [finger(70, 60)] });
-  act(() => { vi.advanceTimersByTime(LONG_PRESS_MS); });
+  act(() => {
+    vi.advanceTimersByTime(LONG_PRESS_MS);
+  });
   expect(menuProps).not.toHaveBeenCalled();
 });
 ```
@@ -330,9 +366,11 @@ git -c commit.gpgsign=false commit -m "Compact view: a long press on a thread's 
 ### Task 5: The example plugin's thread details and the docs
 
 **Files:**
+
 - Modify: `src/app/plugins/__fixtures__/example-plugin/index.tsx` (`GreetingBadge` at 1098-1117, the `threadCardBadges` entry of `plugin` at 1218), `.../example-plugin/index.test.tsx` (badge test at 875), `.../example-plugin/package.json` (`apiVersion` 57; description gains "the details of a thread a greeting begins, in its Compact card's hover card and its menu"), `docs/client-plugins.md` (line 24, line 175, version list after line 234, new section after line 459)
 
 **Interfaces:**
+
 - Produces in the example plugin: `greetingOf(room: Room, threadId: string): string | undefined` (the root lookup `GreetingBadge` does today plus `greetingText`), used by `GreetingBadge`, by `threadDetails: [{ shows: (room, threadId) => greetingOf(room, threadId) !== undefined, Component: GreetingDetails }]`, and by `GreetingDetails({ room, threadId }: ThreadDetailProps)`, which renders `<div data-example-plugin-details>` with two rows: `Greeting` and the greeting's text.
 
 - [ ] **Step 1: Write the failing test** in `index.test.tsx`, lifting the badge test's `root`/`roots`/`room` into a file-level `greetingRoom()`:
@@ -342,9 +380,18 @@ it('gives the details of a thread a greeting begins, and of no other thread', as
   const [details] = plugin.threadDetails ?? [];
   if (!details) throw new Error('the example plugin has no thread details');
   const room = greetingRoom();
-  expect(['$greeting', '$plain', '$unknown'].map((id) => details.shows?.(room, id))).toEqual([true, false, false]);
-  const view = await renderPluginComponent(<details.Component room={room} threadId="$greeting" />, { id: 'example', plugin });
-  expect(view.container.querySelector('[data-example-plugin-details]')?.textContent).toBe('GreetingHello');
+  expect(['$greeting', '$plain', '$unknown'].map((id) => details.shows?.(room, id))).toEqual([
+    true,
+    false,
+    false,
+  ]);
+  const view = await renderPluginComponent(<details.Component room={room} threadId="$greeting" />, {
+    id: 'example',
+    plugin,
+  });
+  expect(view.container.querySelector('[data-example-plugin-details]')?.textContent).toBe(
+    'GreetingHello'
+  );
 });
 ```
 
@@ -370,12 +417,15 @@ git -c commit.gpgsign=false commit -m "Example plugin and docs: thread details"
 ### Task 6: End-to-end spec, screenshots, full checks
 
 **Files:**
+
 - Create: `e2e/plugins/thread-details.spec.ts`
 
 **Interfaces:**
+
 - Consumes: the DOM contract of Tasks 2 and 3 (`[data-thread-card-details]`, `[data-thread-details]`), `[data-example-plugin-details]` (Task 5), `touch(target, steps)` from `e2e/helpers/touch.ts`, and the setup of `e2e/plugins/thread-card-badge.spec.ts` (its own `npx vite build` with `MINDROOM_CLIENT_PLUGINS` set to the example plugin, `serveBuild`, a greeting thread and a plain one, `setRoomCompact`). Its `onBuild` gains a context-options argument for the phone.
 
 - [ ] **Step 1: Write the spec**, three tests; `THREAD_DETAILS_SHOTS=1` saves to `test-results/thread-details/`:
+
   1. Desktop 1440x900: hover the greeting card's button, expect `[data-thread-card-details] [data-example-plugin-details]` visible with "Greeting" (shot `hover-light.png`; `page.emulateMedia({ colorScheme: 'dark' })`, wait for `html[data-theme-kind="dark"]`, hover again, shot `hover-dark.png`); hover the plain card, wait 1000 ms, expect `[data-thread-card-details]` to have count 0.
   2. Desktop: right-click the greeting card; in `getByRole('menu')`, `[data-thread-details]` contains "Greeting" and comes before the first `menuitem`, "Open thread"; Escape closes it.
   3. Phone (390x844, `hasTouch`, `isMobile`, device scale 3): `touch(card, [{ type: 'start' }, { type: 'wait', ms: 700 }, { type: 'end' }])` answers `liftAllowed: false`; the menu shows `[data-thread-details]` with "Greeting"; the URL has no `threadId`; shot `phone-menu.png`.
@@ -406,11 +456,14 @@ Starts once Part 1 is merged (or, before that, against the Part 1 worktree, whos
 ### Task 7: Worktree, `threadHasDetails` and `usePullRequestStatus`
 
 **Files:**
+
 - Create: `src/pullRequestStatus.ts`
 - Modify: `src/threadPullRequests.ts` (after `snapshotOf`, line 158), `src/threadPullRequests.test.ts`, `src/queries.ts`, `src/PullRequestChip.tsx` (27, 45-56)
 
 **Interfaces:**
+
 - Produces:
+
   - `threadHasDetails(room: Room, threadId: string): boolean`: `byThread.has(threadId) || worktrees.has(threadId)` of `snapshotOf(room)`.
   - `export const NO_FOCUS_REFETCH = { refetchOnWindowFocus: false }` in `src/queries.ts` (removed from the chip).
   - `type PullRequestStatus = { pr: PullRequest | undefined; state: PullRequestStatePresentation | undefined; checks: Exclude<ChecksState, 'none'> | undefined }` and `usePullRequestStatus(ref: PullRequestRef | undefined): PullRequestStatus` in `src/pullRequestStatus.ts`: the chip's lines 48-56 moved as they are (`usePullRequest(ref, NO_FOCUS_REFETCH)`, checks only for an open pull request with a stored token, `useChecks(ref, pr?.headSha ?? '', withChecks, NO_FOCUS_REFETCH)`, `checksState(...)`, `resolvePullRequestState(pr)`).
@@ -423,14 +476,23 @@ git -C /tmp/prcp/pull-request-client-plugin worktree add -b thread-details /tmp/
 cd $P && ln -s $APP .mindroom-chat && nix develop $APP -c npm ci
 cd $APP && MINDROOM_CLIENT_PLUGINS=$P nix develop -c just test $P/src
 ```
+
 Expected: the plugin's tests pass at `main`.
 
 - [ ] **Step 2: Write the failing test** in `src/threadPullRequests.test.ts`, with `linkedRoom` from `src/testing/linkedRoom.ts`:
 
 ```ts
 it('says a thread has details when it has a linked pull request or a worktree', () => {
-  const room = linkedRoom('!r:x', [{ thread: '$pr', number: 1 }], [{ thread: '$tree', path: 'worktrees/a' }]);
-  expect(['$pr', '$tree', '$none'].map((id) => threadHasDetails(room, id))).toEqual([true, true, false]);
+  const room = linkedRoom(
+    '!r:x',
+    [{ thread: '$pr', number: 1 }],
+    [{ thread: '$tree', path: 'worktrees/a' }]
+  );
+  expect(['$pr', '$tree', '$none'].map((id) => threadHasDetails(room, id))).toEqual([
+    true,
+    true,
+    false,
+  ]);
 });
 ```
 
@@ -456,12 +518,15 @@ git -c commit.gpgsign=false commit -m "Threads: whether a thread has details, an
 ### Task 8: `ThreadDetails`, the plugin's contribution
 
 **Files:**
+
 - Create: `src/middleTruncate.ts`, `src/middleTruncate.test.ts`, `src/ThreadDetails.tsx`, `src/ThreadDetails.test.tsx`
 - Modify: `src/strings.ts` (new `details` group), `src/styles.css` (new `.mrpr-details*` classes), `src/index.tsx`, `package.json` (`apiVersion` 57), `README.md` (a "Thread details" section after the worktree section)
 
 **Interfaces:**
+
 - Consumes: `threadHasDetails`, `usePullRequestStatus` (Task 7); `useThreadPullRequests`; `pullRequestUrl`; `PullRequestMetaLine`, `PullRequestDiffStat`, `RelativeTime`, `pullRequestChecksStatePresentation` (`src/presentation.tsx`); `pluginRootStyle`; `ThreadDetailProps` from `@mindroom/client-sdk/core`; lucide `GitPullRequestArrow`, `GitBranch`, `Folder`.
 - Produces:
+
   - `middleTruncate(text: string, max: number): string`: unchanged when it has at most `max` code points; else the first `ceil((max - 1) / 2)` and the last `floor((max - 1) / 2)` code points around `…`. `BRANCH_MAX = 24` in `ThreadDetails.tsx`.
   - `ThreadDetails({ room, threadId }: ThreadDetailProps)`: `<div className="mrpr-root mrpr-details" style={pluginRootStyle()}>` with one `.mrpr-details-pull-request` block per pull request, all of them in link order, then a `.mrpr-details-worktree` block.
   - A pull request block (`usePullRequestStatus(pullRequest)`): line 1 the state icon (`role="img"`, `aria-label` `t('state.<key>')`; until GitHub answers or when it refuses, `GitPullRequestArrow` in `mrpr-tone-draft` with no name), `t('details.pullRequest', { repository: 'owner/repo', number })`, the checks mark (`role="img"`, `aria-label` `t('checksState.<state>')`); with `pr` only: line 2 the title (`.mrpr-details-title`, two-line clamp), line 3 `GitBranch` and `t('details.branches', { head, base })` where `head` is `t('details.forkHead', { owner, branch })` when `pr.headRepo !== null && pr.headRepo !== pr.baseRepo` (owner: `headRepo` before `/`), else `pr.headRef`, each side `middleTruncate(..., BRANCH_MAX)`; line 4 `PullRequestMetaLine` of `PullRequestDiffStat`, `t('code.fileCount', { count: pr.changedFiles })`, `t('details.author', { login: pr.author?.login ?? t('ghost') })` and `RelativeTime` with `label={(time) => t('updated', { time })}`.
@@ -475,7 +540,8 @@ git -c commit.gpgsign=false commit -m "Threads: whether a thread has details, an
 
 ```ts
 it('keeps a short text', () => expect(middleTruncate('main', 24)).toBe('main'));
-it('keeps the start and the end of a long one', () => expect(middleTruncate('feature/thread-details-hover-card', 20)).toBe('feature/th…over-card'));
+it('keeps the start and the end of a long one', () =>
+  expect(middleTruncate('feature/thread-details-hover-card', 20)).toBe('feature/th…over-card'));
 it('cuts between code points', () => expect(middleTruncate('🌳'.repeat(30), 5)).toBe('🌳🌳…🌳🌳'));
 ```
 
@@ -518,13 +584,16 @@ git -c commit.gpgsign=false commit -m "Threads: a thread's pull requests and wor
 ### Task 9: The plugin's end-to-end tests and screenshots
 
 **Files:**
+
 - Modify: `e2e/threadPullRequests.spec.ts` (`shot` at 505-513, two new tests after the phone test at 601-635)
 
 **Interfaces:**
+
 - Consumes: `[data-thread-card-details]` and `[data-thread-details]` (Part 1), `.mrpr-details-pull-request` (Task 8), `touch` from `@mindroom/e2e/touch`.
 - Produces: `shot(page, name, { keepPointer = false } = {})`: with `keepPointer` it skips `page.mouse.move(0, 0)`, which would close the hover card.
 
 - [ ] **Step 1: Write the tests**
+
   1. "resting the pointer on a card shows all its pull requests' details": `stubGitHub`, `openRoom`, hover `card(page, roots.release)`; `[data-thread-card-details] .mrpr-details-pull-request` has count 3 with the titles of `THREADS.release.pulls` in order and the branch line `rate-limit-per-token → main` of `PULLS.rateLimit`; shots `details-light` and, after the dark theme and a new hover, `details-dark` (both `keepPointer`); `unanswered` and `warnings` empty.
   2. "on a phone a long press on a card opens its menu with the details": the phone context of the existing phone test; `touch(card(page, roots.sessions), [{ type: 'start' }, { type: 'wait', ms: 700 }, { type: 'end' }])`; `getByRole('menu')` holds `[data-thread-details]` with the titles of `PULLS.sessionStore` and `PULLS.tokenEndpoint`; shot `phone-details-menu`.
 
