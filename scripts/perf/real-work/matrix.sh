@@ -91,11 +91,15 @@ run_one() {
   # --artifacts brings back; the trap then removes the run's directory (snapshot, build, agent
   # stack) on every exit path, and the exit code stays Playwright's.
   local inner
-  inner="run_dir=\"\$(dirname \"\$E2E_SNAPSHOT_ROOT\")\"
+  inner=": \"\${E2E_SNAPSHOT_ROOT:?}\" \"\${E2E_AGENT_STACK_ROOT:?}\"
+run_dir=\"\$(dirname \"\${E2E_SNAPSHOT_ROOT:?}\")\"
 finish() {
   mkdir -p test-results/perf
   cp -a \"\$E2E_SNAPSHOT_ROOT/slot-$slot/test-results/perf/real-work\" test-results/perf/ || true
-  cd / && rm -rf \"\$run_dir\"
+  case \"\$run_dir\" in
+    /*/rw-*) cd / && rm -rf \"\$run_dir\" ;;
+    *) echo \"matrix: not removing \$run_dir\" >&2 ;;
+  esac
 }
 trap finish EXIT
 mkdir -p \"\$E2E_SNAPSHOT_ROOT\" \"\$E2E_AGENT_STACK_ROOT\"
