@@ -376,6 +376,7 @@ describe("plugins' entries", () => {
       roomActions,
       messageLinks: [],
       threadCardBadges: [],
+      threadDetails: [],
     });
   };
 

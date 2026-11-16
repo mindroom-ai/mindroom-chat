@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { getSingleAppTargetBuildSettingValue } from '../../../scripts/ios-xcode-project.mjs';
 
 const require = createRequire(import.meta.url);
 // Use the same parsers as the declared Capacitor CLI dependency.
@@ -12,9 +13,8 @@ const appDirectory = resolve('ios/App/App');
 const info = plist.parse(readFileSync(resolve(appDirectory, 'Info.plist'), 'utf8'));
 
 const projectSource = readFileSync(resolve('ios/App/App.xcodeproj/project.pbxproj'), 'utf8');
-const appBuildSettings = projectSource
-  .split('isa = XCBuildConfiguration;')
-  .filter((section) => section.includes('PRODUCT_BUNDLE_IDENTIFIER = chat.mindroom.app;'));
+const appSetting = (name: string) =>
+  getSingleAppTargetBuildSettingValue(projectSource, name).replace(/^"|"$/g, '');
 
 describe('iOS scene launch configuration', () => {
   it('provides the application scene first, and a second one only the Mac opens', () => {
@@ -24,11 +24,8 @@ describe('iOS scene launch configuration', () => {
     expect(manifest.UIApplicationSupportsMultipleScenes).toBe(
       '$(MINDROOM_SUPPORTS_MULTIPLE_SCENES)'
     );
-    expect(appBuildSettings).toHaveLength(2);
-    appBuildSettings.forEach((settings) => {
-      expect(settings).toContain('MINDROOM_SUPPORTS_MULTIPLE_SCENES = NO;');
-      expect(settings).toContain('"MINDROOM_SUPPORTS_MULTIPLE_SCENES[sdk=macosx*]" = YES;');
-    });
+    expect(appSetting('MINDROOM_SUPPORTS_MULTIPLE_SCENES')).toBe('NO');
+    expect(appSetting('"MINDROOM_SUPPORTS_MULTIPLE_SCENES[sdk=macosx*]"')).toBe('YES');
     const scenes = manifest.UISceneConfigurations.UIWindowSceneSessionRoleApplication;
     expect(scenes).toHaveLength(2);
     expect(scenes[0].UISceneConfigurationName).toBe('Default Configuration');

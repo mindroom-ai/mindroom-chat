@@ -790,6 +790,10 @@
           "declined": "مرفوض",
           "expired": "منتهي الصلاحية"
         }
+      },
+      "finishedWork": {
+        "workedFor": "عمل لمدة ⁨{{duration}}⁩",
+        "worked": "عمل"
       }
     },
     "message-search": {
@@ -1379,5 +1383,12 @@
       "idle": "خاملة",
       "resolved": "محلولة"
     }
+  },
+  "threadBoard": {
+    "label": "المحادثات حسب الحالة",
+    "working": "قيد العمل",
+    "later": "لاحقًا",
+    "open": "مفتوحة",
+    "done": "منتهية"
   }
 }

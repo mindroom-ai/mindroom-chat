@@ -745,6 +745,10 @@
           "declined": "Ditolak",
           "expired": "Kedaluwarsa"
         }
+      },
+      "finishedWork": {
+        "workedFor": "Bekerja selama {{duration}}",
+        "worked": "Bekerja"
       }
     },
     "message-search": {
@@ -1259,5 +1263,12 @@
       "idle": "Tidak aktif",
       "resolved": "Selesai"
     }
+  },
+  "threadBoard": {
+    "label": "Utas menurut status",
+    "working": "Dikerjakan",
+    "later": "Nanti",
+    "open": "Terbuka",
+    "done": "Selesai"
   }
 }
