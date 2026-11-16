@@ -219,7 +219,7 @@ it('holds the bar for a reply the client did not see stream yet, as after a relo
 
 it.each([
   ['a reply the client saw stream', false],
-  ["a reply it took at its jobs' word after a reload", true],
+  ['a reply it took at its jobs\' word after a reload', true],
 ])('lets the bar go 2 s after %s stalls without an edit', (_case, reloaded) => {
   room.streamReply('$reply');
   if (reloaded) unvouched.add('$reply');

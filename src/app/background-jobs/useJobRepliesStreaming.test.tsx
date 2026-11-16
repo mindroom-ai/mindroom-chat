@@ -116,7 +116,12 @@ const makeRoom = () => {
       })
     );
   const clear = (conversation: string | null) => lists.set(conversation, []);
-  return { room: room as unknown as Room, reads, put, announce, finish, clear };
+  /** Puts a message that another conversation holds into this one too, as a thread's root is. */
+  const share = (event: MatrixEvent, conversation: string) => {
+    setOf(conversation);
+    lists.set(conversation, [...(lists.get(conversation) ?? []), event]);
+  };
+  return { room: room as unknown as Room, reads, put, announce, finish, clear, share };
 };
 
 const job = (threadId: string | null): BackgroundJob => ({
@@ -200,6 +205,42 @@ it.each([
   expect(streaming).toBe(true);
 });
 
+it('reads the timeline an event was added to, whatever thread the event names', () => {
+  show([job('$a'), job(MAIN)]);
+  // An agent's message that began a thread: it names its thread and is in the main timeline.
+  const root = room.put('$root', MAIN);
+  root.setThreadId('$root');
+  act(() => {
+    room.announce.timeline(root, MAIN);
+  });
+  expect(streaming).toBe(true);
+});
+
+it('reads every conversation that holds an edited reply', () => {
+  // A thread's root is in the main timeline and in its thread.
+  const root = room.put('$a', MAIN);
+  room.share(root, '$a');
+  show([job('$a'), job(MAIN)]);
+  expect(streaming).toBe(true);
+  act(() => room.finish(root));
+  expect(streaming).toBe(false);
+});
+
+it('reads the new room when the room changes, and no longer hears the old one', () => {
+  const old = room;
+  old.put('$a1', '$a');
+  show([job('$a')]);
+  expect(streaming).toBe(true);
+  room = makeRoom();
+  show([job('$a')]);
+  expect(streaming).toBe(false);
+  old.reads.clear();
+  act(() => {
+    old.announce.update('$a');
+  });
+  expect([...old.reads.keys()]).toEqual([]);
+});
+
 it('reads every conversation again when the main timeline resets, as at a sync gap', () => {
   room.put('$a1', '$a');
   room.put('$m1', MAIN);
@@ -214,24 +255,25 @@ it('reads every conversation again when the main timeline resets, as at a sync g
   expect(streaming).toBe(false);
 });
 
-it.each([['$a'], ['$b'], [MAIN]])(
-  'stops when the last streaming reply, in %s, gets its finishing edit',
-  (last) => {
-    const replies = new Map(
-      ['$a', '$b', MAIN].map((conversation) => [
-        conversation,
-        room.put(`reply-${conversation}`, conversation),
-      ])
-    );
-    show([job('$a'), job('$b'), job(MAIN)]);
-    replies.forEach((reply, conversation) => {
-      if (conversation !== last) act(() => room.finish(reply));
-    });
-    expect(streaming).toBe(true);
-    act(() => room.finish(replies.get(last)!));
-    expect(streaming).toBe(false);
-  }
-);
+it.each([
+  ['a thread', '$a'],
+  ['another thread', '$b'],
+  ['the main timeline', MAIN],
+])('stops when the last streaming reply, in %s, gets its finishing edit', (_case, last) => {
+  const replies = new Map(
+    ['$a', '$b', MAIN].map((conversation) => [
+      conversation,
+      room.put(`reply-${conversation}`, conversation),
+    ])
+  );
+  show([job('$a'), job('$b'), job(MAIN)]);
+  replies.forEach((reply, conversation) => {
+    if (conversation !== last) act(() => room.finish(reply));
+  });
+  expect(streaming).toBe(true);
+  act(() => room.finish(replies.get(last)!));
+  expect(streaming).toBe(false);
+});
 
 it('keeps streaming while another conversation of the jobs still does', () => {
   const a = room.put('$a1', '$a');
@@ -256,10 +298,12 @@ it('stops when the first reply to stall does, and again when the next one does',
   act(() => {
     room.announce.timeline(later, '$b');
   });
+  room.reads.clear();
   act(() => {
     vi.advanceTimersByTime(STREAM_IDLE_LIMIT_MS - 60_000 + 1);
   });
-  // The first one stalled; the second has a minute left.
+  // The first one stalled, which is when everything is read again; the second has a minute left.
+  expect([...room.reads.keys()]).toEqual(['$a', '$b']);
   expect(streaming).toBe(true);
   act(() => {
     vi.advanceTimersByTime(60_000 - 1);
