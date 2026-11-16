@@ -957,7 +957,8 @@
     "unsnooze": "スヌーズを解除",
     "status": {
       "snoozed": "スヌーズ中"
-    }
+    },
+    "renameHint": "ダブルクリックで名前を変更"
   },
   "threadSnooze": {
     "title": "スヌーズの終了日時",
@@ -1277,6 +1278,15 @@
       "snoozed": "スヌーズ中",
       "idle": "待機中",
       "resolved": "解決済み"
+    },
+    "live": {
+      "tools": "ツール",
+      "toolsRunning_other": "{{count}} 件実行中",
+      "toolsRunningNamed_other": "{{count}} 件実行中: {{names}}",
+      "background": "バックグラウンド",
+      "jobs_other": "{{count}} 件",
+      "jobsWaiting_other": "{{jobs}}、承認待ち {{count}} 件",
+      "waitingForAnswer": "回答待ち"
     }
   },
   "threadBoard": {

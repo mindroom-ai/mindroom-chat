@@ -47,6 +47,7 @@ import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { getThreadRootTitle, ThreadRootTitle } from './ThreadRootTitle';
+import { InlineThreadTitleEditor } from './InlineThreadTitleEditor';
 
 const ThreadActionsMenu = lazy(() =>
   import('./ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -284,6 +285,7 @@ export function ThreadContextBanner({
   const hasScheduled = !!(headerModel.bannerScheduledText && headerModel.scheduledLabel);
   // Without an AI summary, the start of the thread's first message is its title.
   const rootTitle = getThreadRootTitle(room, headerRecord.presentation, t);
+  const title = headerModel.summaryText || rootTitle;
   const snoozedText = useSnoozedUntilText(headerModel.snoozedUntilTs);
   const hasSubtitle = !!headerModel.summaryText || !!rootTitle || hasScheduled || !!snoozedText;
   // A pinned thread shows the pin instead of the resolve chip and its byline.
@@ -409,28 +411,36 @@ export function ThreadContextBanner({
               </Box>
               {(hasSubtitle || showResolver) && (
                 <div className={css.SubtitleRow}>
-                  {headerModel.summaryText && (
-                    <Text
-                      // Remounting replays the tint for each new summary.
-                      key={headerModel.summaryText}
-                      as="span"
-                      data-thread-context-summary="true"
-                      className={classNames(
-                        css.SummaryText,
-                        summaryChanged && css.SummaryTextChanged
-                      )}
-                      onAnimationEnd={() =>
-                        setShownSummary((shown) => ({ ...shown, changed: false }))
+                  {title && (
+                    <InlineThreadTitleEditor room={room} rootId={threadRootId} text={title}>
+                      {({ onDoubleClick, hint }) =>
+                        headerModel.summaryText ? (
+                          <Text
+                            // Remounting replays the tint for each new summary.
+                            key={headerModel.summaryText}
+                            as="span"
+                            data-thread-context-summary="true"
+                            className={classNames(
+                              css.SummaryText,
+                              summaryChanged && css.SummaryTextChanged
+                            )}
+                            onAnimationEnd={() =>
+                              setShownSummary((shown) => ({ ...shown, changed: false }))
+                            }
+                            onDoubleClick={onDoubleClick}
+                            size="T300"
+                            truncate
+                            title={revealDirectionControls(hint ? `${title}\n${hint}` : title)}
+                            {...ownDirectionLine}
+                          >
+                            {revealDirectionControls(headerModel.summaryText)}
+                          </Text>
+                        ) : (
+                          <ThreadRootTitle text={title} hint={hint} onDoubleClick={onDoubleClick} />
+                        )
                       }
-                      size="T300"
-                      truncate
-                      title={revealDirectionControls(headerModel.summaryText)}
-                      {...ownDirectionLine}
-                    >
-                      {revealDirectionControls(headerModel.summaryText)}
-                    </Text>
+                    </InlineThreadTitleEditor>
                   )}
-                  {rootTitle && <ThreadRootTitle text={rootTitle} />}
                   {hasScheduled && (
                     <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
                       {(headerModel.summaryText || rootTitle) && (

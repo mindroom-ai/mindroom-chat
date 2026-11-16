@@ -1008,7 +1008,8 @@
     "unsnooze": "Вернуть",
     "status": {
       "snoozed": "Отложена"
-    }
+    },
+    "renameHint": "Дважды щёлкните, чтобы переименовать"
   },
   "threadSnooze": {
     "title": "Отложить до",
@@ -1355,6 +1356,27 @@
       "snoozed": "Отложенные",
       "idle": "Неактивные",
       "resolved": "Решённые"
+    },
+    "live": {
+      "tools": "Инструменты",
+      "toolsRunning_one": "{{count}} выполняется",
+      "toolsRunning_few": "{{count}} выполняются",
+      "toolsRunning_many": "{{count}} выполняются",
+      "toolsRunning_other": "{{count}} выполняются",
+      "toolsRunningNamed_one": "{{count}} выполняется: {{names}}",
+      "toolsRunningNamed_few": "{{count}} выполняются: {{names}}",
+      "toolsRunningNamed_many": "{{count}} выполняются: {{names}}",
+      "toolsRunningNamed_other": "{{count}} выполняются: {{names}}",
+      "background": "Фоновые задачи",
+      "jobs_one": "{{count}} задача",
+      "jobs_few": "{{count}} задачи",
+      "jobs_many": "{{count}} задач",
+      "jobs_other": "{{count}} задачи",
+      "jobsWaiting_one": "{{jobs}}, {{count}} ожидает одобрения",
+      "jobsWaiting_few": "{{jobs}}, {{count}} ожидают одобрения",
+      "jobsWaiting_many": "{{jobs}}, {{count}} ожидают одобрения",
+      "jobsWaiting_other": "{{jobs}}, {{count}} ожидают одобрения",
+      "waitingForAnswer": "Ожидает ответа"
     }
   },
   "threadBoard": {

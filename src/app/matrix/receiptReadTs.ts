@@ -63,25 +63,16 @@ export const keepUnthreadedReceiptEvents = (mx: MatrixClient): (() => void) => {
   };
 };
 
-// What a room was asked for the events its receipts name. Asking the room for an event it does
-// not hold costs a lookup in each of its threads, and the callers ask for every thread and receipt
-// type, so an answer of "not held" is kept until the room gains an event of that ID: one a
-// timeline of the room or of a thread takes, or one a local echo is renamed to.
-type NamedEvents = {
-  /** Every ID asked for. */
-  asked: Set<string>;
-  /** Those no timeline of the room held. */
-  unheld: Set<string>;
-  /** See `receiptEventsVersion`. */
-  version: number;
-};
+// The events a room was asked for because a receipt names them, and a count of what may have
+// moved how far such a receipt reads.
+type NamedEvents = { asked: Set<string>; version: number };
 const namedEvents = new WeakMap<Room, NamedEvents>();
 
 /**
- * A count of the changes in the events `room` holds that may move how far a receipt reads: an
- * unheld event it came to hold, a local echo of a named event that moved on (the server's time
- * replaces the device's), and events it lost (a timeline that starts over or drops an event, a
- * thread that goes). For caches of how far receipts read.
+ * A count of the changes in the events `room` holds that may move how far a receipt reads: a
+ * named event a timeline takes, a local echo of one that moves on (it gets its ID, or the server's
+ * time replaces the device's), and events the room loses (a timeline that starts over or drops an
+ * event, a thread that goes). For caches of how far receipts read.
  */
 export const receiptEventsVersion = (room: Room): number => namedEvents.get(room)?.version ?? 0;
 
@@ -94,17 +85,15 @@ const namedEventsOf = (room: Room): NamedEvents | undefined => {
   if (known) return known;
   // Room stand-ins in tests often tell nothing of their events, so nothing is kept for them.
   if (typeof room.prependListener !== 'function') return undefined;
-  const kept: NamedEvents = { asked: new Set(), unheld: new Set(), version: 0 };
-  // First, so the views that update on an event find it.
+  const kept: NamedEvents = { asked: new Set(), version: 0 };
+  // First, so the views that update on an event read the new count.
   room.prependListener(RoomEvent.Timeline, (event, _room, _toStart, removed, data) => {
     // A reply moves its thread's root in the lists of threads, which hold no event for lookups.
     if (!holdsEvents(room, data.timeline.getTimelineSet())) return;
-    if (removed || kept.unheld.delete(event.getId() ?? '')) kept.version += 1;
+    if (removed || kept.asked.has(event.getId() ?? '')) kept.version += 1;
   });
   room.prependListener(RoomEvent.LocalEchoUpdated, (event) => {
-    const eventId = event.getId() ?? '';
-    kept.unheld.delete(eventId);
-    if (kept.asked.has(eventId)) kept.version += 1;
+    if (kept.asked.has(event.getId() ?? '')) kept.version += 1;
   });
   room.prependListener(RoomEvent.TimelineReset, (_room, timelineSet) => {
     if (holdsEvents(room, timelineSet)) kept.version += 1;
@@ -114,24 +103,6 @@ const namedEventsOf = (room: Room): NamedEvents | undefined => {
   });
   namedEvents.set(room, kept);
   return kept;
-};
-
-const findNamedEvent = (
-  room: Room,
-  context: Room | Thread,
-  eventId: string
-): MatrixEvent | undefined => {
-  // Before any answer, so the room tells of what happens to a named event from the first lookup.
-  const kept = namedEventsOf(room);
-  kept?.asked.add(eventId);
-  // Optional calls here and below: room and thread stand-ins in tests often lack receipts, events
-  // or, for a thread, its room.
-  const inContext = context === room ? undefined : context.findEventById?.(eventId);
-  if (inContext) return inContext;
-  if (kept?.unheld.has(eventId)) return undefined;
-  const named = room.findEventById?.(eventId);
-  if (!named) kept?.unheld.add(eventId);
-  return named;
 };
 
 /**
@@ -144,7 +115,16 @@ export const receiptReadTs = (
   context: Room | Thread,
   eventId: string | undefined,
   takenTs: number
-): number => (eventId ? findNamedEvent(room, context, eventId)?.getTs() : undefined) ?? takenTs;
+): number => {
+  // Before the answer, so the room counts what happens to a named event from the first lookup.
+  if (eventId) namedEventsOf(room)?.asked.add(eventId);
+  // Optional calls here and below: room and thread stand-ins in tests often lack receipts, events
+  // or, for a thread, its room.
+  const named = eventId
+    ? context.findEventById?.(eventId) ?? room.findEventById?.(eventId)
+    : undefined;
+  return named?.getTs() ?? takenTs;
+};
 
 const maxOf = (...values: Array<number | undefined>): number | undefined => {
   const known = values.filter((value): value is number => value !== undefined);

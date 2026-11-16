@@ -974,7 +974,8 @@
     "unsnooze": "Ertelemeyi kaldır",
     "status": {
       "snoozed": "Ertelendi"
-    }
+    },
+    "renameHint": "Yeniden adlandırmak için çift tıklayın"
   },
   "threadSnooze": {
     "title": "Şu zamana kadar ertele",
@@ -1303,6 +1304,19 @@
       "snoozed": "Ertelenenler",
       "idle": "Boşta",
       "resolved": "Çözülenler"
+    },
+    "live": {
+      "tools": "Araçlar",
+      "toolsRunning_one": "{{count}} çalışıyor",
+      "toolsRunning_other": "{{count}} çalışıyor",
+      "toolsRunningNamed_one": "{{count}} çalışıyor: {{names}}",
+      "toolsRunningNamed_other": "{{count}} çalışıyor: {{names}}",
+      "background": "Arka plan",
+      "jobs_one": "{{count}} iş",
+      "jobs_other": "{{count}} iş",
+      "jobsWaiting_one": "{{jobs}}, {{count}} onay bekliyor",
+      "jobsWaiting_other": "{{jobs}}, {{count}} onay bekliyor",
+      "waitingForAnswer": "Yanıt bekliyor"
     }
   },
   "threadBoard": {

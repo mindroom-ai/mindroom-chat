@@ -957,7 +957,8 @@
     "unsnooze": "取消延後",
     "status": {
       "snoozed": "已延後"
-    }
+    },
+    "renameHint": "按兩下以重新命名"
   },
   "threadSnooze": {
     "title": "延後至",
@@ -1277,6 +1278,15 @@
       "snoozed": "已延後",
       "idle": "閒置",
       "resolved": "已解決"
+    },
+    "live": {
+      "tools": "工具",
+      "toolsRunning_other": "{{count}} 個執行中",
+      "toolsRunningNamed_other": "{{count}} 個執行中：{{names}}",
+      "background": "背景",
+      "jobs_other": "{{count}} 個工作",
+      "jobsWaiting_other": "{{jobs}}，{{count}} 個等待核准",
+      "waitingForAnswer": "等待回答"
     }
   },
   "threadBoard": {

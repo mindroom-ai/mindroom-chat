@@ -974,7 +974,8 @@
     "unsnooze": "Unsnooze",
     "status": {
       "snoozed": "Snoozed"
-    }
+    },
+    "renameHint": "Double-click to rename"
   },
   "threadSnooze": {
     "title": "Snooze until",
@@ -1303,6 +1304,19 @@
       "snoozed": "Snoozed",
       "idle": "Idle",
       "resolved": "Resolved"
+    },
+    "live": {
+      "tools": "Tools",
+      "toolsRunning_one": "{{count}} running",
+      "toolsRunning_other": "{{count}} running",
+      "toolsRunningNamed_one": "{{count}} running: {{names}}",
+      "toolsRunningNamed_other": "{{count}} running: {{names}}",
+      "background": "Background",
+      "jobs_one": "{{count}} job",
+      "jobs_other": "{{count}} jobs",
+      "jobsWaiting_one": "{{jobs}}, {{count}} waiting for approval",
+      "jobsWaiting_other": "{{jobs}}, {{count}} waiting for approval",
+      "waitingForAnswer": "Waiting for an answer"
     }
   },
   "threadBoard": {

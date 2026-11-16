@@ -974,7 +974,8 @@
     "unsnooze": "स्थगन हटाएँ",
     "status": {
       "snoozed": "स्नूज़ किया गया"
-    }
+    },
+    "renameHint": "नाम बदलने के लिए डबल-क्लिक करें"
   },
   "threadSnooze": {
     "title": "कब तक स्थगित करें",
@@ -1303,6 +1304,19 @@
       "snoozed": "स्नूज़ किए गए",
       "idle": "निष्क्रिय",
       "resolved": "सुलझे हुए"
+    },
+    "live": {
+      "tools": "टूल",
+      "toolsRunning_one": "{{count}} चल रहा है",
+      "toolsRunning_other": "{{count}} चल रहे हैं",
+      "toolsRunningNamed_one": "{{count}} चल रहा है: {{names}}",
+      "toolsRunningNamed_other": "{{count}} चल रहे हैं: {{names}}",
+      "background": "बैकग्राउंड",
+      "jobs_one": "{{count}} कार्य",
+      "jobs_other": "{{count}} कार्य",
+      "jobsWaiting_one": "{{jobs}}, {{count}} स्वीकृति की प्रतीक्षा में",
+      "jobsWaiting_other": "{{jobs}}, {{count}} स्वीकृति की प्रतीक्षा में",
+      "waitingForAnswer": "उत्तर की प्रतीक्षा"
     }
   },
   "threadBoard": {

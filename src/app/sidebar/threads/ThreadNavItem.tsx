@@ -17,6 +17,7 @@ import type { CrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRo
 import { buildCompactThreadCardViewModelFromRecord } from '../../threads/overview/compactThreadCardViewModel';
 import { useInitializeShownThread } from '../../threads/useInitializeShownThread';
 import { ThreadStreamingDot } from '../../threads/ThreadStreamingDot';
+import { ThreadLiveStatusRows } from '../../threads/ThreadLiveStatusRows';
 import { useRoomViewMode } from '../../navigation/useRoomViewMode';
 import { useToggleThreadResolution } from '../../threads/tags/useRoomThreadTags';
 import * as css from './threadNav.css';
@@ -33,7 +34,8 @@ type ThreadNavItemProps = {
 
 /**
  * One thread in the sidebar's THREADS list: its title, an unread dot, and on hover the room,
- * agents, size and age of the thread, with actions to pin it in the sidebar and resolve it.
+ * agents, size and age of the thread and what runs in it now, with actions to pin it in the
+ * sidebar and resolve it.
  */
 export const ThreadNavItem = memo(
   ({ entry, pinned, onTogglePin, selected }: ThreadNavItemProps) => {
@@ -196,6 +198,8 @@ function ThreadNavItemRow({
             </Text>
           </>
         )}
+        {/* The tooltip mounts its content only while open, so the rows follow their stores then. */}
+        <ThreadLiveStatusRows room={room} entry={entry} />
       </div>
     </Box>
   );

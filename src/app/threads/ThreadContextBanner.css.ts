@@ -239,6 +239,32 @@ export const SummaryTextChanged = style({
   },
 });
 
+// The title while it is renamed in place: the title's own type and line, so the row keeps its
+// height, on a tint whose ring stays out of the layout.
+export const TitleInput = style({
+  flex: '1 1 0px',
+  minWidth: '8rem',
+  margin: 0,
+  padding: 0,
+  border: 'none',
+  borderRadius: config.radii.R300,
+  font: 'inherit',
+  fontSize: config.fontSize.T300,
+  lineHeight: config.lineHeight.T300,
+  letterSpacing: config.letterSpacing.T300,
+  fontWeight: config.fontWeight.W500,
+  color: 'inherit',
+  backgroundColor: color.SurfaceVariant.Container,
+  boxShadow: `0 0 0 ${config.space.S100} ${color.SurfaceVariant.Container}`,
+  outline: 'none',
+  selectors: {
+    '&:focus-visible': {
+      boxShadow: `0 0 0 ${config.space.S100} ${color.SurfaceVariant.Container}, 0 0 0 calc(${config.space.S100} + 0.125rem) ${color.Primary.Main}`,
+    },
+    '&:disabled': { opacity: config.opacity.Disabled },
+  },
+});
+
 // A narrow title column gives the schedule a line of its own, as it does the byline: beside the
 // title it took all but a letter of the title's room. Short screens keep the one line.
 export const ScheduledWrap = style({
