@@ -31,6 +31,17 @@ vi.mock('../theme/useTheme', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../theme/useTheme')>()),
   useTheme: () => ({ kind: 'light' }),
 }));
+vi.mock('./useCommandPaletteCommands', () => ({
+  useCommandPaletteCommands: () => ({
+    actions: [],
+    commands: [],
+    pages: {
+      theme: { title: '', items: [] },
+      'message-layout': { title: '', items: [] },
+      language: { title: '', items: [] },
+    },
+  }),
+}));
 vi.mock('./useCommandPalettePeople', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./useCommandPalettePeople')>()),
   useStartDirectChat: () => vi.fn(),

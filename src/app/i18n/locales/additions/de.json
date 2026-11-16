@@ -722,6 +722,29 @@
         "noLongerActive": "Diese Anfrage ist nicht mehr aktiv. Frag den Agenten erneut.",
         "unavailable": "Auf diesem Server lassen sich keine Schlüssel eingeben.",
         "unavailableHint": "Um hier Schlüssel einzugeben, lege deinen MindRoom-Server unter Einstellungen → {{page}} → {{field}} fest.",
+        "replaces": "Ersetzt den jetzt gespeicherten Schlüssel.",
+        "replaceKey": "Schlüssel ersetzen",
+        "temporary": {
+          "label": "Geheimnis-Anfrage",
+          "title": "Geheimnis für {{agent}}",
+          "givenAs": "Geht an die Befehle von {{agent}} in dieser Unterhaltung als {{variable}}.",
+          "field": "Geheimnis für {{variable}}",
+          "placeholder": "Geheimnis einfügen oder eingeben",
+          "show": "Geheimnis anzeigen",
+          "hide": "Geheimnis verbergen",
+          "keepFor": "Aufbewahren für",
+          "keep": {
+            "memory": "{{duration}}, nur im Arbeitsspeicher",
+            "disk": "{{duration}}, in einer Datei auf dem Server"
+          },
+          "kept": {
+            "memory": "Wird {{duration}} aufbewahrt, nur im Arbeitsspeicher.",
+            "disk": "Wird {{duration}} aufbewahrt, in einer Datei auf dem Server."
+          },
+          "send": "Senden",
+          "sent": "Gesendet",
+          "sentWaiting": "Gesendet, wartet auf den Agenten"
+        },
         "status": {
           "waitingForYou": "Wartet auf dich",
           "pending": "Ausstehend",
@@ -849,6 +872,10 @@
     "dismissLostFiles": "Ausblenden"
   },
   "commandPalette": {
+    "state": {
+      "on": "Ein",
+      "off": "Aus"
+    },
     "people": "Personen",
     "tabsLabel": "Ergebnisarten",
     "switchTabs": "Tab wechseln",
@@ -1231,6 +1258,17 @@
       "settingsKeywords": "Tour, Rundgang, Tutorial, Anleitung, Hilfe, Einführung, Threads",
       "howThreadsWork": "So funktionieren Threads",
       "noThreadsHint": "Sende unten eine Nachricht, um einen zu starten."
+    }
+  },
+  "threadNav": {
+    "layout": "Anordnung der Threads",
+    "layoutRecent": "Zuletzt",
+    "layoutSections": "Abschnitte",
+    "sections": {
+      "working": "In Arbeit",
+      "snoozed": "Zurückgestellt",
+      "idle": "Inaktiv",
+      "resolved": "Gelöst"
     }
   }
 }

@@ -155,6 +155,19 @@ describe('crossRoomThreadIndex', () => {
     expect(entry?.lastActivityTs).toBe(150);
   });
 
+  it("keeps the root's time apart from the latest reply's", () => {
+    const root = makeEvent({ id: '$root', body: 'Root preview', ts: 100 });
+    const reply = makeEvent({ id: '$reply', body: 'Reply', ts: 150, threadRootId: '$root' });
+
+    const entry = buildCrossRoomThreadIndexEntry({
+      room: makeRoom({ root, replies: [reply] }),
+      threadRootId: '$root',
+      tagSnapshot,
+    });
+
+    expect(entry?.rootTs).toBe(100);
+  });
+
   it('computes involvement from root sender, visible reply sender, and direct mentions', () => {
     const ownRoot = makeEvent({ id: '$own-root', sender: '@me:example.org', body: 'Root' });
     expect(

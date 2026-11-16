@@ -19,6 +19,7 @@ export function SettingsModalRenderer() {
       <Settings
         key={state.requestId}
         initialPage={state.initialPage}
+        initialSetting={state.initialSetting}
         requestClose={closeSettings}
       />
     </Modal500>

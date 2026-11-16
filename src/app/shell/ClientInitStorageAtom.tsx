@@ -5,12 +5,15 @@ import { NavToActivePathProvider } from '../routes/useNavToActivePath';
 import { makeClosedNavCategoriesAtom } from '../ui/nav/closedNavCategories';
 import { makeNavToActivePathAtom } from '../routes/navToActivePath';
 import { RECENTLY_OPENED_NAV_CATEGORY_ID } from '../sidebar/threads/recentlyOpenedCategory';
-import { THREAD_NAV_CATEGORY_ID } from '../sidebar/threads/ThreadNavCategory';
+import {
+  THREAD_NAV_CATEGORY_ID,
+  threadNavSectionCategoryId,
+} from '../sidebar/threads/ThreadNavCategory';
 
 /**
  * The account's stored navigation state on this device: which sidebar categories are collapsed
- * (THREADS and Recently Opened start collapsed until the person opens them) and the last page of
- * each section.
+ * (THREADS, its Resolved section and Recently Opened start collapsed until the person opens them)
+ * and the last page of each section.
  */
 export function ClientInitStorageAtom({ children }: { children: ReactNode }) {
   const userId = useMatrixClient().getSafeUserId();
@@ -20,6 +23,7 @@ export function ClientInitStorageAtom({ children }: { children: ReactNode }) {
       closedCategories: makeClosedNavCategoriesAtom(userId, [
         RECENTLY_OPENED_NAV_CATEGORY_ID,
         THREAD_NAV_CATEGORY_ID,
+        threadNavSectionCategoryId('resolved'),
       ]),
       lastPaths: makeNavToActivePathAtom(userId),
     }),

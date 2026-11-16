@@ -1,51 +1,18 @@
-import { forwardRef, useMemo, useState, type MouseEvent } from 'react';
+import { forwardRef, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Room } from 'matrix-js-sdk';
 import FocusTrap from 'focus-trap-react';
 import { Box, Icon, IconButton, Icons, Spinner, Text, Tooltip, toRem, type RectCords } from 'folds';
 import { PopOut, TooltipProvider } from '../../ui/directional';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
-import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoom } from '../../matrix/hooks/useRoom';
-import { useRoomMembers } from '../../matrix/hooks/useRoomMembers';
-import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
-import {
-  getAgentCallCandidates,
-  keepThreadSenders,
-  type AgentCallCandidate,
-} from './agentCallCandidates';
-import { usePresenceStatuses } from './agentPresence';
+import type { AgentCallCandidate } from './agentCallCandidates';
 import { useAgentCaller } from './agentCaller';
 
 type AgentCallHeaderButtonProps = {
   /** The open thread; the call is offered to the agents that took part in it. */
   threadId?: string;
-  /** The agents to offer, as the header looked them up (`useAgentCallCandidates`). */
+  /** The agents to offer, as the header looked them up (`useAgentCallOffer`). */
   candidates: AgentCallCandidate[];
-};
-
-/** The room's voice-capable agents; in a thread, the ones that took part in it when any did. */
-export const useAgentCallCandidates = (
-  room: Room,
-  threadId: string | undefined
-): AgentCallCandidate[] => {
-  const mx = useMatrixClient();
-  const viewer = mx.getUserId() ?? undefined;
-  const members = useRoomMembers(mx, room.roomId);
-  const agentIds = useMemo(
-    () =>
-      members
-        .filter((member) => isMindroomAgentUserIdForViewer(member.userId, viewer))
-        .map((member) => member.userId),
-    [members, viewer]
-  );
-  const statuses = usePresenceStatuses(mx, agentIds);
-  return useMemo(() => {
-    const candidates = getAgentCallCandidates(members, viewer, (userId) => statuses.get(userId));
-    if (!threadId) return candidates;
-    const inThread = keepThreadSenders(candidates, room, threadId);
-    return inThread.length > 0 ? inThread : candidates;
-  }, [members, viewer, statuses, room, threadId]);
 };
 
 type ChooserProps = {

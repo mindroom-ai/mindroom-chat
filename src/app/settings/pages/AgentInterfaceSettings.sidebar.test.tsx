@@ -25,7 +25,7 @@ vi.mock('../../matrix/hooks/useAccountSettings', () => ({
   }),
   useSetAccountSettings: () => state.write,
 }));
-vi.mock('../../command-palette/commandPaletteShortcut', () => ({
+vi.mock('../../shortcuts/paletteShortcut', () => ({
   getCommandPaletteShortcutLabel: () => 'Ctrl + K',
 }));
 vi.mock('react-i18next', async () => {

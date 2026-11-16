@@ -9,7 +9,13 @@ import {
   PAGE_ZOOM_DEFAULT,
   settingsAtom,
 } from '../../preferences/settings';
-import { THEMES, ThemeKind, deploymentThemeAtom, themeSettingsAtom } from '../../theme/useTheme';
+import {
+  THEMES,
+  ThemeKind,
+  deploymentThemeAtom,
+  themeSettingsAtom,
+  withSystemTheme,
+} from '../../theme/useTheme';
 import { SettingsPageFrame, type SettingsPageProps } from '../../ui/settings/SettingsPageFrame';
 import { SettingsSection } from '../../ui/settings/SettingsSection';
 import { AdvancedFold } from '../../ui/settings/AdvancedFold';
@@ -17,7 +23,7 @@ import { ChoiceButton } from '../../ui/settings/ChoiceButton';
 
 const ZOOM_STEPS = [50, 75, 90, 100, 110, 125, 150];
 
-const LAYOUT_CHOICES = [
+export const LAYOUT_CHOICES = [
   [MessageLayout.Modern, 'options.messageLayout.modern'],
   [MessageLayout.Compact, 'options.messageLayout.compact'],
   [MessageLayout.Bubble, 'options.messageLayout.bubble'],
@@ -115,18 +121,11 @@ function ThemeSection() {
   const { t } = useTranslation();
   const store = useStore();
   const followSystem = useAtomValue(themeSettingsAtom).useSystemTheme;
-  // Turned on, the deployment's default theme becomes the pick of its kind, so the switch applies
-  // where it was the fixed theme only because no theme had been picked.
-  const setFollowSystem = (on: boolean) => {
-    const settings = store.get(settingsAtom);
-    const deploymentTheme = store.get(deploymentThemeAtom);
-    const kindPick = deploymentTheme?.kind === ThemeKind.Dark ? 'darkThemeId' : 'lightThemeId';
-    store.set(settingsAtom, {
-      ...settings,
-      useSystemTheme: on,
-      ...(on && deploymentTheme ? { [kindPick]: settings[kindPick] ?? deploymentTheme.id } : {}),
-    });
-  };
+  const setFollowSystem = (on: boolean) =>
+    store.set(
+      settingsAtom,
+      withSystemTheme(store.get(settingsAtom), store.get(deploymentThemeAtom), on)
+    );
   const systemTitle = t('settings.general.appearance.systemTheme');
 
   return (
