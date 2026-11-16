@@ -20,8 +20,7 @@ import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 // the dropdown); the button names a lone tag; the choice survives a reload; Clear brings every
 // thread back; a tag the search excludes shows checked and marked; and on a phone with touch the
 // People and Tags panels open inside the screen and close on a second tap of their button. A
-// second press or tap on the Preset button closes its list too, and a filter toggle tapped back to
-// where it started keeps no hover tint.
+// workflow tab tapped back to where it started keeps no hover tint.
 // Classic scrollbars are shown, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
 // Playwright's WebKit, in WebKit.
 // Set L28_SHOTS=<directory> to save the L28 screenshots (Chromium only).

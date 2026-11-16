@@ -51,12 +51,12 @@ describe('pinned announcement ordering', () => {
         threadSortControlSignature: 'live',
       });
 
-    // Archived: only the resolved threads, the resolved pin first.
+    // Resolved-only filter: the resolved pin comes first.
     const archived = resolve(makeDefaultState({ resolved: 'include' }));
     expect(archived.filteredIds).toEqual(['$pinned-done', '$done']);
     expect(archived.liveOrderedIds).toEqual(['$pinned-done', '$done']);
     expect(archived.displayOrderedIds).toEqual(['$pinned-done', '$done']);
-    // Needs attention: only the unresolved ones.
+    // Unresolved-only filter.
     expect(resolve(makeDefaultState({ resolved: 'exclude' })).displayOrderedIds).toEqual([
       '$pinned-open',
       '$open',

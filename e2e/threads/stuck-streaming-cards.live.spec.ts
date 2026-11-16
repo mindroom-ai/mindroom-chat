@@ -20,7 +20,7 @@ import {
 // Agents stream their replies as one message that `m.replace` edits keep growing; the edit whose
 // `io.mindroom.stream_status` is terminal finishes it, and the thread's title notice follows. Once
 // that edit is on the server, no card of the room's Compact view may say "streaming" (nor list its
-// thread in the Working preset): whether the reader saw the edit live, missed it in a sync gap, or
+// thread in the Working tab): whether the reader saw the edit live, missed it in a sync gap, or
 // reloaded after it, and never, not even for a moment, from what the page kept from before a
 // reload. Several agents stream in many threads of one busy room at once, most cards off screen;
 // the reader reloads while they stream (so the room's thread list is read mid-stream), the page

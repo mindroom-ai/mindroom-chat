@@ -203,11 +203,11 @@ for (const width of [390, 1280]) {
       expect((await cards.first().boundingBox())!.y).toBeGreaterThanOrEqual(
         (await filters.boundingBox())!.y + filtersBox.height
       );
-      await filters.locator('[data-preset-button]').click();
-      const presets = filters.locator('[data-preset-dropdown]');
-      await expect(presets).toBeVisible();
-      await page.keyboard.press('Escape');
-      await expect(presets).not.toBeVisible();
+      const allTab = filters.locator('[data-thread-tab="all"]');
+      await allTab.focus();
+      await expect(allTab).toBeFocused();
+      await page.keyboard.press('Enter');
+      await expect(allTab).toHaveAttribute('aria-pressed', 'true');
       const sort = filters.locator('[data-sort-by]');
       const previousSort = await sort.getAttribute('data-sort-direction');
       await sort.click();

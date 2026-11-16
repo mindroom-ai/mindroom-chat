@@ -326,14 +326,16 @@ const titleNoticeThreads: Check = async (page, phone, engine) => {
     'cards read read; client 0; server main 0, threads 0',
     'badge 0, read'
   );
-  // The Unread filter, one of the agent rooms' advanced filters, finds no thread.
+  // The unread search filter finds no thread.
   const advancedFilters = page.locator('[data-thread-filter-mode-switch]');
   if ((await advancedFilters.getAttribute('aria-pressed')) !== 'true')
     await advancedFilters.click();
   await expect(advancedFilters).toHaveAttribute('aria-pressed', 'true');
-  const unreadFilter = page.locator('[data-filter-key="unread"]');
-  await unreadFilter.click();
-  await expect(unreadFilter).toHaveAttribute('data-filter-state', 'include');
+  const search = page.locator('[data-search-input]');
+  if (!(await search.isVisible())) await page.locator('[data-search-toggle]').click();
+  await search.fill('is:unread');
+  // The parsed filter clears the All tab only after the search debounce applies.
+  await expect(page.locator('[data-thread-tab="all"]')).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('[data-thread-root-id]')).toHaveCount(0);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/read-rules-titles-${engine}.png` });
 };

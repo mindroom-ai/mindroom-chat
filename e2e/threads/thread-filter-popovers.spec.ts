@@ -10,7 +10,7 @@ import {
   CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
-// The thread filter bar's Preset list and Thread statistics open under their buttons and stay
+// The thread filter bar's Thread statistics open under its button and stay
 // inside the bar, whichever end of the bar the button sits at: on a phone, where the bar wraps
 // onto three rows, and on a desktop, in English and in Arabic, in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
