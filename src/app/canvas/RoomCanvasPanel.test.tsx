@@ -27,7 +27,7 @@ vi.mock('./CanvasPanel', () => ({
   },
 }));
 // Uploaded pages download through the media API; these requests carry their page inline.
-vi.mock('./useCanvasPage', () => ({
+vi.mock('../messages/canvas/useCanvasPage', () => ({
   useCanvasPage: (_mx: unknown, _roomId: string, _revision: string, canvas: { html?: string }) =>
     canvas.html === undefined ? { status: 'loading' } : { status: 'ready', html: canvas.html },
 }));

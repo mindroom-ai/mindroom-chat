@@ -9,7 +9,7 @@ import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePa
 import { readChatUiAction, type ChatUiCanvas } from '../matrix/protocol/chatUiProtocol';
 import { CanvasPanel } from './CanvasPanel';
 import { readCanvasTheme } from '../messages/canvas/canvasTheme';
-import { useCanvasPage } from './useCanvasPage';
+import { useCanvasPage } from '../messages/canvas/useCanvasPage';
 import { useCanvasVersions } from './useCanvasVersions';
 import { useCanvasSavedState } from './useCanvasSavedState';
 import { useCanvasStateShare } from './useCanvasStateShare';

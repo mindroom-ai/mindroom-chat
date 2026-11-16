@@ -4,6 +4,7 @@ import { Box, Button, Icon, IconButton, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import {
   buildCanvasDocument,
+  canvasDocumentKey,
   CANVAS_ESCAPE_MESSAGE,
   CANVAS_PERMISSIONS,
   CANVAS_WRAPPER_SANDBOX,
@@ -104,15 +105,6 @@ const isUnresolved = (answer?: SentAnswer): boolean => {
   return state === 'sending' || state === 'failed';
 };
 
-/** Hash a document so a changed canvas remounts its frame and drops stale script state. */
-const documentKey = (doc: string): string => {
-  let hash = 5381;
-  for (let index = 0; index < doc.length; index += 1) {
-    hash = (hash * 33) ^ doc.charCodeAt(index);
-  }
-  return `${doc.length}:${hash >>> 0}`;
-};
-
 const formatData = (data: unknown): string => JSON.stringify(data, null, 2) ?? 'null';
 
 const STAGE_INTERVAL_MS = 100;
@@ -164,7 +156,7 @@ export function CanvasPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [displayed, libraries, reloads]
   );
-  const docKey = useMemo(() => documentKey(doc), [doc]);
+  const docKey = useMemo(() => canvasDocumentKey(doc), [doc]);
   const frameKey = `${displayed.revisionEventId}:${docKey}:${reloads}`;
   const [escapedFrame, setEscapedFrame] = useState<string>();
   const [staged, setStaged] = useState<Staged>();
@@ -194,8 +186,8 @@ export function CanvasPanel({
   const latest = useRef({ canvas, colorScheme, theme, onSaveState });
   latest.current = { canvas, colorScheme, theme, onSaveState };
   // Pages can be megabytes, so revisions compare by a hash of their HTML.
-  const incomingHtmlKey = useMemo(() => documentKey(canvas.html), [canvas.html]);
-  const displayedHtmlKey = useMemo(() => documentKey(displayed.html), [displayed.html]);
+  const incomingHtmlKey = useMemo(() => canvasDocumentKey(canvas.html), [canvas.html]);
+  const displayedHtmlKey = useMemo(() => canvasDocumentKey(displayed.html), [displayed.html]);
   const handledRevision = useRef(revisionKey(canvas, incomingHtmlKey));
 
   useEffect(() => {

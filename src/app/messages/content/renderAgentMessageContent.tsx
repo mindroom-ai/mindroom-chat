@@ -40,6 +40,7 @@ import { parseSecretRequestContent } from '../../matrix/protocol/secretRequest';
 import { readSnoozeEndedNote } from '../../matrix/protocol/threadSnooze';
 import { SnoozeEndedMarker } from '../SnoozeEndedMarker';
 import { getMessageStateSuffixRenderer } from './messageStateSuffix';
+import { InlineCanvasFrame } from '../canvas/InlineCanvasFrame';
 import { ChatUiActionButton } from '../../ui-actions/ChatUiActionButton';
 import { CHAT_UI_ACTION_KEY, readCanvasNoticeTitle } from '../../matrix/protocol/chatUiProtocol';
 import { CANVAS_RESPONSE_KEY, readCanvasResponse } from '../canvas/canvasMessages';
@@ -469,7 +470,12 @@ export const renderAgentMessageContent = ({
                 )
               : renderBody(content)
           }
-          renderAfterBody={<ChatUiActionButton event={mEvent} />}
+          renderAfterBody={
+            <>
+              {canvasTitle && <InlineCanvasFrame event={mEvent} />}
+              <ChatUiActionButton event={mEvent} />
+            </>
+          }
         />
       );
     }

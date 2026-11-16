@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
-import { downloadCachedAttachment } from '../event-store/cache/attachmentRepository';
-import { MAX_CANVAS_DOCUMENT_BYTES, type ChatUiCanvas } from '../matrix/protocol/chatUiProtocol';
+import { downloadCachedAttachment } from '../../event-store/cache/attachmentRepository';
+import { MAX_CANVAS_DOCUMENT_BYTES, type ChatUiCanvas } from '../../matrix/protocol/chatUiProtocol';
 
 export type CanvasPage =
   | { status: 'ready'; html: string }

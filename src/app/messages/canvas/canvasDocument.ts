@@ -435,3 +435,12 @@ export const canvasFrameWindow = (panelFrame: HTMLIFrameElement | null): Window 
   // The wrapper is cross-origin, where reading a frame it does not hold yet throws.
   return wrapper && wrapper.frames.length > 0 ? wrapper.frames[0] : undefined;
 };
+
+/** Hash a document so a changed canvas remounts its frame and drops stale script state. */
+export const canvasDocumentKey = (doc: string): string => {
+  let hash = 5381;
+  for (let index = 0; index < doc.length; index += 1) {
+    hash = (hash * 33) ^ doc.charCodeAt(index);
+  }
+  return `${doc.length}:${hash >>> 0}`;
+};
