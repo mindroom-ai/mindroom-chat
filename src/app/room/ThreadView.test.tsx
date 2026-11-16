@@ -503,7 +503,7 @@ describe('a fork draft', () => {
     expect(state.composer?.forkFrom).toEqual({ threadId: THREAD, eventId: '$point' });
 
     // Another point of the same thread: no composer until the timeline shows it.
-    state.composer = undefined;
+    Object.assign(state, { composer: undefined });
     rerender(<ThreadView room={room} threadId={THREAD} forkAt="$other" />);
     expect(state.composer).toBeUndefined();
     act(() => state.timeline?.onForkPointShown?.('$other'));

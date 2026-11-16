@@ -169,7 +169,10 @@ const NOT_A_FORK: ThreadForkPrefix = { events: [] };
  * SDK's replacing the cache's) keeps it, also while that copy waits to be decrypted. Edits the
  * parents' messages get later show in the events it holds; a redaction of one loads it again.
  */
-export const useThreadForkPrefix = (room: Room, root: MatrixEvent | undefined): ThreadForkPrefix => {
+export const useThreadForkPrefix = (
+  room: Room,
+  root: MatrixEvent | undefined
+): ThreadForkPrefix => {
   const mx = useMatrixClient();
   const sessionId = useActiveSession()?.sessionId;
   const { scheduler } = useSyncEngine();

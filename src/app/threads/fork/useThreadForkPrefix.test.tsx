@@ -299,7 +299,11 @@ describe('useThreadForkPrefix and a redaction of a prefix message', () => {
     );
     return room;
   };
-  const mainTimeline = (room: Room) => room.getLiveTimeline().getEvents().map((e) => e.getId());
+  const mainTimeline = (room: Room) =>
+    room
+      .getLiveTimeline()
+      .getEvents()
+      .map((e) => e.getId());
 
   it('loads a cached prefix again, and leaves the main timeline of the room alone', async () => {
     session.value = { sessionId: 'session' };
