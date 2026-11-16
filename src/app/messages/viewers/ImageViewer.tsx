@@ -21,23 +21,25 @@ type DownloadState = 'idle' | 'saving' | 'failed';
 
 /**
  * Downloads `src` once and saves it as `fileName`. A failed save keeps the downloaded blob, so
- * Retry only saves again.
+ * Retry only saves again. The state belongs to the picture it was for: another picture starts
+ * at a plain Download.
  */
 const useSaveMedia = (src: string, fileName: string) => {
-  const [state, setState] = useState<DownloadState>('idle');
+  const [saved, setSaved] = useState<{ src: string; state: DownloadState }>();
   const blobRef = useRef<{ src: string; blob: Blob }>();
+  const state = saved?.src === src ? saved.state : 'idle';
 
   const save = async () => {
     if (state === 'saving') return;
-    setState('saving');
+    setSaved({ src, state: 'saving' });
     try {
       if (blobRef.current?.src !== src) {
         blobRef.current = { src, blob: await downloadMedia(src) };
       }
       await saveFile(new Blob([blobRef.current.blob], { type: DOWNLOAD_MIME_TYPE }), fileName);
-      setState('idle');
+      setSaved({ src, state: 'idle' });
     } catch {
-      setState('failed');
+      setSaved({ src, state: 'failed' });
     }
   };
 

@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImageViewer } from './ImageViewer';
 
 vi.mock('../../matrix/matrix', () => ({ downloadMedia: async () => new Blob(['picture']) }));
-vi.mock('../../native/nativeFileSave', () => ({ saveFile: async () => true }));
+const saveFile = vi.hoisted(() => vi.fn(async () => true));
+vi.mock('../../native/nativeFileSave', () => ({ saveFile }));
 
 // jsdom has no pointer events.
 class TestPointerEvent extends MouseEvent {
@@ -286,5 +287,17 @@ describe('ImageViewer loading', () => {
     expect(screen.getByText('Failed to load image!')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(onRetry).toHaveBeenCalledOnce();
+  });
+});
+
+describe('ImageViewer download', () => {
+  it('starts each picture with a plain Download, even after the last one failed to save', async () => {
+    saveFile.mockRejectedValueOnce(new Error('disk full'));
+    const { rerender } = render(<ImageViewer src="blob:a" alt="a.png" requestClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    expect(await screen.findByRole('button', { name: 'Retry Download' })).toBeTruthy();
+
+    rerender(<ImageViewer src="blob:b" alt="b.png" requestClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Download' })).toBeTruthy();
   });
 });
