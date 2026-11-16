@@ -776,13 +776,7 @@
         "threadFiltersActive": "थ्रेड फ़िल्टर (सक्रिय)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "उन्नत फ़िल्टर",
-        "presets": {
-          "snoozed": {
-            "label": "स्नूज़ किए गए",
-            "description": "केवल स्नूज़ किए गए थ्रेड"
-          }
-        }
+        "advancedFilters": "उन्नत फ़िल्टर"
       },
       "threadPeopleFilter": {
         "label": "लोग",

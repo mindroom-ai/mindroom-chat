@@ -765,13 +765,7 @@
         "threadFiltersActive": "討論串篩選器（已啟用）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "進階篩選器",
-        "presets": {
-          "snoozed": {
-            "label": "已延後",
-            "description": "僅已延後的討論串"
-          }
-        }
+        "advancedFilters": "進階篩選器"
       },
       "threadPeopleFilter": {
         "label": "參與者",

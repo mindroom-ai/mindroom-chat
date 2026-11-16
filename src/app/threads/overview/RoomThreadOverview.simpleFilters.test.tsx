@@ -13,7 +13,6 @@ const props = (overrides: Partial<RoomThreadOverviewProps> = {}): RoomThreadOver
   totalThreadCount: 3,
   state: createDefaultThreadFilterState(),
   availableTags: [],
-  onToggle: noop,
   onSortDirectionChange: noop,
   onToggleThreadSortFreeze: noop,
   onToggleUnresolvedOnly: noop,
@@ -21,7 +20,6 @@ const props = (overrides: Partial<RoomThreadOverviewProps> = {}): RoomThreadOver
   onClearTags: noop,
   onAddTag: noop,
   onRemoveTag: noop,
-  onApplyPreset: noop,
   onSearchQueryChange: noop,
   ...overrides,
 });

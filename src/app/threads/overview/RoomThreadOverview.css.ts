@@ -21,20 +21,11 @@ export const Overview = style([
 
 export const ToolbarHeader = style({
   display: 'flex',
-  // Wrap between groups when the room is narrow; groups themselves never
-  // break apart (see ToggleGroup), so controls stay in recognizable rows.
+  // Wrap controls into recognizable rows when the room is narrow.
   flexWrap: 'wrap',
   placeItems: 'center start',
   columnGap: config.space.S200,
   rowGap: config.space.S100,
-});
-
-export const ToggleGroup = style({
-  display: 'flex',
-  flexWrap: 'nowrap',
-  columnGap: config.space.S100,
-  placeItems: 'center',
-  flexShrink: 0,
 });
 
 export const CompactCount = style({
@@ -55,7 +46,6 @@ const TOGGLE_SIZE = toRem(32);
 const SIMPLE_BAR = '[role="toolbar"]:has([data-simple-unresolved-toggle]) ';
 
 export const ToggleButton = style([
-  // ToggleExclude draws its slash with ::after.
   touchTarget('2px', '', { blockReach: '2px', layer: '::before' }),
   touchTarget('5px', SIMPLE_BAR, { layer: '::before' }),
   {
@@ -91,59 +81,6 @@ export const ToggleButton = style([
     },
   },
 ]);
-
-export const ToggleInclude = style({
-  backgroundColor: color.Success.Container,
-  borderColor: color.Success.ContainerLine,
-  color: color.Success.OnContainer,
-  opacity: '1',
-
-  '@media': {
-    '(hover: hover)': {
-      selectors: { '&:hover': { backgroundColor: color.Success.ContainerHover } },
-    },
-  },
-});
-
-export const ToggleIncludeOr = style({
-  backgroundColor: color.Warning.Container, // either of the OR chips may match
-  borderColor: color.Warning.ContainerLine,
-  color: color.Warning.OnContainer,
-  opacity: '1',
-
-  '@media': {
-    '(hover: hover)': {
-      selectors: { '&:hover': { backgroundColor: color.Warning.ContainerHover } },
-    },
-  },
-});
-
-export const ToggleExclude = style({
-  backgroundColor: color.Critical.Container, // threads with this status are hidden
-  borderColor: color.Critical.ContainerLine,
-  color: color.Critical.OnContainer,
-  opacity: '1',
-
-  '@media': {
-    '(hover: hover)': {
-      selectors: { '&:hover': { backgroundColor: color.Critical.ContainerHover } },
-    },
-  },
-  selectors: {
-    // A slash across the icon: the status is excluded.
-    '&::after': {
-      content: '""',
-      position: 'absolute',
-      insetBlockStart: '50%',
-      insetInlineStart: '50%',
-      width: '140%',
-      height: toRem(2),
-      backgroundColor: color.Critical.Main,
-      transform: 'translate(-50%, -50%) rotate(-45deg)',
-      pointerEvents: 'none',
-    },
-  },
-});
 
 export const SortButton = style([
   touchTarget('5px', '', { blockReach: '2px' }),
@@ -204,7 +141,7 @@ export const PauseButtonActive = style({
   },
 });
 
-// ─── Preset dropdown ────────────────────────────────────────────────────────
+// ─── Shared filter dropdown ────────────────────────────────────────────────────────
 
 export const FilterContainer = style({
   position: 'relative',

@@ -366,8 +366,7 @@
       "streaming": "Transmitiendo",
       "scheduled": "Programado",
       "unread": "Sin leer",
-      "idle": "Inactivo",
-      "idleFilter": "Inactivo (resuelto, sin transmisión y sin tareas)"
+      "idle": "Inactivo"
     },
     "stats": {
       "aria": "Estadísticas de los hilos",
@@ -376,17 +375,6 @@
       "threadCount_other": "{{count}} hilos",
       "tags": "Etiquetas",
       "threadCount_many": "{{count}} hilos"
-    },
-    "filterTooltip": {
-      "any": "{{label}}: se muestran todos. Haz clic para mostrar solo este.",
-      "include": "{{label}}: mostrar solo este. Haz clic para ocultarlo.",
-      "exclude": "{{label}}: oculto. Haz clic para borrar el filtro.",
-      "tagAny": "Etiqueta «{{tag}}»",
-      "tagInclude": "Etiqueta «{{tag}}»: mostrar solo esta. Haz clic para ocultarla.",
-      "tagExclude": "Etiqueta «{{tag}}»: oculta. Haz clic para borrar el filtro.",
-      "stateAny": "se muestran todos",
-      "stateInclude": "mostrar solo este",
-      "stateExclude": "oculto"
     },
     "filters": {
       "scope": "Ámbito",
@@ -2913,8 +2901,6 @@
         "addTagFilter": "Añadir filtro de etiqueta",
         "tag": "+ etiqueta",
         "availableTags": "Etiquetas disponibles",
-        "filterPresets": "Preajustes de filtros",
-        "preset": "Preajuste",
         "searchThreads": "Buscar hilos",
         "searchThreads2": "Buscar hilos...",
         "roomViewMode": "Modo de vista de sala",
@@ -2935,28 +2921,6 @@
         "lockSortOrder": "Bloquear orden (actualmente {{sort}})",
         "threadCount_one": "{{count}} hilo",
         "threadCount_other": "{{count}} hilos",
-        "presets": {
-          "needs-attention": {
-            "label": "Requiere atención",
-            "description": "Hilos sin resolver, sin transmisión y sin programación"
-          },
-          "working": {
-            "label": "En curso",
-            "description": "En transmisión o programados: aquello en lo que estás trabajando ahora"
-          },
-          "review-queue": {
-            "label": "Cola de revisión",
-            "description": "Hilos sin resolver con respuestas sin leer"
-          },
-          "archived": {
-            "label": "Archivados",
-            "description": "Solo hilos resueltos"
-          },
-          "all": {
-            "label": "Todos",
-            "description": "Restablecer todos los filtros"
-          }
-        },
         "showingFilteredThreads_many": "Mostrando {{count}} de {{total}} hilos",
         "showingAllThreads_many": "Mostrando {{count}} hilos",
         "threadCount_many": "{{count}} hilos"

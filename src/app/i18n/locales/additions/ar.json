@@ -820,13 +820,7 @@
         "threadFiltersActive": "عوامل تصفية سلاسل المحادثات (مفعّلة)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "عوامل تصفية متقدمة",
-        "presets": {
-          "snoozed": {
-            "label": "مؤجلة",
-            "description": "سلاسل المحادثات المؤجلة فقط"
-          }
-        }
+        "advancedFilters": "عوامل تصفية متقدمة"
       },
       "threadPeopleFilter": {
         "label": "الأشخاص",

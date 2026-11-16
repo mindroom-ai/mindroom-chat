@@ -843,6 +843,7 @@ const makeRoom = ({
   return {
     __listeners: listeners,
     roomId: ROOM_ID,
+    currentState: { getStateEvents: () => [] },
     myUserId: '@alice:example.org',
     client: {
       getUserId: () => '@alice:example.org',
@@ -915,14 +916,12 @@ const createControlledRoomTimelineHarness = (
         onStoreThreadSummary: vi.fn(),
         threadFilterState: defaultThreadFilterState,
         threadSortFreezeState: null,
-        onToggle: vi.fn(),
         onSortDirectionChange: vi.fn(),
         onToggleThreadSortFreeze: vi.fn(),
         setThreadSortFreezeState: vi.fn(),
         onAddTag: vi.fn(),
         onRemoveTag: vi.fn(),
         onReset: vi.fn(),
-        onApplyPreset: vi.fn(),
         onSearchQueryChange: vi.fn(),
         viewMode: 'threaded',
         editor,

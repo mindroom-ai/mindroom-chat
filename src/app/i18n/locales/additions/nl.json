@@ -776,13 +776,7 @@
         "threadFiltersActive": "Threadfilters (actief)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Geavanceerde filters",
-        "presets": {
-          "snoozed": {
-            "label": "Gesnoozed",
-            "description": "Alleen gesnoozede threads"
-          }
-        }
+        "advancedFilters": "Geavanceerde filters"
       },
       "threadPeopleFilter": {
         "label": "Personen",

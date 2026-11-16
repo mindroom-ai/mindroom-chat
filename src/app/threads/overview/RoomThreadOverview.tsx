@@ -29,7 +29,6 @@ import type {
   ThreadFilterState,
   ThreadFilterKey,
   StatusCounts,
-  FilterPreset,
 } from '../../event-store/threads/roomThreadOverviewModel';
 import {
   hasActiveThreadFilters,
@@ -269,7 +268,6 @@ export type RoomThreadOverviewProps = {
   state: ThreadFilterState;
   availableTags: string[];
   isThreadSortFrozen?: boolean;
-  onToggle: (key: ThreadFilterKey) => void;
   onSortDirectionChange: () => void;
   onToggleThreadSortFreeze: () => void;
   /** Simple mode's one filter: hide resolved threads or show them all. */
@@ -279,7 +277,6 @@ export type RoomThreadOverviewProps = {
   onRemoveTag: (tag: string) => void;
   /** The Tags dropdown's Clear: drops every tag filter. */
   onClearTags: () => void;
-  onApplyPreset: (preset: FilterPreset) => void;
   onSearchQueryChange: (query: string) => void;
   /** The People dropdown (ThreadPeopleFilter), shown with the advanced filters. */
   peopleFilter?: React.ReactNode;

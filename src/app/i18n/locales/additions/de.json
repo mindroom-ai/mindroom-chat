@@ -776,13 +776,7 @@
         "threadFiltersActive": "Thread-Filter (aktiv)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Erweiterte Filter",
-        "presets": {
-          "snoozed": {
-            "label": "Zurückgestellt",
-            "description": "Nur zurückgestellte Threads"
-          }
-        }
+        "advancedFilters": "Erweiterte Filter"
       },
       "threadPeopleFilter": {
         "label": "Personen",

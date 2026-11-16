@@ -765,13 +765,7 @@
         "threadFiltersActive": "Filter utas (aktif)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filter lanjutan",
-        "presets": {
-          "snoozed": {
-            "label": "Ditunda",
-            "description": "Hanya utas yang ditunda"
-          }
-        }
+        "advancedFilters": "Filter lanjutan"
       },
       "threadPeopleFilter": {
         "label": "Orang",

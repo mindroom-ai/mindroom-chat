@@ -765,13 +765,7 @@
         "threadFiltersActive": "スレッドフィルター（有効）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "詳細フィルター",
-        "presets": {
-          "snoozed": {
-            "label": "スヌーズ中",
-            "description": "スヌーズ中のスレッドのみ"
-          }
-        }
+        "advancedFilters": "詳細フィルター"
       },
       "threadPeopleFilter": {
         "label": "参加者",

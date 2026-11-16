@@ -244,8 +244,12 @@ describe('useRoomViewThreadState', () => {
     viewMode.current = 'threaded';
     const { store, current } = mountThreadState();
 
-    act(() => current().handleToggle('resolved'));
-    act(() => current().handleToggle('resolved'));
+    vi.useFakeTimers();
+    act(() => current().handleSearchQueryChange('-is:resolved'));
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    vi.useRealTimers();
 
     expect(current().threadFilterState.resolved).toBe('exclude');
     expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID))?.resolved).toBe('exclude');

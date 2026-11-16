@@ -41,11 +41,7 @@ vi.mock('./RoomThreadOverview.css', () => ({
   WorkflowTab: 'WorkflowTab',
   WorkflowCount: 'WorkflowCount',
   ToolbarHeader: 'ToolbarHeader',
-  ToggleGroup: 'ToggleGroup',
   ToggleButton: 'ToggleButton',
-  ToggleInclude: 'ToggleInclude',
-  ToggleIncludeOr: 'ToggleIncludeOr',
-  ToggleExclude: 'ToggleExclude',
   CompactCount: 'CompactCount',
   SortButton: 'SortButton',
   SortButtonActive: 'SortButtonActive',
@@ -55,7 +51,6 @@ vi.mock('./RoomThreadOverview.css', () => ({
   FilterContainer: 'FilterContainer',
   FilterButton: 'FilterButton',
   FilterDropdown: 'FilterDropdown',
-  PresetOption: 'PresetOption',
   InfoContainer: 'InfoContainer',
   InfoButton: 'InfoButton',
   InfoPopover: 'InfoPopover',
@@ -125,14 +120,12 @@ const defaultProps = {
   state: makeDefaultState(),
   availableTags: [] as string[],
   isThreadSortFrozen: false,
-  onToggle: vi.fn(),
   onSortDirectionChange: vi.fn(),
   onToggleThreadSortFreeze: vi.fn(),
   onReset: vi.fn(),
   onClearTags: vi.fn(),
   onAddTag: vi.fn(),
   onRemoveTag: vi.fn(),
-  onApplyPreset: vi.fn(),
   onSearchQueryChange: vi.fn(),
 };
 
@@ -441,7 +434,7 @@ describe('RoomThreadOverview', () => {
     renderer.unmount();
   });
 
-  // ═══ Preset dropdown ══════════════════════════════════════════════════
+  // ═══ Filter bar ═══════════════════════════════════════════════════════
 
   it('renders info button', () => {
     const renderer = create(React.createElement(RoomThreadOverview, defaultProps));

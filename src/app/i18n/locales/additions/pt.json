@@ -787,13 +787,7 @@
         "threadFiltersActive": "Filtros de tópicos (ativos)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtros avançados",
-        "presets": {
-          "snoozed": {
-            "label": "Adiados",
-            "description": "Apenas tópicos adiados"
-          }
-        }
+        "advancedFilters": "Filtros avançados"
       },
       "threadPeopleFilter": {
         "label": "Pessoas",

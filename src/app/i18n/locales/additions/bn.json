@@ -776,13 +776,7 @@
         "threadFiltersActive": "থ্রেড ফিল্টার (চালু)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "উন্নত ফিল্টার",
-        "presets": {
-          "snoozed": {
-            "label": "স্নুজ করা",
-            "description": "শুধুমাত্র স্নুজ করা থ্রেড"
-          }
-        }
+        "advancedFilters": "উন্নত ফিল্টার"
       },
       "threadPeopleFilter": {
         "label": "লোকজন",

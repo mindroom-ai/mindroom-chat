@@ -798,13 +798,7 @@
         "threadFiltersActive": "Фильтры веток (активны)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Расширенные фильтры",
-        "presets": {
-          "snoozed": {
-            "label": "Отложенные",
-            "description": "Только отложенные ветки"
-          }
-        }
+        "advancedFilters": "Расширенные фильтры"
       },
       "threadPeopleFilter": {
         "label": "Участники",

@@ -45,8 +45,6 @@ import { useTimelineMessageFeature } from './message-rendering/useTimelineMessag
 import type { TimelineMessageData } from './message-rendering/types';
 import type { RoomViewMode } from '../navigation/roomViewMode';
 import type {
-  FilterPreset,
-  ThreadFilterKey,
   ThreadFilterState,
   ThreadSortFreezeState,
 } from '../event-store/threads/roomThreadOverviewModel';
@@ -193,7 +191,6 @@ export type RoomTimelineProps = {
   /** Without agents the filter bar keeps only its search and sort. */
   hasMindroomAgents?: boolean;
   /** The filter bar's controls; the room view keeps the state they change. */
-  onToggle?: (key: ThreadFilterKey) => void;
   onSortDirectionChange?: () => void;
   onToggleThreadSortFreeze?: () => void;
   onToggleUnresolvedOnly?: () => void;
@@ -204,7 +201,6 @@ export type RoomTimelineProps = {
   onRemoveTag?: (tag: string) => void;
   onClearTags?: () => void;
   onSelectTab?: (tab: ThreadWorkflowTab) => void;
-  onApplyPreset?: (preset: FilterPreset) => void;
   onSearchQueryChange?: (query: string) => void;
   viewMode: RoomViewMode;
   compactRoomScrollStateRef?: MutableRefObject<ScrollAnchorMemory>;
@@ -1547,7 +1543,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
         state={threadFilterState}
         availableTags={threadIndex.availableRoomTags}
         isThreadSortFrozen={!!threadSortFreezeState}
-        onToggle={props.onToggle ?? ignoreFilterChange}
         onSortDirectionChange={props.onSortDirectionChange ?? ignoreFilterChange}
         onToggleThreadSortFreeze={props.onToggleThreadSortFreeze ?? ignoreFilterChange}
         onToggleUnresolvedOnly={props.onToggleUnresolvedOnly ?? ignoreFilterChange}
@@ -1555,7 +1550,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
         onAddTag={props.onAddTag ?? ignoreFilterChange}
         onRemoveTag={props.onRemoveTag ?? ignoreFilterChange}
         onClearTags={props.onClearTags ?? ignoreFilterChange}
-        onApplyPreset={props.onApplyPreset ?? ignoreFilterChange}
         onSearchQueryChange={props.onSearchQueryChange ?? ignoreFilterChange}
         peopleFilter={
           props.onTogglePerson && (

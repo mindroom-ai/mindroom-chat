@@ -1597,34 +1597,10 @@
       "roomThreadOverview": {
         "addTagFilter": "टैग फ़िल्टर जोड़ें",
         "availableTags": "उपलब्ध टैग",
-        "filterPresets": "फ़िल्टर प्रीसेट",
         "lastReply": "अंतिम उत्तर",
         "lockSortOrder": "क्रम लॉक करें (अभी {{sort}})",
         "natural": "स्वाभाविक क्रम",
         "noThreadsMatchCurrentFilters": "कोई भी थ्रेड मौजूदा फ़िल्टर से मेल नहीं खाता.",
-        "preset": "प्रीसेट",
-        "presets": {
-          "all": {
-            "description": "सभी फ़िल्टर रीसेट करें",
-            "label": "सभी"
-          },
-          "archived": {
-            "description": "केवल सुलझे हुए थ्रेड",
-            "label": "संग्रहीत"
-          },
-          "needs-attention": {
-            "description": "अनसुलझे, गैर-स्ट्रीमिंग, गैर-अनुसूचित थ्रेड",
-            "label": "ध्यान देने की जरूरत है"
-          },
-          "review-queue": {
-            "description": "अपठित उत्तरों के साथ अनसुलझे थ्रेड",
-            "label": "समीक्षा कतार"
-          },
-          "working": {
-            "description": "स्ट्रीमिंग या शेड्यूल - आप अभी किस पर काम कर रहे हैं",
-            "label": "कार्यरत"
-          }
-        },
         "reset": "रीसेट करें",
         "resetAllThreadFilters": "सभी थ्रेड फ़िल्टर रीसेट करें",
         "roomViewMode": "रूम दृश्य मोड",
@@ -3009,17 +2985,6 @@
       "tagsPlaceholder": "टैग",
       "unread": "अपठित"
     },
-    "filterTooltip": {
-      "any": "{{label}}: सभी दिख रहे हैं। केवल इन्हें दिखाने के लिए क्लिक करें।",
-      "exclude": "{{label}}: छिपे हुए हैं। फ़िल्टर हटाने के लिए क्लिक करें।",
-      "include": "{{label}}: केवल यही दिख रहे हैं। छिपाने के लिए क्लिक करें।",
-      "stateAny": "सभी दिख रहे हैं",
-      "stateExclude": "छिपा हुआ",
-      "stateInclude": "केवल यही दिख रहे हैं",
-      "tagAny": "टैग \"{{tag}}\"",
-      "tagExclude": "टैग \"{{tag}}\": छिपा हुआ है। फ़िल्टर हटाने के लिए क्लिक करें।",
-      "tagInclude": "टैग \"{{tag}}\": केवल यही दिख रहा है। छिपाने के लिए क्लिक करें।"
-    },
     "replyCount_one": "{{count}} उत्तर",
     "replyCount_other": "{{count}} उत्तर",
     "resolve": "सुलझा हुआ चिह्नित करें",
@@ -3043,7 +3008,6 @@
     },
     "status": {
       "idle": "निष्क्रिय",
-      "idleFilter": "निष्क्रिय (सुलझा हुआ, स्ट्रीमिंग नहीं, कोई कार्य नहीं)",
       "resolved": "सुलझा हुआ",
       "scheduled": "निर्धारित",
       "streaming": "स्ट्रीमिंग",

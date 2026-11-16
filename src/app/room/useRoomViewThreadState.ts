@@ -33,20 +33,16 @@ import { historyPageOf, previousHistoryOrigin, showsRoom } from '../routes/histo
 import { getCanonicalAliasOrRoomId } from '../matrix/matrix';
 import {
   addTagFilter,
-  applyPreset,
   createDefaultThreadFilterState,
   cycleSortMode,
-  type FilterPreset,
   normalizeThreadSearchText,
   removeTagFilter,
   resetThreadFilterState,
   simplifyAgentlessSimpleThreadFilterState,
   simplifyAgentlessThreadFilterState,
   simplifyThreadFilterState,
-  type ThreadFilterKey,
   type ThreadFilterState,
   type ThreadSortFreezeState,
-  updateThreadFilterKey,
 } from '../event-store/threads/roomThreadOverviewModel';
 import { roomThreadFilterAtomFamily } from '../threads/overview/roomThreadFilterState';
 import type { RoomViewMode } from '../navigation/roomViewMode';
@@ -77,7 +73,6 @@ export type RoomViewThreadState = {
   effectiveThreadId?: string;
   handleAddTag: (tag: string) => void;
   handleSelectTab: (tab: ThreadWorkflowTab) => void;
-  handleApplyPreset: (preset: FilterPreset) => void;
   handleClearPeople: () => void;
   handleClearTags: () => void;
   handleExitThread: () => void;
@@ -88,7 +83,6 @@ export type RoomViewThreadState = {
   handleReset: () => void;
   handleSearchQueryChange: (query: string) => void;
   handleSortDirectionChange: () => void;
-  handleToggle: (key: ThreadFilterKey) => void;
   handleToggleThreadSortFreeze: () => void;
   handleToggleUnresolvedOnly: () => void;
   handleTogglePerson: (userId: string) => void;
@@ -299,7 +293,7 @@ export const useRoomViewThreadState = ({
   // (tag:/is:) parsed mid-word would otherwise refilter the overview with
   // transient one-letter filters ("u", "ur", …) and churn the sort-freeze
   // signature. The search input renders its own draft, so typing stays
-  // responsive. Instant filter mutations (chips, presets, tags, sort) FLUSH
+  // responsive. Instant filter mutations (tabs, people, tags, sort) FLUSH
   // the pending query first and compose on top of it — the trailing timer
   // would otherwise clobber a click made inside the debounce window, since
   // applyParsedThreadFilterQuery rebuilds every DSL-owned dimension.
@@ -347,13 +341,6 @@ export const useRoomViewThreadState = ({
       }, 300);
     },
     [flushPendingSearchQuery]
-  );
-
-  const handleToggle = useCallback(
-    (key: ThreadFilterKey) => {
-      setThreadFilterState(updateThreadFilterKey(flushPendingSearchQuery(), key));
-    },
-    [flushPendingSearchQuery, setThreadFilterState]
   );
 
   // Simple mode's single binary control: unresolved-only on/off. Flips only
@@ -435,13 +422,6 @@ export const useRoomViewThreadState = ({
     [flushPendingSearchQuery, setThreadFilterState]
   );
 
-  const handleApplyPreset = useCallback(
-    (preset: FilterPreset) => {
-      setThreadFilterState(applyPreset(flushPendingSearchQuery(), preset));
-    },
-    [flushPendingSearchQuery, setThreadFilterState]
-  );
-
   const handleRoomMessageSent = useCallback(
     (sentEventId: string): boolean => {
       if (effectiveViewMode !== 'compact' || threadId || effectiveThreadId) return false;
@@ -517,7 +497,6 @@ export const useRoomViewThreadState = ({
   return {
     effectiveThreadId,
     handleAddTag,
-    handleApplyPreset,
     handleSelectTab,
     handleClearPeople,
     handleClearTags,
@@ -528,7 +507,6 @@ export const useRoomViewThreadState = ({
     handleReset,
     handleSearchQueryChange,
     handleSortDirectionChange,
-    handleToggle,
     handleToggleThreadSortFreeze,
     handleToggleUnresolvedOnly,
     handleTogglePerson,

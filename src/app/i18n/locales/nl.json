@@ -365,8 +365,7 @@
       "streaming": "Streaming",
       "scheduled": "Gepland",
       "unread": "Ongelezen",
-      "idle": "Inactief",
-      "idleFilter": "Inactief (opgelost, geen streaming, geen taken)"
+      "idle": "Inactief"
     },
     "stats": {
       "aria": "Threadstatistieken",
@@ -374,17 +373,6 @@
       "threadCount_one": "{{count}} thread",
       "threadCount_other": "{{count}} threads",
       "tags": "Tags"
-    },
-    "filterTooltip": {
-      "any": "{{label}}: alles wordt getoond. Klik om alleen deze te tonen.",
-      "include": "{{label}}: alleen deze worden getoond. Klik om te verbergen.",
-      "exclude": "{{label}}: verborgen. Klik om het filter te wissen.",
-      "tagAny": "Tag \"{{tag}}\"",
-      "tagInclude": "Tag \"{{tag}}\": alleen tonen. Klik om te verbergen.",
-      "tagExclude": "Tag \"{{tag}}\": verborgen. Klik om het filter te wissen.",
-      "stateAny": "alles tonen",
-      "stateInclude": "alleen tonen",
-      "stateExclude": "verborgen"
     },
     "filters": {
       "scope": "Bereik",
@@ -2855,8 +2843,6 @@
         "addTagFilter": "Tagfilter toevoegen",
         "tag": "+ tag",
         "availableTags": "Beschikbare tags",
-        "filterPresets": "Filtervoorinstellingen",
-        "preset": "Voorinstelling",
         "searchThreads": "Threads doorzoeken",
         "searchThreads2": "Threads zoeken...",
         "roomViewMode": "Kamerweergavemodus",
@@ -2876,29 +2862,7 @@
         "unlockSortOrder": "Sorteervolgorde ontgrendelen (momenteel {{sort}})",
         "lockSortOrder": "Sorteervolgorde vergrendelen (momenteel {{sort}})",
         "threadCount_one": "{{count}} thread",
-        "threadCount_other": "{{count}} threads",
-        "presets": {
-          "needs-attention": {
-            "label": "Aandacht vereist",
-            "description": "Onopgeloste, niet-streamende, niet-geplande threads"
-          },
-          "working": {
-            "label": "Bezig",
-            "description": "Streaming of gepland — waar je nu aan werkt"
-          },
-          "review-queue": {
-            "label": "Beoordelingswachtrij",
-            "description": "Onopgeloste threads met ongelezen antwoorden"
-          },
-          "archived": {
-            "label": "Gearchiveerd",
-            "description": "Alleen opgeloste threads"
-          },
-          "all": {
-            "label": "Alle",
-            "description": "Alle filters resetten"
-          }
-        }
+        "threadCount_other": "{{count}} threads"
       },
       "threadTagPicker": {
         "addTag": "Tag toevoegen",
