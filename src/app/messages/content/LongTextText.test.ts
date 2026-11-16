@@ -79,6 +79,7 @@ vi.mock('./MsgTypeRenderers', () => ({
       renderAfterBody
     ),
 }));
+vi.mock('./ImageOverlay', () => ({ ImageOverlay: () => null }));
 vi.mock('folds', () => ({
   Box: ({ children, ...props }: Record<string, unknown>) =>
     React.createElement('div', props, children as React.ReactNode),
@@ -133,6 +134,7 @@ vi.mock('../agent-run/Reasoning.css', () => ({
   Chevron: 'Chevron',
 }));
 vi.mock('../agent-run/FinishedWorkFold.css', () => ({ Work: 'Work' }));
+vi.mock('../agent-run/OutlineComet.css', () => ({}));
 vi.mock('../html/HtmlBlocks.css', () => ({
   Block: 'MindroomBlock',
   BlockBody: 'MindroomBlockBody',

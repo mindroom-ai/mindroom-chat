@@ -5,6 +5,8 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { standInForListMotion } from '../../ui/__tests__/listMotionStandIn';
 import { CompactThreadCard } from './CompactThreadCard';
+import type { Room } from 'matrix-js-sdk';
+import { MatrixEvent } from 'matrix-js-sdk';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 
 vi.mock('./CompactRoomView.css', () => ({
@@ -41,6 +43,10 @@ vi.mock('../../messages/ThreadIndicator.css', () => ({
 
 vi.mock('../../ui/PendingSendIndicator.css', () => ({
   Container: 'PendingSendIndicator',
+}));
+
+vi.mock('../../event-store/sdk/cachedThreadRoots', () => ({
+  useCachedThreadRoot: () => undefined,
 }));
 
 const relativeTime = vi.hoisted(() => ({ value: '', format: undefined as string | undefined }));
@@ -549,5 +555,51 @@ describe("CompactThreadCard's badges", () => {
     fireEvent.click(container.querySelector('[data-compact-card-reply-count]')!);
     expect(onClick).toHaveBeenCalledTimes(1);
     expect(onClick).toHaveBeenCalledWith('$thread', undefined);
+  });
+});
+
+describe('the badge of a fork', () => {
+  const parentRoot = new MatrixEvent({
+    event_id: '$parent',
+    room_id: '!room:server',
+    sender: '@maya:server',
+    type: 'm.room.message',
+    origin_server_ts: 1,
+    content: { msgtype: 'm.text', body: 'Plan the trip to Lisbon' },
+  });
+  const room = {
+    roomId: '!room:server',
+    getThread: () => null,
+    findEventById: (id: string) => (id === '$parent' ? parentRoot : undefined),
+    getUnfilteredTimelineSet: () => ({ relations: { getChildEventsForEvent: () => undefined } }),
+    hasEncryptionStateEvent: () => false,
+    getMember: () => null,
+  } as unknown as Room;
+
+  it('marks a fork with the parent thread in its tooltip', () => {
+    const { container } = render(
+      <CompactThreadCard
+        viewModel={makeViewModel({ forkedFrom: { threadId: '$parent', eventId: '$p2' } })}
+        room={room}
+        onClick={vi.fn()}
+      />
+    );
+    const badge = container.querySelector('[data-compact-card-fork-badge]') as HTMLElement;
+    expect(badge.title).toBe('Forked from Plan the trip to Lisbon');
+    expect(container.querySelector('[data-compact-card-metadata]')?.contains(badge)).toBe(true);
+    // The card's button has a label of its own, which screen readers read instead of the badge.
+    expect(
+      container.querySelector('[data-thread-root-id]')?.getAttribute('aria-label')?.split('. ')
+    ).toContain('Forked from Plan the trip to Lisbon');
+  });
+
+  it('marks a plain thread with none', () => {
+    const { container } = render(
+      <CompactThreadCard viewModel={makeViewModel()} room={room} onClick={vi.fn()} />
+    );
+    expect(container.querySelector('[data-compact-card-fork-badge]')).toBeNull();
+    expect(
+      container.querySelector('[data-thread-root-id]')?.getAttribute('aria-label')
+    ).not.toContain('Forked from');
   });
 });

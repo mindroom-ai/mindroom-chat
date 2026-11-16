@@ -4,6 +4,7 @@ import { act } from 'react-dom/test-utils';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider } from '../config/useClientConfig';
+import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import type { LiveDocs } from '../matrix/protocol/liveFrame';
 import type { SubagentFrame, SubagentMeta, SubagentStatus } from '../matrix/protocol/subagentFrame';
@@ -29,6 +30,14 @@ vi.mock('../navigation/useRoomNavigate', () => ({
 }));
 vi.mock('../matrix/hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
+}));
+// The swipe from the screen's left edge the panel last asked for, and whether it is on.
+const edgeSwipe = vi.hoisted(() => ({ onBack: (): void => undefined, enabled: false }));
+vi.mock('../navigation/useEdgeSwipeBack', () => ({
+  useEdgeSwipeBack: (onBack: () => void, enabled = true) => {
+    edgeSwipe.onBack = onBack;
+    edgeSwipe.enabled = enabled;
+  },
 }));
 
 // The room knows the lead and the researcher by their names; the writer is not a member. The
@@ -109,14 +118,16 @@ let container: HTMLDivElement;
 let root: Root;
 const onClose = vi.fn();
 
-const render = () => {
+const render = (screenSize: ScreenSize = ScreenSize.Desktop, threadId?: string | null) => {
   act(() => {
     root.render(
-      <ClientConfigProvider value={{}}>
-        <MatrixClientProvider value={mx}>
-          <SubagentsPanel room={room} onClose={onClose} />
-        </MatrixClientProvider>
-      </ClientConfigProvider>
+      <ScreenSizeProvider value={screenSize}>
+        <ClientConfigProvider value={{}}>
+          <MatrixClientProvider value={mx}>
+            <SubagentsPanel room={room} threadId={threadId} onClose={onClose} />
+          </MatrixClientProvider>
+        </ClientConfigProvider>
+      </ScreenSizeProvider>
     );
   });
 };
@@ -153,6 +164,7 @@ beforeEach(() => {
   seqs.clear();
   navigation.navigateRoomThread.mockReset();
   onClose.mockReset();
+  edgeSwipe.enabled = false;
 });
 
 afterEach(() => {
@@ -170,6 +182,25 @@ describe('SubagentsPanel', () => {
     expect(cards()).toHaveLength(0);
     act(() => button(container, 'Close').click());
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists only the runs started in the conversation on screen, and counts only those', () => {
+    ingest('here', meta('running', { threadId: '$thread:example.org' }), docs('Here.'));
+    ingest('other', meta('running', { threadId: '$other:example.org' }), docs('Elsewhere.'));
+    ingest('room', meta('running', { threadId: null }), docs('In the room.'));
+    render(ScreenSize.Desktop, '$thread:example.org');
+
+    expect(cards().map((element) => element.dataset.subagent)).toEqual(['here']);
+    expect(container.querySelector('header')?.textContent).toContain('1 active');
+
+    // The room's own timeline lists the runs started there, not those of its threads.
+    render(ScreenSize.Desktop, null);
+    expect(cards().map((element) => element.dataset.subagent)).toEqual(['room']);
+
+    // A thread without runs says so of the thread.
+    render(ScreenSize.Desktop, '$empty:example.org');
+    expect(cards()).toHaveLength(0);
+    expect(container.textContent).toContain('No sub-agents are running in this thread.');
   });
 
   it('lists a card per run, the one that started first on top, titled by its task', () => {
@@ -480,6 +511,32 @@ describe('SubagentsPanel', () => {
     expect(view()).toBeNull();
     expect(heading()).toBe('Sub-agents');
     expect(document.activeElement).toBe(card('parent'));
+  });
+
+  it('on a phone, a back swipe goes back as Back does, and from the list closes the panel', () => {
+    ingest('parent', meta('completed'), docs('Asked a writer.', [], false));
+    ingest(
+      'child',
+      meta('completed', { agent: 'writer', parent: 'parent', task: 'Write it.' }),
+      docs('Written.', [], false)
+    );
+    render(ScreenSize.Mobile);
+
+    expect(edgeSwipe.enabled).toBe(true);
+    open('parent');
+    open('child');
+    act(() => edgeSwipe.onBack());
+    expect(heading()).toBe('Research Desk');
+    act(() => edgeSwipe.onBack());
+    expect(view()).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    act(() => edgeSwipe.onBack());
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('beside the conversation leaves the back swipe to the thread', () => {
+    render(ScreenSize.Desktop);
+    expect(edgeSwipe.enabled).toBe(false);
   });
 
   it('opens the thread the run was started from', () => {

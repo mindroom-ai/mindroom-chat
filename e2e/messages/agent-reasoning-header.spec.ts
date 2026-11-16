@@ -24,7 +24,8 @@ const headerGeometry = async (reply: Locator) =>
     // The tool row's button names its panel; the reasoning toggle has none.
     const toggle = element.querySelector('button[aria-expanded]:not([aria-controls])');
     const [bulb, chevron] = Array.from(toggle?.querySelectorAll('svg') ?? []);
-    const label = toggle?.querySelector('span');
+    // The bulb's box, which the comet laps while the model thinks, is a span too, hidden.
+    const label = toggle?.querySelector(':scope > span:not([aria-hidden])');
     const tile = element.querySelector('button[aria-controls] > span[aria-hidden]');
     const box = (node: Element | null | undefined) => {
       const rect = node?.getBoundingClientRect();
@@ -211,7 +212,9 @@ test.describe('agent reasoning header', () => {
     const toggle = reply.getByRole('button', { name: 'Thought for 8 s' });
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await expect(toggle.locator('svg')).toHaveCount(2);
-    await expect(toggle.locator('svg[aria-hidden="true"]')).toHaveCount(2);
+    await expect(toggle.locator('[aria-hidden="true"] svg, svg[aria-hidden="true"]')).toHaveCount(
+      2
+    );
 
     // The streaming reply shows the same header, open, with its chevron down.
     const thinking = page.locator('[data-message-item]').filter({ hasText: 'good first question' });

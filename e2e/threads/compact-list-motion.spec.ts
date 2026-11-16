@@ -152,7 +152,8 @@ test.describe('the Compact cards in motion', () => {
     await slow?.send('Animation.setPlaybackRate', { playbackRate: 0.1 });
     const shot = async (name: string) => {
       if (!SHOTS) return;
-      await page.waitForTimeout(800);
+      // Within the second after which the list ends a play the browser has not ended.
+      await page.waitForTimeout(600);
       await page.screenshot({ path: `${SHOTS}/${name}.png` });
     };
     await takePlays(page);

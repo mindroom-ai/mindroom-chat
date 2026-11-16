@@ -26,6 +26,14 @@ const LEAVE = { duration: 160, easing: 'cubic-bezier(0.3, 0, 1, 1)', fill: 'forw
  */
 export const MOST_ROWS_IN_MOTION = 300;
 
+/**
+ * A play the browser has not ended after this long is ended: its rows show at their places, and
+ * the rows that left are gone. Well past the longest play, also where a busy page starts it
+ * late. A browser that never ran an animation would leave every row as the play's first frame
+ * shows it: on a phone, cards that had left stayed where they stood.
+ */
+export const LONGEST_PLAY_MS = 1000;
+
 /** A row and where it showed on the page. */
 type Place = { row: HTMLElement; rect: DOMRect };
 
@@ -206,7 +214,8 @@ class BeforeChange extends PureComponent<BeforeChangeProps> {
  * page's style and layout inside the commit, work its next frame would have done. Rows play by
  * `translate`, `scale` and `opacity`, which no layout follows; a row is read while it plays, so
  * keep code that measures rows off the row element itself. A change of `order` while rows play
- * starts their glides again from where they show and ends their fades at once. Nothing plays
+ * starts their glides again from where they show and ends their fades at once, and a play the
+ * browser has not ended after `LONGEST_PLAY_MS` is ended. Nothing plays
  * when no row in view stays, with reduced motion, in a page nobody sees, or without Web
  * Animations. Call it after a hook that scrolls the list in a layout effect: the rows are read
  * where that leaves them.
@@ -229,7 +238,12 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
     if (!before || !list) return;
     // A row still moving from the last change was read where it showed; it starts again there.
     runningRef.current.forEach((animation) => animation.cancel());
-    runningRef.current = play(list, before);
+    const started = play(list, before);
+    runningRef.current = started;
+    // Not cleared: a list that goes mid-play ends its play too. (One that ended is not changed.)
+    if (started.length > 0) {
+      setTimeout(() => started.forEach((animation) => animation.cancel()), LONGEST_PLAY_MS);
+    }
   }, [listRef, order]);
 
   return <BeforeChange order={order} read={read} keep={keep} />;

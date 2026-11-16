@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import unittest
 import urllib.parse
 from pathlib import Path
@@ -40,6 +41,37 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("router:\n  model: default\n", config)
         self.assertNotIn("thread_summary_model", config)
         self.assertNotIn("anthropic", config)
+
+    def test_extra_agents_are_stub_workers_in_the_lobby(self) -> None:
+        config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, extra_agents=3)
+        for number in (1, 2, 3):
+            self.assertIn(
+                f"  worker{number}:\n    display_name: Worker {number}\n"
+                "    role: Extra test agent driven by a stub model\n"
+                "    model: default\n    rooms: [lobby]\n    tools: [shell]\n",
+                config,
+            )
+        self.assertNotIn("worker4", config)
+        self.assertNotIn("worker", stack.config_yaml("stub", TESTER, STUB_URL, 0.0003))
+
+    def test_the_router_picks_the_worker_a_message_names(self) -> None:
+        def pick(message: str) -> str:
+            schema = {"type": "string"}
+            text = f'Pick one.\nMessage: "{message}"'
+            return stub_model.schema_value(schema, {}, text, "agent_name")
+
+        self.assertEqual(pick("worker2 #work words=5"), "worker2")
+        self.assertEqual(pick("Worker12 #work"), "worker12")
+        self.assertEqual(pick("ask scout"), "scout")
+        self.assertEqual(pick("hello"), "helper")
+
+    def test_agents_are_refused_with_a_real_model(self) -> None:
+        with (
+            mock.patch.object(sys, "argv", ["stack.py", "5", "up", "--model", "real", "--agents", "2"]),
+            contextlib.redirect_stderr(io.StringIO()) as err,
+        ):
+            self.assertEqual(stack.main(), 1)
+        self.assertIn("--agents needs the stub model", err.getvalue())
 
     def test_real_config_runs_the_helper_on_haiku_and_luna_for_the_rest(self) -> None:
         config = stack.config_yaml("real", TESTER, STUB_URL, 0.0003)
@@ -859,6 +891,46 @@ esac
 """
 
 
+class AliveTests(unittest.TestCase):
+    def test_own_process_is_found_by_its_command_line(self) -> None:
+        with subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)  # alive-marker-a"]) as process:
+            try:
+                # Until the child has replaced the interpreter that forked it, its command line is this test's.
+                deadline = time.monotonic() + 10
+                while not stack.alive(process.pid, "alive-marker-a") and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(stack.alive(process.pid, "alive-marker-a"))
+                self.assertFalse(stack.alive(process.pid, "another-marker"))
+            finally:
+                process.kill()
+        self.assertFalse(stack.alive(process.pid, "alive-marker-a"))
+        self.assertFalse(stack.alive(None, "alive-marker-a"))
+
+    def test_without_proc_the_command_line_comes_from_ps(self) -> None:
+        """macOS has no /proc: a start there must not read as a backend that exited."""
+        ps = mock.Mock(return_value=subprocess.CompletedProcess([], 0, stdout="/venv/bin/mindroom run --config /slot-7/c\n"))
+        with (
+            mock.patch.object(Path, "read_bytes", side_effect=FileNotFoundError),
+            mock.patch.object(stack.subprocess, "run", ps),
+        ):
+            self.assertTrue(stack.alive(4242, "/slot-7"))
+            self.assertFalse(stack.alive(4242, "/slot-8"))
+        self.assertEqual(ps.call_args.args[0], ["ps", "-ww", "-o", "command=", "-p", "4242"])
+        gone = mock.Mock(return_value=subprocess.CompletedProcess([], 1, stdout=""))
+        with (
+            mock.patch.object(Path, "read_bytes", side_effect=FileNotFoundError),
+            mock.patch.object(stack.subprocess, "run", gone),
+        ):
+            self.assertFalse(stack.alive(4242, "/slot-7"))
+
+    def test_a_gone_process_on_a_host_without_ps_is_not_alive(self) -> None:
+        with (
+            mock.patch.object(Path, "read_bytes", side_effect=FileNotFoundError),
+            mock.patch.object(stack.subprocess, "run", side_effect=FileNotFoundError("ps")),
+        ):
+            self.assertFalse(stack.alive(4242, "/slot-7"))
+
+
 class WorkerImageTests(unittest.TestCase):
     DOCKERFILE = "local/instances/deploy/Dockerfile.mindroom"
 
@@ -1363,6 +1435,92 @@ class StubScenarioTests(unittest.TestCase):
         )
         message = self.answer([], chat("#dict"), [module])
         self.assertEqual(message["content"], f"The stub's scenario #dict of {module} failed: it gave dict, not a text")
+
+
+class WorkScenarioTests(unittest.TestCase):
+    def test_knobs_default_and_parse(self) -> None:
+        defaults = {"words": 200, "wps": 30, "reasoning": 0, "tools": 0, "toolsec": 0, "links": 0, "seed": 1}
+        self.assertEqual(stub_model.work_knobs("#work"), defaults)
+        self.assertEqual(
+            stub_model.work_knobs("please #work words=50 wps=0 tools=2 toolsec=1.5 seed=9"),
+            {**defaults, "words": 50, "wps": 0, "tools": 2, "toolsec": 1.5, "seed": 9},
+        )
+
+    def test_text_is_deterministic_and_sized(self) -> None:
+        text = stub_model.work_text(300, 7)
+        self.assertEqual(text, stub_model.work_text(300, 7))
+        self.assertNotEqual(text, stub_model.work_text(300, 8))
+        self.assertEqual(len(text.split()), 300)
+        self.assertIn("\n## ", text)
+        self.assertIn("\n- ", text)
+
+    def test_links_take_the_place_of_words(self) -> None:
+        self.assertEqual(stub_model.work_knobs("#work words=50 links=3")["links"], 3)
+        plain = stub_model.work_text(300, 7)
+        text = stub_model.work_text(300, 7, links=3)
+        links = [word for word in text.split() if word.startswith("https://")]
+        self.assertEqual(links, [f"https://example.org/work/7-{number}" for number in (1, 2, 3)])
+        self.assertEqual(len(text.split()), 300)
+        # Only those three words differ, and no heading or list marker is one of them.
+        differing = [(a, b) for a, b in zip(plain.split(), text.split()) if a != b]
+        self.assertEqual([b for _, b in differing], links)
+        self.assertTrue(all(a not in ("##", "-") for a, _ in differing))
+        self.assertEqual(stub_model.work_text(300, 7, links=0), plain)
+        self.assertEqual(len([w for w in stub_model.work_text(2, 7, links=9).split() if w.startswith("https://")]), 2)
+        with_links = stub_model.plan(chat("#work words=40 wps=0 links=2"), {})
+        self.assertEqual(with_links[2].count("https://example.org/work/"), 2)
+
+    def test_plan_runs_tools_then_streams(self) -> None:
+        prompt = "#work words=10 tools=2 toolsec=0 wps=0"
+        shell = "run_shell_command"
+        self.assertEqual(stub_model.plan(chat(prompt), {}), ("tool", shell, {"args": "sleep 0; echo work step 1"}))
+        one = stub_model.plan(chat(prompt, {"role": "tool", "content": "a"}), {})
+        self.assertEqual(one, ("tool", shell, {"args": "sleep 0; echo work step 2"}))
+        two = stub_model.plan(chat(prompt, {"role": "tool", "content": "a"}, {"role": "tool", "content": "b"}), {})
+        self.assertEqual(two[0], "work")
+        self.assertEqual((two[1], two[3]), ("", 0))
+        self.assertEqual(len(two[2].split()), 10)
+
+    def test_reasoning_section(self) -> None:
+        self.assertEqual(stub_model.work_reasoning(0, 1), "")
+        self.assertTrue(450 <= len(stub_model.work_reasoning(500, 1)) <= 550)
+
+    def streamed_content(self, text: str) -> list[str]:
+        """The content deltas the stub streams for the person's `text`, after its opening role chunk."""
+        with tempfile.TemporaryDirectory() as root:
+            stub = stub_model.Stub(Path(root) / "requests.jsonl", [], [])
+            request = mock.Mock(json=mock.AsyncMock(return_value={**chat(text), "stream": True}))
+            with mock.patch.object(stub_model, "web") as web:
+                response = web.StreamResponse.return_value
+                response.prepare = mock.AsyncMock()
+                response.write = mock.AsyncMock()
+                response.write_eof = mock.AsyncMock()
+                asyncio.run(stub.completions(request))
+        lines = [call.args[0].decode() for call in response.write.call_args_list]
+        payloads = [json.loads(line.removeprefix("data: ")) for line in lines if line.startswith("data: {")]
+        deltas = [payload["choices"][0]["delta"] for payload in payloads if payload.get("choices")]
+        self.assertEqual(deltas[0], {"role": "assistant", "content": ""})
+        return [delta["content"] for delta in deltas[1:] if "content" in delta]
+
+    def test_a_reply_of_no_words_streams_no_content_chunk(self) -> None:
+        self.assertEqual(self.streamed_content("#work words=0 wps=0"), [])
+        three = self.streamed_content("#work words=3 wps=0")
+        self.assertEqual(len(three), 3)
+        self.assertEqual("".join(three), stub_model.work_text(3, 1))
+
+    def test_a_reply_that_is_not_streamed_has_the_text_without_the_reasoning(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            stub = stub_model.Stub(Path(root) / "requests.jsonl", [], [])
+            request = mock.Mock(json=mock.AsyncMock(return_value=chat("#work words=3 reasoning=200")))
+            with mock.patch.object(stub_model, "web") as web:
+                asyncio.run(stub.completions(request))
+        message = web.json_response.call_args.args[0]["choices"][0]["message"]
+        self.assertEqual(message, {"role": "assistant", "content": stub_model.work_text(3, 1)})
+
+    def test_no_tools_streams_at_once(self) -> None:
+        kind, reasoning, text, seconds = stub_model.plan(chat("#work words=5"), {})
+        self.assertEqual((kind, reasoning, seconds), ("work", "", 1 / 30))
+        self.assertEqual(len(text.split()), 5)
 
 
 if __name__ == "__main__":

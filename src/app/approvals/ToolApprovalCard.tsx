@@ -37,6 +37,8 @@ type ToolApprovalCardProps = {
   roomId?: string;
   eventId?: string;
   threadId?: string;
+  /** Shown in another thread's view (a fork's prefix): the request and its state, no decisions. */
+  readOnly?: boolean;
 };
 
 const getTimestamp = (value: string | null): number | undefined => {
@@ -48,10 +50,10 @@ const getTimestamp = (value: string | null): number | undefined => {
 const MAX_TIMEOUT_DELAY = 2_147_483_647;
 
 export function ToolApprovalCard(props: ToolApprovalCardProps) {
-  const { eventId, roomId, approval, threadId } = props;
+  const { eventId, roomId, approval, threadId, readOnly } = props;
   const userId = useMatrixClient().getUserId();
   const context = useThreadApprovals();
-  if (!context || context.roomId !== roomId || context.threadId !== approval.threadId)
+  if (readOnly || !context || context.roomId !== roomId || context.threadId !== approval.threadId)
     return (
       <StandaloneToolApprovalCard
         key={`${approval.approvalId}:${eventId ?? ''}:${roomId ?? ''}:${threadId ?? ''}`}
@@ -82,6 +84,7 @@ function StandaloneToolApprovalCard({
   roomId,
   eventId,
   threadId,
+  readOnly = false,
 }: ToolApprovalCardProps) {
   const glassRef = useGlassHighlight<HTMLDivElement>();
   const { t } = useTranslation();
@@ -94,7 +97,7 @@ function StandaloneToolApprovalCard({
   const now = Date.now();
   const responseThreadId = threadId ?? approval.threadId ?? eventId;
   const canonicalThreadId = threadId ?? approval.threadId;
-  const canSendResponse = !!roomId && !!eventId && !!responseThreadId;
+  const canSendResponse = !readOnly && !!roomId && !!eventId && !!responseThreadId;
   const currentUserId = mx.getUserId();
   const record = useMemo<ThreadApprovalRecord>(
     () => ({
@@ -206,7 +209,7 @@ function StandaloneToolApprovalCard({
 
         <ApprovalSchedule approval={approval} />
         <ApprovalArguments approval={approval} />
-        <ApprovalDecisionControls {...controls} showDurations />
+        {!readOnly && <ApprovalDecisionControls {...controls} showDurations />}
       </div>
     </Box>
   );

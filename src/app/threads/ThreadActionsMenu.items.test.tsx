@@ -8,11 +8,19 @@ import { Icons, config, type IconSrc } from 'folds';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThreadActionsMenu, type ThreadActionsMenuProps } from './ThreadActionsMenu';
 import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
+import { ForkIcon } from '../messages/ForkIcon';
 import { getDefaultStore } from 'jotai';
 import { getSettings, settingsAtom } from '../preferences/settings';
+import type { RegisteredPlugin } from '../plugins/registry';
+import type { ThreadDetail } from '../plugins/threadDetails';
 import { clearToolCallOverrides } from '../messages/toolCallVisibility';
 
+// Exercise the real menu's arrow-key behavior rather than the setup's Folds double.
+vi.unmock('../ui/glass/GlassPrimitives');
+
 vi.mock('./ThreadContextBanner.css', () => ({ TagPickerInput: 'i', TagPickerInputContainer: 'c' }));
+const startFork = vi.hoisted(() => vi.fn());
+vi.mock('./fork/useStartThreadFork', () => ({ useStartThreadFork: () => startFork }));
 vi.mock('../ui/styles/Motion.css', () => ({
   motion: { duration: { Normal: '0ms', Fast: '0ms' }, easing: { Standard: 'linear' } },
 }));
@@ -23,7 +31,9 @@ const state = vi.hoisted(() => ({
   snoozedUntilTs: undefined as number | undefined,
   pinned: [] as string[],
   members: [] as { userId: string; membership: string }[],
+  threadMode: undefined as 'room' | 'thread' | 'mixed' | undefined,
 }));
+vi.mock('../matrix/hooks/useRoomThreadMode', () => ({ useRoomThreadMode: () => state.threadMode }));
 vi.mock('./tags/useThreadTags', () => ({
   useThreadTags: () => ({
     displayTags: ['triage'],
@@ -86,6 +96,7 @@ beforeEach(() => {
   mutations.snooze.mockReset();
   mutations.unsnooze.mockReset();
   state.members = [];
+  state.threadMode = undefined;
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
@@ -133,6 +144,7 @@ describe('ThreadActionsMenu rows', () => {
       { action: 'resolve', label: 'Resolve', icon: glyph(Icons.CheckTwice) },
       { action: 'snooze', label: 'Snooze', icon: glyph(Icons.Clock) },
       { action: 'pin', label: 'Pin thread', icon: glyph(Icons.Pin) },
+      { action: 'fork', label: 'Fork thread', icon: glyph(ForkIcon) },
       { action: 'copy', label: 'Copy thread link', icon: glyph(Icons.Link) },
       { action: 'hideDetails', label: 'Hide thread details', icon: glyph(Icons.ChevronTop) },
     ]);
@@ -206,6 +218,52 @@ describe('ThreadActionsMenu rows', () => {
       label: 'Reopen thread',
       icon: glyph(Icons.Reload),
     });
+  });
+
+  it('copies the open thread as a fork at its latest message the server confirmed', () => {
+    startFork.mockClear();
+    const reply = (id: string, ts: number) =>
+      new MatrixEvent({
+        event_id: id,
+        room_id: '!room:test',
+        type: 'm.room.message',
+        sender: '@me:test',
+        origin_server_ts: ts,
+        content: {
+          msgtype: 'm.text',
+          body: id,
+          'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+        },
+      });
+    const thread = {
+      rootEvent,
+      events: [reply('$first', 2), reply('$latest', 3)],
+      getUnfilteredTimelineSet: () => ({
+        getLiveTimeline: () => ({ getNeighbouringTimeline: () => null }),
+      }),
+    };
+    const onClose = vi.fn();
+    const items = renderMenu({
+      room: { ...room, getThread: () => thread } as unknown as Room,
+      onClose,
+    });
+
+    act(() => rowOf(items, 'fork')?.click());
+    expect(startFork).toHaveBeenCalledWith({ threadId: '$root', eventId: '$latest' });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('offers Fork thread only for the open thread, not on its card', () => {
+    const items = renderMenu({ onOpenThread: () => undefined });
+
+    expect(rowOf(items, 'fork')).toBeUndefined();
+  });
+
+  it('offers no Fork thread in a room whose agents answer in the room, where a fork stays empty', () => {
+    state.threadMode = 'room';
+    expect(rowOf(renderMenu(), 'fork')).toBeUndefined();
+    state.threadMode = 'mixed';
+    expect(rowOf(renderMenu(), 'fork')).toBeDefined();
   });
 
   it('opens at least 220px wide with the large corner radius, as the original menu measures', () => {
@@ -320,5 +378,62 @@ describe("ThreadActionsMenu's tool calls switch", () => {
     state.members = [{ userId: '@mindroom_research:example.org', membership: 'invite' }];
     renderMenu();
     expect(entry()?.textContent).toBe('Show tool calls');
+  });
+});
+
+describe("ThreadActionsMenu's thread details", () => {
+  const plugin = (id: string, threadDetails: ThreadDetail[]): RegisteredPlugin => ({
+    id,
+    tag: `${id}@1.0.0`,
+    conversationCovers: [],
+    messageRenderers: [],
+    pages: [],
+    roomHeaderSlot: [],
+    sidePanels: [],
+    headerActions: [],
+    slashCommands: [],
+    roomActions: [],
+    messageLinks: [],
+    threadCardBadges: [],
+    threadDetails,
+  });
+  const Branch = () => <span data-detail>Branch main</span>;
+
+  it('shows the details first, above Open, with nothing that takes the focus, as the description of the menu', () => {
+    const items = renderMenu({
+      plugins: [plugin('alpha', [{ Component: Branch }])],
+      onOpenThread: () => undefined,
+    });
+    const group = host.querySelector<HTMLElement>('[data-thread-details]');
+    const menu = host.querySelector<HTMLElement>('[role="menu"]');
+    expect(group?.textContent).toBe('Branch main');
+    expect(menu?.getAttribute('aria-describedby')).toBe(group?.id);
+    expect(group!.compareDocumentPosition(items[0]!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(items[0]?.dataset.threadAction).toBe('open');
+    expect(
+      group!.querySelectorAll('button, a[href], input, select, textarea, [tabindex]')
+    ).toHaveLength(0);
+    // The arrow keys still go to the first item.
+    act(() => {
+      menu!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    });
+    expect(document.activeElement).toBe(items[0]);
+  });
+  it('shows no group and no description when no plugin shows details for the thread', () => {
+    renderMenu({ plugins: [plugin('alpha', [{ Component: Branch, shows: () => false }])] });
+    expect(host.querySelector('[data-thread-details]')).toBeNull();
+    expect(host.querySelector('[role="menu"]')?.hasAttribute('aria-describedby')).toBe(false);
+  });
+  it('shows no details for a thread whose root is still sending', () => {
+    renderMenu({ rootId: '~!room:test:m1', plugins: [plugin('alpha', [{ Component: Branch }])] });
+    expect(host.querySelector('[data-thread-details]')).toBeNull();
+  });
+  it('keeps the details it opened with while it stays open', () => {
+    let shows = true;
+    const plugins = [plugin('alpha', [{ Component: Branch, shows: () => shows }])];
+    renderMenu({ plugins });
+    shows = false;
+    renderMenu({ plugins });
+    expect(host.querySelector('[data-thread-details]')?.textContent).toBe('Branch main');
   });
 });

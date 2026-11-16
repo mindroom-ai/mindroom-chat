@@ -590,7 +590,7 @@ test('the palette in the dark theme', async ({ page }) => {
   await login(page);
   await openPalette(page);
   await field(page).press('Shift+Tab');
-  await field(page).fill('theme');
+  await field(page).fill('toggle theme');
   await field(page).press('Enter');
   await openPalette(page);
   await field(page).fill('set');

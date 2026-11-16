@@ -82,7 +82,10 @@ vi.mock('../agent-run/Reasoning.css', () => ({
   Chevron: 'Chevron',
   Body: 'Body',
   ActivityCode: 'ActivityCode',
+  Bulb: 'Bulb',
+  BulbIcon: 'BulbIcon',
 }));
+vi.mock('../agent-run/OutlineComet.css', () => ({}));
 vi.mock('../html/HtmlBlocks.css', () => ({
   Block: 'Block',
   BlockBody: 'BlockBody',

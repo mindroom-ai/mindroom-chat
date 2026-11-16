@@ -44,9 +44,11 @@ const {
     getSafeUserId: vi.fn(() => '@alice:example.org'),
     getThreadTimeline: vi.fn(),
     getUserId: vi.fn(() => '@alice:example.org'),
+    on: vi.fn(),
     paginateEventTimeline: vi.fn(),
     processAggregatedTimelineEvents: vi.fn(),
     relations: vi.fn(),
+    removeListener: vi.fn(),
   },
   threadResolutionMapMock: new Map<string, { isResolved: boolean }>(),
   threadRenderStateControl: {

@@ -407,7 +407,9 @@
       },
       "about": {
         "thirdPartyNotices": "Avisos de terceros",
-        "soundsCredit": "Los sonidos de notificación e invitación son tonos sintetizados para esta aplicación."
+        "soundsCredit": "Los sonidos de notificación e invitación son tonos sintetizados para esta aplicación.",
+        "debugMode": "Modo de depuración",
+        "debugModeDescription": "Registra diagnósticos en este dispositivo para que puedas exportarlos y activar el seguimiento de diagnóstico detallado."
       }
     },
     "createChat": {
@@ -854,6 +856,7 @@
       "title": "Subagentes",
       "close": "Cerrar",
       "empty": "No hay subagentes en ejecución en esta sala.",
+      "emptyThread": "No hay subagentes en ejecución en este hilo.",
       "back": "Atrás",
       "nested_one": "{{count}} subagente",
       "nested_many": "{{count}} subagentes",
@@ -891,6 +894,10 @@
     "dismissLostFiles": "Descartar"
   },
   "commandPalette": {
+    "state": {
+      "on": "Activado",
+      "off": "Desactivado"
+    },
     "people": "Personas",
     "tabsLabel": "Tipos de resultado",
     "switchTabs": "Cambiar de pestaña",
@@ -975,6 +982,17 @@
     "nextMonday": "El próximo lunes 09:00",
     "pickDateTime": "Elegir fecha y hora",
     "pastTime": "Elige una hora en el futuro"
+  },
+  "threadFork": {
+    "forkedFrom": "Bifurcado de {{title}}",
+    "openInOriginalThread": "Abrir en el hilo original",
+    "forkFromHere": "Bifurcar desde aquí",
+    "forkThread": "Bifurcar hilo",
+    "forking": "Bifurcando {{title}}",
+    "continueInNewThread": "Continuar en un hilo nuevo",
+    "forkCount_one": "{{count}} bifurcación",
+    "forkCount_many": "{{count}} bifurcaciones",
+    "forkCount_other": "{{count}} bifurcaciones"
   },
   "activity": {
     "title": "Actividad",
@@ -1281,6 +1299,17 @@
       "settingsKeywords": "recorrido, tour, tutorial, guía, ayuda, introducción, hilos",
       "howThreadsWork": "Cómo funcionan los hilos",
       "noThreadsHint": "Envía un mensaje abajo para empezar uno."
+    }
+  },
+  "threadNav": {
+    "layout": "Disposición de los hilos",
+    "layoutRecent": "Recientes",
+    "layoutSections": "Secciones",
+    "sections": {
+      "working": "En curso",
+      "snoozed": "Pospuestos",
+      "idle": "Inactivos",
+      "resolved": "Resueltos"
     }
   }
 }

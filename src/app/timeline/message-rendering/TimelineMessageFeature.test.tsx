@@ -15,6 +15,8 @@ import {
   makeRoom,
   createControlledRoomTimelineHarness,
   flushAsyncWork,
+  matrixClientMock,
+  navigateRoomThreadMock,
   threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
 import { MessageLayout, MessageSpacing } from '../../preferences/settings';
@@ -24,6 +26,44 @@ import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval
 import type { ThreadRecord } from '../../event-store/threads/types';
 import type { TimelineMessageRow } from './types';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
+
+const startFork = vi.hoisted(() => vi.fn());
+vi.mock('../../threads/fork/useStartThreadFork', () => ({ useStartThreadFork: () => startFork }));
+
+const forksByPoint = vi.hoisted(() => ({
+  value: new Map<string, Array<{ threadId: string; ts: number }>>(),
+  asked: [] as Array<[string | undefined, string | undefined]>,
+}));
+vi.mock('../../threads/fork/useThreadForks', () => ({
+  useThreadForks: (room: { roomId: string }, threadId: string | undefined) => {
+    forksByPoint.asked.push([room.roomId, threadId]);
+    return threadId ? forksByPoint.value : new Map();
+  },
+}));
+vi.mock('../../threads/fork/ThreadForksChip', async () => {
+  const ReactImport = await import('react');
+  return {
+    ThreadForksChip: (props: Record<string, unknown>) =>
+      ReactImport.createElement('forks-chip', props),
+  };
+});
+/** The forks chip of each row, by event ID: the chips the rows hand their message as reactions. */
+const forkChips = async (renderer: ReturnType<typeof create>) => {
+  const { Message } = await import('../../messages/Message');
+  const { ThreadForksChip } = await import('../../threads/fork/ThreadForksChip');
+  return renderer.root.findAllByType(Message).flatMap(({ props }) => {
+    const chips = (props.reactions?.props.children as unknown[] | undefined)?.filter(
+      (child): child is { type: unknown; props: Record<string, unknown> } =>
+        typeof child === 'object' &&
+        child !== null &&
+        (child as { type?: unknown }).type === ThreadForksChip
+    );
+    return (chips ?? []).map((chip) => ({
+      eventId: props.mEvent.getId() as string,
+      props: chip.props,
+    }));
+  });
+};
 
 vi.mock('../../messages/thread-summary/ThreadSummaryMarker', async () => {
   const ReactImport = await import('react');
@@ -73,7 +113,11 @@ const rowFor = (event: MatrixEvent, index = 0, previousEventId?: string): Timeli
   highlighted: true,
 });
 
-const mountFeature = async (rows: TimelineMessageRow[], threadId?: string) => {
+const mountFeature = async (
+  rows: TimelineMessageRow[],
+  threadId?: string,
+  forkPrefixEventIds?: ReadonlySet<string>
+) => {
   const { useTimelineMessageFeature } = await import('./useTimelineMessageFeature');
   const room = makeRoom({ liveEvents: [] }) as unknown as Room;
   const editor = createEditor();
@@ -92,6 +136,7 @@ const mountFeature = async (rows: TimelineMessageRow[], threadId?: string) => {
       hiddenEventIds: new Set<string>(),
       markersByEventId: new Map(),
     },
+    forkPrefixEventIds,
   };
   const Harness = () => {
     feature = useTimelineMessageFeature({
@@ -426,5 +471,217 @@ describe('timeline message feature', () => {
 
     expect(summaryMarkers(renderer)).toHaveLength(0);
     expect(renderedContent(renderer)).toHaveLength(1);
+  });
+});
+
+describe("a fork's rows of its parent thread", () => {
+  const AGENT = '@mindroom_research:example.org';
+  /** A message of the parent thread `$parent`, shown in the fork `$fork` before its own. */
+  const parentMessage = (id: string, opts: Parameters<typeof makeEvent>[1] = {}) =>
+    makeEvent(id, { threadRootId: '$parent', ...opts }) as unknown as MatrixEvent;
+  // The fork's root before the SDK knows its thread: no thread ID of its own yet.
+  const forkRoot = () => makeEvent('$fork') as unknown as MatrixEvent;
+  // The parent's root, copied from the cache: it does not know it starts a thread.
+  const parentRoot = () => makeEvent('$parent') as unknown as MatrixEvent;
+  const forkReply = () => makeEvent('$r1', { threadRootId: '$fork' }) as unknown as MatrixEvent;
+
+  it('offers no reply, reaction, edit, delete or pin, and opens the message in its thread', async () => {
+    const { Message } = await import('../../messages/Message');
+    const rows = [parentRoot(), parentMessage('$p1'), forkRoot(), forkReply()];
+    const { renderer } = await mountFeature(
+      rows.map((event, index) => rowFor(event, index)),
+      '$fork',
+      new Set(['$parent', '$p1'])
+    );
+
+    const messages = renderer.root.findAllByType(Message).map((node) => node.props);
+    const [first, second, root, reply] = messages;
+    [first, second].forEach((prefix) => {
+      expect(prefix).toMatchObject({
+        canDelete: false,
+        canSendReaction: false,
+        canPinEvent: false,
+      });
+      expect(prefix?.onReplyClick).toBeUndefined();
+      expect(prefix?.onReactionToggle).toBeUndefined();
+      expect(prefix?.onEditId).toBeUndefined();
+    });
+    [root, reply].forEach((own) => {
+      expect(own?.onReplyClick).toBeDefined();
+      expect(own?.canSendReaction).toBe(true);
+      expect(own?.onOpenInOriginalThread).toBeUndefined();
+    });
+
+    act(() => {
+      first?.onOpenInOriginalThread();
+      second?.onOpenInOriginalThread();
+    });
+    expect(navigateRoomThreadMock.mock.calls).toEqual([
+      ['!room:example.org', '$parent', '$parent'],
+      ['!room:example.org', '$parent', '$p1'],
+    ]);
+  });
+
+  it('answers its cards in the parent thread and shows an approval and a question without their buttons', async () => {
+    const { Message } = await import('../../messages/Message');
+    const approval = parentMessage('$approval', {
+      type: MINDROOM_TOOL_APPROVAL_EVENT,
+      sender: AGENT,
+      content: { tool_name: 'web_search', status: 'pending' },
+    });
+    const question = parentMessage('$question', {
+      sender: AGENT,
+      content: {
+        msgtype: 'm.text',
+        body: 'Which city? React with 1️⃣ Lisbon or 2️⃣ Porto.',
+        'io.mindroom.interactive': {
+          question_text: 'Which city?',
+          options: { '1️⃣': 'Lisbon', '2️⃣': 'Porto' },
+        },
+      },
+    });
+    const { renderer } = await mountFeature(
+      [rowFor(approval, 0), rowFor(question, 1), rowFor(forkReply(), 2)],
+      '$fork',
+      new Set(['$approval', '$question'])
+    );
+
+    expect(
+      renderedContent(renderer).map(({ props }) => [props.eventId, props.threadId, props.readOnly])
+    ).toEqual([
+      ['$approval', '$parent', true],
+      ['$question', '$parent', true],
+      ['$r1', '$fork', false],
+    ]);
+    // A question's options are its reaction chips: in the fork they do not react.
+    const chipsCanReact = renderer.root
+      .findAllByType(Message)
+      .map(({ props }) => props.reactions.props.children[0].props.canSendReaction);
+    expect(chipsCanReact).toEqual([false, false, true]);
+  });
+});
+
+describe('Fork from here', () => {
+  const forkRefs = () => startFork.mock.calls.map(([ref]) => ref as unknown);
+
+  it("forks a thread's message in its own thread, a parent's message in the fork in the parent's", async () => {
+    const { Message } = await import('../../messages/Message');
+    startFork.mockClear();
+    // The parent's root copied from the cache does not know it starts a thread; nor does the
+    // fork's root before the SDK has its thread.
+    const rows = [
+      makeEvent('$parent'),
+      makeEvent('$p1', { threadRootId: '$parent' }),
+      makeEvent('$fork'),
+      makeEvent('$r1', { threadRootId: '$fork' }),
+    ] as unknown as MatrixEvent[];
+    const { renderer } = await mountFeature(
+      rows.map((event, index) => rowFor(event, index)),
+      '$fork',
+      new Set(['$parent', '$p1'])
+    );
+
+    act(() => {
+      renderer.root
+        .findAllByType(Message)
+        .forEach(({ props }) => props.onForkClick?.(props.mEvent.getId()));
+    });
+    expect(forkRefs()).toEqual([
+      { threadId: '$parent', eventId: '$parent' },
+      { threadId: '$parent', eventId: '$p1' },
+      { threadId: '$fork', eventId: '$fork' },
+      { threadId: '$fork', eventId: '$r1' },
+    ]);
+  });
+
+  it('is offered on messages the server confirmed inside a thread, and nowhere else', async () => {
+    const { Message } = await import('../../messages/Message');
+    const rows = [
+      makeEvent('~!room:example.org:txn-1', { threadRootId: '$thread' }),
+      makeEvent('$approval', { threadRootId: '$thread', type: MINDROOM_TOOL_APPROVAL_EVENT }),
+    ] as unknown as MatrixEvent[];
+    const inThread = await mountFeature(
+      rows.map((event, index) => rowFor(event, index)),
+      '$thread'
+    );
+    expect(
+      inThread.renderer.root.findAllByType(Message).map(({ props }) => props.onForkClick)
+    ).toEqual([undefined, undefined]);
+
+    const inRoom = await mountFeature([rowFor(makeEvent('$m') as unknown as MatrixEvent)]);
+    expect(inRoom.renderer.root.findByType(Message).props.onForkClick).toBeUndefined();
+  });
+
+  it('is not offered in a room whose agents answer in the room, where a fork stays empty', async () => {
+    const { Message } = await import('../../messages/Message');
+    const roomMode = {
+      currentState: {
+        getStateEvents: (type: string) =>
+          type === 'io.mindroom.thread_mode' ? { getContent: () => ({ mode: 'room' }) } : null,
+      },
+    };
+    matrixClientMock.getRoom.mockImplementation(() => roomMode as never);
+    try {
+      const { renderer } = await mountFeature(
+        [rowFor(makeEvent('$r1', { threadRootId: '$thread' }) as unknown as MatrixEvent)],
+        '$thread'
+      );
+      expect(renderer.root.findByType(Message).props.onForkClick).toBeUndefined();
+    } finally {
+      matrixClientMock.getRoom.mockImplementation(() => null);
+    }
+  });
+});
+
+describe('the forks made at a message', () => {
+  const forks = [
+    { threadId: '$f1', ts: 10 },
+    { threadId: '$f2', ts: 20 },
+  ];
+
+  it('shows a chip under the fork-point message of the thread, and under no other', async () => {
+    forksByPoint.value = new Map([['$p2', forks]]);
+    forksByPoint.asked.length = 0;
+    const rows = [
+      makeEvent('$p1', { threadRootId: '$parent' }),
+      makeEvent('$p2', { threadRootId: '$parent' }),
+      makeEvent('$p3', { threadRootId: '$parent' }),
+    ] as unknown as MatrixEvent[];
+    const { renderer } = await mountFeature(
+      rows.map((event, index) => rowFor(event, index)),
+      '$parent'
+    );
+
+    const chips = await forkChips(renderer);
+    expect(chips.map((chip) => chip.eventId)).toEqual(['$p2']);
+    expect(chips[0]?.props.forks).toBe(forks);
+    expect(chips[0]?.props.room).toBeDefined();
+    expect(forksByPoint.asked[0]?.[1]).toBe('$parent');
+  });
+
+  it("shows none on the rows of a parent shown inside a fork, only on the fork's own", async () => {
+    forksByPoint.value = new Map([
+      ['$p1', forks],
+      ['$r1', [{ threadId: '$g', ts: 30 }]],
+    ]);
+    const rows = [
+      makeEvent('$p1', { threadRootId: '$parent' }),
+      makeEvent('$r1', { threadRootId: '$fork' }),
+    ] as unknown as MatrixEvent[];
+    const { renderer } = await mountFeature(
+      rows.map((event, index) => rowFor(event, index)),
+      '$fork',
+      new Set(['$p1'])
+    );
+
+    const chips = await forkChips(renderer);
+    expect(chips.map((chip) => chip.eventId)).toEqual(['$r1']);
+    expect(chips[0]?.props.forks).toEqual([{ threadId: '$g', ts: 30 }]);
+  });
+
+  it('shows none outside a thread', async () => {
+    forksByPoint.value = new Map([['$m', forks]]);
+    const { renderer } = await mountFeature([rowFor(makeEvent('$m') as unknown as MatrixEvent)]);
+    expect(await forkChips(renderer)).toHaveLength(0);
   });
 });

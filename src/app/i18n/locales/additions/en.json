@@ -402,7 +402,9 @@
       },
       "about": {
         "thirdPartyNotices": "Third-party notices",
-        "soundsCredit": "The notification and invite sounds are chimes synthesized for this app."
+        "soundsCredit": "The notification and invite sounds are chimes synthesized for this app.",
+        "debugMode": "Debug mode",
+        "debugModeDescription": "Records diagnostics on this device so you can export them and turn on deep diagnostic tracing."
       }
     },
     "createChat": {
@@ -843,6 +845,7 @@
       "title": "Sub-agents",
       "close": "Close",
       "empty": "No sub-agents are running in this room.",
+      "emptyThread": "No sub-agents are running in this thread.",
       "back": "Back",
       "nested_one": "{{count}} sub-agent",
       "nested_other": "{{count}} sub-agents",
@@ -876,6 +879,10 @@
     "dismissLostFiles": "Dismiss"
   },
   "commandPalette": {
+    "state": {
+      "on": "On",
+      "off": "Off"
+    },
     "people": "People",
     "tabsLabel": "Result types",
     "switchTabs": "Switch tabs",
@@ -960,6 +967,16 @@
     "nextMonday": "Next Monday 09:00",
     "pickDateTime": "Pick date and time",
     "pastTime": "Pick a time in the future"
+  },
+  "threadFork": {
+    "forkedFrom": "Forked from {{title}}",
+    "openInOriginalThread": "Open in original thread",
+    "forkFromHere": "Fork from here",
+    "forkThread": "Fork thread",
+    "forking": "Forking {{title}}",
+    "continueInNewThread": "Continue in a new thread",
+    "forkCount_one": "{{count}} fork",
+    "forkCount_other": "{{count}} forks"
   },
   "activity": {
     "title": "Activity",
@@ -1258,6 +1275,17 @@
       "settingsKeywords": "tour, tutorial, guide, help, onboarding, threads",
       "howThreadsWork": "How threads work",
       "noThreadsHint": "Send a message below to start one."
+    }
+  },
+  "threadNav": {
+    "layout": "Thread layout",
+    "layoutRecent": "Recent",
+    "layoutSections": "Sections",
+    "sections": {
+      "working": "Working",
+      "snoozed": "Snoozed",
+      "idle": "Idle",
+      "resolved": "Resolved"
     }
   }
 }

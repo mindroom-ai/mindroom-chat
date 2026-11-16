@@ -168,11 +168,12 @@ A domain imports only domains in a strictly lower layer. Runtime, type-only and 
 | 8 | `canvas`, `composer`, `notifications`, `schedules`, `search`, `subagents` |
 | 9 | `rooms`, `threads` |
 | 10 | `account`, `activity`, `quick-capture`, `spaces`, `timeline` |
-| 11 | `command-palette`, `local-mindroom`, `room` |
+| 11 | `local-mindroom`, `room` |
 | 12 | `settings`, `tour` |
-| 13 | `sidebar` |
-| 14 | `shell` |
-| 15 | `src/index.tsx`, `src/client-sdk` |
+| 13 | `command-palette` |
+| 14 | `sidebar` |
+| 15 | `shell` |
+| 16 | `src/index.tsx`, `src/client-sdk` |
 
 `just lint` enforces it: `.eslintrc.cjs` builds `import/no-restricted-paths` zones from the `LAYERS` list, and every violation names its domain and layer and points here. The resolver setting beside it lets the rule see extensionless TypeScript imports; without it the rule would skip them silently. `src/test/layering.test.ts` lints probe imports under made-up paths and fails when the zones go silent, when a folder of `src/app` has no layer, or when a zone names a folder that does not exist. A new domain needs a place in `LAYERS`.
 
@@ -201,6 +202,7 @@ The MindRoom backend (`/home/basnijholt/Work/dev/mindroom/`) defines the formats
 | Thread title | an `m.notice` in the thread with `io.mindroom.thread_summary: {version, summary, generated_at, model, pinned}` | `matrix/protocol/threadSummary.ts`, `event-store/threads/threadSummaryTimeline.ts` |
 | Conversation notice | an `m.notice` outside a thread with `io.mindroom.conversation: true` in its content and in the `m.new_content` of its edits, such as a card or a report that starts a conversation; the thread lists show it before anyone replies when a MindRoom agent on the active account's homeserver sent it, while any other notice but a call's row lists only once its thread has replies, and until then leaves a room with a MindRoom agent read | `matrix/protocol/conversationNotice.ts`, used by `event-store/threads/compactThreadRootData.ts` and `matrix/mainTimelineRead.ts` |
 | Thread tags | room state `com.mindroom.thread.tags`, state key `["<root event ID>","<tag>"]`, content `{set_by, set_at, note?, data?}`; the tag `resolved` marks a resolved thread and the tag `snoozed` (`data: {until}`, an ISO time) a snoozed one while `until` is in the future, both lifecycle state rather than tag pills; `set_by` counts when the sender is that person or a MindRoom agent on the active account's homeserver, and a tag from anyone else names its sender | `event-store/threads/threadTags.ts`, `event-store/threads/threadSnooze.ts`, `threads/tags/useMutateThreadTags.ts`, `threads/tags/useRoomThreadTags.ts` |
+| Thread fork | `io.mindroom.fork: {thread_id, event_id}` in the content of a fork's root, a top-level message: the parent thread's root and the last parent message the fork shows before its own (the parent's root when forked from it); the fork shows the parent's messages up to there, after the parent's own prefix when the parent is a fork too | key in `matrix/protocol/threadFork.ts`, read in `event-store/threads/threadFork.ts`; shown by `threads/fork/` |
 | Snooze ended | the backend's thread message when a snooze's `until` passes: body `⏰ Snooze ended` or `⏰ Snooze ended: <note>`, with `io.mindroom.thread_snooze: {event: "ended", until}`; from a MindRoom agent on the active account's homeserver it renders as a marker row in an open thread and as a marker body elsewhere | `matrix/protocol/threadSnooze.ts`, `messages/SnoozeEndedMarker.tsx`, `timeline/message-rendering/useTimelineMessageFeature.tsx` |
 | Tool approval | event `io.mindroom.tool_approval` (`tool_name`, `arguments`, `status`, `approval_id`, `expires_at`, ...), answered with `io.mindroom.tool_approval_response` | `matrix/protocol/toolApproval.ts`, `approvals/approvalActions.ts`, `approvals/ToolApprovalCard.tsx` |
 | Secret request | an `m.notice` with `io.mindroom.secret_request: {request_id, requester_id, service, display_name, hosts, reason, status, expires_at}` for a service's key, with `replaces: true` when the service already has one, or `{request_id, requester_id, env, keep, reason, status, expires_at}` for a temporary secret the agent's commands receive as the variable `env`, where `keep` maps `memory` and `disk` to lifetimes in seconds and the answered card names the choice as `kept` (`status` `pending`, `saved`, `declined` or `expired`, set by the agent's `m.replace` edits; `expires_at` in milliseconds); only a MindRoom agent's card renders, and only the requester gets a field; the key or a decline goes as `{"secret": ...}` or `{"decline": true}`, a temporary secret as `{"secret": ..., "keep": ...}`, to `POST /api/rooms/{room_id}/secret-requests/{request_id}` with a client session and redirects refused, never through Matrix, and only to an origin the deployment or the person chose (below), which the card names | `matrix/protocol/secretRequest.ts`, `approvals/SecretRequestCard.tsx`, `computer/useAgentMindroomServer.ts` |

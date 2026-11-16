@@ -397,7 +397,9 @@
       },
       "about": {
         "thirdPartyNotices": "第三方声明",
-        "soundsCredit": "通知和邀请提示音是为本应用合成的铃声。"
+        "soundsCredit": "通知和邀请提示音是为本应用合成的铃声。",
+        "debugMode": "调试模式",
+        "debugModeDescription": "在此设备上记录诊断信息，以便导出并开启深度诊断追踪。"
       }
     },
     "createChat": {
@@ -832,6 +834,7 @@
       "title": "子智能体",
       "close": "关闭",
       "empty": "此房间中没有正在运行的子智能体。",
+      "emptyThread": "此讨论串中没有正在运行的子智能体。",
       "back": "返回",
       "nested_other": "{{count}} 个子智能体",
       "turns_other": "{{count}} 轮",
@@ -861,6 +864,10 @@
     "dismissLostFiles": "关闭"
   },
   "commandPalette": {
+    "state": {
+      "on": "开",
+      "off": "关"
+    },
     "people": "人员",
     "tabsLabel": "结果类型",
     "switchTabs": "切换标签页",
@@ -945,6 +952,15 @@
     "nextMonday": "下周一 09:00",
     "pickDateTime": "选择日期和时间",
     "pastTime": "请选择将来的时间"
+  },
+  "threadFork": {
+    "forkedFrom": "分支自 {{title}}",
+    "openInOriginalThread": "在原讨论串中打开",
+    "forkFromHere": "从此处分支",
+    "forkThread": "分支讨论串",
+    "forking": "正在从 {{title}} 分支",
+    "continueInNewThread": "在新讨论串中继续",
+    "forkCount_other": "{{count}} 个分支"
   },
   "activity": {
     "title": "动态",
@@ -1235,6 +1251,17 @@
       "settingsKeywords": "导览, 教程, 指南, 帮助, 入门, 引导, 讨论串",
       "howThreadsWork": "讨论串如何运作",
       "noThreadsHint": "在下方发送一条消息即可发起讨论串。"
+    }
+  },
+  "threadNav": {
+    "layout": "讨论串布局",
+    "layoutRecent": "最近",
+    "layoutSections": "分区",
+    "sections": {
+      "working": "进行中",
+      "snoozed": "已延后",
+      "idle": "空闲",
+      "resolved": "已解决"
     }
   }
 }

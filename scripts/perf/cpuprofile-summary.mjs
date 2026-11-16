@@ -9,6 +9,10 @@
 // commit. Hashes differ between the two builds, so a frame in assets/<name>-<hash>.js is looked
 // up in the map of the chunk with the same name whose size is closest to that chunk's size in the
 // profiled build (--build, the served dist), and reported as its source file, line and name.
+// Positions only map when the two chunks hold the same code: two builds of one commit can differ
+// in the length of a few minified names or in a version string, which moves every later position
+// on that line. So a warning goes to stderr when the map's chunk is not the served chunk plus its
+// sourceMappingURL line, and when --build lacks a chunk that has several maps to choose from.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { SourceMapConsumer } from 'source-map-js';
@@ -51,6 +55,26 @@ const consumerFor = (url) => {
       : Number.isNaN(target)
       ? null
       : candidates.sort((a, b) => distance(a) - distance(b))[0] ?? null;
+  if (candidates.length > 1 && Number.isNaN(target)) {
+    console.error(
+      `warning: ${base}: ${candidates.length} maps share this name and --build has no such chunk; its frames stay minified`
+    );
+  } else if (chosen && !Number.isNaN(target)) {
+    const built = chosen.slice(0, -4);
+    // The sourcemap build's chunk ends with a line that names its map, and its chunk names carry
+    // other hashes (the map is part of a chunk's hash): both are left out, the rest must match.
+    // A hash keeps its length, so the positions of the code after it stay the same.
+    const code = (file) =>
+      readFileSync(file, 'utf8')
+        .replace(/\/\/# sourceMappingURL=\S*\s*$/, '')
+        .replace(/-[\w-]{8}\.(js|css)\b/g, '-########.$1')
+        .trimEnd();
+    if (code(path.join(assets, built)) !== code(path.join(buildDir, 'assets', base))) {
+      console.error(
+        `warning: ${base}: the sourcemap build's ${built} differs from the served chunk; its frames may carry a neighbour's name`
+      );
+    }
+  }
   const consumer = chosen
     ? new SourceMapConsumer(JSON.parse(readFileSync(path.join(assets, chosen), 'utf8')))
     : null;

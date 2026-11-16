@@ -407,7 +407,9 @@
       },
       "about": {
         "thirdPartyNotices": "Avis de tiers",
-        "soundsCredit": "Les sons de notification et d'invitation sont des carillons synthétisés pour cette application."
+        "soundsCredit": "Les sons de notification et d'invitation sont des carillons synthétisés pour cette application.",
+        "debugMode": "Mode débogage",
+        "debugModeDescription": "Enregistre des diagnostics sur cet appareil pour que vous puissiez les exporter et activer le traçage de diagnostic approfondi."
       }
     },
     "createChat": {
@@ -854,6 +856,7 @@
       "title": "Sous-agents",
       "close": "Fermer",
       "empty": "Aucun sous-agent n’est en cours dans ce salon.",
+      "emptyThread": "Aucun sous-agent n’est en cours dans ce fil.",
       "back": "Retour",
       "nested_one": "{{count}} sous-agent",
       "nested_many": "{{count}} sous-agents",
@@ -891,6 +894,10 @@
     "dismissLostFiles": "Ignorer"
   },
   "commandPalette": {
+    "state": {
+      "on": "Activé",
+      "off": "Désactivé"
+    },
     "people": "Personnes",
     "tabsLabel": "Types de résultats",
     "switchTabs": "Changer d'onglet",
@@ -975,6 +982,17 @@
     "nextMonday": "Lundi prochain 09:00",
     "pickDateTime": "Choisir la date et l'heure",
     "pastTime": "Choisissez une heure dans le futur"
+  },
+  "threadFork": {
+    "forkedFrom": "Dérivé de {{title}}",
+    "openInOriginalThread": "Ouvrir dans le fil d'origine",
+    "forkFromHere": "Dériver à partir d'ici",
+    "forkThread": "Dériver le fil",
+    "forking": "Dérivation de {{title}}",
+    "continueInNewThread": "Continuer dans un nouveau fil",
+    "forkCount_one": "{{count}} dérivation",
+    "forkCount_many": "{{count}} dérivations",
+    "forkCount_other": "{{count}} dérivations"
   },
   "activity": {
     "title": "Activité",
@@ -1281,6 +1299,17 @@
       "settingsKeywords": "visite, visite guidée, tutoriel, guide, aide, introduction, prise en main, fils",
       "howThreadsWork": "Comment fonctionnent les fils",
       "noThreadsHint": "Envoyez un message ci-dessous pour en démarrer un."
+    }
+  },
+  "threadNav": {
+    "layout": "Disposition des fils",
+    "layoutRecent": "Récents",
+    "layoutSections": "Sections",
+    "sections": {
+      "working": "En cours",
+      "snoozed": "Reportés",
+      "idle": "Inactifs",
+      "resolved": "Résolus"
     }
   }
 }

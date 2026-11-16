@@ -127,6 +127,10 @@ vi.mock('../room/useRoomViewThreadState', () => ({
     },
   }),
 }));
+// The thread's view opens a fork it started; none starts here.
+vi.mock('../navigation/useRoomNavigate', () => ({
+  useRoomNavigate: () => ({ navigateRoomThread: noop }),
+}));
 vi.mock('../composer/RoomInput', () => ({ RoomInput: React.forwardRef(Composer) }));
 
 function Composer(

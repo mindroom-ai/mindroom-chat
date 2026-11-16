@@ -21,7 +21,7 @@ Each subpath is a module of its own, so a plugin's entry, which loads with the a
 
 ### `core`
 
-`core` has the plugin types (`ClientPlugin`, `MessageRenderer`, `PluginEvent`, `PluginPage`, `PluginPageProps`, `MessageLink`, `MessageLinkCardProps`, `ThreadCardBadge`, `ThreadCardBadgeProps`), `usePluginConfig`, `usePluginStorage`, `usePluginTranslation`, `getPluginTranslation`, `useRoomSidePanel`, `usePanelFrame`, `pluginRoutePath`, `usePluginRouteHref`, `pluginPublicUrl`, `reloadForNewVersion()`, which reloads the page into the newest version the server has, as the app's own update notice does, also when the page has not noticed that version yet, and `commandUsage()`, the refusal a slash command's `run` throws to show its usage.
+`core` has the plugin types (`ClientPlugin`, `MessageRenderer`, `PluginEvent`, `PluginPage`, `PluginPageProps`, `MessageLink`, `MessageLinkCardProps`, `ThreadCardBadge`, `ThreadCardBadgeProps`, `ThreadDetail`, `ThreadDetailProps`), `usePluginConfig`, `usePluginStorage`, `usePluginTranslation`, `getPluginTranslation`, `useRoomSidePanel`, `usePanelFrame`, `pluginRoutePath`, `usePluginRouteHref`, `pluginPublicUrl`, `reloadForNewVersion()`, which reloads the page into the newest version the server has, as the app's own update notice does, also when the page has not noticed that version yet, and `commandUsage()`, the refusal a slash command's `run` throws to show its usage.
 
 ### `matrix`
 
@@ -172,7 +172,7 @@ one that uses `useMindroomServer`, `useMindroomServerStatus` or `useRoomComputer
 
 ## SDK versions
 
-`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 56), naming the plugin.
+`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 57), naming the plugin.
 The SDK only grows: nothing a plugin uses is changed or removed, and each addition raises that version, a new export as well as a new kind of contribution in `ClientPlugin` or a new field of the declaration, so a plugin built for an older SDK still builds and one that uses a newer addition never builds into a client that would ignore it.
 
 ### What each version added
@@ -232,6 +232,7 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 - version 54 `testing`'s `PanelPlace`
 - version 55 a message renderer's `hidden`
 - version 56 thread card badges
+- version 57 thread details
 
 ## Pinches
 
@@ -305,6 +306,7 @@ Side panels (`src/app/plugins/sidePanels.ts`) are the second kind: `{ id, label,
 Each is one more of the room's side panels, beside the computer, a canvas, the call, its live transcript, the sub-agents and the members, under their rule (`src/app/ui/panels/roomPanels.ts`): one shows at a time, and opening one closes the others, except that the members stay open behind the call or its live transcript.
 Its `label` names it in the app's language when it is the key of one of the plugin's strings (`translations`, below), and exactly as given otherwise, such as text with `.` or `:` (which names no other namespace), a template like `$t(…)`, or the key of a group of strings.
 Its toggle in the room header, named by its `label` and drawn with its `icon` (a folds icon such as `Icons.Star`, a bulb unless given), shows and hides it, where `placement` puts it: `auto` and `menu`, the default, as they put a header action (below), and `row` in the header's row on every screen, phones included.
+The command palette also offers the toggle, named by its `label`, while its room is open.
 The toggle is pressed, its button tinted and its menu entry checked, while the room shows the panel and the panel is not folded to its tab; choosing it then closes the panel, and choosing it while the panel is folded unfolds it with what it shows.
 The panel opens in the room it was opened in, as wide as the call panel and resizable (over the room on phones), with the label as its title and a Close button (unless it draws its own frame, below), above what it shows: a column as tall as the panel, which scrolls when what it holds is taller still, and whose parts that may shrink, such as a folds `Box` or anything with an overflow of its own, shrink until the column fits the panel, to nothing if need be, before it scrolls, so a part that must keep its height takes `flexShrink: 0` (a folds `Box` `shrink="No"`), and `Component` gets the room's id (`roomId`) and a `request` (below).
 
@@ -366,6 +368,7 @@ One that throws shows nothing there, and the failure is logged and reported with
 
 Header actions (`src/app/plugins/headerActions.ts`) are the fourth kind: `{ id, label, icon, placement?, run }`.
 Each is one of the room header's actions (`src/app/room/roomHeaderActions.tsx`), which the core ones are too: `placement` puts it in the room menu (`menu`, the default) or in the header's row of buttons, except on phones, where it goes in the room menu (`auto`); the room menu offers, in the row's order, every action its row leaves out.
+The command palette also offers it, named by its `label`, while its room is open.
 `label` is a key of the plugin's strings, shown in the app's language as the button's tooltip and name or as the entry's text; `icon` is drawn as folds draws its icons (`Icons.Star`); `run({ roomId, threadId })` runs it in the open room, and in the thread open there once the server has its root.
 A `run` that throws, or whose promise rejects, is logged with `[plugin <id>@<version>]`.
 
@@ -457,6 +460,24 @@ The app does not render a badge again after it mounts, so a badge that shows the
 A badge renders inside the room's page, so `useRoomSidePanel` and `useRoomNavigate` work in it.
 A badge that loads its code (a `lazy` component) shows nothing until the code has loaded, while the card and the other badges show.
 A badge that throws shows nothing, and the failure is logged and reported with `[plugin <id>@<version>]`.
+
+## Thread details
+
+Thread details (`src/app/plugins/threadDetails.ts`) are the eleventh kind: `ClientPlugin.threadDetails`, a list of `{ shows?, Component }`.
+`shows(room, threadId)`, pure and synchronous, says whether the thread has that detail; without it, every thread does, and one that throws counts as false, logged as "[plugin <id>@<version>] its thread details' shows failed".
+The app reads which details show as a surface opens and keeps that list until it closes; only threads whose root the server confirmed (`$` IDs) have details.
+`Component` gets `{ room, threadId }`: the thread's room (matrix-js-sdk's `Room`) and the ID of its root event, and draws rows of text, with no control, no link and nothing focusable.
+It renders inside the room's page, so room hooks such as `useRoomSidePanel` and `useRoomNavigate` work in it.
+The Compact card's hover card (`src/app/threads/overview/ThreadCardDetails.tsx`) shows after a pointer rests on the card for 500 ms, on devices with a fine pointer that can hover, never on touch.
+It opens at the pointer, below it in the window's upper half and above it in the lower half, mirrored in right-to-left, at most 320 px wide, read-only and hidden from assistive technology (`aria-hidden`).
+Leaving the card, a press, a click, a wheel scroll, opening the menu or a room change closes it; after a press, click, wheel scroll or the menu, it stays closed until the pointer leaves the card.
+A programmatic scroll closes it only when another card or none is now under the pointer, not when the list's own scroll adjustment leaves the same card there.
+The same details form the first group of the thread's menu (`src/app/threads/ThreadActionsMenu.tsx`), reached through More Options, right-click, the ContextMenu key, a long press on a Compact card or the open thread's banner.
+That group describes the menu (`aria-describedby`) and scrolls with its rows on touch screens, under the menu's height cap.
+Contributions show in build order, with a hairline between those that drew something, and the hover card stays hidden while none did.
+A detail that loads its code (a `lazy` component) shows nothing until the code has loaded, while the other details show.
+A detail that throws shows nothing, and the failure is logged and reported with its plugin's tag ("[plugin <id>@<version>] failed to render its thread details").
+`plugins.<id>.enabled: false` and `?plugins=off` turn the kind off as they turn off the others.
 
 ## Turning plugins off
 

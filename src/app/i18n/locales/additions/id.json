@@ -397,7 +397,9 @@
       },
       "about": {
         "thirdPartyNotices": "Pemberitahuan pihak ketiga",
-        "soundsCredit": "Suara notifikasi dan undangan adalah nada yang disintesis untuk aplikasi ini."
+        "soundsCredit": "Suara notifikasi dan undangan adalah nada yang disintesis untuk aplikasi ini.",
+        "debugMode": "Mode debug",
+        "debugModeDescription": "Merekam diagnostik di perangkat ini agar Anda dapat mengekspornya dan mengaktifkan pelacakan diagnostik mendalam."
       }
     },
     "createChat": {
@@ -832,6 +834,7 @@
       "title": "Subagen",
       "close": "Tutup",
       "empty": "Tidak ada subagen yang berjalan di ruangan ini.",
+      "emptyThread": "Tidak ada subagen yang berjalan di utas ini.",
       "back": "Kembali",
       "nested_other": "{{count}} subagen",
       "turns_other": "{{count}} giliran",
@@ -861,6 +864,10 @@
     "dismissLostFiles": "Tutup"
   },
   "commandPalette": {
+    "state": {
+      "on": "Aktif",
+      "off": "Nonaktif"
+    },
     "people": "Orang",
     "tabsLabel": "Jenis hasil",
     "switchTabs": "Ganti tab",
@@ -945,6 +952,15 @@
     "nextMonday": "Senin depan 09:00",
     "pickDateTime": "Pilih tanggal dan waktu",
     "pastTime": "Pilih waktu di masa depan"
+  },
+  "threadFork": {
+    "forkedFrom": "Bercabang dari {{title}}",
+    "openInOriginalThread": "Buka di utas asli",
+    "forkFromHere": "Cabangkan dari sini",
+    "forkThread": "Cabangkan utas",
+    "forking": "Mencabangkan {{title}}",
+    "continueInNewThread": "Lanjutkan di utas baru",
+    "forkCount_other": "{{count}} cabang"
   },
   "activity": {
     "title": "Aktivitas",
@@ -1235,6 +1251,17 @@
       "settingsKeywords": "tur, tutorial, panduan, bantuan, pengenalan, perkenalan, utas",
       "howThreadsWork": "Cara kerja utas",
       "noThreadsHint": "Kirim pesan di bawah untuk memulai utas."
+    }
+  },
+  "threadNav": {
+    "layout": "Tata letak utas",
+    "layoutRecent": "Terbaru",
+    "layoutSections": "Bagian",
+    "sections": {
+      "working": "Sedang berjalan",
+      "snoozed": "Ditunda",
+      "idle": "Tidak aktif",
+      "resolved": "Selesai"
     }
   }
 }

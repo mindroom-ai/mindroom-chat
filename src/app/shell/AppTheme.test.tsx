@@ -10,6 +10,7 @@ import {
   MidnightTheme,
   SilverTheme,
   deploymentThemeAtom,
+  themePreviewAtom,
   useTheme,
 } from '../theme/useTheme';
 import { getSettings, settingsAtom } from '../preferences/settings';
@@ -125,6 +126,23 @@ describe('AppTheme', () => {
     });
     expect(lastApplied()).toBe(SilverTheme);
     expect(providedTheme(renderer)).toBe(SilverTheme.id);
+  });
+
+  it('shows a theme for a look, stores nothing, and returns to the chosen one', () => {
+    installColorScheme(false);
+    signIn();
+    const store = createStore();
+    store.set(settingsAtom, { ...getSettings(), useSystemTheme: false, themeId: DarkTheme.id });
+    const renderer = renderTheme(store);
+
+    act(() => store.set(themePreviewAtom, SilverTheme.id));
+    expect(lastApplied()).toBe(SilverTheme);
+    expect(providedTheme(renderer)).toBe(SilverTheme.id);
+    expect(store.get(settingsAtom).themeId).toBe(DarkTheme.id);
+
+    act(() => store.set(themePreviewAtom, undefined));
+    expect(lastApplied()).toBe(DarkTheme);
+    expect(providedTheme(renderer)).toBe(DarkTheme.id);
   });
 
   it('follows the system switching between light and dark', () => {

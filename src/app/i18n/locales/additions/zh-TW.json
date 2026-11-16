@@ -397,7 +397,9 @@
       },
       "about": {
         "thirdPartyNotices": "第三方聲明",
-        "soundsCredit": "通知和邀請提示音是為本應用程式合成的鈴聲。"
+        "soundsCredit": "通知和邀請提示音是為本應用程式合成的鈴聲。",
+        "debugMode": "除錯模式",
+        "debugModeDescription": "在此裝置上記錄診斷資訊，以便匯出並開啟深度診斷追蹤。"
       }
     },
     "createChat": {
@@ -832,6 +834,7 @@
       "title": "子代理",
       "close": "關閉",
       "empty": "此聊天室中沒有正在執行的子代理。",
+      "emptyThread": "此討論串中沒有正在執行的子代理。",
       "back": "返回",
       "nested_other": "{{count}} 個子代理",
       "turns_other": "{{count}} 輪",
@@ -861,6 +864,10 @@
     "dismissLostFiles": "關閉"
   },
   "commandPalette": {
+    "state": {
+      "on": "開",
+      "off": "關"
+    },
     "people": "人員",
     "tabsLabel": "結果類型",
     "switchTabs": "切換分頁",
@@ -945,6 +952,15 @@
     "nextMonday": "下週一 09:00",
     "pickDateTime": "選擇日期和時間",
     "pastTime": "請選擇未來的時間"
+  },
+  "threadFork": {
+    "forkedFrom": "分支自 {{title}}",
+    "openInOriginalThread": "在原討論串中開啟",
+    "forkFromHere": "從此處分支",
+    "forkThread": "分支討論串",
+    "forking": "正在從 {{title}} 分支",
+    "continueInNewThread": "在新討論串中繼續",
+    "forkCount_other": "{{count}} 個分支"
   },
   "activity": {
     "title": "動態",
@@ -1235,6 +1251,17 @@
       "settingsKeywords": "導覽, 教學, 指南, 說明, 入門, 引導, 討論串",
       "howThreadsWork": "討論串如何運作",
       "noThreadsHint": "在下方傳送一則訊息即可發起討論串。"
+    }
+  },
+  "threadNav": {
+    "layout": "討論串版面",
+    "layoutRecent": "最近",
+    "layoutSections": "分區",
+    "sections": {
+      "working": "進行中",
+      "snoozed": "已延後",
+      "idle": "閒置",
+      "resolved": "已解決"
     }
   }
 }
