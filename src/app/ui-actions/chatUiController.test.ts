@@ -50,6 +50,17 @@ const setup = (
 };
 
 describe('live Chat UI action delivery', () => {
+  it('keeps inline canvases passive while panel canvases auto-open', () => {
+    const fixture = setup();
+    const canvas = { title: 'Preview', html: '<p>Mockup</p>' };
+    fixture.emit(makeUiEvent({ action: 'show_canvas', inline: true, canvas }));
+    expect(fixture.onAction).not.toHaveBeenCalled();
+    fixture.emit(makeUiEvent({ action: 'show_canvas', canvas }, { event_id: '$panel' }));
+    expect(fixture.onAction).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'show_canvas', eventId: '$panel' })
+    );
+  });
+
   it.each([
     { servers: [] },
     { servers: ['elsewhere.org'] },

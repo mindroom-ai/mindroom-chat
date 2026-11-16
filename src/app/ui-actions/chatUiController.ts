@@ -7,7 +7,11 @@ import {
   RoomEvent,
   SyncState,
 } from 'matrix-js-sdk';
-import { CHAT_UI_ACTION_KEY, type ChatUiAction, readChatUiAction } from '../matrix/protocol/chatUiProtocol';
+import {
+  CHAT_UI_ACTION_KEY,
+  type ChatUiAction,
+  readChatUiAction,
+} from '../matrix/protocol/chatUiProtocol';
 import { getMxIdServer } from '../matrix/matrix';
 
 const LIVE_WINDOW_MS = 60_000;
@@ -62,6 +66,7 @@ export const listenForChatUiActions = ({
     if (!ready() || !fresh(event)) return;
     const action = readChatUiAction(event, mx.getSafeUserId(), room);
     if (!action || action.threadId !== threadId) return;
+    if (action.action === 'show_canvas' && action.inline) return;
     const senderServer = getMxIdServer(action.agentUserId);
     if (
       senderServer &&
