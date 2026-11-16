@@ -468,7 +468,8 @@ The app reads which details show as a surface opens and keeps that list until it
 It renders inside the room's page, so room hooks such as `useRoomSidePanel` and `useRoomNavigate` work in it.
 The Compact card's hover card (`src/app/threads/overview/ThreadCardDetails.tsx`) shows after a pointer rests on the card for 500 ms, on devices with a fine pointer that can hover, never on touch.
 It opens at the pointer, below it in the window's upper half and above it in the lower half, mirrored in right-to-left, at most 320 px wide, read-only and hidden from assistive technology (`aria-hidden`).
-Leaving the card, a press, a click, opening the menu or a room change closes it; a scroll closes it only when another card or none is now under the pointer, not when the list's own scroll adjustment leaves the same card there.
+Leaving the card, a press, a click, a wheel scroll, opening the menu or a room change closes it; after a press, click, wheel scroll or the menu, it stays closed until the pointer leaves the card.
+A programmatic scroll closes it only when another card or none is now under the pointer, not when the list's own scroll adjustment leaves the same card there.
 The same details form the first group of the thread's menu (`src/app/threads/ThreadActionsMenu.tsx`), reached through More Options, right-click, the ContextMenu key, a long press on a Compact card or the open thread's banner.
 That group describes the menu (`aria-describedby`) and scrolls with its rows on touch screens, under the menu's height cap.
 Contributions show in build order, with a hairline between those that drew something, and the hover card stays hidden while none did.

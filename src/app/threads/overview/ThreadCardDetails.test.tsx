@@ -70,6 +70,9 @@ function Harness({ config = {}, ...props }: HarnessProps) {
       <div ref={listRef} data-testid="list">
         <div data-scroll-anchor="$a">
           <span data-testid="a">A</span>
+          <button type="button" data-testid="a-menu">
+            More Options
+          </button>
         </div>
         <div data-scroll-anchor="$b">
           <span data-testid="b">B</span>
@@ -264,6 +267,33 @@ describe('ThreadCardDetails', () => {
       expect(shown()?.textContent).toBe('Details of $b');
     }
   );
+  it.each(['open', 'waiting'])(
+    'dismisses on a wheel while %s until the pointer leaves the card',
+    (state) => {
+      const { getByTestId } = render(<Harness />);
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: () => getByTestId('a'),
+      });
+      point(getByTestId('a'));
+      advance(state === 'open' ? THREAD_CARD_DETAILS_DELAY_MS : 200);
+      if (state === 'open') expect(shown()?.textContent).toBe('Details of $a');
+      else expect(shown()).toBeNull();
+      act(() => {
+        getByTestId('a').dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 10 }));
+      });
+      expect(shown()).toBeNull();
+      advance(1000);
+      expect(shown()).toBeNull();
+      point(getByTestId('a'), 'pointermove', 41, 51);
+      advance(1000);
+      expect(shown()).toBeNull();
+      point(getByTestId('gap'));
+      point(getByTestId('a'));
+      advance();
+      expect(shown()?.textContent).toBe('Details of $a');
+    }
+  );
   it('keeps the hover card and the pending wait on a scroll while the same card stays under the pointer', () => {
     const { getByTestId } = render(<Harness />);
     const hit = vi.fn(() => getByTestId('a'));
@@ -308,6 +338,28 @@ describe('ThreadCardDetails', () => {
     rerender(<Harness room={{ roomId: '!other:example.org' } as Room} />);
     advance();
     expect(shown()).toBeNull();
+  });
+  it('keeps the pressed card dismissed after its menu opens and closes with Escape', () => {
+    const { getByTestId, rerender } = render(<Harness />);
+    point(getByTestId('a'));
+    advance();
+    expect(shown()?.textContent).toBe('Details of $a');
+    point(getByTestId('a-menu'), 'pointerdown');
+    point(getByTestId('a-menu'), 'click');
+    expect(shown()).toBeNull();
+    rerender(<Harness menuOpen />);
+    expect(shown()).toBeNull();
+    // The menu owner clears menuOpen when Escape closes it.
+    rerender(<Harness menuOpen={false} />);
+    point(getByTestId('a'), 'pointermove', 41, 51);
+    advance(1000);
+    expect(shown()).toBeNull();
+    point(getByTestId('gap'));
+    point(getByTestId('a'));
+    advance(499);
+    expect(shown()).toBeNull();
+    advance(1);
+    expect(shown()?.textContent).toBe('Details of $a');
   });
   it('cancels a pending wait when the thread menu opens', () => {
     const { getByTestId, rerender } = render(<Harness />);

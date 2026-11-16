@@ -37,6 +37,7 @@ export function ThreadCardDetails({
   const config = useOptionalClientConfig();
   const latest = useLatestRef({ room, plugins, config, menuOpen });
   const resetRef = useRef<() => void>();
+  const closeRef = useRef<() => void>();
   const [open, setOpen] = useState<OpenDetails>();
 
   useEffect(() => {
@@ -58,6 +59,7 @@ export function ThreadCardDetails({
       card = undefined;
     };
     resetRef.current = reset;
+    closeRef.current = close;
     const cardAt = (target: EventTarget | null | undefined) => {
       const found = target instanceof Element ? target.closest('[data-scroll-anchor]') : null;
       return found && list.contains(found) ? found : undefined;
@@ -102,21 +104,24 @@ export function ThreadCardDetails({
     list.addEventListener('pointerleave', reset);
     list.addEventListener('pointerdown', dismiss, true);
     list.addEventListener('click', dismiss, true);
+    list.addEventListener('wheel', close, { passive: true });
     win.addEventListener('scroll', scroll, { capture: true, passive: true });
     return () => {
       clearTimeout(timer);
       resetRef.current = undefined;
+      closeRef.current = undefined;
       list.removeEventListener('pointermove', move);
       list.removeEventListener('pointerleave', reset);
       list.removeEventListener('pointerdown', dismiss, true);
       list.removeEventListener('click', dismiss, true);
+      list.removeEventListener('wheel', close);
       win.removeEventListener('scroll', scroll, true);
     };
   }, [listRef, latest]);
 
   useEffect(() => resetRef.current?.(), [room.roomId]);
   useEffect(() => {
-    if (menuOpen) resetRef.current?.();
+    if (menuOpen) closeRef.current?.();
   }, [menuOpen]);
 
   if (!open) return null;
