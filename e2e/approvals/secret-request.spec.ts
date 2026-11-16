@@ -33,6 +33,8 @@ import {
 // the key to another origin, fails the answer instead, and the key stays in the field for a retry.
 // An answer from the keyboard leaves the keyboard focus on the card through the agent's edit, also
 // when the edit comes before the server's answer, and on Save after an error.
+// An agent may also ask for a temporary secret, which its commands receive as a variable: the card
+// names the variable, and the requester chooses how long MindRoom keeps the value before sending it.
 
 const MINDROOM_API = 'http://127.0.0.1:29597';
 /** Another origin, where a redirect from the MindRoom server points. */
@@ -61,6 +63,27 @@ const cardContent = (
     reason: 'To open the pull request for the fix.',
     status,
     expires_at: Date.now() + 60 * 60_000,
+  },
+});
+
+/** A temporary secret's card as the agent posts it, and as its edit sets the status and the keep. */
+const temporaryContent = (
+  requesterId: string,
+  requestId: string,
+  status: 'pending' | 'saved' | 'declined',
+  kept?: 'memory' | 'disk'
+) => ({
+  msgtype: 'm.notice',
+  body: '🔑 assistant asks for a secret (SUDO_PASSWORD). Open MindRoom Chat to enter it.',
+  'io.mindroom.secret_request': {
+    request_id: requestId,
+    requester_id: requesterId,
+    env: 'SUDO_PASSWORD',
+    reason: 'To restart the web server.',
+    status,
+    expires_at: Date.now() + 60 * 60_000,
+    keep: { memory: 900, disk: 86_400 },
+    ...(kept ? { kept } : {}),
   },
 });
 
@@ -107,7 +130,7 @@ const expectSaved = async (page: Page) => {
 };
 
 /** A fresh run's accounts, a thread the agent joined, and the agent's pending card in it. */
-const seedCard = async (withOther: boolean) => {
+const seedCard = async (withOther: boolean, content: typeof cardContent = cardContent) => {
   // Fresh for each run, so a repeat in the same worker registers its own accounts.
   const run = randomUUID().replaceAll('-', '').slice(0, 10);
   const requestId = `req-${run}`;
@@ -125,7 +148,7 @@ const seedCard = async (withOther: boolean) => {
   await joinRoom(HOMESERVER, agent.accessToken, room.roomId);
   if (other) await joinRoom(HOMESERVER, other.accessToken, room.roomId);
   const cardId = await sendRoomMessage(HOMESERVER, agent.accessToken, room.roomId, {
-    ...cardContent(requester.userId, requestId, 'pending'),
+    ...content(requester.userId, requestId, 'pending'),
     'm.relates_to': {
       rel_type: 'm.thread',
       event_id: room.rootId,
@@ -448,4 +471,74 @@ test('an error after Save from the keyboard leaves the focus on Save to retry', 
   await expect(save).toBeFocused();
   await expect(save).not.toHaveAttribute('aria-disabled', 'true');
   await expect(seeded.field).toHaveValue(key);
+});
+
+test('the requester sends a temporary secret and chooses to keep it for 24 hours', async ({
+  context,
+  page,
+}) => {
+  test.slow();
+  const secret = `pw-${randomUUID().replaceAll('-', '')}`;
+  const sessionToken = `session-${randomUUID()}`;
+  const { requester, agent, room, requestId, cardId, answerUrl } = await seedCard(
+    false,
+    temporaryContent
+  );
+  await routeSignIn(context, requester, sessionToken);
+  const answers: { url: string; body: string | null }[] = [];
+  await context.route(`${MINDROOM_API}/api/rooms/**`, async (route) => {
+    answers.push({ url: route.request().url(), body: route.request().postData() });
+    await route.fulfill({ status: 204, headers: CORS });
+  });
+  const leaks = watchLeaks(context, secret, answerUrl);
+
+  await openThread(context, page, requester, room);
+  const card = page.locator('[aria-label="Secret request"]');
+  const chip = card.locator('[data-secret-request-status]');
+  await expect(chip).toHaveAttribute('data-secret-request-status', 'waitingForYou', {
+    timeout: 30_000,
+  });
+  // No key card: the card speaks of a secret and of the variable the commands receive.
+  await expect(keyCard(page)).toHaveCount(0);
+  await expect(card).toContainText('Secret for');
+  await expect(card).toContainText('To restart the web server.');
+  await expect(card).toContainText('in this conversation as SUDO_PASSWORD.');
+  await expect(card).not.toContainText('Used only for');
+
+  // Memory is chosen until the requester picks the file.
+  const memory = card.getByRole('radio', { name: '15 minutes, in memory only' });
+  const disk = card.getByRole('radio', { name: '24 hours, in a file on the server' });
+  await expect(memory).toBeChecked();
+  await disk.check();
+  await expect(memory).not.toBeChecked();
+
+  const field = card.getByLabel('Secret for SUDO_PASSWORD', { exact: true });
+  await expect(field).toHaveAttribute('type', 'text');
+  await expect(field).toHaveCSS('-webkit-text-security', 'disc');
+  await field.fill(secret);
+  await card.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(card.getByRole('status')).toHaveText('Sent, waiting for the agent');
+  await expect(card.locator('input')).toHaveCount(0);
+
+  expect(answers).toHaveLength(1);
+  expect(answers[0]?.url).toBe(answerUrl);
+  expect(JSON.parse(answers[0]?.body ?? 'null')).toEqual({ secret, keep: 'disk' });
+
+  // The agent's edit says what was chosen; the card then reads Sent and names the lifetime.
+  const saved = temporaryContent(requester.userId, requestId, 'saved', 'disk');
+  await sendRoomMessage(HOMESERVER, agent.accessToken, room.roomId, {
+    ...saved,
+    body: '* 🔑 Secret received.',
+    'm.new_content': { ...saved, body: '🔑 Secret received.' },
+    'm.relates_to': { rel_type: 'm.replace', event_id: cardId },
+  });
+  await expect(chip).toHaveAttribute('data-secret-request-status', 'saved', { timeout: 30_000 });
+  await expect(chip).toHaveText('Sent');
+  await expect(card).toContainText('Kept for 24 hours, in a file on the server.');
+  await expect(card.getByRole('status')).toHaveCount(0);
+
+  expect(leaks).toEqual([]);
+  expect(
+    await page.evaluate((value) => document.documentElement.outerHTML.includes(value), secret)
+  ).toBe(false);
 });

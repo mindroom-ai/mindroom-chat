@@ -731,6 +731,29 @@
         "noLongerActive": "Este pedido já não está ativo. Peça novamente ao agente.",
         "unavailable": "Não é possível introduzir chaves neste servidor.",
         "unavailableHint": "Para introduzir chaves aqui, defina o seu servidor MindRoom em Definições → {{page}} → {{field}}.",
+        "replaces": "Substitui a chave guardada agora.",
+        "replaceKey": "Substituir chave",
+        "temporary": {
+          "label": "Pedido de segredo",
+          "title": "Segredo para {{agent}}",
+          "givenAs": "É entregue aos comandos de {{agent}} nesta conversa como {{variable}}.",
+          "field": "Segredo para {{variable}}",
+          "placeholder": "Cole ou escreva o segredo",
+          "show": "Mostrar segredo",
+          "hide": "Ocultar segredo",
+          "keepFor": "Manter durante",
+          "keep": {
+            "memory": "{{duration}}, apenas na memória",
+            "disk": "{{duration}}, num ficheiro no servidor"
+          },
+          "kept": {
+            "memory": "Mantido durante {{duration}}, apenas na memória.",
+            "disk": "Mantido durante {{duration}}, num ficheiro no servidor."
+          },
+          "send": "Enviar",
+          "sent": "Enviado",
+          "sentWaiting": "Enviado, a aguardar o agente"
+        },
         "status": {
           "waitingForYou": "À sua espera",
           "pending": "Pendente",
