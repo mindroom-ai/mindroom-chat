@@ -78,8 +78,7 @@ export type RoomViewThreadState = {
   handleClearPeople: () => void;
   handleClearTags: () => void;
   handleExitThread: () => void;
-  /** Opens a thread; with `replace`, in the place of the open one in the browser's history. */
-  handleOpenThread: (threadId: string, replace?: boolean) => void;
+  handleOpenThread: (threadId: string) => void;
   handleThreadRootDeleted: () => void;
   /** The open thread failed to load in this room (`ThreadView`'s `onThreadLoadError`). */
   handleThreadLoadError: (threadId: string) => void;
@@ -101,30 +100,6 @@ export type RoomViewThreadState = {
   /** The open thread is not in this room, and no joined room the client knows holds it. */
   threadNotFound: boolean;
   viewMode: RoomViewMode;
-};
-
-/**
- * The options that put a thread in the open one's place in the browser's history, with the way
- * back recorded for the open thread (one of `openThreadIds`) carried over to it.
- */
-const replaceThreadOptions = (
-  roomId: string,
-  openThreadIds: readonly (string | undefined)[],
-  threadId: string
-): { replace: true; state?: Record<string, unknown> } => {
-  const historyState: unknown = window.history.state;
-  const exitTarget = getRoomThreadExitTargetFromHistoryState(historyState);
-  if (exitTarget?.roomId !== roomId || !openThreadIds.includes(exitTarget.threadId)) {
-    return { replace: true };
-  }
-  const userState =
-    typeof historyState === 'object' && historyState !== null && 'usr' in historyState
-      ? historyState.usr
-      : undefined;
-  return {
-    replace: true,
-    state: withRoomThreadExitTargetState(userState, { ...exitTarget, threadId }),
-  };
 };
 
 export const useRoomViewThreadState = ({
@@ -290,16 +265,8 @@ export const useRoomViewThreadState = ({
   );
 
   const handleOpenThread = useCallback(
-    (openedThreadId: string, replace?: boolean) =>
-      navigateRoomThread(
-        roomId,
-        openedThreadId,
-        undefined,
-        replace
-          ? replaceThreadOptions(roomId, [threadId, effectiveThreadId], openedThreadId)
-          : undefined
-      ),
-    [effectiveThreadId, navigateRoomThread, roomId, threadId]
+    (openedThreadId: string) => navigateRoomThread(roomId, openedThreadId),
+    [navigateRoomThread, roomId]
   );
 
   const handleSwipeForwardToThread = useCallback(() => {
@@ -511,12 +478,24 @@ export const useRoomViewThreadState = ({
   useEffect(() => {
     if (!threadId || !effectiveThreadId || threadId === effectiveThreadId) return;
 
-    navigateRoomThread(
-      roomId,
-      effectiveThreadId,
-      eventId,
-      replaceThreadOptions(roomId, [threadId], effectiveThreadId)
-    );
+    const historyState: unknown = window.history.state;
+    const historyExitTarget = getRoomThreadExitTargetFromHistoryState(historyState);
+    let replacementState: Record<string, unknown> | undefined;
+    if (historyExitTarget?.roomId === roomId && historyExitTarget.threadId === threadId) {
+      const historyUserState =
+        typeof historyState === 'object' && historyState !== null && 'usr' in historyState
+          ? historyState.usr
+          : undefined;
+      replacementState = withRoomThreadExitTargetState(historyUserState, {
+        ...historyExitTarget,
+        threadId: effectiveThreadId,
+      });
+    }
+
+    navigateRoomThread(roomId, effectiveThreadId, eventId, {
+      replace: true,
+      ...(replacementState ? { state: replacementState } : {}),
+    });
   }, [effectiveThreadId, eventId, navigateRoomThread, roomId, threadId]);
 
   useEffect(() => {

@@ -7,9 +7,6 @@ import {
   focusCompactCard,
   focusedCompactCard,
   handleCardArrowKey,
-  holdCompactThreadPlace,
-  noteCompactCardOrder,
-  stepCompactThread,
 } from './compactCardKeys';
 
 const mountCards = (ids: string[]): HTMLElement => {
@@ -127,40 +124,5 @@ describe('cardBeside', () => {
     expect(cardBeside(cards, undefined, 1)).toBe(card('$a'));
     expect(cardBeside(cards, '$gone', -1)).toBe(card('$a'));
     expect(cardBeside([], '$a', 1)).toBeUndefined();
-  });
-});
-
-describe('stepCompactThread', () => {
-  it("steps through the order the room's cards last showed", () => {
-    noteCompactCardOrder('!room', ['$a', '$b', '$c']);
-    expect(stepCompactThread('!room', '$b', 1)).toBe('$c');
-    expect(stepCompactThread('!room', '$b', -1)).toBe('$a');
-    expect(stepCompactThread('!room', '$c', 1)).toBeUndefined();
-    // A thread without a card, and a room whose cards never showed.
-    expect(stepCompactThread('!room', '$x', 1)).toBeUndefined();
-    expect(stepCompactThread('!other', '$b', 1)).toBeUndefined();
-  });
-
-  it("keeps the open thread's place when its card leaves the list", () => {
-    noteCompactCardOrder('!room', ['$a', '$b', '$c', '$d']);
-    holdCompactThreadPlace('!room', '$b');
-    // Resolved under a filter that hides resolved threads, then the list changes again.
-    noteCompactCardOrder('!room', ['$a', '$c', '$d']);
-    expect(stepCompactThread('!room', '$b', -1)).toBe('$a');
-    noteCompactCardOrder('!room', ['$c', '$d']);
-    expect(stepCompactThread('!room', '$b', 1)).toBe('$c');
-    expect(stepCompactThread('!room', '$b', -1)).toBeUndefined();
-    // Another room's thread holds no place here, and a closed thread none at all.
-    holdCompactThreadPlace('!second', '$b');
-    noteCompactCardOrder('!room', ['$c', '$d']);
-    expect(stepCompactThread('!room', '$b', 1)).toBeUndefined();
-    holdCompactThreadPlace('!second', undefined);
-  });
-
-  it('keeps the order of each room', () => {
-    noteCompactCardOrder('!room', ['$a', '$b']);
-    noteCompactCardOrder('!second', ['$x', '$y']);
-    expect(stepCompactThread('!room', '$a', 1)).toBe('$b');
-    expect(stepCompactThread('!second', '$y', -1)).toBe('$x');
   });
 });

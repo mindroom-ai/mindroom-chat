@@ -43,8 +43,6 @@ import {
   focusCompactCard,
   focusedCompactCard,
   handleCardArrowKey,
-  noteCompactCardOrder,
-  wantedCompactCard,
 } from './compactCardKeys';
 
 const ThreadActionsMenu = lazy(() =>
@@ -59,11 +57,6 @@ export type CompactRoomViewProps = {
   compactRoomScrollStateRef: MutableRefObject<ScrollAnchorMemory>;
   /** Whether the thread filter bar floats over the cards: they move down for it, and glide. */
   filterBarShown?: boolean;
-  /**
-   * The room's own list, whose order the thread keys step through (`useThreadKeys`); a board's
-   * column of the same room is not.
-   */
-  keysStepHere?: boolean;
 };
 
 type ThreadActionsMenuState = {
@@ -282,7 +275,6 @@ export function CompactRoomView({
   onThreadClick,
   compactRoomScrollStateRef,
   filterBarShown = false,
-  keysStepHere = false,
 }: CompactRoomViewProps) {
   const { t } = useTranslation();
   const viewRef = useRef<HTMLDivElement>(null);
@@ -296,23 +288,12 @@ export function CompactRoomView({
   const focusHeld = focusInside && !!contentRef.current?.contains(document.activeElement);
   const orderHeld = pointerInside || focusHeld || !!menu;
   const shownRootIds = useHeldThreadOrder(threadRootIds, orderHeld, viewRef);
-  // Read once per room: the keys forget the card as soon as it has the focus, and a first count
-  // that changed with that would mount another chunk in the first commit's own task.
-  const wantedRootId = useMemo(
-    () => (keysStepHere ? wantedCompactCard(room.roomId) : undefined),
-    [keysStepHere, room.roomId]
-  );
   // A filter change mounts the cards it brings back a chunk at a time, and so does a mount after
-  // the cards of its first screen, or of the place the reader left (`useScrollAnchorMemory`), and
-  // down to the card of a thread the keys left, which takes the focus (`useThreadKeys`).
+  // the cards of its first screen, or of the place the reader left (`useScrollAnchorMemory`).
   const stagedRootIds = useStagedCardIds(
     room.roomId,
     shownRootIds,
-    firstRenderCardCount(
-      shownRootIds,
-      compactRoomScrollStateRef.current.get(room.roomId),
-      wantedRootId
-    )
+    firstRenderCardCount(shownRootIds, compactRoomScrollStateRef.current.get(room.roomId))
   );
   const cardViewModels = useCompactThreadCardViewModels({
     room,
@@ -361,20 +342,6 @@ export function CompactRoomView({
     `${filterBarShown}|${rootIdsOf(pinnedCards)}|${rootIdsOf(ordinaryCards)}`
   );
 
-  // The order the cards show in, pinned ones first, for the keys that step from an open thread
-  // to the next (`useThreadKeys`): the cards themselves unmount under a thread that fills the page.
-  const { pinnedEventIds } = pinning;
-  useLayoutEffect(() => {
-    if (!keysStepHere) return;
-    const pinned = shownRootIds.filter((rootId) => pinnedEventIds.includes(rootId));
-    noteCompactCardOrder(
-      room.roomId,
-      pinned.length === 0
-        ? shownRootIds
-        : [...pinned, ...shownRootIds.filter((rootId) => !pinnedEventIds.includes(rootId))]
-    );
-  }, [keysStepHere, room.roomId, shownRootIds, pinnedEventIds]);
-
   // A fully stable click handler keeps the memoized cards from re-rendering
   // when unrelated threads update; the per-thread summary text and the latest
   // onThreadClick are resolved through refs at click time.
@@ -412,7 +379,7 @@ export function CompactRoomView({
     if (!card || !rootId || !viewModel) return false;
     const fixed =
       !canToggle ||
-      pinnedEventIds.includes(rootId) ||
+      pinning.pinnedEventIds.includes(rootId) ||
       !isConfirmedMatrixEventId(rootId) ||
       updatingThreadRootIds.has(rootId);
     if (fixed) return true;

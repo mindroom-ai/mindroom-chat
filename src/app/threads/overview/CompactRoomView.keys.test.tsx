@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 import { runShortcut } from '../../shortcuts/useShortcut';
 import { CompactRoomView } from './CompactRoomView';
-import { stepCompactThread } from './compactCardKeys';
 
 const state = vi.hoisted(() => ({
   pinned: [] as string[],
@@ -67,14 +66,13 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ i18n: { language: 'en' }, t: (key: string) => key }),
 }));
 
-const list = (roomId: string, threadRootIds: string[], keysStepHere = true) => (
+const list = (roomId: string, threadRootIds: string[]) => (
   <CompactRoomView
     room={{ roomId } as unknown as Room}
     threadRootIds={threadRootIds}
     threadRecordMap={new Map()}
     onThreadClick={vi.fn()}
     compactRoomScrollStateRef={{ current: new Map() }}
-    keysStepHere={keysStepHere}
   />
 );
 
@@ -93,19 +91,6 @@ afterEach(() => {
 });
 
 describe('the thread keys on the compact thread list', () => {
-  it("notes the order of the room's own list, pinned cards first", () => {
-    state.pinned = ['$c'];
-    render(list('!own:example.org', ['$a', '$b', '$c']));
-    expect(stepCompactThread('!own:example.org', '$c', 1)).toBe('$a');
-    expect(stepCompactThread('!own:example.org', '$a', 1)).toBe('$b');
-  });
-
-  it("leaves the order alone for a board's column of the room", () => {
-    render(list('!board:example.org', ['$a', '$b']));
-    render(list('!board:example.org', ['$b'], false));
-    expect(stepCompactThread('!board:example.org', '$a', 1)).toBe('$b');
-  });
-
   it("resolves or reopens the focused card's thread and moves the focus on", () => {
     state.resolved = ['$c'];
     render(list('!keys:example.org', ['$a', '$b', '$c']));

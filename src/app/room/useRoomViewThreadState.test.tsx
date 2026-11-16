@@ -18,7 +18,6 @@ import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { useEdgeSwipeForward } from '../navigation/useEdgeSwipeForward';
 import { lastExitedThreadAtom } from '../threads/lastExitedThread';
 import { bumpRecentThread } from '../event-store/threads/recentThreads';
-import { withRoomThreadExitTargetState } from '../routes/roomNavigateState';
 import { useRoomViewThreadState, type RoomViewThreadState } from './useRoomViewThreadState';
 
 const USER_ID = '@alice:example.org';
@@ -145,40 +144,6 @@ describe('useRoomViewThreadState', () => {
     expect(enabled(useEdgeSwipeForward)).toBe(true);
     act(() => store.set(conversationBehindPanelAtom, true));
     expect(enabled(useEdgeSwipeForward)).toBe(false);
-  });
-
-  it("opens a thread in the open one's place with the way back recorded for that one", () => {
-    const target = { roomId: ROOM_ID, threadId: '$a', exitPath: '/home/room/' };
-    window.history.replaceState({ usr: withRoomThreadExitTargetState(undefined, target) }, '');
-    const { current } = mountThreadState({ threadId: '$a' });
-
-    act(() => current().handleOpenThread('$b', true));
-    expect(navigation.navigateRoomThread).toHaveBeenLastCalledWith(ROOM_ID, '$b', undefined, {
-      replace: true,
-      state: withRoomThreadExitTargetState(undefined, {
-        ...target,
-        threadId: '$b',
-        useHistoryBack: true,
-      }),
-    });
-
-    // Another thread's way back is not this one's, and a thread opened anew records its own.
-    window.history.replaceState(
-      { usr: withRoomThreadExitTargetState(undefined, { ...target, threadId: '$other' }) },
-      ''
-    );
-    act(() => current().handleOpenThread('$b', true));
-    expect(navigation.navigateRoomThread).toHaveBeenLastCalledWith(ROOM_ID, '$b', undefined, {
-      replace: true,
-    });
-    act(() => current().handleOpenThread('$c'));
-    expect(navigation.navigateRoomThread).toHaveBeenLastCalledWith(
-      ROOM_ID,
-      '$c',
-      undefined,
-      undefined
-    );
-    window.history.replaceState(null, '');
   });
 
   it('keeps the record of the thread just left while the address still names it', () => {

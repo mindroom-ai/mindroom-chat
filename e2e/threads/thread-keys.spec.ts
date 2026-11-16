@@ -12,10 +12,9 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
 // Into a thread and out of it by keyboard, in a Compact room against the disposable homeserver of
 // `just hs-up` (or a slot of scripts/e2e-slot.sh). Alt and the right arrow goes one level in (the
 // composer, the cards, the focused card's thread), Alt and the left arrow one level out; Mod, Alt
-// and the arrows move the focus through the cards, and from an open thread open the thread above
-// or below; the plain arrows, Home and End move between focused cards; Mod, Shift and Enter
-// resolves a focused card's thread. A composer with text keeps Alt and the left arrow. Set
-// THREAD_KEYS_SHOTS=<dir> to also save screenshots.
+// and the arrows move the focus through the cards; the plain arrows, Home and End move between
+// focused cards; Mod, Shift and Enter resolves a focused card's thread. A composer with text
+// keeps Alt and the left arrow. Set THREAD_KEYS_SHOTS=<dir> to also save screenshots.
 const PASSWORD = 'thread-keys-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.THREAD_KEYS_SHOTS;
@@ -143,20 +142,6 @@ test('the keyboard goes into a thread, to the next one, and out again', async ({
     expect(openThread(page)).toBe(second);
   });
 
-  await test.step('in the thread, Mod, Alt and the arrows open the thread below or above', async () => {
-    await page.keyboard.press('ControlOrMeta+Alt+ArrowDown');
-    await expect.poll(() => openThread(page)).toBe(third);
-    await page.keyboard.press('ControlOrMeta+Alt+ArrowUp');
-    await expect.poll(() => openThread(page)).toBe(second);
-    await page.keyboard.press('ControlOrMeta+Alt+ArrowUp');
-    await expect.poll(() => openThread(page)).toBe(first);
-    // Above the first card there is no thread: this one stays.
-    await page.keyboard.press('ControlOrMeta+Alt+ArrowUp');
-    await settle(page);
-    expect(openThread(page)).toBe(first);
-    await expect(banner(page)).toBeVisible();
-  });
-
   await test.step("the back button names its keys, and a composer's text keeps them", async () => {
     const back = banner(page).getByRole('button', { name: 'Back', exact: true });
     await expect(back).toHaveAttribute('aria-keyshortcuts', 'Alt+ArrowLeft');
@@ -171,13 +156,11 @@ test('the keyboard goes into a thread, to the next one, and out again', async ({
     // Alt and the left arrow moves by word in text, so the thread stays.
     await page.keyboard.press('Alt+ArrowLeft');
     await settle(page);
-    expect(openThread(page)).toBe(first);
-    // Mod, Alt and the arrows have no text meaning: they step from a composer with text too.
+    expect(openThread(page)).toBe(second);
+    // Under a thread that fills the page no card shows: Mod, Alt and the arrows do nothing.
     await page.keyboard.press('ControlOrMeta+Alt+ArrowDown');
-    await expect.poll(() => openThread(page)).toBe(second);
-    await page.keyboard.press('ControlOrMeta+Alt+ArrowUp');
-    await expect.poll(() => openThread(page)).toBe(first);
-    await composer(page).click();
+    await settle(page);
+    expect(openThread(page)).toBe(second);
     await expect(async () => {
       await page.keyboard.press('ControlOrMeta+a');
       await page.keyboard.press('Backspace');
@@ -190,14 +173,22 @@ test('the keyboard goes into a thread, to the next one, and out again', async ({
     await expect(banner(page)).toHaveCount(0);
     await expect(cards(page)).toHaveCount(TOPICS.length);
     expect(openThread(page)).toBeNull();
-    await expect(card(page, first)).toBeFocused();
-    await expect(card(page, first)).toHaveCSS('outline-style', 'solid');
+    await expect(card(page, second)).toBeFocused();
+    await expect(card(page, second)).toHaveCSS('outline-style', 'solid');
     await page.keyboard.press('Alt+ArrowRight');
     await expect(banner(page)).toBeVisible();
-    expect(openThread(page)).toBe(first);
+    expect(openThread(page)).toBe(second);
     await page.keyboard.press('Alt+ArrowLeft');
     await expect(banner(page)).toHaveCount(0);
-    await expect(card(page, first)).toBeFocused();
+    await expect(card(page, second)).toBeFocused();
+    // The next thread from here: the down arrow, then in.
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Alt+ArrowRight');
+    await expect(banner(page)).toBeVisible();
+    expect(openThread(page)).toBe(third);
+    await page.keyboard.press('Alt+ArrowLeft');
+    await expect(banner(page)).toHaveCount(0);
+    await expect(card(page, third)).toBeFocused();
     // One more level out: the composer.
     await page.keyboard.press('Alt+ArrowLeft');
     await expect(composer(page)).toBeFocused();
@@ -207,13 +198,13 @@ test('the keyboard goes into a thread, to the next one, and out again', async ({
     await expect(cards(page)).toHaveCount(TOPICS.length);
     // From the composer, Alt and the right arrow goes to the card of the thread just left.
     await page.keyboard.press('Alt+ArrowRight');
-    await expect(card(page, first)).toBeFocused();
+    await expect(card(page, third)).toBeFocused();
     await page.keyboard.press('Alt+ArrowLeft');
     await expect(composer(page)).toBeFocused();
   });
 
   await test.step('from outside the cards, the focus goes to the card beside the thread just left', async () => {
-    await page.keyboard.press('ControlOrMeta+Alt+ArrowDown');
+    await page.keyboard.press('ControlOrMeta+Alt+ArrowUp');
     await expect(card(page, second)).toBeFocused();
   });
 
@@ -244,30 +235,9 @@ test('the keyboard goes into a thread, to the next one, and out again', async ({
     await page.keyboard.press('ControlOrMeta+/');
     await expect(row('nextThread')).toHaveCount(0);
   });
-
-  await test.step("stepping between threads leaves one entry in the browser's history", async () => {
-    await composer(page).click();
-    await page.keyboard.press('Alt+ArrowRight');
-    await expect(cards(page).and(page.locator(':focus'))).toHaveCount(1);
-    const shown = await cardOrder(page);
-    await page.keyboard.press('Alt+ArrowRight');
-    await expect(banner(page)).toBeVisible();
-    const opened = openThread(page);
-    const arrow = shown.indexOf(opened ?? '') === 0 ? 'ArrowDown' : 'ArrowUp';
-    await page.keyboard.press(`ControlOrMeta+Alt+${arrow}`);
-    await expect.poll(() => openThread(page)).not.toBe(opened);
-    await page.keyboard.press('Alt+ArrowLeft');
-    await expect(banner(page)).toHaveCount(0);
-    expect(openThread(page)).toBeNull();
-    // The browser's Back leaves the room; it does not reopen the thread stepped away from.
-    await page.goBack();
-    await settle(page);
-    expect(openThread(page)).toBeNull();
-    await expect(banner(page)).toHaveCount(0);
-  });
 });
 
-test('beside the cards, the keys resolve the open thread and step on from it', async ({ page }) => {
+test('beside its thread, the keys reach the cards and open the next thread', async ({ page }) => {
   test.setTimeout(180_000);
   const order = await openOrchard(page, 'beside', 1600);
   const [, second, third] = order as [string, string, string, string];
@@ -280,8 +250,7 @@ test('beside the cards, the keys resolve the open thread and step on from it', a
     .click();
   await expect(cards(page)).toHaveCount(TOPICS.length);
 
-  // From the thread's own composer, the keys resolve the open thread. Its card stays beside it:
-  // a room without agents hides no resolved thread (the unit tests cover a card that leaves).
+  // From the thread's own composer, the keys resolve the open thread.
   await page.getByTestId('thread-column').getByRole('textbox').last().click();
   await page.keyboard.press('ControlOrMeta+Shift+Enter');
   await expect(card(page, second).locator('[data-compact-card-resolved-badge]')).toBeVisible({
@@ -289,8 +258,11 @@ test('beside the cards, the keys resolve the open thread and step on from it', a
   });
   expect(openThread(page)).toBe(second);
 
-  // And they step on to the thread below it.
+  // Mod, Alt and the down arrow goes to the card below the open thread's; Alt and the right
+  // arrow opens it.
   await page.keyboard.press('ControlOrMeta+Alt+ArrowDown');
+  await expect(card(page, third)).toBeFocused();
+  await page.keyboard.press('Alt+ArrowRight');
   await expect.poll(() => openThread(page)).toBe(third);
 });
 
@@ -299,17 +271,16 @@ test('a thread left far down a long list hands the focus to its card', async ({ 
   // More cards than the list mounts at first on the way back from a thread.
   const topics = Array.from({ length: 30 }, (_, index) => `Row ${index + 1} of the orchard`);
   const order = await openOrchard(page, 'long', 1280, topics);
+  const deep = order[27] ?? '';
 
-  await card(page, order[0] ?? '').click();
+  // Opened by its address, as from a link: the list has no place of the reader's to open on.
+  const address = new URL(page.url());
+  address.searchParams.set('threadId', deep);
+  await page.goto(address.toString());
   await expect(banner(page)).toBeVisible({ timeout: 30_000 });
-  for (const threadId of order.slice(1, 28)) {
-    // eslint-disable-next-line no-await-in-loop
-    await page.keyboard.press('ControlOrMeta+Alt+ArrowDown');
-    // eslint-disable-next-line no-await-in-loop
-    await expect.poll(() => openThread(page)).toBe(threadId);
-  }
+  await composer(page).click();
 
   await page.keyboard.press('Alt+ArrowLeft');
   await expect(banner(page)).toHaveCount(0);
-  await expect(card(page, order[27] ?? '')).toBeFocused();
+  await expect(card(page, deep)).toBeFocused();
 });

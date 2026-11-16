@@ -8,7 +8,6 @@ import type { RoomViewMode } from '../navigation/roomViewMode';
 import type { ShortcutId } from '../shortcuts/shortcuts';
 import { runShortcut } from '../shortcuts/useShortcut';
 import { lastExitedThreadAtom } from '../threads/lastExitedThread';
-import { noteCompactCardOrder } from '../threads/overview/compactCardKeys';
 import { useThreadKeys } from './useThreadKeys';
 
 const ROOM = '!room:server';
@@ -55,7 +54,6 @@ beforeEach(() => {
     opened((event.target as HTMLElement).dataset.threadRootId)
   );
   document.body.append(area);
-  noteCompactCardOrder(ROOM, ['$a', '$b', '$c']);
 });
 
 afterEach(() => {
@@ -134,24 +132,18 @@ describe('useThreadKeys', () => {
     expect(document.activeElement).toBe(elsewhere);
   });
 
-  it('in a thread that fills the page, opens the thread above or below once per press', () => {
-    area.innerHTML = '';
+  it('beside an open thread, starts at the card beside that thread', () => {
     mount('$b');
     expect(press('nextThread')).toBe(true);
-    expect(onOpenThread).toHaveBeenLastCalledWith('$c', true);
-    expect(press('previousThread')).toBe(true);
-    expect(onOpenThread).toHaveBeenLastCalledWith('$a', true);
-    expect(press('nextThread', { repeat: true })).toBe(true);
-    expect(onOpenThread).toHaveBeenCalledTimes(2);
+    expect(document.activeElement).toBe(card('$c'));
+    expect(onOpenThread).not.toHaveBeenCalled();
   });
 
-  it('keeps the keys for the browser past the last thread, and outside Compact', () => {
+  it('keeps the keys for the browser under a thread that fills the page', () => {
     area.innerHTML = '';
-    const { unmount } = mount('$c');
+    mount('$b');
     expect(press('nextThread')).toBe(false);
-    unmount();
-    mount('$b', 'threaded');
-    expect(press('nextThread')).toBe(false);
+    expect(press('previousThread')).toBe(false);
     expect(onOpenThread).not.toHaveBeenCalled();
   });
 
@@ -163,23 +155,11 @@ describe('useThreadKeys', () => {
     expect(onOpenThread).not.toHaveBeenCalled();
   });
 
-  it('steps on from an open thread whose card left the list beside it', () => {
-    mount('$b');
-    // Resolved under a filter that hides resolved threads.
-    card('$b').remove();
-    noteCompactCardOrder(ROOM, ['$a', '$c']);
-    expect(press('nextThread')).toBe(true);
-    expect(onOpenThread).toHaveBeenLastCalledWith('$c', true);
-    expect(press('previousThread')).toBe(true);
-    expect(onOpenThread).toHaveBeenLastCalledWith('$a', true);
-  });
-
   it('leaves a thread behind a side panel alone', () => {
     area.innerHTML = '';
     store.set(conversationBehindPanelAtom, true);
     mount('$b');
     expect(press('leaveThread')).toBe(false);
-    expect(press('nextThread')).toBe(false);
     expect(onExitThread).not.toHaveBeenCalled();
   });
 });
