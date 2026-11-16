@@ -59,7 +59,8 @@ export const groupThreadBoard = (
     now,
   }: { jobs: readonly BackgroundJob[]; scheduledTaskEvents: readonly MatrixEvent[]; now: number }
 ): Record<ThreadBoardColumn, string[]> => {
-  const jobThreadIds = new Set(jobs.flatMap((job) => job.threadId ?? []));
+  // A job of no thread (null) names none.
+  const jobThreadIds = new Set(jobs.map((job) => job.threadId));
   const scheduledMap = buildRoomThreadScheduledStatusMap(scheduledTaskEvents, now);
   const columns: Record<ThreadBoardColumn, ThreadRecord[]> = {
     working: [],

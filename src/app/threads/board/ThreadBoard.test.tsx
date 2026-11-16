@@ -174,14 +174,14 @@ describe('ThreadBoard', () => {
   it('shows every thread of Working and Later', () => {
     renderBoard(
       threadsOf(
-        Array.from({ length: 25 }, (_, index): [string, Partial<ThreadStatusSnapshot>] => [
+        Array.from({ length: 50 }, (_, index): [string, Partial<ThreadStatusSnapshot>] => [
           `$t-${index}`,
           index % 2 ? { isStreaming: true } : { snoozedUntilTs: NOW + (index + 1) * MINUTE },
         ])
       )
     );
-    expect(cardsOf('Working')).toHaveLength(12);
-    expect(cardsOf('Later')).toHaveLength(13);
+    expect(cardsOf('Working')).toHaveLength(25);
+    expect(cardsOf('Later')).toHaveLength(25);
     expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
   });
 
@@ -250,6 +250,14 @@ describe('ThreadBoard', () => {
 
   it('shows no thread as Open while the room page shows no Compact view', () => {
     renderBoard(undefined);
+    expect(screen.queryAllByRole('heading')).toEqual([]);
+    expect(screen.getByText(/Compact/)).toBeTruthy();
+  });
+
+  it('lets go of the threads as the room page leaves Compact', () => {
+    const { update } = renderBoard(threadsOf([['$open', {}]]));
+    expect(cardsOf('Open')).toEqual(['$open']);
+    update(undefined);
     expect(screen.queryAllByRole('heading')).toEqual([]);
     expect(screen.getByText(/Compact/)).toBeTruthy();
   });

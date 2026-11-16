@@ -25,7 +25,6 @@ export const useShareCompactThreads = (roomId: string, threads: CompactThreads |
     setAll((all) => new Map(all).set(roomId, threads));
     return () =>
       setAll((all) => {
-        if (all.get(roomId) !== threads) return all;
         const next = new Map(all);
         next.delete(roomId);
         return next;

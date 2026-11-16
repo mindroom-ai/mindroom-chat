@@ -197,6 +197,20 @@ describe('groupThreadBoard', () => {
     expect(columns.working).toEqual(['$b']);
   });
 
+  it('reads the schedules at its clock: one whose time passed leaves Later', () => {
+    const map = records([
+      ['$past', {}],
+      ['$future', {}],
+    ]);
+    const columns = groupThreadBoard(['$past', '$future'], map, {
+      jobs: [],
+      scheduledTaskEvents: [scheduleEvent('$past', NOW - 1), scheduleEvent('$future', NOW + HOUR)],
+      now: NOW,
+    });
+    expect(columns.later).toEqual(['$future']);
+    expect(columns.open).toEqual(['$past']);
+  });
+
   it('reads only pending schedules of existing threads', () => {
     const columns = groupThreadBoard(
       ['$a', '$b'],
@@ -264,12 +278,12 @@ describe('groupThreadBoard', () => {
         scheduledTaskEvents: [
           scheduleEvent('$cron', null),
           scheduleEvent('$run-soon', NOW + 2 * HOUR),
-          scheduleEvent('$both', NOW + 4 * HOUR),
+          scheduleEvent('$both', NOW + 2.5 * HOUR),
         ],
         now: NOW,
       }
     );
-    expect(columns.later).toEqual(['$snooze-soon', '$run-soon', '$snooze-late', '$both', '$cron']);
+    expect(columns.later).toEqual(['$snooze-soon', '$run-soon', '$both', '$snooze-late', '$cron']);
   });
 });
 

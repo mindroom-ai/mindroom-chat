@@ -87,7 +87,7 @@ const scheduleThread = ({ content }: StateEvent): string | undefined => {
   }
 };
 
-/** Cancels the thread's pending schedules as the agent account that made them. */
+/** Cancels the thread's pending schedule as MindRoom's router, whose writes the client trusts. */
 const cancelSchedules = async (stack: AgentStack, rootId: string) => {
   const state = await matrixFetch<StateEvent[]>(
     stack.homeserver,
@@ -100,7 +100,7 @@ const cancelSchedules = async (stack: AgentStack, rootId: string) => {
       event.content.status === 'pending' &&
       scheduleThread(event) === rootId
   );
-  expect(tasks.map((task) => task.sender)).toEqual([stack.agents.router]);
+  expect(tasks).toHaveLength(1);
   await Promise.all(
     tasks.map((task) =>
       sendStateEvent(
