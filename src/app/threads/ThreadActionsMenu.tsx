@@ -228,7 +228,10 @@ export function ThreadActionsMenu({
     measure();
     // A height-capped menu need not resize when its details become empty or appear.
     const mutations = new MutationObserver(measure);
-    mutations.observe(surface, { childList: true, subtree: true, characterData: true });
+    const detailsSurface = surface.querySelector('[data-thread-details]');
+    if (detailsSurface) {
+      mutations.observe(detailsSurface, { childList: true, subtree: true, characterData: true });
+    }
     const observer =
       typeof ResizeObserver === 'undefined'
         ? undefined
