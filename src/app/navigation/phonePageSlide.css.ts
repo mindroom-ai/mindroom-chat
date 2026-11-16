@@ -17,7 +17,8 @@ globalStyle(sliding, { viewTransitionName: 'none' });
 globalStyle(`${sliding} [data-phone-stage]`, { viewTransitionName: STAGE });
 // The top bar stays above every page: it is no part of the layout's picture, and shows as it is.
 globalStyle(`${sliding} [data-phone-top-bar]`, { viewTransitionName: TOP_BAR });
-globalStyle(`${sliding}::view-transition-old(${TOP_BAR})`, { display: 'none' });
+// (WebKit plays the browser's own fade on a picture that is not displayed.)
+globalStyle(`${sliding}::view-transition-old(${TOP_BAR})`, { display: 'none', animation: 'none' });
 globalStyle(`${sliding}::view-transition-new(${TOP_BAR})`, { animation: 'none' });
 // Neither box moves or changes its size: the pictures inside the layout's are all that plays.
 globalStyle(
