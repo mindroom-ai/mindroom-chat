@@ -36,6 +36,7 @@ import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import { ThreadCardBadges } from './ThreadCardBadges';
 import { useCompactThreadSections } from './useCompactThreadSections';
+import { holdCompactThreadSections } from './compactThreadSections';
 import { getCompactRoomSectionsAtom } from './compactRoomSections';
 import type { ThreadSectionId } from '../threadSections';
 import { ThreadCardDetails } from './ThreadCardDetails';
@@ -309,17 +310,29 @@ export function CompactRoomView({
     useMemo(() => getCompactRoomSectionsAtom(room.myUserId ?? ''), [room.myUserId])
   );
   const { folded } = sectionsChoice;
+  // While the order is held, the cards keep the sections they showed in, and the headers stay.
+  const shownSectionsRef = useRef(threadSections);
+  const heldSections = useMemo(
+    () =>
+      orderHeld && threadSections && shownSectionsRef.current
+        ? holdCompactThreadSections(threadSections, shownSectionsRef.current)
+        : threadSections,
+    [orderHeld, threadSections]
+  );
+  useLayoutEffect(() => {
+    shownSectionsRef.current = heldSections;
+  }, [heldSections]);
   // In sections, the list's rows are each section's header and, unless it is folded, its cards:
-  // the order the hook below holds is theirs, so a card stays in its section while held too.
+  // the order the hook below holds is theirs, so a card stays in its place while held too.
   const listedRows = useMemo(
     () =>
-      threadSections
-        ? threadSections.flatMap(({ id, rootIds }) => [
+      heldSections
+        ? heldSections.flatMap(({ id, rootIds }) => [
             sectionRowKey(id),
             ...(folded.includes(id) ? [] : rootIds),
           ])
         : threadRootIds,
-    [folded, threadRootIds, threadSections]
+    [folded, heldSections, threadRootIds]
   );
   const shownRootIds = useHeldThreadOrder(listedRows, orderHeld, viewRef);
   // A filter change mounts the cards it brings back a chunk at a time, and so does a mount after

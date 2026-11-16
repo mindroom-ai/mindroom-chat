@@ -201,6 +201,91 @@ describe('the Compact room in sections', () => {
     ]);
   });
 
+  describe('while the pointer holds the order', () => {
+    /** Renders `sections`, holds the order, then gives the list `next`. */
+    const holdThenRegroup = (initial: CompactThreadSection[], next: CompactThreadSection[]) => {
+      state.sections = initial;
+      const rootIds = initial.flatMap(({ rootIds: ids }) => ids);
+      const { rerender } = render(view(rootIds));
+      const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
+      act(() => {
+        fireEvent.pointerEnter(list);
+      });
+      state.sections = next;
+      rerender(view(rootIds));
+      return () =>
+        act(() => {
+          fireEvent.pointerLeave(list);
+          fireEvent.click(document.body);
+        });
+    };
+
+    it('keeps the header of a section its last card left, with no count, until let go', () => {
+      const release = holdThenRegroup(
+        [
+          { id: 'working', rootIds: ['$job'] },
+          { id: 'idle', rootIds: ['$idle'] },
+        ],
+        [{ id: 'idle', rootIds: ['$job', '$idle'] }]
+      );
+
+      expect(rows()).toEqual(['#working 0', '$job', '#idle 2', '$idle']);
+
+      release();
+      expect(rows()).toEqual(['#idle 2', '$job', '$idle']);
+    });
+
+    it('keeps a card that moves into folded Resolved in view until let go', () => {
+      const release = holdThenRegroup(
+        [
+          { id: 'idle', rootIds: ['$a', '$b'] },
+          { id: 'resolved', rootIds: ['$done'] },
+        ],
+        [
+          { id: 'idle', rootIds: ['$b'] },
+          { id: 'resolved', rootIds: ['$a', '$done'] },
+        ]
+      );
+
+      expect(rows()).toEqual(['#idle 1', '$a', '$b', '#resolved 2']);
+
+      release();
+      expect(rows()).toEqual(['#idle 1', '$b', '#resolved 2']);
+    });
+
+    it('shows no header for a section a shown card moves into until let go', () => {
+      const release = holdThenRegroup(
+        [{ id: 'idle', rootIds: ['$a', '$b'] }],
+        [
+          { id: 'working', rootIds: ['$a'] },
+          { id: 'idle', rootIds: ['$b'] },
+        ]
+      );
+
+      expect(rows()).toEqual(['#idle 1', '$a', '$b']);
+
+      release();
+      expect(rows()).toEqual(['#working 1', '$a', '#idle 1', '$b']);
+    });
+
+    it('shows a new thread under its own header, which comes with it', () => {
+      state.sections = [{ id: 'idle', rootIds: ['$a'] }];
+      const { rerender } = render(view(['$a']));
+      const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
+      act(() => {
+        fireEvent.pointerEnter(list);
+      });
+
+      state.sections = [
+        { id: 'working', rootIds: ['$new'] },
+        { id: 'idle', rootIds: ['$a'] },
+      ];
+      rerender(view(['$new', '$a']));
+
+      expect(rows()).toEqual(['#working 1', '$new', '#idle 1', '$a']);
+    });
+  });
+
   it('shows the cards as before while Sections are off', () => {
     render(view(['$streaming', '$job'], false));
 

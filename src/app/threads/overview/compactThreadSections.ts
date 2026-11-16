@@ -60,3 +60,26 @@ export const buildCompactThreadSections = ({
     sections[id].length > 0 ? [{ id, rootIds: sections[id].map((item) => item.threadRootId) }] : []
   );
 };
+
+/**
+ * The sections while the cards' order is held (`useHeldThreadOrder`): each card in the sections
+ * shown before (`shown`) stays in the section it showed in, and each of those sections stays,
+ * emptied or not, so no header comes or goes under the pointer. A thread new to the list takes
+ * its section in `live`, whose header comes with it.
+ */
+export const holdCompactThreadSections = (
+  live: readonly CompactThreadSection[],
+  shown: readonly CompactThreadSection[]
+): CompactThreadSection[] => {
+  const shownIn = new Map(
+    shown.flatMap(({ id, rootIds }) => rootIds.map((rootId) => [rootId, id] as const))
+  );
+  return THREAD_SECTION_ORDER.flatMap((id) => {
+    const rootIds = live.flatMap((section) =>
+      section.rootIds.filter((rootId) => (shownIn.get(rootId) ?? section.id) === id)
+    );
+    return rootIds.length > 0 || shown.some((section) => section.id === id)
+      ? [{ id, rootIds }]
+      : [];
+  });
+};
