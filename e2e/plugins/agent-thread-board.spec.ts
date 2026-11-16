@@ -158,6 +158,9 @@ test("a plugin's board keeps each thread in the column of its state, without a r
   await done.click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Reopen thread', exact: true }).click();
   await expect(cardIn(panel, 'open', openRoot)).toBeVisible({ timeout: 30_000 });
+  // The menu stays open to show the result, as in the Compact view.
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu', { name: 'Thread options' })).toHaveCount(0);
 
   // Snoozed from its menu, the thread is in Later and its card says until when.
   await cardIn(panel, 'open', openRoot).click({ button: 'right' });

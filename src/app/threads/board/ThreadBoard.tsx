@@ -36,7 +36,10 @@ function BoardColumn({ room, column, rootIds, records, onThreadClick }: ColumnPr
   const { t, i18n } = useTranslation();
   const [limit, setLimit] = useState(PAGE);
   const scrollMemory = useRef<ScrollAnchorMemory>(new Map());
-  const shown = PAGED.has(column) ? rootIds.slice(0, limit) : rootIds;
+  const shown = useMemo(
+    () => (PAGED.has(column) ? rootIds.slice(0, limit) : rootIds),
+    [column, limit, rootIds]
+  );
   const headingId = useId();
   return (
     <section className={css.Column} aria-labelledby={headingId} data-thread-board-column={column}>
