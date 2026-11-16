@@ -39,6 +39,9 @@ export const Scope = style({
   },
 });
 
+// The groups: positioned, so a row that left fades at its old place among them (`useListMotion`).
+export const Groups = style({ ...stack, position: 'relative' });
+
 export const GroupHeading = style({
   ...strip,
   columnGap: space.S100,
@@ -50,6 +53,8 @@ export const GroupHeading = style({
 });
 
 export const Row = style({
+  // Positioned, so a row that travels far passes over the others.
+  position: 'relative',
   display: 'flex',
   columnGap: space.S200,
   inlineSize: '100%',

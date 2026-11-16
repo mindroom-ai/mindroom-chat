@@ -33,7 +33,8 @@ export const Tabs = style({
 });
 
 /** The rows, a little apart, so the tinted ones that wait for an answer read as cards. */
-export const Rows = style({ ...stack, rowGap: toRem(4) });
+// Positioned: a row that left fades at its old place in the list (`useListMotion`).
+export const Rows = style({ ...stack, position: 'relative', rowGap: toRem(4) });
 
 export const Divider = style({
   paddingBlock: `${space.S300} ${space.S100}`,

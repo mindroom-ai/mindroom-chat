@@ -14,6 +14,7 @@ import type { ThreadApprovalRecord } from '../../matrix/protocol/threadApprovalM
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import type { RegisteredPlugin } from '../../plugins/registry';
 import type { ThreadListItem } from './threadGroups';
+import { standInForListMotion } from '../../ui/__tests__/listMotionStandIn';
 import { ThreadsNav } from './ThreadsNav';
 
 const ME = '@alice:x';
@@ -119,6 +120,26 @@ afterEach(() => {
 });
 
 describe('ThreadsNav', () => {
+  it('fades the rows a search leaves out and glides the rest up', () => {
+    const motion = standInForListMotion();
+    try {
+      state.items = [item('a', 'Staging deploy'), item('b', 'Board deck')];
+      renderNav();
+      fireEvent.change(screen.getByRole('searchbox', { name: 'Search threads' }), {
+        target: { value: 'deck' },
+      });
+
+      expect(motion.left().map((row) => row.textContent)).toEqual([
+        expect.stringContaining('Staging deploy'),
+      ]);
+      expect(motion.glided()).toEqual(['b']);
+      // A group's heading is a row too, so it moves with the rows under it.
+      expect(group('Recent').querySelector('h3')?.dataset.motionRow).toBe('group:recent');
+    } finally {
+      motion.restore();
+    }
+  });
+
   it('groups the followed threads by state and previews the last reply', () => {
     state.items = [
       item(

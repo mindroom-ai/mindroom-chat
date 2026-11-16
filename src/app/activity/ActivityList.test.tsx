@@ -18,6 +18,7 @@ import { allInvitesAtom } from '../matrix/state/inviteList';
 import type { ActivityRow, ActivityRowsResult } from './activityRows';
 import { activityRowsAtom, activityShowAutomationsAtom } from './activityState';
 import { ActivityList } from './ActivityList';
+import { standInForListMotion } from '../ui/__tests__/listMotionStandIn';
 import * as css from './ActivityList.css';
 
 const NAMES: Record<string, string> = {
@@ -250,6 +251,50 @@ const greetingRow = (key: string, sender: string) =>
   });
 
 describe('ActivityList', () => {
+  it('fades a row that left where it stood while the rows under it close the gap', () => {
+    const motion = standInForListMotion();
+    try {
+      const store = renderList({ rows: ROWS, hiddenAutomations: 0 });
+      act(() =>
+        store.set(activityRowsAtom, {
+          rows: ROWS.filter((row) => row.key !== 'q'),
+          hiddenAutomations: 0,
+        })
+      );
+
+      expect(motion.left().map((row) => row.textContent)).toEqual([
+        expect.stringContaining('Mind asked you'),
+      ]);
+      expect(motion.glided()).toContain('m');
+      // A day's divider is a row too, so it moves with the rows under it.
+      expect(document.querySelector('[data-motion-row^="day:"]')).not.toBeNull();
+    } finally {
+      motion.restore();
+    }
+  });
+
+  it('glides a row that no longer waits and keeps its place in the order', () => {
+    const motion = standInForListMotion();
+    try {
+      const mention = ROWS.filter((row) => row.key === 'm');
+      const store = renderList({
+        rows: [threadRow('q', 'question', { pendingQuestion: question }), ...mention],
+        hiddenAutomations: 0,
+      });
+      // Answered: it is still the first row, now under the day's divider.
+      act(() =>
+        store.set(activityRowsAtom, {
+          rows: [threadRow('q', 'reply', {}), ...mention],
+          hiddenAutomations: 0,
+        })
+      );
+
+      expect(motion.glided()).toContain('q');
+    } finally {
+      motion.restore();
+    }
+  });
+
   it('says what happened, in which thread and room', () => {
     renderList({ rows: ROWS, hiddenAutomations: 0 });
     expect(screen.getByText('Code needs approval')).toBeTruthy();

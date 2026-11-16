@@ -79,11 +79,19 @@ const seedRoom = async (homeserver: string, me: MatrixSession): Promise<SeededRo
 const cardOf = (page: Page, rootId: string) =>
   page.locator(`[data-compact-room-view] [data-thread-root-id="${rootId}"]`);
 
-const topOf = (card: Locator) => card.evaluate((element) => element.getBoundingClientRect().top);
+// A card's place in the list is read from the element around it (`data-scroll-anchor`), which
+// stays at rest: the card itself may still glide there from the order it had a moment ago
+// (src/app/ui/listMotion.tsx).
+const topOf = (card: Locator) =>
+  card.evaluate(
+    (element) => (element.closest('[data-scroll-anchor]') ?? element).getBoundingClientRect().top
+  );
 
 /** Scrolls the card to the middle of the list, clear of the filter bar and the composer. */
 const centerCard = (card: Locator) =>
-  card.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+  card.evaluate((element) =>
+    (element.closest('[data-scroll-anchor]') ?? element).scrollIntoView({ block: 'center' })
+  );
 
 /** The root ID of the card under a point. */
 const cardAt = (page: Page, point: { x: number; y: number }) =>
