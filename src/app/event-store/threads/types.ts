@@ -1,4 +1,5 @@
 import type { IEvent, MatrixEvent } from 'matrix-js-sdk';
+import type { ThreadForkRef } from './threadFork';
 import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import type { ThreadPreviewLocalization } from './threadMessagePreview';
 
@@ -144,6 +145,8 @@ export type CompactThreadCardViewModel = {
   scheduledTaskLabel?: string;
   lastActivityTs?: number;
   lastActivityTitle?: string;
+  /** The thread and message this thread was forked at, when its root says so. */
+  forkedFrom?: ThreadForkRef;
 };
 
 export type ThreadBadgeViewModel = {

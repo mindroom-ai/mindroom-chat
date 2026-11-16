@@ -19,6 +19,7 @@ import type {
   ThreadRecord,
   ThreadParticipantViewModel,
 } from '../../event-store/threads/types';
+import { parseThreadForkRef } from '../../event-store/threads/threadFork';
 import { getThreadResolverDisplayName } from '../threadResolutionAttribution';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 
@@ -212,6 +213,8 @@ export const buildCompactThreadCardViewModelFromRecord = ({
     t
   );
   const resolvedByDisplayName = getThreadResolverDisplayName(room, status.resolvedByUserId);
+  const rootEvent = room.getThread(record.threadRootId)?.rootEvent ?? room.findEventById(record.threadRootId);
+  const forkedFrom = rootEvent ? parseThreadForkRef(rootEvent.getOriginalContent()) : undefined;
 
   return {
     id: {
@@ -250,6 +253,7 @@ export const buildCompactThreadCardViewModelFromRecord = ({
       status.lastActivityTs !== undefined
         ? new Date(status.lastActivityTs).toLocaleString(locale)
         : undefined,
+    forkedFrom,
   };
 };
 

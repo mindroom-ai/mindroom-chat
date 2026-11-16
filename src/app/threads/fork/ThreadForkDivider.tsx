@@ -18,7 +18,7 @@ import * as css from './ThreadForkDivider.css';
  * The root comes from the room, else from `root` (a fork's prefix holds its parent's), else from
  * the event cache.
  */
-const useThreadTitle = (
+export const useThreadTitle = (
   room: Room,
   threadId: string,
   root: MatrixEvent | undefined,

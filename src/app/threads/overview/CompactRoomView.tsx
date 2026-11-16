@@ -155,6 +155,7 @@ const CompactThreadCardRow = React.memo(
                 onClick={onThreadClick}
                 attachment={callRow && <LazyCallRow {...callRow} />}
                 badges={badges}
+                room={room}
               />
             )}
           />

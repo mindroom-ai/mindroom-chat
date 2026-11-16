@@ -87,6 +87,8 @@ import { buildRoomTimelineReplyDraft } from '../roomTimelineReplyDraft';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import { forkTargetFor, ownThreadId } from '../../event-store/threads/threadFork';
 import { useStartThreadFork } from '../../threads/fork/useStartThreadFork';
+import { ThreadForksChip } from '../../threads/fork/ThreadForksChip';
+import { useThreadForks } from '../../threads/fork/useThreadForks';
 import { canPinRoomEvents } from '../../event-store/threads/threadPinning';
 import { getLinkedTimelines } from '../../event-store/timeline/linkedTimelines';
 import { genuineReplyEventId } from '../timelineRowFold';
@@ -407,6 +409,7 @@ export const useTimelineMessageFeature = ({
   const setReplyDraft = useSetAtom(composerReplyDraftAtom(room.roomId, view));
   const { navigateRoomThread } = useRoomNavigate();
   const startFork = useStartThreadFork(room);
+  const forksByPoint = useThreadForks(room, threadId);
   const handleReplyClick = useCallback(
     (replyEventId: string, startThread = false) => {
       const reply = buildRoomTimelineReplyDraft(room, replyEventId, startThread);
@@ -583,6 +586,9 @@ export const useTimelineMessageFeature = ({
       // Inside a thread a message can start a fork, also one from a parent shown in a fork: that
       // forks its own thread.
       const forkTarget = threadId ? forkTargetFor(event) : undefined;
+      // The forks made at this message, under it in the thread they were forked from: not on the
+      // parent's rows shown in a fork, where they would repeat the chip the parent's own view shows.
+      const forks = readOnly ? undefined : forksByPoint.get(eventId);
       // Room rows show the thread they start under their reactions once it has a reply; a message
       // without one, resolved or not, shows none (Reply in Thread on its toolbar starts one). An
       // open thread shows none, and neither does the classic view, which shows the replies.
@@ -645,6 +651,7 @@ export const useTimelineMessageFeature = ({
                     canSendReaction={canSendReaction}
                     onReactionToggle={toggleReaction}
                   />
+                  {forks && <ThreadForksChip room={room} forks={forks} />}
                   {threadBadge}
                 </>
               ) : undefined
@@ -728,6 +735,7 @@ export const useTimelineMessageFeature = ({
       consumeLiveExpansion,
       dateFormatString,
       editingEventId,
+      forksByPoint,
       handleOpenThread,
       handleReplyClick,
       handleSenderClick,

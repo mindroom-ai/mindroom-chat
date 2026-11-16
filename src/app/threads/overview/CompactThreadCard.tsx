@@ -14,6 +14,8 @@ import { ThreadTagPill } from '../tags/ThreadTagPill';
 import { ownDirectionBlock } from '../../ui/directional';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { OverflowChip } from '../ThreadContextBanner.css';
+import { ThreadForkedBadge } from '../fork/ThreadForkedBadge';
+import type { Room } from 'matrix-js-sdk';
 
 export type CompactThreadCardProps = {
   viewModel: CompactThreadCardViewModel;
@@ -29,13 +31,21 @@ export type CompactThreadCardProps = {
    * or the memoized card renders again for it.
    */
   badges?: ReactNode;
+  /** The card's room, which names the thread a fork was made from. */
+  room?: Room;
 };
 
 // As many whole tags as the thread banner shows, then a count of the rest.
 const DESKTOP_MAX_TAGS = 3;
 const MOBILE_MAX_TAGS = 2;
 
-function CompactThreadCardBase({ viewModel, onClick, attachment, badges }: CompactThreadCardProps) {
+function CompactThreadCardBase({
+  viewModel,
+  onClick,
+  attachment,
+  badges,
+  room,
+}: CompactThreadCardProps) {
   const { t } = useTranslation();
   const maxTags = useScreenSizeContext() === ScreenSize.Mobile ? MOBILE_MAX_TAGS : DESKTOP_MAX_TAGS;
   const {
@@ -62,6 +72,7 @@ function CompactThreadCardBase({ viewModel, onClick, attachment, badges }: Compa
     lastActivityTs,
     lastActivityTitle,
     primarySummaryText,
+    forkedFrom,
   } = viewModel;
   const relativeTime = useRelativeTime(lastActivityTs, 'compact');
   const snoozedText = useSnoozedUntilText(snoozedUntilTs);
@@ -200,6 +211,7 @@ function CompactThreadCardBase({ viewModel, onClick, attachment, badges }: Compa
             +{tags.length - maxTags}
           </span>
         )}
+        {room && forkedFrom && <ThreadForkedBadge room={room} parent={forkedFrom} />}
         {badges}
         {isStreaming && (
           <Text as="span" className={css.StreamingStatus} size="T200" priority="300">
