@@ -67,27 +67,37 @@ export const keepUnthreadedReceiptEvents = (mx: MatrixClient): (() => void) => {
 // is kept until the room gains an event of that ID: one a timeline takes, one a local echo is
 // renamed to, or one a new thread holds.
 const unheldEventIds = new WeakMap<Room, Set<string>>();
-let held = 0;
+let changes = 0;
 
-/** A count of the unheld events that rooms came to hold, for caches of how far receipts read. */
-export const heldReceiptEventsVersion = (): number => held;
+/**
+ * A count of the changes in the events rooms hold that may move how far a receipt reads: an
+ * unheld event a room came to hold, and events a room lost (a timeline that starts over or drops
+ * an event, a thread that goes). For caches of how far receipts read.
+ */
+export const receiptEventsVersion = (): number => changes;
 
 const unheldEventIdsOf = (room: Room): Set<string> | undefined => {
   let unheld = unheldEventIds.get(room);
   // Optional: room stand-ins in tests often tell nothing of their events, so nothing is kept.
   if (!unheld && typeof room.prependListener === 'function') {
     const ids = new Set<string>();
-    const forget = (event: MatrixEvent) => {
-      if (ids.delete(event.getId() ?? '')) held += 1;
+    const lost = () => {
+      changes += 1;
     };
     // First, so the views that update on an event find it.
-    room.prependListener(RoomEvent.Timeline, forget);
-    room.prependListener(RoomEvent.LocalEchoUpdated, forget);
+    room.prependListener(RoomEvent.Timeline, (event, _room, _toStart, removed) => {
+      if (removed || ids.delete(event.getId() ?? '')) changes += 1;
+    });
+    room.prependListener(RoomEvent.LocalEchoUpdated, (event) => {
+      if (ids.delete(event.getId() ?? '')) changes += 1;
+    });
     room.prependListener(ThreadEvent.New, (thread: Thread) => {
       ids.forEach((id) => {
-        if (thread.findEventById(id) && ids.delete(id)) held += 1;
+        if (thread.findEventById(id) && ids.delete(id)) changes += 1;
       });
     });
+    room.prependListener(RoomEvent.TimelineReset, lost);
+    room.prependListener(ThreadEvent.Delete, lost);
     unheldEventIds.set(room, ids);
     unheld = ids;
   }
@@ -99,11 +109,12 @@ const findNamedEvent = (
   context: Room | Thread,
   eventId: string
 ): MatrixEvent | undefined => {
+  // Before any answer, so the room tells of an event it loses from the first lookup on.
+  const unheld = unheldEventIdsOf(room);
   // Optional calls here and below: room and thread stand-ins in tests often lack receipts, events
   // or, for a thread, its room.
   const inContext = context === room ? undefined : context.findEventById?.(eventId);
   if (inContext) return inContext;
-  const unheld = unheldEventIdsOf(room);
   if (unheld?.has(eventId)) return undefined;
   const named = room.findEventById?.(eventId);
   if (!named) unheld?.add(eventId);

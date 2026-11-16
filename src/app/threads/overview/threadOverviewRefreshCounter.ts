@@ -32,6 +32,9 @@ const changedThreadId = (room: Room, mEvent: MatrixEvent): string | undefined =>
   return related && (related.threadRootId ?? relatedId);
 };
 
+/** How often a count marks the whole room for what no event tells of. */
+export const ROOM_MARK_INTERVAL_MS = 1000;
+
 /**
  * The threads the receipts of `userId` in a receipt event are for; a thread record reads no one
  * else's. Undefined when one of them is unthreaded or for the main timeline: such a receipt reads
@@ -73,8 +76,10 @@ const receiptThreadIds = (receipt: MatrixEvent, userId: string): string[] | unde
  * thread receipt, or the whole room (the reader's other receipts, a caller's request, an event
  * whose thread is unknown). It also
  * takes what a record reads that raises no count: every event the client hears of the room (the
- * edits kept from the sync are in by then), a local echo's progress, a redaction, a member's new
- * name or membership, and the room's encryption. Someone else's receipt changes no record.
+ * edits kept from the sync are in by then), an edit put on or taken off an event, a local echo's
+ * progress, a redaction, a member's new name or membership, and the room's encryption. Someone
+ * else's receipt changes no record. The first count of each second marks the whole room
+ * (`ROOM_MARK_INTERVAL_MS`), for what no event tells of.
  */
 export const useThreadOverviewRefreshCounter = (
   room: Room,
@@ -99,9 +104,27 @@ export const useThreadOverviewRefreshCounter = (
 
     // What happened to the room before these listeners heard it.
     markThreadRecordChange(overviewChanges);
-    const bump = () => setCounter((count) => count + 1);
-    const markEvent = (mEvent: MatrixEvent) =>
-      markThreadRecordChange(overviewChanges, changedThreadId(room, mEvent));
+    // What no event of the room tells of reaches the records at the first count of each second:
+    // a store that drops its oldest entries, a stream that ends by the clock, an old name of a
+    // member who left that a page of history brings.
+    let roomMarkedAt = Date.now();
+    const bump = () => {
+      const now = Date.now();
+      if (now - roomMarkedAt >= ROOM_MARK_INTERVAL_MS) {
+        roomMarkedAt = now;
+        markThreadRecordChange(overviewChanges);
+      }
+      setCounter((count) => count + 1);
+    };
+    const markEvent = (mEvent: MatrixEvent) => {
+      const threadId = changedThreadId(room, mEvent);
+      const eventId = mEvent.getId();
+      // A message of the room that answers another one may be a root itself.
+      if (threadId && !mEvent.threadRootId && eventId && eventId !== threadId) {
+        markThreadRecordChange(overviewChanges, eventId);
+      }
+      markThreadRecordChange(overviewChanges, threadId);
+    };
     const handleTimeline = (
       mEvent: MatrixEvent,
       eventRoom: Room | undefined,
@@ -136,6 +159,11 @@ export const useThreadOverviewRefreshCounter = (
       if (mEvent.getRoomId() === room.roomId && mEvent.getId()) markEvent(mEvent);
     };
     const handleEcho = (mEvent: MatrixEvent) => markEvent(mEvent);
+    // By then the redacted event has left its thread, which the room names.
+    const handleRedaction = (mEvent: MatrixEvent, _room: Room, threadRootId?: string) => {
+      if (threadRootId) markThreadRecordChange(overviewChanges, threadRootId);
+      markEvent(mEvent);
+    };
     // A record names its people and reads who is in the room, and whether the room is encrypted.
     // The sync repeats member events that change neither, one for the sender of many a batch.
     const handleMember = (_mEvent: MatrixEvent, member: RoomMember) => {
@@ -169,9 +197,10 @@ export const useThreadOverviewRefreshCounter = (
     room.on(RoomEvent.Timeline, handleTimeline);
     room.on(RoomEvent.Receipt, handleReceipt);
     room.on(RoomEvent.LocalEchoUpdated, handleEcho);
-    room.on(RoomEvent.Redaction, handleEcho);
+    room.on(RoomEvent.Redaction, handleRedaction);
     client?.on?.(MatrixEventEvent.Decrypted, handleDecrypted);
     client?.on?.(ClientEvent.Event, handleRoomEvent);
+    client?.on?.(MatrixEventEvent.Replaced, handleRoomEvent);
     client?.on?.(RoomStateEvent.Events, handleState);
     client?.on?.(RoomMemberEvent.Name, handleMember);
     client?.on?.(RoomMemberEvent.Membership, handleMember);
@@ -183,9 +212,10 @@ export const useThreadOverviewRefreshCounter = (
       room.removeListener(RoomEvent.Timeline, handleTimeline);
       room.removeListener(RoomEvent.Receipt, handleReceipt);
       room.removeListener(RoomEvent.LocalEchoUpdated, handleEcho);
-      room.removeListener(RoomEvent.Redaction, handleEcho);
+      room.removeListener(RoomEvent.Redaction, handleRedaction);
       client?.removeListener?.(MatrixEventEvent.Decrypted, handleDecrypted);
       client?.removeListener?.(ClientEvent.Event, handleRoomEvent);
+      client?.removeListener?.(MatrixEventEvent.Replaced, handleRoomEvent);
       client?.removeListener?.(RoomStateEvent.Events, handleState);
       client?.removeListener?.(RoomMemberEvent.Name, handleMember);
       client?.removeListener?.(RoomMemberEvent.Membership, handleMember);

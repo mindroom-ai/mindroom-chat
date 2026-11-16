@@ -32,7 +32,7 @@ import { collectThreadPeopleIds, currentUserTookPart } from './threadPeopleFilte
 import { RESOLVED_TAG, SNOOZED_TAG, type TagMetadata } from './threadTags';
 import { parseThreadSnooze } from './threadSnooze';
 import { seenThreadRootsVersion } from '../../matrix/seenThreadRoots';
-import { heldReceiptEventsVersion } from '../../matrix/receiptReadTs';
+import { receiptEventsVersion } from '../../matrix/receiptReadTs';
 
 const THREAD_PARTICIPANT_LIMIT = 3;
 
@@ -143,12 +143,13 @@ const recordSources = new WeakMap<ThreadRecord, ThreadRecordSources>();
 /**
  * What every record of a room reads that changes without an event of its thread: whether the
  * room's thread list is in (it decides whose reply count is used), the roots opened on this
- * device, and the receipt events the room came to hold (a receipt reads up to its event's time).
+ * device, and the receipt events a room came to hold or lost (a receipt reads up to its event's
+ * time, or to when the server took it).
  */
 const getRoomSources = (room: Room): readonly unknown[] => [
   roomThreadListIsListed(room),
   seenThreadRootsVersion(),
-  heldReceiptEventsVersion(),
+  receiptEventsVersion(),
 ];
 
 /** The same value, or two lists or objects that hold the same values. */

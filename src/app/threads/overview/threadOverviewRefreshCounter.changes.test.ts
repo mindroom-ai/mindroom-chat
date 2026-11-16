@@ -10,8 +10,11 @@ import {
   type MatrixEvent,
   type Room,
 } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
-import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  ROOM_MARK_INTERVAL_MS,
+  useThreadOverviewRefreshCounter,
+} from './threadOverviewRefreshCounter';
 
 // What the room's thread records are told of each event: the thread it may have changed, or the
 // whole room. The records of the other threads are kept (`ThreadRecordReuse`), so each source a
@@ -125,11 +128,15 @@ describe('useThreadOverviewRefreshCounter changes', () => {
   it.each([
     ['a reply', { id: '$new', threadRootId: '$root' }, ['$root']],
     ['a root', { id: '$root', isThreadRoot: true }, ['$root']],
-    ['an event related to a reply the room holds', { id: '$edit', relatesTo: '$reply' }, ['$root']],
     [
-      'an event related to a message outside a thread',
+      'an event related to a reply the room holds',
+      { id: '$edit', relatesTo: '$reply' },
+      ['$edit', '$root'],
+    ],
+    [
+      'a message that answers one outside a thread',
       { id: '$r', relatesTo: '$plain' },
-      ['$plain'],
+      ['$r', '$plain'],
     ],
     ['a message of its own', { id: '$message' }, ['$message']],
     ['an event related to one the room does not hold', { id: '$edit', relatesTo: '$gone' }, 'room'],
@@ -249,21 +256,59 @@ describe('useThreadOverviewRefreshCounter changes', () => {
   });
 
   // Sources a record reads that raise no count: main showed each at the next count of any event.
-  it.each([
-    ['a local echo that moves on', RoomEvent.LocalEchoUpdated],
-    ['a redaction', RoomEvent.Redaction],
-  ])('marks the thread of %s without a count', (_name, name) => {
+  it('marks the thread of a local echo that moves on without a count', () => {
     const { room, told } = setup();
+    const echo = event({ id: '$new', threadRootId: '$root' });
 
-    expect(told(() => room.emit(name, event({ id: '$new', threadRootId: '$root' }), room))).toEqual(
-      {
-        marked: ['$root'],
-        counted: 0,
-      }
-    );
+    expect(told(() => room.emit(RoomEvent.LocalEchoUpdated, echo, room))).toEqual({
+      marked: ['$root'],
+      counted: 0,
+    });
   });
 
-  it('marks the thread of each event the client hears of this room, after the sync kept its edits', () => {
+  it('marks the thread the room names for a redaction, which the redacted event has left', () => {
+    const { room, told } = setup();
+    // By then `$plain` is all the room holds of the redacted reply.
+    const redaction = event({ id: '$redaction', type: 'm.room.redaction', relatesTo: '$plain' });
+
+    expect(told(() => room.emit(RoomEvent.Redaction, redaction, room, '$root'))).toEqual({
+      marked: ['$root', '$redaction', '$plain'],
+      counted: 0,
+    });
+    expect(told(() => room.emit(RoomEvent.Redaction, redaction, room, undefined)).marked).toEqual([
+      '$redaction',
+      '$plain',
+    ]);
+  });
+
+  it('marks the thread of an event an edit is put on or taken off', () => {
+    const { client, told } = setup();
+    const emit = (fake: FakeEvent) => () => client.emit(MatrixEventEvent.Replaced, event(fake));
+
+    expect(told(emit({ id: '$reply', threadRootId: '$root' }))).toEqual({
+      marked: ['$root'],
+      counted: 0,
+    });
+    expect(
+      told(emit({ id: '$reply', threadRootId: '$root', roomId: '!other:example.org' })).marked
+    ).toEqual([]);
+  });
+
+  it('marks the room at the first count of each second, for what no event tells of', () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(10_000);
+    const { room, told } = setup();
+    const update = () => room.emit(ThreadEvent.Update, { id: '$root' });
+
+    now.mockReturnValue(10_000 + ROOM_MARK_INTERVAL_MS - 1);
+    expect(told(update).marked).toEqual(['$root']);
+    now.mockReturnValue(10_000 + ROOM_MARK_INTERVAL_MS);
+    // The room's mark comes after the thread's, so it stands.
+    expect(told(update).marked).toBe('room');
+    expect(told(update).marked).toEqual(['$root']);
+    now.mockRestore();
+  });
+
+  it('marks the thread of each event the client hears of this room, without a count', () => {
     const { client, told } = setup();
     const emit = (fake: FakeEvent) => () => client.emit(ClientEvent.Event, event(fake));
 
