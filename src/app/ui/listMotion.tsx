@@ -18,6 +18,14 @@ const GLIDE = { duration: 280, easing: 'cubic-bezier(0.2, 0, 0, 1)' };
 const ENTER = { duration: 200, easing: 'cubic-bezier(0, 0, 0, 1)' };
 const LEAVE = { duration: 160, easing: 'cubic-bezier(0.3, 0, 1, 1)', fill: 'forwards' as const };
 
+/**
+ * A list of more rows than this plays nothing and is not read. Starting a play makes the browser
+ * work through the page around the rows that move, which grows with the list: in a Compact room
+ * of 600 cards a filter change showed its first frame 30 to 85 ms later than without motion
+ * (production build), in one of 300 no later.
+ */
+export const MOST_ROWS_IN_MOTION = 300;
+
 /** A row and where it showed on the page. */
 type Place = { row: HTMLElement; rect: DOMRect };
 
@@ -31,12 +39,15 @@ export const playsMotion = (element: HTMLElement): boolean =>
   document.visibilityState !== 'hidden' &&
   !(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
 
+const rowsOf = (list: HTMLElement): HTMLElement[] => [
+  ...list.querySelectorAll<HTMLElement>(`[${ROW}]`),
+];
+
 /**
- * Every row of the list, and by key those in view or within half a page of it: the rows that
- * close a gap, or make room, come into view from there.
+ * Of the list's rows, by key those in view or within half a page of it: the rows that close a
+ * gap, or make room, come into view from there.
  */
-const readRows = (list: HTMLElement): { all: HTMLElement[]; inView: Map<string, Place> } => {
-  const all = [...list.querySelectorAll<HTMLElement>(`[${ROW}]`)];
+const readRows = (all: HTMLElement[]): Map<string, Place> => {
   const past = window.innerHeight / 2;
   // The rows stack in one column: find the first one in view by halving, so a long list costs a
   // few layout reads rather than one per row above the view.
@@ -55,12 +66,14 @@ const readRows = (list: HTMLElement): { all: HTMLElement[]; inView: Map<string, 
     if (!row || !rect || rect.top >= window.innerHeight + past) break;
     if (key) inView.set(key, { row, rect });
   }
-  return { all, inView };
+  return inView;
 };
 
 const readBefore = (list: HTMLElement): Before | undefined => {
   if (!playsMotion(list)) return undefined;
-  const rows = readRows(list).inView;
+  const all = rowsOf(list);
+  if (all.length > MOST_ROWS_IN_MOTION) return undefined;
+  const rows = readRows(all);
   if (rows.size === 0) return undefined;
   const { scrollTop, scrollLeft } = list;
   return { rows, list: list.getBoundingClientRect(), scrollTop, scrollLeft };
@@ -100,7 +113,8 @@ const leave = (list: HTMLElement, { row, rect }: Place, before: Before): Animati
 
 /** Plays the change from `before` to the list as it is now; returns what it started. */
 const play = (list: HTMLElement, before: Before): Animation[] => {
-  const { all, inView } = readRows(list);
+  const all = rowsOf(list);
+  const inView = readRows(all);
   let byKey: Map<string, HTMLElement> | undefined;
   // A row that moved under another parent is a new element there.
   const find = (key: string, was: HTMLElement): HTMLElement | undefined => {
@@ -193,12 +207,16 @@ class BeforeChange extends PureComponent<BeforeChangeProps> {
  * leaving row is placed against.
  *
  * Only rows in view or within half a page of it play, read once before and once after a change
- * of `order`, so a long list costs what two screenfuls do and a render that keeps the order
- * costs nothing. Rows play by
+ * of `order`, so a long list has two screenfuls of rows read and a render that keeps the order
+ * costs nothing. A list of more than `MOST_ROWS_IN_MOTION` rows plays nothing and changes as it
+ * would without the hook. The read after the change makes the browser work out the changed
+ * page's style and layout inside the commit, work its next frame would have done. Rows play by
  * `translate`, `scale` and `opacity`, which no layout follows; a row is read while it plays, so
- * keep code that measures rows off the row element itself. Nothing plays when no row in view
- * stays, with reduced motion, in a page nobody sees, or without Web Animations. Call it after a
- * hook that scrolls the list in a layout effect: the rows are read where that leaves them.
+ * keep code that measures rows off the row element itself. A change of `order` while rows play
+ * starts their glides again from where they show and ends their fades at once. Nothing plays
+ * when no row in view stays, with reduced motion, in a page nobody sees, or without Web
+ * Animations. Call it after a hook that scrolls the list in a layout effect: the rows are read
+ * where that leaves them.
  */
 export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): ReactElement => {
   const beforeRef = useRef<Before>();

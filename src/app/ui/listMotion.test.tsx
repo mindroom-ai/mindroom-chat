@@ -3,7 +3,7 @@ import { useRef } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type MotionPlay, standInForListMotion } from './__tests__/listMotionStandIn';
-import { useListMotion } from './listMotion';
+import { MOST_ROWS_IN_MOTION, useListMotion } from './listMotion';
 
 const GLIDE = { duration: 280, easing: 'cubic-bezier(0.2, 0, 0, 1)' };
 
@@ -128,6 +128,25 @@ describe('useListMotion', () => {
     rerender(<List order={rows.slice(1)} />);
 
     expect(playedByRow().row8).toEqual([glide(100)]);
+  });
+
+  it('plays and measures nothing in a list too long for a play to start within a frame', () => {
+    const rows = Array.from({ length: MOST_ROWS_IN_MOTION + 1 }, (_, index) => `row${index}`);
+    const { rerender } = render(<List order={rows} />);
+    motion.rects.mockClear();
+    rerender(<List order={rows.slice(1)} />);
+
+    expect(motion.plays).toEqual([]);
+    expect(motion.rects).not.toHaveBeenCalled();
+    expect(screen.getByTestId('list').querySelectorAll('[aria-hidden]')).toHaveLength(0);
+  });
+
+  it('plays in the longest list that may', () => {
+    const rows = Array.from({ length: MOST_ROWS_IN_MOTION }, (_, index) => `row${index}`);
+    const { rerender } = render(<List order={rows} />);
+    rerender(<List order={rows.slice(1)} />);
+
+    expect(playedByRow().row1).toEqual([glide(100)]);
   });
 
   it('measures nothing while the order stays', () => {
