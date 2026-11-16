@@ -2,9 +2,12 @@
 # Run e2e/perf/real-work.live.spec.ts for one commit on several runner hosts and slots at once, and
 # collect each run's test-results/perf/real-work/ into <out dir>/<host>-<slot>/, with the scripts
 # of the build the run served in <out dir>/<host>-<slot>/served-build/assets/: what
-# scripts/perf/cpuprofile-summary.mjs takes as --build to de-minify the run's CPU profiles (its
-# --maps is a `MINDROOM_BUILD_VERSION=<commit> npx vite build --sourcemap --outDir <dir>` of the
-# same commit; builds of one commit differ in hashed and minified names, not in positions).
+# scripts/perf/cpuprofile-summary.mjs takes as --build to de-minify the run's CPU profiles. Its
+# --maps is a sourcemap build of the same commit made as the slot makes the served one, in a copy
+# without .git: `git archive <commit> | tar -x -C <copy>`, node_modules linked into it, and there
+# `MINDROOM_BUILD_VERSION=<commit> npx vite build --sourcemap --outDir maps --emptyOutDir`. The
+# tool warns when a chunk of that build is not the served one (a build comes out in one of two
+# forms at random, 75 bytes apart in the main chunk: build again then).
 #
 # Usage: matrix.sh <commit> <out dir> <host>:<slot>[,<host>:<slot>...] [-- NAME=VALUE...]
 #   host   a remote-test.sh host: m5, m2, mw, dev or gce (~/repos/dev/scripts/mac-runner/remote-test.sh)
