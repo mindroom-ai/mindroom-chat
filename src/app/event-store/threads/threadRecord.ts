@@ -149,7 +149,7 @@ const recordSources = new WeakMap<ThreadRecord, ThreadRecordSources>();
 const getRoomSources = (room: Room): readonly unknown[] => [
   roomThreadListIsListed(room),
   seenThreadRootsVersion(),
-  receiptEventsVersion(),
+  receiptEventsVersion(room),
 ];
 
 /** The same value, or two lists or objects that hold the same values. */

@@ -12,7 +12,7 @@ import {
   type RoomMember,
   type Thread,
 } from 'matrix-js-sdk';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createThreadRecordChanges } from '../../event-store/threads/threadRecord';
 import { DIRECT_ROOM_TIMELINE_FILTER_STATE } from '../../event-store/timeline/roomTimelineViewState';
 
@@ -80,6 +80,12 @@ beforeEach(() => {
   // A pinned root nobody answered: a zero-reply root of the Compact list.
   state.pinnedEvents = [root('$root')];
   state.list = { ...state.list, loading: true };
+  // The first count of each second builds every record; no test here takes that long on its clock.
+  vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 const options = (): UseThreadIndexOptions => ({

@@ -77,7 +77,8 @@ const receiptThreadIds = (receipt: MatrixEvent, userId: string): string[] | unde
  * whose thread is unknown). It also
  * takes what a record reads that raises no count: every event the client hears of the room (the
  * edits kept from the sync are in by then), an edit put on or taken off an event, a local echo's
- * progress, a redaction, a member's new name or membership, and the room's encryption. Someone
+ * progress, a redaction, a timeline that starts over, a member's new name or membership, and the
+ * room's encryption. Someone
  * else's receipt changes no record. The first count of each second marks the whole room
  * (`ROOM_MARK_INTERVAL_MS`), for what no event tells of.
  */
@@ -177,6 +178,8 @@ export const useThreadOverviewRefreshCounter = (
         markThreadRecordChange(overviewChanges);
       }
     };
+    // A timeline that starts over (a sync with a gap) may have lost events of any thread.
+    const handleReset = () => markThreadRecordChange(overviewChanges);
     const handleThread = (thread: Thread | undefined) => {
       markThreadRecordChange(overviewChanges, thread?.id);
       bump();
@@ -198,6 +201,7 @@ export const useThreadOverviewRefreshCounter = (
     room.on(RoomEvent.Receipt, handleReceipt);
     room.on(RoomEvent.LocalEchoUpdated, handleEcho);
     room.on(RoomEvent.Redaction, handleRedaction);
+    room.on(RoomEvent.TimelineReset, handleReset);
     client?.on?.(MatrixEventEvent.Decrypted, handleDecrypted);
     client?.on?.(ClientEvent.Event, handleRoomEvent);
     client?.on?.(MatrixEventEvent.Replaced, handleRoomEvent);
@@ -213,6 +217,7 @@ export const useThreadOverviewRefreshCounter = (
       room.removeListener(RoomEvent.Receipt, handleReceipt);
       room.removeListener(RoomEvent.LocalEchoUpdated, handleEcho);
       room.removeListener(RoomEvent.Redaction, handleRedaction);
+      room.removeListener(RoomEvent.TimelineReset, handleReset);
       client?.removeListener?.(MatrixEventEvent.Decrypted, handleDecrypted);
       client?.removeListener?.(ClientEvent.Event, handleRoomEvent);
       client?.removeListener?.(MatrixEventEvent.Replaced, handleRoomEvent);

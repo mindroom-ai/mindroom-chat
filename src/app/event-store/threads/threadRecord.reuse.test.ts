@@ -1,8 +1,7 @@
-import { createClient, MatrixEvent, ReceiptType } from 'matrix-js-sdk';
-import { Room } from 'matrix-js-sdk/lib/models/room';
+import { MatrixEvent, ReceiptType } from 'matrix-js-sdk';
+import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearSeenThreadRoots, rememberSeenThreadRoot } from '../../matrix/seenThreadRoots';
-import { receiptReadTs } from '../../matrix/receiptReadTs';
 import {
   buildThreadRecordMap,
   createThreadRecordChanges,
@@ -11,7 +10,18 @@ import {
 } from './threadRecord';
 import type { ThreadRecord } from './types';
 
-const list = vi.hoisted(() => ({ listed: false }));
+const list = vi.hoisted(() => ({
+  listed: false,
+  receiptEvents: 0,
+  receiptEventsOf: undefined as unknown,
+}));
+vi.mock('../../matrix/receiptReadTs', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../matrix/receiptReadTs')>()),
+  receiptEventsVersion: (ofRoom: unknown) => {
+    list.receiptEventsOf = ofRoom;
+    return list.receiptEvents;
+  },
+}));
 vi.mock('./roomThreadList', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./roomThreadList')>()),
   roomThreadListIsListed: () => list.listed,
@@ -224,17 +234,15 @@ describe('buildThreadRecordMap reuse', () => {
     expect(build(second).get('$a')).toBe(second.get('$a'));
   });
 
-  it('builds every record once a room holds the event a receipt names', async () => {
-    const mx = createClient({ baseUrl: 'https://matrix.example', userId: ME });
-    const live = new Room(ROOM_ID, mx, ME);
-    expect(receiptReadTs(live, live, '$late', 5000)).toBe(5000);
+  it("builds every record once the events its room's receipts name change", () => {
     const first = build();
 
-    await live.addLiveEvents([root('$late')], { addToState: false });
+    list.receiptEvents += 1;
     const second = build(first);
 
     expect(second.get('$a')).not.toBe(first.get('$a'));
     expect(second.get('$b')).not.toBe(first.get('$b'));
+    expect(list.receiptEventsOf).toBe(room);
   });
 
   it('keeps nothing without the records of the build before', () => {

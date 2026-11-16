@@ -1,6 +1,7 @@
 import {
   createClient,
   EventStatus,
+  EventTimelineSet,
   MatrixEvent,
   Room,
   RoomEvent,
@@ -67,7 +68,7 @@ describe('receiptReadTs', () => {
 
   it('finds the named event in a thread that came with it', () => {
     expect(receiptReadTs(room, room, '$reply', 5000)).toBe(5000);
-    const before = receiptEventsVersion();
+    const before = receiptEventsVersion(room);
     const reply = message('$reply', 1000);
     const thread = {
       findEventById: (eventId: string) => (eventId === '$reply' ? reply : undefined),
@@ -79,11 +80,11 @@ describe('receiptReadTs', () => {
     room.emit(ThreadEvent.New, thread as unknown as Thread, false);
 
     expect(receiptReadTs(room, room, '$reply', 5000)).toBe(1000);
-    expect(receiptEventsVersion()).toBe(before + 1);
+    expect(receiptEventsVersion(room)).toBe(before + 1);
     // A thread without the event leaves the answer as it is.
     expect(receiptReadTs(room, room, '$other', 5000)).toBe(5000);
     room.emit(ThreadEvent.New, thread as unknown as Thread, false);
-    expect(receiptEventsVersion()).toBe(before + 1);
+    expect(receiptEventsVersion(room)).toBe(before + 1);
   });
 
   it('asks the thread a receipt is read in first, also for an event the room did not hold', () => {
@@ -99,19 +100,52 @@ describe('receiptReadTs', () => {
     const thread = { findEventById: () => named } as unknown as Thread;
     // Answered by the thread: the room is listened to all the same.
     expect(receiptReadTs(room, thread, '$named', 5000)).toBe(1000);
-    const before = receiptEventsVersion();
+    const before = receiptEventsVersion(room);
 
     room.emit(RoomEvent.Timeline, named, room, undefined, true, {
       timeline: room.getLiveTimeline(),
     });
-    expect(receiptEventsVersion()).toBe(before + 1);
+    expect(receiptEventsVersion(room)).toBe(before + 1);
     room.emit(RoomEvent.TimelineReset, room, room.getUnfilteredTimelineSet(), true);
-    expect(receiptEventsVersion()).toBe(before + 2);
+    expect(receiptEventsVersion(room)).toBe(before + 2);
     room.emit(ThreadEvent.Delete, thread);
-    expect(receiptEventsVersion()).toBe(before + 3);
+    expect(receiptEventsVersion(room)).toBe(before + 3);
     // An event a timeline takes that no receipt waited for is no change.
     await room.addLiveEvents([message('$next', 2000)], { addToState: false });
-    expect(receiptEventsVersion()).toBe(before + 3);
+    expect(receiptEventsVersion(room)).toBe(before + 3);
+  });
+
+  it("counts no change for a root that moves in the room's lists of threads", async () => {
+    const named = message('$named', 1000);
+    await room.addLiveEvents([named], { addToState: false });
+    expect(receiptReadTs(room, room, '$named', 5000)).toBe(1000);
+    const before = receiptEventsVersion(room);
+    const threadList = new EventTimelineSet(room, {});
+    Object.assign(room, { threadsTimelineSets: [threadList, threadList] });
+
+    room.emit(RoomEvent.Timeline, named, room, undefined, true, {
+      timeline: threadList.getLiveTimeline(),
+    });
+    room.emit(RoomEvent.TimelineReset, room, threadList, true);
+
+    expect(receiptEventsVersion(room)).toBe(before);
+  });
+
+  it('counts a change when the local echo of a named event moves on, and for its room only', () => {
+    const echo = message('$sent', 1000);
+    echo.setStatus(EventStatus.SENDING);
+    room.addPendingEvent(echo, 'txn');
+    const other = new Room('!other:server', mx, '@me:server');
+    expect(receiptReadTs(room, room, '$sent', 5000)).toBe(1000);
+    expect(receiptReadTs(other, other, '$sent', 5000)).toBe(5000);
+    const before = [receiptEventsVersion(room), receiptEventsVersion(other)];
+
+    // The remote echo brings the server's time.
+    room.emit(RoomEvent.LocalEchoUpdated, echo, room, '$sent', EventStatus.SENT);
+    room.emit(RoomEvent.LocalEchoUpdated, message('$unasked', 1000), room);
+
+    expect(receiptEventsVersion(room)).toBe(before[0]! + 1);
+    expect(receiptEventsVersion(other)).toBe(before[1]);
   });
 
   it('keeps no answer for a room stand-in that tells nothing of its events', () => {

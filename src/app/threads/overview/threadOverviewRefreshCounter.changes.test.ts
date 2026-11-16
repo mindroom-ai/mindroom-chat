@@ -281,6 +281,15 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     ]);
   });
 
+  it('marks the room for a timeline that starts over, without a count', () => {
+    const { room, told } = setup();
+
+    expect(told(() => room.emit(RoomEvent.TimelineReset, room))).toEqual({
+      marked: 'room',
+      counted: 0,
+    });
+  });
+
   it('marks the thread of an event an edit is put on or taken off', () => {
     const { client, told } = setup();
     const emit = (fake: FakeEvent) => () => client.emit(MatrixEventEvent.Replaced, event(fake));
