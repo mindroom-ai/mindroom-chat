@@ -8,6 +8,14 @@ import { createContext } from 'react';
 export const ManualExpansionStateContext = createContext<Map<string, boolean> | undefined>(
   undefined
 );
+
+// The owning timeline's expand/collapse-all baseline, scoped to that timeline instance. Newly
+// mounted rows read it render-purely as their initial expanded state (virtualized timelines mount
+// rows lazily), and mounted rows follow its changes in an effect, one commit after the timeline
+// captures its reader anchor. `undefined` means "no override, use the per-message default".
+// Long messages and finished agent work both follow it.
+export const ExpandAllInitContext = createContext<boolean | undefined>(undefined);
+
 export const MANUAL_EXPANSION_STATE_LIMIT = 4000;
 
 export const rememberManualExpansionState = (

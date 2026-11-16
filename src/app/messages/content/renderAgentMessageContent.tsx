@@ -1,4 +1,4 @@
-import { type ComponentProps, type ReactNode } from 'react';
+import { useMemo, type ComponentProps, type ReactNode } from 'react';
 import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { Box, Icon, Icons } from 'folds';
 import type { HTMLReactParserOptions } from 'html-react-parser';
@@ -16,8 +16,12 @@ import {
 import { useToolTraceMarkerParserOptions } from '../html/HtmlBlocks';
 import type { ToolMetadataStatus } from '../../matrix/protocol/toolTrace';
 import { getAiRunInfo, isAiRunStreaming } from '../../matrix/protocol/aiRun';
-import { formatMarkdownTextBodyAsHtml, formatMessageTextBodyAsHtml } from '../html/blocks';
-import { getLongTextSource } from '../../matrix/protocol/longText';
+import {
+  MINDROOM_TOOL_REF_ICON,
+  formatMarkdownTextBodyAsHtml,
+  formatMessageTextBodyAsHtml,
+} from '../html/blocks';
+import { getLongTextSource, hasLongTextMetadata } from '../../matrix/protocol/longText';
 import { LongTextKind, LongTextText } from './LongTextText';
 import { PasteAttachmentContent } from './PasteAttachmentContent';
 import { ThinkingPlaceholder } from '../agent-run/ThinkingPlaceholder';
@@ -103,6 +107,48 @@ function AgentRenderBody({
   );
 }
 
+type AgentWorkBodyProps = {
+  html: string;
+  foldKey: string;
+  /** Whether the reply finished and may fold its work. */
+  finished: boolean;
+  durationMs?: number;
+  /** The body of the given HTML. */
+  renderHtml: (customBody: string) => ReactNode;
+  /** The reasoning header and tool-call cog around a body. */
+  wrapWithReasoning: (body: ReactNode) => ReactNode;
+};
+
+/**
+ * An agent reply with tool calls, in the same tree while it streams and after, its work folded
+ * once it finished with an answer after its last tool call.
+ */
+function AgentWorkBody({
+  html,
+  foldKey,
+  finished,
+  durationMs,
+  renderHtml,
+  wrapWithReasoning,
+}: AgentWorkBodyProps) {
+  // A timeline renders its rows again on each streamed edit of any reply; the split waits for this
+  // reply's own HTML to change, and for it to finish.
+  const split = useMemo(() => (finished ? splitFinishedWork(html) : undefined), [finished, html]);
+  return (
+    <FinishedWorkFold
+      foldKey={foldKey}
+      durationMs={durationMs}
+      whole={wrapWithReasoning(renderHtml(html))}
+      folded={
+        split && {
+          work: wrapWithReasoning(renderHtml(split.head)),
+          answer: renderHtml(split.tail),
+        }
+      }
+    />
+  );
+}
+
 export const renderAgentMessageContent = ({
   mEvent,
   fromMindroomAgent = false,
@@ -171,16 +217,14 @@ export const renderAgentMessageContent = ({
   const wrapWithReasoning = (bodyContent: Record<string, unknown>, body: ReactNode) =>
     withReasoning(bodyContent, body, htmlReactParserOptions, linkifyOpts);
 
-  // A finished reply folds its work, everything up to its last tool call, behind one row, as T3
-  // Code folds a finished turn; the answer after it stays. The work took from the reply's first
-  // event to its final edit.
+  // A finished reply taller than the screen folds its work, everything up to its last tool call,
+  // behind one row, as T3 Code folds a finished turn; the answer after it stays. The work took
+  // from the reply's first event to its final edit. Search results and highlighted rows show the
+  // whole reply.
   const foldEventId = eventId ?? mEvent?.getId();
   const status = getAiRunInfo(content)?.status;
-  const foldsFinishedWork =
-    fromMindroomAgent &&
-    foldEventId !== undefined &&
-    !!status &&
-    FINISHED_AI_RUN_STATUSES.has(status);
+  const foldsWork = fromMindroomAgent && highlightRegex === undefined;
+  const finished = !!status && FINISHED_AI_RUN_STATUSES.has(status);
   const finalEditTs = mEvent?.replacingEvent()?.getTs();
   const workDurationMs =
     finalEditTs === undefined || mEvent === undefined ? undefined : finalEditTs - mEvent.getTs();
@@ -192,15 +236,18 @@ export const renderAgentMessageContent = ({
     renderHtml: (customBody: string | undefined) => ReactNode,
     canFold = true
   ) => {
-    const split = foldsFinishedWork && canFold && html ? splitFinishedWork(html) : undefined;
-    if (!split) return wrapWithReasoning(bodyContent, renderHtml(html));
+    if (!foldsWork || !html?.includes(MINDROOM_TOOL_REF_ICON) || foldEventId === undefined) {
+      return wrapWithReasoning(bodyContent, renderHtml(html));
+    }
     return (
-      <>
-        <FinishedWorkFold foldKey={`finished-work:${foldEventId}`} durationMs={workDurationMs}>
-          {wrapWithReasoning(bodyContent, renderHtml(split.head))}
-        </FinishedWorkFold>
-        {renderHtml(split.tail)}
-      </>
+      <AgentWorkBody
+        html={html}
+        foldKey={`finished-work:${foldEventId}`}
+        finished={finished && canFold}
+        durationMs={workDurationMs}
+        renderHtml={renderHtml}
+        wrapWithReasoning={(body) => wrapWithReasoning(bodyContent, body)}
+      />
     );
   };
 
@@ -271,8 +318,9 @@ export const renderAgentMessageContent = ({
             linkifyOpts={linkifyOpts}
           />
         ),
-        // The preview stops partway; the split waits for the whole reply in the sidecar.
-        metadataStatus !== 'loading'
+        // The preview stops partway, also when the sidecar could not be read; only the whole
+        // reply from the sidecar folds.
+        !hasLongTextMetadata(resolvedContent)
       )
     );
 

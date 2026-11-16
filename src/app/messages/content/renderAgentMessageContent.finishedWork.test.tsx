@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
@@ -6,14 +7,10 @@ import type { HTMLReactParserOptions } from 'html-react-parser';
 import { MatrixEvent } from 'matrix-js-sdk';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { renderAgentMessageContent } from './renderAgentMessageContent';
-import type { ToolMetadataStatus } from '../../matrix/protocol/toolTrace';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
 
 // The folded work shows its tool calls once open, so these tests show them.
 beforeEach(showToolCalls);
-
-// The tool metadata status the long-text renderer reports: `loading` until the sidecar is read.
-const longText = vi.hoisted(() => ({ status: 'unavailable' as ToolMetadataStatus }));
 
 // The real RenderBody and its memo, under an MText that passes the formatted body and renders
 // the extras after it, as MText does.
@@ -53,15 +50,6 @@ vi.mock('../thread-summary/ThreadSummaryCard', () => ({ ThreadSummaryCard: () =>
 vi.mock('../../approvals/ToolApprovalCard', () => ({ ToolApprovalCard: () => null }));
 vi.mock('./PasteAttachmentContent', () => ({ PasteAttachmentContent: () => null }));
 vi.mock('../agent-run/ThinkingPlaceholder', () => ({ ThinkingPlaceholder: () => null }));
-vi.mock('./LongTextText', () => ({
-  LongTextKind: { Text: 'text', Emote: 'emote', Notice: 'notice' },
-  LongTextText: ({ content, renderBody }: any) =>
-    renderBody(
-      content,
-      { body: content.body, customBody: content.formatted_body },
-      longText.status
-    ),
-}));
 
 vi.mock('../../approvals/ApprovalArgumentFields.css', () => ({
   Arguments: 'Arguments',
@@ -144,15 +132,31 @@ vi.spyOn(mEvent, 'replacingEvent').mockReturnValue(
   new MatrixEvent({ origin_server_ts: 1_133_000 })
 );
 
+// Each test shows a reply of its own: the fold remembers per reply whether it was tall.
+let replyCount = 0;
+let replyId = '$reply';
+// How tall the reply renders, in pixels; jsdom's viewport is 768.
+let replyHeight = 2000;
+const createNodeMock = () => {
+  const element = document.createElement('div');
+  element.getBoundingClientRect = () => ({ height: replyHeight } as DOMRect);
+  return element;
+};
+
 let renderer: ReactTestRenderer | undefined;
-const render = (content: Record<string, unknown>, fromMindroomAgent = true) =>
+const render = (
+  content: Record<string, unknown>,
+  fromMindroomAgent = true,
+  highlightRegex?: RegExp
+) =>
   act(() => {
     const tree = (
       <ClientConfigProvider value={{}}>
         {renderAgentMessageContent({
           mEvent,
-          eventId: '$reply',
+          eventId: replyId,
           fromMindroomAgent,
+          highlightRegex,
           displayName: 'Agent',
           msgType: 'm.text',
           content,
@@ -162,7 +166,7 @@ const render = (content: Record<string, unknown>, fromMindroomAgent = true) =>
       </ClientConfigProvider>
     );
     if (renderer) renderer.update(tree);
-    else renderer = create(tree);
+    else renderer = create(tree, { createNodeMock });
   });
 const text = () => JSON.stringify(renderer?.toJSON());
 const textOf = (node: ReactTestInstance | string): string =>
@@ -175,10 +179,15 @@ const toolCalls = () =>
     .map((node) => node.children.join(''));
 
 describe('finished agent work', () => {
+  beforeEach(() => {
+    replyCount += 1;
+    replyId = `$reply${replyCount}`;
+    replyHeight = 2000;
+  });
+
   afterEach(() => {
     act(() => renderer?.unmount());
     renderer = undefined;
-    longText.status = 'unavailable';
   });
 
   it('folds the work of a finished reply and keeps its answer', () => {
@@ -245,27 +254,32 @@ describe('finished agent work', () => {
     expect(text()).not.toContain('Let me look.');
   });
 
-  describe('a long reply in a sidecar', () => {
-    const longReply = (status: string) => ({
-      ...reply(status),
-      url: 'mxc://example.org/long-text',
-      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
-    });
+  it('does not fold a reply that fits on the screen', () => {
+    replyHeight = 500;
+    render(reply('completed'));
 
-    it('folds once the sidecar is read', () => {
-      render(longReply('completed'));
+    expect(text()).not.toContain('Worked');
+    expect(text()).toContain('Let me look.');
+    expect(text()).toContain('The answer.');
+    expect(toolCalls()).toEqual(['web_search', 'read_file']);
+  });
 
-      expect(text()).toContain('Worked for 2m 13s');
-      expect(text()).toContain('The answer.');
-      expect(text()).not.toContain('Let me look.');
-    });
+  it('does not fold a reply that search highlights', () => {
+    render(reply('completed'), true, /answer/gi);
 
-    it('does not fold the preview while the sidecar loads', () => {
-      longText.status = 'loading';
-      render(longReply('completed'));
+    expect(text()).not.toContain('Worked');
+    expect(text()).toContain('Let me look.');
+  });
 
-      expect(text()).not.toContain('Worked');
-      expect(text()).toContain('Let me look.');
-    });
+  it('keeps a short reply in place when it finishes on screen', () => {
+    replyHeight = 500;
+    const firstParagraph = () =>
+      renderer!.root.find((node) => node.type === 'p' && textOf(node) === 'Let me look.');
+    render(reply('streaming'));
+    const before = firstParagraph();
+
+    render(reply('completed'));
+    expect(text()).not.toContain('Worked');
+    expect(firstParagraph()).toBe(before);
   });
 });

@@ -20,8 +20,18 @@ A MindRoom agent reply folds when all of these hold:
 1. The sender is a MindRoom agent (`fromMindroomAgent`).
 2. The reply is finished: its AI run status is `completed` or `cached`. A reply that is
    streaming, `error` or `cancelled` never folds (T3 does not fold interrupted or failed turns).
-3. Its rendered HTML has at least one tool marker, and some non-whitespace content follows
-   the last one.
+3. Its rendered HTML has at least one tool marker, and visible content follows the last one:
+   once sanitized as the renderer sanitizes it, text other than whitespace and the pending mark
+   `⏳`, or an image, video or audio element.
+4. It is taller than one screen (owner decision, 2026-11-16). The reply first renders unfolded;
+   before it paints, its rendered height is measured once against the viewport height
+   (`window.innerHeight`), and only a taller reply folds, so the reader sees no jump. The verdict
+   is remembered per reply (a bounded map), so a virtualization remount folds or stays open on
+   its first paint without measuring again.
+5. It is not a search result or a highlighted row (`highlightRegex` set); those show the whole
+   reply.
+6. A long reply whose body is in a sidecar folds only once the sidecar is read; the truncated
+   preview never folds, also when the sidecar cannot be read.
 
 When it folds:
 
@@ -33,16 +43,22 @@ When it folds:
   renders today; clicking again folds it.
 - The tail renders as it does today.
 - The duration runs from the reply event's `origin_server_ts` to the timestamp of its
-  latest replacement (the final stream edit). With no replacement there is no duration.
-- Copy, search highlighting, tool-call rows, approvals and the `showToolCalls` preference
-  keep working on the folded part once it is open. Copy still copies the whole body.
+  latest replacement (the final stream edit). With no replacement there is no duration. It is
+  formatted with `Intl` in the interface language (narrow units: `45s`, `2m 13s`, `1h 4m` in
+  English).
+- Copy, tool-call rows, approvals and the `showToolCalls` preference keep working on the
+  folded part once it is open. Copy still copies the whole body.
 - A reply the reader opened stays open across virtualization remounts. Store the choice
   in the timeline's existing `ManualExpansionStateContext` map, under a key distinct from
   `CollapsibleMessage`'s key for the same event.
-- Every finished reply in the history folds, not just the latest one (T3 folds every turn).
+- The timeline's expand all opens the folded work and collapse all folds it, as it does for
+  `CollapsibleMessage` (`ExpandAllInitContext`: true opens, false folds, undefined keeps the
+  reply's own state).
+- Every finished reply in the history that is taller than a screen folds, not just the latest
+  one.
 
-Nothing else changes: user messages, agent replies without tool calls, and replies that
-end in a tool call render as today.
+Nothing else changes: user messages, agent replies without tool calls, replies that end in a
+tool call and replies that fit on one screen render as today, with no row.
 
 ## Design
 
@@ -50,27 +66,32 @@ end in a tool call render as today.
   `src/app/messages/agent-run/finishedWorkSplit.ts`. Parse with `htmlToDOM` (already used by
   `toolRefDom.ts`), find the last top-level node whose text matches
   `MINDROOM_TOOL_REF_HTML_REG_G`'s marker form, and return `{ head, tail }` HTML strings, or
-  `undefined` when no marker exists or the tail is blank. The backend writes every marker as
-  its own paragraph (`_format_tool_marker` wraps it in blank lines), so a top-level split is
-  exact. Memoize on the HTML string, because every streamed edit re-renders the row.
-- **Fold component:** `FinishedWorkFold` in `src/app/messages/agent-run/`. Renders the row and,
-  when open, its children. Reuse the disclosure styling of `ToolCallsFold`/`Reasoning` where it
+  `undefined` when no marker exists or nothing visible follows it. The backend writes every
+  marker as its own paragraph (`_format_tool_marker` wraps it in blank lines), so a top-level
+  split is exact. The rendering component memoizes it on the HTML string (`useMemo`), because
+  every streamed edit re-renders the row.
+- **Fold component:** `FinishedWorkFold` in `src/app/messages/agent-run/`. Renders the reply
+  whole, measures it in a layout effect, and when it is taller than the viewport renders the
+  row, the work when open, and the answer. Reuse the disclosure styling of `ToolCallsFold`/`Reasoning` where it
   fits; no new design language.
 - **Wiring:** the agent text path in `renderAgentMessageContent.tsx` (`renderBody` and the
   long-text path, so hydrated sidecar replies fold too). When the split applies, render
   `FinishedWorkFold` around the reasoning header, cog and head body, then the tail body.
   Keep `ToolCallsFold` as the outer provider so the cog still counts all calls.
 - **Strings:** `Worked for {{duration}}` and `Worked` in `en.json` and all 16 overlay files.
-  Format the duration as T3 does (`45s`, `2m 13s`, `1h 4m`).
+  Format the duration with `Intl` (`formatWorkDuration` in `src/app/lib/time.ts`).
 
 ## Testing
 
 - Unit tests for `splitFinishedWork`: no marker; marker at the end; one marker then text;
-  several markers; whitespace-only tail; marker text inside a code block does not count.
-- Component tests: a completed reply folds and opens on click; a streaming reply, an
-  `error` reply, a reply without tools and a non-agent message do not fold; the label shows
-  the duration from the replacement timestamp; the open state survives a remount through
-  `ManualExpansionStateContext`.
+  several markers; whitespace-only tail; marker text inside a code block does not count; a
+  tail of only `⏳` or of content the sanitizer drops does not fold, an image-only tail does;
+  comments are not text; under the browser parser a `<pre>` keeps its leading newline.
+- Component tests: a completed reply taller than the screen folds and opens on click, a shorter
+  one does not; a streaming reply, an `error` reply, a reply without tools, a non-agent message
+  and a highlighted row do not fold; the label shows the duration from the replacement
+  timestamp; the open state survives a remount through `ManualExpansionStateContext`; expand
+  all opens and folds it; a sidecar reply folds once read and not when the read fails.
 - Screenshots of a folded and an opened reply for the pull request.
 
 ## Not doing

@@ -10,8 +10,9 @@ vi.mock('./CollapsibleMessage.css', () => ({
   CollapsiblePill: 'collapsible-pill',
 }));
 
-import { ExpandAllInitContext, CollapsibleMessage } from './CollapsibleMessage';
+import { CollapsibleMessage } from './CollapsibleMessage';
 import {
+  ExpandAllInitContext,
   ManualExpansionStateContext,
   rememberManualExpansionState,
 } from '../messages/manualExpansionState';

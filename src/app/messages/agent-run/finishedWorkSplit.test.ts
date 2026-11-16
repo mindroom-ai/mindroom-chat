@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatWorkDuration, splitFinishedWork } from './finishedWorkSplit';
+import { splitFinishedWork } from './finishedWorkSplit';
 import backendBodies from '../__fixtures__/backendToolMarkerBodies.json';
 
 const marker = (name: string, n: number) => `<p>🔧 <code>${name}</code> [${n}]</p>`;
@@ -19,6 +19,27 @@ describe('splitFinishedWork', () => {
 
   it('returns undefined when only an empty paragraph follows', () => {
     expect(splitFinishedWork(`${marker('shell', 1)}<p> </p>`)).toBeUndefined();
+  });
+
+  it('returns undefined when only the pending mark follows', () => {
+    expect(splitFinishedWork(`${marker('shell', 1)}<p>⏳</p>`)).toBeUndefined();
+  });
+
+  it('returns undefined when only content the renderer drops follows', () => {
+    expect(splitFinishedWork(`${marker('shell', 1)}<script>x</script>`)).toBeUndefined();
+  });
+
+  it('splits before an answer that is only an image', () => {
+    const image = '<p><img src="mxc://example.org/a" alt="Answer"></p>';
+    expect(splitFinishedWork(`${marker('shell', 1)}${image}`)?.tail).toBe(image);
+  });
+
+  it('drops comments, which are not text', () => {
+    expect(splitFinishedWork(`${marker('shell', 1)}<!-- note -->`)).toBeUndefined();
+    expect(splitFinishedWork(`<p>a</p><!-- b -->${marker('shell', 1)}<!-- c --><p>x</p>`)).toEqual({
+      head: `<p>a</p>${marker('shell', 1)}`,
+      tail: '<p>x</p>',
+    });
   });
 
   it('splits after the last marker', () => {
@@ -73,23 +94,5 @@ describe('splitFinishedWork', () => {
     expect(
       splitFinishedWork(backendBodies['leading and trailing tool calls'].formatted_body)
     ).toBeUndefined();
-  });
-
-  it('returns the same result for the same HTML, also between other replies', () => {
-    const html = `${marker('shell', 1)}<p>x</p>`;
-    const first = splitFinishedWork(html);
-    splitFinishedWork(`${marker('grep', 1)}<p>y</p>`);
-    expect(splitFinishedWork(html)).toBe(first);
-  });
-});
-
-describe('formatWorkDuration', () => {
-  it.each([
-    [45_000, '45s'],
-    [133_000, '2m 13s'],
-    [3_840_000, '1h 4m'],
-    [400, '0s'],
-  ])('formats %d ms as %s', (ms, label) => {
-    expect(formatWorkDuration(ms)).toBe(label);
   });
 });

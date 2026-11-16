@@ -10,6 +10,7 @@ import React, {
 } from 'react';
 import { countCacheProbe } from '../event-store/cache/cacheProbe';
 import {
+  ExpandAllInitContext,
   ManualExpansionStateContext,
   rememberManualExpansionState,
 } from '../messages/manualExpansionState';
@@ -20,13 +21,6 @@ const MAX_HEIGHT = '11em';
 const FADE_EM = 4;
 /** What keeps its own click in a folded message's faded lines. */
 const OWN_CLICK = 'a, button, input, select, textarea, summary, [role="button"], [role="link"]';
-
-// The owning timeline's expand/collapse-all baseline, scoped to that timeline
-// instance. Newly mounted rows read it render-purely as their initial expanded
-// state (virtualized timelines mount rows lazily), and mounted rows follow its
-// changes in an effect, one commit after the timeline captures its reader
-// anchor. `undefined` means "no override — use the per-message default".
-export const ExpandAllInitContext = React.createContext<boolean | undefined>(undefined);
 
 const ExpansionLayoutChangeContext = React.createContext<(() => void) | undefined>(undefined);
 

@@ -84,6 +84,37 @@ export const formatCallDuration = (seconds: number, language = 'en'): string => 
   ).format(parts);
 };
 
+const narrowUnitFormat = (language: string, unit: 'second' | 'minute' | 'hour') =>
+  numberFormat(language, { style: 'unit', unit, unitDisplay: 'narrow' });
+
+/**
+ * How long an agent worked, as T3 Code shows it: seconds under a minute ("45s"), then minutes and
+ * seconds ("2m 13s"), then hours and minutes ("1h 4m"), in the language's own units and digits.
+ */
+export const formatWorkDuration = (ms: number, language = 'en'): string => {
+  const totalSeconds = Math.max(0, Math.round(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours === 0 && minutes === 0) return narrowUnitFormat(language, 'second').format(seconds);
+  const parts =
+    hours > 0
+      ? [
+          narrowUnitFormat(language, 'hour').format(hours),
+          narrowUnitFormat(language, 'minute').format(minutes),
+        ]
+      : [
+          narrowUnitFormat(language, 'minute').format(minutes),
+          narrowUnitFormat(language, 'second').format(seconds),
+        ];
+  return cachedFormatter(
+    'list',
+    language,
+    { type: 'unit', style: 'narrow' },
+    () => new Intl.ListFormat(language, { type: 'unit', style: 'narrow' })
+  ).format(parts);
+};
+
 /**
  * A moment of a call, from its start, as a clock: `m:ss`, from an hour on `h:mm:ss`; fractions
  * round down.
