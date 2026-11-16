@@ -1,27 +1,41 @@
+import { useAtomValue } from 'jotai';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { useClientConfig } from '../config/useClientConfig';
 import { resolveComputerApiUrl } from './api';
-import { trustedServerOrigins, trustedServers } from './agentServer';
+import { trustedServerOrigins } from './agentServer';
+import { computerServicePreferenceAtom } from './computerServiceSettings';
 import { useOpenIdBinding, useRoomAgentServers } from './useAgentServers';
 
 /**
- * One agent's own MindRoom server in a room: the trusted origin (`trustedServerOrigins`) that agent
- * published about itself while the homeserver binds tokens, else the deployment's configured one.
- * Never another agent's published origin: in a room shared with someone else's MindRoom, the room's
- * newest server may belong to it, so what this agent asks for goes only to its own. `pending` until
- * the homeserver answers on binding tokens, which can change it.
+ * Where what one agent asks the person for, such as a key, may go: an origin the deployment or the
+ * person chose, never one only published state names.
+ *
+ * - The chosen origins: the deployment's `mindroom.computers.apiUrl` and `trustedApiUrls`, and the
+ *   person's own server on this device (Settings, Computers; empty there turns computers off and
+ *   names none).
+ * - While the homeserver binds tokens and the agent published a server about itself, that server if
+ *   it is a chosen one, else none: never the room's newest server, another agent's, or a fallback.
+ *   Any `mindroom_` account can publish an origin, and a token bound to it is useless elsewhere, but
+ *   a key is not, so a published origin counts here only when chosen, also in a client without a
+ *   trusted list.
+ * - Otherwise the deployment's server, else the person's.
+ *
+ * `pending` until the homeserver answers on binding tokens, which can change it.
  */
 export const useAgentMindroomServer = (mx: MatrixClient, roomId: string, agentUserId: string) => {
   const binding = useOpenIdBinding();
   const { computers } = useClientConfig().mindroom ?? {};
-  const published = trustedServers(
-    useRoomAgentServers(mx.getRoom(roomId)),
-    trustedServerOrigins(computers)
-  ).find((server) => server.agentUserId === agentUserId)?.apiUrl;
+  const preference = useAtomValue(computerServicePreferenceAtom);
+  const published = useRoomAgentServers(mx.getRoom(roomId)).find(
+    (server) => server.agentUserId === agentUserId
+  )?.apiUrl;
   // An unusable deployment value counts as unset, as it does in Settings.
   const configured = resolveComputerApiUrl(computers?.apiUrl);
-  return {
-    apiUrl: binding === true && published ? published : configured,
-    pending: binding === undefined,
-  };
+  const personal = preference ? resolveComputerApiUrl(preference) : undefined;
+  let apiUrl = configured ?? personal;
+  if (binding === true && published) {
+    const chosen = trustedServerOrigins(computers) ?? new Set<string>();
+    apiUrl = chosen.has(published) || published === personal ? published : undefined;
+  }
+  return { apiUrl, pending: binding === undefined };
 };

@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { act } from 'react-dom/test-utils';
 import { createRoot, type Root } from 'react-dom/client';
+import { getDefaultStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
+import { computerServicePreferenceAtom } from '../computer/computerServiceSettings';
 import { ClientSessions, MindroomServerError } from '../computer/clientSessions';
 import type { AgentServer } from '../computer/agentServer';
 import type { SecretRequest } from '../matrix/protocol/secretRequest';
@@ -17,6 +19,7 @@ const OTHER_AGENT = '@mindroom_helper:example.org';
 const AGENT_SERVER = 'https://agent.example.org';
 const OTHER_SERVER = 'https://other.example.org';
 const CONFIGURED = 'https://configured.example.org';
+const PERSONAL = 'https://personal.example.org';
 const PATH = '/api/rooms/!room%3Aexample.org/secret-requests/req-1';
 
 type Computers = NonNullable<NonNullable<ClientConfig['mindroom']>['computers']>;
@@ -69,17 +72,20 @@ const request = (overrides: Partial<SecretRequest> = {}): SecretRequest => ({
 
 let host: HTMLDivElement;
 let root: Root;
-// The deployment's `mindroom.computers`; none by default, as in production Chat.
+// The deployment's `mindroom.computers`.
 let computers: Computers = {};
+/** The person's MindRoom server on this device: null follows the deployment, '' turns it off. */
+const setPersonalServer = (value: string | null) =>
+  getDefaultStore().set(computerServicePreferenceAtom, value);
 
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
-  // Without a trusted list, published servers are used unchecked, which the console says once.
-  vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   env.viewer = ALICE;
   env.binding = true;
-  env.published = [published(AGENT, AGENT_SERVER, 1)];
-  computers = {};
+  // By default the agent published nothing and the deployment names its server.
+  env.published = [];
+  computers = { apiUrl: CONFIGURED };
+  setPersonalServer(null);
   env.send.mockReset();
   env.clientSessions.mockReset();
   env.clientSessions.mockImplementation(() => ({ send: env.send }));
@@ -93,7 +99,7 @@ afterEach(() => {
   host.remove();
   vi.useRealTimers();
   vi.unstubAllGlobals();
-  vi.mocked(console.warn).mockRestore();
+  setPersonalServer(null);
 });
 
 const render = (value: SecretRequest = request()) => {
@@ -181,6 +187,17 @@ describe('SecretRequestCard', () => {
     expect(chip()).toBe('Waiting for you');
   });
 
+  it('keeps the typed key out of the markup and out of React state', () => {
+    render();
+
+    type('ghp_secret');
+
+    expect(input()?.value).toBe('ghp_secret');
+    expect(input()?.hasAttribute('value')).toBe(false);
+    expect(host.innerHTML).not.toContain('ghp_secret');
+    expect(button('Save')?.disabled).toBe(false);
+  });
+
   it('shows and hides the key', () => {
     render();
 
@@ -215,56 +232,90 @@ describe('SecretRequestCard', () => {
     expect(text()).not.toContain('expires');
   });
 
-  describe("the asking agent's own server", () => {
-    it('takes the key though another agent published a newer server', async () => {
-      env.published = [published(OTHER_AGENT, OTHER_SERVER, 2), published(AGENT, AGENT_SERVER, 1)];
+  describe('where the key goes', () => {
+    const destination = async () => {
       env.send.mockResolvedValue(answer(204));
       render();
-
       await save();
-
       expect(env.clientSessions).toHaveBeenCalledTimes(1);
-      expect(env.clientSessions).toHaveBeenCalledWith(mx, AGENT_SERVER);
+      return env.clientSessions.mock.calls[0]?.[1] as string;
+    };
+
+    const expectNoField = () => {
+      expect(input()).toBeNull();
+      expect(text()).toContain('Entering keys is not available on this server.');
+      expect(text()).toContain(
+        'To enter keys here, set your MindRoom server in Settings → Computers → Computer service URL.'
+      );
+      expect(env.clientSessions).not.toHaveBeenCalled();
+    };
+
+    // Production Chat names no server and trusts no list, so any `mindroom_` account could publish
+    // an origin and post a card for someone: a token bound to that origin is useless elsewhere, a
+    // key is not.
+    it('never goes to a published server nobody chose, and names none', () => {
+      computers = {};
+      env.published = [published(AGENT, AGENT_SERVER, 1)];
+      render();
+
+      expectNoField();
+      expect(text()).not.toContain('agent.example.org');
     });
 
-    it('takes the key when the deployment trusts it beside its configured one', async () => {
+    it("has no fallback when the agent's own server is not chosen", () => {
+      env.published = [published(AGENT, AGENT_SERVER, 1)];
+      render();
+
+      expectNoField();
+    });
+
+    it("goes to the agent's server when it is the person's own", async () => {
+      computers = {};
+      setPersonalServer(AGENT_SERVER);
+      env.published = [published(AGENT, AGENT_SERVER, 1)];
+
+      expect(await destination()).toBe(AGENT_SERVER);
+    });
+
+    it("goes to the agent's server on the trusted list, though another agent published a newer one", async () => {
       computers = { apiUrl: CONFIGURED, trustedApiUrls: [AGENT_SERVER, OTHER_SERVER] };
       env.published = [published(OTHER_AGENT, OTHER_SERVER, 2), published(AGENT, AGENT_SERVER, 1)];
-      env.send.mockResolvedValue(answer(204));
-      render();
 
-      await save();
-
-      expect(env.clientSessions).toHaveBeenCalledWith(mx, AGENT_SERVER);
+      expect(await destination()).toBe(AGENT_SERVER);
     });
 
-    it("is never another agent's: without its own or a configured one, keys cannot be entered", () => {
+    it("goes to the deployment's server when the agent published none, not another agent's", async () => {
       env.published = [published(OTHER_AGENT, OTHER_SERVER, 2)];
-      render();
 
-      expect(text()).toContain('Entering keys is not available on this server.');
-      expect(input()).toBeNull();
+      expect(await destination()).toBe(CONFIGURED);
     });
 
-    it('is the configured one while the homeserver does not bind tokens', async () => {
+    it("goes to the person's server when the deployment names none", async () => {
+      computers = {};
+      setPersonalServer(PERSONAL);
+
+      expect(await destination()).toBe(PERSONAL);
+    });
+
+    it("goes to the deployment's server while the homeserver does not bind tokens", async () => {
       env.binding = false;
-      computers = { apiUrl: CONFIGURED };
-      env.send.mockResolvedValue(answer(204));
-      render();
+      env.published = [published(AGENT, AGENT_SERVER, 1)];
 
-      await save();
-
-      expect(env.clientSessions).toHaveBeenCalledWith(mx, CONFIGURED);
+      expect(await destination()).toBe(CONFIGURED);
     });
 
-    it('is the configured one when the published one is not trusted', async () => {
-      computers = { apiUrl: CONFIGURED };
-      env.send.mockResolvedValue(answer(204));
+    it('goes nowhere when nothing is named and the person turned their server off', () => {
+      computers = {};
+      setPersonalServer('');
       render();
 
-      await save();
+      expectNoField();
+    });
 
-      expect(env.clientSessions).toHaveBeenCalledWith(mx, CONFIGURED);
+    it("names its host on the requester's card", () => {
+      render();
+
+      expect(text()).toContain('Sent to configured.example.org');
     });
 
     it('holds Save until the homeserver answers on binding tokens', async () => {
@@ -481,8 +532,20 @@ describe('SecretRequestCard', () => {
 
     await save();
 
-    expect(host.querySelector('[role="alert"]')?.textContent).toBe(detail);
+    const alert = host.querySelector('[role="alert"]');
+    expect(alert?.textContent).toBe(detail);
     expect(input()?.value).toBe('ghp_secret');
+    // The field names the error as its description while it shows.
+    expect(alert?.id).not.toBe('');
+    expect(input()?.getAttribute('aria-describedby')).toBe(alert?.id);
+    expect(input()?.getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('describes the field with no error before one shows', () => {
+    render();
+
+    expect(input()?.hasAttribute('aria-describedby')).toBe(false);
+    expect(input()?.hasAttribute('aria-invalid')).toBe(false);
   });
 
   it('keeps the key for a retry when MindRoom cannot be reached', async () => {
@@ -539,7 +602,7 @@ describe('SecretRequestCard', () => {
       expect(input()?.value).toBe('ghp_secret');
       // The key never left: no request reached the route.
       expect(fetchStub.mock.calls.map(([url]) => String(url))).not.toContain(
-        `${AGENT_SERVER}${PATH}`
+        `${CONFIGURED}${PATH}`
       );
     }
   );

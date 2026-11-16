@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { Box, Button, Icon, IconButton, Icons, Input, Text } from 'folds';
@@ -61,9 +61,10 @@ const readDetail = async (response: Response): Promise<string | undefined> => {
 };
 
 /**
- * The requester's masked field with Save and Decline. The key stays in this component's state
- * until it goes to the asking agent's own MindRoom server, never to an origin the card or another
- * agent names, and is dropped once the server took it or the request is gone.
+ * The requester's masked field with Save and Decline. The key stays in the field, uncontrolled, so
+ * that neither React's state nor the field's `value` attribute holds it, until it goes to the
+ * origin `useAgentMindroomServer` allows for the asking agent; it is cleared once the server took
+ * it or the request is gone.
  */
 function SecretRequestAnswer({
   request,
@@ -80,10 +81,12 @@ function SecretRequestAnswer({
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const { apiUrl, pending } = useAgentMindroomServer(mx, roomId, agentUserId);
-  const [secret, setSecret] = useState('');
+  const field = useRef<HTMLInputElement>(null);
+  const [hasKey, setHasKey] = useState(false);
   const [visible, setVisible] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string>();
+  const errorId = useId();
   const form = useRef<HTMLFormElement>(null);
   // A second press before the first answer arrives sends nothing.
   const sendingRef = useRef(false);
@@ -95,12 +98,24 @@ function SecretRequestAnswer({
   };
 
   if (!pending && !apiUrl) {
-    return <Text size="T200">{t('mindroomUi.messages.secretRequestCard.unavailable')}</Text>;
+    // Never the published host: a person who trusts their own MindRoom server names it in Settings.
+    return (
+      <>
+        <Text size="T200">{t('mindroomUi.messages.secretRequestCard.unavailable')}</Text>
+        <Text size="T200" className={sectionCss.SectionMeta}>
+          {t('mindroomUi.messages.secretRequestCard.unavailableHint', {
+            page: t('settings.general.computers.sectionTitle'),
+            field: t('settings.general.computers.apiUrl'),
+          })}
+        </Text>
+      </>
+    );
   }
 
   const ready = !pending && !!apiUrl && !sending;
 
   const send = async (decline: boolean) => {
+    const secret = field.current?.value ?? '';
     if (pending || !apiUrl || sendingRef.current) return;
     if (!decline && secret.trim() === '') return;
     const byPointer = pointerAnswer.current;
@@ -122,7 +137,7 @@ function SecretRequestAnswer({
       );
       if (response.ok || response.status === 404) {
         const focused = document.activeElement;
-        setSecret('');
+        if (field.current) field.current.value = '';
         onAnswer(
           response.status === 404 ? 'inactive' : decline ? 'declined' : 'saved',
           !byPointer && !!form.current?.contains(focused) && isKeyboardFocus(focused)
@@ -159,6 +174,7 @@ function SecretRequestAnswer({
         }}
       >
         <Input
+          ref={field}
           className={visible ? undefined : css.Masked}
           type="text"
           size="300"
@@ -166,9 +182,10 @@ function SecretRequestAnswer({
           aria-label={t('mindroomUi.messages.secretRequestCard.title', {
             name: request.displayName,
           })}
+          aria-describedby={error ? errorId : undefined}
+          aria-invalid={error ? true : undefined}
           placeholder={t('mindroomUi.messages.secretRequestCard.placeholder')}
-          value={secret}
-          onChange={(event) => setSecret(event.currentTarget.value)}
+          onChange={(event) => setHasKey(event.currentTarget.value.trim() !== '')}
           // Not a sign-in field: browsers and password managers neither fill nor save it.
           autoComplete="off"
           autoCorrect="off"
@@ -204,7 +221,7 @@ function SecretRequestAnswer({
             fill="Soft"
             outlined
             radii="300"
-            disabled={!ready || secret.trim() === ''}
+            disabled={!ready || !hasKey}
             onClick={notePointer}
           >
             <Text size="B300">{t('mindroomUi.messages.secretRequestCard.save')}</Text>
@@ -217,7 +234,7 @@ function SecretRequestAnswer({
             outlined
             radii="300"
             disabled={!ready}
-            onClick={(event) => {
+            onClick={(event: { detail: number }) => {
               notePointer(event);
               void send(true);
             }}
@@ -226,8 +243,13 @@ function SecretRequestAnswer({
           </Button>
         </div>
       </form>
+      {apiUrl && (
+        <Text size="T200" className={sectionCss.SectionMeta}>
+          {t('mindroomUi.messages.secretRequestCard.sentTo', { host: new URL(apiUrl).host })}
+        </Text>
+      )}
       {error && (
-        <Text as="p" size="T200" role="alert">
+        <Text as="p" id={errorId} size="T200" role="alert">
           {error}
         </Text>
       )}

@@ -209,7 +209,13 @@ test('the requester saves a key to the MindRoom server only, and another member 
   await expect(field).toHaveAttribute('data-form-type', 'other');
   await expect(field).toHaveCSS('-webkit-text-security', 'disc');
   await expect(card.locator('input[type="password"]')).toHaveCount(0);
+  // The card names where the key goes: the deployment's server, as the agent published none.
+  await expect(card).toContainText('Sent to 127.0.0.1:29597');
   await field.fill(key);
+  // The typed key is in the field only, not in the page's markup.
+  expect(await page.evaluate((value) => document.documentElement.outerHTML.includes(value), key)).toBe(
+    false
+  );
   await card.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(card.getByRole('status')).toHaveText('Saved, waiting for the agent');
   await expect(card.locator('input')).toHaveCount(0);
