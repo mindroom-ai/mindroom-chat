@@ -130,6 +130,52 @@ describe('compact card formatting work', () => {
     harness.unmount();
   });
 
+  it("keeps a room's cards when its list mounts again, as on the way back from a thread", () => {
+    const format = vi.spyOn(Intl.NumberFormat.prototype as { format: unknown }, 'format', 'get');
+    const first = mount(room, [record('$a'), record('$b')]);
+    const original = first.models;
+    first.unmount();
+    expect(format).toHaveBeenCalledTimes(4);
+
+    // Each mount of `useTranslation` gives a function of its own for the same language.
+    state.t = vi.fn(state.t.getMockImplementation());
+    const again = mount(room, [record('$a'), record('$b', 1001)]);
+    expect(again.models[0]).toBe(original[0]);
+    expect(again.models[1]!.messageCount).toBe(1001);
+    expect(format).toHaveBeenCalledTimes(6);
+    again.unmount();
+
+    // Another room builds its own cards.
+    const other = new Room('!other:server', state.mx!, '@me:server');
+    const elsewhere = mount(other, [{ ...record('$a'), roomId: '!other:server' }]);
+    expect(elsewhere.models[0]).not.toBe(original[0]);
+    expect(elsewhere.models[0]!.id.roomId).toBe('!other:server');
+    elsewhere.unmount();
+  });
+
+  it('keeps the cards a render leaves out while their threads are listed, as cards mount in chunks', () => {
+    const records = [record('$a'), record('$b'), record('$c')];
+    let latest: CompactThreadCardViewModel[] = [];
+    const Harness = ({ ids }: { ids: string[] }) => {
+      latest = useCompactThreadCardViewModels({
+        room,
+        threadRootIds: ids,
+        threadRecordMap: new Map(records.map((value) => [value.threadRootId, value])),
+      });
+      return null;
+    };
+    let renderer: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<Harness ids={['$a', '$b', '$c']} />);
+    });
+    const all = latest;
+    act(() => renderer.update(<Harness ids={['$a']} />));
+    act(() => renderer.update(<Harness ids={['$a', '$b', '$c']} />));
+    expect(latest).toEqual(all);
+    latest.forEach((model, index) => expect(model).toBe(all[index]));
+    act(() => renderer.unmount());
+  });
+
   it('refreshes mutable member names, avatars, resolver names, and newly loaded inline mentions', () => {
     const first = record('$a');
     first.status.isResolved = true;
