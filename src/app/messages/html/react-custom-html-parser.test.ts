@@ -59,6 +59,8 @@ vi.mock('../../lib/dom', async () => {
   };
 });
 
+vi.mock('../content/ImageOverlay', () => ({ ImageOverlay: () => null }));
+
 vi.mock('folds', async () => {
   const ReactModule = await import('react');
   const ReactLib = ReactModule.default;

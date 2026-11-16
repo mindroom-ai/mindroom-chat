@@ -1,5 +1,6 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
 import {
+  isPendingScheduledTaskStatus,
   parseScheduleTimestamp,
   parseScheduledTaskStateEvent,
   type ParsedScheduledTask,
@@ -11,7 +12,10 @@ export const getScheduleTimestamp = (task: ParsedScheduledTask): number | undefi
 export const getPendingRoomSchedules = (events: readonly MatrixEvent[]): ParsedScheduledTask[] =>
   events
     .map(parseScheduledTaskStateEvent)
-    .filter((task): task is ParsedScheduledTask => task !== null && task.status === 'pending')
+    .filter(
+      (task): task is ParsedScheduledTask =>
+        task !== null && isPendingScheduledTaskStatus(task.status)
+    )
     .map((task) => (task.threadId === 'main' ? { ...task, threadId: null } : task))
     .sort((left, right) => {
       const leftTime = getScheduleTimestamp(left) ?? Infinity;

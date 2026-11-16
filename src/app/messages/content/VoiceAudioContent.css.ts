@@ -58,10 +58,6 @@ export const PlayButton = style({
   backgroundClip: 'padding-box',
 });
 
-export const PlayIcon = style({
-  transform: 'translateX(1px)',
-});
-
 export const WaveformCell = style({
   gridArea: 'wave',
   minWidth: 0,
