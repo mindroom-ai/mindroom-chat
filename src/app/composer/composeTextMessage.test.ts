@@ -104,13 +104,18 @@ describe('composeTextMessage', () => {
   });
 
   it("sends a MindRoom command as typed, for the room's agents to answer", () => {
-    ['/schedule in 5 min do x', '/list_schedules', '/reload-plugins', '/room_model reset'].forEach(
-      (text) =>
-        expect(compose([line({ text })]), text).toEqual({
-          msgtype: MsgType.Text,
-          body: text,
-          'm.mentions': {},
-        })
+    [
+      '/schedule in 5 min do x',
+      '/Schedule in 5 min do x',
+      '/list_schedules',
+      '/reload-plugins',
+      '/room_model reset',
+    ].forEach((text) =>
+      expect(compose([line({ text })]), text).toEqual({
+        msgtype: MsgType.Text,
+        body: text,
+        'm.mentions': {},
+      })
     );
   });
 

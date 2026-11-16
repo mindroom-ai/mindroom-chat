@@ -348,6 +348,16 @@ describe('composer', () => {
       expect(await pressEnterAfterMention(list)).toBe(true);
     });
 
+    it('sends a MindRoom command a phone keyboard capitalized, as typed', async () => {
+      state.mentionHasSuggestions = false;
+      state.commands = {
+        schedule: { name: 'schedule', description: 'Schedule a task for later execution.' },
+      } as Record<string, SlashCommand>;
+      const typedSchedule = [{ type: 'paragraph', children: [{ text: '/Schedule in 5 min x' }] }];
+      expect(await pressEnterAfterMention(typedSchedule)).toBe(true);
+      expect(alerts()).toEqual([]);
+    });
+
     it('keeps a /word that is no command unsent, with a notice', async () => {
       withInvite(vi.fn(async () => undefined));
       for (const text of ['/zz', '/list_jobs']) {

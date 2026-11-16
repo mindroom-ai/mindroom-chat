@@ -5,6 +5,7 @@ import {
   type AutocompleteQuery,
 } from '../editor/autocomplete/autocompleteQuery';
 import { BlockType } from '../editor/types';
+import { MINDROOM_COMMANDS } from './commands/agentCommands';
 import type { CommandRefusal } from './commands/commandRefusal';
 import type { SlashCommand } from './commands/useCommands';
 import { readableReason } from '../lib/errorReason';
@@ -84,7 +85,11 @@ export const readUnknownCommand = (
   const [run] = first.children;
   if (!run || !Text.isText(run)) return undefined;
   const name = /^\/([a-z][a-z0-9_-]*)(?:\s|$)/i.exec(run.text)?.[1];
-  return name !== undefined && !Object.hasOwn(commands, name) ? name : undefined;
+  if (name === undefined || Object.hasOwn(commands, name)) return undefined;
+  // MindRoom reads its commands in any case, so `/Schedule` from a phone keyboard that
+  // capitalizes the first word goes out as typed too.
+  const lower = name.toLowerCase();
+  return MINDROOM_COMMANDS.some((command) => command.name === lower) ? undefined : name;
 };
 
 /** What the composer says when a command did not run: its usage, or the server's reason. */

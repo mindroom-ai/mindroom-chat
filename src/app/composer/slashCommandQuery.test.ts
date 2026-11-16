@@ -25,6 +25,14 @@ describe('readUnknownCommand', () => {
     expect(readUnknownCommand([line({ text: '/list_jobs now' })], commands)).toBe('list_jobs');
     expect(readUnknownCommand([line({ text: '/reload-all' })], commands)).toBe('reload-all');
     expect(readUnknownCommand([line({ text: '/e2e' })], commands)).toBe('e2e');
+    // Only MindRoom's commands match in any case; a built-in keeps its exact name.
+    expect(readUnknownCommand([line({ text: '/Me waves' })], commands)).toBe('Me');
+  });
+
+  it("knows MindRoom's commands in any case, as MindRoom reads them", () => {
+    ['/Schedule in 5 min do x', '/LIST_SCHEDULES', '/Reload-Plugins', '/E2ee'].forEach((text) =>
+      expect(readUnknownCommand([line({ text })], commands), text).toBeUndefined()
+    );
   });
 
   it('leaves commands, paths, quotes and text that does not start with a slash alone', () => {
