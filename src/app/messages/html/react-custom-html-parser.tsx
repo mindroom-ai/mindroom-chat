@@ -19,6 +19,7 @@ import type { IntermediateRepresentation, Opts as LinkifyOpts } from 'linkifyjs'
 import { Text } from 'folds';
 import { ErrorBoundary } from 'react-error-boundary';
 import * as css from '../../rich-text/CustomHtml.css';
+import { ImageOverlay } from '../content/ImageOverlay';
 import { renderCustomHtmlElement } from './customHtmlRenderers';
 import { renderTextWithMatrixMath } from '../../rich-text/matrixMath';
 import {
@@ -55,6 +56,38 @@ import {
 // Renders `org.matrix.custom.html` message bodies as React: html-react-parser options that
 // style the Matrix formatting tags, render mentions, spoilers, math, code blocks and emoji,
 // link URLs in text, and hand tables, Matrix math and MindRoom blocks to the MindRoom renderers.
+
+/** An inline homeserver image opens the same full-size viewer as link preview pictures. */
+function InlineImage({ alt = '', ...props }: ComponentPropsWithoutRef<'img'>) {
+  const { t } = useTranslation();
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const label = alt || t('sharedUi.imageContent.view');
+  const openViewer = (event: SyntheticEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setViewerOpen(true);
+  };
+  return (
+    <>
+      <button
+        type="button"
+        className={css.InlineImageButton}
+        aria-label={revealDirectionControls(label)}
+        onClick={openViewer}
+      >
+        <img
+          {...props}
+          alt={revealDirectionControls(alt)}
+          className={css.InlineImage}
+          loading="lazy"
+        />
+      </button>
+      {viewerOpen && (
+        <ImageOverlay src={props.src} alt={label} requestClose={() => setViewerOpen(false)} />
+      )}
+    </>
+  );
+}
 
 /** Links that leave the app open in a new tab and do not hand it their opener. */
 const NEW_TAB_LINK = { rel: 'noreferrer noopener', target: '_blank' } as const;
@@ -766,7 +799,7 @@ export const getReactCustomHtmlParser = (
               </span>
             );
           }
-          return <img {...props} src={url} alt={alt ?? ''} loading="lazy" />;
+          return <InlineImage {...props} src={url} alt={alt ?? ''} />;
         }
         default:
           return undefined;
