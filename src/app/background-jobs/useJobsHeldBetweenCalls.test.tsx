@@ -19,17 +19,26 @@ vi.mock('../matrix/client/streamingReplies', async (importOriginal) => ({
   isStreamingReplyCurrent: (_room: Room, event: MatrixEvent) => !unvouched.has(event.getId()!),
 }));
 
-const timelineSet = (events: () => MatrixEvent[]) => ({
-  getLiveTimeline: () => ({ getEvents: events, getNeighbouringTimeline: () => null }),
-  relations: { getChildEventsForEvent: () => undefined },
-});
+const timelineSet = (events: () => MatrixEvent[], thread?: { id: string }) => {
+  const set = {
+    thread,
+    getLiveTimeline: () => ({
+      getEvents: events,
+      getNeighbouringTimeline: () => null,
+      getTimelineSet: () => set,
+    }),
+    relations: { getChildEventsForEvent: () => undefined },
+  };
+  return set;
+};
 
 /** A room as the jobs bar reads it: a thread's events and the main timeline's. */
 const makeRoom = () => {
   const main: MatrixEvent[] = [];
   const threadEvents: MatrixEvent[] = [];
   const thread = Object.assign(new EventEmitter(), {
-    getUnfilteredTimelineSet: () => timelineSet(() => threadEvents),
+    id: THREAD,
+    getUnfilteredTimelineSet: () => timelineSet(() => threadEvents, { id: THREAD }),
     lastReply: () => threadEvents.at(-1) ?? null,
   });
   const room = Object.assign(new EventEmitter(), {
@@ -63,7 +72,9 @@ const makeRoom = () => {
     } else {
       main.push(event);
       act(() => {
-        room.emit('Room.timeline', event, room);
+        room.emit('Room.timeline', event, room, false, false, {
+          timeline: room.getLiveTimeline(),
+        });
       });
     }
     return event;
@@ -208,7 +219,7 @@ it('holds the bar for a reply the client did not see stream yet, as after a relo
 
 it.each([
   ['a reply the client saw stream', false],
-  ['a reply it took at its jobs\' word after a reload', true],
+  ["a reply it took at its jobs' word after a reload", true],
 ])('lets the bar go 2 s after %s stalls without an edit', (_case, reloaded) => {
   room.streamReply('$reply');
   if (reloaded) unvouched.add('$reply');
