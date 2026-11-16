@@ -15,6 +15,7 @@ import {
   type SidebarThreadSectionId,
 } from './threadNavCategoryUtils';
 import { useSnoozeNow } from '../../threads/tags/useSnoozeNow';
+import { useMinuteClock } from '../../lib/hooks/useMinuteClock';
 import {
   makeThreadSidebarPreferencesAtom,
   type ThreadSidebarLayout,
@@ -77,13 +78,16 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
   const [searchParams] = useSearchParams();
   const selectedThreadId = searchParams.get('threadId') ?? undefined;
 
-  // Renewed when a snooze ends, so its thread comes back.
-  const now = useSnoozeNow(
+  // Renewed every minute and when a snooze ends, so its thread comes back then; the signals read
+  // at it go into the cache Activity shares, which reads them at the same clock.
+  const minuteNow = useMinuteClock();
+  const snoozeNow = useSnoozeNow(
     useMemo(
       () => Array.from(index.entries.values(), (entry) => entry.snoozedUntilTs),
       [index.entries]
     )
   );
+  const now = Math.max(minuteNow, snoozeNow);
   const { layout } = preferences;
   const visible = useMemo(
     () =>
@@ -180,7 +184,7 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
             </Text>
           )}
           <ThreadNavRows entries={entries} {...rowsProps} />
-          {sections.map(({ id, entries: sectionEntries }) => {
+          {sections.map(({ id, entries: sectionEntries, total }) => {
             const sectionClosed = isSectionClosed(id);
             return (
               <section key={id} aria-label={t(`threadNav.sections.${id}`)}>
@@ -200,9 +204,7 @@ export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
                     />
                   }
                 >
-                  <Text size="B300">{`${t(`threadNav.sections.${id}`)} · ${
-                    sectionEntries.length
-                  }`}</Text>
+                  <Text size="B300">{`${t(`threadNav.sections.${id}`)} · ${total}`}</Text>
                 </Button>
                 {!sectionClosed && <ThreadNavRows entries={sectionEntries} {...rowsProps} />}
               </section>

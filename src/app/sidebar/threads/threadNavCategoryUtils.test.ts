@@ -5,6 +5,8 @@ import {
   buildSidebarThreadEntries,
   buildSidebarThreadSections,
   MAX_SIDEBAR_RESOLVED_THREADS,
+  MAX_SIDEBAR_SNOOZED_THREADS,
+  MAX_SIDEBAR_THREADS,
   type SidebarThreadSection,
 } from './threadNavCategoryUtils';
 
@@ -311,6 +313,50 @@ describe('buildSidebarThreadSections', () => {
     const resolvedKeys = sections.find(({ id }) => id === 'resolved')?.entries.map((e) => e.key);
     expect(resolvedKeys).toHaveLength(MAX_SIDEBAR_RESOLVED_THREADS);
     expect(resolvedKeys?.slice(0, 3)).toEqual(['resolved-0', 'resolved-24', 'resolved-23']);
+  });
+
+  it('gives Snoozed its own cap, so many idle threads leave it its threads', () => {
+    const idle = Array.from({ length: 60 }, (_, index) =>
+      makeSectionEntry({ key: `idle-${index}`, lastActivityTs: index })
+    );
+    const snoozed = Array.from({ length: 25 }, (_, index) =>
+      makeSectionEntry({ key: `snoozed-${index}`, snoozedUntilTs: 1000 + index })
+    );
+
+    const sections = buildSidebarThreadSections(
+      [...idle, ...snoozed],
+      [],
+      new Set(),
+      100,
+      NO_SIGNALS
+    );
+
+    expect(sections.map(({ id, entries }) => [id, entries.length])).toEqual([
+      ['snoozed', MAX_SIDEBAR_SNOOZED_THREADS],
+      ['idle', MAX_SIDEBAR_THREADS],
+    ]);
+  });
+
+  it('counts every thread of a section, also those past its cap', () => {
+    const idle = Array.from({ length: 60 }, (_, index) =>
+      makeSectionEntry({ key: `idle-${index}`, lastActivityTs: index })
+    );
+    const resolved = Array.from({ length: 25 }, (_, index) =>
+      makeSectionEntry({ key: `resolved-${index}`, isResolved: true })
+    );
+
+    const sections = buildSidebarThreadSections(
+      [...idle, ...resolved],
+      [],
+      new Set(),
+      100,
+      NO_SIGNALS
+    );
+
+    expect(sections.map(({ id, entries, total }) => [id, entries.length, total])).toEqual([
+      ['idle', MAX_SIDEBAR_THREADS, 60],
+      ['resolved', MAX_SIDEBAR_RESOLVED_THREADS, 25],
+    ]);
   });
 
   it('leaves out threads of direct-message rooms', () => {

@@ -22,6 +22,12 @@ import {
 
 enableMapSet();
 
+const { MINUTE_NOW, readSignals } = vi.hoisted(() => ({
+  // Later than any real clock, so it wins over the time a snooze last renewed.
+  MINUTE_NOW: 4_000_000_000_000,
+  readSignals: vi.fn(() => undefined),
+}));
+
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
   return { useTranslation: () => ({ t: translateFromEn }) };
@@ -61,7 +67,7 @@ vi.mock('../room-nav/RoomNavCategoryButton', () => ({
     React.createElement('button', { ...props, 'aria-expanded': !closed }, children),
 }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org', getRoom: () => null }),
+  useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org', getRoom: () => ({}) }),
 }));
 vi.mock('../../navigation/useSelectedRoom', () => ({ useSelectedRoom: () => undefined }));
 vi.mock('./ThreadNavItem', () => ({
@@ -83,8 +89,9 @@ vi.mock('./ThreadNavItem', () => ({
 }));
 vi.mock('./threadNav.css', () => ({ CategoryState: 'CategoryState' }));
 vi.mock('../../threads/cross-room/threadSignalsReader', () => ({
-  getThreadSignalsReader: () => ({ read: () => undefined }),
+  getThreadSignalsReader: () => ({ read: readSignals }),
 }));
+vi.mock('../../lib/hooks/useMinuteClock', () => ({ useMinuteClock: () => MINUTE_NOW }));
 vi.mock('../../threads/page/ThreadsNav.css', () => ({ Scopes: 'Scopes', Scope: 'Scope' }));
 
 const USER_ID = '@me:example.org';
@@ -295,5 +302,19 @@ describe('ThreadNavCategory', () => {
     expect(store.get(closedCategoriesAtom)).toContain(resolvedId);
     expect(heading(resolvedId).props['aria-expanded']).toBe(false);
     expect(threadKeys()).toEqual([newer.key, older.key]);
+  });
+
+  it('reads the signals of its sections at the minute clock, as Activity does', () => {
+    store.set(makeThreadSidebarPreferencesAtom(USER_ID), {
+      type: 'SET_LAYOUT',
+      layout: 'sections',
+    });
+
+    renderCategory();
+
+    expect(readSignals).toHaveBeenCalled();
+    expect(readSignals.mock.calls.map((call: unknown[]) => call[3])).toEqual(
+      readSignals.mock.calls.map(() => MINUTE_NOW)
+    );
   });
 });

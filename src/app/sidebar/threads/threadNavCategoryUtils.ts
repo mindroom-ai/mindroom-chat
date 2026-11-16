@@ -5,6 +5,7 @@ import { isSnoozedAt } from '../../event-store/threads/threadSnooze';
 
 export const MAX_SIDEBAR_THREADS = 50;
 export const MAX_SIDEBAR_RESOLVED_THREADS = 20;
+export const MAX_SIDEBAR_SNOOZED_THREADS = 20;
 
 type Compare = (left: CrossRoomThreadIndexEntry, right: CrossRoomThreadIndexEntry) => number;
 
@@ -47,7 +48,10 @@ export const buildSidebarThreadEntries = (
 export type SidebarThreadSectionId = 'working' | 'snoozed' | 'idle' | 'resolved';
 export type SidebarThreadSection = {
   id: SidebarThreadSectionId;
+  /** The section's rows, at most its cap. */
   entries: CrossRoomThreadIndexEntry[];
+  /** How many threads the section holds, also those past its cap. */
+  total: number;
 };
 
 const SECTION_ORDER: SidebarThreadSectionId[] = ['working', 'snoozed', 'idle', 'resolved'];
@@ -73,8 +77,9 @@ const byTsDesc =
  * threads started in, so a streamed reply moves no row; Idle goes by the newest of when the last
  * run finished and the newest message (`signalsOf`) and the activity, so a run's end counts, not
  * its start, and an old run does not outrank a newer message; Snoozed by the end of the snooze;
- * Resolved by when it was resolved, at most `MAX_SIDEBAR_RESOLVED_THREADS`. Working, Idle and
- * Snoozed share `limit`, in that order.
+ * Resolved by when it was resolved. Working and Idle share `limit`, Working first; Snoozed and
+ * Resolved have caps of their own (`MAX_SIDEBAR_SNOOZED_THREADS`, `MAX_SIDEBAR_RESOLVED_THREADS`).
+ * Each section counts all of its threads in `total`.
  */
 export const buildSidebarThreadSections = (
   entries: Iterable<CrossRoomThreadIndexEntry>,
@@ -84,15 +89,18 @@ export const buildSidebarThreadSections = (
   signalsOf: (entry: CrossRoomThreadIndexEntry) => ThreadSignals | undefined,
   limit = MAX_SIDEBAR_THREADS
 ): SidebarThreadSection[] => {
-  const grouped = new Map<SidebarThreadSectionId, CrossRoomThreadIndexEntry[]>();
+  const grouped: Record<SidebarThreadSectionId, CrossRoomThreadIndexEntry[]> = {
+    working: [],
+    snoozed: [],
+    idle: [],
+    resolved: [],
+  };
   for (const entry of entries) {
-    if (directRoomIds.has(entry.roomId)) continue;
-    const id = sectionOf(entry, now);
-    grouped.set(id, [...(grouped.get(id) ?? []), entry]);
+    if (!directRoomIds.has(entry.roomId)) grouped[sectionOf(entry, now)].push(entry);
   }
 
   const finishedTs = new Map(
-    (grouped.get('idle') ?? []).map((entry) => {
+    grouped.idle.map((entry) => {
       const signals = signalsOf(entry);
       const ts = Math.max(signals?.outcome?.ts ?? 0, signals?.newsTs ?? 0, entry.lastActivityTs);
       return [entry.key, ts] as const;
@@ -109,19 +117,17 @@ export const buildSidebarThreadSections = (
     resolved: byTsDesc((entry) => entry.resolvedTs ?? entry.lastActivityTs),
   };
 
-  let remaining = Math.max(0, limit);
   const take = (id: SidebarThreadSectionId, max: number): CrossRoomThreadIndexEntry[] =>
-    (grouped.get(id) ?? []).sort(pinnedFirst(pinnedThreadKeys, compares[id])).slice(0, max);
-  const shown = new Map<SidebarThreadSectionId, CrossRoomThreadIndexEntry[]>();
-  for (const id of ['working', 'idle', 'snoozed'] as const) {
-    const list = take(id, remaining);
-    remaining -= list.length;
-    shown.set(id, list);
-  }
-  shown.set('resolved', take('resolved', MAX_SIDEBAR_RESOLVED_THREADS));
+    grouped[id].sort(pinnedFirst(pinnedThreadKeys, compares[id])).slice(0, max);
+  const working = take('working', Math.max(0, limit));
+  const shown: Record<SidebarThreadSectionId, CrossRoomThreadIndexEntry[]> = {
+    working,
+    idle: take('idle', Math.max(0, limit) - working.length),
+    snoozed: take('snoozed', MAX_SIDEBAR_SNOOZED_THREADS),
+    resolved: take('resolved', MAX_SIDEBAR_RESOLVED_THREADS),
+  };
 
-  return SECTION_ORDER.flatMap((id) => {
-    const list = shown.get(id) ?? [];
-    return list.length > 0 ? [{ id, entries: list }] : [];
-  });
+  return SECTION_ORDER.flatMap((id) =>
+    shown[id].length > 0 ? [{ id, entries: shown[id], total: grouped[id].length }] : []
+  );
 };
