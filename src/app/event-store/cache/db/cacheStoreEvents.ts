@@ -352,8 +352,9 @@ const runScrubRedactedRelationsTxn = async (
       return stripRedactedRelationsFromRawEvent(merged, redactedEventIds);
     };
 
-    // Reading a whole room, the keys are written after its two cursors end: a write between a
-    // cursor's steps makes Chromium's next step slow (5 times the whole read at 10,000 rows).
+    // Reading a whole room, the lookup keys are written after its two cursors end: a write
+    // between a cursor's steps makes Chromium's next step slow (5 times the whole read at 10,000
+    // rows, where 4 rows in 10 have a key to write). The few repaired rows are written at once.
     const listAfterCursors: (() => void)[] = [];
     let openCursors = 2;
     const cursorEnded = (): void => {
@@ -366,14 +367,17 @@ const runScrubRedactedRelationsTxn = async (
     /** `listed`: whether the row's keys in `EMBEDDED_EVENTS_STORE` are known to exist. */
     const repairEventRecord = (previous: CachedEventRecord, listed: boolean): void => {
       const rawEvent = repairRawEvent(previous.rawEvent, previous.eventId);
+      // What waits for the cursors holds the row's key and IDs, not the row.
+      const { cacheKey } = previous;
+      const previousIds = listed ? embeddedIdsOfEvent(previous.rawEvent) : NO_EVENT_IDS;
       const nextIds = embeddedIdsOfEvent(rawEvent);
       const list = (): void =>
         listEmbeddedEvents(
           embeddedStore,
           roomId,
           EMBED_OWNER_EVENT,
-          previous.cacheKey,
-          listed ? embeddedIdsOfEvent(previous.rawEvent) : NO_EVENT_IDS,
+          cacheKey,
+          previousIds,
           nextIds
         );
       if (listed) list();
@@ -396,15 +400,11 @@ const runScrubRedactedRelationsTxn = async (
       if (!currentMeta.rootEvent) return;
       const previousRoot = currentMeta.rootEvent;
       const rootEvent = repairRawEvent(previousRoot, previousRoot.event_id);
+      const { metaKey } = currentMeta;
+      const previousIds = listed ? embeddedIdsOfRoot(previousRoot) : NO_EVENT_IDS;
+      const nextIds = embeddedIdsOfRoot(rootEvent);
       const list = (): void =>
-        listEmbeddedEvents(
-          embeddedStore,
-          roomId,
-          EMBED_OWNER_META,
-          currentMeta.metaKey,
-          listed ? embeddedIdsOfRoot(previousRoot) : NO_EVENT_IDS,
-          embeddedIdsOfRoot(rootEvent)
-        );
+        listEmbeddedEvents(embeddedStore, roomId, EMBED_OWNER_META, metaKey, previousIds, nextIds);
       if (listed) list();
       else listAfterCursors.push(list);
       if (rootEvent !== currentMeta.rootEvent)
@@ -1476,7 +1476,7 @@ export const saveThreadEventsToCacheCommitted = async (
       threadId
     );
     if (redactedEventIds.size > 0) {
-      // Gate the room-wide scrub on marker presence (see room-save above).
+      // Gate the scrub on marker presence (see room-save above).
       const unscrubbedIds = await collectRedactedIdsWithoutMarker(db, roomId, redactedEventIds);
       if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
       if (unscrubbedIds.size > 0)
