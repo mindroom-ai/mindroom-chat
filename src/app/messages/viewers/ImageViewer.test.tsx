@@ -112,7 +112,8 @@ describe('ImageViewer paging', () => {
     expect(onStep).not.toHaveBeenCalled();
   });
 
-  it('does not step past the ends with the keys', () => {
+  // A picture may have arrived past the end it knows of: its owner stops at the real ends.
+  it('asks its owner for a key step past the end it knows of', () => {
     const onStep = vi.fn();
     render(
       <ImageViewer
@@ -124,7 +125,88 @@ describe('ImageViewer paging', () => {
       />
     );
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', cancelable: true }));
-    expect(onStep).not.toHaveBeenCalled();
+    expect(onStep).toHaveBeenCalledWith(1);
+  });
+
+  describe('arrow keys aimed elsewhere', () => {
+    const keyFrom = (target: Element) => {
+      const event = new KeyboardEvent('keydown', {
+        key: 'ArrowRight',
+        cancelable: true,
+        bubbles: true,
+      });
+      target.dispatchEvent(event);
+      return event;
+    };
+    const mount = (onStep: () => void) =>
+      render(
+        <>
+          <button type="button">timeline picture</button>
+          <input aria-label="composer" />
+          <textarea aria-label="notes" />
+          <select aria-label="choice" />
+          <div contentEditable aria-label="editor" />
+          <div role="dialog" aria-label="Settings">
+            <button type="button">setting</button>
+          </div>
+          <div role="dialog" aria-label="viewer">
+            <ImageViewer
+              src="blob:b"
+              alt="b.png"
+              requestClose={vi.fn()}
+              position={{ index: 1, count: 3 }}
+              onStep={onStep}
+            />
+          </div>
+        </>
+      );
+
+    it('leaves keys typed into an editable field alone', () => {
+      const onStep = vi.fn();
+      mount(onStep);
+      for (const name of ['composer', 'notes', 'choice', 'editor']) {
+        expect(keyFrom(screen.getByLabelText(name)).defaultPrevented).toBe(false);
+      }
+      expect(onStep).not.toHaveBeenCalled();
+    });
+
+    it('leaves keys inside another dialog alone', () => {
+      const onStep = vi.fn();
+      mount(onStep);
+      expect(keyFrom(screen.getByRole('button', { name: 'setting' })).defaultPrevented).toBe(false);
+      expect(onStep).not.toHaveBeenCalled();
+    });
+
+    it('steps from the timeline picture focus stayed on, and from inside its own dialog', () => {
+      const onStep = vi.fn();
+      mount(onStep);
+      expect(
+        keyFrom(screen.getByRole('button', { name: 'timeline picture' })).defaultPrevented
+      ).toBe(true);
+      keyFrom(screen.getByRole('button', { name: 'Next image' }));
+      expect(onStep).toHaveBeenCalledTimes(2);
+    });
+
+    it('stops listening once closed', () => {
+      const onStep = vi.fn();
+      const { unmount } = mount(onStep);
+      unmount();
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', cancelable: true }));
+      expect(onStep).not.toHaveBeenCalled();
+    });
+  });
+
+  it('reports a picture it cannot decode, and starts over with the next source', () => {
+    const onImageError = vi.fn();
+    const { rerender } = render(
+      <ImageViewer src="blob:a" alt="a.png" requestClose={vi.fn()} onImageError={onImageError} />
+    );
+    fireEvent.error(screen.getByRole('img'));
+    expect(onImageError).toHaveBeenCalledOnce();
+    rerender(
+      <ImageViewer src="blob:b" alt="a.png" requestClose={vi.fn()} onImageError={onImageError} />
+    );
+    expect(screen.getByRole('img').getAttribute('src')).toBe('blob:b');
   });
 
   it('steps on a horizontal swipe at fit, and pans instead once zoomed', () => {

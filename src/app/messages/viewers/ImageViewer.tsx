@@ -53,9 +53,25 @@ type ImageViewerProps = {
   requestClose: () => void;
   /** Set when the picture failed to load: the image area offers Retry in its place. */
   onRetry?: () => void;
+  /** The picture downloaded but does not decode. */
+  onImageError?: () => void;
   /** Where the picture sits among the conversation's; with more than one the viewer pages. */
   position?: { index: number; count: number };
+  /**
+   * A key or a swipe asks for every step, past the ends `position` knows of too, since a picture
+   * may have arrived since: the owner stops at the real ends. The arrows stop at the known ones.
+   */
   onStep?: (delta: StepDelta) => void;
+};
+
+// Keys typed into a field, or into another dialog over the viewer (Settings), are not for it.
+const EDITABLE = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
+
+const keyIsElsewhere = (target: EventTarget | null, viewer: Element | null): boolean => {
+  if (!(target instanceof Element)) return false;
+  if (target.closest(EDITABLE)) return true;
+  const dialog = target.closest('[role="dialog"]');
+  return !!dialog && !dialog.contains(viewer);
 };
 
 /**
@@ -113,7 +129,10 @@ const zoomTone = (active: boolean): 'Success' | 'Surface' => (active ? 'Success'
  * previous or next one; the ends stop.
  */
 export const ImageViewer = as<'div', ImageViewerProps>(
-  ({ requestClose, alt, src, onRetry, position, onStep, className, ...props }, ref) => {
+  (
+    { requestClose, alt, src, onRetry, onImageError, position, onStep, className, ...props },
+    ref
+  ) => {
     const { t } = useTranslation();
     const [downloadState, download] = useSaveMedia(src ?? '', alt);
     // The name shows its direction controls; the download keeps it as it is.
@@ -129,10 +148,9 @@ export const ImageViewer = as<'div', ImageViewerProps>(
     const paging = !!position && position.count > 1;
     const canStep = (delta: StepDelta) =>
       !!position && position.index + delta >= 0 && position.index + delta < position.count;
-    const stepRef = useRef<(delta: StepDelta) => void>(() => undefined);
-    stepRef.current = (delta) => {
-      if (canStep(delta)) onStep?.(delta);
-    };
+    const stepRef = useRef(onStep);
+    stepRef.current = onStep;
+    const stageRef = useRef<HTMLDivElement>(null);
 
     // On the window, before anything under the viewer sees them: focus may still sit on the
     // timeline's picture, and the arrows must not scroll it.
@@ -141,16 +159,17 @@ export const ImageViewer = as<'div', ImageViewerProps>(
       const handleKeyDown = (event: KeyboardEvent) => {
         if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
         if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+        if (keyIsElsewhere(event.target, stageRef.current)) return;
         event.preventDefault();
         event.stopPropagation();
-        stepRef.current(arrowStep(event.key === 'ArrowRight'));
+        stepRef.current?.(arrowStep(event.key === 'ArrowRight'));
       };
       window.addEventListener('keydown', handleKeyDown, true);
       return () => window.removeEventListener('keydown', handleKeyDown, true);
     }, [paging]);
 
     const swipe = useSwipe(paging && zoom === 1 && !isZooming, (leftward) =>
-      stepRef.current(arrowStep(leftward))
+      stepRef.current?.(arrowStep(leftward))
     );
 
     let downloadIcon = <Icon size="50" src={Icons.Download} />;
@@ -233,7 +252,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
             </Button>
           </Box>
         </Header>
-        <Box className={css.ImageViewerStage}>
+        <Box ref={stageRef} className={css.ImageViewerStage}>
           {onRetry ? (
             // Outside the gesture area, whose pointer capture would take Retry's click.
             <Box className={css.ImageViewerContent} direction="Column" gap="300">
@@ -280,6 +299,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
                   src={src}
                   alt={shownAlt}
                   draggable={false}
+                  onError={onImageError}
                 />
               ) : (
                 <Spinner variant="Secondary" size="400" />
@@ -298,7 +318,9 @@ export const ImageViewer = as<'div', ImageViewerProps>(
                   delta < 0 ? 'sharedUi.imageViewer.previous' : 'sharedUi.imageViewer.next'
                 )}
                 aria-disabled={!canStep(delta)}
-                onClick={() => stepRef.current(delta)}
+                onClick={() => {
+                  if (canStep(delta)) onStep?.(delta);
+                }}
                 variant="Surface"
                 radii="Pill"
                 size="300"

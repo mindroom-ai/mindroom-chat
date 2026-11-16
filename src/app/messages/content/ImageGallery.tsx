@@ -22,9 +22,10 @@ const slideKey = ({ eventId, owner, url, encInfo }: ImageSlide): string =>
 /**
  * One open image viewer, paging through the conversation's pictures (`ImageSlidesContext`) from
  * the one clicked; outside a conversation, or when that picture is not among its pictures, it
- * shows that one alone. It loads the shown picture's original and lets go of the one before; a
- * failed load offers Retry in place. When the shown picture leaves the conversation (redacted),
- * the viewer closes.
+ * shows that one alone. It reads them when it opens and on each step, not on each timeline
+ * update, so its counter can lag until the next step. It loads the shown picture's original and
+ * lets go of the one before; a failed load or decode offers Retry in place. A step that finds the
+ * shown picture gone from the conversation (redacted) closes the viewer.
  */
 export function ImageGallery({ slide: origin, requestClose }: ImageGalleryProps) {
   const mx = useMatrixClient();
@@ -33,12 +34,11 @@ export function ImageGallery({ slide: origin, requestClose }: ImageGalleryProps)
   const [attempt, setAttempt] = useState(0);
   const [original, setOriginal] = useState<Original>();
 
-  // Read on each render, a step's included, so pictures paginated in or decrypted since show up.
   const readSlides = (): readonly ImageSlide[] => {
     const listed = getSlides?.();
     return listed?.some((slide) => slide.eventId === origin.eventId) ? listed : [origin];
   };
-  const slides = readSlides();
+  const [slides, setSlides] = useState(readSlides);
   const index = slides.findIndex((slide) => slide.eventId === currentId);
   const current = slides[index];
 
@@ -71,6 +71,8 @@ export function ImageGallery({ slide: origin, requestClose }: ImageGalleryProps)
     return () => {
       live = false;
       if (objectUrl) revokeBlobUrl(objectUrl);
+      // Coming back to this picture loads it again rather than show the revoked URL.
+      setOriginal(undefined);
     };
   }, [mx, key, attempt, currentRef]);
 
@@ -79,13 +81,14 @@ export function ImageGallery({ slide: origin, requestClose }: ImageGalleryProps)
 
   const step = (delta: -1 | 1) => {
     const fresh = readSlides();
-    const next = fresh[fresh.findIndex((slide) => slide.eventId === currentId) + delta];
+    setSlides(fresh);
+    const at = fresh.findIndex((slide) => slide.eventId === currentId);
+    // A shown picture that is gone closes the viewer (the effect above); at an end nothing moves.
+    const next = at < 0 ? undefined : fresh[at + delta];
     if (next) setCurrentId(next.eventId);
   };
-  const retry = () => {
-    setOriginal(undefined);
-    setAttempt((count) => count + 1);
-  };
+  const retry = () => setAttempt((count) => count + 1);
+  const failDecode = () => setOriginal({ key, failed: true });
 
   return (
     <ImageOverlay
@@ -94,6 +97,7 @@ export function ImageGallery({ slide: origin, requestClose }: ImageGalleryProps)
       alt={current.body}
       requestClose={requestClose}
       onRetry={shown?.failed ? retry : undefined}
+      onImageError={failDecode}
       position={{ index, count: slides.length }}
       onStep={step}
     />

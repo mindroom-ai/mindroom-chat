@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { type ReactNode, useCallback, useState } from 'react';
+import { type ReactNode, useCallback, useRef, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImageGallery } from './ImageGallery';
 import { ImageSlidesContext, type ImageSlide } from './imageSlides';
@@ -51,11 +51,20 @@ const B = slide('$b');
 const C = slide('$c', true);
 
 const requestClose = vi.fn();
+const slideReads = vi.fn();
 
-/** A conversation's pictures, with the viewer opened on `origin` until it asks to close. */
+/**
+ * A conversation's pictures, with the viewer opened on `origin` until it asks to close. As in
+ * RoomTimeline, the getter keeps its identity and reads the newest pictures.
+ */
 function Conversation({ slides, origin }: { slides?: ImageSlide[]; origin: ImageSlide }) {
   const [open, setOpen] = useState(true);
-  const getSlides = useCallback(() => slides ?? [], [slides]);
+  const slidesRef = useRef(slides);
+  slidesRef.current = slides;
+  const getSlides = useCallback(() => {
+    slideReads();
+    return slidesRef.current ?? [];
+  }, []);
   const close = () => {
     requestClose();
     setOpen(false);
@@ -88,6 +97,7 @@ const shown = () => screen.queryByRole('img')?.getAttribute('src');
 beforeEach(() => {
   downloads.calls = [];
   requestClose.mockReset();
+  slideReads.mockReset();
   let next = 0;
   URL.createObjectURL = vi.fn(() => {
     next += 1;
@@ -197,12 +207,55 @@ describe('ImageGallery', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:2');
   });
 
-  it('closes when the picture it shows leaves the conversation', () => {
+  it('closes on the next step once the picture it shows has left the conversation', () => {
     const { rerender } = render(<Conversation slides={[A, B]} origin={A} />);
     press('ArrowRight');
     rerender(<Conversation slides={[A]} origin={A} />);
+    press('ArrowLeft');
     expect(requestClose).toHaveBeenCalled();
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('does not read the pictures again when the conversation updates, only on its next step', () => {
+    const { rerender } = render(<Conversation slides={[A, B]} origin={B} />);
+    const reads = slideReads.mock.calls.length;
+    rerender(<Conversation slides={[A, B, C]} origin={B} />);
+    rerender(<Conversation slides={[A, B, C]} origin={B} />);
+    expect(slideReads).toHaveBeenCalledTimes(reads);
+    // The counter lags until the next step, which reaches the new picture even from the end.
+    expect(screen.getByText('2 / 2')).toBeTruthy();
+
+    press('ArrowRight');
+    expect(screen.getByText('3 / 3')).toBeTruthy();
+    expect(downloads.calls.at(-1)?.source.mxcUri).toBe(C.url);
+  });
+
+  it('never shows a revoked picture when it steps back before the next one loads', async () => {
+    render(<Conversation slides={[A, B]} origin={A} />);
+    await finish(A.url);
+    expect(shown()).toBe('blob:1');
+
+    press('ArrowRight');
+    press('ArrowLeft');
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:1');
+    expect(shown()).toBeUndefined();
+    expect(screen.getByRole('button', { name: 'Download' }).hasAttribute('disabled')).toBe(true);
+
+    await finish(A.url);
+    expect(shown()).toBe('blob:2');
+  });
+
+  it('offers Retry when a loaded picture cannot be decoded, and Retry loads it again', async () => {
+    render(<Conversation slides={[A, B]} origin={A} />);
+    await finish(A.url);
+    fireEvent.error(screen.getByRole('img'));
+
+    expect(screen.getByText('Failed to load image!')).toBeTruthy();
+    expect(screen.queryByRole('img')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(downloads.calls.map((call) => call.source.mxcUri)).toEqual([A.url, A.url]);
+    await finish(A.url);
+    expect(shown()).toBe('blob:2');
   });
 
   it('shows only its own picture outside a conversation, without a counter or arrows', async () => {

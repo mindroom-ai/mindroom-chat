@@ -767,12 +767,21 @@ export function RoomTimeline(props: RoomTimelineProps) {
     [threadRowHidden, threadEvents, isHiddenByPlugin]
   );
   // The image viewer pages through the pictures of the conversation on screen, as its rows show
-  // them; it reads them when it opens and on each step, so newly loaded ones join.
-  const slideEvents = threadId ? threadEvents : roomRows;
-  const getImageSlides = useCallback(
-    () => buildImageSlides(slideEvents, getRowContent, isHiddenByPlugin),
-    [slideEvents, getRowContent, isHiddenByPlugin]
-  );
+  // them. It reads them when it opens and on each step, so newly loaded ones join; the getter
+  // keeps its identity, so a timeline update does not render the open viewer again.
+  const imageSlideSourceRef = useLatestRef({
+    events: threadId ? threadEvents : roomRows,
+    getRowContent,
+    isHiddenByPlugin,
+  });
+  const getImageSlides = useCallback(() => {
+    const {
+      events,
+      getRowContent: getContent,
+      isHiddenByPlugin: isHidden,
+    } = imageSlideSourceRef.current;
+    return buildImageSlides(events, getContent, isHidden);
+  }, [imageSlideSourceRef]);
   // What each agent reply of the open thread and the thread so far cost, for Reply details.
   const threadConversationCost = useThreadConversationCostSummary(
     threadId ? threadEvents : undefined,
