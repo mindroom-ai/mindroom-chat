@@ -41,6 +41,37 @@ class ConfigTests(unittest.TestCase):
         self.assertNotIn("thread_summary_model", config)
         self.assertNotIn("anthropic", config)
 
+    def test_extra_agents_are_stub_workers_in_the_lobby(self) -> None:
+        config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, extra_agents=3)
+        for number in (1, 2, 3):
+            self.assertIn(
+                f"  worker{number}:\n    display_name: Worker {number}\n"
+                "    role: Extra test agent driven by a stub model\n"
+                "    model: default\n    rooms: [lobby]\n    tools: [shell]\n",
+                config,
+            )
+        self.assertNotIn("worker4", config)
+        self.assertNotIn("worker", stack.config_yaml("stub", TESTER, STUB_URL, 0.0003))
+
+    def test_the_router_picks_the_worker_a_message_names(self) -> None:
+        def pick(message: str) -> str:
+            schema = {"type": "string"}
+            text = f'Pick one.\nMessage: "{message}"'
+            return stub_model.schema_value(schema, {}, text, "agent_name")
+
+        self.assertEqual(pick("worker2 #work words=5"), "worker2")
+        self.assertEqual(pick("Worker12 #work"), "worker12")
+        self.assertEqual(pick("ask scout"), "scout")
+        self.assertEqual(pick("hello"), "helper")
+
+    def test_agents_are_refused_with_a_real_model(self) -> None:
+        with (
+            mock.patch.object(sys, "argv", ["stack.py", "5", "up", "--model", "real", "--agents", "2"]),
+            contextlib.redirect_stderr(io.StringIO()) as err,
+        ):
+            self.assertEqual(stack.main(), 1)
+        self.assertIn("--agents needs the stub model", err.getvalue())
+
     def test_real_config_runs_the_helper_on_haiku_and_luna_for_the_rest(self) -> None:
         config = stack.config_yaml("real", TESTER, STUB_URL, 0.0003)
         self.assertIn("provider: anthropic\n    id: claude-haiku-5-5\n", config)

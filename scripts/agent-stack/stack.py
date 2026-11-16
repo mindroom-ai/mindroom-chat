@@ -12,6 +12,11 @@ Usage: python3 scripts/agent-stack/stack.py <slot 0-99> up|down|status|usage [--
   usage   print the model calls and tokens (and their price, for the real models of --model real or --transcription
           real) of the running stack's backend log as JSON
 
+--agents N (stub model only, default 0) adds the stub agents worker1 .. workerN (Worker 1 ..) to the lobby, each with
+the shell tool, and the state's `agents` lists them. The stub's router answers workerK when the routed message names
+workerK (the real-work load, scripts/perf/real-work/driver.py, spreads its streams over them: one sender gets 30
+live frames a second per room from the homeserver). A real model cannot be routed by name, so --model real refuses it.
+
 The backend comes from a MindRoom checkout (--checkout, $E2E_MINDROOM_CHECKOUT, default
 /home/basnijholt/Work/dev/mindroom) at a commit (--ref, $E2E_MINDROOM_REF, default the checkout's origin/main
 when it has one, otherwise HEAD). The checkout is only read: `git archive` copies the commit to
@@ -709,6 +714,19 @@ voice:
 """
 
 
+def worker_names(count: int) -> dict[str, str]:
+    """The stub agents of --agents: worker1 .. workerN with the display names Worker 1 .. Worker N."""
+    return {f"worker{number}": f"Worker {number}" for number in range(1, count + 1)}
+
+
+def worker_agents_yaml(count: int) -> str:
+    return "".join(
+        f"  {name}:\n    display_name: {display}\n    role: Extra test agent driven by a stub model\n"
+        f"    model: default\n    rooms: [lobby]\n    tools: [shell]\n"
+        for name, display in worker_names(count).items()
+    )
+
+
 def config_yaml(
     mode: str,
     tester_id: str,
@@ -720,6 +738,7 @@ def config_yaml(
     transcription: dict | None = None,
     terminals: bool = False,
     shell_without_worker: bool = False,
+    extra_agents: int = 0,
 ) -> str:
     plugin_dirs = plugin_dirs or []
     agent_tools = """      - shell
@@ -786,7 +805,7 @@ def config_yaml(
     model: deep
     rooms: [lobby]
     tools: [shell]
-"""
+{worker_agents_yaml(extra_agents)}"""
         router_model = "default"
         summary_model = ""
         header = "# Written by scripts/agent-stack/stack.py; the stub model picks a scenario from hashtags in the message."
@@ -1082,6 +1101,7 @@ def started_with(
         # Earlier starts recorded false without computers.
         and (state.get("computers") or None) == computers_setting(args, sha)
         and state.get("terminals", False) == args.terminals
+        and state.get("extraAgents", 0) == getattr(args, "agents", 0)
         and state.get("approvalExpiryDays") == args.approval_expiry_days
         and state.get("pluginDirs", []) == (plugin_dirs or [])
         and state.get("sha") == sha
@@ -1173,7 +1193,7 @@ def start(
     if computers and not args.computer_image:
         build_worker_image(checkout, sha, computers["image"])
     real = args.model == "real"
-    agents = AGENTS[args.model]
+    agents = {**AGENTS[args.model], **worker_names(args.agents)}
     slot_dir.mkdir(parents=True)
     namespace = "t" + secrets.token_hex(4)
     tester = f"tester_{namespace}"
@@ -1204,6 +1224,7 @@ def start(
             transcription,
             args.terminals,
             commit_mentions(checkout, sha, *SHELL_WITHOUT_WORKER),
+            args.agents,
         )
     )
     api_url = f"http://127.0.0.1:{port['api']}"
@@ -1251,6 +1272,7 @@ def start(
         "clientSessions": args.client_sessions,
         "computers": computers,
         "terminals": args.terminals,
+        "extraAgents": args.agents,
         # The config's timeout_days, exactly: approvalExpirySeconds below is rounded.
         "approvalExpiryDays": args.approval_expiry_days,
         "pluginDirs": plugin_dirs,
@@ -1528,6 +1550,13 @@ def main() -> int:
         "implies --client-sessions, and the stack has no approval rule for shell calls",
     )
     parser.add_argument(
+        "--agents",
+        type=int,
+        default=0,
+        help="stub model only: add the stub agents worker1 .. workerN to the lobby, which the stub's router picks "
+        "when a message names one (the real-work load spreads its streams over them; default 0)",
+    )
+    parser.add_argument(
         "--checkout", help=f"MindRoom checkout (default $E2E_MINDROOM_CHECKOUT or {DEFAULT_CHECKOUT})"
     )
     parser.add_argument(
@@ -1546,6 +1575,11 @@ def main() -> int:
         parser.error(f"--transcription must be one of {', '.join(TRANSCRIPTION_MODES)}")
     if not 0 <= args.slot <= 99:
         parser.error("slot must be 0-99")
+    if args.agents < 0:
+        parser.error("--agents must be 0 or more")
+    if args.agents and args.model == "real":
+        log("--agents needs the stub model: a real model cannot be routed to an agent by name")
+        return 1
     if args.terminals and args.computers:
         parser.error("--terminals and --computers need different worker backends; start them in separate stacks")
     # Chat opens a computer, and reaches terminals, through the same origin settings as a client session.

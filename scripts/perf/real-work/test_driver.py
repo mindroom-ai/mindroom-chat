@@ -85,6 +85,35 @@ class PromptTest(unittest.TestCase):
         self.assertNotIn("scout", prompt)
 
 
+class AgentPromptTest(unittest.TestCase):
+    def test_threads_go_round_the_workers(self) -> None:
+        workers = [driver.worker_for(index, 3) for index in range(5)]
+        self.assertEqual(workers, ["worker1", "worker2", "worker3", "worker1", "worker2"])
+        self.assertIsNone(driver.worker_for(4, 1))
+
+    def test_prompt_names_the_worker(self) -> None:
+        worker = driver.worker_for(4, 3)
+        prompt = driver.work_prompt(REPLY, random.Random(1), live=True, worker=worker)
+        self.assertIn("worker2", prompt)
+        self.assertIn("#work words=", prompt)
+        self.assertNotIn("worker", driver.work_prompt(REPLY, random.Random(1), live=True))
+
+    def test_stack_without_a_worker_is_refused(self) -> None:
+        stack = {"agents": {"router": "@a:x", "worker1": "@b:x", "worker2": "@c:x"}}
+        driver.check_workers(stack, 2)
+        driver.check_workers(stack, 1)
+        with self.assertRaisesRegex(ValueError, "worker3"):
+            driver.check_workers(stack, 3)
+
+    def test_old_profiles_have_one_agent(self) -> None:
+        profile = json.loads((WORKLOADS / "real-work-smoke.json").read_text())
+        profile.pop("agents", None)
+        self.assertEqual(driver.check_profile(profile)["agents"], 1)
+        profile["agents"] = 0
+        with self.assertRaisesRegex(ValueError, "agents"):
+            driver.check_profile(profile)
+
+
 class SchedulerTest(unittest.TestCase):
     def scheduler(self, streams: int, threads: int, stuck_seconds: float = 600) -> driver.Scheduler:
         scheduler = driver.Scheduler(streams, NO_PAUSE, stuck_seconds, random.Random(1))
@@ -514,7 +543,7 @@ class LobbySyncTest(unittest.TestCase):
 class ProfilesTest(unittest.TestCase):
     def test_profiles_load(self) -> None:
         paths = sorted(WORKLOADS.glob("*.json"))
-        self.assertGreaterEqual(len(paths), 3)
+        self.assertGreaterEqual(len(paths), 4)
         for path in paths:
             with self.subTest(path.name):
                 self.assertEqual(driver.load_profile(path)["name"], path.stem)

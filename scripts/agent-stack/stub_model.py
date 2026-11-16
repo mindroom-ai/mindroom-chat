@@ -303,6 +303,10 @@ def schema_value(schema: dict, defs: dict, text: str, key: str = ""):
         return schema.get("minimum", 1)
     if key in ("entity_name", "agent_name"):
         routed = text.split('Message: "', 1)[-1].lower()
+        # A whole word, so worker1 does not match a message that names worker10.
+        worker = re.search(r"\bworker[0-9]+\b", routed)
+        if worker:
+            return worker.group(0)
         return "scout" if "scout" in routed else "helper"
     if key == "summary" and "<transcript>" in text:
         return "Stub notes of the call."

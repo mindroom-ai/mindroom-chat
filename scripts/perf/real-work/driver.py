@@ -7,6 +7,11 @@ Usage: python3 scripts/perf/real-work/driver.py --stack <state.json> --profile <
   --stack    the state that `python3 scripts/agent-stack/stack.py <slot> up` (or `status`) prints
   --profile  a workload profile, e2e/perf/workloads/<name>.json
 
+A profile's `agents` (default 1) spreads the threads over the stack's stub agents: with more than one, thread i's
+turns name worker{i % agents + 1} first, which the stub's router answers with, and the run exits 1 when the stack
+state lacks one (start it with `stack.py <slot> up --agents N`). One agent gets 30 live frames a second per room
+from the homeserver, about 3 streams' worth, so a load of more streams needs one agent per 3.
+
 The stack's stub model answers each `#work` prompt this script posts as the stack's tester
 (scripts/agent-stack/stub_model.py), so the real backend writes the events: live frames, edits, jobs state.
 
@@ -85,7 +90,24 @@ def check_profile(profile: dict) -> dict:
             if not isinstance(value, dict) or key not in value:
                 raise ValueError(f"the profile has no {path}")
             value = value[key]
+    # Old profiles have one agent, the router's pick.
+    agents = profile.setdefault("agents", 1)
+    if not isinstance(agents, int) or isinstance(agents, bool) or agents < 1:
+        raise ValueError("the profile's agents must be an integer of 1 or more")
     return profile
+
+
+def worker_for(index: int, agents: int) -> str | None:
+    """The stub agent that thread `index` is addressed to when the profile has several agents, else None."""
+    return f"worker{index % agents + 1}" if agents > 1 else None
+
+
+def check_workers(stack: dict, agents: int) -> None:
+    """ValueError naming the first of worker1 .. worker{agents} that the stack state lacks (stack.py --agents)."""
+    if agents > 1:
+        for number in range(1, agents + 1):
+            if f"worker{number}" not in (stack.get("agents") or {}):
+                raise ValueError(f"the stack has no agent worker{number} (start it with stack.py --agents {agents})")
 
 
 def load_profile(path: Path) -> dict:
@@ -102,9 +124,10 @@ def sample(dist: dict, rng: random.Random) -> float:
     return max(0.0, float(dist["max"]))
 
 
-def work_prompt(reply: dict, rng: random.Random, live: bool) -> str:
+def work_prompt(reply: dict, rng: random.Random, live: bool, worker: str | None = None) -> str:
     """A `#work` prompt for the stub model with a reply drawn from the profile's `reply`. History replies come at
-    full speed (`wps=0 toolsec=0`) and are otherwise the replies the same draws give a live run."""
+    full speed (`wps=0 toolsec=0`) and are otherwise the replies the same draws give a live run. A `worker` is
+    named first in the prompt, where the stub's router finds it."""
     words = max(1, round(sample(reply["words"], rng)))
     reasoning = round(sample(reply["reasoning"], rng))
     tools = round(sample(reply["tools"], rng))
@@ -112,7 +135,7 @@ def work_prompt(reply: dict, rng: random.Random, live: bool) -> str:
     seed = rng.randrange(1, 1_000_000)
     wps = reply["wps"] if live else 0
     return (
-        f"#work words={words} wps={wps:g} reasoning={reasoning} tools={tools} "
+        f"{worker + ' ' if worker else ''}#work words={words} wps={wps:g} reasoning={reasoning} tools={tools} "
         f"toolsec={toolsec if live else 0:g} seed={seed}"
     )
 
@@ -395,7 +418,10 @@ def run_history(lobby: Lobby, profile: dict, streams: int, rng: random.Random, o
     while turns_left:
         now = time.monotonic()
         for thread in scheduler.ready(now):
-            event_id = lobby.post_turn(roots.get(thread), work_prompt(profile["reply"], rng, live=False))
+            event_id = lobby.post_turn(
+                roots.get(thread),
+                work_prompt(profile["reply"], rng, live=False, worker=worker_for(int(thread), profile.get("agents", 1))),
+            )
             if event_id is None:
                 break
             if thread not in roots:
@@ -421,7 +447,7 @@ def run_history(lobby: Lobby, profile: dict, streams: int, rng: random.Random, o
         if now - reported >= WINDOW_SECONDS:
             reported = now
             log(f"history: {total - sum(turns_left.values())} of {total} turns, {scheduler.posted()} under way")
-    out.write_text(json.dumps({"room": lobby.room, "threads": list(roots.values()), "quietRooms": quiet_rooms}) + "\n")
+    out.write_text(json.dumps({"room": lobby.room, "threads": [roots[thread] for thread in sorted(roots, key=int)], "quietRooms": quiet_rooms}) + "\n")
     log(f"history: {len(roots)} threads with {total} turns")
     return 0
 
@@ -441,6 +467,8 @@ def run_live(
     if history["room"] != lobby.room:
         raise RuntimeError(f"the history is of {history['room']}, the stack's lobby is {lobby.room}")
     scheduler = Scheduler(streams, profile["live"]["pauseSeconds"], profile["live"]["stuckSeconds"], rng)
+    # The history lists the threads by number, so thread i keeps the worker it had there.
+    worker_of = {root: worker_for(index, profile.get("agents", 1)) for index, root in enumerate(history["threads"])}
     for root in history["threads"]:
         scheduler.add(root)
     lobby.sync()
@@ -457,7 +485,7 @@ def run_live(
             live_seconds += scheduler.streaming(now) * (now - ticked)
             ticked = now
             for root in scheduler.ready(now):
-                if lobby.post_turn(root, work_prompt(profile["reply"], rng, live=True)) is None:
+                if lobby.post_turn(root, work_prompt(profile["reply"], rng, live=True, worker=worker_of.get(root))) is None:
                     break
                 scheduler.started(root, now)
             if now >= window_end:
@@ -501,7 +529,13 @@ def main() -> int:
     if args.phase == "live" and args.history is None:
         parser.error("--phase live needs --history")
     profile = load_profile(args.profile)
-    lobby = Lobby(json.loads(args.stack.read_text()))
+    stack = json.loads(args.stack.read_text())
+    try:
+        check_workers(stack, profile["agents"])
+    except ValueError as error:
+        log(str(error))
+        return 1
+    lobby = Lobby(stack)
     rng = random.Random(args.seed)
     if args.phase == "history":
         return run_history(lobby, profile, args.streams or profile["historyStreams"], rng, args.out)
