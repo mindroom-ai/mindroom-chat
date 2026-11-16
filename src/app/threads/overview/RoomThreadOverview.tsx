@@ -697,9 +697,9 @@ export function RoomThreadOverview({
 
   // While Sections are on, a search that applies can leave the query as it was: its resolved or
   // snoozed tokens do not apply then, so each new state syncs the draft too, not only a new query.
+  // `sectionsState` is a dependency only to run the sync; the effect does not read it.
   const sectionsState = threadSections ? state : undefined;
   useEffect(() => {
-    void sectionsState;
     if (pendingSearchCanonicalRef.current === canonicalSearchQuery) {
       pendingSearchCanonicalRef.current = undefined;
       return;
