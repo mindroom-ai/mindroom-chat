@@ -326,6 +326,8 @@ export const startProbe = async (
   const series: ProbeResult['series'] = [];
   let startedAt = 0;
   let timer: NodeJS.Timeout | undefined;
+  // The periodic samples, one after the other, so `stop` can wait for the last one.
+  let sampling: Promise<void> = Promise.resolve();
   let profiling = false;
   let tracing = false;
   let attached = session !== undefined;
@@ -389,7 +391,12 @@ export const startProbe = async (
       before = await sample(session);
       timer = setInterval(() => {
         // A sample that fails (the page is closing) is left out.
-        sample(session).catch(() => undefined);
+        sampling = sampling
+          .then(() => sample(session))
+          .then(
+            () => undefined,
+            () => undefined
+          );
       }, sampleMs);
     }
   } catch (error) {
@@ -401,6 +408,8 @@ export const startProbe = async (
     // The window closes first, before anything slow: Chrome's totals, the page's buffers, the
     // load counter and the clock, so every number of the result covers the same time.
     clearInterval(timer);
+    // A periodic sample still running would land after the final one.
+    await sampling;
     const after = session ? await sample(session) : undefined;
     const seen = await page.evaluate(() => {
       const probe = (window as unknown as ProbeWindow).__perfProbe;
