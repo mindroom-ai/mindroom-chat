@@ -241,6 +241,20 @@ it('reads the new room when the room changes, and no longer hears the old one', 
   expect([...old.reads.keys()]).toEqual([]);
 });
 
+it('hears news of a main timeline reply that began a thread, which comes by that thread', () => {
+  // The reply is not vouched for, and its jobs ended: the server is asked about it.
+  unvouched.add('$root');
+  room.put('$root', MAIN);
+  show([job(MAIN)], false);
+  expect(streaming).toBe(false);
+  // The answer names the reply's thread, the one it began.
+  unvouched.delete('$root');
+  act(() => {
+    room.announce.update('$root');
+  });
+  expect(streaming).toBe(true);
+});
+
 it('reads every conversation again when the main timeline resets, as at a sync gap', () => {
   room.put('$a1', '$a');
   room.put('$m1', MAIN);
@@ -288,7 +302,7 @@ it('keeps streaming while another conversation of the jobs still does', () => {
   expect(streaming).toBe(true);
 });
 
-it('stops when the first reply to stall does, and again when the next one does', () => {
+it('reads everything again when the first reply stalls, and stops when the last one does', () => {
   room.put('$a1', '$a');
   show([job('$a'), job('$b')]);
   act(() => {
