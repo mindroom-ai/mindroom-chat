@@ -754,6 +754,10 @@
           "declined": "Declined",
           "expired": "Expired"
         }
+      },
+      "finishedWork": {
+        "workedFor": "Worked for {{duration}}",
+        "worked": "Worked"
       }
     },
     "message-search": {
@@ -1283,5 +1287,12 @@
       "idle": "Idle",
       "resolved": "Resolved"
     }
+  },
+  "threadBoard": {
+    "label": "Threads by state",
+    "working": "Working",
+    "later": "Later",
+    "open": "Open",
+    "done": "Done"
   }
 }

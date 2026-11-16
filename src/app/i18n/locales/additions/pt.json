@@ -763,6 +763,10 @@
           "declined": "Recusada",
           "expired": "Expirada"
         }
+      },
+      "finishedWork": {
+        "workedFor": "Trabalhou por {{duration}}",
+        "worked": "Trabalhou"
       }
     },
     "message-search": {
@@ -1307,5 +1311,12 @@
       "idle": "Inativos",
       "resolved": "Resolvidos"
     }
+  },
+  "threadBoard": {
+    "label": "Tópicos por estado",
+    "working": "Em andamento",
+    "later": "Mais tarde",
+    "open": "Abertos",
+    "done": "Concluídos"
   }
 }

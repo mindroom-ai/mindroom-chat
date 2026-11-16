@@ -18,15 +18,31 @@ public class MindRoomQuickCapturePlugin: CAPPlugin, CAPBridgedPlugin {
 #if targetEnvironment(macCatalyst)
     @objc func hide(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
+#if MINDROOM_MAC_APP_STORE
+            guard MacWindowing.requireSupport(), let scene = QuickCapture.widgetScene else {
+                return call.reject("Quick Capture is unavailable", "CAPTURE_FAILED")
+            }
+            QuickCapture.whenHostWindow(of: scene, onFailure: { call.reject($0, "CAPTURE_FAILED") }) { host in
+                MacWindowing.hideWidget(host)
+                call.resolve()
+            }
+#else
             QuickCapture.hide()
             call.resolve()
+#endif
         }
     }
 
     @objc func showMainWindow(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
+#if MINDROOM_MAC_APP_STORE
+            QuickCapture.showMainWindow { error in
+                if let error { call.reject(error, "CAPTURE_FAILED") } else { call.resolve() }
+            }
+#else
             QuickCapture.showMainWindow()
             call.resolve()
+#endif
         }
     }
 
@@ -44,6 +60,12 @@ public class MindRoomQuickCapturePlugin: CAPPlugin, CAPBridgedPlugin {
         }
         Task { @MainActor in
             let display = QuickCapture.widgetDisplay
+#if MINDROOM_MAC_APP_STORE
+            guard MacWindowing.requireSupport(), display != nil else {
+                MacWindowing.reportFailure("Quick Capture could not identify its screen. Close and reopen Quick Capture.")
+                return call.reject("Quick Capture's screen is unavailable", "NO_WINDOW")
+            }
+#endif
             do {
                 let shot = try await MacScreenshot.capture(
                     target,

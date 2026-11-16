@@ -763,6 +763,10 @@
           "declined": "Rifiutata",
           "expired": "Scaduta"
         }
+      },
+      "finishedWork": {
+        "workedFor": "Ha lavorato per {{duration}}",
+        "worked": "Ha lavorato"
       }
     },
     "message-search": {
@@ -1307,5 +1311,12 @@
       "idle": "Inattivi",
       "resolved": "Risolti"
     }
+  },
+  "threadBoard": {
+    "label": "Thread per stato",
+    "working": "In corso",
+    "later": "Più tardi",
+    "open": "Aperti",
+    "done": "Fatti"
   }
 }

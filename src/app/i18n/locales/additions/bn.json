@@ -754,6 +754,10 @@
           "declined": "প্রত্যাখ্যাত",
           "expired": "মেয়াদ শেষ"
         }
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} কাজ করেছে",
+        "worked": "কাজ করেছে"
       }
     },
     "message-search": {
@@ -1283,5 +1287,12 @@
       "idle": "নিষ্ক্রিয়",
       "resolved": "সমাধান করা"
     }
+  },
+  "threadBoard": {
+    "label": "অবস্থা অনুযায়ী থ্রেড",
+    "working": "কাজ চলছে",
+    "later": "পরে",
+    "open": "খোলা",
+    "done": "সম্পন্ন"
   }
 }
