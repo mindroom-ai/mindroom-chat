@@ -87,7 +87,9 @@
       "pack": "Same as pack"
     },
     "imageViewer": {
-      "close": "Close"
+      "close": "Close",
+      "previous": "Previous image",
+      "next": "Next image"
     },
     "inviteUserPrompt": {
       "close": "Close",

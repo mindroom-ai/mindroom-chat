@@ -227,27 +227,40 @@ type MImageProps = {
   outlined?: boolean;
 };
 
-/** An image, or a file row for image types a browser should not render (SVG). */
-export function MImage({ content, renderAsFile, renderImageContent, outlined }: MImageProps) {
+/**
+ * What an `m.image` event's content shows: the image, `'file'` for an image type a browser should
+ * not render (SVG), shown as a file row, or nothing without a file.
+ */
+export const readImageAttachment = (
+  content: MessageContent
+): RenderImageContentArgs | 'file' | undefined => {
   const source = readMediaSource(content);
-  if (!source) return <BrokenContent />;
+  if (!source) return undefined;
   const info = readInfo<IImageInfo>(content);
   const mimeType = readMimeType(info);
   if (
     !getMimeTypeBase(mimeType).startsWith('image/') ||
     getBlobSafeMimeType(mimeType) === FALLBACK_MIMETYPE
   ) {
-    return <>{renderAsFile()}</>;
+    return 'file';
   }
+  return {
+    body: readFileName(content) ?? '',
+    info,
+    mimeType,
+    url: source.url,
+    encInfo: source.encInfo,
+  };
+};
+
+/** An image, or a file row for image types a browser should not render (SVG). */
+export function MImage({ content, renderAsFile, renderImageContent, outlined }: MImageProps) {
+  const image = readImageAttachment(content);
+  if (!image) return <BrokenContent />;
+  if (image === 'file') return <>{renderAsFile()}</>;
   return (
-    <Box style={{ ...mediaBoxStyle(info), ...outlineStyle(outlined, toRem(12)) }}>
-      {renderImageContent({
-        body: readFileName(content) ?? '',
-        info,
-        mimeType,
-        url: source.url,
-        encInfo: source.encInfo,
-      })}
+    <Box style={{ ...mediaBoxStyle(image.info), ...outlineStyle(outlined, toRem(12)) }}>
+      {renderImageContent(image)}
     </Box>
   );
 }

@@ -90,7 +90,9 @@
       "pack": "Comme le pack"
     },
     "imageViewer": {
-      "close": "Fermer"
+      "close": "Fermer",
+      "previous": "Image précédente",
+      "next": "Image suivante"
     },
     "inviteUserPrompt": {
       "close": "Fermer",

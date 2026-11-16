@@ -40,6 +40,7 @@ import { CompactRoomWithoutThreads } from './CompactRoomWithoutThreads';
 import * as overlay from '../ui/styles/RoomOverlay.css';
 import { ThreadTimelineHeader } from '../threads/ThreadTimelineHeader';
 import { TimelineMinimap } from './TimelineMinimap';
+import { buildImageSlides, ImageSlidesContext } from '../messages/content/imageSlides';
 import { useTimelineMessageFeature } from './message-rendering/useTimelineMessageFeature';
 import type { TimelineMessageData } from './message-rendering/types';
 import type { RoomViewMode } from '../navigation/roomViewMode';
@@ -764,6 +765,13 @@ export function RoomTimeline(props: RoomTimelineProps) {
         ? new Set(threadEvents.filter(isHiddenByPlugin).flatMap((event) => event.getId() ?? []))
         : EMPTY_IDS,
     [threadRowHidden, threadEvents, isHiddenByPlugin]
+  );
+  // The image viewer pages through the pictures of the conversation on screen, as its rows show
+  // them; it reads them when it opens and on each step, so newly loaded ones join.
+  const slideEvents = threadId ? threadEvents : roomRows;
+  const getImageSlides = useCallback(
+    () => buildImageSlides(slideEvents, getRowContent, isHiddenByPlugin),
+    [slideEvents, getRowContent, isHiddenByPlugin]
   );
   // What each agent reply of the open thread and the thread so far cost, for Reply details.
   const threadConversationCost = useThreadConversationCostSummary(
@@ -1778,23 +1786,25 @@ export function RoomTimeline(props: RoomTimelineProps) {
             </div>
           )}
           <ThreadConversationCostProvider value={threadConversationCost}>
-            {feature.wrapExpansion(
-              <div
-                ref={ledger.virtualInnerRef}
-                data-thread-count={threadId ? threadEvents.length : undefined}
-                data-testid={threadId ? undefined : 'room-virtual-inner'}
-                style={{
-                  ...overlay.overviewInsetStop,
-                  position: 'relative',
-                  height: listHeight,
-                  visibility:
-                    automaticFill.hideInitialRows || hideOpeningThreadRows ? 'hidden' : undefined,
-                }}
-              >
-                {latestAtTop ? frontSentinel : backSentinel}
-                {tiles}
-              </div>
-            )}
+            <ImageSlidesContext.Provider value={getImageSlides}>
+              {feature.wrapExpansion(
+                <div
+                  ref={ledger.virtualInnerRef}
+                  data-thread-count={threadId ? threadEvents.length : undefined}
+                  data-testid={threadId ? undefined : 'room-virtual-inner'}
+                  style={{
+                    ...overlay.overviewInsetStop,
+                    position: 'relative',
+                    height: listHeight,
+                    visibility:
+                      automaticFill.hideInitialRows || hideOpeningThreadRows ? 'hidden' : undefined,
+                  }}
+                >
+                  {latestAtTop ? frontSentinel : backSentinel}
+                  {tiles}
+                </div>
+              )}
+            </ImageSlidesContext.Provider>
           </ThreadConversationCostProvider>
           {latestAtTop ? (
             <>

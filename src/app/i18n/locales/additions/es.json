@@ -90,7 +90,9 @@
       "pack": "Igual que el paquete"
     },
     "imageViewer": {
-      "close": "Cerrar"
+      "close": "Cerrar",
+      "previous": "Imagen anterior",
+      "next": "Imagen siguiente"
     },
     "inviteUserPrompt": {
       "close": "Cerrar",

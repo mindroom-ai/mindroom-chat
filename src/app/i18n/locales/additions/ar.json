@@ -99,7 +99,9 @@
       "pack": "مثل الحزمة"
     },
     "imageViewer": {
-      "close": "إغلاق"
+      "close": "إغلاق",
+      "previous": "الصورة السابقة",
+      "next": "الصورة التالية"
     },
     "inviteUserPrompt": {
       "close": "إغلاق",
