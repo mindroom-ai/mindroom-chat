@@ -1,10 +1,6 @@
 import type { TFunction } from 'i18next';
 import englishCatalog, { mergeLocaleTrees, type LocaleTree } from '../../i18n/englishResources';
 import { APP_LANGUAGES } from '../../i18n/i18nLanguages';
-import de from '../../i18n/locales/de.json';
-import deAdditions from '../../i18n/locales/additions/de.json';
-import ja from '../../i18n/locales/ja.json';
-import jaAdditions from '../../i18n/locales/additions/ja.json';
 import { DEFAULT_SETTINGS } from '../../preferences/settings';
 import {
   getShownSettings,
@@ -27,10 +23,24 @@ import type {
 /** The app languages the corpus runs in: English, one more Latin one, one in another script. */
 export type CorpusLanguage = 'en' | 'de' | 'ja';
 
+// The catalogs as plain trees, as the app loads them (`i18n/localeAdditions.ts`): imported as
+// modules, each would give the compiler its whole text as a type.
+const files = import.meta.glob<LocaleTree>(
+  ['../../i18n/locales/{de,ja}.json', '../../i18n/locales/additions/{de,ja}.json'],
+  { import: 'default', eager: true }
+);
+
+/** A language's catalog with its additions, merged as the app merges them. */
+const catalogOf = (language: string): LocaleTree =>
+  mergeLocaleTrees(
+    files[`../../i18n/locales/${language}.json`] ?? {},
+    files[`../../i18n/locales/additions/${language}.json`] ?? {}
+  );
+
 const CATALOGS: Record<CorpusLanguage, LocaleTree> = {
   en: englishCatalog,
-  de: mergeLocaleTrees(de, deAdditions),
-  ja: mergeLocaleTrees(ja, jaAdditions),
+  de: catalogOf('de'),
+  ja: catalogOf('ja'),
 };
 
 const lookUp = (tree: LocaleTree, key: string): string | undefined => {
