@@ -9,6 +9,7 @@ import {
   phoneNavSlotAtom,
   phoneSheetSlotAtom,
 } from '../navigation/phoneNavDrawer';
+import { slidePhonePage } from '../navigation/phonePageSlide';
 import { useEdgeSwipe } from '../navigation/useEdgeSwipe';
 import { edgeSwipeBackCountAtom } from '../navigation/useEdgeSwipeBack';
 import { useSwipeAway } from '../navigation/useSwipeAway';
@@ -54,7 +55,13 @@ const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean
  * away; following a link in it does too.
  */
 export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
-  const [open, setOpen] = useAtom(phoneNavDrawerOpenAtom);
+  const [open, setOpenNow] = useAtom(phoneNavDrawerOpenAtom);
+  // What a person does to the drawer slides the page (`slidePhonePage`); what follows a navigation
+  // is part of that navigation's slide.
+  const setOpen = useCallback(
+    (next: boolean) => slidePhonePage(() => setOpenNow(next)),
+    [setOpenNow]
+  );
   // The section's list portals itself into the slot (`MobileFriendlyPageNav`).
   const setSlot = useSetAtom(phoneNavSlotAtom);
   const slotRef = useRef<HTMLDivElement>(null);
@@ -81,11 +88,11 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
     return () => cancelAnimationFrame(frame);
   }, [animate, open, store]);
 
-  useDrawerFollowsNavigation(setOpen);
+  useDrawerFollowsNavigation(setOpenNow);
   useInert(panelRef, !open);
   // Gone with the phone layout (a phone turned sideways), the drawer is away: nothing else would
   // put it away, and edge swipes rest while it is out.
-  useEffect(() => () => setOpen(false), [setOpen]);
+  useEffect(() => () => setOpenNow(false), [setOpenNow]);
 
   // Put away, the drawer drops the rail and the list once it has slid out, as a phone's page had
   // them unmounted before; out, or sliding, it holds them.
