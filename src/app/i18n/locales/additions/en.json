@@ -705,7 +705,31 @@
         "tooLargeToApprove": "The arguments are too large to review, so this request can only be denied."
       },
       "showToolCalls": "Show tool calls",
-      "showToolCallsDescription": "The default for every room: agent replies list the tools they ran, or show only a small cog at their top that counts them and shows them when clicked. A room's or a thread's menu changes it there."
+      "showToolCallsDescription": "The default for every room: agent replies list the tools they ran, or show only a small cog at their top that counts them and shows them when clicked. A room's or a thread's menu changes it there.",
+      "secretRequestCard": {
+        "label": "Key request",
+        "title": "{{name}} key",
+        "usedOnlyFor": "Used only for {{hosts}}",
+        "waitingFor": "Waiting for {{name}}",
+        "placeholder": "Paste or type the key",
+        "showKey": "Show key",
+        "hideKey": "Hide key",
+        "sentTo": "Sent to {{host}}",
+        "save": "Save",
+        "decline": "Decline",
+        "savedWaiting": "Saved, waiting for the agent",
+        "declinedWaiting": "Declined, waiting for the agent",
+        "noLongerActive": "This request is no longer active. Ask the agent again.",
+        "unavailable": "Entering keys is not available on this server.",
+        "unavailableHint": "To enter keys here, set your MindRoom server in Settings → {{page}} → {{field}}.",
+        "status": {
+          "waitingForYou": "Waiting for you",
+          "pending": "Pending",
+          "saved": "Saved",
+          "declined": "Declined",
+          "expired": "Expired"
+        }
+      }
     },
     "message-search": {
       "messageSearch": {

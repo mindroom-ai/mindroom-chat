@@ -696,7 +696,31 @@
         "tooLargeToApprove": "引数が大きすぎて確認できないため、このリクエストは拒否のみできます。"
       },
       "showToolCalls": "ツール呼び出しを表示",
-      "showToolCallsDescription": "すべてのルームの既定値です。エージェントの返信に実行したツールを一覧表示するか、返信の上部に小さな歯車だけを表示します。歯車はツールの数を示し、クリックするとツールを表示します。ルームやスレッドのメニューで、そこだけ変更できます。"
+      "showToolCallsDescription": "すべてのルームの既定値です。エージェントの返信に実行したツールを一覧表示するか、返信の上部に小さな歯車だけを表示します。歯車はツールの数を示し、クリックするとツールを表示します。ルームやスレッドのメニューで、そこだけ変更できます。",
+      "secretRequestCard": {
+        "label": "キーのリクエスト",
+        "title": "{{name}} のキー",
+        "usedOnlyFor": "{{hosts}} にのみ使用されます",
+        "waitingFor": "{{name}} の対応待ち",
+        "placeholder": "キーを貼り付けるか入力してください",
+        "showKey": "キーを表示",
+        "hideKey": "キーを隠す",
+        "sentTo": "送信先: {{host}}",
+        "save": "保存",
+        "decline": "拒否",
+        "savedWaiting": "保存しました。エージェントを待っています",
+        "declinedWaiting": "拒否しました。エージェントを待っています",
+        "noLongerActive": "このリクエストは有効ではなくなりました。もう一度エージェントに依頼してください。",
+        "unavailable": "このサーバーではキーを入力できません。",
+        "unavailableHint": "ここでキーを入力するには、設定 → {{page}} → {{field}} で MindRoom サーバーを設定してください。",
+        "status": {
+          "waitingForYou": "あなたの対応待ち",
+          "pending": "保留中",
+          "saved": "保存済み",
+          "declined": "拒否済み",
+          "expired": "期限切れ"
+        }
+      }
     },
     "message-search": {
       "messageSearch": {

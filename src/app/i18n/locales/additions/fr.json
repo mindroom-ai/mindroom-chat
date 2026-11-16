@@ -714,7 +714,31 @@
         "tooLargeToApprove": "Les arguments sont trop volumineux pour être examinés : cette demande ne peut qu’être refusée."
       },
       "showToolCalls": "Afficher les appels d'outils",
-      "showToolCallsDescription": "Le réglage par défaut de chaque salon : les réponses des agents listent les outils exécutés, ou n'affichent en haut qu'un petit engrenage qui les compte et les montre d'un clic. Le menu d'un salon ou d'un fil le change à cet endroit."
+      "showToolCallsDescription": "Le réglage par défaut de chaque salon : les réponses des agents listent les outils exécutés, ou n'affichent en haut qu'un petit engrenage qui les compte et les montre d'un clic. Le menu d'un salon ou d'un fil le change à cet endroit.",
+      "secretRequestCard": {
+        "label": "Demande de clé",
+        "title": "Clé {{name}}",
+        "usedOnlyFor": "Utilisée uniquement pour {{hosts}}",
+        "waitingFor": "En attente de {{name}}",
+        "placeholder": "Collez ou saisissez la clé",
+        "showKey": "Afficher la clé",
+        "hideKey": "Masquer la clé",
+        "sentTo": "Envoyée à {{host}}",
+        "save": "Enregistrer",
+        "decline": "Refuser",
+        "savedWaiting": "Enregistrée, en attente de l’agent",
+        "declinedWaiting": "Refusée, en attente de l’agent",
+        "noLongerActive": "Cette demande n’est plus active. Redemandez à l’agent.",
+        "unavailable": "La saisie de clés n’est pas disponible sur ce serveur.",
+        "unavailableHint": "Pour saisir des clés ici, définissez votre serveur MindRoom dans Paramètres → {{page}} → {{field}}.",
+        "status": {
+          "waitingForYou": "Vous attend",
+          "pending": "En attente",
+          "saved": "Enregistrée",
+          "declined": "Refusée",
+          "expired": "Expirée"
+        }
+      }
     },
     "message-search": {
       "messageSearch": {

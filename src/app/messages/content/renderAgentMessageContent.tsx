@@ -26,6 +26,7 @@ import { LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
 import { TranscribingPlaceholder } from '../agent-run/TranscribingPlaceholder';
 import { ThreadSummaryCard } from '../thread-summary/ThreadSummaryCard';
 import { ToolApprovalCard } from '../../approvals/ToolApprovalCard';
+import { SecretRequestCard } from '../../approvals/SecretRequestCard';
 import { renderStreamingIndicator } from '../agent-run/StreamingIndicator';
 import { isThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
 import { isTranscribingPlaceholder } from '../../matrix/protocol/transcribingPlaceholder';
@@ -35,6 +36,7 @@ import {
   parseToolApprovalContent,
 } from '../../matrix/protocol/toolApproval';
 import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import { parseSecretRequestContent } from '../../matrix/protocol/secretRequest';
 import { readSnoozeEndedNote } from '../../matrix/protocol/threadSnooze';
 import { SnoozeEndedMarker } from '../SnoozeEndedMarker';
 import { getMessageStateSuffixRenderer } from './messageStateSuffix';
@@ -288,6 +290,21 @@ export const renderAgentMessageContent = ({
   // views, such as threads shown in the room, keep the message row with the marker as its body.
   const snoozeEndedNote = fromMindroomAgent ? readSnoozeEndedNote(content) : null;
   if (snoozeEndedNote !== null) return <SnoozeEndedMarker note={snoozeEndedNote} />;
+
+  // An agent asking for a key; any member can write this content, which then renders as its body.
+  // The answer goes to the sender's own MindRoom server.
+  const secretRequest = fromMindroomAgent ? parseSecretRequestContent(content) : null;
+  const secretRequestRoomId = roomId ?? mEvent?.getRoomId();
+  const secretRequestSender = mEvent?.getSender();
+  if (secretRequest && secretRequestRoomId && secretRequestSender) {
+    return (
+      <SecretRequestCard
+        request={secretRequest}
+        roomId={secretRequestRoomId}
+        agentUserId={secretRequestSender}
+      />
+    );
+  }
 
   if (eventType === MINDROOM_TOOL_APPROVAL_EVENT) {
     // Only MindRoom sends approval cards; any member can post this event type.
