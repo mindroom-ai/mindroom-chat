@@ -4,6 +4,7 @@ import {
   ClientEvent,
   MatrixEventEvent,
   RoomEvent,
+  RoomMemberEvent,
   RoomStateEvent,
   ThreadEvent,
   type MatrixEvent,
@@ -233,8 +234,9 @@ describe('useThreadOverviewRefreshCounter changes', () => {
   });
 
   it.each([
-    ['a member', 'm.room.member', 'room'],
     ['its encryption', 'm.room.encryption', 'room'],
+    // The sync repeats member events that change nothing; a member's change has its own events.
+    ['a member event', 'm.room.member', []],
     ['its topic', 'm.room.topic', []],
   ])('marks the room for a change of %s', (_name, type, marked) => {
     const { client, told } = setup();
@@ -242,6 +244,18 @@ describe('useThreadOverviewRefreshCounter changes', () => {
       client.emit(RoomStateEvent.Events, event({ id: '$state', type }), { roomId });
 
     expect(told(emit(ROOM_ID))).toEqual({ marked, counted: 0 });
+    expect(told(emit('!other:example.org')).marked).toEqual([]);
+  });
+
+  it.each([
+    ['name', RoomMemberEvent.Name],
+    ['membership', RoomMemberEvent.Membership],
+  ])("marks the room for a member's new %s", (_name, name) => {
+    const { client, told } = setup();
+    const emit = (roomId: string) => () =>
+      client.emit(name, event({ id: '$member', type: 'm.room.member' }), { roomId });
+
+    expect(told(emit(ROOM_ID))).toEqual({ marked: 'room', counted: 0 });
     expect(told(emit('!other:example.org')).marked).toEqual([]);
   });
 });

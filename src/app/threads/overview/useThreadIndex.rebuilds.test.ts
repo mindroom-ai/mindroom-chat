@@ -6,10 +6,10 @@ import {
   ReceiptType,
   Room,
   RoomEvent,
-  RoomStateEvent,
+  RoomMemberEvent,
   ThreadEvent,
   type MatrixClient,
-  type RoomState,
+  type RoomMember,
   type Thread,
 } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -199,7 +199,7 @@ describe('useThreadIndex record builds', () => {
     expect(records().get('$b')).not.toBe(before.get('$b'));
   });
 
-  it('builds every record at the next count after a member of the room changed', () => {
+  it('builds every record at the next count after a member of the room took a new name', () => {
     const records = renderListeningIndex();
     const before = records();
     const member = new MatrixEvent({
@@ -210,7 +210,7 @@ describe('useThreadIndex record builds', () => {
     });
 
     act(() => {
-      mx.emit(RoomStateEvent.Events, member, { roomId: room.roomId } as RoomState, null);
+      mx.emit(RoomMemberEvent.Name, member, { roomId: room.roomId } as RoomMember, 'Alice');
     });
     expect(records()).toBe(before);
     act(() => {

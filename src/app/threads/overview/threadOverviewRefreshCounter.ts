@@ -5,10 +5,11 @@ import {
   EventType,
   MatrixEventEvent,
   RoomEvent,
+  RoomMemberEvent,
   RoomStateEvent,
   ThreadEvent,
 } from 'matrix-js-sdk';
-import type { MatrixClient, MatrixEvent, Room, RoomState, Thread } from 'matrix-js-sdk';
+import type { MatrixClient, MatrixEvent, Room, RoomMember, RoomState, Thread } from 'matrix-js-sdk';
 import { shouldRefreshOverviewForTimelineEvent } from '../open/threadBootstrap';
 import {
   createThreadRecordChanges,
@@ -38,12 +39,6 @@ const holdsReceiptOf = (receipt: MatrixEvent | undefined, userId: string): boole
       Object.values(byType).some((byUser) => isRecord(byUser) && userId in byUser)
   );
 
-/** The state a thread record reads: who its people are, and whether the room is encrypted. */
-const RECORD_STATE_TYPES: ReadonlySet<string> = new Set([
-  EventType.RoomMember,
-  EventType.RoomEncryption,
-]);
-
 /**
  * A recompute key for the room's thread overview (chips, cards, reply counts, unread marks and
  * sort order), much of which comes from SDK thread objects and read receipts rather than from the
@@ -61,8 +56,8 @@ const RECORD_STATE_TYPES: ReadonlySet<string> = new Set([
  * count to the next (`ThreadRecordReuse`): the thread of the event or thread update, or the whole
  * room (the reader's own receipt, a caller's request, an event whose thread is unknown). It also
  * takes what a record reads that raises no count: every event the client hears of the room (the
- * edits kept from the sync are in by then), a local echo's progress, a redaction, and the room's
- * members and encryption. Someone else's receipt changes no record.
+ * edits kept from the sync are in by then), a local echo's progress, a redaction, a member's new
+ * name or membership, and the room's encryption. Someone else's receipt changes no record.
  */
 export const useThreadOverviewRefreshCounter = (
   room: Room,
@@ -116,8 +111,13 @@ export const useThreadOverviewRefreshCounter = (
       if (mEvent.getRoomId() === room.roomId && mEvent.getId()) markEvent(mEvent);
     };
     const handleEcho = (mEvent: MatrixEvent) => markEvent(mEvent);
+    // A record names its people and reads who is in the room, and whether the room is encrypted.
+    // The sync repeats member events that change neither, one for the sender of many a batch.
+    const handleMember = (_mEvent: MatrixEvent, member: RoomMember) => {
+      if (member.roomId === room.roomId) markThreadRecordChange(overviewChanges);
+    };
     const handleState = (mEvent: MatrixEvent, state: RoomState) => {
-      if (state.roomId === room.roomId && RECORD_STATE_TYPES.has(mEvent.getType())) {
+      if (state.roomId === room.roomId && mEvent.getType() === (EventType.RoomEncryption as string)) {
         markThreadRecordChange(overviewChanges);
       }
     };
@@ -145,6 +145,8 @@ export const useThreadOverviewRefreshCounter = (
     client?.on?.(MatrixEventEvent.Decrypted, handleDecrypted);
     client?.on?.(ClientEvent.Event, handleRoomEvent);
     client?.on?.(RoomStateEvent.Events, handleState);
+    client?.on?.(RoomMemberEvent.Name, handleMember);
+    client?.on?.(RoomMemberEvent.Membership, handleMember);
     room.on(ThreadEvent.New, handleThread);
     room.on(ThreadEvent.Update, handleThread);
     room.on(ThreadEvent.NewReply, handleThread);
@@ -157,6 +159,8 @@ export const useThreadOverviewRefreshCounter = (
       client?.removeListener?.(MatrixEventEvent.Decrypted, handleDecrypted);
       client?.removeListener?.(ClientEvent.Event, handleRoomEvent);
       client?.removeListener?.(RoomStateEvent.Events, handleState);
+      client?.removeListener?.(RoomMemberEvent.Name, handleMember);
+      client?.removeListener?.(RoomMemberEvent.Membership, handleMember);
       clearTimeout(decryptedBump);
       room.removeListener(ThreadEvent.New, handleThread);
       room.removeListener(ThreadEvent.Update, handleThread);
