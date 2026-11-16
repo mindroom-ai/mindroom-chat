@@ -153,11 +153,17 @@ function SecretRequestAnswer({
   }
 
   const ready = !pending && !!apiUrl;
-  let saveKey: string = 'mindroomUi.messages.secretRequestCard.save';
-  if (temporary) saveKey = 'mindroomUi.messages.secretRequestCard.temporary.send';
+  let saveLabel = t('mindroomUi.messages.secretRequestCard.save');
+  if (temporary) saveLabel = t('mindroomUi.messages.secretRequestCard.temporary.send');
   else if (request.kind === 'key' && request.replaces) {
-    saveKey = 'mindroomUi.messages.secretRequestCard.replaceKey';
+    saveLabel = t('mindroomUi.messages.secretRequestCard.replaceKey');
   }
+  const showLabel = temporary
+    ? t('mindroomUi.messages.secretRequestCard.temporary.show')
+    : t('mindroomUi.messages.secretRequestCard.showKey');
+  const hideLabel = temporary
+    ? t('mindroomUi.messages.secretRequestCard.temporary.hide')
+    : t('mindroomUi.messages.secretRequestCard.hideKey');
 
   const send = async (decline: boolean) => {
     const secret = field.current?.value ?? '';
@@ -280,13 +286,7 @@ function SecretRequestAnswer({
               variant="Background"
               size="300"
               radii="300"
-              aria-label={t(
-                `mindroomUi.messages.secretRequestCard.${
-                  temporary
-                    ? `temporary.${visible ? 'hide' : 'show'}`
-                    : `${visible ? 'hide' : 'show'}Key`
-                }`
-              )}
+              aria-label={visible ? hideLabel : showLabel}
               aria-pressed={visible}
               onClick={() => setVisible((current) => !current)}
             >
@@ -309,7 +309,7 @@ function SecretRequestAnswer({
             aria-disabled={sending || undefined}
             onClick={notePress}
           >
-            <Text size="B300">{t(saveKey)}</Text>
+            <Text size="B300">{saveLabel}</Text>
           </Button>
           <Button
             type="button"

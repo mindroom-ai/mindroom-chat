@@ -48,9 +48,10 @@ const mx = vi.hoisted(() => ({
   getUserId: () => env.viewer,
   getRoom: () => ({
     getMember: (userId: string) =>
-      ({ '@alice:example.org': { name: 'Alice' }, '@mindroom_assistant:example.org': { name: 'Ada' } })[
-        userId
-      ] ?? null,
+      ({
+        '@alice:example.org': { name: 'Alice' },
+        '@mindroom_assistant:example.org': { name: 'Ada' },
+      }[userId] ?? null),
     getJoinedMembers: () => [],
   }),
 }));
@@ -172,7 +173,8 @@ const answer = (status: number, body?: unknown) =>
     headers: { 'Content-Type': 'application/json' },
   });
 
-const radio = (keep: string) => host.querySelector<HTMLInputElement>(`input[type="radio"][value="${keep}"]`);
+const radio = (keep: string) =>
+  host.querySelector<HTMLInputElement>(`input[type="radio"][value="${keep}"]`);
 const sentBody = (): unknown => JSON.parse(env.send.mock.calls[0]?.[1]?.body as string);
 
 /** Saves `key` and lets the answer arrive. */

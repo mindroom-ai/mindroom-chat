@@ -130,7 +130,14 @@ const expectSaved = async (page: Page) => {
 };
 
 /** A fresh run's accounts, a thread the agent joined, and the agent's pending card in it. */
-const seedCard = async (withOther: boolean, content: typeof cardContent = cardContent) => {
+const seedCard = async (
+  withOther: boolean,
+  content: (
+    requesterId: string,
+    requestId: string,
+    status: 'pending'
+  ) => Record<string, unknown> = cardContent
+) => {
   // Fresh for each run, so a repeat in the same worker registers its own accounts.
   const run = randomUUID().replaceAll('-', '').slice(0, 10);
   const requestId = `req-${run}`;
