@@ -18,7 +18,9 @@ import { buildCompactThreadSections, type CompactThreadSection } from './compact
 
 type RoomEntries = ReadonlyMap<string, CrossRoomThreadIndexEntry>;
 
-const noEntriesAtom = atom<RoomEntries>(new Map());
+const NO_ENTRIES: RoomEntries = new Map();
+// Read-only, so it holds nothing an account could leave behind.
+const noEntriesAtom = atom(() => NO_ENTRIES);
 
 const sameEntries = (left: RoomEntries, right: RoomEntries): boolean =>
   left.size === right.size && [...left].every(([rootId, entry]) => right.get(rootId) === entry);
