@@ -144,6 +144,14 @@ describe('useThreadKeys', () => {
     expect(document.activeElement).toBe(document.body);
   });
 
+  it("moves the focus to the left thread's card from another card beside the thread", () => {
+    const { rerender } = mount('$b');
+    card('$c').focus();
+    expect(press('leaveThread')).toBe(true);
+    rerender({ threadId: undefined });
+    expect(document.activeElement).toBe(card('$b'));
+  });
+
   it('leaves the focus alone when the reader moved it before the thread closed', () => {
     const elsewhere = document.createElement('button');
     document.body.append(elsewhere);

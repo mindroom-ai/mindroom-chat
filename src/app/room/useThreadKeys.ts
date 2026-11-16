@@ -87,26 +87,31 @@ export const useThreadKeys = ({
   });
 
   // The thread these keys left: its card takes the focus once the room shows without the thread,
-  // which a step back in the browser's history does a moment after the key. Only focus the closed
-  // thread left on the page moves: a control the reader went to meanwhile keeps it.
-  const leftByKey = useRef<string>();
+  // which a step back in the browser's history does a moment after the key. Not from a control
+  // the reader went to meanwhile: the focus moves only from where it was at the key, or from the
+  // page, where the closed thread left it.
+  const leftByKey = useRef<{ threadId: string; focused: Element | null }>();
   const shownThreadId = useRef(openThreadId);
   useEffect(() => {
     const closed = shownThreadId.current;
     shownThreadId.current = openThreadId;
     if (openThreadId === closed) return;
-    const wanted = leftByKey.current;
+    const left = leftByKey.current;
     leftByKey.current = undefined;
+    if (openThreadId || !left || left.threadId !== closed) return;
     const doc = areaRef.current?.ownerDocument;
-    const focusLeft = !!doc && (!doc.activeElement || doc.activeElement === doc.body);
-    if (openThreadId || !wanted || wanted !== closed || !focusLeft) return;
-    focusCompactCard(cards().find((card) => card.dataset.threadRootId === wanted));
+    const focused = doc?.activeElement ?? null;
+    if (!doc || (focused && focused !== doc.body && focused !== left.focused)) return;
+    focusCompactCard(cards().find((card) => card.dataset.threadRootId === left.threadId));
   });
 
   useShortcut('leaveThread', () => {
     if (openThreadId) {
       if (threadHidden()) return false;
-      leftByKey.current = openThreadId;
+      leftByKey.current = {
+        threadId: openThreadId,
+        focused: areaRef.current?.ownerDocument.activeElement ?? null,
+      };
       onExitThread();
       return true;
     }
