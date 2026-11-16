@@ -23,7 +23,8 @@ export const groupThreadForks = (
     const rootId = root.getId();
     if (!rootId || rootId === threadId || seen.has(rootId)) continue;
     seen.add(rootId);
-    if (root.isRedacted() || root.isRelation()) continue;
+    // A reply or an edit relates to another event; a root relates to none.
+    if (root.isRedacted() || root.getRelation()?.rel_type) continue;
     const ref = parseThreadForkRef(root.getOriginalContent());
     if (ref?.threadId === threadId) {
       found.push({ pointId: ref.eventId, fork: { threadId: rootId, ts: root.getTs() } });

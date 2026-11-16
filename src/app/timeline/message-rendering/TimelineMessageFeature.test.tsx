@@ -46,8 +46,18 @@ vi.mock('../../threads/fork/ThreadForksChip', async () => {
       ReactImport.createElement('forks-chip', props),
   };
 });
-const forkChips = (renderer: ReturnType<typeof create>) =>
-  renderer.root.findAll((node) => (node.type as unknown) === 'forks-chip');
+/** The forks chip of each row, by event ID: the chips the rows hand their message as reactions. */
+const forkChips = async (renderer: ReturnType<typeof create>) => {
+  const { Message } = await import('../../messages/Message');
+  const { ThreadForksChip } = await import('../../threads/fork/ThreadForksChip');
+  return renderer.root.findAllByType(Message).flatMap(({ props }) => {
+    const chips = (props.reactions?.props.children as unknown[] | undefined)?.filter(
+      (child): child is { type: unknown; props: Record<string, unknown> } =>
+        typeof child === 'object' && child !== null && (child as { type?: unknown }).type === ThreadForksChip
+    );
+    return (chips ?? []).map((chip) => ({ eventId: props.mEvent.getId() as string, props: chip.props }));
+  });
+};
 
 vi.mock('../../messages/thread-summary/ThreadSummaryMarker', async () => {
   const ReactImport = await import('react');
@@ -616,8 +626,8 @@ describe('the forks made at a message', () => {
       '$parent'
     );
 
-    const chips = forkChips(renderer);
-    expect(chips).toHaveLength(1);
+    const chips = await forkChips(renderer);
+    expect(chips.map((chip) => chip.eventId)).toEqual(['$p2']);
     expect(chips[0]?.props.forks).toBe(forks);
     expect(chips[0]?.props.room).toBeDefined();
     expect(forksByPoint.asked[0]?.[1]).toBe('$parent');
@@ -638,14 +648,14 @@ describe('the forks made at a message', () => {
       new Set(['$p1'])
     );
 
-    const chips = forkChips(renderer);
-    expect(chips).toHaveLength(1);
+    const chips = await forkChips(renderer);
+    expect(chips.map((chip) => chip.eventId)).toEqual(['$r1']);
     expect(chips[0]?.props.forks).toEqual([{ threadId: '$g', ts: 30 }]);
   });
 
   it('shows none outside a thread', async () => {
     forksByPoint.value = new Map([['$m', forks]]);
     const { renderer } = await mountFeature([rowFor(makeEvent('$m') as unknown as MatrixEvent)]);
-    expect(forkChips(renderer)).toHaveLength(0);
+    expect(await forkChips(renderer)).toHaveLength(0);
   });
 });
