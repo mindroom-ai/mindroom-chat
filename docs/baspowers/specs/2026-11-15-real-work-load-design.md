@@ -64,6 +64,8 @@ Measured on the production build, with 50 threads streaming, on the MacBook M5 i
 
 The budgets are provisional: the first baseline may show one is unreachable without a redesign, and the design records any change with its reason.
 
+The first baseline (2026-11-16) is `docs/perf/real-work-baseline.md`: nearly every budget fails at 50 streams, most by a wide margin, and the ranked hotspots say why. No budget was changed: none is shown unreachable yet, since three code paths account for most of the time.
+
 ## Approaches considered
 
 1. **Real data only.** Profile the app against a local copy of the production homeserver. Highest fidelity for history, but the copy is static (nothing streams), cannot grow to 50 threads, and may run only on personal machines.
@@ -84,11 +86,13 @@ Approach 1 is still used once, as ground truth: the same scenarios run against t
 
 - `account`: rooms besides the measured one (the census: about 210, most quiet), with how many events each, and spaces.
 - `room`: number of people, and `agents`: how many agent accounts take the replies (1 in Bas's rooms; more to load the client past the homeserver's frame cap, see Spike findings). Unencrypted, as Bas's agent rooms are.
-- `history`: threads, how many of them are resolved (`resolvedThreads`: the Compact view leaves those out, and the client still lists every one), turns per thread (a distribution), `heavy` (how many open threads get a real long thread's turns instead: the census's 22 replies at the median and 98 at p90, capped at 120), and per turn the reply shape below. The person's read state is part of it: one unthreaded read receipt from early in the history, on an event a client no longer holds, and a read receipt in every open thread.
+- `history`: threads, how many of them are resolved (`resolvedThreads`: the Compact view leaves those out, and the client still lists every one), turns per thread (a distribution), `heavy` (how many open threads get a long thread's turns instead: 10 turns at the median, 44 at p90 and at most 54; the synthetic room holds about 2.2 thread replies per turn, so these aim at the real room's 22 replies at the median and 98 at p90), and per turn the reply shape below. The person's read state is part of it: one unthreaded read receipt from early in the history, on an event a client no longer holds, and a read receipt in every open thread.
 - `reply`: words (distribution, long enough that the p99 reply crosses the backend's long-text limit), pace in words per second, reasoning characters, tool calls (distribution) with their run time, so each call writes jobs state twice as in production.
 - `live`: concurrent streams, the pause before a thread's next turn (distribution), and how long the measured window lasts.
 
 `real-work-50.json` is the target; `real-work-census.json` reproduces the room Bas named (520 threads, of which the profile resolves 481 (the room has 486 resolved), which leaves the 39 of the last 60 days open, 12 of them heavy; up to 7 streams) for calibration.
+
+`real-work-50-agents.json` spreads the 50 streams over 17 agents, so that no sender meets the homeserver's cap on live frames (see Spike findings). Its history is scaled to 170 threads, 120 of them resolved and 6 heavy: with 17 agents the backend ends 0.6 history turns a second (2.1 with one agent), and the 520-thread history would take about 40 minutes, past the spec's limit for the history phase. It therefore understates what the Compact view costs in a room of 520 threads; Compact numbers come from `real-work-50.json`, and the 17-agent profile shows what more frames cost.
 
 ### 3. Load: real backend, stub model, driver
 
@@ -119,7 +123,7 @@ The existing specs move to it where that removes their copy; that is a follow-up
 7. `cold-load`: reload with the room open.
 8. `soak` (separate opt-in): 20 minutes of `compact-idle` and `thread-idle` alternating, heap and nodes sampled.
 
-Knobs: `PERF_WORKLOAD` (profile file), `PERF_STREAMS` (overrides the profile's concurrent streams; `7,25,50` gives the scaling curve from today's peak to the target), `PERF_SCENARIOS`, `PERF_CPU_THROTTLE` (default `1,4`), `PERF_ENGINES` (default `chromium`), `PERF_VIEWPORT` (`desktop`, `phone`); repeated runs come from the matrix runner (component 8). Results go to `test-results/perf/real-work/<scenario>-<engine>-<throttle>.json` with the CPU profiles beside them.
+Knobs: `PERF_WORKLOAD` (profile file), `PERF_STREAMS` (overrides the profile's concurrent streams; `7,25,50` gives the scaling curve from today's peak to the target), `PERF_SCENARIOS`, `PERF_CPU_THROTTLE` (default `1,4`), `PERF_VIEWPORT` (`desktop`, `phone`); repeated runs come from the matrix runner (component 8). The scenarios run in the engine of the Playwright project: Chromium by default, and WebKit in the `webkit` project, which takes only tests tagged `@webkit`; the spec's tests carry no tag, so a WebKit check adds the tag in a throwaway commit (`docs/perf/real-work-baseline.md` "WebKit check"). Results go to `test-results/perf/real-work/<scenario>-<engine>-<throttle>.json` with the CPU profiles beside them.
 
 ### 6. Real-data mode (private)
 
