@@ -708,6 +708,7 @@
         "showKey": "Tampilkan kunci",
         "hideKey": "Sembunyikan kunci",
         "sentTo": "Dikirim ke {{host}}",
+        "openLink": "Buka {{host}}",
         "save": "Simpan",
         "decline": "Tolak",
         "savedWaiting": "Tersimpan, menunggu agen",

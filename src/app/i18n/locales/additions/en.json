@@ -717,6 +717,7 @@
         "showKey": "Show key",
         "hideKey": "Hide key",
         "sentTo": "Sent to {{host}}",
+        "openLink": "Open {{host}}",
         "save": "Save",
         "decline": "Decline",
         "savedWaiting": "Saved, waiting for the agent",

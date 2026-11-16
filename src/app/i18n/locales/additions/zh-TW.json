@@ -708,6 +708,7 @@
         "showKey": "顯示金鑰",
         "hideKey": "隱藏金鑰",
         "sentTo": "傳送到 {{host}}",
+        "openLink": "開啟 {{host}}",
         "save": "儲存",
         "decline": "拒絕",
         "savedWaiting": "已儲存，等待代理程式",
