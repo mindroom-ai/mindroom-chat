@@ -71,14 +71,14 @@ const takeSlides = async (page: Page, step: string): Promise<Slide[]> => {
 
 const text = (body: string) => ({ msgtype: 'm.text', body });
 
-const seed = async () => {
-  const username = `pps_${RUN}`;
+const seed = async (test: string) => {
+  const username = `pps_${test}_${RUN}`;
   const reader = await matrixFetch<{ access_token: string }>(HOMESERVER, '/register', {
     method: 'POST',
     body: JSON.stringify({ username, password: PASSWORD, auth: { type: 'm.login.dummy' } }),
   });
   // The rooms have an agent, as MindRoom rooms do, so they open in Compact.
-  const agent = await registerAgentAccount(HOMESERVER, 'ppsa');
+  const agent = await registerAgentAccount(HOMESERVER, `pps${test}`);
   const create = (name: string) =>
     createPrivateRoom(HOMESERVER, reader.access_token, {
       name,
@@ -110,6 +110,8 @@ const seed = async () => {
 const drawer = (page: Page) => page.locator('#phone-nav-drawer');
 const menuButton = (page: Page) => page.locator('#phone-nav-menu-button');
 const threadColumn = (page: Page) => page.getByTestId('thread-column');
+// The thread's own Back, under the room header's, which leads to the list.
+const threadBack = (page: Page) => threadColumn(page).getByRole('button', { name: 'Back' }).last();
 const card = (page: Page, root: string) => page.locator(`[data-thread-root-id="${root}"]`).first();
 
 test.describe('a phone slides its pages', () => {
@@ -119,13 +121,19 @@ test.describe('a phone slides its pages', () => {
 
   test('a room and a thread come in from the right and leave to it', async ({ page }) => {
     test.setTimeout(180_000);
-    const { username, root } = await seed();
+    const { username, root } = await seed('slides');
     await recordSlides(page);
     await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
     // Home's own page: the list is out.
     await expect(drawer(page)).toBeVisible();
     await expect(drawer(page).getByRole('link', { name: 'Garden Club' })).toBeVisible();
-    await takeSlides(page, 'signed in');
+    // Nothing slid on the way in: the list was out with the first page. Nor on a fresh load.
+    expect(await takeSlides(page, 'signed in'), 'signing in').toEqual([]);
+    await page.reload();
+    await expect(drawer(page).getByRole('link', { name: 'Garden Club' })).toBeVisible({
+      timeout: 60_000,
+    });
+    expect(await takeSlides(page, 'loaded again'), 'a fresh load').toEqual([]);
 
     // The slides slowed to a tenth, for a frame of each mid-way.
     const slow = SHOTS ? await page.context().newCDPSession(page) : undefined;
@@ -152,7 +160,7 @@ test.describe('a phone slides its pages', () => {
       FORWARD,
     ]);
 
-    await threadColumn(page).getByRole('button', { name: 'Back' }).first().tap();
+    await threadBack(page).tap();
     await shot('3-thread-leaves');
     await expect(threadColumn(page)).toBeHidden();
     expect(await takeSlides(page, 'back to the room'), 'back to the room').toEqual([BACK]);
@@ -179,7 +187,7 @@ test.describe('a phone slides its pages', () => {
 
   test('nothing slides for someone who asked for reduced motion', async ({ page }) => {
     test.setTimeout(180_000);
-    const { username, root } = await seed();
+    const { username, root } = await seed('still');
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await recordSlides(page);
     await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
@@ -187,7 +195,7 @@ test.describe('a phone slides its pages', () => {
     await expect(card(page, root)).toBeVisible({ timeout: 60_000 });
     await card(page, root).tap();
     await expect(threadColumn(page)).toBeVisible();
-    await threadColumn(page).getByRole('button', { name: 'Back' }).first().tap();
+    await threadBack(page).tap();
     await expect(threadColumn(page)).toBeHidden();
     expect(await takeSlides(page, 'reduced motion')).toEqual([]);
   });

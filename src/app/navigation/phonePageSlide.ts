@@ -42,8 +42,9 @@ let playing = false;
  * The browser plays the slide between two pictures of the page (a view transition), so no element
  * moves and nothing that measures the page sees it. It takes the first picture a frame after the
  * call: `change` waits for that, with every change asked for meanwhile, and they run together, in
- * order and committed before they return. While the slide plays, the page takes no taps and
- * further changes run at once, which the picture that slides in shows as they happen.
+ * order and committed before they return. While the slide plays, the page takes no taps (what
+ * is in a picture answers none), and further changes run at once, which the picture that slides
+ * in shows as they happen.
  *
  * `change` runs at once, and nothing slides, off the phone layout, in a browser without view
  * transitions and with reduced motion.
