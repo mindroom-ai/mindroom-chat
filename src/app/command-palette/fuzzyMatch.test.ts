@@ -4,8 +4,14 @@ import { MATCH_SCORE, foldText, matchWord, originalRanges, prepareText } from '.
 const match = (word: string, field: string, name = true) =>
   matchWord(foldText(word), prepareText(field), name);
 
-const score = (word: string, field: string, name = true): number =>
-  match(word, field, name)?.score ?? 0;
+/**
+ * A number that orders matches as the matcher does: the way of matching first, then the detail
+ * inside it. 0 without a match.
+ */
+const score = (word: string, field: string, name = true): number => {
+  const found = match(word, field, name);
+  return found ? found.score + found.detail / 100 : 0;
+};
 
 /** The fields in the order their scores put them, best first; a field that does not match is left out. */
 const ranked = (word: string, fields: readonly string[], name = true): string[] =>
@@ -25,14 +31,14 @@ describe('foldText', () => {
     ['İstanbul', 'istanbul'],
     ['Ёлка', 'елка'],
     // A combining accent written as its own character.
-    ['Café', 'cafe'],
+    ['Cafe\u0301', 'cafe'],
   ])('folds %s to %s', (text, folded) => {
     expect(foldText(text)).toBe(folded);
   });
 
   it('keeps marks that change a word in other scripts', () => {
     expect(foldText('が')).toBe('が');
-    expect(foldText('が')).toBe('が');
+    expect(foldText('か\u3099')).toBe('が');
     expect(foldText('कि')).toBe('कि');
   });
 
@@ -47,7 +53,7 @@ describe('foldText', () => {
   });
 
   it('writes a Korean syllable typed as separate letters as one', () => {
-    expect(foldText('한')).toBe('한');
+    expect(foldText('\u1112\u1161\u11ab')).toBe('한');
   });
 });
 
@@ -63,8 +69,17 @@ describe('matchWord order', () => {
   });
 
   it('gives the whole field the exact score', () => {
-    expect(score('theme', 'Theme')).toBe(MATCH_SCORE.exact);
-    expect(score('theme', 'Theme Park')).toBeLessThan(MATCH_SCORE.exact);
+    expect(match('theme', 'Theme')?.score).toBe(MATCH_SCORE.exact);
+    expect(match('theme', 'Theme Park')?.score).toBeLessThan(MATCH_SCORE.exact);
+  });
+
+  it('gives matches of one way one score, whatever the words around them', () => {
+    expect(match('room', 'Create Room')?.score).toBe(
+      match('room', 'Mark Current Room Read')?.score
+    );
+    expect(match('eng', 'Eng')?.score).toBe(MATCH_SCORE.exact);
+    expect(match('eng', 'Engine')?.score).toBe(match('eng', 'Engineering Platform')?.score);
+    expect(match('cr', 'Create Room')?.score).toBe(match('cr', 'Crumbs')?.score);
   });
 
   it('ranks a whole word above a longer word that starts the same', () => {
@@ -75,7 +90,6 @@ describe('matchWord order', () => {
   });
 
   it('ranks the word the text covers more of first', () => {
-    expect(score('eng', 'Eng')).toBeGreaterThan(score('eng', 'Engine'));
     expect(score('eng', 'Engine')).toBeGreaterThan(score('eng', 'Engineering'));
   });
 
@@ -109,7 +123,9 @@ describe('matchWord order', () => {
     expect(initials).toBeGreaterThan(inside);
     expect(inside).toBeLessThan(MATCH_SCORE.strong);
     expect(inside).toBeGreaterThan(typo);
+    expect(typo).toBeGreaterThanOrEqual(MATCH_SCORE.close);
     expect(typo).toBeGreaterThan(abbreviation);
+    expect(abbreviation).toBeLessThan(MATCH_SCORE.close);
     expect(abbreviation).toBeGreaterThan(0);
   });
 });
@@ -131,11 +147,29 @@ describe('matchWord initials and abbreviations', () => {
     expect(score('ml', 'Disable Media Auto Load')).toBe(0);
   });
 
-  it('matches an abbreviation: a word start, then later letters of that word or later word starts', () => {
-    expect(score('crm', 'Create Room')).toBeGreaterThan(0);
-    expect(score('stgs', 'Settings')).toBeGreaterThan(0);
+  it('matches an abbreviation: the starts of words that follow each other', () => {
     expect(score('engplat', 'Engineering Platform')).toBeGreaterThan(0);
     expect(score('opset', 'Open Settings')).toBeGreaterThan(0);
+    expect(score('roomset', 'Open Current Room Settings')).toBeGreaterThan(0);
+  });
+
+  it('lets the last word of an abbreviation leave letters out once', () => {
+    expect(score('crm', 'Create Room')).toBeGreaterThan(0);
+    // Twice in one word.
+    expect(score('stgs', 'Settings')).toBe(0);
+    expect(score('lisa', 'Linked Installations')).toBe(0);
+    expect(score('jhon', 'Johnson Account')).toBe(0);
+    // Before the start of another word.
+    expect(score('crm', 'Cafeteria Menu')).toBe(0);
+  });
+
+  it('matches no abbreviation that passes over a word', () => {
+    expect(score('peter', 'Url Preview in Encrypted Room')).toBe(0);
+    expect(score('paula', 'Pair this chat account with your local MindRoom process')).toBe(0);
+  });
+
+  it('ranks an abbreviation without letters left out first', () => {
+    expect(score('crom', 'Create Room')).toBeGreaterThan(score('crm', 'Create Room'));
   });
 
   it('matches no abbreviation that starts inside a word or jumps into the middle of one', () => {
@@ -258,8 +292,8 @@ describe('originalRanges', () => {
 
   it('takes a combining accent with its letter', () => {
     // "e" and its accent are two characters as written and one folded.
-    expect(originalRanges('Café x', [[3, 4]])).toEqual([[3, 5]]);
-    expect(originalRanges('Café x', [[5, 6]])).toEqual([[6, 7]]);
+    expect(originalRanges('Cafe\u0301 x', [[3, 4]])).toEqual([[3, 5]]);
+    expect(originalRanges('Cafe\u0301 x', [[5, 6]])).toEqual([[6, 7]]);
   });
 
   it('takes the whole letter that folds to two', () => {
@@ -276,7 +310,7 @@ describe('originalRanges', () => {
   });
 
   it('gives the folded ranges of what matchWord found in text that folds shorter', () => {
-    const field = 'Café Français';
+    const field = 'Cafe\u0301 Français';
     const found = match('francais', field);
     expect(found && originalRanges(field, found.ranges)).toEqual([[6, 14]]);
   });

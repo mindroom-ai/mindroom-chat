@@ -41,7 +41,7 @@ const { hotkeyState, screenSizeState, sourceState, useCommandPaletteSourceMock }
             ];
         return {
           actions,
-          searchCommands: () => [],
+          commands: [],
           pages: {
             theme: { title: 'Theme', items: [] },
             'message-layout': { title: 'Message Layout', items: [] },

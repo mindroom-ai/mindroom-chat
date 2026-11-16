@@ -10,6 +10,7 @@ import { nameInitials } from '../lib/common';
 import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import { useRelativeTime } from '../i18n/useRelativeTime';
 import { makeHighlightRegex } from '../search/highlightRegex';
+import type { CommandPaletteMarks } from './commandPaletteSearch';
 import type {
   CommandPaletteActionItem,
   CommandPaletteItem,
@@ -31,6 +32,8 @@ export type CommandPaletteListSection = {
   id: CommandPaletteSectionId;
   title: string;
   items: CommandPaletteItem[];
+  /** What to mark in each row that matched typed text, by row ID. */
+  marks?: ReadonlyMap<string, CommandPaletteMarks>;
   /** Lines between the title and the rows. */
   notes?: CommandPaletteListNote[];
   /** Lines after the rows, so rows already shown stay where they are when one appears. */

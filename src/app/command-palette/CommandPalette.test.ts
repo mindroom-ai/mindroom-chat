@@ -3,7 +3,6 @@ import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommandPaletteSource } from './commandPaletteItems';
 import { CommandPalette } from './CommandPalette';
-import type { CommandPaletteActionItem, Executable } from './commandPaletteTypes';
 import type { CommandPaletteMessages } from './useCommandPaletteMessages';
 import type { CommandPalettePeople } from './useCommandPalettePeople';
 
@@ -23,9 +22,9 @@ vi.mock('./commandPaletteSearch', async () => {
 
   return {
     ...actual,
-    searchCommandPaletteSection: vi.fn((options) => {
+    matchCommandPaletteSection: vi.fn((options) => {
       searchCommandPaletteSectionCalls(options);
-      return actual.searchCommandPaletteSection(options);
+      return actual.matchCommandPaletteSection(options);
     }),
   };
 });
@@ -189,15 +188,9 @@ const VIEW_SWITCH = {
   onSelect: vi.fn(),
 };
 
-// The source's search of settings and choices: the rows whose title holds the text.
-const searchRows =
-  (rows: readonly Executable<CommandPaletteActionItem>[]) =>
-  (text: string): Executable<CommandPaletteActionItem>[] =>
-    text ? rows.filter((row) => row.title.toLowerCase().includes(text.toLowerCase())) : [];
-
 const FIXTURE_SOURCE: CommandPaletteSource = {
   actions: FIXTURE_ACTIONS,
-  searchCommands: searchRows([MARKDOWN, LIGHT, DARK, DRACULA]),
+  commands: [MARKDOWN, LIGHT, DARK, DRACULA],
   pages: {
     theme: { title: 'Theme', items: [LIGHT, DARK, DRACULA] },
     'message-layout': { title: 'Message Layout', items: [] },
@@ -998,14 +991,14 @@ describe('CommandPalette people from the server', () => {
     expect(selectedId(renderer)).toBe('user:@userc:example.org');
   });
 
-  it("ranks the server's exact match above people the palette knows who only resemble it", async () => {
+  it("ranks the server's exact match above people the palette knows whose name only starts with it", async () => {
     const source: CommandPaletteSource = {
       ...FIXTURE_SOURCE,
       getUsers: vi.fn(() => [
         {
           id: 'user:@userb:example.org',
           kind: 'user' as const,
-          displayName: 'User B',
+          displayName: 'User Zed',
           userId: '@userb:example.org',
           localpart: 'userb',
           existingDmRoomId: '!dm:example.org',
@@ -1315,7 +1308,7 @@ describe('CommandPalette pages and rows that keep it open', () => {
       source: {
         ...FIXTURE_SOURCE,
         actions: [...FIXTURE_ACTIONS, createRoom],
-        searchCommands: (text) => (text ? [archivedRooms] : []),
+        commands: [archivedRooms],
       },
     });
     await type(renderer, 'room');
@@ -1335,7 +1328,7 @@ describe('CommandPalette pages and rows that keep it open', () => {
     // The setting changed, so the source comes again with the row's new state.
     const source: CommandPaletteSource = {
       ...FIXTURE_SOURCE,
-      searchCommands: searchRows([{ ...MARKDOWN, state: 'off' }, LIGHT, DARK, DRACULA]),
+      commands: [{ ...MARKDOWN, state: 'off' }, LIGHT, DARK, DRACULA],
     };
     await act(async () => renderer.update(paletteElement({ requestClose, source })));
     expect(selectedId(renderer)).toBe('setting:markdown');

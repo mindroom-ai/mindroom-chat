@@ -79,11 +79,8 @@ type CommandPaletteUserQuery = { exhaustive: boolean; includeRelatedRooms: boole
 export type CommandPaletteSource = {
   /** The action rows of the first list. */
   actions: Executable<CommandPaletteActionItem>[];
-  /**
-   * The settings and page choices that match typed text, best first: settings as the Settings
-   * dialog's own search ranks them, then the page choices whose title holds the text.
-   */
-  searchCommands: (text: string) => Executable<CommandPaletteActionItem>[];
+  /** The rows only typed text finds, searched with the actions: every setting and page choice. */
+  commands: Executable<CommandPaletteActionItem>[];
   /** The pages of choices that a row with `page` opens. */
   pages: Readonly<Record<CommandPalettePageId, CommandPalettePage>>;
   threads: Executable<CommandPaletteThreadItem>[];
@@ -417,10 +414,10 @@ export const useCommandPaletteSource = ({
     ]
   );
 
-  const { searchCommands, pages } = commands;
+  const { commands: searchedCommands, pages } = commands;
 
   return useMemo(
-    () => ({ actions, searchCommands, pages, threads, rooms, getUsers }),
-    [actions, getUsers, pages, rooms, searchCommands, threads]
+    () => ({ actions, commands: searchedCommands, pages, threads, rooms, getUsers }),
+    [actions, getUsers, pages, rooms, searchedCommands, threads]
   );
 };

@@ -600,7 +600,7 @@ const all: CorpusCase[] = [
   { group: 'all', tab: 'all', query: 'john smith', first: 'user:john' },
   { group: 'all', tab: 'all', query: 'emma watson', first: 'user:emma' },
   { group: 'all', tab: 'all', query: 'lisa simpson', first: 'user:lisa' },
-  { group: 'all', tab: 'all', query: 'jhon', first: 'user:john' },
+  { group: 'all', tab: 'all', query: 'jhon', shown: ['user:john'], absent: ['user:jon'] },
   { group: 'all', tab: 'all', query: '田中', first: 'user:tanaka' },
   { group: 'all', tab: 'all', query: 'flaky', first: 'thread:flaky' },
   { group: 'all', tab: 'all', query: 'login staging', first: 'thread:login' },
@@ -641,6 +641,63 @@ const all: CorpusCase[] = [
   },
   { group: 'all', tab: 'all', query: 'notification sound', shown: ['setting:notificationSound'] },
   { group: 'all', tab: 'all', query: 'room', shown: ['create-room', 'room:space-mindroom'] },
+  // All shows three rows of actions, settings and choices together. A word many of them hold
+  // shows the actions people use daily; the setting is on the Actions tab.
+  {
+    group: 'all',
+    tab: 'all',
+    query: 'room',
+    shown: ['create-room', 'mark-current-room-read', 'copy-current-room-link'],
+    absent: ['setting:archivedRooms'],
+  },
+  { group: 'all', tab: 'actions', query: 'room', shown: ['setting:archivedRooms'] },
+  {
+    group: 'all',
+    tab: 'all',
+    query: 'theme',
+    shown: ['page-theme', 'toggle-theme'],
+    within: 2,
+    absent: ['theme:'],
+  },
+  { group: 'all', tab: 'all', query: 'settings', shown: ['open-current-room-settings'], within: 2 },
+  // A setting or a choice named by the text keeps its row against actions that only hold a
+  // word of it, mention it in their description, or resemble it.
+  { group: 'all', tab: 'all', query: 'archived rooms', first: 'setting:archivedRooms' },
+  { group: 'all', tab: 'all', query: 'archived', first: 'setting:archivedRooms' },
+  { group: 'all', tab: 'all', query: 'hide membership', first: 'setting:hideMembershipEvents' },
+  { group: 'all', tab: 'all', query: 'markdown formatting', first: 'setting:markdown' },
+  { group: 'all', tab: 'all', query: 'developer tools', first: 'setting:developerTools' },
+  { group: 'all', tab: 'all', query: 'zoom', first: 'setting:pageZoom' },
+  { group: 'all', tab: 'all', query: 'url preview', first: 'setting:urlPreview' },
+  { group: 'all', tab: 'all', query: 'bubble', first: 'message-layout:bubble' },
+  { group: 'all', tab: 'all', query: 'light', first: 'theme:light' },
+  { group: 'all', tab: 'all', query: 'tool calls', shown: ['setting:showToolCalls'], within: 2 },
+  {
+    group: 'all',
+    tab: 'all',
+    query: 'notif',
+    shown: [
+      'setting:notificationSound',
+      'setting:desktopNotifications',
+      'setting:emailNotifications',
+    ],
+  },
+  // An action named by the text stays above a setting that holds it.
+  { group: 'all', tab: 'all', query: 'create space', first: 'create-space' },
+  {
+    group: 'all',
+    tab: 'actions',
+    query: 'create space',
+    before: [['create-space', 'setting:sidebarCreateSpace']],
+    shown: ['setting:sidebarCreateSpace'],
+  },
+  {
+    group: 'all',
+    tab: 'actions',
+    query: 'show tool calls',
+    shown: ['room-command:toolCalls', 'setting:showToolCalls'],
+    within: 2,
+  },
   {
     group: 'all',
     tab: 'all',

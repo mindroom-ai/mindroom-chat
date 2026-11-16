@@ -20,8 +20,12 @@ import type {
   ExecutableCommandPaletteItem,
   ExecutableCommandPaletteUserItem,
 } from './commandPaletteItems';
-import { commandPaletteSearchConfig, searchCommandPaletteSection } from './commandPaletteSearch';
-import { rankCommandPalettePeople } from './commandPalettePeopleRanking';
+import {
+  getCommandPaletteLocalSections,
+  rankCommandPalettePeople,
+  type CommandPaletteLocalSection,
+} from './commandPaletteResults';
+import { commandPaletteSearchConfig, matchCommandPaletteSection } from './commandPaletteSearch';
 import {
   CommandPaletteList,
   getCommandPaletteOptionId,
@@ -40,8 +44,6 @@ import { getCommandPaletteShortcutLabel } from '../shortcuts/paletteShortcut';
 import {
   COMMAND_PALETTE_TABS,
   type CommandPalettePageId,
-  type CommandPaletteRoomItem,
-  type CommandPaletteSectionId,
   type CommandPaletteTab,
 } from './commandPaletteTypes';
 import type {
@@ -71,8 +73,6 @@ const TAB_LABEL_KEYS = {
   actions: 'commandPalette.sections.actions',
 } as const satisfies Record<CommandPaletteTab, string>;
 
-type RoomItems = readonly (CommandPaletteRoomItem & { onSelect?: () => void })[];
-
 /** The highlighted row by ID, and the index where it was, for when that row leaves. */
 type Highlight = { id?: string; index: number };
 
@@ -81,61 +81,6 @@ type OpenPage = { id: CommandPalettePageId; query: string; highlight: Highlight 
 
 // A page lists all of its choices.
 const PAGE_LIMIT = 50;
-
-const getLocalSectionItems = ({
-  sectionId,
-  tab,
-  searchText,
-  source,
-  starterRooms,
-}: {
-  sectionId: Exclude<CommandPaletteSectionId, 'messages'>;
-  tab: CommandPaletteTab;
-  searchText: string;
-  source: CommandPaletteSource;
-  starterRooms: RoomItems;
-}): ExecutableCommandPaletteItem[] => {
-  const limit = getCommandPaletteSectionLimit(sectionId, tab);
-  switch (sectionId) {
-    case 'actions': {
-      const actions = searchCommandPaletteSection({
-        items: source.actions,
-        query: searchText,
-        config: { ...commandPaletteSearchConfig.actions, limit },
-      });
-      // Settings and the pages' choices only show for typed text, after the actions that match.
-      return searchText
-        ? [...actions, ...source.searchCommands(searchText)].slice(0, limit)
-        : actions;
-    }
-    case 'threads':
-      return searchCommandPaletteSection({
-        items: source.threads,
-        query: searchText,
-        config: { ...commandPaletteSearchConfig.threads, limit },
-      });
-    case 'rooms':
-      return searchCommandPaletteSection({
-        // All's starter list is for switching rooms; spaces match by name, and Rooms lists them.
-        items: tab === 'all' && !searchText ? starterRooms : source.rooms,
-        query: searchText,
-        config: { ...commandPaletteSearchConfig.rooms, limit },
-      });
-    default: {
-      const hasSearchText = searchText.length > 0;
-      // Every match, ranked by how well it matches before the limit takes the best ones.
-      const people = searchCommandPaletteSection({
-        items: source.getUsers({
-          exhaustive: hasSearchText,
-          includeRelatedRooms: tab === 'users' || hasSearchText,
-        }),
-        query: searchText,
-        config: { ...commandPaletteSearchConfig.users, limit: Number.POSITIVE_INFINITY },
-      });
-      return rankCommandPalettePeople(people, searchText).slice(0, limit);
-    }
-  }
-};
 
 /**
  * The server's hits for the text, then See all results. Until they arrive the section holds only
@@ -189,27 +134,29 @@ const buildMessageSection = (
  * the server is asked, and a failed search adds one quiet line after the rows.
  */
 const buildPeopleSection = (
-  local: ExecutableCommandPaletteItem[],
+  local: CommandPaletteLocalSection,
   people: CommandPalettePeople,
   source: CommandPaletteSource,
   tab: CommandPaletteTab,
   searchText: string,
   t: TFunction
 ): CommandPaletteListSection | undefined => {
-  let items = local;
+  let { items, marks } = local;
   if (people.items.length > 0) {
     const listed = new Set(
       source.getUsers({ exhaustive: true, includeRelatedRooms: true }).map((user) => user.userId)
     );
     const found = people.items.filter((item) => !listed.has(item.userId));
-    const limit = Math.max(getCommandPaletteSectionLimit('users', tab), local.length);
-    items = [
-      ...rankCommandPalettePeople(
-        [...local, ...found.filter((item) => !item.typedId)],
-        searchText
-      ).slice(0, limit),
-      ...found.filter((item) => item.typedId),
-    ];
+    const limit = Math.max(getCommandPaletteSectionLimit('users', tab), items.length);
+    const localPeople = items.filter(
+      (item): item is ExecutableCommandPaletteUserItem => item.kind === 'user'
+    );
+    const ranked = rankCommandPalettePeople(
+      [...localPeople, ...found.filter((item) => !item.typedId)],
+      searchText
+    ).slice(0, limit);
+    items = [...ranked.map(({ item }) => item), ...found.filter((item) => item.typedId)];
+    marks = new Map(ranked.map(({ item, marks: itemMarks }) => [item.id, itemMarks]));
   }
   const busy = people.status === 'loading';
   const trailingNotes =
@@ -217,7 +164,7 @@ const buildPeopleSection = (
       ? [{ id: 'people-error', text: t('commandPalette.peopleSearch.failed') }]
       : undefined;
   if (items.length === 0 && !busy && !trailingNotes) return undefined;
-  return { id: 'users', title: t(TAB_LABEL_KEYS.users), items, busy, trailingNotes };
+  return { id: 'users', title: t(TAB_LABEL_KEYS.users), items, marks, busy, trailingNotes };
 };
 
 /** Asking before a direct chat starts, then starting it; a failure can be retried. */
@@ -347,33 +294,38 @@ export function CommandPalette({
   // A page lists only its own choices, so the server is not asked.
   const messages = useMessages(query, !page && (tab === 'all' || tab === 'messages'));
   const people = usePeople(query, !page && (tab === 'all' || tab === 'users'));
-  const starterRooms = useMemo(
-    () => source.rooms.filter((item) => item.kind === 'room'),
-    [source.rooms]
-  );
-
   const resultSections = useMemo((): CommandPaletteListSection[] => {
     if (pageId) {
       const { title, items } = source.pages[pageId];
-      const choices = searchCommandPaletteSection({
+      const choices = matchCommandPaletteSection({
         items,
         query: searchText,
         config: { ...commandPaletteSearchConfig.actions, limit: PAGE_LIMIT },
       });
-      return choices.length > 0 ? [{ id: 'actions', title, items: choices }] : [];
+      if (choices.length === 0) return [];
+      return [
+        {
+          id: 'actions',
+          title,
+          items: choices.map(({ item }) => item),
+          marks: new Map(choices.map(({ item, marks }) => [item.id, marks])),
+        },
+      ];
     }
-    return getCommandPaletteSectionOrder(tab, searchText.length > 0)
-      .map((sectionId): CommandPaletteListSection | undefined => {
-        if (sectionId === 'messages') return buildMessageSection(messages, searchText, tab, t);
-        const items = getLocalSectionItems({ sectionId, tab, searchText, source, starterRooms });
-        if (sectionId === 'users') {
-          return buildPeopleSection(items, people, source, tab, searchText, t);
+    const sections = getCommandPaletteLocalSections({ source, tab, searchText }).flatMap(
+      (section): CommandPaletteListSection[] => {
+        if (section.id === 'users') {
+          const peopleSection = buildPeopleSection(section, people, source, tab, searchText, t);
+          return peopleSection ? [peopleSection] : [];
         }
-        if (items.length === 0) return undefined;
-        return { id: sectionId, title: t(TAB_LABEL_KEYS[sectionId]), items };
-      })
-      .filter((section): section is CommandPaletteListSection => section !== undefined);
-  }, [messages, pageId, people, searchText, source, starterRooms, t, tab]);
+        return [{ ...section, title: t(TAB_LABEL_KEYS[section.id]) }];
+      }
+    );
+    // The server's messages go below everything the client found itself.
+    return getCommandPaletteSectionOrder(tab, searchText.length > 0).includes('messages')
+      ? [...sections, buildMessageSection(messages, searchText, tab, t)]
+      : sections;
+  }, [messages, pageId, people, searchText, source, t, tab]);
   const visibleSections = useMemo(
     () => (chatStart ? [buildStartChatSection(chatStart, t)] : resultSections),
     [chatStart, resultSections, t]

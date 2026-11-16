@@ -61,7 +61,7 @@ describe('commandPaletteSearchConfig', () => {
     ]);
     expect(shape(commandPaletteSearchConfig.rooms)).toEqual([
       ['name', 1, true],
-      ['canonicalAlias', 0.9, false],
+      ['canonicalAlias', 0.7, false],
       ['topic', 0.5, false],
       ['parentNames', 0.5, false],
     ]);
@@ -298,12 +298,12 @@ describe('searchCommandPaletteSection', () => {
 });
 
 describe('matchCommandPaletteSection', () => {
-  const matchRooms = (items: CommandPaletteRoomItem[], query: string, keepUnmatched = false) =>
+  const matchRooms = (items: CommandPaletteRoomItem[], query: string, ordered = false) =>
     matchCommandPaletteSection({
       items,
       query,
       config: commandPaletteSearchConfig.rooms,
-      keepUnmatched,
+      ordered,
     });
 
   it('marks what matched in each field, as ranges of the text as written', () => {
@@ -357,6 +357,48 @@ describe('matchCommandPaletteSection', () => {
       '!y:example.org',
     ]);
     expect(matchRooms(items, 'gen', true)[1]?.score).toBe(0);
+  });
+
+  it('keeps equal rows in their order, and the order itself without text, when asked', () => {
+    const items = [room('!z:example.org', 'Team'), room('!a:example.org', 'Team')];
+
+    expect(ids(matchRooms(items, 'team').map(({ item }) => item))).toEqual([
+      '!a:example.org',
+      '!z:example.org',
+    ]);
+    expect(ids(matchRooms(items, 'team', true).map(({ item }) => item))).toEqual([
+      '!z:example.org',
+      '!a:example.org',
+    ]);
+    expect(ids(matchRooms(items, '', true).map(({ item }) => item))).toEqual([
+      '!z:example.org',
+      '!a:example.org',
+    ]);
+  });
+
+  it('scores a name that only starts with the typed words under one that is them', () => {
+    const [longer, exact] = [
+      matchRooms([room('!a:example.org', 'Url Preview in Encrypted Room')], 'url preview'),
+      matchRooms([room('!b:example.org', 'Url Preview')], 'url preview'),
+    ];
+
+    expect(exact[0]?.score).toBe(100);
+    expect(longer[0]?.score).toBeLessThan(100);
+  });
+
+  it('ranks a room named by the typed text above one whose alias starts with it', () => {
+    const items = [
+      room('!alias:example.org', 'Engineering Platform', {
+        canonicalAlias: '#eng-platform:example.org',
+        sortRank: 1,
+      }),
+      room('!named:example.org', 'Engineering', { sortRank: 2 }),
+    ];
+
+    expect(ids(matchRooms(items, 'eng').map(({ item }) => item))).toEqual([
+      '!named:example.org',
+      '!alias:example.org',
+    ]);
   });
 
   it('scores a name that is the typed text 100', () => {

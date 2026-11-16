@@ -104,12 +104,13 @@ const LAST_NAMES = [
   'Clarke',
 ];
 
-// A fixed sequence, so every run searches the same lists.
+// A fixed sequence, so every run searches the same lists. The high bits decide: the low bits of
+// this generator repeat after a few steps.
 const sequence = (seed: number) => {
   let state = seed;
   return (bound: number): number => {
     state = (state * 1103515245 + 12345) % 2147483648;
-    return state % bound;
+    return Math.floor((state / 2147483648) * bound);
   };
 };
 

@@ -11,6 +11,7 @@ import { MessageLayout, settingsAtom } from '../preferences/settings';
 import type { SettingsContext } from '../preferences/settingsRegistry';
 import type { SettingsSearchValues } from '../settings/settingsSearchIndex';
 import { THEMES } from '../theme/useTheme';
+import { commandPaletteSearchConfig, searchCommandPaletteSection } from './commandPaletteSearch';
 import type { CommandPaletteActionItem, Executable } from './commandPaletteTypes';
 import { useCommandPaletteCommands } from './useCommandPaletteCommands';
 
@@ -119,6 +120,17 @@ const find = (
   return row;
 };
 
+/** The commands typed text finds, best first, as the palette searches them. */
+const search = (
+  commands: readonly Executable<CommandPaletteActionItem>[],
+  text: string
+): Executable<CommandPaletteActionItem>[] =>
+  searchCommandPaletteSection({
+    items: commands,
+    query: text,
+    config: { ...commandPaletteSearchConfig.actions, limit: 50 },
+  });
+
 afterEach(() => {
   localStorage.clear();
   mocks.candidates = [];
@@ -135,13 +147,13 @@ describe('useCommandPaletteCommands settings', () => {
   it('flips a switch setting, and the row shows its new state', () => {
     const { store, result } = render();
     const before = store.get(settingsAtom).isMarkdown;
-    const row = find(result.current.searchCommands('markdown'), 'setting:markdown');
+    const row = find(search(result.current.commands, 'markdown'), 'setting:markdown');
     expect(row.state).toBe(before ? 'on' : 'off');
 
     act(() => row.onSelect?.());
 
     expect(store.get(settingsAtom).isMarkdown).toBe(!before);
-    expect(find(result.current.searchCommands('markdown'), 'setting:markdown').state).toBe(
+    expect(find(search(result.current.commands, 'markdown'), 'setting:markdown').state).toBe(
       before ? 'off' : 'on'
     );
   });
@@ -149,7 +161,7 @@ describe('useCommandPaletteCommands settings', () => {
   it('opens Settings at a setting that is no switch', () => {
     const { store, result } = render();
 
-    act(() => find(result.current.searchCommands('page zoom'), 'setting:pageZoom').onSelect?.());
+    act(() => find(search(result.current.commands, 'page zoom'), 'setting:pageZoom').onSelect?.());
 
     expect(store.get(settingsModalAtom)).toEqual({
       initialPage: 'appearance',
@@ -160,21 +172,21 @@ describe('useCommandPaletteCommands settings', () => {
 });
 
 describe('useCommandPaletteCommands search', () => {
+  // Without text the palette does not search the commands at all.
   const ids = (text: string) =>
-    render()
-      .result.current.searchCommands(text)
-      .map((item) => item.id);
+    text.trim() ? search(render().result.current.commands, text).map((item) => item.id) : [];
 
   it.each(['john', 'lisa', 'emma'])('finds nothing for a name like %s', (name) => {
     expect(ids(name)).toEqual([]);
   });
 
-  it('finds nothing without text', () => {
-    expect(ids('')).toEqual([]);
-    expect(ids('   ')).toEqual([]);
+  it('finds a setting with a typo in its name, and a name with one finds none', () => {
+    expect(ids('markdwon')[0]).toBe('setting:markdown');
+    expect(ids('jhon')).toEqual([]);
+    expect(ids('emmma')).toEqual([]);
   });
 
-  it('ranks settings as the Settings search does, before the choices', () => {
+  it('finds a setting and a choice by their names', () => {
     expect(ids('markdown')[0]).toBe('setting:markdown');
     expect(ids('dracula')).toContain('theme:dracula-theme');
   });
@@ -263,7 +275,7 @@ describe('useCommandPaletteCommands pages', () => {
   it("finds a page's choices by typing, tagged with the page's title", () => {
     const { result } = render();
 
-    expect(find(result.current.searchCommands('dracula'), 'theme:dracula-theme').tag).toBe(
+    expect(find(search(result.current.commands, 'dracula'), 'theme:dracula-theme').tag).toBe(
       result.current.pages.theme.title
     );
     expect(result.current.pages.theme.title).toBe('Theme');
@@ -271,12 +283,12 @@ describe('useCommandPaletteCommands pages', () => {
 
   it('keeps its lists while nothing they show changes', () => {
     const { result, rerender } = render();
-    const { actions, searchCommands, pages } = result.current;
+    const { actions, commands, pages } = result.current;
 
     rerender();
 
     expect(result.current.actions).toBe(actions);
-    expect(result.current.searchCommands).toBe(searchCommands);
+    expect(result.current.commands).toBe(commands);
     expect(result.current.pages).toBe(pages);
   });
 });

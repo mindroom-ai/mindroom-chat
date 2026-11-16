@@ -1,6 +1,5 @@
 import { AGENT_USERNAME_PREFIX, isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import {
-  MATCH_SCORE,
   foldText,
   matchWord,
   originalRanges,
@@ -15,11 +14,8 @@ import type {
   CommandPaletteUserItem,
 } from './commandPaletteTypes';
 
-// What an unread room or an open direct chat adds to a score: enough to go above an equal
-// match, never above a better one.
-const BOOST_WEIGHT = 3;
-// Typed words a field holds together, in order, count a little more than the same words apart.
-const PHRASE_BONUS = 2;
+// Typed words a field holds together, in order, go above the same words found apart.
+const PHRASE_DETAIL = 2;
 
 type SearchableCommandPaletteItem = {
   id: string;
@@ -52,15 +48,22 @@ export type CommandPaletteSearchConfig<T> = {
 /** What matched in a row, by field key: ranges of the field's text as written. */
 export type CommandPaletteMarks = Readonly<Record<string, readonly TextRange[]>>;
 
-/** A row that matches typed text: how well (0 without text), and what to mark in it. */
+/**
+ * A row that matches typed text: the way it matches as a score (0 without text; the scores of
+ * `MATCH_SCORE` say what a value means), and what to mark in it.
+ */
 export type CommandPaletteMatch<T> = { item: T; score: number; marks: CommandPaletteMarks };
 
 type MatchCommandPaletteSectionOptions<T extends SearchableCommandPaletteItem> = {
   items: readonly T[];
   query: string;
   config: CommandPaletteSearchConfig<T>;
-  /** Rows nothing matches follow the others, in the order given, with score 0. */
-  keepUnmatched?: boolean;
+  /**
+   * The rows come in an order worth keeping (the server's people after the local ones): equal
+   * matches keep it, rows nothing matches follow the others in it with score 0, and without text
+   * it is the order.
+   */
+  ordered?: boolean;
 };
 
 const userName = ({ localpart }: CommandPaletteUserItem): string =>
@@ -90,7 +93,8 @@ export const commandPaletteSearchConfig = {
   rooms: {
     fields: [
       { key: 'name', get: (item) => item.name, weight: 1, name: true },
-      { key: 'canonicalAlias', get: (item) => item.canonicalAlias, weight: 0.9 },
+      // Under a name's start, so a word of an alias never goes above a room named by the text.
+      { key: 'canonicalAlias', get: (item) => item.canonicalAlias, weight: 0.7 },
       { key: 'topic', get: (item) => item.topic, weight: 0.5 },
       { key: 'parentNames', get: (item) => item.parentNames, weight: 0.5 },
     ],
@@ -193,24 +197,30 @@ const getRows = <T>(
 };
 
 /** What a typed word, or the typed text as a whole, matched best: where, and how well. */
-type Found = { text: RowText; score: number; ranges: readonly TextRange[] };
+type Found = { text: RowText; score: number; detail: number; ranges: readonly TextRange[] };
 
 const findBest = (word: string, texts: readonly RowText[], own = false): Found | undefined => {
   let best: Found | undefined;
-  texts.forEach((text) => {
-    if (own && text.context) return;
-    const match = matchWord(word, text.prepared, text.name);
-    if (!match) return;
-    const score = match.score * text.weight;
-    if (!best || score > best.score) best = { text, score, ranges: match.ranges };
-  });
+  for (const text of texts) {
+    if (!own || !text.context) {
+      const match = matchWord(word, text.prepared, text.name);
+      if (match) {
+        const score = match.score * text.weight;
+        const detail = match.detail * text.weight;
+        if (!best || score > best.score || (score === best.score && detail > best.detail)) {
+          best = { text, score, detail, ranges: match.ranges };
+        }
+      }
+    }
+  }
   return best;
 };
 
-type Scored<T> = { item: T; score: number; found: Found[] };
+type Scored<T> = { item: T; score: number; detail: number; found: Found[]; index: number };
 
 const scoreRow = <T>(
   { item, texts }: Row<T>,
+  index: number,
   words: readonly string[],
   phrase: string | undefined
 ): Scored<T> | undefined => {
@@ -222,24 +232,31 @@ const scoreRow = <T>(
   }
   if (found.every(({ text }) => text.context)) {
     // Every word matched only what the row belongs to: one of them has to match the row itself.
-    let anchor: { index: number; found: Found } | undefined;
-    words.forEach((word, index) => {
+    let anchor: { at: number; found: Found } | undefined;
+    words.forEach((word, at) => {
       const own = findBest(word, texts, true);
-      if (own && (!anchor || own.score > anchor.found.score)) anchor = { index, found: own };
+      if (own && (!anchor || own.score > anchor.found.score)) anchor = { at, found: own };
     });
     if (!anchor) return undefined;
-    found[anchor.index] = anchor.found;
+    found[anchor.at] = anchor.found;
   }
-  const score = found.reduce((sum, { score: part }) => sum + part, 0) / words.length;
+  const mean = (part: (entry: Found) => number): number =>
+    found.reduce((sum, entry) => sum + part(entry), 0) / found.length;
+  const score = mean((entry) => entry.score);
   if (phrase) {
     // The typed words together, in order, in one field.
     const whole = findBest(phrase, texts, true);
-    const wholeScore = whole && Math.min(MATCH_SCORE.exact, whole.score + PHRASE_BONUS);
-    if (whole && wholeScore !== undefined && wholeScore > score) {
-      return { item, score: wholeScore, found: [whole] };
+    if (whole && whole.score >= score) {
+      return {
+        item,
+        score: whole.score,
+        detail: whole.detail + PHRASE_DETAIL,
+        found: [whole],
+        index,
+      };
     }
   }
-  return { item, score, found };
+  return { item, score, detail: mean((entry) => entry.detail), found, index };
 };
 
 const marksOf = (found: readonly Found[]): CommandPaletteMarks => {
@@ -267,21 +284,24 @@ const typedWords = (query: string, word: ((word: string) => string) | undefined)
 
 /**
  * The rows of a list that match typed text, best first, up to the list's limit. Every typed word
- * has to match one of a row's fields; a row's score is the mean of its words' best matches, each
- * weighted by its field, or the match of the typed text as a whole where a field holds it so.
- * Equal scores keep the order of the rows' boost, then rank, then ID. Without text: the rows by
- * rank, boost and ID, with score 0 and no marks.
+ * has to match one of a row's fields. A row's score is the mean of the ways its words match
+ * best, each weighted by its field, or the way the typed text matches as a whole where a field
+ * holds it so. Rows of one score keep the order of their boost, then their rank, then the detail
+ * of their matches (the share of a word that was typed, the words before it), then their ID.
+ * Without text: the rows by rank, boost and ID, with score 0 and no marks. `ordered` changes
+ * what equal rows, unmatched rows and no text do.
  */
 export const matchCommandPaletteSection = <T extends SearchableCommandPaletteItem>({
   items,
   query,
   config,
-  keepUnmatched = false,
+  ordered = false,
 }: MatchCommandPaletteSectionOptions<T>): CommandPaletteMatch<T>[] => {
   const words = typedWords(query, config.word);
   const unmarked = (item: T): CommandPaletteMatch<T> => ({ item, score: 0, marks: {} });
 
   if (words.length === 0) {
+    if (ordered) return items.slice(0, config.limit).map(unmarked);
     return [...items]
       .sort(
         (left, right) =>
@@ -296,35 +316,24 @@ export const matchCommandPaletteSection = <T extends SearchableCommandPaletteIte
   const phrase = words.length > 1 ? words.join(' ') : undefined;
   const scored: Scored<T>[] = [];
   const unmatched: T[] = [];
-  getRows(items, config.fields).forEach((row) => {
-    const result = scoreRow(row, words, phrase);
+  getRows(items, config.fields).forEach((row, index) => {
+    const result = scoreRow(row, index, words, phrase);
     if (result) scored.push(result);
-    else if (keepUnmatched) unmatched.push(row.item);
+    else if (ordered) unmatched.push(row.item);
   });
 
-  const boosts = scored.map(({ item }) => item.boost ?? 0);
-  const maxBoost = Math.max(...boosts, 0);
-  const minBoost = Math.min(...boosts, 0);
-  const boosted = ({ item, score }: Scored<T>): number =>
-    maxBoost === minBoost
-      ? score
-      : score + (BOOST_WEIGHT * ((item.boost ?? 0) - minBoost)) / (maxBoost - minBoost);
-
   const matches = scored
-    .map((entry) => ({ entry, order: boosted(entry) }))
     .sort(
       (left, right) =>
-        right.order - left.order ||
-        (right.entry.item.sortRank ?? 0) - (left.entry.item.sortRank ?? 0) ||
-        compareId(left.entry.item.id, right.entry.item.id)
+        right.score - left.score ||
+        (right.item.boost ?? 0) - (left.item.boost ?? 0) ||
+        (right.item.sortRank ?? 0) - (left.item.sortRank ?? 0) ||
+        right.detail - left.detail ||
+        (ordered ? left.index - right.index : compareId(left.item.id, right.item.id))
     )
     .slice(0, config.limit)
     .map(
-      ({ entry }): CommandPaletteMatch<T> => ({
-        item: entry.item,
-        score: entry.score,
-        marks: marksOf(entry.found),
-      })
+      ({ item, score, found }): CommandPaletteMatch<T> => ({ item, score, marks: marksOf(found) })
     );
   return [...matches, ...unmatched.map(unmarked)].slice(0, config.limit);
 };
