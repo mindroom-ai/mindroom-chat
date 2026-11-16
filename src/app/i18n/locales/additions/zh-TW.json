@@ -949,6 +949,15 @@
     "pickDateTime": "選擇日期和時間",
     "pastTime": "請選擇未來的時間"
   },
+  "threadFork": {
+    "forkedFrom": "分支自 {{title}}",
+    "openInOriginalThread": "在原討論串中開啟",
+    "forkFromHere": "從此處分支",
+    "forkThread": "分支討論串",
+    "forking": "正在從 {{title}} 分支",
+    "continueInNewThread": "在新討論串中繼續",
+    "forkCount_other": "{{count}} 個分支"
+  },
   "activity": {
     "title": "動態",
     "unreadOnly": "未讀",

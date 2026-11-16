@@ -964,6 +964,16 @@
     "pickDateTime": "Pick date and time",
     "pastTime": "Pick a time in the future"
   },
+  "threadFork": {
+    "forkedFrom": "Forked from {{title}}",
+    "openInOriginalThread": "Open in original thread",
+    "forkFromHere": "Fork from here",
+    "forkThread": "Fork thread",
+    "forking": "Forking {{title}}",
+    "continueInNewThread": "Continue in a new thread",
+    "forkCount_one": "{{count}} fork",
+    "forkCount_other": "{{count}} forks"
+  },
   "activity": {
     "title": "Activity",
     "unreadOnly": "Unread",

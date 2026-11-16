@@ -949,6 +949,15 @@
     "pickDateTime": "日時を選択",
     "pastTime": "未来の日時を選んでください"
   },
+  "threadFork": {
+    "forkedFrom": "{{title}} から分岐",
+    "openInOriginalThread": "元のスレッドで開く",
+    "forkFromHere": "ここから分岐",
+    "forkThread": "スレッドを分岐",
+    "forking": "{{title}} を分岐中",
+    "continueInNewThread": "新しいスレッドで続ける",
+    "forkCount_other": "{{count}} 件の分岐"
+  },
   "activity": {
     "title": "アクティビティ",
     "unreadOnly": "未読",

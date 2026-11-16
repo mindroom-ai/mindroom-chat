@@ -42,6 +42,18 @@ describe('buildLongTextPreview', () => {
     });
   });
 
+  // MindRoom reads a fork's first message from its event, so the reference routes it too.
+  it("keeps a fork's reference", () => {
+    const fork = { thread_id: '$parent', event_id: '$point' };
+
+    const preview = buildLongTextPreview({ body: 'x'.repeat(50_000), 'io.mindroom.fork': fork });
+
+    expect(preview).toEqual({
+      body: `${'x'.repeat(2000)}\n\n[Message continues in attached file]`,
+      'io.mindroom.fork': fork,
+    });
+  });
+
   it('cuts the preview between characters', () => {
     // An emoji is two UTF-16 units; the 2000-unit cut would split the last one in half.
     const preview = buildLongTextPreview({ body: `${'x'.repeat(1999)}${'😀'.repeat(10)}` });

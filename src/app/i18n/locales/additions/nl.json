@@ -964,6 +964,16 @@
     "pickDateTime": "Datum en tijd kiezen",
     "pastTime": "Kies een tijd in de toekomst"
   },
+  "threadFork": {
+    "forkedFrom": "Afgesplitst van {{title}}",
+    "openInOriginalThread": "Openen in oorspronkelijke thread",
+    "forkFromHere": "Hier afsplitsen",
+    "forkThread": "Thread afsplitsen",
+    "forking": "{{title}} afsplitsen",
+    "continueInNewThread": "Verdergaan in een nieuwe thread",
+    "forkCount_one": "{{count}} afsplitsing",
+    "forkCount_other": "{{count}} afsplitsingen"
+  },
   "activity": {
     "title": "Activiteit",
     "unreadOnly": "Ongelezen",

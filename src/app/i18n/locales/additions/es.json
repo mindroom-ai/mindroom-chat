@@ -979,6 +979,17 @@
     "pickDateTime": "Elegir fecha y hora",
     "pastTime": "Elige una hora en el futuro"
   },
+  "threadFork": {
+    "forkedFrom": "Bifurcado de {{title}}",
+    "openInOriginalThread": "Abrir en el hilo original",
+    "forkFromHere": "Bifurcar desde aquí",
+    "forkThread": "Bifurcar hilo",
+    "forking": "Bifurcando {{title}}",
+    "continueInNewThread": "Continuar en un hilo nuevo",
+    "forkCount_one": "{{count}} bifurcación",
+    "forkCount_many": "{{count}} bifurcaciones",
+    "forkCount_other": "{{count}} bifurcaciones"
+  },
   "activity": {
     "title": "Actividad",
     "unreadOnly": "Sin leer",
