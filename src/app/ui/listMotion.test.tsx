@@ -2,7 +2,12 @@
 import { useRef } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { type MotionPlay, standInForListMotion } from './__tests__/listMotionStandIn';
+import {
+  type MotionPlay,
+  ROW_HEIGHT,
+  ROW_WIDTH,
+  standInForListMotion,
+} from './__tests__/listMotionStandIn';
 import { MOST_ROWS_IN_MOTION, useListMotion } from './listMotion';
 
 const GLIDE = { duration: 280, easing: 'cubic-bezier(0.2, 0, 0, 1)' };
@@ -139,6 +144,31 @@ describe('useListMotion', () => {
     expect(motion.plays).toEqual([]);
     expect(motion.rects).not.toHaveBeenCalled();
     expect(screen.getByTestId('list').querySelectorAll('[aria-hidden]')).toHaveLength(0);
+  });
+
+  it('plays nothing when a change makes the list too long', () => {
+    const rows = Array.from({ length: MOST_ROWS_IN_MOTION }, (_, index) => `row${index}`);
+    const { rerender } = render(<List order={rows} />);
+    rerender(<List order={['new', ...rows]} />);
+
+    expect(motion.plays).toEqual([]);
+  });
+
+  it('finds a row that shows in view while it glides to a place far out of it', () => {
+    // The list is scrolled ten rows down, and its first row still shows in view on its way up:
+    // the rows do not show in the order the list holds them in.
+    const rows = Array.from({ length: 20 }, (_, index) => `row${index}`);
+    const { rerender } = render(<List order={rows} />);
+    motion.rects.mockImplementation(function rect(this: HTMLElement) {
+      const index = rows.indexOf(this.dataset.motionRow ?? '');
+      const top = index === 0 ? 0 : (index - 10) * ROW_HEIGHT;
+      const size = { width: ROW_WIDTH, height: ROW_HEIGHT };
+      return { top, left: 0, bottom: top + ROW_HEIGHT, right: ROW_WIDTH, ...size } as DOMRect;
+    });
+    rerender(<List order={rows.slice(1)} />);
+
+    // It left, and fades where it showed.
+    expect(motion.left()).toHaveLength(1);
   });
 
   it('plays in the longest list that may', () => {

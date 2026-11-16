@@ -45,27 +45,18 @@ const rowsOf = (list: HTMLElement): HTMLElement[] => [
 
 /**
  * Of the list's rows, by key those in view or within half a page of it: the rows that close a
- * gap, or make room, come into view from there.
+ * gap, or make room, come into view from there. Every row is read: one that plays shows away
+ * from its place in the list, so the rows cannot be searched by the order they are held in.
  */
 const readRows = (all: HTMLElement[]): Map<string, Place> => {
   const past = window.innerHeight / 2;
-  // The rows stack in one column: find the first one in view by halving, so a long list costs a
-  // few layout reads rather than one per row above the view.
-  let low = 0;
-  let high = all.length;
-  while (low < high) {
-    const middle = Math.floor((low + high) / 2);
-    if ((all[middle]?.getBoundingClientRect().bottom ?? 0) > -past) high = middle;
-    else low = middle + 1;
-  }
   const inView = new Map<string, Place>();
-  for (let index = low; index < all.length; index += 1) {
-    const row = all[index];
-    const key = row?.getAttribute(ROW);
-    const rect = row?.getBoundingClientRect();
-    if (!row || !rect || rect.top >= window.innerHeight + past) break;
-    if (key) inView.set(key, { row, rect });
-  }
+  all.forEach((row) => {
+    const key = row.getAttribute(ROW);
+    if (!key) return;
+    const rect = row.getBoundingClientRect();
+    if (rect.bottom > -past && rect.top < window.innerHeight + past) inView.set(key, { row, rect });
+  });
   return inView;
 };
 
@@ -114,6 +105,8 @@ const leave = (list: HTMLElement, { row, rect }: Place, before: Before): Animati
 /** Plays the change from `before` to the list as it is now; returns what it started. */
 const play = (list: HTMLElement, before: Before): Animation[] => {
   const all = rowsOf(list);
+  // The change made the list too long.
+  if (all.length > MOST_ROWS_IN_MOTION) return [];
   const inView = readRows(all);
   let byKey: Map<string, HTMLElement> | undefined;
   // A row that moved under another parent is a new element there.
@@ -206,10 +199,10 @@ class BeforeChange extends PureComponent<BeforeChangeProps> {
  * what the hook returns inside the list's component, and give the list a `position`, which a
  * leaving row is placed against.
  *
- * Only rows in view or within half a page of it play, read once before and once after a change
- * of `order`, so a long list has two screenfuls of rows read and a render that keeps the order
- * costs nothing. A list of more than `MOST_ROWS_IN_MOTION` rows plays nothing and changes as it
- * would without the hook. The read after the change makes the browser work out the changed
+ * Only rows in view or within half a page of it play. The rows are read once before and once
+ * after a change of `order`, and a render that keeps the order costs nothing. A list of more than
+ * `MOST_ROWS_IN_MOTION` rows, before or after the change, plays nothing and changes as it would
+ * without the hook. The read after the change makes the browser work out the changed
  * page's style and layout inside the commit, work its next frame would have done. Rows play by
  * `translate`, `scale` and `opacity`, which no layout follows; a row is read while it plays, so
  * keep code that measures rows off the row element itself. A change of `order` while rows play
