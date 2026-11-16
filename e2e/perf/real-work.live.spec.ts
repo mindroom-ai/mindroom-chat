@@ -63,8 +63,10 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
  * `typing` (key latency), `target` (the streams asked for) and `achieved` (what the driver saw in
  * its 5 s reports that overlap the window: replies streaming on average, live frames, edits and
  * jobs state writes a second, replies given up as stuck). A window that held under 80 % of the
- * target fails with both numbers, and so does a run whose driver stopped for a shortfall. Each
- * result also goes to the console as a `PERF-REAL-WORK {json}` line.
+ * target fails with both numbers, and so does one in which the driver stopped (its result then
+ * has `driverExit`). The thread scenarios press a card that shows the app's streaming marker,
+ * waiting up to 10 s for one, else the top card; `openedStreaming` says whether every card they
+ * pressed showed it. Each result also goes to the console as a `PERF-REAL-WORK {json}` line.
  *
  * Knobs:
  *   PERF_CPU_THROTTLE  CPU slowdown rates, each repeating the scenarios (default `1,4`; Chromium)
@@ -78,8 +80,9 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
  *
  * External mode, for an account that is already there: PERF_TARGET=external with PERF_HOMESERVER
  * (which must be on 127.0.0.1 or localhost), PERF_USERNAME, PERF_PASSWORD and PERF_ROOM (a room
- * ID). No stack and no driver: the page signs in, every request to another host is aborted, there
- * is no service worker, and `thread-open`, `thread-type`, `switch`, `cold-load` and
+ * ID). No stack and no driver: the page signs in, every request and WebSocket to another host is
+ * aborted, there is no service worker, Chromium may not send WebRTC traffic except through a proxy
+ * (there is none, and no external scenario starts a call), and `thread-open`, `thread-type`, `switch`, `cold-load` and
  * `compact-scroll` run on what the room holds. Results end in `-external`.
  */
 
@@ -138,6 +141,11 @@ const RAMP_MS = 30_000;
 /** The driver reports every 5 s. */
 const REPORT_SECONDS = 5;
 const SHARE = 0.8;
+/** The word a Compact card shows beside its pulsing dot while an agent replies in its thread. */
+const STREAMING_MARKER = 'streaming';
+/** A scenario test's time limit at a CPU rate, and the soak's. */
+const scenariosTimeout = (throttle: number) => 30 * 60_000 * Math.max(1, throttle / 2);
+const SOAK_TIMEOUT = (SOAK_MINUTES + 15) * 60_000;
 const VIEWPORT = PHONE ? { width: 390, height: 844 } : { width: 1440, height: 900 };
 
 const CARD = '[data-compact-room-view] [data-thread-root-id]';
@@ -177,7 +185,16 @@ const sleep = (ms: number) =>
   });
 const round = (value: number) => Math.round(value * 100) / 100;
 
-const startDriver = (stateFile: string, historyFile: string, streams: number): Driver => {
+/**
+ * Starts the live phase. It ends on `stop`; `seconds` is when it ends by itself, so a worker that
+ * was killed cannot leave it posting for good.
+ */
+const startDriver = (
+  stateFile: string,
+  historyFile: string,
+  streams: number,
+  seconds: number
+): Driver => {
   mkdirSync(OUT_DIR, { recursive: true });
   const out = join(OUT_DIR, `driver-${streams}s.jsonl`);
   rmSync(out, { force: true });
@@ -195,6 +212,8 @@ const startDriver = (stateFile: string, historyFile: string, streams: number): D
       historyFile,
       '--streams',
       String(streams),
+      '--seconds',
+      String(seconds),
       '--out',
       out,
     ],
@@ -227,9 +246,14 @@ const startDriver = (stateFile: string, historyFile: string, streams: number): D
         : [],
     ended: () => code,
     errors: () => errors,
-    stop: () => {
-      if (code === undefined) child.kill('SIGTERM');
-      return exited;
+    stop: async () => {
+      if (code !== undefined) return code;
+      child.kill('SIGTERM');
+      // It ends within a /sync answer of the signal; one that does not is killed.
+      const kill = setTimeout(() => child.kill('SIGKILL'), 5_000);
+      const status = await exited;
+      clearTimeout(kill);
+      return status;
     },
   };
 };
@@ -319,15 +343,34 @@ const cards = (page: Page) => page.locator(CARD);
 const banner = (page: Page) => page.locator('[data-thread-context-banner]');
 const back = (page: Page) => banner(page).getByRole('button', { name: 'Back', exact: true });
 
-/** Up to five threads from the top of the Compact view, where the ones with news are. */
-const topThreads = async (run: Run): Promise<string[]> => {
-  const shown = await cards(run.page).evaluateAll((elements) =>
+/** The threads of the Compact view's cards, top first, among those the driver streams in. */
+const shownThreads = async (run: Run, of = cards(run.page)): Promise<string[]> => {
+  const shown = await of.evaluateAll((elements) =>
     elements.map((element) => element.getAttribute('data-thread-root-id') ?? '')
   );
   const known = run.threads;
-  const roots = [...new Set(shown)].filter((root) => root && (!known || known.includes(root)));
-  expect(roots.length, 'the Compact view shows a thread to open').toBeGreaterThan(0);
-  return roots.slice(0, 5);
+  return [...new Set(shown)].filter((root) => root && (!known || known.includes(root)));
+};
+
+/**
+ * A thread to press: one whose card shows the app's streaming marker (the word beside the pulsing
+ * dot) right now, waiting up to 10 s under the driver's load for one, else the top card. `except`
+ * leaves a thread out.
+ */
+const pickThread = async (run: Run, except = ''): Promise<{ root: string; streaming: boolean }> => {
+  const { page } = run;
+  const marked = cards(page).filter({ has: page.getByText(STREAMING_MARKER, { exact: true }) });
+  const end = Date.now() + (run.driver ? 10_000 : 0);
+  for (;;) {
+    const root = (await shownThreads(run, marked)).find((candidate) => candidate !== except);
+    if (root) return { root, streaming: true };
+    if (Date.now() >= end) break;
+    await page.waitForTimeout(250);
+  }
+  const all = await shownThreads(run);
+  const top = all.find((candidate) => candidate !== except) ?? all[0];
+  if (!top) throw new Error('the Compact view shows no thread to open');
+  return { root: top, streaming: false };
 };
 
 const card = (page: Page, root: string) =>
@@ -341,17 +384,21 @@ const showCompact = async (page: Page): Promise<void> => {
   await expect(page.locator(ROW)).toHaveCount(0);
 };
 
-/** Shows a thread, opening the top one when the Compact view is up. */
-const showThread = async (run: Run): Promise<void> => {
+/**
+ * Opens a thread that streams now, from the Compact view, also when a thread is open: that one may
+ * have gone quiet. Returns whether the pressed card showed the marker.
+ */
+const showThread = async (run: Run): Promise<boolean> => {
   const { page } = run;
-  if ((await banner(page).count()) === 0) {
-    await showCompact(page);
-    const [root] = await topThreads(run);
-    await card(page, root ?? '').click();
-  }
+  await showCompact(page);
+  const { root, streaming } = await pickThread(run);
+  await card(page, root).click();
   await expect(banner(page)).toBeVisible({ timeout: 60_000 });
   await expect(page.locator(ROW).first()).toBeVisible({ timeout: 60_000 });
+  return streaming;
 };
+
+type Measured = { timings?: Timing[]; typing?: Stats; openedStreaming?: boolean };
 
 const idle = async (run: Run): Promise<void> => {
   await run.page.waitForTimeout(30_000);
@@ -360,8 +407,9 @@ const idle = async (run: Run): Promise<void> => {
 const SCENARIO: Record<
   Scenario,
   {
-    prepare: (run: Run) => Promise<void>;
-    measure: (run: Run) => Promise<{ timings?: Timing[]; typing?: Stats } | void>;
+    /** Sets the view up; a thread scenario's gives whether the thread it opened streamed. */
+    prepare: (run: Run) => Promise<boolean | void>;
+    measure: (run: Run) => Promise<Measured | void>;
   }
 > = {
   'compact-idle': { prepare: (run) => showCompact(run.page), measure: idle },
@@ -382,12 +430,12 @@ const SCENARIO: Record<
     prepare: (run) => showCompact(run.page),
     measure: async (run) => {
       const { page } = run;
-      const [root] = await topThreads(run);
-      const ms = await timeToVisible(page, () => card(page, root ?? '').click(), ROW);
+      const { root, streaming } = await pickThread(run);
+      const ms = await timeToVisible(page, () => card(page, root).click(), ROW);
       await expect(banner(page)).toBeVisible();
       // The rest of the thread arrives and settles inside the window.
       await page.waitForTimeout(5_000);
-      return { timings: [{ name: 'open', ms }] };
+      return { timings: [{ name: 'open', ms }], openedStreaming: streaming };
     },
   },
   'thread-idle': { prepare: showThread, measure: idle },
@@ -402,19 +450,22 @@ const SCENARIO: Record<
     measure: async (run) => {
       const { page } = run;
       const timings: Timing[] = [];
+      let openedStreaming = true;
+      let current = '';
       for (let turn = 1; turn <= 5; turn += 1) {
         const backMs = await timeToVisible(page, () => back(page).click(), CARD);
         await expect(page.locator(ROW)).toHaveCount(0);
         timings.push({ name: `back-${turn}`, ms: backMs });
-        // Another thread each time: the top ones in turn.
-        const roots = await topThreads(run);
-        const root = roots[turn % roots.length] ?? '';
+        // Another thread each time, one that streams when there is one.
+        const { root, streaming } = await pickThread(run, current);
+        current = root;
+        openedStreaming &&= streaming;
         const ms = await timeToVisible(page, () => card(page, root).click(), ROW);
         await expect(banner(page)).toBeVisible();
         timings.push({ name: `switch-${turn}`, ms });
         await page.waitForTimeout(1_000);
       }
-      return { timings };
+      return { timings, openedStreaming };
     },
   },
   'cold-load': {
@@ -437,33 +488,67 @@ const SCENARIO: Record<
   },
 };
 
-/** Fails the test (softly, so the other scenarios still run) when the load fell short. */
+/**
+ * Fails the test (softly, so the other scenarios still run) when the window's load fell short, or
+ * the driver had ended by the end of it: the reports it wrote before can still average high.
+ */
 const checkLoad = (label: string, driver: Driver, achieved: Achieved | undefined): void => {
+  const ended = driver.ended();
+  expect
+    .soft(
+      ended,
+      `${label}: the driver stopped with exit ${ended} inside the window: ${driver
+        .errors()
+        .trim()
+        .slice(-500)}`
+    )
+    .toBeUndefined();
   expect
     .soft(
       achieved?.streaming ?? 0,
       `${label}: the driver held ${achieved?.streaming ?? 'no reported'} streams of the ${
         driver.streams
-      } asked for, under ${SHARE * 100} %${
-        driver.ended() === undefined
-          ? ''
-          : ` (it stopped with exit ${driver.ended()}: ${driver.errors().trim().slice(-500)})`
-      }`
+      } asked for, under ${SHARE * 100} %`
     )
     .toBeGreaterThanOrEqual(SHARE * driver.streams);
 };
 
-/** Adds what the driver saw to a result file the probe wrote. */
-const addAchieved = (label: string, achieved: Achieved | undefined): void => {
+/**
+ * Adds what the driver saw to a result file the probe wrote, and `driverExit` (its exit code,
+ * null after a signal) when it had ended by then.
+ */
+const addAchieved = (label: string, driver: Driver, achieved: Achieved | undefined): void => {
   const file = join(OUT_DIR, `${label}.json`);
   const result = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
-  writeFileSync(file, `${JSON.stringify({ ...result, achieved: achieved ?? null }, null, 2)}\n`);
+  const ended = driver.ended();
+  writeFileSync(
+    file,
+    `${JSON.stringify(
+      {
+        ...result,
+        achieved: achieved ?? null,
+        ...(ended === undefined ? {} : { driverExit: ended }),
+      },
+      null,
+      2
+    )}\n`
+  );
+};
+
+/** Throws when the driver has ended: nothing measured from here on would be under its load. */
+const expectDriverRuns = (label: string, driver: Driver | undefined): void => {
+  if (driver && driver.ended() !== undefined) {
+    throw new Error(
+      `${label}: the driver stopped with exit ${driver.ended()}: ${driver.errors().trim()}`
+    );
+  }
 };
 
 const report = (
   result: ProbeResult,
-  extra: { timings: Timing[]; typing?: Stats; target: number | null },
-  achieved: Achieved | undefined
+  extra: { timings: Timing[]; typing?: Stats; openedStreaming?: boolean; target: number | null },
+  achieved: Achieved | undefined,
+  driver?: Driver
 ): void => {
   console.log(
     `PERF-REAL-WORK ${JSON.stringify({
@@ -477,6 +562,7 @@ const report = (
       load: result.load,
       ...extra,
       achieved: achieved ?? null,
+      ...(driver?.ended() === undefined ? {} : { driverExit: driver.ended() }),
       notes: result.notes,
     })}`
   );
@@ -485,12 +571,8 @@ const report = (
 const runScenario = async (run: Run, name: Scenario): Promise<void> => {
   const { page, driver } = run;
   const label = `${name}-${run.engine}-${run.throttle}x-${run.suffix}`;
-  await SCENARIO[name].prepare(run);
-  if (driver && driver.ended() !== undefined) {
-    throw new Error(
-      `${label}: the driver stopped with exit ${driver.ended()}: ${driver.errors().trim()}`
-    );
-  }
+  const prepared = await SCENARIO[name].prepare(run);
+  expectDriverRuns(label, driver);
   const from = Date.now();
   const probe = await startProbe(page, { label, outDir: OUT_DIR, profile: PROFILE, trace: TRACE });
   const extra = {
@@ -501,22 +583,29 @@ const runScenario = async (run: Run, name: Scenario): Promise<void> => {
     target: driver?.streams ?? null,
     timings: [] as Timing[],
     typing: undefined as Stats | undefined,
+    // Whether every thread the scenario opened showed the streaming marker when pressed.
+    openedStreaming: typeof prepared === 'boolean' ? prepared : undefined,
   };
   try {
     const measured = await SCENARIO[name].measure(run);
     if (measured?.timings) extra.timings = measured.timings;
     extra.typing = measured?.typing;
+    if (measured?.openedStreaming !== undefined) {
+      extra.openedStreaming = (extra.openedStreaming ?? true) && measured.openedStreaming;
+    }
   } catch (error) {
     await probe.stop({ ...extra, failed: String(error) }).catch(() => undefined);
     throw error;
   }
+  // The window ends here: the stop writes profiles and traces after it closed the window.
+  const to = Date.now();
   const result = await probe.stop(extra);
-  const achieved = driver ? await achievedBetween(driver, from, Date.now()) : undefined;
+  const achieved = driver ? await achievedBetween(driver, from, to) : undefined;
   if (driver) {
-    addAchieved(label, achieved);
+    addAchieved(label, driver, achieved);
     checkLoad(label, driver, achieved);
   }
-  report(result, extra, achieved);
+  report(result, extra, achieved, driver);
 };
 
 /** Slows the page's CPU; a rate above 1 needs Chromium. */
@@ -542,6 +631,29 @@ test.use({
   hasTouch: PHONE,
   ...(AGENTS > 1 ? { agentStackArgs: ['--agents', String(AGENTS)] } : {}),
 });
+if (external) {
+  // WebRTC cannot be routed: Chromium may then only use a proxy for it, and there is none, so a
+  // call could not leave this machine. No external scenario starts one. (Launch options cannot
+  // be set inside a describe.)
+  test.use({
+    launchOptions: [
+      async ({ launchOptions, browserName }, use) => {
+        await use(
+          browserName === 'chromium'
+            ? {
+                ...launchOptions,
+                args: [
+                  ...(launchOptions.args ?? []),
+                  '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
+                ],
+              }
+            : launchOptions
+        );
+      },
+      { scope: 'worker' },
+    ],
+  });
+}
 
 test.describe('PERF: real work under the backend load', () => {
   test.skip(!enabled || external, 'PERF_REAL_WORK=1 without PERF_TARGET=external runs it');
@@ -620,7 +732,12 @@ test.describe('PERF: real work under the backend load', () => {
 
       test.beforeAll(async () => {
         test.setTimeout(5 * 60_000);
-        driver = startDriver(stateFile, historyFile, streams);
+        // As long as this load level's tests may take together, and its ramp.
+        const limit =
+          RAMP_MS +
+          THROTTLES.reduce((total, throttle) => total + scenariosTimeout(throttle), 0) +
+          (SOAK ? SOAK_TIMEOUT : 0);
+        driver = startDriver(stateFile, historyFile, streams, Math.ceil(limit / 1000) + 600);
         await sleep(RAMP_MS);
       });
 
@@ -643,7 +760,7 @@ test.describe('PERF: real work under the backend load', () => {
         test(`scenarios at ${throttle}x CPU`, async ({ page, browserName }) => {
           test.skip(scenarios.length === 0, 'PERF_SCENARIOS names no scenario');
           test.skip(throttle !== 1 && browserName !== 'chromium', 'CPU throttling needs Chromium');
-          test.setTimeout(30 * 60_000 * Math.max(1, throttle / 2));
+          test.setTimeout(scenariosTimeout(throttle));
           if (!stack || !driver) throw new Error('the stack or the driver did not start');
           await open(page, stack);
           await runScenarios({
@@ -659,7 +776,7 @@ test.describe('PERF: real work under the backend load', () => {
 
       test('soak', async ({ page, browserName }) => {
         test.skip(!SOAK, 'PERF_SOAK=1 runs it');
-        test.setTimeout((SOAK_MINUTES + 15) * 60_000);
+        test.setTimeout(SOAK_TIMEOUT);
         if (!stack || !driver) throw new Error('the stack or the driver did not start');
         await open(page, stack);
         const run: Run = {
@@ -684,8 +801,10 @@ test.describe('PERF: real work under the backend load', () => {
         try {
           const end = from + SOAK_MINUTES * 60_000;
           while (Date.now() < end) {
+            expectDriverRuns(label, driver);
             await showCompact(page);
             await page.waitForTimeout(60_000);
+            expectDriverRuns(label, driver);
             await showThread(run);
             await page.waitForTimeout(60_000);
           }
@@ -693,11 +812,12 @@ test.describe('PERF: real work under the backend load', () => {
           await probe.stop({ ...extra, failed: String(error) }).catch(() => undefined);
           throw error;
         }
+        const to = Date.now();
         const result = await probe.stop(extra);
-        const achieved = await achievedBetween(driver, from, Date.now());
-        addAchieved(label, achieved);
+        const achieved = await achievedBetween(driver, from, to);
+        addAchieved(label, driver, achieved);
         checkLoad(label, driver, achieved);
-        report(result, { timings: [], target: streams }, achieved);
+        report(result, { timings: [], target: streams }, achieved, driver);
         const first = result.series[0]?.heapMB ?? 0;
         const last = result.series.at(-1)?.heapMB ?? 0;
         expect(
@@ -761,6 +881,15 @@ const externalPage = async (browser: Browser, baseURL: string | undefined): Prom
       },
     });
   });
+  // `route` does not see WebSockets: one to another host is closed before it connects.
+  await context.routeWebSocket(/^wss?:\/\//, async (socket) => {
+    const { hostname } = new URL(socket.url());
+    if (hostname === '127.0.0.1' || hostname === 'localhost') {
+      socket.connectToServer();
+      return;
+    }
+    await socket.close({ code: 1008, reason: 'external mode stays on this machine' });
+  });
   const page = await context.newPage();
   page.setDefaultTimeout(15_000);
   await installProbe(page);
@@ -795,7 +924,7 @@ test.describe('PERF: real work on an external account', () => {
     test(`scenarios at ${throttle}x CPU`, async ({ browser, browserName, baseURL }) => {
       test.skip(scenarios.length === 0, 'PERF_SCENARIOS names no scenario');
       test.skip(throttle !== 1 && browserName !== 'chromium', 'CPU throttling needs Chromium');
-      test.setTimeout(30 * 60_000 * Math.max(1, throttle / 2));
+      test.setTimeout(scenariosTimeout(throttle));
       const page = await externalPage(browser, baseURL);
       try {
         await runScenarios({ page, engine: browserName, throttle, suffix: 'external' });
