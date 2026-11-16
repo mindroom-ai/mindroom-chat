@@ -412,6 +412,20 @@ export const startProbe = async (
     });
     page.off('response', onResponse);
     const wallMs = Date.now() - startedAt;
+    // The profile and the trace end with the window too, before the wait for parsing below.
+    let cpuProfile: unknown;
+    if (session && profiling) {
+      ({ profile: cpuProfile } = await session.send('Profiler.stop'));
+      profiling = false;
+    }
+    let traced: Promise<{ stream?: string }> | undefined;
+    if (session && tracing) {
+      traced = new Promise<{ stream?: string }>((resolve) => {
+        session.once('Tracing.tracingComplete', resolve);
+      });
+      await session.send('Tracing.end');
+      tracing = false;
+    }
 
     // Answers that arrived inside the window may still be parsing. One that a page load cut off
     // never settles in Chromium, so the wait has an end.
@@ -429,18 +443,11 @@ export const startProbe = async (
       );
     }
     mkdirSync(outDir, { recursive: true });
-    if (session && profiling) {
-      const { profile: cpuProfile } = await session.send('Profiler.stop');
-      profiling = false;
+    if (cpuProfile !== undefined) {
       writeFileSync(`${outDir}/${label}.cpuprofile`, JSON.stringify(cpuProfile));
     }
-    if (session && tracing) {
-      const complete = new Promise<{ stream?: string }>((resolve) => {
-        session.once('Tracing.tracingComplete', resolve);
-      });
-      await session.send('Tracing.end');
-      tracing = false;
-      const { stream } = await complete;
+    if (session && traced) {
+      const { stream } = await traced;
       const file = `${outDir}/${label}.trace.json`;
       writeFileSync(file, '');
       if (stream === undefined) {
