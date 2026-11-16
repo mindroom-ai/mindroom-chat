@@ -743,6 +743,10 @@
           "declined": "Ditolak",
           "expired": "Kedaluwarsa"
         }
+      },
+      "finishedWork": {
+        "workedFor": "Bekerja selama {{duration}}",
+        "worked": "Bekerja"
       }
     },
     "message-search": {

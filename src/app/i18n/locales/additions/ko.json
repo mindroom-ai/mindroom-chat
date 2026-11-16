@@ -743,6 +743,10 @@
           "declined": "거절됨",
           "expired": "만료됨"
         }
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} 동안 작업함",
+        "worked": "작업함"
       }
     },
     "message-search": {

@@ -761,6 +761,10 @@
           "declined": "Recusada",
           "expired": "Expirada"
         }
+      },
+      "finishedWork": {
+        "workedFor": "Trabalhou por {{duration}}",
+        "worked": "Trabalhou"
       }
     },
     "message-search": {

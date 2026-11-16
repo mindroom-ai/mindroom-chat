@@ -752,6 +752,10 @@
           "declined": "अस्वीकृत",
           "expired": "खत्म हो चुका"
         }
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} तक काम किया",
+        "worked": "काम किया"
       }
     },
     "message-search": {

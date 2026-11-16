@@ -788,6 +788,10 @@
           "declined": "مرفوض",
           "expired": "منتهي الصلاحية"
         }
+      },
+      "finishedWork": {
+        "workedFor": "عمل لمدة ⁨{{duration}}⁩",
+        "worked": "عمل"
       }
     },
     "message-search": {

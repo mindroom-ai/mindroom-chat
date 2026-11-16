@@ -10,12 +10,11 @@ vi.mock('./CollapsibleMessage.css', () => ({
   CollapsiblePill: 'collapsible-pill',
 }));
 
+import { ExpandAllInitContext, CollapsibleMessage } from './CollapsibleMessage';
 import {
-  ExpandAllInitContext,
-  CollapsibleMessage,
   ManualExpansionStateContext,
   rememberManualExpansionState,
-} from './CollapsibleMessage';
+} from '../messages/manualExpansionState';
 
 type MockContentElement = Pick<HTMLDivElement, 'clientHeight' | 'scrollHeight'>;
 
