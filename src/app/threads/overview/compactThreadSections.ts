@@ -3,6 +3,7 @@ import { isThreadWorking } from '../../event-store/threads/threadWorking';
 import type { CrossRoomThreadIndexEntry } from '../cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../cross-room/threadSignals';
 import { groupThreadSections, THREAD_SECTION_ORDER, type ThreadSectionId } from '../threadSections';
+import { holdOrder } from './useHeldThreadOrder';
 
 /** One section of a Compact room's cards, in its order. */
 export type CompactThreadSection = { id: ThreadSectionId; rootIds: string[] };
@@ -62,10 +63,11 @@ export const buildCompactThreadSections = ({
 };
 
 /**
- * The sections while the cards' order is held (`useHeldThreadOrder`): each card in the sections
- * shown before (`shown`) stays in the section it showed in, and each of those sections stays,
- * emptied or not, so no header comes or goes under the pointer. A thread new to the list takes
- * its section in `live`, whose header comes with it.
+ * The sections while the cards' order is held, the one hold of a list in sections: each card in
+ * the sections shown before (`shown`) stays in the section it showed in, at its place there
+ * (`holdOrder`), and each of those sections stays, emptied or not, so no header comes or goes
+ * under the pointer. A thread new to the list takes its section in `live`, whose header comes
+ * with it, and joins that section where the live order puts it.
  */
 export const holdCompactThreadSections = (
   live: readonly CompactThreadSection[],
@@ -75,11 +77,11 @@ export const holdCompactThreadSections = (
     shown.flatMap(({ id, rootIds }) => rootIds.map((rootId) => [rootId, id] as const))
   );
   return THREAD_SECTION_ORDER.flatMap((id) => {
-    const rootIds = live.flatMap((section) =>
+    const members = live.flatMap((section) =>
       section.rootIds.filter((rootId) => (shownIn.get(rootId) ?? section.id) === id)
     );
-    return rootIds.length > 0 || shown.some((section) => section.id === id)
-      ? [{ id, rootIds }]
-      : [];
+    const shownSection = shown.find((section) => section.id === id);
+    if (!shownSection) return members.length > 0 ? [{ id, rootIds: members }] : [];
+    return [{ id, rootIds: holdOrder(shownSection.rootIds, members) }];
   });
 };

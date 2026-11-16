@@ -204,8 +204,12 @@ describe('the Compact room in sections', () => {
   });
 
   describe('while the pointer holds the order', () => {
-    /** Renders `sections`, holds the order, then gives the list `next`. */
-    const holdThenRegroup = (initial: CompactThreadSection[], next: CompactThreadSection[]) => {
+    /** Renders `initial`, holds the order, then gives the list `next` with `added` threads. */
+    const holdThenRegroup = (
+      initial: CompactThreadSection[],
+      next: CompactThreadSection[],
+      added: string[] = []
+    ) => {
       state.sections = initial;
       const rootIds = initial.flatMap(({ rootIds: ids }) => ids);
       const { rerender } = render(view(rootIds));
@@ -214,7 +218,7 @@ describe('the Compact room in sections', () => {
         fireEvent.pointerEnter(list);
       });
       state.sections = next;
-      rerender(view(rootIds));
+      rerender(view([...added, ...rootIds]));
       return () =>
         act(() => {
           fireEvent.pointerLeave(list);
@@ -268,6 +272,27 @@ describe('the Compact room in sections', () => {
 
       release();
       expect(rows()).toEqual(['#working 1', '$a', '#idle 1', '$b']);
+    });
+
+    it('keeps a held section in its shown order while a new section comes in after it', () => {
+      const release = holdThenRegroup(
+        [
+          { id: 'working', rootIds: ['$a', '$b'] },
+          { id: 'resolved', rootIds: ['$done'] },
+        ],
+        // $a finished and a new thread $n came in: both are Idle now, and Idle sorts $n first.
+        [
+          { id: 'working', rootIds: ['$b'] },
+          { id: 'idle', rootIds: ['$n', '$a'] },
+          { id: 'resolved', rootIds: ['$done'] },
+        ],
+        ['$n']
+      );
+
+      expect(rows()).toEqual(['#working 1', '$a', '$b', '#idle 2', '$n', '#resolved 1']);
+
+      release();
+      expect(rows()).toEqual(['#working 1', '$b', '#idle 2', '$n', '$a', '#resolved 1']);
     });
 
     it('shows a new thread under its own header, which comes with it', () => {

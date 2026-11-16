@@ -310,7 +310,8 @@ export function CompactRoomView({
     useMemo(() => getCompactRoomSectionsAtom(room.myUserId ?? ''), [room.myUserId])
   );
   const { folded } = sectionsChoice;
-  // While the order is held, the cards keep the sections they showed in, and the headers stay.
+  // While the order is held, the cards keep the sections they showed in and their places there,
+  // and the headers stay: in sections, this is the hold, and the hook below holds no order.
   const shownSectionsRef = useRef(threadSections);
   const heldSections = useMemo(
     () =>
@@ -322,8 +323,7 @@ export function CompactRoomView({
   useLayoutEffect(() => {
     shownSectionsRef.current = heldSections;
   }, [heldSections]);
-  // In sections, the list's rows are each section's header and, unless it is folded, its cards:
-  // the order the hook below holds is theirs, so a card stays in its place while held too.
+  // In sections, the list's rows are each section's header and, unless it is folded, its cards.
   const listedRows = useMemo(
     () =>
       heldSections
@@ -334,7 +334,7 @@ export function CompactRoomView({
         : threadRootIds,
     [folded, heldSections, threadRootIds]
   );
-  const shownRootIds = useHeldThreadOrder(listedRows, orderHeld, viewRef);
+  const shownRootIds = useHeldThreadOrder(listedRows, orderHeld && !heldSections, viewRef);
   // A filter change mounts the cards it brings back a chunk at a time, and so does a mount after
   // the cards of its first screen, or of the place the reader left (`useScrollAnchorMemory`).
   const stagedRows = useStagedCardIds(
