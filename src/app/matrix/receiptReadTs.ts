@@ -1,4 +1,10 @@
-import { RoomEvent, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import {
+  RoomEvent,
+  ThreadEvent,
+  type MatrixClient,
+  type MatrixEvent,
+  type Room,
+} from 'matrix-js-sdk';
 import { MAIN_ROOM_TIMELINE, ReceiptType } from 'matrix-js-sdk/lib/@types/read_receipts';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { isRecord } from '../lib/isRecord';
@@ -56,6 +62,46 @@ export const keepUnthreadedReceiptEvents = (mx: MatrixClient): (() => void) => {
   };
 };
 
+// The IDs asked for that no timeline of a room held. Asking the room costs a lookup in each of
+// its threads, and the callers ask for every thread and receipt type, so an answer of "not held"
+// is kept until the room gains an event of that ID: one a timeline takes, one a local echo is
+// renamed to, or one a new thread came with.
+const unheldEventIds = new WeakMap<Room, Set<string>>();
+
+const unheldEventIdsOf = (room: Room): Set<string> | undefined => {
+  let unheld = unheldEventIds.get(room);
+  // Optional: room stand-ins in tests often tell nothing of their events, so nothing is kept.
+  if (!unheld && typeof room.prependListener === 'function') {
+    const ids = new Set<string>();
+    const forget = (event: MatrixEvent) => {
+      ids.delete(event.getId() ?? '');
+    };
+    // First, so the views that update on an event find it.
+    room.prependListener(RoomEvent.Timeline, forget);
+    room.prependListener(RoomEvent.LocalEchoUpdated, forget);
+    room.prependListener(ThreadEvent.New, () => ids.clear());
+    unheldEventIds.set(room, ids);
+    unheld = ids;
+  }
+  return unheld;
+};
+
+const findNamedEvent = (
+  room: Room,
+  context: Room | Thread,
+  eventId: string
+): MatrixEvent | undefined => {
+  // Optional calls here and below: room and thread stand-ins in tests often lack receipts, events
+  // or, for a thread, its room.
+  const inContext = context === room ? undefined : context.findEventById?.(eventId);
+  if (inContext) return inContext;
+  const unheld = unheldEventIdsOf(room);
+  if (unheld?.has(eventId)) return undefined;
+  const named = room.findEventById?.(eventId);
+  if (!named) unheld?.add(eventId);
+  return named;
+};
+
 /**
  * How far a receipt in `context` (the room's main timeline, or a thread) reads: up to the event it
  * names. A receipt on an event the client does not hold (often a reply's terminal edit, which no
@@ -66,14 +112,7 @@ export const receiptReadTs = (
   context: Room | Thread,
   eventId: string | undefined,
   takenTs: number
-): number => {
-  // Optional calls here and below: room and thread stand-ins in tests often lack receipts, events
-  // or, for a thread, its room.
-  const named = eventId
-    ? context.findEventById?.(eventId) ?? room.findEventById?.(eventId)
-    : undefined;
-  return named?.getTs() ?? takenTs;
-};
+): number => (eventId ? findNamedEvent(room, context, eventId)?.getTs() : undefined) ?? takenTs;
 
 const maxOf = (...values: Array<number | undefined>): number | undefined => {
   const known = values.filter((value): value is number => value !== undefined);
