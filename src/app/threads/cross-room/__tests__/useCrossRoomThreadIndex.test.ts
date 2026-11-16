@@ -1745,7 +1745,51 @@ describe('useCrossRoomThreadIndex', () => {
         });
         await flushScheduledWork();
       };
-      return { withJob, publish, leave, unmount: () => renderer.unmount() };
+      // Sync hands the agent's member event over again with a batch, membership unchanged.
+      const redeliverMember = async () => {
+        const memberEvent = new StateMatrixEvent({
+          type: 'm.room.member',
+          sender: AGENT,
+          state_key: AGENT,
+          content: { membership },
+        });
+        await act(async () => {
+          mx.emit(RoomStateEvent.Events, memberEvent, { roomId: room.roomId });
+          mx.emit(
+            RoomStateEvent.Members,
+            memberEvent,
+            { roomId: room.roomId },
+            { userId: AGENT, membership, roomId: room.roomId }
+          );
+          await Promise.resolve();
+        });
+        await flushScheduledWork();
+      };
+      // A job starts and ends with a flush of the index between them, but no render: the flush
+      // marked the job's thread (`flushed`) by the time it ends.
+      const startAndEndBeforeRender = async (start: StateMatrixEvent, end: StateMatrixEvent) => {
+        let flushed: string[] = [];
+        await act(async () => {
+          jobs = start;
+          mx.emit(RoomStateEvent.Events, start, { roomId: room.roomId });
+          vi.runOnlyPendingTimers();
+          flushed = withJob();
+          jobs = end;
+          mx.emit(RoomStateEvent.Events, end, { roomId: room.roomId });
+          await Promise.resolve();
+        });
+        await flushScheduledWork();
+        return flushed;
+      };
+      return {
+        room,
+        withJob,
+        publish,
+        leave,
+        redeliverMember,
+        startAndEndBeforeRender,
+        unmount: () => renderer.unmount(),
+      };
     };
 
     it('marks the thread a listed job runs in, and only that one', async () => {
@@ -1763,6 +1807,27 @@ describe('useCrossRoomThreadIndex', () => {
       expect(index.withJob()).toEqual(['$root-0']);
 
       await index.publish(jobsState([]));
+      expect(index.withJob()).toEqual([]);
+      index.unmount();
+    });
+
+    it('builds no thread again when sync hands over the same agent membership', async () => {
+      const index = await indexRoomWithJobs(jobsState(['$root-0']));
+      index.room.getThread.mockClear();
+
+      await index.redeliverMember();
+
+      expect(index.room.getThread).not.toHaveBeenCalled();
+      expect(index.withJob()).toEqual(['$root-0']);
+      index.unmount();
+    });
+
+    it('catches a job that ends after the index flushed it but before a render', async () => {
+      const index = await indexRoomWithJobs(jobsState([]));
+
+      const flushed = await index.startAndEndBeforeRender(jobsState(['$root-0']), jobsState([]));
+
+      expect(flushed).toEqual(['$root-0']);
       expect(index.withJob()).toEqual([]);
       index.unmount();
     });
