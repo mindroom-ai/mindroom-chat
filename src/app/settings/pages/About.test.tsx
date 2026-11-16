@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   subscribeDeepTraceStatus: vi.fn(),
   clearDeepTrace: vi.fn(),
   saveFile: vi.fn(),
+  getDebugModeEnabled: vi.fn(),
+  setDebugModeEnabled: vi.fn(),
 }));
 
 vi.mock('folds', () => ({
@@ -148,6 +150,11 @@ vi.mock('../../diagnostics/deepTrace', () => ({
   clearDeepTrace: mocks.clearDeepTrace,
 }));
 
+vi.mock('../../diagnostics/debugMode', () => ({
+  getDebugModeEnabled: mocks.getDebugModeEnabled,
+  setDebugModeEnabled: mocks.setDebugModeEnabled,
+}));
+
 vi.mock('../../diagnostics/diagnosticsExport', () => ({
   buildDiagnosticsExport: mocks.buildDiagnosticsExport,
 }));
@@ -226,16 +233,42 @@ describe('About diagnostics export', () => {
     renderer.unmount();
   });
 
-  it('does not render diagnostics outside native iOS', () => {
-    mocks.isNativeIOS.mockReturnValue(false);
+  it('shows no debug mode switch in the iOS app, which always records', () => {
     const renderer = create(<About requestClose={vi.fn()} />);
 
-    expect(
-      renderer.root.findAllByProps({ 'data-setting-title': 'On-device diagnostics' })
-    ).toHaveLength(0);
-    expect(
-      renderer.root.findAllByProps({ 'data-setting-title': 'Deep diagnostic tracing' })
-    ).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-setting-title': 'Debug mode' })).toHaveLength(0);
+    expect(diagnosticsTile(renderer)).toBeDefined();
+    renderer.unmount();
+  });
+
+  it('outside native iOS, shows the diagnostics only while debug mode is on', async () => {
+    mocks.isNativeIOS.mockReturnValue(false);
+    let debugMode = false;
+    mocks.getDebugModeEnabled.mockImplementation(() => debugMode);
+    mocks.setDebugModeEnabled.mockImplementation(async (enabled: boolean) => {
+      debugMode = enabled;
+      return true;
+    });
+    const renderer = create(<About requestClose={vi.fn()} />);
+    const shown = (title: string) =>
+      renderer.root.findAllByProps({ 'data-setting-title': title }).length;
+    const debugSwitch = () =>
+      renderer.root.findByProps({ 'data-setting-title': 'Debug mode' }).findByType('input');
+
+    expect(shown('On-device diagnostics')).toBe(0);
+    expect(shown('Deep diagnostic tracing')).toBe(0);
+
+    await act(async () => {
+      debugSwitch().props.onChange({ target: { checked: true } });
+    });
+    expect(mocks.setDebugModeEnabled).toHaveBeenCalledWith(true);
+    expect(shown('On-device diagnostics')).toBe(1);
+    expect(shown('Deep diagnostic tracing')).toBe(1);
+
+    await act(async () => {
+      debugSwitch().props.onChange({ target: { checked: false } });
+    });
+    expect(shown('On-device diagnostics')).toBe(0);
     renderer.unmount();
   });
 

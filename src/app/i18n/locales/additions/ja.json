@@ -397,7 +397,9 @@
       },
       "about": {
         "thirdPartyNotices": "サードパーティ通知",
-        "soundsCredit": "通知音と招待音は、このアプリのために合成したチャイムです。"
+        "soundsCredit": "通知音と招待音は、このアプリのために合成したチャイムです。",
+        "debugMode": "デバッグモード",
+        "debugModeDescription": "このデバイスで診断情報を記録し、エクスポートや詳細な診断トレースの有効化ができるようにします。"
       }
     },
     "createChat": {

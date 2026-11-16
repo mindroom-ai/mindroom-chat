@@ -402,7 +402,9 @@
       },
       "about": {
         "thirdPartyNotices": "Üçüncü taraf bildirimleri",
-        "soundsCredit": "Bildirim ve davet sesleri bu uygulama için sentezlenmiş zil sesleridir."
+        "soundsCredit": "Bildirim ve davet sesleri bu uygulama için sentezlenmiş zil sesleridir.",
+        "debugMode": "Hata ayıklama modu",
+        "debugModeDescription": "Bu cihazda tanılama verilerini kaydeder; böylece bunları dışa aktarabilir ve ayrıntılı tanılama izlemeyi açabilirsiniz."
       }
     },
     "createChat": {
