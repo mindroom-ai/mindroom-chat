@@ -229,15 +229,15 @@ export const useBindRoomToUnreadAtom = (
     // IDs of the rooms whose counts changed and are not counted again yet.
     const pendingCounts = new Set<string>();
     /** Sets a room's entry now, which covers every count change that still waited. */
-    const put = (roomId: string, action: RoomToUnreadAction) => {
+    const setEntry = (roomId: string, action: RoomToUnreadAction) => {
       pendingCounts.delete(roomId);
       setUnread(action);
     };
-    const update = (room: Room) => put(room.roomId, getRoomUnreadAction(mx, room));
+    const update = (room: Room) => setEntry(room.roomId, getRoomUnreadAction(mx, room));
 
     // Counts can change without a timeline event (another device read the room). A sync sets
-    // the counts of each thread one by one, with an event each, so the room is counted once
-    // after the burst and not once per thread: each count is a sum over all of them.
+    // the two counts of each thread it lists one by one, with an event each, so the room is
+    // counted once after the burst and not once per event: each count is a sum over all threads.
     const updateAfterCounts = (room: Room) => {
       if (pendingCounts.has(room.roomId)) return;
       pendingCounts.add(room.roomId);
@@ -269,7 +269,7 @@ export const useBindRoomToUnreadAtom = (
       const receipts = userId ? getOwnReadReceipts(event, userId) : [];
       // Other members' receipts do not change what this user has read.
       if (receipts.length === 0) return;
-      put(
+      setEntry(
         room.roomId,
         sendingOwnReceipt
           ? toUnreadAction(mx, room, getOptimisticReceiptUnreadInfo(room, receipts))
@@ -280,7 +280,7 @@ export const useBindRoomToUnreadAtom = (
       watchCounts(room);
       update(room);
     };
-    const handleDeleteRoom = (roomId: string) => put(roomId, { type: 'DELETE', roomId });
+    const handleDeleteRoom = (roomId: string) => setEntry(roomId, { type: 'DELETE', roomId });
     // Muting a room, or unmuting it, changes whether its unread messages show.
     const handleAccountData = (event: MatrixEvent) => {
       if (matchesEnum(event.getType(), EventType.PushRules)) resetAll(mx.getRooms());

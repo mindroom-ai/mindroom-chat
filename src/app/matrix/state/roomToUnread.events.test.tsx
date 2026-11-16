@@ -138,6 +138,20 @@ describe('useBindRoomToUnreadAtom', () => {
     expect(entry()).toEqual({ total: 101, highlight: 0 });
   });
 
+  it('counts the room again for a count change after a new message in the same task', async () => {
+    const { mx, room, entry } = setUp();
+    room.state.main.total = 1;
+    room.emit(RoomEvent.UnreadNotifications, room.state.main);
+    mx.emit(RoomEvent.Timeline, message('$new', room.roomId), room, false, false, {
+      liveEvent: true,
+    });
+    expect(entry()).toEqual({ total: 1, highlight: 0 });
+    room.state.main.total = 2;
+    room.emit(RoomEvent.UnreadNotifications, room.state.main);
+    await afterCounts();
+    expect(entry()).toEqual({ total: 2, highlight: 0 });
+  });
+
   it('keeps the counts a receipt of this client lowered after a count change before it', async () => {
     // Sending a receipt, the SDK sets the highlight count before it announces the receipt.
     const { mx, room, entry } = setUp();
