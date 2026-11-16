@@ -35,6 +35,7 @@ import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import { ThreadCardBadges } from './ThreadCardBadges';
 import { ThreadCardDetails } from './ThreadCardDetails';
+import { useLongPress } from '../../lib/hooks/useLongPress';
 
 const ThreadActionsMenu = lazy(() =>
   import('../ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -115,23 +116,29 @@ const CompactThreadCardRow = React.memo(
       [room, rootId]
     );
 
+    const openMenuAt = (x: number, y: number, shell: HTMLElement) => {
+      onOpenMenu({
+        roomId,
+        rootId,
+        viewModel,
+        anchor: { x, y, width: 0, height: 0 },
+        trigger: shell.querySelector<HTMLButtonElement>('[data-thread-root-id]') ?? undefined,
+      });
+    };
+    const longPress = useLongPress(openMenuAt, (evt) =>
+      evt.currentTarget.contains(evt.target as Node)
+    );
+
     return (
       <div
+        {...longPress}
         ref={shownRef}
         className={css.CardShell}
         data-scroll-anchor={rootId}
         onContextMenu={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          onOpenMenu({
-            roomId,
-            rootId,
-            viewModel,
-            anchor: { x: event.clientX, y: event.clientY, width: 0, height: 0 },
-            trigger:
-              event.currentTarget.querySelector<HTMLButtonElement>('[data-thread-root-id]') ??
-              undefined,
-          });
+          openMenuAt(event.clientX, event.clientY, event.currentTarget);
         }}
         onKeyDown={(event) => {
           if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
