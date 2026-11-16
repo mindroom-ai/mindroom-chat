@@ -25,21 +25,19 @@ const root = (id: string, ts: number, fork?: Fork) =>
 
 const ids = (events: MatrixEvent[]) => events.map((event) => event.getId());
 
-/** A loader over fixed threads, read from their start unless `partial`; unknown ones are empty. */
-const loaderOf = (threads: Record<string, MatrixEvent[]>, partial: string[] = []) =>
-  vi.fn((threadId: string) =>
-    Promise.resolve({ events: threads[threadId] ?? [], fromStart: !partial.includes(threadId) })
-  );
+/** A loader over fixed threads; unknown ones are empty. */
+const loaderOf = (threads: Record<string, MatrixEvent[]>) =>
+  vi.fn((threadId: string) => Promise.resolve(threads[threadId] ?? []));
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
 describe('loadThreadForkPrefix', () => {
-  it('is empty and complete for a root that is no fork', async () => {
+  it('is empty for a root that is no fork', async () => {
     const loadThreadEvents = loaderOf({});
     const prefix = await loadThreadForkPrefix({ loadThreadEvents }, root('$f', 10));
-    expect(prefix).toEqual({ events: [], parent: undefined, complete: true });
+    expect(prefix).toEqual({ events: [], parent: undefined });
     expect(loadThreadEvents).not.toHaveBeenCalled();
   });
 
@@ -57,7 +55,6 @@ describe('loadThreadForkPrefix', () => {
     const prefix = await loadThreadForkPrefix({ loadThreadEvents }, root('$f', 10, parent));
     expect(ids(prefix.events)).toEqual(['$p', '$a', '$b']);
     expect(prefix.parent).toEqual(parent);
-    expect(prefix.complete).toBe(true);
     expect(loadThreadEvents).toHaveBeenCalledWith('$p', '$b');
   });
 
@@ -76,7 +73,6 @@ describe('loadThreadForkPrefix', () => {
     );
     expect(ids(prefix.events)).toEqual(['$g', '$g1', '$p', '$p1']);
     expect(prefix.parent).toEqual({ threadId: '$p', eventId: '$p1' });
-    expect(prefix.complete).toBe(true);
     expect(loadThreadEvents.mock.calls.map(([threadId]) => threadId)).toEqual(['$p', '$g']);
   });
 
@@ -96,7 +92,6 @@ describe('loadThreadForkPrefix', () => {
     );
     expect(loadThreadEvents).toHaveBeenCalledTimes(MAX_FORK_DEPTH);
     expect(ids(prefix.events)).toEqual(['$t8', '$t7', '$t6', '$t5', '$t4', '$t3', '$t2', '$t1']);
-    expect(prefix.complete).toBe(false);
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
@@ -112,19 +107,7 @@ describe('loadThreadForkPrefix', () => {
     );
     expect(loadThreadEvents.mock.calls.map(([threadId]) => threadId)).toEqual(['$p', '$q']);
     expect(ids(prefix.events)).toEqual(['$q', '$p', '$p1']);
-    expect(prefix.complete).toBe(false);
     expect(warn).toHaveBeenCalledTimes(1);
-  });
-
-  it('keeps a parent read only from its newest end, as incomplete', async () => {
-    const parent = { threadId: '$p', eventId: '$b' };
-    const loadThreadEvents = loaderOf(
-      { $p: [root('$p', 1), message('$b', 3, '$p'), message('$c', 4, '$p')] },
-      ['$p']
-    );
-    const prefix = await loadThreadForkPrefix({ loadThreadEvents }, root('$f', 10, parent));
-    expect(ids(prefix.events)).toEqual(['$p', '$b']);
-    expect(prefix.complete).toBe(false);
   });
 
   it('ignores a parent without messages', async () => {
@@ -133,14 +116,14 @@ describe('loadThreadForkPrefix', () => {
       { loadThreadEvents: loaderOf({}) },
       root('$f', 10, parent)
     );
-    expect(prefix).toEqual({ events: [], parent, complete: false });
+    expect(prefix).toEqual({ events: [], parent });
   });
 
   it('ignores a parent that lacks the fork point', async () => {
     const parent = { threadId: '$p', eventId: '$missing' };
     const loadThreadEvents = loaderOf({ $p: [root('$p', 1), message('$a', 2, '$p')] });
     const prefix = await loadThreadForkPrefix({ loadThreadEvents }, root('$f', 10, parent));
-    expect(prefix).toEqual({ events: [], parent, complete: false });
+    expect(prefix).toEqual({ events: [], parent });
   });
 
   it('keeps the parents resolved below a missing grandparent', async () => {
@@ -152,6 +135,5 @@ describe('loadThreadForkPrefix', () => {
       root('$f', 10, { threadId: '$p', eventId: '$p1' })
     );
     expect(ids(prefix.events)).toEqual(['$p', '$p1']);
-    expect(prefix.complete).toBe(false);
   });
 });

@@ -34,11 +34,7 @@ import { isUnreadableYet } from '../../matrix/decryptionWaits';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { getAppliedEdit } from '../../matrix/protocol/untrustedContent';
 import { useActiveSession } from '../../matrix/session/useSessionStore';
-import {
-  loadThreadForkPrefix,
-  type ThreadEventsRead,
-  type ThreadForkPrefix,
-} from './loadThreadForkPrefix';
+import { loadThreadForkPrefix, type ThreadForkPrefix } from './loadThreadForkPrefix';
 
 type Sources = {
   mx: MatrixClient;
@@ -70,7 +66,8 @@ const sdkThreadEvents = (room: Room, threadId: string, forkPointId: string) => {
     Direction.Backward
   );
   if (first.getPaginationToken(Direction.Backward) !== null) return undefined;
-  const events = uniqueEvents([thread.rootEvent, ...getThreadTimelineEvents(thread)]);
+  const root = thread.rootEvent ?? room.findEventById(threadId);
+  const events = uniqueEvents([root, ...getThreadTimelineEvents(thread)]);
   return holds(events, forkPointId) ? events : undefined;
 };
 
@@ -114,8 +111,8 @@ const cachedThreadEvents = async (
 const backfilledThreadEvents = async (
   { mx, room, scheduler, fetchRoomEvent, isCurrent }: Sources,
   threadId: string
-): Promise<ThreadEventsRead> => {
-  if (!isCurrent()) return { events: [], fromStart: false };
+): Promise<MatrixEvent[]> => {
+  if (!isCurrent()) return [];
   const page = await enqueueThreadBackfillJob({
     mx,
     scheduler,
@@ -123,15 +120,12 @@ const backfilledThreadEvents = async (
     threadId,
     priority: 0,
   }).catch(() => null);
-  if (!page) return { events: [], fromStart: false };
+  if (!page) return [];
   const root =
     room.getThread(threadId)?.rootEvent ??
     room.findEventById(threadId) ??
     (await fetchRoomEvent(threadId, threadId).catch(() => undefined));
-  return {
-    events: uniqueEvents([root, ...page.events]),
-    fromStart: typeof page.nextBatchToken !== 'string',
-  };
+  return uniqueEvents([root, ...page.events]);
 };
 
 /**
@@ -142,20 +136,19 @@ const loadParentThreadEvents = async (
   sources: Sources,
   threadId: string,
   forkPointId: string
-): Promise<ThreadEventsRead> => {
+): Promise<MatrixEvent[]> => {
   const sdkEvents = sdkThreadEvents(sources.room, threadId, forkPointId);
-  if (sdkEvents) return { events: sdkEvents, fromStart: true };
-  const cached = await cachedThreadEvents(sources, threadId, forkPointId);
-  const read = cached
-    ? { events: cached, fromStart: true }
-    : await backfilledThreadEvents(sources, threadId);
-  hydrateCachedEvents({ room: sources.room, events: read.events });
+  if (sdkEvents) return sdkEvents;
+  const events =
+    (await cachedThreadEvents(sources, threadId, forkPointId)) ??
+    (await backfilledThreadEvents(sources, threadId));
+  hydrateCachedEvents({ room: sources.room, events });
   await Promise.all(
-    read.events
+    events
       .flatMap((event) => [event, getAppliedEdit(event)])
       .map((event) => event && sources.mx.decryptEventIfNeeded(event).catch(() => undefined))
   );
-  return read;
+  return events;
 };
 
 /** The message an edit or a redaction changes. */
@@ -168,28 +161,22 @@ const changedEventId = (event: MatrixEvent): string | undefined => {
 /** A loaded prefix, for the root with this ID and this reference (whichever copy of it). */
 type Loaded = { rootId: string | undefined; parentKey: string; prefix: ThreadForkPrefix };
 
-const NOT_A_FORK: ThreadForkPrefix & { loading: boolean } = {
-  events: [],
-  complete: true,
-  loading: false,
-};
+const NOT_A_FORK: ThreadForkPrefix = { events: [] };
 
 /**
  * The prefix of the fork whose root is `root`: its parents' messages up to each fork point. It is
  * loaded again when the root's ID or its reference changes; another copy of the same root (the
- * SDK's replacing the cache's) keeps it, also while that copy waits to be decrypted. Edits and
- * redactions the parents' messages get later show in the events it holds.
+ * SDK's replacing the cache's) keeps it, also while that copy waits to be decrypted. Edits the
+ * parents' messages get later show in the events it holds; a redaction of one loads it again.
  */
-export const useThreadForkPrefix = (
-  room: Room,
-  root: MatrixEvent | undefined
-): ThreadForkPrefix & { loading: boolean } => {
+export const useThreadForkPrefix = (room: Room, root: MatrixEvent | undefined): ThreadForkPrefix => {
   const mx = useMatrixClient();
   const sessionId = useActiveSession()?.sessionId;
   const { scheduler } = useSyncEngine();
   const fetchRoomEvent = useFetchRoomEvent(room);
   const [loaded, setLoaded] = useState<Loaded>();
   const [revision, refresh] = useForceUpdate();
+  const [reloads, reload] = useForceUpdate();
   const rootId = root?.getId();
   const rootRef = useLatestRef(root);
   // An encrypted root shows its reference once decrypted: the key changes then. A new copy of
@@ -202,6 +189,8 @@ export const useThreadForkPrefix = (
   const parentKey = reference && `${reference.threadId} ${reference.eventId}`;
 
   useEffect(() => {
+    // Also after a redaction of a prefix message (`reloads`); the loaded prefix shows meanwhile.
+    void reloads;
     const shownRoot = rootRef.current;
     if (!shownRoot || !parentKey) return undefined;
     let current = true;
@@ -218,8 +207,7 @@ export const useThreadForkPrefix = (
     void loadThreadForkPrefix({ loadThreadEvents }, shownRoot)
       .catch((error: unknown): ThreadForkPrefix => {
         console.warn('[threadFork] prefix load failed', error);
-        const parent = parseThreadForkRef(shownRoot.getOriginalContent());
-        return { events: [], parent, complete: false };
+        return { events: [], parent: parseThreadForkRef(shownRoot.getOriginalContent()) };
       })
       .then((prefix) => {
         if (current) setLoaded({ rootId: shownRoot.getId(), parentKey, prefix });
@@ -227,7 +215,7 @@ export const useThreadForkPrefix = (
     return () => {
       current = false;
     };
-  }, [fetchRoomEvent, mx, parentKey, room, rootId, rootRef, scheduler, sessionId]);
+  }, [fetchRoomEvent, mx, parentKey, reloads, room, rootId, rootRef, scheduler, sessionId]);
 
   const shown = loaded?.rootId === rootId && loaded?.parentKey === parentKey ? loaded : undefined;
   const events = shown?.prefix.events;
@@ -247,6 +235,12 @@ export const useThreadForkPrefix = (
         .map((prefixEvent) => getAppliedEdit(prefixEvent))
         .filter((edit): edit is MatrixEvent => !!edit);
       if (!holds([...prefixEvents, ...edits], targetId)) return;
+      // A redacted message leaves its thread. Redacting a copy would put it in the room's main
+      // timeline (the SDK's `makeRedacted`), so the prefix is read again, as a new view reads it.
+      if (event.isRedaction()) {
+        reload();
+        return;
+      }
       hydrateCachedEvents({ room, events: [...prefixEvents, ...edits, event] });
       refresh();
     };
@@ -258,16 +252,13 @@ export const useThreadForkPrefix = (
       mx.removeListener(MatrixEventEvent.Decrypted, onChange);
       mx.removeListener(MatrixEventEvent.Replaced, onChange);
     };
-  }, [events, mx, refresh, room, root]);
+  }, [events, mx, refresh, reload, room, root]);
 
   return useMemo(() => {
     // The held events change in place; a new list tells consumers so.
     void revision;
     if (!root || !parentKey) return NOT_A_FORK;
-    if (!shown) {
-      const parent = parseThreadForkRef(root.getOriginalContent());
-      return { events: [], parent, complete: false, loading: true };
-    }
-    return { ...shown.prefix, events: [...shown.prefix.events], loading: false };
+    if (!shown) return { events: [], parent: parseThreadForkRef(root.getOriginalContent()) };
+    return { ...shown.prefix, events: [...shown.prefix.events] };
   }, [parentKey, revision, root, shown]);
 };

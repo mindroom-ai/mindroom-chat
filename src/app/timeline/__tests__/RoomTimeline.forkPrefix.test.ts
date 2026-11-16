@@ -18,8 +18,6 @@ const forkPrefix = vi.hoisted(() => ({
   value: {
     events: [] as unknown[],
     parent: undefined as { threadId: string; eventId: string } | undefined,
-    complete: true,
-    loading: false,
   },
 }));
 vi.mock('../../threads/fork/useThreadForkPrefix', () => ({
@@ -82,8 +80,6 @@ describe('a forked thread', () => {
     forkPrefix.value = {
       events: prefix,
       parent: { threadId: '$parent', eventId: '$p2' },
-      complete: true,
-      loading: false,
     };
     const timeline = makeTimeline(own, { backwardToken: null });
     const timelineSet = {
@@ -153,7 +149,7 @@ describe('a fork draft', () => {
     const a = makeEvent('$a', { threadRootId: '$parent', ts: 2_000 });
     const b = makeEvent('$b', { threadRootId: '$parent', ts: 3_000 });
     const later = makeEvent('$later', { threadRootId: '$parent', ts: 4_000 });
-    forkPrefix.value = { events: [], parent: undefined, complete: true, loading: false };
+    forkPrefix.value = { events: [], parent: undefined };
     const rows = [root, a, b];
     const timeline = makeTimeline([root, a, b, later], { backwardToken: null });
     const timelineSet = {
@@ -223,7 +219,7 @@ describe('a fork draft', () => {
   it('says it shows no fork point once the thread opened without it, and not before', async () => {
     const { RoomTimeline } = await import('../RoomTimeline');
     const root = makeEvent('$parent', { isThreadRoot: true, ts: 1_000 });
-    forkPrefix.value = { events: [], parent: undefined, complete: true, loading: false };
+    forkPrefix.value = { events: [], parent: undefined };
     const timeline = makeTimeline([root], { backwardToken: null });
     const room = makeRoom({ liveEvents: [root] });
     room.getThread = () =>

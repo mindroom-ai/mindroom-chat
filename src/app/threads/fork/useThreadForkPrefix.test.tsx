@@ -151,7 +151,6 @@ describe('useThreadForkPrefix', () => {
       forkRoot()
     );
     const loaded = view.results.at(-1)!;
-    expect(loaded.loading).toBe(false);
     expect(ids(loaded.events)).toEqual(['$p', '$a', '$b']);
     expect(loaded.parent).toEqual({ threadId: '$p', eventId: '$b' });
 
@@ -180,7 +179,7 @@ describe('useThreadForkPrefix', () => {
       {} as BackfillScheduler,
       forkRoot()
     );
-    const loadedAt = view.results.findIndex((result) => !result.loading);
+    const loadedAt = view.results.findIndex((result) => result.events.length > 0);
     expect(loadedAt).toBeGreaterThanOrEqual(0);
 
     // The SDK's copy replaces the cache's, first still encrypted, then readable.
@@ -199,7 +198,6 @@ describe('useThreadForkPrefix', () => {
     const after = view.results.slice(loadedAt);
     expect(after.length).toBeGreaterThan(2);
     after.forEach((result) => {
-      expect(result.loading).toBe(false);
       expect(ids(result.events)).toEqual(['$p', '$a', '$b']);
       expect(result.parent).toEqual({ threadId: '$p', eventId: '$b' });
     });
@@ -230,29 +228,7 @@ describe('useThreadForkPrefix', () => {
     });
 
     expect(fetchRelations).toHaveBeenCalledTimes(1);
-    const last = view.results.at(-1)!;
-    expect(last.loading).toBe(false);
-    expect(ids(last.events)).toEqual(['$p', '$a', '$b']);
-    expect(last.complete).toBe(true);
-    await view.unmount();
-  });
-
-  it('keeps a backfill that stopped before the thread start, as incomplete', async () => {
-    const page = {
-      events: [message('$a', 2, '$p'), message('$b', 3, '$p'), message('$c', 4, '$p')],
-      nextBatchToken: 'x',
-    };
-    const scheduler = { enqueue: () => Promise.resolve(page) } as unknown as BackfillScheduler;
-    const view = await renderPrefix(
-      makeRoom([message('$p', 1)], false),
-      newClient(),
-      scheduler,
-      forkRoot()
-    );
-    const last = view.results.at(-1)!;
-    expect(last.loading).toBe(false);
-    expect(ids(last.events)).toEqual(['$p', '$a', '$b']);
-    expect(last.complete).toBe(false);
+    expect(ids(view.results.at(-1)!.events)).toEqual(['$p', '$a', '$b']);
     await view.unmount();
   });
   it("puts the parent's root first when its SDK thread does not hold the root yet", async () => {

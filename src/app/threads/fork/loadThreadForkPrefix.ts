@@ -12,18 +12,10 @@ export type ThreadForkPrefix = {
   events: MatrixEvent[];
   /** The root's own reference; undefined when the root is no fork. */
   parent?: ThreadForkRef;
-  /**
-   * Whether every reference in the chain resolved, up to a thread that is no fork, and every
-   * parent was read from its start.
-   */
-  complete: boolean;
 };
 
-/** A thread's events, and whether they reach back to its start (none of its first are missing). */
-export type ThreadEventsRead = { events: MatrixEvent[]; fromStart: boolean };
-
 /** Reads a thread; `forkPointId` is the last of its events the prefix needs. */
-export type LoadThreadEvents = (threadId: string, forkPointId: string) => Promise<ThreadEventsRead>;
+export type LoadThreadEvents = (threadId: string, forkPointId: string) => Promise<MatrixEvent[]>;
 
 /**
  * Follows the fork references from `root` through its parents. Each parent is cut at the fork
@@ -37,12 +29,7 @@ export const loadThreadForkPrefix = async (
   const parent = parseThreadForkRef(root.getOriginalContent());
   const segments: MatrixEvent[][] = [];
   const visited = new Set([root.getId()]);
-  let fromStart = true;
-  const prefix = (resolved: boolean): ThreadForkPrefix => ({
-    events: segments.flat(),
-    parent,
-    complete: resolved && fromStart,
-  });
+  const prefix = (): ThreadForkPrefix => ({ events: segments.flat(), parent });
 
   let ref = parent;
   while (ref) {
@@ -53,18 +40,16 @@ export const loadThreadForkPrefix = async (
         threadId,
         depth: segments.length,
       });
-      return prefix(false);
+      return prefix();
     }
     visited.add(threadId);
-    const read = await loadThreadEvents(threadId, eventId);
-    const { events } = read;
-    fromStart &&= read.fromStart;
+    const events = await loadThreadEvents(threadId, eventId);
     const cut = cutThreadAtForkPoint(threadId, events, eventId);
-    if (!cut) return prefix(false);
+    if (!cut) return prefix();
     segments.unshift(cut);
     const parentRoot = events.find((event) => event.getId() === threadId);
-    if (!parentRoot) return prefix(false);
+    if (!parentRoot) return prefix();
     ref = parseThreadForkRef(parentRoot.getOriginalContent());
   }
-  return prefix(true);
+  return prefix();
 };
