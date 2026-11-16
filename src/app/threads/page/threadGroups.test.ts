@@ -68,6 +68,22 @@ describe('groupThreads', () => {
     ]);
   });
 
+  it('counts a thread whose agent runs a background job as working until the job is gone', () => {
+    const group = (hasBackgroundJob: boolean) =>
+      shape(
+        groupThreads(
+          [item('job', hasBackgroundJob ? { hasBackgroundJob } : {})],
+          'following',
+          ME,
+          '',
+          NOW
+        )
+      );
+
+    expect(group(true)).toEqual([['working', ['job']]]);
+    expect(group(false)).toEqual([['recent', ['job']]]);
+  });
+
   it('takes a thread whose root names the user for unread, though no reply is new', () => {
     const groups = groupThreads(
       [item('named', {}, { mentionedMe: true })],

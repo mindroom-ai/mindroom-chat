@@ -35,6 +35,8 @@ export type CrossRoomThreadIndexEntry = {
   snoozedAtTs?: number;
   /** While resolved: when, by the server's clock (the tag's state event). */
   resolvedTs?: number;
+  /** Set while an agent in the room lists a background job in the thread (its jobs state). */
+  hasBackgroundJob?: true;
   hasAttention: boolean;
   isInvolved: boolean;
   summaryText: string;
@@ -357,6 +359,7 @@ export const buildCrossRoomThreadIndexEntry = ({
   summaryInfo,
   currentUserId,
   tagSnapshot,
+  hasBackgroundJob = false,
 }: {
   room: Room;
   threadRootId: string;
@@ -365,6 +368,8 @@ export const buildCrossRoomThreadIndexEntry = ({
   currentUserId?: string;
   /** null is an explicitly untagged root in a shared room snapshot. */
   tagSnapshot?: ThreadTagSnapshot | null;
+  /** Whether an agent in the room lists a background job in the thread. */
+  hasBackgroundJob?: boolean;
 }): CrossRoomThreadIndexEntry | undefined => {
   const thread = room.getThread(threadRootId);
   const resolvedRootEvent =
@@ -456,6 +461,7 @@ export const buildCrossRoomThreadIndexEntry = ({
         }
       : {}),
     ...(resolvedTs !== undefined ? { resolvedTs } : {}),
+    ...(hasBackgroundJob ? { hasBackgroundJob } : {}),
     hasAttention,
     isInvolved:
       hasPendingOwnReply ||

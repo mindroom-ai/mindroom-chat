@@ -72,6 +72,14 @@ export const selectBackgroundJobs = (
   return { jobs, total };
 };
 
+/** The threads the agents' listed jobs run in, by their root IDs; a main timeline job adds none. */
+export const selectBackgroundJobThreadIds = (events: MatrixEvent[]): ReadonlySet<string> =>
+  new Set(
+    events.flatMap((event) =>
+      parseBackgroundJobsStateEvent(event).flatMap((job) => job.threadId ?? [])
+    )
+  );
+
 /** The jobs a view shows: the open thread's, or every job of the room in the main timeline. */
 export const jobsInView = (jobs: BackgroundJob[], threadId: string | null): BackgroundJob[] =>
   threadId === null ? jobs : jobs.filter((job) => job.threadId === threadId);

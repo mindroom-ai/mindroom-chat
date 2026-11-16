@@ -111,6 +111,7 @@ type SectionEntryOptions = {
   oldestTs?: number;
   isStreaming?: boolean;
   hasPendingSend?: boolean;
+  hasBackgroundJob?: boolean;
   isResolved?: boolean;
   resolvedTs?: number;
   snoozedUntilTs?: number;
@@ -124,6 +125,7 @@ const makeSectionEntry = ({
   oldestTs,
   isStreaming = false,
   hasPendingSend = false,
+  hasBackgroundJob = false,
   isResolved = false,
   resolvedTs,
   snoozedUntilTs,
@@ -134,6 +136,7 @@ const makeSectionEntry = ({
     ...(rootTs !== undefined ? { rootTs } : {}),
     ...(resolvedTs !== undefined ? { resolvedTs } : {}),
     ...(snoozedUntilTs !== undefined ? { snoozedUntilTs } : {}),
+    ...(hasBackgroundJob ? { hasBackgroundJob } : {}),
     threadRecord: {
       status: { isStreaming, hasPendingSend },
       cache: oldestTs !== undefined ? { oldestTs } : {},
@@ -179,6 +182,18 @@ describe('buildSidebarThreadSections', () => {
         )
       )
     ).toEqual([['idle', ['idle']]]);
+  });
+
+  it('keeps a thread whose agent runs a background job in Working, and lets it go after', () => {
+    const withJob = makeSectionEntry({ key: 'job', hasBackgroundJob: true, snoozedUntilTs: 1000 });
+    const { hasBackgroundJob: _done, ...afterJob } = withJob;
+
+    expect(
+      sectionKeys(buildSidebarThreadSections([withJob], [], new Set(), 100, NO_SIGNALS))
+    ).toEqual([['working', ['job']]]);
+    expect(
+      sectionKeys(buildSidebarThreadSections([afterJob], [], new Set(), 100, NO_SIGNALS))
+    ).toEqual([['snoozed', ['job']]]);
   });
 
   it('moves a snoozed thread to Idle once its time passes', () => {

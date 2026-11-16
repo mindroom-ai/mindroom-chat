@@ -16,6 +16,7 @@ import {
   storeThreadSummaryInState,
 } from '../../../event-store/threads/threadSummaryState';
 import { MINDROOM_THREAD_TAGS_EVENT } from '../../../event-store/threads/threadTags';
+import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../../../matrix/protocol/backgroundJobsContract';
 import { setRoomEventPinned } from '../../../event-store/threads/threadPinning';
 import { buildSidebarThreadEntries } from '../../../sidebar/threads/threadNavCategoryUtils';
 import { useCrossRoomThreadIndex } from '../useCrossRoomThreadIndex';
@@ -165,6 +166,7 @@ const makeRoom = (
     getThread: vi.fn((threadRootId: string) => (threadRootId === rootId ? thread : null)),
     findEventById: vi.fn((eventId: string) => eventMap.get(eventId)),
     getMember: vi.fn(() => undefined),
+    currentState: { getStateEvents: vi.fn(() => []) },
     getEventReadUpTo: vi.fn(() => undefined),
     getLiveTimeline: vi.fn(() => ({
       getState: () => ({
@@ -209,6 +211,7 @@ const makeRoomWithThreads = (roomId: string, threadRoots: Array<{ id: string; bo
     }),
     findEventById: vi.fn((eventId: string) => eventMap.get(eventId)),
     getMember: vi.fn(() => undefined),
+    currentState: { getStateEvents: vi.fn(() => []) },
     getEventReadUpTo: vi.fn(() => undefined),
     getLiveTimeline: vi.fn(() => ({
       getState: () => ({
@@ -259,6 +262,7 @@ const makeRoomWithThreadReplies = (roomId: string, threadCount: number) => {
     getThread: vi.fn((threadRootId: string) => threadMap.get(threadRootId) ?? null),
     findEventById: vi.fn((eventId: string) => eventMap.get(eventId)),
     getMember: vi.fn(() => undefined),
+    currentState: { getStateEvents: vi.fn(() => []) },
     getEventReadUpTo: vi.fn(() => undefined),
     getLiveTimeline: vi.fn(() => ({
       getState: () => ({
@@ -1655,5 +1659,122 @@ describe('useCrossRoomThreadIndex', () => {
     await flushScheduledWork();
 
     expect(store.get(crossRoomThreadIndexAtom).entries.size).toBe(0);
+  });
+
+  describe('background jobs', () => {
+    const AGENT = '@mindroom_code:example.org';
+    const jobsState = (threadIds: Array<string | null>) =>
+      new StateMatrixEvent({
+        type: MINDROOM_BACKGROUND_JOBS_EVENT,
+        sender: AGENT,
+        state_key: AGENT,
+        content: {
+          jobs: threadIds.map((threadId, index) => ({
+            job_id: `job_${index}`,
+            thread_id: threadId,
+            kind: 'subagent',
+            tool: 'delegate',
+            status: 'running',
+            started_at: '2026-11-16T00:00:00+00:00',
+          })),
+        },
+      });
+
+    /** A room with two threads whose agent publishes `jobs`, and the index over it. */
+    const indexRoomWithJobs = async (initialJobs: StateMatrixEvent) => {
+      const { room } = makeRoomWithThreadReplies('!room:example.org', 2);
+      let jobs = initialJobs;
+      let membership = 'join';
+      Object.assign(room, {
+        myUserId: '@me:example.org',
+        currentState: {
+          getStateEvents: (type: string, stateKey?: string) => {
+            if (type !== MINDROOM_BACKGROUND_JOBS_EVENT) return stateKey === undefined ? [] : null;
+            if (stateKey === undefined) return [jobs];
+            return stateKey === AGENT ? jobs : null;
+          },
+        },
+      });
+      room.getMember.mockImplementation((userId: string) =>
+        userId === AGENT ? ({ userId, membership } as never) : null
+      );
+      const mx = makeClient(room);
+      matrixClientMock.mockReturnValue(mx);
+      const store = createStore();
+      store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+      let renderer!: ReturnType<typeof create>;
+      await act(async () => {
+        renderer = create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+      });
+      await flushScheduledWork();
+      const withJob = () =>
+        Array.from(store.get(crossRoomThreadIndexAtom).entries.values())
+          .filter((entry) => entry.hasBackgroundJob)
+          .map((entry) => entry.threadRootId);
+      const publish = async (next: StateMatrixEvent) => {
+        jobs = next;
+        await act(async () => {
+          mx.emit(RoomStateEvent.Events, next, { roomId: room.roomId });
+          await Promise.resolve();
+        });
+        await flushScheduledWork();
+      };
+      const leave = async () => {
+        const memberEvent = new StateMatrixEvent({
+          type: 'm.room.member',
+          sender: AGENT,
+          state_key: AGENT,
+          content: { membership: 'leave' },
+        });
+        // As the SDK does: the state event first, while the member list still has the agent
+        // joined, then the member list's update.
+        await act(async () => {
+          mx.emit(RoomStateEvent.Events, memberEvent, { roomId: room.roomId });
+          membership = 'leave';
+          mx.emit(
+            RoomStateEvent.Members,
+            memberEvent,
+            { roomId: room.roomId },
+            {
+              userId: AGENT,
+              membership,
+              roomId: room.roomId,
+            }
+          );
+          await Promise.resolve();
+        });
+        await flushScheduledWork();
+      };
+      return { withJob, publish, leave, unmount: () => renderer.unmount() };
+    };
+
+    it('marks the thread a listed job runs in, and only that one', async () => {
+      const index = await indexRoomWithJobs(jobsState(['$root-1', null]));
+
+      expect(index.withJob()).toEqual(['$root-1']);
+      index.unmount();
+    });
+
+    it('follows the jobs state as jobs start and end, with no timeline event', async () => {
+      const index = await indexRoomWithJobs(jobsState([]));
+      expect(index.withJob()).toEqual([]);
+
+      await index.publish(jobsState(['$root-0']));
+      expect(index.withJob()).toEqual(['$root-0']);
+
+      await index.publish(jobsState([]));
+      expect(index.withJob()).toEqual([]);
+      index.unmount();
+    });
+
+    it('drops the jobs of an agent that left the room once the member list says so', async () => {
+      const index = await indexRoomWithJobs(jobsState(['$root-0']));
+      expect(index.withJob()).toEqual(['$root-0']);
+
+      await index.leave();
+
+      expect(index.withJob()).toEqual([]);
+      index.unmount();
+    });
   });
 });

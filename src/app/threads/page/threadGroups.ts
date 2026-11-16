@@ -8,6 +8,7 @@ import {
 } from '../cross-room/crossRoomThreadOrder';
 import type { ThreadSignals } from '../cross-room/threadSignals';
 import { isSnoozedAt } from '../../event-store/threads/threadSnooze';
+import { isThreadWorking } from '../../event-store/threads/threadWorking';
 
 /** Mine: threads the user started; Following: threads they take part in; All: every thread. */
 export type ThreadsScope = 'mine' | 'following' | 'all';
@@ -44,7 +45,7 @@ const groupOf = (
   if (signals.pendingApproval || signals.pendingQuestion) return 'needsYou';
   if (signals.automation && !entry.isInvolved) return scope === 'all' ? 'automations' : undefined;
   if (signals.newCount > 0 || signals.mentionedMe) return 'unread';
-  if (entry.threadRecord.status.isStreaming) return 'working';
+  if (isThreadWorking(entry.threadRecord.status, entry.hasBackgroundJob === true)) return 'working';
   // Resolved wins over a snooze, as everywhere else: the thread stays with the quiet ones.
   if (!entry.isResolved && isSnoozedAt(entry.snoozedUntilTs, now)) return 'snoozed';
   return 'recent';

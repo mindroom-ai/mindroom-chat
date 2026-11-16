@@ -2,6 +2,7 @@ import type { CrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRo
 import { compareCrossRoomThreadEntries } from '../../threads/cross-room/crossRoomThreadOrder';
 import type { ThreadSignals } from '../../threads/cross-room/threadSignals';
 import { isSnoozedAt } from '../../event-store/threads/threadSnooze';
+import { isThreadWorking } from '../../event-store/threads/threadWorking';
 
 export const MAX_SIDEBAR_THREADS = 50;
 export const MAX_SIDEBAR_RESOLVED_THREADS = 20;
@@ -57,8 +58,7 @@ export type SidebarThreadSection = {
 const SECTION_ORDER: SidebarThreadSectionId[] = ['working', 'snoozed', 'idle', 'resolved'];
 
 const sectionOf = (entry: CrossRoomThreadIndexEntry, now: number): SidebarThreadSectionId => {
-  const { isStreaming, hasPendingSend } = entry.threadRecord.status;
-  if (isStreaming || hasPendingSend === true) return 'working';
+  if (isThreadWorking(entry.threadRecord.status, entry.hasBackgroundJob === true)) return 'working';
   if (entry.isResolved) return 'resolved';
   if (isSnoozedAt(entry.snoozedUntilTs, now)) return 'snoozed';
   return 'idle';
