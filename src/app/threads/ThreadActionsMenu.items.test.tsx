@@ -10,7 +10,12 @@ import { ThreadActionsMenu, type ThreadActionsMenuProps } from './ThreadActionsM
 import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
 import { getDefaultStore } from 'jotai';
 import { getSettings, settingsAtom } from '../preferences/settings';
+import type { RegisteredPlugin } from '../plugins/registry';
+import type { ThreadDetail } from '../plugins/threadDetails';
 import { clearToolCallOverrides } from '../messages/toolCallVisibility';
+
+// Exercise the real menu's arrow-key behavior rather than the setup's Folds double.
+vi.unmock('../ui/glass/GlassPrimitives');
 
 vi.mock('./ThreadContextBanner.css', () => ({ TagPickerInput: 'i', TagPickerInputContainer: 'c' }));
 vi.mock('../ui/styles/Motion.css', () => ({
@@ -320,5 +325,62 @@ describe("ThreadActionsMenu's tool calls switch", () => {
     state.members = [{ userId: '@mindroom_research:example.org', membership: 'invite' }];
     renderMenu();
     expect(entry()?.textContent).toBe('Show tool calls');
+  });
+});
+
+describe("ThreadActionsMenu's thread details", () => {
+  const plugin = (id: string, threadDetails: ThreadDetail[]): RegisteredPlugin => ({
+    id,
+    tag: `${id}@1.0.0`,
+    conversationCovers: [],
+    messageRenderers: [],
+    pages: [],
+    roomHeaderSlot: [],
+    sidePanels: [],
+    headerActions: [],
+    slashCommands: [],
+    roomActions: [],
+    messageLinks: [],
+    threadCardBadges: [],
+    threadDetails,
+  });
+  const Branch = () => <span data-detail>Branch main</span>;
+
+  it('shows the details first, above Open, with nothing that takes the focus, as the description of the menu', () => {
+    const items = renderMenu({
+      plugins: [plugin('alpha', [{ Component: Branch }])],
+      onOpenThread: () => undefined,
+    });
+    const group = host.querySelector<HTMLElement>('[data-thread-details]');
+    const menu = host.querySelector<HTMLElement>('[role="menu"]');
+    expect(group?.textContent).toBe('Branch main');
+    expect(menu?.getAttribute('aria-describedby')).toBe(group?.id);
+    expect(group!.compareDocumentPosition(items[0]!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(items[0]?.dataset.threadAction).toBe('open');
+    expect(
+      group!.querySelectorAll('button, a[href], input, select, textarea, [tabindex]')
+    ).toHaveLength(0);
+    // The arrow keys still go to the first item.
+    act(() => {
+      menu!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    });
+    expect(document.activeElement).toBe(items[0]);
+  });
+  it('shows no group and no description when no plugin shows details for the thread', () => {
+    renderMenu({ plugins: [plugin('alpha', [{ Component: Branch, shows: () => false }])] });
+    expect(host.querySelector('[data-thread-details]')).toBeNull();
+    expect(host.querySelector('[role="menu"]')?.hasAttribute('aria-describedby')).toBe(false);
+  });
+  it('shows no details for a thread whose root is still sending', () => {
+    renderMenu({ rootId: '~!room:test:m1', plugins: [plugin('alpha', [{ Component: Branch }])] });
+    expect(host.querySelector('[data-thread-details]')).toBeNull();
+  });
+  it('keeps the details it opened with while it stays open', () => {
+    let shows = true;
+    const plugins = [plugin('alpha', [{ Component: Branch, shows: () => shows }])];
+    renderMenu({ plugins });
+    shows = false;
+    renderMenu({ plugins });
+    expect(host.querySelector('[data-thread-details]')?.textContent).toBe('Branch main');
   });
 });

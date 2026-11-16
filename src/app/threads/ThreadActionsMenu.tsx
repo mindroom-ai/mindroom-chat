@@ -1,8 +1,19 @@
-import React, { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
-import { Box, Button, Icon, Icons, Text, config, toRem, type IconSrc, type RectCords } from 'folds';
+import {
+  Box,
+  Button,
+  Icon,
+  Icons,
+  Line,
+  Text,
+  config,
+  toRem,
+  type IconSrc,
+  type RectCords,
+} from 'folds';
 import { PopOut } from '../ui/directional';
 import {
   getThreadSummaryActionError,
@@ -33,10 +44,17 @@ import { useToolCallsShown } from '../messages/toolCallVisibility';
 import { isSnoozedAt } from '../event-store/threads/threadSnooze';
 import { useSnoozeNow } from './tags/useSnoozeNow';
 import { SnoozePicker } from './tags/SnoozePicker';
+import { useOptionalClientConfig } from '../config/useClientConfig';
+import { registeredPlugins, type RegisteredPlugin } from '../plugins/registry';
+import { shownThreadDetails } from '../plugins/threadDetails';
+import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
+import { ThreadDetailsList } from './ThreadDetailsList';
+import * as css from './ThreadActionsMenu.css';
 
 export type ThreadActionsMenuProps = {
   room: Room;
   rootId: string;
+  plugins?: readonly RegisteredPlugin[];
   /** Current thread title, the starting text of Edit summary. */
   summaryText?: string;
   anchor: RectCords;
@@ -78,6 +96,7 @@ export function ThreadActionsMenu({
   onHideDetails,
   onShowBeside,
   onShowFull,
+  plugins = registeredPlugins,
 }: ThreadActionsMenuProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
@@ -178,6 +197,13 @@ export function ThreadActionsMenu({
     void copyToClipboard(getMatrixToRoomEvent(room.roomId, rootId, getViaServers(room)));
     onClose();
   };
+
+  const clientConfig = useOptionalClientConfig();
+  // Keep the contributions selected when this opening mounted.
+  const [details] = useState(() =>
+    isConfirmedMatrixEventId(rootId) ? shownThreadDetails(plugins, clientConfig, room, rootId) : []
+  );
+  const detailsId = useId();
 
   if (dialog === 'snooze') {
     return (
@@ -533,24 +559,44 @@ export function ThreadActionsMenu({
             escapeDeactivates: closeMenu,
           }}
         >
-          <Menu role="menu" aria-label={t('threadActions.more')} style={menuStyle}>
-            <MenuGroup>
-              {items.map((item) => (
-                <MenuEntry
-                  key={item.action}
-                  role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
-                  aria-checked={item.checked}
-                  label={item.label}
-                  icon={item.icon}
-                  after={item.checked ? <Icon size="100" src={Icons.Check} /> : undefined}
-                  shortcut={item.shortcut}
-                  data-thread-action={item.action}
-                  disabled={item.mutates && saving}
-                  aria-busy={item.mutates && saving ? true : undefined}
-                  onSelect={() => item.onSelect()}
-                />
-              ))}
-            </MenuGroup>
+          <Menu
+            role="menu"
+            aria-label={t('threadActions.more')}
+            aria-describedby={details.length > 0 ? detailsId : undefined}
+            className={css.ThreadMenu}
+            style={menuStyle}
+          >
+            <div className={css.ThreadMenuRows}>
+              {details.length > 0 && (
+                <>
+                  <div
+                    id={detailsId}
+                    data-thread-details=""
+                    style={{ maxWidth: toRem(320), padding: config.space.S300 }}
+                  >
+                    <ThreadDetailsList room={room} threadId={rootId} details={details} />
+                  </div>
+                  <Line variant="Surface" size="300" />
+                </>
+              )}
+              <MenuGroup>
+                {items.map((item) => (
+                  <MenuEntry
+                    key={item.action}
+                    role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+                    aria-checked={item.checked}
+                    label={item.label}
+                    icon={item.icon}
+                    after={item.checked ? <Icon size="100" src={Icons.Check} /> : undefined}
+                    shortcut={item.shortcut}
+                    data-thread-action={item.action}
+                    disabled={item.mutates && saving}
+                    aria-busy={item.mutates && saving ? true : undefined}
+                    onSelect={() => item.onSelect()}
+                  />
+                ))}
+              </MenuGroup>
+            </div>
           </Menu>
         </FocusTrap>
       }
