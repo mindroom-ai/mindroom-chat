@@ -1,5 +1,9 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
-import { parseScheduleTimestamp, parseScheduledTaskStateEvent } from '../../matrix/protocol/scheduledTaskContract';
+import {
+  isPendingScheduledTaskStatus,
+  parseScheduleTimestamp,
+  parseScheduledTaskStateEvent,
+} from '../../matrix/protocol/scheduledTaskContract';
 
 export type ThreadScheduledStatus = {
   scheduledTaskCount: number;
@@ -21,7 +25,7 @@ export const buildRoomThreadScheduledStatusMap = (
   scheduledTaskEvents.forEach((event) => {
     const parsedTask = parseScheduledTaskStateEvent(event);
     if (!parsedTask) return;
-    if (parsedTask.status !== 'pending') return;
+    if (!isPendingScheduledTaskStatus(parsedTask.status)) return;
     if (parsedTask.newThread) return;
     if (!parsedTask.threadId) return;
 

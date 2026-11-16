@@ -11,6 +11,7 @@ import {
 } from '../../matrix/protocol/untrustedContent';
 import { removeSessionAndReload, removeStoredSession } from './sessionLifecycle';
 import { LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT } from '../../matrix/client/clientSyncPolicy';
+import { dropSettledScheduledTasks } from '../../matrix/client/savedSyncScheduledTasks';
 import {
   type ClientBootstrapSession,
   inspectCryptoStoreContinuity,
@@ -81,7 +82,12 @@ export const logoutStoredSession = async (session: StoredSession): Promise<void>
 const MAX_CLIENT_LISTENERS = 50;
 
 type SyncArchiveStore = IndexedDBStore & {
-  backend?: { syncAccumulator?: { opts?: { maxTimelineEntries?: number } } };
+  backend?: {
+    syncAccumulator?: {
+      opts?: { maxTimelineEntries?: number };
+      joinRooms?: Record<string, object>;
+    };
+  };
 };
 
 // The local IndexedDB backend trims each room's saved timeline to its accumulator's limit.
@@ -281,8 +287,13 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
   // Both open IndexedDB databases; run them together, and on failure wait for the other to
   // settle before tearing the half-started runtime down. Streaming replies the saved sync holds
   // are read from the event cache meanwhile, so the rooms first show their newest saved text.
+  // Finished scheduled tasks a store saved before they were left out go before the replay.
   const results = await Promise.allSettled([
-    store.startup().then(() => restoreStreamingRepliesFromCache(mx)),
+    store.startup().then(() => {
+      const sync = store.backend?.syncAccumulator;
+      if (sync) dropSettledScheduledTasks(sync);
+      return restoreStreamingRepliesFromCache(mx);
+    }),
     mx.initRustCrypto({ cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session) }),
   ]);
   const failure = results.find(
