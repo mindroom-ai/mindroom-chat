@@ -70,8 +70,13 @@ import { RoomMessageAnnouncer } from '../timeline/RoomMessageAnnouncer';
 import { useCallPanel, useInCall } from '../calls/callStore';
 import { CallPanelPart, CallPanelUnavailable } from '../calls/CallPanelPart';
 import { transcriptPanelAtom, useTranscriptPanel } from '../calls/transcription/transcriptPanel';
-import { subagentsPanelAtom, useSubagentsPanel } from '../navigation/subagentsPanel';
+import {
+  conversationToShow,
+  subagentsPanelAtom,
+  useSubagentsPanel,
+} from '../navigation/subagentsPanel';
 import { SubagentsPanelPart } from '../subagents/SubagentsPanelPart';
+import { subagentConversation } from '../messages/live/subagentRunStore';
 import { useCallViewFloats } from '../calls/window/callWindowState';
 import { lazyPart } from '../lib/lazyPart';
 import { PluginSidePanel } from './PluginSidePanel';
@@ -406,7 +411,11 @@ function RoomContent() {
           testId="resizable-subagents-panel"
         >
           <Suspense fallback={null}>
-            <SubagentsPanelPart room={room} onClose={subagents.close} />
+            <SubagentsPanelPart
+              room={room}
+              threadId={subagentConversation(threadId, viewMode === 'classic')}
+              onClose={subagents.close}
+            />
           </Suspense>
         </ResizablePanel>
       ),
@@ -477,12 +486,21 @@ function RoomContent() {
       }),
     [request, roomId, store]
   );
+  // A sub-agent job of another conversation (the room's jobs bar lists every thread's) shows that
+  // conversation, so the panel lists its run.
+  const subagentsShown = useLatestRef({ threadId, classic: viewMode === 'classic' });
   useEffect(
     () =>
       store.sub(subagentsPanelAtom, () => {
-        if (store.get(subagentsPanelAtom)?.roomId === roomId) request('subagents', () => undefined);
+        const opened = store.get(subagentsPanelAtom);
+        if (opened?.roomId !== roomId) return;
+        request('subagents', () => undefined);
+        const shown = subagentsShown.current;
+        const target = conversationToShow(opened.threadId, shown.threadId, shown.classic);
+        if (target === null) navigateRoom(roomId);
+        else if (target !== undefined) navigateRoomThread(roomId, target);
       }),
-    [request, roomId, store]
+    [navigateRoom, navigateRoomThread, request, roomId, store, subagentsShown]
   );
   const folded = layout === 'folded';
   function toggleFilled(id: string) {

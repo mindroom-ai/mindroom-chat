@@ -830,6 +830,7 @@
       "title": "하위 에이전트",
       "close": "닫기",
       "empty": "이 방에서 실행 중인 하위 에이전트가 없습니다.",
+      "emptyThread": "이 스레드에서 실행 중인 하위 에이전트가 없습니다.",
       "back": "뒤로",
       "nested_other": "하위 에이전트 {{count}}개",
       "turns_other": "{{count}}턴",

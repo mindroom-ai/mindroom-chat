@@ -13,6 +13,8 @@ export type BackgroundJobsBarItem = {
   finished: boolean;
   // A sub-agent's run, which the room's Sub-agents panel shows: its row's name opens the panel.
   subagent: boolean;
+  // The thread it runs for (its root's ID), or null for the room's own timeline.
+  threadId: string | null;
 };
 
 export type BackgroundJobsBarModel = {
@@ -49,6 +51,7 @@ export const presentBackgroundJobs = (
       stopping: !finished && (job.status === 'cancel_requested' || cancelSent(job.jobId)),
       finished,
       subagent: job.kind === 'subagent',
+      threadId: job.threadId,
     };
   });
   const finished = items.every((item) => item.finished);

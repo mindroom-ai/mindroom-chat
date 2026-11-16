@@ -830,6 +830,7 @@
       "title": "Subagen",
       "close": "Tutup",
       "empty": "Tidak ada subagen yang berjalan di ruangan ini.",
+      "emptyThread": "Tidak ada subagen yang berjalan di utas ini.",
       "back": "Kembali",
       "nested_other": "{{count}} subagen",
       "turns_other": "{{count}} giliran",

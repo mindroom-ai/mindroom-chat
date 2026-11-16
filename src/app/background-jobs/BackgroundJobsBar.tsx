@@ -288,7 +288,7 @@ export function BackgroundJobsBar({
                 <button
                   type="button"
                   className={css.TitleLink}
-                  onClick={() => openSubagentsPanel(store, room.roomId)}
+                  onClick={() => openSubagentsPanel(store, room.roomId, single.threadId)}
                 >
                   <Text as="span" size="B300">
                     {t('mindroomUi.subagents.show')}
@@ -313,7 +313,7 @@ export function BackgroundJobsBar({
                     type="button"
                     className={css.LabelButton}
                     title={t('mindroomUi.subagents.showFor', { name: item.name })}
-                    onClick={() => openSubagentsPanel(store, room.roomId)}
+                    onClick={() => openSubagentsPanel(store, room.roomId, item.threadId)}
                   >
                     <Text as="span" size="T200" truncate>
                       {item.name}
