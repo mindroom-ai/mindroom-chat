@@ -918,7 +918,12 @@ const externalPage = async (browser: Browser, baseURL: string | undefined): Prom
       await route.continue();
       return;
     }
-    const response = await route.fetch();
+    // Fetched by Playwright, outside Chromium and its proxy guard: a redirect is not followed.
+    const response = await route.fetch({ maxRedirects: 0 });
+    if (response.status() >= 300 && response.status() < 400) {
+      await route.abort();
+      return;
+    }
     const config = (await response.json()) as Record<string, Record<string, unknown>>;
     await route.fulfill({
       response,
