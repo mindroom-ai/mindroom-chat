@@ -249,11 +249,11 @@ const rootEdit = (eventId: string, body: string) =>
     },
   });
 
-/** Decrypts `root` to a message with `body` once `result` settles; a rejected one fails it. */
-const decryptRoot = (root: MatrixEvent, result: Promise<string>) =>
-  root.attemptDecryption({
+/** Decrypts `event` to a message with `content` once it settles; a rejected one fails it. */
+const decryptEvent = (event: MatrixEvent, content: Promise<object>) =>
+  event.attemptDecryption({
     decryptEvent: async () => ({
-      clearEvent: { room_id: roomId, type: 'm.room.message', content: { body: await result } },
+      clearEvent: { room_id: roomId, type: 'm.room.message', content: await content },
     }),
   } as unknown as CryptoBackend);
 
@@ -328,23 +328,26 @@ it.each(Object.keys(changesBeforeLaterPage) as (keyof typeof changesBeforeLaterP
         ? encryptedListedRoot('$listed')
         : listedRoot('$listed', 'Listed by server');
     if (change === 'decryption') {
-      await decryptRoot(root, Promise.reject(new Error('Missing key')));
+      await decryptEvent(root, Promise.reject(new Error('Missing key')));
     }
     if (change === 'bundled reply') root.setUnsigned(bundledReply('$reply-1'));
-    const encryptedEdit = new MatrixEvent({
-      event_id: '$edit',
-      room_id: roomId,
-      sender: userId,
-      origin_server_ts: 2000,
-      type: 'm.room.encrypted',
-      content: {
-        algorithm: 'm.megolm.v1.aes-sha2',
-        ciphertext: 'edit',
-        'm.relates_to': { rel_type: 'm.replace', event_id: '$listed' },
-      },
-    });
-    if (change === 'edit decryption') {
-      await decryptRoot(encryptedEdit, Promise.reject(new Error('Missing key')));
+    const encryptedEdit =
+      change === 'edit decryption'
+        ? new MatrixEvent({
+            event_id: '$edit',
+            room_id: roomId,
+            sender: userId,
+            origin_server_ts: 2000,
+            type: 'm.room.encrypted',
+            content: {
+              algorithm: 'm.megolm.v1.aes-sha2',
+              ciphertext: 'edit',
+              'm.relates_to': { rel_type: 'm.replace', event_id: '$listed' },
+            },
+          })
+        : undefined;
+    if (encryptedEdit) {
+      await decryptEvent(encryptedEdit, Promise.reject(new Error('Missing key')));
       root.makeReplaced(encryptedEdit);
     }
     if (change !== 'none') {
@@ -375,12 +378,15 @@ it.each(Object.keys(changesBeforeLaterPage) as (keyof typeof changesBeforeLaterP
             room
           );
         } else if (change === 'decryption') {
-          await decryptRoot(root, Promise.resolve('Clear title'));
+          await decryptEvent(root, Promise.resolve({ body: 'Clear title' }));
         } else if (change === 'bundled reply') {
           // The list's later page carries the root again, with a newer reply in its summary.
           root.setUnsigned(bundledReply('$reply-2'));
         } else {
-          await decryptRoot(encryptedEdit, Promise.resolve('Newer title'));
+          await decryptEvent(
+            encryptedEdit!,
+            Promise.resolve(rootEdit('$listed', 'Newer title').getContent())
+          );
         }
         timeline.setPaginationToken('unchanged-page', Direction.Backward);
         return true;
@@ -393,6 +399,7 @@ it.each(Object.keys(changesBeforeLaterPage) as (keyof typeof changesBeforeLaterP
       const list = showList(mx, engine, room);
       await vi.waitFor(async () => {
         const cached = await loadLatestCachedThreadEvents(sessionId, roomId, '$listed', 1);
+        expect(cached.rootEvent).toBeDefined();
         const saved = JSON.stringify(cached.rootEvent);
         if (change === 'edit') expect(saved).toContain('Newer server title');
         else if (change === 'redaction')
@@ -400,13 +407,18 @@ it.each(Object.keys(changesBeforeLaterPage) as (keyof typeof changesBeforeLaterP
         else if (change === 'bundled reply') expect(saved).toContain('$reply-2');
         else if (change === 'none')
           expect(cached.rootEvent?.content?.body).toBe('Listed by server');
-        if (change !== 'bundled reply') expect(cached.events).toEqual([]);
+        // The listed reply is kept as an edit target, not as downloaded history.
+        expect(cached.events.map((event) => event.event_id)).toEqual(
+          change === 'bundled reply' ? ['$reply-2'] : []
+        );
         expect(cached.tailLoaded).toBe(false);
         expect(cached.snapshotComplete).toBe(false);
         expect(list.current?.loading).toBe(false);
       });
     });
     expect(saves).toEqual(changesBeforeLaterPage[change]);
+    // The decrypted edit is one the root shows.
+    if (change === 'edit decryption') expect(root.getContent().body).toBe('Newer title');
   }
 );
 
@@ -722,10 +734,10 @@ it('saves a listed root that is still being decrypted when the overview closes',
   recordSaves(engine, (threadId, _replies, root) => saved.push(`${threadId} ${root?.getType()}`));
   const root = encryptedListedRoot('$decrypting');
   let releaseKey!: () => void;
-  const decrypted = decryptRoot(
+  const decrypted = decryptEvent(
     root,
     new Promise((resolve) => {
-      releaseKey = () => resolve('Clear');
+      releaseKey = () => resolve({ body: 'Clear' });
     })
   );
   vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
