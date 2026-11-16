@@ -86,6 +86,9 @@ enum MacScreenshot {
 
     /// Window numbers of the on-screen windows, front to back.
     private static func windowOrder() -> [CGWindowID: Int] {
+#if MINDROOM_MAC_APP_STORE
+        return MacWindowing.windowOrder()
+#else
         typealias CopyWindowInfo = @convention(c) (UInt32, CGWindowID) -> Unmanaged<CFArray>?
         guard let graphics = dlopen("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", RTLD_LAZY),
               let symbol = dlsym(graphics, "CGWindowListCopyWindowInfo") else { return [:] }
@@ -99,6 +102,7 @@ enum MacScreenshot {
             }
         }
         return order
+#endif
     }
 
     @available(macCatalyst 18.2, *)

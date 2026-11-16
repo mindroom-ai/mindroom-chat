@@ -6,6 +6,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = scene as? UIWindowScene else { return }
+#if MINDROOM_MAC_APP_STORE
+        // The native Mac component identifies this scene through its public window title.
+        windowScene.title = "MindRoom"
+#endif
         // One main window: a second one closes as it connects, and the link it came with goes to
         // the app, which the main window shows.
         if UIApplication.shared.connectedScenes.contains(where: { $0 !== scene && $0.delegate is SceneDelegate }) {
