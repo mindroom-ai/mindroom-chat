@@ -41,6 +41,8 @@ import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { parseSecretRequestContent } from '../../matrix/protocol/secretRequest';
 import { readSnoozeEndedNote } from '../../matrix/protocol/threadSnooze';
 import { SnoozeEndedMarker } from '../SnoozeEndedMarker';
+import { readSkillReviewNotice } from '../../matrix/protocol/skillReview';
+import { SkillReviewMarker } from '../SkillReviewMarker';
 import { getMessageStateSuffixRenderer } from './messageStateSuffix';
 import { ChatUiActionButton } from '../../ui-actions/ChatUiActionButton';
 import { CHAT_UI_ACTION_KEY, readCanvasNoticeTitle } from '../../matrix/protocol/chatUiProtocol';
@@ -387,10 +389,12 @@ export const renderAgentMessageContent = ({
     );
   }
 
-  // An open thread shows this as a marker row of its own (useTimelineMessageFeature); other
+  // An open thread shows these as marker rows of their own (useTimelineMessageFeature); other
   // views, such as threads shown in the room, keep the message row with the marker as its body.
   const snoozeEndedNote = fromMindroomAgent ? readSnoozeEndedNote(content) : null;
   if (snoozeEndedNote !== null) return <SnoozeEndedMarker note={snoozeEndedNote} />;
+  const skillReview = fromMindroomAgent ? readSkillReviewNotice(content) : null;
+  if (skillReview) return <SkillReviewMarker review={skillReview} />;
 
   // An agent asking for a key; any member can write this content, which then renders as its body.
   // The answer goes to the sender's own MindRoom server.
