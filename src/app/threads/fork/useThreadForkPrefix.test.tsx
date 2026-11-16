@@ -1,3 +1,4 @@
+import { EventEmitter } from 'events';
 import { useEffect } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import {
@@ -328,12 +329,24 @@ describe('useThreadForkPrefix and a redaction of a prefix message', () => {
     session.value = { sessionId: 'session' };
     cache.load.mockClear();
     const mx = newClient();
-    const room = realRoom(mx);
+    // The parent's SDK thread has not loaded its replies, so the prefix comes from the cache.
+    const unloadedThread = Object.assign(new EventEmitter(), {
+      id: '$p',
+      initialEventsFetched: false,
+      timelineSet: { removeEvent: vi.fn() },
+    }) as unknown as Thread;
+    const room = realRoom(mx, unloadedThread);
+    /** A cached copy as the SDK's event mapper makes it: in the parent's SDK thread. */
+    const cachedCopy = (...args: Parameters<typeof raw>) => {
+      const copy = message(...args);
+      copy.setThread(unloadedThread);
+      return copy;
+    };
     cache.events = [
       message('$p', 1),
-      message('$a', 2, '$p'),
-      message('$b', 3, '$p'),
-      message('$c', 4, '$p'),
+      cachedCopy('$a', 2, '$p'),
+      cachedCopy('$b', 3, '$p'),
+      cachedCopy('$c', 4, '$p'),
     ];
     const view = await renderPrefix(room, mx, {} as BackfillScheduler, forkRoot());
     expect(ids(view.results.at(-1)!.events)).toEqual(['$p', '$a', '$b']);
