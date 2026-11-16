@@ -839,6 +839,7 @@
       "title": "Sub-Agenten",
       "close": "Schließen",
       "empty": "In diesem Raum laufen keine Sub-Agenten.",
+      "emptyThread": "In diesem Thread laufen keine Sub-Agenten.",
       "back": "Zurück",
       "nested_one": "{{count}} Sub-Agent",
       "nested_other": "{{count}} Sub-Agenten",

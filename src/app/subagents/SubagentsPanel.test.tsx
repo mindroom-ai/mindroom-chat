@@ -118,13 +118,13 @@ let container: HTMLDivElement;
 let root: Root;
 const onClose = vi.fn();
 
-const render = (screenSize: ScreenSize = ScreenSize.Desktop) => {
+const render = (screenSize: ScreenSize = ScreenSize.Desktop, threadId?: string | null) => {
   act(() => {
     root.render(
       <ScreenSizeProvider value={screenSize}>
         <ClientConfigProvider value={{}}>
           <MatrixClientProvider value={mx}>
-            <SubagentsPanel room={room} onClose={onClose} />
+            <SubagentsPanel room={room} threadId={threadId} onClose={onClose} />
           </MatrixClientProvider>
         </ClientConfigProvider>
       </ScreenSizeProvider>
@@ -182,6 +182,25 @@ describe('SubagentsPanel', () => {
     expect(cards()).toHaveLength(0);
     act(() => button(container, 'Close').click());
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists only the runs started in the conversation on screen, and counts only those', () => {
+    ingest('here', meta('running', { threadId: '$thread:example.org' }), docs('Here.'));
+    ingest('other', meta('running', { threadId: '$other:example.org' }), docs('Elsewhere.'));
+    ingest('room', meta('running', { threadId: null }), docs('In the room.'));
+    render(ScreenSize.Desktop, '$thread:example.org');
+
+    expect(cards().map((element) => element.dataset.subagent)).toEqual(['here']);
+    expect(container.querySelector('header')?.textContent).toContain('1 active');
+
+    // The room's own timeline lists the runs started there, not those of its threads.
+    render(ScreenSize.Desktop, null);
+    expect(cards().map((element) => element.dataset.subagent)).toEqual(['room']);
+
+    // A thread without runs says so of the thread.
+    render(ScreenSize.Desktop, '$empty:example.org');
+    expect(cards()).toHaveLength(0);
+    expect(container.textContent).toContain('No sub-agents are running in this thread.');
   });
 
   it('lists a card per run, the one that started first on top, titled by its task', () => {

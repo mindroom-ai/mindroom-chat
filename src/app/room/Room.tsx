@@ -72,6 +72,7 @@ import { CallPanelPart, CallPanelUnavailable } from '../calls/CallPanelPart';
 import { transcriptPanelAtom, useTranscriptPanel } from '../calls/transcription/transcriptPanel';
 import { subagentsPanelAtom, useSubagentsPanel } from '../navigation/subagentsPanel';
 import { SubagentsPanelPart } from '../subagents/SubagentsPanelPart';
+import { subagentConversation } from '../messages/live/subagentRunStore';
 import { useCallViewFloats } from '../calls/window/callWindowState';
 import { lazyPart } from '../lib/lazyPart';
 import { PluginSidePanel } from './PluginSidePanel';
@@ -406,7 +407,11 @@ function RoomContent() {
           testId="resizable-subagents-panel"
         >
           <Suspense fallback={null}>
-            <SubagentsPanelPart room={room} onClose={subagents.close} />
+            <SubagentsPanelPart
+              room={room}
+              threadId={subagentConversation(threadId, viewMode === 'classic')}
+              onClose={subagents.close}
+            />
           </Suspense>
         </ResizablePanel>
       ),

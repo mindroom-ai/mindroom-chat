@@ -850,6 +850,7 @@
       "title": "Sous-agents",
       "close": "Fermer",
       "empty": "Aucun sous-agent n’est en cours dans ce salon.",
+      "emptyThread": "Aucun sous-agent n’est en cours dans ce fil.",
       "back": "Retour",
       "nested_one": "{{count}} sous-agent",
       "nested_many": "{{count}} sous-agents",

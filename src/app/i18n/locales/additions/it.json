@@ -850,6 +850,7 @@
       "title": "Sottoagenti",
       "close": "Chiudi",
       "empty": "Nessun sottoagente è in esecuzione in questa stanza.",
+      "emptyThread": "Nessun sottoagente è in esecuzione in questo thread.",
       "back": "Indietro",
       "nested_one": "{{count}} sottoagente",
       "nested_many": "{{count}} sottoagenti",

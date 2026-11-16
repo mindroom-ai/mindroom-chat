@@ -850,6 +850,7 @@
       "title": "Subagentes",
       "close": "Cerrar",
       "empty": "No hay subagentes en ejecución en esta sala.",
+      "emptyThread": "No hay subagentes en ejecución en este hilo.",
       "back": "Atrás",
       "nested_one": "{{count}} subagente",
       "nested_many": "{{count}} subagentes",

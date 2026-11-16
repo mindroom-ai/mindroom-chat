@@ -42,6 +42,24 @@ export const countActiveSubagents = (runs: readonly SubagentRun[]): number => {
   return [...newest.values()].filter(({ meta }) => isActiveSubagentStatus(meta.status)).length;
 };
 
+/**
+ * The conversation on screen, as the Sub-agents toggle and panel take it: the open thread, or while
+ * none is open the room's own timeline (`null`), so the room's threads do not put their runs on
+ * the thread list. The Classic view shows every thread's replies in the room's timeline, so there
+ * every run counts (`undefined`).
+ */
+export const subagentConversation = (
+  openThreadId: string | undefined,
+  classic: boolean
+): string | null | undefined => openThreadId ?? (classic ? undefined : null);
+
+/** The runs started in `threadId` (a thread root's ID, or `null` the room's timeline); all without it. */
+export const runsStartedIn = (
+  runs: readonly SubagentRun[],
+  threadId: string | null | undefined
+): readonly SubagentRun[] =>
+  threadId === undefined ? runs : runs.filter((run) => run.meta.threadId === threadId);
+
 const runKey = (roomId: string, run: string): string => `${roomId}\0${run}`;
 
 const isWorking = ({ status }: SubagentMeta): boolean =>
@@ -174,8 +192,7 @@ export const useRoomSubagentRuns = (roomId: string): readonly SubagentRun[] => {
 /**
  * How many runs the room keeps (`total`) and how many of them are still at it (`active`), rendered
  * again only when either changes: a run's frames, which stream several times a second, change
- * neither. Given `threadId`, only the runs started in that conversation count: the thread by its
- * root's ID, or with `null` the room's own timeline.
+ * neither. Given `threadId`, only the runs started in that conversation count (`runsStartedIn`).
  */
 export const useRoomSubagentCounts = (
   roomId: string,
@@ -186,10 +203,10 @@ export const useRoomSubagentCounts = (
     (onChange: () => void) => store.subscribe(roomId, onChange),
     [roomId, store]
   );
-  const runsIn = useCallback(() => {
-    const runs = store.runs(roomId);
-    return threadId === undefined ? runs : runs.filter((run) => run.meta.threadId === threadId);
-  }, [roomId, store, threadId]);
+  const runsIn = useCallback(
+    () => runsStartedIn(store.runs(roomId), threadId),
+    [roomId, store, threadId]
+  );
   const getTotal = useCallback(() => runsIn().length, [runsIn]);
   const getActive = useCallback(() => countActiveSubagents(runsIn()), [runsIn]);
   const total = useSyncExternalStore(subscribe, getTotal);

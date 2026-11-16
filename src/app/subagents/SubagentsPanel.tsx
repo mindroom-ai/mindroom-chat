@@ -11,6 +11,7 @@ import { isActiveSubagentStatus } from '../matrix/protocol/subagentFrame';
 import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../messages/html/react-custom-html-parser';
 import {
   countActiveSubagents,
+  runsStartedIn,
   useRoomSubagentRuns,
   type SubagentRun,
 } from '../messages/live/subagentRunStore';
@@ -89,14 +90,24 @@ const subagentsById = (nodes: readonly SubagentNode[]): Map<string, SubagentNode
 
 /**
  * The room's live sub-agents, in the room's side panel, as the room's compact view shows threads:
- * a card per sub-agent its agents started, with how many are still at it in the header. Pressing
- * a card shows that sub-agent's turns as a thread, with cards for the sub-agents it started; Back
- * leads to the sub-agent that started it, or to the list.
+ * a card per sub-agent its agents started in the conversation on screen (`threadId`, as
+ * `runsStartedIn` takes it), with how many are still at it in the header. Pressing a card shows
+ * that sub-agent's turns as a thread, with cards for the sub-agents it started; Back leads to the
+ * sub-agent that started it, or to the list.
  */
-export function SubagentsPanel({ room, onClose }: { room: Room; onClose: () => void }) {
+export function SubagentsPanel({
+  room,
+  threadId,
+  onClose,
+}: {
+  room: Room;
+  threadId?: string | null;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
-  const runs = useRoomSubagentRuns(room.roomId);
+  const roomRuns = useRoomSubagentRuns(room.roomId);
+  const runs = useMemo(() => runsStartedIn(roomRuns, threadId), [roomRuns, threadId]);
   const nodes = useMemo(() => nestSubagents(runs), [runs]);
   const byId = useMemo(() => subagentsById(nodes), [nodes]);
   const active = countActiveSubagents(runs);
@@ -190,7 +201,7 @@ export function SubagentsPanel({ room, onClose }: { room: Room; onClose: () => v
           <div className={css.Body}>
             {nodes.length === 0 ? (
               <Text size="T300" priority="300" className={css.Empty}>
-                {t('mindroomUi.subagents.empty')}
+                {t(threadId ? 'mindroomUi.subagents.emptyThread' : 'mindroomUi.subagents.empty')}
               </Text>
             ) : (
               <ul className={css.List}>

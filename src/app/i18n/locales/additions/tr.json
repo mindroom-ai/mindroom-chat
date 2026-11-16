@@ -839,6 +839,7 @@
       "title": "Alt ajanlar",
       "close": "Kapat",
       "empty": "Bu odada çalışan alt ajan yok.",
+      "emptyThread": "Bu konuda çalışan alt ajan yok.",
       "back": "Geri",
       "nested_one": "{{count}} alt ajan",
       "nested_other": "{{count}} alt ajan",
