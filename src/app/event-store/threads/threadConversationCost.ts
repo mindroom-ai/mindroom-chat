@@ -4,6 +4,7 @@ import { getEditedEvent, getLatestMessageContent, reactionOrEditEvent } from '..
 import { getAiRunInfo } from '../../matrix/protocol/aiRun';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { hasLoadedFirstThreadPage } from '../sdk/threadBootstrapSdk';
+import { getLinkedTimelines, getThreadTimelineEvents } from '../timeline/linkedTimelines';
 import type { ThreadSummaryHistory } from './threadSummaryTimeline';
 
 type ConversationCostTotal = {
@@ -69,19 +70,20 @@ export const summarizeThreadConversationCost = (
 };
 
 /**
- * What the replies a thread holds cost, for a surface that shows the thread without opening it:
- * no page is loaded for it, so the sum is complete only when the SDK fetched the thread and holds
- * no older page. Only agents' cost counts.
+ * What the replies a thread holds cost, for a surface that shows the thread without opening it.
+ * It sums every linked segment the SDK holds. Without the open thread's session, the sum is
+ * complete only when the oldest segment shows the SDK paged back to the start: it begins at the
+ * root, which the SDK puts there only then, and holds no older page. Only agents' cost counts.
  */
 export const summarizeLoadedThreadCost = (
   thread: Thread,
   viewerId: string | undefined
 ): ThreadConversationCost | undefined => {
-  const timeline = thread.liveTimeline;
-  return summarizeThreadConversationCost(timeline.getEvents(), {
+  const oldest = getLinkedTimelines(thread.getUnfilteredTimelineSet().getLiveTimeline())[0];
+  return summarizeThreadConversationCost(getThreadTimelineEvents(thread), {
     history: {
-      sdkLoaded: hasLoadedFirstThreadPage(thread),
-      canPaginateBack: typeof timeline.getPaginationToken(Direction.Backward) === 'string',
+      sdkLoaded: hasLoadedFirstThreadPage(thread) && oldest?.getEvents()[0]?.getId() === thread.id,
+      canPaginateBack: typeof oldest?.getPaginationToken(Direction.Backward) === 'string',
       hasMoreCachedBack: false,
     },
     isTrustedSender: (userId) => isMindroomAgentUserIdForViewer(userId, viewerId),
