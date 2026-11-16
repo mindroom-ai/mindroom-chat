@@ -165,9 +165,10 @@ const sameOption = (left: unknown, right: unknown): boolean => {
 const isRecordOrList = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
+/** The same values but for the place in the list, which a build only copies into its record. */
 const sameOptions = (left: BuildThreadRecordOptions, right: BuildThreadRecordOptions): boolean =>
-  (Object.keys(left) as Array<keyof BuildThreadRecordOptions>).every((key) =>
-    sameOption(left[key], right[key])
+  (Object.keys(left) as Array<keyof BuildThreadRecordOptions>).every(
+    (key) => key === 'absoluteIndex' || sameOption(left[key], right[key])
   );
 
 const getLoadedThreadEvents = (thread: ReturnType<Room['getThread']>): MatrixEvent[] | undefined =>
@@ -532,7 +533,12 @@ export const buildThreadRecordMap = ({
       sameOption(keptFrom.roomSources, roomSources) &&
       sameOptions(keptFrom.options, options)
     ) {
-      records.set(threadRootId, kept);
+      // The room's threads trade places with every reply; a thread that only moved keeps its
+      // record, with its new place.
+      const index = options.absoluteIndex ?? 0;
+      const moved = kept.absoluteIndex === index ? kept : { ...kept, absoluteIndex: index };
+      if (moved !== kept) recordSources.set(moved, keptFrom);
+      records.set(threadRootId, moved);
       return;
     }
     const record = buildThreadRecord(options);

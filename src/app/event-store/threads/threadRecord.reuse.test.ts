@@ -130,6 +130,24 @@ describe('buildThreadRecordMap reuse', () => {
     expect(fromFirst.get('$b')).not.toBe(first.get('$b'));
   });
 
+  it('gives a thread that only moved in the list its new place, without building its record', () => {
+    const first = build(undefined, { absoluteIndexMap: new Map([['$a', 1]]) });
+
+    // Unmarked, so a record that was built again would show it.
+    receiptTs = 3000;
+    const second = build(first, { absoluteIndexMap: new Map([['$a', 2]]) });
+
+    expect(second.get('$a')).toEqual({ ...first.get('$a'), absoluteIndex: 2 });
+    expect(second.get('$b')).toBe(first.get('$b'));
+    // The moved record is kept like any other, and built again once its thread is marked.
+    expect(build(second, { absoluteIndexMap: new Map([['$a', 2]]) }).get('$a')).toBe(
+      second.get('$a')
+    );
+    markThreadRecordChange(changes, '$a');
+    const fourth = build(second, { absoluteIndexMap: new Map([['$a', 2]]) });
+    expect(fourth.get('$a')?.status.isUnread).toBe(false);
+  });
+
   it('builds the record of a thread given another value', () => {
     const counts = new Map([['$a', 1]]);
     const first = build(undefined, { fallbackReplyCountMap: counts });
