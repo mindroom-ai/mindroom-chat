@@ -809,7 +809,8 @@
         "created": "أُنشئ",
         "updated": "حُدّث",
         "removed": "أُزيل",
-        "diffTruncated": "تم اقتطاع الفرق"
+        "diffTruncated": "تم اقتطاع الفرق",
+        "diffLabel": "الفرق في ⁨{{path}}⁩"
       }
     },
     "message-search": {

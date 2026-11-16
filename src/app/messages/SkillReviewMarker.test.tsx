@@ -46,7 +46,7 @@ const updated: SkillReviewNotice = {
       action: 'updated',
       added: 12,
       removed: 3,
-      diff: '@@ -10,2 +10,2 @@\n context\n-old\n+new\n',
+      diff: '@@ -10,2 +10,2 @@\n context\n-old\n+new\n+\n',
       diffTruncated: false,
     },
   ],
@@ -137,10 +137,16 @@ describe('SkillReviewMarker', () => {
       ['DiffLine', ' context'],
       ['DiffRemoved', '-old'],
       ['DiffAdded', '+new'],
+      ['DiffAdded', '+'],
     ]);
     expect(trigger(renderer).props['aria-expanded']).toBe(true);
     expect(trigger(renderer).props['aria-controls']).toBe(diffs!.props.id);
     expect(text(diffs!)).not.toContain('Diff truncated');
+    // Keyboard users can reach and scroll a long diff, which Safari does not allow by itself.
+    const diff = diffs!.findByProps({ className: 'Diff' });
+    expect(diff.props.tabIndex).toBe(0);
+    expect(diff.props.role).toBe('region');
+    expect(diff.props['aria-label']).toBe('Diff of developing-mindroom-chat/SKILL.md');
 
     await act(() => trigger(renderer).props.onClick());
     expect(panel(renderer)).toHaveLength(0);

@@ -765,7 +765,8 @@
         "created": "তৈরি হয়েছে",
         "updated": "আপডেট হয়েছে",
         "removed": "সরানো হয়েছে",
-        "diffTruncated": "ডিফ ছোট করা হয়েছে"
+        "diffTruncated": "ডিফ ছোট করা হয়েছে",
+        "diffLabel": "{{path}}-এর ডিফ"
       }
     },
     "message-search": {

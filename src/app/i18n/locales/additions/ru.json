@@ -787,7 +787,8 @@
         "created": "создан",
         "updated": "обновлён",
         "removed": "удалён",
-        "diffTruncated": "Diff обрезан"
+        "diffTruncated": "Diff обрезан",
+        "diffLabel": "Diff файла {{path}}"
       }
     },
     "message-search": {

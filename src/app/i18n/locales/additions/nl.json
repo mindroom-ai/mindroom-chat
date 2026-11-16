@@ -765,7 +765,8 @@
         "created": "aangemaakt",
         "updated": "bijgewerkt",
         "removed": "verwijderd",
-        "diffTruncated": "Diff ingekort"
+        "diffTruncated": "Diff ingekort",
+        "diffLabel": "Diff van {{path}}"
       }
     },
     "message-search": {

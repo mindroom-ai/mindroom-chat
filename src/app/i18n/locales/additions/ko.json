@@ -754,7 +754,8 @@
         "created": "생성됨",
         "updated": "업데이트됨",
         "removed": "삭제됨",
-        "diffTruncated": "차이가 잘렸습니다"
+        "diffTruncated": "차이가 잘렸습니다",
+        "diffLabel": "{{path}} 차이"
       }
     },
     "message-search": {

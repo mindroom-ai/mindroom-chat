@@ -765,7 +765,8 @@
         "created": "oluşturuldu",
         "updated": "güncellendi",
         "removed": "kaldırıldı",
-        "diffTruncated": "Diff kısaltıldı"
+        "diffTruncated": "Diff kısaltıldı",
+        "diffLabel": "{{path}} için diff"
       }
     },
     "message-search": {

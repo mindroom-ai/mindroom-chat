@@ -754,7 +754,8 @@
         "created": "已创建",
         "updated": "已更新",
         "removed": "已删除",
-        "diffTruncated": "差异已截断"
+        "diffTruncated": "差异已截断",
+        "diffLabel": "{{path}} 的差异"
       }
     },
     "message-search": {

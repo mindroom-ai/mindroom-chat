@@ -754,7 +754,8 @@
         "created": "作成",
         "updated": "更新",
         "removed": "削除",
-        "diffTruncated": "差分は省略されています"
+        "diffTruncated": "差分は省略されています",
+        "diffLabel": "{{path}} の差分"
       }
     },
     "message-search": {

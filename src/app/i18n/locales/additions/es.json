@@ -776,7 +776,8 @@
         "created": "creado",
         "updated": "actualizado",
         "removed": "eliminado",
-        "diffTruncated": "Diff truncado"
+        "diffTruncated": "Diff truncado",
+        "diffLabel": "Diff de {{path}}"
       }
     },
     "message-search": {

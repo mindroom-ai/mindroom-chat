@@ -754,7 +754,8 @@
         "created": "dibuat",
         "updated": "diperbarui",
         "removed": "dihapus",
-        "diffTruncated": "Diff dipotong"
+        "diffTruncated": "Diff dipotong",
+        "diffLabel": "Diff {{path}}"
       }
     },
     "message-search": {

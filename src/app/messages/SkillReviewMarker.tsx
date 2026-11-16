@@ -158,7 +158,16 @@ export function SkillReviewMarker({ review }: { review: SkillReviewNotice }) {
                 <Counts file={file} />
               </Text>
               {file.diff && (
-                <pre className={css.Diff} dir="ltr">
+                // Safari does not let the keyboard reach a scroll container on its own, so the
+                // named diff is a tab stop (like ScrollableTable).
+                <pre
+                  className={css.Diff}
+                  dir="ltr"
+                  // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+                  tabIndex={0}
+                  role="region"
+                  aria-label={t(`${KEY}.diffLabel`, { path: file.path })}
+                >
                   {file.diff
                     .replace(/\n$/, '')
                     .split('\n')

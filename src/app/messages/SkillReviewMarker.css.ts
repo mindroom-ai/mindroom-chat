@@ -88,11 +88,19 @@ export const Diff = style({
   fontFamily: "'JetBrains Mono', 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace",
   fontSize: toRem(12),
   lineHeight: 1.5,
+  selectors: {
+    '&:focus-visible': {
+      outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
+      outlineOffset: toRem(1),
+    },
+  },
 });
 
 const diffLine = {
   display: 'block',
   minWidth: 'max-content',
+  // An empty line (a final-newline change can leave a bare "+" or "-", or nothing) keeps its height.
+  minHeight: '1.5em',
   paddingInline: config.space.S100,
   whiteSpace: 'pre',
 } as const;
