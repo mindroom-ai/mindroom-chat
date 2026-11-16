@@ -61,7 +61,9 @@ type Glide = { animation: Animation; fromSteps: number };
 // the right and glides back over one sample interval, from wherever a glide still running left it.
 // The glide moves the strip's end inset, not its transform. A transform glide runs on the
 // compositor in a layer as wide as every bar recorded so far, and iOS WebKit draws that layer blank
-// for the whole glide once it is some screens wide, so the bars flickered with every sample.
+// for the whole glide at some widths, so the bars flickered with every sample. In the iOS 27.2
+// simulator 300 bars failed while fewer than 170 or more than 500 did not; which widths fail is
+// unknown on devices, so a narrower layer is no safe way back to a transform.
 const useLiveGlide = (stripRef: RefObject<HTMLDivElement>, sampleCount: number | undefined) => {
   const lastCountRef = useRef(sampleCount);
   const glideRef = useRef<Glide>();
