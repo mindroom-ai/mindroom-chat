@@ -27,13 +27,14 @@ const props = (overrides: Partial<RoomThreadOverviewProps> = {}): RoomThreadOver
 });
 
 let renderer: ReactTestRenderer | undefined;
+let store = createStore();
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
 });
 
 const renderBar = (simple: boolean, overrides: Partial<RoomThreadOverviewProps> = {}) => {
-  const store = createStore();
+  store = createStore();
   store.set(settingsAtom, { ...getSettings(), simpleThreadFilters: simple });
   act(() => {
     renderer = create(
@@ -126,5 +127,38 @@ describe('the Sections switch of the Compact filter bar', () => {
     });
 
     expect(presetLabel()).toBe(unset);
+  });
+
+  it('clears a status token from the search once the search applies without it', () => {
+    renderBar(false, { onToggleThreadSections: noop, threadSections: true });
+    const searchBar = () => {
+      const [bar] =
+        renderer?.root.findAll(
+          (node) => typeof node.type === 'function' && 'searchQuery' in node.props
+        ) ?? [];
+      if (!bar) throw new Error('no search bar');
+      return bar;
+    };
+    act(() => {
+      searchBar().props.onSearchQueryChange('is:resolved');
+    });
+    expect(searchBar().props.searchQuery).toBe('is:resolved');
+
+    // The search applies: Sections keep the hidden filters, so the state comes back as it was.
+    act(() => {
+      renderer?.update(
+        <Provider store={store}>
+          <RoomThreadOverview
+            {...props({
+              onToggleThreadSections: noop,
+              threadSections: true,
+              state: createDefaultThreadFilterState(),
+            })}
+          />
+        </Provider>
+      );
+    });
+
+    expect(searchBar().props.searchQuery).toBe('');
   });
 });

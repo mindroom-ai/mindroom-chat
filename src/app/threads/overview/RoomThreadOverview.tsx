@@ -695,14 +695,18 @@ export function RoomThreadOverview({
   const [searchQueryDraft, setSearchQueryDraft] = useState(canonicalSearchQuery);
   const pendingSearchCanonicalRef = useRef<string>();
 
+  // While Sections are on, a search that applies can leave the query as it was: its resolved or
+  // snoozed tokens do not apply then, so each new state syncs the draft too, not only a new query.
+  const sectionsState = threadSections ? state : undefined;
   useEffect(() => {
+    void sectionsState;
     if (pendingSearchCanonicalRef.current === canonicalSearchQuery) {
       pendingSearchCanonicalRef.current = undefined;
       return;
     }
     pendingSearchCanonicalRef.current = undefined;
     setSearchQueryDraft(canonicalSearchQuery);
-  }, [canonicalSearchQuery]);
+  }, [canonicalSearchQuery, sectionsState]);
   const handleToggleWithPresetClear = useCallback(
     (key: ThreadFilterKey) => {
       setLastAppliedPreset(null);
