@@ -162,11 +162,16 @@ class Scheduler:
 # What a sync saw
 
 
+def joined_room(batch: dict, room: str) -> dict:
+    """The part of a /sync answer about a joined room; {} when it has none."""
+    return ((batch.get("rooms") or {}).get("join") or {}).get(room) or {}
+
+
 def count_sync(batch: dict, room: str, agent_ids: set[str], reply_roots: dict[str, str]) -> dict:
     """The load one /sync answer shows in `room`: live frames, the agents' edits and jobs state writes, and the
     thread roots whose reply ended. `reply_roots` (reply event ID to its thread root) is filled here and kept by
     the caller across answers, since a reply's edits come in later answers than the reply."""
-    joined = ((batch.get("rooms") or {}).get("join") or {}).get(room) or {}
+    joined = joined_room(batch, room)
     counts: dict = {"frames": 0, "edits": 0, "jobs": 0, "finished": []}
     for event in (joined.get("ephemeral") or {}).get("events") or []:
         if event.get("type") == LIVE_FRAME:
@@ -242,9 +247,7 @@ class Lobby:
         if not 200 <= status < 300 or "next_batch" not in batch:
             time.sleep(0.5)
             batch = {}
-        elif self._since and ((batch.get("rooms") or {}).get("join") or {}).get(self.room, {}).get("timeline", {}).get(
-            "limited"
-        ):
+        elif self._since and (joined_room(batch, self.room).get("timeline") or {}).get("limited"):
             log("a /sync answer left events out (over 100 since the last one); a reply's end may go unseen")
         self._since = batch.get("next_batch", self._since)
         return count_sync(batch, self.room, self.agents, self.reply_roots)
