@@ -964,6 +964,10 @@
     "pickDateTime": "Выбрать дату и время",
     "pastTime": "Выберите время в будущем"
   },
+  "threadFork": {
+    "forkedFrom": "Ответвление от {{title}}",
+    "openInOriginalThread": "Открыть в исходной ветке"
+  },
   "activity": {
     "title": "Активность",
     "unreadOnly": "Непрочитанные",

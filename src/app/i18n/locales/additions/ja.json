@@ -919,6 +919,10 @@
     "pickDateTime": "日時を選択",
     "pastTime": "未来の日時を選んでください"
   },
+  "threadFork": {
+    "forkedFrom": "{{title}} から分岐",
+    "openInOriginalThread": "元のスレッドで開く"
+  },
   "activity": {
     "title": "アクティビティ",
     "unreadOnly": "未読",

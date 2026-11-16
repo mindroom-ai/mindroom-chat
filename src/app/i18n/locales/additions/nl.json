@@ -934,6 +934,10 @@
     "pickDateTime": "Datum en tijd kiezen",
     "pastTime": "Kies een tijd in de toekomst"
   },
+  "threadFork": {
+    "forkedFrom": "Afgesplitst van {{title}}",
+    "openInOriginalThread": "Openen in oorspronkelijke thread"
+  },
   "activity": {
     "title": "Activiteit",
     "unreadOnly": "Ongelezen",

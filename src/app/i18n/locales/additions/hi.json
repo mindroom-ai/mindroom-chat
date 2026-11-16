@@ -934,6 +934,10 @@
     "pickDateTime": "तारीख और समय चुनें",
     "pastTime": "भविष्य का समय चुनें"
   },
+  "threadFork": {
+    "forkedFrom": "{{title}} से शाखा बनाई गई",
+    "openInOriginalThread": "मूल थ्रेड में खोलें"
+  },
   "activity": {
     "title": "गतिविधि",
     "unreadOnly": "अपठित",

@@ -85,6 +85,7 @@ import { shouldShowLinkFavicons } from '../../rich-text/linkFaviconPolicy';
 import { renderThreadBadge } from '../ThreadBadge';
 import { buildRoomTimelineReplyDraft } from '../roomTimelineReplyDraft';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
+import { ownThreadId } from '../../event-store/threads/threadFork';
 import { canPinRoomEvents } from '../../event-store/threads/threadPinning';
 import { getLinkedTimelines } from '../../event-store/timeline/linkedTimelines';
 import { genuineReplyEventId } from '../timelineRowFold';
@@ -175,12 +176,15 @@ function TimelineReactions({
   event,
   relations,
   failed,
+  canSendReaction,
   onReactionToggle,
 }: {
   room: Room;
   event: MatrixEvent;
   relations: Relations | undefined;
   failed: boolean;
+  /** Off for a row read-only here, whose chips (an agent question's answers too) do not react. */
+  canSendReaction: boolean;
   onReactionToggle: ReactionToggle;
 }) {
   const { t } = useTranslation();
@@ -193,7 +197,7 @@ function TimelineReactions({
           room={room}
           mEventId={eventId}
           targetEvent={event}
-          canSendReaction
+          canSendReaction={canSendReaction}
           relations={relations}
           onReactionToggle={onReactionToggle}
         />
@@ -443,14 +447,25 @@ export const useTimelineMessageFeature = ({
       const kind = getTimelineMessageKind(event.getType());
       if (!kind) return null;
 
-      const editedEvent = getEditedEvent(eventId, event, row.timelineSet);
+      // A fork shows its parent's messages before its own. They stay the parent's: read-only
+      // here, their cards answer in the parent's thread and their reactions are read there. A
+      // parent's root copied from the cache may not know it starts a thread: its ID names it.
+      const prefixThreadId = data.forkPrefixEventIds?.has(eventId)
+        ? ownThreadId(event) ?? eventId
+        : undefined;
+      const readOnly = prefixThreadId !== undefined;
+      const parentTimelineSet = prefixThreadId
+        ? room.getThread(prefixThreadId)?.getUnfilteredTimelineSet()
+        : undefined;
+      const timelineSet = parentTimelineSet ?? row.timelineSet;
+      const editedEvent = getEditedEvent(eventId, event, timelineSet);
       // A newer edit that could not be decrypted leaves this version shown, with a note; a row
       // that shows no readable version says so itself (P2-e2ee-F004).
       const editNotDecrypted =
         kind === 'message' &&
         (!!editedEvent || !event.isDecryptionFailure?.()) &&
-        hasUndecryptedNewerEdit(eventId, event, row.timelineSet, editedEvent);
-      renderedEventsRef.current?.push(...getPendingEdits(eventId, event, row.timelineSet));
+        hasUndecryptedNewerEdit(eventId, event, timelineSet, editedEvent);
+      renderedEventsRef.current?.push(...getPendingEdits(eventId, event, timelineSet));
       const content = (
         kind === 'approval'
           ? getToolApprovalRenderContent(event.getOriginalContent(), editedEvent?.getContent())
@@ -513,7 +528,7 @@ export const useTimelineMessageFeature = ({
       const showFailedActions = failedSend && !(threadId && eventId === threadId);
       // In Bubble layout the reader's own messages, the only ones that fail to send, sit at the end.
       const bubbles = messageLayout === MessageLayout.Bubble;
-      const editable = kind === 'message';
+      const editable = kind === 'message' && !readOnly;
       const msgType = typeof content.msgtype === 'string' ? content.msgtype : '';
       const collapseMode =
         UNFOLDED_MEDIA_MSGTYPES.has(msgType) || kind === 'sticker'
@@ -539,7 +554,8 @@ export const useTimelineMessageFeature = ({
         eventId,
         // Approval cards send their responses to this room and thread.
         roomId: room.roomId,
-        threadId: threadId ?? event.threadRootId,
+        threadId: prefixThreadId ?? threadId ?? event.threadRootId,
+        readOnly,
         displayName: room.getMember?.(event.getSender() ?? '')?.name ?? event.getSender() ?? '',
         msgType,
         eventType: event.getType(),
@@ -555,11 +571,13 @@ export const useTimelineMessageFeature = ({
         htmlReactParserOptions,
         linkifyOpts,
       };
-      const relations = getEventReactions(row.timelineSet, eventId);
+      const relations = getEventReactions(timelineSet, eventId);
       const canDelete =
+        !readOnly &&
         canSendRedaction &&
         !event.isRedacted() &&
         (event.getSender() === userId || canRedactOthers);
+      const canSendReaction = !readOnly && kind !== 'sticker';
       // Room rows show the thread they start under their reactions once it has a reply; a message
       // without one, resolved or not, shows none (Reply in Thread on its toolbar starts one). An
       // open thread shows none, and neither does the classic view, which shows the replies.
@@ -587,8 +605,8 @@ export const useTimelineMessageFeature = ({
             edit={editable && editingEventId === eventId ? true : undefined}
             onEditId={editable ? setEditingEventId : undefined}
             canDelete={canDelete}
-            canSendReaction={kind !== 'sticker'}
-            canPinEvent={canPinEvent}
+            canSendReaction={canSendReaction}
+            canPinEvent={!readOnly && canPinEvent}
             imagePackRooms={imagePackRooms}
             relations={relations}
             reply={
@@ -597,7 +615,7 @@ export const useTimelineMessageFeature = ({
                   room={room}
                   replyEventId={replyEventId}
                   threadRootId={event.threadRootId}
-                  timelineSet={row.timelineSet}
+                  timelineSet={timelineSet}
                   hideThreadIndicator={!!threadId}
                   data-event-id={replyEventId}
                   onClick={data.handleOpenReply}
@@ -619,6 +637,7 @@ export const useTimelineMessageFeature = ({
                     event={event}
                     relations={relations}
                     failed={reactionFailedEventId === eventId}
+                    canSendReaction={canSendReaction}
                     onReactionToggle={toggleReaction}
                   />
                   {threadBadge}
@@ -628,11 +647,18 @@ export const useTimelineMessageFeature = ({
             resolvedMessageContent={content}
             messageLayout={messageLayout}
             messageSpacing={messageSpacing}
-            onReplyClick={handleReplyClick}
+            onReplyClick={readOnly ? undefined : handleReplyClick}
+            onOpenInOriginalThread={
+              prefixThreadId
+                ? () => navigateRoomThread(room.roomId, prefixThreadId, eventId)
+                : undefined
+            }
             onUserClick={handleSenderClick}
             onUsernameClick={handleSenderClick}
-            onReactionToggle={(key, shortcode) =>
-              toggleReaction(eventId, key, shortcode, relations)
+            onReactionToggle={
+              readOnly
+                ? undefined
+                : (key, shortcode) => toggleReaction(eventId, key, shortcode, relations)
             }
             hideReadReceipts={hideActivity}
             hour24Clock={hour24Clock}

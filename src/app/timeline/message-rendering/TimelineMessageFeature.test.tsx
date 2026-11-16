@@ -74,7 +74,11 @@ const rowFor = (event: MatrixEvent, index = 0, previousEventId?: string): Timeli
   highlighted: true,
 });
 
-const mountFeature = async (rows: TimelineMessageRow[], threadId?: string) => {
+const mountFeature = async (
+  rows: TimelineMessageRow[],
+  threadId?: string,
+  forkPrefixEventIds?: ReadonlySet<string>
+) => {
   const { useTimelineMessageFeature } = await import('./useTimelineMessageFeature');
   const room = makeRoom({ liveEvents: [] }) as unknown as Room;
   const editor = createEditor();
@@ -93,6 +97,7 @@ const mountFeature = async (rows: TimelineMessageRow[], threadId?: string) => {
       hiddenEventIds: new Set<string>(),
       markersByEventId: new Map(),
     },
+    forkPrefixEventIds,
   };
   const Harness = () => {
     feature = useTimelineMessageFeature({
@@ -437,28 +442,39 @@ describe("a fork's rows of its parent thread", () => {
     makeEvent(id, { threadRootId: '$parent', ...opts }) as unknown as MatrixEvent;
   // The fork's root before the SDK knows its thread: no thread ID of its own yet.
   const forkRoot = () => makeEvent('$fork') as unknown as MatrixEvent;
+  // The parent's root, copied from the cache: it does not know it starts a thread.
+  const parentRoot = () => makeEvent('$parent') as unknown as MatrixEvent;
   const forkReply = () => makeEvent('$r1', { threadRootId: '$fork' }) as unknown as MatrixEvent;
 
   it('offers no reply, reaction, edit, delete or pin, and opens the message in its thread', async () => {
     const { Message } = await import('../../messages/Message');
+    const rows = [parentRoot(), parentMessage('$p1'), forkRoot(), forkReply()];
     const { renderer } = await mountFeature(
-      [rowFor(parentMessage('$p1'), 0), rowFor(forkRoot(), 1), rowFor(forkReply(), 2)],
-      '$fork'
+      rows.map((event, index) => rowFor(event, index)),
+      '$fork',
+      new Set(['$parent', '$p1'])
     );
 
-    const [prefix, root, reply] = renderer.root.findAllByType(Message).map((node) => node.props);
-    expect(prefix).toMatchObject({ canDelete: false, canSendReaction: false, canPinEvent: false });
-    expect(prefix?.onReplyClick).toBeUndefined();
-    expect(prefix?.onReactionToggle).toBeUndefined();
-    expect(prefix?.onEditId).toBeUndefined();
+    const messages = renderer.root.findAllByType(Message).map((node) => node.props);
+    const [first, second, root, reply] = messages;
+    [first, second].forEach((prefix) => {
+      expect(prefix).toMatchObject({ canDelete: false, canSendReaction: false, canPinEvent: false });
+      expect(prefix?.onReplyClick).toBeUndefined();
+      expect(prefix?.onReactionToggle).toBeUndefined();
+      expect(prefix?.onEditId).toBeUndefined();
+    });
     [root, reply].forEach((own) => {
       expect(own?.onReplyClick).toBeDefined();
       expect(own?.canSendReaction).toBe(true);
       expect(own?.onOpenInOriginalThread).toBeUndefined();
     });
 
-    act(() => prefix?.onOpenInOriginalThread());
-    expect(navigateRoomThreadMock).toHaveBeenCalledWith('!room:example.org', '$parent', '$p1');
+    act(() => first?.onOpenInOriginalThread());
+    act(() => second?.onOpenInOriginalThread());
+    expect(navigateRoomThreadMock.mock.calls).toEqual([
+      ['!room:example.org', '$parent', '$parent'],
+      ['!room:example.org', '$parent', '$p1'],
+    ]);
   });
 
   it("answers its cards in the parent thread and shows an approval and a question without their buttons", async () => {
@@ -481,7 +497,8 @@ describe("a fork's rows of its parent thread", () => {
     });
     const { renderer } = await mountFeature(
       [rowFor(approval, 0), rowFor(question, 1), rowFor(forkReply(), 2)],
-      '$fork'
+      '$fork',
+      new Set(['$approval', '$question'])
     );
 
     expect(

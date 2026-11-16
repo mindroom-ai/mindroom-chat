@@ -949,6 +949,10 @@
     "pickDateTime": "Scegli data e ora",
     "pastTime": "Scegli un orario nel futuro"
   },
+  "threadFork": {
+    "forkedFrom": "Diramato da {{title}}",
+    "openInOriginalThread": "Apri nel thread originale"
+  },
   "activity": {
     "title": "Attività",
     "unreadOnly": "Non letti",

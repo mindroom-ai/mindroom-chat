@@ -919,6 +919,10 @@
     "pickDateTime": "选择日期和时间",
     "pastTime": "请选择将来的时间"
   },
+  "threadFork": {
+    "forkedFrom": "分支自 {{title}}",
+    "openInOriginalThread": "在原讨论串中打开"
+  },
   "activity": {
     "title": "动态",
     "unreadOnly": "未读",

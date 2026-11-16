@@ -994,6 +994,10 @@
     "pickDateTime": "اختيار التاريخ والوقت",
     "pastTime": "اختر وقتًا في المستقبل"
   },
+  "threadFork": {
+    "forkedFrom": "متفرّع من ⁨{{title}}⁩",
+    "openInOriginalThread": "فتح في سلسلة المحادثة الأصلية"
+  },
   "activity": {
     "title": "النشاط",
     "unreadOnly": "غير المقروءة",

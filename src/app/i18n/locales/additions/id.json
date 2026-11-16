@@ -919,6 +919,10 @@
     "pickDateTime": "Pilih tanggal dan waktu",
     "pastTime": "Pilih waktu di masa depan"
   },
+  "threadFork": {
+    "forkedFrom": "Bercabang dari {{title}}",
+    "openInOriginalThread": "Buka di utas asli"
+  },
   "activity": {
     "title": "Aktivitas",
     "unreadOnly": "Belum dibaca",

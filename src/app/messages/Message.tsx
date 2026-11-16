@@ -529,6 +529,8 @@ export type MessageProps = MessageSubject &
     onUsernameClick?: MouseEventHandler<HTMLButtonElement>;
     /** Reply to this message, or start (or continue) its thread. */
     onReplyClick?: (eventId: string, startThread?: boolean) => void;
+    /** A message shown in a thread it does not belong to (a fork's prefix): opens it in its own. */
+    onOpenInOriginalThread?: () => void;
     /** Rooms whose emoji packs the reaction pickers offer. */
     imagePackRooms?: Room[];
     onReactionToggle?: ReactionHandler;
@@ -620,6 +622,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       onUsernameClick,
       // Replying and reacting.
       onReplyClick,
+      onOpenInOriginalThread,
       onReactionToggle,
       resolvedMessageContent,
       children,
@@ -880,6 +883,16 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                     icon={Icons.ThreadPlus}
                     onSelect={() => {
                       onReplyClick(eventId, true);
+                      dismissMenu();
+                    }}
+                  />
+                )}
+                {onOpenInOriginalThread && (
+                  <MenuEntry
+                    label={t('threadFork.openInOriginalThread')}
+                    icon={Icons.Thread}
+                    onSelect={() => {
+                      onOpenInOriginalThread();
                       dismissMenu();
                     }}
                   />

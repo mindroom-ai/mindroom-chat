@@ -949,6 +949,10 @@
     "pickDateTime": "Elegir fecha y hora",
     "pastTime": "Elige una hora en el futuro"
   },
+  "threadFork": {
+    "forkedFrom": "Bifurcado de {{title}}",
+    "openInOriginalThread": "Abrir en el hilo original"
+  },
   "activity": {
     "title": "Actividad",
     "unreadOnly": "Sin leer",

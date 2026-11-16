@@ -934,6 +934,10 @@
     "pickDateTime": "Tarih ve saat seç",
     "pastTime": "Gelecekte bir zaman seçin"
   },
+  "threadFork": {
+    "forkedFrom": "{{title}} konusundan ayrıldı",
+    "openInOriginalThread": "Asıl konuda aç"
+  },
   "activity": {
     "title": "Etkinlik",
     "unreadOnly": "Okunmamış",

@@ -934,6 +934,10 @@
     "pickDateTime": "তারিখ ও সময় বেছে নিন",
     "pastTime": "ভবিষ্যতের একটি সময় বেছে নিন"
   },
+  "threadFork": {
+    "forkedFrom": "{{title}} থেকে শাখা তৈরি",
+    "openInOriginalThread": "মূল থ্রেডে খুলুন"
+  },
   "activity": {
     "title": "কার্যকলাপ",
     "unreadOnly": "অপঠিত",
