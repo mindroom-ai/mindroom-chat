@@ -31,6 +31,7 @@ const plugin = (id: string, headerActions: HeaderAction[]): RegisteredPlugin => 
   roomActions: [],
   messageLinks: [],
   threadCardBadges: [],
+  threadDetails: [],
 });
 
 describe('usePluginHeaderActions', () => {

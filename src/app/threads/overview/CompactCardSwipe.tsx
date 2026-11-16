@@ -142,6 +142,9 @@ export function CompactCardSwipe({
   // anywhere, so the whole document listens for them.
   const finishRef = useLatestRef((commit: boolean) => finish(commit));
   useEffect(() => {
+    if (!enabled) finishRef.current(false);
+  }, [enabled, finishRef]);
+  useEffect(() => {
     const doc = trackRef.current?.ownerDocument;
     if (!doc) return undefined;
     const handleTouchStart = (event: TouchEvent) => {
