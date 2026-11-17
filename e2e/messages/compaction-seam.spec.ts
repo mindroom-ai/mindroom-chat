@@ -416,7 +416,6 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
     ],
     ['worked', '20 calls', 'seam', '20 calls', 'text', 'answer']
   );
-  await shot(page, seamsIn(worked), 'desktop-dark-worked-open');
   await workedRow.click();
   await expect(seamsIn(worked)).toHaveCount(0);
 
@@ -463,6 +462,10 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
       await shot(page, failedSeam, `${name}-6-failed-card`);
       await page.mouse.move(0, 0);
       await shot(page, seamsIn(page.locator('[data-message-item]').last()), `${name}-4-pre-turn`);
+      const fold = replyWith(page, WORKED).getByRole('button', { name: /^Worked/ });
+      await fold.click();
+      await shot(page, seamsIn(replyWith(page, WORKED)), `${name}-3-worked-open`);
+      await fold.click();
     }
   }
 });
