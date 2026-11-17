@@ -1,5 +1,6 @@
 import { createEditor, type Descendant } from 'slate';
 import { describe, expect, it } from 'vitest';
+import { createMarkdownDecorate } from '../../editor/markdownDecorations';
 import { createMentionElement, withInlineElements } from '../../editor/utils';
 import { getEditedContent, getEditorDocument, isUnchanged } from './MessageEditor';
 
@@ -38,6 +39,41 @@ describe('the content of an edit', () => {
     expect(getEditedContent(bold, true, 'm.text', ME)).toMatchObject({
       format: 'org.matrix.custom.html',
       formatted_body: 'now <strong data-md="**">bold</strong>',
+    });
+  });
+
+  it('saves Markdown after /plain, as its styling in the edit box shows it', () => {
+    const editor = editorWith([{ type: 'paragraph', children: [{ text: '/plain **bold**' }] }]);
+    expect(getEditedContent(editor, true, 'm.text', ME)).toMatchObject({
+      formatted_body: '/plain <strong data-md="**">bold</strong>',
+    });
+    // The edit box styles without reading commands, as `MessageEditor` passes no `markdownCommands`.
+    expect(createMarkdownDecorate()([editor, []])).toContainEqual(
+      expect.objectContaining({ bold: true })
+    );
+  });
+
+  it('styles nothing in a line holding a line break, which is saved split at it', () => {
+    const editor = editorWith(
+      getEditorDocument(
+        {
+          msgtype: 'm.text',
+          body: 'first\nsecond',
+          format: 'org.matrix.custom.html',
+          formatted_body: '<strong>first\nsecond</strong>',
+        },
+        true
+      )
+    );
+    expect(editor.children).toEqual([
+      { type: 'paragraph', children: [{ text: '**first\nsecond**' }] },
+    ]);
+    expect(createMarkdownDecorate()([editor, []])).toEqual([]);
+    // Saved as before: the markers stay text, so no HTML is needed.
+    expect(getEditedContent(editor, true, 'm.text', ME)).toEqual({
+      msgtype: 'm.text',
+      body: '**first\nsecond**',
+      'm.mentions': {},
     });
   });
 
