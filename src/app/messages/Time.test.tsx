@@ -107,4 +107,23 @@ describe('Time', () => {
     expect(time.textContent).toBe('10:04');
     expect(time.title).toBe('5 Mar 2026 10:04:12');
   });
+
+  it('shows only the rest form in compact rows, which never unfold', () => {
+    const timing = { startTs: START, endTs: at(10, 11, 24), streaming: false };
+    const { container } = render(<Time ts={START} timing={timing} compact hour24Clock />);
+    const time = timeOf(container);
+    expect(time.textContent).toBe('10:04\u00a0·\u00a07m');
+    expect(folded(container)).toEqual([]);
+    expect(time.title).toContain('Finished 5 Mar 2026 10:11:24');
+    fireEvent.click(time);
+    expect(time.hasAttribute('data-open')).toBe(false);
+  });
+
+  it('keeps the dot and the live short duration of a streaming compact row', () => {
+    vi.setSystemTime(START + 134_000);
+    const timing = { startTs: START, streaming: true, revisionTs: START };
+    const { container } = render(<Time ts={START} timing={timing} compact hour24Clock />);
+    expect(container.querySelector('[data-reply-time-live]')).not.toBeNull();
+    expect(timeOf(container).textContent).toBe('10:04\u00a0·\u00a02m');
+  });
 });

@@ -19,6 +19,7 @@ type TimeProps = {
   /**
    * An agent reply's timing: the time adds the reply's duration ("10:04 · 7m"), and unfolds its
    * finish and exact duration ("10:04 – 10:11 · 7m 12s") on hover, keyboard focus or a tap.
+   * Compact rows keep the short form: unfolding would push their text aside.
    */
   timing?: ReplyTiming;
 };
@@ -109,16 +110,20 @@ export const Time = as<'time', TimeProps>(
         dateTime={new Date(ts).toISOString()}
         title={title}
         className={classNames(css.ReplyTime, className)}
-        tabIndex={0}
-        data-open={open || undefined}
-        onClick={() => setOpen((shown) => !shown)}
-        onBlur={() => setOpen(false)}
+        {...(compact
+          ? {}
+          : {
+              tabIndex: 0,
+              'data-open': open || undefined,
+              onClick: () => setOpen((shown) => !shown),
+              onBlur: () => setOpen(false),
+            })}
         {...props}
         ref={ref}
       >
         {streaming && <span className={css.Dot} data-reply-time-live="" aria-hidden />}
         {label}
-        {end !== undefined && (
+        {!compact && end !== undefined && (
           <Fold>
             {'\u00a0–\u00a0'}
             <span className={live}>{end}</span>
@@ -126,7 +131,7 @@ export const Time = as<'time', TimeProps>(
         )}
         {'\u00a0·\u00a0'}
         <span className={live}>{short}</span>
-        {tail && <Fold className={live}>{tail}</Fold>}
+        {!compact && tail && <Fold className={live}>{tail}</Fold>}
       </Text>
     );
   }

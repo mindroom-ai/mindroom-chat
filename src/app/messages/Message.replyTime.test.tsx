@@ -84,13 +84,16 @@ afterEach(() => {
 describe("an agent reply's header time", () => {
   const timing = { startTs: START, endTs: START + 432_000, streaming: false };
 
-  it.each([MessageLayout.Modern, MessageLayout.Compact])(
-    'shows the duration after the start in the %s layout',
-    async (layout) => {
-      const time = await renderMessage(layout, timing);
-      expect(time.textContent).toBe('10:04\u00a0–\u00a010:11\u00a0·\u00a07m\u00a012s');
-    }
-  );
+  it('shows the duration after the start, with the finish to unfold', async () => {
+    const time = await renderMessage(MessageLayout.Modern, timing);
+    expect(time.textContent).toBe('10:04\u00a0–\u00a010:11\u00a0·\u00a07m\u00a012s');
+  });
+
+  it('shows only the start and the short duration in the Compact layout', async () => {
+    const time = await renderMessage(MessageLayout.Compact, timing);
+    expect(time.textContent).toBe('10:04\u00a0·\u00a07m');
+    expect(time.title).toContain('Duration 7m\u00a012s');
+  });
 
   it('shows only the start of a message without a timing', async () => {
     const time = await renderMessage(MessageLayout.Modern);
