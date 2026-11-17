@@ -141,6 +141,13 @@ vi.mock('../../threads/ThreadLiveStatusRows', async () => {
       reactModule.createElement('span', { 'data-live-status': shown.threadRootId }),
   };
 });
+vi.mock('./ThreadNavPluginDetails', async () => {
+  const reactModule = await import('react');
+  return {
+    ThreadNavPluginDetails: ({ threadId }: { threadId: string }) =>
+      reactModule.createElement('span', { 'data-plugin-details': threadId }),
+  };
+});
 vi.mock('../../i18n/useRelativeTime', () => ({ useRelativeTime: () => '1m ago' }));
 vi.mock('../../threads/overview/compactThreadCardViewModel', () => ({
   buildCompactThreadCardViewModelFromRecord: buildViewModelMock,
@@ -330,6 +337,16 @@ describe('ThreadNavItem', () => {
     renderItem();
     const grid = renderer!.root.findByProps({ className: 'EntryTooltipDetails' });
     expect(grid.findByProps({ 'data-live-status': '$thread' })).toBeDefined();
+  });
+
+  it("ends the hover card with the plugins' details of the thread, after its rows", () => {
+    renderItem();
+    const grid = renderer!.root.findByProps({ className: 'EntryTooltipDetails' });
+    const details = renderer!.root.findByProps({ 'data-plugin-details': '$thread' });
+    expect(grid.findAllByProps({ 'data-plugin-details': '$thread' })).toHaveLength(0);
+    const card = grid.parent!.children;
+    expect(details.parent!.props).toMatchObject({ room, threadId: '$thread' });
+    expect(card.indexOf(details.parent!)).toBe(card.indexOf(grid) + 1);
   });
 
   it('pins without opening the thread', async () => {

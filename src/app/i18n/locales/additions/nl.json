@@ -87,7 +87,9 @@
       "pack": "Zelfde als pakket"
     },
     "imageViewer": {
-      "close": "Sluiten"
+      "close": "Sluiten",
+      "previous": "Vorige afbeelding",
+      "next": "Volgende afbeelding"
     },
     "inviteUserPrompt": {
       "close": "Sluiten",
@@ -158,6 +160,7 @@
     "appUpdate": {
       "available": "Er is een nieuwe versie van MindRoom beschikbaar.",
       "reload": "Opnieuw laden",
+      "updating": "Bijwerken…",
       "dismiss": "Sluiten",
       "reloadToUse": "Laad opnieuw om die te gebruiken."
     },
@@ -952,7 +955,11 @@
       "moveRoomDown": "Geselecteerde kamer of space omlaag verplaatsen",
       "members": "Leden tonen of verbergen",
       "focusComposer": "Als gelezen markeren en naar het invoerveld gaan",
-      "resolveThread": "Open thread oplossen of heropenen",
+      "previousThread": "Vorige thread selecteren",
+      "nextThread": "Volgende thread selecteren",
+      "openThread": "Naar de threads, daarna de geselecteerde openen",
+      "leaveThread": "Open thread verlaten, daarna de threads",
+      "resolveThread": "Open of geselecteerde thread oplossen of heropenen",
       "newLine": "Nieuwe regel",
       "editLast": "Je laatste bericht bewerken (in een leeg invoerveld)",
       "inlineCode": "Inline code",

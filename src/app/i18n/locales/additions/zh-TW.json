@@ -84,7 +84,9 @@
       "pack": "與套件相同"
     },
     "imageViewer": {
-      "close": "關閉"
+      "close": "關閉",
+      "previous": "上一張圖片",
+      "next": "下一張圖片"
     },
     "inviteUserPrompt": {
       "close": "關閉",
@@ -155,6 +157,7 @@
     "appUpdate": {
       "available": "MindRoom 有新版本可用。",
       "reload": "重新載入",
+      "updating": "正在更新…",
       "dismiss": "關閉",
       "reloadToUse": "重新載入即可使用。"
     },
@@ -935,7 +938,11 @@
       "moveRoomDown": "將選取的房間或空間下移",
       "members": "顯示或隱藏成員",
       "focusComposer": "標示為已讀並前往輸入框",
-      "resolveThread": "解決或重新開啟目前的討論串",
+      "previousThread": "選取上一個討論串",
+      "nextThread": "選取下一個討論串",
+      "openThread": "前往討論串列表，再開啟選取的討論串",
+      "leaveThread": "離開目前的討論串，再離開討論串列表",
+      "resolveThread": "解決或重新開啟目前或選取的討論串",
       "newLine": "換行",
       "editLast": "編輯你的最後一則訊息（輸入框為空時）",
       "inlineCode": "行內程式碼",
