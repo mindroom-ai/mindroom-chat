@@ -262,6 +262,7 @@ test('a thread opened for the first time paints its replies once, its long reply
   const later = frames.slice(painted + 1);
   // A row the first frame did not have, in view before one it had, came in above it. A row the
   // list mounts beside its view once the thread shows is not in view: the reader sees none of it.
+  // The next check fails on such a frame too; this one says what happened.
   const insertedAbove = later.filter((frame) =>
     frame.ids.some(
       (id, index) =>

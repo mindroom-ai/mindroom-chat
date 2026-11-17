@@ -36,8 +36,8 @@ const atEndOf = (scrollArea: HTMLElement): boolean =>
  * end, and painted then they would jump there a moment later. While the rows are hidden, every
  * commit leaves the view at the end of its scroll range, and the rows show once a commit rests
  * there with the list's last tile mounted, at the sizes measured so far, and with rows up to the
- * top of the view (or the thread's first row): a list measured shorter than estimated leaves the
- * top of the view empty until the rows above mount. Checked after every commit, after the pins.
+ * top of the view, below the sticky header (or the thread's first row): a list measured shorter
+ * than estimated leaves the top of the view empty until the rows above mount. Checked after every commit, after the pins.
  * The rows also show when the reader takes over, whose scroll then stands, or after
  * THREAD_REVEAL_AFTER_MS. Once shown, they stay shown for the view. The last tile is the last
  * row's that is not an edit or a reaction: those have no tile once they measure to no height
@@ -64,10 +64,14 @@ export const useThreadOpeningReveal = ({
     if (!atEndOf(scrollArea)) scrollToBottom(scrollArea);
     const lastTileIndex = rows.findLastIndex(isTile);
     const firstTile = scrollArea.querySelector('[data-index]');
+    // The reader's view starts below the sticky header (scroll-padding-top).
+    const viewTop =
+      scrollArea.getBoundingClientRect().top +
+      (Number.parseFloat(getComputedStyle(scrollArea).scrollPaddingTop) || 0);
     const filled =
       !!firstTile &&
       (Number(firstTile.getAttribute('data-index')) <= rows.findIndex(isTile) ||
-        firstTile.getBoundingClientRect().top <= scrollArea.getBoundingClientRect().top + 1);
+        firstTile.getBoundingClientRect().top <= viewTop + 1);
     if (
       lastTileIndex >= 0 &&
       atEndOf(scrollArea) &&

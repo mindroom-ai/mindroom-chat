@@ -386,7 +386,8 @@ export const useTimelineScrollLedgerController = ({
   const virtualizerRef = useRef(virtualizer);
   // virtual-core scrolled the scroll area it was just given to the rows' estimated end, where
   // the browser stopped at the real one, and hears of that position only with the scroll event.
-  // The rows mount for it now. After virtual-core's own layout effect, which does the scroll.
+  // It takes the position now, so the render the scroll area's first size starts in this commit
+  // mounts the rows for it. After virtual-core's own layout effect, which does the scroll.
   const startedAtEndRef = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => {
     const scrollElement = getScrollElement();

@@ -10,9 +10,12 @@ type Geometry = {
   scrollTop: number;
   /** The virtual list's mounted rows, by index, first to last. */
   mounted?: number[];
-  /** The first mounted row's top, from the top of the view: above it unless the test says. */
+  /** The first mounted row's top, from the top of the scroll area: above it unless the test says. */
   firstTop?: number;
 };
+
+/** The height of the sticky header over the top of the scroll area (its scroll-padding-top). */
+const header = { px: 0 };
 
 /** Where the hook scrolled the scroll areas of a test, in order. */
 const scrolledTo: number[] = [];
@@ -94,12 +97,17 @@ describe('useThreadOpeningReveal', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     scrolledTo.length = 0;
+    header.px = 0;
+    vi.spyOn(window, 'getComputedStyle').mockImplementation(
+      () => ({ scrollPaddingTop: `${header.px}px` } as CSSStyleDeclaration)
+    );
   });
 
   afterEach(() => {
     act(() => renderer?.unmount());
     renderer = undefined;
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('hides the rows of a thread opening at its newest reply until they rest at the end', () => {
@@ -141,6 +149,13 @@ describe('useThreadOpeningReveal', () => {
     expect(shown.hidden).toBe(true);
 
     render({ geometry: { ...AT_END, mounted: [9, 20], firstTop: -30 } });
+    expect(shown.hidden).toBe(false);
+  });
+
+  it('takes the view to start below the sticky header', () => {
+    // The first mounted row starts 60 px below the scroll area's top, under a header of 90 px.
+    header.px = 90;
+    render({ geometry: { ...AT_END, mounted: [14, 20], firstTop: 60 } });
     expect(shown.hidden).toBe(false);
   });
 
