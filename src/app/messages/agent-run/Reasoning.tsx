@@ -24,13 +24,13 @@ import { revealDirectionControls } from '../../ui/directional';
 import { OutlineComet } from './OutlineComet';
 import { Outline } from './OutlineComet.css';
 import {
-  isLastReasoningSegmentBlank,
+  lastRecordedReasoningSegment,
   placeReasoningSegments,
   readReasoningSegments,
 } from './reasoningSegments';
 import { ReasoningSegmentsContext, ToolCallsCogContext } from './toolCallStatus';
 import { CogRipple } from './ToolCallsFold.css';
-import { getRenderedToolRefs } from './toolRefDom';
+import { countToolRefIcons, getRenderedToolRefs } from './toolRefDom';
 import * as css from './Reasoning.css';
 
 /** Final reasoning the runtime stores on a finished reply. */
@@ -265,12 +265,10 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   // The comet laps while the live reasoning comes or grows, and a little after: not when a reply
   // that has some already comes into view.
   const thinking = useChangedRecently(live, THINKING_GLOW_MS) && live !== undefined;
-  // The model is writing its last segment from when the live reasoning comes or grows on screen
-  // until the reply moves past it: the body it showed then changes, with a tool call or with text.
-  // A pause in the reasoning changes neither, so the segment stays through it.
-  const body = html ?? content.body;
-  const [grew, setGrew] = useState({ live, body, seen: false });
-  if (grew.live !== live) setGrew({ live, body, seen: live !== undefined });
+  // The body as it was when the live reasoning last came or grew on screen.
+  const { body } = content;
+  const [grew, setGrew] = useState({ live, html, body, seen: false });
+  if (grew.live !== live) setGrew({ live, html, body, seen: live !== undefined });
 
   // The bulb starts closed on every reply, as the cog does, and stays as the reader left it when
   // the reply finishes.
@@ -290,23 +288,40 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
     () => (text === undefined ? [] : readReasoningSegments(text, recorded)),
     [text, recorded]
   );
-  // None while the segment the model began has no text yet: the one before it has ended.
-  const writing =
-    live !== undefined &&
-    grew.seen &&
-    Object.is(grew.body, body) &&
-    !isLastReasoningSegmentBlank(live, recorded);
+  // The tool markers that render as runs of calls, as the body shows them. They place the segments
+  // an open bulb shows after calls, and end the segment the model writes. The body is read for them
+  // only then, and again only when its count of marker icons changes, as a new call's does: not for
+  // each frame of answer text.
+  const last = live === undefined ? undefined : lastRecordedReasoningSegment(live, recorded);
+  const icons =
+    html !== undefined &&
+    ((open && segments.some(({ afterTool }) => afterTool > 0)) || (grew.seen && last))
+      ? countToolRefIcons(html)
+      : 0;
+  const [rendered, setRendered] = useState<{ icons: number; markers: readonly number[] }>({
+    icons: 0,
+    markers: [],
+  });
+  if (rendered.icons !== icons) {
+    setRendered({
+      icons,
+      markers:
+        icons > 0 && html !== undefined
+          ? getRenderedToolRefs(sanitizeCustomHtml(html)).toolBlocks.map(({ index }) => index)
+          : [],
+    });
+  }
+  const { markers } = rendered;
+  // The model is writing its last segment from when the live reasoning comes or grows on screen
+  // until the reply moves past it. A tool call that began after the segment did ends it, also when
+  // its marker came in the frame of the segment's last piece, and so does a segment that has begun
+  // without text yet. Answer text ends it too: the body is then other text and other HTML than when
+  // the reasoning grew. One of the two alone is a durable write of the same body (a checkpoint
+  // names a code block's language, and spells a mention out), and a pause changes neither.
+  const movedOn = grew.body !== body && (grew.html !== html || html === undefined);
+  const ended = !!last && (last.blank || markers.some((marker) => marker > last.afterTool));
+  const writing = live !== undefined && grew.seen && !movedOn && !ended;
   const liveIndex = writing ? segments.length - 1 : undefined;
-  // The markers that render as runs of calls, as the body shows them; read only once a segment
-  // that happened after a call shows.
-  const placed = (open || writing) && segments.some(({ afterTool }) => afterTool > 0);
-  const markers = useMemo(
-    () =>
-      placed && html !== undefined
-        ? getRenderedToolRefs(sanitizeCustomHtml(html)).toolBlocks.map(({ index }) => index)
-        : [],
-    [placed, html]
-  );
   const placement = useMemo(() => placeReasoningSegments(segments, markers), [segments, markers]);
   const reasoning = useMemo(
     () => ({ segments, placement, open, hide, liveIndex, htmlReactParserOptions }),

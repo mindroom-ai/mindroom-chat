@@ -715,15 +715,17 @@ export const useToolTraceMarkerParserOptions = (
   const hasMarkers = contentHasMarkerCandidate(content);
   const toolTrace = content[MINDROOM_TOOL_TRACE_KEY];
   // The markers that reasoning shows after (withReasoning in Reasoning.tsx), where a run of calls
-  // ends so that the thinking between two calls shows between them; none while none shows, and
-  // runs then group as they do without reasoning. As text, which stays the same while they do.
+  // ends so that the thinking between two calls shows between them; none while none shows after a
+  // call, and runs then group as they do without reasoning. As text, which stays the same while
+  // they do.
   const reasoning = useContext(ReasoningSegmentsContext);
   const splitAfterKey = reasoning
     ? [...reasoning.placement]
         .filter(
-          ([, indices]) =>
-            reasoning.open ||
-            (reasoning.liveIndex !== undefined && indices.includes(reasoning.liveIndex))
+          ([anchor, indices]) =>
+            anchor > 0 &&
+            (reasoning.open ||
+              (reasoning.liveIndex !== undefined && indices.includes(reasoning.liveIndex)))
         )
         .map(([anchor]) => anchor)
         .join()

@@ -493,6 +493,21 @@ describe('MindroomReasoning', () => {
         (node) => node.type === 'button' && node.props.className === 'ReasoningCollapseEnd'
       );
 
+    // How often the body was parsed: RenderBody sanitizes it with the link schemes.
+    const bodyParses = () =>
+      vi.mocked(sanitizeCustomHtml).mock.calls.filter((call) => call.length > 1).length;
+
+    it('does not parse the body again when the bulb shows segments at the top only', async () => {
+      const root = render(reply(undefined));
+      const parses = bodyParses();
+      expect(parses).toBeGreaterThan(0);
+
+      await act(() => header(root).props.onClick());
+
+      expect(segmentTexts(root)).toHaveLength(1);
+      expect(bodyParses()).toBe(parses);
+    });
+
     it('shows no segment under a closed bulb, whose label keeps the whole time', () => {
       const root = render(reply(SEGMENTS));
 
@@ -642,9 +657,6 @@ describe('MindroomReasoning', () => {
 
       const comet = (root: ReturnType<typeof render>) =>
         root.find((node) => node.props.className === 'ReasoningBulbIcon').props['data-thinking'];
-      // How often the body was parsed: RenderBody sanitizes it with the link schemes.
-      const bodyParses = () =>
-        vi.mocked(sanitizeCustomHtml).mock.calls.filter((call) => call.length > 1).length;
 
       it('keeps the segment being written open while the model pauses, without parsing the body again', () => {
         vi.useFakeTimers();
@@ -670,19 +682,24 @@ describe('MindroomReasoning', () => {
         expect(bodyParses()).toBe(parses);
       });
 
+      /** The streaming reply, gone on with more text and HTML after its tool call. */
+      const goneOn = (reasoning: string, text: string, html: string) => {
+        const content = streaming(reasoning, LIVE_SEGMENTS);
+        return {
+          ...content,
+          body: `${content.body}${text}`,
+          formatted_body: `${content.formatted_body}${html}`,
+        };
+      };
+
       it.each([
-        ['its answer', '<p>The cache was stale.</p>'],
-        ['another tool call', marker('grep', 2)],
-      ])('hides the segment into the bulb once the reply goes on with %s', (_name, next) => {
+        ['its answer', '\n\nThe cache was stale.', '<p>The cache was stale.</p>'],
+        ['another tool call', '\n\n🔧 `grep` [2]', marker('grep', 2)],
+      ])('hides the segment into the bulb once the reply goes on with %s', (_name, body, html) => {
         vi.useFakeTimers();
         const root = renderThinking(streaming(twoThoughts, LIVE_SEGMENTS));
-        const content = streaming(twoThoughts, LIVE_SEGMENTS);
 
-        act(() =>
-          renderer?.update(
-            element({ ...content, formatted_body: `${content.formatted_body}${next}` })
-          )
-        );
+        act(() => renderer?.update(element(goneOn(twoThoughts, body, html))));
 
         expect(segmentTexts(root)).toEqual([]);
         expect(text(header(root))).toBe('Thinking');
@@ -691,6 +708,85 @@ describe('MindroomReasoning', () => {
           vi.advanceTimersByTime(5000);
         });
         expect(segmentTexts(root)).toEqual([]);
+      });
+
+      it('hides the segment when one frame brings its last piece and the tool call after it', () => {
+        const root = renderThinking(streaming(twoThoughts.slice(0, -6), LIVE_SEGMENTS));
+        expect(segmentTexts(root)).toEqual(['ThinkingThe cache is']);
+        const pending = '<p>🔧 <code>grep</code> [2] ⏳</p>';
+
+        act(() => renderer?.update(element(goneOn(twoThoughts, '\n\n🔧 `grep` [2] ⏳', pending))));
+
+        // The call began after the thought did, so the thought has ended, while the call runs too.
+        expect(segmentTexts(root)).toEqual([]);
+
+        act(() =>
+          renderer?.update(element(goneOn(twoThoughts, '\n\n🔧 `grep` [2]', marker('grep', 2))))
+        );
+
+        expect(segmentTexts(root)).toEqual([]);
+      });
+
+      const code = (attributes: string, text = '') =>
+        goneOn(twoThoughts, text, `<pre><code${attributes}>x = 1\n</code></pre>`);
+
+      it.each([
+        // The durable write names the language of the code, which the live Markdown did not.
+        ['the same text as other HTML', code(''), code(' class="language-python"')],
+        // A mention that the live Markdown spells out.
+        ['the same HTML with other text', code('', ' @helper'), code('', ' Helper')],
+      ])('keeps the segment when a checkpoint writes %s', (_name, live, checkpoint) => {
+        const root = renderThinking(live);
+
+        act(() => renderer?.update(element(checkpoint)));
+
+        expect(segmentTexts(root)).toEqual(['ThinkingThe cache is stale.']);
+      });
+
+      it('shows the live reasoning of a backend that records no segments, whatever calls ran', () => {
+        const root = renderThinking(streaming(twoThoughts, undefined));
+
+        expect(segmentTexts(root)).toEqual(['ThinkingPlan the search.The cache is stale.']);
+      });
+
+      it('reads the tool markers of an open reply again only when a call comes', async () => {
+        const root = renderThinking(streaming(twoThoughts, LIVE_SEGMENTS));
+        await act(() => header(root).props.onClick());
+        // The body sanitized without the link schemes, as the placement reads its markers.
+        const markerReads = () =>
+          vi
+            .mocked(sanitizeCustomHtml)
+            .mock.calls.filter((call) => call.length === 1 && call[0].includes('<p>Reading.</p>'))
+            .length;
+        const reads = markerReads();
+        expect(reads).toBeGreaterThan(0);
+
+        act(() => renderer?.update(element(goneOn(twoThoughts, '\n\nStale.', '<p>Stale.</p>'))));
+        act(() =>
+          renderer?.update(element(goneOn(twoThoughts, '\n\nStale. Yes.', '<p>Stale. Yes.</p>')))
+        );
+
+        expect(markerReads()).toBe(reads);
+
+        act(() =>
+          renderer?.update(
+            element(
+              goneOn(
+                twoThoughts,
+                '\n\nStale. Yes.\n\n🔧 `grep` [2]',
+                `<p>Stale. Yes.</p>${marker('grep', 2)}`
+              )
+            )
+          )
+        );
+
+        expect(markerReads()).toBe(reads + 1);
+        // The thought after the first call still sits between the two runs.
+        const order = ['read_file', 'The cache is stale.', 'Stale. Yes.', 'grep'].map((part) =>
+          text(root).indexOf(part)
+        );
+        expect(order).not.toContain(-1);
+        expect(order).toEqual([...order].sort((x, y) => x - y));
       });
     });
   });

@@ -14,7 +14,7 @@ import { getLiveReplyStore, LIVE_REPLY_FRESHNESS_MS, type LiveReplyEntry } from 
 export const LIVE_CHECKPOINT_KEY = 'io.mindroom.live_checkpoint';
 /** Worker warm-up lines, shown below the body: from live frames or a durable progress edit. */
 export const LIVE_ACTIVITY_KEY = 'io.mindroom.live_activity';
-/** Live content only: the model reasoning so far, shown above the body. */
+/** Live content only: the model reasoning so far, which the reply's bulb shows in segments. */
 export const LIVE_REASONING_KEY = 'io.mindroom.live_reasoning';
 /** Live content only: where each reasoning segment starts, as `LiveDocs.segments`. */
 export const LIVE_REASONING_SEGMENTS_KEY = 'io.mindroom.live_reasoning_segments';

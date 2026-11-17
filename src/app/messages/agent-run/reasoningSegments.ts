@@ -54,13 +54,16 @@ export const readReasoningSegments = (text: string, segments: unknown): Reasonin
 };
 
 /**
- * Whether the last recorded segment has no text yet: the model began it, and
- * `readReasoningSegments` leaves it out until its text comes. False for segments the reader does
- * not follow.
+ * The segment the model began last, as recorded: the visible tool calls started before it, and
+ * whether it has no text yet (`readReasoningSegments` leaves it out until its text comes).
+ * Undefined for segments the reader does not follow.
  */
-export const isLastReasoningSegmentBlank = (text: string, segments: unknown): boolean => {
+export const lastRecordedReasoningSegment = (
+  text: string,
+  segments: unknown
+): { afterTool: number; blank: boolean } | undefined => {
   const last = parseSegments(segments, text.length)?.at(-1);
-  return last !== undefined && text.slice(last.start).trim() === '';
+  return last && { afterTool: last.afterTool, blank: text.slice(last.start).trim() === '' };
 };
 
 /**

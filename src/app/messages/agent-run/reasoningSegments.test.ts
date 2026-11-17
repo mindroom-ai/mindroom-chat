@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  isLastReasoningSegmentBlank,
+  lastRecordedReasoningSegment,
   placeReasoningSegments,
   readReasoningSegments,
 } from './reasoningSegments';
@@ -133,32 +133,41 @@ describe('readReasoningSegments', () => {
   });
 });
 
-describe('isLastReasoningSegmentBlank', () => {
+describe('lastRecordedReasoningSegment', () => {
   // The second segment starts inside the separator, as one whose first piece is blank does.
   const segments = [
     { start: 0, after_tool: 0 },
-    { start: 6, after_tool: 1 },
+    { start: 6, after_tool: 2 },
   ];
 
-  it('is true while the last segment has begun without text', () => {
-    expect(isLastReasoningSegmentBlank('first\n\n', segments)).toBe(true);
-    expect(isLastReasoningSegmentBlank('first\n\n \n', segments)).toBe(true);
+  it('is blank while the last segment has begun without text', () => {
+    expect(lastRecordedReasoningSegment('first\n\n', segments)).toEqual({
+      afterTool: 2,
+      blank: true,
+    });
+    expect(lastRecordedReasoningSegment('first\n\n \n', segments)?.blank).toBe(true);
   });
 
-  it('is false once the last segment has text', () => {
-    expect(isLastReasoningSegmentBlank('first\n\ns', segments)).toBe(false);
-    expect(isLastReasoningSegmentBlank('first', [{ start: 0, after_tool: 0 }])).toBe(false);
+  it('is not blank once the last segment has text, and keeps the calls before it', () => {
+    expect(lastRecordedReasoningSegment('first\n\ns', segments)).toEqual({
+      afterTool: 2,
+      blank: false,
+    });
+    expect(lastRecordedReasoningSegment('first', [{ start: 0, after_tool: 0 }])).toEqual({
+      afterTool: 0,
+      blank: false,
+    });
   });
 
-  it('is false without segments, or with ones the reader does not follow', () => {
-    expect(isLastReasoningSegmentBlank('first\n\n', undefined)).toBe(false);
+  it('is undefined without segments, or with ones the reader does not follow', () => {
+    expect(lastRecordedReasoningSegment('first\n\n', undefined)).toBeUndefined();
     // A start at the end of the text: the whole text shows as one segment.
     expect(
-      isLastReasoningSegmentBlank('first\n\n', [
+      lastRecordedReasoningSegment('first\n\n', [
         { start: 0, after_tool: 0 },
         { start: 7, after_tool: 1 },
       ])
-    ).toBe(false);
+    ).toBeUndefined();
   });
 });
 
