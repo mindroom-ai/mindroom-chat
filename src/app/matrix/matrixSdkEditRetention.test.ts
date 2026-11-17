@@ -62,8 +62,8 @@ const reaction = (id: string, key: string, sender: string) =>
 const redaction = (id: string, redacts: string, ts: number, sender = AGENT) =>
   new MatrixEvent({ ...message(id, ts, { redacts }, sender), type: 'm.room.redaction', redacts });
 
-/** An edit as an encrypted room delivers it, whose key arrives on the second attempt. */
-const encryptedEdit = async (id: string, ts: number) => {
+/** An edit as an encrypted room delivers it, which fails to decrypt until its key arrives. */
+const encryptedEdit = async (id: string, ts: number, metadata: Record<string, unknown> = {}) => {
   const event = new MatrixEvent({
     ...message(id, ts, {}),
     type: 'm.room.encrypted',
@@ -73,20 +73,27 @@ const encryptedEdit = async (id: string, ts: number) => {
       'm.relates_to': { rel_type: 'm.replace', event_id: REPLY },
     },
   });
+  let keyed = false;
   const crypto = {
-    decryptEvent: vi
-      .fn()
-      .mockRejectedValueOnce(
-        new DecryptionError(DecryptionFailureCode.MEGOLM_UNKNOWN_INBOUND_SESSION_ID, 'no key yet')
-      )
-      .mockResolvedValueOnce({
-        clearEvent: { type: 'm.room.message', content: editContent(id, REPLY) },
-      }),
+    decryptEvent: vi.fn(async () => {
+      if (!keyed) {
+        throw new DecryptionError(
+          DecryptionFailureCode.MEGOLM_UNKNOWN_INBOUND_SESSION_ID,
+          'no key yet'
+        );
+      }
+      return { clearEvent: { type: 'm.room.message', content: editContent(id, REPLY, metadata) } };
+    }),
   };
   await event.attemptDecryption(crypto as never);
   expect(event.isDecryptionFailure()).toBe(true);
-  const keyArrives = () => event.attemptDecryption(crypto as never, { isRetry: true });
-  return { event, keyArrives };
+  /** Another attempt without the key: the edit fails to decrypt again. */
+  const failsAgain = () => event.attemptDecryption(crypto as never, { isRetry: true });
+  const keyArrives = () => {
+    keyed = true;
+    return event.attemptDecryption(crypto as never, { isRetry: true });
+  };
+  return { event, failsAgain, keyArrives };
 };
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -289,6 +296,32 @@ describe('the edits a room keeps of a message', () => {
     });
   });
 
+    // A message's edits fetched with its relations: the relations hold them, no timeline does.
+    it.each(['readable', 'unreadable'] as const)(
+      'release an older %s edit the room knows redacted only through its bundle',
+      async (kind) => {
+        const { room, add, reply, kept, shown } = await roomWithReply();
+        await add(edit('$readable', 20));
+        const older =
+          kind === 'readable'
+            ? { event: editWith('$older', 10, { [TOOL_TRACE]: trace('search') }), keyArrives: tick }
+            : await encryptedEdit('$older', 10, { [TOOL_TRACE]: trace('search') });
+        room.relations.aggregateChildEvent(older.event);
+        await tick();
+        expect(kept()).toEqual(['$readable', '$older']);
+        expect(room.findEventById('$older')).toBeUndefined();
+        reply.setUnsigned({ 'm.relations': { 'm.replace': { ...older.event.event } } });
+
+        await add(redaction('$redact-bundle', '$older', 40));
+        await older.keyArrives();
+        await tick();
+
+        expect(room.redactedBundledEdits.has('$older')).toBe(true);
+        expect(kept()).toEqual(['$readable']);
+        expect(shown()?.[TOOL_TRACE]).toBeUndefined();
+      }
+    );
+
   describe('with an edit of the user’s own that is still being sent', () => {
     /** The user's message with a sent edit and a pending one, which the server names `$echoed`. */
     const withPendingEdit = async () => {
@@ -367,6 +400,18 @@ describe('the edits a room keeps of a message', () => {
       expect(mine?.replacingEvent()).toBe(pending);
     });
 
+    it('remember the formerly pending edit they hold by the ID the server gave it only', async () => {
+      const { room, echoed, pending, kept, ids } = await withPendingEdit();
+      await echoed();
+
+      // A read of the timeline that holds it aggregates the held edit again, under its new ID.
+      room.relations.aggregateChildEvent(pending);
+      await tick();
+
+      expect(kept('$mine')).toEqual(['$echoed']);
+      expect(ids('$mine')).toEqual(['$echoed']);
+    });
+
     it('show the sent edit again once the pending one is cancelled', async () => {
       const { room, mine, pending, kept } = await withPendingEdit();
 
@@ -417,6 +462,118 @@ describe('the edits a room keeps of a message', () => {
         unreadable.map(({ event }) => event.listenerCount(MatrixEventEvent.Decrypted))
       ).toEqual(listeners);
     });
+
+    /** An older edit with a tool trace that cannot be decrypted yet, and a newer readable one without. */
+    const withOlderUnreadableEdit = async (order: 'unreadable first' | 'readable first') => {
+      const made = await roomWithReply();
+      const unreadable = await encryptedEdit('$unreadable', 10, { [TOOL_TRACE]: trace('search') });
+      const listening = () => ({
+        decrypted: unreadable.event.listenerCount(MatrixEventEvent.Decrypted),
+        redaction: unreadable.event.listenerCount(MatrixEventEvent.BeforeRedaction),
+      });
+      const before = listening();
+      const readable = edit('$readable', 20);
+      // A page of a thread or of history comes decrypted, or failed to be, before the room adds it.
+      if (order === 'unreadable first') await made.add(unreadable.event, readable);
+      else await made.add(readable, unreadable.event);
+      return { ...made, unreadable, listening, before };
+    };
+
+    it.each(['unreadable first', 'readable first'] as const)(
+      'keep an older one until it decrypts, for the tool trace it may carry (%s)',
+      async (order) => {
+        const { kept, shown, unreadable } = await withOlderUnreadableEdit(order);
+        expect(kept()?.slice().sort()).toEqual(['$readable', '$unreadable']);
+        expect(shown()?.[TOOL_TRACE]).toBeUndefined();
+
+        await unreadable.keyArrives();
+        await tick();
+
+        expect(kept()?.slice().sort()).toEqual(['$readable', '$unreadable']);
+        expect(shown()).toMatchObject({ body: '$readable', [TOOL_TRACE]: trace('search') });
+      }
+    );
+
+    // The accepted cost: an edit whose key never arrives stays, as every edit did before the policy.
+    it('keep an older one for as long as it cannot be decrypted', async () => {
+      const { add, kept, unreadable, listening, before } =
+        await withOlderUnreadableEdit('readable first');
+
+      await unreadable.failsAgain();
+      await add(edit('$later', 30));
+
+      expect(unreadable.event.isDecryptionFailure()).toBe(true);
+      expect(kept()).toEqual(['$unreadable', '$later']);
+      expect(listening()).toEqual({
+        decrypted: before.decrypted + 1,
+        redaction: before.redaction + 1,
+      });
+    });
+
+    it('let an older one go once it decrypts without metadata of its own', async () => {
+      const made = await roomWithReply();
+      const unreadable = await encryptedEdit('$unreadable', 10);
+      const before = unreadable.event.listenerCount(MatrixEventEvent.Decrypted);
+      await made.add(edit('$readable', 20), unreadable.event);
+      expect(made.kept()).toEqual(['$readable', '$unreadable']);
+
+      await unreadable.keyArrives();
+      await tick();
+
+      expect(made.kept()).toEqual(['$readable']);
+      expect(made.ids()).toEqual(['$readable']);
+      expect(unreadable.event.listenerCount(MatrixEventEvent.Decrypted)).toBe(before);
+    });
+
+    it.each(['before', 'after'] as const)(
+      'let an older one go that is redacted %s it decrypts, and stop listening to it',
+      async (when) => {
+        const { add, kept, shown, unreadable, listening, before } =
+          await withOlderUnreadableEdit('readable first');
+
+        if (when === 'after') await unreadable.keyArrives();
+        await add(redaction('$redaction', '$unreadable', 30));
+        if (when === 'before') await unreadable.keyArrives();
+        await tick();
+
+        expect(unreadable.event.isRedacted()).toBe(true);
+        expect(kept()).toEqual(['$readable']);
+        expect(shown()?.[TOOL_TRACE]).toBeUndefined();
+        expect(listening()).toEqual(before);
+      }
+    );
+
+    it('listen to an older one once while a newer one is still being decrypted', async () => {
+      const made = await roomWithReply();
+      const newest = await encryptedEdit('$newest', 30);
+      await made.add(newest.event);
+      let resolve!: (result: unknown) => void;
+      const waiting = new Promise((done) => {
+        resolve = done;
+      });
+      const retry = newest.event.attemptDecryption({ decryptEvent: () => waiting } as never, {
+        isRetry: true,
+      });
+      const older = await encryptedEdit('$older', 10, { [TOOL_TRACE]: trace('search') });
+      const before = older.event.listenerCount(MatrixEventEvent.BeforeRedaction);
+      made.room.relations.aggregateChildEvent(older.event);
+      made.room.relations.aggregateChildEvent(edit('$readable', 20));
+      expect(made.kept()).toContain('$older');
+
+      await older.keyArrives();
+      await tick();
+      resolve({ clearEvent: { type: 'm.room.message', content: editContent('$newest', REPLY) } });
+      await retry;
+      await tick();
+      expect(made.kept()).toEqual(['$newest', '$older']);
+      expect(older.event.listenerCount(MatrixEventEvent.BeforeRedaction)).toBe(before + 1);
+
+      await made.add(editWith('$last', 40, { [TOOL_TRACE]: trace('new') }));
+
+      expect(made.kept()).toEqual(['$last']);
+      expect(older.event.listenerCount(MatrixEventEvent.BeforeRedaction)).toBe(before);
+    });
+
   });
 
   it('leave the reactions to the message as they are', async () => {
