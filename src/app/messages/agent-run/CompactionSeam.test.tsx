@@ -5,7 +5,7 @@ import { act, create, ReactTestInstance, ReactTestRenderer } from 'react-test-re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReplyCompaction } from '../../matrix/protocol/compactions';
 import { timeHourMinuteSecond } from '../../lib/time';
-import { CompactionSeam } from './CompactionSeam';
+import { CompactionNoticeSeam, CompactionSeam } from './CompactionSeam';
 
 vi.mock('folds', () => ({
   Text: ({ as: Tag = 'span', children, size, priority, ...props }: any) =>
@@ -246,6 +246,47 @@ describe('CompactionSeam while running', () => {
 
   it('runs no timer once finished', () => {
     render(<CompactionSeam compaction={compaction()} />);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('CompactionNoticeSeam', () => {
+  const MINUTE = 60_000;
+  const notice = (fields: Partial<ReplyCompaction> = {}) =>
+    running({ id: 'notice', phase: 'manual', afterTool: 0, ...fields });
+  const state = (renderer: ReactTestRenderer) => seam(renderer).props['data-state'] as string;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  it('keeps a running notice running until 15 min after it was sent, then interrupted', () => {
+    vi.setSystemTime(STARTED + 14 * MINUTE);
+    const renderer = render(<CompactionNoticeSeam compaction={notice()} />);
+    expect(state(renderer)).toBe('running');
+
+    act(() => {
+      vi.advanceTimersByTime(MINUTE);
+    });
+    expect(state(renderer)).toBe('interrupted');
+    expect(label(renderer)).toBe('Compaction interrupted · kept full history');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('shows a running notice older than 15 min as interrupted at once', () => {
+    vi.setSystemTime(STARTED + 20 * MINUTE);
+    const renderer = render(<CompactionNoticeSeam compaction={notice()} />);
+    expect(state(renderer)).toBe('interrupted');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('leaves a finished notice as it is, however old, and runs no timer', () => {
+    vi.setSystemTime(STARTED + 20 * MINUTE);
+    const renderer = render(<CompactionNoticeSeam compaction={notice({ status: 'success' })} />);
+    expect(state(renderer)).toBe('success');
+    expect(state(render(<CompactionNoticeSeam compaction={notice({ status: 'failed' })} />))).toBe(
+      'failed'
+    );
     expect(vi.getTimerCount()).toBe(0);
   });
 });

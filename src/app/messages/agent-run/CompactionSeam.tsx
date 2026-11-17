@@ -2,6 +2,7 @@ import {
   Fragment,
   useEffect,
   useId,
+  useReducer,
   useRef,
   useState,
   type PointerEvent,
@@ -384,4 +385,28 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
       />
     </div>
   );
+}
+
+/**
+ * How long an old notice may say it is compacting: the backend gives a compaction 600 s, so a
+ * notice still running well past that lost its final edit and never finishes.
+ */
+const NOTICE_GIVE_UP_MS = 15 * 60_000;
+
+/**
+ * The compaction of an old `io.mindroom.compaction` notice, as its seam row. One still running
+ * 15 min after the notice was sent (its `startedAt`) shows as interrupted, from that moment on.
+ */
+export function CompactionNoticeSeam({ compaction }: { compaction: ReplyCompaction }) {
+  const { status, startedAt } = compaction;
+  const deadline =
+    status === 'running' && startedAt !== undefined ? startedAt + NOTICE_GIVE_UP_MS : undefined;
+  const [, wake] = useReducer((count: number) => count + 1, 0);
+  useEffect(() => {
+    if (deadline === undefined || Date.now() >= deadline) return undefined;
+    const timer = window.setTimeout(wake, deadline - Date.now());
+    return () => window.clearTimeout(timer);
+  }, [deadline]);
+  const gaveUp = deadline !== undefined && Date.now() >= deadline;
+  return <CompactionSeam compaction={compaction} interrupted={gaveUp} />;
 }
