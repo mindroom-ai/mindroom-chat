@@ -18,6 +18,8 @@ export const LIVE_ACTIVITY_KEY = 'io.mindroom.live_activity';
 export const LIVE_REASONING_KEY = 'io.mindroom.live_reasoning';
 /** Live content only: where each reasoning segment starts, as `LiveDocs.segments`. */
 export const LIVE_REASONING_SEGMENTS_KEY = 'io.mindroom.live_reasoning_segments';
+/** Live content only: the reply's compactions so far, as `LiveDocs.compactions`. */
+export const LIVE_COMPACTIONS_KEY = 'io.mindroom.live_compactions';
 
 /** On durable progress edits: the warm-up lines after the body, one `<p>` each in the HTML. */
 const WARMUP_SUFFIX_KEY = 'io.mindroom.warmup_suffix';
@@ -75,6 +77,7 @@ const getLiveContent = (content: IContent, docs: LiveDocs, renderMarkdown: boole
   if (docs.activity) live[LIVE_ACTIVITY_KEY] = docs.activity;
   if (docs.reasoning) live[LIVE_REASONING_KEY] = docs.reasoning;
   if (docs.segments.length > 0) live[LIVE_REASONING_SEGMENTS_KEY] = docs.segments;
+  if (docs.compactions.length > 0) live[LIVE_COMPACTIONS_KEY] = docs.compactions;
   return live;
 };
 

@@ -134,6 +134,7 @@ const run = (status: SubagentStatus, threadId: string | null = THREAD) => {
     status: 'streaming',
     activity: '',
     segments: [],
+    compactions: [],
   };
   act(() =>
     store().ingest(ROOM_ID, SENDER, { run: `run-${serial}`, sid: 's', seq: 0, meta, snapshot }, 0)

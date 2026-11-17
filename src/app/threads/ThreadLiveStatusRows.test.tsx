@@ -193,6 +193,7 @@ describe('ThreadLiveStatusRows', () => {
           status: 'streaming',
           activity: '',
           segments: [],
+          compactions: [],
         },
       },
       Date.now()
@@ -244,6 +245,7 @@ describe('ThreadLiveStatusRows', () => {
             status: 'streaming',
             activity: '',
             segments: [],
+            compactions: [],
           },
         },
         Date.now()
@@ -294,6 +296,7 @@ describe('ThreadLiveStatusRows', () => {
           status: 'streaming',
           activity: '',
           segments: [],
+          compactions: [],
         },
       },
       Date.now()

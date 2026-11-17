@@ -100,6 +100,7 @@ const docs = (md: string, tools: ToolTraceEvent[] = [], working = true): LiveDoc
   activity: '',
 
   segments: [],
+  compactions: [],
 });
 
 const seqs = new Map<string, number>();

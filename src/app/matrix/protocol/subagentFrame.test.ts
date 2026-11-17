@@ -29,6 +29,7 @@ const docs: LiveDocs = {
   status: 'streaming',
   activity: '',
   segments: [],
+  compactions: [],
 };
 const frame = (body: Record<string, unknown>) => ({
   v: 1,
@@ -56,8 +57,11 @@ describe('sub-agent frames', () => {
       const after =
         'snapshot' in parsed
           ? parsed.snapshot
-          : applyLiveDelta({ segments: [], ...testCase.before } as LiveDocs, parsed.delta);
-      expect(after).toEqual({ segments: [], ...testCase.after });
+          : applyLiveDelta(
+              { segments: [], compactions: [], ...testCase.before } as LiveDocs,
+              parsed.delta
+            );
+      expect(after).toEqual({ segments: [], compactions: [], ...testCase.after });
     }
   );
 

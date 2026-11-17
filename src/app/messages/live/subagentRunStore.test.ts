@@ -52,6 +52,7 @@ const docs = (md: string): LiveDocs => ({
   activity: '',
 
   segments: [],
+  compactions: [],
 });
 const snapshot = (
   seq: number,

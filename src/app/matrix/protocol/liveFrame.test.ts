@@ -10,10 +10,15 @@ const docs: LiveDocs = {
   status: 'streaming',
   activity: '',
   segments: [],
+  compactions: [],
 };
 const SEGMENTS = [
   { start: 0, after_tool: 0 },
   { start: 12, after_tool: 2 },
+];
+const COMPACTIONS = [
+  { id: 'a', phase: 'pre_turn', after_tool: 0, status: 'success', before_tokens: 366804 },
+  { id: 'b', phase: 'mid_turn', after_tool: 2, status: 'running', before_tokens: 12000 },
 ];
 const frame = (body: Record<string, unknown>) => ({
   v: 1,
@@ -34,9 +39,12 @@ describe('live reply frames', () => {
       const after =
         'snapshot' in parsed
           ? parsed.snapshot
-          : applyLiveDelta({ segments: [], ...testCase.before } as LiveDocs, parsed.delta);
+          : applyLiveDelta(
+              { segments: [], compactions: [], ...testCase.before } as LiveDocs,
+              parsed.delta
+            );
 
-      expect(after).toEqual({ segments: [], ...testCase.after });
+      expect(after).toEqual({ segments: [], compactions: [], ...testCase.after });
     }
   );
 
@@ -73,6 +81,8 @@ describe('live reply frames', () => {
       frame({ delta: { segments: [{ start: 0, after_tool: 0.5 }] } }),
     ],
     ['a segment that is not an object', frame({ delta: { segments: [0] } })],
+    ['compactions that are not a list', frame({ snapshot: { ...docs, compactions: {} } })],
+    ['a compactions delta that is not a list', frame({ delta: { compactions: 'none' } })],
   ])('rejects a frame with %s', (_name, content) => {
     expect(parseLiveFrame(content)).toBeNull();
   });
@@ -104,6 +114,48 @@ describe('live reply frames', () => {
     }
 
     expect(applyLiveDelta(before, replacing.delta)).toEqual({ ...before, segments: SEGMENTS });
+    expect(applyLiveDelta(before, keeping.delta)).toEqual({ ...before, activity: 'x' });
+  });
+
+  it('reads the compactions of a snapshot as sent', () => {
+    const parsed = parseLiveFrame(frame({ snapshot: { ...docs, compactions: COMPACTIONS } }));
+
+    expect(parsed).toEqual({
+      reply: '$reply',
+      sid: SID,
+      seq: 1,
+      snapshot: { ...docs, compactions: COMPACTIONS },
+    });
+  });
+
+  it('reads a snapshot without compactions, from an older backend, as having none', () => {
+    const { compactions: _compactions, ...old } = docs;
+    const parsed = parseLiveFrame(frame({ snapshot: old }));
+
+    expect(parsed && 'snapshot' in parsed && parsed.snapshot.compactions).toEqual([]);
+  });
+
+  it('replaces the whole compaction list with a delta that carries it and keeps it otherwise', () => {
+    const before = { ...docs, compactions: [COMPACTIONS[0]] };
+    const replacing = parseLiveFrame(frame({ delta: { compactions: COMPACTIONS } }));
+    const clearing = parseLiveFrame(frame({ delta: { compactions: [] } }));
+    const keeping = parseLiveFrame(frame({ delta: { activity: 'x' } }));
+    if (
+      !replacing ||
+      !('delta' in replacing) ||
+      !clearing ||
+      !('delta' in clearing) ||
+      !keeping ||
+      !('delta' in keeping)
+    ) {
+      throw new Error('Expected three deltas');
+    }
+
+    expect(applyLiveDelta(before, replacing.delta)).toEqual({
+      ...before,
+      compactions: COMPACTIONS,
+    });
+    expect(applyLiveDelta(before, clearing.delta)).toEqual({ ...before, compactions: [] });
     expect(applyLiveDelta(before, keeping.delta)).toEqual({ ...before, activity: 'x' });
   });
 

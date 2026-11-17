@@ -102,6 +102,7 @@ describe('useFollowContentGrowth', () => {
           status: 'streaming',
           activity: '',
           segments: [],
+          compactions: [],
         },
       },
       Date.now()
