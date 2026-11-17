@@ -269,13 +269,21 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     ]);
   });
 
-  it('marks the room for a timeline that starts over, without a count', () => {
+  it('marks the room for a timeline of the room that starts over, without a count', () => {
     const { room, told } = setup();
 
-    expect(told(() => room.emit(RoomEvent.TimelineReset, room))).toEqual({
+    expect(told(() => room.emit(RoomEvent.TimelineReset, room, {}))).toEqual({
       marked: 'room',
       counted: 0,
     });
+  });
+
+  it('marks only the thread whose timeline starts over, as one does for its first page', () => {
+    const { room, told } = setup();
+
+    expect(
+      told(() => room.emit(RoomEvent.TimelineReset, room, { thread: { id: '$root' } }))
+    ).toEqual({ marked: ['$root'], counted: 0 });
   });
 
   it('marks the thread of an event an edit is put on or taken off', () => {
