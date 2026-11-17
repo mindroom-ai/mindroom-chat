@@ -595,7 +595,7 @@ function RoomContent() {
   const showsPluginRequest = useCallback<PluginPanelControls['showsRequest']>(
     (id, panelRequest) => {
       const { roomId: roomNow, shownId: shownNow, layout: layoutNow, pluginRequest } = now.current;
-      if (roomNow !== roomId || shownNow !== id || layoutNow === 'folded') return false;
+      if (!alive() || roomNow !== roomId || shownNow !== id || layoutNow === 'folded') return false;
       try {
         return JSON.stringify(pluginRequest) === JSON.stringify(panelRequest);
       } catch {
@@ -603,7 +603,7 @@ function RoomContent() {
         return false;
       }
     },
-    [now, roomId]
+    [alive, now, roomId]
   );
   // Known once the room has the event the address names, which may be a reply, and the server has
   // confirmed the root, which a new thread's first message waits for.

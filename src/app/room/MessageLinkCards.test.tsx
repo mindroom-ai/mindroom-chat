@@ -285,6 +285,16 @@ describe('MessageLinkCards', () => {
     expect(controls.open).toHaveBeenCalledWith('pr/p', { item: '7' });
   });
 
+  it("following the link its panel shows closes another link's card", () => {
+    const controls = panelControls(true);
+    renderCards('!a:x', { controls });
+    fireEvent.click(screen.getByRole('link', { name: 'One' }));
+    expect(screen.getByText('card https://github.com/o/r/pull/1 in !a:x')).toBeTruthy();
+    expect(goesOn(screen.getByRole('link', { name: 'Seven' }))).toBe(true);
+    expect(screen.queryByText(/^card /)).toBeNull();
+    expect(controls.open).not.toHaveBeenCalled();
+  });
+
   it('Enter on the focused link opens the panel', () => {
     const controls = panelControls();
     renderCards('!a:x', { controls });

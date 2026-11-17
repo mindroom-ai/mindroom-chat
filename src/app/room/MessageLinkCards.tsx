@@ -50,8 +50,8 @@ const requestOf = (
  * link's card takes its place, and a switch to another room closes it. A card that throws closes
  * and is reported under its plugin's tag. Closing returns focus to the link, if it is still there.
  * Off a phone and in a room's page, a link whose plugin names a side panel opens that panel
- * instead, and closes the card that shows; while the panel already shows its request, the click
- * follows the link.
+ * instead; while the panel already shows its request, the click follows the link. Either way the
+ * card that shows closes.
  */
 export function MessageLinkCards({
   roomId,
@@ -81,9 +81,9 @@ export function MessageLinkCards({
       // On a phone the panel would cover the room, so the card shows there.
       const asked = panel && controls && !phone ? requestOf(card.tag, panel, href) : undefined;
       if (panel && controls && asked) {
+        setShown(undefined);
         // A second click on the link the panel shows opens it, as message links open: a new tab.
         if (controls.showsRequest(panel.id, asked.request)) return false;
-        setShown(undefined);
         controls.open(panel.id, asked.request);
         return true;
       }

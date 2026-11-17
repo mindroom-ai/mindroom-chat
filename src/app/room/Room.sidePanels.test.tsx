@@ -374,7 +374,11 @@ const renderRoom = async (size: ScreenSize = ScreenSize.Desktop) => {
 };
 
 describe('the side panels of a room', () => {
+  /** What the room gives the plugins' code in the conversation, as the room has it now. */
+  let roomControls: PluginPanelControls | undefined;
+
   beforeEach(() => {
+    roomControls = undefined;
     state.config = {
       mindroom: {
         computers: { apiUrl: 'https://computer.example.org' },
@@ -699,8 +703,6 @@ describe('the side panels of a room', () => {
     expect(screen.queryByText(/^Notes request/)).toBeNull();
   });
 
-  /** What the room gives the plugins' code in the conversation, as the room has it now. */
-  let roomControls: PluginPanelControls | undefined;
   function RoomControls() {
     roomControls = useContext(PluginPanelControlsContext);
     return null;
@@ -748,6 +750,16 @@ describe('the side panels of a room', () => {
     await showRoom('!other:example.org');
     expect(roomControls?.showsRequest('notes/panel', { n: 1 })).toBe(false);
     // Nor does the room left still tell of its panel.
+    expect(held?.('notes/panel', { n: 1 })).toBe(false);
+  });
+
+  it("tells of no panel once the room's page has gone", async () => {
+    withRoomControls();
+    await renderRoom();
+    await act(async () => controls.panel?.open({ n: 1 }));
+    const held = roomControls?.showsRequest;
+    expect(held?.('notes/panel', { n: 1 })).toBe(true);
+    cleanup();
     expect(held?.('notes/panel', { n: 1 })).toBe(false);
   });
 

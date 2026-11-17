@@ -459,8 +459,9 @@ A modified click, a middle click, the context menu and dragging keep the browser
 `Component` gets `{ href, roomId, close }`: the link's address, the room whose message holds it, and a function that closes the card.
 It renders inside the room's page, so it can use what a message renderer can, such as `useRoomSidePanel` to open the plugin's panel.
 A link the plugin shows in one of its side panels sets `sidePanel: { id, request }` (since version 62): `id` names one of the same plugin's `sidePanels`, and `request(url)`, pure and synchronous, gives the panel's `request`, a value JSON holds, as a remembered panel keeps it.
-Off a phone and in a room's page, a plain click or Enter then opens that panel with `request(url)`, as `useRoomSidePanel`'s `open` does, in place of the card, and closes a card that shows.
+Off a phone and in a room's page, a plain click or Enter then opens that panel with `request(url)`, as `useRoomSidePanel`'s `open` does, in place of the card.
 While the panel shows, beside the conversation or filling the room, with a request JSON-equal to it, the click follows the link as any message link does, in a new tab: a first click shows the link in the panel and a second opens it.
+Either click closes a card that shows.
 A folded panel counts as not showing, so a click unfolds it with the link's request.
 On a phone, away from the room's panels (a `ThreadView` on a plugin's page), for a panel the plugin does not have, and when `request` throws (logged with `[plugin <id>@<version>]`), the click shows the card, so such a link still needs its `Component`.
 A `sidePanel` other than an `id` string with a `request` function leaves the link out.
