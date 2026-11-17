@@ -28,6 +28,7 @@ import { getRenderableEvents } from '../event-store/timeline/roomTimelineEvents'
 import { getLinkedTimelines } from '../event-store/timeline/linkedTimelines';
 import { shouldAutoPaginateThreadBack } from '../event-store/threads/threadRenderUtils';
 import { countCacheProbe } from '../event-store/cache/cacheProbe';
+import { paginateRoomHistory } from '../event-store/sdk/roomHistoryPageSdk';
 import {
   ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
   THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
@@ -112,11 +113,14 @@ export const useRelinkKeepingRows = ({
         setTimeline(next);
         return;
       }
-      void mx
-        .paginateEventTimeline(first, {
-          backwards: true,
-          limit: ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
-        })
+      void paginateRoomHistory(
+        mx,
+        room,
+        first,
+        true,
+        ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
+        !!filters.showThreadRepliesInRoom
+      )
         .catch(() => false)
         .then(() => {
           if (alive()) setTimeline(rebuildTimeline());

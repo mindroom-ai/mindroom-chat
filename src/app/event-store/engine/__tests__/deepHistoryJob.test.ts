@@ -3,6 +3,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { Direction, MatrixEvent } from 'matrix-js-sdk';
 import type { IEvent, MatrixClient, Room } from 'matrix-js-sdk';
+import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../../../matrix/protocol/backgroundJobsContract';
 import { saveAttachmentOwner } from '../../cache/__tests__/attachmentFixtures';
 import { createBackfillScheduler } from '../backfillScheduler';
 import { enqueueRoomDeepHistoryJob } from '../deepHistoryJob';
@@ -280,6 +281,23 @@ describe('enqueueRoomDeepHistoryJob (ISSUE-207 P4.3)', () => {
     expect(mx.__calls.map((call) => call.limit)).toEqual([50]);
   });
 
+  it('leaves the agents jobs state out of the history pages it asks for', async () => {
+    const mx = createMockClient(() => ({ chunk: [] }));
+    mx.__rooms.set('!room:mindroom.chat', makeRoom('!room:mindroom.chat', '@alice:mindroom.chat'));
+
+    await deepHistory({
+      mx,
+      sessionId: SESSION_ID,
+      scheduler: createBackfillScheduler({ mx }),
+      roomId: '!room:mindroom.chat',
+    });
+
+    const filter = vi.mocked(mx.createMessagesRequest).mock.calls[0]?.[4];
+    expect(filter?.getRoomTimelineFilterComponent()?.toJSON()).toEqual({
+      not_types: [MINDROOM_BACKGROUND_JOBS_EVENT],
+    });
+  });
+
   it('saves thread replies even when SDK room pagination already passed them', async () => {
     const mx = createMockClient(() => ({ chunk: [] }));
     const reply = rawThreadReply('$missed-reply', 20, '$root');
@@ -305,7 +323,8 @@ describe('enqueueRoomDeepHistoryJob (ISSUE-207 P4.3)', () => {
       '!room:mindroom.chat',
       null,
       200,
-      Direction.Backward
+      Direction.Backward,
+      expect.any(Object)
     );
   });
 

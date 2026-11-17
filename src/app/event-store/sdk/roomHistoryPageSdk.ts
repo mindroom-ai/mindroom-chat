@@ -1,13 +1,36 @@
 import {
   Direction,
+  Filter,
   THREAD_RELATION_TYPE,
   type EventTimeline,
+  type IRoomEventFilter,
   type MatrixClient,
   type MatrixEvent,
   type Room,
 } from 'matrix-js-sdk';
 import { noUnsafeEventProps } from 'matrix-js-sdk/lib/utils';
+import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../../matrix/protocol/backgroundJobsContract';
 import { holdPageThreadEvents, keepHistoryReplies } from '../timeline/classicHistoryReplies';
+
+/**
+ * The filter of a page of room history: `timelineFilter`, also leaving out the agents' jobs state.
+ * Agents rewrite it on every job change and the app reads only the current state, which sync keeps
+ * (so sync is not filtered); its copies in history would only hold memory.
+ */
+export const roomHistoryFilter = (timelineFilter?: Filter): Filter => {
+  const timeline = (timelineFilter?.getRoomTimelineFilterComponent()?.toJSON() ??
+    {}) as IRoomEventFilter;
+  const filter = new Filter(undefined);
+  filter.setDefinition({
+    room: {
+      timeline: {
+        ...timeline,
+        not_types: [...(timeline.not_types ?? []), MINDROOM_BACKGROUND_JOBS_EVENT],
+      },
+    },
+  });
+  return filter;
+};
 
 /**
  * The events of a page the room's timeline takes, in the order it adds them, and the others.
@@ -34,10 +57,11 @@ export const splitTimelinePage = (
 
 /**
  * One page of the room's own history at `edge`, loaded as `MatrixClient.paginateEventTimeline`
- * loads it, with two differences: events the timeline would refuse are kept as relations only
- * (`splitTimelinePage`), and with `keepReplies` (the Classic view) the page's thread replies,
- * which the SDK drops, are kept with `edge`, and decrypted in an encrypted room; they wait there
- * for the cache (`takePageThreadEvents`). Resolves to whether more history lies that way.
+ * loads it, with three differences: it leaves the agents' jobs state out (`roomHistoryFilter`),
+ * events the timeline would refuse are kept as relations only (`splitTimelinePage`), and with
+ * `keepReplies` (the Classic view) the page's thread replies, which the SDK drops, are kept with
+ * `edge`, and decrypted in an encrypted room; they wait there for the cache
+ * (`takePageThreadEvents`). Resolves to whether more history lies that way.
  */
 export const paginateRoomHistory = (
   mx: MatrixClient,
@@ -51,7 +75,13 @@ export const paginateRoomHistory = (
   const pending = edge.paginationRequests[dir];
   if (pending) return pending;
   const request = mx
-    .createMessagesRequest(room.roomId, edge.getPaginationToken(dir), limit, dir, edge.getFilter())
+    .createMessagesRequest(
+      room.roomId,
+      edge.getPaginationToken(dir),
+      limit,
+      dir,
+      roomHistoryFilter(edge.getFilter())
+    )
     .then(async (response) => {
       const mapper = mx.getEventMapper();
       if (response.state) {

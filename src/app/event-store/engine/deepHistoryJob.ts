@@ -6,6 +6,7 @@ import {
   type CacheStoreWriteLease,
 } from '../cache/db';
 import { readRoomOfflineProgress, updateRoomOfflineProgress } from '../cache/db/cacheStoreMeta';
+import { roomHistoryFilter } from '../sdk/roomHistoryPageSdk';
 import type { BackfillScheduler } from './backfillScheduler';
 
 export type ReserveHistoryPage = (
@@ -55,7 +56,8 @@ export const enqueueRoomDeepHistoryJob = ({
           roomId,
           from,
           Math.min(200, reservation.limit),
-          Direction.Backward
+          Direction.Backward,
+          roomHistoryFilter()
         );
         if (!current()) return undefined;
         const gap = await loadRoomTailDiscontinuity(sessionId, roomId);

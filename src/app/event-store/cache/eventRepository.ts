@@ -44,6 +44,7 @@ import {
 } from '../../matrix/protocol/threadSummary';
 import { getSerializedRelationEvent, isSameSenderEditEvent } from '../../matrix/editEvent';
 import { getLatestEdit } from '../../matrix/room';
+import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../../matrix/protocol/backgroundJobsContract';
 import { isThreadOnlyRoomActivity } from '../threads/threadRenderUtils';
 import { buildThreadReplyCountMap } from '../threads/threadUtils';
 import { getKnownThreadReplyCount } from '../threads/threadRecord';
@@ -517,12 +518,22 @@ export const groupThreadCacheEvents = (
   return grouped;
 };
 
+// The agents' jobs state, rewritten on every job change, is read only from the room's state: the
+// room cache keeps none of it, and the rows saved before it stopped are never hydrated.
+const isJobsState = (type: string | undefined): boolean => type === MINDROOM_BACKGROUND_JOBS_EVENT;
+const withoutJobsState = (page: CachedRoomEventPage): CachedRoomEventPage => ({
+  ...page,
+  events: page.events.filter((rawEvent) => !isJobsState(rawEvent.type)),
+});
+const isRoomCacheEvent = (room: Room, mEvent: MatrixEvent): boolean =>
+  !isJobsState(mEvent.getType()) && !isThreadOnlyRoomActivity(room, mEvent);
+
 export const getMainTimelineCacheEvents = (
   room: Room,
   linkedTimelines: EventTimeline[]
 ): MatrixEvent[] =>
   linkedTimelines.flatMap((timeline) =>
-    timeline.getEvents().filter((mEvent) => !isThreadOnlyRoomActivity(room, mEvent))
+    timeline.getEvents().filter((mEvent) => isRoomCacheEvent(room, mEvent))
   );
 
 export const findEarliestLoadedRoomEventByCacheOrder = (
@@ -616,10 +627,11 @@ export const loadLatestRoomCacheHydrationSnapshot = async ({
   loadLatest = loadLatestCachedRoomEventsFromCache,
   loadGap = loadRoomCacheGap,
 }: LoadLatestRoomCacheHydrationSnapshotOptions): Promise<LatestRoomCacheHydrationSnapshot> => {
-  const [cachedPage, gap] = await Promise.all([
+  const [latestPage, gap] = await Promise.all([
     loadLatest(sessionId, roomId, limit),
     loadGap(sessionId, roomId),
   ]);
+  const cachedPage = withoutJobsState(latestPage);
   const loadedLatestEvent = loadedEvents[loadedEvents.length - 1];
   const cachedLatestEvent = cachedPage.events[cachedPage.events.length - 1];
   // Newer cached events continue the loaded tail only when the page holds that tail (or nothing
@@ -759,9 +771,11 @@ export const loadRoomCachedPaginationSnapshot = async ({
 
   // The room's pager drops the events of the page it holds already (the SDK skips them).
   const anchor = getRoomCursorAnchor(earliestLoadedEvent?.event);
-  const cachedPage = withTokenOnlyBelowAnchor(
-    await loadBefore(sessionId, roomId, anchor, limit, { withBeforeMillisecond: true }),
-    anchor
+  const cachedPage = withoutJobsState(
+    withTokenOnlyBelowAnchor(
+      await loadBefore(sessionId, roomId, anchor, limit, { withBeforeMillisecond: true }),
+      anchor
+    )
   );
   const events = normalizeCachedRoomEvents(cachedPage.events)
     .map((rawEvent) => mapEvent(rawEvent))
@@ -819,9 +833,7 @@ export const serializeThreadCacheEvents = (
 export const serializeRoomCacheEvents = (room: Room, events: MatrixEvent[]): Partial<IEvent>[] =>
   serializeEventsForCache(
     room,
-    collectStateTargetEvents(room, events).filter(
-      (mEvent) => !isThreadOnlyRoomActivity(room, mEvent)
-    )
+    collectStateTargetEvents(room, events).filter((mEvent) => isRoomCacheEvent(room, mEvent))
   );
 
 export type ThreadEventCacheSnapshotWrite = {

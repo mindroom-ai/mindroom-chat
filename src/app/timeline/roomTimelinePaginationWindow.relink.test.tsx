@@ -1,8 +1,16 @@
 import { createClient, Direction, MatrixEvent, Room, type MatrixClient } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
-import { expect, it, vi } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
+import { paginateRoomHistory } from '../event-store/sdk/roomHistoryPageSdk';
 import type { RecalibrateFilterOpts, Timeline } from '../event-store/timeline/timelinePagination';
 import { useRelinkKeepingRows } from './roomTimelinePaginationWindow';
+
+// Pages of the room's own history go through roomHistoryPageSdk, which has its own tests.
+vi.mock('../event-store/sdk/roomHistoryPageSdk', () => ({ paginateRoomHistory: vi.fn() }));
+const paginate = vi.mocked(paginateRoomHistory);
+beforeEach(() => {
+  paginate.mockReset();
+});
 
 const mx = createClient({ baseUrl: 'https://example.org', userId: '@reader:example.org' });
 const room = new Room('!room:example.org', mx, '@reader:example.org');
@@ -44,9 +52,9 @@ const filterOpts: RecalibrateFilterOpts = {
   hideNickAvatarEvents: true,
 };
 
-const renderSetter = (paginate: MatrixClient['paginateEventTimeline'], rebuilt: Timeline) => {
+const renderSetter = (rebuilt: Timeline) => {
   const setTimeline = vi.fn();
-  const client = { paginateEventTimeline: paginate } as unknown as MatrixClient;
+  const client = {} as MatrixClient;
   let setRelinked: ReturnType<typeof useRelinkKeepingRows> | undefined;
   function Harness() {
     setRelinked = useRelinkKeepingRows({
@@ -75,20 +83,25 @@ it('keeps the rows on screen while a page links a live timeline of hidden events
     range: { start: 0, end: 1 },
   };
   let answer!: () => void;
-  const paginate = vi.fn(
+  paginate.mockImplementation(
     () =>
       new Promise<boolean>((resolve) => {
         answer = () => resolve(true);
       })
   );
-  const { setTimeline, setRelinked } = renderSetter(paginate, linked);
+  const { setTimeline, setRelinked } = renderSetter(linked);
 
   setRelinked(reset);
   expect(setTimeline).not.toHaveBeenCalled();
-  expect(paginate).toHaveBeenCalledWith(reset.linkedTimelines[0], {
-    backwards: true,
-    limit: expect.any(Number),
-  });
+  // As every page of the room's history, so it leaves out what such pages leave out.
+  expect(paginate).toHaveBeenCalledWith(
+    expect.anything(),
+    room,
+    reset.linkedTimelines[0],
+    true,
+    expect.any(Number),
+    false
+  );
 
   await act(async () => {
     answer();
@@ -102,8 +115,7 @@ it('shows a relinked timeline with rows at once', () => {
     linkedTimelines: [liveTimeline([message])],
     range: { start: 0, end: 1 },
   };
-  const paginate = vi.fn();
-  const { setTimeline, setRelinked } = renderSetter(paginate, withRows);
+  const { setTimeline, setRelinked } = renderSetter(withRows);
 
   setRelinked(withRows);
   expect(setTimeline).toHaveBeenCalledWith(withRows);

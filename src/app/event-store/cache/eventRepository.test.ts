@@ -5,6 +5,7 @@ import {
   collectLegacyStandaloneReplaceIds,
   collectStateTargetEvents,
   createPreferLiveEventMapper,
+  getMainTimelineCacheEvents,
   loadThreadCachedPaginationSnapshot,
   loadThreadCachedSnapshot,
   loadRoomCachedBackStateSnapshot,
@@ -18,6 +19,7 @@ import {
   serializeThreadCacheEvents,
 } from './eventRepository';
 import type { CachedRoomEvent } from './db/cacheStoreNormalize';
+import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../../matrix/protocol/backgroundJobsContract';
 import {
   makeEvent as makeMockEvent,
   makeRoom as makeMockRoom,
@@ -398,6 +400,24 @@ describe('eventRepository cache serialization helpers', () => {
         (event) => event.event_id
       )
     ).toEqual(['$root', '$room']);
+  });
+
+  it('leaves the agents jobs state out of the room cache and of what it compares with it', () => {
+    const jobsEvent = makeEvent('$jobs', {
+      ts: 100,
+      type: MINDROOM_BACKGROUND_JOBS_EVENT,
+      stateKey: '@mindroom_code:example.org',
+      sender: '@mindroom_code:example.org',
+    });
+    const roomEvent = makeEvent('$room', { ts: 200 });
+    const room = makeRoom({ liveEvents: [jobsEvent, roomEvent] });
+
+    expect(serializeRoomCacheEvents(room, [jobsEvent, roomEvent]).map((e) => e.event_id)).toEqual([
+      '$room',
+    ]);
+    expect(
+      getMainTimelineCacheEvents(room, [room.getLiveTimeline()]).map((e) => e.getId())
+    ).toEqual(['$room']);
   });
 
   it('serializes thread cache payloads with the root event first when provided', () => {
@@ -844,9 +864,11 @@ describe('eventRepository latest room cache hydration snapshots', () => {
   // A limited sync leaves a hole in the cache: runs of newer events around missing ones.
   const mapByIdAndTs = (rawEvent: Partial<IEvent>) =>
     makeEvent(rawEvent.event_id ?? '$missing', { ts: rawEvent.origin_server_ts });
-  const gapBefore = (...eventIds: string[]) => async () => ({
-    beforeGapEventIds: new Set(eventIds),
-  });
+  const gapBefore =
+    (...eventIds: string[]) =>
+    async () => ({
+      beforeGapEventIds: new Set(eventIds),
+    });
 
   it('adds no cached events around a hole the cache has not filled', async () => {
     const snapshot = await loadLatestRoomCacheHydrationSnapshot({
@@ -912,6 +934,64 @@ describe('eventRepository latest room cache hydration snapshots', () => {
 
     expect(snapshot.status).toBe('already-loaded');
     expect(snapshot.events).toEqual([]);
+  });
+});
+
+describe('eventRepository room cache hydration of saved jobs state', () => {
+  const jobsRow = (eventId: string, ts: number): CachedRoomEvent => ({
+    event_id: eventId,
+    room_id: '!room:example.org',
+    sender: '@mindroom_code:example.org',
+    state_key: '@mindroom_code:example.org',
+    type: MINDROOM_BACKGROUND_JOBS_EVENT,
+    origin_server_ts: ts,
+    content: { jobs: [], total: 0 },
+  });
+
+  it('adds no saved jobs state to the room when it opens', async () => {
+    const snapshot = await loadLatestRoomCacheHydrationSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      limit: 32,
+      loadedEvents: [],
+      mapEvent: mapRawEvent,
+      loadLatest: async () => ({
+        events: [
+          makeRawMessage('$older', 'older', { ts: 100 }),
+          jobsRow('$jobs-1', 150),
+          makeRawMessage('$newer', 'newer', { ts: 200 }),
+          jobsRow('$jobs-2', 250),
+        ],
+        hasMoreBefore: false,
+      }),
+    });
+
+    expect(snapshot.status).toBe('hydrate');
+    expect(snapshot.events.map((event) => event.getId())).toEqual(['$older', '$newer']);
+  });
+
+  it('adds no saved jobs state to the room as it pages back, and pages the server past a page of only that', async () => {
+    const load = (events: CachedRoomEvent[]) =>
+      loadRoomCachedPaginationSnapshot({
+        sessionId: 'session',
+        roomId: '!room:example.org',
+        earliestLoadedEvent: makeEvent('$loaded', { ts: 300 }),
+        limit: 50,
+        mapEvent: mapRawEvent,
+        loadPaginationToken: async () => undefined,
+        loadBefore: async () => ({ events, hasMoreBefore: true, beforeToken: 'before' }),
+      });
+
+    const mixed = await load([
+      makeRawMessage('$older', 'older', { ts: 100 }),
+      jobsRow('$jobs-1', 200),
+    ]);
+    expect(mixed.status).toBe('cache-hit');
+    expect(mixed.events.map((event) => event.getId())).toEqual(['$older']);
+
+    const jobsOnly = await load([jobsRow('$jobs-2', 100), jobsRow('$jobs-3', 200)]);
+    expect(jobsOnly.status).toBe('cache-miss');
+    expect(jobsOnly.events).toEqual([]);
   });
 });
 

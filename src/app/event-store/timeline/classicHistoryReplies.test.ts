@@ -70,7 +70,13 @@ describe('paginateRoomHistory', () => {
 
     await expect(paginateRoomHistory(mx, room, edge, true, 50, true)).resolves.toBe(true);
 
-    expect(request).toHaveBeenCalledWith(ROOM_ID, 'older', 50, Direction.Backward, undefined);
+    expect(request).toHaveBeenCalledWith(
+      ROOM_ID,
+      'older',
+      50,
+      Direction.Backward,
+      expect.any(Object)
+    );
     expect(edge.getEvents().map((event) => event.getId())).toEqual(['$note', '$root']);
     expect(edge.getPaginationToken(Direction.Backward)).toBe('oldest');
     const replies = getHistoryReplies([edge]);
