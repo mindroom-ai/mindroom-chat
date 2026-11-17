@@ -15,17 +15,17 @@ type ListOptions = {
   rangeExtractor?: (range: Range) => number[];
 };
 
-const measurementsCache = Array.from({ length: 40 }, (_, index) => ({
-  index,
-  start: index * 100,
-  end: (index + 1) * 100,
-}));
 const virtualizer = vi.hoisted(() => ({
   itemSizeCache: new Map<string, number>(),
   options: {} as unknown,
   scrollOffset: null as number | null,
   scrollRect: { width: 800, height: 400 },
-  measurementsCache: [] as { index: number; start: number; end: number }[],
+  // 40 rows of 100 px each.
+  measurementsCache: Array.from({ length: 40 }, (_, index) => ({
+    index,
+    start: index * 100,
+    end: (index + 1) * 100,
+  })),
   setOptions: () => {},
   getVirtualItems: () => [],
   getVirtualItemForOffset: (offset: number) => ({
@@ -52,7 +52,6 @@ Object.defineProperty(scrollElement, 'scrollTop', { value: 3116, writable: true 
 
 const mount = (options: Partial<TimelineScrollLedgerControllerOptions>): ListOptions => {
   virtualizer.scrollOffset = null;
-  virtualizer.measurementsCache = measurementsCache;
   function Harness() {
     const controller = useTimelineScrollLedgerController({
       alive: () => true,

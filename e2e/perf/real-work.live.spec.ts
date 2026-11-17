@@ -423,6 +423,7 @@ const showThread = async (run: Run): Promise<boolean> => {
 /** How long no new row may come into view for the rows to count as settled. */
 const SETTLED_QUIET_MS = 1_000;
 type SettledOutcome = { ms?: number; rows?: number; error?: string };
+type SettledWindow = { __realWorkSettled?: Promise<SettledOutcome> };
 
 /**
  * Watches, from the next press on, which message rows are in view (shown, and inside the scroll
@@ -457,10 +458,9 @@ const watchRowsSettled = async (page: Page, name: string): Promise<() => Promise
             ? [row.getAttribute('data-message-id') ?? '']
             : [];
         });
-      (window as unknown as { __realWorkSettled?: Promise<SettledOutcome> }).__realWorkSettled =
-        new Promise<SettledOutcome>((resolve) => {
+      (window as unknown as SettledWindow).__realWorkSettled = new Promise<SettledOutcome>(
+        (resolve) => {
           const start = (event: Event) => {
-            document.removeEventListener('pointerdown', start, true);
             const now = performance.now();
             const age = now - event.timeStamp;
             const startedAt = age >= 0 && age < 60_000 ? event.timeStamp : now;
@@ -485,14 +485,15 @@ const watchRowsSettled = async (page: Page, name: string): Promise<() => Promise
             };
             requestAnimationFrame(tick);
           };
-          document.addEventListener('pointerdown', start, true);
-        });
+          document.addEventListener('pointerdown', start, { capture: true, once: true });
+        }
+      );
     },
     { selector: ROW, quietMs: SETTLED_QUIET_MS }
   );
   return async () => {
     const outcome = await page.evaluate(
-      () => (window as unknown as { __realWorkSettled?: Promise<SettledOutcome> }).__realWorkSettled
+      () => (window as unknown as SettledWindow).__realWorkSettled
     );
     if (outcome?.ms === undefined) {
       throw new Error(`${name}: ${outcome?.error ?? 'the page loaded again before rows settled'}`);

@@ -27,7 +27,7 @@ const range = (startIndex: number, endIndex: number): Range => ({
 
 describe('threadScrollRange', () => {
   it('keeps two views of rows mounted on each side of the rows in view', () => {
-    const rows = threadScrollRange(range(50, 53), list());
+    const rows = threadScrollRange(range(50, 53), list(), 2);
     expect(rows[0]).toBe(42);
     expect(rows.at(-1)).toBe(62);
     expect(rows).toHaveLength(21);

@@ -70,7 +70,7 @@ const setup = async (extra: Record<string, unknown>) => {
   const room = makeRoom({ liveEvents: [root, reply1, reply2] });
   threadRenderStateMock.threadEvents = [root, reply1, reply2] as never;
   const scroll = makeScroll();
-  const props = { room, initialViewMode: 'threaded' as const, ...extra };
+  const props = { room, ...extra };
   let renderer: ReturnType<typeof create> | undefined;
   const render = () =>
     act(async () => {
@@ -129,10 +129,9 @@ describe('RoomTimeline thread opening', () => {
     // The rows are mounted at the end, but measuring them in this commit changed the list's size
     // after it rendered: the commit shows them at the sizes before.
     scroll.mounted.rows = true;
-    let size = 5000;
     scroll.mounted.onRead = () => {
-      size += 10;
-      roomTimelineVirtualizerState.totalSize = size;
+      roomTimelineVirtualizerState.totalSize =
+        (roomTimelineVirtualizerState.totalSize ?? 5000) + 10;
     };
     await render();
     expect(listOptions().overscan).toBe(1);

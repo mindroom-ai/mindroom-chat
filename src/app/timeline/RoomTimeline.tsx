@@ -1138,7 +1138,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
     unreadInfo,
     unreadScrollAnchorIndex: windowState.unreadScrollAnchorIndex,
   });
-  const renderedRowsSize = virtualizer.getTotalSize();
   // After the pins above: a thread opening at its newest reply shows its rows once they rest there
   // (a local echo root, a thread still being created, has no open to wait for).
   const hideOpeningThreadRows = useThreadOpeningReveal({
@@ -1148,8 +1147,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     scrollRef,
     readerTookOver: () =>
       readerScrolledRef.current.value || backController.isOpenBottomPinSuppressed(),
-    rowsAtMeasuredSizes: () =>
-      !beforePaint && virtualizerRef.current.getTotalSize() === renderedRowsSize,
+    rowsAtMeasuredSizes: () => !beforePaint && virtualizerRef.current.getTotalSize() === listHeight,
   });
   // Once the thread shows, the rows kept ready around its view mount, in a render that gives way
   // to the reader's input and to the replies that stream.

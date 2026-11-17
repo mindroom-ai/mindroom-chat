@@ -1,7 +1,7 @@
 import { type RefObject, useEffect, useLayoutEffect } from 'react';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { reactionOrEditEvent } from '../matrix/room';
-import { scrollToLatestEnd } from './roomTimelineScroll';
+import { scrollToBottom } from '../lib/dom';
 import { useViewScopedState } from './roomTimelineViewScope';
 
 /** The longest a thread's rows stay hidden while it opens, whatever holds them back. */
@@ -23,6 +23,9 @@ type ThreadOpeningRevealOptions = {
    */
   rowsAtMeasuredSizes: () => boolean;
 };
+
+/** An edit or a reaction has no tile once it measures to no height. */
+const isTile = (row: MatrixEvent): boolean => !reactionOrEditEvent(row);
 
 const atEndOf = (scrollArea: HTMLElement): boolean =>
   scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1;
@@ -58,8 +61,7 @@ export const useThreadOpeningReveal = ({
     }
     const scrollArea = scrollRef.current;
     if (!scrollArea) return;
-    if (!atEndOf(scrollArea)) scrollToLatestEnd(scrollArea, false);
-    const isTile = (row: MatrixEvent) => !reactionOrEditEvent(row);
+    if (!atEndOf(scrollArea)) scrollToBottom(scrollArea);
     const lastTileIndex = rows.findLastIndex(isTile);
     const firstTile = scrollArea.querySelector('[data-index]');
     const filled =

@@ -5,7 +5,7 @@ export const threadScrollRange = (
   range: Range,
   virtualizer: Virtualizer<HTMLDivElement, Element>,
   /** How much is kept mounted on each side of the rows in view, in heights of the view. */
-  viewsAround = 2
+  viewsAround: number
 ): number[] => {
   const height = virtualizer.scrollRect?.height ?? virtualizer.options.initialRect?.height ?? 0;
   if (height <= 0) return defaultRangeExtractor(range);
