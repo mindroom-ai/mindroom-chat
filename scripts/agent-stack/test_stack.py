@@ -101,56 +101,27 @@ class ConfigTests(unittest.TestCase):
         self.assertNotIn(STUB_URL, config)
         self.assertNotIn("  scout:", config)
 
-    def test_live_config_on_haiku_keeps_luna_for_the_router_and_summaries(self) -> None:
-        config = stack.config_yaml("live", TESTER, STUB_URL, 0.0003, helper_model="haiku")
-        self.assertIn("  default:\n    provider: anthropic\n    id: claude-haiku-5-5\n", config)
-        self.assertIn("  luna:\n    provider: openai\n    id: gpt-6-luna\n", config)
-        self.assertIn("router:\n  model: luna\n", config)
-        self.assertIn("  thread_summary_model: luna\n", config)
-
-    def test_helper_model_needs_live_and_defaults_to_luna(self) -> None:
+    def test_a_live_stack_needs_only_the_openai_key(self) -> None:
+        args = up_args(checkout=None, ref=None, transcription="stub", model="live")
         with (
-            mock.patch.object(sys, "argv", ["stack.py", "5", "up", "--helper-model", "haiku"]),
-            contextlib.redirect_stderr(io.StringIO()) as err,
-            self.assertRaises(SystemExit),
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": directory, "ANTHROPIC_API_KEY": "a"}, clear=True),
+            mock.patch.object(stack, "resolve_checkout", return_value=Path("/checkout")),
+            mock.patch.object(stack, "resolve_commit", return_value="abc"),
+            mock.patch.object(stack, "commit_has", return_value=False),
+            mock.patch.object(stack, "http_json", return_value=(200, {})),
+            self.assertRaises(stack.StackError) as raised,
         ):
-            stack.main()
-        self.assertIn("--helper-model needs --model live", err.getvalue())
-        with (
-            mock.patch.object(sys, "argv", ["stack.py", "5", "up", "--model", "live"]),
-            mock.patch.object(stack, "up", return_value={}) as up,
-            mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": tempfile.mkdtemp()}),
-            contextlib.redirect_stdout(io.StringIO()),
-        ):
-            self.assertEqual(stack.main(), 0)
-        self.assertEqual(up.call_args.args[1].helper_model, "luna")
+            stack.up(5, args)
+        self.assertEqual(raised.exception.code, stack.EXIT_NO_KEYS)
+        self.assertIn("--model live needs OPENAI_API_KEY", str(raised.exception))
 
-    def test_a_live_stack_needs_the_openai_key_and_the_helper_models_key(self) -> None:
-        for helper, keys, missing in (
-            ("luna", {"ANTHROPIC_API_KEY": "a"}, "OPENAI_API_KEY"),
-            ("haiku", {"OPENAI_API_KEY": "o"}, "ANTHROPIC_API_KEY"),
-        ):
-            args = up_args(checkout=None, ref=None, transcription="stub", model="live", helper_model=helper)
-            with (
-                tempfile.TemporaryDirectory() as directory,
-                mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": directory, **keys}, clear=True),
-                mock.patch.object(stack, "resolve_checkout", return_value=Path("/checkout")),
-                mock.patch.object(stack, "resolve_commit", return_value="abc"),
-                mock.patch.object(stack, "commit_has", return_value=False),
-                mock.patch.object(stack, "http_json", return_value=(200, {})),
-                self.assertRaises(stack.StackError) as raised,
-            ):
-                stack.up(5, args)
-            self.assertEqual(raised.exception.code, stack.EXIT_NO_KEYS)
-            self.assertIn(f"--model live --helper-model {helper} needs {missing}", str(raised.exception))
-
-    def test_a_live_stack_is_priced_by_model_id(self) -> None:
-        state = {"model": "live", "models": stack.live_models("haiku")}
+    def test_a_live_stacks_default_model_is_priced_as_luna(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            line = 'LLM usage {"model_name": "luna", "model_id": "gpt-6-luna", "uncached_input_tokens": 1000000}'
+            line = 'LLM usage {"model_name": "default", "model_id": "gpt-6-luna", "uncached_input_tokens": 1000000}'
             (Path(directory) / "backend.log").write_text(line + "\n")
-            summary = stack.usage_summary(state, Path(directory))
-        self.assertEqual(summary["models"]["luna"]["usd"], 0.1)
+            summary = stack.usage_summary({"model": "live"}, Path(directory))
+        self.assertEqual(summary["models"]["default"]["usd"], 0.1)
 
     def test_the_default_checkout_is_the_first_that_exists(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -361,7 +332,6 @@ def up_args(**changes: object) -> argparse.Namespace:
     """The arguments of `stack.py <slot> up` without options, with `changes` applied."""
     values = {
         "model": "stub",
-        "helper_model": "luna",
         "calls": None,
         "calls_profile": "realtime",
         "client_sessions": False,

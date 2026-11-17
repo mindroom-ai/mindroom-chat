@@ -1,29 +1,32 @@
 #!/usr/bin/env python3
-"""A fresh, throwaway MindRoom deployment for trying a change by hand: `just live up`, `ask`, `down` and `status`.
+"""A fresh, throwaway MindRoom deployment for trying a change by hand: `just live up`, `ask`, `run`, `down`, `status`.
 
-Usage: python3 scripts/live.py up [--slot N] [--backend DIR] [--helper-model luna|haiku] [--env-file FILE] [--json]
+Usage: python3 scripts/live.py up [--slot N] [--backend DIR] [--env-file FILE] [--json]
        python3 scripts/live.py ask <text> [--slot N] [--screenshot FILE]
+       python3 scripts/live.py run <script.mjs> [args...]
        python3 scripts/live.py down [--slot N | --all-mine]
        python3 scripts/live.py status
 
-`up` picks a free e2e slot in 50-99 (or --slot N) and starts, all on that slot:
+`up` picks a free e2e slot in 50-99 (or --slot N), holding the slot's lock (scripts/e2e-slot.sh takes the same one
+for its runs, and refuses a slot with a live deployment) while it starts, all on that slot:
   1. its own empty Tuwunel homeserver on 28100+N (`scripts/e2e-slot.sh N up`, e2e/docker-compose.yaml);
   2. this checkout's Chat, the Vite dev server (`vite --host 127.0.0.1 --port 4300+N --strictPort`), whose
      /config.json lists only that homeserver, so /login opens on it (scripts/e2e-client-config.mjs). A checkout
      without node_modules gets `npm ci` first;
   3. a MindRoom backend (scripts/agent-stack/stack.py N up --model live): a Helper agent, a normal assistant on GPT-6
-     Luna (or Claude Haiku 5.5 with --helper-model haiku; both are in the config's models), and a fresh test account
-     invited to the lobby, where a plain message goes to the Helper (no mention needed).
+     Luna (the config's `default`; `haiku`, Claude Haiku 5.5, is defined beside it), and a fresh test account invited
+     to the lobby, where a plain message goes to the Helper (no mention needed).
 It then prints the login URL, username, password, agents, lobby, logs and the config file (the backend reloads it:
 edit it to change agents or models), and writes them as JSON to $MINDROOM_LIVE_ROOT/slot-N.json (default
 /tmp/mindroom-live); --json prints that JSON alone. When a step fails, `up` stops what it started and says which step.
 
 `ask` signs in to the deployment's Chat in Chromium (the only one running, or --slot N), sends the text to the lobby,
 waits until the agent's reply is final, saves a screenshot (default $MINDROOM_LIVE_ROOT/slot-N-reply.png) and prints
-the reply and the screenshot's path (scripts/live-ask.mjs, whose functions a custom browser check imports).
+the reply and the screenshot's path (scripts/live-ask.mjs). `run` runs a custom check, a Node script that imports
+scripts/live-ask.mjs by its absolute path, with MINDROOM_LIVE_STATE naming the only ready deployment's state file.
 
-`up` and `ask` need Node 24 (and `ask` the Chromium of CHROMIUM_PATH); outside `nix develop` they run themselves
-again inside it.
+`up`, `ask` and `run` need Node 24, and `ask` and `run` the Chromium of CHROMIUM_PATH; outside `nix develop` they
+run themselves again inside it.
 
 The backend comes from --backend DIR, a MindRoom checkout or worktree, with its uncommitted changes to tracked files
 (`git stash create` makes a commit of them without touching a branch, the stash or the index; untracked files are
@@ -31,13 +34,14 @@ left out unless they are `git add`ed); a clean one runs its HEAD. Without --back
 $E2E_MINDROOM_CHECKOUT, else the first of ~/repos/dev/mindroom and ~/Work/dev/mindroom that exists, and `up` says how
 old that commit is.
 
-The helper needs OPENAI_API_KEY (and ANTHROPIC_API_KEY with --helper-model haiku). Keys missing from the environment
-are read from --env-file (default ~/.mindroom-chat/.env when it exists); only those two names are read, and they go
-to the backend's process alone, never to a file this script writes or its output.
+The backend needs OPENAI_API_KEY, and ANTHROPIC_API_KEY once someone switches to `haiku`. Keys missing from the
+environment are read from --env-file (default ~/.mindroom-chat/.env when it exists); only those two names are read,
+and they go to the backend's process alone, never to a file this script writes or its output.
 
 `down --slot N` stops slot N's Chat, backend and homeserver and deletes their data (`scripts/e2e-slot.sh N down`);
 without options it stops the one deployment this checkout started, and --all-mine every one this checkout started.
-`status` lists every live deployment with its URLs.
+When a part fails to stop, it keeps the deployment's state and logs and exits 1, so `down` again retries. `status`
+lists every live deployment with its URLs and whether its Chat, homeserver and backend answer.
 
 This is the way to test a change live: never on the lab or production deployments.
 """
@@ -119,11 +123,6 @@ def slot_ports(slot: int) -> list[int]:
     return [*stack.ports(slot).values(), *(base + slot for base in RTC_PORT_BASES)]
 
 
-def pick_slot(candidates, is_taken) -> int | None:
-    """The first candidate slot that `is_taken` does not refuse."""
-    return next((slot for slot in candidates if not is_taken(slot)), None)
-
-
 def node_major(version: str) -> int:
     """The major version of `node --version` output (v24.1.0 -> 24); 0 when it is not one."""
     match = re.match(r"\s*v?(\d+)", version)
@@ -131,10 +130,10 @@ def node_major(version: str) -> int:
 
 
 def toolchain_problem(command: str, node_version: str, environ: dict[str, str]) -> str | None:
-    """Why `command` cannot run in this shell, or None: an old or missing Node, or `ask` without Chromium."""
+    """Why `command` cannot run in this shell, or None: an old or missing Node, or no Chromium for a browser."""
     if node_major(node_version) < MIN_NODE:
         return f"node {node_version.strip()} is too old" if node_version.strip() else "node is missing"
-    if command == "ask" and not environ.get("CHROMIUM_PATH"):
+    if command != "up" and not environ.get("CHROMIUM_PATH"):
         return "CHROMIUM_PATH is not set"
     return None
 
@@ -172,6 +171,7 @@ def live_state(slot: int, stack_state: dict, chat: dict, backend: dict, seconds:
         "backend": {
             **backend,
             "commit": stack_state["sha"],
+            "apiUrl": stack_state["apiUrl"],
             "log": stack_state["logs"]["backend"],
             "config": str(Path(stack_state["dir"]) / "config.yaml"),
         },
@@ -198,7 +198,7 @@ def summary(state: dict) -> str:
             f"  Lobby:      {state['lobby']['url']} (a plain message goes to the Helper; no mention needed)",
             f"  Agents:     {agents}",
             f'  Browser:    just live ask "<text>" --slot {state["slot"]} (signs in, sends, waits, screenshots)',
-            f"  Custom:     import {{ readState, launch, login, ask }} from '{ASK_SCRIPT}'",
+            f"  Custom:     import {{ readState, launch, login, ask }} from '{ASK_SCRIPT}'; just live run <script.mjs>",
             f"  Backend:    MindRoom {backend['commit'][:12]}, {backend['source']}",
             f"              log {backend['log']}",
             f"  Config:     {backend['config']} (the backend reloads it: edit it to change agents or models)",
@@ -279,11 +279,36 @@ def docker_projects() -> set[str]:
     return projects
 
 
-def slot_taken(slot: int, projects: set[str], live: set[int]) -> bool:
+def slot_lock(slot: int) -> Path:
+    """The lock file that scripts/e2e-slot.sh holds for a run on slot N, and `up` while it starts one."""
+    folder = Path(os.environ.get("E2E_SNAPSHOT_ROOT") or "/tmp/mindroom-client-e2e") / "slots"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder / f"{slot}.lock"
+
+
+def claim_slot(slot: int, projects: set[str]):
+    """The open, locked lock file of slot N when nothing uses the slot, else None."""
+    handle = slot_lock(slot).open("a")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        handle.close()
+        return None
+    # Read under the lock: a deployment that another `up` started has its state file by the time it lets go.
+    if slot_taken(slot, projects):
+        handle.close()
+        return None
+    handle.truncate(0)
+    handle.write(f"scripts/live.py up, pid {os.getpid()}\n")
+    handle.flush()
+    return handle
+
+
+def slot_taken(slot: int, projects: set[str]) -> bool:
     """Whether anything on this machine may use slot N: a live deployment, its homeserver's compose project, an agent
     stack's state, or a listener on any of its ports."""
     return (
-        slot in live
+        state_path(slot).exists()
         or f"mindroom-client-e2e-{slot}" in projects
         or (agent_root() / f"slot-{slot}").exists()
         or any(port_in_use(port) for port in slot_ports(slot))
@@ -359,11 +384,8 @@ def up(args: argparse.Namespace) -> int:
     env_file = Path(args.env_file or DEFAULT_ENV_FILE).expanduser()
     keys = {name: os.environ[name] for name in KEY_NAMES if os.environ.get(name)}
     keys.update(missing_keys(dict(os.environ), env_file))
-    needed = ["OPENAI_API_KEY", *(["ANTHROPIC_API_KEY"] if args.helper_model == "haiku" else [])]
-    if missing := [name for name in needed if name not in keys]:
-        raise LiveError(
-            f"{' and '.join(missing)} is in neither the environment nor {env_file}; set it or pass --env-file FILE"
-        )
+    if "OPENAI_API_KEY" not in keys:
+        raise LiveError(f"OPENAI_API_KEY is in neither the environment nor {env_file}; set it or pass --env-file FILE")
     # npm writes node_modules/.package-lock.json last, so an install that stopped halfway runs again.
     installed = REPOSITORY / "node_modules" / ".package-lock.json"
     if not installed.is_file():
@@ -372,24 +394,19 @@ def up(args: argparse.Namespace) -> int:
                 say(f"{REPOSITORY} has no node_modules; running `npm ci --no-audit --no-fund` (a few minutes)")
                 run_logged(["npm", "ci", "--no-audit", "--no-fund"], live_root() / "npm-ci.log")
 
-    with locked(live_root() / "pick.lock"):
-        live = set(read_states())
-        projects = docker_projects()
-        if args.slot is not None:
-            if slot_taken(args.slot, projects, live):
-                raise LiveError(
-                    f"slot {args.slot} is in use (`just live status`, `docker ps`, `ss -ltn`); pick another"
-                )
-            slot = args.slot
-        else:
-            slot = pick_slot(SLOTS, lambda n: slot_taken(n, projects, live))
-            if slot is None:
-                raise LiveError(f"no free slot in {SLOTS.start}-{SLOTS.stop - 1}")
-        directory = live_root() / f"slot-{slot}"
-        shutil.rmtree(directory, ignore_errors=True)
-        directory.mkdir()
-        state = {"slot": slot, "status": "starting", "upPid": os.getpid(), "chat": {"checkout": str(REPOSITORY)}}
-        write_state(slot, state)
+    projects = docker_projects()
+    for slot in [args.slot] if args.slot is not None else SLOTS:
+        # Held until `up` ends; the state file marks the slot as this deployment's from then on.
+        if lock := claim_slot(slot, projects):
+            break
+    else:
+        where = f"slot {args.slot} is" if args.slot is not None else f"every slot of {SLOTS.start}-{SLOTS.stop - 1} is"
+        raise LiveError(f"{where} in use (`just live status`, `docker ps`, `ss -ltn`)")
+    directory = live_root() / f"slot-{slot}"
+    shutil.rmtree(directory, ignore_errors=True)
+    directory.mkdir()
+    state = {"slot": slot, "status": "starting", "upPid": os.getpid(), "chat": {"checkout": str(REPOSITORY)}}
+    write_state(slot, state)
     say(f"slot {slot}")
 
     port = stack.ports(slot)
@@ -433,7 +450,7 @@ def up(args: argparse.Namespace) -> int:
         cached = (agent_root() / "src" / sha / ".complete").exists()
         say(f"starting MindRoom {sha[:12]} ({source}){'' if cached else '; its first start installs it (minutes)'}")
         command = [sys.executable, str(REPOSITORY / "scripts" / "agent-stack" / "stack.py"), str(slot), "up"]
-        command += ["--model", "live", "--helper-model", args.helper_model, "--client-sessions"]
+        command += ["--model", "live", "--client-sessions"]
         command += ["--checkout", str(checkout), "--ref", sha]
         # Its progress and errors (with the backend log's tail) go straight to this script's stderr.
         result = subprocess.run(
@@ -468,8 +485,11 @@ def up(args: argparse.Namespace) -> int:
         else:
             say(f"step {step} failed: {error!r}")
         say(f"stopping what this start started on slot {slot}")
-        stop_slot(slot)
+        if not stop_slot(slot):
+            say(f"some of it did not stop; `just live down --slot {slot}` tries again")
         return error.code if isinstance(error, SystemExit) and isinstance(error.code, int) else 1
+    finally:
+        lock.close()
 
     backend = {"checkout": str(checkout), "source": source}
     full = live_state(slot, stack_state, state["chat"], backend, time.monotonic() - started)
@@ -478,23 +498,38 @@ def up(args: argparse.Namespace) -> int:
     return 0
 
 
+def ready_slot(slot: int | None) -> int:
+    """Slot N when it has a ready deployment, or the only ready one."""
+    ready = sorted(number for number, state in read_states().items() if state.get("status") == "ready")
+    if slot is None and len(ready) != 1:
+        found = f"slots {', '.join(map(str, ready))}; pass --slot N" if ready else "none; `just live up` starts one"
+        raise LiveError(f"this needs exactly one ready live deployment, found {found}")
+    slot = ready[0] if slot is None else slot
+    if slot not in ready:
+        raise LiveError(f"no ready live deployment on slot {slot} (`just live status`)")
+    return slot
+
+
 def ask(args: argparse.Namespace) -> int:
     text = " ".join(args.text).strip()
     if not text:
         raise LiveError('ask needs the text to send: just live ask "What is 17*23?"')
-    ready = sorted(slot for slot, state in read_states().items() if state.get("status") == "ready")
-    if args.slot is None and len(ready) != 1:
-        found = f"slots {', '.join(map(str, ready))}; pass --slot N" if ready else "none; `just live up` starts one"
-        raise LiveError(f"ask needs exactly one ready live deployment, found {found}")
-    slot = ready[0] if args.slot is None else args.slot
-    if slot not in ready:
-        raise LiveError(f"no ready live deployment on slot {slot} (`just live status`)")
+    slot = ready_slot(args.slot)
     screenshot = Path(args.screenshot or live_root() / f"slot-{slot}-reply.png").expanduser().resolve()
     return subprocess.run(["node", str(ASK_SCRIPT), str(state_path(slot)), text, str(screenshot)]).returncode
 
 
-def stop_slot(slot: int) -> None:
-    """Stops slot N's Chat, backend and homeserver and deletes their data and this script's state of it."""
+def run(script: str, script_args: list[str]) -> int:
+    """Runs a custom check with Node, MINDROOM_LIVE_STATE naming the only ready deployment's state file (if one)."""
+    env = dict(os.environ)
+    with contextlib.suppress(LiveError):
+        env["MINDROOM_LIVE_STATE"] = str(state_path(ready_slot(None)))
+    return subprocess.run(["node", script, *script_args], env=env).returncode
+
+
+def stop_slot(slot: int) -> bool:
+    """Stops slot N's Chat, backend and homeserver, trying each, and deletes their data and this script's state of it.
+    When a part fails, the state and logs stay so that `down` can try again; returns whether all stopped."""
     state = read_states().get(slot) or {}
     up_pid = state.get("upPid")
     if state.get("status") == "starting" and up_pid and up_pid != os.getpid() and stack.alive(up_pid, "live.py"):
@@ -503,16 +538,25 @@ def stop_slot(slot: int) -> None:
         deadline = time.monotonic() + 60
         while stack.alive(up_pid, "live.py") and time.monotonic() < deadline:
             time.sleep(0.5)
-    stack.stop_process((state.get("chat") or {}).get("pid"), "vite")
-    subprocess.run(
+    chat_pid = (state.get("chat") or {}).get("pid")
+    stack.stop_process(chat_pid, "vite")
+    failed = ["Chat"] if stack.alive(chat_pid, "vite") else []
+    # The homeserver, the agent stack and the call service, each tried (scripts/e2e-slot.sh `down`).
+    teardown = subprocess.run(
         ["bash", str(REPOSITORY / "scripts" / "e2e-slot.sh"), str(slot), "down"],
         cwd=REPOSITORY,
         stdin=subprocess.DEVNULL,
         # Its Docker output says what it removed; stdout stays for --json.
         stdout=sys.stderr,
     )
+    if teardown.returncode != 0:
+        failed.append(f"`scripts/e2e-slot.sh {slot} down` (exit {teardown.returncode})")
+    if failed:
+        say(f"slot {slot}: {' and '.join(failed)} did not stop; its state stays in {state_path(slot)}")
+        return False
     shutil.rmtree(live_root() / f"slot-{slot}", ignore_errors=True)
     state_path(slot).unlink(missing_ok=True)
+    return True
 
 
 def down(args: argparse.Namespace) -> int:
@@ -528,11 +572,15 @@ def down(args: argparse.Namespace) -> int:
         elif len(slots) > 1 and not args.all_mine:
             say(f"this checkout has deployments on slots {', '.join(map(str, slots))}; pass --slot N or --all-mine")
             return 2
+    code = 0
     for slot in slots:
         say(f"stopping slot {slot}")
-        stop_slot(slot)
-        say(f"slot {slot} is down")
-    return 0
+        if stop_slot(slot):
+            say(f"slot {slot} is down")
+        else:
+            say(f"slot {slot} is not fully down; `just live down --slot {slot}` tries again")
+            code = 1
+    return code
 
 
 def status(_args: argparse.Namespace) -> int:
@@ -541,9 +589,13 @@ def status(_args: argparse.Namespace) -> int:
         print("no live deployments (`just live up` starts one)")
     for slot, state in sorted(states.items()):
         if state.get("status") == "ready":
-            chat = stack.alive(state["chat"].get("pid"), "vite")
-            server = stack.http_json("GET", f"{state['homeserver']}/_matrix/client/versions", timeout=3)[0] == 200
-            health = "ready" if chat and server else "broken (Chat or homeserver gone)"
+            parts = {
+                "Chat": stack.alive(state["chat"].get("pid"), "vite"),
+                "homeserver": stack.http_json("GET", f"{state['homeserver']}/_matrix/client/versions", timeout=3)[0],
+                "backend": stack.http_json("GET", f"{state['backend']['apiUrl']}/api/health", timeout=3)[0],
+            }
+            gone = [name for name, answer in parts.items() if answer not in (True, 200)]
+            health = f"broken ({', '.join(gone)} not answering)" if gone else "ready"
         else:
             health = "starting" if stack.alive(state.get("upPid"), "live.py") else "broken (its start was killed)"
         print(f"slot {slot}: {health}, Chat from {state['chat']['checkout']}")
@@ -555,18 +607,23 @@ def status(_args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["run"]:
+        # Everything after the script is the script's own.
+        if len(argv) < 2:
+            say("usage: just live run <script.mjs> [args...]")
+            return 2
+        try:
+            ensure_toolchain("run", argv)
+        except LiveError as error:
+            say(str(error))
+            return 1
+        return run(argv[1], argv[2:])
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
-    parser.add_argument("command", choices=["up", "ask", "down", "status"])
+    parser.add_argument("command", choices=["up", "ask", "run", "down", "status"])
     parser.add_argument("text", nargs="*", help="ask: the message to send to the lobby")
     parser.add_argument("--slot", type=int, help="up: this slot instead of a free one; ask, down: this slot's")
     parser.add_argument("--all-mine", action="store_true", help="down: every deployment this checkout started")
     parser.add_argument("--backend", help="up: a MindRoom checkout whose working tree the backend runs")
-    parser.add_argument(
-        "--helper-model",
-        choices=sorted(stack.LIVE_MODELS),
-        default="luna",
-        help="up: the helper's model, luna (GPT-6 Luna, default) or haiku (Claude Haiku 5.5)",
-    )
     parser.add_argument("--env-file", help=f"up: where to read missing provider keys (default {DEFAULT_ENV_FILE})")
     parser.add_argument("--json", action="store_true", help="up: print only the state's JSON")
     parser.add_argument(

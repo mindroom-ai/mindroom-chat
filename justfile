@@ -79,10 +79,11 @@ e2e-slot slot *args:
 agent-stack slot *args:
     python3 scripts/agent-stack/stack.py {{slot}} {{args}}
 
-# A fresh throwaway MindRoom deployment for live tests, on a free e2e slot of 50-99: `up` starts its own empty homeserver, a MindRoom backend (a normal Helper agent on GPT-6 Luna) from --backend DIR's working tree or else origin/main of the default MindRoom checkout, and this checkout's Chat, then prints the login URL, username and password; `ask "<text>"` signs in to it in Chromium, sends the text to the lobby and prints the agent's final reply with a screenshot; `down` (--slot N, --all-mine) stops it and deletes its data, and `status` lists the running ones. The docstring of scripts/live.py describes its options and keys. Example: `just live up --backend ~/repos/worktrees/mindroom-my-fix`.
+# A fresh throwaway MindRoom deployment for live tests, on a free e2e slot of 50-99: `up` starts its own empty homeserver, a MindRoom backend (a normal Helper agent on GPT-6 Luna) from --backend DIR's working tree or else origin/main of the default MindRoom checkout, and this checkout's Chat, then prints the login URL, username and password; `ask "<text>"` signs in to it in Chromium, sends the text to the lobby and prints the agent's final reply with a screenshot; `run <script.mjs>` runs a custom browser check that imports scripts/live-ask.mjs; `down` (--slot N, --all-mine) stops it and deletes its data, and `status` lists the running ones. The docstring of scripts/live.py describes its options and keys. Paths are relative to the directory you run it in. Example: `just live up --backend ~/repos/worktrees/mindroom-my-fix`.
+[no-cd]
 [positional-arguments]
 live *args:
-    python3 scripts/live.py "$@"
+    python3 "{{justfile_directory()}}/scripts/live.py" "$@"
 
 # Run the e2e suite (or the given specs) against one commit, each spec file in its own `e2e-slot --preview` run (the call specs with --rtc), spread over slots; writes one TSV row per spec, with tests skipped for a missing service in their own column. Example: `just e2e-suite --slots 25-28 --out results.tsv`.
 e2e-suite *args:

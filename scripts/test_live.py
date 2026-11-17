@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import contextlib
+import fcntl
 import io
 import os
 import socket
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -65,27 +67,57 @@ class KeyFileTests(unittest.TestCase):
 
 
 class SlotTests(unittest.TestCase):
-    def test_the_first_slot_nothing_uses_is_picked(self) -> None:
-        self.assertEqual(live.pick_slot(range(50, 55), lambda slot: slot in {50, 51, 53}), 52)
-        self.assertIsNone(live.pick_slot(range(50, 52), lambda slot: True))
+    def setUp(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        environ = {
+            "E2E_AGENT_STACK_ROOT": str(self.root / "agents"),
+            "E2E_SNAPSHOT_ROOT": str(self.root / "e2e"),
+            "MINDROOM_LIVE_ROOT": str(self.root / "live"),
+        }
+        patcher = mock.patch.dict(os.environ, environ)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
-    def taken(self, slot: int, projects: set[str] = frozenset(), live_slots: set[int] = frozenset()) -> bool:
-        with (
-            tempfile.TemporaryDirectory() as directory,
-            mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": directory}),
-        ):
-            return live.slot_taken(slot, set(projects), set(live_slots))
+    def taken(self, slot: int, projects: set[str] = frozenset()) -> bool:
+        return live.slot_taken(slot, set(projects))
 
     def test_a_slot_is_taken_by_a_deployment_a_compose_project_or_a_stack(self) -> None:
         with mock.patch.object(live, "port_in_use", return_value=False):
             self.assertFalse(self.taken(57))
-            self.assertTrue(self.taken(57, live_slots={57}))
             self.assertTrue(self.taken(57, projects={"mindroom-client-e2e-57"}))
             self.assertFalse(self.taken(57, projects={"mindroom-client-e2e-5", "mindroom-client-e2e-570"}))
-            with tempfile.TemporaryDirectory() as directory:
-                (Path(directory) / "slot-57").mkdir()
-                with mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": directory}):
-                    self.assertTrue(live.slot_taken(57, set(), set()))
+            live.write_state(57, {"slot": 57})
+            self.assertTrue(self.taken(57))
+            self.assertFalse(self.taken(58))
+            (self.root / "agents" / "slot-58").mkdir(parents=True)
+            self.assertTrue(self.taken(58))
+
+    def test_a_slot_whose_lock_another_run_holds_is_skipped(self) -> None:
+        with mock.patch.object(live, "port_in_use", return_value=False):
+            with live.slot_lock(57).open("a") as other:
+                fcntl.flock(other, fcntl.LOCK_EX)
+                self.assertIsNone(live.claim_slot(57, set()))
+            claim = live.claim_slot(57, set())
+            self.assertIsNotNone(claim)
+            self.assertIn("scripts/live.py up", live.slot_lock(57).read_text())
+            claim.close()
+
+    def e2e_slot(self, *argv: str) -> subprocess.CompletedProcess:
+        script = live.REPOSITORY / "scripts" / "e2e-slot.sh"
+        return subprocess.run(["bash", str(script), *argv], capture_output=True, text=True, timeout=60)
+
+    def test_an_e2e_run_refuses_a_slot_that_a_live_deployment_or_its_start_holds(self) -> None:
+        live.write_state(57, {"slot": 57})
+        refused = self.e2e_slot("57", "true")
+        self.assertEqual(refused.returncode, 2)
+        self.assertIn("a live deployment uses the slot", refused.stderr)
+        claim = live.claim_slot(58, set())
+        refused = self.e2e_slot("58", "true")
+        claim.close()
+        self.assertEqual(refused.returncode, 2)
+        self.assertIn("the slot is in use (scripts/live.py up, pid", refused.stderr)
 
     def test_a_listener_on_any_port_of_the_slot_takes_it(self) -> None:
         ports = live.slot_ports(57)
@@ -167,6 +199,7 @@ class StateTests(unittest.TestCase):
         self.assertIsNone(live.toolchain_problem("up", "v24.21.0", {}))
         self.assertEqual(live.toolchain_problem("ask", "v24.21.0", {}), "CHROMIUM_PATH is not set")
         self.assertIsNone(live.toolchain_problem("ask", "v24.21.0", chromium))
+        self.assertEqual(live.toolchain_problem("run", "v24.21.0", {}), "CHROMIUM_PATH is not set")
 
 
 class ToolchainTests(unittest.TestCase):
@@ -212,9 +245,9 @@ class DownTests(unittest.TestCase):
     def write(self, slot: int, checkout: Path = live.REPOSITORY) -> None:
         live.write_state(slot, {"slot": slot, "status": "ready", "chat": {"checkout": str(checkout), "pid": None}})
 
-    def run_main(self, *argv: str) -> tuple[int, list[int]]:
+    def run_main(self, *argv: str, returncode: int = 0) -> tuple[int, list[int]]:
         with (
-            mock.patch.object(live.subprocess, "run") as run,
+            mock.patch.object(live.subprocess, "run", return_value=mock.Mock(returncode=returncode)) as run,
             contextlib.redirect_stderr(io.StringIO()),
         ):
             code = live.main(list(argv))
@@ -238,9 +271,53 @@ class DownTests(unittest.TestCase):
 
     def test_down_of_a_slot_runs_the_slot_teardown(self) -> None:
         self.write(62, Path("/elsewhere"))
-        with mock.patch.object(live.subprocess, "run") as run, contextlib.redirect_stderr(io.StringIO()):
+        with (
+            mock.patch.object(live.subprocess, "run", return_value=mock.Mock(returncode=0)) as run,
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
             self.assertEqual(live.main(["down", "--slot", "62"]), 0)
         self.assertEqual(run.call_args.args[0][1:], [str(live.REPOSITORY / "scripts" / "e2e-slot.sh"), "62", "down"])
+
+    def test_a_failed_teardown_keeps_the_state_and_logs_so_down_tries_again(self) -> None:
+        self.write(61)
+        (self.root / "slot-61").mkdir()
+        (self.root / "slot-61" / "chat.log").write_text("vite\n")
+        self.assertEqual(self.run_main("down", "--slot", "61", returncode=1), (1, [61]))
+        self.assertTrue((self.root / "slot-61.json").exists())
+        self.assertTrue((self.root / "slot-61" / "chat.log").exists())
+        self.assertEqual(self.run_main("down", "--slot", "61"), (0, [61]))
+        self.assertFalse((self.root / "slot-61.json").exists())
+        self.assertFalse((self.root / "slot-61").exists())
+
+    def test_status_names_a_backend_that_does_not_answer(self) -> None:
+        live.write_state(
+            61,
+            {
+                "slot": 61,
+                "status": "ready",
+                "chat": {"checkout": "/repo", "pid": 1},
+                "homeserver": "http://127.0.0.1:28161",
+                "backend": {"apiUrl": "http://127.0.0.1:29661"},
+            },
+        )
+        answers = {"http://127.0.0.1:28161/_matrix/client/versions": 200, "http://127.0.0.1:29661/api/health": 0}
+        with (
+            mock.patch.object(live.stack, "alive", return_value=True),
+            mock.patch.object(live.stack, "http_json", side_effect=lambda _m, url, **_: (answers[url], {})),
+            contextlib.redirect_stdout(io.StringIO()) as out,
+        ):
+            live.main(["status"])
+        self.assertIn("slot 61: broken (backend not answering)", out.getvalue())
+
+    def test_run_passes_the_scripts_arguments_and_the_only_deployments_state(self) -> None:
+        self.write(61)
+        with (
+            mock.patch.object(live, "ensure_toolchain"),
+            mock.patch.object(live.subprocess, "run", return_value=mock.Mock(returncode=3)) as run,
+        ):
+            self.assertEqual(live.main(["run", "check.mjs", "--slot", "x"]), 3)
+        self.assertEqual(run.call_args.args[0], ["node", "check.mjs", "--slot", "x"])
+        self.assertEqual(run.call_args.kwargs["env"]["MINDROOM_LIVE_STATE"], str(self.root / "slot-61.json"))
 
     def test_the_root_is_the_owners_only(self) -> None:
         live.live_root()

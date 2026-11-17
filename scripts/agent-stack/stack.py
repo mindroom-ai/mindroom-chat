@@ -2,7 +2,7 @@
 """Run a real MindRoom backend, driven by a stub model or a real one, against one end-to-end slot's homeserver.
 
 Usage: python3 scripts/agent-stack/stack.py <slot 0-99> up|down|status|usage [--model stub|real|live]
-       [--helper-model luna|haiku] [--transcription stub|real] [--calls SERVICE_URL [--calls-profile realtime|live]] [--client-sessions]
+       [--transcription stub|real] [--calls SERVICE_URL [--calls-profile realtime|live]] [--client-sessions]
        [--computers [--computer-image IMAGE] [--computer-tools LIST]] [--terminals] [--checkout DIR] [--ref REV]
 
   up      start the stack, or reuse the one already running for this slot, and print its state as JSON
@@ -42,10 +42,10 @@ still put them in its own state, so set $E2E_AGENT_STACK_ROOT to a private direc
 writes the stack's model calls and tokens to $E2E_AGENT_STACK_ROOT/usage/ before it deletes the stack.
 
 --model live is a normal assistant for trying things by hand (scripts/live.py, `just live up`, starts it): the helper
-has the real helper's tools and one plain instruction, no script. It runs on GPT-6 Luna, which needs OPENAI_API_KEY,
-or with --helper-model haiku on Claude Haiku 5.5, which also needs ANTHROPIC_API_KEY; the other model is defined too,
-so the thread's model picker or an edit of the config (which the backend reloads) switches to it. GPT-6 Luna is the
-router's and the thread summaries' model, and call transcripts are real, as with --model real.
+has the real helper's tools and one plain instruction, no script. GPT-6 Luna (the `default` model, which needs
+OPENAI_API_KEY) runs the helper, the router, the thread summaries and the notes of real call transcripts. Claude Haiku
+5.5 is defined as `haiku`, so the thread's model picker or an edit of the config (which the backend reloads) switches
+to it; it then needs ANTHROPIC_API_KEY.
 
 --calls SERVICE_URL makes the helper answer MatrixRTC voice calls on the MatrixRTC authorization
 service at that URL (the slot's scripts/e2e-rtc.sh service), with a realtime OpenAI voice model: gpt-realtime-2.1-mini
@@ -158,34 +158,19 @@ MODELS = {
         "first": {"key": "default", "id": "claude-haiku-5-5", "displayName": "Claude Haiku 5.5"},
         "second": {"key": "luna", "id": "gpt-6-luna", "displayName": "GPT-6 Luna"},
     },
+    "live": {
+        "first": {"key": "default", "id": "gpt-6-luna", "displayName": "GPT-6 Luna"},
+        "second": {"key": "haiku", "id": "claude-haiku-5-5", "displayName": "Claude Haiku 5.5"},
+    },
 }
 # USD per million tokens, from the providers' price pages; the backend prices each reply with them.
 REAL_PRICING = {
     "default": {"input": 0.1, "output": 0.5, "cache_read": 0.01, "cache_write": 0.2},
     "luna": {"input": 0.1, "output": 0.5, "cache_read": 0.01, "cache_write": 0.125},
 }
+LIVE_PRICING = {"default": REAL_PRICING["luna"], "haiku": REAL_PRICING["default"]}
 PROVIDER_KEYS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY")
 REQUIRED_REAL_KEYS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY")
-# The models a --model live helper may run on (--helper-model); the first is the default. The helper's becomes the
-# `default` entry and the other keeps its name, so the model picker offers both.
-LIVE_MODELS = {
-    "luna": {
-        "id": "gpt-6-luna",
-        "displayName": "GPT-6 Luna",
-        "provider": "openai",
-        "contextWindow": 1050000,
-        "keyName": "OPENAI_API_KEY",
-        "pricing": REAL_PRICING["luna"],
-    },
-    "haiku": {
-        "id": "claude-haiku-5-5",
-        "displayName": "Claude Haiku 5.5",
-        "provider": "anthropic",
-        "contextWindow": 200000,
-        "keyName": "ANTHROPIC_API_KEY",
-        "pricing": REAL_PRICING["default"],
-    },
-}
 LIVE_INSTRUCTIONS = ["You are a helpful assistant in a throwaway MindRoom test deployment."]
 # The voice models a calls stack can give the helper, as MindRoom call profiles (docs/voice-calls.md).
 CALL_PROFILES = {
@@ -641,34 +626,23 @@ def real_models_yaml() -> str:
 """
 
 
-def live_models(helper_model: str) -> dict:
-    """The thread's two models of --model live: the helper's as `default`, the other under its own name."""
-    other = next(name for name in LIVE_MODELS if name != helper_model)
-
-    def entry(key: str, name: str) -> dict:
-        return {"key": key, "id": LIVE_MODELS[name]["id"], "displayName": LIVE_MODELS[name]["displayName"]}
-
-    return {"first": entry("default", helper_model), "second": entry(other, other)}
-
-
-def live_luna_key(helper_model: str) -> str:
-    """The config key of GPT-6 Luna in a --model live config: the router's, the summaries' and the notes' model."""
-    return "default" if helper_model == "luna" else "luna"
-
-
-def live_models_yaml(helper_model: str) -> str:
-    lines = ["models:"]
-    for model in live_models(helper_model).values():
-        spec = next(entry for entry in LIVE_MODELS.values() if entry["id"] == model["id"])
-        lines += [
-            f"  {model['key']}:",
-            f"    provider: {spec['provider']}",
-            f"    id: {model['id']}",
-            f"    display_name: {model['displayName']}",
-            f"    context_window: {spec['contextWindow']}",
-            f"    pricing: {json.dumps(spec['pricing'])}",
-        ]
-    return "\n".join(lines) + "\n"
+def live_models_yaml() -> str:
+    """The models of --model live: GPT-6 Luna as `default`, Claude Haiku 5.5 beside it as `haiku`."""
+    luna, haiku = MODELS["live"]["first"], MODELS["live"]["second"]
+    return f"""models:
+  default:
+    provider: openai
+    id: {luna["id"]}
+    display_name: {luna["displayName"]}
+    context_window: 1050000
+    pricing: {json.dumps(LIVE_PRICING["default"])}
+  haiku:
+    provider: anthropic
+    id: {haiku["id"]}
+    display_name: {haiku["displayName"]}
+    context_window: 200000
+    pricing: {json.dumps(LIVE_PRICING["haiku"])}
+"""
 
 
 def notes_model_yaml() -> str:
@@ -815,7 +789,6 @@ def config_yaml(
     terminals: bool = False,
     shell_without_worker: bool = False,
     extra_agents: int = 0,
-    helper_model: str = "luna",
 ) -> str:
     plugin_dirs = plugin_dirs or []
     agent_tools = """      - shell
@@ -869,8 +842,7 @@ def config_yaml(
         header = "# Written by scripts/agent-stack/stack.py --model real; the helper follows a script keyed by hashtags."
     elif mode == "live":
         instructions = "\n".join(f"      - {json.dumps(line)}" for line in LIVE_INSTRUCTIONS)
-        models = live_models_yaml(helper_model)
-        luna = live_luna_key(helper_model)
+        models = live_models_yaml()
         agents = f"""  helper:
     display_name: Helper
     role: A helpful assistant
@@ -881,8 +853,8 @@ def config_yaml(
     tools:
 {agent_tools}
 {helper_terminals}"""
-        router_model = luna
-        summary_model = f"  thread_summary_model: {luna}\n"
+        router_model = "default"
+        summary_model = "  thread_summary_model: default\n"
         header = (
             "# Written by scripts/agent-stack/stack.py --model live: a normal assistant on real models. The backend\n"
             "# reloads this file when it changes, so edit it to change the agents or their models."
@@ -1049,10 +1021,7 @@ def usage_summary(state: dict, slot_dir: Path) -> dict:
     total_usd = 0.0
     real_notes = (state.get("transcription") or {}).get("stt") == "real"
     for name, entry in models.items():
-        price = REAL_PRICING.get(name) if state.get("model") == "real" else None
-        if state.get("model") == "live":
-            ids = {model["key"]: model["id"] for model in (state.get("models") or {}).values()}
-            price = next((spec["pricing"] for spec in LIVE_MODELS.values() if spec["id"] == ids.get(name)), None)
+        price = {"real": REAL_PRICING, "live": LIVE_PRICING}.get(state.get("model"), {}).get(name)
         if name == NOTES_MODEL["key"] and real_notes:
             price = NOTES_PRICING
         if not price:
@@ -1178,7 +1147,7 @@ def transcription_setting(args: argparse.Namespace, checkout: Path, sha: str) ->
         # Its own Luna writes the notes: a second entry of the same model would list it twice in the model picker.
         return {"stt": "real", "notesModel": MODELS["real"]["second"]["key"]}
     if args.model == "live":
-        return {"stt": "real", "notesModel": live_luna_key(args.helper_model)}
+        return {"stt": "real", "notesModel": "default"}
     notes = NOTES_MODEL["key"] if args.transcription == "real" else MODELS["stub"]["first"]["key"]
     return {"stt": args.transcription, "notesModel": notes}
 
@@ -1197,8 +1166,6 @@ def started_with(
     them."""
     return (
         state.get("model", "stub") == args.model
-        # A live stack's helper model (--helper-model) is in its models.
-        and (args.model != "live" or state.get("models") == mode_models(args))
         and state.get("calls") == calls_setting(args)
         and state.get("transcription") == transcription
         and state.get("clientSessions", False) == args.client_sessions
@@ -1211,11 +1178,6 @@ def started_with(
         and state.get("sha") == sha
         and state.get("homeserver") == homeserver
     )
-
-
-def mode_models(args: argparse.Namespace) -> dict:
-    """The thread's two models of the start's mode (and helper model, with --model live)."""
-    return live_models(args.helper_model) if args.model == "live" else MODELS[args.model]
 
 
 def backend_bin(checkout: Path, sha: str, args: argparse.Namespace) -> Path:
@@ -1267,14 +1229,13 @@ def up(slot: int, args: argparse.Namespace) -> dict:
     # A voice call speaks through OpenAI's realtime models; real call transcripts go to OpenAI's speech-to-text.
     required = (
         *(REQUIRED_REAL_KEYS if real else ()),
-        *(("OPENAI_API_KEY", LIVE_MODELS[args.helper_model]["keyName"]) if live else ()),
-        *(("OPENAI_API_KEY",) if calls or real_transcription else ()),
+        *(("OPENAI_API_KEY",) if live or calls or real_transcription else ()),
     )
     missing = [name for name in dict.fromkeys(required) if name not in keys]
     if missing:
         options = {
             "--model real": real,
-            f"--model live --helper-model {args.helper_model}": live,
+            "--model live": live,
             "--transcription real": real_transcription and not real and not live,
             "--calls": calls,
         }
@@ -1345,7 +1306,6 @@ def start(
             args.terminals,
             commit_mentions(checkout, sha, *SHELL_WITHOUT_WORKER),
             args.agents,
-            args.helper_model,
         )
     )
     api_url = f"http://127.0.0.1:{port['api']}"
@@ -1387,7 +1347,7 @@ def start(
     state = {
         "slot": slot,
         "model": args.model,
-        "models": mode_models(args),
+        "models": MODELS[args.model],
         "calls": calls,
         "transcription": transcription,
         "clientSessions": args.client_sessions,
@@ -1620,12 +1580,6 @@ def main() -> int:
         "script, or live: a normal assistant on GPT-6 Luna (scripts/live.py), with the keys of the environment",
     )
     parser.add_argument(
-        "--helper-model",
-        choices=sorted(LIVE_MODELS),
-        default=None,
-        help="--model live only: the helper's model, luna (GPT-6 Luna, the default) or haiku (Claude Haiku 5.5)",
-    )
-    parser.add_argument(
         "--transcription",
         choices=TRANSCRIPTION_MODES,
         default=os.environ.get("E2E_AGENT_TRANSCRIPTION") or "stub",
@@ -1709,9 +1663,6 @@ def main() -> int:
     if args.agents and args.model != "stub":
         log("--agents needs the stub model: a real model cannot be routed to an agent by name")
         return 1
-    if args.helper_model and args.model != "live":
-        parser.error("--helper-model needs --model live")
-    args.helper_model = args.helper_model or next(iter(LIVE_MODELS))
     if args.terminals and args.computers:
         parser.error("--terminals and --computers need different worker backends; start them in separate stacks")
     # Chat opens a computer, and reaches terminals, through the same origin settings as a client session.

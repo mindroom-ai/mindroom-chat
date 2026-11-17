@@ -39,7 +39,11 @@
 # At most E2E_MAX_CONCURRENT runs (default 6; 0 turns the cap off) go at once on this machine, over
 # all slots and sessions: a run first takes one of that many lock files in
 # $E2E_SNAPSHOT_ROOT/tokens (each names its holder), and waits, saying so once, while all are taken.
-# Its exit releases it, also on failure or Ctrl-C. `down` takes none.
+# Its exit releases it, also on failure or Ctrl-C. `down` and `up` take none.
+#
+# A run also holds its slot's lock file ($E2E_SNAPSHOT_ROOT/slots/<N>.lock) and refuses a slot that
+# another run or a `just live up` deployment (scripts/live.py) uses; `down` and `up`, which live.py
+# runs for its own slots, take no lock.
 set -euo pipefail
 # Everything runs from main, which bash reads whole before it starts: editing this file while a
 # run is in progress (a shared checkout) cannot change what that run executes next. The scripts it
@@ -91,10 +95,12 @@ main() {
   agent_stack_down() { python3 "$repo/scripts/agent-stack/stack.py" "$slot" down || true; }
 
   if [ "$1" = down ]; then
-    compose down --volumes --remove-orphans
-    agent_stack_down
-    bash "$repo/scripts/e2e-rtc.sh" "$slot" down
-    exit
+    # Each part is tried; the exit status says whether all stopped.
+    status=0
+    compose down --volumes --remove-orphans || status=1
+    python3 "$repo/scripts/agent-stack/stack.py" "$slot" down || status=1
+    bash "$repo/scripts/e2e-rtc.sh" "$slot" down || status=1
+    exit "$status"
   fi
   if [ "$1" = up ]; then
     compose --progress quiet down --volumes --remove-orphans
@@ -107,6 +113,7 @@ main() {
   snapshots="${E2E_SNAPSHOT_ROOT:-/tmp/mindroom-client-e2e}"
   . "$repo/scripts/private-dir.sh"
   private_dir "$snapshots"
+  take_slot "$@"
   take_run_token "$@"
 
   if [ -n "$snapshot_rev" ]; then
@@ -268,10 +275,28 @@ copy_plugin_dirs() {
 # spec starts) cannot keep the token after the run.
 without_token() {
   if [ -n "${token_fd:-}" ]; then
-    "$@" {token_fd}>&-
+    "$@" {token_fd}>&- {slot_fd}>&-
   else
-    "$@"
+    "$@" {slot_fd}>&-
   fi
+}
+
+# Takes the slot's lock file without waiting (slot_fd stays open on it until this script exits), and
+# refuses a slot that another run holds or that a `just live up` deployment (scripts/live.py) uses:
+# `live up` holds the same lock while it starts and keeps its state file in $MINDROOM_LIVE_ROOT after.
+take_slot() {
+  local lock="$snapshots/slots/$slot.lock" live="${MINDROOM_LIVE_ROOT:-/tmp/mindroom-live}/slot-$slot.json"
+  mkdir -p "$snapshots/slots"
+  exec {slot_fd}<>"$lock"
+  if ! flock -n "$slot_fd"; then
+    echo "e2e-slot $slot: the slot is in use ($(cat "$lock")); pick another slot" >&2
+    exit 2
+  fi
+  if [ -e "$live" ]; then
+    echo "e2e-slot $slot: a live deployment uses the slot ($live; \`just live down --slot $slot\` stops it); pick another slot" >&2
+    exit 2
+  fi
+  printf 'scripts/e2e-slot.sh, slot %s, pid %s, since %s: %s\n' "$slot" "$$" "$(date +%H:%M:%S)" "$*" >"$lock"
 }
 
 # Takes one of E2E_MAX_CONCURRENT lock files (token_fd stays open on it until this script exits).
