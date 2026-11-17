@@ -491,7 +491,7 @@ It opens at the pointer, below it in the window's upper half and above it in the
 Leaving the card, a press, a click, a wheel scroll, opening the menu or a room change closes it; after a press, click, wheel scroll or the menu, it stays closed until the pointer leaves the card.
 A programmatic scroll closes it only when another card or none is now under the pointer, not when the list's own scroll adjustment leaves the same card there.
 The same details form the first group of the thread's menu (`src/app/threads/ThreadActionsMenu.tsx`), reached through More Options, right-click, the ContextMenu key, a long press on a Compact card or the open thread's banner.
-That group describes the menu (`aria-describedby`) and scrolls with its rows on touch screens, under the menu's height cap.
+That group describes the menu (`aria-describedby`) and scrolls with its rows under the menu's height cap, on every pointer type.
 Contributions show in build order, with a hairline between those that drew something, and the hover card stays hidden while none did.
 A detail that loads its code (a `lazy` component) shows nothing until the code has loaded, while the other details show.
 A detail that throws shows nothing, and the failure is logged and reported with its plugin's tag ("[plugin <id>@<version>] failed to render its thread details").
