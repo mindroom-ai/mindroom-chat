@@ -69,8 +69,24 @@ describe('VoiceWaveform played fill', () => {
     runFrame();
     expect(fillWidth()).toBeCloseTo(fullWidth() * 0.2601);
 
+    // A later render from a report older than the last frame does not pull the fill back.
+    act(() =>
+      root.render(<VoiceWaveform waveform={[100, 200]} progress={0.22} getProgress={getProgress} />)
+    );
+    expect(fillWidth()).toBeCloseTo(fullWidth() * 0.2601);
+
     act(() => root.render(<VoiceWaveform waveform={[100, 200]} progress={0.3} />));
     expect(fillWidth()).toBeCloseTo(fullWidth() * 0.3);
     expect(frames.size).toBe(0);
+  });
+
+  it('schedules no frame after unmounting while playing', () => {
+    act(() =>
+      root.render(<VoiceWaveform waveform={[100, 200]} progress={0.2} getProgress={() => 0.5} />)
+    );
+    expect(frames.size).toBe(1);
+    act(() => root.unmount());
+    expect(frames.size).toBe(0);
+    root = createRoot(host);
   });
 });
