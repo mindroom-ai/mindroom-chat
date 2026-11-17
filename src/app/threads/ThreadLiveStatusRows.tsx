@@ -25,8 +25,9 @@ const NO_EVENTS: MatrixEvent[] = [];
 /**
  * The tool calls the thread's streaming replies run, several agents' at once: each reply's live
  * frames while they show over it, else its latest edit's tool trace. Read again on each frame,
- * edit, thread update and change the room hears (`roomChanges`): an edit the SDK holds back for
- * a thread not opened brings neither of the others.
+ * edit, thread update and change the signals cache counts for the room (`roomChanges`, from
+ * `subscribeRoomSignals`): an edit the SDK holds back for a thread not opened brings neither of
+ * the others.
  */
 const useRunningTools = (room: Room, threadId: string, streaming: boolean, roomChanges: number) => {
   const mx = useMatrixClient();

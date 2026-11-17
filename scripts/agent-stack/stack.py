@@ -15,8 +15,9 @@ Usage: python3 scripts/agent-stack/stack.py <slot 0-99> up|down|status|usage [--
 --agents N (stub model only, default 0) adds the stub agents worker1 .. workerN (Worker 1 ..) to the lobby, each with
 the shell tool, and the state's `agents` lists them. The stub's router answers workerK when the routed message names
 workerK (the real-work load, scripts/perf/real-work/driver.py, spreads its streams over them: a homeserver before
-mindroom-tuwunel v1.9.4-mindroom.47 lets one sender send 30 live frames a second per room, later ones 600). A real
-model cannot be routed by name, so --model real refuses it.
+mindroom-tuwunel v1.9.4-mindroom.47 lets one sender send 30 live frames a second per room; later ones, the test
+homeserver of e2e/docker-compose.yaml among them, 600). A real model cannot be routed by name, so --model real
+refuses it.
 
 The backend comes from a MindRoom checkout (--checkout, $E2E_MINDROOM_CHECKOUT, default
 /home/basnijholt/Work/dev/mindroom) at a commit (--ref, $E2E_MINDROOM_REF, default the checkout's origin/main

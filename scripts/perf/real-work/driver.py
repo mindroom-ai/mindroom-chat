@@ -10,8 +10,8 @@ Usage: python3 scripts/perf/real-work/driver.py --stack <state.json> --profile <
 A profile's `agents` (default 1) spreads the threads over the stack's stub agents: with more than one, thread i's
 turns name worker{i % agents + 1} first, which the stub's router answers with, and the run exits 1 when the stack
 state lacks one (start it with `stack.py <slot> up --agents N`). A homeserver from mindroom-tuwunel v1.9.4-mindroom.47
-on (#167) lets one agent send 600 live frames a second per room, 50 streams' worth at 10 frames a second each. The
-Tuwunel of `e2e/docker-compose.yaml` allows 30 a second, about 3 streams' worth, until its pin is raised to that release:
+on (#167) lets one agent send 600 live frames a second per room, 50 streams' worth at 10 frames a second each; the
+Tuwunel of `e2e/docker-compose.yaml` is that release. An older homeserver allows 30 a second, about 3 streams' worth:
 a load of more streams needs one agent per 3 there.
 
 The stack's stub model answers each `#work` prompt this script posts as the stack's tester
