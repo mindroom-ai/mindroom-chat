@@ -268,14 +268,17 @@ export const renderAgentMessageContent = ({
     renderHtml: (customBody: string | undefined) => ReactNode,
     canFold = true
   ) => {
-    const wrap = (render: (customBody: string | undefined) => ReactNode) => {
+    const wrap = (
+      render: (customBody: string | undefined) => ReactNode,
+      bodyHtml: string | undefined = html
+    ) => {
       if (!foldsWork || foldEventId === undefined) {
-        return wrapWithReasoning(bodyContent, render(html));
+        return wrapWithReasoning(bodyContent, render(bodyHtml));
       }
       return (
         <AgentWorkBody
           body={typeof bodyContent.body === 'string' ? bodyContent.body : ''}
-          html={html}
+          html={bodyHtml}
           foldKey={`finished-work:${foldEventId}`}
           finished={finished && canFold}
           durationMs={workDurationMs}
@@ -284,7 +287,7 @@ export const renderAgentMessageContent = ({
         />
       );
     };
-    if (!question || !renderQuestionCard || html === undefined) return wrap(renderHtml);
+    if (!question || !renderQuestionCard) return wrap(renderHtml);
     return (
       <QuestionReply
         html={html}

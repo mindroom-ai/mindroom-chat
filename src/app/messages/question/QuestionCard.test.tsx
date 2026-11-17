@@ -204,6 +204,45 @@ describe('QuestionCard', () => {
     expect(buttons()).toHaveLength(2);
   });
 
+  it('adds its buttons under a reply whose body yields no HTML', () => {
+    // Past the Markdown parser's marker budget the body renders as plain text, with no HTML.
+    const body = `Which color?\n\n${'*a* '.repeat(300)}`;
+    const { format: _format, formatted_body: _html, ...rest } = questionContent('');
+    render({ ...rest, body });
+    expect(container.textContent).toContain('*a* *a*');
+    expect(card()?.textContent).not.toContain('Which color?');
+    expect(buttons()).toHaveLength(2);
+  });
+
+  it('shows one card where the real question is when the reply folds its work', () => {
+    const example = `<p>For example:</p>\n${QUESTION_HTML}`;
+    const html = `${example}\n<p>🔧 <code>read_file</code> [1]</p>\n<p>Now:</p>\n${QUESTION_HTML}`;
+    render({
+      ...questionContent(html),
+      body: `Which color? ${'x'.repeat(1300)}`,
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [{ type: 'tool_call_completed', tool_name: 'read_file' }],
+      },
+      'io.mindroom.ai_run': { version: 1, status: 'completed' },
+    });
+    const cards = () => container.querySelectorAll('[data-question-card]');
+    expect(cards()).toHaveLength(1);
+    expect(container.textContent).toContain('Now:');
+    expect(container.textContent).not.toContain('For example:');
+
+    const worked = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.startsWith('Worked')
+    );
+    act(() => worked?.click());
+    expect(cards()).toHaveLength(1);
+    expect(container.textContent).toContain('For example:');
+    // The example stays as the reply wrote it.
+    expect(container.querySelectorAll('ol')).toHaveLength(1);
+    const text = container.textContent ?? '';
+    expect(text.indexOf('For example:')).toBeLessThan(text.indexOf('Now:'));
+  });
+
   it('offers no answer where it is read-only, and renders no card for anyone but an agent', () => {
     render(questionContent(QUESTION_HTML), [], { readOnly: true });
     expect(buttons().every((button) => button.disabled)).toBe(true);

@@ -4,38 +4,24 @@ import { splitQuestionBlock } from './questionBlockSplit';
 
 type RenderHtml = (html: string | undefined) => ReactNode;
 
-type QuestionHtmlProps = {
+// Stands in for the question's block in the reply's HTML, so the card goes where the block was in
+// whichever part of the reply holds it once its finished work folds. Private-use characters, which
+// no reply writes, and a paragraph of its own, which the fold's split keeps whole.
+const CARD_PLACE = '<p>\uE000question-card\uE000</p>';
+
+type QuestionReplyProps = {
   html: string | undefined;
   question: InteractiveQuestion;
   renderCard: (showText: boolean) => ReactNode;
   renderHtml: RenderHtml;
-};
-
-/** A part of the reply's HTML, with the card where the part holds the question's text. */
-function QuestionHtml({ html, question, renderCard, renderHtml }: QuestionHtmlProps) {
-  const split = useMemo(
-    () => (html ? splitQuestionBlock(html, question) : undefined),
-    [html, question]
-  );
-  if (!split) return <>{renderHtml(html)}</>;
-  return (
-    <>
-      {split.before.trim() !== '' && renderHtml(split.before)}
-      {renderCard(true)}
-      {split.after.trim() !== '' && renderHtml(split.after)}
-    </>
-  );
-}
-
-type QuestionReplyProps = QuestionHtmlProps & {
-  /** The reply's body around a renderer of its HTML: its reasoning, its folded work. */
-  renderBody: (renderHtml: RenderHtml) => ReactNode;
+  /** The reply's body from its HTML and a renderer of that HTML: its reasoning, its folded work. */
+  renderBody: (renderHtml: RenderHtml, html: string | undefined) => ReactNode;
 };
 
 /**
  * An agent reply that asks a question: the card takes the place of the question's text in the
- * reply, or, when the reply does not show that text as MindRoom writes it, adds its buttons under
- * the reply, so nothing the reply says is lost.
+ * reply, or, when the reply does not show that text as MindRoom writes it (or has no HTML), adds
+ * its buttons under the reply, so nothing the reply says is lost.
  */
 export function QuestionReply({
   html,
@@ -46,32 +32,31 @@ export function QuestionReply({
 }: QuestionReplyProps) {
   // Each render reads the question again; its value, not its identity, decides the split.
   const questionKey = JSON.stringify(question);
-  const stableQuestion = useMemo(
-    () => JSON.parse(questionKey) as InteractiveQuestion,
-    [questionKey]
-  );
-  const found = useMemo(
-    () => html !== undefined && splitQuestionBlock(html, stableQuestion) !== undefined,
-    [html, stableQuestion]
-  );
-  if (!found) {
+  const marked = useMemo(() => {
+    if (!html) return undefined;
+    const split = splitQuestionBlock(html, JSON.parse(questionKey) as InteractiveQuestion);
+    return split && `${split.before}${CARD_PLACE}${split.after}`;
+  }, [html, questionKey]);
+  if (marked === undefined) {
     return (
       <>
-        {renderBody(renderHtml)}
+        {renderBody(renderHtml, html)}
         {renderCard(false)}
       </>
     );
   }
-  return (
-    <>
-      {renderBody((part) => (
-        <QuestionHtml
-          html={part}
-          question={stableQuestion}
-          renderCard={renderCard}
-          renderHtml={renderHtml}
-        />
-      ))}
-    </>
-  );
+  const renderPart: RenderHtml = (part) => {
+    const at = part?.indexOf(CARD_PLACE) ?? -1;
+    if (!part || at < 0) return renderHtml(part);
+    const before = part.slice(0, at);
+    const after = part.slice(at + CARD_PLACE.length);
+    return (
+      <>
+        {before.trim() !== '' && renderHtml(before)}
+        {renderCard(true)}
+        {after.trim() !== '' && renderHtml(after)}
+      </>
+    );
+  };
+  return <>{renderBody(renderPart, marked)}</>;
 }
