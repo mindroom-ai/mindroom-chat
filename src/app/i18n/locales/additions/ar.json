@@ -818,6 +818,13 @@
         "workedFor": "عمل لمدة ⁨{{duration}}⁩",
         "worked": "عمل"
       },
+      "questionCard": {
+        "title": "سؤال",
+        "waiting": "بانتظارك",
+        "answered": "تمت الإجابة",
+        "youChose": "اخترت",
+        "nameChose": "اختار ⁨{{name}}⁩"
+      },
       "mindroomReplyDetails": {
         "subagents": "الوكلاء الفرعيون"
       }
@@ -850,13 +857,7 @@
         "threadFiltersActive": "عوامل تصفية سلاسل المحادثات (مفعّلة)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "عوامل تصفية متقدمة",
-        "presets": {
-          "snoozed": {
-            "label": "مؤجلة",
-            "description": "سلاسل المحادثات المؤجلة فقط"
-          }
-        }
+        "advancedFilters": "عوامل تصفية متقدمة"
       },
       "threadPeopleFilter": {
         "label": "الأشخاص",
@@ -1047,6 +1048,20 @@
     "unsnooze": "إلغاء التأجيل",
     "status": {
       "snoozed": "مؤجلة"
+    },
+    "workflow": {
+      "needsYou": "بحاجة إليك",
+      "working": "قيد العمل",
+      "later": "لاحقًا",
+      "done": "مكتمل",
+      "all": "الكل",
+      "description": {
+        "needsYou": "تحتاج مهمة في الخلفية إلى موافقتك، أو لا يوجد شيء قيد التشغيل أو مجدول.",
+        "working": "يردّ وكيل، أو يعمل وكيل فرعي أو أداة في الخلفية.",
+        "later": "مؤجلة مؤقتًا، أو تنتظر مهمة مجدولة.",
+        "done": "سلاسل المحادثات التي تم حلها.",
+        "all": "كل سلاسل المحادثات المطابقة لعوامل التصفية الأخرى."
+      }
     },
     "renameHint": "انقر نقرًا مزدوجًا لإعادة التسمية"
   },
@@ -1410,7 +1425,7 @@
     "layoutSections": "أقسام",
     "sections": {
       "working": "قيد العمل",
-      "snoozed": "مؤجلة",
+      "later": "لاحقًا",
       "idle": "خاملة",
       "resolved": "محلولة"
     },

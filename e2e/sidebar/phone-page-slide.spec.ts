@@ -147,7 +147,7 @@ const seed = async (test: string) => {
 const drawer = (page: Page) => page.locator('#phone-nav-drawer');
 const menuButton = (page: Page) => page.locator('#phone-nav-menu-button');
 const threadColumn = (page: Page) => page.getByTestId('thread-column');
-// The thread's own Back, under the room header's, which leads to the list.
+// The thread's own Back, in its banner.
 const threadBack = (page: Page) => threadColumn(page).getByRole('button', { name: 'Back' }).last();
 const card = (page: Page, root: string) => page.locator(`[data-thread-root-id="${root}"]`).first();
 
@@ -209,7 +209,8 @@ test.describe('a phone slides its pages', () => {
     await expect(threadColumn(page)).toBeHidden();
     expect(await takeSlides(page, 'back to the room'), 'back to the room').toEqual([BACK]);
 
-    await page.getByRole('banner').getByRole('button', { name: 'Back' }).tap();
+    // The browser's back (Android's back button) leaves the room for the list.
+    await page.goBack();
     await shot('4-room-leaves');
     await expect(drawer(page)).toBeVisible();
     expect(await takeSlides(page, 'back to the list'), 'back to the list').toEqual([BACK]);

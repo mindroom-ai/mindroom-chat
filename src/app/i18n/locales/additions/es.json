@@ -785,6 +785,13 @@
         "workedFor": "Trabajó durante {{duration}}",
         "worked": "Trabajó"
       },
+      "questionCard": {
+        "title": "Pregunta",
+        "waiting": "Te espera",
+        "answered": "Respondido",
+        "youChose": "Elegiste",
+        "nameChose": "{{name}} eligió"
+      },
       "mindroomReplyDetails": {
         "subagents": "Subagentes"
       }
@@ -811,13 +818,7 @@
         "threadFiltersActive": "Filtros de hilos (activos)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtros avanzados",
-        "presets": {
-          "snoozed": {
-            "label": "Pospuestos",
-            "description": "Solo hilos pospuestos"
-          }
-        }
+        "advancedFilters": "Filtros avanzados"
       },
       "threadPeopleFilter": {
         "label": "Personas",
@@ -996,6 +997,20 @@
     "unsnooze": "Dejar de posponer",
     "status": {
       "snoozed": "Pospuesto"
+    },
+    "workflow": {
+      "needsYou": "Te necesita",
+      "working": "En curso",
+      "later": "Más tarde",
+      "done": "Hecho",
+      "all": "Todos",
+      "description": {
+        "needsYou": "Una tarea en segundo plano necesita aprobación, o no hay nada en ejecución ni programado.",
+        "working": "Un agente está respondiendo, o un subagente o una herramienta en segundo plano está en ejecución.",
+        "later": "Pospuestos o a la espera de una tarea programada.",
+        "done": "Hilos resueltos.",
+        "all": "Todos los hilos que coinciden con tus otros filtros."
+      }
     },
     "renameHint": "Haz doble clic para cambiar el nombre"
   },
@@ -1332,7 +1347,7 @@
     "layoutSections": "Secciones",
     "sections": {
       "working": "En curso",
-      "snoozed": "Pospuestos",
+      "later": "Más tarde",
       "idle": "Inactivos",
       "resolved": "Resueltos"
     },

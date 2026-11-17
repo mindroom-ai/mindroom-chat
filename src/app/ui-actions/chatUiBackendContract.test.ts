@@ -24,7 +24,7 @@ type ExpectedAction =
   | { action: 'show_computer' }
   | { action: 'open_settings'; section: ChatUiSettingsSection }
   | { action: 'open_panel'; panel: 'members' }
-  | { action: 'show_canvas'; canvas: ChatUiCanvas; shareState?: true };
+  | { action: 'show_canvas'; canvas: ChatUiCanvas; shareState?: true; inline?: true };
 
 const fixturePath =
   process.env.CHAT_UI_CONTRACT_FIXTURE ??
@@ -79,6 +79,26 @@ const expectedCases = new Map<string, ExpectedAction>();
       html: '<form data-mindroom-label="Seats chosen"><input name="seats" value="3"><button>Continue</button></form>',
     },
     shareState: true,
+  });
+  // An inline canvas stays inline through its updates.
+  expectedCases.set(`${scope}/show_canvas/inline`, {
+    action: 'show_canvas',
+    canvas: {
+      title: 'Choose a plan',
+      html: '<form data-mindroom-label="Seats chosen"><input name="seats" value="3"><button>Continue</button></form>',
+    },
+    inline: true,
+  });
+  // A page preview: shown inline, exactly as written, at a desktop viewport.
+  expectedCases.set(`${scope}/show_canvas/page`, {
+    action: 'show_canvas',
+    canvas: {
+      title: 'Choose a plan',
+      html: '<form data-mindroom-label="Plan chosen"><label><input type="radio" name="plan" value="pro" checked> Pro</label><button>Choose</button></form>',
+      raw: true,
+      width: 1440,
+    },
+    inline: true,
   });
 });
 

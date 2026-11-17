@@ -796,6 +796,13 @@
         "workedFor": "Работал {{duration}}",
         "worked": "Работал"
       },
+      "questionCard": {
+        "title": "Вопрос",
+        "waiting": "Ждёт вас",
+        "answered": "Ответ дан",
+        "youChose": "Ваш выбор",
+        "nameChose": "Выбор: {{name}}"
+      },
       "mindroomReplyDetails": {
         "subagents": "Субагенты"
       }
@@ -824,13 +831,7 @@
         "threadFiltersActive": "Фильтры веток (активны)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Расширенные фильтры",
-        "presets": {
-          "snoozed": {
-            "label": "Отложенные",
-            "description": "Только отложенные ветки"
-          }
-        }
+        "advancedFilters": "Расширенные фильтры"
       },
       "threadPeopleFilter": {
         "label": "Участники",
@@ -1013,6 +1014,20 @@
     "unsnooze": "Вернуть",
     "status": {
       "snoozed": "Отложена"
+    },
+    "workflow": {
+      "needsYou": "Нужно ваше участие",
+      "working": "В работе",
+      "later": "Позже",
+      "done": "Готово",
+      "all": "Все",
+      "description": {
+        "needsYou": "Фоновая задача требует одобрения, либо ничего не выполняется и не запланировано.",
+        "working": "Агент отвечает, либо выполняется субагент или фоновый инструмент.",
+        "later": "Отложены или ожидают запланированную задачу.",
+        "done": "Решённые ветки.",
+        "all": "Все ветки, соответствующие остальным фильтрам."
+      }
     },
     "renameHint": "Дважды щёлкните, чтобы переименовать"
   },
@@ -1358,7 +1373,7 @@
     "layoutSections": "Разделы",
     "sections": {
       "working": "В работе",
-      "snoozed": "Отложенные",
+      "later": "Позже",
       "idle": "Неактивные",
       "resolved": "Решённые"
     },

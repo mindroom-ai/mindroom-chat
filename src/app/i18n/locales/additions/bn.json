@@ -774,6 +774,13 @@
         "workedFor": "{{duration}} কাজ করেছে",
         "worked": "কাজ করেছে"
       },
+      "questionCard": {
+        "title": "প্রশ্ন",
+        "waiting": "আপনার অপেক্ষায়",
+        "answered": "উত্তর দেওয়া হয়েছে",
+        "youChose": "আপনি বেছে নিয়েছেন",
+        "nameChose": "{{name}} বেছে নিয়েছেন"
+      },
       "mindroomReplyDetails": {
         "subagents": "সাব-এজেন্ট"
       }
@@ -798,13 +805,7 @@
         "threadFiltersActive": "থ্রেড ফিল্টার (চালু)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "উন্নত ফিল্টার",
-        "presets": {
-          "snoozed": {
-            "label": "স্নুজ করা",
-            "description": "শুধুমাত্র স্নুজ করা থ্রেড"
-          }
-        }
+        "advancedFilters": "উন্নত ফিল্টার"
       },
       "threadPeopleFilter": {
         "label": "লোকজন",
@@ -979,6 +980,20 @@
     "unsnooze": "স্থগিত বাতিল করুন",
     "status": {
       "snoozed": "স্নুজ করা"
+    },
+    "workflow": {
+      "needsYou": "আপনাকে প্রয়োজন",
+      "working": "কাজ চলছে",
+      "later": "পরে",
+      "done": "সম্পন্ন",
+      "all": "সব",
+      "description": {
+        "needsYou": "ব্যাকগ্রাউন্ডের কাজের জন্য অনুমোদন প্রয়োজন, অথবা কোনো কাজ চলছে না বা নির্ধারিত নেই।",
+        "working": "কোনো এজেন্ট উত্তর দিচ্ছে, অথবা কোনো সাবএজেন্ট বা ব্যাকগ্রাউন্ড টুল চলছে।",
+        "later": "সাময়িকভাবে স্থগিত, অথবা কোনো নির্ধারিত কাজের অপেক্ষায়।",
+        "done": "সমাধান করা থ্রেড।",
+        "all": "আপনার অন্যান্য ফিল্টারের সঙ্গে মেলে এমন সব থ্রেড।"
+      }
     },
     "renameHint": "নাম বদলাতে ডাবল-ক্লিক করুন"
   },
@@ -1306,7 +1321,7 @@
     "layoutSections": "বিভাগ",
     "sections": {
       "working": "কাজ চলছে",
-      "snoozed": "স্নুজ করা",
+      "later": "পরে",
       "idle": "নিষ্ক্রিয়",
       "resolved": "সমাধান করা"
     },

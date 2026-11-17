@@ -25,8 +25,9 @@ const NO_EVENTS: MatrixEvent[] = [];
 /**
  * The tool calls the thread's streaming replies run, several agents' at once: each reply's live
  * frames while they show over it, else its latest edit's tool trace. Read again on each frame,
- * edit, thread update and change the room hears (`roomChanges`): an edit the SDK holds back for
- * a thread not opened brings neither of the others.
+ * edit, thread update and change the signals cache counts for the room (`roomChanges`, from
+ * `subscribeRoomSignals`): an edit the SDK holds back for a thread not opened brings neither of
+ * the others.
  */
 const useRunningTools = (room: Room, threadId: string, streaming: boolean, roomChanges: number) => {
   const mx = useMatrixClient();
@@ -87,7 +88,9 @@ export function ThreadLiveStatusRows({ room, entry }: ThreadLiveStatusRowsProps)
   const { jobs: roomJobs, total: roomTotal } = useRoomBackgroundJobs(room);
   const jobs = useMemo(() => jobsInView(roomJobs, threadId), [roomJobs, threadId]);
   // The status, tools and cost read more than the entry follows: a reaction that answers, an edit
-  // or a decryption. So they are read again whenever the room hears anything.
+  // or a decryption. So they are read again whenever the room hears what its threads' signals are
+  // read again for (`subscribeRoomSignals`). Live reply frames and sub-agent runs reach no
+  // listener there; their stores tell of them (`useRunningTools`, `useRoomSubagentCounts`).
   const [roomChanges, roomChanged] = useForceUpdate();
   useEffect(
     () => subscribeRoomSignals(mx, room.roomId, roomChanged),

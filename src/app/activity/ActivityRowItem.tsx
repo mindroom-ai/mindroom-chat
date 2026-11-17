@@ -24,7 +24,8 @@ import {
 import { threadRootPluginEvent } from '../threads/cross-room/threadSignals';
 import type { ActivityRow } from './activityRows';
 import { needsYou } from './activityRows';
-import { answerApproval, answerQuestion } from './activityActions';
+import { answerQuestion } from '../messages/reactions/answerQuestion';
+import { answerApproval } from './activityActions';
 import { agentMember } from '../approvals/approvalPeople';
 import { ApprovalArguments } from '../approvals/ApprovalArguments';
 import * as css from './ActivityList.css';

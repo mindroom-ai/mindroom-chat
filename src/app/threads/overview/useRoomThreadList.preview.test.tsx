@@ -8,6 +8,7 @@ import { SyncEngineProvider } from '../../event-store/engine/engineContext';
 import { deleteCacheStoreDb, loadLatestCachedThreadEvents } from '../../event-store/cache/db';
 import { persistRoomChunkWithPreferLive } from '../../event-store/cache/eventRepository';
 import { useRoomThreadList } from './useRoomThreadList';
+import { createThreadRecordChanges } from '../../event-store/threads/threadRecord';
 
 it('keeps a listed reply as an edit target even when sync skipped its original event', async () => {
   const userId = '@reader:example.org';
@@ -59,8 +60,9 @@ it('keeps a listed reply as an edit target even when sync skipped its original e
   vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
     room.processThreadRoots([root], false);
   });
+  const changes = createThreadRecordChanges();
   function Harness() {
-    useRoomThreadList(room);
+    useRoomThreadList(room, true, changes, 0);
     return null;
   }
   let renderer: ReturnType<typeof create> | undefined;

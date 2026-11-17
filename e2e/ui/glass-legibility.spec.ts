@@ -249,7 +249,7 @@ const checkSurfaces = async (
         results,
         `${prefix}-filter-bar`,
         filterBar,
-        filterBar.locator('[data-filter-key]').first()
+        filterBar.locator('[data-thread-tab]').first()
       );
 
       // The Compact view's cards pass under the composer.

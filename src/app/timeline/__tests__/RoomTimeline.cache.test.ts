@@ -272,14 +272,12 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
                 onStoreThreadSummary: vi.fn(),
                 threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
                 threadSortFreezeState: null,
-                onToggle: vi.fn(),
                 onSortDirectionChange: vi.fn(),
                 onToggleThreadSortFreeze: vi.fn(),
                 setThreadSortFreezeState: vi.fn(),
                 onAddTag: vi.fn(),
                 onRemoveTag: vi.fn(),
                 onReset: vi.fn(),
-                onApplyPreset: vi.fn(),
                 onSearchQueryChange: vi.fn(),
                 viewMode: 'default',
               })
@@ -345,14 +343,12 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
                 onStoreThreadSummary: vi.fn(),
                 threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
                 threadSortFreezeState: null,
-                onToggle: vi.fn(),
                 onSortDirectionChange: vi.fn(),
                 onToggleThreadSortFreeze: vi.fn(),
                 setThreadSortFreezeState: vi.fn(),
                 onAddTag: vi.fn(),
                 onRemoveTag: vi.fn(),
                 onReset: vi.fn(),
-                onApplyPreset: vi.fn(),
                 onSearchQueryChange: vi.fn(),
                 viewMode: 'classic',
               })
@@ -1351,14 +1347,12 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
                 onStoreThreadSummary: vi.fn(),
                 threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
                 threadSortFreezeState: null,
-                onToggle: vi.fn(),
                 onSortDirectionChange: vi.fn(),
                 onToggleThreadSortFreeze: vi.fn(),
                 setThreadSortFreezeState: vi.fn(),
                 onAddTag: vi.fn(),
                 onRemoveTag: vi.fn(),
                 onReset: vi.fn(),
-                onApplyPreset: vi.fn(),
                 onSearchQueryChange: vi.fn(),
                 viewMode: 'classic',
               })
@@ -1450,14 +1444,12 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
                 onStoreThreadSummary: vi.fn(),
                 threadFilterState: { ...DEFAULT_THREAD_FILTER_STATE, tags: new Map() },
                 threadSortFreezeState: null,
-                onToggle: vi.fn(),
                 onSortDirectionChange: vi.fn(),
                 onToggleThreadSortFreeze: vi.fn(),
                 setThreadSortFreezeState: vi.fn(),
                 onAddTag: vi.fn(),
                 onRemoveTag: vi.fn(),
                 onReset: vi.fn(),
-                onApplyPreset: vi.fn(),
                 onSearchQueryChange: vi.fn(),
                 viewMode: 'default',
               })
@@ -1634,7 +1626,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         tags: new Map(),
       });
       expect(overview.props.threadCount).toBe(1);
-      expect(overview.props.onToggle).toBeTypeOf('function');
+      expect(overview.props.onSearchQueryChange).toBeTypeOf('function');
     });
 
     it('does not show a false zero-thread overview while initial room cache hydrate is pending', async () => {
@@ -2429,8 +2421,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         });
 
         await act(async () => {
-          renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
-          renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
+          renderer?.root.findByType(roomThreadOverviewType).props.onSearchQueryChange('-is:resolved');
           await flushAsyncWork(2);
         });
 
@@ -5336,8 +5327,7 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       });
 
       await act(async () => {
-        renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
-        renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
+        renderer?.root.findByType(roomThreadOverviewType).props.onSearchQueryChange('-is:resolved');
         await flushAsyncWork(1);
       });
 

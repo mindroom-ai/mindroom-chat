@@ -785,6 +785,13 @@
         "workedFor": "Trabalhou por {{duration}}",
         "worked": "Trabalhou"
       },
+      "questionCard": {
+        "title": "Pergunta",
+        "waiting": "À sua espera",
+        "answered": "Respondido",
+        "youChose": "Você escolheu",
+        "nameChose": "{{name}} escolheu"
+      },
       "mindroomReplyDetails": {
         "subagents": "Subagentes"
       }
@@ -811,13 +818,7 @@
         "threadFiltersActive": "Filtros de tópicos (ativos)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtros avançados",
-        "presets": {
-          "snoozed": {
-            "label": "Adiados",
-            "description": "Apenas tópicos adiados"
-          }
-        }
+        "advancedFilters": "Filtros avançados"
       },
       "threadPeopleFilter": {
         "label": "Pessoas",
@@ -996,6 +997,20 @@
     "unsnooze": "Cancelar adiamento",
     "status": {
       "snoozed": "Adiado"
+    },
+    "workflow": {
+      "needsYou": "Precisa de você",
+      "working": "Em andamento",
+      "later": "Mais tarde",
+      "done": "Concluído",
+      "all": "Todos",
+      "description": {
+        "needsYou": "Uma tarefa em segundo plano precisa de aprovação, ou não há nada em execução nem agendado.",
+        "working": "Um agente está respondendo, ou um subagente ou uma ferramenta em segundo plano está em execução.",
+        "later": "Adiados ou aguardando uma tarefa agendada.",
+        "done": "Tópicos resolvidos.",
+        "all": "Todos os tópicos que correspondem aos seus outros filtros."
+      }
     },
     "renameHint": "Faça duplo clique para mudar o nome"
   },
@@ -1332,7 +1347,7 @@
     "layoutSections": "Secções",
     "sections": {
       "working": "Em curso",
-      "snoozed": "Adiados",
+      "later": "Mais tarde",
       "idle": "Inativos",
       "resolved": "Resolvidos"
     },

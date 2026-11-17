@@ -1,5 +1,9 @@
 /* eslint-disable react/prop-types */
 import React from 'react';
+import {
+  applyParsedThreadFilterQuery,
+  parseThreadFilterQuery,
+} from '../../event-store/threads/threadFilterDsl';
 import { Direction, RoomEvent, ThreadEvent, type MatrixEvent } from 'matrix-js-sdk';
 import { Editor } from 'slate';
 import { act, create as baseCreate } from 'react-test-renderer';
@@ -8,7 +12,6 @@ import {
   createDefaultThreadFilterState,
   cycleSortMode,
   resetThreadFilterState,
-  updateThreadFilterKey,
 } from '../../event-store/threads/roomThreadOverviewModel';
 import {
   clearThreadOpenSeedSnapshotsForTests,
@@ -1711,12 +1714,11 @@ const createControlledRoomTimelineHarness = (
         : null
     );
 
-    const onToggle = React.useCallback(
-      (key: 'resolved' | 'streaming' | 'scheduled' | 'unread' | 'idle') => {
-        setThreadFilterState((prev) => updateThreadFilterKey(prev, key));
-      },
-      []
-    );
+    const onSearchQueryChange = React.useCallback((query: string) => {
+      setThreadFilterState((prev) =>
+        applyParsedThreadFilterQuery(prev, parseThreadFilterQuery(query))
+      );
+    }, []);
 
     const onSortDirectionChange = React.useCallback(() => {
       setThreadFilterState((prev) => {
@@ -1756,7 +1758,7 @@ const createControlledRoomTimelineHarness = (
         onStoreThreadSummary,
         threadFilterState,
         threadSortFreezeState,
-        onToggle,
+        onSearchQueryChange,
         onSortDirectionChange,
         onToggleThreadSortFreeze,
         setThreadSortFreezeState,
@@ -1831,3 +1833,9 @@ export {
   wrapWithSyncEngine,
   isTimelineAtLiveEndMock,
 };
+
+// Background-job subscriptions are exercised by their own hook and real-room e2e tests.
+vi.mock('../../background-jobs/useRoomBackgroundJobs', () => {
+  const snapshot = { jobs: [], total: 0 };
+  return { useRoomBackgroundJobs: () => snapshot };
+});

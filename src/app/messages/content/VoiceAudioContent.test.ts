@@ -277,7 +277,8 @@ describe('VoiceAudioContent', () => {
       'Playback speed, currently 1×, click to cycle',
       'More audio options',
     ]);
-    expect(renderer.root.findAllByType('rect')).toHaveLength(48);
+    // Each bar twice: the base layer and the played fill above it.
+    expect(renderer.root.findAllByType('rect')).toHaveLength(96);
     const rendered = JSON.stringify(renderer.toJSON());
     expect(rendered).toContain('0:00 / 0:10');
     expect(rendered).not.toMatch(/download|mute/i);
@@ -1279,7 +1280,8 @@ describe('VoiceAudioContent', () => {
       })
     );
 
-    expect(renderer.root.findAllByType('rect')).toHaveLength(48);
+    // Each bar twice: the base layer and the played fill above it.
+    expect(renderer.root.findAllByType('rect')).toHaveLength(96);
 
     act(() => {
       renderer.unmount();

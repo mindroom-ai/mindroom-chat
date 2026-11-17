@@ -186,7 +186,7 @@ one that uses `useMindroomServer`, `useMindroomServerStatus` or `useRoomComputer
 
 ## SDK versions
 
-`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 60), naming the plugin.
+`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 61), naming the plugin.
 The SDK only grows: nothing a plugin uses is changed or removed, and each addition raises that version, a new export as well as a new kind of contribution in `ClientPlugin` or a new field of the declaration, so a plugin built for an older SDK still builds and one that uses a newer addition never builds into a client that would ignore it.
 
 ### What each version added
@@ -250,6 +250,7 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 - version 58 `room`'s `ThreadBoard`
 - version 59 `useMarkdownHtml`'s `imageSource`
 - version 60 `room`'s `ThreadBoard`'s `onOpenThread`
+- version 61 a thread card badge's `hoverCard`
 
 ## Pinches
 
@@ -426,10 +427,10 @@ A cover that throws, in `covers`, `subscribe` or the stop it returns, `close` or
 ## Slash commands
 
 Slash commands (`src/app/plugins/slashCommands.ts`) are the seventh kind: `{ name, description, run }`.
-The composer offers them after its own commands, in the same command menu, and runs them as it runs its own commands that act (`src/app/composer/commands/useCommands.ts`): the message is not sent, and `run({ room, args, threadId })` gets the room (matrix-js-sdk's `Room`, whose `client` is the account's client), the text typed after the name, and `threadId`, the root of the thread whose composer it was typed in (none in the main timeline or in Classic).
+The composer offers them after its own commands and MindRoom's (`/schedule`, `/model`, ..., which go out as typed for the room's agents), in the same command menu, and runs them as it runs its own commands that act (`src/app/composer/commands/useCommands.ts`): the message is not sent, and `run({ room, args, threadId })` gets the room (matrix-js-sdk's `Room`, whose `client` is the account's client), the text typed after the name, and `threadId`, the root of the thread whose composer it was typed in (none in the main timeline or in Classic).
 In a thread whose root the server has not confirmed yet, the command waits, its text in the composer, until the root has its own ID, as a message sent there does.
 `name` is what follows the `/`, letters a to z only; `description` is a key of the plugin's strings, shown in the app's language in the menu.
-A built-in command keeps its name, also one a later version of the app adds, so a plugin's command of the same name is none, and a name claimed more than once, by one plugin or by several, runs for none of them, with one warning that names the plugins.
+A built-in command or one of MindRoom's keeps its name, also one a later version of the app adds, so a plugin's command of the same name is none, and a name claimed more than once, by one plugin or by several, runs for none of them, with one warning that names the plugins.
 A `run` that throws, or whose promise rejects, leaves the text in the composer with `/<name> failed: <the error's message>` above it, as a built-in command's failure does.
 One that throws `commandUsage()` from `core`, for a text after the name that it does not take, shows instead the usage line a built-in command shows, `Could not run /<name>. <its description>`, in the app's language; for a message of its own in the app's language, it throws an error whose message `getPluginTranslation(id)` translates.
 
@@ -464,13 +465,16 @@ A `Component` that throws closes the card, logged and reported with `[plugin <id
 
 ## Thread card badges
 
-Thread card badges (`src/app/plugins/threadCardBadges.ts`) are the tenth kind: `ClientPlugin.threadCardBadges`, a list of `{ Component }`.
+Thread card badges (`src/app/plugins/threadCardBadges.ts`) are the tenth kind: `ClientPlugin.threadCardBadges`, a list of `{ Component, hoverCard? }`.
 `Component` gets `{ room, threadId }`: the thread's room (matrix-js-sdk's `Room`) and the ID of its root event, and draws a small mark for that thread, such as the state of a pull request it works on, or nothing.
 `src/app/threads/overview/ThreadCardBadges.tsx` draws the badges of the enabled plugins, in build order, on each thread's card in the Compact view, in the card's metadata row after the thread's tags.
 Only the Compact view's cards draw them: the Threads page, the sidebar's thread rows and the timeline's thread badge do not.
 A thread whose first message is still sending has no badges until the server has confirmed it, so `threadId` is always the ID the server gave the root.
 They are drawn inside the card's button, so a badge renders no control of its own: no button, no link and nothing that takes the focus, and a click on it opens the thread as a click anywhere on the card does.
 A click handler on the badge's element may stop the click (`event.stopPropagation()`) to keep the thread closed.
+A badge that opens its own hover card, such as a pull request chip's, sets `hoverCard: true` (since version 61): while the pointer is over the badge, the card's thread details hover card stays closed and does not start its wait, and once the pointer moves from the badge onto the rest of the card, that wait starts as on entering the card.
+The app draws such a badge inside an element with `display: contents`, so the card's layout does not change.
+A `hoverCard` that is not a boolean leaves the badge out.
 The card's button has its own accessible name, so assistive technology does not read a badge, and a badge's click is for the pointer only: what a badge shows or opens must also be reachable elsewhere, such as in the open thread.
 One instance of each badge mounts on every card, so a badge stays cheap, and it is one short line that does not wrap (`white-space: nowrap`), since the card's metadata row keeps one height.
 The app does not render a badge again after it mounts, so a badge that shows the room's state subscribes to that state itself.
@@ -492,6 +496,7 @@ It opens with no delay, so a detail that loads on mount should use cached, cance
 The Compact card's hover card (`src/app/threads/overview/ThreadCardDetails.tsx`) shows after a pointer rests on the card for 500 ms, on devices with a fine pointer that can hover, never on touch.
 It opens at the pointer, below it in the window's upper half and above it in the lower half, mirrored in right-to-left, at most 320 px wide, read-only and hidden from assistive technology (`aria-hidden`).
 Leaving the card, a press, a click, a wheel scroll, opening the menu or a room change closes it; after a press, click, wheel scroll or the menu, it stays closed until the pointer leaves the card.
+A thread card badge with `hoverCard: true` counts as outside the card, so it stays closed over that badge and moving onto the badge leaves the card.
 A programmatic scroll closes it only when another card or none is now under the pointer, not when the list's own scroll adjustment leaves the same card there.
 The same details form the first group of the thread's menu (`src/app/threads/ThreadActionsMenu.tsx`), reached through More Options, right-click, the ContextMenu key, a long press on a Compact card or the open thread's banner.
 That group describes the menu (`aria-describedby`) and scrolls with its rows under the menu's height cap, on every pointer type.

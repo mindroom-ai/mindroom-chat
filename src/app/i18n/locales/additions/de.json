@@ -774,6 +774,13 @@
         "workedFor": "{{duration}} gearbeitet",
         "worked": "Gearbeitet"
       },
+      "questionCard": {
+        "title": "Frage",
+        "waiting": "Wartet auf dich",
+        "answered": "Beantwortet",
+        "youChose": "Deine Wahl",
+        "nameChose": "Gewählt von {{name}}"
+      },
       "mindroomReplyDetails": {
         "subagents": "Sub-Agenten"
       }
@@ -798,13 +805,7 @@
         "threadFiltersActive": "Thread-Filter (aktiv)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Erweiterte Filter",
-        "presets": {
-          "snoozed": {
-            "label": "Zurückgestellt",
-            "description": "Nur zurückgestellte Threads"
-          }
-        }
+        "advancedFilters": "Erweiterte Filter"
       },
       "threadPeopleFilter": {
         "label": "Personen",
@@ -979,6 +980,20 @@
     "unsnooze": "Nicht mehr zurückstellen",
     "status": {
       "snoozed": "Zurückgestellt"
+    },
+    "workflow": {
+      "needsYou": "Du bist gefragt",
+      "working": "In Arbeit",
+      "later": "Später",
+      "done": "Erledigt",
+      "all": "Alle",
+      "description": {
+        "needsYou": "Eine Hintergrundaufgabe benötigt eine Freigabe, oder es läuft nichts und ist nichts geplant.",
+        "working": "Ein Agent antwortet, oder ein Subagent oder Hintergrundwerkzeug ist aktiv.",
+        "later": "Zurückgestellt oder auf eine geplante Aufgabe wartend.",
+        "done": "Erledigte Threads.",
+        "all": "Alle Threads, die deinen anderen Filtern entsprechen."
+      }
     },
     "renameHint": "Zum Umbenennen doppelklicken"
   },
@@ -1306,7 +1321,7 @@
     "layoutSections": "Abschnitte",
     "sections": {
       "working": "In Arbeit",
-      "snoozed": "Zurückgestellt",
+      "later": "Später",
       "idle": "Inaktiv",
       "resolved": "Gelöst"
     },

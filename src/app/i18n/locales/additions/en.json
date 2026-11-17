@@ -774,6 +774,13 @@
         "workedFor": "Worked for {{duration}}",
         "worked": "Worked"
       },
+      "questionCard": {
+        "title": "Question",
+        "waiting": "Waiting for you",
+        "answered": "Answered",
+        "youChose": "You chose",
+        "nameChose": "{{name}} chose"
+      },
       "mindroomReplyDetails": {
         "subagents": "Sub-agents"
       }
@@ -798,13 +805,7 @@
         "threadFiltersActive": "Thread filters (active)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Advanced filters",
-        "presets": {
-          "snoozed": {
-            "label": "Snoozed",
-            "description": "Snoozed threads only"
-          }
-        }
+        "advancedFilters": "Advanced filters"
       },
       "threadPeopleFilter": {
         "label": "People",
@@ -979,6 +980,20 @@
     "unsnooze": "Unsnooze",
     "status": {
       "snoozed": "Snoozed"
+    },
+    "workflow": {
+      "needsYou": "Needs you",
+      "working": "Working",
+      "later": "Later",
+      "done": "Done",
+      "all": "All",
+      "description": {
+        "needsYou": "Background approval needed, or nothing running or scheduled.",
+        "working": "An agent is replying, or a subagent or background tool is running.",
+        "later": "Snoozed, or waiting for a scheduled task.",
+        "done": "Resolved threads.",
+        "all": "Every thread matching your other filters."
+      }
     },
     "renameHint": "Double-click to rename"
   },
@@ -1306,7 +1321,7 @@
     "layoutSections": "Sections",
     "sections": {
       "working": "Working",
-      "snoozed": "Snoozed",
+      "later": "Later",
       "idle": "Idle",
       "resolved": "Resolved"
     },

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  applyPreset,
+  resetThreadFilterState,
+  selectThreadWorkflowTab,
   createDefaultThreadFilterState,
   deserializeThreadFilterState,
-  FILTER_PRESETS,
   hasActiveThreadFilters,
   serializeThreadFilterState,
   simplifyThreadFilterState,
@@ -100,7 +100,7 @@ describe('the People filter', () => {
     ).toEqual(['$1']);
   });
 
-  it('counts as an active filter, persists per room and clears with the All preset', () => {
+  it('counts as an active filter, persists per room and survives tabs and clears with Reset', () => {
     const state = withPeople([BOB, ALICE]);
     expect(hasActiveThreadFilters(state)).toBe(true);
     expect(hasActiveThreadFilters(withPeople([]))).toBe(false);
@@ -117,9 +117,9 @@ describe('the People filter', () => {
     );
     expect(deserializeThreadFilterState({ ...stored, people: [ALICE, 7] }).people).toEqual([ALICE]);
 
-    const all = FILTER_PRESETS.find((preset) => preset.id === 'all');
-    if (!all) throw new Error('no All preset');
-    expect(hasActiveThreadFilters(applyPreset(state, all))).toBe(false);
+    expect(selectThreadWorkflowTab(state, 'all').people).toEqual([BOB, ALICE]);
+    expect(selectThreadWorkflowTab(state, 'working').people).toEqual([BOB, ALICE]);
+    expect(hasActiveThreadFilters(resetThreadFilterState())).toBe(false);
   });
 
   it('is not part of the simple filters', () => {

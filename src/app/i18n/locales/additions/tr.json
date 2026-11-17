@@ -774,6 +774,13 @@
         "workedFor": "{{duration}} çalıştı",
         "worked": "Çalıştı"
       },
+      "questionCard": {
+        "title": "Soru",
+        "waiting": "Sizi bekliyor",
+        "answered": "Yanıtlandı",
+        "youChose": "Seçiminiz",
+        "nameChose": "{{name}} seçti"
+      },
       "mindroomReplyDetails": {
         "subagents": "Alt ajanlar"
       }
@@ -798,13 +805,7 @@
         "threadFiltersActive": "Konu filtreleri (etkin)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Gelişmiş filtreler",
-        "presets": {
-          "snoozed": {
-            "label": "Ertelenenler",
-            "description": "Yalnızca ertelenmiş konular"
-          }
-        }
+        "advancedFilters": "Gelişmiş filtreler"
       },
       "threadPeopleFilter": {
         "label": "Kişiler",
@@ -979,6 +980,20 @@
     "unsnooze": "Ertelemeyi kaldır",
     "status": {
       "snoozed": "Ertelendi"
+    },
+    "workflow": {
+      "needsYou": "Sizi bekliyor",
+      "working": "Çalışıyor",
+      "later": "Sonra",
+      "done": "Tamamlandı",
+      "all": "Tümü",
+      "description": {
+        "needsYou": "Bir arka plan görevi onay bekliyor veya çalışan ya da zamanlanmış bir iş yok.",
+        "working": "Bir ajan yanıt veriyor veya bir alt ajan ya da arka plan aracı çalışıyor.",
+        "later": "Ertelenmiş veya zamanlanmış bir görevi bekliyor.",
+        "done": "Çözümlenmiş konular.",
+        "all": "Diğer filtrelerinize uyan tüm konular."
+      }
     },
     "renameHint": "Yeniden adlandırmak için çift tıklayın"
   },
@@ -1306,7 +1321,7 @@
     "layoutSections": "Bölümler",
     "sections": {
       "working": "Çalışıyor",
-      "snoozed": "Ertelenenler",
+      "later": "Sonra",
       "idle": "Boşta",
       "resolved": "Çözülenler"
     },

@@ -1,11 +1,14 @@
 import { createInsideUrlTest } from '../../../lib/regex';
 import { withProtectedCode } from './code';
 import { INLINE_MD_RULES } from './rules';
-import type { InlineMDParser, InlineMDRule } from './type';
+import type { InlineMDParser, InlineMDRule, InlineMDSpan } from './type';
 
 const WHITESPACE = /\s/;
 
 type FoundMatch = { index: number; match: RegExpMatchArray };
+
+/** Hears of each match `applyRules` renders, at its offset in the text, just before rendering it. */
+type OnMatch = (rule: InlineMDRule, index: number, match: RegExpMatchArray) => void;
 
 /**
  * Applies `rules` to `text`: the match that starts first wins, the earlier rule on a tie, and the
@@ -13,7 +16,12 @@ type FoundMatch = { index: number; match: RegExpMatchArray };
  * keeps its underscores. A rule's match stays valid until the parse passes its start, so each
  * rule searches the rest of the text once per match it makes, not once per match of any rule.
  */
-const applyRules = (text: string, rules: InlineMDRule[], parseInline: InlineMDParser): string => {
+const applyRules = (
+  text: string,
+  rules: InlineMDRule[],
+  parseInline: InlineMDParser,
+  onMatch?: OnMatch
+): string => {
   if (text === '') return text;
   const insideUrl = createInsideUrlTest(text);
   const urlEnd = (index: number): number => {
@@ -55,6 +63,7 @@ const applyRules = (text: string, rules: InlineMDRule[], parseInline: InlineMDPa
     if (!best || !bestRule) break;
     output += text.slice(cursor, best.index);
     const { length } = best.match[0];
+    onMatch?.(bestRule, best.index, best.match);
     output += bestRule.html(parseInline, best.match);
     cursor = best.index + length;
     if (length === 0) {
@@ -75,21 +84,72 @@ export const MAX_INLINE_MD_NESTING = 32;
 /**
  * Renders inline Markdown with the given rules. Inline code is always handled, before any rule,
  * so Markdown inside it stays literal. The input is HTML-escaped text; the output is HTML.
+ * `onSpan` hears of each match of a rule with a `span`, and of each code span, in offsets of
+ * `text`; it does not change the output.
  */
-export const parseInlineMDWithRules = (text: string, rules: InlineMDRule[]): string =>
-  withProtectedCode(text, (masked) => {
-    let depth = 0;
-    const parseInline: InlineMDParser = (part) => {
-      if (depth >= MAX_INLINE_MD_NESTING) return part;
-      depth += 1;
-      try {
-        return applyRules(part, rules, parseInline);
-      } finally {
-        depth -= 1;
-      }
-    };
-    return parseInline(masked);
-  });
+export const parseInlineMDWithRules = (
+  text: string,
+  rules: InlineMDRule[],
+  onSpan?: (span: InlineMDSpan) => void
+): string =>
+  withProtectedCode(
+    text,
+    (masked, toSource) => {
+      let depth = 0;
+      // Where the part being parsed starts in `masked`, and where the next nested parse starts;
+      // undefined where that is not known, inside a rule without a `span`, so nothing is reported.
+      let base: number | undefined = 0;
+      let nextBase: number | undefined;
+      const onMatch: OnMatch | undefined =
+        onSpan &&
+        ((rule, index, match) => {
+          const shape = base === undefined ? undefined : rule.span?.(match);
+          if (base === undefined || !shape) {
+            nextBase = undefined;
+            return;
+          }
+          const start = base + index;
+          const end = start + (match[0]?.length ?? 0);
+          nextBase = start + shape.open;
+          const sourceStart = toSource(start);
+          const sourceEnd = toSource(end);
+          onSpan({
+            kind: shape.kind,
+            start: sourceStart,
+            end: sourceEnd,
+            open: toSource(start + shape.open) - sourceStart,
+            close: sourceEnd - toSource(end - shape.close),
+          });
+        });
+      const parseInline: InlineMDParser = (part) => {
+        if (depth >= MAX_INLINE_MD_NESTING) return part;
+        depth += 1;
+        const outer = base;
+        base = depth === 1 ? 0 : nextBase;
+        try {
+          return applyRules(part, rules, parseInline, onMatch);
+        } finally {
+          depth -= 1;
+          base = outer;
+        }
+      };
+      return parseInline(masked);
+    },
+    onSpan
+  );
+
+/**
+ * The inline Markdown `text` holds, as `parseInlineMD` (or `parseInlineMDWithRules` with `rules`)
+ * reads it, in order of where each starts, outer before inner. The input is HTML-escaped text.
+ */
+export const findInlineMDSpans = (
+  text: string,
+  rules: InlineMDRule[] = INLINE_MD_RULES
+): InlineMDSpan[] => {
+  const spans: InlineMDSpan[] = [];
+  parseInlineMDWithRules(text, rules, (span) => spans.push(span));
+  return spans.sort((a, b) => a.start - b.start || b.end - a.end);
+};
 
 /** Renders the inline Markdown of a chat message: code, bold, italic, strikethrough, spoilers, links, math, escapes. */
 export const parseInlineMD: InlineMDParser = (text) =>

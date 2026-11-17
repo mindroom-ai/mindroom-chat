@@ -20,8 +20,7 @@ import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 // the dropdown); the button names a lone tag; the choice survives a reload; Clear brings every
 // thread back; a tag the search excludes shows checked and marked; and on a phone with touch the
 // People and Tags panels open inside the screen and close on a second tap of their button. A
-// second press or tap on the Preset button closes its list too, and a filter toggle tapped back to
-// where it started keeps no hover tint.
+// workflow tab tapped back to where it started keeps no hover tint.
 // Classic scrollbars are shown, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
 // Playwright's WebKit, in WebKit.
 // Set L28_SHOTS=<directory> to save the L28 screenshots (Chromium only).
@@ -177,24 +176,14 @@ const tagFilterOf = (page: Page) => {
   };
 };
 
-/**
- * The Preset button opens its list, and a second press closes it and keeps it closed. Safari
- * focuses no button on a press, so the press took the focus from the open list to nothing, the
- * list closed on that blur, and the click opened it again.
- */
-const checkPresetToggle = async (page: Page, press: (target: Locator) => Promise<void>) => {
+/** Workflow tabs are idempotent, not tri-state toggles. */
+const checkWorkflowTabs = async (page: Page, press: (target: Locator) => Promise<void>) => {
   const overview = page.locator('[data-room-thread-overview]');
-  const button = overview.locator('[data-preset-button]');
-  const list = overview.locator('[data-preset-dropdown]');
+  const button = overview.locator('[data-thread-tab="all"]');
   await press(button);
-  await expect(list).toBeVisible();
-  await expect(button).toHaveAttribute('aria-expanded', 'true');
+  await expect(button).toHaveAttribute('aria-pressed', 'true');
   await press(button);
-  await expect(list).toHaveCount(0);
-  // Not opened again a moment later either.
-  await page.waitForTimeout(300);
-  await expect(list).toHaveCount(0);
-  await expect(button).toHaveAttribute('aria-expanded', 'false');
+  await expect(button).toHaveAttribute('aria-pressed', 'true');
 };
 
 /** A button's fill. */
@@ -239,7 +228,7 @@ const checkTagFilter = async (page: Page, engine: string) => {
   await expect(button).toHaveAttribute('data-tag-filter-count', '0');
   await expect(button).toHaveText('Tags');
   await expect(overview.locator('[data-add-tag-button]')).toHaveCount(0);
-  await checkPresetToggle(page, (target) => target.click());
+  await checkWorkflowTabs(page, (target) => target.click());
   if (engine === 'chromium') {
     await page.mouse.move(1, 1);
     await shot(page, 'L28-thread-tags-closed');
@@ -365,14 +354,7 @@ const checkPhone = async (
       'Unresolved'
     );
     await overview.locator('[data-thread-filter-mode-switch]').tap();
-    await checkPresetToggle(page, (target) => target.tap());
-    await expectRestAfterTaps(
-      page,
-      overview.locator('[data-filter-key="streaming"]'),
-      'data-filter-state',
-      engine,
-      'the streaming status toggle'
-    );
+    await checkWorkflowTabs(page, (target) => target.tap());
     for (const name of ['people', 'tag']) {
       const trigger = overview.locator(`[data-${name}-filter-button]`);
       // eslint-disable-next-line no-await-in-loop

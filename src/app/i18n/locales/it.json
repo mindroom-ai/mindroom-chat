@@ -366,8 +366,7 @@
       "streaming": "Trasmissione in corso",
       "scheduled": "Pianificato",
       "unread": "Non letto",
-      "idle": "Inattivo",
-      "idleFilter": "Inattivo (risolto, nessuna trasmissione, nessuna attività)"
+      "idle": "Inattivo"
     },
     "stats": {
       "aria": "Statistiche dei thread",
@@ -376,17 +375,6 @@
       "threadCount_other": "{{count}} thread",
       "tags": "Tag",
       "threadCount_many": "{{count}} thread"
-    },
-    "filterTooltip": {
-      "any": "{{label}}: sono mostrati tutti. Fai clic per mostrare solo questo.",
-      "include": "{{label}}: mostra solo questo. Fai clic per nasconderlo.",
-      "exclude": "{{label}}: nascosto. Fai clic per cancellare il filtro.",
-      "tagAny": "Tag \"{{tag}}\"",
-      "tagInclude": "Tag \"{{tag}}\": mostra solo questo. Fai clic per nasconderlo.",
-      "tagExclude": "Tag \"{{tag}}\": nascosto. Fai clic per cancellare il filtro.",
-      "stateAny": "sono mostrati tutti",
-      "stateInclude": "mostra solo questo",
-      "stateExclude": "nascosto"
     },
     "filters": {
       "scope": "Ambito",
@@ -2260,7 +2248,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "voice": {
@@ -2903,8 +2891,6 @@
         "addTagFilter": "Aggiungi filtro tag",
         "tag": "+ tag",
         "availableTags": "Tag disponibili",
-        "filterPresets": "Preimpostazioni filtro",
-        "preset": "Preimpostazione",
         "searchThreads": "Cerca thread",
         "searchThreads2": "Cerca thread...",
         "roomViewMode": "Modalità di visualizzazione della stanza",
@@ -2925,28 +2911,6 @@
         "lockSortOrder": "Blocca ordinamento (attualmente {{sort}})",
         "threadCount_one": "{{count}} thread",
         "threadCount_other": "{{count}} thread",
-        "presets": {
-          "needs-attention": {
-            "label": "Richiede attenzione",
-            "description": "Thread irrisolti, non in streaming e non pianificati"
-          },
-          "working": {
-            "label": "In lavorazione",
-            "description": "In streaming o pianificati: ciò a cui stai lavorando ora"
-          },
-          "review-queue": {
-            "label": "Coda di revisione",
-            "description": "Thread irrisolti con risposte non lette"
-          },
-          "archived": {
-            "label": "Archiviati",
-            "description": "Solo thread risolti"
-          },
-          "all": {
-            "label": "Tutti",
-            "description": "Reimposta tutti i filtri"
-          }
-        },
         "showingFilteredThreads_many": "Visualizzazione di {{count}} thread su {{total}}",
         "showingAllThreads_many": "{{count}} thread visualizzati",
         "threadCount_many": "{{count}} thread"
@@ -3112,7 +3076,7 @@
       "intro": "In questo thread, le chiamate agli strumenti richieste da queste persone vengono eseguite senza schede di approvazione.",
       "you": "Tu",
       "until": "Fino a {{time}}",
-      "ownUntil": "Fino a {{time}}. Invia !auto_approve off per terminarla."
+      "ownUntil": "Fino a {{time}}. Invia /auto_approve off per terminarla."
     },
     "notices": {
       "dismiss": "Chiudi avviso",

@@ -365,8 +365,7 @@
       "streaming": "Mengalirkan respons",
       "scheduled": "Terjadwal",
       "unread": "Belum dibaca",
-      "idle": "Tidak aktif",
-      "idleFilter": "Tidak aktif (selesai, tidak mengalirkan respons, tanpa tugas)"
+      "idle": "Tidak aktif"
     },
     "stats": {
       "aria": "Statistik utas",
@@ -374,17 +373,6 @@
       "threadCount_one": "{{count}} utas",
       "threadCount_other": "{{count}} utas",
       "tags": "Tag"
-    },
-    "filterTooltip": {
-      "any": "{{label}}: menampilkan semua. Klik untuk menampilkan ini saja.",
-      "include": "{{label}}: hanya menampilkan ini. Klik untuk menyembunyikan.",
-      "exclude": "{{label}}: disembunyikan. Klik untuk menghapus filter.",
-      "tagAny": "Tag \"{{tag}}\"",
-      "tagInclude": "Tag \"{{tag}}\": hanya menampilkan ini. Klik untuk menyembunyikan.",
-      "tagExclude": "Tag \"{{tag}}\": disembunyikan. Klik untuk menghapus filter.",
-      "stateAny": "menampilkan semua",
-      "stateInclude": "hanya menampilkan ini",
-      "stateExclude": "disembunyikan"
     },
     "filters": {
       "scope": "Cakupan",
@@ -2232,7 +2220,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "voice": {
@@ -2832,8 +2820,6 @@
         "addTagFilter": "Tambahkan filter tag",
         "tag": "+ tag",
         "availableTags": "Tag tersedia",
-        "filterPresets": "Preset filter",
-        "preset": "Preset",
         "searchThreads": "Cari utas",
         "searchThreads2": "Cari utas...",
         "roomViewMode": "Mode tampilan ruang",
@@ -2853,29 +2839,7 @@
         "unlockSortOrder": "Buka kunci urutan (saat ini {{sort}})",
         "lockSortOrder": "Kunci urutan (saat ini {{sort}})",
         "threadCount_one": "{{count}} utas",
-        "threadCount_other": "{{count}} utas",
-        "presets": {
-          "needs-attention": {
-            "label": "Perlu perhatian",
-            "description": "Utas yang belum diselesaikan, tidak sedang mengalir, dan tidak terjadwal"
-          },
-          "working": {
-            "label": "Sedang dikerjakan",
-            "description": "Sedang mengalir atau terjadwal — yang sedang Anda kerjakan sekarang"
-          },
-          "review-queue": {
-            "label": "Antrean peninjauan",
-            "description": "Utas yang belum diselesaikan dengan balasan belum dibaca"
-          },
-          "archived": {
-            "label": "Diarsipkan",
-            "description": "Hanya utas yang telah diselesaikan"
-          },
-          "all": {
-            "label": "Semua",
-            "description": "Atur ulang semua filter"
-          }
-        }
+        "threadCount_other": "{{count}} utas"
       },
       "threadTagPicker": {
         "addTag": "Tambahkan tag",
@@ -3034,7 +2998,7 @@
       "intro": "Di utas ini, panggilan alat yang diminta orang-orang ini berjalan tanpa kartu persetujuan.",
       "you": "Anda",
       "until": "Hingga {{time}}",
-      "ownUntil": "Hingga {{time}}. Kirim !auto_approve off untuk mengakhirinya."
+      "ownUntil": "Hingga {{time}}. Kirim /auto_approve off untuk mengakhirinya."
     },
     "notices": {
       "dismiss": "Tutup pemberitahuan",

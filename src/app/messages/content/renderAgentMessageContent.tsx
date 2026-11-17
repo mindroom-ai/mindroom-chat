@@ -44,6 +44,7 @@ import { SnoozeEndedMarker } from '../SnoozeEndedMarker';
 import { readSkillReviewNotice } from '../../matrix/protocol/skillReview';
 import { SkillReviewMarker } from '../SkillReviewMarker';
 import { getMessageStateSuffixRenderer } from './messageStateSuffix';
+import { InlineCanvasFrame } from '../canvas/InlineCanvasFrame';
 import { ChatUiActionButton } from '../../ui-actions/ChatUiActionButton';
 import { CHAT_UI_ACTION_KEY, readCanvasNoticeTitle } from '../../matrix/protocol/chatUiProtocol';
 import { CANVAS_RESPONSE_KEY, readCanvasResponse } from '../canvas/canvasMessages';
@@ -51,6 +52,9 @@ import { CanvasResponseReceipt } from '../canvas/CanvasResponseReceipt';
 import { CanvasResponseSidecarReceipt } from '../canvas/CanvasResponseSidecarReceipt';
 import { readCallTranscript } from '../../matrix/protocol/callTranscript';
 import { CallTranscriptCard } from './CallTranscriptCard';
+import { readInteractiveQuestion } from '../../matrix/protocol/interactiveQuestion';
+import { QuestionCard } from '../question/QuestionCard';
+import { QuestionReply } from '../question/QuestionReply';
 import { ownDirectionLine } from '../../ui/directional';
 import { matchesEnum } from '../../lib/matchesEnum';
 
@@ -181,6 +185,23 @@ export const renderAgentMessageContent = ({
   hydrateLongText = true,
   readOnly,
 }: RenderAgentMessageContentOptions): ReactNode | undefined => {
+  // A MindRoom agent's question shows as a card with a button per option.
+  const question = fromMindroomAgent
+    ? readInteractiveQuestion(content, mEvent?.getOriginalContent())
+    : undefined;
+  const renderQuestionCard =
+    question && mEvent
+      ? (showText: boolean) => (
+          <QuestionCard
+            question={question}
+            mEvent={mEvent}
+            roomId={roomId ?? mEvent.getRoomId()}
+            threadId={threadId}
+            readOnly={readOnly}
+            showText={showText}
+          />
+        )
+      : undefined;
   const withToolRefFormattedBodyFallback = (bodyContent: Record<string, unknown>) => {
     if (typeof bodyContent.formatted_body === 'string') return bodyContent;
     if (typeof bodyContent.body !== 'string') return bodyContent;
@@ -240,25 +261,40 @@ export const renderAgentMessageContent = ({
   const workDurationMs =
     finalEditTs === undefined || mEvent === undefined ? undefined : finalEditTs - mEvent.getTs();
 
-  /** The reply's reasoning and body, the work folded when it finished. */
+  /** The reply's reasoning and body, the work folded when it finished, and its question card. */
   const wrapAgentBody = (
     bodyContent: Record<string, unknown>,
     html: string | undefined,
     renderHtml: (customBody: string | undefined) => ReactNode,
     canFold = true
   ) => {
-    if (!foldsWork || foldEventId === undefined) {
-      return wrapWithReasoning(bodyContent, renderHtml(html));
-    }
+    const wrap = (
+      render: (customBody: string | undefined) => ReactNode,
+      bodyHtml: string | undefined = html
+    ) => {
+      if (!foldsWork || foldEventId === undefined) {
+        return wrapWithReasoning(bodyContent, render(bodyHtml));
+      }
+      return (
+        <AgentWorkBody
+          body={typeof bodyContent.body === 'string' ? bodyContent.body : ''}
+          html={bodyHtml}
+          foldKey={`finished-work:${foldEventId}`}
+          finished={finished && canFold}
+          durationMs={workDurationMs}
+          renderHtml={render}
+          wrapWithReasoning={(body) => wrapWithReasoning(bodyContent, body)}
+        />
+      );
+    };
+    if (!question || !renderQuestionCard) return wrap(renderHtml);
     return (
-      <AgentWorkBody
-        body={typeof bodyContent.body === 'string' ? bodyContent.body : ''}
+      <QuestionReply
         html={html}
-        foldKey={`finished-work:${foldEventId}`}
-        finished={finished && canFold}
-        durationMs={workDurationMs}
+        question={question}
+        renderCard={renderQuestionCard}
         renderHtml={renderHtml}
-        wrapWithReasoning={(body) => wrapWithReasoning(bodyContent, body)}
+        renderBody={wrap}
       />
     );
   };
@@ -588,7 +624,13 @@ export const renderAgentMessageContent = ({
               : renderBody(content)
           }
           // A read-only row (a fork's parent message) answers nothing: its canvas is the parent's.
-          renderAfterBody={readOnly ? undefined : <ChatUiActionButton event={mEvent} />}
+          // An inline page is display-only, so it still shows there.
+          renderAfterBody={
+            <>
+              {canvasTitle && <InlineCanvasFrame event={mEvent} />}
+              {!readOnly && <ChatUiActionButton event={mEvent} />}
+            </>
+          }
         />
       );
     }

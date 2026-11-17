@@ -59,8 +59,7 @@ describe('RoomTimeline', () => {
             });
 
             await act(async () => {
-              renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
-              renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
+              renderer?.root.findByType(roomThreadOverviewType).props.onSearchQueryChange('-is:resolved');
               await flushAsyncWork(1);
             });
 
@@ -121,7 +120,7 @@ describe('RoomTimeline', () => {
     });
 
     await act(async () => {
-      renderer?.root.findByType(roomThreadOverviewType).props.onToggle('resolved');
+      renderer?.root.findByType(roomThreadOverviewType).props.onSearchQueryChange('is:resolved');
       await flushAsyncWork(1);
     });
 

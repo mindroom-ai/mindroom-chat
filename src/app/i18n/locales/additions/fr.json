@@ -785,6 +785,13 @@
         "workedFor": "A travaillé pendant {{duration}}",
         "worked": "A travaillé"
       },
+      "questionCard": {
+        "title": "Question",
+        "waiting": "Vous attend",
+        "answered": "Réponse donnée",
+        "youChose": "Votre choix",
+        "nameChose": "Choix de {{name}}"
+      },
       "mindroomReplyDetails": {
         "subagents": "Sous-agents"
       }
@@ -811,13 +818,7 @@
         "threadFiltersActive": "Filtres de fils (actifs)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtres avancés",
-        "presets": {
-          "snoozed": {
-            "label": "Reportés",
-            "description": "Fils reportés uniquement"
-          }
-        }
+        "advancedFilters": "Filtres avancés"
       },
       "threadPeopleFilter": {
         "label": "Personnes",
@@ -996,6 +997,20 @@
     "unsnooze": "Annuler le report",
     "status": {
       "snoozed": "Reporté"
+    },
+    "workflow": {
+      "needsYou": "À vous de jouer",
+      "working": "En cours",
+      "later": "Plus tard",
+      "done": "Terminé",
+      "all": "Tous",
+      "description": {
+        "needsYou": "Une tâche en arrière-plan attend une approbation, ou rien n’est en cours ni planifié.",
+        "working": "Un agent répond, ou un sous-agent ou un outil fonctionne en arrière-plan.",
+        "later": "Mis en veille ou en attente d’une tâche planifiée.",
+        "done": "Fils résolus.",
+        "all": "Tous les fils correspondant à vos autres filtres."
+      }
     },
     "renameHint": "Double-cliquez pour renommer"
   },
@@ -1332,7 +1347,7 @@
     "layoutSections": "Sections",
     "sections": {
       "working": "En cours",
-      "snoozed": "Reportés",
+      "later": "Plus tard",
       "idle": "Inactifs",
       "resolved": "Résolus"
     },

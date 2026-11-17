@@ -5,12 +5,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { loadRoomThreads } from '../../event-store/threads/roomThreadList';
 import { useRoomThreadList } from './useRoomThreadList';
+import { createThreadRecordChanges } from '../../event-store/threads/threadRecord';
 import { loadCachedThreadRootsForRoom } from '../../event-store/cache/eventRepository';
 import { SyncEngineProvider } from '../../event-store/engine/engineContext';
 import { createSyncEngine } from '../../event-store/engine/syncEngine';
 
 vi.mock('../../event-store/threads/roomThreadList', async (importOriginal) => {
-  const original = await importOriginal<typeof import('../../event-store/threads/roomThreadList')>();
+  const original = await importOriginal<
+    typeof import('../../event-store/threads/roomThreadList')
+  >();
   return {
     ...original,
     loadRoomThreads: vi.fn(),
@@ -23,6 +26,8 @@ vi.mock('../../event-store/cache/eventRepository', async (importOriginal) => ({
 }));
 
 const mockedLoadRoomThreads = vi.mocked(loadRoomThreads);
+/** No listener marks it, so each build checks every thread. */
+const changes = createThreadRecordChanges();
 
 type ThreadListSnapshot = ReturnType<typeof useRoomThreadList>;
 
@@ -35,7 +40,7 @@ function Harness({
   onRender: (snapshot: ThreadListSnapshot) => void;
   room: Room;
 }) {
-  onRender(useRoomThreadList(room, enabled));
+  onRender(useRoomThreadList(room, enabled, changes, 0));
   return null;
 }
 

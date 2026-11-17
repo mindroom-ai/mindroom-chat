@@ -102,6 +102,7 @@ const makeRoom = ({
   return {
     roomId,
     name,
+    currentState: { getStateEvents: () => [] },
     getThread: (threadRootId: string) => (threadRootId === root.getId() ? thread : null),
     findEventById: (eventId: string) => (eventId === root.getId() ? root : undefined),
     getMember: () => undefined,

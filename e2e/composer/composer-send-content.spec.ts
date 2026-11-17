@@ -316,7 +316,7 @@ const configuredLinks: Check = async (page, world, { form, tag, where }) => {
 // An unknown command is refused with a notice and stays in the composer, unsent.
 const unknownCommand: Check = async (page, world, { form, tag, where }) => {
   const before = (await latestMessages(world.admin.accessToken, world.roomId)).length;
-  // A command name is letters only.
+  // Letters alone always make a command name, which may also hold digits, `_` and `-`.
   const name = `foobar${tag.replace(/[^a-z]/g, '')}`;
   const typed = `/${name} unknown command`;
   await page.keyboard.type(typed);

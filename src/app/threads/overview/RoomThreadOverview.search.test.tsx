@@ -27,14 +27,12 @@ describe('the thread filter bar search', () => {
             totalThreadCount={4}
             state={{ ...createDefaultThreadFilterState(), freeText: 'launch', resolved: 'exclude' }}
             availableTags={[]}
-            onToggle={noop}
             onSortDirectionChange={noop}
             onToggleThreadSortFreeze={noop}
             onReset={noop}
             onClearTags={noop}
             onAddTag={noop}
             onRemoveTag={noop}
-            onApplyPreset={noop}
             onSearchQueryChange={noop}
           />
         </Provider>

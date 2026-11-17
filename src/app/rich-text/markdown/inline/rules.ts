@@ -1,7 +1,7 @@
 import { findInlineLatexMatch } from '../../math';
 import { allowedLinkSchemes } from '../../sanitize';
 import { restoreCodeSource } from './code';
-import type { InlineMDMatcher, InlineMDRule } from './type';
+import type { InlineMDMatcher, InlineMDRule, InlineMDSpanKind } from './type';
 
 const WHITESPACE = /\s/;
 // A letter, digit or combining mark, read as a whole code point so astral letters count and emoji
@@ -43,6 +43,11 @@ type DelimiterOptions = {
   /** Whether the delimiters may sit inside a word, with a letter or digit on their outer side. */
   intraword?: boolean;
 };
+
+/** The span of a delimited rule: the delimiter at each end, the text between. */
+const delimitedSpan =
+  (kind: InlineMDSpanKind, delimiter: string): NonNullable<InlineMDRule['span']> =>
+  () => ({ kind, open: delimiter.length, close: delimiter.length });
 
 const isOneOf = (character: string | undefined, characters: string): boolean =>
   character !== undefined && characters.includes(character);
@@ -104,6 +109,7 @@ const delimitedMatcher =
 export const BoldRule: InlineMDRule = {
   match: delimitedMatcher({ delimiter: '**', notAfterCloser: '*' }),
   html: (parseInline, match) => `<strong data-md="**">${parseInline(capture(match, 1))}</strong>`,
+  span: delimitedSpan('bold', '**'),
 };
 
 /** `*italic*`; a single star next to another one belongs to bold text, as in `*a **b** c*`. */
@@ -115,6 +121,7 @@ export const ItalicRule1: InlineMDRule = {
     notAfterCloser: '*',
   }),
   html: (parseInline, match) => `<i data-md="*">${parseInline(capture(match, 1))}</i>`,
+  span: delimitedSpan('italic', '*'),
 };
 
 /**
@@ -124,12 +131,14 @@ export const ItalicRule1: InlineMDRule = {
 export const ItalicRule2: InlineMDRule = {
   match: delimitedMatcher({ delimiter: '_', notAfterCloser: '_', intraword: false }),
   html: (parseInline, match) => `<i data-md="_">${parseInline(capture(match, 1))}</i>`,
+  span: delimitedSpan('italic', '_'),
 };
 
 /** `~~strikethrough~~` */
 export const StrikeRule: InlineMDRule = {
   match: delimitedMatcher({ delimiter: '~~', notAfterCloser: '~' }),
   html: (parseInline, match) => `<s data-md="~~">${parseInline(capture(match, 1))}</s>`,
+  span: delimitedSpan('strikethrough', '~~'),
 };
 
 /** `||spoiler||`, sent as a Matrix spoiler. */
@@ -137,6 +146,7 @@ const SpoilerRule: InlineMDRule = {
   match: delimitedMatcher({ delimiter: '||', notAfterCloser: '|' }),
   html: (parseInline, match) =>
     `<span data-md="||" data-mx-spoiler>${parseInline(capture(match, 1))}</span>`,
+  span: delimitedSpan('spoiler', '||'),
 };
 
 // The destination may hold one level of parentheses, as Wikipedia links do, but no brackets, so
@@ -164,6 +174,12 @@ const createLinkRule = (schemes: readonly string[]): InlineMDRule => {
     },
     html: (parseInline, match) =>
       `<a data-md href="${capture(match, 2)}">${parseInline(capture(match, 1))}</a>`,
+    // `[`, then the label, then `](url)`.
+    span: (match) => ({
+      kind: 'link',
+      open: 1,
+      close: (match[0]?.length ?? 0) - 1 - capture(match, 1).length,
+    }),
   };
 };
 
@@ -192,6 +208,7 @@ const ESCAPE_REG = /\\([\\`*_~|$[\]()#+\-.!>{}:;=?@^%,/])/;
 export const EscapeRule: InlineMDRule = {
   match: (text) => text.match(ESCAPE_REG),
   html: (_parseInline, match) => capture(match, 1),
+  span: () => ({ kind: 'escape', open: 1, close: 0 }),
 };
 
 /** Every inline rule of a chat message, in priority order for matches at the same position. */

@@ -763,6 +763,13 @@
         "workedFor": "工作了 {{duration}}",
         "worked": "已工作"
       },
+      "questionCard": {
+        "title": "問題",
+        "waiting": "等你回答",
+        "answered": "已回答",
+        "youChose": "你已選擇",
+        "nameChose": "{{name}} 已選擇"
+      },
       "mindroomReplyDetails": {
         "subagents": "子代理"
       }
@@ -785,13 +792,7 @@
         "threadFiltersActive": "討論串篩選器（已啟用）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "進階篩選器",
-        "presets": {
-          "snoozed": {
-            "label": "已延後",
-            "description": "僅已延後的討論串"
-          }
-        }
+        "advancedFilters": "進階篩選器"
       },
       "threadPeopleFilter": {
         "label": "參與者",
@@ -962,6 +963,20 @@
     "unsnooze": "取消延後",
     "status": {
       "snoozed": "已延後"
+    },
+    "workflow": {
+      "needsYou": "需要你處理",
+      "working": "處理中",
+      "later": "稍後",
+      "done": "已完成",
+      "all": "全部",
+      "description": {
+        "needsYou": "背景工作需要核准，或沒有正在執行或已排程的工作。",
+        "working": "代理程式正在回覆，或子代理程式或背景工具正在執行。",
+        "later": "已暫緩，或正在等待排程工作。",
+        "done": "已解決的討論串。",
+        "all": "符合其他篩選條件的所有討論串。"
+      }
     },
     "renameHint": "按兩下以重新命名"
   },
@@ -1280,7 +1295,7 @@
     "layoutSections": "分區",
     "sections": {
       "working": "進行中",
-      "snoozed": "已延後",
+      "later": "稍後",
       "idle": "閒置",
       "resolved": "已解決"
     },

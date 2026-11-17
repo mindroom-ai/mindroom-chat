@@ -2,7 +2,7 @@ import type { IEvent, MatrixEvent, Room } from 'matrix-js-sdk';
 
 type EventMapper = (rawEvent: IEvent) => MatrixEvent;
 
-/** Keeps the event's thread id, but takes it off the thread's listeners. */
+/** Keeps the event's thread id, but points the event at no thread. */
 const detachFromThread = (event: MatrixEvent): void => {
   const thread = event.getThread();
   if (!thread) return;
@@ -39,11 +39,11 @@ export const keepHeldThreadSummaries =
 
 /**
  * Wraps the SDK's event mapper for events that are only read and then dropped, such as cached
- * pages a thread's card takes its preview and time from. The SDK attaches every event it creates
- * to the room's thread for it, and the thread then keeps the event through a listener for good:
- * one event per thread at every visit of a room's Compact view. A mapped event the room does not
- * hold (and an edit bundled with it) keeps its thread id and leaves the thread alone, and one it
- * holds keeps its thread summary (`keepHeldThreadSummaries`).
+ * pages a thread's card takes its preview and time from. The SDK points every event it creates at
+ * the room's thread for it (`setThread`), so a copy would answer `getThread()` with the live
+ * thread as if it were one of the thread's events. A mapped event the room does not hold (and an
+ * edit bundled with it) keeps its thread id and points at no thread, and one it holds keeps its
+ * thread summary (`keepHeldThreadSummaries`).
  */
 export const readOnlyEventMapper = (room: Room, mapper: EventMapper): EventMapper => {
   const keepSummaries = keepHeldThreadSummaries(room, mapper);

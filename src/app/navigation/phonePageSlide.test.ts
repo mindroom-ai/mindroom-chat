@@ -154,7 +154,7 @@ describe('slidePhonePage', () => {
     await page.finish();
   });
 
-  // A navigation back to the list, as the room header's Back: a person brings it out with
+  // A navigation back to the list, as the browser's back: a person brings it out with
   // `movePhoneNavDrawer`, which plays no slide.
   it('slides back when a thread closes, and when a navigation brings the list back', async () => {
     const page = browser();

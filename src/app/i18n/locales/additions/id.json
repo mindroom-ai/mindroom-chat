@@ -763,6 +763,13 @@
         "workedFor": "Bekerja selama {{duration}}",
         "worked": "Bekerja"
       },
+      "questionCard": {
+        "title": "Pertanyaan",
+        "waiting": "Menunggu Anda",
+        "answered": "Dijawab",
+        "youChose": "Pilihan Anda",
+        "nameChose": "Dipilih oleh {{name}}"
+      },
       "mindroomReplyDetails": {
         "subagents": "Subagen"
       }
@@ -785,13 +792,7 @@
         "threadFiltersActive": "Filter utas (aktif)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filter lanjutan",
-        "presets": {
-          "snoozed": {
-            "label": "Ditunda",
-            "description": "Hanya utas yang ditunda"
-          }
-        }
+        "advancedFilters": "Filter lanjutan"
       },
       "threadPeopleFilter": {
         "label": "Orang",
@@ -962,6 +963,20 @@
     "unsnooze": "Batalkan penundaan",
     "status": {
       "snoozed": "Ditunda"
+    },
+    "workflow": {
+      "needsYou": "Perlu Anda",
+      "working": "Sedang dikerjakan",
+      "later": "Nanti",
+      "done": "Selesai",
+      "all": "Semua",
+      "description": {
+        "needsYou": "Tugas latar belakang memerlukan persetujuan, atau tidak ada yang berjalan maupun dijadwalkan.",
+        "working": "Agen sedang membalas, atau subagen maupun alat latar belakang sedang berjalan.",
+        "later": "Ditunda, atau menunggu tugas terjadwal.",
+        "done": "Utas yang sudah diselesaikan.",
+        "all": "Semua utas yang cocok dengan filter Anda lainnya."
+      }
     },
     "renameHint": "Klik dua kali untuk mengganti nama"
   },
@@ -1280,7 +1295,7 @@
     "layoutSections": "Bagian",
     "sections": {
       "working": "Sedang berjalan",
-      "snoozed": "Ditunda",
+      "later": "Nanti",
       "idle": "Tidak aktif",
       "resolved": "Selesai"
     },

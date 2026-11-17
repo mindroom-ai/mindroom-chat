@@ -68,7 +68,7 @@ vi.mock('react-i18next', () => ({
         'mindroomUi.models.modelPicker.pending': 'Waiting for model change',
         'mindroomUi.models.modelPicker.noResults': 'No matching models',
         'mindroomUi.models.modelPicker.commandFallback':
-          'You can still send !model with a model key in this thread.',
+          'You can still send /model (or !model) with a model key in this thread.',
         'mindroomUi.models.modelPicker.runtimeLabel': `${String(options?.userId)} on ${String(
           options?.deviceId
         )}`,
@@ -697,7 +697,9 @@ describe('composer model picker', () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       'Model discovery unavailable.'
     );
-    expect(container.textContent).toContain('You can still send !model with a model key');
+    expect(container.textContent).toContain(
+      'You can still send /model (or !model) with a model key'
+    );
     await click(container.querySelector('button[aria-label="Retry"]')!);
     expect(state.refresh).toHaveBeenCalledTimes(2);
   });

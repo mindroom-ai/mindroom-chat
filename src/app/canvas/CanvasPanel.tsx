@@ -4,9 +4,11 @@ import { Box, Button, Icon, IconButton, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import {
   buildCanvasDocument,
+  canvasDocumentKey,
   CANVAS_ESCAPE_MESSAGE,
   CANVAS_PERMISSIONS,
   CANVAS_WRAPPER_SANDBOX,
+  RAW_COLOR_SCHEME,
   canvasFrameWindow,
   type CanvasColorScheme,
   type CanvasSaved,
@@ -40,6 +42,8 @@ export type CanvasView = {
   threadId?: string;
   title: string;
   html: string;
+  /** Shown exactly as written, without Chat's styles. */
+  raw?: true;
   /** An uploaded page that is still downloading, or could not be loaded. */
   status?: 'loading' | 'failed';
 };
@@ -53,6 +57,8 @@ export type CanvasPanelProps = {
   theme: CanvasTheme;
   /** The deployment lets pages load libraries from the library source. */
   libraries?: boolean;
+  /** The deployment lets pages load remote assets. */
+  remote?: boolean;
   onClose: () => void;
   onRetry?: () => void;
   expanded?: boolean;
@@ -104,15 +110,6 @@ const isUnresolved = (answer?: SentAnswer): boolean => {
   return state === 'sending' || state === 'failed';
 };
 
-/** Hash a document so a changed canvas remounts its frame and drops stale script state. */
-const documentKey = (doc: string): string => {
-  let hash = 5381;
-  for (let index = 0; index < doc.length; index += 1) {
-    hash = (hash * 33) ^ doc.charCodeAt(index);
-  }
-  return `${doc.length}:${hash >>> 0}`;
-};
-
 const formatData = (data: unknown): string => JSON.stringify(data, null, 2) ?? 'null';
 
 const STAGE_INTERVAL_MS = 100;
@@ -130,6 +127,7 @@ export function CanvasPanel({
   colorScheme,
   theme,
   libraries = false,
+  remote = false,
   onClose,
   onRetry,
   expanded = false,
@@ -159,12 +157,13 @@ export function CanvasPanel({
         displayed.theme,
         displayed.title,
         libraries,
-        savedState?.()
+        savedState?.(),
+        { raw: displayed.raw === true, remote }
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [displayed, libraries, reloads]
+    [displayed, libraries, remote, reloads]
   );
-  const docKey = useMemo(() => documentKey(doc), [doc]);
+  const docKey = useMemo(() => canvasDocumentKey(doc), [doc]);
   const frameKey = `${displayed.revisionEventId}:${docKey}:${reloads}`;
   const [escapedFrame, setEscapedFrame] = useState<string>();
   const [staged, setStaged] = useState<Staged>();
@@ -194,8 +193,8 @@ export function CanvasPanel({
   const latest = useRef({ canvas, colorScheme, theme, onSaveState });
   latest.current = { canvas, colorScheme, theme, onSaveState };
   // Pages can be megabytes, so revisions compare by a hash of their HTML.
-  const incomingHtmlKey = useMemo(() => documentKey(canvas.html), [canvas.html]);
-  const displayedHtmlKey = useMemo(() => documentKey(displayed.html), [displayed.html]);
+  const incomingHtmlKey = useMemo(() => canvasDocumentKey(canvas.html), [canvas.html]);
+  const displayedHtmlKey = useMemo(() => canvasDocumentKey(displayed.html), [displayed.html]);
   const handledRevision = useRef(revisionKey(canvas, incomingHtmlKey));
 
   useEffect(() => {
@@ -686,6 +685,8 @@ export function CanvasPanel({
           srcDoc={doc}
           referrerPolicy="no-referrer"
           onLoad={handleLoad}
+          // A raw page is a page in a browser: white, in the browser's color scheme.
+          style={displayed.raw ? { background: '#fff', colorScheme: RAW_COLOR_SCHEME } : undefined}
         />
       )}
 

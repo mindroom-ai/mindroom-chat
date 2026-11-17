@@ -1,4 +1,4 @@
-import { EventType, MatrixEvent, NotificationCountType, RelationType, Room } from 'matrix-js-sdk';
+import { MatrixEvent, NotificationCountType, Room } from 'matrix-js-sdk';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { canSubmitApprovalDecision } from '../../approvals/approvalActions';
 import { getThreadReadState, isReplyUnread } from '../../event-store/threads/roomThreadList';
@@ -13,6 +13,12 @@ import { getSyncedEdit } from '../../matrix/client/syncedEdits';
 import { isMainTimelineMessageUnread } from '../../matrix/mainTimelineRead';
 import { getAiRunInfo, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
 import { isCallRowEvent } from '../../matrix/protocol/callRow';
+import {
+  readInteractiveQuestion,
+  readInteractiveSourceEventId,
+  readRoomQuestionAnswer,
+  type InteractiveQuestion,
+} from '../../matrix/protocol/interactiveQuestion';
 import { isThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
 import {
   collectThreadApprovals,
@@ -39,12 +45,7 @@ export type ThreadReply = {
   /** The reply as the timeline gives it to a plugin's message renderer, while one has a preview. */
   event?: PluginEvent;
 };
-export type ThreadQuestion = {
-  eventId: string;
-  senderId: string;
-  text: string;
-  options: { key: string; label: string }[];
-};
+export type ThreadQuestion = InteractiveQuestion & { eventId: string; senderId: string };
 export type ThreadOutcome = {
   kind: 'finished' | 'stopped';
   senderId: string;
@@ -81,8 +82,6 @@ export const FINISHED_AFTER_MS = 60_000;
 
 /** Who wrote the message an agent relays (MindRoom's router handoff). */
 const ORIGINAL_SENDER_KEY = 'com.mindroom.original_sender';
-/** Agent question content (MindRoom's `interactive_prompt_content`). */
-const INTERACTIVE_KEY = 'io.mindroom.interactive';
 const PREVIEW_LENGTH = 240;
 /** How long an agent's question waits for an answer before it stops asking. */
 export const QUESTION_WAITS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -210,44 +209,14 @@ const threadEvents = (room: Room, rootId: string) => {
 };
 
 const readQuestion = ({ event, content }: Shown): ThreadQuestion | undefined => {
-  const payload = content[INTERACTIVE_KEY] ?? event.getOriginalContent()[INTERACTIVE_KEY];
-  if (!isRecord(payload) || !isRecord(payload.options)) return undefined;
-  const labels = isRecord(payload.option_labels) ? payload.option_labels : {};
-  // Number keys answer by typing; the emoji keys are the reaction buttons.
-  const options = Object.entries(payload.options)
-    .filter(([key, value]) => !/^\d+$/.test(key) && typeof value === 'string')
-    .map(([key, value]) => {
-      const label = labels[key];
-      return { key, label: typeof label === 'string' && label ? label : String(value) };
-    });
-  const text = typeof payload.question_text === 'string' ? payload.question_text : '';
-  if (options.length === 0 || !text) return undefined;
-  return { eventId: event.getId() ?? '', senderId: event.getSender() ?? '', text, options };
-};
-
-const questionSourceId = ({ event, content }: Shown): string | undefined => {
-  const payload = content[INTERACTIVE_KEY] ?? event.getOriginalContent()[INTERACTIVE_KEY];
-  return isRecord(payload) && typeof payload.source_event_id === 'string'
-    ? payload.source_event_id
-    : undefined;
-};
-
-const answeredByReaction = (room: Room, question: ThreadQuestion, userId: string): boolean => {
-  const reactions = room
-    .getUnfilteredTimelineSet()
-    .relations.getChildEventsForEvent(
-      question.eventId,
-      RelationType.Annotation,
-      EventType.Reaction
-    );
-  const keys = new Set(question.options.map((option) => option.key));
-  return (reactions?.getRelations() ?? []).some(
-    (reaction) =>
-      reaction.getSender() === userId &&
-      !reaction.isRedacted() &&
-      keys.has(reaction.getRelation()?.key ?? '')
+  const question = readInteractiveQuestion(content, event.getOriginalContent());
+  return (
+    question && { eventId: event.getId() ?? '', senderId: event.getSender() ?? '', ...question }
   );
 };
+
+const questionSourceId = ({ event, content }: Shown): string | undefined =>
+  readInteractiveSourceEventId(content, event.getOriginalContent());
 
 const readOutcome = ({ event, content, editTs }: Shown): ThreadOutcome | undefined => {
   const run = getAiRunInfo(content);
@@ -361,7 +330,8 @@ export const readThreadSignals = (
       wroteSince ||
       askedSomeoneElse ||
       now - askedAt >= QUESTION_WAITS_MS ||
-      answeredByReaction(room, pendingQuestion, userId)
+      // One answer per question: anyone's answer closes it, as the question card shows.
+      readRoomQuestionAnswer(room, pendingQuestion.eventId, pendingQuestion, userId)
     ) {
       pendingQuestion = undefined;
     }
