@@ -44,7 +44,7 @@ describe('hydrateThreadTailLongTexts', () => {
     );
     await hydrateThreadTailLongTexts({} as MatrixClient, room, '$root', events);
     expect(vi.mocked(hydrateCachedLongText)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(hydrateCachedLongText).mock.calls[0][1].mxcUri).toBe(
+    expect(vi.mocked(hydrateCachedLongText).mock.calls[0]?.[1].mxcUri).toBe(
       'mxc://example.org/long-12'
     );
   });

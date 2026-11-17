@@ -831,9 +831,13 @@ describe('thread session first paint', () => {
     });
     try {
       expect(view.session.snapshot.open.firstPaintHeld).toBe(true);
-      act(() => vi.advanceTimersByTime(599));
+      act(() => {
+        vi.advanceTimersByTime(599);
+      });
       expect(view.session.snapshot.open.firstPaintHeld).toBe(true);
-      act(() => vi.advanceTimersByTime(1));
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
       expect(view.session.snapshot.open.firstPaintHeld).toBe(false);
     } finally {
       view.unmount();

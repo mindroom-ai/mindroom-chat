@@ -251,7 +251,7 @@ test('a thread opened for the first time paints its replies once, its long reply
 
   const painted = frames.findIndex((frame) => frame.ids.some((id) => id !== rootId));
   expect(painted, 'a frame shows replies').toBeGreaterThanOrEqual(0);
-  const first = frames[painted];
+  const first = frames[painted]!;
   test
     .info()
     .annotations.push({ type: 'first paint', description: `${first.t} ms after the click` });
