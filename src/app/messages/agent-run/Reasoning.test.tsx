@@ -642,10 +642,14 @@ describe('MindroomReasoning', () => {
         ]);
       });
 
-      it('shows no segment once the reader closes the bulb, also while the model writes on', async () => {
+      it.each([
+        ['bulb', (root: ReturnType<typeof render>) => header(root)],
+        ['rail', (root: ReturnType<typeof render>) => rails(root).at(-1)],
+        ['button at the end', (root: ReturnType<typeof render>) => ends(root).at(-1)],
+      ])('shows no segment once the %s closes the bulb, also while the model writes on', async (_name, closer) => {
         const root = renderThinking(streaming(twoThoughts, LIVE_SEGMENTS));
         await act(() => header(root).props.onClick());
-        await act(() => header(root).props.onClick());
+        await act(() => closer(root)?.props.onClick());
 
         expect(header(root).props['aria-expanded']).toBe(false);
         expect(segmentTexts(root)).toEqual([]);
