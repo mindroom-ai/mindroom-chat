@@ -356,7 +356,7 @@ describe('the Compact room in sections', () => {
     );
 
     // The first screenful of cards, under their headers, and Resolved stays folded.
-    expect(rows().filter((row) => !row.startsWith('#'))).toHaveLength(FIRST_SCREEN_CARDS);
+    expect(rows().filter((row) => !row?.startsWith('#'))).toHaveLength(FIRST_SCREEN_CARDS);
     expect(rows()).not.toContain('$done');
   });
 
