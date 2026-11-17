@@ -679,6 +679,7 @@
           "note": "Bereits vergebene Titel behalten ihren Wortlaut bis zur nächsten Aktualisierung."
         },
         "save": "Speichern",
+        "saved": "Gespeichert",
         "clear": "Löschen",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Nur wer die Einstellungen dieses Raums ändern darf, kann das bearbeiten.",

@@ -679,6 +679,7 @@
           "note": "Titles already set keep their wording until the next refresh."
         },
         "save": "Save",
+        "saved": "Saved",
         "clear": "Clear",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "Only people allowed to change this room's settings can edit this.",

@@ -670,6 +670,7 @@
           "note": "已有的标题会保持原有措辞，直到下次刷新。"
         },
         "save": "保存",
+        "saved": "已保存",
         "clear": "清除",
         "characterCount": "{{length, number}} / {{max, number}}",
         "readOnly": "只有可以更改本房间设置的人才能编辑此项。",
