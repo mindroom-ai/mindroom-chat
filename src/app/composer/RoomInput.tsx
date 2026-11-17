@@ -57,7 +57,7 @@ import {
 import type { TUploadItem } from '../matrix/state/upload';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { ConversationViewContext, useConversationHidden } from '../navigation/conversationView';
-import { type MidTurnMode, settingsAtom } from '../preferences/settings';
+import { settingsAtom } from '../preferences/settings';
 import { mobileOrTablet } from '../lib/user-agent';
 import { withPasteAttachmentMetadata } from '../matrix/protocol/pasteAttachmentMarker';
 import { MINDROOM_COMMANDS } from './commands/agentCommands';
@@ -101,6 +101,7 @@ import { useSavedVoiceDraft } from './voice/savedVoiceDraft';
 import { type ThreadForkRef, threadForkDraftId } from '../event-store/threads/threadFork';
 import { useThreadStreamingState } from '../event-store/threads/useThreadStreamingState';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
+import type { MidTurnMode } from '../preferences/midTurnModes';
 
 export type RoomInputProps = {
   editor: Editor;

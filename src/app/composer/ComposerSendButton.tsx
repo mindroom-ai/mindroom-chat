@@ -8,7 +8,7 @@ import { Menu } from '../ui/glass/GlassPrimitives';
 import { MenuEntry, MenuGroup } from '../ui/MenuEntry';
 import { useConversationHidden } from '../navigation/conversationView';
 import { usePointerLongPress } from '../lib/hooks/usePointerLongPress';
-import type { MidTurnMode } from '../preferences/settings';
+import type { MidTurnMode } from '../preferences/midTurnModes';
 import { ComposerIconButton } from './ComposerIconButton';
 import * as css from './RoomInput.css';
 

@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LONG_PRESS_MS } from '../lib/hooks/useLongPress';
-import type { MidTurnMode } from '../preferences/settings';
+import type { MidTurnMode } from '../preferences/midTurnModes';
 import { ComposerSendButton } from './ComposerSendButton';
 
 // The menu's real focus trap runs. jsdom lays nothing out, and the trap holds only controls that

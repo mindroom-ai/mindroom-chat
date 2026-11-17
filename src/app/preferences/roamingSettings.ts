@@ -23,7 +23,8 @@
  * error reporter) returns this device's own values.
  */
 import { atom } from 'jotai';
-import { isMidTurnMode, type Settings } from './settings';
+import type { Settings } from './settings';
+import { isMidTurnMode } from './midTurnModes';
 import { isRecord } from '../lib/isRecord';
 import {
   getSafeLocalStorage,
