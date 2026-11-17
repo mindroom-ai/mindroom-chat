@@ -708,6 +708,7 @@
         "showKey": "키 표시",
         "hideKey": "키 숨기기",
         "sentTo": "{{host}}(으)로 전송됨",
+        "openLink": "{{host}} 열기",
         "save": "저장",
         "decline": "거절",
         "savedWaiting": "저장됨, 에이전트를 기다리는 중",

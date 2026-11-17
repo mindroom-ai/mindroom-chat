@@ -708,6 +708,7 @@
         "showKey": "キーを表示",
         "hideKey": "キーを隠す",
         "sentTo": "送信先: {{host}}",
+        "openLink": "{{host}} を開く",
         "save": "保存",
         "decline": "拒否",
         "savedWaiting": "保存しました。エージェントを待っています",

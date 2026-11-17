@@ -717,6 +717,7 @@
         "showKey": "Anahtarı göster",
         "hideKey": "Anahtarı gizle",
         "sentTo": "{{host}} adresine gönderilir",
+        "openLink": "{{host}} adresini aç",
         "save": "Kaydet",
         "decline": "Geri çevir",
         "savedWaiting": "Kaydedildi, ajan bekleniyor",

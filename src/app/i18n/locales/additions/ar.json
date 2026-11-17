@@ -753,6 +753,7 @@
         "showKey": "إظهار المفتاح",
         "hideKey": "إخفاء المفتاح",
         "sentTo": "يُرسَل إلى ⁨{{host}}⁩",
+        "openLink": "فتح ⁨{{host}}⁩",
         "save": "حفظ",
         "decline": "رفض",
         "savedWaiting": "تم الحفظ، في انتظار الوكيل",

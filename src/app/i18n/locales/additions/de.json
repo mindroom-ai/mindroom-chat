@@ -717,6 +717,7 @@
         "showKey": "Schlüssel anzeigen",
         "hideKey": "Schlüssel verbergen",
         "sentTo": "Wird an {{host}} gesendet",
+        "openLink": "{{host}} öffnen",
         "save": "Speichern",
         "decline": "Ablehnen",
         "savedWaiting": "Gespeichert, wartet auf den Agenten",
