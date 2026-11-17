@@ -1,9 +1,8 @@
-"""Tests of scripts/live.py that start nothing: key files, slot picking, the state and its summary, and `down`."""
+"""Tests of scripts/live.py that start nothing: key files, slot claims, the state and its summary, and `down`."""
 
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import io
 import os
 import socket
@@ -30,6 +29,17 @@ STACK_STATE = {
     "agentNames": {"router": "MindRoom", "helper": "Helper"},
     "rooms": {"lobby": "!lobby:matrix.localhost", "space": "!space:matrix.localhost"},
 }
+
+
+def private_slots(test: unittest.TestCase) -> Path:
+    """Points live.SLOTS_DIR at a new temporary directory for the test, and returns it."""
+    directory = tempfile.TemporaryDirectory()
+    test.addCleanup(directory.cleanup)
+    slots = Path(directory.name) / "slots"
+    patcher = mock.patch.object(live, "SLOTS_DIR", slots)
+    patcher.start()
+    test.addCleanup(patcher.stop)
+    return slots
 
 
 class KeyFileTests(unittest.TestCase):
@@ -68,56 +78,33 @@ class KeyFileTests(unittest.TestCase):
 
 class SlotTests(unittest.TestCase):
     def setUp(self) -> None:
-        directory = tempfile.TemporaryDirectory()
-        self.addCleanup(directory.cleanup)
-        self.root = Path(directory.name)
-        environ = {
-            "E2E_AGENT_STACK_ROOT": str(self.root / "agents"),
-            "E2E_SNAPSHOT_ROOT": str(self.root / "e2e"),
-            "MINDROOM_LIVE_ROOT": str(self.root / "live"),
-        }
-        patcher = mock.patch.dict(os.environ, environ)
+        self.slots = private_slots(self)
+        self.root = self.slots.parent
+        patcher = mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": str(self.root / "agents")})
         patcher.start()
         self.addCleanup(patcher.stop)
 
     def taken(self, slot: int, projects: set[str] = frozenset()) -> bool:
         return live.slot_taken(slot, set(projects))
 
-    def test_a_slot_is_taken_by_a_deployment_a_compose_project_or_a_stack(self) -> None:
+    def test_a_slot_is_taken_by_a_compose_project_or_a_stack(self) -> None:
         with mock.patch.object(live, "port_in_use", return_value=False):
             self.assertFalse(self.taken(57))
             self.assertTrue(self.taken(57, projects={"mindroom-client-e2e-57"}))
             self.assertFalse(self.taken(57, projects={"mindroom-client-e2e-5", "mindroom-client-e2e-570"}))
-            live.write_state(57, {"slot": 57})
-            self.assertTrue(self.taken(57))
             self.assertFalse(self.taken(58))
             (self.root / "agents" / "slot-58").mkdir(parents=True)
             self.assertTrue(self.taken(58))
 
-    def test_a_slot_whose_lock_another_run_holds_is_skipped(self) -> None:
+    def test_up_claims_a_slot_by_creating_its_state_file_and_skips_one_that_has_it(self) -> None:
         with mock.patch.object(live, "port_in_use", return_value=False):
-            with live.slot_lock(57).open("a") as other:
-                fcntl.flock(other, fcntl.LOCK_EX)
-                self.assertIsNone(live.claim_slot(57, set()))
-            claim = live.claim_slot(57, set())
-            self.assertIsNotNone(claim)
-            self.assertIn("scripts/live.py up", live.slot_lock(57).read_text())
-            claim.close()
-
-    def e2e_slot(self, *argv: str) -> subprocess.CompletedProcess:
-        script = live.REPOSITORY / "scripts" / "e2e-slot.sh"
-        return subprocess.run(["bash", str(script), *argv], capture_output=True, text=True, timeout=60)
-
-    def test_an_e2e_run_refuses_a_slot_that_a_live_deployment_or_its_start_holds(self) -> None:
-        live.write_state(57, {"slot": 57})
-        refused = self.e2e_slot("57", "true")
-        self.assertEqual(refused.returncode, 2)
-        self.assertIn("a live deployment uses the slot", refused.stderr)
-        claim = live.claim_slot(58, set())
-        refused = self.e2e_slot("58", "true")
-        claim.close()
-        self.assertEqual(refused.returncode, 2)
-        self.assertIn("the slot is in use (scripts/live.py up, pid", refused.stderr)
+            self.assertTrue(live.claim_slot(57, set(), {"status": "starting", "pid": 1}))
+            self.assertEqual(live.read_states(), {57: {"status": "starting", "pid": 1}})
+            self.assertEqual(live.state_path(57).stat().st_mode & 0o777, 0o600)
+            self.assertFalse(live.claim_slot(57, set(), {"status": "starting", "pid": 2}))
+            self.assertEqual(live.read_states()[57]["pid"], 1)
+            self.assertFalse(live.claim_slot(58, {"mindroom-client-e2e-58"}, {}))
+            self.assertFalse(live.state_path(58).exists())
 
     def test_a_listener_on_any_port_of_the_slot_takes_it(self) -> None:
         ports = live.slot_ports(57)
@@ -132,13 +119,44 @@ class SlotTests(unittest.TestCase):
             self.assertTrue(live.port_in_use(server.getsockname()[1]))
 
 
+class SharedSlotTests(unittest.TestCase):
+    """scripts/e2e-slot.sh reads the real /tmp/mindroom-slots, which no root setting moves; this test gives slot 99 a
+    state file there while no deployment has one, and the run's Docker always fails, so it never starts anything."""
+
+    SLOT = 99
+
+    def test_an_e2e_run_with_its_own_snapshot_root_refuses_a_live_deployment(self) -> None:
+        if not live.claim_slot(self.SLOT, set(), {"status": "starting", "pid": os.getpid()}):
+            self.skipTest(f"slot {self.SLOT} is in use on this machine")
+        self.addCleanup(live.state_path(self.SLOT).unlink, missing_ok=True)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "bin").mkdir()
+            (root / "bin" / "docker").write_text("#!/bin/sh\nexit 1\n")
+            (root / "bin" / "docker").chmod(0o755)
+            # Its own snapshot root, as scripts/perf/real-work/matrix.sh gives each run.
+            env = {
+                **os.environ,
+                "E2E_SNAPSHOT_ROOT": str(root / "snapshots"),
+                "PATH": f"{root / 'bin'}:{os.environ['PATH']}",
+            }
+            refused = subprocess.run(
+                ["bash", str(live.REPOSITORY / "scripts" / "e2e-slot.sh"), str(self.SLOT), "true"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                env=env,
+            )
+        self.assertEqual(refused.returncode, 2, refused.stderr)
+        self.assertIn(f"e2e-slot {self.SLOT}: a live deployment uses the slot", refused.stderr)
+
+
 class StateTests(unittest.TestCase):
     def state(self) -> dict:
-        chat = {"checkout": "/repo", "pid": 1, "log": "/tmp/mindroom-live/slot-57/chat.log"}
+        chat = {"checkout": "/repo", "pid": 1, "log": "/tmp/mindroom-slots/57.live/chat.log"}
         backend = {"checkout": "/mindroom", "source": "origin/main of /mindroom, committed 2 hours ago"}
-        with tempfile.TemporaryDirectory() as directory:
-            with mock.patch.dict(os.environ, {"MINDROOM_LIVE_ROOT": directory}):
-                return live.live_state(57, STACK_STATE, chat, backend, 61.4)
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(live, "SLOTS_DIR", Path(directory)):
+            return live.live_state(57, STACK_STATE, chat, backend, 61.4)
 
     def test_the_state_has_the_urls_account_agents_and_files(self) -> None:
         state = self.state()
@@ -235,15 +253,11 @@ class ToolchainTests(unittest.TestCase):
 
 class DownTests(unittest.TestCase):
     def setUp(self) -> None:
-        directory = tempfile.TemporaryDirectory()
-        self.addCleanup(directory.cleanup)
-        self.root = Path(directory.name) / "live"
-        patcher = mock.patch.dict(os.environ, {"MINDROOM_LIVE_ROOT": str(self.root)})
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        self.root = private_slots(self)
 
     def write(self, slot: int, checkout: Path = live.REPOSITORY) -> None:
-        live.write_state(slot, {"slot": slot, "status": "ready", "chat": {"checkout": str(checkout), "pid": None}})
+        state = {"slot": slot, "status": "ready", "chat": {"checkout": str(checkout), "pid": None}}
+        live.write_state(slot, state)
 
     def run_main(self, *argv: str, returncode: int = 0) -> tuple[int, list[int]]:
         with (
@@ -258,8 +272,8 @@ class DownTests(unittest.TestCase):
         self.write(61)
         self.write(62, Path("/elsewhere"))
         self.assertEqual(self.run_main("down"), (0, [61]))
-        self.assertFalse((self.root / "slot-61.json").exists())
-        self.assertTrue((self.root / "slot-62.json").exists())
+        self.assertFalse((self.root / "61.live.json").exists())
+        self.assertTrue((self.root / "62.live.json").exists())
         self.assertEqual(self.run_main("down"), (0, []))
         self.assertEqual(self.run_main("down", "--slot", "61"), (0, []))
 
@@ -280,14 +294,14 @@ class DownTests(unittest.TestCase):
 
     def test_a_failed_teardown_keeps_the_state_and_logs_so_down_tries_again(self) -> None:
         self.write(61)
-        (self.root / "slot-61").mkdir()
-        (self.root / "slot-61" / "chat.log").write_text("vite\n")
+        (self.root / "61.live").mkdir()
+        (self.root / "61.live" / "chat.log").write_text("vite\n")
         self.assertEqual(self.run_main("down", "--slot", "61", returncode=1), (1, [61]))
-        self.assertTrue((self.root / "slot-61.json").exists())
-        self.assertTrue((self.root / "slot-61" / "chat.log").exists())
+        self.assertTrue((self.root / "61.live.json").exists())
+        self.assertTrue((self.root / "61.live" / "chat.log").exists())
         self.assertEqual(self.run_main("down", "--slot", "61"), (0, [61]))
-        self.assertFalse((self.root / "slot-61.json").exists())
-        self.assertFalse((self.root / "slot-61").exists())
+        self.assertFalse((self.root / "61.live.json").exists())
+        self.assertFalse((self.root / "61.live").exists())
 
     def test_status_names_a_backend_that_does_not_answer(self) -> None:
         live.write_state(
@@ -317,11 +331,44 @@ class DownTests(unittest.TestCase):
         ):
             self.assertEqual(live.main(["run", "check.mjs", "--slot", "x"]), 3)
         self.assertEqual(run.call_args.args[0], ["node", "check.mjs", "--slot", "x"])
-        self.assertEqual(run.call_args.kwargs["env"]["MINDROOM_LIVE_STATE"], str(self.root / "slot-61.json"))
+        self.assertEqual(run.call_args.kwargs["env"]["MINDROOM_LIVE_STATE"], str(self.root / "61.live.json"))
 
-    def test_the_root_is_the_owners_only(self) -> None:
-        live.live_root()
-        self.assertEqual(self.root.stat().st_mode & 0o777, 0o700)
+
+class BackendSourceTests(unittest.TestCase):
+    def setUp(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name).resolve()
+        checkout = self.root / "work" / "mindroom"
+        checkout.mkdir(parents=True)
+        (checkout / "pyproject.toml").write_text('[project]\nname = "mindroom"\n')
+        git = ["git", "-C", str(checkout), "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
+        for command in (["init", "-q"], ["add", "pyproject.toml"], ["commit", "-q", "-m", "one"]):
+            subprocess.run([*git, *command], check=True, capture_output=True)
+        subprocess.run([*git, "update-ref", "refs/remotes/origin/main", "HEAD"], check=True)
+        self.checkout = checkout
+        self.head = live.git(checkout, "rev-parse", "HEAD")
+        cwd = os.getcwd()
+        os.chdir(self.root / "work")
+        self.addCleanup(os.chdir, cwd)
+
+    def test_a_relative_backend_from_another_directory_becomes_absolute_with_its_edits(self) -> None:
+        checkout, sha, source = live.backend_source("mindroom")
+        self.assertEqual((checkout, sha), (self.checkout, self.head))
+        self.assertIn(f"HEAD of {self.checkout} (no uncommitted changes)", source)
+        with (self.checkout / "pyproject.toml").open("a") as edit:
+            edit.write("# an edit\n")
+        checkout, sha, source = live.backend_source("./mindroom/")
+        self.assertEqual(checkout, self.checkout)
+        self.assertNotEqual(sha, self.head)
+        self.assertIn("# an edit", live.git(self.checkout, "show", f"{sha}:pyproject.toml"))
+        self.assertEqual(source, f"the working tree of {self.checkout}")
+
+    def test_a_relative_checkout_variable_becomes_absolute(self) -> None:
+        with mock.patch.dict(os.environ, {"E2E_MINDROOM_CHECKOUT": "mindroom"}):
+            checkout, sha, source = live.backend_source(None)
+        self.assertEqual((checkout, sha), (self.checkout, self.head))
+        self.assertTrue(source.startswith(f"origin/main of {self.checkout}, committed "))
 
 
 if __name__ == "__main__":
