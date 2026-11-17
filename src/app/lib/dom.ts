@@ -219,7 +219,6 @@ const loadMedia = <T extends HTMLImageElement | HTMLVideoElement>(
 export const loadImageElement = (url: string): Promise<HTMLImageElement> =>
   loadMedia(document.createElement('img'), 'load', url);
 
-/** Loads a video's metadata and first frame from a URL. */
 /** How long a video may take to show its first frame before it is sent without one. */
 export const VIDEO_LOAD_TIMEOUT_MS = 10_000;
 
