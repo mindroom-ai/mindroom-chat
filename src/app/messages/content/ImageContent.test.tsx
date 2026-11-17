@@ -1,13 +1,9 @@
 import React from 'react';
-import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AsyncStatus } from '../../lib/hooks/useAsyncCallback';
-import { imageViewerOpenAtom } from '../../navigation/imageViewerState';
-import { PINCH_SURFACE_ATTRIBUTE } from '../../theme/usePinchToZoom';
 import { ImageContent } from './ImageContent';
-
-const IMAGE_VIEWER_HISTORY_MARKER = '__mindroomImageViewer';
+import { ImageGallery } from './ImageGallery';
 
 const mocks = vi.hoisted(() => ({
   downloadCachedAttachment: vi.fn(),
@@ -18,128 +14,6 @@ const mocks = vi.hoisted(() => ({
     data: 'blob:image',
   } as { status: string; data?: string },
 }));
-
-type Listener = (event: Event) => void;
-
-class MockEventTarget {
-  private listeners = new Map<string, Set<Listener>>();
-
-  addEventListener(type: string, listener: EventListenerOrEventListenerObject | null) {
-    if (!listener) return;
-
-    const fn =
-      typeof listener === 'function' ? listener : (event: Event) => listener.handleEvent(event);
-    const current = this.listeners.get(type) ?? new Set<Listener>();
-    current.add(fn);
-    this.listeners.set(type, current);
-  }
-
-  removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null) {
-    if (!listener) return;
-
-    const current = this.listeners.get(type);
-    if (!current) return;
-
-    for (const candidate of current) {
-      if (candidate === listener) {
-        current.delete(candidate);
-      }
-    }
-  }
-
-  dispatch(type: string, event: Event) {
-    this.listeners.get(type)?.forEach((listener) => listener(event));
-  }
-}
-
-type MockWindow = MockEventTarget & {
-  history: History & {
-    back: ReturnType<typeof vi.fn>;
-    pushState: ReturnType<typeof vi.fn>;
-    replaceState: ReturnType<typeof vi.fn>;
-  };
-  historyIndex: number;
-  historyStack: unknown[];
-  emitPageHide: () => void;
-  emitPopState: () => void;
-};
-
-const createMockWindow = (): MockWindow => {
-  const eventTarget = new MockEventTarget();
-  const stack: unknown[] = [{ route: 'room' }];
-  let index = 0;
-
-  const history = {
-    pushState: vi.fn((state: unknown) => {
-      stack.splice(index + 1);
-      stack.push(state);
-      index = stack.length - 1;
-    }),
-    replaceState: vi.fn((state: unknown) => {
-      stack[index] = state;
-    }),
-    back: vi.fn(() => {
-      if (index === 0) return;
-      index -= 1;
-    }),
-  } as MockWindow['history'];
-
-  Object.defineProperty(history, 'state', {
-    configurable: true,
-    get: () => stack[index] ?? null,
-  });
-
-  const mockWindow = Object.assign(eventTarget, {
-    history,
-    emitPageHide: () => {
-      eventTarget.dispatch('pagehide', { type: 'pagehide' } as Event);
-    },
-    emitPopState: () => {
-      if (index > 0) {
-        index -= 1;
-      }
-      eventTarget.dispatch('popstate', { type: 'popstate' } as Event);
-    },
-  });
-
-  Object.defineProperty(mockWindow, 'historyIndex', {
-    configurable: true,
-    get: () => index,
-  });
-  Object.defineProperty(mockWindow, 'historyStack', {
-    configurable: true,
-    get: () => [...stack],
-  });
-
-  return mockWindow as MockWindow;
-};
-
-function AutoOpenImage({
-  onClick,
-  ...props
-}: {
-  onClick: () => void;
-  onKeyDown: (evt: React.KeyboardEvent<HTMLElement>) => void;
-  onLoad: () => void;
-  onError: () => void;
-  src: string;
-  alt: string;
-  tabIndex: number;
-}) {
-  const openedRef = React.useRef(false);
-
-  React.useEffect(() => {
-    if (openedRef.current) return;
-    openedRef.current = true;
-    onClick();
-  }, [onClick]);
-
-  return React.createElement('button', {
-    ...props,
-    'data-role': 'image',
-    onClick,
-  });
-}
 
 vi.mock('folds', async (importOriginal) => {
   const actual = await importOriginal<typeof import('folds')>();
@@ -242,68 +116,45 @@ vi.mock('./serverThumbnail', async () => ({
     loadOriginal(),
 }));
 
+// The viewer session has its own tests (ImageGallery.test.tsx); here only what it is handed.
+vi.mock('./ImageGallery', () => ({ ImageGallery: () => null }));
+
 vi.mock('../../matrix/matrix', () => ({
   decryptFile: vi.fn(),
   mxcUrlToHttp: () => 'https://example.test/image',
 }));
 
+const OWNER = { roomId: '!room:example.org', eventId: '$image', revisionTs: 5 };
+const FILE = {
+  url: 'mxc://mindroom/image',
+  key: { alg: 'A256CTR', ext: true, k: 'key', key_ops: ['encrypt', 'decrypt'], kty: 'oct' },
+  iv: 'iv',
+  hashes: { sha256: 'hash' },
+  v: 'v2',
+};
+
 describe('ImageContent', () => {
-  const originalWindow = globalThis.window;
-  let mockWindow: MockWindow;
   let renderer: ReactTestRenderer | undefined;
 
-  const renderImageContent = ({
-    autoOpen = false,
-    mimeType,
-    store = createStore(),
-    strict = false,
-  }: {
-    autoOpen?: boolean;
-    mimeType?: string;
-    store?: ReturnType<typeof createStore>;
-    strict?: boolean;
-  }) => {
-    const element = React.createElement(
-      Provider,
-      { store },
-      React.createElement(ImageContent, {
-        body: 'Test image',
-        mimeType,
-        url: 'mxc://mindroom/image',
-        renderImage: ({ onClick, ...props }) =>
-          autoOpen
-            ? React.createElement(AutoOpenImage, { ...props, onClick })
-            : React.createElement('button', {
-                ...props,
-                'data-role': 'image',
-                onClick,
-              }),
-        renderViewer: ({ requestClose }) =>
-          React.createElement(
-            'button',
-            {
-              'data-role': 'close',
-              onClick: requestClose,
-            },
-            'Close'
-          ),
-      })
-    );
-
+  const renderImageContent = ({ mimeType }: { mimeType?: string }) => {
     act(() => {
-      renderer = create(strict ? React.createElement(React.StrictMode, null, element) : element);
+      renderer = create(
+        React.createElement(ImageContent, {
+          body: 'Test image',
+          mimeType,
+          url: 'mxc://mindroom/image',
+          info: { w: 4, h: 3 },
+          encInfo: FILE,
+          owner: OWNER,
+          renderImage: ({ onClick, ...props }) =>
+            React.createElement('button', { ...props, 'data-role': 'image', onClick }),
+        })
+      );
     });
-
-    return { renderer: renderer!, store };
+    return renderer!;
   };
 
   beforeEach(() => {
-    mockWindow = createMockWindow();
-    Object.defineProperty(globalThis, 'window', {
-      configurable: true,
-      value: mockWindow,
-    });
-
     mocks.srcState = {
       status: AsyncStatus.Success,
       data: 'blob:image',
@@ -313,18 +164,11 @@ describe('ImageContent', () => {
   });
 
   afterEach(() => {
-    if (renderer) {
+    if (renderer)
       act(() => {
         renderer?.unmount();
       });
-    }
     renderer = undefined;
-
-    Object.defineProperty(globalThis, 'window', {
-      configurable: true,
-      value: originalWindow,
-    });
-
     vi.restoreAllMocks();
   });
 
@@ -344,137 +188,39 @@ describe('ImageContent', () => {
     );
   });
 
-  it("marks the viewer's frame as a pinch surface, so the page zoom leaves its pinches alone", () => {
-    const { renderer: tree } = renderImageContent({});
+  it('opens the viewer on its own picture when clicked, and closes it when the viewer asks', () => {
+    const tree = renderImageContent({ mimeType: 'image/png' });
+    expect(tree.root.findAllByType(ImageGallery)).toHaveLength(0);
 
     act(() => {
       tree.root.findByProps({ 'data-role': 'image' }).props.onClick();
     });
+    const gallery = tree.root.findByType(ImageGallery);
+    expect(gallery.props.slide).toEqual({
+      eventId: '$image',
+      body: 'Test image',
+      url: 'mxc://mindroom/image',
+      mimeType: 'image/png',
+      info: { w: 4, h: 3 },
+      encInfo: FILE,
+      owner: OWNER,
+    });
 
-    expect(tree.root.findByProps({ role: 'dialog' }).props).toHaveProperty(
-      PINCH_SURFACE_ATTRIBUTE,
-      ''
-    );
+    act(() => {
+      gallery.props.requestClose();
+    });
+    expect(tree.root.findAllByType(ImageGallery)).toHaveLength(0);
   });
 
-  it('pushes one marked history entry when opening the viewer', () => {
-    const store = createStore();
-    const { renderer: tree } = renderImageContent({ store });
-
+  it('opens the viewer on Enter', () => {
+    const tree = renderImageContent({ mimeType: 'image/png' });
+    const preventDefault = vi.fn();
     act(() => {
-      tree.root.findByProps({ 'data-role': 'image' }).props.onClick();
+      tree.root
+        .findByProps({ 'data-role': 'image' })
+        .props.onKeyDown({ key: 'Enter', preventDefault });
     });
-
-    expect(store.get(imageViewerOpenAtom)).toBe(true);
-    expect(mockWindow.history.pushState).toHaveBeenCalledOnce();
-    expect(mockWindow.history.state).toEqual({
-      route: 'room',
-      [IMAGE_VIEWER_HISTORY_MARKER]: true,
-    });
-    expect(mockWindow.historyIndex).toBe(1);
-  });
-
-  it('consumes the synthetic history entry when requestClose runs', () => {
-    const store = createStore();
-    const { renderer: tree } = renderImageContent({ store });
-
-    act(() => {
-      tree.root.findByProps({ 'data-role': 'image' }).props.onClick();
-    });
-    mockWindow.history.back.mockClear();
-
-    act(() => {
-      tree.root.findByProps({ 'data-role': 'close' }).props.onClick();
-    });
-
-    expect(store.get(imageViewerOpenAtom)).toBe(false);
-    expect(mockWindow.history.back).toHaveBeenCalledOnce();
-    expect(mockWindow.historyIndex).toBe(0);
-    expect(tree.root.findAllByProps({ 'data-role': 'close' })).toHaveLength(0);
-  });
-
-  it('closes on popstate without issuing a second history.back call', () => {
-    const store = createStore();
-    const { renderer: tree } = renderImageContent({ store });
-
-    act(() => {
-      tree.root.findByProps({ 'data-role': 'image' }).props.onClick();
-    });
-    mockWindow.history.back.mockClear();
-
-    act(() => {
-      mockWindow.emitPopState();
-    });
-
-    expect(store.get(imageViewerOpenAtom)).toBe(false);
-    expect(mockWindow.history.back).not.toHaveBeenCalled();
-    expect(mockWindow.historyIndex).toBe(0);
-    expect(tree.root.findAllByProps({ 'data-role': 'close' })).toHaveLength(0);
-  });
-
-  it('pushes a fresh synthetic entry when reopened after close', () => {
-    const store = createStore();
-    const { renderer: tree } = renderImageContent({ store });
-
-    act(() => {
-      tree.root.findByProps({ 'data-role': 'image' }).props.onClick();
-    });
-    act(() => {
-      tree.root.findByProps({ 'data-role': 'close' }).props.onClick();
-    });
-
-    act(() => {
-      tree.root.findByProps({ 'data-role': 'image' }).props.onClick();
-    });
-
-    expect(store.get(imageViewerOpenAtom)).toBe(true);
-    expect(mockWindow.history.pushState).toHaveBeenCalledTimes(2);
-    expect(mockWindow.history.back).toHaveBeenCalledOnce();
-    expect(mockWindow.history.state).toEqual({
-      route: 'room',
-      [IMAGE_VIEWER_HISTORY_MARKER]: true,
-    });
-    expect(mockWindow.historyIndex).toBe(1);
-  });
-
-  it('strips the marker on pagehide so refresh does not leave stale viewer state behind', () => {
-    const store = createStore();
-    const { renderer: tree } = renderImageContent({ store });
-
-    act(() => {
-      tree.root.findByProps({ 'data-role': 'image' }).props.onClick();
-    });
-    mockWindow.history.back.mockClear();
-
-    act(() => {
-      mockWindow.emitPageHide();
-      tree.unmount();
-    });
-    renderer = undefined;
-
-    expect(store.get(imageViewerOpenAtom)).toBe(false);
-    expect(mockWindow.history.replaceState).toHaveBeenCalledOnce();
-    expect(mockWindow.history.back).not.toHaveBeenCalled();
-    expect(mockWindow.history.state).toEqual({ route: 'room' });
-  });
-
-  it('keeps strict-mode viewer cleanup history-balanced and clean', () => {
-    const store = createStore();
-    renderImageContent({ autoOpen: true, store, strict: true });
-
-    expect(store.get(imageViewerOpenAtom)).toBe(true);
-    const pushCount = mockWindow.history.pushState.mock.calls.length;
-
-    expect(pushCount).toBeGreaterThanOrEqual(1);
-    expect(mockWindow.historyIndex).toBe(1);
-
-    act(() => {
-      renderer?.unmount();
-    });
-    renderer = undefined;
-
-    expect(store.get(imageViewerOpenAtom)).toBe(false);
-    expect(mockWindow.history.back).toHaveBeenCalledTimes(pushCount);
-    expect(mockWindow.historyIndex).toBe(0);
+    expect(preventDefault).toHaveBeenCalled();
+    expect(tree.root.findAllByType(ImageGallery)).toHaveLength(1);
   });
 });

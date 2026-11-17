@@ -87,7 +87,9 @@
       "pack": "Paketle aynı"
     },
     "imageViewer": {
-      "close": "Kapat"
+      "close": "Kapat",
+      "previous": "Önceki görsel",
+      "next": "Sonraki görsel"
     },
     "inviteUserPrompt": {
       "close": "Kapat",

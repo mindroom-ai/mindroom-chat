@@ -87,7 +87,9 @@
       "pack": "पैक के समान"
     },
     "imageViewer": {
-      "close": "बंद करें"
+      "close": "बंद करें",
+      "previous": "पिछली छवि",
+      "next": "अगली छवि"
     },
     "inviteUserPrompt": {
       "close": "बंद करें",

@@ -90,7 +90,9 @@
       "pack": "Come il pacchetto"
     },
     "imageViewer": {
-      "close": "Chiudi"
+      "close": "Chiudi",
+      "previous": "Immagine precedente",
+      "next": "Immagine successiva"
     },
     "inviteUserPrompt": {
       "close": "Chiudi",

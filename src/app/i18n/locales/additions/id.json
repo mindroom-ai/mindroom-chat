@@ -84,7 +84,9 @@
       "pack": "Sama seperti paket"
     },
     "imageViewer": {
-      "close": "Tutup"
+      "close": "Tutup",
+      "previous": "Gambar sebelumnya",
+      "next": "Gambar berikutnya"
     },
     "inviteUserPrompt": {
       "close": "Tutup",

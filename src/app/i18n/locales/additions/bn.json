@@ -87,7 +87,9 @@
       "pack": "প্যাকের মতো"
     },
     "imageViewer": {
-      "close": "বন্ধ করুন"
+      "close": "বন্ধ করুন",
+      "previous": "আগের ছবি",
+      "next": "পরের ছবি"
     },
     "inviteUserPrompt": {
       "close": "বন্ধ করুন",

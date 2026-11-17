@@ -87,7 +87,9 @@
       "pack": "Wie das Paket"
     },
     "imageViewer": {
-      "close": "Schließen"
+      "close": "Schließen",
+      "previous": "Vorheriges Bild",
+      "next": "Nächstes Bild"
     },
     "inviteUserPrompt": {
       "close": "Schließen",

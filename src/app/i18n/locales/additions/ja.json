@@ -84,7 +84,9 @@
       "pack": "パックと同じ"
     },
     "imageViewer": {
-      "close": "閉じる"
+      "close": "閉じる",
+      "previous": "前の画像",
+      "next": "次の画像"
     },
     "inviteUserPrompt": {
       "close": "閉じる",

@@ -87,7 +87,9 @@
       "pack": "Zelfde als pakket"
     },
     "imageViewer": {
-      "close": "Sluiten"
+      "close": "Sluiten",
+      "previous": "Vorige afbeelding",
+      "next": "Volgende afbeelding"
     },
     "inviteUserPrompt": {
       "close": "Sluiten",

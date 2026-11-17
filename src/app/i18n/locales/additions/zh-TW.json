@@ -84,7 +84,9 @@
       "pack": "與套件相同"
     },
     "imageViewer": {
-      "close": "關閉"
+      "close": "關閉",
+      "previous": "上一張圖片",
+      "next": "下一張圖片"
     },
     "inviteUserPrompt": {
       "close": "關閉",
