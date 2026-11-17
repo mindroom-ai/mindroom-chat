@@ -11,7 +11,7 @@ import {
   getRenderableAnnotationsByKey,
   isAgentStopButton,
 } from '../../matrix/protocol/stopReaction';
-import { questionOptionReactionKeys } from '../../matrix/protocol/interactiveQuestion';
+import { useHiddenQuestionReactions } from '../question/useHiddenQuestionReactions';
 import * as css from '../styles.css';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 
@@ -89,7 +89,7 @@ export function Reactions({
 
   const myUserId = client.getUserId();
   // A MindRoom agent's question card shows its options and the answer; their chips would repeat them.
-  const optionKeys = questionOptionReactionKeys(targetEvent, myUserId ?? undefined);
+  const optionKeys = useHiddenQuestionReactions(targetEvent, room.roomId, myUserId ?? undefined);
   const annotations = byFirstUse(
     getRenderableAnnotationsByKey(relations, targetEvent).filter(([key]) => !optionKeys.has(key))
   );

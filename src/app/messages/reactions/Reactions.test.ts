@@ -4,9 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { Reactions } from './Reactions';
 
-const { reactionRenderSpy } = vi.hoisted(() => ({
+const { reactionRenderSpy, useMessageRenderer } = vi.hoisted(() => ({
   reactionRenderSpy: vi.fn(),
+  useMessageRenderer: vi.fn(),
 }));
+
+vi.mock('../../plugins/messageRenderers', () => ({ useMessageRenderer }));
 
 vi.mock('folds', async (importOriginal) => {
   const actual = await importOriginal<typeof import('folds')>();
@@ -134,7 +137,10 @@ describe('Reactions', () => {
       React.createElement(Reactions, {
         room: {} as never,
         mEventId: '$event',
-        targetEvent: { getContent: () => ({}) } as MatrixEvent,
+        targetEvent: {
+          getSender: () => '@bas:mindroom.chat',
+          getContent: () => ({}),
+        } as MatrixEvent,
         canSendReaction: true,
         relations: relations as never,
         onReactionToggle,
@@ -158,7 +164,10 @@ describe('Reactions', () => {
       React.createElement(Reactions, {
         room: {} as never,
         mEventId: '~!room:example.org:txn-root',
-        targetEvent: { getContent: () => ({}) } as MatrixEvent,
+        targetEvent: {
+          getSender: () => '@bas:mindroom.chat',
+          getContent: () => ({}),
+        } as MatrixEvent,
         canSendReaction: true,
         relations: relations as never,
         onReactionToggle,
@@ -200,7 +209,10 @@ describe('Reactions', () => {
       React.createElement(Reactions, {
         room: {} as never,
         mEventId: '$event',
-        targetEvent: { getContent: () => ({}) } as MatrixEvent,
+        targetEvent: {
+          getSender: () => '@bas:mindroom.chat',
+          getContent: () => ({}),
+        } as MatrixEvent,
         canSendReaction: true,
         relations: relations as never,
         onReactionToggle: vi.fn(),
@@ -241,6 +253,7 @@ describe('Reactions', () => {
       ],
     ]);
     const targetEvent = {
+      getSender: () => '@agent:mindroom.chat',
       getContent: () => ({ 'io.mindroom.stream_status': 'completed' }),
     } as MatrixEvent;
 
@@ -261,7 +274,11 @@ describe('Reactions', () => {
     );
   });
 
-  it("hides the option chips of a MindRoom agent's question, whose card shows them", () => {
+  it.each([
+    ["hides the option chips of a MindRoom agent's question, whose card shows them", false],
+    ['keeps them where a client plugin renders the message instead of the card', true],
+  ])('%s', (_, pluginRenders) => {
+    useMessageRenderer.mockReturnValue(pluginRenders ? { id: 'poll', tag: 'poll' } : undefined);
     const chip = (sender: string) =>
       new Set([
         {
@@ -275,20 +292,24 @@ describe('Reactions', () => {
       ['🔴', chip('@mindroom_code:mindroom.chat')],
       ['👍', chip('@bas:mindroom.chat')],
     ]);
+    const content = {
+      'io.mindroom.interactive': {
+        question_text: 'Which color?',
+        options: { '🔴': 'red', '1': 'red' },
+        option_labels: { '🔴': 'Red', '1': 'Red' },
+      },
+    };
     const targetEvent = {
+      getId: () => '$event',
+      getType: () => 'm.room.message',
       getSender: () => '@mindroom_code:mindroom.chat',
-      getContent: () => ({
-        'io.mindroom.interactive': {
-          question_text: 'Which color?',
-          options: { '🔴': 'red', '1': 'red' },
-          option_labels: { '🔴': 'Red', '1': 'Red' },
-        },
-      }),
+      getContent: () => content,
+      getOriginalContent: () => content,
     } as unknown as MatrixEvent;
 
     render(
       React.createElement(Reactions, {
-        room: {} as never,
+        room: { roomId: '!room:mindroom.chat' } as never,
         mEventId: '$event',
         targetEvent,
         canSendReaction: true,
@@ -297,7 +318,13 @@ describe('Reactions', () => {
       })
     );
 
-    expect(reactionRenderSpy).not.toHaveBeenCalledWith(expect.objectContaining({ reaction: '🔴' }));
+    expect(useMessageRenderer).toHaveBeenLastCalledWith(
+      expect.objectContaining({ eventId: '$event', sender: '@mindroom_code:mindroom.chat' }),
+      '@bas:mindroom.chat'
+    );
+    expect(reactionRenderSpy.mock.calls.some(([call]) => call.reaction === '🔴')).toBe(
+      pluginRenders
+    );
     expect(reactionRenderSpy).toHaveBeenCalledWith(expect.objectContaining({ reaction: '👍' }));
   });
 

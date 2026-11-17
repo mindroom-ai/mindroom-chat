@@ -92,7 +92,7 @@ export function QuestionCard({
     if (!room || !eventId) return;
     setPending(true);
     setFailed(false);
-    answerQuestion(mx, room, threadId ?? mEvent.threadRootId, { eventId }, key)
+    answerQuestion(mx, room, threadId ?? mEvent.threadRootId, { ...question, eventId }, key)
       .catch(() => setFailed(true))
       .finally(() => setPending(false));
   };

@@ -13,7 +13,21 @@ const client = () =>
   } as unknown as MatrixClient & { sendEvent: ReturnType<typeof vi.fn> });
 
 describe('answerQuestion', () => {
-  const question = { eventId: '$q' };
+  const question = {
+    eventId: '$q',
+    text: 'Ship it?',
+    options: [
+      { key: '✅', label: 'Yes' },
+      { key: '❌', label: 'No' },
+    ],
+  };
+  const reaction = (sender: string, key: string) =>
+    new MatrixEvent({
+      event_id: `$${sender}${key}`,
+      sender,
+      type: 'm.reaction',
+      content: { 'm.relates_to': { rel_type: RelationType.Annotation, event_id: '$q', key } },
+    });
   const roomWith = (reactions: MatrixEvent[]) =>
     ({
       roomId: '!r:x',
@@ -38,15 +52,23 @@ describe('answerQuestion', () => {
     );
   });
 
-  it('never takes back an answer the user already gave', async () => {
+  it("answers past the agent's own option reactions", async () => {
     const mx = client();
-    const own = new MatrixEvent({
-      event_id: '$mine',
-      sender: ME,
-      type: 'm.reaction',
-      content: { 'm.relates_to': { rel_type: RelationType.Annotation, event_id: '$q', key: '✅' } },
-    });
-    await answerQuestion(mx, roomWith([own]), '$root', question, '✅');
+    await answerQuestion(
+      mx,
+      roomWith([reaction('@mindroom_code:x', '✅')]),
+      '$root',
+      question,
+      '✅'
+    );
+    expect(mx.sendEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends nothing once the question has an answer, by the user or by anyone else', async () => {
+    const mx = client();
+    await answerQuestion(mx, roomWith([reaction(ME, '✅')]), '$root', question, '✅');
+    await answerQuestion(mx, roomWith([reaction(ME, '❌')]), '$root', question, '✅');
+    await answerQuestion(mx, roomWith([reaction('@bob:x', '❌')]), '$root', question, '✅');
     expect(mx.sendEvent).not.toHaveBeenCalled();
   });
 });

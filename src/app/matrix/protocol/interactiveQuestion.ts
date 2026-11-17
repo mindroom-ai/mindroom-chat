@@ -1,4 +1,4 @@
-import type { MatrixEvent } from 'matrix-js-sdk';
+import { EventType, RelationType, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { isMindroomAgentUserIdForViewer } from './agentIdentity';
 import { getReadableContent } from '../room';
 
@@ -15,7 +15,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
 const NUMBER_KEY = /^\d+$/;
-const NO_KEYS: ReadonlySet<string> = new Set();
+export const NO_KEYS: ReadonlySet<string> = new Set();
 
 /**
  * The question a message asks, from its shown content or else its original content. MindRoom
@@ -96,19 +96,36 @@ export const readQuestionAnswer = (
   return key && senderId ? { key, senderId } : undefined;
 };
 
+/** `readQuestionAnswer` over the reactions the room holds on the question `eventId`. */
+export const readRoomQuestionAnswer = (
+  room: Room,
+  eventId: string,
+  question: InteractiveQuestion,
+  viewerId: string | undefined
+): QuestionAnswer | undefined =>
+  readQuestionAnswer(
+    room
+      .getUnfilteredTimelineSet()
+      .relations.getChildEventsForEvent(eventId, RelationType.Annotation, EventType.Reaction)
+      ?.getRelations() ?? [],
+    question,
+    viewerId
+  );
+
 /**
- * The reaction keys whose chips a MindRoom agent's question hides under it: its options. The
- * question card shows them and the answer, so their chips would only repeat it.
+ * The reaction keys of the options of a MindRoom agent's question, read as the core renderer
+ * reads it for its question card; empty for any other message.
  */
 export const questionOptionReactionKeys = (
   targetEvent: MatrixEvent | undefined,
   viewerId: string | undefined
 ): ReadonlySet<string> => {
-  const question =
-    targetEvent &&
-    readInteractiveQuestion(getReadableContent(targetEvent) as Record<string, unknown>);
-  if (!question || !isMindroomAgentUserIdForViewer(targetEvent?.getSender(), viewerId)) {
+  if (!targetEvent || !isMindroomAgentUserIdForViewer(targetEvent.getSender(), viewerId)) {
     return NO_KEYS;
   }
-  return new Set(question.options.map((option) => option.key));
+  const question = readInteractiveQuestion(
+    getReadableContent(targetEvent) as Record<string, unknown>,
+    targetEvent.getOriginalContent()
+  );
+  return question ? new Set(question.options.map((option) => option.key)) : NO_KEYS;
 };

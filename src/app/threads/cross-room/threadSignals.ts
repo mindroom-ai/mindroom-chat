@@ -1,4 +1,4 @@
-import { EventType, MatrixEvent, NotificationCountType, RelationType, Room } from 'matrix-js-sdk';
+import { MatrixEvent, NotificationCountType, Room } from 'matrix-js-sdk';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { canSubmitApprovalDecision } from '../../approvals/approvalActions';
 import { getThreadReadState, isReplyUnread } from '../../event-store/threads/roomThreadList';
@@ -16,6 +16,7 @@ import { isCallRowEvent } from '../../matrix/protocol/callRow';
 import {
   readInteractiveQuestion,
   readInteractiveSourceEventId,
+  readRoomQuestionAnswer,
   type InteractiveQuestion,
 } from '../../matrix/protocol/interactiveQuestion';
 import { isThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
@@ -217,23 +218,6 @@ const readQuestion = ({ event, content }: Shown): ThreadQuestion | undefined => 
 const questionSourceId = ({ event, content }: Shown): string | undefined =>
   readInteractiveSourceEventId(content, event.getOriginalContent());
 
-const answeredByReaction = (room: Room, question: ThreadQuestion, userId: string): boolean => {
-  const reactions = room
-    .getUnfilteredTimelineSet()
-    .relations.getChildEventsForEvent(
-      question.eventId,
-      RelationType.Annotation,
-      EventType.Reaction
-    );
-  const keys = new Set(question.options.map((option) => option.key));
-  return (reactions?.getRelations() ?? []).some(
-    (reaction) =>
-      reaction.getSender() === userId &&
-      !reaction.isRedacted() &&
-      keys.has(reaction.getRelation()?.key ?? '')
-  );
-};
-
 const readOutcome = ({ event, content, editTs }: Shown): ThreadOutcome | undefined => {
   const run = getAiRunInfo(content);
   const status = (run?.status ?? getStreamStatusFromContent(content) ?? '').toLowerCase();
@@ -346,7 +330,8 @@ export const readThreadSignals = (
       wroteSince ||
       askedSomeoneElse ||
       now - askedAt >= QUESTION_WAITS_MS ||
-      answeredByReaction(room, pendingQuestion, userId)
+      // One answer per question: anyone's answer closes it, as the question card shows.
+      readRoomQuestionAnswer(room, pendingQuestion.eventId, pendingQuestion, userId)
     ) {
       pendingQuestion = undefined;
     }

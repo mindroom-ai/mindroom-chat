@@ -9,11 +9,13 @@ const question = {
   ],
 };
 
+const OPTIONS = '<ol>\n<li>🔴 Red</li>\n<li>🟢 Green, <em>bright</em></li>\n</ol>';
+const INSTRUCTION = '<p>React with an emoji or type the number to respond.</p>';
 // As MindRoom renders its question text: the question, the numbered options, the instruction.
 const block = [
   '<p>Which <strong>color</strong> should the <code>snake_case_name</code> take?</p>',
-  '<ol>\n<li>🔴 Red</li>\n<li>🟢 Green, <em>bright</em></li>\n</ol>',
-  '<p>React with an emoji or type the number to respond.</p>',
+  OPTIONS,
+  INSTRUCTION,
 ].join('\n');
 
 describe('splitQuestionBlock', () => {
@@ -32,22 +34,40 @@ describe('splitQuestionBlock', () => {
     expect(split).toEqual({ before: '<h2>Status</h2>\n', after: '\n<p>More <b>after</b>.</p>' });
   });
 
-  it('matches a question over several paragraphs, and one without the instruction line', () => {
+  it('matches a question over several paragraphs', () => {
     const twoParagraphs = { ...question, text: 'First part.\n\nWhich color?' };
-    const html =
-      '<p>Intro</p><p>First part.</p>\n<p>Which color?</p><ol><li>🔴 Red</li><li>🟢 Green, bright</li></ol><p>Tail</p>';
+    const html = `<p>Intro</p><p>First part.</p>\n<p>Which color?</p>${OPTIONS}${INSTRUCTION}<p>Tail</p>`;
     expect(splitQuestionBlock(html, twoParagraphs)).toEqual({
       before: '<p>Intro</p>',
       after: '<p>Tail</p>',
     });
   });
 
-  it('finds nothing when the options or the question differ from what the reply shows', () => {
-    expect(splitQuestionBlock('<p>The build is green.</p>', question)).toBeUndefined();
+  it('takes the last block, not an example before it with other symbols or no instruction', () => {
+    const greater = { ...question, text: 'Deploy if x > 0?' };
+    const asked = `<p>Deploy if x &gt; 0?</p>${OPTIONS}${INSTRUCTION}`;
+    expect(splitQuestionBlock(`<p>Deploy if x &lt; 0?</p>${OPTIONS}${INSTRUCTION}`, greater)).toBe(
+      undefined
+    );
+    const example = `<p>Deploy if x &gt; 0?</p>${OPTIONS}<p>Like that.</p>`;
+    expect(splitQuestionBlock(`${example}${asked}<p>Tail</p>`, greater)).toEqual({
+      before: example,
+      after: '<p>Tail</p>',
+    });
+    const quoted = `${asked}<p>Between</p>${asked}`;
+    expect(splitQuestionBlock(quoted, greater)?.before).toBe(`${asked}<p>Between</p>`);
+  });
+
+  it('finds nothing when the reply holds more than the question, or other options', () => {
+    const image = '<img src="mxc://example.org/abc" alt="chart">';
+    expect(splitQuestionBlock(block.replace('\n<ol>', `<p>${image}</p><ol>`), question)).toBe(
+      undefined
+    );
+    expect(splitQuestionBlock(block.replace('take?', `take? ${image}`), question)).toBe(undefined);
+    expect(splitQuestionBlock(block.replace(INSTRUCTION, ''), question)).toBeUndefined();
+    expect(splitQuestionBlock(block.replace('</ol>', '</ol>stray'), question)).toBeUndefined();
     expect(splitQuestionBlock(block.replace('🟢 Green', '🟡 Green'), question)).toBeUndefined();
     expect(splitQuestionBlock(block.replace('take?', 'get?'), question)).toBeUndefined();
-    expect(
-      splitQuestionBlock(`<p>Other text</p>${block.replace(/<p>Which.*?<\/p>/, '')}`, question)
-    ).toBeUndefined();
+    expect(splitQuestionBlock('<p>The build is green.</p>', question)).toBeUndefined();
   });
 });

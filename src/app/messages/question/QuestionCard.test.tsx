@@ -1,7 +1,15 @@
 // @vitest-environment jsdom
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
-import { MatrixEvent, RelationType, type IContent, type MatrixClient } from 'matrix-js-sdk';
+import { EventEmitter } from 'events';
+import {
+  MatrixEvent,
+  MatrixEventEvent,
+  RelationType,
+  type IContent,
+  type MatrixClient,
+} from 'matrix-js-sdk';
+import { RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { ClientConfigProvider } from '../../config/useClientConfig';
@@ -60,7 +68,11 @@ describe('QuestionCard', () => {
   const render = (
     content: IContent,
     reactions: MatrixEvent[] = [],
-    { sender = AGENT, readOnly = false } = {}
+    {
+      sender = AGENT,
+      readOnly = false,
+      relationsOf,
+    }: { sender?: string; readOnly?: boolean; relationsOf?: () => unknown } = {}
   ) => {
     const mEvent = new MatrixEvent({
       type: 'm.room.message',
@@ -80,7 +92,9 @@ describe('QuestionCard', () => {
       getMember: (userId: string) =>
         userId === COLLEAGUE ? { userId, roomId: ROOM_ID, rawDisplayName: 'Kai' } : null,
       getUnfilteredTimelineSet: () => ({
-        relations: { getChildEventsForEvent: () => (reactions.length ? relations : undefined) },
+        relations: {
+          getChildEventsForEvent: relationsOf ?? (() => (reactions.length ? relations : undefined)),
+        },
       }),
     };
     const mx = {
@@ -110,6 +124,7 @@ describe('QuestionCard', () => {
         </MatrixClientProvider>
       )
     );
+    return mEvent;
   };
 
   const card = () => container.querySelector<HTMLElement>('[data-question-card]');
@@ -137,7 +152,7 @@ describe('QuestionCard', () => {
       expect.anything(),
       expect.objectContaining({ roomId: ROOM_ID }),
       '$root',
-      { eventId: '$q' },
+      expect.objectContaining({ eventId: '$q' }),
       '🟢'
     );
     expect(buttons().every((button) => button.disabled)).toBe(true);
@@ -158,6 +173,28 @@ describe('QuestionCard', () => {
 
     render(questionContent(QUESTION_HTML), [reaction(VIEWER, '🔴')]);
     expect(buttons()[0]?.textContent).toContain('You chose');
+  });
+
+  it('follows reactions as they come and go, from the first one on', () => {
+    // None until the first reaction creates them, as the SDK does.
+    const held: { relations?: EventEmitter & { getRelations: () => MatrixEvent[] } } = {};
+    const mEvent = render(questionContent(QUESTION_HTML), [], {
+      relationsOf: () => held.relations,
+    });
+    expect(card()?.dataset.questionCard).toBe('waiting');
+
+    const answer = reaction(COLLEAGUE, '🟢');
+    held.relations = Object.assign(new EventEmitter(), { getRelations: () => [answer] });
+    act(() => {
+      mEvent.emit(MatrixEventEvent.RelationsCreated, RelationType.Annotation, 'm.reaction');
+    });
+    expect(card()?.dataset.questionCard).toBe('answered');
+
+    vi.spyOn(answer, 'isRedacted').mockReturnValue(true);
+    act(() => {
+      held.relations?.emit(RelationsEvent.Redaction, answer);
+    });
+    expect(card()?.dataset.questionCard).toBe('waiting');
   });
 
   it('adds only its buttons under a reply that does not show the question as written', () => {
