@@ -9,6 +9,8 @@ export type UseThreadTimelineStateOptions = {
   threadId?: string;
   threadInitialCacheHydrated: boolean;
   threadInitialSdkLoaded?: boolean;
+  /** The open holds its first paint: no rows yet. */
+  threadFirstPaintHeld?: boolean;
   timelineRevision?: number;
   debugTraceId?: string;
   /** A fork's parent messages up to its fork point, shown before its own. */
@@ -22,6 +24,7 @@ export const useThreadTimelineState = ({
   threadId,
   threadInitialCacheHydrated,
   threadInitialSdkLoaded,
+  threadFirstPaintHeld,
   timelineRevision,
   debugTraceId,
   prefixEvents,
@@ -47,6 +50,7 @@ export const useThreadTimelineState = ({
     thread,
     threadInitialCacheHydrated,
     threadInitialSdkLoaded,
+    threadFirstPaintHeld,
     timelineRevision,
     debugTraceId,
     prefixEvents,

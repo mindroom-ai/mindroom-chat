@@ -10,12 +10,11 @@ const MAIN_EVENT_SNAPSHOT_KEY = '<== MAIN_EVENT ==>';
 const REPLACEMENT_EVENT_SNAPSHOT_KEY_REG = /^<== REPLACEMENT_EVENT_(\d+) ==>$/;
 
 let longTextHydrationCache = new WeakMap<object, Map<string, Record<string, unknown>>>();
-// In-flight downloads, coalesced per (owner, identity): the prewarm pool and
-// any number of concurrently mounting rows share ONE fetch per sidecar
-// instead of racing duplicates (the prewarm effect restarts on every
-// threadEvents update while prior fetches are still in flight). Entries are
-// removed on settle, so a failed fetch stays retryable — only completed
-// parses are cached.
+// In-flight downloads, coalesced per (owner, identity): a thread open loading
+// its last rows' long texts before its first paint (threadOpenFirstPaint.ts)
+// and any number of concurrently mounting rows share ONE fetch per sidecar
+// instead of racing duplicates. Entries are removed on settle, so a failed
+// fetch stays retryable; only completed parses are cached.
 let longTextInflight = new WeakMap<
   object,
   Map<string, Promise<Record<string, unknown> | undefined>>
