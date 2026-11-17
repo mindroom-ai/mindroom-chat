@@ -174,10 +174,16 @@ const applySettings = async (page: Page, themeId: string, showToolCalls: boolean
   await page.reload();
 };
 
-/** Saves the window, `target` scrolled into view, the mouse off any row. */
+/** Brings `target` to the middle of the timeline, once the client has caught up with the server. */
+const centre = async (page: Page, target: Locator) => {
+  await expect(page.getByText('Catching up...')).toHaveCount(0, { timeout: 60_000 });
+  await target.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+};
+
+/** Saves the window, `target` at the middle of the timeline. */
 const shot = async (page: Page, target: Locator, name: string) => {
   if (!SCREENSHOT) return;
-  await target.scrollIntoViewIfNeeded();
+  await centre(page, target);
   await page.waitForTimeout(400);
   await page.screenshot({ path: `${SCREENSHOT}/compaction-seam-${name}.png` });
 };
@@ -442,7 +448,7 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
       await expect(replyWith(page, CHECKING)).toHaveCount(1, { timeout: 60_000 });
       const name = `${device}-${theme}`;
       const seam = seamsIn(replyWith(page, CHECKING));
-      await seam.scrollIntoViewIfNeeded();
+      await centre(page, seam);
       await seam.getByRole('button').hover();
       await expect(card).toBeVisible();
       await shot(page, seam, `${name}-1-mid-card`);
@@ -451,7 +457,7 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
       await shot(page, seamsIn(page.locator(`[data-message-id="${oldId}"]`)), `${name}-7-notices`);
       await shot(page, seamsIn(replyWith(page, STATES)).nth(2), `${name}-6-states`);
       const failedSeam = seamsIn(replyWith(page, STATES)).nth(0);
-      await failedSeam.scrollIntoViewIfNeeded();
+      await centre(page, failedSeam);
       await failedSeam.getByRole('button').hover();
       await expect(card).toContainText('529 overloaded');
       await shot(page, failedSeam, `${name}-6-failed-card`);
