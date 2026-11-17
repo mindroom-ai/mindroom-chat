@@ -549,6 +549,30 @@ describe('shared model discovery', () => {
     await flush();
     expect(h.snapshot('$ninth')).toMatchObject({ eligible: true, canMutate: true });
   });
+  it('backs off and hides a revalidating button whose router lost its signed devices', async () => {
+    const h = setup();
+    await h.discover();
+    const known = h.devices.get(router)!;
+    h.devices.delete(router);
+    const probes = h.crypto.getUserDeviceInfo.mock.calls.length;
+    h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
+    await flush();
+    expect(h.snapshot()).toMatchObject({ eligible: true, canMutate: false });
+    // Probes at 0, 3, 13 and 43 s, then every 60 s: the fifth, at 103 s, hides the button.
+    await vi.advanceTimersByTimeAsync(102000);
+    expect(h.crypto.getUserDeviceInfo.mock.calls.length - probes).toBe(4);
+    expect(h.snapshot().eligible).toBe(true);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(h.snapshot().eligible).toBe(false);
+    await vi.advanceTimersByTimeAsync(10 * 60000 - 103000);
+    expect(h.crypto.getUserDeviceInfo.mock.calls.length - probes).toBe(13);
+    h.devices.set(router, known);
+    h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
+    await flush();
+    h.response(h.request());
+    await flush();
+    expect(h.snapshot()).toMatchObject({ eligible: true, canMutate: true });
+  });
   it('hides a revalidating button after 5 failed attempts and shows it on a later answer', async () => {
     const h = setup();
     await h.discover();

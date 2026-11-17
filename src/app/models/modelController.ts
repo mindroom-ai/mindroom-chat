@@ -335,7 +335,7 @@ export class ModelController {
           ? { error: 'Model discovery unavailable. Retry or use !model.' }
           : {}),
       });
-      this.retryLater(scope, query.devices.length > 0);
+      this.retryLater(scope, true);
       return;
     }
     scope.catalogs = query.replies;
@@ -360,8 +360,8 @@ export class ModelController {
   }
 
   /**
-   * Asks again later while a composer shows the scope. Only an unanswered request that was sent
-   * (`failed`) counts toward hiding a stale button; a local refusal only waits.
+   * Asks again later while a composer shows the scope. A discovery that ran and got no answer
+   * (`failed`) counts toward hiding a stale button; a local capacity refusal only waits.
    */
   private retryLater(scope: Scope, failed: boolean): void {
     clearTimeout(scope.retry);
