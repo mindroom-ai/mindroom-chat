@@ -225,6 +225,23 @@ describe('QuestionCard', () => {
     expect(card()?.dataset.questionCard).toBe('waiting');
   });
 
+  it("moves focus from an option someone else's answer removes to the chosen one", () => {
+    const held: { relations?: EventEmitter & { getRelations: () => MatrixEvent[] } } = {};
+    const mEvent = render(questionContent(QUESTION_HTML), [], {
+      relationsOf: () => held.relations,
+    });
+    act(() => buttons()[0]?.focus());
+    expect(document.activeElement?.textContent).toBe('🔴Red');
+
+    const answer = reaction(COLLEAGUE, '🟢');
+    held.relations = Object.assign(new EventEmitter(), { getRelations: () => [answer] });
+    act(() => {
+      mEvent.emit(MatrixEventEvent.RelationsCreated, RelationType.Annotation, 'm.reaction');
+    });
+    expect(buttons()).toHaveLength(1);
+    expect(document.activeElement).toBe(buttons()[0]);
+  });
+
   it('takes the place of the block in a reply that has only its Markdown body', () => {
     // Most agent replies: the client formats the body itself, as inline text with line breaks.
     const { format: _format, formatted_body: _html, ...rest } = questionContent('');

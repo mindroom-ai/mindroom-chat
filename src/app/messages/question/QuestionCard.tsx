@@ -178,6 +178,25 @@ export function QuestionCard({
   const folding = useFoldOnAnswer(cardRef, !!answer);
   // A withdrawn answer closes the peek with it.
   if (!answer && peek) setPeek(false);
+  // An answer removes the other options; keyboard focus on one of them moves to the chosen one.
+  const chosenRef = useRef<HTMLButtonElement>(null);
+  const [seenAnswer, setSeenAnswer] = useState(answer?.key);
+  const [refocus, setRefocus] = useState(false);
+  if (answer?.key !== seenAnswer) {
+    setSeenAnswer(answer?.key);
+    const focused = document.activeElement;
+    setRefocus(
+      !!answer &&
+        focused instanceof HTMLButtonElement &&
+        focused.hasAttribute('aria-pressed') &&
+        !!cardRef.current?.contains(focused)
+    );
+  }
+  useLayoutEffect(() => {
+    if (!refocus) return;
+    setRefocus(false);
+    chosenRef.current?.focus({ preventScroll: true });
+  }, [refocus]);
 
   const canAnswer =
     !readOnly &&
@@ -242,6 +261,7 @@ export function QuestionCard({
           return (
             <button
               key={option.key}
+              ref={chosen ? chosenRef : undefined}
               type="button"
               className={classNames(
                 css.Option,
@@ -262,9 +282,11 @@ export function QuestionCard({
               {chosen && (
                 <span className={css.Chosen}>
                   <Icon size="50" src={Icons.Check} />
-                  {answererName
-                    ? t('mindroomUi.messages.questionCard.nameChose', { name: answererName })
-                    : t('mindroomUi.messages.questionCard.youChose')}
+                  <span className={css.ChosenText}>
+                    {answererName
+                      ? t('mindroomUi.messages.questionCard.nameChose', { name: answererName })
+                      : t('mindroomUi.messages.questionCard.youChose')}
+                  </span>
                 </span>
               )}
             </button>

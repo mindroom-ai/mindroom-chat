@@ -165,9 +165,19 @@ export const Chosen = style({
   display: 'inline-flex',
   alignItems: 'center',
   gap: toRem(4),
-  flexShrink: 0,
+  flexShrink: 1,
+  minWidth: 0,
+  maxWidth: '50%',
   fontSize: toRem(12),
   fontWeight: config.fontWeight.W600,
+  selectors: { '& > svg': { flexShrink: 0 } },
+});
+
+/** A long answerer name ends in an ellipsis rather than squeezing the option's label. */
+export const ChosenText = style({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 });
 
