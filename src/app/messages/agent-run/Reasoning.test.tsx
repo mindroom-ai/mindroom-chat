@@ -642,6 +642,27 @@ describe('MindroomReasoning', () => {
         ]);
       });
 
+      it('shows no segment once the reader closes the bulb, also while the model writes on', async () => {
+        const root = renderThinking(streaming(twoThoughts, LIVE_SEGMENTS));
+        await act(() => header(root).props.onClick());
+        await act(() => header(root).props.onClick());
+
+        expect(header(root).props['aria-expanded']).toBe(false);
+        expect(segmentTexts(root)).toEqual([]);
+
+        act(() => renderer?.update(element(streaming(`${twoThoughts} Clear it.`, LIVE_SEGMENTS))));
+
+        expect(segmentTexts(root)).toEqual([]);
+
+        // Opened again, the bulb shows the segment being written as such.
+        await act(() => header(root).props.onClick());
+
+        expect(segmentTexts(root)).toEqual([
+          'ThoughtPlan the search.Hide thinking',
+          'ThinkingThe cache is stale. Clear it.Hide thinking',
+        ]);
+      });
+
       it('shows no segment while the one the model began has no text yet', () => {
         // The thought before it ended when the tool call came, and stays in the bulb.
         const root = render(streaming(twoThoughts, LIVE_SEGMENTS));
