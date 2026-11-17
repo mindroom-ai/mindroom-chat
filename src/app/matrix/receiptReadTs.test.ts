@@ -94,6 +94,7 @@ describe('receiptEventsVersion', () => {
       timeline: room.getLiveTimeline(),
     });
     expect(receiptEventsVersion(room)).toBe(before + 1);
+    // Only the thread stand-in holds `$other`: the room cannot find it after any reset.
     room.getUnfilteredTimelineSet().resetLiveTimeline();
     expect(receiptEventsVersion(room)).toBe(before + 2);
     room.emit(ThreadEvent.Delete, thread);

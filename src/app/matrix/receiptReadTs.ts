@@ -94,7 +94,8 @@ const namedEventsOf = (room: Room): NamedEvents | undefined => {
     const eventId = event.getId() ?? '';
     if (!kept.asked.has(eventId)) return;
     kept.version += 1;
-    // Also one a timeline dropped: the next lookup, or the next timeline to start over, corrects it.
+    // Also one a timeline dropped: the next lookup corrects it, or the next timeline to start
+    // over, which then counts once more.
     kept.held.add(eventId);
   };
   room.prependListener(RoomEvent.Timeline, (event, _room, _toStart, _removed, data) => {

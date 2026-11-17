@@ -191,7 +191,7 @@ export const useThreadOverviewRefreshCounter = (
         markThreadRecordChange(overviewChanges);
       }
     };
-    // A thread's timeline that starts over (each thread's does, after a sync with a gap) shows
+    // A thread's timeline that starts over (for its first page, or after a sync with a gap) shows
     // other events of that thread; the room's may have lost events of any. An event a receipt
     // names that the room lost this way is a change of the room's own (`receiptEventsVersion`).
     const handleReset = (_room: Room | undefined, timelineSet: EventTimelineSet) =>

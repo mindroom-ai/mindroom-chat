@@ -278,7 +278,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     });
   });
 
-  it("marks only the thread whose timeline starts over, as each thread's does after a sync gap", () => {
+  it('marks only the thread whose timeline starts over, as one does for its first page', () => {
     const { room, told } = setup();
 
     expect(
