@@ -24,12 +24,24 @@ import { isRecord } from '../../lib/isRecord';
  * of the event it relates to, else that event or itself, either of which may be a root. Undefined
  * when it relates to an event the room does not hold, whose thread is then unknown.
  */
-export const changedThreadId = (room: Room, mEvent: MatrixEvent): string | undefined => {
+const changedThreadId = (room: Room, mEvent: MatrixEvent): string | undefined => {
   if (mEvent.threadRootId) return mEvent.threadRootId;
   const relatedId = mEvent.getAssociatedId() ?? mEvent.getRelation()?.event_id;
   if (!relatedId) return mEvent.getId();
   const related = room.findEventById(relatedId);
   return related && (related.threadRootId ?? relatedId);
+};
+
+/**
+ * The threads an event of the room may change (`changedThreadId`), and the event itself when it
+ * answers another message of the room: it may be a root. One `undefined` when the thread is
+ * unknown, which stands for every thread of the room.
+ */
+export const changedThreadIds = (room: Room, mEvent: MatrixEvent): Array<string | undefined> => {
+  const changedId = changedThreadId(room, mEvent);
+  const eventId = mEvent.getId();
+  const mayBeRoot = changedId && !mEvent.threadRootId && eventId && eventId !== changedId;
+  return mayBeRoot ? [eventId, changedId] : [changedId];
 };
 
 /** How long a kept thread record waits for the mark of the room that has it built again. */
@@ -117,15 +129,8 @@ export const useThreadOverviewRefreshCounter = (
         bump();
       }, KEPT_RECORD_CHECK_MS);
     };
-    const markEvent = (mEvent: MatrixEvent) => {
-      const changedId = changedThreadId(room, mEvent);
-      const eventId = mEvent.getId();
-      // A message of the room that answers another one may be a root itself.
-      if (changedId && !mEvent.threadRootId && eventId && eventId !== changedId) {
-        markThreadRecordChange(overviewChanges, eventId);
-      }
-      markThreadRecordChange(overviewChanges, changedId);
-    };
+    const markEvent = (mEvent: MatrixEvent) =>
+      changedThreadIds(room, mEvent).forEach((id) => markThreadRecordChange(overviewChanges, id));
     const handleTimeline = (
       mEvent: MatrixEvent,
       eventRoom: Room | undefined,

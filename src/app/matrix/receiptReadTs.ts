@@ -88,14 +88,14 @@ const namedEventsOf = (room: Room): NamedEvents | undefined => {
   if (typeof room.prependListener !== 'function') return undefined;
   const kept: NamedEvents = { asked: new Set(), version: 0 };
   // First, so the views that update on an event read the new count.
+  const countNamed = (event: MatrixEvent) => {
+    if (kept.asked.has(event.getId() ?? '')) kept.version += 1;
+  };
   room.prependListener(RoomEvent.Timeline, (event, _room, _toStart, _removed, data) => {
     // A reply moves its thread's root in the lists of threads, which hold no event for lookups.
-    if (!holdsEvents(room, data.timeline.getTimelineSet())) return;
-    if (kept.asked.has(event.getId() ?? '')) kept.version += 1;
+    if (holdsEvents(room, data.timeline.getTimelineSet())) countNamed(event);
   });
-  room.prependListener(RoomEvent.LocalEchoUpdated, (event) => {
-    if (kept.asked.has(event.getId() ?? '')) kept.version += 1;
-  });
+  room.prependListener(RoomEvent.LocalEchoUpdated, countNamed);
   room.prependListener(RoomEvent.TimelineReset, (_room, timelineSet) => {
     if (holdsEvents(room, timelineSet)) kept.version += 1;
   });

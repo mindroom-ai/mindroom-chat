@@ -14,7 +14,7 @@ import {
 } from '../../event-store/threads/threadRecord';
 import { receiptEventsVersion } from '../../matrix/receiptReadTs';
 import { seenThreadRootsVersion } from '../../matrix/seenThreadRoots';
-import { changedThreadId, receiptThreadIds } from '../overview/threadOverviewRefreshCounter';
+import { changedThreadIds, receiptThreadIds } from '../overview/threadOverviewRefreshCounter';
 import { readThreadSignals, type ThreadSignals } from './threadSignals';
 
 type Cached = { key: string; signals: ThreadSignals };
@@ -85,7 +85,7 @@ const clients = new WeakMap<MatrixClient, ClientSignals>();
 
 /**
  * The client's one signals cache and who listens to its rooms. What the client hears counts for
- * the thread it may show in (`changedThreadId`), so the other threads of the room keep their
+ * the thread it may show in (`changedThreadIds`), so the other threads of the room keep their
  * signals: an event (also one a thread holds back, or one a page of history brings), its
  * decryption, an edit put on or taken off it, a local echo's progress, a redaction, the user's
  * receipt in a thread, and the thread's timeline starting over. It counts for every thread of the
@@ -93,9 +93,9 @@ const clients = new WeakMap<MatrixClient, ClientSignals>();
  * user's receipt outside a thread, a timeline of the room that starts over, and a member who
  * joins or leaves (an agent's presence decides whether a notice is listed). Signals read no one
  * else's receipts, no event without an ID (typing, a live reply frame, account data) and no
- * state event but the members', so those count for nothing and reach no listener. One exception: a room's first receipt after the client
- * starts, anyone's, counts for all its threads, since how old its oldest thread receipt was before
- * is not known.
+ * state event but the members', so those count for nothing and reach no listener. One exception:
+ * a room's first receipt after the client starts, anyone's, counts for all its threads, since how
+ * old its oldest thread receipt was before is not known.
  */
 const getClientSignals = (mx: MatrixClient): ClientSignals => {
   let client = clients.get(mx);
@@ -114,13 +114,9 @@ const getClientSignals = (mx: MatrixClient): ClientSignals => {
     };
     const markEvent = (event: MatrixEvent) => {
       const room = mx.getRoom(event.getRoomId());
-      const eventId = event.getId();
       // A state event starts no thread; what signals read of the room's state is its members.
-      if (!room || !eventId || event.isState()) return;
-      const changedId = changedThreadId(room, event);
-      mark(room.roomId, changedId);
-      // A message of the room that answers another one may be a root itself.
-      if (changedId && !event.threadRootId && eventId !== changedId) mark(room.roomId, eventId);
+      if (!room || !event.getId() || event.isState()) return;
+      changedThreadIds(room, event).forEach((threadId) => mark(room.roomId, threadId));
     };
     mx.on(ClientEvent.Event, markEvent);
     mx.on(RoomEvent.Timeline, markEvent);

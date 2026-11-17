@@ -197,6 +197,8 @@ describe('getThreadSignalsReader', () => {
       getAssociatedId: () => relatesTo,
       getRelation: () => (relatesTo ? { event_id: relatesTo } : null),
     } as unknown as MatrixEvent);
+  /** An event without an ID: a live reply frame, typing. */
+  const frame = { getId: () => undefined, getRoomId: () => '!r:x', isState: () => false };
   const receipt = (userId: string, threadId?: string) =>
     ({
       getContent: () => ({
@@ -286,11 +288,7 @@ describe('getThreadSignalsReader', () => {
 
   it('reads no thread for an event without an ID: typing, a live reply frame', () => {
     const { mx, readAgain } = setup();
-    mx.emit(ClientEvent.Event, {
-      getId: () => undefined,
-      getRoomId: () => '!r:x',
-      isState: () => false,
-    });
+    mx.emit(ClientEvent.Event, frame);
     expect(readAgain()).toEqual([]);
   });
 
@@ -359,11 +357,7 @@ describe('getThreadSignalsReader', () => {
     mx.emit(RoomMemberEvent.Membership, {}, { roomId: '!r:x' });
     expect(onChange).toHaveBeenCalledTimes(4);
     // A live reply frame and someone else's receipt change no thread's signals.
-    mx.emit(ClientEvent.Event, {
-      getId: () => undefined,
-      getRoomId: () => '!r:x',
-      isState: () => false,
-    });
+    mx.emit(ClientEvent.Event, frame);
     mx.emit(RoomEvent.Receipt, receipt('@other:x', '$a'), room);
     expect(onChange).toHaveBeenCalledTimes(4);
 
