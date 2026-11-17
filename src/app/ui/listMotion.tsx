@@ -40,12 +40,19 @@ type Place = { row: HTMLElement; rect: DOMRect };
 /** The rows in view before a change, and where the list stood then. */
 type Before = { rows: Map<string, Place>; list: DOMRect; scrollTop: number; scrollLeft: number };
 
-/** Whether a Web Animation on `element` may play: the browser has them and the page is seen. */
-export const playsMotion = (element: HTMLElement): boolean =>
-  typeof element.animate === 'function' &&
+/**
+ * Whether motion may play at all: the page is seen and the reader did not ask for less. Read
+ * through `globalThis`, so a component that asks while rendering outside a page (a unit test in
+ * node) does not throw.
+ */
+export const motionAllowed = (): boolean =>
   // A page nobody sees plays nothing, so a row that left would never finish leaving.
-  document.visibilityState !== 'hidden' &&
-  !(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+  globalThis.document?.visibilityState !== 'hidden' &&
+  !(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+
+/** Whether a Web Animation on `element` may play: the browser has them and motion is allowed. */
+export const playsMotion = (element: HTMLElement): boolean =>
+  typeof element.animate === 'function' && motionAllowed();
 
 const rowsOf = (list: HTMLElement): HTMLElement[] => [
   ...list.querySelectorAll<HTMLElement>(`[${ROW}]`),

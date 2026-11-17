@@ -9,6 +9,7 @@ import {
 } from '../../event-store/threads/threadWorkflow';
 import { TooltipProvider } from '../../ui/directional';
 import { localDigits } from '../../lib/localDigits';
+import { motionAllowed } from '../../ui/listMotion';
 import { useSlidingPill } from './useSlidingPill';
 import * as css from './WorkflowTabs.css';
 
@@ -19,10 +20,6 @@ const WORKFLOW_ICONS = {
   done: IconCheck,
   all: IconList,
 };
-
-// Motion state is made only when it can play: an animation that never runs never ends.
-const reducedMotion = () =>
-  globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
 /**
  * A count that rolls like an odometer when it changes: up when it grows, down when it shrinks.
@@ -45,7 +42,8 @@ function RollingCount({
     turn: 0,
   });
   if (shown.value !== value || shown.animate !== animate) {
-    const rolls = shown.value !== value && shown.animate && animate && !reducedMotion();
+    // Motion state is made only when it can play: an animation that never runs never ends.
+    const rolls = shown.value !== value && shown.animate && animate && motionAllowed();
     // A roll replaces one still under way, so an old count never outlasts the next change.
     setShown({
       value,
@@ -119,7 +117,7 @@ export function WorkflowTabs({ active, counts, countsSettled, onSelect }: Workfl
     pinging: false,
   });
   if (seen.active !== active || seen.needsYou !== needsYou || seen.settled !== countsSettled) {
-    const moves = !reducedMotion();
+    const moves = motionAllowed();
     const pings = moves && seen.settled && countsSettled && needsYou > seen.needsYou;
     setSeen({
       active,
@@ -169,8 +167,9 @@ export function WorkflowTabs({ active, counts, countsSettled, onSelect }: Workfl
                 aria-hidden="true"
                 onAnimationEnd={(event) => {
                   // A gesture can be several animations (the list's lines); it ends with the last.
+                  // Without getAnimations (older engines) the first one to end clears it.
                   const playing = event.currentTarget
-                    .getAnimations({ subtree: true })
+                    .getAnimations?.({ subtree: true })
                     .some((animation) => 'animationName' in animation);
                   if (playing) return;
                   setSeen((current) =>

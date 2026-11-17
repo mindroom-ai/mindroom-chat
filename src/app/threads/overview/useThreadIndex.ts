@@ -117,9 +117,10 @@ export type UseThreadIndexResult = ThreadIndexSnapshot & {
   availableRoomTags: string[];
   roomThreadListThreads: Thread[];
   /**
-   * The room's thread list loaded and is not loading again, so its counts change by new events
-   * from here on, not page by page. False while the list is off (Threads view, natural order,
-   * no filter), whose counts grow as history loads.
+   * The room's thread list is on, loaded, and not loading again, so its counts change by new
+   * events from here on, not page by page. False while the list is off (Threads view, natural
+   * order, no filter), whose counts grow as history loads, including the render that turns it off,
+   * which still reads the list's last load.
    */
   threadListSettled: boolean;
   refreshRoomThreadList: () => Promise<void>;
@@ -762,7 +763,10 @@ export const useThreadIndex = ({
     scheduledStatusMap,
     availableRoomTags,
     roomThreadListThreads,
-    threadListSettled: roomThreadListLoadedSuccessfully && !roomThreadListLoading,
+    threadListSettled:
+      (compactViewRequested || threadsViewListed) &&
+      roomThreadListLoadedSuccessfully &&
+      !roomThreadListLoading,
     refreshRoomThreadList,
     applyThreadOverviewRelationEvents,
   };

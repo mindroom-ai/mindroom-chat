@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { createStore, Provider } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -77,17 +78,24 @@ describe('WorkflowTabs', () => {
   it('clears a gesture once its last animation ends', () => {
     render('needsYou', COUNTS);
     render('all', COUNTS);
-    const icon = tab('all').findByProps({ 'aria-hidden': 'true' });
-    const end = (running: object[]) => {
+    const end = (key: ThreadWorkflowTab, running?: object[]) => {
+      const icon = tab(key).findByProps({ 'aria-hidden': 'true' });
       act(() => {
-        icon.props.onAnimationEnd({ currentTarget: { getAnimations: () => running } });
+        icon.props.onAnimationEnd({
+          currentTarget: running ? { getAnimations: () => running } : {},
+        });
       });
     };
     // One of the list's lines ended; another still slides in.
-    end([{ animationName: 'slideIn' }]);
+    end('all', [{ animationName: 'slideIn' }]);
     expect(gestures()).toEqual(['all']);
     // An icon transition still running is not part of the gesture.
-    end([{ transitionProperty: 'width' }]);
+    end('all', [{ transitionProperty: 'width' }]);
+    expect(gestures()).toEqual([]);
+    // Without getAnimations the first animation to end clears it.
+    render('done', COUNTS);
+    expect(gestures()).toEqual(['done']);
+    end('done');
     expect(gestures()).toEqual([]);
   });
 
