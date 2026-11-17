@@ -168,13 +168,12 @@ test('a pasted image is staged in the composer as a file', async ({ context, pag
   await expect(composer.locator('[data-slate-string]')).toHaveCount(0);
 });
 
-test('a paste goes into the composer, in the room and in a thread (WebKit)', async ({
-  baseURL,
-}) => {
-  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
-  test.setTimeout(180_000);
-  await onWebKitPage({ viewport: VIEWPORT, baseURL }, async (page) => {
-    await pastesIntoComposer(page, 'webkit_paste_room', 'room');
-    await pastesIntoComposer(page, 'webkit_paste_thread', 'thread');
+for (const where of ['room', 'thread'] as const) {
+  test(`a paste goes into the composer in the ${where} (WebKit)`, async ({ baseURL }) => {
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.setTimeout(180_000);
+    await onWebKitPage({ viewport: VIEWPORT, baseURL }, (page) =>
+      pastesIntoComposer(page, `webkit_paste_${where}`, where)
+    );
   });
-});
+}
