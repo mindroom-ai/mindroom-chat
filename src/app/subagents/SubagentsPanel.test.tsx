@@ -502,6 +502,59 @@ describe('SubagentsPanel', () => {
     expect(elapsed(line)).toBe('2m 15s');
   });
 
+  const BASH_MD = 'Working.\n\n🔧 `bash` [1] ⏳\n\n';
+  const bash = (type: string, startedAt: number): ToolTraceEvent => ({
+    type,
+    tool_name: 'bash',
+    started_at: startedAt,
+  });
+  /** The times the open run shows, on its line and its row, with its calls unfolded. */
+  const shownTimes = () => {
+    const line = transcript()?.querySelector<HTMLButtonElement>(
+      '[data-message-disclosure] > button'
+    );
+    if (line?.getAttribute('aria-expanded') === 'false') act(() => line.click());
+    expect(transcript()?.querySelector('[data-tool-index="1"]')).not.toBeNull();
+    return [...(transcript()?.querySelectorAll('[data-tool-elapsed]') ?? [])].map(
+      (element) => element.textContent
+    );
+  };
+
+  it.each([
+    ['9.9 seconds ago, no time', NOW - 9.9, []],
+    ['10 seconds ago, its time', NOW - 10, ['10s', '10s']],
+    // A server clock ahead of the viewer's: no time, and never a negative one.
+    ['30 seconds from now, no time', NOW + 30, []],
+  ])('shows for a running call that started %s', (_name, startedAt, times) => {
+    ingest('run', meta('running'), docs(BASH_MD, [bash('tool_call_started', startedAt)]));
+    render();
+    open('run');
+
+    expect(shownTimes()).toEqual(times);
+  });
+
+  it.each([
+    ['the call completes', meta('running'), docs(BASH_MD, [bash('tool_call_completed', NOW - 60)])],
+    [
+      'the run ends with the call unfinished',
+      meta('completed'),
+      docs(BASH_MD, [bash('tool_call_started', NOW - 60)], false),
+    ],
+    [
+      'the run pauses with the call unfinished',
+      meta('paused'),
+      docs(BASH_MD, [bash('tool_call_started', NOW - 60)], false),
+    ],
+  ])('drops the time of a running call once %s', (_name, nextMeta, nextDocs) => {
+    ingest('run', meta('running'), docs(BASH_MD, [bash('tool_call_started', NOW - 60)]));
+    render();
+    open('run');
+    expect(shownTimes()).toEqual(['1m 0s', '1m 0s']);
+
+    ingest('run', nextMeta, nextDocs);
+    expect(shownTimes()).toEqual([]);
+  });
+
   it('shows no tool time without a start from MindRoom, nor once the run has ended', () => {
     ingest(
       'older',

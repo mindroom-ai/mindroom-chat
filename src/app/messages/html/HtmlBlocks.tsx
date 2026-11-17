@@ -285,10 +285,16 @@ const TOOL_STATE_ICON: Record<ToolCallState, { src: IconSrc; tone: ActivityTone 
   expired: { src: Icons.Clock, tone: 'neutral' },
 };
 
-/** How long a running call has run, muted beside its name or on its run's line. */
-function ToolElapsed({ seconds }: { seconds: number }) {
+/**
+ * How long a running call has run, muted beside its name or on its run's line. Only it reads the
+ * view's ticking clock, so a run of calls redraws each tick only while one of them shows a time.
+ */
+function ToolElapsed({ startedAt }: { startedAt: number }) {
   const { t } = useTranslation();
-  const duration = formatWorkDuration(seconds * 1000, useAppLanguageCode());
+  const language = useAppLanguageCode();
+  const seconds = runningToolElapsed(startedAt, useContext(ToolCallClockContext));
+  if (seconds === undefined) return null;
+  const duration = formatWorkDuration(seconds * 1000, language);
   return (
     <span
       className={activityCss.Elapsed}
@@ -303,12 +309,9 @@ function ToolElapsed({ seconds }: { seconds: number }) {
 function ToolRefGroupItem({
   parsedTool,
   state,
-  elapsed,
 }: {
   parsedTool: ToolBlockRenderData;
   state: ToolCallState;
-  /** Seconds the call has run, once a running call shows it (runningToolElapsed). */
-  elapsed?: number;
 }) {
   const { src, tone } = TOOL_STATE_ICON[state];
   return (
@@ -317,7 +320,9 @@ function ToolRefGroupItem({
       <div className={activityCss.RowBody}>
         <span className={activityCss.RowHead}>
           <span className={activityCss.RowName}>{parsedTool.toolName}</span>
-          {elapsed !== undefined && <ToolElapsed seconds={elapsed} />}
+          {state === 'running' && parsedTool.startedAt !== undefined && (
+            <ToolElapsed startedAt={parsedTool.startedAt} />
+          )}
         </span>
         {parsedTool.argsPreview && (
           <div className={activityCss.RowText}>
@@ -369,7 +374,6 @@ function ToolRefGroupBlock({
   const message = useContext(ToolCallMessageContext);
   const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
   const fold = useContext(ToolCallsFoldContext);
-  const now = useContext(ToolCallClockContext);
   const loadedTools = parsedTools.filter(
     (tool) => tool.status !== 'loading' && tool.status !== 'unavailable'
   );
@@ -397,15 +401,8 @@ function ToolRefGroupBlock({
   if (!shown && fold && !fold.open) return null;
   const running = loadedTools.filter((_tool, index) => states[index] === 'running');
   const outputTool = running.filter((tool) => tool.progress).at(-1);
-  // Only a running call shows how long it has run; the line shows the one that ran longest.
-  const elapsed = loadedTools.map((tool, index) =>
-    states[index] === 'running' ? runningToolElapsed(tool.startedAt, now) : undefined
-  );
-  const longest = elapsed.reduce<number | undefined>(
-    (most, seconds) =>
-      seconds !== undefined && (most === undefined || seconds > most) ? seconds : most,
-    undefined
-  );
+  // Only a running call shows how long it has run; the line shows the one that started first.
+  const starts = running.flatMap(({ startedAt }) => (startedAt === undefined ? [] : [startedAt]));
   // Without the trace details the calls' states are unknown, so only count them.
   const icon = metadataStatus
     ? { src: Icons.Terminal, tone: 'neutral' as const }
@@ -426,7 +423,7 @@ function ToolRefGroupBlock({
           : t(TOOL_STATE_TITLE[summary.state], { count: summary.count })
       }
       detail={summary.names}
-      aside={longest !== undefined && <ToolElapsed seconds={longest} />}
+      aside={starts.length > 0 && <ToolElapsed startedAt={Math.min(...starts)} />}
       preview={
         outputTool?.progress && (
           <>
@@ -445,7 +442,6 @@ function ToolRefGroupBlock({
           key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
           parsedTool={parsedTool}
           state={states[index]!}
-          elapsed={elapsed[index]}
         />
       ))}
       {metadataStatus && (
