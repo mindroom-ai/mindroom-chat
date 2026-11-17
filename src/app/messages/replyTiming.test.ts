@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { MatrixEvent } from 'matrix-js-sdk';
+import { describe, expect, it, vi } from 'vitest';
 import { STREAM_IDLE_LIMIT_MS } from '../matrix/client/streamingReplies';
+import { getEditedEvent } from '../matrix/room';
 import { getReplyTimeParts, getReplyTiming } from './replyTiming';
 
 const at = (day: number, hour: number, minute: number, second = 0) =>
@@ -22,6 +24,41 @@ describe('getReplyTiming', () => {
       endTs: at(5, 10, 11, 24),
       streaming: false,
     });
+  });
+
+  it('finishes a reply at its finishing edit when a later edit by hand borrows its status', () => {
+    const message = (eventId: string, ts: number, content: Record<string, unknown>) =>
+      new MatrixEvent({
+        event_id: eventId,
+        origin_server_ts: ts,
+        room_id: '!room:example.org',
+        sender: '@mindroom_helper:example.org',
+        type: 'm.room.message',
+        content,
+      });
+    const replace = (eventId: string, ts: number, newContent: Record<string, unknown>) =>
+      message(eventId, ts, {
+        msgtype: 'm.text',
+        body: '* edit',
+        'm.new_content': { msgtype: 'm.text', ...newContent },
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+      });
+    const reply = message('$reply', START, { msgtype: 'm.text', body: '…' });
+    const finish = replace('$finish', at(5, 10, 11, 24), {
+      body: 'Done',
+      'io.mindroom.stream_status': 'completed',
+    });
+    const byHand = replace('$by-hand', at(7, 9, 30), { body: 'Done, and corrected' });
+    const timelineSet = {
+      relations: {
+        getChildEventsForEvent: vi.fn().mockReturnValue({ getRelations: () => [finish, byHand] }),
+      },
+    } as never;
+
+    const shown = getEditedEvent('$reply', reply, timelineSet);
+    expect(shown).toBe(byHand);
+    const content = shown!.getContent()['m.new_content'] as Record<string, unknown>;
+    expect(getReplyTiming(START, content, shown)?.endTs).toBe(at(5, 10, 11, 24));
   });
 
   it('streams while the reply says it streams', () => {

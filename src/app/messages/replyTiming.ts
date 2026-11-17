@@ -4,6 +4,7 @@ import {
   TERMINAL_STREAM_STATUSES,
 } from '../matrix/protocol/aiRun';
 import { STREAM_IDLE_LIMIT_MS } from '../matrix/client/streamingReplies';
+import { getEditStreamFinishTs } from '../matrix/room';
 import { formatDurationParts, formatNow, inSameDay, timeHourMinute } from '../lib/time';
 
 /**
@@ -20,8 +21,9 @@ export type ReplyTiming = {
 /**
  * The timing of the reply sent at `startTs`, whose shown `content` is that of `edit`, its newest
  * edit: it streams while that content says so (as its reasoning reads it), and it finished when
- * `edit` carries a terminal stream status. Undefined for a message that never streamed and for a
- * reply whose finishing edit is not loaded.
+ * `edit` carries a terminal stream status: when the edit that carries it was sent, which a later
+ * edit by hand borrows it from. Undefined for a message that never streamed and for a reply whose
+ * finishing edit is not loaded.
  */
 export const getReplyTiming = (
   startTs: number,
@@ -34,7 +36,7 @@ export const getReplyTiming = (
   }
   const editStatus = edit ? getStreamStatusFromContent(edit.getContent()) : undefined;
   if (!edit || !editStatus || !TERMINAL_STREAM_STATUSES.has(editStatus)) return undefined;
-  return { startTs, endTs: edit.getTs(), streaming: false };
+  return { startTs, endTs: getEditStreamFinishTs(edit), streaming: false };
 };
 
 /** What a reply's time adds to its start: the end, and its duration's short form and exact tail. */

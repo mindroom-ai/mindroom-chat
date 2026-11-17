@@ -20,7 +20,7 @@ import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from './e
 import { copyResolvedEditMetadata } from './protocol/editMetadata';
 import { getAppliedEdit, isUsableEdit } from './protocol/untrustedContent';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from './protocol/toolApproval';
-import { hasTerminalStreamMetadata } from './protocol/aiRun';
+import { hasTerminalStreamMetadata, STREAM_STATUS_KEY } from './protocol/aiRun';
 import { isRecord } from '../lib/isRecord';
 import { mxcUrlToHttp } from './mediaUrl';
 import { matchesEnum } from '../lib/matchesEnum';
@@ -387,10 +387,25 @@ const getNewContent = (edit: MatrixEvent): Record<string, unknown> | undefined =
   return isRecord(newContent) ? newContent : undefined;
 };
 
+/** When the edit whose stream status an edit borrowed was sent, by the edit that borrowed it. */
+const borrowedStreamStatusTs = new WeakMap<object, number>();
+
+/**
+ * When the stream status `edit` shows was sent: its own time, or that of the older edit it
+ * borrowed the status from (an agent's later edit by hand carries none).
+ */
+export const getEditStreamFinishTs = (edit: Pick<MatrixEvent, 'getTs'>): number =>
+  borrowedStreamStatusTs.get(edit) ?? edit.getTs();
+
+const carriesStreamStatus = (edit: MatrixEvent): boolean =>
+  getNewContent(edit)?.[STREAM_STATUS_KEY] !== undefined ||
+  edit.getContent()[STREAM_STATUS_KEY] !== undefined;
+
 /**
  * A large streamed reply may leave its tool trace in an earlier edit (later ones carry it only in
  * a sidecar), so the newest edit borrows MindRoom metadata it lacks from the sender's older edits,
- * newest first. What the newest edit's wrapper carries already stays as it is.
+ * newest first. What the newest edit's wrapper carries already stays as it is. A borrowed stream
+ * status remembers when the edit that carries it was sent (`getEditStreamFinishTs`).
  */
 const fillMetadataFromOlderEdits = (latest: MatrixEvent, older: MatrixEvent[]): void => {
   const newContent = getNewContent(latest);
@@ -402,7 +417,10 @@ const fillMetadataFromOlderEdits = (latest: MatrixEvent, older: MatrixEvent[]): 
   );
   const wrapper = latest.getContent();
   Object.entries(borrowed).forEach(([key, value]) => {
-    if (newContent[key] === undefined && wrapper[key] === undefined) newContent[key] = value;
+    if (newContent[key] !== undefined || wrapper[key] !== undefined) return;
+    newContent[key] = value;
+    const source = key === STREAM_STATUS_KEY ? older.find(carriesStreamStatus) : undefined;
+    if (source) borrowedStreamStatusTs.set(latest, getEditStreamFinishTs(source));
   });
 };
 
