@@ -687,7 +687,7 @@ test('nested page layouts share the outer material while portal menus own a surf
 test('custom thread popups receive shared material and retain keyboard actions', async ({
   page,
 }) => {
-  // The info, tag and preset popups belong to the advanced filters.
+  // The info and tag popups and workflow tabs belong to the advanced filters.
   await page.addInitScript(() =>
     localStorage.setItem('settings', JSON.stringify({ simpleThreadFilters: false }))
   );
@@ -713,16 +713,9 @@ test('custom thread popups receive shared material and retain keyboard actions',
   await page.keyboard.press('Escape');
   await expect(tags).toHaveCount(0);
 
-  await overview.locator('[data-preset-button]').click();
-  expect(
-    await overview
-      .getByRole('listbox')
-      .evaluate((element) => getComputedStyle(element).backdropFilter)
-  ).not.toBe('none');
-  await expect(overview.locator('[data-preset-option="needs-attention"]')).toBeFocused();
-  await page.keyboard.press('ArrowDown');
-  await expect(overview.locator('[data-preset-option="working"]')).toBeFocused();
+  const workingTab = overview.locator('[data-thread-tab="working"]');
+  await workingTab.focus();
+  await expect(workingTab).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(overview.locator('output')).toHaveText('Preset: working');
-  await expect(overview.getByRole('listbox')).toHaveCount(0);
+  await expect(overview.locator('output')).toHaveText('Tab: working');
 });

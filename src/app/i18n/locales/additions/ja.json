@@ -360,7 +360,9 @@
       },
       "computers": {
         "inUse": "使用中のサーバー",
-        "inUseNone": "未設定のため、このデバイスではコンピューターはオフです。"
+        "inUseNone": "未設定のため、このデバイスではコンピューターはオフです。",
+        "useServer": "{{host}} を使用",
+        "foundNotSaved": "エージェントから見つかりましたが、保存されていません。ここでキーを入力するには保存してください。"
       },
       "keywords": {
         "theme": "ダークモード, ライトモード, ナイトモード, 色, テーマ",
@@ -716,7 +718,7 @@
         "declinedWaiting": "拒否しました。エージェントを待っています",
         "noLongerActive": "このリクエストは有効ではなくなりました。もう一度エージェントに依頼してください。",
         "unavailable": "このサーバーではキーを入力できません。",
-        "unavailableHint": "ここでキーを入力するには、設定 → {{page}} → {{field}} で MindRoom サーバーを設定してください。",
+        "unavailableHint": "ここでキーを入力するには、設定 → {{page}} で MindRoom サーバーを保存してください。",
         "replaces": "現在保存されているキーを置き換えます。",
         "replaceKey": "キーを置き換える",
         "temporary": {
@@ -762,6 +764,13 @@
       "finishedWork": {
         "workedFor": "{{duration}} 作業しました",
         "worked": "作業しました"
+      },
+      "questionCard": {
+        "title": "質問",
+        "waiting": "あなたの回答待ち",
+        "answered": "回答済み",
+        "youChose": "あなたが選択",
+        "nameChose": "{{name}} が選択"
       }
     },
     "message-search": {
@@ -782,13 +791,7 @@
         "threadFiltersActive": "スレッドフィルター（有効）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "詳細フィルター",
-        "presets": {
-          "snoozed": {
-            "label": "スヌーズ中",
-            "description": "スヌーズ中のスレッドのみ"
-          }
-        }
+        "advancedFilters": "詳細フィルター"
       },
       "threadPeopleFilter": {
         "label": "参加者",
@@ -960,6 +963,20 @@
     "status": {
       "snoozed": "スヌーズ中"
     },
+    "workflow": {
+      "needsYou": "あなたの対応待ち",
+      "working": "作業中",
+      "later": "後で",
+      "done": "完了",
+      "all": "すべて",
+      "description": {
+        "needsYou": "バックグラウンド処理の承認が必要か、実行中・予定されている処理がありません。",
+        "working": "エージェントが返信中か、サブエージェントまたはバックグラウンドツールが実行中です。",
+        "later": "スヌーズ中、または予定されたタスクの実行待ちです。",
+        "done": "解決済みのスレッドです。",
+        "all": "他のフィルター条件に一致するすべてのスレッドです。"
+      }
+    },
     "renameHint": "ダブルクリックで名前を変更"
   },
   "threadSnooze": {
@@ -1067,7 +1084,7 @@
       "working": "エージェントが作業中",
       "recent": "最近",
       "automations": "自動化",
-      "snoozed": "スヌーズ中"
+      "later": "後で"
     },
     "showMore": "もっと見る",
     "chips": {
@@ -1278,7 +1295,7 @@
     "sectionsHint": "スレッドを作業中・スヌーズ中・待機中・解決済みに分けて表示",
     "sections": {
       "working": "作業中",
-      "snoozed": "スヌーズ中",
+      "later": "後で",
       "idle": "待機中",
       "resolved": "解決済み"
     },

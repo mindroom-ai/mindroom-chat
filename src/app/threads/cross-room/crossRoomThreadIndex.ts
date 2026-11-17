@@ -1,3 +1,8 @@
+import {
+  getRoomThreadScheduledStatusMap,
+  type ThreadScheduledStatus,
+} from '../../event-store/threads/threadScheduledStatus';
+import { roomThreadBackgroundJobs } from '../../matrix/protocol/threadBackgroundJobs';
 import { atom } from 'jotai';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
@@ -35,8 +40,6 @@ export type CrossRoomThreadIndexEntry = {
   snoozedAtTs?: number;
   /** While resolved: when, by the server's clock (the tag's state event). */
   resolvedTs?: number;
-  /** Set while an agent in the room lists a background job in the thread (its jobs state). */
-  hasBackgroundJob?: true;
   hasAttention: boolean;
   isInvolved: boolean;
   summaryText: string;
@@ -359,7 +362,7 @@ export const buildCrossRoomThreadIndexEntry = ({
   summaryInfo,
   currentUserId,
   tagSnapshot,
-  hasBackgroundJob = false,
+  scheduledStatus,
 }: {
   room: Room;
   threadRootId: string;
@@ -368,8 +371,7 @@ export const buildCrossRoomThreadIndexEntry = ({
   currentUserId?: string;
   /** null is an explicitly untagged root in a shared room snapshot. */
   tagSnapshot?: ThreadTagSnapshot | null;
-  /** Whether an agent in the room lists a background job in the thread. */
-  hasBackgroundJob?: boolean;
+  scheduledStatus?: ThreadScheduledStatus;
 }): CrossRoomThreadIndexEntry | undefined => {
   const thread = room.getThread(threadRootId);
   const resolvedRootEvent =
@@ -386,6 +388,7 @@ export const buildCrossRoomThreadIndexEntry = ({
     threadRootEvent: resolvedRootEvent,
     summaryInfo,
     rootPreviewText,
+    scheduledStatus: scheduledStatus ?? getRoomThreadScheduledStatusMap(room).get(threadRootId),
     threadResolution: resolvedTagSnapshot
       ? {
           isResolved: isThreadResolved(
@@ -397,6 +400,13 @@ export const buildCrossRoomThreadIndexEntry = ({
       : undefined,
     currentUserId,
   });
+  threadRecord = {
+    ...threadRecord,
+    status: {
+      ...threadRecord.status,
+      ...roomThreadBackgroundJobs(room).get(threadRootId),
+    },
+  };
   const pendingOwnReplyEvent =
     threadRecord.status.replyCount === 0
       ? getPendingOwnThreadReply(room, threadRootId, currentUserId)
@@ -461,7 +471,6 @@ export const buildCrossRoomThreadIndexEntry = ({
         }
       : {}),
     ...(resolvedTs !== undefined ? { resolvedTs } : {}),
-    ...(hasBackgroundJob ? { hasBackgroundJob } : {}),
     hasAttention,
     isInvolved:
       hasPendingOwnReply ||

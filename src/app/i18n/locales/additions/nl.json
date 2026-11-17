@@ -365,7 +365,9 @@
       },
       "computers": {
         "inUse": "Server in gebruik",
-        "inUseNone": "Niets ingesteld, dus computers staan uit op dit apparaat."
+        "inUseNone": "Niets ingesteld, dus computers staan uit op dit apparaat.",
+        "useServer": "{{host}} gebruiken",
+        "foundNotSaved": "Gevonden via je agents, niet opgeslagen; sla hem op om hier sleutels in te voeren."
       },
       "keywords": {
         "theme": "donkere modus, lichte modus, nachtmodus, kleuren",
@@ -725,7 +727,7 @@
         "declinedWaiting": "Geweigerd, wacht op de agent",
         "noLongerActive": "Dit verzoek is niet meer actief. Vraag het de agent opnieuw.",
         "unavailable": "Sleutels invoeren is op deze server niet beschikbaar.",
-        "unavailableHint": "Stel je MindRoom-server in via Instellingen → {{page}} → {{field}} om hier sleutels in te voeren.",
+        "unavailableHint": "Sla je MindRoom-server op via Instellingen → {{page}} om hier sleutels in te voeren.",
         "replaces": "Vervangt de sleutel die nu is opgeslagen.",
         "replaceKey": "Sleutel vervangen",
         "temporary": {
@@ -773,6 +775,13 @@
       "finishedWork": {
         "workedFor": "{{duration}} gewerkt",
         "worked": "Gewerkt"
+      },
+      "questionCard": {
+        "title": "Vraag",
+        "waiting": "Wacht op jou",
+        "answered": "Beantwoord",
+        "youChose": "Jouw keuze",
+        "nameChose": "Gekozen door {{name}}"
       }
     },
     "message-search": {
@@ -795,13 +804,7 @@
         "threadFiltersActive": "Threadfilters (actief)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Geavanceerde filters",
-        "presets": {
-          "snoozed": {
-            "label": "Gesnoozed",
-            "description": "Alleen gesnoozede threads"
-          }
-        }
+        "advancedFilters": "Geavanceerde filters"
       },
       "threadPeopleFilter": {
         "label": "Personen",
@@ -977,6 +980,20 @@
     "status": {
       "snoozed": "Gesnoozed"
     },
+    "workflow": {
+      "needsYou": "Jij bent aan zet",
+      "working": "Bezig",
+      "later": "Later",
+      "done": "Klaar",
+      "all": "Alle",
+      "description": {
+        "needsYou": "Een achtergrondtaak heeft goedkeuring nodig, of er draait niets en er staat niets gepland.",
+        "working": "Een agent antwoordt, of er draait een subagent of achtergrondtool.",
+        "later": "Gesnoozed of in afwachting van een geplande taak.",
+        "done": "Afgehandelde threads.",
+        "all": "Alle threads die aan je andere filters voldoen."
+      }
+    },
     "renameHint": "Dubbelklik om de naam te wijzigen"
   },
   "threadSnooze": {
@@ -1092,7 +1109,7 @@
       "working": "Agenten aan het werk",
       "recent": "Recent",
       "automations": "Automatiseringen",
-      "snoozed": "Gesnoozed"
+      "later": "Later"
     },
     "showMore": "Meer tonen",
     "chips": {
@@ -1304,7 +1321,7 @@
     "sectionsHint": "Threads groeperen in Bezig, Gesnoozed, Inactief en Opgelost",
     "sections": {
       "working": "Bezig",
-      "snoozed": "Gesnoozed",
+      "later": "Later",
       "idle": "Inactief",
       "resolved": "Opgelost"
     },

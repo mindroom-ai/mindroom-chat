@@ -549,7 +549,7 @@ export function CompactRoomView({
             />
           }
         >
-          <Text size="B300">{`${t(`threadNav.sections.${id}`)} · ${count}`}</Text>
+          <Text size="B300">{`${t(`threadNav.sections.${id === 'snoozed' ? 'later' : id}`)} · ${count}`}</Text>
         </Button>
       </div>
     );

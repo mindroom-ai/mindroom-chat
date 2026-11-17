@@ -312,6 +312,23 @@ describe('readThreadSignals', () => {
     expect(readThreadSignals(mine, ROOT, ME, NOW).pendingQuestion?.eventId).toBe('$q');
   });
 
+  it("drops a question someone else answered, and keeps one with only the agent's own options", async () => {
+    const react = (sender: string, key: string) =>
+      new MatrixEvent({
+        event_id: `$react-${sender}`,
+        room_id: ROOM_ID,
+        sender,
+        type: 'm.reaction',
+        origin_server_ts: 2500,
+        content: { 'm.relates_to': { rel_type: RelationType.Annotation, event_id: '$q', key } },
+      });
+    const { room } = await setup(ME, [question('$q', 2000)]);
+    room.getUnfilteredTimelineSet().relations.aggregateChildEvent(react(AGENT, '✅'));
+    expect(readThreadSignals(room, ROOT, ME, NOW).pendingQuestion?.eventId).toBe('$q');
+    room.getUnfilteredTimelineSet().relations.aggregateChildEvent(react(BOB, '✅'));
+    expect(readThreadSignals(room, ROOT, ME, NOW).pendingQuestion).toBeUndefined();
+  });
+
   it('drops a question the user answered by reaction or by writing', async () => {
     const { room } = await setup(ME, [question('$q', 2000)]);
     room.getUnfilteredTimelineSet().relations.aggregateChildEvent(

@@ -465,7 +465,6 @@ const createThreadStateHarness =
 const getTimeline = (renderer: ReturnType<typeof create>) =>
   renderer.root.findByType(roomTimelineType as never) as unknown as {
     props: {
-      onToggle: (key: string) => void;
       onAddTag: (tag: string) => void;
       onSearchQueryChange: (query: string) => void;
       onSortDirectionChange: () => void;
@@ -474,6 +473,7 @@ const getTimeline = (renderer: ReturnType<typeof create>) =>
       compactRoomScrollStateRef: React.MutableRefObject<ScrollAnchorMemory>;
       threadId?: string;
       threadFilterState: {
+        tab?: string;
         resolved: string;
         streaming: string;
         scheduled: string;
@@ -616,6 +616,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('persists the thread filter state across thread enter/exit', async () => {
+    vi.useFakeTimers();
     const { RoomView } = await import('../RoomView');
     const room = makeRoom(nextRoomId('room-a'));
     let renderer: ReturnType<typeof create> | undefined;
@@ -624,12 +625,14 @@ describe('RoomView', { timeout: 30_000 }, () => {
       renderer = create(React.createElement(RoomView, { room: room as never }));
     });
 
-    // Compact hides resolved threads until the reader chooses: exclude -> any -> include
+    // The retained DSL can still select resolved threads.
     await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
+      getTimeline(renderer!).props.onSearchQueryChange('');
+      vi.advanceTimersByTime(300);
     });
     await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
+      getTimeline(renderer!).props.onSearchQueryChange('is:resolved');
+      vi.advanceTimersByTime(300);
     });
 
     expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
@@ -790,6 +793,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('keeps thread filter state isolated per room when switching rooms', async () => {
+    vi.useFakeTimers();
     const { RoomView } = await import('../RoomView');
     const roomA = makeRoom(nextRoomId('room-a'));
     const roomB = makeRoom(nextRoomId('room-b'));
@@ -799,9 +803,10 @@ describe('RoomView', { timeout: 30_000 }, () => {
       renderer = create(React.createElement(RoomView, { room: roomA as never }));
     });
 
-    // Compact hides resolved threads until the reader chooses: exclude -> any.
+    // Clear the room's filter through the retained search control.
     await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
+      getTimeline(renderer!).props.onSearchQueryChange('');
+      vi.advanceTimersByTime(300);
     });
 
     expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('any');
@@ -811,15 +816,17 @@ describe('RoomView', { timeout: 30_000 }, () => {
       renderer?.update(React.createElement(RoomView, { room: roomB as never }));
     });
 
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('exclude');
+    expect(getTimeline(renderer!).props.threadFilterState.tab).toBe('needsYou');
 
-    // Give room B a different persisted value: exclude -> any -> include.
+    // Give room B a different persisted value through the DSL.
     await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
+      getTimeline(renderer!).props.onSearchQueryChange('');
+      vi.advanceTimersByTime(300);
     });
 
     await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
+      getTimeline(renderer!).props.onSearchQueryChange('is:resolved');
+      vi.advanceTimersByTime(300);
     });
 
     expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
@@ -868,6 +875,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('ignores agent filters and sort freeze as soon as the room becomes agentless', async () => {
+    vi.useFakeTimers();
     const { RoomView } = await import('../RoomView');
     const room = makeRoom(nextRoomId('room-a'));
     let renderer: ReturnType<typeof create> | undefined;
@@ -878,12 +886,14 @@ describe('RoomView', { timeout: 30_000 }, () => {
       );
     });
 
-    // Compact hides resolved threads until the reader chooses: exclude -> any -> include
+    // The retained DSL can still select resolved threads.
     await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
+      getTimeline(renderer!).props.onSearchQueryChange('');
+      vi.advanceTimersByTime(300);
     });
     await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
+      getTimeline(renderer!).props.onSearchQueryChange('is:resolved');
+      vi.advanceTimersByTime(300);
       getTimeline(renderer!).props.onToggleThreadSortFreeze();
     });
     expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
@@ -919,12 +929,14 @@ describe('RoomView', { timeout: 30_000 }, () => {
       );
     });
 
-    // Compact hides resolved threads until the reader chooses: exclude -> any -> include
+    // The retained DSL can still select resolved threads.
     await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
+      getTimeline(renderer!).props.onSearchQueryChange('');
+      vi.advanceTimersByTime(300);
     });
     await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
+      getTimeline(renderer!).props.onSearchQueryChange('is:resolved');
+      vi.advanceTimersByTime(300);
     });
     await act(async () => {
       getTimeline(renderer!).props.onAddTag('saved');
@@ -1015,6 +1027,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('resets all filters on onReset', async () => {
+    vi.useFakeTimers();
     const { RoomView } = await import('../RoomView');
     const room = makeRoom(nextRoomId('room-a'));
     let renderer: ReturnType<typeof create> | undefined;
@@ -1024,9 +1037,12 @@ describe('RoomView', { timeout: 30_000 }, () => {
     });
 
     await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
-      getTimeline(renderer!).props.onToggle('streaming');
+      getTimeline(renderer!).props.onSearchQueryChange('is:resolved is:streaming');
+      vi.advanceTimersByTime(300);
     });
+
+    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
+    expect(getTimeline(renderer!).props.threadFilterState.streaming).toBe('include');
 
     await act(async () => {
       getTimeline(renderer!).props.onReset();

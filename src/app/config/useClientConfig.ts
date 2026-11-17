@@ -240,6 +240,11 @@ export type ClientConfig = {
       enabled?: boolean;
       /** Lets canvas pages load libraries from the library CDN. */
       libraries?: boolean;
+      /**
+       * Lets canvas pages load scripts, styles, fonts, images, and media from any https: address,
+       * for previews that use a site's real assets. Those hosts see who views the page.
+       */
+      remoteAssets?: boolean;
     };
     computers?: {
       /**

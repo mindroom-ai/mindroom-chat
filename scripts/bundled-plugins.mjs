@@ -1,7 +1,7 @@
 // @ts-check
 // The client plugins MindRoom Chat's own builds ship by default, as bundled-plugins.txt pins them:
-// `just build` and the container image (docker/Dockerfile) build them in while MINDROOM_CLIENT_PLUGINS
-// is unset; set, even empty, it names the plugins instead.
+// `just build` and `npm run build:ios` (scripts/build.sh) and the container image (docker/Dockerfile)
+// build them in while MINDROOM_CLIENT_PLUGINS is unset; set, even empty, it names the plugins instead.
 //
 //   node scripts/bundled-plugins.mjs
 //     Downloads each plugin's files at its commit from GitHub into the cache

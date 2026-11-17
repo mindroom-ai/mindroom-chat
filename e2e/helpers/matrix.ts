@@ -123,9 +123,15 @@ const seedRoomOverviewStateInStorage = ({
     setStoredValue(`roomViewMode:${nextRoomId}`, JSON.stringify(nextViewMode));
   }
 
-  const userIds = new Set([nextUserId, activeSession.userId].filter(Boolean));
+  const userIds = new Set(
+    [nextUserId, activeSession.userId].filter((userId): userId is string => !!userId)
+  );
   userIds.forEach((userId) => {
-    setStoredValue(`roomThreadFilter:${userId}:${nextRoomId}`, JSON.stringify(nextFilterState));
+    // Keep the canonical app key here: this function also runs as a serialized init script.
+    setStoredValue(
+      `mindroom.roomThreadFilter:${encodeURIComponent(userId)}:${encodeURIComponent(nextRoomId)}`,
+      JSON.stringify(nextFilterState)
+    );
   });
   // A seeded filter applies in full only with the advanced filters; the bar starts simple.
   const settings = JSON.parse(localStorage.getItem('settings') ?? '{}') as object;

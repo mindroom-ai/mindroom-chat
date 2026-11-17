@@ -162,7 +162,7 @@ const ThreadRow = memo(function ThreadRow({ item, selected, onOpen }: ThreadRowP
 
 /**
  * The Threads section's navigation column: the threads of the joined rooms for the chosen scope,
- * grouped by what they need (needs you, unread, agents working, recent, then snoozed and
+ * grouped by what they need (needs you, unread, agents working, recent, then later and
  * automations folded), with a search; a row opens its thread beside the list.
  */
 export function ThreadsNav() {
@@ -178,11 +178,11 @@ export function ThreadsNav() {
   const [query, setQuery] = useState('');
   const [recentLimit, setRecentLimit] = useState(RECENT_PAGE);
   const [automationsOpen, setAutomationsOpen] = useState(false);
-  const [snoozedOpen, setSnoozedOpen] = useState(false);
+  const [laterOpen, setLaterOpen] = useState(false);
   const shown = useShownThread();
   // Until the index scanned the rooms and their thread lists are in, an empty list says nothing.
   const loading = !useAtomValue(crossRoomThreadIndexBootstrappedAtom) || !listsComplete;
-  // Renewed when a snooze ends, so its thread leaves the Snoozed group.
+  // Renewed when a snooze ends, so its thread leaves the Later group.
   const now = useSnoozeNow(useMemo(() => items.map((it) => it.entry.snoozedUntilTs), [items]));
   const groups = useMemo(
     () => groupThreads(items, scope, userId, query, now),
@@ -217,7 +217,7 @@ export function ThreadsNav() {
   /** The rows a group shows: all of them, the first pages of Recent, none of a folded group. */
   const shownItems = (id: ThreadGroupId, groupItems: ThreadListItem[]) => {
     if (id === 'automations') return automationsOpen ? groupItems : [];
-    if (id === 'snoozed') return snoozedOpen ? groupItems : [];
+    if (id === 'later') return laterOpen ? groupItems : [];
     return id === 'recent' ? groupItems.slice(0, recentLimit) : groupItems;
   };
   // A row that changed group glides there, one a search or a scope leaves out fades, and the
@@ -290,10 +290,10 @@ export function ThreadsNav() {
           {listMotion}
           {groups.map(({ id, items: groupItems }) => {
             const visible = shownItems(id, groupItems);
-            if (id === 'automations' || id === 'snoozed') {
+            if (id === 'automations' || id === 'later') {
               // Folded until opened, each on its own.
-              const expanded = id === 'automations' ? automationsOpen : snoozedOpen;
-              const setExpanded = id === 'automations' ? setAutomationsOpen : setSnoozedOpen;
+              const expanded = id === 'automations' ? automationsOpen : laterOpen;
+              const setExpanded = id === 'automations' ? setAutomationsOpen : setLaterOpen;
               return (
                 <section key={id} aria-label={groupName(id)}>
                   <Button

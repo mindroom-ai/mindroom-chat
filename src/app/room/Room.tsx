@@ -353,6 +353,7 @@ function RoomContent() {
             expanded={layout === 'filled'}
             onToggleExpanded={() => toggleFilled('canvas')}
             libraries={clientConfig.mindroom?.canvas?.libraries === true}
+            remote={clientConfig.mindroom?.canvas?.remoteAssets === true}
           />
         ),
     },

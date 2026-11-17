@@ -47,6 +47,7 @@ const roomWith = (root: MatrixEvent): Room => {
   return {
     roomId: '!secure:example.org',
     name: 'Secure room',
+    currentState: { getStateEvents: () => [] },
     getThread: (id: string) => (id === '$root' ? thread : null),
     findEventById: (id: string) => (id === '$root' ? root : undefined),
     getMember: () => undefined,

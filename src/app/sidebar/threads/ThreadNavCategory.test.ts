@@ -304,6 +304,32 @@ describe('ThreadNavCategory', () => {
     expect(threadKeys()).toEqual([newer.key, older.key]);
   });
 
+  it('labels scheduled threads Later with the later section id', () => {
+    store.set(makeThreadSidebarPreferencesAtom(USER_ID), {
+      type: 'SET_LAYOUT',
+      layout: 'sections',
+    });
+    const scheduled = {
+      ...older,
+      threadRecord: {
+        ...older.threadRecord,
+        status: { ...older.threadRecord.status, scheduledTaskCount: 1 },
+      },
+    };
+    store.set(crossRoomThreadIndexAtom, {
+      ...store.get(crossRoomThreadIndexAtom),
+      entries: new Map([[scheduled.key, scheduled]]),
+    });
+    renderCategory();
+    expect(renderer!.root.findByProps({ 'aria-label': 'Later' }).type).toBe('section');
+    expect(
+      renderer!.root.findByProps({
+        'data-category-id': makeNavCategoryId('mindroom', 'threads', 'later'),
+      }).props['aria-expanded']
+    ).toBe(true);
+    expect(renderer!.root.findAllByProps({ 'aria-label': 'Snoozed' })).toHaveLength(0);
+  });
+
   it('reads the signals of its sections at the minute clock, as Activity does', () => {
     store.set(makeThreadSidebarPreferencesAtom(USER_ID), {
       type: 'SET_LAYOUT',

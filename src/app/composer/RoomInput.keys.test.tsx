@@ -331,6 +331,51 @@ describe('composer', () => {
       expect(await pressEnterAfterMention(path)).toBe(true);
     });
 
+    it("sends a MindRoom command, which the room's agents answer, as a message", async () => {
+      state.mentionHasSuggestions = false;
+      state.commands = {
+        schedule: { name: 'schedule', description: 'Schedule a task for later execution.' },
+        list_schedules: { name: 'list_schedules', description: 'List all scheduled tasks.' },
+      } as Record<string, SlashCommand>;
+      const schedule = [{ type: 'paragraph', children: [{ text: '/schedule in 5 min do x' }] }];
+      expect(await pressEnterAfterMention(schedule)).toBe(true);
+      expect(alerts()).toEqual([]);
+      state.startSendSession.mockClear();
+      const list = [{ type: 'paragraph', children: [{ text: '/list_schedules' }] }];
+      expect(await pressEnterAfterMention(list)).toBe(true);
+    });
+
+    it('sends a MindRoom command a phone keyboard capitalized, as typed', async () => {
+      state.mentionHasSuggestions = false;
+      state.commands = {
+        schedule: { name: 'schedule', description: 'Schedule a task for later execution.' },
+      } as Record<string, SlashCommand>;
+      const typedSchedule = [{ type: 'paragraph', children: [{ text: '/Schedule in 5 min x' }] }];
+      expect(await pressEnterAfterMention(typedSchedule)).toBe(true);
+      expect(alerts()).toEqual([]);
+    });
+
+    it('sends another spelling MindRoom reads of a command, as typed', async () => {
+      state.mentionHasSuggestions = false;
+      state.commands = {
+        auto_approve: { name: 'auto_approve', description: 'Auto-approve tool calls.' },
+      } as Record<string, SlashCommand>;
+      const autoApprove = [{ type: 'paragraph', children: [{ text: '/auto-approve off' }] }];
+      expect(await pressEnterAfterMention(autoApprove)).toBe(true);
+      expect(alerts()).toEqual([]);
+    });
+
+    it('keeps a /word that is no command unsent, with a notice', async () => {
+      withInvite(vi.fn(async () => undefined));
+      for (const text of ['/zz', '/list_jobs']) {
+        expect(
+          await pressEnterAfterMention([{ type: 'paragraph', children: [{ text }] }]),
+          text
+        ).toBe(false);
+        expect(JSON.stringify(alerts()), text).toContain(`${text} is not a command`);
+      }
+    });
+
     describe("a plugin's command in a thread", () => {
       const greeting = [{ type: 'paragraph', children: [{ text: '/greet Hi' }] }];
       const LOCAL_ROOT = '~!room:example.org:txn-root';

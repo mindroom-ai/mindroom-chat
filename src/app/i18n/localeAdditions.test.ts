@@ -45,6 +45,15 @@ const overlayCodes = readdirSync(ADDITIONS_DIR)
   .filter((code) => code !== DEFAULT_LANGUAGE_CODE);
 
 describe('language overlays (locales/additions/<code>.json)', () => {
+  it.each([DEFAULT_LANGUAGE_CODE, ...overlayCodes])(
+    '%s names the shared sidebar section Later',
+    (code) => {
+      const values = new Map(leaves(readTree(`${ADDITIONS_DIR}${code}.json`)));
+      expect(values.get('threadNav.sections.later')).toBe(values.get('thread.workflow.later'));
+      expect(values.has('threadNav.sections.snoozed')).toBe(false);
+    }
+  );
+
   it('exist for every app language besides English, and only for app languages', () => {
     expect([...overlayCodes].sort()).toEqual(
       APP_LANGUAGE_CODES.filter((code) => code !== DEFAULT_LANGUAGE_CODE).sort()

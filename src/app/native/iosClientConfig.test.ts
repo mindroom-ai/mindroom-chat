@@ -52,4 +52,13 @@ describe('bundled iOS client config', () => {
     expect(fastlane).not.toContain('npm run build && npx cap sync ios');
     expect(phone).toContain("await run('npm', ['run', 'build:ios'])");
   });
+
+  it('builds the iOS web app with the bundled client plugins, as `just build` does', () => {
+    const pkg = JSON.parse(
+      readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')
+    ) as { scripts: Record<string, string> };
+    const justfile = readFileSync(new URL('../../../justfile', import.meta.url), 'utf8');
+    expect(pkg.scripts['build:ios']).toMatch(/^scripts\/build\.sh && /);
+    expect(justfile).toMatch(/^build:\n {4}scripts\/build\.sh\n/m);
+  });
 });

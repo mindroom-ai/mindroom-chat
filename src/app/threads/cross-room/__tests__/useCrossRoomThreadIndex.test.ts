@@ -16,7 +16,6 @@ import {
   storeThreadSummaryInState,
 } from '../../../event-store/threads/threadSummaryState';
 import { MINDROOM_THREAD_TAGS_EVENT } from '../../../event-store/threads/threadTags';
-import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../../../matrix/protocol/backgroundJobsContract';
 import { setRoomEventPinned } from '../../../event-store/threads/threadPinning';
 import { buildSidebarThreadEntries } from '../../../sidebar/threads/threadNavCategoryUtils';
 import { useCrossRoomThreadIndex } from '../useCrossRoomThreadIndex';
@@ -159,6 +158,7 @@ const makeRoom = (
   const room = {
     roomId,
     name: 'Room',
+    currentState: { getStateEvents: () => [] },
     getMyMembership: vi.fn(() => 'join'),
     isSpaceRoom: vi.fn(() => false),
     getLastActiveTimestamp: vi.fn(() => 100),
@@ -166,7 +166,6 @@ const makeRoom = (
     getThread: vi.fn((threadRootId: string) => (threadRootId === rootId ? thread : null)),
     findEventById: vi.fn((eventId: string) => eventMap.get(eventId)),
     getMember: vi.fn(() => undefined),
-    currentState: { getStateEvents: vi.fn(() => []) },
     getEventReadUpTo: vi.fn(() => undefined),
     getLiveTimeline: vi.fn(() => ({
       getState: () => ({
@@ -201,6 +200,7 @@ const makeRoomWithThreads = (roomId: string, threadRoots: Array<{ id: string; bo
   const room = {
     roomId,
     name: 'Room',
+    currentState: { getStateEvents: () => [] },
     getMyMembership: vi.fn(() => 'join'),
     isSpaceRoom: vi.fn(() => false),
     getLastActiveTimestamp: vi.fn(() => 100),
@@ -211,7 +211,6 @@ const makeRoomWithThreads = (roomId: string, threadRoots: Array<{ id: string; bo
     }),
     findEventById: vi.fn((eventId: string) => eventMap.get(eventId)),
     getMember: vi.fn(() => undefined),
-    currentState: { getStateEvents: vi.fn(() => []) },
     getEventReadUpTo: vi.fn(() => undefined),
     getLiveTimeline: vi.fn(() => ({
       getState: () => ({
@@ -255,6 +254,7 @@ const makeRoomWithThreadReplies = (roomId: string, threadCount: number) => {
   const room = {
     roomId,
     name: 'Room',
+    currentState: { getStateEvents: () => [] },
     getMyMembership: vi.fn(() => 'join'),
     isSpaceRoom: vi.fn(() => false),
     getLastActiveTimestamp: vi.fn(() => 100),
@@ -262,7 +262,6 @@ const makeRoomWithThreadReplies = (roomId: string, threadCount: number) => {
     getThread: vi.fn((threadRootId: string) => threadMap.get(threadRootId) ?? null),
     findEventById: vi.fn((eventId: string) => eventMap.get(eventId)),
     getMember: vi.fn(() => undefined),
-    currentState: { getStateEvents: vi.fn(() => []) },
     getEventReadUpTo: vi.fn(() => undefined),
     getLiveTimeline: vi.fn(() => ({
       getState: () => ({
@@ -332,6 +331,167 @@ describe('useCrossRoomThreadIndex', () => {
     vi.clearAllMocks();
     localStorage.clear();
     clearThreadSummarySharedState();
+  });
+
+  it('joins trusted schedules at bootstrap and refreshes only affected roots', async () => {
+    const { room } = makeRoomWithThreads('!room:example.org', [
+      { id: '$scheduled', body: 'Scheduled' },
+      { id: '$other', body: 'Other' },
+    ]);
+    const schedule = (
+      threadId: string,
+      status = 'pending',
+      sender = '@mindroom_agent:example.org'
+    ) =>
+      new StateMatrixEvent({
+        type: 'com.mindroom.scheduled.task',
+        state_key: 'task',
+        sender,
+        content: { status, thread_id: threadId, cron_description: 'Every day' },
+      });
+    let events = [schedule('$scheduled')];
+    Object.defineProperty(room, 'myUserId', { value: '@me:example.org' });
+    const getStateEvents = vi.fn((type: string) =>
+      type === 'com.mindroom.scheduled.task' ? events : []
+    );
+    Object.defineProperty(room, 'currentState', { value: { getStateEvents } });
+    const client = makeClient(room);
+    matrixClientMock.mockReturnValue(client);
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+    const entry = (id: string) =>
+      store.get(crossRoomThreadIndexAtom).entries.get(getCrossRoomThreadIndexKey(room.roomId, id))!;
+    expect(entry('$scheduled').threadRecord.status.scheduledTaskCount).toBe(1);
+    expect(
+      getStateEvents.mock.calls.filter(([type]) => type === 'com.mindroom.scheduled.task')
+    ).toHaveLength(1);
+    const other = entry('$other');
+    const publish = async (event: StateMatrixEvent) => {
+      events = [event];
+      await act(async () => {
+        client.emit(RoomStateEvent.Events, event, { roomId: room.roomId });
+      });
+      await flushScheduledWork();
+    };
+    room.getThread.mockClear();
+    await publish(schedule('$scheduled', 'completed'));
+    expect(entry('$scheduled').threadRecord.status.scheduledTaskCount).toBe(0);
+    expect(entry('$other')).toBe(other);
+    expect(room.getThread.mock.calls.every(([id]) => id === '$scheduled')).toBe(true);
+    await publish(schedule('$scheduled'));
+    expect(entry('$scheduled').threadRecord.status.scheduledTaskCount).toBe(1);
+    // Moving a task must refresh both its former and new root.
+    await publish(schedule('$other'));
+    expect(entry('$scheduled').threadRecord.status.scheduledTaskCount).toBe(0);
+    expect(entry('$other').threadRecord.status.scheduledTaskCount).toBe(1);
+    await publish(schedule('$other', 'pending', '@mallory:example.org'));
+    expect(entry('$other').threadRecord.status.scheduledTaskCount).toBe(0);
+    room.getThread.mockClear();
+    await publish(events[0]!);
+    expect(room.getThread).not.toHaveBeenCalled();
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('refreshes only changed background-job threads and ignores repeated membership state', async () => {
+    const { room, roots } = makeRoomWithThreads('!room:example.org', [
+      { id: '$job', body: 'Job' },
+      { id: '$other', body: 'Other' },
+    ]);
+    const agent = '@mindroom_agent:example.org';
+    let jobs: StateMatrixEvent[] = [];
+    Object.defineProperty(room, 'myUserId', { value: '@me:example.org' });
+    Object.defineProperty(room, 'currentState', { value: { getStateEvents: () => jobs } });
+    room.getMember.mockReturnValue({ membership: 'join' } as never);
+    const client = makeClient(room);
+    matrixClientMock.mockReturnValue(client);
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+    const rootId = roots[0]!.getId()!;
+    const publish = async (status?: string) => {
+      const event = new StateMatrixEvent({
+        type: 'io.mindroom.background_jobs',
+        state_key: agent,
+        sender: agent,
+        content: {
+          jobs: status
+            ? [
+                {
+                  job_id: 'job',
+                  thread_id: rootId,
+                  status,
+                  kind: 'tool',
+                  tool: 'shell',
+                  started_at: '2026-11-15T00:00:00Z',
+                },
+              ]
+            : [],
+        },
+      });
+      jobs = [event];
+      await act(async () => {
+        client.emit(RoomStateEvent.Events, event, { roomId: room.roomId });
+      });
+      await flushScheduledWork();
+    };
+    room.getThread.mockClear();
+    await publish('running');
+    const entry = () =>
+      store
+        .get(crossRoomThreadIndexAtom)
+        .entries.get(getCrossRoomThreadIndexKey(room.roomId, rootId))!;
+    expect(entry().threadRecord.status.hasBackgroundJob).toBe(true);
+    expect(room.getThread.mock.calls.every(([id]) => id === rootId)).toBe(true);
+    await publish('awaiting_approval');
+    expect(entry().threadRecord.status.hasBackgroundApproval).toBe(true);
+    const membership = async (value: 'join' | 'leave') => {
+      const event = new StateMatrixEvent({
+        type: 'm.room.member',
+        state_key: agent,
+        sender: agent,
+        content: { membership: value },
+      });
+      await act(async () => {
+        // The SDK emits Events before it updates the member, then Members afterwards.
+        client.emit(RoomStateEvent.Events, event, { roomId: room.roomId });
+        room.getMember.mockReturnValue({ membership: value } as never);
+        client.emit(RoomStateEvent.Members, event, { roomId: room.roomId }, room.getMember(agent));
+      });
+      await flushScheduledWork();
+    };
+    room.getThread.mockClear();
+    await membership('join');
+    expect(room.getThread).not.toHaveBeenCalled();
+    await membership('leave');
+    expect(entry().threadRecord.status.hasBackgroundJob).toBeFalsy();
+    expect(entry().threadRecord.status.hasBackgroundApproval).toBeUndefined();
+    expect(room.getThread.mock.calls.every(([id]) => id === rootId)).toBe(true);
+    room.getThread.mockClear();
+    await membership('leave');
+    expect(room.getThread).not.toHaveBeenCalled();
+    await membership('join');
+    expect(entry().threadRecord.status.hasBackgroundApproval).toBe(true);
+    await publish('running');
+    expect(entry().threadRecord.status.hasBackgroundJob).toBe(true);
+    await membership('leave');
+    expect(entry().threadRecord.status.hasBackgroundJob).toBeUndefined();
+    await membership('join');
+    await publish();
+    expect(entry().threadRecord.status.hasBackgroundJob).toBeUndefined();
+    await act(async () => {
+      renderer.unmount();
+    });
   });
 
   it('reads room tag state once when bootstrapping many threads, including untagged roots', async () => {
@@ -487,16 +647,12 @@ describe('useCrossRoomThreadIndex', () => {
         }
         expect(entries()[0]!.isResolved).toBe(false);
         expect(entries()[0]!.threadRecord.status.isResolved).toBe(false);
-        expect(
-          entries().filter((entry) => !entry.isResolved)
-        ).toHaveLength(1);
+        expect(entries().filter((entry) => !entry.isResolved)).toHaveLength(1);
         expect(buildSidebarThreadEntries(entries(), [])).toHaveLength(1);
         await syncPins(['$root']);
         await syncPins([]);
         expect(entries()[0]!.isResolved).toBe(true);
-        expect(
-          entries().filter((entry) => !entry.isResolved)
-        ).toHaveLength(0);
+        expect(entries().filter((entry) => !entry.isResolved)).toHaveLength(0);
         expect(buildSidebarThreadEntries(entries(), [])).toHaveLength(0);
       } finally {
         act(() => renderer.unmount());
@@ -525,6 +681,10 @@ describe('useCrossRoomThreadIndex', () => {
     expect(room.on).toHaveBeenCalledWith(RoomEvent.LocalEchoUpdated, expect.any(Function));
     expect(room.on).toHaveBeenCalledWith(ThreadEvent.NewReply, expect.any(Function));
     expect(mx.on).toHaveBeenCalledWith(RoomEvent.MyMembership, expect.any(Function));
+    const membersHandler = mx.on.mock.calls.find(
+      ([event]) => event === RoomStateEvent.Members
+    )?.[1];
+    expect(membersHandler).toBeTypeOf('function');
     expect(mx.on).toHaveBeenCalledWith(MatrixEventEvent.Decrypted, expect.any(Function));
 
     await act(async () => {
@@ -536,6 +696,7 @@ describe('useCrossRoomThreadIndex', () => {
       expect.any(Function)
     );
     expect(mx.removeListener).toHaveBeenCalledWith(RoomStateEvent.Events, expect.any(Function));
+    expect(mx.removeListener).toHaveBeenCalledWith(RoomStateEvent.Members, membersHandler);
   });
 
   it('skips a listed thread whose root is itself a reply in another thread', async () => {
@@ -1682,187 +1843,5 @@ describe('useCrossRoomThreadIndex', () => {
     await flushScheduledWork();
 
     expect(store.get(crossRoomThreadIndexAtom).entries.size).toBe(0);
-  });
-
-  describe('background jobs', () => {
-    const AGENT = '@mindroom_code:example.org';
-    const jobsState = (threadIds: Array<string | null>) =>
-      new StateMatrixEvent({
-        type: MINDROOM_BACKGROUND_JOBS_EVENT,
-        sender: AGENT,
-        state_key: AGENT,
-        content: {
-          jobs: threadIds.map((threadId, index) => ({
-            job_id: `job_${index}`,
-            thread_id: threadId,
-            kind: 'subagent',
-            tool: 'delegate',
-            status: 'running',
-            started_at: '2026-11-16T00:00:00+00:00',
-          })),
-        },
-      });
-
-    /** A room with two threads whose agent publishes `jobs`, and the index over it. */
-    const indexRoomWithJobs = async (initialJobs: StateMatrixEvent) => {
-      const { room } = makeRoomWithThreadReplies('!room:example.org', 2);
-      let jobs = initialJobs;
-      let membership = 'join';
-      Object.assign(room, {
-        myUserId: '@me:example.org',
-        currentState: {
-          getStateEvents: (type: string, stateKey?: string) => {
-            if (type !== MINDROOM_BACKGROUND_JOBS_EVENT) return stateKey === undefined ? [] : null;
-            if (stateKey === undefined) return [jobs];
-            return stateKey === AGENT ? jobs : null;
-          },
-        },
-      });
-      room.getMember.mockImplementation((userId: string) =>
-        userId === AGENT ? ({ userId, membership } as never) : null
-      );
-      const mx = makeClient(room);
-      matrixClientMock.mockReturnValue(mx);
-      const store = createStore();
-      store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
-      let renderer!: ReturnType<typeof create>;
-      await act(async () => {
-        renderer = create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
-      });
-      await flushScheduledWork();
-      const withJob = () =>
-        Array.from(store.get(crossRoomThreadIndexAtom).entries.values())
-          .filter((entry) => entry.hasBackgroundJob)
-          .map((entry) => entry.threadRootId);
-      const publish = async (next: StateMatrixEvent) => {
-        jobs = next;
-        await act(async () => {
-          mx.emit(RoomStateEvent.Events, next, { roomId: room.roomId });
-          await Promise.resolve();
-        });
-        await flushScheduledWork();
-      };
-      const leave = async () => {
-        const memberEvent = new StateMatrixEvent({
-          type: 'm.room.member',
-          sender: AGENT,
-          state_key: AGENT,
-          content: { membership: 'leave' },
-        });
-        // As the SDK does: the state event first, while the member list still has the agent
-        // joined, then the member list's update.
-        await act(async () => {
-          mx.emit(RoomStateEvent.Events, memberEvent, { roomId: room.roomId });
-          membership = 'leave';
-          mx.emit(
-            RoomStateEvent.Members,
-            memberEvent,
-            { roomId: room.roomId },
-            {
-              userId: AGENT,
-              membership,
-              roomId: room.roomId,
-            }
-          );
-          await Promise.resolve();
-        });
-        await flushScheduledWork();
-      };
-      // Sync hands the agent's member event over again with a batch, membership unchanged.
-      const redeliverMember = async () => {
-        const memberEvent = new StateMatrixEvent({
-          type: 'm.room.member',
-          sender: AGENT,
-          state_key: AGENT,
-          content: { membership },
-        });
-        await act(async () => {
-          mx.emit(RoomStateEvent.Events, memberEvent, { roomId: room.roomId });
-          mx.emit(
-            RoomStateEvent.Members,
-            memberEvent,
-            { roomId: room.roomId },
-            { userId: AGENT, membership, roomId: room.roomId }
-          );
-          await Promise.resolve();
-        });
-        await flushScheduledWork();
-      };
-      // A job starts and ends with a flush of the index between them, but no render: the flush
-      // marked the job's thread (`flushed`) by the time it ends.
-      const startAndEndBeforeRender = async (start: StateMatrixEvent, end: StateMatrixEvent) => {
-        let flushed: string[] = [];
-        await act(async () => {
-          jobs = start;
-          mx.emit(RoomStateEvent.Events, start, { roomId: room.roomId });
-          vi.runOnlyPendingTimers();
-          flushed = withJob();
-          jobs = end;
-          mx.emit(RoomStateEvent.Events, end, { roomId: room.roomId });
-          await Promise.resolve();
-        });
-        await flushScheduledWork();
-        return flushed;
-      };
-      return {
-        room,
-        withJob,
-        publish,
-        leave,
-        redeliverMember,
-        startAndEndBeforeRender,
-        unmount: () => renderer.unmount(),
-      };
-    };
-
-    it('marks the thread a listed job runs in, and only that one', async () => {
-      const index = await indexRoomWithJobs(jobsState(['$root-1', null]));
-
-      expect(index.withJob()).toEqual(['$root-1']);
-      index.unmount();
-    });
-
-    it('follows the jobs state as jobs start and end, with no timeline event', async () => {
-      const index = await indexRoomWithJobs(jobsState([]));
-      expect(index.withJob()).toEqual([]);
-
-      await index.publish(jobsState(['$root-0']));
-      expect(index.withJob()).toEqual(['$root-0']);
-
-      await index.publish(jobsState([]));
-      expect(index.withJob()).toEqual([]);
-      index.unmount();
-    });
-
-    it('builds no thread again when sync hands over the same agent membership', async () => {
-      const index = await indexRoomWithJobs(jobsState(['$root-0']));
-      index.room.getThread.mockClear();
-
-      await index.redeliverMember();
-
-      expect(index.room.getThread).not.toHaveBeenCalled();
-      expect(index.withJob()).toEqual(['$root-0']);
-      index.unmount();
-    });
-
-    it('catches a job that ends after the index flushed it but before a render', async () => {
-      const index = await indexRoomWithJobs(jobsState([]));
-
-      const flushed = await index.startAndEndBeforeRender(jobsState(['$root-0']), jobsState([]));
-
-      expect(flushed).toEqual(['$root-0']);
-      expect(index.withJob()).toEqual([]);
-      index.unmount();
-    });
-
-    it('drops the jobs of an agent that left the room once the member list says so', async () => {
-      const index = await indexRoomWithJobs(jobsState(['$root-0']));
-      expect(index.withJob()).toEqual(['$root-0']);
-
-      await index.leave();
-
-      expect(index.withJob()).toEqual([]);
-      index.unmount();
-    });
   });
 });

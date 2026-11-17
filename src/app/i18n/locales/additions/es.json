@@ -370,7 +370,9 @@
       },
       "computers": {
         "inUse": "Servidor en uso",
-        "inUseNone": "No hay ninguno, así que los ordenadores están desactivados en este dispositivo."
+        "inUseNone": "No hay ninguno, así que los ordenadores están desactivados en este dispositivo.",
+        "useServer": "Usar {{host}}",
+        "foundNotSaved": "Encontrado a través de tus agentes, sin guardar; guárdalo para introducir claves aquí."
       },
       "keywords": {
         "theme": "modo oscuro, modo claro, modo noche, colores",
@@ -734,7 +736,7 @@
         "declinedWaiting": "Rechazada, esperando al agente",
         "noLongerActive": "Esta solicitud ya no está activa. Vuelve a pedírselo al agente.",
         "unavailable": "No se pueden introducir claves en este servidor.",
-        "unavailableHint": "Para introducir claves aquí, configura tu servidor de MindRoom en Ajustes → {{page}} → {{field}}.",
+        "unavailableHint": "Para introducir claves aquí, guarda tu servidor de MindRoom en Ajustes → {{page}}.",
         "replaces": "Reemplaza la clave guardada ahora.",
         "replaceKey": "Reemplazar clave",
         "temporary": {
@@ -784,6 +786,13 @@
       "finishedWork": {
         "workedFor": "Trabajó durante {{duration}}",
         "worked": "Trabajó"
+      },
+      "questionCard": {
+        "title": "Pregunta",
+        "waiting": "Te espera",
+        "answered": "Respondido",
+        "youChose": "Elegiste",
+        "nameChose": "{{name}} eligió"
       }
     },
     "message-search": {
@@ -808,13 +817,7 @@
         "threadFiltersActive": "Filtros de hilos (activos)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtros avanzados",
-        "presets": {
-          "snoozed": {
-            "label": "Pospuestos",
-            "description": "Solo hilos pospuestos"
-          }
-        }
+        "advancedFilters": "Filtros avanzados"
       },
       "threadPeopleFilter": {
         "label": "Personas",
@@ -994,6 +997,20 @@
     "status": {
       "snoozed": "Pospuesto"
     },
+    "workflow": {
+      "needsYou": "Te necesita",
+      "working": "En curso",
+      "later": "Más tarde",
+      "done": "Hecho",
+      "all": "Todos",
+      "description": {
+        "needsYou": "Una tarea en segundo plano necesita aprobación, o no hay nada en ejecución ni programado.",
+        "working": "Un agente está respondiendo, o un subagente o una herramienta en segundo plano está en ejecución.",
+        "later": "Pospuestos o a la espera de una tarea programada.",
+        "done": "Hilos resueltos.",
+        "all": "Todos los hilos que coinciden con tus otros filtros."
+      }
+    },
     "renameHint": "Haz doble clic para cambiar el nombre"
   },
   "threadSnooze": {
@@ -1117,7 +1134,7 @@
       "working": "Agentes trabajando",
       "recent": "Recientes",
       "automations": "Automatizaciones",
-      "snoozed": "Pospuestos"
+      "later": "Más tarde"
     },
     "showMore": "Mostrar más",
     "chips": {
@@ -1330,7 +1347,7 @@
     "sectionsHint": "Agrupar los hilos en En curso, Pospuestos, Inactivos y Resueltos",
     "sections": {
       "working": "En curso",
-      "snoozed": "Pospuestos",
+      "later": "Más tarde",
       "idle": "Inactivos",
       "resolved": "Resueltos"
     },

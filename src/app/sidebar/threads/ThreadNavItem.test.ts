@@ -306,16 +306,17 @@ describe('ThreadNavItem', () => {
     expect(navigateRoomMock).toHaveBeenCalledWith(entry.roomId, entry.threadRootId);
   });
 
-  it('shows that an agent streams in the thread, as its card does', () => {
+  it.each([
+    ['background job only', false, 'streaming'],
+    ['live stream', true, 'streaming'],
+    ['snoozed live stream', true, 'idle'],
+  ] as const)('uses live streaming for the dot: %s', (_name, isStreaming, attentionState) => {
+    buildViewModelMock.mockReturnValue({ ...viewModel, isStreaming, attentionState });
     renderItem();
-    expect(renderer!.root.findAllByProps({ 'data-streaming-dot': true })).toHaveLength(0);
-    expect(getOpenButton().props['aria-label']).not.toContain('Agent streaming');
-
-    act(() => renderer?.unmount());
-    buildViewModelMock.mockReturnValue({ ...viewModel, attentionState: 'streaming' });
-    renderItem();
-    expect(renderer!.root.findAllByProps({ 'data-streaming-dot': true })).toHaveLength(1);
-    expect(getOpenButton().props['aria-label']).toContain('Agent streaming');
+    expect(renderer!.root.findAllByProps({ 'data-streaming-dot': true })).toHaveLength(
+      isStreaming ? 1 : 0
+    );
+    expect(getOpenButton().props['aria-label'].includes('Agent streaming')).toBe(isStreaming);
   });
 
   it('opens the hover details without a delay', () => {

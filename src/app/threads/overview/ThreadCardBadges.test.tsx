@@ -74,6 +74,23 @@ describe('ThreadCardBadges', () => {
     ]);
   });
 
+  it('wraps only a badge with its own hover card, in a layout-free element that marks it', () => {
+    const { container } = renderBadges([
+      plugin('alpha', [
+        { Component: named('plain') },
+        { Component: named('chip'), hoverCard: true },
+      ]),
+    ]);
+    const plain = container.querySelector('[data-badge="plain"]');
+    const chip = container.querySelector('[data-badge="chip"]');
+    expect(plain?.parentElement).toBe(container);
+    const wrapper = chip?.parentElement;
+    expect(wrapper?.hasAttribute('data-own-hover-card')).toBe(true);
+    expect(wrapper?.style.display).toBe('contents');
+    expect(wrapper?.parentElement).toBe(container);
+    expect(container.querySelectorAll('[data-own-hover-card]')).toHaveLength(1);
+  });
+
   it('renders nothing at all while no enabled plugin has a badge', () => {
     expect(renderBadges([]).container.firstChild).toBeNull();
     cleanup();

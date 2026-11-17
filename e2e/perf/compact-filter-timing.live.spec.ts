@@ -25,7 +25,7 @@ import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
  * A room holds FILTER_THREADS (default 600) threads, each a root and one reply; every fourth one
  * is resolved. The reader opens it in the Compact view among 24 other rooms and changes the
  * filters: the simple Unresolved toggle on and off, the switch to the advanced filters and back,
- * the Working and All presets, and a search (a letter no thread has, then Backspace). Each
+ * the Working and All workflow tabs, and a search (a letter no thread has, then Backspace). Each
  * change is timed from its press or keydown to the first frame after the count and the list's
  * first screenful show its result, that is until that frame has been painted (the next task
  * after it); the search's 300 ms pause in typing is not counted. Every change runs FILTER_ROUNDS
@@ -281,7 +281,7 @@ const instrument = () => {
       };
       requestAnimationFrame(check);
     };
-    // The press, not the click: a preset option acts on its press and is gone before a click.
+    // Include the whole interaction, starting at pointerdown or keydown, before activation.
     document.addEventListener('pointerdown', start, true);
     document.addEventListener('keydown', start, true);
   };
@@ -509,15 +509,11 @@ test.describe('compact filter timing', () => {
           await wait(500);
         };
         const clickIn = (locator: Locator) => () => locator.click();
-        // A preset is chosen with the keyboard (the list's own keys), in both engines alike.
-        const PRESET_POSITIONS = { working: 1, all: 5 };
-        const openPreset = async (id: keyof typeof PRESET_POSITIONS) => {
-          await overview.locator('[data-preset-button]').click();
-          await expect(overview.locator('[data-preset-option="all"]')).toBeVisible();
-          for (let step = 0; step < PRESET_POSITIONS[id]; step += 1) {
-            await page.keyboard.press('ArrowDown');
-          }
-          await expect(overview.locator(`[data-preset-option="${id}"]`)).toBeFocused();
+        // Focus before timing so keyboard activation measures filtering, not focus navigation.
+        const focusTab = async (id: 'working' | 'all') => {
+          const tab = overview.locator(`[data-thread-tab="${id}"]`);
+          await tab.focus();
+          await expect(tab).toBeFocused();
         };
         const choose = () => page.keyboard.press('Enter');
 
@@ -538,7 +534,7 @@ test.describe('compact filter timing', () => {
             'advanced filters',
             {
               ...showing(everyThread),
-              selector: '[data-room-thread-overview] [data-preset-button]',
+              selector: '[data-room-thread-overview] [data-thread-tab="all"]',
             },
             clickIn(modeSwitch)
           );
@@ -549,12 +545,20 @@ test.describe('compact filter timing', () => {
           );
         }
         await modeSwitch.click();
-        await expect(overview.locator('[data-preset-button]')).toBeVisible();
+        await expect(overview.locator('[data-thread-tab="all"]')).toBeVisible();
         for (let round = 0; round < ROUNDS; round += 1) {
-          await openPreset('working');
-          await record('preset working', showing([]), choose);
-          await openPreset('all');
-          await record('preset all', showing(everyThread), choose);
+          await focusTab('working');
+          await record(
+            'tab working',
+            { ...showing([]), selector: '[data-thread-tab="working"][aria-pressed="true"]' },
+            choose
+          );
+          await focusTab('all');
+          await record(
+            'tab all',
+            { ...showing(everyThread), selector: '[data-thread-tab="all"][aria-pressed="true"]' },
+            choose
+          );
         }
         const search = overview.locator('[data-search-input]');
         if (!(await search.isVisible())) await overview.locator('[data-search-toggle]').click();

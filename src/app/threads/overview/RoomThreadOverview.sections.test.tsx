@@ -13,7 +13,6 @@ const props = (overrides: Partial<RoomThreadOverviewProps> = {}): RoomThreadOver
   totalThreadCount: 3,
   state: createDefaultThreadFilterState(),
   availableTags: [],
-  onToggle: noop,
   onSortDirectionChange: noop,
   onToggleThreadSortFreeze: noop,
   onToggleUnresolvedOnly: noop,
@@ -21,7 +20,6 @@ const props = (overrides: Partial<RoomThreadOverviewProps> = {}): RoomThreadOver
   onClearTags: noop,
   onAddTag: noop,
   onRemoveTag: noop,
-  onApplyPreset: noop,
   onSearchQueryChange: noop,
   ...overrides,
 });
@@ -48,8 +46,7 @@ const renderBar = (simple: boolean, overrides: Partial<RoomThreadOverviewProps> 
 const byData = (name: string): ReactTestInstance[] =>
   renderer?.root.findAll((node) => typeof node.type === 'string' && name in node.props) ?? [];
 const sectionsSwitch = (): ReactTestInstance | undefined => byData('data-thread-sections')[0];
-const filterKeys = () =>
-  byData('data-filter-key').map((node) => node.props['data-filter-key'] as string);
+const tabs = () => byData('data-thread-tab').map((node) => node.props['data-thread-tab'] as string);
 
 describe('the Sections switch of the Compact filter bar', () => {
   it('shows only where the cards can show in sections', () => {
@@ -77,85 +74,18 @@ describe('the Sections switch of the Compact filter bar', () => {
     expect(onToggleThreadSections).toHaveBeenCalledTimes(1);
   });
 
-  it('leaves out the controls Sections decide for themselves: sort, lock and Unresolved', () => {
+  it('leaves out only the sort and its lock, which Sections decide, and keeps every filter', () => {
     renderBar(true, { onToggleThreadSections: noop, threadSections: true });
     expect(sectionsSwitch()?.props['aria-pressed']).toBe(true);
     expect(sectionsSwitch()?.props.className).toContain(css.SortButtonActive);
     expect(byData('data-sort-by')).toHaveLength(0);
-    expect(byData('data-simple-unresolved-toggle')).toHaveLength(0);
+    expect(byData('data-simple-unresolved-toggle')).toHaveLength(1);
 
     act(() => renderer?.unmount());
     renderBar(false, { onToggleThreadSections: noop, threadSections: true });
     expect(byData('data-sort-by')).toHaveLength(0);
     expect(byData('data-thread-sort-freeze')).toHaveLength(0);
-    // Resolved, snoozed and idle threads have sections of their own; the other filters still
-    // apply.
-    expect(filterKeys()).toEqual(['streaming', 'scheduled', 'unread']);
+    expect(tabs()).toEqual(['needsYou', 'working', 'later', 'done', 'all']);
     expect(byData('data-search-toggle')).toHaveLength(1);
-  });
-
-  it('leaves out the presets while Sections are on, and offers them again once off', () => {
-    renderBar(false, { onToggleThreadSections: noop, threadSections: true });
-    expect(byData('data-preset-button')).toHaveLength(0);
-
-    act(() => renderer?.unmount());
-    renderBar(false, { onToggleThreadSections: noop, threadSections: false });
-    expect(byData('data-preset-button')).toHaveLength(1);
-  });
-
-  it('drops the label of an applied preset when Sections turn on', () => {
-    renderBar(false, { onToggleThreadSections: noop });
-    const presetLabel = () =>
-      byData('data-preset-button')[0]?.findAll((node) => typeof node.props.children === 'string')[0]
-        ?.props.children as string;
-    const unset = presetLabel();
-    act(() => {
-      byData('data-preset-button')[0]?.props.onClick();
-    });
-    act(() => {
-      byData('data-preset-option')
-        .find((node) => node.props['data-preset-option'] === 'archived')
-        ?.props.onMouseDown({ preventDefault: noop });
-    });
-    expect(presetLabel()).not.toBe(unset);
-
-    act(() => {
-      sectionsSwitch()?.props.onClick();
-    });
-
-    expect(presetLabel()).toBe(unset);
-  });
-
-  it('clears a status token from the search once the search applies without it', () => {
-    renderBar(false, { onToggleThreadSections: noop, threadSections: true });
-    const searchBar = () => {
-      const [bar] =
-        renderer?.root.findAll(
-          (node) => typeof node.type === 'function' && 'searchQuery' in node.props
-        ) ?? [];
-      if (!bar) throw new Error('no search bar');
-      return bar;
-    };
-    act(() => {
-      searchBar().props.onSearchQueryChange('is:resolved');
-    });
-    expect(searchBar().props.searchQuery).toBe('is:resolved');
-
-    // The search applies: Sections keep the hidden filters, so the state comes back as it was.
-    act(() => {
-      renderer?.update(
-        <Provider store={store}>
-          <RoomThreadOverview
-            {...props({
-              onToggleThreadSections: noop,
-              threadSections: true,
-              state: createDefaultThreadFilterState(),
-            })}
-          />
-        </Provider>
-      );
-    });
-
-    expect(searchBar().props.searchQuery).toBe('');
   });
 });

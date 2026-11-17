@@ -1,7 +1,9 @@
 import { MsgType } from 'matrix-js-sdk';
 import { createEditor, type Descendant } from 'slate';
 import { describe, expect, it } from 'vitest';
+import { MESSAGE_COMMANDS } from '../editor/messageCommand';
 import { createMentionElement, withInlineElements } from '../editor/utils';
+import { Command } from './commands/useCommands';
 import { composeTextMessage } from './composeTextMessage';
 import { htmlToEditorInput } from '../editor/input';
 
@@ -103,6 +105,22 @@ describe('composeTextMessage', () => {
     expect(content?.msgtype).toBe(MsgType.Text);
   });
 
+  it("sends a MindRoom command as typed, for the room's agents to answer", () => {
+    [
+      '/schedule in 5 min do x',
+      '/Schedule in 5 min do x',
+      '/list_schedules',
+      '/reload-plugins',
+      '/room_model reset',
+    ].forEach((text) =>
+      expect(compose([line({ text })]), text).toEqual({
+        msgtype: MsgType.Text,
+        body: text,
+        'm.mentions': {},
+      })
+    );
+  });
+
   it('sends /plain as the text typed, without reading Markdown or adding HTML', () => {
     expect(compose([line({ text: '/plain a **literal** _thing_' })])).toEqual({
       msgtype: MsgType.Text,
@@ -188,4 +206,9 @@ describe('composeTextMessage', () => {
         '<a data-md href="https://example.org">web</a>'
     );
   });
+});
+
+it('reads only message commands the composer offers', () => {
+  const commands: readonly string[] = Object.values(Command);
+  expect(MESSAGE_COMMANDS.filter((name) => !commands.includes(name))).toEqual([]);
 });

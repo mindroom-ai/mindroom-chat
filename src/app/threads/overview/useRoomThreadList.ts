@@ -1,11 +1,14 @@
 import { MatrixEvent, Room, ThreadEvent, type IEvent } from 'matrix-js-sdk';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  getRoomThreadsUnread,
   loadRoomThreads,
   roomThreadListIsComplete,
   sortThreadsByActivity,
 } from '../../event-store/threads/roomThreadList';
+import {
+  buildThreadUnreadMap,
+  type ThreadRecordChanges,
+} from '../../event-store/threads/threadRecord';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useSyncEngine } from '../../event-store/engine/engineContext';
 import {
@@ -70,7 +73,17 @@ const getRootRevision = (room: Room, rootEvent: MatrixEvent): number => {
   );
 };
 
-export const useRoomThreadList = (room: Room, enabled = true) => {
+/**
+ * The room's threads, unread first and then by activity, and their unread marks.
+ * `overviewChanges` and `overviewRefreshCounter` are the room's (`useThreadOverviewRefreshCounter`):
+ * each count checks the marks of the threads it may have changed (`buildThreadUnreadMap`).
+ */
+export const useRoomThreadList = (
+  room: Room,
+  enabled: boolean,
+  overviewChanges: ThreadRecordChanges,
+  overviewRefreshCounter: number
+) => {
   const mx = useMatrixClient();
   const engine = useSyncEngine();
   const [loading, setLoading] = useState(enabled);
@@ -270,10 +283,20 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
     return room.getThreads();
   }, [room, version]);
   const userId = mx.getUserId() ?? '';
-  const threadUnreads = useMemo(
-    () => (enabled ? getRoomThreadsUnread(rawThreads, userId) : new Map<string, boolean>()),
-    [enabled, rawThreads, userId]
-  );
+  // The marks of the last build. A count checks the threads it marked (a reply, the reader's
+  // receipt in a thread), not every thread of the room, and keeps the map while no mark changed.
+  const builtUnreadsRef = useRef<ReadonlyMap<string, boolean>>();
+  const threadUnreads = useMemo(() => {
+    // A receipt raises the count and leaves the list as it was.
+    void overviewRefreshCounter;
+    if (!enabled) return new Map<string, boolean>();
+    const built = buildThreadUnreadMap(room, rawThreads, userId, {
+      previous: builtUnreadsRef.current,
+      changes: overviewChanges,
+    });
+    builtUnreadsRef.current = built;
+    return built;
+  }, [enabled, room, rawThreads, userId, overviewRefreshCounter, overviewChanges]);
   const threads = useMemo(
     // Non-compact surfaces still use known roots for deep links, but not this ordering.
     () => (enabled ? sortThreadsByActivity(rawThreads, threadUnreads) : rawThreads),

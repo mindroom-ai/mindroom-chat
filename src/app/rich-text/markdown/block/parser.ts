@@ -26,21 +26,25 @@ const createBlockFinder = (text: string, rule: BlockMDRule): BlockFinder => {
   };
 };
 
+/** A block a rule found: where it starts and ends in the text, and the rule's match. */
+export type FoundBlockMD = {
+  rule: BlockMDRule;
+  match: RegExpMatchArray;
+  start: number;
+  end: number;
+};
+
 /**
- * Renders block Markdown with the given rules: the block that starts first wins, the earlier rule
- * on a tie, and the text between blocks is rendered line by line with `parseInline`. Every block
- * starts at a line start, so a rule's match stays valid until the parse passes its start.
+ * The blocks of `text` under the given rules, in order: the block that starts first wins, the
+ * earlier rule on a tie, and the next block is searched after it. Every block starts at a line
+ * start, so a rule's match stays valid until the search passes its start.
  */
-export const parseBlockMDWithRules = (
-  text: string,
-  rules: BlockMDRule[],
-  parseInline: InlineMDParser = plainText
-): string => {
+export const findBlocksMD = (text: string, rules: BlockMDRule[]): FoundBlockMD[] => {
   // `found` is unset until the rule is searched, and null once it has no block left.
   const searches: { rule: BlockMDRule; find: BlockFinder; found?: FoundBlock | null }[] = rules.map(
     (rule) => ({ rule, find: createBlockFinder(text, rule) })
   );
-  let output = '';
+  const blocks: FoundBlockMD[] = [];
   let cursor = 0;
   while (cursor < text.length) {
     let best: FoundBlock | null = null;
@@ -56,10 +60,28 @@ export const parseBlockMDWithRules = (
       }
     }
     if (!best || !bestRule) break;
-    if (best.index > cursor) output += renderText(text.slice(cursor, best.index), parseInline);
-    output += bestRule.html(parseInline, best.match);
     cursor = best.index + best.match[0].length;
+    blocks.push({ rule: bestRule, match: best.match, start: best.index, end: cursor });
   }
+  return blocks;
+};
+
+/**
+ * Renders block Markdown with the given rules: each block `findBlocksMD` finds, and the text
+ * between blocks rendered line by line with `parseInline`.
+ */
+export const parseBlockMDWithRules = (
+  text: string,
+  rules: BlockMDRule[],
+  parseInline: InlineMDParser = plainText
+): string => {
+  let output = '';
+  let cursor = 0;
+  findBlocksMD(text, rules).forEach(({ rule, match, start, end }) => {
+    if (start > cursor) output += renderText(text.slice(cursor, start), parseInline);
+    output += rule.html(parseInline, match);
+    cursor = end;
+  });
   if (cursor < text.length) output += renderText(text.slice(cursor), parseInline);
   return output;
 };

@@ -366,8 +366,7 @@
       "streaming": "A transmitir",
       "scheduled": "Agendado",
       "unread": "Não lido",
-      "idle": "Inativo",
-      "idleFilter": "Inativo (resolvido, sem transmissão e sem tarefas)"
+      "idle": "Inativo"
     },
     "stats": {
       "aria": "Estatísticas dos tópicos",
@@ -376,17 +375,6 @@
       "threadCount_other": "{{count}} tópicos",
       "tags": "Etiquetas",
       "threadCount_many": "{{count}} tópicos"
-    },
-    "filterTooltip": {
-      "any": "{{label}}: a mostrar todos. Clique para mostrar apenas este.",
-      "include": "{{label}}: mostrar apenas este. Clique para o ocultar.",
-      "exclude": "{{label}}: oculto. Clique para limpar o filtro.",
-      "tagAny": "Etiqueta «{{tag}}»",
-      "tagInclude": "Etiqueta «{{tag}}»: mostrar apenas esta. Clique para a ocultar.",
-      "tagExclude": "Etiqueta «{{tag}}»: oculta. Clique para limpar o filtro.",
-      "stateAny": "a mostrar todos",
-      "stateInclude": "mostrar apenas este",
-      "stateExclude": "oculto"
     },
     "filters": {
       "scope": "Âmbito",
@@ -2260,7 +2248,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "voice": {
@@ -2903,8 +2891,6 @@
         "addTagFilter": "Adicionar filtro de etiqueta",
         "tag": "+ etiqueta",
         "availableTags": "Etiquetas disponíveis",
-        "filterPresets": "Predefinições de filtros",
-        "preset": "Predefinição",
         "searchThreads": "Pesquisar tópicos",
         "searchThreads2": "Pesquisar tópicos...",
         "roomViewMode": "Modo de visualização da sala",
@@ -2925,28 +2911,6 @@
         "lockSortOrder": "Bloquear ordenação (atualmente {{sort}})",
         "threadCount_one": "{{count}} tópico",
         "threadCount_other": "{{count}} tópicos",
-        "presets": {
-          "needs-attention": {
-            "label": "Requer atenção",
-            "description": "Tópicos não resolvidos, sem transmissão e não agendados"
-          },
-          "working": {
-            "label": "Em curso",
-            "description": "Em transmissão ou agendados — aquilo em que está a trabalhar agora"
-          },
-          "review-queue": {
-            "label": "Fila de revisão",
-            "description": "Tópicos não resolvidos com respostas não lidas"
-          },
-          "archived": {
-            "label": "Arquivados",
-            "description": "Apenas tópicos resolvidos"
-          },
-          "all": {
-            "label": "Todos",
-            "description": "Repor todos os filtros"
-          }
-        },
         "showingFilteredThreads_many": "A mostrar {{count}} de {{total}} tópicos",
         "showingAllThreads_many": "A mostrar {{count}} tópicos",
         "threadCount_many": "{{count}} tópicos"
@@ -3112,7 +3076,7 @@
       "intro": "Neste tópico, as chamadas de ferramentas que estas pessoas pedem são executadas sem cartões de aprovação.",
       "you": "Você",
       "until": "Até {{time}}",
-      "ownUntil": "Até {{time}}. Envie !auto_approve off para encerrar."
+      "ownUntil": "Até {{time}}. Envie /auto_approve off para encerrar."
     },
     "notices": {
       "dismiss": "Fechar aviso",

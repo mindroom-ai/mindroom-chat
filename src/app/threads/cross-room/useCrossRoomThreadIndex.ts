@@ -1,3 +1,10 @@
+import {
+  getRoomThreadScheduledStatusMap,
+  getThreadScheduledStatus,
+} from '../../event-store/threads/threadScheduledStatus';
+import { MINDROOM_SCHEDULED_TASK_EVENT } from '../../matrix/protocol/scheduledTaskContract';
+import { roomThreadBackgroundJobs } from '../../matrix/protocol/threadBackgroundJobs';
+import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../../matrix/protocol/backgroundJobsContract';
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
@@ -15,7 +22,10 @@ import {
   getThreadSummaryStateSnapshot,
   subscribeToThreadSummaryState,
 } from '../../event-store/threads/threadSummaryState';
-import { MINDROOM_THREAD_TAGS_EVENT, parsePerTagStateKey } from '../../event-store/threads/threadTags';
+import {
+  MINDROOM_THREAD_TAGS_EVENT,
+  parsePerTagStateKey,
+} from '../../event-store/threads/threadTags';
 import { getRoomThreadTagSnapshotMap } from '../tags/threadTagSnapshots';
 import { StateEvent } from '../../matrix/types/room';
 import { subscribePendingPins } from '../../event-store/threads/threadPinning';
@@ -34,12 +44,6 @@ import {
   type CrossRoomThreadIndexEntry,
 } from './crossRoomThreadIndex';
 import { matchesEnum } from '../../lib/matchesEnum';
-import { agentRoomState, sameEvents } from '../../matrix/protocol/agentRoomState';
-import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
-import {
-  MINDROOM_BACKGROUND_JOBS_EVENT,
-  selectBackgroundJobThreadIds,
-} from '../../matrix/protocol/backgroundJobsContract';
 
 const BOOTSTRAP_ROOM_CHUNK_SIZE = 5;
 
@@ -208,6 +212,7 @@ export const useCrossRoomThreadIndex = () => {
   useEffect(() => {
     if (!userId) return undefined;
 
+    const lastBackgroundJobs = new WeakMap<Room, ReturnType<typeof roomThreadBackgroundJobs>>();
     let disposed = false;
     let idleHandle: number | undefined;
     const effectSessionId = activeSession?.sessionId;
@@ -223,22 +228,11 @@ export const useCrossRoomThreadIndex = () => {
       if (!recentRoomOrder.has(entry.roomId)) recentRoomOrder.set(entry.roomId, index);
     });
 
-    // Each room's jobs state from the agents still in it, as the index last read it, and the
-    // threads its jobs run in. A job that ends is found here even before the snapshot that
-    // marked its thread renders.
-    const readJobs = new Map<string, { events: MatrixEvent[]; threadIds: ReadonlySet<string> }>();
-    const readRoomJobThreadIds = (room: Room): ReadonlySet<string> => {
-      const events = agentRoomState(room, MINDROOM_BACKGROUND_JOBS_EVENT);
-      const threadIds = selectBackgroundJobThreadIds(events);
-      readJobs.set(room.roomId, { events, threadIds });
-      return threadIds;
-    };
-
     const buildEntry = (
       roomId: string,
       threadRootId: string,
       roomTagSnapshots: Map<string, ReturnType<typeof getRoomThreadTagSnapshotMap>>,
-      roomJobThreadIds: Map<string, ReadonlySet<string>>
+      roomSchedules: Map<string, ReturnType<typeof getRoomThreadScheduledStatusMap>>
     ) => {
       if (!roomDisposers.has(roomId)) return undefined;
 
@@ -263,10 +257,11 @@ export const useCrossRoomThreadIndex = () => {
         tagSnapshots = getRoomThreadTagSnapshotMap(room);
         roomTagSnapshots.set(roomId, tagSnapshots);
       }
-      let jobThreadIds = roomJobThreadIds.get(roomId);
-      if (!jobThreadIds) {
-        jobThreadIds = readRoomJobThreadIds(room);
-        roomJobThreadIds.set(roomId, jobThreadIds);
+
+      let schedules = roomSchedules.get(roomId);
+      if (!schedules) {
+        schedules = getRoomThreadScheduledStatusMap(room);
+        roomSchedules.set(roomId, schedules);
       }
 
       return buildCrossRoomThreadIndexEntry({
@@ -275,7 +270,7 @@ export const useCrossRoomThreadIndex = () => {
         summaryInfo: summaryMap.get(threadRootId),
         currentUserId: userIdRef.current,
         tagSnapshot: tagSnapshots.get(threadRootId) ?? null,
-        hasBackgroundJob: jobThreadIds.has(threadRootId),
+        scheduledStatus: getThreadScheduledStatus(schedules, threadRootId),
       });
     };
 
@@ -289,7 +284,8 @@ export const useCrossRoomThreadIndex = () => {
         const removals: CrossRoomThreadIndexBatchRemoval[] = [];
         // Scope reuse to this synchronous flush so later state events always win.
         const roomTagSnapshots = new Map<string, ReturnType<typeof getRoomThreadTagSnapshotMap>>();
-        const roomJobThreadIds = new Map<string, ReadonlySet<string>>();
+
+        const roomSchedules = new Map<string, ReturnType<typeof getRoomThreadScheduledStatusMap>>();
 
         keys.forEach((key) => {
           const parsed = parseCrossRoomThreadIndexKey(key);
@@ -299,7 +295,7 @@ export const useCrossRoomThreadIndex = () => {
             parsed.roomId,
             parsed.threadRootId,
             roomTagSnapshots,
-            roomJobThreadIds
+            roomSchedules
           );
           if (!entry) {
             removals.push(parsed);
@@ -513,7 +509,6 @@ export const useCrossRoomThreadIndex = () => {
     };
 
     const removeRoomFromIndex = (roomId: string) => {
-      readJobs.delete(roomId);
       setSnapshot((current) => removeRoomCrossRoomThreadIndexEntries(current, roomId));
     };
 
@@ -585,23 +580,37 @@ export const useCrossRoomThreadIndex = () => {
     };
     const unsubscribePendingPins = subscribePendingPins(handlePinChange);
 
-    // A thread's background jobs change with no timeline event: the threads the agent's jobs
-    // state names now, and those that had a job when the index last read the jobs, are built
-    // again.
-    const enqueueBackgroundJobThreads = (room: Room, jobsStateEvents: MatrixEvent[]) => {
-      selectBackgroundJobThreadIds(jobsStateEvents).forEach((threadRootId) =>
-        enqueueThread(room.roomId, threadRootId)
-      );
-      readJobs
-        .get(room.roomId)
-        ?.threadIds.forEach((threadRootId) => enqueueThread(room.roomId, threadRootId));
+    const refreshBackgroundJobs = (room: Room) => {
+      const states = roomThreadBackgroundJobs(room);
+      if (lastBackgroundJobs.get(room) === states) return;
+      lastBackgroundJobs.set(room, states);
+      // Lazy member state can arrive unchanged with every sync. Only rebuild roots whose
+      // workflow flags actually changed, including jobs that disappeared from state.
+      snapshotRef.current.entries.forEach((entry) => {
+        if (entry.roomId !== room.roomId) return;
+        const next = states.get(entry.threadRootId);
+        const previous = entry.threadRecord.status;
+        if (
+          !!next?.hasBackgroundJob !== !!previous.hasBackgroundJob ||
+          !!next?.hasBackgroundApproval !== !!previous.hasBackgroundApproval
+        ) {
+          enqueueThread(room.roomId, entry.threadRootId);
+        }
+      });
+    };
+
+    const handleMembers = (_event: MatrixEvent, roomState: { roomId?: string }) => {
+      const room = roomState.roomId ? mx.getRoom(roomState.roomId) : undefined;
+      if (room && roomDisposers.has(room.roomId)) refreshBackgroundJobs(room);
     };
 
     const handleStateEvent = (event: MatrixEvent, roomState: { roomId?: string }) => {
       const type = event.getType();
       const pinsChanged = matchesEnum(type, StateEvent.RoomPinnedEvents);
       const jobsChanged = type === MINDROOM_BACKGROUND_JOBS_EVENT;
-      if (type !== MINDROOM_THREAD_TAGS_EVENT && !pinsChanged && !jobsChanged) return;
+      const schedulesChanged = type === MINDROOM_SCHEDULED_TASK_EVENT;
+      if (type !== MINDROOM_THREAD_TAGS_EVENT && !pinsChanged && !jobsChanged && !schedulesChanged)
+        return;
       const roomId =
         roomState?.roomId ?? (event as unknown as { getRoomId?: () => string }).getRoomId?.();
       if (!roomId) return;
@@ -610,8 +619,21 @@ export const useCrossRoomThreadIndex = () => {
       if (!room) return;
       if (!roomDisposers.has(room.roomId)) return;
 
-      if (jobsChanged) {
-        enqueueBackgroundJobThreads(room, [event]);
+      if (schedulesChanged) {
+        const schedules = getRoomThreadScheduledStatusMap(room);
+        snapshotRef.current.entries.forEach((entry) => {
+          if (entry.roomId !== room.roomId) return;
+          const next = getThreadScheduledStatus(schedules, entry.threadRootId);
+          const previous = entry.threadRecord.status;
+          if (
+            next.scheduledTaskCount !== previous.scheduledTaskCount ||
+            next.nextScheduledTs !== previous.nextScheduledTs ||
+            next.cronDescription !== previous.cronDescription
+          )
+            enqueueThread(room.roomId, entry.threadRootId);
+        });
+      } else if (jobsChanged) {
+        refreshBackgroundJobs(room);
       } else if (pinsChanged) {
         handlePinChange(room);
       } else {
@@ -619,23 +641,6 @@ export const useCrossRoomThreadIndex = () => {
         if (typeof stateKey !== 'string') return;
         enqueueThread(room.roomId, parsePerTagStateKey(stateKey)?.threadRootId ?? stateKey);
       }
-    };
-
-    // An agent that leaves can no longer clear its jobs, so they stop counting. The SDK updates
-    // its member list after the member event's own state event, so this listens for the list.
-    // Sync hands an agent's member event over again with every batch it sends in, unchanged, so
-    // only a membership change that adds or drops jobs state builds threads again.
-    const handleMembers = (
-      _event: MatrixEvent,
-      roomState: { roomId?: string },
-      member: { userId: string }
-    ) => {
-      const room = roomState?.roomId ? mx.getRoom(roomState.roomId) : null;
-      if (!room || !roomDisposers.has(room.roomId)) return;
-      if (!isMindroomAgentUserIdForViewer(member.userId, userIdRef.current)) return;
-      const jobsState = agentRoomState(room, MINDROOM_BACKGROUND_JOBS_EVENT);
-      if (sameEvents(jobsState, readJobs.get(room.roomId)?.events ?? [])) return;
-      enqueueBackgroundJobThreads(room, jobsState);
     };
 
     const handleDecrypted = (event: MatrixEvent) => {
@@ -659,6 +664,7 @@ export const useCrossRoomThreadIndex = () => {
 
     mx.on(RoomEvent.MyMembership, handleMembership);
     mx.on(RoomStateEvent.Events, handleStateEvent);
+    // Members fires after the SDK updates getMember(); Events fires before it.
     mx.on(RoomStateEvent.Members, handleMembers);
     mx.on(MatrixEventEvent.Decrypted, handleDecrypted);
 

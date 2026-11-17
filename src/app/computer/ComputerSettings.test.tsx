@@ -95,6 +95,16 @@ describe('computer service settings', () => {
     expect(input().props.placeholder).toBeUndefined();
   });
 
+  it('shows a service saved elsewhere, such as the Server in use tile', () => {
+    discovery.urls = ['http://localhost:8765'];
+    render();
+    act(() => {
+      store.set(computerServicePreferenceAtom, 'https://custom.example');
+    });
+    expect(input().props.value).toBe('https://custom.example');
+    expect(input().props.placeholder).toBeUndefined();
+  });
+
   it('keeps a service the user previously saved', () => {
     act(() => {
       store.set(computerServicePreferenceAtom, 'https://custom.example');

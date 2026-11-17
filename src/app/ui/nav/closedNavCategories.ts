@@ -51,7 +51,13 @@ export const makeClosedNavCategoriesAtom = (
 
   const closedAtom = atomWithLocalStorage<Set<string>>(
     closedKey,
-    (key) => new Set(readStringArray(key)),
+    // Preserve the fold of the section formerly named Snoozed. Next write uses Later.
+    (key) =>
+      new Set(
+        readStringArray(key).map((id) =>
+          id === 'mindroom|threads|snoozed' ? 'mindroom|threads|later' : id
+        )
+      ),
     (key, categories) => setLocalStorageItem(key, Array.from(categories))
   );
 

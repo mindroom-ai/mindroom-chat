@@ -360,7 +360,9 @@
       },
       "computers": {
         "inUse": "使用中的伺服器",
-        "inUseNone": "未設定，因此此裝置上的電腦已關閉。"
+        "inUseNone": "未設定，因此此裝置上的電腦已關閉。",
+        "useServer": "使用 {{host}}",
+        "foundNotSaved": "從您的代理找到，尚未儲存；儲存後即可在此輸入金鑰。"
       },
       "keywords": {
         "theme": "深色模式, 淺色模式, 夜間模式, 顏色",
@@ -716,7 +718,7 @@
         "declinedWaiting": "已拒絕，等待代理程式",
         "noLongerActive": "此請求已失效。請再次向代理程式提出。",
         "unavailable": "此伺服器不支援輸入金鑰。",
-        "unavailableHint": "若要在此輸入金鑰，請在設定 → {{page}} → {{field}} 中設定您的 MindRoom 伺服器。",
+        "unavailableHint": "若要在此輸入金鑰，請在設定 → {{page}} 中儲存您的 MindRoom 伺服器。",
         "replaces": "將取代目前儲存的金鑰。",
         "replaceKey": "取代金鑰",
         "temporary": {
@@ -762,6 +764,13 @@
       "finishedWork": {
         "workedFor": "工作了 {{duration}}",
         "worked": "已工作"
+      },
+      "questionCard": {
+        "title": "問題",
+        "waiting": "等你回答",
+        "answered": "已回答",
+        "youChose": "你已選擇",
+        "nameChose": "{{name}} 已選擇"
       }
     },
     "message-search": {
@@ -782,13 +791,7 @@
         "threadFiltersActive": "討論串篩選器（已啟用）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "進階篩選器",
-        "presets": {
-          "snoozed": {
-            "label": "已延後",
-            "description": "僅已延後的討論串"
-          }
-        }
+        "advancedFilters": "進階篩選器"
       },
       "threadPeopleFilter": {
         "label": "參與者",
@@ -960,6 +963,20 @@
     "status": {
       "snoozed": "已延後"
     },
+    "workflow": {
+      "needsYou": "需要你處理",
+      "working": "處理中",
+      "later": "稍後",
+      "done": "已完成",
+      "all": "全部",
+      "description": {
+        "needsYou": "背景工作需要核准，或沒有正在執行或已排程的工作。",
+        "working": "代理程式正在回覆，或子代理程式或背景工具正在執行。",
+        "later": "已暫緩，或正在等待排程工作。",
+        "done": "已解決的討論串。",
+        "all": "符合其他篩選條件的所有討論串。"
+      }
+    },
     "renameHint": "按兩下以重新命名"
   },
   "threadSnooze": {
@@ -1067,7 +1084,7 @@
       "working": "AI 代理工作中",
       "recent": "最近",
       "automations": "自動化",
-      "snoozed": "已延後"
+      "later": "稍後"
     },
     "showMore": "顯示更多",
     "chips": {
@@ -1278,7 +1295,7 @@
     "sectionsHint": "將討論串分為進行中、已延後、閒置和已解決",
     "sections": {
       "working": "進行中",
-      "snoozed": "已延後",
+      "later": "稍後",
       "idle": "閒置",
       "resolved": "已解決"
     },

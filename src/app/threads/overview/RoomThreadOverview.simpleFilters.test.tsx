@@ -13,7 +13,6 @@ const props = (overrides: Partial<RoomThreadOverviewProps> = {}): RoomThreadOver
   totalThreadCount: 3,
   state: createDefaultThreadFilterState(),
   availableTags: [],
-  onToggle: noop,
   onSortDirectionChange: noop,
   onToggleThreadSortFreeze: noop,
   onToggleUnresolvedOnly: noop,
@@ -21,7 +20,6 @@ const props = (overrides: Partial<RoomThreadOverviewProps> = {}): RoomThreadOver
   onClearTags: noop,
   onAddTag: noop,
   onRemoveTag: noop,
-  onApplyPreset: noop,
   onSearchQueryChange: noop,
   ...overrides,
 });
@@ -77,7 +75,8 @@ describe('thread filter bar modes', () => {
     expect(store.get(settingsAtom).simpleThreadFilters).toBe(false);
     expect(modeSwitch().props['aria-pressed']).toBe(true);
     expect(modeSwitch().props.className).toContain(css.PauseButtonActive);
-    expect(statusToggles().length).toBeGreaterThan(0);
+    expect(byData('data-thread-tab')).toHaveLength(5);
+    expect(statusToggles()).toHaveLength(0);
     expect(unresolvedToggles()).toHaveLength(0);
 
     act(() => {

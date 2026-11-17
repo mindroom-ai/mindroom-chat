@@ -3,6 +3,8 @@ import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from './directional';
 
+// patches/folds+2.7.1.patch: Folds' useTooltip placed an open tooltip only when it opened, so
+// details that grew later pushed it past the viewport edge; the patch places it again on resize.
 // Exercise Folds' real positioning, not a stand-in for the tooltip provider.
 class Resize implements ResizeObserver {
   static active = new Set<Resize>();

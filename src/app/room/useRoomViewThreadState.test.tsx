@@ -10,10 +10,12 @@ import {
 } from '../threads/overview/roomThreadFilterState';
 import {
   createDefaultThreadFilterState,
-  FILTER_PRESETS,
+  hasActiveThreadFilters,
   serializeThreadFilterState,
   type ThreadFilterState,
 } from '../event-store/threads/roomThreadOverviewModel';
+import { matchesThreadRecordFilterState } from '../event-store/threads/threadRecordOverview';
+import type { ThreadRecord } from '../event-store/threads/types';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { useEdgeSwipeForward } from '../navigation/useEdgeSwipeForward';
@@ -255,8 +257,12 @@ describe('useRoomViewThreadState', () => {
     viewMode.current = 'threaded';
     const { store, current } = mountThreadState();
 
-    act(() => current().handleToggle('resolved'));
-    act(() => current().handleToggle('resolved'));
+    vi.useFakeTimers();
+    act(() => current().handleSearchQueryChange('-is:resolved'));
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    vi.useRealTimers();
 
     expect(current().threadFilterState.resolved).toBe('exclude');
     expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID))?.resolved).toBe('exclude');
@@ -291,18 +297,56 @@ describe('useRoomViewThreadState', () => {
     expect(mountThreadState().current().threadFilterState.snoozed).toBe('any');
   });
 
-  it('follows the view for its default until the reader chooses a filter', () => {
+  it('defaults only advanced Compact agent rooms to Needs you and preserves a chosen tab', () => {
     const { current, rerender } = mountThreadState({ advancedFilters: true });
-    expect(current().threadFilterState.resolved).toBe('exclude');
-
+    expect(current().threadFilterState.tab).toBe('needsYou');
+    expect(current().threadFilterState.resolved).toBe('any');
     viewMode.current = 'threaded';
     rerender();
-    expect(current().threadFilterState.resolved).toBe('any');
-
-    act(() => current().handleToggle('resolved'));
+    expect(current().threadFilterState.tab).toBeUndefined();
+    expect(hasActiveThreadFilters(current().threadFilterState)).toBe(false);
+    act(() => current().handleSelectTab('working'));
     viewMode.current = 'compact';
     rerender();
-    expect(current().threadFilterState.resolved).toBe('include');
+    expect(current().threadFilterState.tab).toBe('working');
+  });
+
+  it('keeps a sending root visible when it starts streaming in default advanced Threads', () => {
+    viewMode.current = 'threaded';
+    const { current } = mountThreadState({ advancedFilters: true });
+    const root: ThreadRecord = {
+      roomId: ROOM_ID,
+      threadRootId: '$sending',
+      presentation: {
+        summaryInfo: undefined,
+        summaryText: undefined,
+        rootPreviewText: undefined,
+        latestReplyPreviewText: undefined,
+        lastSenderId: undefined,
+        lastSenderDisplayName: undefined,
+        messageCount: 0,
+        participantIds: [],
+        replyParticipantIds: [],
+        primarySummaryText: undefined,
+        recentThreadSummaryText: undefined,
+      },
+      cache: { eventCount: 0, relationSnapshotComplete: false, tailLoaded: false },
+      absoluteIndex: 0,
+      status: {
+        isKnownThreadRoot: true,
+        replyCount: 0,
+        isResolved: false,
+        isUnread: false,
+        isStreaming: false,
+        hasPendingSend: true,
+        scheduledTaskCount: 0,
+        tags: [],
+      },
+    };
+    expect(matchesThreadRecordFilterState(root, current().threadFilterState)).toBe(true);
+    root.status.hasPendingSend = false;
+    root.status.isStreaming = true;
+    expect(matchesThreadRecordFilterState(root, current().threadFilterState)).toBe(true);
   });
 
   it('shows resolved threads by default outside Compact', () => {
@@ -380,7 +424,7 @@ describe('useRoomViewThreadState', () => {
     expect(current().threadSortFreezeState).toBeNull();
   });
 
-  it('shows resolved and snoozed threads in Compact Sections and keeps every other filter', () => {
+  it('turns Compact Sections on for the account and leaves every filter as it was', () => {
     storeFilter({
       ...createDefaultThreadFilterState(),
       resolved: 'exclude',
@@ -389,156 +433,28 @@ describe('useRoomViewThreadState', () => {
       freeText: 'launch',
     });
     const { store, current } = mountThreadState({ advancedFilters: true });
+    const before = current().threadFilterState;
     expect(current().threadSections).toBe(false);
 
     act(() => current().handleToggleThreadSections());
 
     expect(current().threadSections).toBe(true);
-    expect(current().threadFilterState).toMatchObject({
-      resolved: 'any',
-      snoozed: 'any',
-      unread: 'include',
-      freeText: 'launch',
-    });
-    // The room's stored filter stays as the reader set it, and the choice is the account's.
-    expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID))).toMatchObject({
-      resolved: 'exclude',
-      snoozed: 'exclude',
-    });
     expect(store.get(getCompactRoomSectionsAtom(USER_ID)).on).toBe(true);
+    // Sections group whatever the filters show: no filter changes with them.
+    expect(current().threadFilterState).toEqual(before);
 
     act(() => current().handleToggleThreadSections());
-    expect(current().threadFilterState).toMatchObject({ resolved: 'exclude', snoozed: 'exclude' });
+    expect(current().threadSections).toBe(false);
+    expect(current().threadFilterState).toEqual(before);
   });
 
-  describe('while Compact shows sections, the stored resolved and snoozed filters', () => {
-    const hidden = { resolved: 'exclude', snoozed: 'exclude' } as const;
-    /** Mounts with both stored as `exclude`, Sections on, and fake timers for the search pause. */
-    const mountWithSections = () => {
-      vi.useFakeTimers();
-      storeFilter({ ...createDefaultThreadFilterState(), ...hidden });
-      const mounted = mountThreadState({ advancedFilters: true });
-      act(() => mounted.current().handleToggleThreadSections());
-      const stored = () => mounted.store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID));
-      const search = (query: string) => {
-        act(() => mounted.current().handleSearchQueryChange(query));
-        act(() => {
-          vi.advanceTimersByTime(300);
-        });
-      };
-      const sectionsOff = () => act(() => mounted.current().handleToggleThreadSections());
-      return { ...mounted, stored, search, sectionsOff };
-    };
-    afterEach(() => {
-      vi.useRealTimers();
-    });
+  it('keeps the selected tab while Compact shows sections', () => {
+    const { current } = mountThreadState({ advancedFilters: true });
+    act(() => current().handleSelectTab('later'));
 
-    it('survive a search edit, and apply again once Sections are off', () => {
-      const { current, stored, search, sectionsOff } = mountWithSections();
+    act(() => current().handleToggleThreadSections());
 
-      search('launch');
-
-      expect(stored()).toMatchObject({ ...hidden, freeText: 'launch' });
-      sectionsOff();
-      expect(current().threadFilterState).toMatchObject({ ...hidden, freeText: 'launch' });
-    });
-
-    it('survive the status tokens of a search', () => {
-      const { current, stored, search, sectionsOff } = mountWithSections();
-
-      search('is:resolved is:snoozed launch');
-
-      expect(stored()).toMatchObject({ ...hidden, freeText: 'launch' });
-      sectionsOff();
-      expect(current().threadFilterState).toMatchObject(hidden);
-    });
-
-    it('survive Sections going off while a typed query still waits', () => {
-      vi.useFakeTimers();
-      const { store, current } = mountThreadState({ advancedFilters: true });
-      act(() => current().handleToggleThreadSections());
-
-      act(() => current().handleSearchQueryChange('foo'));
-      act(() => current().handleToggleThreadSections());
-      act(() => {
-        vi.advanceTimersByTime(300);
-      });
-
-      // The room's defaults: a fresh Compact room hides resolved and snoozed threads.
-      expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID))).toMatchObject({
-        ...hidden,
-        freeText: 'foo',
-      });
-      expect(current().threadFilterState).toMatchObject({ ...hidden, freeText: 'foo' });
-    });
-
-    it.each([
-      ['Reset', (state: RoomViewThreadState) => state.handleReset()],
-      [
-        'the All preset',
-        (state: RoomViewThreadState) =>
-          state.handleApplyPreset(FILTER_PRESETS.find((preset) => preset.id === 'all')!),
-      ],
-    ])('go back to the room defaults with %s', (_name, clear) => {
-      vi.useFakeTimers();
-      storeFilter({
-        ...createDefaultThreadFilterState(),
-        resolved: 'include',
-        snoozed: 'any',
-        idle: 'exclude',
-      });
-      const { store, current } = mountThreadState({ advancedFilters: true });
-      act(() => current().handleToggleThreadSections());
-
-      act(() => clear(current()));
-
-      const defaults = { ...hidden, idle: 'any' };
-      expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID))).toMatchObject(defaults);
-      act(() => current().handleToggleThreadSections());
-      expect(current().threadFilterState).toMatchObject(defaults);
-    });
-
-    it('keep the idle filter too, through a search and a tag, until Sections are off', () => {
-      vi.useFakeTimers();
-      storeFilter({ ...createDefaultThreadFilterState(), ...hidden, idle: 'include' });
-      const { store, current } = mountThreadState({ advancedFilters: true });
-      act(() => current().handleToggleThreadSections());
-      expect(current().threadFilterState.idle).toBe('any');
-
-      act(() => current().handleSearchQueryChange('launch'));
-      act(() => {
-        vi.advanceTimersByTime(300);
-      });
-      act(() => current().handleAddTag('bug'));
-
-      expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID))).toMatchObject({
-        idle: 'include',
-        freeText: 'launch',
-      });
-      act(() => current().handleToggleThreadSections());
-      expect(current().threadFilterState).toMatchObject({ ...hidden, idle: 'include' });
-    });
-
-    it('ignore an is:idle token of a search', () => {
-      const { current, stored, search } = mountWithSections();
-
-      search('is:idle');
-
-      expect(stored()).toMatchObject({ ...hidden, idle: 'any' });
-      // So the box, which shows the filters that apply, drops the token too.
-      expect(current().threadFilterState.idle).toBe('any');
-    });
-
-    it('survive a preset', () => {
-      const { current, stored, sectionsOff } = mountWithSections();
-      const archived = FILTER_PRESETS.find((preset) => preset.id === 'archived')!;
-
-      act(() => current().handleApplyPreset(archived));
-
-      expect(stored()).toMatchObject(hidden);
-      sectionsOff();
-      expect(current().threadFilterState).toMatchObject(hidden);
-    });
+    expect(current().threadFilterState.tab).toBe('later');
   });
 
   it('keeps the sort lock off while Compact shows sections, which have their own order', () => {
@@ -550,14 +466,35 @@ describe('useRoomViewThreadState', () => {
     expect(current().threadSortFreezeState).toBeNull();
   });
 
-  it('leaves the filters of the Threads view alone when Compact shows sections', () => {
-    storeFilter({ ...createDefaultThreadFilterState(), resolved: 'exclude' });
+  it('shows no sections in the Threads view', () => {
     viewMode.current = 'threaded';
     const { current } = mountThreadState({ advancedFilters: true });
 
     act(() => current().handleToggleThreadSections());
 
     expect(current().threadSections).toBe(false);
-    expect(current().threadFilterState.resolved).toBe('exclude');
   });
+});
+
+it('keeps the default Needs you tab while changing the sort or adding a tag', () => {
+  const { current } = mountThreadState({ advancedFilters: true });
+  act(() => current().handleSortDirectionChange());
+  expect(current().threadFilterState.tab).toBe('needsYou');
+  act(() => current().handleAddTag('review'));
+  expect(current().threadFilterState.tab).toBe('needsYou');
+  expect(current().threadFilterState.tags.get('review')).toBe('include');
+});
+
+it('restores the authoritative Done tab after toggling Unresolved in Simple mode', () => {
+  const { current, store } = mountThreadState({ advancedFilters: true });
+  act(() => current().handleSelectTab('done'));
+  act(() => store.set(settingsAtom, { ...store.get(settingsAtom), simpleThreadFilters: true }));
+  act(() => current().handleToggleUnresolvedOnly());
+  expect(current().threadFilterState.resolved).toBe('exclude');
+  expect(current().threadFilterState.tab).toBeUndefined();
+  act(() => store.set(settingsAtom, { ...store.get(settingsAtom), simpleThreadFilters: false }));
+  expect(current().threadFilterState.tab).toBe('done');
+  expect(current().threadFilterState.resolved).toBe('any');
+  act(() => store.set(settingsAtom, { ...store.get(settingsAtom), simpleThreadFilters: true }));
+  expect(current().threadFilterState.resolved).toBe('exclude');
 });

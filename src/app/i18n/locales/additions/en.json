@@ -365,7 +365,9 @@
       },
       "computers": {
         "inUse": "Server in use",
-        "inUseNone": "None set, so computers are off on this device."
+        "inUseNone": "None set, so computers are off on this device.",
+        "useServer": "Use {{host}}",
+        "foundNotSaved": "Found from your agents, not saved; save it to enter keys here."
       },
       "keywords": {
         "theme": "dark mode, light mode, night mode, colors",
@@ -725,7 +727,7 @@
         "declinedWaiting": "Declined, waiting for the agent",
         "noLongerActive": "This request is no longer active. Ask the agent again.",
         "unavailable": "Entering keys is not available on this server.",
-        "unavailableHint": "To enter keys here, set your MindRoom server in Settings → {{page}} → {{field}}.",
+        "unavailableHint": "To enter keys here, save your MindRoom server in Settings → {{page}}.",
         "replaces": "Replaces the key saved now.",
         "replaceKey": "Replace key",
         "temporary": {
@@ -773,6 +775,13 @@
       "finishedWork": {
         "workedFor": "Worked for {{duration}}",
         "worked": "Worked"
+      },
+      "questionCard": {
+        "title": "Question",
+        "waiting": "Waiting for you",
+        "answered": "Answered",
+        "youChose": "You chose",
+        "nameChose": "{{name}} chose"
       }
     },
     "message-search": {
@@ -795,13 +804,7 @@
         "threadFiltersActive": "Thread filters (active)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Advanced filters",
-        "presets": {
-          "snoozed": {
-            "label": "Snoozed",
-            "description": "Snoozed threads only"
-          }
-        }
+        "advancedFilters": "Advanced filters"
       },
       "threadPeopleFilter": {
         "label": "People",
@@ -977,6 +980,20 @@
     "status": {
       "snoozed": "Snoozed"
     },
+    "workflow": {
+      "needsYou": "Needs you",
+      "working": "Working",
+      "later": "Later",
+      "done": "Done",
+      "all": "All",
+      "description": {
+        "needsYou": "Background approval needed, or nothing running or scheduled.",
+        "working": "An agent is replying, or a subagent or background tool is running.",
+        "later": "Snoozed, or waiting for a scheduled task.",
+        "done": "Resolved threads.",
+        "all": "Every thread matching your other filters."
+      }
+    },
     "renameHint": "Double-click to rename"
   },
   "threadSnooze": {
@@ -1092,7 +1109,7 @@
       "working": "Agents working",
       "recent": "Recent",
       "automations": "Automations",
-      "snoozed": "Snoozed"
+      "later": "Later"
     },
     "showMore": "Show more",
     "chips": {
@@ -1304,7 +1321,7 @@
     "sectionsHint": "Group the threads into Working, Snoozed, Idle and Resolved",
     "sections": {
       "working": "Working",
-      "snoozed": "Snoozed",
+      "later": "Later",
       "idle": "Idle",
       "resolved": "Resolved"
     },

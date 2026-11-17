@@ -46,7 +46,8 @@ export const macStoreMetadataProblems = ({ app, support, web, version, build, co
   }
   if (web.release !== `v${version}`)
     problems.push('Bundled web release differs from the app version.');
-  if (web.version !== commit)
+  // Client plugins add `-plugins-` and a digest of their files to the version (scripts/build-version.mjs).
+  if (String(web.version).replace(/-plugins-[0-9a-f]{16}$/, '') !== commit)
     problems.push('Bundled web source commit differs from the candidate commit.');
   return problems;
 };

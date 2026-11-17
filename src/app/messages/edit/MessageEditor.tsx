@@ -244,6 +244,8 @@ function LoadedMessageEditor({
         editor={editor}
         initialValue={startDocument}
         editableName="MessageEditor"
+        styleMarkdown={isMarkdown}
+        linkSchemes={linkSchemes}
         ariaLabel={t('mindroomUi.messages.mindroomMessage.editMessage')}
         placeholder={t('featureUi.room.message.messageEditor.editMessage')}
         readOnly={saving}

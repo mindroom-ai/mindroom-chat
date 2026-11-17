@@ -56,9 +56,9 @@ vi.mock('../plugins/registry', () => ({ registeredPlugins: mocks.plugins }));
 
 vi.mock('./activityActions', () => ({
   answerApproval: mocks.answerApproval,
-  answerQuestion: mocks.answerQuestion,
   markActivityRowsRead: mocks.markActivityRowsRead,
 }));
+vi.mock('../messages/reactions/answerQuestion', () => ({ answerQuestion: mocks.answerQuestion }));
 
 const mx = {
   getUserId: () => '@alice:x',

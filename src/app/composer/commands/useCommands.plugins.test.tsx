@@ -71,4 +71,30 @@ describe('useCommands with plugin commands', () => {
     void result.current.join?.run?.('#lobby:example.org').catch(() => undefined);
     expect(join.run).not.toHaveBeenCalled();
   });
+
+  it("offers MindRoom's commands with their / syntax, to send as typed", () => {
+    plugins.commands = [];
+    const { result } = renderHook(() => useCommands(room));
+
+    expect(getCommandSuggestions(Object.values(result.current), 'list_')).toEqual([
+      expect.objectContaining({ name: 'list_schedules', syntax: '/list_schedules' }),
+    ]);
+    expect(result.current.schedule).toMatchObject({
+      name: 'schedule',
+      syntax: '/schedule <task>',
+      description: 'Schedule a task for later execution.',
+    });
+    expect(result.current.schedule?.run).toBeUndefined();
+    expect(result.current['reload-plugins']?.syntax).toBe('/reload-plugins');
+  });
+
+  it("keeps MindRoom's command when a plugin's command has its name", () => {
+    const schedule = pluginCommand('schedule');
+    plugins.commands = [schedule];
+    const { result } = renderHook(() => useCommands(room));
+
+    expect(result.current.schedule?.description).not.toBe('Plugin schedule');
+    expect(result.current.schedule?.run).toBeUndefined();
+    expect(result.current.schedule?.inThread).toBeUndefined();
+  });
 });

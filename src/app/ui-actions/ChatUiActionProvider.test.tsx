@@ -88,6 +88,27 @@ describe('Chat UI request buttons', () => {
     return { mx, room, perform, navigate, render };
   };
 
+  it('opens an inline canvas only when its button is activated', async () => {
+    const event = makeUiEvent({
+      action: 'show_canvas',
+      inline: true,
+      canvas: { title: 'Preview', html: '<p>Mockup</p>' },
+    });
+    const { mx, room, perform } = setup(event);
+    event.event.origin_server_ts = Date.now();
+    await act(() =>
+      mx.emit(RoomEvent.Timeline, event, room, false, false, {
+        liveEvent: true,
+        timeline: room.getLiveTimeline(),
+      })
+    );
+    expect(perform).not.toHaveBeenCalled();
+    await act(async () => container.querySelector('button')!.click());
+    expect(perform).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'show_canvas', inline: true })
+    );
+  });
+
   it('renders history passively, then opens it on an explicit click', async () => {
     const { perform } = setup();
     expect(perform).not.toHaveBeenCalled();

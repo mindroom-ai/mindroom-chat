@@ -365,8 +365,7 @@
       "streaming": "ストリーミング",
       "scheduled": "スケジュール済み",
       "unread": "未読",
-      "idle": "アイドル状態",
-      "idleFilter": "アイドル状態 (解決済み、ストリーミングではない、タスクなし)"
+      "idle": "アイドル状態"
     },
     "stats": {
       "aria": "スレッド統計",
@@ -374,17 +373,6 @@
       "threadCount_one": "{{count}} スレッド",
       "threadCount_other": "{{count}} スレッド",
       "tags": "タグ"
-    },
-    "filterTooltip": {
-      "any": "{{label}}: すべてを表示します。クリックしてのみ表示します。",
-      "include": "{{label}}: 表示のみ。クリックして非表示にします。",
-      "exclude": "{{label}}: 非表示。クリックしてフィルターをクリアします。",
-      "tagAny": "タグ「{{tag}}」",
-      "tagInclude": "タグ「{{tag}}」: 表示のみ。クリックして非表示にします。",
-      "tagExclude": "タグ「{{tag}}」: 非表示。クリックしてフィルターをクリアします。",
-      "stateAny": "すべてを表示",
-      "stateInclude": "のみ表示",
-      "stateExclude": "非表示"
     },
     "filters": {
       "scope": "範囲",
@@ -2232,7 +2220,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "voice": {
@@ -2832,8 +2820,6 @@
         "addTagFilter": "タグフィルターを追加する",
         "tag": "+タグ",
         "availableTags": "利用可能なタグ",
-        "filterPresets": "フィルタープリセット",
-        "preset": "プリセット",
         "searchThreads": "スレッドを検索する",
         "searchThreads2": "スレッドを検索...",
         "roomViewMode": "ルームビューモード",
@@ -2853,29 +2839,7 @@
         "unlockSortOrder": "並べ替え順序のロックを解除します (現在は {{sort}})",
         "lockSortOrder": "ソート順序をロックする (現在は {{sort}})",
         "threadCount_one": "{{count}} スレッド",
-        "threadCount_other": "{{count}} スレッド",
-        "presets": {
-          "needs-attention": {
-            "label": "注意が必要です",
-            "description": "未解決、非ストリーミング、非スケジュールのスレッド"
-          },
-          "working": {
-            "label": "処理中",
-            "description": "ストリーミング中または予定済み — 現在取り組んでいる内容"
-          },
-          "review-queue": {
-            "label": "レビューキュー",
-            "description": "未読の返信がある未解決のスレッド"
-          },
-          "archived": {
-            "label": "アーカイブ済み",
-            "description": "解決されたスレッドのみ"
-          },
-          "all": {
-            "label": "全て",
-            "description": "すべてのフィルターをリセット"
-          }
-        }
+        "threadCount_other": "{{count}} スレッド"
       },
       "threadTagPicker": {
         "addTag": "タグを追加",
@@ -3034,7 +2998,7 @@
       "intro": "このスレッドでは、これらの人が依頼したツール呼び出しは承認カードなしで実行されます。",
       "you": "あなた",
       "until": "{{time}} まで",
-      "ownUntil": "{{time}} まで。終了するには !auto_approve off を送信してください。"
+      "ownUntil": "{{time}} まで。終了するには /auto_approve off を送信してください。"
     },
     "notices": {
       "dismiss": "お知らせを閉じる",

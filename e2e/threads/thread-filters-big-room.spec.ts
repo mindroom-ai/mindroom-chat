@@ -19,7 +19,7 @@ import { showResolvedThreads } from '../helpers/threadOverview';
 import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
 // The thread filter bar in a room with 160 threads, read against what the seed knows:
-// - every preset, the search and the People filter apply to the pinned threads as they do to the
+// - every workflow tab, the search and the People filter apply to the pinned threads as they do to the
 //   others, and the counts follow (a pinned thread that does not match is not shown);
 // - a thread's people are everyone who wrote in it, the root's sender and every reply's sender,
 //   not only the root's sender and the last replier: the People list counts them, a chosen person
@@ -248,11 +248,13 @@ const expectShown = async (page: Page, room: SeededRoom, expected: string[], lab
   ).toHaveText(String(expected.length));
 };
 
-const applyPreset = async (page: Page, preset: string) => {
+const selectTab = async (page: Page, tab: string) => {
   const overview = page.locator('[data-room-thread-overview]');
-  await overview.locator('[data-preset-button]').click();
-  await overview.locator(`[data-preset-option="${preset}"]`).click();
-  await expect(overview.locator('[data-preset-dropdown]')).toHaveCount(0);
+  await overview.locator(`[data-thread-tab="${tab}"]`).click();
+  await expect(overview.locator(`[data-thread-tab="${tab}"]`)).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  );
 };
 
 /** Each person's thread count in the open People list. */
@@ -277,34 +279,34 @@ const checkFilters = async (page: Page, room: SeededRoom, engine: string) => {
   const modeSwitch = overview.locator('[data-thread-filter-mode-switch]');
   await expect(async () => {
     if ((await modeSwitch.getAttribute('aria-pressed')) !== 'true') await modeSwitch.click();
-    await expect(overview.locator('[data-preset-button]')).toBeVisible({ timeout: 2_000 });
+    await expect(overview.locator('[data-thread-tab="all"]')).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 30_000 });
   // Compact opens with resolved threads hidden; every thread shows once the filter is off.
   await showResolvedThreads(page);
   await expect(cards).toHaveCount(THREAD_COUNT, { timeout: 180_000 });
 
-  // Presets: the pinned threads follow the same rules as the others. A pinned thread stays open
+  // Workflow tabs: the pinned threads follow the same rules as the others. A pinned thread stays open
   // (THR-18), so its resolved tag does not count while it is pinned.
   const pinnedIndexes = new Set(PINNED);
   const isResolved = (plan: ThreadPlan, index: number) =>
     plan.resolved && !pinnedIndexes.has(index);
-  await applyPreset(page, 'archived');
-  await expectShown(page, room, rootsWhere(room, isResolved), `${engine} archived`);
-  await shot(page, `${engine}-preset-archived`);
-  await applyPreset(page, 'needs-attention');
+  await selectTab(page, 'done');
+  await expectShown(page, room, rootsWhere(room, isResolved), `${engine} done`);
+  await shot(page, `${engine}-tab-done`);
+  await selectTab(page, 'needsYou');
   await expectShown(
     page,
     room,
     rootsWhere(room, (plan, index) => !isResolved(plan, index)),
-    `${engine} needs attention`
+    `${engine} needs you`
   );
-  await shot(page, `${engine}-preset-needs-attention`);
+  await shot(page, `${engine}-tab-needs-you`);
   // Nothing is scheduled or streaming: Working keeps no thread, pinned ones included.
-  await applyPreset(page, 'working');
+  await selectTab(page, 'working');
   await expectShown(page, room, [], `${engine} working`);
   await expect(page.locator('[data-pinned-threads]')).toHaveCount(0);
-  await shot(page, `${engine}-preset-working`);
-  await applyPreset(page, 'all');
+  await shot(page, `${engine}-tab-working`);
+  await selectTab(page, 'all');
   await expectShown(page, room, room.rootIds, `${engine} all`);
 
   // The search: only threads 4, 12, 20, ... carry the topic, and no pinned thread does.
@@ -404,7 +406,7 @@ test.describe('thread filters in a room with 160 threads', () => {
     room = await seedRoom(homeserver, me);
   });
 
-  test('presets, search and People treat pinned threads alike and count every writer (Chromium)', async ({
+  test('workflow tabs, search and People treat pinned threads alike and count every writer (Chromium)', async ({
     page,
   }) => {
     test.setTimeout(420_000);

@@ -370,7 +370,9 @@
       },
       "computers": {
         "inUse": "Serveur utilisé",
-        "inUseNone": "Aucun défini : les ordinateurs sont désactivés sur cet appareil."
+        "inUseNone": "Aucun défini : les ordinateurs sont désactivés sur cet appareil.",
+        "useServer": "Utiliser {{host}}",
+        "foundNotSaved": "Trouvé via vos agents, non enregistré ; enregistrez-le pour saisir des clés ici."
       },
       "keywords": {
         "theme": "mode sombre, mode clair, mode nuit, couleurs",
@@ -734,7 +736,7 @@
         "declinedWaiting": "Refusée, en attente de l’agent",
         "noLongerActive": "Cette demande n’est plus active. Redemandez à l’agent.",
         "unavailable": "La saisie de clés n’est pas disponible sur ce serveur.",
-        "unavailableHint": "Pour saisir des clés ici, définissez votre serveur MindRoom dans Paramètres → {{page}} → {{field}}.",
+        "unavailableHint": "Pour saisir des clés ici, enregistrez votre serveur MindRoom dans Paramètres → {{page}}.",
         "replaces": "Remplace la clé enregistrée actuellement.",
         "replaceKey": "Remplacer la clé",
         "temporary": {
@@ -784,6 +786,13 @@
       "finishedWork": {
         "workedFor": "A travaillé pendant {{duration}}",
         "worked": "A travaillé"
+      },
+      "questionCard": {
+        "title": "Question",
+        "waiting": "Vous attend",
+        "answered": "Réponse donnée",
+        "youChose": "Votre choix",
+        "nameChose": "Choix de {{name}}"
       }
     },
     "message-search": {
@@ -808,13 +817,7 @@
         "threadFiltersActive": "Filtres de fils (actifs)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtres avancés",
-        "presets": {
-          "snoozed": {
-            "label": "Reportés",
-            "description": "Fils reportés uniquement"
-          }
-        }
+        "advancedFilters": "Filtres avancés"
       },
       "threadPeopleFilter": {
         "label": "Personnes",
@@ -994,6 +997,20 @@
     "status": {
       "snoozed": "Reporté"
     },
+    "workflow": {
+      "needsYou": "À vous de jouer",
+      "working": "En cours",
+      "later": "Plus tard",
+      "done": "Terminé",
+      "all": "Tous",
+      "description": {
+        "needsYou": "Une tâche en arrière-plan attend une approbation, ou rien n’est en cours ni planifié.",
+        "working": "Un agent répond, ou un sous-agent ou un outil fonctionne en arrière-plan.",
+        "later": "Mis en veille ou en attente d’une tâche planifiée.",
+        "done": "Fils résolus.",
+        "all": "Tous les fils correspondant à vos autres filtres."
+      }
+    },
     "renameHint": "Double-cliquez pour renommer"
   },
   "threadSnooze": {
@@ -1117,7 +1134,7 @@
       "working": "Agents au travail",
       "recent": "Récents",
       "automations": "Automatisations",
-      "snoozed": "Reportés"
+      "later": "Plus tard"
     },
     "showMore": "Afficher plus",
     "chips": {
@@ -1330,7 +1347,7 @@
     "sectionsHint": "Regrouper les fils en En cours, Reportés, Inactifs et Résolus",
     "sections": {
       "working": "En cours",
-      "snoozed": "Reportés",
+      "later": "Plus tard",
       "idle": "Inactifs",
       "resolved": "Résolus"
     },

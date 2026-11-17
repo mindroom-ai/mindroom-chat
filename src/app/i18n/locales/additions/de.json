@@ -365,7 +365,9 @@
       },
       "computers": {
         "inUse": "Verwendeter Server",
-        "inUseNone": "Keiner festgelegt, daher sind Computer auf diesem Gerät aus."
+        "inUseNone": "Keiner festgelegt, daher sind Computer auf diesem Gerät aus.",
+        "useServer": "{{host}} verwenden",
+        "foundNotSaved": "Über deine Agenten gefunden, nicht gespeichert; speichere ihn, um hier Schlüssel einzugeben."
       },
       "keywords": {
         "theme": "Dunkelmodus, Hellmodus, Nachtmodus, Farben, dark mode",
@@ -725,7 +727,7 @@
         "declinedWaiting": "Abgelehnt, wartet auf den Agenten",
         "noLongerActive": "Diese Anfrage ist nicht mehr aktiv. Frag den Agenten erneut.",
         "unavailable": "Auf diesem Server lassen sich keine Schlüssel eingeben.",
-        "unavailableHint": "Um hier Schlüssel einzugeben, lege deinen MindRoom-Server unter Einstellungen → {{page}} → {{field}} fest.",
+        "unavailableHint": "Um hier Schlüssel einzugeben, speichere deinen MindRoom-Server unter Einstellungen → {{page}}.",
         "replaces": "Ersetzt den jetzt gespeicherten Schlüssel.",
         "replaceKey": "Schlüssel ersetzen",
         "temporary": {
@@ -773,6 +775,13 @@
       "finishedWork": {
         "workedFor": "{{duration}} gearbeitet",
         "worked": "Gearbeitet"
+      },
+      "questionCard": {
+        "title": "Frage",
+        "waiting": "Wartet auf dich",
+        "answered": "Beantwortet",
+        "youChose": "Deine Wahl",
+        "nameChose": "Gewählt von {{name}}"
       }
     },
     "message-search": {
@@ -795,13 +804,7 @@
         "threadFiltersActive": "Thread-Filter (aktiv)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Erweiterte Filter",
-        "presets": {
-          "snoozed": {
-            "label": "Zurückgestellt",
-            "description": "Nur zurückgestellte Threads"
-          }
-        }
+        "advancedFilters": "Erweiterte Filter"
       },
       "threadPeopleFilter": {
         "label": "Personen",
@@ -977,6 +980,20 @@
     "status": {
       "snoozed": "Zurückgestellt"
     },
+    "workflow": {
+      "needsYou": "Du bist gefragt",
+      "working": "In Arbeit",
+      "later": "Später",
+      "done": "Erledigt",
+      "all": "Alle",
+      "description": {
+        "needsYou": "Eine Hintergrundaufgabe benötigt eine Freigabe, oder es läuft nichts und ist nichts geplant.",
+        "working": "Ein Agent antwortet, oder ein Subagent oder Hintergrundwerkzeug ist aktiv.",
+        "later": "Zurückgestellt oder auf eine geplante Aufgabe wartend.",
+        "done": "Erledigte Threads.",
+        "all": "Alle Threads, die deinen anderen Filtern entsprechen."
+      }
+    },
     "renameHint": "Zum Umbenennen doppelklicken"
   },
   "threadSnooze": {
@@ -1092,7 +1109,7 @@
       "working": "Agenten arbeiten",
       "recent": "Zuletzt aktiv",
       "automations": "Automatisierungen",
-      "snoozed": "Zurückgestellt"
+      "later": "Später"
     },
     "showMore": "Mehr anzeigen",
     "chips": {
@@ -1304,7 +1321,7 @@
     "sectionsHint": "Threads gruppieren: In Arbeit, Zurückgestellt, Inaktiv und Gelöst",
     "sections": {
       "working": "In Arbeit",
-      "snoozed": "Zurückgestellt",
+      "later": "Später",
       "idle": "Inaktiv",
       "resolved": "Gelöst"
     },

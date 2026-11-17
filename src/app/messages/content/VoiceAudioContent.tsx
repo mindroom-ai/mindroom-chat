@@ -303,6 +303,24 @@ export function VoiceAudioContent({
     if (audio) applyAudioSettings(audio);
   };
 
+  // The waveform drew the position from the media every frame; keep where it stopped rather
+  // than step back to the last throttled report.
+  const handleMediaPause = () => {
+    const audio = audioRef.current;
+    if (audio && Number.isFinite(audio.currentTime) && pendingSeekRef.current === undefined) {
+      setCurrentTime(audio.currentTime);
+    }
+  };
+
+  // Read by the waveform every frame while playing. A seek waiting for the source wins over the
+  // media's own position, which is still 0 until that seek lands.
+  const readPlayedProgress = useCallback(() => {
+    const audio = audioRef.current;
+    const pendingSeek = pendingSeekRef.current;
+    if (pendingSeek !== undefined) return pendingSeek;
+    return audio && duration > 0 ? audio.currentTime / duration : 0;
+  }, [duration]);
+
   const markPlaybackFailed = () => setPlaybackFailed(true);
 
   const handleMoreClick = (event: MouseEvent<HTMLButtonElement>) => {
@@ -362,6 +380,7 @@ export function VoiceAudioContent({
             <VoiceWaveform
               waveform={shownWaveform}
               progress={progress}
+              getProgress={playing ? readPlayedProgress : undefined}
               dimmed={!started}
               label={t('sharedUi.voiceAudioContent.seekValue1', { value1: subject })}
               valueText={t('sharedUi.voiceAudioContent.playbackPosition', {
@@ -409,6 +428,7 @@ export function VoiceAudioContent({
           className={css.Audio}
           onError={markPlaybackFailed}
           onPlay={handleMediaPlay}
+          onPause={handleMediaPause}
           onLoadedMetadata={handleLoadedMetadata}
         >
           {src ? <source type={mimeType} src={src} onError={markPlaybackFailed} /> : null}
