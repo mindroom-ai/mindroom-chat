@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEBUG_MODE_KEY, getDebugModeEnabled, setDebugModeEnabled } from './debugMode';
+import {
+  DEBUG_MODE_KEY,
+  getDebugModeEnabled,
+  setDebugModeEnabled,
+  subscribeDebugMode,
+} from './debugMode';
 import { FLIGHT_RECORDER_ABNORMAL_KEY, FLIGHT_RECORDER_CURRENT_KEY } from './flightRecorder';
 
 const mocks = vi.hoisted(() => ({
@@ -43,6 +48,57 @@ describe('debug mode', () => {
     expect(mocks.initializeDeepTraceRecorder).toHaveBeenCalledOnce();
   });
 
+  it('on turns the deep trace on too, so attached logs hold it', async () => {
+    await setDebugModeEnabled(true);
+
+    expect(mocks.setDeepTraceEnabled).toHaveBeenCalledWith(true);
+  });
+
+  it('stays on when the deep trace cannot start', async () => {
+    mocks.setDeepTraceEnabled.mockRejectedValue(new Error('IndexedDB lost'));
+
+    await expect(setDebugModeEnabled(true)).resolves.toBe(true);
+
+    expect(getDebugModeEnabled()).toBe(true);
+  });
+
+  it('tells its subscribers about each change', async () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeDebugMode(listener);
+
+    await setDebugModeEnabled(true);
+    expect(listener).toHaveBeenCalledTimes(1);
+    await setDebugModeEnabled(false);
+    expect(listener).toHaveBeenCalledTimes(2);
+    // Another tab's change arrives as a storage event.
+    window.dispatchEvent(new StorageEvent('storage', { key: DEBUG_MODE_KEY }));
+    expect(listener).toHaveBeenCalledTimes(3);
+    window.dispatchEvent(new StorageEvent('storage', { key: 'other' }));
+    expect(listener).toHaveBeenCalledTimes(3);
+
+    unsubscribe();
+    await setDebugModeEnabled(true);
+    expect(listener).toHaveBeenCalledTimes(3);
+  });
+
+  it('with recorders that always run (the iOS app), off keeps the flight recorder and its keys', async () => {
+    window.localStorage.setItem(FLIGHT_RECORDER_CURRENT_KEY, '{}');
+    window.localStorage.setItem(FLIGHT_RECORDER_ABNORMAL_KEY, '{}');
+    await setDebugModeEnabled(true, { keepRecorders: true });
+    // The app started its flight recorder already; debug mode does not start a second one.
+    expect(mocks.installFlightRecorder).not.toHaveBeenCalled();
+
+    await expect(setDebugModeEnabled(false, { keepRecorders: true })).resolves.toBe(true);
+
+    expect(window.localStorage.getItem(DEBUG_MODE_KEY)).toBeNull();
+    expect(mocks.stopFlightRecorder).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(FLIGHT_RECORDER_CURRENT_KEY)).toBe('{}');
+    expect(window.localStorage.getItem(FLIGHT_RECORDER_ABNORMAL_KEY)).toBe('{}');
+    // The deep trace goes off with debug mode, and what it recorded with it.
+    expect(mocks.setDeepTraceEnabled).toHaveBeenLastCalledWith(false);
+    expect(mocks.clearDeepTrace).toHaveBeenCalledOnce();
+  });
+
   it('off stops the recorders and deletes what they recorded', async () => {
     await setDebugModeEnabled(true);
     window.localStorage.setItem(FLIGHT_RECORDER_CURRENT_KEY, '{}');
@@ -76,9 +132,10 @@ describe('debug mode', () => {
       }),
     } as unknown as Storage;
 
-    await expect(setDebugModeEnabled(true, storage)).resolves.toBe(false);
+    await expect(setDebugModeEnabled(true, { storage })).resolves.toBe(false);
 
     expect(mocks.installFlightRecorder).not.toHaveBeenCalled();
     expect(mocks.initializeDeepTraceRecorder).not.toHaveBeenCalled();
+    expect(mocks.setDeepTraceEnabled).not.toHaveBeenCalled();
   });
 });
