@@ -917,7 +917,7 @@ function ExampleBoard({ roomId }: { roomId: string }) {
   if (!room) return null;
   return (
     <>
-      <output data-example-board-opened={opened?.count ?? 0}>
+      <output data-example-board-opened>
         {opened ? `Opened ${opened.threadId} (${opened.count})` : 'Opened no thread'}
       </output>
       <ThreadBoard
