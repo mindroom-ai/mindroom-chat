@@ -23,7 +23,11 @@ import { ACTIVE_STREAM_STATUSES, getStreamStatusFromContent } from '../../matrix
 import { revealDirectionControls } from '../../ui/directional';
 import { OutlineComet } from './OutlineComet';
 import { Outline } from './OutlineComet.css';
-import { placeReasoningSegments, readReasoningSegments } from './reasoningSegments';
+import {
+  isLastReasoningSegmentBlank,
+  placeReasoningSegments,
+  readReasoningSegments,
+} from './reasoningSegments';
 import { ReasoningSegmentsContext, ToolCallsCogContext } from './toolCallStatus';
 import { CogRipple } from './ToolCallsFold.css';
 import { getRenderedToolRefs } from './toolRefDom';
@@ -258,16 +262,23 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   const streaming = status === undefined || ACTIVE_STREAM_STATUSES.has(status);
   const live = liveText !== undefined && (!final || streaming) ? liveText : undefined;
   const activity = nonEmptyString(content[LIVE_ACTIVITY_KEY]);
-  // The model thinks while its live reasoning comes or grows, and a little after: not when a reply
+  // The comet laps while the live reasoning comes or grows, and a little after: not when a reply
   // that has some already comes into view.
   const thinking = useChangedRecently(live, THINKING_GLOW_MS) && live !== undefined;
+  // The model is writing its last segment from when the live reasoning comes or grows on screen
+  // until the reply moves past it: the body it showed then changes, with a tool call or with text.
+  // A pause in the reasoning changes neither, so the segment stays through it.
+  const body = html ?? content.body;
+  const [grew, setGrew] = useState({ live, body, seen: false });
+  if (grew.live !== live) setGrew({ live, body, seen: live !== undefined });
 
   // The bulb starts closed on every reply, as the cog does, and stays as the reader left it when
   // the reply finishes.
   const [open, setOpen] = useState(false);
   const bulbRef = useRef<HTMLButtonElement>(null);
   // Long replies put the bulb far above: a segment's rail and end button hide the thinking from
-  // where the reader is, and give the focus to the bulb, which scrolls into view if it is off screen.
+  // where the reader is, and give the focus to the bulb, which scrolls into view if it is off
+  // screen.
   const hide = useCallback(() => {
     bulbRef.current?.focus();
     setOpen(false);
@@ -279,11 +290,16 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
     () => (text === undefined ? [] : readReasoningSegments(text, recorded)),
     [text, recorded]
   );
-  // The segment being written is the last one with text, and shows as long as the comet laps.
-  const liveIndex = thinking ? segments.length - 1 : undefined;
+  // None while the segment the model began has no text yet: the one before it has ended.
+  const writing =
+    live !== undefined &&
+    grew.seen &&
+    Object.is(grew.body, body) &&
+    !isLastReasoningSegmentBlank(live, recorded);
+  const liveIndex = writing ? segments.length - 1 : undefined;
   // The markers that render as runs of calls, as the body shows them; read only once a segment
   // that happened after a call shows.
-  const placed = (open || thinking) && segments.some(({ afterTool }) => afterTool > 0);
+  const placed = (open || writing) && segments.some(({ afterTool }) => afterTool > 0);
   const markers = useMemo(
     () =>
       placed && html !== undefined
@@ -334,9 +350,9 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
  * above the body says how long the model thought, or that it thinks (`io.mindroom.live_reasoning`,
  * `io.mindroom.reasoning`); its bulb shows each reasoning segment where it happened, at the top or
  * after the tool calls of `html` it followed, and while the reply streams the segment being
- * written shows there under a closed bulb too. The live activity line (`io.mindroom.live_activity`)
- * goes below the body. While the reply's tool calls are hidden, their cog sits on the reasoning's
- * line, or in its place above the body.
+ * written shows there under a closed bulb too, until the body goes on. The live activity line
+ * (`io.mindroom.live_activity`) goes below the body. While the reply's tool calls are hidden, their
+ * cog sits on the reasoning's line, or in its place above the body.
  */
 export const withReasoning = (
   content: Record<string, unknown>,

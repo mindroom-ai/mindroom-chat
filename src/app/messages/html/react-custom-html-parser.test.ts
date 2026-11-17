@@ -977,6 +977,84 @@ describe('useToolTraceMarkerParserOptions', () => {
       reply.unmount();
     });
 
+    it('shows the thinking after each run of calls that the closed cog keeps hidden', async () => {
+      const html = twoRunsHtml(false);
+      const thoughts = ['Search first.', 'Now run it.', 'Then share it.', 'That worked.'];
+      const reasoningText = thoughts.join('\n\n');
+      const content = {
+        body: html,
+        formatted_body: html,
+        'io.mindroom.stream_status': 'completed',
+        'io.mindroom.reasoning': {
+          text: reasoningText,
+          duration_ms: 12_000,
+          // Before the first call, after it, between the two calls of one run, and after the last.
+          segments: [0, 1, 2, 3].map((afterTool) => ({
+            start: reasoningText.indexOf(thoughts[afterTool]!),
+            after_tool: afterTool,
+          })),
+        },
+      };
+      const store = createStore();
+      store.set(settingsAtom, { ...getSettings(), showToolCalls: false });
+      const baseOpts = createBaseOpts();
+      // The body as a message renders it: its parser options come from inside the reply's reasoning.
+      function Body() {
+        const options = useToolTraceMarkerParserOptions(baseOpts, content);
+        return React.createElement(
+          React.Fragment,
+          null,
+          parse(html, resolveHtmlReactParserOptions(options))
+        );
+      }
+      let renderer: ReactTestRenderer | undefined;
+      act(() => {
+        renderer = create(
+          React.createElement(
+            Provider,
+            { store },
+            React.createElement(
+              ToolCallMessageContext.Provider,
+              { value: { eventId: '$reply', roomId: ROOM } },
+              React.createElement(
+                ToolCallsFold,
+                null,
+                withReasoning(content, React.createElement(Body), baseOpts, undefined, html)
+              )
+            )
+          )
+        );
+      });
+      const text = () => collectTextContent(renderer?.toJSON() ?? null);
+      const buttons = () => renderer!.root.findAll((node) => node.type === 'button');
+      const bulb = buttons().find((button) => button.props.className === 'Toggle')!;
+      const cog = () => buttons().find((button) => button.props.className === 'Cog')!;
+      expect(text()).toBe('Thought for 12 s3Looking it up.Between.Answer.');
+
+      await act(() => bulb.props.onClick());
+
+      // No run shows, and the cog still counts the three calls of the runs the thinking parts.
+      expect(cog().props['aria-expanded']).toBe(false);
+      expect(text()).not.toMatch(/tool call|web_search|run_shell_command|share_app/);
+      expect(cog().children.at(-1)).toBe('3');
+      const order = [
+        'Search first.',
+        'Looking it up.',
+        'Now run it.',
+        'Between.',
+        'Then share it.',
+        'That worked.',
+        'Answer.',
+      ].map((part) => text().indexOf(part));
+      expect(order).not.toContain(-1);
+      expect(order).toEqual([...order].sort((a, b) => a - b));
+
+      // The cog then shows the runs around the thinking: one call, then two that it parts.
+      await act(() => cog().props.onClick());
+      expect(text().match(toolCountLabel(1, 'g'))).toHaveLength(3);
+      act(() => renderer?.unmount());
+    });
+
     it('takes a run off the cog when an edit of the reply drops it', () => {
       const reply = renderReply(twoRunsHtml(false), { shownByDefault: false });
       expect(reply.cogButton().props.title).toBe('Used 3 tools');

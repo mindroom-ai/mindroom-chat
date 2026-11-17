@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { placeReasoningSegments, readReasoningSegments } from './reasoningSegments';
+import {
+  isLastReasoningSegmentBlank,
+  placeReasoningSegments,
+  readReasoningSegments,
+} from './reasoningSegments';
 
 const texts = (text: string, segments: unknown) =>
   readReasoningSegments(text, segments).map((segment) => segment.text);
@@ -126,6 +130,35 @@ describe('readReasoningSegments', () => {
     expect(readReasoningSegments(' \n\n ', undefined)).toEqual([]);
     expect(readReasoningSegments(' \n\n ', [{ start: 0, after_tool: 0 }])).toEqual([]);
     expect(readReasoningSegments('', [{ start: 0, after_tool: 0 }])).toEqual([]);
+  });
+});
+
+describe('isLastReasoningSegmentBlank', () => {
+  // The second segment starts inside the separator, as one whose first piece is blank does.
+  const segments = [
+    { start: 0, after_tool: 0 },
+    { start: 6, after_tool: 1 },
+  ];
+
+  it('is true while the last segment has begun without text', () => {
+    expect(isLastReasoningSegmentBlank('first\n\n', segments)).toBe(true);
+    expect(isLastReasoningSegmentBlank('first\n\n \n', segments)).toBe(true);
+  });
+
+  it('is false once the last segment has text', () => {
+    expect(isLastReasoningSegmentBlank('first\n\ns', segments)).toBe(false);
+    expect(isLastReasoningSegmentBlank('first', [{ start: 0, after_tool: 0 }])).toBe(false);
+  });
+
+  it('is false without segments, or with ones the reader does not follow', () => {
+    expect(isLastReasoningSegmentBlank('first\n\n', undefined)).toBe(false);
+    // A start at the end of the text: the whole text shows as one segment.
+    expect(
+      isLastReasoningSegmentBlank('first\n\n', [
+        { start: 0, after_tool: 0 },
+        { start: 7, after_tool: 1 },
+      ])
+    ).toBe(false);
   });
 });
 

@@ -6,6 +6,7 @@ import type { HTMLReactParserOptions } from 'html-react-parser';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { loadLiveMarkdown, renderLiveMarkdown, useLiveMarkdownReady } from '../live/liveMarkdown';
 import { renderAgentMessageContent } from '../content/renderAgentMessageContent';
+import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
 
 // The real renderer, watched for when it is requested.
@@ -16,6 +17,12 @@ vi.mock('../live/liveMarkdown', async (importOriginal) => {
     renderLiveMarkdown: vi.fn(actual.renderLiveMarkdown),
     useLiveMarkdownReady: vi.fn(actual.useLiveMarkdownReady),
   };
+});
+
+// The real sanitizer, watched for when a body is parsed: RenderBody passes the link schemes too.
+vi.mock('../../rich-text/sanitize', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../rich-text/sanitize')>();
+  return { ...actual, sanitizeCustomHtml: vi.fn(actual.sanitizeCustomHtml) };
 });
 
 // The real RenderBody under an MText that renders the body, then what comes after it.
@@ -116,6 +123,7 @@ describe('MindroomReasoning', () => {
   afterEach(() => {
     act(() => renderer?.unmount());
     renderer = undefined;
+    vi.useRealTimers();
   });
 
   const element = (content: Record<string, unknown>, msgType = 'm.text') => (
@@ -200,7 +208,7 @@ describe('MindroomReasoning', () => {
     expect(renderLiveMarkdown).toHaveBeenCalledWith('Compared **two** caches');
   });
 
-  it('renders unchanged live reasoning once while the answer streams', () => {
+  it('renders unchanged live reasoning once, until the answer streams on past it', () => {
     vi.mocked(renderLiveMarkdown).mockClear();
     const streaming = (body: string) => ({
       msgtype: 'm.text',
@@ -210,11 +218,17 @@ describe('MindroomReasoning', () => {
     });
     const root = renderThinking(streaming('Partial'));
 
-    act(() => renderer?.update(element(streaming('Partial answer'))));
+    // The next frame carries the same reasoning and body again.
+    act(() => renderer?.update(element(streaming('Partial'))));
 
     // The header, then the segment being written with its own label.
-    expect(text(root)).toBe('ThinkingThinkingChecking the cachePartial answer');
+    expect(text(root)).toBe('ThinkingThinkingChecking the cachePartial');
     expect(renderLiveMarkdown).toHaveBeenCalledTimes(1);
+
+    // A plain body counts as the reply moving on too.
+    act(() => renderer?.update(element(streaming('Partial answer'))));
+
+    expect(text(root)).toBe('ThinkingPartial answer');
   });
 
   const finished = {
@@ -613,20 +627,70 @@ describe('MindroomReasoning', () => {
         ]);
       });
 
-      it('keeps the last segment with text as the one written while a new one is still blank', () => {
+      it('shows no segment while the one the model began has no text yet', () => {
+        // The thought before it ended when the tool call came, and stays in the bulb.
         const root = render(streaming(twoThoughts, LIVE_SEGMENTS));
+        const begun = [...LIVE_SEGMENTS, { start: twoThoughts.length + 1, after_tool: 1 }];
+        act(() => renderer?.update(element(streaming(`${twoThoughts}\n\n`, begun))));
+
+        expect(segmentTexts(root)).toEqual([]);
+
+        act(() => renderer?.update(element(streaming(`${twoThoughts}\n\nSo`, begun))));
+
+        expect(segmentTexts(root)).toEqual(['ThinkingSo']);
+      });
+
+      const comet = (root: ReturnType<typeof render>) =>
+        root.find((node) => node.props.className === 'ReasoningBulbIcon').props['data-thinking'];
+      // How often the body was parsed: RenderBody sanitizes it with the link schemes.
+      const bodyParses = () =>
+        vi.mocked(sanitizeCustomHtml).mock.calls.filter((call) => call.length > 1).length;
+
+      it('keeps the segment being written open while the model pauses, without parsing the body again', () => {
+        vi.useFakeTimers();
+        const root = renderThinking(streaming(twoThoughts, LIVE_SEGMENTS));
+        expect(comet(root)).toBe(true);
+        const parses = bodyParses();
+        expect(parses).toBeGreaterThan(0);
+
+        act(() => {
+          vi.advanceTimersByTime(5000);
+        });
+        // The next frame carries the same reasoning and body again.
+        act(() => renderer?.update(element(streaming(twoThoughts, LIVE_SEGMENTS))));
+
+        expect(comet(root)).toBeUndefined();
+        expect(segmentTexts(root)).toEqual(['ThinkingThe cache is stale.']);
+        expect(bodyParses()).toBe(parses);
+
+        // The model goes on with the same thought.
+        act(() => renderer?.update(element(streaming(`${twoThoughts} Clear it.`, LIVE_SEGMENTS))));
+
+        expect(segmentTexts(root)).toEqual(['ThinkingThe cache is stale. Clear it.']);
+        expect(bodyParses()).toBe(parses);
+      });
+
+      it.each([
+        ['its answer', '<p>The cache was stale.</p>'],
+        ['another tool call', marker('grep', 2)],
+      ])('hides the segment into the bulb once the reply goes on with %s', (_name, next) => {
+        vi.useFakeTimers();
+        const root = renderThinking(streaming(twoThoughts, LIVE_SEGMENTS));
+        const content = streaming(twoThoughts, LIVE_SEGMENTS);
+
         act(() =>
           renderer?.update(
-            element(
-              streaming(`${twoThoughts}\n\n`, [
-                ...LIVE_SEGMENTS,
-                { start: twoThoughts.length + 1, after_tool: 1 },
-              ])
-            )
+            element({ ...content, formatted_body: `${content.formatted_body}${next}` })
           )
         );
 
-        expect(segmentTexts(root)).toEqual(['ThinkingThe cache is stale.']);
+        expect(segmentTexts(root)).toEqual([]);
+        expect(text(header(root))).toBe('Thinking');
+        // It does not come back with the frames that follow, or when the comet stops.
+        act(() => {
+          vi.advanceTimersByTime(5000);
+        });
+        expect(segmentTexts(root)).toEqual([]);
       });
     });
   });

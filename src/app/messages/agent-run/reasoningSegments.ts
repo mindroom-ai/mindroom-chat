@@ -54,6 +54,16 @@ export const readReasoningSegments = (text: string, segments: unknown): Reasonin
 };
 
 /**
+ * Whether the last recorded segment has no text yet: the model began it, and
+ * `readReasoningSegments` leaves it out until its text comes. False for segments the reader does
+ * not follow.
+ */
+export const isLastReasoningSegmentBlank = (text: string, segments: unknown): boolean => {
+  const last = parseSegments(segments, text.length)?.at(-1);
+  return last !== undefined && text.slice(last.start).trim() === '';
+};
+
+/**
  * Where each segment renders: a map from an anchor (a rendered tool marker index, or 0 for the top
  * of the reply) to the indices of the segments placed there, in order. A segment goes after the
  * greatest rendered marker index at most its `afterTool`, or to the top when there is none.
