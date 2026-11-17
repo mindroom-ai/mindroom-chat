@@ -1,5 +1,6 @@
 import {
   createClient,
+  Direction,
   EventStatus,
   FeatureSupport,
   MatrixEvent,
@@ -10,6 +11,7 @@ import {
 } from 'matrix-js-sdk';
 import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
+import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { RelationsEvent, setReplacementRetentionPolicy } from 'matrix-js-sdk/lib/models/relations';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getEditedEvent, getReleasableEdits } from './room';
@@ -98,9 +100,35 @@ const encryptedEdit = async (id: string, ts: number, metadata: Record<string, un
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+/** The edits the timelines of `room` hold, its threads' included. */
+const timelineEdits = (room: Room) =>
+  [...room.getThreads().map((thread) => thread.timelineSet), ...room.getTimelineSets()]
+    .flatMap((timelineSet) =>
+      timelineSet.getTimelines().flatMap((timeline) => timeline.getEvents())
+    )
+    .filter((event) => event.getRelation()?.rel_type === 'm.replace');
+
+/**
+ * The edits a timeline of `room` holds that its relations do not: none, but for one redacted or
+ * still being decrypted, which the relations have not taken (yet). Nothing reads an edit from a
+ * timeline, so one the relations released is gone from the timelines too.
+ */
+const unheldTimelineEdits = (room: Room) =>
+  timelineEdits(room)
+    .filter((event) => !event.isRedacted() && !event.isBeingDecrypted())
+    .filter(
+      (event) =>
+        !room.relations
+          .getAllChildEventsForEvent(event.getRelation()?.event_id ?? '')
+          .includes(event)
+    )
+    .map((event) => event.getId());
+
 describe('the edits a room keeps of a message', () => {
   let support: FeatureSupport;
+  let rooms: Room[] = [];
   beforeEach(() => {
+    rooms = [];
     support = Thread.hasServerSideSupport;
     Thread.hasServerSideSupport = FeatureSupport.None;
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -108,19 +136,26 @@ describe('the edits a room keeps of a message', () => {
     setReplacementRetentionPolicy(getReleasableEdits);
   });
   afterEach(() => {
+    for (const room of rooms) expect(unheldTimelineEdits(room)).toEqual([]);
     setReplacementRetentionPolicy(undefined);
     Thread.hasServerSideSupport = support;
     vi.restoreAllMocks();
   });
 
-  /** A room with the agent's reply in a thread, and how its events arrive: live, as the sync brings them. */
-  const roomWithReply = async () => {
-    // Offline: the SDK asks the server for a message the room does not hold.
+  /** A room of a client that is offline: the SDK asks the server for a message the room does not hold. */
+  const offlineRoom = () => {
     const fetchFn = () => Promise.reject(new Error('offline'));
     const client = createClient({ baseUrl: 'https://example.org', userId: ME, fetchFn });
     vi.spyOn(client, 'supportsThreads').mockReturnValue(true);
     const room = new Room(ROOM, client, ME, { timelineSupport: true });
     vi.spyOn(client, 'getRoom').mockReturnValue(room);
+    rooms.push(room);
+    return { client, room };
+  };
+
+  /** A room with the agent's reply in a thread, and how its events arrive: live, as the sync brings them. */
+  const roomWithReply = async () => {
+    const { room } = offlineRoom();
     const add = async (...events: MatrixEvent[]) => {
       await room.addLiveEvents(events, { addToState: false });
       await tick();
@@ -147,11 +182,13 @@ describe('the edits a room keeps of a message', () => {
       getEditedEvent(REPLY, reply, room.getUnfilteredTimelineSet())?.getContent()[
         'm.new_content'
       ] as Record<string, unknown> | undefined;
-    return { room, add, reply, edits, kept, ids, shown };
+    /** The IDs of the edits the room's timelines hold. */
+    const inTimelines = () => timelineEdits(room).map((event) => event.getId());
+    return { room, add, reply, edits, kept, ids, shown, inTimelines };
   };
 
   it('are one after 50 edits of a streamed reply: the newest', async () => {
-    const { room, add, reply, kept, ids } = await roomWithReply();
+    const { room, add, reply, kept, ids, inTimelines } = await roomWithReply();
 
     for (let round = 1; round <= 50; round += 1) {
       // eslint-disable-next-line no-await-in-loop
@@ -161,13 +198,15 @@ describe('the edits a room keeps of a message', () => {
     expect(kept()).toEqual(['$edit-50']);
     expect(ids()).toEqual(['$edit-50']);
     expect(reply.replacingEvent()?.getId()).toBe('$edit-50');
+    // Nothing reads an edit from a timeline, so the thread's holds only the kept one too.
+    expect(inTimelines()).toEqual(['$edit-50']);
     // The thread shows the reply from the same relations.
     expect(room.getThread(ROOT)?.timelineSet.relations).toBe(room.relations);
   });
 
   it('are all of them while the app installed no policy, as upstream', async () => {
     setReplacementRetentionPolicy(undefined);
-    const { add, kept } = await roomWithReply();
+    const { add, kept, inTimelines } = await roomWithReply();
 
     for (let round = 1; round <= 50; round += 1) {
       // eslint-disable-next-line no-await-in-loop
@@ -175,14 +214,17 @@ describe('the edits a room keeps of a message', () => {
     }
 
     expect(kept()).toHaveLength(50);
+    expect(inTimelines()).toHaveLength(50);
   });
 
   it('leave out an older edit that arrives after a newer one', async () => {
-    const { add, reply, kept, ids } = await roomWithReply();
+    const { add, reply, kept, ids, inTimelines } = await roomWithReply();
 
     await add(edit('$newest', 20));
     await add(edit('$older', 10));
 
+    // Released as the room took it, the older edit never enters the thread's timeline.
+    expect(inTimelines()).toEqual(['$newest']);
     expect(kept()).toEqual(['$newest']);
     expect(ids()).toEqual(['$newest']);
     expect(reply.replacingEvent()?.getId()).toBe('$newest');
@@ -207,6 +249,91 @@ describe('the edits a room keeps of a message', () => {
     }
 
     expect(kept('$unknown')).toEqual(['$edit-5']);
+  });
+
+  it('are one in the room’s own timeline too, for a message outside any thread', async () => {
+    const { room, add, kept, inTimelines } = await roomWithReply();
+    // An agent that answers in the room, not in a thread (`io.mindroom.thread_mode` room).
+    await add(new MatrixEvent(message('$main', 3, {})));
+
+    for (let round = 1; round <= 5; round += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await add(edit(`$edit-${round}`, 10 + round, '$main'));
+    }
+
+    expect(kept('$main')).toEqual(['$edit-5']);
+    expect(inTimelines()).toEqual(['$edit-5']);
+    expect(
+      room
+        .getLiveTimeline()
+        .getEvents()
+        .map((event) => event.getId())
+    ).toEqual([ROOT, '$main', '$edit-5']);
+  });
+
+  it('leave an older segment that held only edits empty, with its tokens and links', async () => {
+    const { room, add, inTimelines } = await roomWithReply();
+    const thread = room.getThread(ROOT);
+    if (!thread) throw new Error('the room has no thread');
+    const { timelineSet } = thread;
+    const live = timelineSet.getLiveTimeline();
+    // A window of the thread before a sync gap, which saw only the stream's edits.
+    const older = timelineSet.addTimeline();
+    older.setNeighbouringTimeline(live, Direction.Forward);
+    live.setNeighbouringTimeline(older, Direction.Backward);
+    const page = [edit('$edit-2', 12), edit('$edit-1', 11)];
+    // As every path that pages a thread does first (appendThreadBootstrapRelations).
+    page.forEach((event) => thread.setEventMetadata(event));
+    timelineSet.addEventsToTimeline(page, true, false, older, 'before-older');
+    older.setPaginationToken('after-older', Direction.Forward);
+    expect(inTimelines()).toEqual(['$edit-2']);
+
+    await add(edit('$edit-3', 13));
+
+    expect(inTimelines()).toEqual(['$edit-3']);
+    expect(older.getEvents()).toEqual([]);
+    expect(timelineSet.getTimelines()).toContain(older);
+    expect(timelineSet.getTimelineForEvent('$edit-2')).toBeNull();
+    expect(room.findEventById('$edit-2')).toBeUndefined();
+    expect(older.getPaginationToken(Direction.Backward)).toBe('before-older');
+    expect(older.getPaginationToken(Direction.Forward)).toBe('after-older');
+    expect(older.getNeighbouringTimeline(Direction.Forward)).toBe(live);
+    expect(live.getNeighbouringTimeline(Direction.Backward)).toBe(older);
+  });
+
+  it('are one in a thread the server lists, of a page that brings the newest edit first', async () => {
+    Thread.hasServerSideSupport = FeatureSupport.Stable;
+    const { client, room } = offlineRoom();
+    client.canSupport.set(Feature.RelationsRecursion, ServerSupport.Stable);
+    const root = new MatrixEvent(message(ROOT, 1, {}, ME));
+    await room.addLiveEvents([root], { addToState: false });
+    // Opened: its first page is in.
+    const thread = room.createThread(ROOT, root, [], false);
+    thread.initialEventsFetched = true;
+    thread.replayEvents = null;
+    await room.addLiveEvents(
+      [
+        new MatrixEvent(
+          message(REPLY, 2, { 'm.relates_to': { rel_type: 'm.thread', event_id: ROOT } })
+        ),
+      ],
+      { addToState: false }
+    );
+    await tick();
+    const reply = room.findEventById(REPLY);
+    if (!reply) throw new Error('the thread does not hold the reply');
+    thread.liveTimeline.setPaginationToken('before-reply', Direction.Backward);
+    vi.spyOn(client, 'fetchRelations').mockResolvedValue({
+      chunk: [3, 2, 1].map((round) => edit(`$edit-${round}`, 10 + round).event as IEvent),
+      next_batch: 'older',
+    });
+
+    await client.paginateEventTimeline(thread.liveTimeline, { backwards: true });
+    await tick();
+
+    expect(timelineEdits(room).map((event) => event.getId())).toEqual(['$edit-3']);
+    expect(getEditedEvent(REPLY, reply, thread.timelineSet)?.getId()).toBe('$edit-3');
+    expect(thread.liveTimeline.getPaginationToken(Direction.Backward)).toBe('older');
   });
 
   it('keep the edit whose tool trace a final edit without one borrows', async () => {
@@ -335,6 +462,8 @@ describe('the edits a room keeps of a message', () => {
       await tick();
       expect(made.kept('$mine')).toEqual(['$sent', '~pending']);
       expect(mine?.replacingEvent()).toBe(pending);
+      // A pending edit is never released, so the older sent one stays in the timeline too.
+      expect(made.inTimelines()).toEqual(['$sent', '~pending']);
 
       const sent = async () => {
         made.room.updatePendingEvent(pending, EventStatus.SENT, '$echoed');
@@ -516,12 +645,14 @@ describe('the edits a room keeps of a message', () => {
       const before = unreadable.event.listenerCount(MatrixEventEvent.Decrypted);
       await made.add(edit('$readable', 20), unreadable.event);
       expect(made.kept()).toEqual(['$readable', '$unreadable']);
+      expect(made.inTimelines()).toEqual(['$readable', '$unreadable']);
 
       await unreadable.keyArrives();
       await tick();
 
       expect(made.kept()).toEqual(['$readable']);
       expect(made.ids()).toEqual(['$readable']);
+      expect(made.inTimelines()).toEqual(['$readable']);
       expect(unreadable.event.listenerCount(MatrixEventEvent.Decrypted)).toBe(before);
     });
 
@@ -542,6 +673,29 @@ describe('the edits a room keeps of a message', () => {
         expect(listening()).toEqual(before);
       }
     );
+
+    it('let an older one go that was still being decrypted as the timeline took it', async () => {
+      const made = await roomWithReply();
+      await made.add(edit('$readable', 20));
+      const { event: older } = await encryptedEdit('$older', 10);
+      let resolve!: (result: unknown) => void;
+      const decrypting = older.attemptDecryption(
+        { decryptEvent: () => new Promise((done) => (resolve = done)) } as never,
+        { isRetry: true }
+      );
+      expect(older.isBeingDecrypted()).toBe(true);
+      await made.add(older);
+      // The relations wait for it to decrypt.
+      expect(made.inTimelines()).toEqual(['$readable', '$older']);
+      expect(made.kept()).toEqual(['$readable']);
+
+      resolve({ clearEvent: { type: 'm.room.message', content: editContent('$older', REPLY) } });
+      await decrypting;
+      await tick();
+
+      expect(made.kept()).toEqual(['$readable']);
+      expect(made.inTimelines()).toEqual(['$readable']);
+    });
 
     it('listen to an older one once while a newer one is still being decrypted', async () => {
       const made = await roomWithReply();
