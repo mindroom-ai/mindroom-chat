@@ -266,7 +266,9 @@ const normalizeHydratedContent = (
   return normalizedContent;
 };
 
-export const getLongTextSource = (content: Record<string, unknown>): LongTextSource | undefined => {
+export const getLongTextSource = (
+  content: Record<string, unknown>
+): LongTextSource | undefined => {
   const candidates = getLongTextCandidates(content);
   for (const candidate of candidates) {
     const source = getLongTextSourceFromCandidate(candidate);
