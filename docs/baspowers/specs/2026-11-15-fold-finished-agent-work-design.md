@@ -24,13 +24,14 @@ A MindRoom agent reply folds when all of these hold:
    once sanitized as the renderer sanitizes it, text other than whitespace and the pending mark
    `⏳`, or an image, video or audio element.
 4. It is long (owner decision, 2026-11-16: "only fold when the reply is longer than a certain
-   length"): its plain `body` (the sidecar's once read) has an effective length of at least
-   1200 characters, the timeline's long-message length, where each tool marker line counts as
-   80 characters, because it renders as a full row. A length, not a measured height: an earlier
-   version measured the rendered reply against the viewport, and review kept finding races in
-   it (the cog mounting after the measurement, the Android keyboard shrinking the viewport for a
-   cached verdict, images loading later, zero-size panels), and the element it measured broke
-   inline bodies. A length is the same on every device and needs no layout.
+   length"): its plain `body` (the sidecar's once read) has an effective length of at least 6000
+   characters, about two printed pages (owner, 2026-11-16: 1200 folded too eagerly), where each
+   tool marker line counts as 80 characters, because it renders as a full row. A length, not a
+   measured height: an earlier version measured the rendered reply against the viewport, and
+   review kept finding races in it (the cog mounting after the measurement, the Android keyboard
+   shrinking the viewport for a cached verdict, images loading later, zero-size panels), and the
+   element it measured broke inline bodies. A length is the same on every device and needs no
+   layout.
 5. It is not a search result or a highlighted row (`highlightRegex` set); those show the whole
    reply.
 6. A long reply whose body is in a sidecar folds only once the sidecar is read; the truncated
@@ -74,9 +75,8 @@ tool call and shorter replies render as today, with no row and no element of the
   every streamed edit re-renders the row.
 - **Length (pure, unit-tested):** `isLongAgentReply(body)` beside `splitFinishedWork`. Each line
   that `parseToolRefText` reads as a marker (`⏳` included) counts as 80 characters; the reply is
-  long from 1200. `LONG_AGENT_REPLY_LENGTH` repeats the timeline's
-  `FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH`, which `messages` may not import (layers). A reply
-  that is not long is not split.
+  long from 6000 (`LONG_AGENT_REPLY_LENGTH`), independent of the timeline's own
+  long-message length. A reply that is not long is not split.
 - **Fold component:** `FinishedWorkFold` in `src/app/messages/agent-run/`. Given a split, it
   renders the row, the work when open, and the answer; without one it returns the whole reply
   with no element of its own, so the tree is the same as without the fold (an emote's
@@ -98,10 +98,10 @@ tool call and shorter replies render as today, with no row and no element of the
   several markers; whitespace-only tail; marker text inside a code block does not count; a
   tail of only `⏳` or of content the sanitizer drops does not fold, an image-only tail does;
   comments are not text; under the browser parser a `<pre>` keeps its leading newline.
-- Unit tests for `isLongAgentReply`: 1199 characters is not long, 1200 is; a marker line counts
+- Unit tests for `isLongAgentReply`: 5999 characters is not long, 6000 is; a marker line counts
   as 80, also a pending one with `⏳`; a marker inside a line of text counts as text.
-- Component tests: a completed reply of effective length 1200 folds and opens on click, one of
-  1199 does not; a reply that does not fold renders with no element of the fold's own; an agent
+- Component tests: a completed reply of effective length 6000 folds and opens on click, one of
+  5999 does not; a reply that does not fold renders with no element of the fold's own; an agent
   emote and an inline body, through the real `MsgTypeRenderers`, keep the body on the line of
   the `* Agent` prefix and of the streaming or edited suffix; a streaming reply, an `error` reply, a reply without tools, a non-agent message
   and a highlighted row do not fold; the label shows the duration from the replacement

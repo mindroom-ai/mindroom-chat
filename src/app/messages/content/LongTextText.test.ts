@@ -1586,7 +1586,7 @@ describe('a finished agent reply in a sidecar', () => {
                   '',
                   '🔧 `read_file` [1]',
                   '',
-                  'The answer starts and ends. '.repeat(50),
+                  'The answer starts and ends. '.repeat(220),
                 ].join('\n'),
                 format: 'org.matrix.custom.html',
                 formatted_body:
