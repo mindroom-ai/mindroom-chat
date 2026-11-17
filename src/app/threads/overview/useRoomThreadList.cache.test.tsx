@@ -361,6 +361,14 @@ it.each(Object.keys(changesBeforeLaterPage) as (keyof typeof changesBeforeLaterP
         }
         // First progress callback has already saved this same root.
         await vi.waitFor(() => expect(saves).toHaveLength(1));
+        // What the first save holds, so that the later one is seen to replace it.
+        await vi.waitFor(async () => {
+          const first = await loadLatestCachedThreadEvents(sessionId, roomId, '$listed', 1);
+          if (change === 'bundled reply')
+            expect(first.events.map((event) => event.event_id)).toEqual(['$reply-1']);
+          if (change === 'edit decryption')
+            expect(JSON.stringify(first.rootEvent)).toContain('$edit');
+        });
         changed = true;
         if (change === 'edit') {
           root.makeReplaced(rootEdit('$listed', 'Newer server title'));
@@ -405,6 +413,7 @@ it.each(Object.keys(changesBeforeLaterPage) as (keyof typeof changesBeforeLaterP
         else if (change === 'redaction')
           expect(cached.rootEvent?.unsigned?.redacted_because).toBeTruthy();
         else if (change === 'bundled reply') expect(saved).toContain('$reply-2');
+        else if (change === 'edit decryption') expect(saved).toContain('$edit');
         else if (change === 'none')
           expect(cached.rootEvent?.content?.body).toBe('Listed by server');
         // The listed reply is kept as an edit target, not as downloaded history.

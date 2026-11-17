@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
@@ -8,7 +8,6 @@ import type { Room } from 'matrix-js-sdk';
 import { Avatar, Badge, Box, Icons, Text, config, toRem, type RectCords } from 'folds';
 import { PopOut, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { PageHeader } from '../ui/page/Page';
-import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { RoomTopicViewer } from './RoomTopicViewer';
 import { RoomAvatar, RoomIcon } from '../avatars/RoomAvatar';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -31,7 +30,6 @@ import { nameInitials } from '../lib/common';
 import { getDirectPartnerId } from '../matrix/room';
 import { useParentRooms } from '../matrix/state/subRooms';
 import { getDirectPath, getHomePath, getSpacePath } from '../routes/pathUtils';
-import { previousHistoryOrigin, showsRoom } from '../routes/historyStack';
 import { RoomPinMenu } from '../messages/pins/RoomPinMenu';
 import { subagentConversation, useRoomSubagentCounts } from '../messages/live/subagentRunStore';
 import { SubagentsIcon } from '../subagents/SubagentsIcon';
@@ -89,7 +87,7 @@ export type RoomViewHeaderProps = {
   onCanvasOpen?: (canvasId: string) => void;
   onCanvasClose?: () => void;
   /** The call controls, which the room provides (`HeaderCallButtons`) for where they go. */
-  calls?: (placement: HeaderCallPlacement) => ReactNode;
+  calls?: ReactElement;
   /**
    * The side panel beside the room or across it, by id (src/app/ui/panels/roomPanels.ts); none
    * while the one open is folded to its tab.
@@ -105,14 +103,6 @@ export type RoomViewHeaderProps = {
   /** The plugins' header actions, each in the row or the room menu by its placement. */
   pluginActions?: readonly PluginHeaderAction[];
 };
-
-/**
- * Where the header puts the call controls: its row of buttons, or on phones also the room menu,
- * since a phone's header has no room for them beside the name.
- */
-export type HeaderCallPlacement =
-  | { at: 'header'; phone: boolean }
-  | { at: 'menu'; requestClose: () => void };
 
 // A count on a button's top end corner, out of the pointer's way, in a badge tall enough for its
 // digits (the 200 size is a dot's), with room beside two of them as the 500 size has.
@@ -160,7 +150,7 @@ const cornerDot = (marker: `data-${string}`) => (
   />
 );
 
-/** The list a phone's back button leads to from a room the app did not open itself. */
+/** The room's list, which the room menu's Leave goes to once the room is left. */
 const sectionPathOf = (spacePathId: string | undefined, isDirect: boolean): string => {
   if (spacePathId) return getSpacePath(spacePathId);
   return isDirect ? getDirectPath() : getHomePath();
@@ -190,12 +180,12 @@ const useViewSwitch = (room: Room, hasMindroomAgents: boolean | undefined) => {
 };
 
 /**
- * The room header: avatar (a back button on phones), name and topic, then its actions (the Compact
- * and Threads switch, the filter bar button, scheduled tasks, canvases, the computer, the
- * sub-agents, calls, pinned messages, members, and the plugins' actions) and the room menu, which
- * offers those its row leaves out, and whether this room shows tool calls. Phones keep the back
- * button, the name and the room menu, so a long name keeps its room; a call that is on keeps its
- * button.
+ * The room header: avatar (none on phones), name and topic, then its actions (the Compact and
+ * Threads switch, the filter bar button, scheduled tasks, canvases, the computer, the sub-agents,
+ * calls, pinned messages, members, and the plugins' actions) and the room menu, which offers those
+ * its row leaves out, and whether this room shows tool calls. Phones keep the name, the call
+ * buttons and the room menu, so a long name keeps its room. The top bar's menu button, not the
+ * header, leads back to the list there.
  */
 export function RoomViewHeader({
   hasMindroomAgents,
@@ -249,19 +239,6 @@ export function RoomViewHeader({
   // Not while a side panel in the conversation's place hides this header: its Members shortcut
   // waits.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
-  // A phone's back chevron leaves the room for the page it was opened from (the list, a lobby,
-  // search results, the room a notification opened over, a thread with a link), passing over the
-  // room's own pages: its threads and the messages it was opened at. Opened from outside the app,
-  // the list takes the room's place. A swipe from the screen's left edge does not: it brings the
-  // navigation drawer out over the room (PhoneNavDrawer), unless a thread open in the room has
-  // its own back swipe on (useRoomViewThreadState).
-  const leaveRoom = () => {
-    const addresses = [room.roomId, getCanonicalAliasOrRoomId(mx, room.roomId)];
-    const origin = previousHistoryOrigin((page) => !showsRoom(page, addresses));
-    if (origin) navigate(-origin.steps);
-    else navigate(sectionPath, { replace: true });
-  };
-
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [pinAnchor, setPinAnchor] = useState<RectCords>();
   // On phones the room menu opens these; they stay with the room they were opened in.
@@ -442,8 +419,8 @@ export function RoomViewHeader({
       run: () => onPanelToggle?.('subagents'),
       marker: 'data-subagents-toggle',
     },
-    // The call buttons, which on phones keep only a call that is on (HeaderCallButtons).
-    calls && { id: 'call', placement: 'row', row: calls({ at: 'header', phone: mobile }) },
+    // The call buttons, in the row on phones too, so a call is one tap away.
+    calls && { id: 'call', placement: 'row', row: calls },
     pinnedCount > 0 && {
       id: 'pins',
       label: t('mindroomUi.threads.mindroomRoomViewHeader.pinnedMessages'),
@@ -487,12 +464,6 @@ export function RoomViewHeader({
           }),
       })
     ),
-    // The room menu's call entries, for what a phone's row leaves out of the call buttons.
-    calls && {
-      id: 'callEntries',
-      placement: 'auto',
-      menu: calls({ at: 'menu', requestClose: closeMenu }),
-    },
   ];
   const entries = listed.filter((entry): entry is RoomHeaderEntry => !!entry);
   // The command palette offers the actions the header draws, bar the ones that need their button's place.
@@ -525,12 +496,10 @@ export function RoomViewHeader({
   return (
     // Inside the main landmark a header is no banner by itself; the room's title bar stays one,
     // the landmark that names the open room.
-    <PageHeader role="banner" className={css.Header} balance={mobile}>
-      {/* On phones the title follows the back chevron's touch target directly. */}
-      <Box grow="Yes" alignItems="Center" gap={mobile ? '0' : '300'} style={{ minWidth: 0 }}>
-        {mobile ? (
-          <PhoneBackButton onBack={leaveRoom} />
-        ) : (
+    <PageHeader role="banner" className={css.Header}>
+      {/* On phones the name leads: the top bar's menu button above it reaches the list. */}
+      <Box grow="Yes" alignItems="Center" gap="300" style={{ minWidth: 0 }}>
+        {!mobile && (
           <Avatar size="300" radii="400" style={{ flexShrink: 0 }}>
             <RoomAvatar
               alt={roomName}

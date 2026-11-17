@@ -78,10 +78,12 @@ Its menus, and the profile card its rows open, take their Escape at the document
 
 #### `ThreadBoard`
 
-`ThreadBoard` (`{ room }`) is the threads of `room` as a board, for a plugin's own surface such as its side panel: a column for each state, left to right Working (a reply in the thread streams, or a live background job names it in its `threadId`), Later (snoozed, or a scheduled task of the thread is pending), Open (none of the others) and Done (resolved).
+`ThreadBoard` (`{ room, onOpenThread? }`) is the threads of `room` as a board, for a plugin's own surface such as its side panel: a column for each state, left to right Working (a reply in the thread streams, or a live background job names it in its `threadId`), Later (snoozed, or a scheduled task of the thread is pending), Open (none of the others) and Done (resolved).
 A thread is in one column, the first of Working, Done, Later and Open that applies: a resolved thread that streams again is in Working, a resolved one with a schedule in Done.
 Its threads are the room's threads with at least one reply (or one of the signed-in user's still sending), as the app's thread index holds them and the Threads page lists them: a top-level message nobody replied to is no card, nor is a pinned event without a thread, and a thread whose first reply is still on its way shows once that reply does. It shows them in any view of the room, while a thread fills the room's page, and with no room page behind it, and builds no index of its own. While the board shows, the room's whole thread list loads; until it is in, and until the index has looked at the rooms once, one line above the columns says it is loading threads, and a room without a thread known yet shows only that line, never that it has none.
 Each thread shows as its Compact card, with its title, preview, tags, people, unread mark, badges (client plugins' `threadCardBadges` too) and actions (resolve, snooze and the thread's menu), and choosing a card, also with Enter, opens the thread in the room's page.
+`onOpenThread` (`(threadRootId: string) => void`) tells the plugin that the board opens a thread, so it can make room for it, for example by folding its panel on a phone: the board calls it with the thread's root each time a card opens its thread (a click or tap, Enter, the card menu's Open thread), also when the room already shows that thread, and not for a card's other actions or a thread opened elsewhere.
+It runs just before the board opens the thread, so what the plugin changes for it is never later than the thread shows.
 Working and Done list the newest activity first, Open its unread threads first, then the newest, and Later the soonest first, by the snooze's end or the next run, a schedule without a time last; each card says when. Among the cards a column shows, a pinned thread leads, under Pinned, as in the Compact view.
 Open and Done show their first 20 threads and a Show more for 20 more; Working and Later show all; each column's header names it and counts all its threads. A room without a thread shows one line instead.
 A thread moves to its column as its state changes, also when a snooze ends or a one-time schedule's time comes with nothing else happening in the room.
@@ -184,7 +186,7 @@ one that uses `useMindroomServer`, `useMindroomServerStatus` or `useRoomComputer
 
 ## SDK versions
 
-`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 60), naming the plugin.
+`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 61), naming the plugin.
 The SDK only grows: nothing a plugin uses is changed or removed, and each addition raises that version, a new export as well as a new kind of contribution in `ClientPlugin` or a new field of the declaration, so a plugin built for an older SDK still builds and one that uses a newer addition never builds into a client that would ignore it.
 
 ### What each version added
@@ -247,7 +249,8 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 - version 57 thread details
 - version 58 `room`'s `ThreadBoard`
 - version 59 `useMarkdownHtml`'s `imageSource`
-- version 60 a thread card badge's `hoverCard`
+- version 60 `room`'s `ThreadBoard`'s `onOpenThread`
+- version 61 a thread card badge's `hoverCard`
 
 ## Pinches
 
@@ -469,7 +472,7 @@ Only the Compact view's cards draw them: the Threads page, the sidebar's thread 
 A thread whose first message is still sending has no badges until the server has confirmed it, so `threadId` is always the ID the server gave the root.
 They are drawn inside the card's button, so a badge renders no control of its own: no button, no link and nothing that takes the focus, and a click on it opens the thread as a click anywhere on the card does.
 A click handler on the badge's element may stop the click (`event.stopPropagation()`) to keep the thread closed.
-A badge that opens its own hover card, such as a pull request chip's, sets `hoverCard: true` (since version 60): while the pointer is over the badge, the card's thread details hover card stays closed and does not start its wait, and once the pointer moves from the badge onto the rest of the card, that wait starts as on entering the card.
+A badge that opens its own hover card, such as a pull request chip's, sets `hoverCard: true` (since version 61): while the pointer is over the badge, the card's thread details hover card stays closed and does not start its wait, and once the pointer moves from the badge onto the rest of the card, that wait starts as on entering the card.
 The app draws such a badge inside an element with `display: contents`, so the card's layout does not change.
 A `hoverCard` that is not a boolean leaves the badge out.
 The card's button has its own accessible name, so assistive technology does not read a badge, and a badge's click is for the pointer only: what a badge shows or opens must also be reachable elsewhere, such as in the open thread.

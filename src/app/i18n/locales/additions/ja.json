@@ -141,8 +141,7 @@
       "noCrossSigningKeys": "シークレットストレージにクロス署名鍵がないため、リカバリーキーではこのセッションを検証できません。ほかのセッションから検証してください。"
     },
     "commands": {
-      "CommandPlain": "Markdown を使わずにプレーンテキストとしてメッセージを送信します。例: /plain message",
-      "CommandHtml": "Markdown を使わずに HTML としてメッセージを送信します。例: /html message"
+      "CommandPlain": "Markdown を使わずにプレーンテキストとしてメッセージを送信します。例: /plain message"
     },
     "tokenLogin": {
       "signInNotStartedHere": "このサインインはここで開始されていないため、使用されませんでした。もう一度サインインしてください。"
@@ -531,7 +530,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} に失敗しました: {{reason}}",
         "usage": "{{command}} を実行できませんでした。{{usage}}",
-        "ownServer": "変更していません: 自分のサーバー ({{server}}) がルームから締め出されます。",
         "unknown": "{{command}} はコマンドではありません。テキストとして送るには、メッセージの先頭に /plain を付けてください。"
       },
       "jumpToTime": {

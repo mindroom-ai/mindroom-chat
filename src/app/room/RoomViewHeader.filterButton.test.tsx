@@ -368,17 +368,13 @@ describe("a phone's room header", () => {
     expect(store.get(edgeSwipeBackCountAtom)).toBe(0);
     swipeFromLeftEdge();
     expect(navigate).not.toHaveBeenCalled();
+  });
 
-    // The back chevron still leaves the room.
-    const [back] =
-      renderer?.root.findAll(
-        (node) => node.type === 'button' && node.props['aria-label'] === 'Back'
-      ) ?? [];
-    if (!back) throw new Error('no Back button');
-    act(() => {
-      back.props.onClick();
-    });
-    expect(navigate).toHaveBeenCalledOnce();
+  it("leads a phone's header with the room's name, without a Back button", () => {
+    screen.size = 'Mobile';
+    renderHeader();
+    expect(buttons((node) => node.props['aria-label'] === 'Back')).toHaveLength(0);
+    expect(renderer?.root.findAll((node) => node.type === 'h1').map(textOf)).toEqual(['General']);
   });
 });
 
@@ -455,13 +451,8 @@ describe("the room header's actions", () => {
       ],
       onCanvasOpen: vi.fn(),
       onCanvasClose: vi.fn(),
-      // A call is on: a phone's row keeps its button, the menu offers the rest.
-      calls: (placement) =>
-        placement.at === 'menu' ? (
-          <button type="button">Call Helper</button>
-        ) : (
-          <button type="button" aria-label={placement.phone ? 'Join the call' : 'Start a call'} />
-        ),
+      // The call buttons stay in the row on every screen.
+      calls: <button type="button" aria-label="Start a call" />,
       pluginPanels: [{ id: 'notes/panel', label: 'Notes' }],
       onPanelToggle: vi.fn(),
     });
@@ -498,7 +489,7 @@ describe("the room header's actions", () => {
   it("folds a phone's actions into the room menu, in the row's order", () => {
     screen.size = 'Mobile';
     renderEverything();
-    expect(rowLabels()).toEqual(['Back', 'Join the call', 'More Options']);
+    expect(rowLabels()).toEqual(['Start a call', 'More Options']);
     openMenu();
     expect(roomEntries()).toEqual([
       'Compact view',
@@ -509,7 +500,6 @@ describe("the room header's actions", () => {
       'Pinned Messages',
       'Show Members',
       'Notes',
-      'Call Helper',
     ]);
   });
 
@@ -543,7 +533,7 @@ describe("the room header's actions", () => {
 
     screen.size = 'Mobile';
     renderHeader({ pluginActions });
-    expect(rowLabels()).toEqual(['Back', 'More Options']);
+    expect(rowLabels()).toEqual(['More Options']);
     openMenu();
     expect(roomEntries().slice(-3)).toEqual(['Show Members', 'Demo auto', 'Demo menu']);
     run.mockClear();

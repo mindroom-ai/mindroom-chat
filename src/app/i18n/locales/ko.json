@@ -1280,25 +1280,15 @@
     "commands": {
       "CommandMe": "동작 메시지 보내기",
       "CommandNotice": "공지 메시지 보내기",
-      "CommandShrug": "¯\\_(ツ)_/¯을(를) 메시지로 보내기",
-      "CommandTableFlip": "{{value1}}을(를) 메시지로 보내기",
-      "CommandUnFlip": "{{value1}}을(를) 메시지로 보내기",
       "CommandStartDm": "사용자와 다이렉트 메시지를 시작합니다. 예: /startdm userId1",
       "CommandJoin": "주소로 방에 참여합니다. 예: /join address1 address2",
       "CommandLeave": "현재 방에서 나갑니다.",
       "CommandInvite": "사용자를 방에 초대합니다. 예: /invite userId1 userId2 [-r reason]",
-      "CommandDisInvite": "사용자의 방 초대를 취소합니다. 예: /disinvite userId1 userId2 [-r reason]",
       "CommandKick": "사용자를 방에서 내보냅니다. 예: /kick userId1 userId2 servername [-r reason]",
       "CommandBan": "사용자를 방에서 차단합니다. 예: /ban userId1 userId2 servername [-r reason]",
       "CommandUnBan": "사용자의 방 차단을 해제합니다. 예: /unban userId1 userId2",
       "CommandIgnore": "사용자를 무시합니다. 예: /ignore userId1 userId2",
-      "CommandUnIgnore": "사용자 무시를 해제합니다. 예: /unignore userId1 userId2",
-      "CommandMyRoomNick": "현재 방의 닉네임을 변경합니다.",
-      "CommandMyRoomAvatar": "현재 방의 프로필 사진을 변경합니다. 예 /myroomavatar mxc://xyzabc",
-      "CommandConvertToDm": "방을 다이렉트 메시지로 전환",
-      "CommandConvertToRoom": "다이렉트 메시지를 방으로 전환",
-      "CommandDelete": "사용자의 메시지를 삭제합니다. 예: /delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandAcl": "서버 접근 제어 목록을 관리합니다. 예 /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]"
+      "CommandUnIgnore": "사용자 무시를 해제합니다. 예: /unignore userId1 userId2"
     },
     "item": {
       "value1Emoji": "{{value1}} 이모지"

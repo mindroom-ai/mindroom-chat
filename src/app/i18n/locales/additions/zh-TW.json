@@ -141,8 +141,7 @@
       "noCrossSigningKeys": "您的祕密儲存空間中沒有交叉簽署金鑰，因此復原金鑰無法驗證此工作階段。請從您的其他工作階段驗證它。"
     },
     "commands": {
-      "CommandPlain": "以純文字傳送訊息，不使用 Markdown。範例：/plain message",
-      "CommandHtml": "以 HTML 傳送訊息，不使用 Markdown。範例：/html message"
+      "CommandPlain": "以純文字傳送訊息，不使用 Markdown。範例：/plain message"
     },
     "tokenLogin": {
       "signInNotStartedHere": "此登入不是從這裡發起的，因此未被使用。請重新登入。"
@@ -531,7 +530,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} 失敗：{{reason}}",
         "usage": "無法執行 {{command}}。{{usage}}",
-        "ownServer": "未做變更：這會把你自己的伺服器（{{server}}）擋在房間之外。",
         "unknown": "{{command}} 不是指令。若要以文字傳送，請在訊息開頭加上 /plain。"
       },
       "jumpToTime": {

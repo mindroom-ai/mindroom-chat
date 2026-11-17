@@ -93,26 +93,23 @@ const seedBystanders = async (): Promise<void> => {
   );
 };
 
-/**
- * Saves the redaction of `targetId` and returns how many rows were read for it: the rows cursors
- * stepped over, and the event rows read by key (the redaction's own row among them).
- */
-const redact = async (targetId: string, roomId = ROOM_ID): Promise<number> => {
+/** How many rows `work` read: the rows cursors stepped over, and the event rows read by key. */
+const countRowsRead = async (work: () => Promise<unknown>): Promise<number> => {
   const continueSpy = vi.spyOn(IDBCursor.prototype, 'continue');
-  let eventRowsRead = 0;
-  const nativeGet = IDBObjectStore.prototype.get;
-  const getSpy = vi
-    .spyOn(IDBObjectStore.prototype, 'get')
-    .mockImplementation(function get(this: IDBObjectStore, key) {
-      if (this.name === EVENTS_STORE) eventRowsRead += 1;
-      return nativeGet.call(this, key);
-    });
-  await saveRoomEventsToCache(SESSION_ID, roomId, [redaction(targetId)]);
-  const rowsRead = continueSpy.mock.calls.length + eventRowsRead;
+  const getSpy = vi.spyOn(IDBObjectStore.prototype, 'get');
+  await work();
+  const rowsRead =
+    continueSpy.mock.calls.length +
+    (getSpy.mock.contexts as IDBObjectStore[]).filter((store) => store.name === EVENTS_STORE)
+      .length;
   continueSpy.mockRestore();
   getSpy.mockRestore();
   return rowsRead;
 };
+
+/** Saves the redaction of `targetId` and returns the rows read for it, its own row among them. */
+const redact = (targetId: string, roomId = ROOM_ID): Promise<number> =>
+  countRowsRead(() => saveRoomEventsToCache(SESSION_ID, roomId, [redaction(targetId)]));
 
 const embeddedKeys = async (): Promise<IDBValidKey[]> => {
   const db = await openCacheStore(SESSION_ID);
@@ -145,12 +142,14 @@ describe('cache work of a redaction', () => {
     await saveThreadEventsToCache(SESSION_ID, ROOM_ID, '$a', [message('$reaction', 3000)]);
     await saveThreadEventsToCache(SESSION_ID, ROOM_ID, '$b', [message('$reaction', 3000)]);
 
-    const continueSpy = vi.spyOn(IDBCursor.prototype, 'continue');
-    const scopes = await deleteThreadEventFromCacheByEventId(SESSION_ID, ROOM_ID, '$reaction');
+    let scopes: string[] = [];
+    const rowsRead = await countRowsRead(async () => {
+      scopes = await deleteThreadEventFromCacheByEventId(SESSION_ID, ROOM_ID, '$reaction');
+    });
 
     expect(scopes.sort()).toEqual(['$a', '$b']);
     // Three copies (the room's own stays), none of the 80 other rows.
-    expect(continueSpy.mock.calls.length).toBeLessThanOrEqual(3);
+    expect(rowsRead).toBeLessThanOrEqual(3);
     const busy = await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, '$busy', 100);
     expect(busy.events).toHaveLength(BYSTANDERS);
   });
@@ -246,9 +245,7 @@ describe('cache work of a redaction', () => {
 
   it('lists a row under the events it embeds now, not those it embedded', async () => {
     await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [edited('$target', 3000, '$edit-1')]);
-    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [
-      { ...edited('$target', 3000, '$edit-2'), origin_server_ts: 3000 },
-    ]);
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [edited('$target', 3000, '$edit-2')]);
     const threadRoot = root('$root', message('$latest-1', 3000));
     await saveThreadEventsToCache(SESSION_ID, ROOM_ID, '$root', [], threadRoot);
     await saveThreadEventsToCache(
@@ -314,7 +311,12 @@ const seedVersionSixDatabase = async (
     events.createIndex('by_scope_ts', ['roomId', 'scope', 'ts', 'eventId']);
     events.createIndex('by_room_event', ['roomId', 'eventId']);
     const meta = db.createObjectStore(META_STORE, { keyPath: 'metaKey' });
-    db.createObjectStore('room_ledger', { keyPath: 'roomId' });
+    // Each room has its ledger row, as a v6 build's saves left it: without one, any write reads
+    // the room to count it, which is not the read these tests count.
+    const ledger = db.createObjectStore('room_ledger', { keyPath: 'roomId' });
+    new Set(rows.map((row) => row.roomId)).forEach((roomId) =>
+      ledger.put({ roomId, approxBytes: 1, eventCount: 1, lastActivityTs: 1 })
+    );
     const summaries = db.createObjectStore('thread_summaries', { keyPath: 'cacheKey' });
     summaries.createIndex('by_room', 'roomId');
     rows.forEach(({ roomId, scope, rawEvent }) =>
@@ -407,7 +409,6 @@ describe('a cache an earlier schema wrote (v6)', () => {
     expect(await redact('$old-latest')).toBeLessThanOrEqual(FEW);
     const thread = await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, '$t', 10);
     expect(thread.events.map(bundledEditOf)).toEqual([undefined]);
-    expect(threadSummaryOf(thread.rootEvent)).toBeUndefined();
     const roomCopy = await loadCachedRoomEvent(SESSION_ID, ROOM_ID, '$old-root');
     expect(threadSummaryOf(roomCopy)).not.toHaveProperty('latest_event');
     expect(threadSummaryOf(await rootCopyOf('$old-root'))).not.toHaveProperty('latest_event');

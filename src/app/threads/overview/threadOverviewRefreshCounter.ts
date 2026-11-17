@@ -32,6 +32,18 @@ const changedThreadId = (room: Room, mEvent: MatrixEvent): string | undefined =>
   return related && (related.threadRootId ?? relatedId);
 };
 
+/**
+ * The threads an event of the room may change (`changedThreadId`), and the event itself when it
+ * answers another message of the room: it may be a root. One `undefined` when the thread is
+ * unknown, which stands for every thread of the room.
+ */
+export const changedThreadIds = (room: Room, mEvent: MatrixEvent): Array<string | undefined> => {
+  const changedId = changedThreadId(room, mEvent);
+  const eventId = mEvent.getId();
+  const mayBeRoot = changedId && !mEvent.threadRootId && eventId && eventId !== changedId;
+  return mayBeRoot ? [eventId, changedId] : [changedId];
+};
+
 /** How long a kept thread record waits for the mark of the room that has it built again. */
 export const KEPT_RECORD_CHECK_MS = 1000;
 
@@ -40,7 +52,7 @@ export const KEPT_RECORD_CHECK_MS = 1000;
  * else's. Undefined when one of them is unthreaded or for the main timeline: such a receipt reads
  * the root of every thread, or all of each.
  */
-const receiptThreadIds = (receipt: MatrixEvent, userId: string): string[] | undefined => {
+export const receiptThreadIds = (receipt: MatrixEvent, userId: string): string[] | undefined => {
   const threadIds: string[] = [];
   const own = Object.values(receipt.getContent()).flatMap((byType) =>
     isRecord(byType)
@@ -117,15 +129,8 @@ export const useThreadOverviewRefreshCounter = (
         bump();
       }, KEPT_RECORD_CHECK_MS);
     };
-    const markEvent = (mEvent: MatrixEvent) => {
-      const changedId = changedThreadId(room, mEvent);
-      const eventId = mEvent.getId();
-      // A message of the room that answers another one may be a root itself.
-      if (changedId && !mEvent.threadRootId && eventId && eventId !== changedId) {
-        markThreadRecordChange(overviewChanges, eventId);
-      }
-      markThreadRecordChange(overviewChanges, changedId);
-    };
+    const markEvent = (mEvent: MatrixEvent) =>
+      changedThreadIds(room, mEvent).forEach((id) => markThreadRecordChange(overviewChanges, id));
     const handleTimeline = (
       mEvent: MatrixEvent,
       eventRoom: Room | undefined,
@@ -164,11 +169,12 @@ export const useThreadOverviewRefreshCounter = (
       if (threadRootId) markThreadRecordChange(overviewChanges, threadRootId);
       markEvent(mEvent);
     };
-    // A record names its people and reads who is in the room, and whether the room is encrypted.
-    // The sync repeats member events that change neither, one for the sender of many a batch.
+    // A record names its people and reads who is in the room. The sync repeats member events that
+    // change neither, one for the sender of many a batch.
     const handleMember = (_mEvent: MatrixEvent, member: RoomMember) => {
       if (member.roomId === room.roomId) markThreadRecordChange(overviewChanges);
     };
+    // A record reads whether the room is encrypted.
     const handleState = (mEvent: MatrixEvent, state: RoomState) => {
       if (
         state.roomId === room.roomId &&
