@@ -37,11 +37,6 @@ vi.mock('folds', async (importOriginal) => {
 
 vi.mock('./RoomThreadOverview.css', () => ({
   Overview: 'Overview',
-  WorkflowTabs: 'WorkflowTabs',
-  WorkflowTab: 'WorkflowTab',
-  WorkflowCount: 'WorkflowCount',
-  WorkflowLabel: 'WorkflowLabel',
-  WorkflowIcon: 'WorkflowIcon',
   ToolbarHeader: 'ToolbarHeader',
   ToggleButton: 'ToggleButton',
   CompactCount: 'CompactCount',
