@@ -1597,34 +1597,10 @@
       "roomThreadOverview": {
         "addTagFilter": "ট্যাগ ফিল্টার যোগ করুন",
         "availableTags": "উপলব্ধ ট্যাগ",
-        "filterPresets": "ফিল্টার প্রিসেট",
         "lastReply": "শেষ উত্তর",
         "lockSortOrder": "ক্রম লক করুন (বর্তমানে {{sort}})",
         "natural": "স্বাভাবিক ক্রম",
         "noThreadsMatchCurrentFilters": "বর্তমান ফিল্টারের সাথে কোনো থ্রেড মেলে না।",
-        "preset": "প্রিসেট",
-        "presets": {
-          "all": {
-            "description": "সমস্ত ফিল্টার রিসেট করুন",
-            "label": "সব"
-          },
-          "archived": {
-            "description": "শুধুমাত্র সমাধান করা থ্রেড",
-            "label": "সংরক্ষণাগারভুক্ত"
-          },
-          "needs-attention": {
-            "description": "অমীমাংসিত, অ-স্ট্রিমিং, অ-নির্ধারিত থ্রেড",
-            "label": "মনোযোগ প্রয়োজন"
-          },
-          "review-queue": {
-            "description": "অপঠিত উত্তর সহ অমীমাংসিত থ্রেড",
-            "label": "পর্যালোচনা সারি"
-          },
-          "working": {
-            "description": "স্ট্রিমিং বা শিডিউল করা — আপনি এখন কী কাজ করছেন",
-            "label": "কাজ করছে"
-          }
-        },
         "reset": "রিসেট করুন",
         "resetAllThreadFilters": "সমস্ত থ্রেড ফিল্টার রিসেট করুন",
         "roomViewMode": "রুম ভিউ মোড",
@@ -2999,17 +2975,6 @@
       "tagsPlaceholder": "ট্যাগ",
       "unread": "অপঠিত"
     },
-    "filterTooltip": {
-      "any": "{{label}}: সব দেখানো হচ্ছে। শুধু এগুলি দেখাতে ক্লিক করুন।",
-      "exclude": "{{label}}: লুকানো আছে। ফিল্টার সরাতে ক্লিক করুন।",
-      "include": "{{label}}: শুধু এগুলি দেখানো হচ্ছে। লুকাতে ক্লিক করুন।",
-      "stateAny": "সব দেখানো হচ্ছে",
-      "stateExclude": "লুকানো",
-      "stateInclude": "শুধু এগুলি দেখানো হচ্ছে",
-      "tagAny": "ট্যাগ \"{{tag}}\"",
-      "tagExclude": "ট্যাগ \"{{tag}}\": লুকানো আছে। ফিল্টার সরাতে ক্লিক করুন।",
-      "tagInclude": "ট্যাগ \"{{tag}}\": শুধু এটিই দেখানো হচ্ছে। লুকাতে ক্লিক করুন।"
-    },
     "replyCount_one": "{{count}} উত্তর",
     "replyCount_other": "{{count}} উত্তর",
     "resolve": "সমাধান হয়েছে বলে চিহ্নিত করুন",
@@ -3033,7 +2998,6 @@
     },
     "status": {
       "idle": "নিষ্ক্রিয়",
-      "idleFilter": "নিষ্ক্রিয় (সমাধান হয়েছে, স্ট্রিমিং নেই, কোনো কাজ নেই)",
       "resolved": "সমাধান করা হয়েছে",
       "scheduled": "নির্ধারিত",
       "streaming": "স্ট্রিমিং",

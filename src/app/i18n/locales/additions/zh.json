@@ -789,13 +789,7 @@
         "threadFiltersActive": "讨论串过滤器（已启用）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "高级过滤器",
-        "presets": {
-          "snoozed": {
-            "label": "已延后",
-            "description": "仅已延后的讨论串"
-          }
-        }
+        "advancedFilters": "高级过滤器"
       },
       "threadPeopleFilter": {
         "label": "参与者",
@@ -966,6 +960,20 @@
     "unsnooze": "取消延后",
     "status": {
       "snoozed": "已延后"
+    },
+    "workflow": {
+      "needsYou": "需要你处理",
+      "working": "处理中",
+      "later": "稍后",
+      "done": "已完成",
+      "all": "全部",
+      "description": {
+        "needsYou": "后台任务需要批准，或没有正在运行或已计划的任务。",
+        "working": "智能体正在回复，或子智能体或后台工具正在运行。",
+        "later": "已暂缓，或正在等待计划任务。",
+        "done": "已解决的讨论串。",
+        "all": "符合其他筛选条件的所有讨论串。"
+      }
     },
     "renameHint": "双击以重命名"
   },
@@ -1284,7 +1292,7 @@
     "layoutSections": "分区",
     "sections": {
       "working": "进行中",
-      "snoozed": "已延后",
+      "later": "稍后",
       "idle": "空闲",
       "resolved": "已解决"
     },

@@ -815,13 +815,7 @@
         "threadFiltersActive": "Filtri dei thread (attivi)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtri avanzati",
-        "presets": {
-          "snoozed": {
-            "label": "Posticipati",
-            "description": "Solo thread posticipati"
-          }
-        }
+        "advancedFilters": "Filtri avanzati"
       },
       "threadPeopleFilter": {
         "label": "Persone",
@@ -1000,6 +994,20 @@
     "unsnooze": "Annulla posticipo",
     "status": {
       "snoozed": "Posticipato"
+    },
+    "workflow": {
+      "needsYou": "Serve il tuo intervento",
+      "working": "In corso",
+      "later": "Più tardi",
+      "done": "Completati",
+      "all": "Tutti",
+      "description": {
+        "needsYou": "Serve un’approvazione per un’attività in background, oppure non ci sono attività in corso o pianificate.",
+        "working": "Un agente sta rispondendo, oppure è in esecuzione un sottoagente o uno strumento in background.",
+        "later": "Posticipati o in attesa di un’attività pianificata.",
+        "done": "Thread risolti.",
+        "all": "Tutti i thread che corrispondono agli altri filtri."
+      }
     },
     "renameHint": "Fai doppio clic per rinominare"
   },
@@ -1336,7 +1344,7 @@
     "layoutSections": "Sezioni",
     "sections": {
       "working": "In corso",
-      "snoozed": "Posticipati",
+      "later": "Più tardi",
       "idle": "Inattivi",
       "resolved": "Risolti"
     },

@@ -42,14 +42,16 @@ const openUnreadThreads = async (page: Page, roomId: string, title: string) => {
   await expect(page.getByRole('heading', { name: title }).first()).toBeVisible({
     timeout: 30_000,
   });
-  // The Unread filter is one of the advanced filters.
+  // Search operators are available in the advanced filters.
   const advancedFilters = page.locator('[data-thread-filter-mode-switch]');
   if ((await advancedFilters.getAttribute('aria-pressed')) !== 'true')
     await advancedFilters.click();
   await expect(advancedFilters).toHaveAttribute('aria-pressed', 'true');
-  const unreadFilter = page.locator('[data-filter-key="unread"]');
-  await unreadFilter.click();
-  await expect(unreadFilter).toHaveAttribute('data-filter-state', 'include');
+  const search = page.locator('[data-search-input]');
+  if (!(await search.isVisible())) await page.locator('[data-search-toggle]').click();
+  await search.fill('is:unread');
+  // The parsed filter clears the All tab only after the search debounce applies.
+  await expect(page.locator('[data-thread-tab="all"]')).toHaveAttribute('aria-pressed', 'false');
   return page.locator('[data-thread-root-id]');
 };
 

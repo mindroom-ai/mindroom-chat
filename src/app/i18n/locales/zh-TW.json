@@ -365,8 +365,7 @@
       "streaming": "串流回應",
       "scheduled": "已排程",
       "unread": "未讀",
-      "idle": "閒置",
-      "idleFilter": "空閒（已解決，不流式傳輸，無任務）"
+      "idle": "閒置"
     },
     "stats": {
       "aria": "討論串統計",
@@ -374,17 +373,6 @@
       "threadCount_one": "{{count}} 個討論串",
       "threadCount_other": "{{count}} 個討論串",
       "tags": "標籤"
-    },
-    "filterTooltip": {
-      "any": "{{label}}：顯示全部。單擊僅顯示。",
-      "include": "{{label}}：僅顯示。點選即可隱藏。",
-      "exclude": "{{label}}：隱藏。點選以清除篩選條件。",
-      "tagAny": "標籤「{{tag}}」",
-      "tagInclude": "標籤「{{tag}}」：僅顯示。點選即可隱藏。",
-      "tagExclude": "標籤「{{tag}}」：隱藏。點選以清除篩選條件。",
-      "stateAny": "顯示全部",
-      "stateInclude": "僅顯示",
-      "stateExclude": "隱藏"
     },
     "filters": {
       "scope": "範圍",
@@ -2832,8 +2820,6 @@
         "addTagFilter": "新增標籤篩選條件",
         "tag": "+ 標籤",
         "availableTags": "可用標籤",
-        "filterPresets": "篩選條件預設",
-        "preset": "預設",
         "searchThreads": "搜尋討論串",
         "searchThreads2": "搜尋討論串…",
         "roomViewMode": "房間檢視模式",
@@ -2853,29 +2839,7 @@
         "unlockSortOrder": "解鎖排序順序（目前為{{sort}}）",
         "lockSortOrder": "鎖定排序順序（目前為{{sort}}）",
         "threadCount_one": "{{count}} 個討論串",
-        "threadCount_other": "{{count}} 個討論串",
-        "presets": {
-          "needs-attention": {
-            "label": "需要注意",
-            "description": "未解決、未串流回應且未排程的討論串"
-          },
-          "working": {
-            "label": "處理中",
-            "description": "正在串流回應或已排程——您目前處理的內容"
-          },
-          "review-queue": {
-            "label": "審核佇列",
-            "description": "有未讀回覆的未解決討論串"
-          },
-          "archived": {
-            "label": "已存檔",
-            "description": "僅已解決的討論串"
-          },
-          "all": {
-            "label": "全部",
-            "description": "重置所有篩選條件"
-          }
-        }
+        "threadCount_other": "{{count}} 個討論串"
       },
       "threadTagPicker": {
         "addTag": "新增標籤",

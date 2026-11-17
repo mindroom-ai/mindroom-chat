@@ -365,8 +365,7 @@
       "streaming": "Streaming",
       "scheduled": "Geplant",
       "unread": "Ungelesen",
-      "idle": "Inaktiv",
-      "idleFilter": "Inaktiv (gelöst, kein Streaming, keine Aufgaben)"
+      "idle": "Inaktiv"
     },
     "stats": {
       "aria": "Thread-Statistiken",
@@ -374,17 +373,6 @@
       "threadCount_one": "{{count}} Thread",
       "threadCount_other": "{{count}} Threads",
       "tags": "Tags"
-    },
-    "filterTooltip": {
-      "any": "{{label}}: alle werden angezeigt. Klicken, um nur diese anzuzeigen.",
-      "include": "{{label}}: nur diese werden angezeigt. Klicken, um sie auszublenden.",
-      "exclude": "{{label}}: ausgeblendet. Klicken, um den Filter zu entfernen.",
-      "tagAny": "Tag „{{tag}}“",
-      "tagInclude": "Tag „{{tag}}“: nur anzeigen. Klicken, um auszublenden.",
-      "tagExclude": "Tag „{{tag}}“: ausgeblendet. Klicken, um den Filter zu entfernen.",
-      "stateAny": "alle anzeigen",
-      "stateInclude": "nur anzeigen",
-      "stateExclude": "ausgeblendet"
     },
     "filters": {
       "scope": "Bereich",
@@ -2845,8 +2833,6 @@
         "addTagFilter": "Tag-Filter hinzufügen",
         "tag": "+ Tag",
         "availableTags": "Verfügbare Tags",
-        "filterPresets": "Filtervoreinstellungen",
-        "preset": "Voreinstellung",
         "searchThreads": "Threads durchsuchen",
         "searchThreads2": "Threads durchsuchen...",
         "roomViewMode": "Raumansichtsmodus",
@@ -2866,29 +2852,7 @@
         "unlockSortOrder": "Sortierung entsperren (aktuell {{sort}})",
         "lockSortOrder": "Sortierung sperren (aktuell {{sort}})",
         "threadCount_one": "{{count}} Thread",
-        "threadCount_other": "{{count}} Threads",
-        "presets": {
-          "needs-attention": {
-            "label": "Aufmerksamkeit erforderlich",
-            "description": "Ungelöste, nicht streamende und nicht geplante Threads"
-          },
-          "working": {
-            "label": "In Arbeit",
-            "description": "Streaming oder geplant – woran du gerade arbeitest"
-          },
-          "review-queue": {
-            "label": "Prüfliste",
-            "description": "Ungelöste Threads mit ungelesenen Antworten"
-          },
-          "archived": {
-            "label": "Archiviert",
-            "description": "Nur gelöste Threads"
-          },
-          "all": {
-            "label": "Alle",
-            "description": "Alle Filter zurücksetzen"
-          }
-        }
+        "threadCount_other": "{{count}} Threads"
       },
       "threadTagPicker": {
         "addTag": "Tag hinzufügen",

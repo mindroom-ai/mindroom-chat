@@ -212,7 +212,7 @@ test.describe('room view defaults', () => {
     // The Advanced filters switch shows every filter, pressed and tinted, and a reload keeps it.
     await modeSwitch.click();
     await expect(modeSwitch).toHaveAttribute('aria-pressed', 'true');
-    await expect(filterToggles.first()).toBeVisible();
+    await expect(overview.locator('[data-thread-tab="all"]')).toBeVisible();
     await expect(unresolved).toHaveCount(0);
     await page.mouse.move(1, 1);
     await expect
@@ -230,7 +230,7 @@ test.describe('room view defaults', () => {
     await page.reload();
     await expect(compactView).toBeVisible({ timeout: 120_000 });
     await expect(modeSwitch).toHaveAttribute('aria-pressed', 'true');
-    await expect(filterToggles.first()).toBeVisible();
+    await expect(overview.locator('[data-thread-tab="all"]')).toBeVisible();
     await expect(unresolved).toHaveCount(0);
 
     // Switching back restores the simple bar.

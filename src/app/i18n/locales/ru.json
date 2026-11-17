@@ -367,8 +367,7 @@
       "streaming": "Передача",
       "scheduled": "Запланировано",
       "unread": "Не прочитано",
-      "idle": "Неактивна",
-      "idleFilter": "Неактивна (решена, без передачи и задач)"
+      "idle": "Неактивна"
     },
     "stats": {
       "aria": "Статистика веток",
@@ -378,17 +377,6 @@
       "tags": "Теги",
       "threadCount_few": "{{count}} ветки",
       "threadCount_many": "{{count}} веток"
-    },
-    "filterTooltip": {
-      "any": "{{label}}: показаны все. Нажмите, чтобы оставить только это.",
-      "include": "{{label}}: показано только это. Нажмите, чтобы скрыть.",
-      "exclude": "{{label}}: скрыто. Нажмите, чтобы убрать фильтр.",
-      "tagAny": "Тег «{{tag}}»",
-      "tagInclude": "Тег «{{tag}}»: показан только он. Нажмите, чтобы скрыть.",
-      "tagExclude": "Тег «{{tag}}»: скрыт. Нажмите, чтобы убрать фильтр.",
-      "stateAny": "показаны все",
-      "stateInclude": "показано только это",
-      "stateExclude": "скрыто"
     },
     "filters": {
       "scope": "Область",
@@ -2961,8 +2949,6 @@
         "addTagFilter": "Добавить фильтр по тегу",
         "tag": "+ тег",
         "availableTags": "Доступные теги",
-        "filterPresets": "Предустановки фильтров",
-        "preset": "Предустановка",
         "searchThreads": "Поиск веток",
         "searchThreads2": "Поиск веток…",
         "roomViewMode": "Режим просмотра комнаты",
@@ -2983,28 +2969,6 @@
         "lockSortOrder": "Заблокировать порядок сортировки (сейчас: {{sort}})",
         "threadCount_one": "{{count}} ветка",
         "threadCount_other": "{{count}} веток",
-        "presets": {
-          "needs-attention": {
-            "label": "Требуют внимания",
-            "description": "Нерешённые ветки без передачи и запланированных задач"
-          },
-          "working": {
-            "label": "В работе",
-            "description": "Передаются или запланированы — текущая работа"
-          },
-          "review-queue": {
-            "label": "Очередь проверки",
-            "description": "Нерешённые ветки с непрочитанными ответами"
-          },
-          "archived": {
-            "label": "Архив",
-            "description": "Только решённые ветки"
-          },
-          "all": {
-            "label": "Все",
-            "description": "Сбросить все фильтры"
-          }
-        },
         "showingAllThreads_few": "Показано {{count}} ветки",
         "showingAllThreads_many": "Показано {{count}} веток",
         "showingFilteredThreads_few": "Показано {{count}} из {{total}} веток",

@@ -28,6 +28,15 @@ afterEach(() => {
 });
 
 describe('closed navigation categories', () => {
+  it('reads the old Snoozed fold as Later and keeps it open after expanding and reloading', () => {
+    storage.set(STORE_KEY, JSON.stringify(['mindroom|threads|snoozed', 'home|room']));
+    const store = createStore();
+    const categories = makeClosedNavCategoriesAtom(USER_ID);
+    expect(store.get(categories)).toEqual(new Set(['mindroom|threads|later', 'home|room']));
+    store.set(categories, { type: 'DELETE', categoryId: 'mindroom|threads|later' });
+    expect(createStore().get(makeClosedNavCategoriesAtom(USER_ID))).toEqual(new Set(['home|room']));
+  });
+
   it('initializes supplied categories even when unrelated state has been stored', () => {
     storage.set(STORE_KEY, JSON.stringify(['home|room']));
     const store = createStore();

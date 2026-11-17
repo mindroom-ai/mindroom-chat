@@ -1,11 +1,10 @@
+import type { ThreadWorkflowTab } from '../../event-store/threads/threadWorkflow';
 import React from 'react';
 import { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  applyPreset,
+  selectThreadWorkflowTab,
   createDefaultThreadFilterState,
-  FILTER_PRESETS,
-  updateThreadFilterKey,
 } from '../../event-store/threads/roomThreadOverviewModel';
 import { MINDROOM_SCHEDULED_TASK_EVENT } from '../../matrix/protocol/scheduledTaskContract';
 import {
@@ -98,15 +97,13 @@ const setup = async () => {
         threadFilterState,
         threadSortFreezeState: null,
         setThreadSortFreezeState: vi.fn(),
-        onToggle: (key: Parameters<typeof updateThreadFilterKey>[1]) =>
-          setThreadFilterState((prev) => updateThreadFilterKey(prev, key)),
         onSortDirectionChange: vi.fn(),
         onToggleThreadSortFreeze: vi.fn(),
         onAddTag: vi.fn(),
         onRemoveTag: vi.fn(),
         onReset: vi.fn(),
-        onApplyPreset: (preset: typeof FILTER_PRESETS[number]) =>
-          setThreadFilterState((prev) => applyPreset(prev, preset)),
+        onSelectTab: (tab: ThreadWorkflowTab) =>
+          setThreadFilterState((prev) => selectThreadWorkflowTab(prev, tab)),
         onSearchQueryChange: (searchQuery: string) =>
           setThreadFilterState((prev) =>
             applyParsedThreadFilterQuery(prev, parseThreadFilterQuery(searchQuery))
@@ -128,14 +125,9 @@ const setup = async () => {
       overview().onSearchQueryChange(query);
       await flushAsyncWork();
     });
-  const toggle = async (key: Parameters<typeof updateThreadFilterKey>[1]) =>
+  const selectTab = async (tab: ThreadWorkflowTab) =>
     act(async () => {
-      overview().onToggle(key);
-      await flushAsyncWork();
-    });
-  const preset = async (id: typeof FILTER_PRESETS[number]['id']) =>
-    act(async () => {
-      overview().onApplyPreset(FILTER_PRESETS.find((candidate) => candidate.id === id)!);
+      overview().onSelectTab(tab);
       await flushAsyncWork();
     });
   const settle = async () =>
@@ -143,7 +135,7 @@ const setup = async () => {
       vi.advanceTimersByTime(300);
       await flushAsyncWork(2);
     });
-  return { ...roomState, renderer: renderer!, overview, type, toggle, preset, settle };
+  return { ...roomState, renderer: renderer!, overview, type, selectTab, settle };
 };
 
 importBeforeTests(() => import('../RoomTimeline'));
@@ -175,16 +167,19 @@ describe('RoomTimeline filter query wiring', () => {
     expect(getRenderedEventIds(renderer)).not.toContain(plainId);
   });
 
-  it('canonicalizes chip clicks from the effective parsed state instead of stale stored fields', async () => {
-    const { overview, type, toggle } = await setup();
+  it('replaces parsed legacy status restrictions when selecting a workflow tab', async () => {
+    const { overview, type, selectTab, settle, streamingId, scheduledId, renderer } = await setup();
     await type('is:streaming OR is:scheduled');
-    await toggle('streaming');
-    expect(serializeThreadFilterQuery(overview().state)).toBe('is:scheduled -is:streaming');
+    await selectTab('working');
     expect(overview().state).toMatchObject({
-      streaming: 'exclude',
-      scheduled: 'include',
+      tab: 'working',
+      streaming: 'any',
+      scheduled: 'any',
       statusMode: 'and',
     });
+    await settle();
+    expect(getRenderedEventIds(renderer)).toEqual([streamingId]);
+    expect(getRenderedEventIds(renderer)).not.toContain(scheduledId);
   });
 
   it('clearing the bar clears parsed status and tag chip state immediately', async () => {
@@ -213,18 +208,17 @@ describe('RoomTimeline filter query wiring', () => {
     expect(overview().threadCount).toBe(3);
   });
 
-  it('preserves parsed tag tokens when the Working preset is applied', async () => {
-    const { overview, preset, type } = await setup();
+  it('preserves parsed tag tokens when the Working tab is selected', async () => {
+    const { overview, selectTab, type } = await setup();
     await type('tag:bug');
-    await preset('working');
+    await selectTab('working');
     expect(overview().state).toMatchObject({
-      streaming: 'include',
-      scheduled: 'include',
-      statusMode: 'or',
+      tab: 'working',
+      streaming: 'any',
+      scheduled: 'any',
+      statusMode: 'and',
     });
-    expect(serializeThreadFilterQuery(overview().state)).toBe(
-      'is:streaming OR is:scheduled tag:bug'
-    );
+    expect(serializeThreadFilterQuery(overview().state)).toBe('tag:bug');
     expect([...overview().state.tags]).toEqual([['bug', 'include']]);
   });
 

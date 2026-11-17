@@ -15,7 +15,7 @@ import {
   CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
-// Escape closes the thread filter bar's Preset list and Thread statistics and hands the focus back
+// Escape closes the thread filter bar's Thread statistics and hands the focus back
 // to their buttons, without reading anything: the reader starts four threads that an agent and a
 // colleague answer, has read two of them, and a colleague's message waits in the room; the three
 // unread cards stay unread.
@@ -101,15 +101,12 @@ test('Escape closes the filter bar panels without reading the threads', async ({
   await expect(unreadCards).toHaveCount(3);
   const unread = 3;
 
-  // Escape closes the Preset list and the statistics and does nothing else: the room's own
+  // Escape closes the statistics and does nothing else: the room's own
   // Escape focuses the composer, which reads the room and every thread in it.
   const bar = page.getByRole('toolbar').filter({ has: page.locator('[data-thread-count]') });
   const advanced = bar.locator('[data-thread-filter-mode-switch]');
   if ((await advanced.getAttribute('aria-pressed')) !== 'true') await advanced.click();
-  for (const [trigger, panel] of [
-    ['[data-preset-button]', '[data-preset-dropdown]'],
-    ['[data-info-button]', '[data-info-popover]'],
-  ] as const) {
+  for (const [trigger, panel] of [['[data-info-button]', '[data-info-popover]']] as const) {
     // eslint-disable-next-line no-await-in-loop
     await bar.locator(trigger).click();
     // eslint-disable-next-line no-await-in-loop

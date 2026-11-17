@@ -365,8 +365,7 @@
       "streaming": "응답 생성 중",
       "scheduled": "예약됨",
       "unread": "읽지 않음",
-      "idle": "대기",
-      "idleFilter": "대기 (해결됨, 응답 생성 없음, 작업 없음)"
+      "idle": "대기"
     },
     "stats": {
       "aria": "스레드 통계",
@@ -374,17 +373,6 @@
       "threadCount_one": "스레드 {{count}}개",
       "threadCount_other": "스레드 {{count}}개",
       "tags": "태그"
-    },
-    "filterTooltip": {
-      "any": "{{label}}: 모두 표시 중. 클릭하면 이것만 표시합니다.",
-      "include": "{{label}}: 이것만 표시 중. 클릭하면 숨깁니다.",
-      "exclude": "{{label}}: 숨기는 중. 클릭하면 필터를 해제합니다.",
-      "tagAny": "\"{{tag}}\" 태그",
-      "tagInclude": "\"{{tag}}\" 태그: 이것만 표시 중. 클릭하면 숨깁니다.",
-      "tagExclude": "\"{{tag}}\" 태그: 숨기는 중. 클릭하면 필터를 해제합니다.",
-      "stateAny": "모두 표시 중",
-      "stateInclude": "이것만 표시",
-      "stateExclude": "숨기는 중"
     },
     "filters": {
       "scope": "범위",
@@ -2832,8 +2820,6 @@
         "addTagFilter": "태그 필터 추가",
         "tag": "+ 태그",
         "availableTags": "사용 가능한 태그",
-        "filterPresets": "필터 사전 설정",
-        "preset": "미리 설정",
         "searchThreads": "스레드 검색",
         "searchThreads2": "스레드 검색...",
         "roomViewMode": "방 보기 모드",
@@ -2853,29 +2839,7 @@
         "unlockSortOrder": "정렬 순서 잠금 해제 (현재 {{sort}})",
         "lockSortOrder": "정렬 순서 잠금 (현재 {{sort}})",
         "threadCount_one": "스레드 {{count}}개",
-        "threadCount_other": "스레드 {{count}}개",
-        "presets": {
-          "needs-attention": {
-            "label": "확인 필요",
-            "description": "응답 생성 중이거나 예약된 작업이 없는 미해결 스레드"
-          },
-          "working": {
-            "label": "작업 중",
-            "description": "응답 생성 중 또는 예약됨 — 현재 진행 중인 작업"
-          },
-          "review-queue": {
-            "label": "검토 대기열",
-            "description": "읽지 않은 답글이 있는 미해결 스레드"
-          },
-          "archived": {
-            "label": "보관됨",
-            "description": "해결된 스레드만"
-          },
-          "all": {
-            "label": "모두",
-            "description": "모든 필터 초기화"
-          }
-        }
+        "threadCount_other": "스레드 {{count}}개"
       },
       "threadTagPicker": {
         "addTag": "태그 추가",

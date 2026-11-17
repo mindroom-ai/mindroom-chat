@@ -51,12 +51,12 @@ describe('pinned announcement ordering', () => {
         threadSortControlSignature: 'live',
       });
 
-    // Archived: only the resolved threads, the resolved pin first.
+    // Resolved-only filter: the resolved pin comes first.
     const archived = resolve(makeDefaultState({ resolved: 'include' }));
     expect(archived.filteredIds).toEqual(['$pinned-done', '$done']);
     expect(archived.liveOrderedIds).toEqual(['$pinned-done', '$done']);
     expect(archived.displayOrderedIds).toEqual(['$pinned-done', '$done']);
-    // Needs attention: only the unresolved ones.
+    // Unresolved-only filter.
     expect(resolve(makeDefaultState({ resolved: 'exclude' })).displayOrderedIds).toEqual([
       '$pinned-open',
       '$open',
@@ -385,4 +385,34 @@ describe('threadRecordOverview selectors', () => {
       )
     ).toBe(false);
   });
+});
+
+it('uses exclusive workflow buckets for filtering and counts within people/tag/text filters', async () => {
+  const { computeThreadWorkflowCounts } = await import('./threadRecordOverview');
+  const working = makeRecord('$working');
+  working.status.hasBackgroundJob = true;
+  const approval = makeRecord('$approval');
+  approval.status.hasBackgroundApproval = true;
+  approval.status.isStreaming = true;
+  const done = makeResolvedRecord('$done');
+  const records = new Map([working, approval, done].map((record) => [record.threadRootId, record]));
+  const state = makeDefaultState({ tab: 'working' });
+  expect(matchesThreadRecordFilterState(working, state, 100)).toBe(true);
+  expect(matchesThreadRecordFilterState(approval, state, 100)).toBe(false);
+  expect(computeThreadWorkflowCounts([...records.keys()], records, state, 100)).toEqual({
+    needsYou: 1,
+    working: 1,
+    later: 0,
+    done: 1,
+    all: 3,
+  });
+  working.status.tags = ['review'];
+  expect(
+    computeThreadWorkflowCounts(
+      [...records.keys()],
+      records,
+      { ...state, tags: new Map([['review', 'include']]) },
+      100
+    )
+  ).toEqual({ needsYou: 0, working: 1, later: 0, done: 0, all: 1 });
 });

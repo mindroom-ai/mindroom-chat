@@ -369,8 +369,7 @@
       "streaming": "قيد البث",
       "scheduled": "مجدولة",
       "unread": "غير مقروءة",
-      "idle": "خاملة",
-      "idleFilter": "خاملة (محلولة، لا بث ولا مهام)"
+      "idle": "خاملة"
     },
     "stats": {
       "aria": "إحصاءات سلاسل المحادثات",
@@ -382,17 +381,6 @@
       "threadCount_many": "⁨{{count}}⁩ سلسلة محادثة",
       "threadCount_two": "سلسلتا محادثة (⁨{{count}}⁩)",
       "threadCount_zero": "⁨{{count}}⁩ سلسلة محادثة"
-    },
-    "filterTooltip": {
-      "any": "⁨{{label}}⁩: عرض الكل. انقر لعرض هذا فقط.",
-      "include": "⁨{{label}}⁩: عرض هذا فقط. انقر لإخفائه.",
-      "exclude": "⁨{{label}}⁩: مخفي. انقر لمسح عامل التصفية.",
-      "tagAny": "الوسم «⁨{{tag}}⁩»",
-      "tagInclude": "الوسم «⁨{{tag}}⁩»: عرضه فقط. انقر لإخفائه.",
-      "tagExclude": "الوسم «⁨{{tag}}⁩»: مخفي. انقر لمسح عامل التصفية.",
-      "stateAny": "عرض الكل",
-      "stateInclude": "عرض هذا فقط",
-      "stateExclude": "مخفي"
     },
     "filters": {
       "scope": "النطاق",
@@ -3077,8 +3065,6 @@
         "addTagFilter": "إضافة عامل تصفية حسب الوسم",
         "tag": "+ وسم",
         "availableTags": "الوسوم المتاحة",
-        "filterPresets": "إعدادات التصفية المسبقة",
-        "preset": "إعداد مسبق",
         "searchThreads": "البحث في سلاسل المحادثات",
         "searchThreads2": "البحث في سلاسل المحادثات...",
         "roomViewMode": "وضع عرض الغرفة",
@@ -3099,28 +3085,6 @@
         "lockSortOrder": "قفل ترتيب الفرز (حاليًا ⁨{{sort}}⁩)",
         "threadCount_one": "⁨{{count}}⁩ سلسلة محادثة",
         "threadCount_other": "⁨{{count}}⁩ من سلاسل المحادثات",
-        "presets": {
-          "needs-attention": {
-            "label": "تحتاج إلى انتباه",
-            "description": "سلاسل محادثات غير محلولة، ولا يجري بثها أو جدولتها"
-          },
-          "working": {
-            "label": "قيد العمل",
-            "description": "قيد البث أو مجدولة — ما تعمل عليه الآن"
-          },
-          "review-queue": {
-            "label": "قائمة المراجعة",
-            "description": "سلاسل محادثات غير محلولة بها ردود غير مقروءة"
-          },
-          "archived": {
-            "label": "مؤرشفة",
-            "description": "سلاسل المحادثات المحلولة فقط"
-          },
-          "all": {
-            "label": "الكل",
-            "description": "إعادة ضبط كل عوامل التصفية"
-          }
-        },
         "showingAllThreads_few": "عرض ⁨{{count}}⁩ سلاسل محادثة",
         "showingAllThreads_many": "عرض ⁨{{count}}⁩ سلسلة محادثة",
         "showingAllThreads_two": "عرض سلسلتي محادثة (⁨{{count}}⁩)",

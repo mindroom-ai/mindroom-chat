@@ -366,8 +366,7 @@
       "streaming": "Réponse en cours",
       "scheduled": "Planifié",
       "unread": "Non lu",
-      "idle": "Inactif",
-      "idleFilter": "Inactif (résolu, aucune réponse en cours, aucune tâche)"
+      "idle": "Inactif"
     },
     "stats": {
       "aria": "Statistiques des fils",
@@ -376,17 +375,6 @@
       "threadCount_other": "{{count}} fils",
       "tags": "Étiquettes",
       "threadCount_many": "{{count}} fils"
-    },
-    "filterTooltip": {
-      "any": "{{label}} : tous affichés. Cliquez pour n'afficher que celui-ci.",
-      "include": "{{label}} : afficher uniquement celui-ci. Cliquez pour le masquer.",
-      "exclude": "{{label}} : masqué. Cliquez pour effacer le filtre.",
-      "tagAny": "Étiquette « {{tag}} »",
-      "tagInclude": "Étiquette « {{tag}} » : afficher uniquement celle-ci. Cliquez pour la masquer.",
-      "tagExclude": "Étiquette « {{tag}} » : masquée. Cliquez pour effacer le filtre.",
-      "stateAny": "tous affichés",
-      "stateInclude": "afficher uniquement celui-ci",
-      "stateExclude": "masqué"
     },
     "filters": {
       "scope": "Portée",
@@ -2903,8 +2891,6 @@
         "addTagFilter": "Ajouter un filtre d’étiquette",
         "tag": "+ étiquette",
         "availableTags": "Étiquettes disponibles",
-        "filterPresets": "Préréglages des filtres",
-        "preset": "Préréglage",
         "searchThreads": "Rechercher des fils",
         "searchThreads2": "Rechercher des fils...",
         "roomViewMode": "Mode d’affichage du salon",
@@ -2925,28 +2911,6 @@
         "lockSortOrder": "Verrouiller l’ordre de tri (actuellement {{sort}})",
         "threadCount_one": "{{count}} fil",
         "threadCount_other": "{{count}} fils",
-        "presets": {
-          "needs-attention": {
-            "label": "Nécessite votre attention",
-            "description": "Fils non résolus, non diffusés et non planifiés"
-          },
-          "working": {
-            "label": "En cours",
-            "description": "En diffusion ou planifiés — ce sur quoi vous travaillez actuellement"
-          },
-          "review-queue": {
-            "label": "File de révision",
-            "description": "Fils non résolus avec des réponses non lues"
-          },
-          "archived": {
-            "label": "Archivés",
-            "description": "Fils résolus uniquement"
-          },
-          "all": {
-            "label": "Tous",
-            "description": "Réinitialiser tous les filtres"
-          }
-        },
         "showingFilteredThreads_many": "Affichage de {{count}} fils sur {{total}}",
         "showingAllThreads_many": "Affichage de {{count}} fils",
         "threadCount_many": "{{count}} fils"

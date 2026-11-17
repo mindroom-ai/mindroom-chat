@@ -34,6 +34,8 @@ export type ThreadStatusSnapshot = {
   resolvedByUserId?: string;
   isUnread: boolean;
   isStreaming: boolean;
+  hasBackgroundJob?: boolean;
+  hasBackgroundApproval?: boolean;
   hasPendingSend?: boolean;
   hasFailedSend?: boolean;
   scheduledTaskCount: number;

@@ -789,13 +789,7 @@
         "threadFiltersActive": "スレッドフィルター（有効）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "詳細フィルター",
-        "presets": {
-          "snoozed": {
-            "label": "スヌーズ中",
-            "description": "スヌーズ中のスレッドのみ"
-          }
-        }
+        "advancedFilters": "詳細フィルター"
       },
       "threadPeopleFilter": {
         "label": "参加者",
@@ -966,6 +960,20 @@
     "unsnooze": "スヌーズを解除",
     "status": {
       "snoozed": "スヌーズ中"
+    },
+    "workflow": {
+      "needsYou": "あなたの対応待ち",
+      "working": "作業中",
+      "later": "後で",
+      "done": "完了",
+      "all": "すべて",
+      "description": {
+        "needsYou": "バックグラウンド処理の承認が必要か、実行中・予定されている処理がありません。",
+        "working": "エージェントが返信中か、サブエージェントまたはバックグラウンドツールが実行中です。",
+        "later": "スヌーズ中、または予定されたタスクの実行待ちです。",
+        "done": "解決済みのスレッドです。",
+        "all": "他のフィルター条件に一致するすべてのスレッドです。"
+      }
     },
     "renameHint": "ダブルクリックで名前を変更"
   },
@@ -1284,7 +1292,7 @@
     "layoutSections": "セクション",
     "sections": {
       "working": "作業中",
-      "snoozed": "スヌーズ中",
+      "later": "後で",
       "idle": "待機中",
       "resolved": "解決済み"
     },

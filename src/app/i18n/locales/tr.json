@@ -365,8 +365,7 @@
       "streaming": "Yanıt üretiyor",
       "scheduled": "Zamanlanmış",
       "unread": "Okunmamış",
-      "idle": "Boşta",
-      "idleFilter": "Boşta (çözülmüş, yanıt üretmiyor, görev yok)"
+      "idle": "Boşta"
     },
     "stats": {
       "aria": "Konu istatistikleri",
@@ -374,17 +373,6 @@
       "threadCount_one": "{{count}} konu",
       "threadCount_other": "{{count}} konu",
       "tags": "Etiketler"
-    },
-    "filterTooltip": {
-      "any": "{{label}}: tümü gösteriliyor. Yalnızca bunu göstermek için tıklayın.",
-      "include": "{{label}}: yalnızca bu gösteriliyor. Gizlemek için tıklayın.",
-      "exclude": "{{label}}: gizleniyor. Filtreyi temizlemek için tıklayın.",
-      "tagAny": "\"{{tag}}\" etiketi",
-      "tagInclude": "\"{{tag}}\" etiketi: yalnızca bu gösteriliyor. Gizlemek için tıklayın.",
-      "tagExclude": "\"{{tag}}\" etiketi: gizleniyor. Filtreyi temizlemek için tıklayın.",
-      "stateAny": "tümü gösteriliyor",
-      "stateInclude": "yalnızca bu gösteriliyor",
-      "stateExclude": "gizleniyor"
     },
     "filters": {
       "scope": "Kapsam",
@@ -2845,8 +2833,6 @@
         "addTagFilter": "Etiket filtresi ekle",
         "tag": "+ etiket",
         "availableTags": "Kullanılabilir etiketler",
-        "filterPresets": "Filtre ön ayarları",
-        "preset": "Ön ayar",
         "searchThreads": "Konularda ara",
         "searchThreads2": "Konularda ara...",
         "roomViewMode": "Oda görünüm modu",
@@ -2866,29 +2852,7 @@
         "unlockSortOrder": "Sıralama kilidini aç (şu anda {{sort}})",
         "lockSortOrder": "Sıralamayı kilitle (şu anda {{sort}})",
         "threadCount_one": "{{count}} konu",
-        "threadCount_other": "{{count}} konu",
-        "presets": {
-          "needs-attention": {
-            "label": "İlgi gerekiyor",
-            "description": "Çözümlenmemiş, akışta olmayan ve zamanlanmamış konular"
-          },
-          "working": {
-            "label": "Çalışılıyor",
-            "description": "Akışta veya zamanlanmış — şu anda üzerinde çalıştıklarınız"
-          },
-          "review-queue": {
-            "label": "İnceleme kuyruğu",
-            "description": "Okunmamış yanıtları olan çözümlenmemiş konular"
-          },
-          "archived": {
-            "label": "Arşivlenmiş",
-            "description": "Yalnızca çözümlenmiş konular"
-          },
-          "all": {
-            "label": "Tümü",
-            "description": "Tüm filtreleri sıfırla"
-          }
-        }
+        "threadCount_other": "{{count}} konu"
       },
       "threadTagPicker": {
         "addTag": "Etiket ekle",

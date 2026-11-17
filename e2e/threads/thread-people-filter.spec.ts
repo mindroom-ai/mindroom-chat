@@ -187,9 +187,15 @@ test.describe('thread People filter', () => {
     await expect(cards).toHaveCount(withAdaOrGrace.length, { timeout: 120_000 });
     await expect(peopleButton).toHaveAttribute('data-people-filter-count', '2');
 
-    // Reset (the All preset) clears it.
-    await overview.locator('[data-preset-button]').click();
-    await overview.locator('[data-preset-option="all"]').click();
+    // Changing the workflow tab keeps the People selection; its Clear resets it.
+    await overview.locator('[data-thread-tab="all"]').click();
+    await expect(peopleButton).toHaveAttribute('data-people-filter-count', '2');
+    await peopleButton.click();
+    await overview
+      .locator('[data-people-filter-panel]')
+      .getByRole('button', { name: 'Clear', exact: true })
+      .click();
+    await peopleButton.click();
     await expect(peopleButton).toHaveAttribute('data-people-filter-count', '0');
     await expect(cards).toHaveCount(threads.length);
   });
