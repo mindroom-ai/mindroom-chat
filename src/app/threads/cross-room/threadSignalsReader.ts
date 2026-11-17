@@ -53,6 +53,9 @@ export const createThreadSignalsReader = (
         seenThreadRootsVersion(),
         // An event a receipt names that the room came to hold or lost: the receipt reads up to it.
         receiptEventsVersion(room),
+        // The user's first receipt in a thread, or one older than the others, changes how every
+        // thread of the room is read (`getThreadEventReadUpTo`).
+        room.getOldestThreadedReceiptTs(),
         // The server's count of the thread's mentions, which a sync changes with no event.
         room.getThreadUnreadNotificationCount(entry.threadRootId, NotificationCountType.Highlight),
         events.length,
@@ -93,9 +96,7 @@ const clients = new WeakMap<MatrixClient, ClientSignals>();
  * user's receipt outside a thread, a timeline of the room that starts over, and a member who
  * joins or leaves (an agent's presence decides whether a notice is listed). Signals read no one
  * else's receipts, no event without an ID (typing, a live reply frame, account data) and no
- * state event but the members', so those count for nothing and reach no listener. One exception:
- * a room's first receipt after the client starts, anyone's, counts for all its threads, since how
- * old its oldest thread receipt was before is not known.
+ * state event but the members', so those count for nothing and reach no listener.
  */
 const getClientSignals = (mx: MatrixClient): ClientSignals => {
   let client = clients.get(mx);
@@ -133,15 +134,10 @@ const getClientSignals = (mx: MatrixClient): ClientSignals => {
       if (room) mark(room.roomId, timelineSet.thread?.id);
     });
     mx.on(RoomMemberEvent.Membership, (_event, member) => mark(member.roomId));
-    // The user's first receipt in a thread, or one older than the others, changes how every
-    // thread of the room is read (`getThreadEventReadUpTo`).
-    const oldestThreadedReceiptTs = new Map<string, number>();
     mx.on(RoomEvent.Receipt, (receipt, room) => {
       const threadIds = receiptThreadIds(receipt, mx.getSafeUserId());
-      const oldest = room.getOldestThreadedReceiptTs();
-      if (!threadIds || oldest !== oldestThreadedReceiptTs.get(room.roomId)) mark(room.roomId);
-      else threadIds.forEach((threadId) => mark(room.roomId, threadId));
-      oldestThreadedReceiptTs.set(room.roomId, oldest);
+      if (threadIds) threadIds.forEach((threadId) => mark(room.roomId, threadId));
+      else mark(room.roomId);
     });
     const reader = createThreadSignalsReader((room, threadRootId) => {
       const roomChanges = changes.get(room.roomId);

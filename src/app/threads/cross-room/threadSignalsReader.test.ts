@@ -41,6 +41,7 @@ const makeRoom = () => {
     roomId: '!r:x',
     getThread: () => thread,
     getThreadUnreadNotificationCount: () => counts.highlight,
+    getOldestThreadedReceiptTs: () => Infinity,
   } as unknown as Room;
   return { room, thread, counts };
 };
@@ -69,7 +70,7 @@ describe('createThreadSignalsReader', () => {
     expect(mocks.read).toHaveBeenCalledTimes(2);
   });
 
-  it('reads again once its count of changes goes up: a reaction, a held-back edit, a receipt', () => {
+  it('reads again once the count of changes of its thread goes up, in its room', () => {
     mocks.read.mockReturnValue(quiet);
     const { room } = makeRoom();
     const heard = new Map<string, number>();
@@ -228,8 +229,6 @@ describe('getThreadSignalsReader', () => {
       [A, B].forEach((thread) => reader.read(room, thread, ME, NOW));
       return mocks.read.mock.calls.map(([, threadRootId]) => threadRootId as string);
     };
-    // The first receipt of a room tells how old its oldest thread receipt is.
-    mx.emit(RoomEvent.Receipt, receipt('@other:x'), room);
     expect(readAgain()).toEqual(['$a', '$b']);
     expect(readAgain()).toEqual([]);
     return { mx, room, held, receipts, readAgain };
@@ -344,7 +343,7 @@ describe('getThreadSignalsReader', () => {
     expect(readAgain()).toEqual(['$a', '$b']);
   });
 
-  it('tells who listens to a room of an event, a timeline starting over, a receipt and a member change', () => {
+  it('tells who listens to a room of an event, a reset, a receipt, a member change and a redaction', () => {
     const { mx, room } = setup();
     const onChange = vi.fn();
     const unsubscribe = subscribeRoomSignals(mx as unknown as MatrixClient, '!r:x', onChange);
@@ -355,24 +354,23 @@ describe('getThreadSignalsReader', () => {
     mx.emit(RoomEvent.TimelineReset, room, {});
     mx.emit(RoomEvent.Receipt, receipt(ME, '$a'), room);
     mx.emit(RoomMemberEvent.Membership, {}, { roomId: '!r:x' });
-    expect(onChange).toHaveBeenCalledTimes(4);
+    mx.emit(RoomEvent.Redaction, event({ id: '$redaction' }), room, '$a');
+    expect(onChange).toHaveBeenCalledTimes(6);
     // A live reply frame and someone else's receipt change no thread's signals.
     mx.emit(ClientEvent.Event, frame);
     mx.emit(RoomEvent.Receipt, receipt('@other:x', '$a'), room);
-    expect(onChange).toHaveBeenCalledTimes(4);
+    expect(onChange).toHaveBeenCalledTimes(6);
 
     unsubscribe();
     mx.emit(ClientEvent.Event, event({ threadRootId: '$a' }));
-    expect(onChange).toHaveBeenCalledTimes(4);
+    expect(onChange).toHaveBeenCalledTimes(6);
     expect(elsewhere).not.toHaveBeenCalled();
   });
 
   it("reads every thread when the user's oldest thread receipt of the room changes", () => {
-    const { mx, room, receipts, readAgain } = setup();
+    const { receipts, readAgain } = setup();
     receipts.oldest = 1000;
-    mx.emit(RoomEvent.Receipt, receipt(ME, '$b'), room);
     expect(readAgain()).toEqual(['$a', '$b']);
-    mx.emit(RoomEvent.Receipt, receipt(ME, '$b'), room);
-    expect(readAgain()).toEqual(['$b']);
+    expect(readAgain()).toEqual([]);
   });
 });
