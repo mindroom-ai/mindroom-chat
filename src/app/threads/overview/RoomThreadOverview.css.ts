@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { motion } from '../../ui/styles/Motion.css';
 import { transition } from '../../ui/styles/transition';
@@ -45,6 +45,13 @@ export const CompactCount = style({
   color: color.SurfaceVariant.OnContainer,
   flexShrink: 0,
 });
+
+// The count and an invisible copy of the total share one cell, so the count is always as wide as
+// the total and switching tabs does not shift the controls after it.
+export const CompactCountDigits = style({ display: 'inline-grid', justifyItems: 'start' });
+globalStyle(`${CompactCountDigits} > *`, { gridArea: '1 / 1' });
+
+export const CompactCountReserve = style({ visibility: 'hidden' });
 
 const TOGGLE_SIZE = toRem(32);
 
