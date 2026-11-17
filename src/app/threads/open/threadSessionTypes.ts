@@ -18,6 +18,8 @@ export type ThreadSessionSnapshot = Readonly<{
     initialCacheHydrated: boolean;
     sdkReady: boolean;
     latestPending: boolean;
+    /** The first paint waits for the replies the open's first rows would leave out. */
+    firstPaintHeld: boolean;
     editResetEpoch: number;
   }>;
   history: Readonly<{ hasMoreCachedBack: boolean; tailLoaded: boolean }>;

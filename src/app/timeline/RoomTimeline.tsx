@@ -423,6 +423,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadId,
     threadInitialCacheHydrated: session.snapshot.open.initialCacheHydrated,
     threadInitialSdkLoaded: session.snapshot.open.sdkReady,
+    threadFirstPaintHeld: session.snapshot.open.firstPaintHeld,
     timelineRevision: session.snapshot.timelineRevision,
     debugTraceId: threadDebugTraceId,
     prefixEvents: forkPrefix.events,

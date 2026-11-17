@@ -147,6 +147,7 @@ type HarnessProps = {
   threadId?: string;
   thread: Thread | null;
   threadInitialCacheHydrated: boolean;
+  threadFirstPaintHeld?: boolean;
   prefixEvents?: MatrixEvent[];
   forkAt?: string;
   onRender: (snapshot: HookSnapshot) => void;
@@ -269,6 +270,33 @@ describe('useThreadRenderState', () => {
     expect(getSnapshot().threadInitialRenderMode).toBe('cached');
     expect(getSnapshot().threadEvents).toEqual([replyEvent]);
     expect(getSnapshot().threadEventIndexMapRef.current.get('$reply')).toBe(0);
+
+    renderer.unmount();
+  });
+
+  it('shows no rows, only the loading state, while the open holds its first paint', () => {
+    const rootEvent = makeMessageEvent('$root', 1);
+    const replyEvent = makeMessageEvent('$reply', 2);
+    const room = makeRoom(rootEvent);
+    const props = {
+      room,
+      roomTimelineSet: makeTimelineSet(),
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread: null,
+      threadInitialCacheHydrated: false,
+      threadFirstPaintHeld: true,
+    };
+    const { getSnapshot, update, renderer } = renderHookHarness(props);
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [replyEvent]);
+    });
+    expect(getSnapshot().threadInitialRenderMode).toBe('loading');
+    expect(getSnapshot().threadEvents).toEqual([]);
+
+    update({ ...props, threadFirstPaintHeld: false });
+    expect(getSnapshot().threadInitialRenderMode).toBe('cached');
+    expect(getSnapshot().threadEvents).toEqual([replyEvent]);
 
     renderer.unmount();
   });

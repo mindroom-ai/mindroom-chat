@@ -40,6 +40,8 @@ type UseThreadRenderStateOpts = {
   thread: Thread | null;
   threadInitialCacheHydrated: boolean;
   threadInitialSdkLoaded?: boolean;
+  /** The open holds its first paint (`firstPaintHeld`): no rows yet, the loading state shows. */
+  threadFirstPaintHeld?: boolean;
   timelineRevision?: number;
   debugTraceId?: string;
   /** A fork's parent messages up to its fork point (`useThreadForkPrefix`), shown before its own. */
@@ -163,6 +165,7 @@ export const useThreadRenderState = ({
   thread,
   threadInitialCacheHydrated,
   threadInitialSdkLoaded = false,
+  threadFirstPaintHeld = false,
   timelineRevision = 0,
   debugTraceId,
   prefixEvents = EMPTY_THREAD_EVENTS,
@@ -341,13 +344,13 @@ export const useThreadRenderState = ({
     // SDK joins can change history without emitting a thread event.
     void timelineRevision;
 
-    if (!threadId) {
+    if (!threadId || threadFirstPaintHeld) {
       return {
         events: EMPTY_THREAD_EVENTS,
         ownEvents: EMPTY_THREAD_EVENTS,
         forkPointIndex: undefined,
         indexMap: new Map<string, number>(),
-        initialRenderMode: 'live' as const,
+        initialRenderMode: threadFirstPaintHeld ? ('loading' as const) : ('live' as const),
       };
     }
 
@@ -372,6 +375,7 @@ export const useThreadRenderState = ({
     threadId,
     threadInitialCacheHydrated,
     threadInitialSdkLoaded,
+    threadFirstPaintHeld,
   ]);
   const {
     events: threadEvents,
