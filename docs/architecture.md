@@ -51,7 +51,8 @@ src/
                          client/ (client factory, sync policy, crypto store continuity, token refresh), session/
                          (stored sessions), hooks/, state/ (client-derived atoms), send/ (outgoing content),
                          protocol/ (MindRoom formats over Matrix), types/
-    navigation/          moving the user around: room navigation, selected room and space, view mode, dialog atoms
+    navigation/          moving the user around: room navigation, selected room and space, visited rooms, view mode,
+                         dialog atoms
     rich-text/           formatted text without message knowledge: sanitizing, math, links, tables, markdown/, code/
     avatars/             user and room avatars, authenticated avatar media, swatches
     event-store/         the client-side store of room and thread events: cache/ (IndexedDB cache, event repository,

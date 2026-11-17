@@ -166,6 +166,8 @@ vi.mock('../navigation/useRoomViewMode', () => ({
 vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoom: () => undefined, navigateRoomThread: () => undefined }),
 }));
+const { bumpRecentRoom } = vi.hoisted(() => ({ bumpRecentRoom: vi.fn() }));
+vi.mock('../navigation/recentRooms', () => ({ bumpRecentRoom }));
 const { neverLoads } = vi.hoisted(() => ({ neverLoads: new Promise<never>(() => undefined) }));
 /**
  * What the sketch below last saw of its frame, and, while `fillFromEffect`, how often its effect
@@ -751,6 +753,15 @@ describe('the side panels of a room', () => {
     expect(roomControls?.showsRequest('notes/panel', { n: 1 })).toBe(false);
     // Nor does the room left still tell of its panel.
     expect(held?.('notes/panel', { n: 1 })).toBe(false);
+  });
+
+  it('counts each room it shows as visited, for the palette, once as it opens', async () => {
+    bumpRecentRoom.mockClear();
+    const showRoom = await renderRoom();
+    expect(bumpRecentRoom.mock.calls).toEqual([['!room:example.org']]);
+    await showRoom('!other:example.org');
+    await showRoom('!other:example.org');
+    expect(bumpRecentRoom.mock.calls).toEqual([['!room:example.org'], ['!other:example.org']]);
   });
 
   it("tells of no panel once the room's page has gone", async () => {

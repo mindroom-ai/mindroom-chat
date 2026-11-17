@@ -5,6 +5,7 @@ import { clearUnsentMessages } from '../../matrix/client/unsentMessages';
 import { clearSavedVoiceDraft } from '../../composer/voice/savedVoiceDraft';
 import { clearIOSPushState } from '../../notifications/push/iosPush';
 import { clearRecentThreadsStore } from '../../event-store/threads/recentThreads';
+import { clearRecentRoomsStore } from '../../navigation/recentRooms';
 import { clearRecentlyOpenedPanelHeightStore } from '../../preferences/recentlyOpenedPanelHeight';
 import { clearCallWindowStore } from '../../calls/window/callWindowState';
 import { clearThreadSidebarPreferencesStore } from '../../threads/cross-room/threadSidebarPreferences';
@@ -109,6 +110,7 @@ export const clearUserUiState = (userId: string): void => {
   clearThreadsScopeStore(userId);
   clearQuickCaptureRoomStore(userId);
   clearRecentThreadsStore(userId);
+  clearRecentRoomsStore(userId);
   clearRecentlyOpenedPanelHeightStore(userId);
   clearCallWindowStore(userId);
   clearThreadSidebarPreferencesStore(userId);

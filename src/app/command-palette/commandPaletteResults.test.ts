@@ -58,10 +58,10 @@ const sections = (searchText: string, tab: CommandPaletteTab = 'all', source = S
   ]);
 
 describe('getCommandPaletteLocalSections', () => {
-  it('lists rooms, threads, the first actions and people before anything is typed', () => {
+  it('lists threads, rooms, the first actions and people before anything is typed', () => {
     expect(sections('')).toEqual([
-      ['rooms', 'room:dark', 'room:general'],
       ['threads', 'thread:contrast'],
+      ['rooms', 'room:dark', 'room:general'],
       ['actions', 'page-theme', 'logout'],
       ['users', 'darko', 'gen'],
     ]);
@@ -80,7 +80,7 @@ describe('getCommandPaletteLocalSections', () => {
 
   it('puts the section whose first row is named as typed first on All', () => {
     // "Dark" is the theme's whole name; the room and the thread only hold the word.
-    expect(sections('dark').map(([id]) => id)).toEqual(['actions', 'rooms', 'threads', 'users']);
+    expect(sections('dark').map(([id]) => id)).toEqual(['actions', 'threads', 'rooms', 'users']);
   });
 
   it('puts a section that holds the text at a word start above one that holds it inside a word', () => {
@@ -104,7 +104,7 @@ describe('getCommandPaletteLocalSections', () => {
     expect(sections('craete', 'all', source).map(([id]) => id)).toEqual(['users', 'rooms']);
   });
 
-  it('keeps rooms, threads, people, actions in that order when they match alike', () => {
+  it('keeps threads, rooms, people, actions in that order when they match alike', () => {
     expect(sections('gen').map(([id]) => id)).toEqual(['rooms', 'users']);
     expect(sections('the').map(([id]) => id)).toEqual(['threads', 'actions', 'users']);
   });
