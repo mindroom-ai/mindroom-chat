@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useId, useState } from 'react';
+import { type FormEvent, useId, useState } from 'react';
 import { Box, Button, Text, TextArea, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -33,51 +33,45 @@ export function RoomTextSettingTile({
   const canEdit = may.stateEvent(ROOM_SETTINGS_EVENT, client.getSafeUserId());
   const event = useStateEvent(room, ROOM_SETTINGS_EVENT, definition.key);
   const eventId = event?.getId();
-  const current = readRoomSettingValue(event?.getContent()) ?? '';
-  // The person's text, from their first keystroke until the room's state shows what they saved.
+  const live = readRoomSettingValue(event?.getContent()) ?? '';
+  // The value a save left, until the room's state moves past the event shown when it went out.
+  const [saved, setSaved] = useState<{ value: string; before: string | undefined }>();
+  const baseline = saved && saved.before === eventId ? saved.value : live;
+  // The person's text while it differs from the baseline; undefined follows the room.
   const [draft, setDraft] = useState<string>();
   const [sending, setSending] = useState(false);
   const [failed, setFailed] = useState(false);
-  // After the server took a write: the event the room showed when it went out.
-  const [replacing, setReplacing] = useState<{ eventId: string | undefined }>();
 
-  // Once the room's state moves past that event, the field follows the room again.
-  useEffect(() => {
-    if (replacing && replacing.eventId !== eventId) {
-      setReplacing(undefined);
-      setDraft(undefined);
-    }
-  }, [replacing, eventId]);
-
-  const text = draft ?? current;
-  const trimmed = text.trim();
+  const text = draft ?? baseline;
   const tooLong = text.length > definition.maxLength;
-  const canSave = canEdit && !sending && !replacing && !tooLong && trimmed !== current;
+  const dirty = draft !== undefined && draft.trim() !== baseline;
+  const canSave = canEdit && dirty && !sending && !tooLong;
 
-  const write = (content: { value?: string }, shown: string) => {
+  const write = (value: string) => {
     const before = eventId;
     setSending(true);
     setFailed(false);
+    const content = value === '' ? {} : { value };
     client
       .sendStateEvent(room.roomId, ROOM_SETTINGS_EVENT as never, content as never, definition.key)
       .then(
         () => {
           if (!alive()) return;
+          setSaved({ value, before });
+          setDraft(undefined);
           setSending(false);
-          setDraft(shown);
-          setReplacing({ eventId: before });
         },
         () => {
           if (!alive()) return;
-          setSending(false);
           setFailed(true);
+          setSending(false);
         }
       );
   };
 
   const save = (evt: FormEvent<HTMLFormElement>) => {
     evt.preventDefault();
-    if (canSave) write(trimmed === '' ? {} : { value: trimmed }, trimmed);
+    if (canSave) write(draft.trim());
   };
 
   const fieldId = `${id}-field`;
@@ -105,8 +99,8 @@ export function RoomTextSettingTile({
         id={fieldId}
         value={text}
         onChange={(evt) => {
-          setDraft(evt.currentTarget.value);
-          setReplacing(undefined);
+          const { value } = evt.currentTarget;
+          setDraft(value === baseline ? undefined : value);
           setFailed(false);
         }}
         readOnly={!canEdit || sending}
@@ -127,7 +121,7 @@ export function RoomTextSettingTile({
           {t(`${STRINGS}.characterCount`, { length: text.length, max: definition.maxLength })}
         </Text>
         <Box grow="Yes" />
-        {canEdit && current !== '' && (
+        {canEdit && baseline !== '' && (
           <Button
             type="button"
             size="300"
@@ -135,7 +129,7 @@ export function RoomTextSettingTile({
             variant="Secondary"
             fill="Soft"
             disabled={sending}
-            onClick={() => write({}, '')}
+            onClick={() => write('')}
           >
             <Text size="B300">{t(`${STRINGS}.clear`)}</Text>
           </Button>

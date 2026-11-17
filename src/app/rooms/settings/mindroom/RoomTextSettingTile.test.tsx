@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 import React from 'react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
-import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ROOM_SETTINGS_EVENT } from '../../../matrix/protocol/roomSettings';
 import { ROOM_SETTING_DEFINITIONS } from './roomSettingDefinitions';
@@ -10,7 +10,9 @@ import { RoomTextSettingTile } from './RoomTextSettingTile';
 
 const ROOM = { roomId: '!r:example.org' } as Room;
 const [DEFINITION] = ROOM_SETTING_DEFINITIONS;
-const RULES = 'Use at most 4 words';
+const KEY = 'thread_summary_instructions';
+const LABEL = 'Thread title rules';
+const FAILED = "Couldn't save the setting. Try again.";
 
 const live = vi.hoisted(() => ({
   event: undefined as MatrixEvent | undefined,
@@ -50,58 +52,77 @@ vi.mock('../../../matrix/hooks/useStateEvent', () => ({
   },
 }));
 vi.mock('folds', () => {
+  // Plain elements with only the DOM props the tile's roles and names depend on.
+  const DOM_PROPS = [
+    'id',
+    'htmlFor',
+    'role',
+    'style',
+    'type',
+    'disabled',
+    'value',
+    'readOnly',
+    'placeholder',
+    'maxLength',
+    'rows',
+    'aria-describedby',
+    'onClick',
+    'onChange',
+    'onSubmit',
+  ];
+  const domProps = (props: Record<string, unknown>) =>
+    Object.fromEntries(Object.entries(props).filter(([name]) => DOM_PROPS.includes(name)));
   const element =
     (tag: string) =>
     ({ as, children, ...props }: { as?: string; children?: React.ReactNode }) =>
-      React.createElement(as ?? tag, props, children);
+      React.createElement(as ?? tag, domProps(props), children);
   return {
     Box: element('div'),
     Button: element('button'),
     Text: element('span'),
-    TextArea: (props: Record<string, unknown>) => React.createElement('textarea', props),
+    TextArea: (props: Record<string, unknown>) => React.createElement('textarea', domProps(props)),
     color: { Critical: { Main: 'red' } },
   };
 });
 
 let eventCount = 0;
-/** The room's `thread_summary_instructions` event with `content`. */
-const stateEvent = (content: object) => {
+/** Sets the room's live `thread_summary_instructions` event to one with `content`. */
+const setLive = (content: object | undefined) => {
   eventCount += 1;
   const id = `$event${eventCount}`;
-  return { getId: () => id, getContent: () => content } as unknown as MatrixEvent;
+  live.event =
+    content === undefined
+      ? undefined
+      : ({ getId: () => id, getContent: () => content } as unknown as MatrixEvent);
 };
 
-let renderer: ReactTestRenderer;
-const render = () => {
-  act(() => {
-    renderer = create(<RoomTextSettingTile room={ROOM} definition={DEFINITION!} />);
-  });
+/** A send that settles when the test says so. */
+const deferSend = () => {
+  const settle = {} as { resolve: () => Promise<void>; reject: () => Promise<void> };
+  client.sendStateEvent.mockImplementationOnce(
+    () =>
+      new Promise((resolve, reject) => {
+        settle.resolve = () => act(async () => resolve({ event_id: '$sent' }));
+        settle.reject = () => act(async () => reject(new Error('M_FORBIDDEN')));
+      })
+  );
+  return settle;
+};
+
+const tile = () => <RoomTextSettingTile room={ROOM} definition={DEFINITION!} />;
+let rerender: (ui: React.ReactElement) => void;
+const mount = () => {
+  ({ rerender } = render(tile()));
 };
 /** Draws the tile again, as a change of the room's state does. */
-const rerender = () => {
-  act(() => renderer.update(<RoomTextSettingTile room={ROOM} definition={DEFINITION!} />));
-};
+const refresh = () => rerender(tile());
 
-const field = () => renderer.root.findByType('textarea');
-const button = (label: string): ReactTestInstance | undefined =>
-  renderer.root
-    .findAllByType('button')
-    .find((node) => node.findAllByType('span').some((span) => span.props.children === label));
-const texts = () =>
-  renderer.root.findAllByType('span').flatMap((node) => {
-    const { children } = node.props as { children?: unknown };
-    return typeof children === 'string' ? [children] : [];
-  });
-const type = (value: string) => {
-  act(() => {
-    field().props.onChange({ currentTarget: { value } });
-  });
-};
-const submit = async () => {
-  await act(async () => {
-    renderer.root.findByType('form').props.onSubmit({ preventDefault: () => undefined });
-  });
-};
+const field = () => screen.getByRole<HTMLTextAreaElement>('textbox', { name: LABEL });
+const saveButton = () => screen.getByRole<HTMLButtonElement>('button', { name: 'Save' });
+const clearButton = () => screen.queryByRole('button', { name: 'Clear' });
+const type = (value: string) => fireEvent.change(field(), { target: { value } });
+const clickSave = () => fireEvent.click(saveButton());
+const sentContent = (call: number) => client.sendStateEvent.mock.calls[call]?.[2];
 
 beforeEach(() => {
   live.event = undefined;
@@ -111,117 +132,202 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => renderer.unmount());
+  cleanup();
+  vi.restoreAllMocks();
 });
 
 describe('RoomTextSettingTile', () => {
-  it("shows the room's value with its count, Clear, and Save only once the text changes", () => {
-    live.event = stateEvent({ value: `  ${RULES}\n` });
-    render();
+  it("shows the room's value with its count, Clear, and Save once the text changes", () => {
+    setLive({ value: '  Use at most 4 words\n' });
+    mount();
 
-    expect(live.stateArgs).toEqual([ROOM, ROOM_SETTINGS_EVENT, 'thread_summary_instructions']);
-    expect(field().props.value).toBe(RULES);
-    expect(field().props.maxLength).toBe(2000);
-    expect(texts()).toContain(`${RULES.length} / 2000`);
-    expect(texts()).toContain('Titles already set keep their wording until the next refresh.');
-    expect(button('Clear')).toBeDefined();
-    expect(button('Save')!.props.disabled).toBe(true);
+    expect(live.stateArgs).toEqual([ROOM, ROOM_SETTINGS_EVENT, KEY]);
+    expect(field().value).toBe('Use at most 4 words');
+    expect(field().maxLength).toBe(2000);
+    expect(screen.getByText('19 / 2000')).toBeTruthy();
+    expect(clearButton()).not.toBeNull();
+    expect(saveButton().disabled).toBe(true);
 
-    // White space around the same text changes nothing.
-    type(`${RULES} `);
-    expect(button('Save')!.props.disabled).toBe(true);
+    // White space around the same text changes nothing, and stays as typed.
+    type('Use at most 4 words ');
+    expect(field().value).toBe('Use at most 4 words ');
+    expect(saveButton().disabled).toBe(true);
 
     type('Use at most 5 words');
-    expect(button('Save')!.props.disabled).toBe(false);
-    expect(texts()).toContain('19 / 2000');
+    expect(saveButton().disabled).toBe(false);
+  });
+
+  it('labels the field and describes it with elements that exist', () => {
+    setLive({ value: 'Use at most 4 words' });
+    mount();
+
+    const ids = field().getAttribute('aria-describedby')!.split(' ');
+    expect(ids.length).toBeGreaterThan(0);
+    ids.forEach((id) => expect(document.getElementById(id), id).not.toBeNull());
+    const described = ids.map((id) => document.getElementById(id)!.textContent).join(' ');
+    expect(described).toContain('Titles already set keep their wording until the next refresh.');
+    expect(described).toContain('19 / 2000');
   });
 
   it('shows an unset setting as an empty field without Clear', () => {
-    live.event = stateEvent({});
-    render();
+    setLive({});
+    mount();
 
-    expect(field().props.value).toBe('');
-    expect(field().props.placeholder).toBe('For example: Use at most 4 words after the emoji');
-    expect(button('Clear')).toBeUndefined();
-    expect(button('Save')!.props.disabled).toBe(true);
+    expect(field().value).toBe('');
+    expect(field().placeholder).toBe('For example: Use at most 4 words after the emoji');
+    expect(clearButton()).toBeNull();
+    expect(saveButton().disabled).toBe(true);
   });
 
   it('saves the trimmed text under the setting as its state key', async () => {
-    render();
-    type(`  ${RULES}\n`);
-    await submit();
+    mount();
+    type('  Use at most 4 words\n');
+    await act(async () => clickSave());
 
     expect(client.sendStateEvent).toHaveBeenCalledTimes(1);
     expect(client.sendStateEvent).toHaveBeenCalledWith(
       ROOM.roomId,
       ROOM_SETTINGS_EVENT,
-      { value: RULES },
-      'thread_summary_instructions'
+      { value: 'Use at most 4 words' },
+      KEY
     );
-    expect(field().props.value).toBe(RULES);
-    expect(button('Save')!.props.disabled).toBe(true);
+    expect(field().value).toBe('Use at most 4 words');
+    expect(saveButton().disabled).toBe(true);
+    expect(clearButton()).not.toBeNull();
   });
 
   it('clears the setting with empty content', async () => {
-    live.event = stateEvent({ value: RULES });
-    render();
-    await act(async () => {
-      button('Clear')!.props.onClick();
-    });
+    setLive({ value: 'Use at most 4 words' });
+    mount();
+    await act(async () => fireEvent.click(clearButton()!));
 
-    expect(client.sendStateEvent).toHaveBeenCalledWith(
-      ROOM.roomId,
-      ROOM_SETTINGS_EVENT,
-      {},
-      'thread_summary_instructions'
-    );
-    expect(field().props.value).toBe('');
+    expect(client.sendStateEvent).toHaveBeenCalledWith(ROOM.roomId, ROOM_SETTINGS_EVENT, {}, KEY);
+    expect(field().value).toBe('');
+    expect(clearButton()).toBeNull();
   });
 
-  it("follows the room's state, and after a save takes what the room shows next", async () => {
-    live.event = stateEvent({ value: RULES });
-    render();
+  it('compares with the saved value before its echo: typing the old value back can save', async () => {
+    setLive({ value: 'Use at most 4 words' });
+    mount();
+    type('Use at most 6 words');
+    const send = deferSend();
+    clickSave();
+    expect(field().readOnly).toBe(true);
+    await send.resolve();
 
-    live.event = stateEvent({ value: 'Use at most 6 words' });
-    rerender();
-    expect(field().props.value).toBe('Use at most 6 words');
+    // The room still shows the old value, but the server holds the new one.
+    type('Use at most 4 words');
+    expect(saveButton().disabled).toBe(false);
+    await act(async () => clickSave());
+    expect(sentContent(1)).toEqual({ value: 'Use at most 4 words' });
+  });
 
-    type('Use at most 3 words');
-    await submit();
-    // The room's state catches up, and then someone else changes it.
-    live.event = stateEvent({ value: 'Use at most 3 words' });
-    rerender();
-    live.event = stateEvent({ value: 'Name the topic first' });
-    rerender();
-    expect(field().props.value).toBe('Name the topic first');
-    expect(button('Save')!.props.disabled).toBe(true);
+  it('can clear a value just saved before its echo', async () => {
+    setLive({});
+    mount();
+    type('Use at most 4 words');
+    await act(async () => clickSave());
+
+    expect(clearButton()).not.toBeNull();
+    type('');
+    expect(saveButton().disabled).toBe(false);
+    await act(async () => clickSave());
+    expect(sentContent(1)).toEqual({});
+  });
+
+  it('follows the room again after an edit is undone', () => {
+    setLive({ value: 'Use at most 4 words' });
+    mount();
+    type('Use at most 5 words');
+    type('Use at most 4 words');
+
+    setLive({ value: 'Name the topic first' });
+    refresh();
+    expect(field().value).toBe('Name the topic first');
+    expect(saveButton().disabled).toBe(true);
+  });
+
+  it('keeps what the person types while someone else changes the room', () => {
+    setLive({ value: 'Use at most 4 words' });
+    mount();
+    type('Use at most 5 words');
+
+    setLive({ value: 'Name the topic first' });
+    refresh();
+    expect(field().value).toBe('Use at most 5 words');
+    expect(saveButton().disabled).toBe(false);
+  });
+
+  it('takes an echo that arrives before the send resolves', async () => {
+    setLive({ value: 'Use at most 4 words' });
+    mount();
+    type('Use at most 6 words');
+    const send = deferSend();
+    clickSave();
+    setLive({ value: 'Use at most 6 words' });
+    refresh();
+    await send.resolve();
+
+    expect(field().value).toBe('Use at most 6 words');
+    expect(saveButton().disabled).toBe(true);
+    // The room's next change shows, as the echo already went past the saved value.
+    setLive({ value: 'Name the topic first' });
+    refresh();
+    expect(field().value).toBe('Name the topic first');
+  });
+
+  it("shows another writer's value that replaces a save whose echo never showed", async () => {
+    setLive({ value: 'Use at most 4 words' });
+    mount();
+    type('Use at most 6 words');
+    await act(async () => clickSave());
+    expect(field().value).toBe('Use at most 6 words');
+
+    setLive({ value: 'Name the topic first' });
+    refresh();
+    expect(field().value).toBe('Name the topic first');
+    expect(saveButton().disabled).toBe(true);
   });
 
   it('is read-only with a note for someone who may not send the setting', () => {
     live.canSend = false;
-    live.event = stateEvent({ value: RULES });
-    render();
+    setLive({ value: 'Use at most 4 words' });
+    mount();
 
     expect(live.permissionArgs).toEqual([ROOM_SETTINGS_EVENT, '@me:example.org']);
-    expect(field().props.value).toBe(RULES);
-    expect(field().props.readOnly).toBe(true);
-    expect(button('Save')).toBeUndefined();
-    expect(button('Clear')).toBeUndefined();
-    expect(texts()).toContain("Only people allowed to change this room's settings can edit this.");
+    expect(field().value).toBe('Use at most 4 words');
+    expect(field().readOnly).toBe(true);
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(
+      screen.getByText("Only people allowed to change this room's settings can edit this.")
+    ).toBeTruthy();
   });
 
-  it('says so when the save fails, and keeps the text', async () => {
-    client.sendStateEvent.mockRejectedValue(new Error('M_FORBIDDEN'));
-    render();
-    type(RULES);
-    await submit();
+  it('says so in an alert when the save fails, and keeps the text', async () => {
+    mount();
+    type('Use at most 4 words');
+    const send = deferSend();
+    clickSave();
+    await send.reject();
 
-    expect(texts()).toContain("Couldn't save the setting. Try again.");
-    expect(field().props.value).toBe(RULES);
-    expect(button('Save')!.props.disabled).toBe(false);
+    expect(screen.getByRole('alert').textContent).toBe(FAILED);
+    expect(field().value).toBe('Use at most 4 words');
+    expect(saveButton().disabled).toBe(false);
 
     // Typing again takes the error away.
-    type(`${RULES}.`);
-    expect(texts()).not.toContain("Couldn't save the setting. Try again.");
+    type('Use at most 4 words.');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('changes nothing when a send settles after the tile is gone', async () => {
+    const errors = vi.spyOn(console, 'error');
+    mount();
+    type('Use at most 4 words');
+    const sent = deferSend();
+    clickSave();
+    cleanup();
+    await sent.resolve();
+
+    expect(errors).not.toHaveBeenCalled();
   });
 });
