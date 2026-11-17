@@ -186,7 +186,7 @@ one that uses `useMindroomServer`, `useMindroomServerStatus` or `useRoomComputer
 
 ## SDK versions
 
-`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 61), naming the plugin.
+`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 62), naming the plugin.
 The SDK only grows: nothing a plugin uses is changed or removed, and each addition raises that version, a new export as well as a new kind of contribution in `ClientPlugin` or a new field of the declaration, so a plugin built for an older SDK still builds and one that uses a newer addition never builds into a client that would ignore it.
 
 ### What each version added
@@ -251,6 +251,7 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 - version 59 `useMarkdownHtml`'s `imageSource`
 - version 60 `room`'s `ThreadBoard`'s `onOpenThread`
 - version 61 a thread card badge's `hoverCard`
+- version 62 a message link's `sidePanel`
 
 ## Pinches
 
@@ -450,13 +451,19 @@ A header action, by contrast, is one of the open room's header actions, in its r
 
 ## Message links
 
-Message links (`src/app/plugins/messageLinks.ts`) are the ninth kind: `ClientPlugin.messageLinks`, a list of `{ match, Component }`.
+Message links (`src/app/plugins/messageLinks.ts`) are the ninth kind: `ClientPlugin.messageLinks`, a list of `{ match, Component, sidePanel? }`.
 They apply to the links of messages in a room's page (its timeline in every view, a thread and the pinned messages), every link with an `http:` or `https:` address; elsewhere (the Activity list, search, thread previews outside a room's page) links stay as they are.
 A plain click (the primary button, with no Ctrl, Meta, Shift or Alt), or Enter on the focused link, on a link that the first enabled plugin's `match` takes (build order, then list order) shows that plugin's `Component` in place of opening the link, in a pop-out at the link, below it and lined up with its start, or above it when the link is in the lower half of the window, mirrored in right-to-left, on the app's glass menu surface (`src/app/room/MessageLinkCards.tsx`).
 A modified click, a middle click, the context menu and dragging keep the browser's behavior, and the click goes no further than the link, so a thread card around it does not open its thread.
 `match(url)`, pure and synchronous, takes the parsed URL; a `match` that throws counts as no match, logged with `[plugin <id>@<version>]`.
 `Component` gets `{ href, roomId, close }`: the link's address, the room whose message holds it, and a function that closes the card.
 It renders inside the room's page, so it can use what a message renderer can, such as `useRoomSidePanel` to open the plugin's panel.
+A link the plugin shows in one of its side panels sets `sidePanel: { id, request }` (since version 62): `id` names one of the same plugin's `sidePanels`, and `request(url)`, pure and synchronous, gives the panel's `request`, a value JSON holds, as a remembered panel keeps it.
+Off a phone and in a room's page, a plain click or Enter then opens that panel with `request(url)`, as `useRoomSidePanel`'s `open` does, in place of the card, and closes a card that shows.
+While the panel shows, beside the conversation or filling the room, with a request JSON-equal to it, the click follows the link as any message link does, in a new tab: a first click shows the link in the panel and a second opens it.
+A folded panel counts as not showing, so a click unfolds it with the link's request.
+On a phone, away from the room's panels (a `ThreadView` on a plugin's page), for a panel the plugin does not have, and when `request` throws (logged with `[plugin <id>@<version>]`), the click shows the card, so such a link still needs its `Component`.
+A `sidePanel` other than an `id` string with a `request` function leaves the link out.
 A link whose text reads as another address keeps the app's check first and, once confirmed, opens as a link without a card.
 Escape, a click outside the card and `close()` close the card, and the focus goes back to the link.
 One card shows at a time: another link's card takes its place, and a switch to another room closes it.
