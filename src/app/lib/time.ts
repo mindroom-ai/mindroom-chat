@@ -218,7 +218,8 @@ const largestUnit = (ageMs: number): [number, RelativeUnit] => {
   return [Math.floor(ageMs / daysToMs(1)), 'day'];
 };
 
-const formatNow = (language: string): string =>
+/** "now" in the language's words. */
+export const formatNow = (language: string): string =>
   relativeTimeFormat(language, { numeric: 'auto' }).format(0, 'second');
 
 /**
