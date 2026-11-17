@@ -10,15 +10,21 @@ export const CARD_MOUNT_CHUNK = 40;
  * How many cards a room's first render needs (`useStagedCardIds`): the first screenful, or, for a
  * room the reader left scrolled down (`place`), every card down to the last one of that place
  * still listed and a screenful past it, so the list reopens on them. A place with none of its
- * cards listed is found by its scroll position alone, which needs the whole list.
+ * cards listed is found by its scroll position alone, which needs the whole list. One whose cards
+ * are listed (`listedRootIds`) but not shown, in a folded section, has none the whole list would
+ * show either, so it takes the first screenful.
  */
 export const firstRenderCardCount = (
   threadRootIds: string[],
-  place: ScrollAnchorSnapshot | undefined
+  place: ScrollAnchorSnapshot | undefined,
+  listedRootIds: readonly string[] = threadRootIds
 ): number => {
   if (!place || place.scrollTop <= 0) return FIRST_SCREEN_CARDS;
   const last = Math.max(-1, ...place.anchors.map(({ key }) => threadRootIds.indexOf(key)));
-  return last < 0 ? threadRootIds.length : last + 1 + FIRST_SCREEN_CARDS;
+  if (last >= 0) return last + 1 + FIRST_SCREEN_CARDS;
+  return place.anchors.some(({ key }) => listedRootIds.includes(key))
+    ? FIRST_SCREEN_CARDS
+    : threadRootIds.length;
 };
 
 /**

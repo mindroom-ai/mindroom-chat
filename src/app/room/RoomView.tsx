@@ -13,6 +13,7 @@ import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { editableActiveElement } from '../lib/dom';
+import { shortcutLetter } from '../lib/keyboard';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { RoomInput } from '../composer/RoomInput';
@@ -78,18 +79,29 @@ const OWNS_TYPING_SELECTOR =
 const focusOwnsTyping = (): boolean =>
   typeof document !== 'undefined' && !!document.activeElement?.closest?.(OWNS_TYPING_SELECTOR);
 
+// Paste (Cmd+V, Ctrl+V), with Shift too for paste as plain text, but no Alt combination. The V is
+// the layout's (Dvorak's sits on the physical period key), or the key's own on a non-Latin layout.
+const isPasteKey = (evt: KeyboardEvent): boolean =>
+  (evt.ctrlKey || evt.metaKey) && !evt.altKey && shortcutLetter(evt) === 'v';
+// A letter or digit without a modifier other than Shift.
+const isTypingKey = (evt: KeyboardEvent): boolean =>
+  !evt.ctrlKey && !evt.metaKey && !evt.altKey && /^(Key[A-Z]|Digit\d)$/.test(evt.code ?? '');
+
 /**
- * Typing a letter or digit with nothing focused starts a message in the composer, and Escape
- * outside a field or menu goes back to it (the room's Escape handler reads its main timeline, or
- * the open thread, as well). Neither takes a key that a handler cancelled (`preventDefault`)
- * before it reached the window, nor a key pressed inside an element marked `data-keeps-typing`:
- * a region that reads keys without a text field (a game, a drawing surface) carries it.
+ * Typing a letter or digit with nothing focused starts a message in the composer, pasting there
+ * (Cmd+V or Ctrl+V, with Shift too) pastes into it, and Escape outside a field or menu goes back
+ * to it (the room's Escape handler reads its main timeline, or the open thread, as well). The
+ * paste key only moves the focus: the browser's paste that follows the keydown then goes to the
+ * composer, which takes its text and files as any paste into it. None of them takes a key that a
+ * handler cancelled (`preventDefault`) before it reached the window, nor a key pressed inside an
+ * element marked `data-keeps-typing`: a region that reads keys without a text field (a game, a
+ * drawing surface) carries it.
  */
 const useTypeToCompose = (focusComposer: () => void, enabled: boolean) => {
   const handleKey = useCallback(
     (evt: KeyboardEvent) => {
-      if (!enabled || evt.defaultPrevented || evt.ctrlKey || evt.metaKey || evt.altKey) return;
-      if (!/^(Key[A-Z]|Digit\d)$/.test(evt.code ?? '')) return;
+      if (!enabled || evt.defaultPrevented) return;
+      if (!isTypingKey(evt) && !isPasteKey(evt)) return;
       // The agent's computer screen takes its own keystrokes.
       if (computerOwnsKeyboardEvent(evt) || editableActiveElement() || focusOwnsTyping()) return;
       focusComposer();
@@ -289,6 +301,8 @@ export function RoomView({
     onClearTags: threadState.handleClearTags,
     onSelectTab: threadState.handleSelectTab,
     onSearchQueryChange: threadState.handleSearchQueryChange,
+    threadSections: threadState.threadSections,
+    onToggleThreadSections: threadState.handleToggleThreadSections,
     viewMode,
     compactRoomScrollStateRef,
     threadReturnPlaceRef,

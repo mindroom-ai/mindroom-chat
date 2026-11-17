@@ -206,6 +206,10 @@ export type RoomTimelineProps = {
   onClearTags?: () => void;
   onSelectTab?: (tab: ThreadWorkflowTab) => void;
   onSearchQueryChange?: (query: string) => void;
+  /** Compact shows its cards in sections (Working, Needs you, Later, Done). */
+  threadSections?: boolean;
+  /** The Compact filter bar's switch for `threadSections`. */
+  onToggleThreadSections?: () => void;
   viewMode: RoomViewMode;
   compactRoomScrollStateRef?: MutableRefObject<ScrollAnchorMemory>;
   /** Where the room's rows were when a thread opened over them (`useThreadReturnPlace`). */
@@ -421,6 +425,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadId,
     threadInitialCacheHydrated: session.snapshot.open.initialCacheHydrated,
     threadInitialSdkLoaded: session.snapshot.open.sdkReady,
+    threadFirstPaintHeld: session.snapshot.open.firstPaintHeld,
     timelineRevision: session.snapshot.timelineRevision,
     debugTraceId: threadDebugTraceId,
     prefixEvents: forkPrefix.events,
@@ -601,6 +606,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
       reset: (nextThreadId) => threadStateRef.current.resetThreadRenderState(nextThreadId),
       append: (targetThreadId, events) =>
         threadStateRef.current.setSupplementalThreadEvents(targetThreadId, events),
+      getEvents: (targetThreadId) => threadStateRef.current.getThreadRenderEvents(targetThreadId),
       invalidateTimeline: () => setTimeline((current) => ({ ...current })),
     }),
     [setTimeline, threadStateRef]
@@ -1571,6 +1577,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // The header's filter button hides the bar; the filters keep applying while it is hidden.
   const filterBarShown =
     showRoomThreadOverviewControls && !plainConversation && !hideThreadFilterBar;
+  // Agent rooms' cards can show in sections; the bar hides the sort only while they do.
+  const sectionsOffered = compactCards && hasMindroomAgents;
+  const threadSectionsShown = sectionsOffered && props.threadSections === true;
   const filterBar = filterBarShown && (
     <FilterBarSlot onHeight={setFilterBarHeight}>
       <RoomThreadOverview
@@ -1600,6 +1609,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
         onRemoveTag={props.onRemoveTag ?? ignoreFilterChange}
         onClearTags={props.onClearTags ?? ignoreFilterChange}
         onSearchQueryChange={props.onSearchQueryChange ?? ignoreFilterChange}
+        threadSections={threadSectionsShown}
+        onToggleThreadSections={sectionsOffered ? props.onToggleThreadSections : undefined}
         peopleFilter={
           props.onTogglePerson && (
             <ThreadPeopleFilter
@@ -1663,6 +1674,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
           onThreadClick={(rootId) => navigateRoomThread(room.roomId, rootId)}
           compactRoomScrollStateRef={compactRoomScrollStateRef}
           filterBarShown={filterBarShown}
+          // The clock the list was filtered at, so the sections show what the selected tab does.
+          sectionsNow={threadSectionsShown ? threadIndex.snoozeNow : undefined}
         />
       </Box>
     );
@@ -1727,6 +1740,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     isHiddenByPlugin,
     isHiddenByPluginId,
     renderEvent: feature.renderEvent,
+    isQuietMarkerRow: feature.isQuietMarkerRow,
     forkDivider,
     forkingDivider,
     unreadMarkerRef: setUnreadMarker,

@@ -43,6 +43,8 @@ vi.mock('./RoomThreadOverview.css', () => ({
   CompactCountValue: 'CompactCountValue',
   SortButton: 'SortButton',
   SortButtonActive: 'SortButtonActive',
+  SectionsSwitchLabel: 'SectionsSwitchLabel',
+  NARROW_BAR: '(max-width: 40rem)',
   PauseButtonActive: 'PauseButtonActive',
   EmptyState: 'EmptyState',
   ResetLink: 'ResetLink',

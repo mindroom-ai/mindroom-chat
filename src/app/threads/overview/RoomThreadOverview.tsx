@@ -24,6 +24,7 @@ import * as css from './RoomThreadOverview.css';
 import { ThreadTagFilter } from './ThreadTagFilter';
 import { useKeepInsideToolbar } from './useKeepInsideToolbar';
 import { WorkflowTabs } from './WorkflowTabs';
+import { GroupThreadsIcon } from './GroupThreadsIcon';
 import { localDigits } from '../../lib/localDigits';
 import type {
   ThreadFilterState,
@@ -288,7 +289,48 @@ export type RoomThreadOverviewProps = {
   onSearchQueryChange: (query: string) => void;
   /** The People dropdown (ThreadPeopleFilter), shown with the advanced filters. */
   peopleFilter?: React.ReactNode;
+  /** The cards show in sections (Working, Needs you, Later, Done), each in its own order. */
+  threadSections?: boolean;
+  /** Turns the sections on or off; the switch shows beside the sort only when given (Compact). */
+  onToggleThreadSections?: () => void;
 };
+
+/**
+ * Compact's Group switch between the sorted cards and their sections, beside the sort. A narrow
+ * bar shows only its icon, as the workflow tabs do.
+ */
+function ThreadSectionsSwitch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  const { t } = useTranslation();
+  const label = t('threadNav.group');
+  return (
+    <TooltipProvider
+      position="Bottom"
+      align="Center"
+      tooltip={
+        <Tooltip style={{ maxWidth: toRem(220) }}>
+          <Text size="T200">{t('threadNav.groupHint')}</Text>
+        </Tooltip>
+      }
+    >
+      {(triggerRef) => (
+        <button
+          ref={triggerRef}
+          type="button"
+          className={classNames(css.SortButton, on && css.SortButtonActive)}
+          aria-pressed={on}
+          onClick={onToggle}
+          aria-label={label}
+          data-thread-sections="true"
+        >
+          <Icon size="100" src={GroupThreadsIcon} aria-hidden="true" />
+          <Text size="T200" className={css.SectionsSwitchLabel}>
+            {label}
+          </Text>
+        </button>
+      )}
+    </TooltipProvider>
+  );
+}
 
 function ThreadSortControl({
   state,
@@ -363,6 +405,8 @@ export function RoomThreadOverview({
   onClearTags,
   onSearchQueryChange,
   peopleFilter,
+  threadSections = false,
+  onToggleThreadSections,
 }: RoomThreadOverviewProps) {
   const glassRef = useLiquidGlass<HTMLDivElement>();
   const { t, i18n } = useTranslation();
@@ -520,6 +564,11 @@ export function RoomThreadOverview({
     </TooltipProvider>
   );
 
+  // Sections order their cards themselves, so the sort and its lock make way for the switch.
+  const sectionsSwitch = onToggleThreadSections && (
+    <ThreadSectionsSwitch on={threadSections} onToggle={onToggleThreadSections} />
+  );
+
   // Simple mode keeps the sorting choice plus one agent-room filter: hide
   // resolved threads or show everything. The upstream filter state is already
   // projected onto this visible subspace.
@@ -570,7 +619,8 @@ export function RoomThreadOverview({
               </TooltipProvider>
             </>
           )}
-          <ThreadSortControl state={state} onChange={handleSort} />
+          {!threadSections && <ThreadSortControl state={state} onChange={handleSort} />}
+          {sectionsSwitch}
           {filterModeSwitch}
         </div>
         {hasMindroomAgents && emptyFilteredState}
@@ -629,13 +679,14 @@ export function RoomThreadOverview({
           />
         )}
 
-        <ThreadSortControl state={state} onChange={handleSort} />
+        {!threadSections && <ThreadSortControl state={state} onChange={handleSort} />}
+        {sectionsSwitch}
         <ThreadSearchBar
           searchQuery={searchQueryDraft}
           filtering={hasSearchOnlyThreadFilters(state)}
           onSearchQueryChange={handleSearch}
         />
-        {hasMindroomAgents && state.sortBy !== 'natural' && (
+        {hasMindroomAgents && !threadSections && state.sortBy !== 'natural' && (
           <TooltipProvider
             position="Bottom"
             align="Center"

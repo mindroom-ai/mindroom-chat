@@ -21,6 +21,7 @@ import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { useEdgeSwipeForward } from '../navigation/useEdgeSwipeForward';
 import { lastExitedThreadAtom } from '../threads/lastExitedThread';
 import { bumpRecentThread } from '../event-store/threads/recentThreads';
+import { getCompactRoomSectionsAtom } from '../threads/overview/compactRoomSections';
 import { useRoomViewThreadState, type RoomViewThreadState } from './useRoomViewThreadState';
 
 const USER_ID = '@alice:example.org';
@@ -421,6 +422,69 @@ describe('useRoomViewThreadState', () => {
     act(() => current().handleToggleThreadSortFreeze());
 
     expect(current().threadSortFreezeState).toBeNull();
+  });
+
+  it('turns Compact Sections on for the account and leaves every filter as it was', () => {
+    storeFilter({
+      ...createDefaultThreadFilterState(),
+      resolved: 'exclude',
+      snoozed: 'exclude',
+      unread: 'include',
+      freeText: 'launch',
+    });
+    const { store, current } = mountThreadState({ advancedFilters: true });
+    const before = current().threadFilterState;
+    expect(current().threadSections).toBe(false);
+
+    act(() => current().handleToggleThreadSections());
+
+    expect(current().threadSections).toBe(true);
+    expect(store.get(getCompactRoomSectionsAtom(USER_ID)).on).toBe(true);
+    // Sections group whatever the filters show: no filter changes with them.
+    expect(current().threadFilterState).toEqual(before);
+
+    act(() => current().handleToggleThreadSections());
+    expect(current().threadSections).toBe(false);
+    expect(current().threadFilterState).toEqual(before);
+  });
+
+  it('keeps the selected tab while Compact shows sections', () => {
+    const { current } = mountThreadState({ advancedFilters: true });
+    act(() => current().handleSelectTab('later'));
+
+    act(() => current().handleToggleThreadSections());
+
+    expect(current().threadFilterState.tab).toBe('later');
+  });
+
+  it('keeps the sort lock off while Compact shows sections, which have their own order', () => {
+    const { current } = mountThreadState({ advancedFilters: true });
+    act(() => current().handleToggleThreadSections());
+
+    act(() => current().handleToggleThreadSortFreeze());
+
+    expect(current().threadSortFreezeState).toBeNull();
+  });
+
+  it('shows no sections in a room without agents, whose cards keep their sort', () => {
+    const { store, current } = mountThreadState({
+      hasMindroomAgents: false,
+      advancedFilters: true,
+    });
+
+    act(() => current().handleToggleThreadSections());
+
+    expect(store.get(getCompactRoomSectionsAtom(USER_ID)).on).toBe(true);
+    expect(current().threadSections).toBe(false);
+  });
+
+  it('shows no sections in the Threads view', () => {
+    viewMode.current = 'threaded';
+    const { current } = mountThreadState({ advancedFilters: true });
+
+    act(() => current().handleToggleThreadSections());
+
+    expect(current().threadSections).toBe(false);
   });
 });
 

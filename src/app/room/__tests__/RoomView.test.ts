@@ -182,6 +182,11 @@ vi.mock('folds', async (importOriginal) => {
 });
 
 vi.mock('../../plugins/registry', () => ({ registeredPlugins: [] }));
+// The Compact room's sections read the threads' signals, whose modules load the app's translations.
+vi.mock('../../threads/overview/useCompactThreadSections', () => ({
+  useCompactThreadSections: () => undefined,
+}));
+
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
   return {

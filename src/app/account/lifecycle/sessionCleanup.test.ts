@@ -11,6 +11,7 @@ import { clearThreadSidebarPreferencesStore } from '../../threads/cross-room/thr
 import { clearQuickCaptureRoomStore } from '../../preferences/quickCaptureRoom';
 import { clearThreadsScopeStore } from '../../threads/page/threadsScope';
 import { clearRoomThreadFiltersStore } from '../../threads/overview/roomThreadFilterState';
+import { clearCompactRoomSectionsStore } from '../../threads/overview/compactRoomSections';
 import { clearRoomViewModeStore } from '../../navigation/roomViewMode';
 import { clearToolCallOverrides } from '../../messages/toolCallVisibility';
 import { clearThreadSummarySharedState } from '../../event-store/threads/threadSummaryState';
@@ -155,6 +156,9 @@ vi.mock('../../threads/page/threadsScope', () => ({
   clearThreadsScopeStore: vi.fn(),
 }));
 
+vi.mock('../../threads/overview/compactRoomSections', () => ({
+  clearCompactRoomSectionsStore: vi.fn(),
+}));
 vi.mock('../../threads/overview/roomThreadFilterState', () => ({
   clearRoomThreadFiltersStore: vi.fn(),
 }));
@@ -292,10 +296,12 @@ describe('MindRoom session cleanup', () => {
 
     expect(removeItem).toHaveBeenCalledWith('lastOpenThread@alice:example.com');
     expect(vi.mocked(clearRoomThreadFiltersStore)).toHaveBeenCalledWith('@alice:example.com');
+    expect(vi.mocked(clearCompactRoomSectionsStore)).toHaveBeenCalledWith('@alice:example.com');
     expect(removeItem).toHaveBeenCalledWith('crossRoomThreadFilters:@alice:example.com');
     expect(vi.mocked(clearThreadsScopeStore)).toHaveBeenCalledWith('@alice:example.com');
     expect(vi.mocked(clearQuickCaptureRoomStore)).toHaveBeenCalledWith('@alice:example.com');
     expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith('@alice:example.com');
+    expect(removeItem).toHaveBeenCalledWith('recentRooms:@alice:example.com');
     expect(vi.mocked(clearRecentlyOpenedPanelHeightStore)).toHaveBeenCalledWith(
       '@alice:example.com'
     );

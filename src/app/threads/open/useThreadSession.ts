@@ -5,7 +5,10 @@ import { countCacheProbe } from '../../event-store/cache/cacheProbe';
 import { logTimelineDebug } from '../../diagnostics/timelineDebug';
 import { isLocalEchoEventId } from '../../event-store/threads/threadRouteUtils';
 import { hydrateThreadFromCache, refreshLatestThreadSlice } from './threadOpenCacheController';
-import { getLinkedTimelines, getThreadTimelineEvents } from '../../event-store/timeline/linkedTimelines';
+import {
+  getLinkedTimelines,
+  getThreadTimelineEvents,
+} from '../../event-store/timeline/linkedTimelines';
 import { hasThreadCacheBackwardGap } from '../../event-store/cache/threadCacheCoverage';
 import { createThreadOpenSeedSession } from './threadOpenSeedController';
 import { runThreadOpenCacheFirst } from './threadOpenCacheFirst';
@@ -14,6 +17,7 @@ import {
   runThreadOpenSdkBootstrap,
 } from './threadOpenSdkBootstrap';
 import { runThreadOpenTargetEvent } from './threadOpenTargetEvent';
+import { createThreadFirstPaintGate, getTailLongTextSources } from './threadOpenFirstPaint';
 import type {
   PendingThreadTarget,
   ThreadOpenRuntime,
@@ -47,6 +51,7 @@ const initialState = {
     initialCacheHydrated: false,
     sdkReady: false,
     latestPending: false,
+    firstPaintHeld: false,
     editResetEpoch: 0,
   },
   history: { hasMoreCachedBack: false, tailLoaded: false },
@@ -250,11 +255,36 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
           render.invalidateTimeline();
           notifyEventsChanged();
         };
+        // A first open that knows of replies its first rows leave out shows the loading state
+        // until a view without them is in and its last long texts have loaded, not the root and
+        // newest reply with the rest arriving between them a moment later. Its long texts are
+        // those of the rows the timeline will show.
+        const firstPaint = createThreadFirstPaintGate({
+          held: shouldScrollToLatestOnOpen && threadOpenSeedSession.hasGap(),
+          mx,
+          readTail: () =>
+            getTailLongTextSources(
+              render.getEvents(threadId),
+              room.getThread(threadId)?.getUnfilteredTimelineSet() ??
+                room.getUnfilteredTimelineSet()
+            ),
+          onRelease: () => {
+            if (!isCurrentThreadOpen()) return;
+            publish((current) => ({
+              ...current,
+              open: { ...current.open, firstPaintHeld: false },
+            }));
+          },
+        });
         threadOpenSeedSession.startUntargetedSeedPrewarmWait(isCurrentThreadOpen);
         if (!shouldScrollToLatestOnOpen) threadOpenSeedSession.applyInitialRoomThreadSeed();
         publish((current) => ({
           ...current,
-          open: { ...current.open, latestPending: shouldScrollToLatestOnOpen },
+          open: {
+            ...current.open,
+            latestPending: shouldScrollToLatestOnOpen,
+            firstPaintHeld: firstPaint.held,
+          },
         }));
         const persistThreadEventCache = writeAfterThisTask(runtime.beginCacheWrite());
         let cacheResult: Awaited<ReturnType<typeof runThreadOpenCacheFirst>> | undefined;
@@ -316,6 +346,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
           },
         }).then((result) => {
           cacheResult = result;
+          if (cacheComplete) firstPaint.ready();
         });
         void cacheWork.catch(() => logTimelineDebug(debugTraceId, 'thread-cache-hydrate-error'));
 
@@ -357,6 +388,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
                 }
               },
             });
+            firstPaint.ready();
             if (!isCurrentThreadOpen()) return;
             if (!shouldContinue) return;
             // A thread whose timeline is already loaded gets here in the task of the press that
@@ -461,6 +493,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
         return () => {
           logTimelineDebug(debugTraceId, 'thread-open-close');
           mounted = false;
+          firstPaint.cancel();
           threadOpenSeedSession.cleanup();
         };
       },

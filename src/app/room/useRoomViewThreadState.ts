@@ -45,6 +45,7 @@ import {
   type ThreadSortFreezeState,
 } from '../event-store/threads/roomThreadOverviewModel';
 import { roomThreadFilterAtomFamily } from '../threads/overview/roomThreadFilterState';
+import { getCompactRoomSectionsAtom } from '../threads/overview/compactRoomSections';
 import type { RoomViewMode } from '../navigation/roomViewMode';
 import {
   applyParsedThreadFilterQuery,
@@ -85,6 +86,8 @@ export type RoomViewThreadState = {
   handleSearchQueryChange: (query: string) => void;
   handleSortDirectionChange: () => void;
   handleToggleThreadSortFreeze: () => void;
+  /** Turns Compact's Sections on or off, for every room of the account. */
+  handleToggleThreadSections: () => void;
   handleToggleUnresolvedOnly: () => void;
   handleTogglePerson: (userId: string) => void;
   handleRoomMessageSent: (eventId: string) => boolean;
@@ -94,6 +97,8 @@ export type RoomViewThreadState = {
   threadFilterState: ThreadFilterState;
   threadSortFreezeState: ThreadSortFreezeState | null;
   threadSummaryInfo?: ThreadSummaryInfo;
+  /** Compact shows its cards in sections: Working, Needs you, Later and Done. */
+  threadSections: boolean;
   /** The open thread is not in this room, and no joined room the client knows holds it. */
   threadNotFound: boolean;
   viewMode: RoomViewMode;
@@ -153,13 +158,18 @@ export const useRoomViewThreadState = ({
         : threadFilterState
       : simplifyAgentlessThreadFilterState(threadFilterState);
   }, [hasMindroomAgents, simpleMode, threadFilterState]);
+  const [compactSections, updateCompactSections] = useAtom(
+    useMemo(() => getCompactRoomSectionsAtom(userId), [userId])
+  );
+  // Only agent rooms have the workflow buckets; a room without agents keeps its cards' sort.
+  const threadSections = effectiveViewMode === 'compact' && hasMindroomAgents && compactSections.on;
   const lastExitedThread = useAtomValue(lastExitedThreadAtom);
   const setLastExitedThread = useSetAtom(lastExitedThreadAtom);
   const [threadSortFreezeState, setThreadSortFreezeState] = useState<ThreadSortFreezeState | null>(
     null
   );
   const effectiveThreadSortFreezeState =
-    hasMindroomAgents && !simpleMode ? threadSortFreezeState : null;
+    hasMindroomAgents && !simpleMode && !threadSections ? threadSortFreezeState : null;
   const { summaryMap, storeThreadSummary } = useRoomThreadSummaryState({
     roomId,
     sessionId,
@@ -399,6 +409,10 @@ export const useRoomViewThreadState = ({
     );
   }, []);
 
+  const handleToggleThreadSections = useCallback(() => {
+    updateCompactSections({ type: 'SET_ON', on: !compactSections.on });
+  }, [compactSections.on, updateCompactSections]);
+
   const handleReset = useCallback(() => {
     // Reset discards a pending typed query outright — flushing it first
     // would resurrect the filters the user is clearing.
@@ -516,6 +530,7 @@ export const useRoomViewThreadState = ({
     handleSearchQueryChange,
     handleSortDirectionChange,
     handleToggleThreadSortFreeze,
+    handleToggleThreadSections,
     handleToggleUnresolvedOnly,
     handleTogglePerson,
     handleRoomMessageSent,
@@ -525,6 +540,7 @@ export const useRoomViewThreadState = ({
     threadFilterState: effectiveThreadFilterState,
     threadSortFreezeState: effectiveThreadSortFreezeState,
     threadSummaryInfo,
+    threadSections,
     threadNotFound,
     viewMode: effectiveViewMode,
   };

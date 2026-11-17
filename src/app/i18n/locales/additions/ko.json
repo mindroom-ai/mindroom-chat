@@ -656,6 +656,24 @@
       "noCrossSigning": "워치가 연결되었지만 확인되지 않았습니다. 확인하려면 이 iPhone에서 암호화를 설정하세요.",
       "noBackup": "워치가 확인되었지만 연결 전 메시지는 읽을 수 없습니다. 이 iPhone에서 키 백업을 켜세요.",
       "timeout": "워치가 로그인을 마치지 못했습니다. 워치에서 MindRoom을 열고 다시 연결하세요."
+    },
+    "roomSettings": {
+      "navigation": {
+        "mindroom": "MindRoom"
+      },
+      "mindroom": {
+        "threadSummaryInstructions": {
+          "label": "스레드 제목 규칙",
+          "description": "MindRoom의 AI가 이 방의 스레드에 붙이는 제목에 적용할 추가 규칙입니다. 기본 제목 규칙보다 우선합니다.",
+          "placeholder": "예: 이모지 뒤에 최대 4단어만 사용",
+          "note": "이미 붙은 제목은 다음에 새로 고칠 때까지 지금 문구를 유지합니다."
+        },
+        "save": "저장",
+        "clear": "지우기",
+        "characterCount": "{{length, number}} / {{max, number}}",
+        "readOnly": "이 방의 설정을 바꿀 수 있는 사람만 편집할 수 있습니다.",
+        "saveFailed": "설정을 저장하지 못했습니다. 다시 시도하세요."
+      }
     }
   },
   "mindroomUi": {
@@ -774,6 +792,12 @@
       },
       "mindroomReplyDetails": {
         "subagents": "하위 에이전트"
+      },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "{{duration}} 동안 실행 중"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "제목 설정"
       }
     },
     "message-search": {
@@ -1296,6 +1320,8 @@
     "layout": "스레드 배치",
     "layoutRecent": "최근",
     "layoutSections": "섹션",
+    "group": "그룹",
+    "groupHint": "상태별로 그룹화",
     "sections": {
       "working": "작업 중",
       "later": "나중에",

@@ -21,15 +21,17 @@ import { RoomMembersPage } from './RoomMembersPage';
 import { RoomPermissionsPage } from './permissions/RoomPermissionsPage';
 import { RoomPacksPage } from './RoomPacksPage';
 import { RoomDeveloperToolsPage } from './developer-tools/RoomDeveloperToolsPage';
+import { RoomMindroomPage } from './mindroom/RoomMindroomPage';
 import { revealDirectionControls } from '../../ui/directional';
 
 const NAVIGATION = 'featureUi.roomSettings.navigation';
 
-/** The dialog's pages in menu order, with their names and icons. */
-const PAGES: Array<{ page: RoomSettingsPage; label: string; icon: IconSrc }> = [
+/** The dialog's pages in menu order, with their names and icons; some are only for rooms. */
+const PAGES: Array<{ page: RoomSettingsPage; label: string; icon: IconSrc; roomOnly?: true }> = [
   { page: RoomSettingsPage.GeneralPage, label: 'general', icon: Icons.Setting },
   { page: RoomSettingsPage.MembersPage, label: 'members', icon: Icons.User },
   { page: RoomSettingsPage.PermissionsPage, label: 'permissions', icon: Icons.Lock },
+  { page: RoomSettingsPage.MindroomPage, label: 'mindroom', icon: Icons.Bulb, roomOnly: true },
   { page: RoomSettingsPage.EmojisStickersPage, label: 'emojisStickers', icon: Icons.Smile },
   { page: RoomSettingsPage.DeveloperToolsPage, label: 'developerTools', icon: Icons.Terminal },
 ];
@@ -101,6 +103,12 @@ function SelectedPage({ page, ...props }: PageProps & { page: RoomSettingsPage }
           space={props.space}
         />
       );
+    case RoomSettingsPage.MindroomPage:
+      return props.space ? (
+        <General {...props} />
+      ) : (
+        <RoomMindroomPage room={props.room} requestClose={props.requestClose} />
+      );
     case RoomSettingsPage.EmojisStickersPage:
       return <RoomPacksPage room={props.room} requestClose={props.requestClose} />;
     case RoomSettingsPage.DeveloperToolsPage:
@@ -135,7 +143,7 @@ export function RoomSettings(props: {
     [phone, requestClose]
   );
 
-  const entries = PAGES.map((entry) => {
+  const entries = PAGES.filter((entry) => !(space && entry.roomOnly)).map((entry) => {
     const current = entry.page === page;
     return (
       <MenuItem

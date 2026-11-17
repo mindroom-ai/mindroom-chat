@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { Text, color } from 'folds';
 import {
   EventStatus,
+  type EventTimelineSet,
   type MatrixClient,
   type MatrixEvent,
   type Relations,
@@ -32,6 +33,8 @@ import { useRoomThreadMode } from '../../matrix/hooks/useRoomThreadMode';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { useSpaceOptionally } from '../../matrix/hooks/useSpace';
 import { useOpenUserRoomProfile } from '../../navigation/useUserRoomProfileState';
+import { RoomSettingsPage } from '../../navigation/roomSettingsState';
+import { useOpenRoomSettings } from '../../navigation/useRoomSettingsState';
 import { isEmptyEditor } from '../../editor/utils';
 import { Reply } from '../../messages/reply/Reply';
 import { MessageAside } from '../../messages/layout/MessageAside';
@@ -294,6 +297,37 @@ const useLiveExpansion = () => {
 const endAligned = { alignItems: 'flex-end' } as const;
 
 /**
+ * Inside a thread, the thread's title and the backend's snooze-ended and skill review messages
+ * render as one quiet line, not as an agent's reply: no avatar, name or toolbar. A title shows
+ * only where the thread's summary plan marks it; the other two only from a MindRoom agent.
+ */
+const readQuietMarker = (
+  eventId: string,
+  sender: string | undefined,
+  content: Record<string, unknown>,
+  data: TimelineMessageData,
+  viewerId: string | undefined,
+  onOpenTitleSettings?: () => void
+): ReactNode | null => {
+  const summaryInfo = getThreadSummaryInfo(content);
+  const plan = summaryInfo && data.threadSummaryTimeline.markersByEventId.get(eventId);
+  if (summaryInfo && plan) {
+    return (
+      <ThreadSummaryMarker
+        summaryInfo={summaryInfo}
+        plan={plan}
+        onOpenSettings={onOpenTitleSettings}
+      />
+    );
+  }
+  if (!isMindroomAgentUserIdForViewer(sender, viewerId)) return null;
+  const snoozeEndedNote = readSnoozeEndedNote(content);
+  if (snoozeEndedNote !== null) return <SnoozeEndedMarker note={snoozeEndedNote} />;
+  const skillReview = readSkillReviewNotice(content);
+  return skillReview ? <SkillReviewMarker review={skillReview} /> : null;
+};
+
+/**
  * How the room and thread timelines render one message row: edit state, reply quotes, collapse,
  * approvals, summary markers and failed sends; plus Up-arrow editing of the user's last message.
  */
@@ -324,6 +358,11 @@ export const useTimelineMessageFeature = ({
   }, [manualExpansionState]);
   const renderedEventsRef = useRef<MatrixEvent[]>([]);
   renderedEventsRef.current = [];
+  const openRoomSettings = useOpenRoomSettings();
+  const openTitleSettings = useCallback(
+    () => openRoomSettings(room.roomId, RoomSettingsPage.MindroomPage),
+    [openRoomSettings, room.roomId]
+  );
 
   const threadIdRef = useRef(threadId);
   threadIdRef.current = threadId;
@@ -476,12 +515,18 @@ export const useTimelineMessageFeature = ({
           ? getToolApprovalRenderContent(event.getOriginalContent(), editedEvent?.getContent())
           : getLatestMessageContent(event, editedEvent)
       ) as Record<string, unknown>;
-      const summaryInfo =
-        threadId && kind === 'message' ? getThreadSummaryInfo(content) : undefined;
-      const marker = summaryInfo
-        ? data.threadSummaryTimeline.markersByEventId.get(eventId)
-        : undefined;
-      if (summaryInfo && marker) {
+      const quietMarker =
+        threadId && kind === 'message'
+          ? readQuietMarker(
+              eventId,
+              event.getSender() ?? undefined,
+              content,
+              data,
+              userId ?? undefined,
+              openTitleSettings
+            )
+          : null;
+      if (quietMarker) {
         return (
           <MessageAside
             key={eventId}
@@ -489,39 +534,7 @@ export const useTimelineMessageFeature = ({
             data-message-item={row.index}
             spaced
           >
-            <ThreadSummaryMarker summaryInfo={summaryInfo} plan={marker} />
-          </MessageAside>
-        );
-      }
-      // Inside a thread, the backend's snooze-ended and skill review messages are one quiet
-      // line, not an agent's reply: no avatar, name or toolbar. Only a MindRoom agent's count.
-      const agentNotice =
-        !!threadId &&
-        kind === 'message' &&
-        isMindroomAgentUserIdForViewer(event.getSender() ?? undefined, userId ?? undefined);
-      const snoozeEndedNote = agentNotice ? readSnoozeEndedNote(content) : null;
-      if (snoozeEndedNote !== null) {
-        return (
-          <MessageAside
-            key={eventId}
-            data-message-id={eventId}
-            data-message-item={row.index}
-            spaced
-          >
-            <SnoozeEndedMarker note={snoozeEndedNote} />
-          </MessageAside>
-        );
-      }
-      const skillReview = agentNotice ? readSkillReviewNotice(content) : null;
-      if (skillReview) {
-        return (
-          <MessageAside
-            key={eventId}
-            data-message-id={eventId}
-            data-message-item={row.index}
-            spaced
-          >
-            <SkillReviewMarker review={skillReview} />
+            {quietMarker}
           </MessageAside>
         );
       }
@@ -763,6 +776,7 @@ export const useTimelineMessageFeature = ({
       messageLayout,
       messageSpacing,
       navigateRoomThread,
+      openTitleSettings,
       reactionFailedEventId,
       room,
       showThreadRepliesInRoom,
@@ -798,6 +812,27 @@ export const useTimelineMessageFeature = ({
     [decryptions, messageSpacing, renderMessageRow, room]
   );
 
+  /**
+   * Whether a row renders as a quiet marker line (`readQuietMarker`), for the reply quotes of the
+   * rows below it (timelineRowFold). Reads the content the row shows, edits included, as
+   * `renderMessageRow` does.
+   */
+  const isQuietMarkerRow = useCallback(
+    (event: MatrixEvent, data: TimelineMessageData, rowTimelineSet: EventTimelineSet): boolean => {
+      if (!threadId || getTimelineMessageKind(event.getType()) !== 'message') return false;
+      const eventId = event.getId() ?? '';
+      const prefixThreadId = forkPrefixThreadId(event, eventId, data.forkPrefixEventIds);
+      const timelineSet = rowEditTimelineSet(room, prefixThreadId, rowTimelineSet);
+      const content = getLatestMessageContent(
+        event,
+        getEditedEvent(eventId, event, timelineSet)
+      ) as Record<string, unknown>;
+      const sender = event.getSender() ?? undefined;
+      return readQuietMarker(eventId, sender, content, data, userId ?? undefined) !== null;
+    },
+    [room, threadId, userId]
+  );
+
   // A thread has no expand-all toggle, so its long messages fold as usual whatever the room's is.
   const expansionBaseline = threadId ? false : expandAll;
   const wrapExpansion = useCallback(
@@ -815,6 +850,7 @@ export const useTimelineMessageFeature = ({
 
   return {
     renderEvent,
+    isQuietMarkerRow,
     wrapExpansion,
     markLiveExpansionCandidate,
     editingEventId,

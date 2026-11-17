@@ -674,6 +674,24 @@
       "noCrossSigning": "L’orologio è connesso ma non verificato: configura la crittografia su questo iPhone per verificarlo.",
       "noBackup": "L’orologio è verificato, ma non può leggere i messaggi precedenti alla connessione: attiva il backup delle chiavi su questo iPhone.",
       "timeout": "L’orologio non ha completato l’accesso. Apri MindRoom sull’orologio e connettiti di nuovo."
+    },
+    "roomSettings": {
+      "navigation": {
+        "mindroom": "MindRoom"
+      },
+      "mindroom": {
+        "threadSummaryInstructions": {
+          "label": "Regole per i titoli dei thread",
+          "description": "Regole aggiuntive per i titoli che l’IA di MindRoom dà ai thread di questa stanza. Hanno la precedenza sulle normali regole dei titoli.",
+          "placeholder": "Per esempio: usa al massimo 4 parole dopo l’emoji",
+          "note": "I titoli già assegnati mantengono la loro formulazione fino al prossimo aggiornamento."
+        },
+        "save": "Salva",
+        "clear": "Cancella",
+        "characterCount": "{{length, number}} / {{max, number}}",
+        "readOnly": "Solo chi può modificare le impostazioni di questa stanza può cambiarlo.",
+        "saveFailed": "Impossibile salvare l’impostazione. Riprova."
+      }
     }
   },
   "mindroomUi": {
@@ -796,6 +814,12 @@
       },
       "mindroomReplyDetails": {
         "subagents": "Sottoagenti"
+      },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "In esecuzione da {{duration}}"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "Impostazioni dei titoli"
       }
     },
     "message-search": {
@@ -1348,6 +1372,8 @@
     "layout": "Disposizione dei thread",
     "layoutRecent": "Recenti",
     "layoutSections": "Sezioni",
+    "group": "Raggruppa",
+    "groupHint": "Raggruppa per stato",
     "sections": {
       "working": "In corso",
       "later": "Più tardi",

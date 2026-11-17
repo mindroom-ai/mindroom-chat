@@ -1,7 +1,7 @@
-import { ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { IPreviewUrlResponse } from 'matrix-js-sdk';
-import { Box, Icon, IconButton, Icons, Scroll, Spinner, Text, as, color, config } from 'folds';
+import { Box, Icon, IconButton, Icons, Scroll, Text, as, color, config } from 'folds';
 import { UrlPreview, UrlPreviewContent, UrlPreviewDescription, UrlPreviewImg } from './UrlPreview';
 import * as css from './UrlPreviewCard.css';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -55,68 +55,60 @@ export const UrlPreviewCard = as<'div', UrlPreviewCardProps>(({ url, ts, ...card
     imageMxc && viewerOpen ? mxcUrlToHttp(mx, imageMxc, useAuthentication) ?? undefined : undefined
   );
 
-  if (previewState.status === AsyncStatus.Error) return null;
+  // Nothing shows until a preview arrives: a placeholder would leave the row, and move what is
+  // around it, whenever the homeserver has no preview for the link.
+  if (!preview) return null;
 
-  let content: ReactNode;
-  if (preview) {
-    const title = preview['og:title'];
-    const description = preview['og:description'];
-    const imageAlt = typeof title === 'string' ? title : '';
-    // The page's words show their direction controls, as message text does; the viewer gets the
-    // title as it is, to save the picture under it.
-    content = (
-      <>
-        {thumbnail.imageSrc && (
-          <button
-            type="button"
-            className={css.UrlPreviewImageButton}
-            onClick={() => setViewerOpen(true)}
-          >
-            <UrlPreviewImg
-              src={thumbnail.imageSrc}
-              alt={revealDirectionControls(imageAlt)}
-              title={url}
-              onError={thumbnail.onImageError}
-            />
-          </button>
-        )}
-        {viewerOpen && (
-          <ImageOverlay
-            src={original.imageSrc}
-            alt={imageAlt || url}
-            requestClose={() => setViewerOpen(false)}
+  const title = preview['og:title'];
+  const description = preview['og:description'];
+  const imageAlt = typeof title === 'string' ? title : '';
+  // The page's words show their direction controls, as message text does; the viewer gets the
+  // title as it is, to save the picture under it.
+  const content = (
+    <>
+      {thumbnail.imageSrc && (
+        <button
+          type="button"
+          className={css.UrlPreviewImageButton}
+          onClick={() => setViewerOpen(true)}
+        >
+          <UrlPreviewImg
+            src={thumbnail.imageSrc}
+            alt={revealDirectionControls(imageAlt)}
+            title={url}
+            onError={thumbnail.onImageError}
           />
+        </button>
+      )}
+      {viewerOpen && (
+        <ImageOverlay
+          src={original.imageSrc}
+          alt={imageAlt || url}
+          requestClose={() => setViewerOpen(false)}
+        />
+      )}
+      <UrlPreviewContent>
+        <Text
+          style={linkStyles}
+          truncate
+          as="a"
+          href={url}
+          target="_blank"
+          rel="noreferrer noopener"
+          size="T200"
+          priority="300"
+        >
+          {revealDirectionControls(getSiteName(url, preview))}
+        </Text>
+        <Text truncate priority="400">
+          <b>{revealDirectionControls(typeof title === 'string' && title ? title : url)}</b>
+        </Text>
+        {typeof description === 'string' && description && (
+          <UrlPreviewDescription>{revealDirectionControls(description)}</UrlPreviewDescription>
         )}
-        <UrlPreviewContent>
-          <Text
-            style={linkStyles}
-            truncate
-            as="a"
-            href={url}
-            target="_blank"
-            rel="noreferrer noopener"
-            size="T200"
-            priority="300"
-          >
-            {revealDirectionControls(getSiteName(url, preview))}
-          </Text>
-          <Text truncate priority="400">
-            <b>{revealDirectionControls(typeof title === 'string' && title ? title : url)}</b>
-          </Text>
-          {typeof description === 'string' && description && (
-            <UrlPreviewDescription>{revealDirectionControls(description)}</UrlPreviewDescription>
-          )}
-        </UrlPreviewContent>
-      </>
-    );
-  } else {
-    // Idle or loading: the card keeps its size so the row does not jump when the preview lands.
-    content = (
-      <Box grow="Yes" alignItems="Center" justifyContent="Center">
-        <Spinner size="400" variant="Secondary" />
-      </Box>
-    );
-  }
+      </UrlPreviewContent>
+    </>
+  );
 
   return (
     <UrlPreview ref={ref} {...cardProps}>

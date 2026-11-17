@@ -701,6 +701,24 @@
       "noCrossSigning": "الساعة متصلة لكنها غير موثّقة: أعدّ التشفير على هذا الـ iPhone لتوثيقها.",
       "noBackup": "تم التحقق من الساعة، لكنها لا تستطيع قراءة الرسائل التي سبقت الاتصال: فعّل النسخ الاحتياطي للمفاتيح على هذا الـ iPhone.",
       "timeout": "لم تُكمل الساعة تسجيل الدخول. افتح MindRoom على الساعة واتصل مرة أخرى."
+    },
+    "roomSettings": {
+      "navigation": {
+        "mindroom": "MindRoom"
+      },
+      "mindroom": {
+        "threadSummaryInstructions": {
+          "label": "قواعد عناوين سلاسل المحادثات",
+          "description": "قواعد إضافية للعناوين التي يضعها الذكاء الاصطناعي في MindRoom لسلاسل المحادثات في هذه الغرفة. تتقدّم على قواعد العناوين المعتادة.",
+          "placeholder": "مثال: استخدم 4 كلمات على الأكثر بعد الرمز التعبيري",
+          "note": "تحتفظ العناوين الموجودة بصياغتها حتى تحديثها التالي."
+        },
+        "save": "حفظ",
+        "clear": "مسح",
+        "characterCount": "⁨{{length, number}}⁩ / ⁨{{max, number}}⁩",
+        "readOnly": "لا يمكن تعديل هذا إلا لمن يُسمح لهم بتغيير إعدادات هذه الغرفة.",
+        "saveFailed": "تعذّر حفظ الإعداد. حاول مرة أخرى."
+      }
     }
   },
   "mindroomUi": {
@@ -829,6 +847,12 @@
       },
       "mindroomReplyDetails": {
         "subagents": "الوكلاء الفرعيون"
+      },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "قيد التشغيل منذ ⁨{{duration}}⁩"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "إعدادات العناوين"
       }
     },
     "message-search": {
@@ -1426,6 +1450,8 @@
     "layout": "تخطيط سلاسل المحادثات",
     "layoutRecent": "الأحدث",
     "layoutSections": "أقسام",
+    "group": "تجميع",
+    "groupHint": "تجميع حسب الحالة",
     "sections": {
       "working": "قيد العمل",
       "later": "لاحقًا",

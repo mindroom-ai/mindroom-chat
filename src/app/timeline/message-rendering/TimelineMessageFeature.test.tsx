@@ -26,6 +26,7 @@ import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval
 import type { ThreadRecord } from '../../event-store/threads/types';
 import type { TimelineMessageRow } from './types';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
+import { RoomSettingsPage } from '../../navigation/roomSettingsState';
 
 const startFork = vi.hoisted(() => vi.fn());
 vi.mock('../../threads/fork/useStartThreadFork', () => ({ useStartThreadFork: () => startFork }));
@@ -64,6 +65,11 @@ const forkChips = async (renderer: ReturnType<typeof create>) => {
     }));
   });
 };
+
+const openRoomSettings = vi.hoisted(() => vi.fn());
+vi.mock('../../navigation/useRoomSettingsState', () => ({
+  useOpenRoomSettings: () => openRoomSettings,
+}));
 
 vi.mock('../../messages/thread-summary/ThreadSummaryMarker', async () => {
   const ReactImport = await import('react');
@@ -168,6 +174,7 @@ const mountFeature = async (
   return {
     renderer,
     feature: () => feature,
+    room: () => room,
     data,
     update: () => act(() => renderer.update(<Harness />)),
   };
@@ -439,7 +446,7 @@ describe('timeline message feature', () => {
 
   it('shrinks a summary in an open thread to a marker carrying its plan', async () => {
     const event = summaryEvent('$summary');
-    const { renderer, data, update } = await mountFeature([rowFor(event)], '$thread');
+    const { renderer, data, update, room } = await mountFeature([rowFor(event)], '$thread');
     data.threadSummaryTimeline.markersByEventId.set('$summary', {
       first: false,
       previousSummaryText: 'Push bug',
@@ -450,6 +457,10 @@ describe('timeline message feature', () => {
     expect(marker!.props.summaryInfo.summaryText).toBe('Fixing token refresh');
     expect(marker!.props.plan).toEqual({ first: false, previousSummaryText: 'Push bug' });
     expect(renderedContent(renderer)).toHaveLength(0);
+
+    // Its settings button opens the room's settings on the MindRoom page.
+    (marker!.props.onOpenSettings as () => void)();
+    expect(openRoomSettings).toHaveBeenCalledWith(room().roomId, RoomSettingsPage.MindroomPage);
   });
 
   it("shows an agent's snooze-ended message in an open thread as a marker row", async () => {
@@ -497,6 +508,47 @@ describe('timeline message feature', () => {
 
     expect(renderedContent(renderer)).toHaveLength(1);
     expect(renderer.root.findAllByType(SkillReviewMarker)).toHaveLength(0);
+  });
+
+  it('counts as a quiet marker for reply quotes exactly the rows it draws as one', async () => {
+    const { SkillReviewMarker } = await import('../../messages/SkillReviewMarker');
+    const { SnoozeEndedMarker } = await import('../../messages/SnoozeEndedMarker');
+    // An agent notice that an edit turned into a skill review: only the edit carries the key.
+    const edited = makeEvent('$edited', {
+      sender: '@mindroom_code:example.org',
+      threadRootId: '$thread',
+      content: { msgtype: 'm.notice', body: 'Reviewing skills' },
+    }) as unknown as MatrixEvent;
+    const skillReview = skillReviewEvent('$edit', '@mindroom_code:example.org');
+    Object.assign(edited, { __editedEvent: skillReview });
+    const events = [
+      skillReviewEvent('$review', '@mindroom_code:example.org'),
+      skillReviewEvent('$person', '@bob:example.org'),
+      snoozeEndedEvent('$wake', '@mindroom_router:example.org'),
+      summaryEvent('$unplanned'),
+      edited,
+    ];
+    const drawn = (threadId?: string) => {
+      const mounted = mountFeature(
+        events.map((event, index) => rowFor(event, index)),
+        threadId
+      );
+      return mounted.then(({ renderer, feature, data }) => ({
+        markers: [
+          ...renderer.root.findAllByType(SkillReviewMarker),
+          ...renderer.root.findAllByType(SnoozeEndedMarker),
+        ].length,
+        quiet: events.filter((event) =>
+          feature().isQuietMarkerRow(event, data as never, {} as EventTimelineSet)
+        ),
+      }));
+    };
+
+    const thread = await drawn('$thread');
+    expect(thread.quiet.map((event) => event.getId())).toEqual(['$review', '$wake', '$edited']);
+    expect(thread.markers).toBe(3);
+    // A room draws these as full messages, so none counts there.
+    expect(await drawn()).toEqual({ markers: 0, quiet: [] });
   });
 
   it('keeps the summary card for a summary outside an open thread', async () => {

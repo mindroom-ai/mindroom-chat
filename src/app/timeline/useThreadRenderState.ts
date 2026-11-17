@@ -31,6 +31,7 @@ import { logTimelineDebug } from '../diagnostics/timelineDebug';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { getPendingThreadEvents } from '../event-store/cache/pendingThreadEvents';
 import { getThreadTimelineEvents } from '../event-store/timeline/linkedTimelines';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
 
 type UseThreadRenderStateOpts = {
   room: Room;
@@ -40,6 +41,8 @@ type UseThreadRenderStateOpts = {
   thread: Thread | null;
   threadInitialCacheHydrated: boolean;
   threadInitialSdkLoaded?: boolean;
+  /** The open holds its first paint (`firstPaintHeld`): no rows yet, the loading state shows. */
+  threadFirstPaintHeld?: boolean;
   timelineRevision?: number;
   debugTraceId?: string;
   /** A fork's parent messages up to its fork point (`useThreadForkPrefix`), shown before its own. */
@@ -163,6 +166,7 @@ export const useThreadRenderState = ({
   thread,
   threadInitialCacheHydrated,
   threadInitialSdkLoaded = false,
+  threadFirstPaintHeld = false,
   timelineRevision = 0,
   debugTraceId,
   prefixEvents = EMPTY_THREAD_EVENTS,
@@ -179,8 +183,11 @@ export const useThreadRenderState = ({
   threadInitialRenderMode: ThreadInitialRenderMode;
   setSupplementalThreadEvents: (expectedThreadId: string, events: MatrixEvent[]) => void;
   resetThreadRenderState: (nextThreadId?: string) => void;
+  /** The thread's rows as they show once nothing holds them, read now (no render needed). */
+  getThreadRenderEvents: (expectedThreadId: string) => MatrixEvent[];
 } => {
   const threadEventIndexMapRef = useRef<Map<string, number>>(new Map());
+  const openThreadIdRef = useLatestRef(threadId);
   const threadSupplementalRelationIdsRef = useRef<ThreadRelationState>({
     threadId: undefined,
     relationEventIds: new Set(),
@@ -291,6 +298,25 @@ export const useThreadRenderState = ({
     [room, roomTimelineSet, threadTimelineSet]
   );
 
+  const getThreadRenderEvents = useCallback(
+    (expectedThreadId: string) => {
+      const fallback = fallbackThreadEventsRef.current;
+      if (openThreadIdRef.current !== expectedThreadId) return EMPTY_THREAD_EVENTS;
+      // The SDK thread as it is now: the open's bootstrap can make it between two renders.
+      return buildThreadEvents({
+        room,
+        threadId: expectedThreadId,
+        thread: room.getThread(expectedThreadId),
+        fallbackEvents: fallback.threadId === expectedThreadId ? fallback.events : [],
+        prefixEvents: EMPTY_THREAD_EVENTS,
+        forkAt: undefined,
+        threadInitialCacheHydrated: true,
+        threadInitialSdkLoaded: true,
+      }).ownEvents;
+    },
+    [openThreadIdRef, room]
+  );
+
   const resetThreadRenderState = useCallback((nextThreadId?: string) => {
     threadEventIndexMapRef.current = new Map();
     threadSupplementalRelationIdsRef.current = {
@@ -341,13 +367,13 @@ export const useThreadRenderState = ({
     // SDK joins can change history without emitting a thread event.
     void timelineRevision;
 
-    if (!threadId) {
+    if (!threadId || threadFirstPaintHeld) {
       return {
         events: EMPTY_THREAD_EVENTS,
         ownEvents: EMPTY_THREAD_EVENTS,
         forkPointIndex: undefined,
         indexMap: new Map<string, number>(),
-        initialRenderMode: 'live' as const,
+        initialRenderMode: threadFirstPaintHeld ? ('loading' as const) : ('live' as const),
       };
     }
 
@@ -372,6 +398,7 @@ export const useThreadRenderState = ({
     threadId,
     threadInitialCacheHydrated,
     threadInitialSdkLoaded,
+    threadFirstPaintHeld,
   ]);
   const {
     events: threadEvents,
@@ -428,5 +455,6 @@ export const useThreadRenderState = ({
     threadInitialRenderMode,
     setSupplementalThreadEvents,
     resetThreadRenderState,
+    getThreadRenderEvents,
   };
 };

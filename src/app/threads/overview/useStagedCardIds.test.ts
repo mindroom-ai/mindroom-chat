@@ -160,4 +160,11 @@ describe('firstRenderCardCount', () => {
     ).toBe(all.length);
     expect(firstRenderCardCount(all, { scrollTop: 9000, anchors: [] })).toBe(all.length);
   });
+
+  it('is the first screenful when the cards of that place are listed but not shown', () => {
+    // As in a folded section: there is no card to find, and the whole list would not show one.
+    const place = { scrollTop: 9000, anchors: [{ key: '$folded', offset: 0 }] };
+
+    expect(firstRenderCardCount(all, place, [...all, '$folded'])).toBe(FIRST_SCREEN_CARDS);
+  });
 });

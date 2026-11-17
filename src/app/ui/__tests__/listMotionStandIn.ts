@@ -7,6 +7,7 @@ export type MotionPlay = {
   element: HTMLElement;
   keyframes: Keyframe[];
   options: KeyframeAnimationOptions;
+  animation: { playState: AnimationPlayState };
 };
 
 /**
@@ -33,22 +34,28 @@ export const standInForListMotion = () => {
     configurable: true,
     writable: true,
     value(this: HTMLElement, keyframes: Keyframe[], options: KeyframeAnimationOptions) {
-      plays.push({ element: this, keyframes, options });
       let abort: () => void = () => undefined;
-      const finished = new Promise<void>((resolve, reject) => {
-        finishes.push(resolve);
-        abort = () => reject(new Error('cancelled'));
-      });
-      // As in a browser, an animation that is cancelled never finishes, which is no error
-      // when nothing waits for it.
-      finished.catch(() => undefined);
-      return {
-        finished,
+      const animation = {
+        playState: 'running' as AnimationPlayState,
+        effect: { target: this },
+        finished: new Promise<void>((resolve, reject) => {
+          finishes.push(() => {
+            if (animation.playState === 'running') animation.playState = 'finished';
+            resolve();
+          });
+          abort = () => reject(new Error('cancelled'));
+        }),
         cancel: () => {
           cancel();
+          animation.playState = 'idle';
           abort();
         },
       };
+      plays.push({ element: this, keyframes, options, animation });
+      // As in a browser, an animation that is cancelled never finishes, which is no error
+      // when nothing waits for it.
+      animation.finished.catch(() => undefined);
+      return animation;
     },
   });
   return {

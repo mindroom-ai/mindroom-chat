@@ -1,7 +1,7 @@
 import type { CrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
 import { compareCrossRoomThreadEntries } from '../../threads/cross-room/crossRoomThreadOrder';
 import type { ThreadSignals } from '../../threads/cross-room/threadSignals';
-import { classifyThreadWorkflow } from '../../event-store/threads/threadWorkflow';
+import { classifyThreadWorkflow, threadReturnTs } from '../../event-store/threads/threadWorkflow';
 import { isSnoozedAt } from '../../event-store/threads/threadSnooze';
 
 export const MAX_SIDEBAR_THREADS = 50;
@@ -117,9 +117,13 @@ export const buildSidebarThreadSections = (
     })
   );
   const returnTs = (entry: CrossRoomThreadIndexEntry): number =>
-    (isSnoozedAt(entry.snoozedUntilTs, now)
-      ? entry.snoozedUntilTs
-      : entry.threadRecord.status.nextScheduledTs) ?? Infinity;
+    threadReturnTs(
+      {
+        snoozedUntilTs: entry.snoozedUntilTs,
+        nextScheduledTs: entry.threadRecord.status.nextScheduledTs,
+      },
+      now
+    );
   const compares: Record<SidebarThreadSectionId, Compare> = {
     working: byTsDesc(
       (entry) => entry.rootTs ?? entry.threadRecord.cache.oldestTs ?? entry.lastActivityTs
