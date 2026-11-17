@@ -393,7 +393,8 @@ describe('compaction seams in a reply', () => {
         },
       })
     );
-    const cog = () => renderer!.root.find((node) => node.type === 'button' && node.props.className === 'Cog');
+    const cog = () =>
+      renderer!.root.find((node) => node.type === 'button' && node.props.className === 'Cog');
     const toggle = (button: () => ReactTestInstance) =>
       act(() => {
         button().props.onClick();
@@ -402,7 +403,15 @@ describe('compaction seams in a reply', () => {
     const thinking = ['bulb', 'seam', 'thinking', 'Intro.', 'seam', 'thinking', 'Done.'];
     const runs = ['tools:t1, t2, t3', 'seam', 'thinking', 'tools:t4, t5'];
     const both = ['bulb', 'seam', 'thinking', 'Intro.', ...runs, 'Done.'];
-    const runsOnly = ['bulb', 'seam', 'Intro.', 'tools:t1, t2, t3', 'seam', 'tools:t4, t5', 'Done.'];
+    const runsOnly = [
+      'bulb',
+      'seam',
+      'Intro.',
+      'tools:t1, t2, t3',
+      'seam',
+      'tools:t4, t5',
+      'Done.',
+    ];
     expect(sequence()).toEqual(closed);
 
     // The bulb, open, closed and open again, with the cog hiding the calls.
@@ -583,5 +592,52 @@ describe('compaction seams in finished and live replies', () => {
       )
     );
     expect(seamStates()).toEqual(['failed', 'running']);
+  });
+});
+
+describe('an old compaction notice outside an open thread', () => {
+  afterEach(() => {
+    act(() => renderer?.unmount());
+    renderer = undefined;
+  });
+
+  const notice = {
+    msgtype: 'm.notice',
+    body: '📦 Compacted 24 runs: 366,804 → 6,336 / 351,792 history budget',
+    'io.mindroom.compaction': {
+      version: 3,
+      mode: 'auto',
+      status: 'success',
+      before_tokens: 366_804,
+      after_tokens: 6336,
+    },
+  };
+
+  it("draws an agent's notice as its seam row, in place of the notice text", () => {
+    render(notice);
+
+    expect(seamStates()).toEqual(['success']);
+    expect(textOf(seams()[0]!)).toContain('Compacted context');
+  });
+
+  it("keeps a person's message with the compaction key as text", () => {
+    act(() => {
+      renderer = create(
+        <ClientConfigProvider value={{}}>
+          {renderAgentMessageContent({
+            mEvent,
+            eventId: '$person',
+            fromMindroomAgent: false,
+            displayName: 'Bob',
+            msgType: 'm.notice',
+            content: notice,
+            htmlReactParserOptions,
+            linkifyOpts,
+          })}
+        </ClientConfigProvider>
+      );
+    });
+
+    expect(seams()).toHaveLength(0);
   });
 });

@@ -84,6 +84,8 @@ import { readSnoozeEndedNote } from '../../matrix/protocol/threadSnooze';
 import { SnoozeEndedMarker } from '../../messages/SnoozeEndedMarker';
 import { readSkillReviewNotice } from '../../matrix/protocol/skillReview';
 import { SkillReviewMarker } from '../../messages/SkillReviewMarker';
+import { readCompactionNotice } from '../../matrix/protocol/compactions';
+import { CompactionNoticeSeam } from '../../messages/agent-run/CompactionSeam';
 import { getToolApprovalRenderContent } from '../../matrix/protocol/toolApproval';
 import { shouldShowLinkFavicons } from '../../rich-text/linkFaviconPolicy';
 import { renderThreadBadge } from '../ThreadBadge';
@@ -295,13 +297,15 @@ const useLiveExpansion = () => {
 const endAligned = { alignItems: 'flex-end' } as const;
 
 /**
- * Inside a thread, the thread's title and the backend's snooze-ended and skill review messages
- * render as one quiet line, not as an agent's reply: no avatar, name or toolbar. A title shows
- * only where the thread's summary plan marks it; the other two only from a MindRoom agent.
+ * Inside a thread, the thread's title and the backend's snooze-ended, skill review and compaction
+ * notices render as one quiet line, not as an agent's reply: no avatar, name or toolbar. A title
+ * shows only where the thread's summary plan marks it; the others only from a MindRoom agent. A
+ * compaction notice started when it was sent (`originTs`).
  */
 const readQuietMarker = (
   eventId: string,
   sender: string | undefined,
+  originTs: number,
   content: Record<string, unknown>,
   data: TimelineMessageData,
   viewerId: string | undefined
@@ -313,7 +317,9 @@ const readQuietMarker = (
   const snoozeEndedNote = readSnoozeEndedNote(content);
   if (snoozeEndedNote !== null) return <SnoozeEndedMarker note={snoozeEndedNote} />;
   const skillReview = readSkillReviewNotice(content);
-  return skillReview ? <SkillReviewMarker review={skillReview} /> : null;
+  if (skillReview) return <SkillReviewMarker review={skillReview} />;
+  const compaction = readCompactionNotice(content, originTs);
+  return compaction ? <CompactionNoticeSeam compaction={compaction} /> : null;
 };
 
 /**
@@ -504,6 +510,7 @@ export const useTimelineMessageFeature = ({
           ? readQuietMarker(
               eventId,
               event.getSender() ?? undefined,
+              event.getTs(),
               content,
               data,
               userId ?? undefined
@@ -810,7 +817,9 @@ export const useTimelineMessageFeature = ({
         getEditedEvent(eventId, event, timelineSet)
       ) as Record<string, unknown>;
       const sender = event.getSender() ?? undefined;
-      return readQuietMarker(eventId, sender, content, data, userId ?? undefined) !== null;
+      return (
+        readQuietMarker(eventId, sender, event.getTs(), content, data, userId ?? undefined) !== null
+      );
     },
     [room, threadId, userId]
   );

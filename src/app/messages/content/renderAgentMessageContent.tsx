@@ -47,6 +47,8 @@ import { readSnoozeEndedNote } from '../../matrix/protocol/threadSnooze';
 import { SnoozeEndedMarker } from '../SnoozeEndedMarker';
 import { readSkillReviewNotice } from '../../matrix/protocol/skillReview';
 import { SkillReviewMarker } from '../SkillReviewMarker';
+import { readCompactionNotice } from '../../matrix/protocol/compactions';
+import { CompactionNoticeSeam } from '../agent-run/CompactionSeam';
 import { getMessageStateSuffixRenderer } from './messageStateSuffix';
 import { InlineCanvasFrame } from '../canvas/InlineCanvasFrame';
 import { ChatUiActionButton } from '../../ui-actions/ChatUiActionButton';
@@ -451,6 +453,10 @@ export const renderAgentMessageContent = ({
   if (snoozeEndedNote !== null) return <SnoozeEndedMarker note={snoozeEndedNote} />;
   const skillReview = fromMindroomAgent ? readSkillReviewNotice(content) : null;
   if (skillReview) return <SkillReviewMarker review={skillReview} />;
+  const compactionNotice = fromMindroomAgent
+    ? readCompactionNotice(content, mEvent?.getTs() ?? Date.now())
+    : undefined;
+  if (compactionNotice) return <CompactionNoticeSeam compaction={compactionNotice} />;
 
   // An agent asking for a key; any member can write this content, which then renders as its body.
   // The answer goes to the sender's own MindRoom server.
