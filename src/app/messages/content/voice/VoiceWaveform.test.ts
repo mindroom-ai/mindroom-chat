@@ -29,18 +29,26 @@ describe('VoiceWaveform', () => {
     );
 
     const rects = renderer.root.findAllByType('rect');
-    const svg = renderer.root.findByType('svg');
+    const [svg, fill] = renderer.root.findAllByType('svg');
     const container = renderer.root.findByType('div');
+    const svgWidth = Number(svg!.props.viewBox.split(' ')[2]);
 
-    expect(rects).toHaveLength(VOICE_WAVEFORM_BAR_COUNT);
-    expect(rects.filter((rect) => String(rect.props.className).includes('BarActive')).length).toBe(
-      24
-    );
+    // The base bars, then the same bars in the active color inside the played fill.
+    expect(rects).toHaveLength(2 * VOICE_WAVEFORM_BAR_COUNT);
+    expect(
+      rects.slice(0, VOICE_WAVEFORM_BAR_COUNT).every((rect) => rect.props.className === 'Bar')
+    ).toBe(true);
+    expect(
+      rects.slice(VOICE_WAVEFORM_BAR_COUNT).every((rect) => rect.props.className === 'BarActive')
+    ).toBe(true);
+    // Cut at the exact position, not rounded to a whole bar.
+    expect(fill!.props.width).toBe(svgWidth / 2);
+    expect(fill!.props.height).toBe(32);
     expect(container.props.className).toBe('Waveform');
-    expect(svg.props.className).toBe('Svg');
-    expect(svg.props.preserveAspectRatio).toBe('none');
-    expect(svg.props.width).toBeUndefined();
-    expect(svg.props.height).toBeUndefined();
+    expect(svg!.props.className).toBe('Svg');
+    expect(svg!.props.preserveAspectRatio).toBe('none');
+    expect(svg!.props.width).toBeUndefined();
+    expect(svg!.props.height).toBeUndefined();
 
     renderer.unmount();
   });
@@ -158,7 +166,7 @@ describe('VoiceWaveform', () => {
 
     const rects = renderer.root.findAllByType('rect');
 
-    expect(rects).toHaveLength(VOICE_WAVEFORM_BAR_COUNT);
+    expect(rects).toHaveLength(2 * VOICE_WAVEFORM_BAR_COUNT);
     expect(rects[0]!.props.height).toBe(16);
     expect(rects[0]!.props.className).not.toContain('BarCompact');
 
