@@ -1318,7 +1318,7 @@
     "layout": "Anordnung der Threads",
     "layoutRecent": "Zuletzt",
     "layoutSections": "Abschnitte",
-    "sectionsHint": "Threads gruppieren: In Arbeit, Zurückgestellt, Inaktiv und Gelöst",
+    "sectionsHint": "Threads gruppieren: In Arbeit, Du bist gefragt, Später und Erledigt",
     "sections": {
       "working": "In Arbeit",
       "later": "Später",

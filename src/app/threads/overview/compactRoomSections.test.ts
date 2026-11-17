@@ -16,10 +16,10 @@ afterEach(() => {
 });
 
 describe('compactRoomSections', () => {
-  it('starts off, with Resolved folded', () => {
+  it('starts off, with Done folded', () => {
     expect(createStore().get(getCompactRoomSectionsAtom(ME))).toEqual({
       on: false,
-      folded: ['resolved'],
+      folded: ['done'],
     });
     expect(DEFAULT_COMPACT_ROOM_SECTIONS.on).toBe(false);
   });
@@ -29,21 +29,21 @@ describe('compactRoomSections', () => {
     const sectionsAtom = getCompactRoomSectionsAtom(ME);
 
     store.set(sectionsAtom, { type: 'SET_ON', on: true });
-    store.set(sectionsAtom, { type: 'TOGGLE_FOLD', id: 'resolved' });
-    store.set(sectionsAtom, { type: 'TOGGLE_FOLD', id: 'idle' });
+    store.set(sectionsAtom, { type: 'TOGGLE_FOLD', id: 'done' });
+    store.set(sectionsAtom, { type: 'TOGGLE_FOLD', id: 'later' });
 
-    expect(store.get(sectionsAtom)).toEqual({ on: true, folded: ['idle'] });
+    expect(store.get(sectionsAtom)).toEqual({ on: true, folded: ['later'] });
     expect(JSON.parse(localStorage.getItem(KEY) ?? 'null')).toEqual({
       on: true,
-      folded: ['idle'],
+      folded: ['later'],
     });
   });
 
   it('reads a stored value that is broken or partial as the default where it is', () => {
-    localStorage.setItem(KEY, JSON.stringify({ on: true, folded: ['idle', 'nonsense', 4] }));
+    localStorage.setItem(KEY, JSON.stringify({ on: true, folded: ['needsYou', 'nonsense', 4] }));
     expect(createStore().get(getCompactRoomSectionsAtom(ME))).toEqual({
       on: true,
-      folded: ['idle'],
+      folded: ['needsYou'],
     });
     clearCompactRoomSectionsStore(ME);
 

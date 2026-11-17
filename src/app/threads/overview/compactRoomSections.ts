@@ -6,51 +6,34 @@ import {
 } from '../../lib/state/atomWithLocalStorage';
 import { isRecord } from '../../lib/isRecord';
 import { createUserScopedAtomRegistry } from '../../lib/state/userScopedAtomRegistry';
-import { THREAD_SECTION_ORDER, type ThreadSectionId } from '../threadSections';
-import type { ThreadFilterState } from '../../event-store/threads/roomThreadOverviewModel';
+import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
+import { COMPACT_THREAD_SECTION_ORDER } from './compactThreadSections';
 
 const COMPACT_ROOM_SECTIONS = 'compactRoomSections';
 
-/** The filters Sections decide themselves: resolved, snoozed and idle threads have sections. */
-export type SectionsFilters = Pick<ThreadFilterState, 'resolved' | 'snoozed' | 'idle'>;
-
-/** What Sections apply of those filters: none, every such thread shows in its section. */
-export const SECTIONS_SHOW_ALL: SectionsFilters = { resolved: 'any', snoozed: 'any', idle: 'any' };
-
-/** `state` with the filters Sections decide taken from `from`. */
-export const withSectionsFilters = (
-  state: ThreadFilterState,
-  from: SectionsFilters
-): ThreadFilterState => ({
-  ...state,
-  resolved: from.resolved,
-  snoozed: from.snoozed,
-  idle: from.idle,
-});
-
 /**
- * Whether Compact rooms show their cards in sections (Working, Snoozed, Idle, Resolved), and
- * which sections are folded. One choice for the account in every room, where the sort the filter
- * bar sets is kept per room.
+ * Whether Compact rooms show their cards in sections (Working, Needs you, Later, Done), and which
+ * sections are folded. One choice for the account in every room, where the filters and the sort
+ * the filter bar sets are kept per room.
  */
-export type CompactRoomSections = { on: boolean; folded: ThreadSectionId[] };
+export type CompactRoomSections = { on: boolean; folded: ThreadWorkflowBucket[] };
 
 export type CompactRoomSectionsAction =
   | { type: 'SET_ON'; on: boolean }
-  | { type: 'TOGGLE_FOLD'; id: ThreadSectionId };
+  | { type: 'TOGGLE_FOLD'; id: ThreadWorkflowBucket };
 
 type CompactRoomSectionsAtom = WritableAtom<CompactRoomSections, [CompactRoomSectionsAction], void>;
 
-/** Off, as the cards always showed; Resolved starts folded, as in the sidebar. */
+/** Off, as the cards always showed; Done starts folded, as Resolved does in the sidebar. */
 export const DEFAULT_COMPACT_ROOM_SECTIONS: CompactRoomSections = {
   on: false,
-  folded: ['resolved'],
+  folded: ['done'],
 };
 
 const storeKey = (userId: string): string => `${COMPACT_ROOM_SECTIONS}:${userId}`;
 
-const isSectionId = (value: unknown): value is ThreadSectionId =>
-  THREAD_SECTION_ORDER.some((id) => id === value);
+const isSectionId = (value: unknown): value is ThreadWorkflowBucket =>
+  COMPACT_THREAD_SECTION_ORDER.some((id) => id === value);
 
 const readSections = (key: string): CompactRoomSections => {
   const stored = getLocalStorageItem<unknown>(key, null);

@@ -1,26 +1,39 @@
 import type { ThreadRecord } from '../../event-store/threads/types';
-import { isThreadWorking } from '../../event-store/threads/threadWorking';
+import {
+  classifyThreadWorkflow,
+  threadReturnTs,
+  type ThreadWorkflowBucket,
+} from '../../event-store/threads/threadWorkflow';
 import type { CrossRoomThreadIndexEntry } from '../cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../cross-room/threadSignals';
-import { groupThreadSections, THREAD_SECTION_ORDER, type ThreadSectionId } from '../threadSections';
 import { holdOrder } from './useHeldThreadOrder';
 
+/** The sections in the order they show: Working on top, then as the workflow tabs. */
+export const COMPACT_THREAD_SECTION_ORDER: readonly ThreadWorkflowBucket[] = [
+  'working',
+  'needsYou',
+  'later',
+  'done',
+];
+
 /** One section of a Compact room's cards, in its order. */
-export type CompactThreadSection = { id: ThreadSectionId; rootIds: string[] };
+export type CompactThreadSection = { id: ThreadWorkflowBucket; rootIds: string[] };
+
+type Compare = (left: ThreadRecord, right: ThreadRecord) => number;
 
 /**
  * The Compact room's listed threads (`threadRootIds`, filtered and in the list's order) in the
- * sidebar's sections (`groupThreadSections`), empty ones left out. A thread is Working while an
- * agent streams in it, its message is on its way, or a background job runs in it
- * (`jobThreadIds`). The index entry of the thread (`entryOf`), when the index has it, gives when
- * it started and was resolved, and its signals (`signalsOf`) when its last run finished, as in
- * the sidebar; the record stands in for what it lacks. Ties keep the list's order, and the
- * room's pinned threads (`pinnedRootIds`, in the list's order) lead their section.
+ * workflow buckets the tabs count (`classifyThreadWorkflow`), empty ones left out, so a tab that
+ * shows one bucket shows one section. Working goes by when each thread started, Needs you by when
+ * its last run finished or its newest message came (`signalsOf`, read once per such thread), Later
+ * by when it comes back (`threadReturnTs`), soonest first, and Done by when it was resolved. The
+ * index entry of the thread (`entryOf`), when the index has it, gives when it started and was
+ * resolved; the record stands in for what it lacks. Ties keep the list's order, and the room's
+ * pinned threads (`pinnedRootIds`, in the list's order) lead their section.
  */
 export const buildCompactThreadSections = ({
   threadRootIds,
   recordMap,
-  jobThreadIds,
   entryOf,
   signalsOf,
   pinnedRootIds,
@@ -28,37 +41,71 @@ export const buildCompactThreadSections = ({
 }: {
   threadRootIds: readonly string[];
   recordMap: ReadonlyMap<string, ThreadRecord>;
-  jobThreadIds: ReadonlySet<string>;
   entryOf: (rootId: string) => CrossRoomThreadIndexEntry | undefined;
   signalsOf: (entry: CrossRoomThreadIndexEntry) => ThreadSignals | undefined;
   pinnedRootIds: readonly string[];
   now: number;
 }): CompactThreadSection[] => {
-  const records = threadRootIds.flatMap((rootId) => recordMap.get(rootId) ?? []);
-  const places = new Map(records.map((item, index) => [item, index] as const));
-  const pinRanks = new Map(pinnedRootIds.map((rootId, index) => [rootId, index] as const));
+  const grouped: Record<ThreadWorkflowBucket, ThreadRecord[]> = {
+    working: [],
+    needsYou: [],
+    later: [],
+    done: [],
+  };
+  const places = new Map<ThreadRecord, number>();
+  threadRootIds.forEach((rootId) => {
+    const item = recordMap.get(rootId);
+    if (!item) return;
+    places.set(item, places.size);
+    grouped[classifyThreadWorkflow(item.status, now)].push(item);
+  });
+
+  const listOrder: Compare = (left, right) => (places.get(left) ?? 0) - (places.get(right) ?? 0);
+  const newestFirst =
+    (tsOf: (item: ThreadRecord) => number): Compare =>
+    (left, right) =>
+      tsOf(right) - tsOf(left) || listOrder(left, right);
   const activityOf = (item: ThreadRecord) => item.status.lastActivityTs ?? 0;
-  const sections = groupThreadSections(
-    records,
-    {
-      isWorking: (item) => isThreadWorking(item.status, jobThreadIds.has(item.threadRootId)),
-      isResolved: (item) => item.status.isResolved,
-      snoozedUntilTs: (item) => item.status.snoozedUntilTs,
-      startedTs: (item) =>
-        entryOf(item.threadRootId)?.rootTs ?? item.cache.oldestTs ?? activityOf(item),
-      finishedTs: (item) => {
-        const entry = entryOf(item.threadRootId);
-        const signals = entry && signalsOf(entry);
-        return Math.max(signals?.outcome?.ts ?? 0, signals?.newsTs ?? 0, activityOf(item));
-      },
-      resolvedTs: (item) => entryOf(item.threadRootId)?.resolvedTs ?? activityOf(item),
-      compare: (left, right) => (places.get(left) ?? 0) - (places.get(right) ?? 0),
-      pinRank: (item) => pinRanks.get(item.threadRootId),
-    },
-    now
+  const finishedTs = new Map(
+    grouped.needsYou.map((item) => {
+      const entry = entryOf(item.threadRootId);
+      const signals = entry && signalsOf(entry);
+      const ts = Math.max(signals?.outcome?.ts ?? 0, signals?.newsTs ?? 0, activityOf(item));
+      return [item, ts] as const;
+    })
   );
-  return THREAD_SECTION_ORDER.flatMap((id) =>
-    sections[id].length > 0 ? [{ id, rootIds: sections[id].map((item) => item.threadRootId) }] : []
+  const compares: Record<ThreadWorkflowBucket, Compare> = {
+    working: newestFirst(
+      (item) => entryOf(item.threadRootId)?.rootTs ?? item.cache.oldestTs ?? activityOf(item)
+    ),
+    needsYou: newestFirst((item) => finishedTs.get(item) ?? 0),
+    later: (left, right) =>
+      threadReturnTs(left.status, now) - threadReturnTs(right.status, now) ||
+      listOrder(left, right),
+    done: newestFirst((item) => entryOf(item.threadRootId)?.resolvedTs ?? activityOf(item)),
+  };
+
+  const pinRanks = new Map(pinnedRootIds.map((rootId, index) => [rootId, index] as const));
+  const pinnedFirst =
+    (compare: Compare): Compare =>
+    (left, right) => {
+      const leftRank = pinRanks.get(left.threadRootId);
+      const rightRank = pinRanks.get(right.threadRootId);
+      if (leftRank !== undefined && rightRank !== undefined) return leftRank - rightRank;
+      if (leftRank !== undefined) return -1;
+      if (rightRank !== undefined) return 1;
+      return compare(left, right);
+    };
+
+  return COMPACT_THREAD_SECTION_ORDER.flatMap((id) =>
+    grouped[id].length > 0
+      ? [
+          {
+            id,
+            rootIds: grouped[id].sort(pinnedFirst(compares[id])).map((item) => item.threadRootId),
+          },
+        ]
+      : []
   );
 };
 
@@ -76,7 +123,7 @@ export const holdCompactThreadSections = (
   const shownIn = new Map(
     shown.flatMap(({ id, rootIds }) => rootIds.map((rootId) => [rootId, id] as const))
   );
-  return THREAD_SECTION_ORDER.flatMap((id) => {
+  return COMPACT_THREAD_SECTION_ORDER.flatMap((id) => {
     const members = live.flatMap((section) =>
       section.rootIds.filter((rootId) => (shownIn.get(rootId) ?? section.id) === id)
     );

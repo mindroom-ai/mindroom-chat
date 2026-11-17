@@ -32,3 +32,15 @@ export const classifyThreadWorkflow = (
   if (status.scheduledTaskCount > 0) return 'later';
   return 'needsYou';
 };
+
+/**
+ * When a Later thread comes back: the end of its active snooze, else its next scheduled run, else
+ * `Infinity` (unknown, so it sorts last). The sidebar's and the Compact room's Later sections both
+ * order by it, soonest first.
+ */
+export const threadReturnTs = (
+  status: Pick<ThreadWorkflowStatus, 'snoozedUntilTs'> & { nextScheduledTs?: number },
+  now: number
+): number =>
+  (isSnoozedAt(status.snoozedUntilTs, now) ? status.snoozedUntilTs : status.nextScheduledTs) ??
+  Infinity;

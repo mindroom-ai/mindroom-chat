@@ -1292,7 +1292,7 @@
     "layout": "討論串版面",
     "layoutRecent": "最近",
     "layoutSections": "分區",
-    "sectionsHint": "將討論串分為進行中、已延後、閒置和已解決",
+    "sectionsHint": "將討論串分為處理中、需要你處理、稍後和已完成",
     "sections": {
       "working": "進行中",
       "later": "稍後",

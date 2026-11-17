@@ -3,11 +3,6 @@ import { atom, useAtomValue, type Atom } from 'jotai';
 import { selectAtom } from 'jotai/utils';
 import type { Room } from 'matrix-js-sdk';
 import type { ThreadRecord } from '../../event-store/threads/types';
-import { useAgentRoomState } from '../../matrix/protocol/agentRoomState';
-import {
-  MINDROOM_BACKGROUND_JOBS_EVENT,
-  selectBackgroundJobThreadIds,
-} from '../../matrix/protocol/backgroundJobsContract';
 import {
   crossRoomThreadIndexAtom,
   type CrossRoomThreadIndexEntry,
@@ -49,9 +44,9 @@ const roomEntriesAtom = (roomId: string): Atom<RoomEntries> => {
 
 /**
  * The Compact room's listed cards in sections (`buildCompactThreadSections`) while `enabled`,
- * else undefined. It reads the room's background jobs from its agents' state, and the threads'
- * index entries and signals for when they started, finished and were resolved; while off it
- * reads none of them. Renewed when a snooze ends, so its thread moves to Idle then.
+ * else undefined. The records carry what classifies them, background jobs included; it reads the
+ * threads' index entries and signals for when they started, finished and were resolved, and while
+ * off it reads none of them. Renewed when a snooze ends, so its thread leaves Later then.
  */
 export const useCompactThreadSections = ({
   room,
@@ -66,11 +61,6 @@ export const useCompactThreadSections = ({
   threadRecordMap: ReadonlyMap<string, ThreadRecord>;
   pinnedRootIds: readonly string[];
 }): CompactThreadSection[] | undefined => {
-  const jobThreadIds = useAgentRoomState(
-    enabled ? room : null,
-    MINDROOM_BACKGROUND_JOBS_EVENT,
-    selectBackgroundJobThreadIds
-  );
   const entries = useAtomValue(
     useMemo(() => (enabled ? roomEntriesAtom(room.roomId) : noEntriesAtom), [enabled, room.roomId])
   );
@@ -90,11 +80,10 @@ export const useCompactThreadSections = ({
     return buildCompactThreadSections({
       threadRootIds,
       recordMap: threadRecordMap,
-      jobThreadIds,
       entryOf: (rootId) => entries.get(rootId),
       signalsOf: (entry) => reader.read(room, entry, room.myUserId, now),
       pinnedRootIds,
       now,
     });
-  }, [enabled, entries, jobThreadIds, now, pinnedRootIds, room, threadRecordMap, threadRootIds]);
+  }, [enabled, entries, now, pinnedRootIds, room, threadRecordMap, threadRootIds]);
 };

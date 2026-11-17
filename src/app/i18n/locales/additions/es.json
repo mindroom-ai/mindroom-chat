@@ -1344,7 +1344,7 @@
     "layout": "Disposición de los hilos",
     "layoutRecent": "Recientes",
     "layoutSections": "Secciones",
-    "sectionsHint": "Agrupar los hilos en En curso, Pospuestos, Inactivos y Resueltos",
+    "sectionsHint": "Agrupar los hilos en En curso, Te necesita, Más tarde y Hecho",
     "sections": {
       "working": "En curso",
       "later": "Más tarde",

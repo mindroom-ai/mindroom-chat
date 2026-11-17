@@ -1318,7 +1318,7 @@
     "layout": "Indeling van threads",
     "layoutRecent": "Recent",
     "layoutSections": "Secties",
-    "sectionsHint": "Threads groeperen in Bezig, Gesnoozed, Inactief en Opgelost",
+    "sectionsHint": "Threads groeperen in Bezig, Jij bent aan zet, Later en Klaar",
     "sections": {
       "working": "Bezig",
       "later": "Later",

@@ -1292,7 +1292,7 @@
     "layout": "Tata letak utas",
     "layoutRecent": "Terbaru",
     "layoutSections": "Bagian",
-    "sectionsHint": "Kelompokkan utas ke Sedang berjalan, Ditunda, Tidak aktif, dan Selesai",
+    "sectionsHint": "Kelompokkan utas ke Sedang dikerjakan, Perlu Anda, Nanti, dan Selesai",
     "sections": {
       "working": "Sedang berjalan",
       "later": "Nanti",

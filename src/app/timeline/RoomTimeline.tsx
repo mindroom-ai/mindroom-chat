@@ -204,7 +204,7 @@ export type RoomTimelineProps = {
   onClearTags?: () => void;
   onSelectTab?: (tab: ThreadWorkflowTab) => void;
   onSearchQueryChange?: (query: string) => void;
-  /** Compact shows its cards in sections (Working, Snoozed, Idle, Resolved). */
+  /** Compact shows its cards in sections (Working, Needs you, Later, Done). */
   threadSections?: boolean;
   /** The Compact filter bar's switch for `threadSections`. */
   onToggleThreadSections?: () => void;
@@ -1584,8 +1584,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
         onRemoveTag={props.onRemoveTag ?? ignoreFilterChange}
         onClearTags={props.onClearTags ?? ignoreFilterChange}
         onSearchQueryChange={props.onSearchQueryChange ?? ignoreFilterChange}
-        // The same flag the room's filters follow (`useRoomViewThreadState`), so the bar never
-        // offers a control those filters ignore.
+        // The same flag the sort lock follows (`useRoomViewThreadState`), so the bar never offers
+        // a sort the sections ignore.
         threadSections={props.threadSections === true}
         onToggleThreadSections={compactCards ? props.onToggleThreadSections : undefined}
         peopleFilter={

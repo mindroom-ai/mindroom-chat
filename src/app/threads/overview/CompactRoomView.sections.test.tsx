@@ -104,9 +104,9 @@ beforeEach(() => {
   state.enabled = [];
   state.sections = [
     { id: 'working', rootIds: ['$job', '$streaming'] },
-    { id: 'snoozed', rootIds: ['$snoozed'] },
-    { id: 'idle', rootIds: ['$idle'] },
-    { id: 'resolved', rootIds: ['$done'] },
+    { id: 'needsYou', rootIds: ['$read'] },
+    { id: 'later', rootIds: ['$snoozed'] },
+    { id: 'done', rootIds: ['$done'] },
   ];
 });
 
@@ -118,40 +118,42 @@ afterEach(() => {
 });
 
 describe('the Compact room in sections', () => {
-  it('lists the cards under their headers, with counts, and Resolved folded at first', () => {
-    render(view(['$streaming', '$job', '$snoozed', '$idle', '$done']));
+  it('lists the cards under their headers, with counts, and Done folded at first', () => {
+    render(view(['$streaming', '$job', '$snoozed', '$read', '$done']));
 
     expect(rows()).toEqual([
       '#working 2',
       '$job',
       '$streaming',
-      '#snoozed 1',
+      '#needsYou 1',
+      '$read',
+      '#later 1',
       '$snoozed',
-      '#idle 1',
-      '$idle',
-      '#resolved 1',
+      '#done 1',
     ]);
+    // Each header names its section as the workflow tab that shows it.
+    expect(header('needsYou').textContent).toBe('thread.workflow.needsYou · 1');
     expect(header('working').getAttribute('aria-expanded')).toBe('true');
-    expect(header('resolved').getAttribute('aria-expanded')).toBe('false');
+    expect(header('done').getAttribute('aria-expanded')).toBe('false');
     // A header is no card: the scroll position is never restored against it.
     expect(document.querySelector('[data-compact-section][data-scroll-anchor]')).toBeNull();
   });
 
   it('folds and opens a section from its header, for the whole account', () => {
-    render(view(['$streaming', '$job', '$snoozed', '$idle', '$done']));
+    render(view(['$streaming', '$job', '$snoozed', '$read', '$done']));
 
     act(() => {
-      fireEvent.click(header('resolved'));
+      fireEvent.click(header('done'));
       fireEvent.click(header('working'));
     });
 
     expect(rows()).toEqual([
       '#working 2',
-      '#snoozed 1',
+      '#needsYou 1',
+      '$read',
+      '#later 1',
       '$snoozed',
-      '#idle 1',
-      '$idle',
-      '#resolved 1',
+      '#done 1',
       '$done',
     ]);
     expect(JSON.parse(localStorage.getItem(`compactRoomSections:${ME}`) ?? 'null')).toEqual({
@@ -161,29 +163,29 @@ describe('the Compact room in sections', () => {
   });
 
   it('leads each section with its pinned cards instead of a Pinned list of their own', () => {
-    state.pinned = ['$idle'];
-    render(view(['$idle', '$streaming', '$job', '$snoozed', '$done']));
+    state.pinned = ['$read'];
+    render(view(['$read', '$streaming', '$job', '$snoozed', '$done']));
 
     expect(document.querySelector('[data-pinned-threads]')).toBeNull();
     expect(screen.queryByText('threadNav.pinned')).toBeNull();
-    expect(rows()).toContain('$idle');
+    expect(rows()).toContain('$read');
   });
 
   it('keeps the rows in place while the pointer is on the cards, and regroups after', () => {
-    const { rerender } = render(view(['$streaming', '$job', '$snoozed', '$idle', '$done']));
+    const { rerender } = render(view(['$streaming', '$job', '$snoozed', '$read', '$done']));
     const list = header('working').closest<HTMLElement>('[data-compact-room-view] > div')!;
     act(() => {
       fireEvent.pointerEnter(list);
     });
 
-    // The job ends: its thread is Idle now.
+    // The job ends: its thread needs you now.
     state.sections = [
       { id: 'working', rootIds: ['$streaming'] },
-      { id: 'snoozed', rootIds: ['$snoozed'] },
-      { id: 'idle', rootIds: ['$job', '$idle'] },
-      { id: 'resolved', rootIds: ['$done'] },
+      { id: 'needsYou', rootIds: ['$job', '$read'] },
+      { id: 'later', rootIds: ['$snoozed'] },
+      { id: 'done', rootIds: ['$done'] },
     ];
-    rerender(view(['$streaming', '$job', '$snoozed', '$idle', '$done']));
+    rerender(view(['$streaming', '$job', '$snoozed', '$read', '$done']));
     expect(rows().slice(0, 3)).toEqual(['#working 1', '$job', '$streaming']);
 
     // jsdom's pointer events carry no pointer type: the pointer lets go at the next click.
@@ -194,12 +196,12 @@ describe('the Compact room in sections', () => {
     expect(rows()).toEqual([
       '#working 1',
       '$streaming',
-      '#snoozed 1',
-      '$snoozed',
-      '#idle 2',
+      '#needsYou 2',
       '$job',
-      '$idle',
-      '#resolved 1',
+      '$read',
+      '#later 1',
+      '$snoozed',
+      '#done 1',
     ]);
   });
 
@@ -230,73 +232,73 @@ describe('the Compact room in sections', () => {
       const release = holdThenRegroup(
         [
           { id: 'working', rootIds: ['$job'] },
-          { id: 'idle', rootIds: ['$idle'] },
+          { id: 'needsYou', rootIds: ['$read'] },
         ],
-        [{ id: 'idle', rootIds: ['$job', '$idle'] }]
+        [{ id: 'needsYou', rootIds: ['$job', '$read'] }]
       );
 
-      expect(rows()).toEqual(['#working 0', '$job', '#idle 2', '$idle']);
+      expect(rows()).toEqual(['#working 0', '$job', '#needsYou 2', '$read']);
 
       release();
-      expect(rows()).toEqual(['#idle 2', '$job', '$idle']);
+      expect(rows()).toEqual(['#needsYou 2', '$job', '$read']);
     });
 
-    it('keeps a card that moves into folded Resolved in view until let go', () => {
+    it('keeps a card that moves into folded Done in view until let go', () => {
       const release = holdThenRegroup(
         [
-          { id: 'idle', rootIds: ['$a', '$b'] },
-          { id: 'resolved', rootIds: ['$done'] },
+          { id: 'needsYou', rootIds: ['$a', '$b'] },
+          { id: 'done', rootIds: ['$done'] },
         ],
         [
-          { id: 'idle', rootIds: ['$b'] },
-          { id: 'resolved', rootIds: ['$a', '$done'] },
+          { id: 'needsYou', rootIds: ['$b'] },
+          { id: 'done', rootIds: ['$a', '$done'] },
         ]
       );
 
-      expect(rows()).toEqual(['#idle 1', '$a', '$b', '#resolved 2']);
+      expect(rows()).toEqual(['#needsYou 1', '$a', '$b', '#done 2']);
 
       release();
-      expect(rows()).toEqual(['#idle 1', '$b', '#resolved 2']);
+      expect(rows()).toEqual(['#needsYou 1', '$b', '#done 2']);
     });
 
     it('shows no header for a section a shown card moves into until let go', () => {
       const release = holdThenRegroup(
-        [{ id: 'idle', rootIds: ['$a', '$b'] }],
+        [{ id: 'needsYou', rootIds: ['$a', '$b'] }],
         [
           { id: 'working', rootIds: ['$a'] },
-          { id: 'idle', rootIds: ['$b'] },
+          { id: 'needsYou', rootIds: ['$b'] },
         ]
       );
 
-      expect(rows()).toEqual(['#idle 1', '$a', '$b']);
+      expect(rows()).toEqual(['#needsYou 1', '$a', '$b']);
 
       release();
-      expect(rows()).toEqual(['#working 1', '$a', '#idle 1', '$b']);
+      expect(rows()).toEqual(['#working 1', '$a', '#needsYou 1', '$b']);
     });
 
     it('keeps a held section in its shown order while a new section comes in after it', () => {
       const release = holdThenRegroup(
         [
           { id: 'working', rootIds: ['$a', '$b'] },
-          { id: 'resolved', rootIds: ['$done'] },
+          { id: 'done', rootIds: ['$done'] },
         ],
-        // $a finished and a new thread $n came in: both are Idle now, and Idle sorts $n first.
+        // $a finished and a new thread $n came in: both need you now, and Needs you sorts $n first.
         [
           { id: 'working', rootIds: ['$b'] },
-          { id: 'idle', rootIds: ['$n', '$a'] },
-          { id: 'resolved', rootIds: ['$done'] },
+          { id: 'needsYou', rootIds: ['$n', '$a'] },
+          { id: 'done', rootIds: ['$done'] },
         ],
         ['$n']
       );
 
-      expect(rows()).toEqual(['#working 1', '$a', '$b', '#idle 2', '$n', '#resolved 1']);
+      expect(rows()).toEqual(['#working 1', '$a', '$b', '#needsYou 2', '$n', '#done 1']);
 
       release();
-      expect(rows()).toEqual(['#working 1', '$b', '#idle 2', '$n', '$a', '#resolved 1']);
+      expect(rows()).toEqual(['#working 1', '$b', '#needsYou 2', '$n', '$a', '#done 1']);
     });
 
     it('holds no section of the room before when the next room opens under the pointer', () => {
-      const { rerender } = render(view(['$streaming', '$job', '$snoozed', '$idle', '$done']));
+      const { rerender } = render(view(['$streaming', '$job', '$snoozed', '$read', '$done']));
       const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
       act(() => {
         fireEvent.pointerEnter(list);
@@ -304,7 +306,7 @@ describe('the Compact room in sections', () => {
 
       // The same view shows the next room (Alt+Down), the pointer still on the cards.
       const nextRoom = { roomId: '!next:example.org', myUserId: ME } as unknown as Room;
-      state.sections = [{ id: 'idle', rootIds: ['$b1', '$b2'] }];
+      state.sections = [{ id: 'needsYou', rootIds: ['$b1', '$b2'] }];
       rerender(
         <CompactRoomView
           room={nextRoom}
@@ -316,11 +318,11 @@ describe('the Compact room in sections', () => {
         />
       );
 
-      expect(rows()).toEqual(['#idle 2', '$b1', '$b2']);
+      expect(rows()).toEqual(['#needsYou 2', '$b1', '$b2']);
     });
 
     it('shows a new thread under its own header, which comes with it', () => {
-      state.sections = [{ id: 'idle', rootIds: ['$a'] }];
+      state.sections = [{ id: 'needsYou', rootIds: ['$a'] }];
       const { rerender } = render(view(['$a']));
       const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
       act(() => {
@@ -329,11 +331,11 @@ describe('the Compact room in sections', () => {
 
       state.sections = [
         { id: 'working', rootIds: ['$new'] },
-        { id: 'idle', rootIds: ['$a'] },
+        { id: 'needsYou', rootIds: ['$a'] },
       ];
       rerender(view(['$new', '$a']));
 
-      expect(rows()).toEqual(['#working 1', '$new', '#idle 1', '$a']);
+      expect(rows()).toEqual(['#working 1', '$new', '#needsYou 1', '$a']);
     });
   });
 
@@ -343,21 +345,21 @@ describe('the Compact room in sections', () => {
     const { rerender } = render(view(['$a', ...working]));
     expect(rows()).toContain('$a');
 
-    // $a finishes before the rest of the cards have mounted: it opens an Idle section.
+    // $a finishes before the rest of the cards have mounted: it opens a Needs you section.
     state.sections = [
       { id: 'working', rootIds: working },
-      { id: 'idle', rootIds: ['$a'] },
+      { id: 'needsYou', rootIds: ['$a'] },
     ];
     rerender(view(['$a', ...working]));
 
-    expect(rows().slice(-2)).toEqual(['#idle 1', '$a']);
+    expect(rows().slice(-2)).toEqual(['#needsYou 1', '$a']);
   });
 
-  it('mounts the first screenful on the way back from a card in folded Resolved', () => {
-    const idle = Array.from({ length: 60 }, (_unused, index) => `$idle${index}`);
+  it('mounts the first screenful on the way back from a card in folded Done', () => {
+    const waiting = Array.from({ length: 60 }, (_unused, index) => `$waiting${index}`);
     state.sections = [
-      { id: 'idle', rootIds: idle },
-      { id: 'resolved', rootIds: ['$done'] },
+      { id: 'needsYou', rootIds: waiting },
+      { id: 'done', rootIds: ['$done'] },
     ];
     const place = { scrollTop: 9000, anchors: [{ key: '$done', offset: 0 }] };
     // jsdom has none; the list follows the place the reader left while its cards mount.
@@ -371,7 +373,7 @@ describe('the Compact room in sections', () => {
     render(
       <CompactRoomView
         room={room}
-        threadRootIds={[...idle, '$done']}
+        threadRootIds={[...waiting, '$done']}
         threadRecordMap={new Map()}
         onThreadClick={vi.fn()}
         compactRoomScrollStateRef={{ current: new Map([[ROOM_ID, place]]) }}
@@ -379,7 +381,7 @@ describe('the Compact room in sections', () => {
       />
     );
 
-    // The first screenful of cards, under their headers, and Resolved stays folded.
+    // The first screenful of cards, under their headers, and Done stays folded.
     expect(rows().filter((row) => !row?.startsWith('#'))).toHaveLength(FIRST_SCREEN_CARDS);
     expect(rows()).not.toContain('$done');
   });

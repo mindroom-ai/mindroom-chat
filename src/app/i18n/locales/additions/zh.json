@@ -1292,7 +1292,7 @@
     "layout": "讨论串布局",
     "layoutRecent": "最近",
     "layoutSections": "分区",
-    "sectionsHint": "将讨论串分为进行中、已延后、空闲和已解决",
+    "sectionsHint": "将讨论串分为处理中、需要你处理、稍后和已完成",
     "sections": {
       "working": "进行中",
       "later": "稍后",

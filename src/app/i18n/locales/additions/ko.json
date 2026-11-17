@@ -1292,7 +1292,7 @@
     "layout": "스레드 배치",
     "layoutRecent": "최근",
     "layoutSections": "섹션",
-    "sectionsHint": "스레드를 작업 중, 다시 알림, 대기 중, 해결됨으로 나누어 표시",
+    "sectionsHint": "스레드를 작업 중, 내 응답 필요, 나중에, 완료로 나누어 표시",
     "sections": {
       "working": "작업 중",
       "later": "나중에",

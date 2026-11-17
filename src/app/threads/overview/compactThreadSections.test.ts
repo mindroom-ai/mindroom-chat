@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { ThreadRecord, ThreadStatusSnapshot } from '../../event-store/threads/types';
+import {
+  createDefaultThreadFilterState,
+  selectThreadWorkflowTab,
+} from '../../event-store/threads/roomThreadOverviewModel';
+import { matchesThreadRecordFilterState } from '../../event-store/threads/threadRecordOverview';
+import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
 import type { CrossRoomThreadIndexEntry } from '../cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../cross-room/threadSignals';
 import { buildCompactThreadSections } from './compactThreadSections';
@@ -14,7 +20,7 @@ const record = (
   ({
     roomId: '!room:x',
     threadRootId: rootId,
-    status: { isStreaming: false, isResolved: false, tags: [], ...status },
+    status: { isStreaming: false, isResolved: false, scheduledTaskCount: 0, tags: [], ...status },
     cache: oldestTs === undefined ? {} : { oldestTs },
   } as ThreadRecord);
 
@@ -24,14 +30,12 @@ const recordsOf = (...records: ThreadRecord[]) =>
 const build = ({
   threadRootIds,
   records,
-  jobThreadIds = new Set<string>(),
   entries = new Map<string, Partial<CrossRoomThreadIndexEntry>>(),
   signals = new Map<string, Partial<ThreadSignals>>(),
   pinnedRootIds = [],
 }: {
   threadRootIds: string[];
   records: Map<string, ThreadRecord>;
-  jobThreadIds?: ReadonlySet<string>;
   entries?: Map<string, Partial<CrossRoomThreadIndexEntry>>;
   signals?: Map<string, Partial<ThreadSignals>>;
   pinnedRootIds?: string[];
@@ -39,40 +43,70 @@ const build = ({
   buildCompactThreadSections({
     threadRootIds,
     recordMap: records,
-    jobThreadIds,
     entryOf: (rootId) => entries.get(rootId) as CrossRoomThreadIndexEntry | undefined,
     signalsOf: (entry) => signals.get(entry.threadRootId) as ThreadSignals | undefined,
     pinnedRootIds,
     now: NOW,
   }).map(({ id, rootIds }) => [id, rootIds]);
 
-describe('buildCompactThreadSections', () => {
-  it('puts the cards in Working, Snoozed, Idle and Resolved, and leaves out empty sections', () => {
-    const records = recordsOf(
-      record('$streaming', { isStreaming: true }),
-      record('$job'),
-      record('$snoozed', { snoozedUntilTs: NOW + 1 }),
-      record('$resolved', { isResolved: true }),
-      record('$idle')
-    );
-    const threadRootIds = ['$streaming', '$job', '$snoozed', '$resolved', '$idle'];
+/** One thread of each kind the workflow classifier tells apart. */
+const everyKind = recordsOf(
+  record('$streaming', { isStreaming: true }),
+  record('$job', { hasBackgroundJob: true }),
+  record('$approval', { hasBackgroundJob: true, hasBackgroundApproval: true }),
+  record('$scheduled', { scheduledTaskCount: 1, nextScheduledTs: NOW + 10 }),
+  record('$snoozed', { snoozedUntilTs: NOW + 50 }),
+  record('$resolved', { isResolved: true, isStreaming: true }),
+  record('$sending', { hasPendingSend: true }),
+  record('$read')
+);
+const everyKindIds = [...everyKind.keys()];
 
-    expect(build({ threadRootIds, records, jobThreadIds: new Set(['$job']) })).toEqual([
+describe('buildCompactThreadSections', () => {
+  it('puts the cards in Working, Needs you, Later and Done, as the workflow tabs count them', () => {
+    expect(build({ threadRootIds: everyKindIds, records: everyKind })).toEqual([
       ['working', ['$streaming', '$job']],
-      ['snoozed', ['$snoozed']],
-      ['idle', ['$idle']],
-      ['resolved', ['$resolved']],
+      ['needsYou', ['$approval', '$sending', '$read']],
+      ['later', ['$scheduled', '$snoozed']],
+      ['done', ['$resolved']],
     ]);
-    expect(build({ threadRootIds: ['$idle'], records })).toEqual([['idle', ['$idle']]]);
   });
 
-  it('moves a thread back out of Working once its background job leaves the state', () => {
-    const records = recordsOf(record('$job'));
-
-    expect(build({ threadRootIds: ['$job'], records, jobThreadIds: new Set(['$job']) })).toEqual([
-      ['working', ['$job']],
+  it('leaves out empty sections', () => {
+    expect(build({ threadRootIds: ['$read'], records: everyKind })).toEqual([
+      ['needsYou', ['$read']],
     ]);
-    expect(build({ threadRootIds: ['$job'], records })).toEqual([['idle', ['$job']]]);
+  });
+
+  it.each<ThreadWorkflowBucket>(['working', 'needsYou', 'later', 'done'])(
+    'shows only the %s section while that tab filters the cards',
+    (tab) => {
+      const state = selectThreadWorkflowTab(createDefaultThreadFilterState(), tab);
+      const threadRootIds = everyKindIds.filter((rootId) => {
+        const item = everyKind.get(rootId);
+        return item !== undefined && matchesThreadRecordFilterState(item, state, NOW);
+      });
+
+      expect(build({ threadRootIds, records: everyKind }).map(([id]) => id)).toEqual([tab]);
+    }
+  );
+
+  it('moves a thread out of Working once its record carries no live job', () => {
+    expect(
+      build({
+        threadRootIds: ['$job'],
+        records: recordsOf(record('$job', { hasBackgroundJob: true })),
+      })
+    ).toEqual([['working', ['$job']]]);
+    expect(build({ threadRootIds: ['$job'], records: recordsOf(record('$job')) })).toEqual([
+      ['needsYou', ['$job']],
+    ]);
+  });
+
+  it('moves a snoozed thread to Needs you once its snooze has ended', () => {
+    const records = recordsOf(record('$woke', { snoozedUntilTs: NOW - 1 }));
+
+    expect(build({ threadRootIds: ['$woke'], records })).toEqual([['needsYou', ['$woke']]]);
   });
 
   it('orders Working by when each thread started, from the index entry or the cache', () => {
@@ -87,7 +121,7 @@ describe('buildCompactThreadSections', () => {
     ]);
   });
 
-  it('orders Idle by when the last run finished or the newest message came', () => {
+  it('orders Needs you by when the last run finished or the newest message came', () => {
     const records = recordsOf(
       record('$ran-late', { lastActivityTs: 100 }),
       record('$wrote-late', { lastActivityTs: 100 }),
@@ -103,10 +137,26 @@ describe('buildCompactThreadSections', () => {
 
     expect(
       build({ threadRootIds: ['$quiet', '$wrote-late', '$ran-late'], records, entries, signals })
-    ).toEqual([['idle', ['$ran-late', '$wrote-late', '$quiet']]]);
+    ).toEqual([['needsYou', ['$ran-late', '$wrote-late', '$quiet']]]);
   });
 
-  it('orders Resolved by when it was resolved, and ties in the list order', () => {
+  it('orders Later by when each thread comes back, soonest first, unknown times last', () => {
+    const records = recordsOf(
+      record('$unknown', { scheduledTaskCount: 1 }),
+      record('$snoozed-late', { snoozedUntilTs: NOW + 90, nextScheduledTs: NOW + 5 }),
+      record('$scheduled-soon', { scheduledTaskCount: 2, nextScheduledTs: NOW + 20 }),
+      record('$snoozed-soon', { snoozedUntilTs: NOW + 10 })
+    );
+
+    expect(
+      build({
+        threadRootIds: ['$unknown', '$snoozed-late', '$scheduled-soon', '$snoozed-soon'],
+        records,
+      })
+    ).toEqual([['later', ['$snoozed-soon', '$scheduled-soon', '$snoozed-late', '$unknown']]]);
+  });
+
+  it('orders Done by when it was resolved, and ties in the list order', () => {
     const records = recordsOf(
       record('$a', { isResolved: true }),
       record('$b', { isResolved: true }),
@@ -119,7 +169,7 @@ describe('buildCompactThreadSections', () => {
     ]);
 
     expect(build({ threadRootIds: ['$c', '$a', '$b'], records, entries })).toEqual([
-      ['resolved', ['$b', '$c', '$a']],
+      ['done', ['$b', '$c', '$a']],
     ]);
   });
 
@@ -127,21 +177,26 @@ describe('buildCompactThreadSections', () => {
     const records = recordsOf(
       record('$plain', { lastActivityTs: 900 }),
       record('$pin-2', { lastActivityTs: 1 }),
-      record('$pin-1', { lastActivityTs: 2 })
+      record('$pin-1', { lastActivityTs: 2 }),
+      record('$later', { snoozedUntilTs: NOW + 1 }),
+      record('$later-pin', { snoozedUntilTs: NOW + 99 })
     );
 
     expect(
       build({
-        threadRootIds: ['$plain', '$pin-2', '$pin-1'],
+        threadRootIds: ['$plain', '$pin-2', '$pin-1', '$later', '$later-pin'],
         records,
-        pinnedRootIds: ['$pin-1', '$pin-2'],
+        pinnedRootIds: ['$pin-1', '$later-pin', '$pin-2'],
       })
-    ).toEqual([['idle', ['$pin-1', '$pin-2', '$plain']]]);
+    ).toEqual([
+      ['needsYou', ['$pin-1', '$pin-2', '$plain']],
+      ['later', ['$later-pin', '$later']],
+    ]);
   });
 
   it('leaves out a listed thread it has no record of, as the cards do', () => {
     expect(
       build({ threadRootIds: ['$gone', '$here'], records: recordsOf(record('$here')) })
-    ).toEqual([['idle', ['$here']]]);
+    ).toEqual([['needsYou', ['$here']]]);
   });
 });

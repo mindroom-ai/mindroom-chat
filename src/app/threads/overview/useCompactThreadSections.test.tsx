@@ -1,12 +1,10 @@
 // @vitest-environment jsdom
-import { EventEmitter } from 'events';
 import { createStore, Provider } from 'jotai';
-import { MatrixEvent, RoomStateEvent, type Room } from 'matrix-js-sdk';
+import type { Room } from 'matrix-js-sdk';
 import type { ReactNode } from 'react';
-import { act, renderHook } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { ThreadRecord } from '../../event-store/threads/types';
-import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../../matrix/protocol/backgroundJobsContract';
+import type { ThreadRecord, ThreadStatusSnapshot } from '../../event-store/threads/types';
 import {
   crossRoomThreadIndexAtom,
   emptyCrossRoomThreadIndexSnapshot,
@@ -20,59 +18,29 @@ vi.mock('../cross-room/threadSignalsReader', () => ({
 }));
 
 const ROOM_ID = '!room:example.org';
-const AGENT = '@mindroom_code:example.org';
 
-const jobsState = (threadIds: string[]) =>
-  new MatrixEvent({
-    type: MINDROOM_BACKGROUND_JOBS_EVENT,
-    sender: AGENT,
-    state_key: AGENT,
-    room_id: ROOM_ID,
-    content: {
-      jobs: threadIds.map((threadId, index) => ({
-        job_id: `job_${index}`,
-        thread_id: threadId,
-        kind: 'subagent',
-        tool: 'delegate',
-        status: 'running',
-        started_at: '2026-11-16T00:00:00+00:00',
-      })),
-    },
-  });
-
-/** A room whose agent publishes `jobs`; `publish` replaces them as a sync would. */
-const roomWithJobs = (initial: MatrixEvent) => {
-  let jobs = initial;
-  const emitter = new EventEmitter();
-  const getStateEvents = vi.fn((type: string) =>
-    type === MINDROOM_BACKGROUND_JOBS_EVENT ? [jobs] : []
-  );
-  const room = Object.assign(emitter, {
+/** A room whose state the hook must not read: the records carry the job flags. */
+const room = () => {
+  const getStateEvents = vi.fn(() => []);
+  const value = {
     roomId: ROOM_ID,
     myUserId: '@me:example.org',
     client: {},
     currentState: { getStateEvents },
-    getMember: (userId: string) => ({ userId, membership: 'join' }),
-  }) as unknown as Room;
-  const publish = (next: MatrixEvent) => {
-    jobs = next;
-    act(() => {
-      emitter.emit(RoomStateEvent.Events, next);
-    });
-  };
-  return { room, publish, getStateEvents };
+  } as unknown as Room;
+  return { room: value, getStateEvents };
 };
 
-const record = (rootId: string, isResolved = false): ThreadRecord =>
+const record = (rootId: string, status: Partial<ThreadStatusSnapshot> = {}): ThreadRecord =>
   ({
     roomId: ROOM_ID,
     threadRootId: rootId,
-    status: { isStreaming: false, isResolved, tags: [] },
+    status: { isStreaming: false, isResolved: false, scheduledTaskCount: 0, tags: [], ...status },
     cache: {},
   } as unknown as ThreadRecord);
 
-const records = new Map(['$a', '$b', '$c'].map((id) => [id, record(id, id === '$c')] as const));
-const ROOT_IDS = ['$a', '$b', '$c'];
+const recordsOf = (...items: ThreadRecord[]) =>
+  new Map(items.map((item) => [item.threadRootId, item] as const));
 
 const wrapperOf =
   (store: ReturnType<typeof createStore>) =>
@@ -81,53 +49,63 @@ const wrapperOf =
 
 describe('useCompactThreadSections', () => {
   it('reads nothing while Sections are off', () => {
-    const { room, getStateEvents } = roomWithJobs(jobsState(['$a']));
+    const { room: offRoom } = room();
     const { result } = renderHook(
       () =>
         useCompactThreadSections({
-          room,
+          room: offRoom,
           enabled: false,
-          threadRootIds: ROOT_IDS,
-          threadRecordMap: records,
+          threadRootIds: ['$a'],
+          threadRecordMap: recordsOf(record('$a')),
           pinnedRootIds: [],
         }),
       { wrapper: wrapperOf(createStore()) }
     );
 
     expect(result.current).toBeUndefined();
-    expect(getStateEvents).not.toHaveBeenCalled();
   });
 
-  it('puts the thread of a live job in Working, and back when the job leaves the state', () => {
-    const { room, publish } = roomWithJobs(jobsState(['$b']));
-    const { result } = renderHook(
-      () =>
+  it("follows the records' job flags, without reading the agents' jobs state", () => {
+    const { room: jobsRoom, getStateEvents } = room();
+    const running = recordsOf(
+      record('$a'),
+      record('$b', { hasBackgroundJob: true }),
+      record('$c', { isResolved: true })
+    );
+    const { result, rerender } = renderHook(
+      ({ threadRecordMap }) =>
         useCompactThreadSections({
-          room,
+          room: jobsRoom,
           enabled: true,
-          threadRootIds: ROOT_IDS,
-          threadRecordMap: records,
+          threadRootIds: ['$a', '$b', '$c'],
+          threadRecordMap,
           pinnedRootIds: [],
         }),
-      { wrapper: wrapperOf(createStore()) }
+      { wrapper: wrapperOf(createStore()), initialProps: { threadRecordMap: running } }
     );
     expect(result.current).toEqual([
       { id: 'working', rootIds: ['$b'] },
-      { id: 'idle', rootIds: ['$a'] },
-      { id: 'resolved', rootIds: ['$c'] },
+      { id: 'needsYou', rootIds: ['$a'] },
+      { id: 'done', rootIds: ['$c'] },
     ]);
 
-    publish(jobsState([]));
+    rerender({
+      threadRecordMap: recordsOf(
+        record('$a'),
+        record('$b', { hasBackgroundJob: true, hasBackgroundApproval: true }),
+        record('$c', { isResolved: true })
+      ),
+    });
 
     expect(result.current).toEqual([
-      { id: 'idle', rootIds: ['$a', '$b'] },
-      { id: 'resolved', rootIds: ['$c'] },
+      { id: 'needsYou', rootIds: ['$a', '$b'] },
+      { id: 'done', rootIds: ['$c'] },
     ]);
+    expect(getStateEvents).not.toHaveBeenCalled();
   });
 
-  it('orders Resolved by the resolve time the index holds for the room', () => {
+  it('orders Done by the resolve time the index holds for the room', () => {
     const store = createStore();
-    const resolvedRecords = new Map(['$old', '$new'].map((id) => [id, record(id, true)] as const));
     const entry = (rootId: string, resolvedTs: number) =>
       ({
         key: getCrossRoomThreadIndexKey(ROOM_ID, rootId),
@@ -141,19 +119,22 @@ describe('useCompactThreadSections', () => {
         [entry('$old', 1), entry('$new', 2)].map((item) => [item.key, item] as const)
       ),
     });
-    const { room } = roomWithJobs(jobsState([]));
+    const { room: doneRoom } = room();
     const { result } = renderHook(
       () =>
         useCompactThreadSections({
-          room,
+          room: doneRoom,
           enabled: true,
           threadRootIds: ['$old', '$new'],
-          threadRecordMap: resolvedRecords,
+          threadRecordMap: recordsOf(
+            record('$old', { isResolved: true }),
+            record('$new', { isResolved: true })
+          ),
           pinnedRootIds: [],
         }),
       { wrapper: wrapperOf(store) }
     );
 
-    expect(result.current).toEqual([{ id: 'resolved', rootIds: ['$new', '$old'] }]);
+    expect(result.current).toEqual([{ id: 'done', rootIds: ['$new', '$old'] }]);
   });
 });

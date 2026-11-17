@@ -1344,7 +1344,7 @@
     "layout": "Disposição dos tópicos",
     "layoutRecent": "Recentes",
     "layoutSections": "Secções",
-    "sectionsHint": "Agrupar os tópicos em Em curso, Adiados, Inativos e Resolvidos",
+    "sectionsHint": "Agrupar os tópicos em Em andamento, Precisa de você, Mais tarde e Concluído",
     "sections": {
       "working": "Em curso",
       "later": "Mais tarde",

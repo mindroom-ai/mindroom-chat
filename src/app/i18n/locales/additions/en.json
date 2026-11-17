@@ -1318,7 +1318,7 @@
     "layout": "Thread layout",
     "layoutRecent": "Recent",
     "layoutSections": "Sections",
-    "sectionsHint": "Group the threads into Working, Snoozed, Idle and Resolved",
+    "sectionsHint": "Group the threads into Working, Needs you, Later and Done",
     "sections": {
       "working": "Working",
       "later": "Later",

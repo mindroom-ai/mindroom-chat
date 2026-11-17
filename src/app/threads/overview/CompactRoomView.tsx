@@ -38,7 +38,7 @@ import { ThreadCardBadges } from './ThreadCardBadges';
 import { useCompactThreadSections } from './useCompactThreadSections';
 import { holdCompactThreadSections, type CompactThreadSection } from './compactThreadSections';
 import { getCompactRoomSectionsAtom } from './compactRoomSections';
-import type { ThreadSectionId } from '../threadSections';
+import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
 import { ThreadCardDetails } from './ThreadCardDetails';
 import { useLongPress } from '../../lib/hooks/useLongPress';
 import { useShortcut } from '../../shortcuts/useShortcut';
@@ -62,16 +62,16 @@ export type CompactRoomViewProps = {
   compactRoomScrollStateRef: MutableRefObject<ScrollAnchorMemory>;
   /** Whether the thread filter bar floats over the cards: they move down for it, and glide. */
   filterBarShown?: boolean;
-  /** The cards show in sections: Working, Snoozed, Idle and Resolved, each folding on its own. */
+  /** The cards show in sections: Working, Needs you, Later and Done, each folding on its own. */
   sections?: boolean;
 };
 
 // A section's header among the cards' rows; no event ID starts with it.
 const SECTION_ROW_PREFIX = 'section:';
-const sectionRowKey = (id: ThreadSectionId): string => `${SECTION_ROW_PREFIX}${id}`;
-const sectionOfRow = (key: string): ThreadSectionId | undefined =>
+const sectionRowKey = (id: ThreadWorkflowBucket): string => `${SECTION_ROW_PREFIX}${id}`;
+const sectionOfRow = (key: string): ThreadWorkflowBucket | undefined =>
   key.startsWith(SECTION_ROW_PREFIX)
-    ? (key.slice(SECTION_ROW_PREFIX.length) as ThreadSectionId)
+    ? (key.slice(SECTION_ROW_PREFIX.length) as ThreadWorkflowBucket)
     : undefined;
 
 type ThreadActionsMenuState = {
@@ -528,7 +528,7 @@ export function CompactRoomView({
     );
   };
 
-  const renderSectionHeader = (id: ThreadSectionId) => {
+  const renderSectionHeader = (id: ThreadWorkflowBucket) => {
     const key = sectionRowKey(id);
     const closed = folded.includes(id);
     const count = sectionCounts.get(id) ?? 0;
@@ -549,7 +549,7 @@ export function CompactRoomView({
             />
           }
         >
-          <Text size="B300">{`${t(`threadNav.sections.${id === 'snoozed' ? 'later' : id}`)} · ${count}`}</Text>
+          <Text size="B300">{`${t(`thread.workflow.${id}`)} · ${count}`}</Text>
         </Button>
       </div>
     );

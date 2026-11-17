@@ -1344,7 +1344,7 @@
     "layout": "Disposition des fils",
     "layoutRecent": "Récents",
     "layoutSections": "Sections",
-    "sectionsHint": "Regrouper les fils en En cours, Reportés, Inactifs et Résolus",
+    "sectionsHint": "Regrouper les fils en En cours, À vous de jouer, Plus tard et Terminé",
     "sections": {
       "working": "En cours",
       "later": "Plus tard",

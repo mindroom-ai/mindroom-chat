@@ -1292,7 +1292,7 @@
     "layout": "スレッドの表示方法",
     "layoutRecent": "最近",
     "layoutSections": "セクション",
-    "sectionsHint": "スレッドを作業中・スヌーズ中・待機中・解決済みに分けて表示",
+    "sectionsHint": "スレッドを作業中・あなたの対応待ち・後で・完了に分けて表示",
     "sections": {
       "working": "作業中",
       "later": "後で",
