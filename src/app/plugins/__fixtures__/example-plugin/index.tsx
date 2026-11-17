@@ -85,6 +85,8 @@
 // as it opened, as the room's page shows it (`ThreadView`), and keeps it while the room shows
 // another; an Escape in it that nothing took, as on one of its rows, closes the panel, and one that
 // closes the thread's menus, or a profile card its rows opened, leaves it open.
+// A fourth, "Example board", toggled from the room menu, shows the room's threads as a board by
+// state (`ThreadBoard`), and above it the thread the board opened last and how many it opened.
 import {
   useEffect,
   useLayoutEffect,
@@ -146,6 +148,7 @@ import {
   useRoomHref,
   useRoomNavigate,
   useShownThread,
+  ThreadBoard,
   ThreadView,
 } from '@mindroom/client-sdk/room';
 import {
@@ -907,6 +910,26 @@ function ExampleThread({ roomId }: { roomId: string }) {
   );
 }
 
+/** The room's threads as a board by state, and the thread it opened last. */
+function ExampleBoard({ roomId }: { roomId: string }) {
+  const room = useMatrixClient().getRoom(roomId);
+  const [opened, setOpened] = useState<{ threadId: string; count: number }>();
+  if (!room) return null;
+  return (
+    <>
+      <output data-example-board-opened>
+        {opened ? `Opened ${opened.threadId} (${opened.count})` : 'Opened no thread'}
+      </output>
+      <ThreadBoard
+        room={room}
+        onOpenThread={(threadId) =>
+          setOpened((last) => ({ threadId, count: (last?.count ?? 0) + 1 }))
+        }
+      />
+    </>
+  );
+}
+
 // The card's width: its own beside the conversation, the room's when it fills it or on a phone. Its
 // box, the card and its margins, clips it: the box moves in and out, and the card keeps its width.
 const CARD_WIDTH = 320;
@@ -1180,6 +1203,7 @@ const plugin: ClientPlugin = {
     },
     { id: 'card', label: 'Example card', Component: ExampleCard, frame: 'own' },
     { id: 'thread', label: 'Example thread', Component: ExampleThread },
+    { id: 'board', label: 'Example board', Component: ExampleBoard },
   ],
   headerActions: [
     {

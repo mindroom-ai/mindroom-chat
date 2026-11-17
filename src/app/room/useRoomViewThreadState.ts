@@ -84,6 +84,7 @@ export type RoomViewThreadState = {
   handleClearPeople: () => void;
   handleClearTags: () => void;
   handleExitThread: () => void;
+  handleOpenThread: (threadId: string) => void;
   handleThreadRootDeleted: () => void;
   /** The open thread failed to load in this room (`ThreadView`'s `onThreadLoadError`). */
   handleThreadLoadError: (threadId: string) => void;
@@ -277,6 +278,11 @@ export const useRoomViewThreadState = ({
         .catch(() => setMissingThreadId(failedThreadId));
     },
     [eventId, mx, navigateRoomThreadDirect, roomId, sessionId, setMissingThreadId]
+  );
+
+  const handleOpenThread = useCallback(
+    (openedThreadId: string) => navigateRoomThread(roomId, openedThreadId),
+    [navigateRoomThread, roomId]
   );
 
   const handleSwipeForwardToThread = useCallback(() => {
@@ -491,16 +497,16 @@ export const useRoomViewThreadState = ({
     }
   }, [hasMindroomAgents, simpleMode]);
 
+  // A thread that opens ends the record of the one left before it. Only as it opens: leaving
+  // records the thread while its address still names it, until the browser has stepped back.
   useEffect(() => {
-    if (threadId) {
-      setLastExitedThread(null);
-      return;
-    }
-
+    if (threadId) setLastExitedThread(null);
+  }, [setLastExitedThread, threadId]);
+  useEffect(() => {
     if (lastExitedThread && lastExitedThread.roomId !== roomId) {
       setLastExitedThread(null);
     }
-  }, [lastExitedThread, roomId, setLastExitedThread, threadId]);
+  }, [lastExitedThread, roomId, setLastExitedThread]);
 
   useEffect(() => () => setLastExitedThread(null), [setLastExitedThread]);
 
@@ -549,6 +555,7 @@ export const useRoomViewThreadState = ({
     handleClearPeople,
     handleClearTags,
     handleExitThread,
+    handleOpenThread,
     handleThreadRootDeleted,
     handleThreadLoadError,
     handleRemoveTag,

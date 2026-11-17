@@ -66,6 +66,12 @@ export type AiRunInfo = {
   costUsd?: number;
 };
 
+/** The model a run used, as `io.mindroom.ai_run` and sub-agent frames send it. */
+export type AiRunModelInfo = Pick<
+  AiRunInfo,
+  'modelConfig' | 'modelDisplayName' | 'modelId' | 'modelProvider'
+>;
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
@@ -82,6 +88,19 @@ const asNonNegativeDecimal = (value: unknown): number | undefined => {
   const parsed = typeof value === 'string' && DECIMAL_STRING.test(value) ? Number(value) : value;
   const number = asFiniteNumber(parsed);
   return number !== undefined && number >= 0 ? number : undefined;
+};
+
+/** A `model` object `{config, display_name?, id?, provider?}`; undefined unless it names a model. */
+export const parseAiRunModel = (value: unknown): AiRunModelInfo | undefined => {
+  if (!isRecord(value)) return undefined;
+  const model = value as AiRunModel;
+  const info: AiRunModelInfo = {
+    modelConfig: asString(model.config),
+    modelDisplayName: asString(model.display_name)?.trim() || undefined,
+    modelId: asString(model.id),
+    modelProvider: asString(model.provider),
+  };
+  return Object.values(info).some((field) => field !== undefined) ? info : undefined;
 };
 
 const getAiRunMetadataFromCandidate = (
@@ -104,17 +123,12 @@ const getAiRunMetadata = (content: Record<string, unknown>): AiRunMetadata | und
   return getAiRunMetadataFromCandidate(content);
 };
 
-export const getAiRunInfo = (
-  content: Record<string, unknown>
-): AiRunInfo | undefined => {
+export const getAiRunInfo = (content: Record<string, unknown>): AiRunInfo | undefined => {
   const metadata = getAiRunMetadata(content);
   if (!metadata) return undefined;
 
-  const model = isRecord(metadata.model) ? (metadata.model as AiRunModel) : undefined;
   const usage = isRecord(metadata.usage) ? (metadata.usage as AiRunUsage) : undefined;
-  const context = isRecord(metadata.context)
-    ? (metadata.context as AiRunContext)
-    : undefined;
+  const context = isRecord(metadata.context) ? (metadata.context as AiRunContext) : undefined;
   const tools = isRecord(metadata.tools) ? (metadata.tools as AiRunTools) : undefined;
   const cost = isRecord(metadata.cost) ? (metadata.cost as AiRunCost) : undefined;
 
@@ -122,10 +136,7 @@ export const getAiRunInfo = (
     status: asString(metadata.status),
     runId: asString(metadata.run_id),
     sessionId: asString(metadata.session_id),
-    modelConfig: asString(model?.config),
-    modelDisplayName: asString(model?.display_name)?.trim() || undefined,
-    modelId: asString(model?.id),
-    modelProvider: asString(model?.provider),
+    ...parseAiRunModel(metadata.model),
     inputTokens: asFiniteNumber(usage?.input_tokens),
     outputTokens: asFiniteNumber(usage?.output_tokens),
     cacheReadTokens: asFiniteNumber(usage?.cache_read_tokens),

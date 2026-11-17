@@ -41,6 +41,14 @@ import { getCompactRoomSectionsAtom } from './compactRoomSections';
 import type { ThreadSectionId } from '../threadSections';
 import { ThreadCardDetails } from './ThreadCardDetails';
 import { useLongPress } from '../../lib/hooks/useLongPress';
+import { useShortcut } from '../../shortcuts/useShortcut';
+import {
+  KEY_FOCUS_ATTRIBUTE,
+  compactCardsIn,
+  focusCompactCard,
+  focusedCompactCard,
+  handleCardArrowKey,
+} from './compactCardKeys';
 
 const ThreadActionsMenu = lazy(() =>
   import('../ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -267,6 +275,7 @@ const CompactThreadCardRow = React.memo(
 );
 
 const isKeyboardFocus = (element: Element): boolean => {
+  if (element.hasAttribute(KEY_FOCUS_ATTRIBUTE)) return true;
   try {
     return element.matches(':focus-visible');
   } catch {
@@ -438,6 +447,26 @@ export function CompactRoomView({
     void setPinnedRef.current(threadRootId, !pinned);
   }, []);
 
+  // On a focused card, the keys that resolve the open thread resolve or reopen the card's, and
+  // the focus moves on to the next card: under a filter, either may take the card off the list.
+  useShortcut('resolveThread', () => {
+    const card = focusedCompactCard(viewRef.current);
+    const rootId = card?.dataset.threadRootId;
+    const viewModel = rootId === undefined ? undefined : viewModelByRootRef.current.get(rootId);
+    if (!card || !rootId || !viewModel) return false;
+    const fixed =
+      !canToggle ||
+      pinning.pinnedEventIds.includes(rootId) ||
+      !isConfirmedMatrixEventId(rootId) ||
+      updatingThreadRootIds.has(rootId);
+    if (fixed) return true;
+    const cards = compactCardsIn(viewRef.current);
+    const index = cards.indexOf(card);
+    focusCompactCard(cards[index + 1] ?? cards[index - 1]);
+    handleSetResolved(rootId, !viewModel.isResolved);
+    return true;
+  });
+
   useEffect(() => {
     if (error) {
       // eslint-disable-next-line no-console
@@ -550,6 +579,7 @@ export function CompactRoomView({
         shrink="No"
         data-order-held={orderHeld || undefined}
         {...pointerHandlers}
+        onKeyDown={handleCardArrowKey}
         // Keyboard focus only: a card a mouse click left focused does not hold the order.
         onFocus={(event: React.FocusEvent<HTMLDivElement>) =>
           setFocusInside(isKeyboardFocus(event.target))

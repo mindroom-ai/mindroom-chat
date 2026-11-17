@@ -58,6 +58,14 @@ export const PinnedSection = style({
   paddingBlockEnd: config.space.S300,
 });
 
+// A card the keys focused after a chord carries `data-key-focus` (compactCardKeys.ts): a browser
+// shows no `:focus-visible` there, so the ring and the tint take that mark too.
+const KEY_FOCUS = '[data-key-focus]:focus';
+const focusRing = {
+  outline: `${config.borderWidth.B300} solid ${color.Primary.Main}`,
+  outlineOffset: '1px',
+};
+
 export const Card = style([
   DefaultReset,
   {
@@ -74,10 +82,8 @@ export const Card = style([
     textAlign: 'start',
     cursor: 'pointer',
     transition: transition(['background-color', 'border-color']),
-    ':focus-visible': {
-      outline: `${config.borderWidth.B300} solid ${color.Primary.Main}`,
-      outlineOffset: '1px',
-    },
+    ':focus-visible': focusRing,
+    selectors: { [`&${KEY_FOCUS}`]: focusRing },
     // A tint over the card, clear at rest: a card whose thread just changed fades it out once
     // (`useShowChange` in CompactThreadCard.tsx), which repaints nothing of the card.
     position: 'relative',
@@ -107,16 +113,14 @@ export const CardButton = style([
     textAlign: 'start',
     cursor: 'pointer',
     borderRadius: config.radii.R300,
-    ':focus-visible': {
-      outline: `${config.borderWidth.B300} solid ${color.Primary.Main}`,
-      outlineOffset: '1px',
-    },
+    ':focus-visible': focusRing,
+    selectors: { [`&${KEY_FOCUS}`]: focusRing },
   },
 ]);
 
 // The keyboard's focus on the card or its buttons tints it; a menu that hands focus back to its
 // button after a tap or a click does not.
-globalStyle(`${CardShell}:has(:focus-visible) ${Card}`, {
+globalStyle(`${CardShell}:has(:focus-visible, ${KEY_FOCUS}) ${Card}`, {
   backgroundColor: color.SurfaceVariant.ContainerHover,
 });
 

@@ -87,7 +87,9 @@
       "pack": "Zelfde als pakket"
     },
     "imageViewer": {
-      "close": "Sluiten"
+      "close": "Sluiten",
+      "previous": "Vorige afbeelding",
+      "next": "Volgende afbeelding"
     },
     "inviteUserPrompt": {
       "close": "Sluiten",
@@ -142,8 +144,7 @@
       "noCrossSigningKeys": "Je geheime opslag bevat geen kruiselingse ondertekeningssleutels, dus de herstelsleutel kan deze sessie niet verifiëren. Verifieer haar vanuit een van je andere sessies."
     },
     "commands": {
-      "CommandPlain": "Stuur een bericht als platte tekst, zonder Markdown. Voorbeeld: /plain bericht",
-      "CommandHtml": "Stuur een bericht als HTML, zonder Markdown. Voorbeeld: /html bericht"
+      "CommandPlain": "Stuur een bericht als platte tekst, zonder Markdown. Voorbeeld: /plain bericht"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Deze aanmelding is hier niet gestart en is daarom niet gebruikt. Meld je opnieuw aan."
@@ -158,6 +159,7 @@
     "appUpdate": {
       "available": "Er is een nieuwe versie van MindRoom beschikbaar.",
       "reload": "Opnieuw laden",
+      "updating": "Bijwerken…",
       "dismiss": "Sluiten",
       "reloadToUse": "Laad opnieuw om die te gebruiken."
     },
@@ -537,7 +539,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} mislukt: {{reason}}",
         "usage": "Kon {{command}} niet uitvoeren. {{usage}}",
-        "ownServer": "Niets gewijzigd: je eigen server ({{server}}) zou uit de ruimte worden gesloten.",
         "unknown": "{{command}} is geen opdracht. Begin het bericht met /plain om het als tekst te versturen."
       },
       "jumpToTime": {
@@ -717,6 +718,7 @@
         "showKey": "Sleutel tonen",
         "hideKey": "Sleutel verbergen",
         "sentTo": "Gaat naar {{host}}",
+        "openLink": "{{host}} openen",
         "save": "Opslaan",
         "decline": "Weigeren",
         "savedWaiting": "Opgeslagen, wacht op de agent",
@@ -754,6 +756,23 @@
           "declined": "Geweigerd",
           "expired": "Verlopen"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Skill <code>{{skill}}</code> bijgewerkt",
+        "createdOne": "Skill <code>{{skill}}</code> aangemaakt",
+        "updatedMany_one": "{{count}} skill bijgewerkt",
+        "updatedMany_other": "{{count}} skills bijgewerkt",
+        "createdMany_one": "{{count}} skill aangemaakt",
+        "createdMany_other": "{{count}} skills aangemaakt",
+        "created": "aangemaakt",
+        "updated": "bijgewerkt",
+        "removed": "verwijderd",
+        "diffTruncated": "Diff ingekort",
+        "diffLabel": "Diff van {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} gewerkt",
+        "worked": "Gewerkt"
       }
     },
     "message-search": {
@@ -934,7 +953,11 @@
       "moveRoomDown": "Geselecteerde kamer of space omlaag verplaatsen",
       "members": "Leden tonen of verbergen",
       "focusComposer": "Als gelezen markeren en naar het invoerveld gaan",
-      "resolveThread": "Open thread oplossen of heropenen",
+      "previousThread": "Vorige thread selecteren",
+      "nextThread": "Volgende thread selecteren",
+      "openThread": "Naar de threads, daarna de geselecteerde openen",
+      "leaveThread": "Open thread verlaten, daarna de threads",
+      "resolveThread": "Open of geselecteerde thread oplossen of heropenen",
       "newLine": "Nieuwe regel",
       "editLast": "Je laatste bericht bewerken (in een leeg invoerveld)",
       "inlineCode": "Inline code",
@@ -953,7 +976,8 @@
     "unsnooze": "Snooze opheffen",
     "status": {
       "snoozed": "Gesnoozed"
-    }
+    },
+    "renameHint": "Dubbelklik om de naam te wijzigen"
   },
   "threadSnooze": {
     "title": "Snoozen tot",
@@ -1283,6 +1307,26 @@
       "snoozed": "Gesnoozed",
       "idle": "Inactief",
       "resolved": "Opgelost"
+    },
+    "live": {
+      "tools": "Gereedschappen",
+      "toolsRunning_one": "{{count}} actief",
+      "toolsRunning_other": "{{count}} actief",
+      "toolsRunningNamed_one": "{{count}} actief: {{names}}",
+      "toolsRunningNamed_other": "{{count}} actief: {{names}}",
+      "background": "Achtergrond",
+      "jobs_one": "{{count}} taak",
+      "jobs_other": "{{count}} taken",
+      "jobsWaiting_one": "{{jobs}}, {{count}} wacht op goedkeuring",
+      "jobsWaiting_other": "{{jobs}}, {{count}} wachten op goedkeuring",
+      "waitingForAnswer": "Wacht op een antwoord"
     }
+  },
+  "threadBoard": {
+    "label": "Threads per status",
+    "working": "Bezig",
+    "later": "Later",
+    "open": "Open",
+    "done": "Klaar"
   }
 }

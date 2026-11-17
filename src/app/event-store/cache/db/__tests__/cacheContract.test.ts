@@ -566,7 +566,7 @@ const runContract = (label: string, contract: CacheContract): void => {
       expect(page.events.map((e) => e.event_id)).toEqual(['$r2']);
     });
 
-    it('deleteThreadEventByEventId walks the room-wide range and removes matching record', async () => {
+    it('deleteThreadEventByEventId removes the matching record from the thread it is in', async () => {
       const rootA = makeRawEvent('$threadA', 50);
       const rootB = makeRawEvent('$threadB', 60);
       await contract.saveThreadEvents({
@@ -585,8 +585,8 @@ const runContract = (label: string, contract: CacheContract): void => {
       });
 
       // Redaction handler doesn't know which thread the target belongs to;
-      // the by-event-id fallback walks all thread records in the room.
-      // ISSUE-207 P3 gate re-fix: the walker returns the thread scopes it
+      // the by-event-id fallback finds the event's thread records in the room.
+      // ISSUE-207 P3 gate re-fix: it returns the thread scopes it
       // deleted from (deduped) so the engine can persist the redaction
       // tombstone to precisely those scopes.
       const deletedScopes = await contract.deleteThreadEventByEventId(
@@ -603,7 +603,7 @@ const runContract = (label: string, contract: CacheContract): void => {
 
     it('deleteThreadEventByEventId returns every scope when the same event id lives under multiple thread scopes (ISSUE-207 P3 gate)', async () => {
       // Defensive: a stale reaction record can end up mirrored across
-      // multiple thread scopes. The walker returns all of them so the
+      // multiple thread scopes. It returns all of them so the
       // caller can persist the redaction tombstone to each — otherwise
       // hydration of the unattributed thread would miss the redaction.
       const rootA = makeRawEvent('$threadX', 50);

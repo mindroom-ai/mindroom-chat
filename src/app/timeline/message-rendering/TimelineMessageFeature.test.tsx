@@ -96,6 +96,16 @@ const snoozeEndedEvent = (id: string, sender: string) =>
       'io.mindroom.thread_snooze': { event: 'ended', until: '2026-11-13T09:00:00Z' },
     },
   }) as unknown as MatrixEvent;
+const skillReviewEvent = (id: string, sender: string) =>
+  makeEvent(id, {
+    sender,
+    threadRootId: '$thread',
+    content: {
+      msgtype: 'm.notice',
+      body: '\u{1f4be} Skill review: updated `developing-mindroom-chat`',
+      'io.mindroom.skill_review': { changes: { 'developing-mindroom-chat': 'updated' } },
+    },
+  }) as unknown as MatrixEvent;
 const summaryMarkers = (renderer: ReturnType<typeof create>) =>
   renderer.root.findAll((node) => (node.type as unknown) === 'summary-marker');
 const renderedContent = (renderer: ReturnType<typeof create>) =>
@@ -464,6 +474,29 @@ describe('timeline message feature', () => {
     expect(renderer.root.findAllByType(Message)).toHaveLength(1);
     expect(renderedContent(renderer)).toHaveLength(1);
     expect(renderer.root.findAllByType(SnoozeEndedMarker)).toHaveLength(0);
+  });
+
+  it("shows an agent's skill review notice in an open thread as a marker row", async () => {
+    const { Message } = await import('../../messages/Message');
+    const { SkillReviewMarker } = await import('../../messages/SkillReviewMarker');
+    const event = skillReviewEvent('$review', '@mindroom_code:example.org');
+    const { renderer } = await mountFeature([rowFor(event)], '$thread');
+
+    const marker = renderer.root.findByType(SkillReviewMarker);
+    expect(marker.props.review.changes).toEqual([
+      { skill: 'developing-mindroom-chat', action: 'updated' },
+    ]);
+    expect(renderer.root.findAllByType(Message)).toHaveLength(0);
+    expect(renderedContent(renderer)).toHaveLength(0);
+  });
+
+  it("keeps a person's message with the skill review key as a normal message", async () => {
+    const { SkillReviewMarker } = await import('../../messages/SkillReviewMarker');
+    const event = skillReviewEvent('$fake', '@bob:example.org');
+    const { renderer } = await mountFeature([rowFor(event)], '$thread');
+
+    expect(renderedContent(renderer)).toHaveLength(1);
+    expect(renderer.root.findAllByType(SkillReviewMarker)).toHaveLength(0);
   });
 
   it('keeps the summary card for a summary outside an open thread', async () => {

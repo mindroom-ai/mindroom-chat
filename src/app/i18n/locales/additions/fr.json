@@ -90,7 +90,9 @@
       "pack": "Comme le pack"
     },
     "imageViewer": {
-      "close": "Fermer"
+      "close": "Fermer",
+      "previous": "Image précédente",
+      "next": "Image suivante"
     },
     "inviteUserPrompt": {
       "close": "Fermer",
@@ -145,8 +147,7 @@
       "noCrossSigningKeys": "Votre stockage secret ne contient aucune clé de signature croisée : la clé de récupération ne peut donc pas vérifier cette session. Vérifiez-la depuis une autre de vos sessions."
     },
     "commands": {
-      "CommandPlain": "Envoyer un message en texte brut, sans Markdown. Exemple : /plain message",
-      "CommandHtml": "Envoyer un message en HTML, sans Markdown. Exemple : /html message"
+      "CommandPlain": "Envoyer un message en texte brut, sans Markdown. Exemple : /plain message"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Cette connexion n’a pas été lancée ici, elle n’a donc pas été utilisée. Reconnectez-vous."
@@ -161,6 +162,7 @@
     "appUpdate": {
       "available": "Une nouvelle version de MindRoom est disponible.",
       "reload": "Recharger",
+      "updating": "Mise à jour…",
       "dismiss": "Ignorer",
       "reloadToUse": "Rechargez pour l’utiliser."
     },
@@ -546,7 +548,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} a échoué : {{reason}}",
         "usage": "Impossible d’exécuter {{command}}. {{usage}}",
-        "ownServer": "Rien n’a changé : votre propre serveur ({{server}}) serait exclu du salon.",
         "unknown": "{{command}} n’est pas une commande. Pour l’envoyer comme texte, commencez le message par /plain."
       },
       "jumpToTime": {
@@ -726,6 +727,7 @@
         "showKey": "Afficher la clé",
         "hideKey": "Masquer la clé",
         "sentTo": "Envoyée à {{host}}",
+        "openLink": "Ouvrir {{host}}",
         "save": "Enregistrer",
         "decline": "Refuser",
         "savedWaiting": "Enregistrée, en attente de l’agent",
@@ -763,6 +765,25 @@
           "declined": "Refusée",
           "expired": "Expirée"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Compétence <code>{{skill}}</code> mise à jour",
+        "createdOne": "Compétence <code>{{skill}}</code> créée",
+        "updatedMany_one": "{{count}} compétence mise à jour",
+        "updatedMany_many": "{{count}} compétences mises à jour",
+        "updatedMany_other": "{{count}} compétences mises à jour",
+        "createdMany_one": "{{count}} compétence créée",
+        "createdMany_many": "{{count}} compétences créées",
+        "createdMany_other": "{{count}} compétences créées",
+        "created": "créé",
+        "updated": "mis à jour",
+        "removed": "supprimé",
+        "diffTruncated": "Diff tronqué",
+        "diffLabel": "Diff de {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "A travaillé pendant {{duration}}",
+        "worked": "A travaillé"
       }
     },
     "message-search": {
@@ -949,7 +970,11 @@
       "moveRoomDown": "Descendre la salle ou l'espace sélectionné",
       "members": "Afficher ou masquer les membres",
       "focusComposer": "Marquer comme lu et aller à la zone de saisie",
-      "resolveThread": "Résoudre ou rouvrir le fil ouvert",
+      "previousThread": "Sélectionner le fil précédent",
+      "nextThread": "Sélectionner le fil suivant",
+      "openThread": "Aller aux fils, puis ouvrir le fil sélectionné",
+      "leaveThread": "Quitter le fil ouvert, puis les fils",
+      "resolveThread": "Résoudre ou rouvrir le fil ouvert ou sélectionné",
       "newLine": "Nouvelle ligne",
       "editLast": "Modifier votre dernier message (zone de saisie vide)",
       "inlineCode": "Code en ligne",
@@ -968,7 +993,8 @@
     "unsnooze": "Annuler le report",
     "status": {
       "snoozed": "Reporté"
-    }
+    },
+    "renameHint": "Double-cliquez pour renommer"
   },
   "threadSnooze": {
     "title": "Reporter jusqu'à",
@@ -1307,6 +1333,30 @@
       "snoozed": "Reportés",
       "idle": "Inactifs",
       "resolved": "Résolus"
+    },
+    "live": {
+      "tools": "Outils",
+      "toolsRunning_one": "{{count}} en cours",
+      "toolsRunning_many": "{{count}} en cours",
+      "toolsRunning_other": "{{count}} en cours",
+      "toolsRunningNamed_one": "{{count}} en cours : {{names}}",
+      "toolsRunningNamed_many": "{{count}} en cours : {{names}}",
+      "toolsRunningNamed_other": "{{count}} en cours : {{names}}",
+      "background": "Arrière-plan",
+      "jobs_one": "{{count}} tâche",
+      "jobs_many": "{{count}} tâches",
+      "jobs_other": "{{count}} tâches",
+      "jobsWaiting_one": "{{jobs}}, {{count}} en attente d’approbation",
+      "jobsWaiting_many": "{{jobs}}, {{count}} en attente d’approbation",
+      "jobsWaiting_other": "{{jobs}}, {{count}} en attente d’approbation",
+      "waitingForAnswer": "En attente d’une réponse"
     }
+  },
+  "threadBoard": {
+    "label": "Fils par état",
+    "working": "En cours",
+    "later": "Plus tard",
+    "open": "Ouverts",
+    "done": "Terminés"
   }
 }

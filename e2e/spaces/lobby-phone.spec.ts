@@ -16,7 +16,6 @@ import {
   sendStateEvent,
   setAccountData,
 } from '../helpers/matrix';
-import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -25,9 +24,8 @@ import {
 
 // A space's lobby on a phone (390 by 844, touch): a tap anywhere on a room's card opens the room,
 // with no separate Open Room button; a room the person is not in keeps its Join button, which a
-// tap anywhere on its card presses. The room's back chevron then returns to the lobby, where the
-// person came from, while rooms opened from the list, the command palette or a link still go back
-// to the list. Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit;
+// tap anywhere on its card presses. The browser's back then returns to the lobby, where the person
+// came from, and the lobby's Back to the list. Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit;
 // English and Arabic. Set LOBBY_PHONE_SHOTS=<directory> for screenshots.
 const PASSWORD = 'lobby-phone-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -138,7 +136,7 @@ const roomPath = (room: string) => new RegExp(`/${escaped(room)}/?$`);
 
 const card = (page: Page, name: string) =>
   page.locator('main [data-lobby-entry]').filter({ hasText: name });
-const back = (page: Page) => page.getByRole('button', { name: /^(Back|رجوع)$/ });
+const lobbyBack = (page: Page) => page.getByRole('button', { name: /^(Back|رجوع)$/ });
 
 /** Opens the space's list from the rail, then its lobby from the list's Lobby row. */
 const openLobby = async (page: Page, space: string) => {
@@ -164,8 +162,8 @@ const checkCards = async (browser: Browser, engine: string, language?: string) =
   await harbor.getByText('Weekly notes and decisions', { exact: false }).tap();
   await expect(page).toHaveURL(roomPath(seeded.rooms['Harbor Plans']!));
 
-  // The room's back chevron returns to the lobby.
-  await back(page).tap();
+  // The browser's back returns to the lobby.
+  await page.goBack();
   await expect(page).toHaveURL(lobbyPath(seeded.space));
 
   // A tap on a room the person is not in joins it, as its Join button does, and stays here; the
@@ -198,53 +196,27 @@ const checkBackPaths = async (browser: Browser, engine: string) => {
   const { context, page, seeded } = await signIn(browser, engine);
   const { space, rooms } = seeded;
 
-  // Lobby, room, back to the lobby, back to the list, then the browser's back leaves the list.
+  // Lobby, room, the browser's back to the lobby, its Back to the list, then the browser's back
+  // leaves the list.
   await openLobby(page, space);
   await card(page, LONG_ROOM).tap();
   await expect(page).toHaveURL(roomPath(rooms[LONG_ROOM]!));
-  await back(page).tap();
+  await page.goBack();
   await expect(page).toHaveURL(lobbyPath(space));
-  await back(page).tap();
+  await lobbyBack(page).tap();
   await expect(page).toHaveURL(spaceListPath(space));
   await page.goBack();
   await expect(page).toHaveURL(/\/home\/$/);
 
-  // The browser's back from a room opened in the lobby also returns to the lobby.
+  // A room opened from the list: the browser's back returns to the list.
   await openLobby(page, space);
-  await card(page, 'Garden Club').tap();
-  await expect(page).toHaveURL(roomPath(rooms['Garden Club']!));
-  await page.goBack();
-  await expect(page).toHaveURL(lobbyPath(space));
-
-  // A room opened from the list goes back to the list.
-  await back(page).tap();
+  await lobbyBack(page).tap();
   await expect(page).toHaveURL(spaceListPath(space));
   const list = page.getByTestId('resizable-page-nav');
   await list.getByRole('link', { name: 'Team room 1' }).tap();
   await expect(page).toHaveURL(roomPath(rooms['Team room 1']!));
-  await back(page).tap();
-  await expect(page).toHaveURL(spaceListPath(space));
-
-  // A room opened from the command palette goes back to the list.
-  await pressPaletteShortcut(page);
-  await page.getByRole('dialog').getByRole('combobox').fill('Team room 2');
-  await page
-    .getByRole('dialog')
-    .locator('[role="option"][data-kind="room"]')
-    .filter({ hasText: 'Team room 2' })
-    .tap();
-  await expect(page).toHaveURL(roomPath(rooms['Team room 2']!));
-  await back(page).tap();
-  await expect(page).toHaveURL(spaceListPath(space));
-
-  // A room opened by a link goes back to the list, in place of the room.
-  await page.goto('/home/');
-  await page.goto(`/${encodeURIComponent(space)}/${encodeURIComponent(rooms['Harbor Plans']!)}/`);
-  await expect(back(page)).toBeVisible({ timeout: 30_000 });
-  await back(page).tap();
-  await expect(page).toHaveURL(spaceListPath(space));
   await page.goBack();
-  await expect(page).toHaveURL(/\/home\/$/);
+  await expect(page).toHaveURL(spaceListPath(space));
   await context.close();
 };
 
@@ -289,7 +261,7 @@ test('a lobby card opens by keyboard', async ({ browser }) => {
   await checkKeyboard(browser, 'chromium');
 });
 
-test('back returns where the room was opened from', async ({ browser }) => {
+test('back returns to the lobby a room was opened from, then to the list', async ({ browser }) => {
   await checkBackPaths(browser, 'chromium');
 });
 

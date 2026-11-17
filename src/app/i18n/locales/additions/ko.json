@@ -84,7 +84,9 @@
       "pack": "팩과 동일"
     },
     "imageViewer": {
-      "close": "닫기"
+      "close": "닫기",
+      "previous": "이전 이미지",
+      "next": "다음 이미지"
     },
     "inviteUserPrompt": {
       "close": "닫기",
@@ -139,8 +141,7 @@
       "noCrossSigningKeys": "비밀 저장소에 교차 서명 키가 없어 복구 키로 이 세션을 인증할 수 없습니다. 다른 세션에서 인증하세요."
     },
     "commands": {
-      "CommandPlain": "Markdown 없이 일반 텍스트로 메시지를 보냅니다. 예: /plain message",
-      "CommandHtml": "Markdown 없이 HTML로 메시지를 보냅니다. 예: /html message"
+      "CommandPlain": "Markdown 없이 일반 텍스트로 메시지를 보냅니다. 예: /plain message"
     },
     "tokenLogin": {
       "signInNotStartedHere": "이 로그인은 여기에서 시작되지 않아 사용되지 않았습니다. 다시 로그인하세요."
@@ -155,6 +156,7 @@
     "appUpdate": {
       "available": "MindRoom의 새 버전이 있습니다.",
       "reload": "새로고침",
+      "updating": "업데이트 중…",
       "dismiss": "닫기",
       "reloadToUse": "사용하려면 새로고침하세요."
     },
@@ -528,7 +530,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} 실패: {{reason}}",
         "usage": "{{command}}을(를) 실행할 수 없습니다. {{usage}}",
-        "ownServer": "변경되지 않았습니다: 내 서버({{server}})가 방에서 차단됩니다.",
         "unknown": "{{command}}은(는) 명령어가 아닙니다. 텍스트로 보내려면 메시지를 /plain으로 시작하세요."
       },
       "jumpToTime": {
@@ -708,6 +709,7 @@
         "showKey": "키 표시",
         "hideKey": "키 숨기기",
         "sentTo": "{{host}}(으)로 전송됨",
+        "openLink": "{{host}} 열기",
         "save": "저장",
         "decline": "거절",
         "savedWaiting": "저장됨, 에이전트를 기다리는 중",
@@ -745,6 +747,21 @@
           "declined": "거절됨",
           "expired": "만료됨"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "<code>{{skill}}</code> 스킬 업데이트됨",
+        "createdOne": "<code>{{skill}}</code> 스킬 생성됨",
+        "updatedMany_other": "스킬 {{count}}개 업데이트됨",
+        "createdMany_other": "스킬 {{count}}개 생성됨",
+        "created": "생성됨",
+        "updated": "업데이트됨",
+        "removed": "삭제됨",
+        "diffTruncated": "차이가 잘렸습니다",
+        "diffLabel": "{{path}} 차이"
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} 동안 작업함",
+        "worked": "작업함"
       }
     },
     "message-search": {
@@ -919,7 +936,11 @@
       "moveRoomDown": "선택한 방 또는 스페이스를 아래로 이동",
       "members": "멤버 표시 또는 숨기기",
       "focusComposer": "읽음으로 표시하고 입력창으로 이동",
-      "resolveThread": "열린 스레드 해결 또는 다시 열기",
+      "previousThread": "이전 스레드 선택",
+      "nextThread": "다음 스레드 선택",
+      "openThread": "스레드 목록으로 이동한 다음 선택한 스레드 열기",
+      "leaveThread": "열린 스레드에서 나간 다음 스레드 목록에서 나가기",
+      "resolveThread": "열린 스레드 또는 선택한 스레드 해결 또는 다시 열기",
       "newLine": "줄 바꿈",
       "editLast": "마지막 메시지 편집 (입력창이 비어 있을 때)",
       "inlineCode": "인라인 코드",
@@ -938,7 +959,8 @@
     "unsnooze": "일시 중지 해제",
     "status": {
       "snoozed": "다시 알림"
-    }
+    },
+    "renameHint": "두 번 클릭하여 이름 바꾸기"
   },
   "threadSnooze": {
     "title": "일시 중지 종료 시각",
@@ -1259,6 +1281,22 @@
       "snoozed": "다시 알림",
       "idle": "대기 중",
       "resolved": "해결됨"
+    },
+    "live": {
+      "tools": "도구",
+      "toolsRunning_other": "{{count}}개 실행 중",
+      "toolsRunningNamed_other": "{{count}}개 실행 중: {{names}}",
+      "background": "백그라운드",
+      "jobs_other": "작업 {{count}}개",
+      "jobsWaiting_other": "{{jobs}}, 승인 대기 {{count}}개",
+      "waitingForAnswer": "답변 대기 중"
     }
+  },
+  "threadBoard": {
+    "label": "상태별 스레드",
+    "working": "작업 중",
+    "later": "나중에",
+    "open": "열림",
+    "done": "완료"
   }
 }

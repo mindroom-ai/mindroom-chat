@@ -83,12 +83,6 @@ export const Header = style({
   borderBlockEnd: hairline,
 });
 
-/** A phone's header: the back chevron starts at the edge and the name follows it directly. */
-export const PhoneHeader = style({
-  columnGap: 0,
-  paddingInline: config.space.S200,
-});
-
 export const HeaderName = style({ flexGrow: 1, minWidth: 0 });
 
 export const HeaderButtons = style({

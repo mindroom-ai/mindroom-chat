@@ -162,6 +162,19 @@ describe('useMarkdownHtml', () => {
     ));
     expect(configured?.getAttribute('href')).toBe('obsidian://vault/x');
   });
+
+  it("keeps an https image only through the plugin's imageSource", async () => {
+    const IMAGE = '![a](https://x.example/a.png)';
+    const image = async (options?: Parameters<typeof useMarkdownHtml>[1]) => {
+      const { result } = renderHook(() => useMarkdownHtml(IMAGE, options));
+      await waitFor(() => expect(result.current).toBeDefined());
+      return elementsOf(result.current ?? '').querySelector('img');
+    };
+    expect(await image()).toBeNull();
+    const kept = await image({ imageSource: (src) => src });
+    expect(kept?.getAttribute('src')).toBe('https://x.example/a.png');
+    expect(kept?.getAttribute('alt')).toBe('a');
+  });
 });
 
 describe('sanitizeHtml', () => {

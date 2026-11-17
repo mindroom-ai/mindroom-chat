@@ -9,6 +9,7 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useActiveSession } from '../../matrix/session/useSessionStore';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { makeRecentThreadsAtom } from '../../event-store/threads/recentThreads';
+import { isNestedThreadReplyEvent } from '../../event-store/threads/compactThreadRootData';
 import {
   ensureThreadSummaryStateLoaded,
   getThreadSummaryStateSnapshot,
@@ -245,9 +246,15 @@ export const useCrossRoomThreadIndex = () => {
       if (!isJoinedTimelineRoom(room)) return undefined;
 
       const thread = room.getThread(threadRootId);
-      if (isPendingThreadRootEvent(thread?.rootEvent ?? room.findEventById(threadRootId))) {
-        return undefined;
-      }
+      const rootEvent = thread?.rootEvent ?? room.findEventById(threadRootId);
+      if (isPendingThreadRootEvent(rootEvent)) return undefined;
+      // Old data only: until mid-2026 the backend sent its "Stopping generation..."
+      // notice as a thread reply to a message that was itself a thread reply.
+      // tuwunel accepted these nested threads, so the server still lists their
+      // roots as threads. The room view already skips them (isVisibleThreadRootEvent);
+      // skip them here too so they don't linger in the sidebar. Nothing creates
+      // new ones (backend #1340 removed that notice).
+      if (isNestedThreadReplyEvent(rootEvent)) return undefined;
 
       const sessionId = sessionIdRef.current;
       const summaryMap = getThreadSummaryStateSnapshot(sessionId, roomId);

@@ -538,6 +538,29 @@ describe('useCrossRoomThreadIndex', () => {
     expect(mx.removeListener).toHaveBeenCalledWith(RoomStateEvent.Events, expect.any(Function));
   });
 
+  it('skips a listed thread whose root is itself a reply in another thread', async () => {
+    // Old nested threads that the server still lists; the room view skips them too.
+    const { room } = makeRoom('!room:example.org', {
+      rootContent: {
+        msgtype: 'm.text',
+        body: 'Thinking...',
+        'm.relates_to': { rel_type: RelationType.Thread, event_id: '$outer-root' },
+      },
+    });
+    matrixClientMock.mockReturnValue(makeClient(room));
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+
+    await act(async () => {
+      create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+
+    const snapshot = store.get(crossRoomThreadIndexAtom);
+    expect(snapshot.bootstrapped).toBe(true);
+    expect(snapshot.entries.size).toBe(0);
+  });
+
   it('keeps bootstrapped false for dirty thread flushes before lazy bootstrap drains', async () => {
     const { room, thread } = makeRoom();
     const mx = makeClient(room);

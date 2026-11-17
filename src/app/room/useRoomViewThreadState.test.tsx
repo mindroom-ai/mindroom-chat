@@ -32,6 +32,7 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({
     getSafeUserId: () => USER_ID,
     getHomeserverUrl: () => 'https://example.org',
     getRooms: () => joinedRooms.list,
+    getRoom: () => undefined,
   }),
 }));
 const navigation = vi.hoisted(() => ({
@@ -145,6 +146,14 @@ describe('useRoomViewThreadState', () => {
     expect(enabled(useEdgeSwipeForward)).toBe(true);
     act(() => store.set(conversationBehindPanelAtom, true));
     expect(enabled(useEdgeSwipeForward)).toBe(false);
+  });
+
+  it('keeps the record of the thread just left while the address still names it', () => {
+    const { store, current } = mountThreadState({ threadId: '$a' });
+
+    act(() => current().handleExitThread());
+
+    expect(store.get(lastExitedThreadAtom)).toEqual({ roomId: ROOM_ID, threadId: '$a' });
   });
 
   it('remembers a thread opened in its room as recent', () => {

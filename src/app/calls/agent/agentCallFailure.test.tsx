@@ -44,7 +44,7 @@ vi.mock('../IncomingCalls.css', () => ({ Card: 'card', Host: 'host' }));
 
 type Caller = ReturnType<typeof useAgentCaller>;
 
-/** Renders a caller the way the phone room menu does, and hands out its `call`. */
+/** Renders a caller the way the command palette does, and hands out its `call`. */
 const mountCaller = (store: ReturnType<typeof createStore>, announce: boolean) => {
   const caller: { current?: Caller } = {};
   function Probe() {
@@ -74,13 +74,13 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('agent calls started from the header or the phone menu', () => {
-  it('report why they did not start, even after the menu that started them closed', async () => {
+describe('agent calls started from the header or the command palette', () => {
+  it('report why they did not start, even after the palette that started them closed', async () => {
     const store = createStore();
     const { caller, unmount } = mountCaller(store, true);
     const call = caller.current?.call;
     support.browser = false;
-    // The phone menu closes itself before the call starts.
+    // The palette closes itself before the call starts.
     unmount();
     await act(async () => {
       expect(await call?.(target)).toBe(false);

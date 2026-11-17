@@ -87,7 +87,9 @@
       "pack": "Same as pack"
     },
     "imageViewer": {
-      "close": "Close"
+      "close": "Close",
+      "previous": "Previous image",
+      "next": "Next image"
     },
     "inviteUserPrompt": {
       "close": "Close",
@@ -142,8 +144,7 @@
       "noCrossSigningKeys": "Your secret storage holds no cross-signing keys, so the recovery key can't verify this session. Verify it from one of your other sessions."
     },
     "commands": {
-      "CommandPlain": "Send a message as plain text, without Markdown. Example: /plain message",
-      "CommandHtml": "Send a message as HTML, without Markdown. Example: /html message"
+      "CommandPlain": "Send a message as plain text, without Markdown. Example: /plain message"
     },
     "tokenLogin": {
       "signInNotStartedHere": "This sign-in was not started here, so it was not used. Sign in again."
@@ -158,6 +159,7 @@
     "appUpdate": {
       "available": "A new version of MindRoom is available.",
       "reload": "Reload",
+      "updating": "Updating…",
       "dismiss": "Dismiss",
       "reloadToUse": "Reload to use it."
     },
@@ -537,7 +539,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} failed: {{reason}}",
         "usage": "Could not run {{command}}. {{usage}}",
-        "ownServer": "Nothing changed: this would shut your own server ({{server}}) out of the room.",
         "unknown": "{{command}} is not a command. To send it as text, start the message with /plain."
       },
       "jumpToTime": {
@@ -717,6 +718,7 @@
         "showKey": "Show key",
         "hideKey": "Hide key",
         "sentTo": "Sent to {{host}}",
+        "openLink": "Open {{host}}",
         "save": "Save",
         "decline": "Decline",
         "savedWaiting": "Saved, waiting for the agent",
@@ -754,6 +756,23 @@
           "declined": "Declined",
           "expired": "Expired"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Updated skill <code>{{skill}}</code>",
+        "createdOne": "Created skill <code>{{skill}}</code>",
+        "updatedMany_one": "Updated {{count}} skill",
+        "updatedMany_other": "Updated {{count}} skills",
+        "createdMany_one": "Created {{count}} skill",
+        "createdMany_other": "Created {{count}} skills",
+        "created": "created",
+        "updated": "updated",
+        "removed": "removed",
+        "diffTruncated": "Diff truncated",
+        "diffLabel": "Diff of {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "Worked for {{duration}}",
+        "worked": "Worked"
       }
     },
     "message-search": {
@@ -934,7 +953,11 @@
       "moveRoomDown": "Move the focused room or space down",
       "members": "Show or hide members",
       "focusComposer": "Mark as read and go to the composer",
-      "resolveThread": "Resolve or reopen the open thread",
+      "previousThread": "Focus the previous thread",
+      "nextThread": "Focus the next thread",
+      "openThread": "Go to the threads, then open the focused one",
+      "leaveThread": "Leave the open thread, then the threads",
+      "resolveThread": "Resolve or reopen the open or focused thread",
       "newLine": "New line",
       "editLast": "Edit your last message (in an empty composer)",
       "inlineCode": "Inline code",
@@ -953,7 +976,8 @@
     "unsnooze": "Unsnooze",
     "status": {
       "snoozed": "Snoozed"
-    }
+    },
+    "renameHint": "Double-click to rename"
   },
   "threadSnooze": {
     "title": "Snooze until",
@@ -1283,6 +1307,26 @@
       "snoozed": "Snoozed",
       "idle": "Idle",
       "resolved": "Resolved"
+    },
+    "live": {
+      "tools": "Tools",
+      "toolsRunning_one": "{{count}} running",
+      "toolsRunning_other": "{{count}} running",
+      "toolsRunningNamed_one": "{{count}} running: {{names}}",
+      "toolsRunningNamed_other": "{{count}} running: {{names}}",
+      "background": "Background",
+      "jobs_one": "{{count}} job",
+      "jobs_other": "{{count}} jobs",
+      "jobsWaiting_one": "{{jobs}}, {{count}} waiting for approval",
+      "jobsWaiting_other": "{{jobs}}, {{count}} waiting for approval",
+      "waitingForAnswer": "Waiting for an answer"
     }
+  },
+  "threadBoard": {
+    "label": "Threads by state",
+    "working": "Working",
+    "later": "Later",
+    "open": "Open",
+    "done": "Done"
   }
 }

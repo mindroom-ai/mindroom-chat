@@ -55,8 +55,8 @@ vi.mock('../../matrix/ClientStartupContext', () => ({
   useClientStartupContext: () => ({ hasCompletedInitialSync: state.hasCompletedInitialSync }),
 }));
 
-// A tapped push opens its message as a page opened from outside the app: its back buttons lead to
-// its room and the room's list, not to the page the app was left on.
+// A tapped push opens its message as a page opened from outside the app: a thread's back button
+// leads to the thread's room, not to the page the app was left on.
 const outside = { state: OPENED_FROM_OUTSIDE_STATE };
 const tap = (data: unknown) => act(async () => state.onAction?.({ notification: { data } }));
 const mount = async (): Promise<ReactTestRenderer> => {
