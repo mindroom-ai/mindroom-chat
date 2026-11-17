@@ -207,7 +207,7 @@ const render = (content: Record<string, unknown>) =>
   act(() => {
     const tree = (
       <ClientConfigProvider value={{}}>
-        {/* As RenderMessageContent wraps a reply: its cog folds the calls while they are hidden. */}
+        {/* As RenderMessageContent wraps a reply: its cog folds the calls while hidden. */}
         <ToolCallsFold>
           {renderAgentMessageContent({
             mEvent,
@@ -421,7 +421,7 @@ describe('compaction seams in finished and live replies', () => {
     renderer = undefined;
   });
 
-  it('keeps every seam inside the folded work of a long finished reply, and none in the answer', () => {
+  it('keeps every seam in the folded work of a long finished reply, none in the answer', () => {
     const answer = 'The answer.'.padEnd(6000, ' More.');
     render(
       reply(
