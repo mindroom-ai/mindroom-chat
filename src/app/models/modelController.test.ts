@@ -665,8 +665,8 @@ describe('shared model discovery', () => {
     await vi.advanceTimersByTimeAsync(12000 + 60000);
     h.response(h.request());
     await flush();
-    await vi.advanceTimersByTimeAsync(12000);
     expect(h.snapshot()).toMatchObject({ eligible: true, canMutate: true });
+    // Invalidate while the answered query's window is still open, so the reset must come from the answer.
     invalidate('@two:test');
     await flush();
     await vi.advanceTimersByTimeAsync(12000);
