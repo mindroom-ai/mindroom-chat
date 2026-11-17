@@ -401,6 +401,45 @@ describe('RoomTextSettingTile', () => {
     }
   });
 
+  it('counts the two seconds from the latest write, and a failed one ends Saved', async () => {
+    vi.useFakeTimers();
+    const wait = (ms: number) =>
+      act(() => {
+        vi.advanceTimersByTime(ms);
+      });
+    try {
+      mount();
+      type('Use at most 4 words');
+      await act(async () => clickSave());
+      wait(1500);
+      expect(saveButton().textContent).toBe('Saved');
+
+      // A second write inside the window: Saved lasts two seconds from it, not from the first.
+      await act(async () => fireEvent.click(clearButton()!));
+      expect(sentContent(1)).toEqual({});
+      wait(600);
+      expect(saveButton().textContent).toBe('Saved');
+      wait(1399);
+      expect(saveButton().textContent).toBe('Saved');
+      wait(1);
+      expect(saveButton().textContent).toBe('Save');
+
+      // A failed write inside the window takes Saved away and leaves the alert.
+      type('Use at most 5 words');
+      await act(async () => clickSave());
+      wait(500);
+      expect(saveButton().textContent).toBe('Saved');
+      const failed = deferSend();
+      fireEvent.click(clearButton()!);
+      await failed.reject();
+      expect(saveButton().textContent).toBe('Save');
+      expect(screen.getByRole('status').textContent).toBe('');
+      expect(screen.getByRole('alert').textContent).toBe(FAILED);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('says so in an alert when the save fails, and keeps the text', async () => {
     mount();
     type('Use at most 4 words');

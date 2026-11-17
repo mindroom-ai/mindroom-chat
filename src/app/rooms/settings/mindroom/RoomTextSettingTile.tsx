@@ -49,11 +49,12 @@ export function RoomTextSettingTile({
   const [draft, setDraft] = useState<string>();
   const [sending, setSending] = useState(false);
   const [failed, setFailed] = useState(false);
-  // Save reads Saved for a moment after a write, until the person types again.
-  const [justSaved, setJustSaved] = useState(false);
+  // Save reads Saved for a moment after a write, until the person types again. Each write sets a
+  // new object, so a second one within the moment restarts the timer even in the same render.
+  const [justSaved, setJustSaved] = useState<object>();
   useEffect(() => {
     if (!justSaved) return undefined;
-    const timer = setTimeout(() => setJustSaved(false), SAVED_FOR_MS);
+    const timer = setTimeout(() => setJustSaved(undefined), SAVED_FOR_MS);
     return () => clearTimeout(timer);
   }, [justSaved]);
 
@@ -66,7 +67,7 @@ export function RoomTextSettingTile({
     const before = eventId;
     setSending(true);
     setFailed(false);
-    setJustSaved(false);
+    setJustSaved(undefined);
     const content = value === '' ? {} : { value };
     client
       .sendStateEvent(room.roomId, ROOM_SETTINGS_EVENT as never, content as never, definition.key)
@@ -80,7 +81,7 @@ export function RoomTextSettingTile({
           }));
           setDraft(undefined);
           setSending(false);
-          setJustSaved(true);
+          setJustSaved({});
         },
         () => {
           if (!alive()) return;
@@ -123,7 +124,7 @@ export function RoomTextSettingTile({
           const { value } = evt.currentTarget;
           setDraft(value === baseline ? undefined : value);
           setFailed(false);
-          setJustSaved(false);
+          setJustSaved(undefined);
         }}
         readOnly={!canEdit || sending}
         placeholder={canEdit ? t(definition.placeholder) : undefined}
