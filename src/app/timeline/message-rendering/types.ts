@@ -3,7 +3,7 @@ import type { EventTimelineSet, MatrixEvent } from 'matrix-js-sdk';
 import type { ThreadRecord } from '../../event-store/threads/types';
 import type { useThreadApprovalTimeline } from '../../approvals/useThreadApprovalTimeline';
 import type { ThreadSummaryTimelinePlan } from '../../event-store/threads/threadSummaryTimeline';
-import type { InlineSecretRequestPlan } from '../../approvals/inlineSecretRequests';
+import type { InlineSecretRequestPlan } from '../../messages/inlineSecretRequests';
 
 export type TimelineMessageRow = Readonly<{
   eventId: string;

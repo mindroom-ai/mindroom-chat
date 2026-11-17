@@ -29,7 +29,8 @@ import { TranscribingPlaceholder } from '../agent-run/TranscribingPlaceholder';
 import { ThreadSummaryCard } from '../thread-summary/ThreadSummaryCard';
 import { ToolApprovalCard } from '../../approvals/ToolApprovalCard';
 import { SecretRequestCard } from '../../approvals/SecretRequestCard';
-import { useInlineSecretRequests } from '../../approvals/inlineSecretRequests';
+import { useInlineSecretRequests } from '../inlineSecretRequests';
+import { useSecretRequestStatuses } from '../../approvals/secretRequestStatus';
 import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { renderStreamingIndicator } from '../agent-run/StreamingIndicator';
 import { isThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
@@ -40,10 +41,7 @@ import {
   parseToolApprovalContent,
 } from '../../matrix/protocol/toolApproval';
 import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
-import {
-  effectiveSecretRequestStatus,
-  parseSecretRequestContent,
-} from '../../matrix/protocol/secretRequest';
+import { parseSecretRequestContent } from '../../matrix/protocol/secretRequest';
 import { readSnoozeEndedNote } from '../../matrix/protocol/threadSnooze';
 import { SnoozeEndedMarker } from '../SnoozeEndedMarker';
 import { readSkillReviewNotice } from '../../matrix/protocol/skillReview';
@@ -147,10 +145,9 @@ function AgentWorkBody({
 }: AgentWorkBodyProps) {
   // A secret request that waits shows in the work, so the work stays open until it is done.
   const secrets = useInlineSecretRequests(useContext(ToolCallMessageContext)?.eventId);
-  const now = Date.now();
-  const waiting = [...secrets.values()].some(
-    ({ request }) => effectiveSecretRequestStatus(request, now) === 'pending'
-  );
+  const waiting = useSecretRequestStatuses(
+    [...secrets.values()].map(({ request }) => request)
+  ).statuses.includes('pending');
   // A timeline renders its rows again on each streamed edit of any reply; the split waits for this
   // reply's own body to change, and for it to finish long.
   const split = useMemo(

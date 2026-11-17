@@ -42,22 +42,3 @@ export const HeaderName = style({
   whiteSpace: 'nowrap',
   fontWeight: config.fontWeight.W600,
 });
-
-/** What happened to the secret, one fact to a line under a rule. */
-export const Facts = style({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: config.space.S100,
-  paddingBlockStart: config.space.S200,
-  borderBlockStart: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-});
-
-export const Fact = style({
-  display: 'flex',
-  alignItems: 'flex-start',
-  gap: config.space.S200,
-  minWidth: 0,
-  overflowWrap: 'anywhere',
-});
-
-export const FactIcon = style({ flexShrink: 0, opacity: config.opacity.P400, marginBlockStart: 2 });

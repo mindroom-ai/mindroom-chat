@@ -4,11 +4,12 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { markerParserOptions } from '../../../test/utils/markerParserOptions';
 import type { SecretRequest, SecretRequestStatus } from '../../matrix/protocol/secretRequest';
-import {
-  InlineSecretRequestsContext,
-  type InlineSecretRequests,
-} from '../../approvals/inlineSecretRequests';
+import { InlineSecretRequestsContext, type InlineSecretRequests } from '../inlineSecretRequests';
 import { settingsAtom } from '../../preferences/settings';
+import {
+  recordSecretRequestAnswer,
+  secretRequestAnswersAtom,
+} from '../../approvals/secretRequestStatus';
 import { ToolCallsFold } from '../agent-run/ToolCallsFold';
 import { ToolCallMessageContext, ToolCallsCogContext } from '../agent-run/toolCallStatus';
 
@@ -55,13 +56,15 @@ const request = (status: SecretRequestStatus): SecretRequest => ({
   expiresAt: Date.now() + 15 * 60_000,
 });
 
-const secrets = (status: SecretRequestStatus, callId = 'call_3'): InlineSecretRequests =>
+const secrets = (
+  status: SecretRequestStatus,
+  index = 3,
+  value: SecretRequest = request(status)
+): InlineSecretRequests =>
   new Map([
     [
       '$reply',
-      new Map([
-        [callId, { eventId: '$card', request: request(status), agentUserId: '@mindroom_dev:x' }],
-      ]),
+      new Map([[index, { eventId: '$card', request: value, agentUserId: '@mindroom_dev:x' }]]),
     ],
   ]);
 
@@ -115,6 +118,8 @@ describe('a secret request in its reply', () => {
     act(() => renderer?.unmount());
     renderer = undefined;
     showToolCalls(true);
+    getDefaultStore().set(secretRequestAnswersAtom, new Map());
+    vi.useRealTimers();
   });
 
   it('takes the place of the call that asked, splitting its run', () => {
@@ -123,10 +128,10 @@ describe('a secret request in its reply', () => {
   });
 
   it('starts or ends a run without an empty run beside it', () => {
-    render(secrets('saved', 'call_1'));
+    render(secrets('saved', 1));
     expect(lines()).toEqual(['secret:saved', 'Ran 3 tool calls']);
     act(() => renderer?.unmount());
-    render(secrets('saved', 'call_4'));
+    render(secrets('saved', 4));
     expect(lines()).toEqual(['Ran 3 tool calls', 'secret:saved']);
   });
 
@@ -134,7 +139,7 @@ describe('a secret request in its reply', () => {
     render(new Map());
     expect(lines()).toEqual(['Ran 4 tool calls']);
     act(() => renderer?.unmount());
-    render(secrets('pending', 'call_9'));
+    render(secrets('pending', 9));
     expect(lines()).toEqual(['Ran 4 tool calls']);
   });
 
@@ -157,5 +162,30 @@ describe('a secret request in its reply', () => {
       renderer!.root.findByProps({ 'aria-expanded': false, title: 'Used 4 tools' }).props.onClick();
     });
     expect(lines()).toEqual(['Ran 2 tool calls', 'secret:saved', 'Ran 1 tool call']);
+  });
+
+  it("takes the page's answer before the agent's edit: the cog no longer waits", () => {
+    showToolCalls(false);
+    render(secrets('pending'));
+    expect(cog()?.props['data-state']).toBe('waiting');
+
+    act(() => getDefaultStore().set(recordSecretRequestAnswer, 'req-1', 'saved'));
+    expect(lines()).toEqual([]);
+    expect(cog()?.props['data-state']).toBe('done');
+  });
+
+  it('turns expired at its deadline on the clock, the line and the cog together', () => {
+    vi.useFakeTimers();
+    showToolCalls(false);
+    render(secrets('pending', 3, { ...request('pending'), expiresAt: Date.now() + 90_000 }));
+    expect(lines()).toEqual(['secret:pending']);
+    expect(cog()?.props['data-state']).toBe('waiting');
+
+    act(() => {
+      vi.advanceTimersByTime(91_000);
+    });
+    expect(lines()).toEqual([]);
+    // Waiting no more: the run's other calls ran.
+    expect(cog()?.props['data-state']).toBe('done');
   });
 });

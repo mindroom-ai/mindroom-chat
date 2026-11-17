@@ -5,17 +5,19 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import { MatrixEvent } from 'matrix-js-sdk';
+import { getDefaultStore } from 'jotai';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { renderAgentMessageContent } from './renderAgentMessageContent';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
 import { splitFinishedWork } from '../agent-run/finishedWorkSplit';
 import { LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
-import {
-  InlineSecretRequestsContext,
-  type InlineSecretRequests,
-} from '../../approvals/inlineSecretRequests';
+import { InlineSecretRequestsContext, type InlineSecretRequests } from '../inlineSecretRequests';
 import type { SecretRequest, SecretRequestStatus } from '../../matrix/protocol/secretRequest';
 import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
+import {
+  recordSecretRequestAnswer,
+  secretRequestAnswersAtom,
+} from '../../approvals/secretRequestStatus';
 import { MINDROOM_THINKING_PLACEHOLDER_BODY } from '../../matrix/protocol/thinkingPlaceholder';
 
 // The folded work shows its tool calls once open, so these tests show them.
@@ -315,7 +317,7 @@ describe('finished agent work', () => {
           replyId,
           new Map([
             [
-              'call_2',
+              2,
               {
                 eventId: '$card',
                 agentUserId: '@agent:example.org',
@@ -343,6 +345,13 @@ describe('finished agent work', () => {
     render(reply('completed'), true, undefined, secrets('saved'));
     expect(text()).toContain('Worked for 2m 13s');
     expect(text()).not.toContain('secret');
+
+    // The page's own answer counts before the agent's edit comes.
+    render(reply('completed'), true, undefined, secrets('pending'));
+    expect(text()).not.toContain('Worked');
+    act(() => getDefaultStore().set(recordSecretRequestAnswer, 'req-1', 'declined'));
+    expect(text()).toContain('Worked for 2m 13s');
+    act(() => getDefaultStore().set(secretRequestAnswersAtom, new Map()));
   });
 
   it('folds a reply once it finishes on screen', () => {

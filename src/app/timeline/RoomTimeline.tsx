@@ -122,8 +122,8 @@ import {
   useThreadApprovalRowMeasurements,
   useThreadApprovalTimeline,
 } from '../approvals/useThreadApprovalTimeline';
-import { useInlineSecretRequestPlan } from '../approvals/useInlineSecretRequestPlan';
-import { InlineSecretRequestsContext } from '../approvals/inlineSecretRequests';
+import { useInlineSecretRequestPlan } from '../messages/useInlineSecretRequestPlan';
+import { InlineSecretRequestsContext } from '../messages/inlineSecretRequests';
 import { isTimelineAtLiveEnd } from '../event-store/timeline/timelineScrollUtils';
 import { useFooterBottomPin } from './useFooterBottomPin';
 import { listShrinkNotRendered, useListEndClamp } from './useListEndClamp';
@@ -729,6 +729,12 @@ export function RoomTimeline(props: RoomTimelineProps) {
       ) as Record<string, unknown>,
     [threadStateRef]
   );
+  // The edit a row shows, which says when its content changed.
+  const getRowRevision = useCallback(
+    (event: MatrixEvent) =>
+      getEditedEvent(event.getId() ?? '', event, threadStateRef.current.threadTimelineSet)?.getId(),
+    [threadStateRef]
+  );
   const threadSummaryTimeline = useThreadSummaryTimeline(threadEvents, {
     history: {
       sdkLoaded: session.snapshot.open.sdkReady,
@@ -826,6 +832,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const secretRequestTimeline = useInlineSecretRequestPlan({
     events: ownThreadEvents,
     getContent: getRowContent,
+    getRevision: getRowRevision,
     ignored: ignoredUsersSet,
     viewerId: mx.getUserId() ?? undefined,
     threadId,

@@ -1,25 +1,20 @@
-import { useId, useState, type ReactNode, type RefObject } from 'react';
+import { useId, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
-import { Icon, Icons, Text, type IconSrc } from 'folds';
+import { Icon, Icons } from 'folds';
 import type { SecretRequest, SecretRequestStatus } from '../matrix/protocol/secretRequest';
-import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { useAgentMindroomServer } from '../computer/useAgentMindroomServer';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { formatLifetime } from '../lib/time';
 import { ActivityIcon, type ActivityTone } from '../ui/ThreadActivity';
 import * as activityCss from '../ui/ThreadActivity.css';
-import { IsolatedText, isolateInSentence, ownDirectionBlock } from '../ui/directional';
-import { useApprovalRoom, userDisplayName } from './approvalPeople';
+import { IsolatedText } from '../ui/directional';
 import {
-  KEPT_KEYS,
   SecretRequestAnswerStatus,
   SecretRequestChip,
   SecretRequestDetails,
   useSecretRequestState,
   type SecretRequestState,
 } from './SecretRequestCard';
-import * as cardCss from './SecretRequestCard.css';
 import * as css from './SecretRequestLine.css';
 
 const STATUS_TONE = {
@@ -64,104 +59,6 @@ const useLineStatus = (request: SecretRequest, state: SecretRequestState): strin
         duration: formatLifetime(kept, language),
       });
 };
-
-function Fact({ icon, children }: { icon: IconSrc; children: ReactNode }) {
-  return (
-    <Text as="div" size="T200" className={css.Fact}>
-      <Icon size="100" src={icon} className={css.FactIcon} aria-hidden />
-      <span>{children}</span>
-    </Text>
-  );
-}
-
-/**
- * A request that is done, read-only: its name and status, the agent's whole reason, then what
- * became of the secret. No field and no buttons.
- */
-function SecretRequestReceipt({
-  id,
-  request,
-  roomId,
-  agentUserId,
-  state,
-}: {
-  id: string;
-  request: SecretRequest;
-  roomId: string;
-  agentUserId: string;
-  state: SecretRequestState;
-}) {
-  const { t } = useTranslation();
-  const language = useAppLanguageCode();
-  const room = useApprovalRoom(roomId);
-  const { apiUrl } = useAgentMindroomServer(useMatrixClient(), roomId, agentUserId);
-  const { status, chip } = state;
-  const agent = userDisplayName(room, agentUserId);
-  const temporary = request.kind === 'temporary' ? request : undefined;
-  const kept = temporary?.kept ? temporary.keep[temporary.kept] : undefined;
-  const saved = status === 'saved';
-  return (
-    <div id={id} className={css.Card} data-secret-request-receipt="">
-      <div className={css.Header}>
-        <Icon size="100" src={Icons.Lock} aria-hidden />
-        <SecretName request={request} className={css.HeaderName} />
-        <SecretRequestChip chip={chip} temporary={!!temporary} />
-      </div>
-      {request.reason && (
-        <Text size="T300" className={cardCss.Reason} {...ownDirectionBlock}>
-          {request.reason}
-        </Text>
-      )}
-      <div className={css.Facts}>
-        {!saved && (
-          <Fact icon={status === 'expired' ? Icons.Clock : Icons.Cross}>
-            {t(
-              status === 'expired'
-                ? 'mindroomUi.messages.secretRequestCard.facts.noAnswer'
-                : 'mindroomUi.messages.secretRequestCard.facts.nothingSent'
-            )}
-          </Fact>
-        )}
-        {temporary && (
-          <Fact icon={Icons.Terminal}>
-            <IsolatedText
-              text={t(
-                saved
-                  ? 'mindroomUi.messages.secretRequestCard.temporary.givenAs'
-                  : 'mindroomUi.messages.secretRequestCard.facts.askedAs',
-                { agent, variable: isolateInSentence(temporary.env) }
-              )}
-            />
-          </Fact>
-        )}
-        {saved && temporary?.kept && kept !== undefined && (
-          <Fact icon={Icons.Clock}>
-            {t(KEPT_KEYS[temporary.kept], { duration: formatLifetime(kept, language) })}
-          </Fact>
-        )}
-        {request.kind === 'key' && request.hosts.length > 0 && (
-          <Fact icon={Icons.Globe}>
-            <IsolatedText
-              text={t('mindroomUi.messages.secretRequestCard.usedOnlyFor', {
-                hosts: isolateInSentence(request.hosts.join(', ')),
-              })}
-            />
-          </Fact>
-        )}
-        {saved && request.kind === 'key' && request.replaces && (
-          <Fact icon={Icons.Reload}>
-            {t('mindroomUi.messages.secretRequestCard.facts.replaced')}
-          </Fact>
-        )}
-        {saved && apiUrl && (
-          <Fact icon={Icons.Server}>
-            {t('mindroomUi.messages.secretRequestCard.sentTo', { host: new URL(apiUrl).host })}
-          </Fact>
-        )}
-      </div>
-    </div>
-  );
-}
 
 /**
  * A secret request drawn in the agent's reply, at the tool call that asked (inlineSecretRequests.ts),
@@ -236,13 +133,20 @@ export function SecretRequestLine({
         </div>
       )}
       {!open && expanded && (
-        <SecretRequestReceipt
-          id={panelId}
-          request={request}
-          roomId={roomId}
-          agentUserId={agentUserId}
-          state={state}
-        />
+        // Done, read-only: its name and status, then what the card's fold shows.
+        <div id={panelId} className={css.Card} data-secret-request-receipt="">
+          <div className={css.Header}>
+            <Icon size="100" src={Icons.Lock} aria-hidden />
+            <SecretName request={request} className={css.HeaderName} />
+            <SecretRequestChip chip={state.chip} temporary={temporary} />
+          </div>
+          <SecretRequestDetails
+            request={request}
+            roomId={roomId}
+            agentUserId={agentUserId}
+            state={state}
+          />
+        </div>
       )}
     </div>
   );

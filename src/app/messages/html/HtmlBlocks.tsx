@@ -22,16 +22,10 @@ import {
   ToolMetadataStatus,
   getToolTraceV2Events,
   isToolTraceV2,
-  toolTraceCallId,
 } from '../../matrix/protocol/toolTrace';
-import {
-  effectiveSecretRequestStatus,
-  type SecretRequest,
-} from '../../matrix/protocol/secretRequest';
-import {
-  useInlineSecretRequests,
-  type InlineSecretRequest,
-} from '../../approvals/inlineSecretRequests';
+import type { SecretRequest } from '../../matrix/protocol/secretRequest';
+import { useSecretRequestStatuses } from '../../approvals/secretRequestStatus';
+import { useInlineSecretRequests, type InlineSecretRequest } from '../inlineSecretRequests';
 import { SecretRequestLine } from '../../approvals/SecretRequestLine';
 import * as css from './HtmlBlocks.css';
 import * as activityCss from '../../ui/ThreadActivity.css';
@@ -212,8 +206,6 @@ type ToolBlockRenderData = {
   progress?: string;
   /** When a running call started, in Unix seconds, from frames that say (subagentToolStartedAt). */
   startedAt?: number;
-  /** The call's ID in the trace, which a secret request may name (inlineSecretRequests.ts). */
-  toolCallId?: string;
 };
 
 // How many of a running call's last output lines show under its tool calls.
@@ -239,12 +231,10 @@ const buildToolRefRenderData = (
   const argsPreview = asToolTraceText(eventRaw?.args_preview);
   const resultPreview = asToolTraceText(eventRaw?.result_preview);
   const command = argsPreview ? `${traceToolName}(${argsPreview})` : traceToolName;
-  const toolCallId = toolTraceCallId(eventRaw);
 
   if (!eventRaw && metadataStatus) {
     return {
       index: toolRef.index,
-      toolCallId,
       status: metadataStatus,
       command,
       toolName: traceToolName,
@@ -259,7 +249,6 @@ const buildToolRefRenderData = (
   ) {
     return {
       index: toolRef.index,
-      toolCallId,
       status: 'pending',
       command,
       toolName: traceToolName,
@@ -273,7 +262,6 @@ const buildToolRefRenderData = (
   if (resultPreview) {
     return {
       index: toolRef.index,
-      toolCallId,
       status: 'completed_with_result',
       command,
       toolName: traceToolName,
@@ -285,7 +273,6 @@ const buildToolRefRenderData = (
 
   return {
     index: toolRef.index,
-    toolCallId,
     status: 'completed',
     command,
     toolName: traceToolName,
@@ -490,7 +477,9 @@ function InlineSecretRequestBlock({ secret }: { secret: InlineSecretRequest }) {
   const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
   const fold = useContext(ToolCallsFoldContext);
   const { request, agentUserId } = secret;
-  const status = effectiveSecretRequestStatus(request, Date.now());
+  const {
+    statuses: [status = request.status],
+  } = useSecretRequestStatuses([request]);
   const toolName = request.kind === 'key' ? request.displayName : request.label ?? request.env;
   useFoldedToolCalls(shown ? undefined : [{ toolName, state: SECRET_REQUEST_CALL_STATE[status] }]);
   const roomId = message?.roomId;
@@ -505,13 +494,13 @@ type ToolRunPart =
 /** A run of calls, split at each call a secret request names, which takes that call's place. */
 const splitToolRunAtSecretRequests = (
   tools: ToolBlockRenderData[],
-  secrets: ReadonlyMap<string, InlineSecretRequest>
+  secrets: ReadonlyMap<number, InlineSecretRequest>
 ): ToolRunPart[] => {
   if (secrets.size === 0) return [{ tools }];
   const parts: ToolRunPart[] = [];
   let run: ToolBlockRenderData[] = [];
   tools.forEach((tool) => {
-    const secret = tool.toolCallId === undefined ? undefined : secrets.get(tool.toolCallId);
+    const secret = secrets.get(tool.index);
     if (!secret) {
       run.push(tool);
       return;

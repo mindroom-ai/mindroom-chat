@@ -8,7 +8,9 @@ import type {
   SecretRequest,
   TemporarySecretRequest,
 } from '../matrix/protocol/secretRequest';
+import { getDefaultStore } from 'jotai';
 import { SecretRequestLine } from './SecretRequestLine';
+import { secretRequestAnswersAtom } from './secretRequestStatus';
 
 const ROOM = '!room:example.org';
 const ALICE = '@alice:example.org';
@@ -78,6 +80,7 @@ afterEach(() => {
   act(() => root.unmount());
   host.remove();
   vi.unstubAllGlobals();
+  getDefaultStore().set(secretRequestAnswersAtom, new Map());
 });
 
 const render = (request: SecretRequest) =>
