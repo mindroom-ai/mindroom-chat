@@ -820,7 +820,7 @@
         "toolRunningFor": "Em execução há {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "Definições de títulos"
+        "titleSettings": "Definições de títulos…"
       },
       "replyTime": {
         "started": "Começou {{value1}}",

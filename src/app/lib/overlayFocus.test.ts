@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   LAYER_HOST_ATTRIBUTE,
+  OWNS_FOCUS_ATTRIBUTE,
   installOverlayFocus,
   layerOf,
   observeLayerHost,
@@ -86,6 +87,29 @@ describe('overlay focus', () => {
     const layer = document.createElement('div');
     layer.innerHTML = '<div role="tooltip"><a href="#x">Link</a></div>';
     document.body.append(layer);
+    await flush();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('leaves a layer that owns its focus alone, dialog or not', async () => {
+    trigger.focus();
+    press(trigger, 'Enter');
+    const layer = document.createElement('div');
+    layer.setAttribute(OWNS_FOCUS_ATTRIBUTE, '');
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    const link = button('Title settings…');
+    dialog.append(link);
+    layer.append(dialog);
+    document.body.append(layer);
+    await flush();
+    // Not moved into the layer as it opened from Enter.
+    expect(document.activeElement).toBe(trigger);
+
+    // Nor kept in it when Tab leaves.
+    link.focus();
+    link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    trigger.focus();
     await flush();
     expect(document.activeElement).toBe(trigger);
   });

@@ -35,15 +35,37 @@ export const MarkerTrigger = style({
   },
 });
 
-/** The settings button beside the marker: as quiet as the marker, and always shown. */
-export const MarkerSettings = style([
-  MarkerTrigger,
-  { marginInlineStart: config.space.S100, padding: `${toRem(1)} ${toRem(3)}` },
-]);
-
 export const MarkerDetails = style({
   display: 'flex',
   flexDirection: 'column',
   gap: config.space.S100,
   maxWidth: toRem(280),
+});
+
+/** The details card's "Title settings…" link: small, muted text that takes the accent on hover. */
+export const MarkerSettingsLink = style({
+  alignSelf: 'flex-start',
+  border: 0,
+  borderRadius: config.radii.R300,
+  padding: 0,
+  marginBlockStart: config.space.S100,
+  background: 'transparent',
+  color: 'inherit',
+  // folds' muted text level, as the marker itself.
+  opacity: config.opacity.P300,
+  font: 'inherit',
+  fontSize: toRem(12),
+  textAlign: 'start',
+  cursor: 'pointer',
+  selectors: {
+    '&:hover, &:focus-visible': {
+      opacity: 1,
+      color: color.Primary.Main,
+      textDecoration: 'underline',
+    },
+    '&:focus-visible': {
+      outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
+      outlineOffset: toRem(1),
+    },
+  },
 });

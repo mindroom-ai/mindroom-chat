@@ -831,7 +831,7 @@
         "toolRunningFor": "Выполняется уже {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "Настройки названий"
+        "titleSettings": "Настройки названий…"
       },
       "replyTime": {
         "started": "Начато {{value1}}",

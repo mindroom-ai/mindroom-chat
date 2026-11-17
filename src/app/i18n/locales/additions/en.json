@@ -809,7 +809,7 @@
         "toolRunningFor": "Running for {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "Title settings"
+        "titleSettings": "Title settings…"
       },
       "replyTime": {
         "started": "Started {{value1}}",

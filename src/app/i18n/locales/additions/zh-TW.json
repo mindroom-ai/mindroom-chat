@@ -798,7 +798,7 @@
         "toolRunningFor": "已執行 {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "標題設定"
+        "titleSettings": "標題設定…"
       },
       "replyTime": {
         "started": "開始 {{value1}}",

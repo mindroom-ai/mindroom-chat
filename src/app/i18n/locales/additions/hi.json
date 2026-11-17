@@ -809,7 +809,7 @@
         "toolRunningFor": "{{duration}} से चल रहा है"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "शीर्षक सेटिंग"
+        "titleSettings": "शीर्षक सेटिंग…"
       },
       "replyTime": {
         "started": "शुरू {{value1}}",

@@ -798,7 +798,7 @@
         "toolRunningFor": "Berjalan selama {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "Pengaturan judul"
+        "titleSettings": "Pengaturan judul…"
       },
       "replyTime": {
         "started": "Dimulai {{value1}}",
