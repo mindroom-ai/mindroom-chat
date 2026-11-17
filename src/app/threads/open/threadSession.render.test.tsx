@@ -396,11 +396,11 @@ describe('a first open without a thread model', () => {
     const { mx, room, answer, finishSidecar } = setup();
     const view = await mountThreadSession({ mx, room });
     try {
+      await act(async () => answer());
+      expect(vi.mocked(hydrateCachedLongText)).toHaveBeenCalledTimes(1);
+      expect(view.bodies()).toEqual([]);
       await view.switchTo('$other');
-      await act(async () => {
-        answer();
-        finishSidecar();
-      });
+      await act(async () => finishSidecar());
       expect(view.bodies()).toEqual([]);
       // Its own cap lets it paint what it has.
       await act(() => new Promise((resolve) => setTimeout(resolve, 650)));
@@ -408,5 +408,18 @@ describe('a first open without a thread model', () => {
     } finally {
       await view.unmount();
     }
+  });
+
+  it('publishes nothing when the view unmounts while the long reply loads', async () => {
+    const { mx, room, answer, finishSidecar } = setup();
+    const errors = vi.spyOn(console, 'error');
+    const view = await mountThreadSession({ mx, room });
+    await act(async () => answer());
+    expect(vi.mocked(hydrateCachedLongText)).toHaveBeenCalledTimes(1);
+    expect(view.bodies()).toEqual([]);
+    await view.unmount();
+    await act(async () => finishSidecar());
+    await act(() => new Promise((resolve) => setTimeout(resolve, 650)));
+    expect(errors).not.toHaveBeenCalled();
   });
 });

@@ -187,7 +187,7 @@ export const useThreadRenderState = ({
   getThreadRenderEvents: (expectedThreadId: string) => MatrixEvent[];
 } => {
   const threadEventIndexMapRef = useRef<Map<string, number>>(new Map());
-  const openThreadRef = useLatestRef({ threadId, thread });
+  const openThreadIdRef = useLatestRef(threadId);
   const threadSupplementalRelationIdsRef = useRef<ThreadRelationState>({
     threadId: undefined,
     relationEventIds: new Set(),
@@ -301,12 +301,12 @@ export const useThreadRenderState = ({
   const getThreadRenderEvents = useCallback(
     (expectedThreadId: string) => {
       const fallback = fallbackThreadEventsRef.current;
-      const open = openThreadRef.current;
-      if (open.threadId !== expectedThreadId) return EMPTY_THREAD_EVENTS;
+      if (openThreadIdRef.current !== expectedThreadId) return EMPTY_THREAD_EVENTS;
+      // The SDK thread as it is now: the open's bootstrap can make it between two renders.
       return buildThreadEvents({
         room,
         threadId: expectedThreadId,
-        thread: open.thread,
+        thread: room.getThread(expectedThreadId),
         fallbackEvents: fallback.threadId === expectedThreadId ? fallback.events : [],
         prefixEvents: EMPTY_THREAD_EVENTS,
         forkAt: undefined,
@@ -314,7 +314,7 @@ export const useThreadRenderState = ({
         threadInitialSdkLoaded: true,
       }).ownEvents;
     },
-    [openThreadRef, room]
+    [openThreadIdRef, room]
   );
 
   const resetThreadRenderState = useCallback((nextThreadId?: string) => {
