@@ -87,7 +87,9 @@
       "pack": "Paketle aynı"
     },
     "imageViewer": {
-      "close": "Kapat"
+      "close": "Kapat",
+      "previous": "Önceki görsel",
+      "next": "Sonraki görsel"
     },
     "inviteUserPrompt": {
       "close": "Kapat",
@@ -717,6 +719,7 @@
         "showKey": "Anahtarı göster",
         "hideKey": "Anahtarı gizle",
         "sentTo": "{{host}} adresine gönderilir",
+        "openLink": "{{host}} adresini aç",
         "save": "Kaydet",
         "decline": "Geri çevir",
         "savedWaiting": "Kaydedildi, ajan bekleniyor",
@@ -951,7 +954,11 @@
       "moveRoomDown": "Seçili odayı veya alanı aşağı taşı",
       "members": "Üyeleri göster veya gizle",
       "focusComposer": "Okundu olarak işaretle ve mesaj kutusuna git",
-      "resolveThread": "Açık konuyu çözüldü işaretle veya yeniden aç",
+      "previousThread": "Önceki konuyu seç",
+      "nextThread": "Sonraki konuyu seç",
+      "openThread": "Konulara git, ardından seçili konuyu aç",
+      "leaveThread": "Açık konudan, ardından konulardan çık",
+      "resolveThread": "Açık veya seçili konuyu çözüldü işaretle veya yeniden aç",
       "newLine": "Yeni satır",
       "editLast": "Son mesajını düzenle (boş mesaj kutusunda)",
       "inlineCode": "Satır içi kod",

@@ -87,7 +87,9 @@
       "pack": "Wie das Paket"
     },
     "imageViewer": {
-      "close": "Schließen"
+      "close": "Schließen",
+      "previous": "Vorheriges Bild",
+      "next": "Nächstes Bild"
     },
     "inviteUserPrompt": {
       "close": "Schließen",
@@ -717,6 +719,7 @@
         "showKey": "Schlüssel anzeigen",
         "hideKey": "Schlüssel verbergen",
         "sentTo": "Wird an {{host}} gesendet",
+        "openLink": "{{host}} öffnen",
         "save": "Speichern",
         "decline": "Ablehnen",
         "savedWaiting": "Gespeichert, wartet auf den Agenten",
@@ -951,7 +954,11 @@
       "moveRoomDown": "Fokussierten Raum oder Space nach unten verschieben",
       "members": "Mitglieder ein- oder ausblenden",
       "focusComposer": "Als gelesen markieren und zum Eingabefeld wechseln",
-      "resolveThread": "Geöffneten Thread auflösen oder wieder öffnen",
+      "previousThread": "Vorherigen Thread fokussieren",
+      "nextThread": "Nächsten Thread fokussieren",
+      "openThread": "Zu den Threads, dann den fokussierten öffnen",
+      "leaveThread": "Geöffneten Thread verlassen, dann die Threads",
+      "resolveThread": "Geöffneten oder fokussierten Thread auflösen oder wieder öffnen",
       "newLine": "Neue Zeile",
       "editLast": "Letzte eigene Nachricht bearbeiten (in leerem Eingabefeld)",
       "inlineCode": "Inline-Code",

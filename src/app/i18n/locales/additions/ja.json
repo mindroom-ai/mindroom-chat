@@ -84,7 +84,9 @@
       "pack": "パックと同じ"
     },
     "imageViewer": {
-      "close": "閉じる"
+      "close": "閉じる",
+      "previous": "前の画像",
+      "next": "次の画像"
     },
     "inviteUserPrompt": {
       "close": "閉じる",
@@ -708,6 +710,7 @@
         "showKey": "キーを表示",
         "hideKey": "キーを隠す",
         "sentTo": "送信先: {{host}}",
+        "openLink": "{{host}} を開く",
         "save": "保存",
         "decline": "拒否",
         "savedWaiting": "保存しました。エージェントを待っています",
@@ -934,7 +937,11 @@
       "moveRoomDown": "フォーカス中のルームまたはスペースを下へ移動",
       "members": "メンバーの表示/非表示",
       "focusComposer": "既読にして入力欄へ移動",
-      "resolveThread": "開いているスレッドを解決または再開",
+      "previousThread": "前のスレッドにフォーカス",
+      "nextThread": "次のスレッドにフォーカス",
+      "openThread": "スレッド一覧へ移動し、次にフォーカス中のスレッドを開く",
+      "leaveThread": "開いているスレッドから戻り、次にスレッド一覧から戻る",
+      "resolveThread": "開いている、またはフォーカス中のスレッドを解決または再開",
       "newLine": "改行",
       "editLast": "最後の自分のメッセージを編集（入力欄が空のとき）",
       "inlineCode": "インライン コード",

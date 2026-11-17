@@ -90,7 +90,9 @@
       "pack": "Igual que el paquete"
     },
     "imageViewer": {
-      "close": "Cerrar"
+      "close": "Cerrar",
+      "previous": "Imagen anterior",
+      "next": "Imagen siguiente"
     },
     "inviteUserPrompt": {
       "close": "Cerrar",
@@ -726,6 +728,7 @@
         "showKey": "Mostrar clave",
         "hideKey": "Ocultar clave",
         "sentTo": "Se envía a {{host}}",
+        "openLink": "Abrir {{host}}",
         "save": "Guardar",
         "decline": "Rechazar",
         "savedWaiting": "Guardada, esperando al agente",
@@ -968,7 +971,11 @@
       "moveRoomDown": "Bajar la sala o el espacio enfocado",
       "members": "Mostrar u ocultar miembros",
       "focusComposer": "Marcar como leído e ir al editor",
-      "resolveThread": "Resolver o reabrir el hilo abierto",
+      "previousThread": "Enfocar el hilo anterior",
+      "nextThread": "Enfocar el hilo siguiente",
+      "openThread": "Ir a los hilos y luego abrir el enfocado",
+      "leaveThread": "Salir del hilo abierto y luego de los hilos",
+      "resolveThread": "Resolver o reabrir el hilo abierto o enfocado",
       "newLine": "Nueva línea",
       "editLast": "Editar tu último mensaje (con el editor vacío)",
       "inlineCode": "Código en línea",

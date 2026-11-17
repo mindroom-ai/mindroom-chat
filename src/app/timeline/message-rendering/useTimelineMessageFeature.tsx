@@ -88,7 +88,8 @@ import { shouldShowLinkFavicons } from '../../rich-text/linkFaviconPolicy';
 import { renderThreadBadge } from '../ThreadBadge';
 import { buildRoomTimelineReplyDraft } from '../roomTimelineReplyDraft';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
-import { forkTargetFor, ownThreadId } from '../../event-store/threads/threadFork';
+import { forkTargetFor } from '../../event-store/threads/threadFork';
+import { forkPrefixThreadId, rowEditTimelineSet } from '../forkPrefixTimelineSet';
 import { useStartThreadFork } from '../../threads/fork/useStartThreadFork';
 import { ThreadForksChip } from '../../threads/fork/ThreadForksChip';
 import { useThreadForks } from '../../threads/fork/useThreadForks';
@@ -458,16 +459,10 @@ export const useTimelineMessageFeature = ({
       if (!kind) return null;
 
       // A fork shows its parent's messages before its own. They stay the parent's: read-only
-      // here, their cards answer in the parent's thread and their reactions are read there. A
-      // parent's root copied from the cache may not know it starts a thread: its ID names it.
-      const prefixThreadId = data.forkPrefixEventIds?.has(eventId)
-        ? ownThreadId(event) ?? eventId
-        : undefined;
+      // here, their cards answer in the parent's thread and their reactions are read there.
+      const prefixThreadId = forkPrefixThreadId(event, eventId, data.forkPrefixEventIds);
       const readOnly = prefixThreadId !== undefined;
-      const parentTimelineSet = prefixThreadId
-        ? room.getThread(prefixThreadId)?.getUnfilteredTimelineSet()
-        : undefined;
-      const timelineSet = parentTimelineSet ?? row.timelineSet;
+      const timelineSet = rowEditTimelineSet(room, prefixThreadId, row.timelineSet);
       const editedEvent = getEditedEvent(eventId, event, timelineSet);
       // A newer edit that could not be decrypted leaves this version shown, with a note; a row
       // that shows no readable version says so itself (P2-e2ee-F004).
