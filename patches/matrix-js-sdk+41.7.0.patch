@@ -4423,7 +4423,7 @@ index 19a2f43..9a64b56 100644
  
      /**
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations.js b/node_modules/matrix-js-sdk/lib/models/relations.js
-index 6be66bb..e3cb90a 100644
+index 6be66bb..6253e3e 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations.js
 +++ b/node_modules/matrix-js-sdk/lib/models/relations.js
 @@ -27,6 +27,16 @@ export var RelationsEvent = /*#__PURE__*/function (RelationsEvent) {
@@ -4447,7 +4447,7 @@ index 6be66bb..e3cb90a 100644
      _defineProperty(this, "targetEvent", null);
      _defineProperty(this, "creationEmitted", false);
      _defineProperty(this, "replacementUpdateId", 0);
-+    _defineProperty(this, "localEchoIds", new WeakMap());
++    _defineProperty(this, "addedIds", new WeakMap());
      _defineProperty(this, "client", void 0);
      /**
       * Listens for event status changes to remove cancelled events.
@@ -4484,26 +4484,22 @@ index 6be66bb..e3cb90a 100644
      this.client = client instanceof Room ? client.client : client;
    }
  
-@@ -141,12 +164,18 @@ export class Relations extends TypedEventEmitter {
-       // so we can remove the event from the collection.
-       if (event.isSending()) {
-         event.on(MatrixEventEvent.Status, _this2.onEventStatus);
-+        // MindRoom: the ID a local echo comes with, for `releaseEdits`.
-+        _this2.localEchoIds.set(event, event.getId());
-       }
-       _this2.relations.add(event);
-       _this2.relationEventIds.add(event.getId());
+@@ -147,7 +170,14 @@ export class Relations extends TypedEventEmitter {
        if (_this2.relationType === RelationType.Annotation) {
          _this2.addAnnotationToAggregation(event);
        } else if (_this2.relationType === RelationType.Replace) {
 +        // MindRoom: the policy may release the new edit itself, as one older than the edit shown.
++        _this2.addedIds.set(event, event.getId());
 +        if (event.isDecryptionFailure()) event.on(MatrixEventEvent.Decrypted, _this2.onEditDecrypted);
 +        _this2.releaseEdits(event.getSender());
 +        if (!_this2.relations.has(event)) return;
          yield _this2.updateTargetEventReplacement();
++        // MindRoom: or an edit added while that waited released it.
++        if (!_this2.relations.has(event)) return;
        }
        event.on(MatrixEventEvent.BeforeRedaction, _this2.onBeforeRedaction);
-@@ -170,6 +199,10 @@ export class Relations extends TypedEventEmitter {
+       _this2.emit(RelationsEvent.Add, event);
+@@ -170,6 +200,10 @@ export class Relations extends TypedEventEmitter {
        if (_this3.relationType === RelationType.Annotation) {
          _this3.removeAnnotationFromAggregation(event);
        } else if (_this3.relationType === RelationType.Replace) {
@@ -4514,7 +4510,7 @@ index 6be66bb..e3cb90a 100644
          yield _this3.updateTargetEventReplacement();
        }
        _this3.emit(RelationsEvent.Remove, event);
-@@ -357,9 +390,53 @@ export class Relations extends TypedEventEmitter {
+@@ -357,9 +391,53 @@ export class Relations extends TypedEventEmitter {
        if (!lastReplacement && !targetEvent.replacingEvent()) {
          return;
        }
@@ -4548,7 +4544,7 @@ index 6be66bb..e3cb90a 100644
 +  /**
 +   * MindRoom: releases the edits by `sender` that the policy names, whenever those edits change: one
 +   * comes or leaves, is sent, or decrypts. A released edit may come again, so its ID goes too, the one
-+   * it came with: the server replaces a local echo's. Sent or decrypted, an edit may be the newest
++   * it came with this time: the server replaces a local echo's. Sent or decrypted, an edit may be the newest
 +   * only now, so the target's replacement is chosen again (`update`).
 +   */
 +  releaseEdits(sender) {
@@ -4556,9 +4552,9 @@ index 6be66bb..e3cb90a 100644
 +    if (this.relationType !== RelationType.Replace || !replacementRetentionPolicy) return;
 +    var edits = [...this.relations].filter(edit => edit.getSender() === sender);
 +    for (var edit of replacementRetentionPolicy(edits)) {
-+      var _this$localEchoIds$get;
++      var _this$addedIds$get;
 +      this.relations.delete(edit);
-+      this.relationEventIds.delete((_this$localEchoIds$get = this.localEchoIds.get(edit)) !== null && _this$localEchoIds$get !== void 0 ? _this$localEchoIds$get : edit.getId());
++      this.relationEventIds.delete((_this$addedIds$get = this.addedIds.get(edit)) !== null && _this$addedIds$get !== void 0 ? _this$addedIds$get : edit.getId());
 +      edit.removeListener(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
 +      edit.removeListener(MatrixEventEvent.Status, this.onEventStatus);
 +      edit.removeListener(MatrixEventEvent.Decrypted, this.onEditDecrypted);
@@ -4569,7 +4565,7 @@ index 6be66bb..e3cb90a 100644
      if (this.creationEmitted) {
        return;
 diff --git a/node_modules/matrix-js-sdk/src/models/relations.ts b/node_modules/matrix-js-sdk/src/models/relations.ts
-index 77ba3b3..1b8e4fa 100644
+index 77ba3b3..db87404 100644
 --- a/node_modules/matrix-js-sdk/src/models/relations.ts
 +++ b/node_modules/matrix-js-sdk/src/models/relations.ts
 @@ -34,6 +34,18 @@ export type EventHandlerMap = {
@@ -4595,31 +4591,26 @@ index 77ba3b3..1b8e4fa 100644
      private targetEvent: MatrixEvent | null = null;
      private creationEmitted = false;
      private replacementUpdateId = 0;
-+    private localEchoIds = new WeakMap<MatrixEvent, string>();
++    private addedIds = new WeakMap<MatrixEvent, string>();
      private readonly client: MatrixClient;
  
      /**
-@@ -100,6 +113,8 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
-         // so we can remove the event from the collection.
-         if (event.isSending()) {
-             event.on(MatrixEventEvent.Status, this.onEventStatus);
-+            // MindRoom: the ID a local echo comes with, for `releaseEdits`.
-+            this.localEchoIds.set(event, event.getId()!);
-         }
- 
-         this.relations.add(event);
-@@ -108,6 +123,10 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -108,7 +121,14 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
          if (this.relationType === RelationType.Annotation) {
              this.addAnnotationToAggregation(event);
          } else if (this.relationType === RelationType.Replace) {
 +            // MindRoom: the policy may release the new edit itself, as one older than the edit shown.
++            this.addedIds.set(event, event.getId()!);
 +            if (event.isDecryptionFailure()) event.on(MatrixEventEvent.Decrypted, this.onEditDecrypted);
 +            this.releaseEdits(event.getSender());
 +            if (!this.relations.has(event)) return;
              await this.updateTargetEventReplacement();
++            // MindRoom: or an edit added while that waited released it.
++            if (!this.relations.has(event)) return;
          }
  
-@@ -133,6 +152,10 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+         event.on(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
+@@ -133,6 +153,10 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
          if (this.relationType === RelationType.Annotation) {
              this.removeAnnotationFromAggregation(event);
          } else if (this.relationType === RelationType.Replace) {
@@ -4630,7 +4621,7 @@ index 77ba3b3..1b8e4fa 100644
              await this.updateTargetEventReplacement();
          }
  
-@@ -149,6 +172,8 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -149,6 +173,8 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
          if (!event.isSending()) {
              // Sending is done, so we don't need to listen anymore
              event.removeListener(MatrixEventEvent.Status, this.onEventStatus);
@@ -4639,7 +4630,7 @@ index 77ba3b3..1b8e4fa 100644
              return;
          }
          if (status !== EventStatus.CANCELLED) {
-@@ -243,6 +268,10 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -243,6 +269,10 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
              // Remove the redacted annotation from aggregation by key
              this.removeAnnotationFromAggregation(redactedEvent);
          } else if (this.relationType === RelationType.Replace) {
@@ -4650,7 +4641,7 @@ index 77ba3b3..1b8e4fa 100644
              await this.updateTargetEventReplacement();
          }
  
-@@ -355,7 +384,8 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -355,7 +385,8 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
       * while edits are still being decrypted). A monotonic update counter guards
       * against older async resolutions overriding newer replacement selections.
       */
@@ -4660,7 +4651,7 @@ index 77ba3b3..1b8e4fa 100644
          if (!this.targetEvent || this.targetEvent.isState()) {
              return;
          }
-@@ -374,9 +404,57 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -374,9 +405,57 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
              return;
          }
  
@@ -4692,7 +4683,7 @@ index 77ba3b3..1b8e4fa 100644
 +    /**
 +     * MindRoom: releases the edits by `sender` that the policy names, whenever those edits change: one
 +     * comes or leaves, is sent, or decrypts. A released edit may come again, so its ID goes too, the one
-+     * it came with: the server replaces a local echo's. Sent or decrypted, an edit may be the newest
++     * it came with this time: the server replaces a local echo's. Sent or decrypted, an edit may be the newest
 +     * only now, so the target's replacement is chosen again (`update`).
 +     */
 +    private releaseEdits(sender: string | undefined, update = false): void {
@@ -4700,7 +4691,7 @@ index 77ba3b3..1b8e4fa 100644
 +        const edits = [...this.relations].filter((edit) => edit.getSender() === sender);
 +        for (const edit of replacementRetentionPolicy(edits)) {
 +            this.relations.delete(edit);
-+            this.relationEventIds.delete(this.localEchoIds.get(edit) ?? edit.getId()!);
++            this.relationEventIds.delete(this.addedIds.get(edit) ?? edit.getId()!);
 +            edit.removeListener(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
 +            edit.removeListener(MatrixEventEvent.Status, this.onEventStatus);
 +            edit.removeListener(MatrixEventEvent.Decrypted, this.onEditDecrypted);
@@ -4719,7 +4710,7 @@ index 77ba3b3..1b8e4fa 100644
          if (this.creationEmitted) {
              return;
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations.d.ts b/node_modules/matrix-js-sdk/lib/models/relations.d.ts
-index 933f698..957337b 100644
+index 933f698..f07820b 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/models/relations.d.ts
 @@ -8,6 +8,14 @@ export declare enum RelationsEvent {
@@ -4737,6 +4728,24 @@ index 933f698..957337b 100644
  export type EventHandlerMap = {
      [RelationsEvent.Add]: (event: MatrixEvent) => void;
      [RelationsEvent.Remove]: (event: MatrixEvent) => void;
+@@ -33,6 +41,7 @@ export declare class Relations extends TypedEventEmitter<RelationsEvent, EventHa
+     private targetEvent;
+     private creationEmitted;
+     private replacementUpdateId;
++    private addedIds;
+     private readonly client;
+     /**
+      * @param relationType - The type of relation involved, such as "m.annotation", "m.reference", "m.replace", etc.
+@@ -118,6 +127,8 @@ export declare class Relations extends TypedEventEmitter<RelationsEvent, EventHa
+      * against older async resolutions overriding newer replacement selections.
+      */
+     private updateTargetEventReplacement;
++    private releaseEdits;
++    private onEditDecrypted;
+     private maybeEmitCreated;
+ }
+ //# sourceMappingURL=relations.d.ts.map
+\ No newline at end of file
 diff --git a/node_modules/matrix-js-sdk/lib/event-mapper.js b/node_modules/matrix-js-sdk/lib/event-mapper.js
 index b0db891..9184f8f 100644
 --- a/node_modules/matrix-js-sdk/lib/event-mapper.js

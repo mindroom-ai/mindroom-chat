@@ -10,7 +10,7 @@ import {
 } from 'matrix-js-sdk';
 import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
-import { setReplacementRetentionPolicy } from 'matrix-js-sdk/lib/models/relations';
+import { RelationsEvent, setReplacementRetentionPolicy } from 'matrix-js-sdk/lib/models/relations';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getEditedEvent, getReleasableEdits } from './room';
 
@@ -59,8 +59,8 @@ const reaction = (id: string, key: string, sender: string) =>
     type: 'm.reaction',
     content: { 'm.relates_to': { rel_type: 'm.annotation', event_id: REPLY, key } },
   });
-const redaction = (id: string, redacts: string, ts: number) =>
-  new MatrixEvent({ ...message(id, ts, { redacts }), type: 'm.room.redaction', redacts });
+const redaction = (id: string, redacts: string, ts: number, sender = AGENT) =>
+  new MatrixEvent({ ...message(id, ts, { redacts }, sender), type: 'm.room.redaction', redacts });
 
 /** An edit as an encrypted room delivers it, whose key arrives on the second attempt. */
 const encryptedEdit = async (id: string, ts: number) => {
@@ -140,7 +140,7 @@ describe('the edits a room keeps of a message', () => {
       getEditedEvent(REPLY, reply, room.getUnfilteredTimelineSet())?.getContent()[
         'm.new_content'
       ] as Record<string, unknown> | undefined;
-    return { room, add, reply, kept, ids, shown };
+    return { room, add, reply, edits, kept, ids, shown };
   };
 
   it('are one after 50 edits of a streamed reply: the newest', async () => {
@@ -227,16 +227,66 @@ describe('the edits a room keeps of a message', () => {
     });
   });
 
-  // The room no longer holds the previous edit, as after the homeserver's purge of edits over 24 hours old.
-  it('show the original text once the newest edit is redacted', async () => {
-    const { add, reply, kept, shown } = await roomWithReply();
-    await add(edit('$previous', 10), edit('$newest', 20));
+  it('listen to, and announce, only the kept edit of a batch that came at once', async () => {
+    const { add, edits, kept } = await roomWithReply();
+    await add(edit('$first', 10));
+    const announced = vi.fn();
+    edits()?.on(RelationsEvent.Add, announced);
+    const batch = [1, 2, 3, 4, 5].map((round) => edit(`$edit-${round}`, 10 + round));
 
-    await add(redaction('$redaction', '$newest', 30));
+    await add(...batch);
 
-    expect(kept()).toEqual([]);
-    expect(reply.replacingEvent()).toBeNull();
-    expect(shown()).toBeUndefined();
+    expect(kept()).toEqual(['$edit-5']);
+    expect(announced.mock.calls).toEqual([[batch[4]]]);
+    // The room listens to each of them itself; the relations to the one they hold.
+    const [newest = 0, ...released] = batch
+      .map((event) => event.listenerCount(MatrixEventEvent.BeforeRedaction))
+      .reverse();
+    expect(released).toEqual([newest - 1, newest - 1, newest - 1, newest - 1]);
+  });
+
+  // Redacting the newest edit shows the newest edit the room still holds: an older one kept for its
+  // metadata if there is one, as main falls back to the previous edit, otherwise the original text.
+  describe('once the newest edit is redacted', () => {
+    // The room no longer holds the previous edit, as after the homeserver's purge of edits over 24 hours old.
+    it('show the original text, without an edit kept for its metadata', async () => {
+      const { add, reply, kept, shown } = await roomWithReply();
+      await add(edit('$previous', 10), edit('$newest', 20));
+
+      await add(redaction('$redaction', '$newest', 30));
+
+      expect(kept()).toEqual([]);
+      expect(reply.replacingEvent()).toBeNull();
+      expect(shown()).toBeUndefined();
+    });
+
+    it('show the older edit kept for its metadata', async () => {
+      const { add, reply, kept, shown } = await roomWithReply();
+      await add(editWith('$traced', 10, { [TOOL_TRACE]: trace('search') }), edit('$newest', 20));
+      expect(kept()).toEqual(['$traced', '$newest']);
+
+      await add(redaction('$redaction', '$newest', 30));
+
+      expect(kept()).toEqual(['$traced']);
+      expect(reply.replacingEvent()?.getId()).toBe('$traced');
+      expect(shown()).toMatchObject({ body: '$traced', [TOOL_TRACE]: trace('search') });
+    });
+
+    it('take an older edit again that arrives again', async () => {
+      const { room, add, reply, kept, shown } = await roomWithReply();
+      const older = edit('$older', 10);
+      await add(older, edit('$newest', 20));
+      await add(redaction('$redaction', '$newest', 30));
+      expect(kept()).toEqual([]);
+
+      // A page of history, or the first page of its thread, brings the edit again.
+      room.relations.aggregateChildEvent(older);
+      await tick();
+
+      expect(kept()).toEqual(['$older']);
+      expect(reply.replacingEvent()).toBe(older);
+      expect(shown()?.body).toBe('$older');
+    });
   });
 
   describe('with an edit of the user’s own that is still being sent', () => {
@@ -294,6 +344,25 @@ describe('the edits a room keeps of a message', () => {
       expect(kept('$mine')).toEqual(['~pending', '$elsewhere']);
 
       await echoed(7);
+      expect(kept('$mine')).toEqual(['$echoed']);
+      expect(mine?.replacingEvent()).toBe(pending);
+    });
+
+    it('take the formerly pending edit again, under the ID the server gave it', async () => {
+      const { room, add, echoed, mine, pending, kept, ids } = await withPendingEdit();
+      await echoed();
+      await add(edit('$next', 7, '$mine', ME));
+      expect(kept('$mine')).toEqual(['$next']);
+
+      // The same event, sent by now, as a read of the timeline that holds it aggregates it again.
+      room.relations.aggregateChildEvent(pending);
+      await tick();
+      expect(kept('$mine')).toEqual(['$next']);
+      expect(ids('$mine')).toEqual(['$next']);
+
+      await add(redaction('$redaction', '$next', 8, ME));
+      room.relations.aggregateChildEvent(pending);
+      await tick();
       expect(kept('$mine')).toEqual(['$echoed']);
       expect(mine?.replacingEvent()).toBe(pending);
     });
