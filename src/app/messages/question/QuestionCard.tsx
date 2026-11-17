@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useState } from 'react';
+import { useEffect, useLayoutEffect, useReducer, useRef, useState, type RefObject } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { Icon, Icons, Text, color } from 'folds';
@@ -13,6 +13,7 @@ import {
   type InteractiveQuestion,
 } from '../../matrix/protocol/interactiveQuestion';
 import { ownDirectionLine } from '../../ui/directional';
+import { LONGEST_PLAY_MS, motionAllowed, playsMotion } from '../../ui/listMotion';
 import { answerQuestion } from '../reactions/answerQuestion';
 import * as css from './QuestionCard.css';
 
@@ -57,9 +58,104 @@ const useReactions = (mEvent: MatrixEvent, roomId: string | undefined): MatrixEv
   return relations?.getRelations() ?? [];
 };
 
+const FOLD_EASING = 'cubic-bezier(.2, .8, .2, 1)';
+
+/**
+ * True while the other options fold away under an answer that came while the card was shown:
+ * the chosen one pulses once, the others dim and close in place, the card keeps its width.
+ * The answered layout needs none of it; an answer already there when the card mounts, or one
+ * where motion is not allowed (`motionAllowed`), shows it at once.
+ */
+const useFoldOnAnswer = (cardRef: RefObject<HTMLElement>, answered: boolean): boolean => {
+  const [wasAnswered, setWasAnswered] = useState(answered);
+  const [folding, setFolding] = useState(false);
+  if (answered !== wasAnswered) {
+    setWasAnswered(answered);
+    setFolding(answered && motionAllowed());
+  }
+  // The card's width while it waits, which it keeps while the options fold.
+  const openWidth = useRef<number>();
+  useEffect(() => {
+    const card = cardRef.current;
+    if (answered || !card || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(([entry]) => {
+      openWidth.current = entry?.borderBoxSize[0]?.inlineSize;
+    });
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [cardRef, answered]);
+  useLayoutEffect(() => {
+    const card = cardRef.current;
+    if (!folding || !card) return undefined;
+    if (!playsMotion(card)) {
+      setFolding(false);
+      return undefined;
+    }
+    card.style.width = `${openWidth.current ?? card.offsetWidth}px`;
+    const chosen = card.querySelector<HTMLElement>('button[aria-pressed="true"]');
+    const others = Array.from(card.querySelectorAll<HTMLElement>('button[aria-pressed="false"]'));
+    const animations = [
+      chosen?.animate(
+        [
+          { transform: 'scale(1)' },
+          {
+            transform: 'scale(1.03)',
+            boxShadow: `0 0 0 3px color-mix(in srgb, ${color.Primary.Main} 35%, transparent)`,
+          },
+          { transform: 'scale(1)' },
+        ],
+        { duration: 260, easing: 'ease-out' }
+      ),
+      ...others.flatMap((row) => {
+        const { marginBlockStart, paddingBlockStart, paddingBlockEnd } = getComputedStyle(row);
+        return [
+          row.animate([{ opacity: 1 }, { opacity: 0.35 }], { duration: 180, fill: 'forwards' }),
+          row.animate(
+            [
+              {
+                height: `${row.offsetHeight}px`,
+                opacity: 0.35,
+                marginBlockStart,
+                paddingBlockStart,
+                paddingBlockEnd,
+              },
+              {
+                height: '0px',
+                opacity: 0,
+                marginBlockStart: '0px',
+                paddingBlockStart: '0px',
+                paddingBlockEnd: '0px',
+                borderWidth: '0px',
+              },
+            ],
+            { duration: 320, delay: 220, easing: FOLD_EASING, fill: 'forwards' }
+          ),
+        ];
+      }),
+    ].filter((animation): animation is Animation => !!animation);
+    let live = true;
+    const done = () => {
+      if (live) setFolding(false);
+    };
+    // A play the browser never ends (a hidden page) still leaves the answered card.
+    const timer = window.setTimeout(done, LONGEST_PLAY_MS);
+    Promise.all(animations.map((animation) => animation.finished))
+      .then(done)
+      .catch(() => undefined);
+    return () => {
+      live = false;
+      window.clearTimeout(timer);
+      animations.forEach((animation) => animation.cancel());
+      card.style.width = '';
+    };
+  }, [cardRef, folding]);
+  return folding;
+};
+
 /**
  * An agent's question with a button per option. A click reacts with the option's emoji, as
- * MindRoom asks; the first person's answer marks its option and closes the question.
+ * MindRoom asks; the first person's answer closes the question to its chosen option, which
+ * shows the others again on a click.
  */
 export function QuestionCard({
   question,
@@ -77,6 +173,11 @@ export function QuestionCard({
   const answer = readQuestionAnswer(useReactions(mEvent, roomId), question, viewerId);
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [peek, setPeek] = useState(false);
+  const cardRef = useRef<HTMLElement>(null);
+  const folding = useFoldOnAnswer(cardRef, !!answer);
+  // A withdrawn answer closes the peek with it.
+  if (!answer && peek) setPeek(false);
 
   const canAnswer =
     !readOnly &&
@@ -101,27 +202,42 @@ export function QuestionCard({
   if (answer) status = t('mindroomUi.messages.questionCard.answered');
   else if (canAnswer) status = t('mindroomUi.messages.questionCard.waiting');
 
+  // Once answered, the chosen option alone, with the others while they fold or on a peek.
+  const options = question.options.filter(
+    (option) => !answer || option.key === answer.key || folding || peek
+  );
+
   return (
     <section
+      ref={cardRef}
       className={css.Card}
       aria-label={t('mindroomUi.messages.questionCard.title')}
       data-question-card={answer ? 'answered' : 'waiting'}
     >
-      <div className={css.Header}>
-        <Text as="span" size="T300" className={css.Kind}>
-          {t('mindroomUi.messages.questionCard.title')}
-        </Text>
-        {status && (
-          <span className={classNames(css.Status, !answer && css.StatusWaiting)}>{status}</span>
-        )}
-      </div>
+      {status && <span className={css.VisuallyHidden}>{status}</span>}
       {showText && (
-        <Text size="T400" className={css.Question} {...ownDirectionLine}>
-          {question.text}
-        </Text>
+        <div className={css.Top}>
+          <span
+            className={classNames(
+              css.Mark,
+              answer ? css.MarkAnswered : canAnswer && css.MarkWaiting,
+              answer && folding && css.MarkPop
+            )}
+            aria-hidden
+          >
+            {answer && <Icon size="50" src={Icons.Check} />}
+          </span>
+          <Text
+            size="T400"
+            className={classNames(css.Question, answer && css.QuestionAnswered)}
+            {...ownDirectionLine}
+          >
+            {question.text}
+          </Text>
+        </div>
       )}
       <div className={css.Options}>
-        {question.options.map((option) => {
+        {options.map((option) => {
           const chosen = answer?.key === option.key;
           return (
             <button
@@ -130,11 +246,12 @@ export function QuestionCard({
               className={classNames(
                 css.Option,
                 chosen && css.OptionChosen,
-                answer && !chosen && css.OptionMuted
+                answer && !chosen && !folding && css.OptionPeek
               )}
               aria-pressed={chosen}
-              disabled={!canAnswer || !!answer || pending}
-              onClick={() => choose(option.key)}
+              aria-expanded={chosen ? peek : undefined}
+              disabled={answer ? !chosen : !canAnswer || pending}
+              onClick={() => (answer ? setPeek((shown) => !shown) : choose(option.key))}
             >
               <span className={css.Emoji} aria-hidden>
                 {option.key}
@@ -155,7 +272,7 @@ export function QuestionCard({
         })}
       </div>
       {failed && (
-        <Text role="alert" size="T200" style={{ color: color.Critical.Main }}>
+        <Text role="alert" size="T200" className={css.Failed}>
           {t('activity.actions.failed')}
         </Text>
       )}

@@ -165,14 +165,42 @@ describe('QuestionCard', () => {
     render(questionContent(QUESTION_HTML), [reaction(AGENT, '🔴'), reaction(COLLEAGUE, '🟢')]);
     expect(card()?.dataset.questionCard).toBe('answered');
     expect(card()?.textContent).toContain('Answered');
-    const [red, green] = buttons() as [HTMLButtonElement, HTMLButtonElement];
+    expect(buttons()).toHaveLength(1);
+    const [green] = buttons() as [HTMLButtonElement];
     expect(green.getAttribute('aria-pressed')).toBe('true');
     expect(green.textContent).toContain('Kai chose');
-    expect(red.getAttribute('aria-pressed')).toBe('false');
-    expect(buttons().every((button) => button.disabled)).toBe(true);
 
     render(questionContent(QUESTION_HTML), [reaction(VIEWER, '🔴')]);
     expect(buttons()[0]?.textContent).toContain('You chose');
+  });
+
+  it('offers every option while it waits', () => {
+    render(questionContent(QUESTION_HTML));
+    expect(buttons().map((button) => button.getAttribute('aria-pressed'))).toEqual([
+      'false',
+      'false',
+    ]);
+    expect(buttons().some((button) => button.hasAttribute('aria-expanded'))).toBe(false);
+    expect(buttons().some((button) => button.disabled)).toBe(false);
+  });
+
+  it('shows an answered question with its chosen option, and the others on a click', () => {
+    render(questionContent(QUESTION_HTML), [reaction(VIEWER, '🟢')]);
+    expect(card()?.textContent).toContain('Which color?');
+    expect(buttons().map((button) => button.textContent)).toEqual(['🟢GreenYou chose']);
+    const chosen = buttons()[0];
+    expect(chosen?.getAttribute('aria-expanded')).toBe('false');
+
+    act(() => chosen?.click());
+    expect(answerQuestion).not.toHaveBeenCalled();
+    expect(chosen?.getAttribute('aria-expanded')).toBe('true');
+    const [red, green] = buttons() as [HTMLButtonElement, HTMLButtonElement];
+    expect(red.textContent).toBe('🔴Red');
+    expect(red.disabled).toBe(true);
+    expect(green).toBe(chosen);
+
+    act(() => chosen?.click());
+    expect(buttons()).toEqual([chosen]);
   });
 
   it('follows reactions as they come and go, from the first one on', () => {
