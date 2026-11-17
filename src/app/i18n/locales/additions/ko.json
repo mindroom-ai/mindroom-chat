@@ -392,7 +392,8 @@
         "deactivate": "계정 삭제, 계정 해지",
         "localMindroom": "페어링, 페어링 코드, 로컬, 데스크톱",
         "emoji": "이모지, 스티커, 팩, 사용자 지정 이모지",
-        "errorReports": "오류, 충돌, 버그, 진단, 원격 분석, 개인정보"
+        "errorReports": "오류, 충돌, 버그, 진단, 원격 분석, 개인정보",
+        "midTurn": "방향 전환, 대기열, 자동, 에이전트, 답변, 중단"
       },
       "errorReports": {
         "title": "오류 보고서 보내기",
@@ -656,6 +657,25 @@
       "noCrossSigning": "워치가 연결되었지만 확인되지 않았습니다. 확인하려면 이 iPhone에서 암호화를 설정하세요.",
       "noBackup": "워치가 확인되었지만 연결 전 메시지는 읽을 수 없습니다. 이 iPhone에서 키 백업을 켜세요.",
       "timeout": "워치가 로그인을 마치지 못했습니다. 워치에서 MindRoom을 열고 다시 연결하세요."
+    },
+    "roomSettings": {
+      "navigation": {
+        "mindroom": "MindRoom"
+      },
+      "mindroom": {
+        "threadSummaryInstructions": {
+          "label": "스레드 제목 규칙",
+          "description": "MindRoom의 AI가 이 방의 스레드에 붙이는 제목에 적용할 추가 규칙입니다. 기본 제목 규칙보다 우선합니다.",
+          "placeholder": "예: 이모지 뒤에 최대 4단어만 사용",
+          "note": "이미 붙은 제목은 다음에 새로 고칠 때까지 지금 문구를 유지합니다."
+        },
+        "save": "저장",
+        "saved": "저장됨",
+        "clear": "지우기",
+        "characterCount": "{{length, number}} / {{max, number}}",
+        "readOnly": "이 방의 설정을 바꿀 수 있는 사람만 편집할 수 있습니다.",
+        "saveFailed": "설정을 저장하지 못했습니다. 다시 시도하세요."
+      }
     }
   },
   "mindroomUi": {
@@ -777,6 +797,15 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} 동안 실행 중"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "제목 설정…"
+      },
+      "replyTime": {
+        "started": "시작 {{value1}}",
+        "finished": "종료 {{value1}}",
+        "stillStreaming": "아직 진행 중",
+        "duration": "소요 시간 {{value1}}"
       },
       "compactionSeam": {
         "elapsed": "{{n, number}}초",
@@ -940,7 +969,19 @@
     "moreActions": "추가 작업",
     "lostFiles": "이 초안에 보관되지 않음: {{files}}. 보내기 전에 다시 첨부하세요.",
     "lostPastes": "붙여넣은 텍스트가 이 초안에 보관되지 않았습니다. 보내기 전에 다시 붙여넣으세요.",
-    "dismissLostFiles": "닫기"
+    "dismissLostFiles": "닫기",
+    "midTurn": {
+      "menuLabel": "에이전트 답변 중 보내기",
+      "steer": "방향 전환",
+      "defaultChoice": "{{label}} (기본값)",
+      "steerHint": "답변을 멈추고 이 메시지로 이어가기",
+      "queue": "대기열",
+      "queueHint": "답변이 끝난 뒤 보내기",
+      "auto": "자동",
+      "autoHint": "에이전트가 결정하도록 하기",
+      "settingTitle": "에이전트가 답변 중일 때 보내기",
+      "settingDescription": "보내기를 길게 눌러 메시지마다 선택하세요."
+    }
   },
   "commandPalette": {
     "state": {

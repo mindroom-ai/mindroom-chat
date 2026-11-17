@@ -91,6 +91,7 @@ const openFixture = () => {
       append: vi.fn((_id, events: MatrixEvent[]) =>
         events.forEach((event) => rendered.set(event.getId()!, event))
       ),
+      getEvents: vi.fn(() => [...rendered.values()]),
       invalidateTimeline: vi.fn(),
     },
     viewport: { resetForOpen: vi.fn(), resetAfterLeave: vi.fn(), requestLatestPin: vi.fn() },
@@ -754,5 +755,94 @@ describe('thread session opening', () => {
     expect(view.session.commands.isCurrent(reopened)).toBe(true);
     expect(view.session.snapshot.open.editResetEpoch).toBe(4);
     view.unmount();
+  });
+});
+
+describe('thread session first paint', () => {
+  const extraReply = (fixture: ReturnType<typeof openFixture>, id: string, ts: number) =>
+    new MatrixEvent({
+      event_id: id,
+      room_id: fixture.runtime.room.roomId,
+      sender: '@user:example.org',
+      origin_server_ts: ts,
+      type: 'm.room.message',
+      content: {
+        body: id,
+        msgtype: 'm.text',
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$a' },
+      },
+    });
+
+  it('holds the first paint while its rows leave out known replies, until the first page is in', async () => {
+    vi.mocked(loadThreadCachedSnapshot).mockReset().mockResolvedValue(undefined);
+    const fixture = openFixture();
+    const thread = fixture.runtime.room.getThread('$a')!;
+    const firstPage = deferred<void>();
+    // Sync brought the newest of three replies; the two before it come with the first page.
+    Object.assign(thread, { length: 3, initialize: () => firstPage.promise });
+    const view = renderOpen(fixture.runtime, {
+      roomId: fixture.runtime.room.roomId,
+      threadId: '$a',
+    });
+    try {
+      await act(async () => undefined);
+      expect(view.session.snapshot.open.firstPaintHeld).toBe(true);
+      await act(async () => {
+        Object.assign(thread, {
+          events: [extraReply(fixture, '$older', 0), extraReply(fixture, '$old', 1), fixture.reply],
+          initialEventsFetched: true,
+        });
+        firstPage.resolve();
+      });
+      await act(async () => undefined);
+      expect(view.session.snapshot.open.firstPaintHeld).toBe(false);
+    } finally {
+      view.unmount();
+      firstPage.resolve();
+    }
+  });
+
+  it('paints at once when its rows hold every known reply', async () => {
+    vi.mocked(loadThreadCachedSnapshot)
+      .mockReset()
+      .mockReturnValue(new Promise(() => undefined));
+    const fixture = openFixture();
+    Object.assign(fixture.runtime.room.getThread('$a')!, { length: 1 });
+    const view = renderOpen(fixture.runtime, {
+      roomId: fixture.runtime.room.roomId,
+      threadId: '$a',
+    });
+    expect(view.session.snapshot.open.firstPaintHeld).toBe(false);
+    view.unmount();
+  });
+
+  it('paints what it has once the cap has passed without an answer', async () => {
+    vi.useFakeTimers();
+    vi.mocked(loadThreadCachedSnapshot)
+      .mockReset()
+      .mockReturnValue(new Promise(() => undefined));
+    const fixture = openFixture();
+    Object.assign(fixture.runtime.room.getThread('$a')!, {
+      length: 3,
+      initialize: () => new Promise(() => undefined),
+    });
+    const view = renderOpen(fixture.runtime, {
+      roomId: fixture.runtime.room.roomId,
+      threadId: '$a',
+    });
+    try {
+      expect(view.session.snapshot.open.firstPaintHeld).toBe(true);
+      act(() => {
+        vi.advanceTimersByTime(599);
+      });
+      expect(view.session.snapshot.open.firstPaintHeld).toBe(true);
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(view.session.snapshot.open.firstPaintHeld).toBe(false);
+    } finally {
+      view.unmount();
+      vi.useRealTimers();
+    }
   });
 });

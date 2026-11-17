@@ -402,7 +402,8 @@
         "deactivate": "elimina account, chiudi account",
         "localMindroom": "associa, codice di associazione, locale, desktop",
         "emoji": "emoji, sticker, pacchetti, emoji personalizzate",
-        "errorReports": "errori, arresto anomalo, bug, diagnostica, telemetria, privacy"
+        "errorReports": "errori, arresto anomalo, bug, diagnostica, telemetria, privacy",
+        "midTurn": "reindirizza, coda, automatico, agente, risposta, interrompi"
       },
       "errorReports": {
         "title": "Invia segnalazioni di errore",
@@ -674,6 +675,25 @@
       "noCrossSigning": "L’orologio è connesso ma non verificato: configura la crittografia su questo iPhone per verificarlo.",
       "noBackup": "L’orologio è verificato, ma non può leggere i messaggi precedenti alla connessione: attiva il backup delle chiavi su questo iPhone.",
       "timeout": "L’orologio non ha completato l’accesso. Apri MindRoom sull’orologio e connettiti di nuovo."
+    },
+    "roomSettings": {
+      "navigation": {
+        "mindroom": "MindRoom"
+      },
+      "mindroom": {
+        "threadSummaryInstructions": {
+          "label": "Regole per i titoli dei thread",
+          "description": "Regole aggiuntive per i titoli che l’IA di MindRoom dà ai thread di questa stanza. Hanno la precedenza sulle normali regole dei titoli.",
+          "placeholder": "Per esempio: usa al massimo 4 parole dopo l’emoji",
+          "note": "I titoli già assegnati mantengono la loro formulazione fino al prossimo aggiornamento."
+        },
+        "save": "Salva",
+        "saved": "Salvato",
+        "clear": "Cancella",
+        "characterCount": "{{length, number}} / {{max, number}}",
+        "readOnly": "Solo chi può modificare le impostazioni di questa stanza può cambiarlo.",
+        "saveFailed": "Impossibile salvare l’impostazione. Riprova."
+      }
     }
   },
   "mindroomUi": {
@@ -799,6 +819,15 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "In esecuzione da {{duration}}"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "Impostazioni dei titoli…"
+      },
+      "replyTime": {
+        "started": "Iniziato {{value1}}",
+        "finished": "Terminato {{value1}}",
+        "stillStreaming": "Ancora in corso",
+        "duration": "Durata {{value1}}"
       },
       "compactionSeam": {
         "elapsed": "{{n, number}} s",
@@ -976,7 +1005,19 @@
     "moreActions": "Altre azioni",
     "lostFiles": "Non conservati con questa bozza: {{files}}. Allegali di nuovo prima di inviare.",
     "lostPastes": "Il testo incollato non è stato conservato con questa bozza. Incollalo di nuovo prima di inviare.",
-    "dismissLostFiles": "Ignora"
+    "dismissLostFiles": "Ignora",
+    "midTurn": {
+      "menuLabel": "Invia mentre l'agente risponde",
+      "steer": "Reindirizza",
+      "defaultChoice": "{{label}} (predefinito)",
+      "steerHint": "Interrompi la risposta e continua con questo messaggio",
+      "queue": "In coda",
+      "queueHint": "Invia al termine della risposta",
+      "auto": "Automatico",
+      "autoHint": "Lascia decidere all'agente",
+      "settingTitle": "Invia mentre un agente risponde",
+      "settingDescription": "Tieni premuto Invia per scegliere per un solo messaggio."
+    }
   },
   "commandPalette": {
     "state": {

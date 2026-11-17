@@ -392,7 +392,8 @@
         "deactivate": "hapus akun, tutup akun",
         "localMindroom": "pasangkan, kode pemasangan, lokal, desktop",
         "emoji": "emoji, stiker, paket, emoji kustom",
-        "errorReports": "kesalahan, crash, bug, diagnostik, telemetri, privasi"
+        "errorReports": "kesalahan, crash, bug, diagnostik, telemetri, privasi",
+        "midTurn": "arahkan, antrean, otomatis, agen, balasan, sela"
       },
       "errorReports": {
         "title": "Kirim laporan kesalahan",
@@ -656,6 +657,25 @@
       "noCrossSigning": "Jam terhubung tetapi belum diverifikasi: siapkan enkripsi di iPhone ini untuk memverifikasinya.",
       "noBackup": "Jam sudah diverifikasi, tetapi tidak dapat membaca pesan sebelum terhubung: aktifkan cadangan kunci di iPhone ini.",
       "timeout": "Jam tidak menyelesaikan proses masuk. Buka MindRoom di jam dan hubungkan lagi."
+    },
+    "roomSettings": {
+      "navigation": {
+        "mindroom": "MindRoom"
+      },
+      "mindroom": {
+        "threadSummaryInstructions": {
+          "label": "Aturan judul utas",
+          "description": "Aturan tambahan untuk judul yang diberikan AI MindRoom pada utas di ruang ini. Aturan ini lebih diutamakan daripada aturan judul biasa.",
+          "placeholder": "Contoh: Gunakan paling banyak 4 kata setelah emoji",
+          "note": "Judul yang sudah ada tetap memakai kata-katanya sampai diperbarui lagi."
+        },
+        "save": "Simpan",
+        "saved": "Tersimpan",
+        "clear": "Hapus",
+        "characterCount": "{{length, number}} / {{max, number}}",
+        "readOnly": "Hanya orang yang boleh mengubah pengaturan ruang ini yang dapat mengeditnya.",
+        "saveFailed": "Pengaturan tidak dapat disimpan. Coba lagi."
+      }
     }
   },
   "mindroomUi": {
@@ -777,6 +797,15 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Berjalan selama {{duration}}"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "Pengaturan judul…"
+      },
+      "replyTime": {
+        "started": "Dimulai {{value1}}",
+        "finished": "Selesai {{value1}}",
+        "stillStreaming": "Masih berjalan",
+        "duration": "Durasi {{value1}}"
       },
       "compactionSeam": {
         "elapsed": "{{n, number}} dtk",
@@ -940,7 +969,19 @@
     "moreActions": "Tindakan lainnya",
     "lostFiles": "Tidak disimpan bersama draf ini: {{files}}. Lampirkan lagi sebelum mengirim.",
     "lostPastes": "Teks yang ditempel tidak disimpan bersama draf ini. Tempel lagi sebelum mengirim.",
-    "dismissLostFiles": "Tutup"
+    "dismissLostFiles": "Tutup",
+    "midTurn": {
+      "menuLabel": "Kirim saat agen membalas",
+      "steer": "Arahkan",
+      "defaultChoice": "{{label}} (bawaan)",
+      "steerHint": "Hentikan balasan dan lanjutkan dengan pesan ini",
+      "queue": "Antrekan",
+      "queueHint": "Kirim setelah balasan selesai",
+      "auto": "Otomatis",
+      "autoHint": "Biarkan agen memutuskan",
+      "settingTitle": "Kirim saat agen sedang membalas",
+      "settingDescription": "Tahan Kirim untuk memilih bagi satu pesan."
+    }
   },
   "commandPalette": {
     "state": {

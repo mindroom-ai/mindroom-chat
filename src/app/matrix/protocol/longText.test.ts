@@ -54,6 +54,19 @@ describe('buildLongTextPreview', () => {
     });
   });
 
+  // MindRoom reads the mid-turn mode from the event, not from the file.
+  it('keeps the mid-turn mode', () => {
+    const preview = buildLongTextPreview({
+      body: 'x'.repeat(50_000),
+      'io.mindroom.mid_turn': 'queue',
+    });
+
+    expect(preview).toEqual({
+      body: `${'x'.repeat(2000)}\n\n[Message continues in attached file]`,
+      'io.mindroom.mid_turn': 'queue',
+    });
+  });
+
   it('cuts the preview between characters', () => {
     // An emoji is two UTF-16 units; the 2000-unit cut would split the last one in half.
     const preview = buildLongTextPreview({ body: `${'x'.repeat(1999)}${'😀'.repeat(10)}` });

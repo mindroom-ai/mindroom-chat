@@ -213,13 +213,14 @@ describe('shared model discovery', () => {
     await h.discover();
     const oldCount = h.queued.length;
     h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
-    expect(h.snapshot().eligible).toBe(false);
+    // The button stays while it revalidates, but nothing can change the model meanwhile.
+    expect(h.snapshot()).toMatchObject({ eligible: true, loading: true, canMutate: false });
     await flush();
     expect(h.queued.length).toBeGreaterThan(oldCount);
     h.response(h.request());
     await flush();
     await vi.advanceTimersByTimeAsync(12000);
-    expect(h.snapshot().eligible).toBe(true);
+    expect(h.snapshot()).toMatchObject({ eligible: true, loading: false, canMutate: true });
   });
   it('coalesces subscribers and authenticates actual curve key before exposing capability', async () => {
     const h = setup();
@@ -385,17 +386,238 @@ describe('shared model discovery', () => {
     h.response(request);
     await flush();
     expect(h.snapshot().eligible).toBe(false);
-    h.controller.refresh(h.room, '$root');
-    await flush();
+    // The retry asks again under a new ID; the expired request's answer still counts for nothing.
+    await vi.advanceTimersByTimeAsync(3000);
     const next = h.request();
+    expect(next.request_id).not.toBe(request.request_id);
     leave();
     h.response(next);
     await flush();
     expect(h.snapshot().eligible).toBe(false);
-    disposeModelController(h.mx);
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    const last = h.request();
+    h.response(request);
     h.response(next);
     await flush();
     expect(h.snapshot().eligible).toBe(false);
+    disposeModelController(h.mx);
+    h.response(last);
+    await flush();
+    expect(h.snapshot().eligible).toBe(false);
+  });
+  it('asks again after an unanswered window and shows the answer to the retry', async () => {
+    const h = setup();
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    const first = h.request();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot()).toMatchObject({ eligible: false, loading: false });
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(h.snapshot().loading).toBe(true);
+    expect(h.request().request_id).not.toBe(first.request_id);
+    h.response(h.request());
+    await flush();
+    expect(h.snapshot()).toMatchObject({ eligible: true, canMutate: true });
+  });
+  it.each(['unsubscribe', 'dispose'])(
+    'backs off 3, 10, 30 then 60 seconds between attempts and stops on %s',
+    async (stop) => {
+      const h = setup();
+      const leave = h.controller.subscribe(h.room, '$root', () => {});
+      await flush();
+      const asked = () =>
+        new Set(h.queued.map((b) => b.batch[0].payload.encrypted.request_id)).size;
+      expect(asked()).toBe(1);
+      for (const [index, delay] of [3000, 10000, 30000, 60000, 60000].entries()) {
+        await vi.advanceTimersByTimeAsync(12000 + delay - 1);
+        expect(asked()).toBe(index + 1);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(asked()).toBe(index + 2);
+      }
+      if (stop === 'unsubscribe') leave();
+      else disposeModelController(h.mx);
+      const sent = h.queued.length;
+      await vi.advanceTimersByTimeAsync(10 * 60000);
+      expect(h.queued.length).toBe(sent);
+    }
+  );
+  it('probes again when the keys of a room candidate arrive after a probe found no signed device', async () => {
+    const h = setup();
+    const known = h.devices.get(router)!;
+    h.devices.delete(router);
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    expect(h.queue).not.toHaveBeenCalled();
+    expect(h.snapshot().loading).toBe(false);
+    h.devices.set(router, known);
+    h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
+    await flush();
+    expect(h.queue).toHaveBeenCalledTimes(1);
+    h.response(h.request());
+    await flush();
+    expect(h.snapshot().eligible).toBe(true);
+  });
+  it('probes a shown scope without a button again when sync comes back', async () => {
+    const h = setup();
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    const asked = h.queued.length;
+    h.mx.emit(ClientEvent.Sync, SyncState.Reconnecting, SyncState.Syncing);
+    await flush();
+    expect(h.queued.length).toBe(asked);
+    h.mx.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Reconnecting);
+    await flush();
+    expect(h.queued.length).toBe(asked + 1);
+    h.response(h.request());
+    await flush();
+    expect(h.snapshot().eligible).toBe(true);
+  });
+  it('probes a shown scope without a button again when the page becomes visible', async () => {
+    const page = Object.assign(new EventTarget(), { visibilityState: 'hidden' });
+    vi.stubGlobal('document', page);
+    try {
+      const h = setup();
+      h.controller.subscribe(h.room, '$root', () => {});
+      await flush();
+      await vi.advanceTimersByTimeAsync(12000);
+      const asked = h.queued.length;
+      page.dispatchEvent(new Event('visibilitychange'));
+      await flush();
+      expect(h.queued.length).toBe(asked);
+      page.visibilityState = 'visible';
+      page.dispatchEvent(new Event('visibilitychange'));
+      await flush();
+      expect(h.queued.length).toBe(asked + 1);
+      disposeModelController(h.mx);
+      page.dispatchEvent(new Event('visibilitychange'));
+      await flush();
+      expect(h.queued.length).toBe(asked + 1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+  it('keeps the button through an unrelated membership change without letting it send', async () => {
+    const h = setup();
+    await h.discover();
+    const asked = h.queued.length;
+    h.member('@someone:test');
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember('@someone:test')!);
+    expect(h.snapshot()).toMatchObject({
+      eligible: true,
+      loading: true,
+      canMutate: false,
+      override: null,
+    });
+    expect(h.snapshot().models).toHaveLength(2);
+    h.controller.selectModel(h.room, '$root', 'fast');
+    await flush();
+    expect(h.send).not.toHaveBeenCalled();
+    expect(h.queued.length).toBeGreaterThan(asked);
+    h.response(h.request());
+    await flush();
+    expect(h.snapshot().canMutate).toBe(true);
+    h.controller.selectModel(h.room, '$root', 'fast');
+    await flush();
+    expect(h.send).toHaveBeenCalledTimes(1);
+  });
+  it('keeps a cached button and its room cache while local capacity refuses its probe', async () => {
+    const h = setup();
+    (await h.discover())();
+    const busy = Array.from({ length: 8 }, (_, index) =>
+      h.controller.subscribe(h.room, '$busy' + index, () => {})
+    );
+    await flush();
+    h.controller.subscribe(h.room, '$ninth', () => {});
+    await flush();
+    expect(h.snapshot('$ninth')).toMatchObject({ eligible: true, canMutate: false });
+    expect(h.snapshot('$ninth').error).toBeDefined();
+    const asked = h.queued.length;
+    for (let wake = 0; wake < 6; wake += 1) {
+      h.mx.emit(ClientEvent.Sync, SyncState.Reconnecting, SyncState.Syncing);
+      h.mx.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Reconnecting);
+      await flush();
+    }
+    expect(h.queued.length).toBe(asked);
+    expect(h.snapshot('$ninth').eligible).toBe(true);
+    expect(h.snapshot('$fresh').eligible).toBe(true);
+    busy.forEach((leave) => leave());
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(h.request().thread_id).toBe('$ninth');
+    h.response(h.request());
+    await flush();
+    expect(h.snapshot('$ninth')).toMatchObject({ eligible: true, canMutate: true });
+  });
+  it('backs off and hides a revalidating button whose router lost its signed devices', async () => {
+    const h = setup();
+    await h.discover();
+    const known = h.devices.get(router)!;
+    h.devices.delete(router);
+    const probes = h.crypto.getUserDeviceInfo.mock.calls.length;
+    h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
+    await flush();
+    expect(h.snapshot()).toMatchObject({ eligible: true, canMutate: false });
+    // Probes at 0, 3, 13 and 43 s, then every 60 s: the fifth, at 103 s, hides the button.
+    await vi.advanceTimersByTimeAsync(102000);
+    expect(h.crypto.getUserDeviceInfo.mock.calls.length - probes).toBe(4);
+    expect(h.snapshot().eligible).toBe(true);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(h.snapshot().eligible).toBe(false);
+    await vi.advanceTimersByTimeAsync(10 * 60000 - 103000);
+    expect(h.crypto.getUserDeviceInfo.mock.calls.length - probes).toBe(13);
+    h.devices.set(router, known);
+    h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
+    await flush();
+    h.response(h.request());
+    await flush();
+    expect(h.snapshot()).toMatchObject({ eligible: true, canMutate: true });
+  });
+  it('gives up on one thread without evicting the room cache another thread just verified', async () => {
+    const h = setup();
+    await h.discover();
+    h.controller.subscribe(h.room, '$a', () => {});
+    await flush();
+    expect(h.snapshot('$a').eligible).toBe(true);
+    // Four unanswered attempts: 12 s, then retries after 3, 10 and 30 s.
+    for (const delay of [0, 3000, 10000, 30000]) await vi.advanceTimersByTimeAsync(delay + 12000);
+    expect(h.snapshot('$a')).toMatchObject({ eligible: true, canMutate: false });
+    h.controller.subscribe(h.room, '$b', () => {});
+    await flush();
+    expect(h.request().thread_id).toBe('$b');
+    h.response(h.request());
+    await flush();
+    expect(h.snapshot('$b')).toMatchObject({ eligible: true, canMutate: true });
+    // The fifth attempt, 60 s later, also goes unanswered.
+    await vi.advanceTimersByTimeAsync(60000 + 12000);
+    expect(h.snapshot('$a').eligible).toBe(false);
+    expect(h.snapshot('$b').eligible).toBe(true);
+    h.controller.subscribe(h.room, '$c', () => {});
+    expect(h.snapshot('$c').eligible).toBe(true);
+  });
+  it('hides a revalidating button after 5 failed attempts and shows it on a later answer', async () => {
+    const h = setup();
+    await h.discover();
+    h.member('@someone:test');
+    h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember('@someone:test')!);
+    await flush();
+    // Attempts 1 to 4 end unanswered: the button stays, with the error and its Retry.
+    for (const delay of [3000, 10000, 30000]) {
+      await vi.advanceTimersByTimeAsync(12000 + delay);
+      expect(h.snapshot().eligible).toBe(true);
+    }
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot()).toMatchObject({ eligible: true, loading: false, canMutate: false });
+    expect(h.snapshot().error).toBeDefined();
+    await vi.advanceTimersByTimeAsync(60000 + 12000);
+    expect(h.snapshot().eligible).toBe(false);
+    // The membership change cleared the room cache, so another thread starts hidden too.
+    expect(h.snapshot('$second').eligible).toBe(false);
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(h.snapshot().loading).toBe(true);
+    h.response(h.request());
+    await flush();
+    expect(h.snapshot()).toMatchObject({ eligible: true, canMutate: true });
   });
   it('invalidates membership and device changes immediately', async () => {
     const h = setup();
@@ -409,8 +631,9 @@ describe('shared model discovery', () => {
     h.response(h.request());
     await flush();
     await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot().canMutate).toBe(true);
     h.mx.emit(CryptoEvent.DevicesUpdated, [router], false);
-    expect(h.snapshot().eligible).toBe(false);
+    expect(h.snapshot()).toMatchObject({ eligible: true, canMutate: false });
   });
   it('retries omitted encrypted recipients without dropping or widening target set', async () => {
     const h = setup();

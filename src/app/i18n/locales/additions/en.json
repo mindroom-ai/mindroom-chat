@@ -397,7 +397,8 @@
         "deactivate": "delete account, close account",
         "localMindroom": "pair, pairing code, local, desktop",
         "emoji": "emoji, stickers, packs, custom emoji",
-        "errorReports": "errors, crash, bug, diagnostics, telemetry, privacy"
+        "errorReports": "errors, crash, bug, diagnostics, telemetry, privacy",
+        "midTurn": "steer, queue, auto, agent, reply, interrupt"
       },
       "errorReports": {
         "title": "Send error reports",
@@ -665,6 +666,25 @@
       "noCrossSigning": "The watch is connected but unverified: set up encryption on this iPhone to verify it.",
       "noBackup": "The watch is verified, but it cannot read messages from before it was connected: turn on key backup on this iPhone.",
       "timeout": "The watch did not finish signing in. Open MindRoom on the watch and connect again."
+    },
+    "roomSettings": {
+      "navigation": {
+        "mindroom": "MindRoom"
+      },
+      "mindroom": {
+        "threadSummaryInstructions": {
+          "label": "Thread title rules",
+          "description": "Extra rules for the titles MindRoom's AI gives this room's threads. They take precedence over the usual title rules.",
+          "placeholder": "For example: Use at most 4 words after the emoji",
+          "note": "Titles already set keep their wording until the next refresh."
+        },
+        "save": "Save",
+        "saved": "Saved",
+        "clear": "Clear",
+        "characterCount": "{{length, number}} / {{max, number}}",
+        "readOnly": "Only people allowed to change this room's settings can edit this.",
+        "saveFailed": "Couldn't save the setting. Try again."
+      }
     }
   },
   "mindroomUi": {
@@ -788,6 +808,15 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Running for {{duration}}"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "Title settings…"
+      },
+      "replyTime": {
+        "started": "Started {{value1}}",
+        "finished": "Finished {{value1}}",
+        "stillStreaming": "Still streaming",
+        "duration": "Duration {{value1}}"
       },
       "compactionSeam": {
         "elapsed": "{{n, number}} s",
@@ -958,7 +987,19 @@
     "moreActions": "More actions",
     "lostFiles": "Not kept with this draft: {{files}}. Attach them again before sending.",
     "lostPastes": "Pasted text was not kept with this draft. Paste it again before sending.",
-    "dismissLostFiles": "Dismiss"
+    "dismissLostFiles": "Dismiss",
+    "midTurn": {
+      "menuLabel": "Send while the agent replies",
+      "steer": "Steer",
+      "defaultChoice": "{{label}} (default)",
+      "steerHint": "Stop the reply and carry on with this message",
+      "queue": "Queue",
+      "queueHint": "Send after the reply finishes",
+      "auto": "Auto",
+      "autoHint": "Let the agent decide",
+      "settingTitle": "When an agent is replying, Send",
+      "settingDescription": "Hold Send to choose for one message."
+    }
   },
   "commandPalette": {
     "state": {

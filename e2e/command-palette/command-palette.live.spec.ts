@@ -76,7 +76,7 @@ test.describe('command palette', () => {
     await expect(page).toHaveURL(new RegExp(encodeURIComponent(roomId)));
   });
 
-  test('leads with rooms, sinks the open room, keeps one trigger, and moves room search to the menu', async ({
+  test('lists rooms, sinks the open room, keeps one trigger, and moves room search to the menu', async ({
     page,
   }, testInfo) => {
     const homeserver = getHomeserver();
@@ -111,9 +111,9 @@ test.describe('command palette', () => {
     const dialog = page.getByRole('dialog', { name: 'Command palette', exact: true });
     const input = dialog.getByRole('combobox');
     await expect(input).toBeFocused();
-    await expect(dialog.getByRole('listbox').getByRole('group').first()).toHaveAccessibleName(
-      /^Rooms/
-    );
+    // Threads lead All when the account has any; Rooms follow.
+    const rooms = dialog.getByRole('listbox').getByRole('group', { name: /^Rooms/ });
+    await expect(rooms).toBeVisible();
     await input.fill(currentName);
     await expect(dialog.getByRole('option').first()).toContainText(currentName);
     await input.press('Enter');
@@ -137,12 +137,12 @@ test.describe('command palette', () => {
     // The shortcut works while its tooltip is showing.
     await openCommandPalette(page);
     await expect(input).toBeFocused();
-    const first = dialog.getByRole('option').first();
-    await expect(first).toHaveAttribute('data-kind', 'room');
-    await expect(first).toContainText(earlierName);
-    await expect(first).toHaveAttribute('aria-selected', 'true');
+    // The open room sinks: the first room row is the other one.
+    const firstRoom = rooms.getByRole('option').first();
+    await expect(firstRoom).toHaveAttribute('data-kind', 'room');
+    await expect(firstRoom).toContainText(earlierName);
     await page.screenshot({ path: testInfo.outputPath('rooms-first-palette.png') });
-    await input.press('Enter');
+    await firstRoom.click();
     await expect(dialog).toHaveCount(0);
     await expect(page).toHaveURL(new RegExp(encodeURIComponent(earlierId)));
   });

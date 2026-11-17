@@ -2,6 +2,7 @@ import { MatrixEvent, RelationType } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import {
   canEditEvent,
+  getEditStreamFinishTs,
   getEditedEvent,
   getLatestEdit,
   getLatestMessageContent,
@@ -775,5 +776,71 @@ describe('isEmojiRoom', () => {
   // Pickers list joined room IDs, and `mx.getRoom` may have no room for one; that ID stays listed.
   it('does not match a room the client does not have', () => {
     expect(isEmojiRoom(null)).toBe(false);
+  });
+});
+
+describe('the finish of a stream an edit borrows its status from', () => {
+  const statusEdit = (eventId: string, ts: number, status?: string) => {
+    const edit = makeEditEvent(eventId, ts, '$target');
+    if (status) {
+      (edit.getContent()['m.new_content'] as Record<string, unknown>)['io.mindroom.stream_status'] =
+        status;
+    }
+    return edit;
+  };
+
+  it('is the time of the edit that finished it, not of a later edit without a status', () => {
+    const targetEvent = makeMessageEvent('$target', 1000);
+    const finish = statusEdit('$finish', 2000, 'completed');
+    const manual = statusEdit('$manual', 9000);
+    const later = statusEdit('$later', 12000);
+    const timelineSet = relationsOf(finish, manual, later);
+
+    const editedEvent = getEditedEvent('$target', targetEvent, timelineSet);
+    expect(editedEvent).toBe(later);
+    // The newest edit shows the finished status it borrowed, from the edit that carries it.
+    expect(getLatestMessageContent(targetEvent, editedEvent)['io.mindroom.stream_status']).toBe(
+      'completed'
+    );
+    expect(getEditStreamFinishTs(editedEvent!)).toBe(2000);
+    // Again, after the first call wrote the borrowed status into the edit.
+    expect(getEditStreamFinishTs(getEditedEvent('$target', targetEvent, timelineSet)!)).toBe(2000);
+  });
+
+  it('keeps its source when an edit that borrowed it is borrowed from in turn', () => {
+    const targetEvent = makeMessageEvent('$target', 1000);
+    const finish = statusEdit('$finish', 2000, 'completed');
+    const manual = statusEdit('$manual', 9000);
+    getEditedEvent('$target', targetEvent, relationsOf(finish, manual));
+    const later = statusEdit('$later', 12000);
+
+    const editedEvent = getEditedEvent('$target', targetEvent, relationsOf(finish, manual, later));
+    expect(getEditStreamFinishTs(editedEvent!)).toBe(2000);
+  });
+
+  it('is that of a newer finished stream, not of an older edit that borrowed an earlier one', () => {
+    const targetEvent = makeMessageEvent('$target', 1000);
+    const finish = statusEdit('$finish', 2000, 'completed');
+    const manual = statusEdit('$manual', 9000);
+    getEditedEvent('$target', targetEvent, relationsOf(finish, manual));
+    const rerun = statusEdit('$rerun', 15000, 'completed');
+    const later = statusEdit('$later', 20000);
+
+    const editedEvent = getEditedEvent(
+      '$target',
+      targetEvent,
+      relationsOf(finish, manual, rerun, later)
+    );
+    expect(getEditStreamFinishTs(editedEvent!)).toBe(15000);
+  });
+
+  it('is the time of the newest edit itself when that edit finished it', () => {
+    const targetEvent = makeMessageEvent('$target', 1000);
+    const progress = statusEdit('$progress', 2000, 'streaming');
+    const finish = statusEdit('$finish', 5000, 'completed');
+    const timelineSet = relationsOf(progress, finish);
+
+    expect(getEditStreamFinishTs(getEditedEvent('$target', targetEvent, timelineSet)!)).toBe(5000);
+    expect(getEditStreamFinishTs(getEditedEvent('$target', targetEvent, timelineSet)!)).toBe(5000);
   });
 });

@@ -11,6 +11,7 @@ import {
 } from './threadBootstrap';
 import { mergeThreadBackfillEvents } from '../../event-store/cache/threadCacheSnapshot';
 import { getThreadOpenSeedSnapshot } from '../../event-store/cache/threadOpenSeedCache';
+import { threadSeedHasGap } from './threadOpenFirstPaint';
 
 type ThreadOpenSeedSource = 'initial' | 'room-prewarm';
 
@@ -31,6 +32,8 @@ export type ThreadOpenSeedSession = {
     source?: ThreadOpenSeedSource
   ) => boolean;
   cleanup: () => void;
+  /** Whether the rows the open has now leave out replies the thread is known to have. */
+  hasGap: () => boolean;
   startUntargetedSeedPrewarmWait: (isCurrentThreadOpen: () => boolean) => void;
 };
 
@@ -190,6 +193,7 @@ export const createThreadOpenSeedSession = ({
         untargetedThreadSeedFallbackTimeout = undefined;
       }
     },
+    hasGap: () => threadSeedHasGap(room, threadId, initialUntargetedThreadSeedEvents),
     startUntargetedSeedPrewarmWait,
   };
 };

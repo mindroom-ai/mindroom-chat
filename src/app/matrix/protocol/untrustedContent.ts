@@ -13,6 +13,7 @@ import { isRecord } from '../../lib/isRecord';
 export const AGENT_ONLY_CONTENT_KEYS: readonly string[] = [
   'io.mindroom.ai_run',
   'io.mindroom.stream_status',
+  'io.mindroom.stream_status_ts',
   'io.mindroom.tool_trace',
   'io.mindroom.reasoning',
   'io.mindroom.compactions',

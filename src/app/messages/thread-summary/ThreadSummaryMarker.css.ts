@@ -41,3 +41,31 @@ export const MarkerDetails = style({
   gap: config.space.S100,
   maxWidth: toRem(280),
 });
+
+/** The details card's "Title settings…" link: small, muted text that takes the accent on hover. */
+export const MarkerSettingsLink = style({
+  alignSelf: 'flex-start',
+  border: 0,
+  borderRadius: config.radii.R300,
+  padding: 0,
+  marginBlockStart: config.space.S100,
+  background: 'transparent',
+  color: 'inherit',
+  // folds' muted text level, as the marker itself.
+  opacity: config.opacity.P300,
+  font: 'inherit',
+  fontSize: toRem(12),
+  textAlign: 'start',
+  cursor: 'pointer',
+  selectors: {
+    '&:hover, &:focus-visible': {
+      opacity: 1,
+      color: color.Primary.Main,
+      textDecoration: 'underline',
+    },
+    '&:focus-visible': {
+      outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
+      outlineOffset: toRem(1),
+    },
+  },
+});

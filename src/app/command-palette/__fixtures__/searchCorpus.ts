@@ -587,9 +587,24 @@ const all: CorpusCase[] = [
   { group: 'all', tab: 'all', query: 'general', first: 'room:general' },
   { group: 'all', tab: 'all', query: 'engineering', first: 'room:engineering' },
   { group: 'all', tab: 'all', query: 'sales', first: 'room:sales' },
-  { group: 'all', tab: 'all', query: 'roadmap', first: 'room:product-roadmap' },
+  // Threads lead All, so a thread that holds the word as well as the room's name comes first.
+  {
+    group: 'all',
+    tab: 'all',
+    query: 'roadmap',
+    first: 'thread:q3',
+    shown: ['room:product-roadmap'],
+    within: 2,
+  },
   { group: 'all', tab: 'all', query: 'zurich', first: 'room:zurich' },
-  { group: 'all', tab: 'all', query: '東京', first: 'room:tokyo' },
+  {
+    group: 'all',
+    tab: 'all',
+    query: '東京',
+    first: 'thread:tokyo-release',
+    shown: ['room:tokyo'],
+    within: 2,
+  },
   { group: 'all', tab: 'all', query: 'enginering', first: 'room:engineering' },
   {
     group: 'all',

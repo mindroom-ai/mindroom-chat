@@ -397,7 +397,8 @@
         "deactivate": "hesabı sil, hesabı kapat",
         "localMindroom": "eşleştir, eşleştirme kodu, yerel, masaüstü",
         "emoji": "emoji, çıkartmalar, paketler, özel emoji",
-        "errorReports": "hatalar, çökme, hata, tanılama, telemetri, gizlilik"
+        "errorReports": "hatalar, çökme, hata, tanılama, telemetri, gizlilik",
+        "midTurn": "yönlendir, sıra, otomatik, ajan, yanıt, kes"
       },
       "errorReports": {
         "title": "Hata raporları gönder",
@@ -665,6 +666,25 @@
       "noCrossSigning": "Saat bağlı ama doğrulanmadı: doğrulamak için bu iPhone’da şifrelemeyi ayarlayın.",
       "noBackup": "Saat doğrulandı ama bağlanmadan önceki mesajları okuyamaz: bu iPhone’da anahtar yedeklemesini açın.",
       "timeout": "Saat oturum açmayı bitirmedi. Saatte MindRoom’u açın ve yeniden bağlayın."
+    },
+    "roomSettings": {
+      "navigation": {
+        "mindroom": "MindRoom"
+      },
+      "mindroom": {
+        "threadSummaryInstructions": {
+          "label": "Konu başlığı kuralları",
+          "description": "MindRoom'un yapay zekâsının bu odadaki konulara verdiği başlıklar için ek kurallar. Bunlar olağan başlık kurallarından önce gelir.",
+          "placeholder": "Örneğin: Emojiden sonra en fazla 4 kelime kullanın",
+          "note": "Zaten verilmiş başlıklar bir sonraki yenilemeye kadar ifadelerini korur."
+        },
+        "save": "Kaydet",
+        "saved": "Kaydedildi",
+        "clear": "Temizle",
+        "characterCount": "{{length, number}} / {{max, number}}",
+        "readOnly": "Bunu yalnızca bu odanın ayarlarını değiştirme izni olanlar düzenleyebilir.",
+        "saveFailed": "Ayar kaydedilemedi. Tekrar deneyin."
+      }
     }
   },
   "mindroomUi": {
@@ -788,6 +808,15 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} süredir çalışıyor"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "Başlık ayarları…"
+      },
+      "replyTime": {
+        "started": "Başladı {{value1}}",
+        "finished": "Bitti {{value1}}",
+        "stillStreaming": "Hâlâ sürüyor",
+        "duration": "Süre {{value1}}"
       },
       "compactionSeam": {
         "elapsed": "{{n, number}} sn",
@@ -958,7 +987,19 @@
     "moreActions": "Diğer işlemler",
     "lostFiles": "Bu taslakla saklanmadı: {{files}}. Göndermeden önce yeniden ekleyin.",
     "lostPastes": "Yapıştırılan metin bu taslakla saklanmadı. Göndermeden önce yeniden yapıştırın.",
-    "dismissLostFiles": "Kapat"
+    "dismissLostFiles": "Kapat",
+    "midTurn": {
+      "menuLabel": "Ajan yanıt verirken gönder",
+      "steer": "Yönlendir",
+      "defaultChoice": "{{label}} (varsayılan)",
+      "steerHint": "Yanıtı durdur ve bu mesajla devam et",
+      "queue": "Sıraya al",
+      "queueHint": "Yanıt bittikten sonra gönder",
+      "auto": "Otomatik",
+      "autoHint": "Kararı ajana bırak",
+      "settingTitle": "Bir ajan yanıt verirken gönder",
+      "settingDescription": "Tek bir mesaj için seçmek üzere Gönder'e basılı tutun."
+    }
   },
   "commandPalette": {
     "state": {

@@ -515,6 +515,15 @@ export const SETTINGS = [
     scope: 'account',
   },
   {
+    id: 'midTurnSend',
+    page: 'chats',
+    group: 'settings.general.editor.sectionTitle',
+    labelKey: 'composer.midTurn.settingTitle',
+    descriptionKey: 'composer.midTurn.settingDescription',
+    keywordsKey: `${KEYWORDS}.midTurn`,
+    scope: 'account',
+  },
+  {
     id: 'hideMembershipEvents',
     page: 'chats',
     group: 'settings.general.messages.sectionTitle',

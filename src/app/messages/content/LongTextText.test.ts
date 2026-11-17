@@ -64,10 +64,12 @@ vi.mock('./MsgTypeRenderers', () => ({
     content,
     renderAfterBody,
     renderBody,
+    renderUrlsPreview,
   }: {
     content: Record<string, unknown>;
     renderAfterBody?: React.ReactNode;
     renderBody: (props: { body: string; customBody?: string }) => React.ReactNode;
+    renderUrlsPreview?: (urls: string[]) => React.ReactNode;
   }) =>
     React.createElement(
       'div',
@@ -76,7 +78,11 @@ vi.mock('./MsgTypeRenderers', () => ({
         body: trimReplyFromBody(typeof content.body === 'string' ? content.body : ''),
         customBody: typeof content.formatted_body === 'string' ? content.formatted_body : undefined,
       }),
-      renderAfterBody
+      renderAfterBody,
+      // As the real text message does, its link previews come from the body it shows.
+      renderUrlsPreview?.(
+        (typeof content.body === 'string' ? content.body : '').match(/https?:\/\/\S+/g) ?? []
+      )
     ),
 }));
 vi.mock('../canvas/InlineCanvasFrame', () => ({ InlineCanvasFrame: () => null }));
@@ -654,11 +660,89 @@ describe('LongTextText hydration identity', () => {
     });
   });
 
+  it('shows no link previews and no loading line while the preview text waits for the sidecar', async () => {
+    vi.useFakeTimers();
+    try {
+      const { LongTextKind, LongTextText } = await getLongTextTextModule();
+      const content = {
+        ...createPreviewContent(),
+        body: 'Preview response https://a.example/x https://b.example/y',
+      };
+      const sidecar = createDeferred<Record<string, unknown>>();
+      longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(sidecar.promise);
+      let renderer!: ReactTestRenderer;
+      const urlCards = () => renderer.root.findAll((node) => node.props['data-url-card'] === true);
+      const text = () => JSON.stringify(renderer.toJSON());
+      await act(async () => {
+        renderer = create(
+          React.createElement(LongTextText, {
+            kind: LongTextKind.Text,
+            content,
+            longTextSource: createLongTextSource({ previewContent: content }),
+            renderBody: (_content, props) => props.body,
+            renderUrlsPreview: (urls: string[]) =>
+              urls.map((url) => React.createElement('span', { key: url, 'data-url-card': true })),
+          })
+        );
+      });
+      expect(text()).toContain('Preview response');
+      expect(urlCards()).toHaveLength(0);
+
+      // Long after the loading line's delay, the preview text still stands alone.
+      await act(async () => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(text()).not.toContain('Loading full response');
+      expect(urlCards()).toHaveLength(0);
+
+      await act(async () => {
+        sidecar.resolve({ msgtype: 'm.text', body: 'Full response https://a.example/x' });
+        await Promise.resolve();
+      });
+      expect(text()).toContain('Full response');
+      expect(urlCards()).toHaveLength(1);
+      act(() => renderer.unmount());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    ['only a reply fallback', { body: '> <@alice:example.org> Previous reply\n\n' }],
+    ['an empty paragraph', { body: '', format: 'org.matrix.custom.html', formatted_body: '<p></p>' }],
+    ['HTML in an unrendered format', { body: '', format: 'x.y', formatted_body: '<b>x</b>' }],
+  ])('shows the loading line while a preview of %s waits for its sidecar', async (_, preview) => {
+    vi.useFakeTimers();
+    try {
+      const { LongTextKind, LongTextText } = await getLongTextTextModule();
+      const content = { ...createPreviewContent(), ...preview };
+      longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(new Promise(() => undefined));
+      let renderer!: ReactTestRenderer;
+      await act(async () => {
+        renderer = create(
+          React.createElement(LongTextText, {
+            kind: LongTextKind.Text,
+            content,
+            longTextSource: createLongTextSource({ previewContent: content }),
+            renderBody: (_content, props) => props.body,
+          })
+        );
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(400);
+      });
+      expect(JSON.stringify(renderer.toJSON())).toContain('Loading full response');
+      act(() => renderer.unmount());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('renders prewarmed sidecar content on the first paint without a preview flash', async () => {
     const { LongTextKind, LongTextText } = await getLongTextTextModule();
     const content = createPreviewContent();
     const source = createLongTextSource({ previewContent: content });
-    // Warm the REAL cache the way the prewarm pool does.
+    // Warm the REAL cache the way a thread open does before its first paint.
     const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>('../../matrix/protocol/longText');
     await actualLongText.hydrateLongTextSource(
       source,

@@ -38,12 +38,14 @@ import { createPasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
 import { discardFailedLocalEcho } from '../matrix/protocol/pendingLocalEcho';
 import {
   createRoomInputSendSessionState,
+  getSubmissionMarker,
   getTextRelationForSendSession,
   getUploadRelationForSendSession,
   hasRoomInputSendFailures,
   isRoomInputSendSessionStalled,
   resolveRoomInputSendStep,
   RoomInputSendSessionState,
+  SUBMISSION_CONTENT_KEY,
 } from './roomInputSendSession';
 import { getRoomMessageSentNotificationEventId } from '../event-store/timeline/roomMessageSent';
 import { getMessageRelation } from '../matrix/send/composeMessageRelation';
@@ -398,6 +400,19 @@ const getSessionUploads = (session: SendSession): [Upload[], TUploadContent[]] =
 const isSessionStalled = (session: SendSession) =>
   isRoomInputSendSessionStalled(session, ...getSessionUploads(session));
 
+/**
+ * The content with the submission marker of the event the session sends now (`sending` as in
+ * `getSubmissionMarker`), taken from the session's state at that moment.
+ */
+const withSubmissionMarker = <T extends IContent>(
+  session: SendSession,
+  content: T,
+  sending: TUploadContent | undefined
+): T => {
+  const marker = getSubmissionMarker(session, ...getSessionUploads(session), sending);
+  return marker ? { ...content, [SUBMISSION_CONTENT_KEY]: marker } : content;
+};
+
 // Queued texts go out one at a time once the session is done, and all of them at once when it
 // can only go on after the person retries an attachment: they never wait for that.
 const releaseQueuedSends = (sendSlot: SendSlot) => {
@@ -481,18 +496,26 @@ export const useRoomInputSendSessionController = ({
         session.textContent,
         getTextRelationForSendSession(session)
       );
+      const markedContent = withSubmissionMarker(session, content, undefined);
       // Content too large for one event goes as a long-text sidecar, as MindRoom's long replies do.
       // A failed upload throws before anything is sent, so the text returns to the composer.
       let eventContent: IContent;
       try {
         eventContent =
-          contentBytes(content) <= MAX_EVENT_CONTENT_BYTES
-            ? content
-            : await uploadLongTextSidecar(mx, session.room, content, buildLongTextPreview(content));
+          contentBytes(markedContent) <= MAX_EVENT_CONTENT_BYTES
+            ? markedContent
+            : await uploadLongTextSidecar(
+                mx,
+                session.room,
+                markedContent,
+                buildLongTextPreview(markedContent)
+              );
       } catch (error) {
         settleFork?.();
         throw error;
       }
+      // MindRoom reads a sidecar's content in place of its preview's, so both carry the marker.
+      eventContent = withSubmissionMarker(session, eventContent, undefined);
       const txnId = mx.makeTxnId();
       const sendPromise = mx.sendMessage(session.roomId, eventContent as any, txnId);
       sendPromise.then(
@@ -557,7 +580,11 @@ export const useRoomInputSendSessionController = ({
       } = await placeMessage(session, content, getUploadRelationForSendSession(session, isRoot));
       const txnId = mx.makeTxnId();
       const response = await mx
-        .sendMessage(session.roomId, contentWithRelation as any, txnId)
+        .sendMessage(
+          session.roomId,
+          withSubmissionMarker(session, contentWithRelation, file) as any,
+          txnId
+        )
         .catch((error: unknown) => {
           settleFork?.();
           // The composer keeps the attachment to send again; drop the unsent echo.
