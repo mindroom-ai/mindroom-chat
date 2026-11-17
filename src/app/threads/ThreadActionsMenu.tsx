@@ -238,7 +238,9 @@ export function ThreadActionsMenu({
         ? undefined
         : new ResizeObserver(() => {
             // Folds repositions when its anchor changes; lazy details can resize without a window resize.
-            setPlaced({ anchor, copy: { ...anchor } });
+            // The trigger's DOMRect keeps its fields on its prototype, where a spread finds none.
+            const { x, y, width, height } = anchor;
+            setPlaced({ anchor, copy: { x, y, width, height } });
           });
     observer?.observe(surface);
     return () => {
