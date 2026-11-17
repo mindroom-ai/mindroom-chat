@@ -189,6 +189,68 @@ describe('InlineCanvasFrame', () => {
     expect(frame().srcdoc).toContain('img-src data: blob: https:');
     vi.unstubAllGlobals();
   });
+  it('gives a page that follows its viewport a window and fits it no more', () => {
+    const observed: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          observed.push(callback);
+        }
+        observe() {}
+        disconnect() {}
+      }
+    );
+    const column = (width: number) =>
+      act(() =>
+        observed.forEach((callback) =>
+          callback([{ contentRect: { width } } as ResizeObserverEntry], {} as ResizeObserver)
+        )
+      );
+    render();
+    post({ type: 'mindroom.canvas.size', version: 1, height: 256 });
+    expect(frame().style.height).toBe('256px');
+    post({ type: 'mindroom.canvas.size', version: 1, height: 352, viewport: true });
+    // A window for the column's width: 16:10, at least 568 pixels.
+    expect(frame().style.height).toBe('568px');
+    column(1600);
+    expect(frame().style.height).toBe('1000px');
+    post({ type: 'mindroom.canvas.size', version: 1, height: 5000 });
+    expect(frame().style.height).toBe('1000px');
+    // A page with its own width gets the window of that width, shrunk with it.
+    const page = { title: 'Site', html: '<p>Site</p>', raw: true, width: 1440 };
+    render(makeUiEvent({ action: 'show_canvas', inline: true, canvas: page }));
+    column(720);
+    post({ type: 'mindroom.canvas.size', version: 1, height: 1200, viewport: true });
+    expect(frame().style.height).toBe('900px');
+    expect((frame().parentElement as HTMLElement).style.height).toBe('450px');
+    vi.unstubAllGlobals();
+  });
+  it('starts a page again when it escapes its frame, until it keeps escaping', () => {
+    render();
+    const escaped = { type: 'mindroom.canvas.escaped' };
+    // The wrapper around the page reports that the page tried to load something else.
+    const escape = () => post(escaped, frame().contentWindow!);
+    post({ type: 'mindroom.canvas.size', version: 1, height: 500 });
+    const first = frame();
+    // Only the page's own wrapper reports an escape.
+    post(escaped);
+    post(escaped, first.contentWindow!, 'https://example.org');
+    expect(frame()).toBe(first);
+    escape();
+    expect(frame()).not.toBe(first);
+    expect(frame().srcdoc).toBe(first.srcdoc);
+    expect(frame().style.height).toBe('500px');
+    escape();
+    escape();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    // A page that escapes every time it loads stops reloading until the user asks.
+    escape();
+    expect(container.querySelector('iframe')).toBeNull();
+    expect(container.querySelector('[role="alert"]')).not.toBeNull();
+    act(() => container.querySelector('button')!.click());
+    expect(container.querySelector('iframe')).not.toBeNull();
+  });
   it('shrinks a wide page to its column and never enlarges a narrow one', () => {
     expect(inlineCanvasScale(720, 1440)).toBe(0.5);
     expect(inlineCanvasScale(720, 390)).toBe(1);

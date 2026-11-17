@@ -6,11 +6,14 @@ export const CANVAS_ERROR_MESSAGE = 'mindroom.canvas.error';
 export const CANVAS_STATE_MESSAGE = 'mindroom.canvas.state';
 export const CANVAS_SIZE_MESSAGE = 'mindroom.canvas.size';
 
-/** Only the opaque page inside this host may resize its frame. */
+/**
+ * Only the opaque page inside this host may resize its frame. `viewport` means the page follows its
+ * viewport's height, so it wants a browser window instead of a frame fitted to it.
+ */
 export const readCanvasSize = (
   event: MessageEvent,
   frame: Window | null | undefined
-): number | undefined => {
+): { height: number; viewport: boolean } | undefined => {
   if (!frame || event.source !== frame || event.origin !== 'null') return undefined;
   const data: unknown = event.data;
   if (
@@ -26,11 +29,18 @@ export const readCanvasSize = (
     data.height <= 0
   )
     return undefined;
-  return data.height;
+  return { height: data.height, viewport: 'viewport' in data && data.viewport === true };
 };
 
 export const clampInlineCanvasHeight = (height: number): number =>
   Math.min(20000, Math.max(80, Math.ceil(height)));
+
+/**
+ * The window height a page that follows its viewport gets, for a page laid out this many pixels
+ * wide: a 16:10 window, at least an iPhone SE's 568 and at most a 1080 desktop.
+ */
+export const inlineCanvasWindowHeight = (width: number): number =>
+  Math.min(1080, Math.max(568, Math.round((width * 10) / 16)));
 
 /** The JSON a page may save as its state, in characters. */
 export const CANVAS_STATE_MAX_LENGTH = 256 * 1024;
@@ -252,25 +262,41 @@ const inputsScript = (inputs: string | undefined): string => `
 /** Only inline pages report their height: their host fits the frame to it. */
 const sizeScript = `
   let lastHeight;
+  let lastViewport;
+  let followsViewport = false;
   let sizeQueued = false;
   // The body's own extent: it follows the content down and up, and the frame's height never enters it,
   // so a page cannot grow by being given room. Inline pages make the body the containing block, so
   // absolutely positioned content counts too; raw pages keep the browser's defaults, so for them
   // content positioned against the viewport does not count.
-  const reportSize = () => {
-    sizeQueued = false;
+  const measureSize = () => {
     const body = document.body;
-    if (!body) return;
+    if (!body) return undefined;
     const box = body.getBoundingClientRect();
-    const height = Math.ceil(Math.max(
+    return Math.ceil(Math.max(
       box.top + scrollY + Math.max(body.scrollHeight, box.height)
         + (parseFloat(getComputedStyle(body).marginBottom) || 0),
       document.documentElement.getBoundingClientRect().height
     ));
-    if (height === lastHeight) return;
+  };
+  const reportSize = () => {
+    sizeQueued = false;
+    const height = followsViewport ? undefined : measureSize();
+    if (height === undefined || height === lastHeight) return;
     lastHeight = height;
+    lastViewport = innerHeight;
     parent.parent.postMessage({ type: '${CANVAS_SIZE_MESSAGE}', version: 1, height }, '*');
   };
+  // A page sized by its viewport (100vh and more) grows by as much as its frame does, so every fit
+  // would grow it again. Such a page asks once for a window of its own and scrolls inside it.
+  addEventListener('resize', () => {
+    if (followsViewport || lastHeight === undefined) return;
+    const grown = innerHeight - lastViewport;
+    const height = measureSize();
+    if (grown <= 0 || height === undefined || Math.abs(height - lastHeight - grown) > 1) return;
+    followsViewport = true;
+    parent.parent.postMessage({ type: '${CANVAS_SIZE_MESSAGE}', version: 1, height, viewport: true }, '*');
+  });
   // Content outside the body's flow can change without resizing the body.
   const queueSize = () => {
     if (sizeQueued) return;

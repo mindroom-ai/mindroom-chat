@@ -95,6 +95,42 @@ test('an inline canvas follows absolutely positioned content through transitions
   await expect.poll(height, { timeout: 10_000 }).toBe(250);
 });
 
+// A page whose height follows its viewport gets a 16:10 window, 568 to 1080 page pixels tall.
+const expectWindowed = async (page: Page, title: string, width?: number) => {
+  const frame = page.locator(`iframe[title="${title}"]`);
+  await expect(frame).toBeVisible({ timeout: 60_000 });
+  const column = await frame.evaluate((element) => element.parentElement!.clientWidth);
+  const scale = width === undefined ? 1 : Math.min(1, column / width);
+  const expected = Math.min(1080, Math.max(568, Math.round(((width ?? column) * 10) / 16))) * scale;
+  const shown = async () => (await frame.locator('xpath=..').boundingBox())?.height ?? 0;
+  await expect.poll(shown, { timeout: 20_000 }).toBeCloseTo(expected, 0);
+  await page.waitForTimeout(1_500);
+  expect(await shown()).toBeCloseTo(expected, 0);
+  // The rest of the page scrolls inside the window, as in a browser.
+  const inner = page.frameLocator(`iframe[title="${title}"]`).frameLocator('iframe');
+  await expect(inner.getByText('Footer')).toBeAttached();
+  expect(
+    await inner
+      .locator('body')
+      .evaluate(() => document.scrollingElement!.scrollHeight > window.innerHeight)
+  ).toBe(true);
+};
+
+test('a page that follows its viewport settles in a window of its own and scrolls inside it', async ({
+  context,
+  page,
+}) => {
+  const room = await openPanelRoom(context, page);
+  // A header, a 100vh hero and a footer: fitted to its height, it would grow with every fit.
+  const hero =
+    '<header style="height:60px">Header</header><section style="height:100vh">Hero</section>' +
+    '<footer style="height:40px">Footer</footer>';
+  await sendInlineCanvas(room, 'Hero page', hero);
+  await sendInlineCanvas(room, 'Hero site', hero, { raw: true, width: 1440 });
+  await expectWindowed(page, 'Hero page');
+  await expectWindowed(page, 'Hero site', 1440);
+});
+
 // One pixel PNG for the remote image.
 const PIXEL = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',

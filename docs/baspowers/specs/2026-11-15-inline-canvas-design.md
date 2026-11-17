@@ -91,3 +91,11 @@ The backend toolkit option `enable_canvas_remote_assets` (like `enable_canvas_li
 ### Measuring a raw page
 
 Raw pages get no `position:relative` on `body`, so the height is the larger of the body's extent and the root element's box. Content positioned against the viewport is not counted; such a page should give its own wrapper a height.
+
+### Pages that follow their viewport (added 2026-11-16)
+
+A page whose height follows its viewport, such as a `100vh` hero with a header, grows by as much as its frame does, so fitting the frame to it would grow it to the 20000px cap.
+The bridge spots this on the frame's `resize`: the frame grew and the page grew by the same amount.
+It then posts one size message with `viewport: true` and reports no more; ordinary content, which does not grow when given room, is fitted as before.
+The host answers with a window, as a browser would: 16:10 of the page's layout width (`width`, or the column without it), at least 568 page px (an iPhone SE screen) and at most 1080, and the rest of the page scrolls inside it.
+Without `width` the column is under about 900px, so such a page gets 568px: a hero fills a screenful of the thread and no more.

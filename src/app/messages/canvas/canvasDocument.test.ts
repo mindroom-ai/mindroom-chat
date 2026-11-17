@@ -4,6 +4,7 @@ import {
   CANVAS_SIZE_MESSAGE,
   readCanvasSize,
   clampInlineCanvasHeight,
+  inlineCanvasWindowHeight,
   buildCanvasDocument,
   buildCanvasPage,
   CANVAS_CSP,
@@ -808,7 +809,23 @@ describe('inline canvas sizing', () => {
     } as MessageEvent);
 
   it('reads only finite positive sizes from its opaque canvas frame', () => {
-    expect(readCanvasSize(message(412.3), frame)).toBe(412.3);
+    expect(readCanvasSize(message(412.3), frame)).toEqual({ height: 412.3, viewport: false });
+    expect(
+      readCanvasSize(
+        message(0, {
+          data: { type: CANVAS_SIZE_MESSAGE, version: 1, height: 700, viewport: true },
+        }),
+        frame
+      )
+    ).toEqual({ height: 700, viewport: true });
+    expect(
+      readCanvasSize(
+        message(0, {
+          data: { type: CANVAS_SIZE_MESSAGE, version: 1, height: 700, viewport: 'yes' },
+        }),
+        frame
+      )
+    ).toEqual({ height: 700, viewport: false });
     for (const height of [NaN, Infinity, 0, -1, '412', undefined]) {
       expect(readCanvasSize(message(height), frame)).toBeUndefined();
     }
@@ -829,6 +846,103 @@ describe('inline canvas sizing', () => {
     [50000, 20000],
   ])('clamps %s to %s pixels', (height, expected) => {
     expect(clampInlineCanvasHeight(height)).toBe(expected);
+  });
+
+  it.each([
+    [1440, 900],
+    [390, 568],
+    [700, 568],
+    [2560, 1080],
+  ])(
+    'gives a page %s pixels wide that follows its viewport a %s pixel window',
+    (width, expected) => {
+      expect(inlineCanvasWindowHeight(width)).toBe(expected);
+    }
+  );
+
+  describe('a page whose height follows its viewport', () => {
+    // Runs the bridge for real, with the page's height a function of its viewport's.
+    const open = (content: (viewport: number) => number) => {
+      const { window } = new JSDOM(
+        buildCanvasPage('<p>page</p>', 'light', undefined, false, {}, { inline: true }),
+        {
+          runScripts: 'dangerously',
+          pretendToBeVisual: true,
+          beforeParse(win) {
+            Object.defineProperty(win, 'ResizeObserver', {
+              value: class {
+                observe() {}
+              },
+            });
+            Object.defineProperty(win, 'innerHeight', { value: 160, writable: true });
+            Object.defineProperty(win.Element.prototype, 'scrollHeight', {
+              get: () => content(win.innerHeight),
+            });
+            win.Element.prototype.getBoundingClientRect = () =>
+              ({ top: 0, height: content(win.innerHeight) } as DOMRect);
+          },
+        }
+      );
+      const sent: unknown[] = [];
+      window.addEventListener('message', (event: MessageEvent<{ type?: string }>) => {
+        if (event.data.type === CANVAS_SIZE_MESSAGE) sent.push(event.data);
+      });
+      // The host fits the frame to the last height it was sent.
+      const fit = (height: number) => {
+        Object.assign(window, { innerHeight: height });
+        window.dispatchEvent(new window.Event('resize'));
+      };
+      const change = () => window.document.body.append(window.document.createElement('p'));
+      return { sent, fit, change };
+    };
+    const settle = async () => {
+      for (let task = 0; task < 10; task += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((resolve) => {
+          setTimeout(resolve, 20);
+        });
+      }
+    };
+
+    it('asks once for a window when it grows by as much as its frame did', async () => {
+      // A header and a 100vh hero.
+      const { sent, fit, change } = open((viewport) => viewport + 96);
+      await settle();
+      expect(sent).toEqual([{ type: CANVAS_SIZE_MESSAGE, version: 1, height: 256 }]);
+      fit(256);
+      await settle();
+      expect(sent.at(-1)).toEqual({
+        type: CANVAS_SIZE_MESSAGE,
+        version: 1,
+        height: 352,
+        viewport: true,
+      });
+      // In its window it reports nothing more, whatever changes.
+      fit(568);
+      change();
+      await settle();
+      expect(sent).toHaveLength(2);
+    });
+
+    it('keeps fitting content that does not follow its viewport', async () => {
+      let height = 400;
+      const { sent, fit, change } = open(() => height);
+      await settle();
+      fit(400);
+      // Content that grows and shrinks on its own is fitted as before.
+      height = 700;
+      change();
+      await settle();
+      fit(700);
+      height = 250;
+      change();
+      await settle();
+      fit(250);
+      await settle();
+      expect(sent).toEqual(
+        [400, 700, 250].map((size) => ({ type: CANVAS_SIZE_MESSAGE, version: 1, height: size }))
+      );
+    });
   });
 
   it('reports the size of inline pages only, on resize, DOM changes, transitions and loads', () => {

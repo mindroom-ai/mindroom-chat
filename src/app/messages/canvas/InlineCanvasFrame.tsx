@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { MatrixEventEvent, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';
 import { Box, Button, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
@@ -12,9 +12,11 @@ import {
   buildCanvasDocument,
   canvasDocumentKey,
   canvasFrameWindow,
+  CANVAS_ESCAPE_MESSAGE,
   CANVAS_WRAPPER_SANDBOX,
   CANVAS_PERMISSIONS,
   clampInlineCanvasHeight,
+  inlineCanvasWindowHeight,
   RAW_COLOR_SCHEME,
   readCanvasSize,
 } from './canvasDocument';
@@ -24,6 +26,9 @@ type CanvasAction = Extract<ChatUiAction, { action: 'show_canvas' }>;
 /** How much a page rendered `width` pixels wide shrinks to fit a column; it never grows. */
 export const inlineCanvasScale = (column: number, width: number | undefined): number =>
   width === undefined || column <= 0 ? 1 : Math.min(1, column / width);
+
+/** A page that keeps escaping its frame, such as one that navigates as it loads, stops reloading. */
+const MAX_ESCAPE_RELOADS = 3;
 
 function SizedFrame({
   doc,
@@ -36,37 +41,73 @@ function SizedFrame({
   width?: number;
   raw: boolean;
 }) {
+  const { t } = useTranslation();
   const box = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(160);
+  // A page that follows its viewport's height gets a browser window and scrolls inside it.
+  const [windowed, setWindowed] = useState(false);
   const [column, setColumn] = useState(0);
+  const [reloads, setReloads] = useState(0);
   useEffect(() => {
     // Inline pages are display-only: no submission, saved state, or error handlers.
-    const resize = (event: MessageEvent) => {
+    const receive = (event: MessageEvent) => {
+      if (
+        event.source === frame.current?.contentWindow &&
+        event.origin === 'null' &&
+        event.data?.type === CANVAS_ESCAPE_MESSAGE
+      ) {
+        // The page tried to load something else, such as a link it was clicked on: start it again.
+        setReloads((count) => count + 1);
+        return;
+      }
       const size = readCanvasSize(event, canvasFrameWindow(frame.current));
-      if (size !== undefined) setHeight(clampInlineCanvasHeight(size));
+      if (size?.viewport) setWindowed(true);
+      else if (size) setHeight(clampInlineCanvasHeight(size.height));
     };
-    window.addEventListener('message', resize);
-    return () => window.removeEventListener('message', resize);
+    window.addEventListener('message', receive);
+    return () => window.removeEventListener('message', receive);
   }, []);
-  useEffect(() => {
+  // The column sets the scale of a page with its own width, and the window of a page without one.
+  const measured = width !== undefined || windowed;
+  const stopped = reloads > MAX_ESCAPE_RELOADS;
+  useLayoutEffect(() => {
     const element = box.current;
-    if (width === undefined || !element) return undefined;
+    if (!measured || stopped || !element) return undefined;
     setColumn(element.clientWidth);
     const observer = new ResizeObserver(([entry]) => {
       if (entry) setColumn(entry.contentRect.width);
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [width]);
+  }, [measured, stopped]);
+  if (stopped)
+    return (
+      <Box direction="Column" alignItems="Start" gap="100">
+        <Text size="T300" role="alert">
+          {t('mindroomUi.canvas.escaped')}
+        </Text>
+        <Button
+          size="300"
+          variant="Secondary"
+          fill="Soft"
+          radii="300"
+          onClick={() => setReloads(0)}
+        >
+          <Text size="B300">{t('mindroomUi.canvas.reload')}</Text>
+        </Button>
+      </Box>
+    );
   // A page with its own viewport width renders at that width and shrinks to the column, so a
   // desktop layout keeps its desktop breakpoint; the frame's box takes the shrunk height.
   const scale = inlineCanvasScale(column, width);
+  const shown = windowed ? inlineCanvasWindowHeight(width ?? column) : height;
   return (
     // A preview is placed, not read: it starts at the left edge in every language, so its scale's
     // origin and its overflow stay on the same side.
-    <div ref={box} dir="ltr" style={{ height: height * scale, overflow: 'hidden' }}>
+    <div ref={box} dir="ltr" style={{ height: shown * scale, overflow: 'hidden' }}>
       <iframe
+        key={reloads}
         ref={frame}
         title={title}
         srcDoc={doc}
@@ -75,7 +116,7 @@ function SizedFrame({
         referrerPolicy="no-referrer"
         style={{
           width: width === undefined ? '100%' : width,
-          height,
+          height: shown,
           display: 'block',
           border: 0,
           // A raw page is a page in a browser: its canvas is white until its own CSS says otherwise.
