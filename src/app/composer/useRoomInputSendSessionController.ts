@@ -69,8 +69,11 @@ type SendSession = RoomInputSendSessionState & {
   signalBridgedRoom: boolean;
   failFast: boolean;
   uploads?: Upload[];
-  /** Each file's event content as built for its upload, without relation or marker. */
-  preparedContent: Map<TUploadContent, { mxc: string; content: IContent }>;
+  /**
+   * Each file's event content as built for its upload, without relation or marker, and the item
+   * it was built from: the board replaces an item to change it (a spoiler set before Send again).
+   */
+  preparedContent: Map<TUploadContent, PreparedContent>;
   onUploadSent?: (file: TUploadContent) => void;
   /** What the session uses of the composer that started it, taken at Send. */
   composer: SessionComposer;
@@ -83,6 +86,8 @@ type SendSession = RoomInputSendSessionState & {
    */
   originThreadView?: boolean;
 };
+
+type PreparedContent = { item: TUploadItem; mxc: string; content: IContent };
 
 type ComposerContext = Pick<RoomInputSendContext, 'roomId' | 'threadId'>;
 
@@ -405,11 +410,24 @@ const findSessionFileItem = (session: SendSession, file: TUploadContent) => {
   return staged.find((item) => item.file === file) ?? enrolled.find((item) => item.file === file);
 };
 
+/** The content built for the file's current item and upload, if it is still that. */
+const getPreparedContent = (
+  session: SendSession,
+  file: TUploadContent,
+  mxc: string
+): PreparedContent | undefined => {
+  const prepared = session.preparedContent.get(file);
+  return prepared?.mxc === mxc && prepared.item === findSessionFileItem(session, file)
+    ? prepared
+    : undefined;
+};
+
 /**
  * Builds the event content of every file the session can send now before the first of them goes
  * out (a picture or video decodes a frame and uploads its thumbnail): MindRoom holds a submission
  * only a few seconds after its last event, so its events go out back to back. A file whose content
- * fails to build fails as its send would. True when it built or failed a file.
+ * fails to build fails as its send would. A file whose item changed builds again. True when it
+ * built or failed a file.
  */
 const prepareSessionFiles = async (session: SendSession): Promise<boolean> => {
   const [uploads, activeFiles] = getSessionUploads(session);
@@ -420,7 +438,7 @@ const prepareSessionFiles = async (session: SendSession): Promise<boolean> => {
     upload.status === UploadStatus.Success &&
     pending.includes(upload.file) &&
     !session.failedFiles.has(upload.file) &&
-    session.preparedContent.get(upload.file)?.mxc !== upload.mxc
+    !getPreparedContent(session, upload.file, upload.mxc)
       ? [{ file: upload.file, mxc: upload.mxc }]
       : []
   );
@@ -430,15 +448,20 @@ const prepareSessionFiles = async (session: SendSession): Promise<boolean> => {
     session.mode === 'auto-thread-upload-root' && !session.rootEventId ? pending[0] : undefined;
   const built = await Promise.allSettled(
     toBuild.map(async ({ file, mxc }) => {
-      const fileItem = findSessionFileItem(session, file);
-      if (!fileItem) throw new Error('Missing upload item for send session.');
-      return session.composer.buildUploadMessageContent(fileItem, mxc, session.signalBridgedRoom);
+      const item = findSessionFileItem(session, file);
+      if (!item) throw new Error('Missing upload item for send session.');
+      const content = await session.composer.buildUploadMessageContent(
+        item,
+        mxc,
+        session.signalBridgedRoom
+      );
+      return { item, mxc, content };
     })
   );
   built.forEach((result, index) => {
-    const { file, mxc } = toBuild[index]!;
+    const { file } = toBuild[index]!;
     if (result.status === 'fulfilled') {
-      session.preparedContent.set(file, { mxc, content: result.value });
+      session.preparedContent.set(file, result.value);
       return;
     }
     if (session.failFast) throw result.reason;
@@ -614,8 +637,8 @@ export const useRoomInputSendSessionController = ({
 
   const sendSessionUpload = useCallback(
     async (session: SendSession, file: TUploadContent, mxc: string, isRoot: boolean) => {
-      const prepared = session.preparedContent.get(file);
-      if (!prepared || prepared.mxc !== mxc) throw new Error('Unprepared upload in send session.');
+      const prepared = getPreparedContent(session, file, mxc);
+      if (!prepared) throw new Error('Unprepared upload in send session.');
       const { content } = prepared;
       const {
         content: contentWithRelation,

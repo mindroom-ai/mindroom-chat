@@ -2178,6 +2178,67 @@ describe('useRoomInputSendSessionController submission markers', () => {
     expect(markerOf(mx, 2)).toEqual({ id, more: false });
   });
 
+  // The board replaces an item to change it, and the file goes out as changed.
+  const buildWithSpoiler: BuildUploadMessageContent = async (fileItem, mxc) => ({
+    ...(await buildFileContent(fileItem, mxc)),
+    ...(fileItem.metadata.markedAsSpoiler ? { spoiler: true } : {}),
+  });
+  const markAsSpoiler = (api: HarnessApi, file: File) => {
+    const replace = (item: TUploadItem) =>
+      item.file === file
+        ? { ...item, metadata: { ...item.metadata, markedAsSpoiler: true } }
+        : item;
+    api.selectedFilesRef.current = api.selectedFilesRef.current.map(replace);
+    api.sendSessionUploadItemsRef.current = api.sendSessionUploadItemsRef.current.map(replace);
+  };
+
+  it('sends a file marked as a spoiler after its send failed as a spoiler on Send again', async () => {
+    const { api, mx } = renderHarness({ buildUploadMessageContent: buildWithSpoiler });
+    const photo = createFile('photo.png');
+    api.selectedFilesRef.current = [createUploadItem(photo)];
+    api.uploadsRef.current = [successUpload(photo)];
+    mx.sendMessage.mockRejectedValueOnce(new Error('offline'));
+
+    await act(async () => {
+      await api.startSendSession();
+    });
+    expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty('spoiler');
+
+    markAsSpoiler(api, photo);
+    await act(async () => {
+      await api.startSendSession();
+    });
+    expect(mx.sendMessage).toHaveBeenCalledTimes(2);
+    expect(mx.sendMessage.mock.calls[1]![1]).toMatchObject({ body: 'photo.png', spoiler: true });
+  });
+
+  it('builds a file again that was changed while another file built', async () => {
+    const video = createDeferred<IContent>();
+    const { api, mx } = renderHarness({
+      buildUploadMessageContent: (fileItem, mxc) =>
+        fileItem.file.name === 'clip.mp4' ? video.promise : buildWithSpoiler(fileItem, mxc),
+    });
+    const photo = createFile('photo.png');
+    const clip = createFile('clip.mp4');
+    api.selectedFilesRef.current = [createUploadItem(photo), createUploadItem(clip)];
+    api.uploadsRef.current = [successUpload(photo), successUpload(clip)];
+
+    let sending!: Promise<void>;
+    act(() => {
+      sending = api.startSendSession();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    markAsSpoiler(api, photo);
+    await act(async () => {
+      video.resolve({ msgtype: 'm.video', body: 'clip.mp4', url: 'mxc://mindroom/clip.mp4' });
+      await sending;
+    });
+    expect(sentBodies(mx)).toEqual(['photo.png', 'clip.mp4']);
+    expect(mx.sendMessage.mock.calls[0]![1]).toMatchObject({ spoiler: true });
+  });
+
   it('ends the submission with the caption when the root fails to send, and the root after it', async () => {
     const { api, mx } = renderHarness();
     const first = createFile('first.png');
