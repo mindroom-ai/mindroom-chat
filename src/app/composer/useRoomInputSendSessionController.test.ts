@@ -1,6 +1,6 @@
 import React, { MutableRefObject, useEffect, useMemo, useRef } from 'react';
 import { act, create } from 'react-test-renderer';
-import { EventStatus, MatrixError } from 'matrix-js-sdk';
+import { EventStatus, IContent, MatrixError } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import { getDefaultStore } from 'jotai';
@@ -110,6 +110,14 @@ const prepErrorUpload = (file: File): Upload & { error: MatrixError } => ({
   error: toMatrixUploadError(new Error(`failed to prepare ${file.name}`), 'create'),
 });
 
+type BuildUploadMessageContent = (fileItem: TUploadItem, mxc: string) => Promise<IContent>;
+
+const buildFileContent: BuildUploadMessageContent = async (fileItem, mxc) => ({
+  msgtype: 'm.file',
+  body: fileItem.file.name,
+  url: mxc,
+});
+
 const TestHarness = ({
   onReady,
   onRoomMessageSent,
@@ -122,6 +130,7 @@ const TestHarness = ({
   threadId,
   forkFrom,
   roomId = '!room:example.org',
+  buildUploadMessageContent = buildFileContent,
 }: {
   onReady: (api: HarnessApi) => void;
   onRoomMessageSent?: (eventId: string) => boolean | void;
@@ -140,6 +149,7 @@ const TestHarness = ({
   threadId?: string;
   forkFrom?: ThreadForkRef;
   roomId?: string;
+  buildUploadMessageContent?: BuildUploadMessageContent;
 }) => {
   const selectedFilesRef = useRef<TUploadItem[]>([]);
   const sendSessionFilesRef = useRef<TUploadContent[]>([]);
@@ -211,11 +221,7 @@ const TestHarness = ({
     sendTypingStatus,
     attachments,
     mountedRef,
-    buildUploadMessageContent: async (fileItem, mxc) => ({
-      msgtype: 'm.file',
-      body: fileItem.file.name,
-      url: mxc,
-    }),
+    buildUploadMessageContent,
     restoreComposerFallbackForRoom,
     onRoomMessageSent,
   });
@@ -240,6 +246,7 @@ const renderHarness = (
     forkFrom?: ThreadForkRef;
     onRoomMessageSent?: (eventId: string) => boolean | void;
     replyDraft?: Parameters<typeof TestHarness>[0]['replyDraft'];
+    buildUploadMessageContent?: BuildUploadMessageContent;
   } = {}
 ) => {
   let sentEvents = 0;
@@ -278,6 +285,7 @@ const renderHarness = (
     restoreComposerFallbackForRoom,
     onRoomMessageSent: options.onRoomMessageSent,
     forkFrom: options.forkFrom,
+    buildUploadMessageContent: options.buildUploadMessageContent,
     onReady: (nextApi: HarnessApi) => {
       api = nextApi;
     },
@@ -2099,6 +2107,155 @@ describe('useRoomInputSendSessionController submission markers', () => {
     });
     expect(sentBodies(mx)).toEqual(['first.png', 'third.png', 'What are these?', 'second.png']);
     expect(markerOf(mx, 3)).toEqual({ id, more: false });
+  });
+
+  it('sends no event while a file builds its content, then all of them back to back', async () => {
+    const video = createDeferred<IContent>();
+    const { api, mx } = renderHarness({
+      buildUploadMessageContent: (fileItem, mxc) =>
+        fileItem.file.name === 'clip.mp4' ? video.promise : buildFileContent(fileItem, mxc),
+    });
+    const photo = createFile('photo.png');
+    const clip = createFile('clip.mp4');
+    api.selectedFilesRef.current = [createUploadItem(photo), createUploadItem(clip)];
+    api.uploadsRef.current = [successUpload(photo), successUpload(clip)];
+
+    let sending!: Promise<void>;
+    act(() => {
+      sending = api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Look' } });
+    });
+    // The video decodes a frame and uploads its thumbnail: the photo waits for it.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+
+    await act(async () => {
+      video.resolve({ msgtype: 'm.video', body: 'clip.mp4', url: 'mxc://mindroom/clip.mp4' });
+      await sending;
+    });
+    expect(sentBodies(mx)).toEqual(['photo.png', 'clip.mp4', 'Look']);
+    const { id } = markerOf(mx, 0) as { id: string };
+    expect([markerOf(mx, 0), markerOf(mx, 1), markerOf(mx, 2)]).toEqual([
+      { id, more: true },
+      { id, more: true },
+      { id, more: false },
+    ]);
+    expect(mx.sendMessage.mock.calls[1]![1]).toMatchObject({
+      msgtype: 'm.video',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$event-0' },
+    });
+  });
+
+  it('fails a file whose content does not build as a failed upload, and sends it on retry', async () => {
+    let failing = true;
+    const { api, mx } = renderHarness({
+      buildUploadMessageContent: async (fileItem, mxc) => {
+        if (fileItem.file.name === 'clip.mp4' && failing) throw new Error('no frame');
+        return buildFileContent(fileItem, mxc);
+      },
+    });
+    const photo = createFile('photo.png');
+    const clip = createFile('clip.mp4');
+    api.selectedFilesRef.current = [createUploadItem(photo), createUploadItem(clip)];
+    api.uploadsRef.current = [successUpload(photo), successUpload(clip)];
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Look' } });
+    });
+    expect(sentBodies(mx)).toEqual(['photo.png', 'Look']);
+    const { id } = markerOf(mx, 0) as { id: string };
+    expect([markerOf(mx, 0), markerOf(mx, 1)]).toEqual([
+      { id, more: true },
+      { id, more: false },
+    ]);
+
+    failing = false;
+    await act(async () => {
+      await api.startSendSession();
+    });
+    expect(sentBodies(mx)).toEqual(['photo.png', 'Look', 'clip.mp4']);
+    expect(markerOf(mx, 2)).toEqual({ id, more: false });
+  });
+
+  it('ends the submission with the caption when the root fails to send, and the root after it', async () => {
+    const { api, mx } = renderHarness();
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    api.selectedFilesRef.current = [createUploadItem(first), createUploadItem(second)];
+    api.uploadsRef.current = [successUpload(first), successUpload(second)];
+    mx.sendMessage.mockRejectedValueOnce(new Error('offline'));
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Caption' } });
+    });
+    expect(sentBodies(mx)).toEqual(['first.png', 'Caption']);
+    const { id } = markerOf(mx, 1) as { id: string };
+    expect(markerOf(mx, 1)).toEqual({ id, more: false });
+
+    await act(async () => {
+      await api.startSendSession();
+    });
+    expect(sentBodies(mx)).toEqual(['first.png', 'Caption', 'first.png', 'second.png']);
+    expect([markerOf(mx, 2), markerOf(mx, 3)]).toEqual([
+      { id, more: true },
+      { id, more: false },
+    ]);
+  });
+
+  it('ends the submission with the caption when the root upload fails, and the files after its retry', async () => {
+    const { api, mx } = renderHarness();
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    api.selectedFilesRef.current = [createUploadItem(first), createUploadItem(second)];
+    api.uploadsRef.current = [prepErrorUpload(first), successUpload(second)];
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Caption' } });
+    });
+    expect(sentBodies(mx)).toEqual(['Caption']);
+    const { id } = markerOf(mx, 0) as { id: string };
+    expect(markerOf(mx, 0)).toEqual({ id, more: false });
+
+    api.uploadsRef.current = [successUpload(first), successUpload(second)];
+    await act(async () => {
+      await api.processSendSession();
+    });
+    expect(sentBodies(mx)).toEqual(['Caption', 'first.png', 'second.png']);
+    expect([markerOf(mx, 1), markerOf(mx, 2)]).toEqual([
+      { id, more: true },
+      { id, more: false },
+    ]);
+  });
+
+  it('sends the rest of a submission once a file still uploading is removed', async () => {
+    const { api, mx } = renderHarness();
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    api.selectedFilesRef.current = [createUploadItem(first), createUploadItem(second)];
+    api.uploadsRef.current = [successUpload(first), loadingUpload(second)];
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Caption' } });
+    });
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+
+    api.selectedFilesRef.current = api.selectedFilesRef.current.filter(
+      (item) => item.file !== second
+    );
+    api.sendSessionUploadItemsRef.current = api.sendSessionUploadItemsRef.current.filter(
+      (item) => item.file !== second
+    );
+    api.uploadsRef.current = [successUpload(first)];
+    await act(async () => {
+      await api.processSendSession();
+    });
+    expect(sentBodies(mx)).toEqual(['first.png', 'Caption']);
+    const { id } = markerOf(mx, 0) as { id: string };
+    expect([markerOf(mx, 0), markerOf(mx, 1)]).toEqual([
+      { id, more: true },
+      { id, more: false },
+    ]);
   });
 
   it('sends a text without attachments unmarked', async () => {
