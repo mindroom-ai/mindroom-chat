@@ -57,9 +57,9 @@ describe('thread filter bar modes', () => {
   it('reserves the width of the total beside the count, so the tabs after it stay put', () => {
     renderBar(true, { threadCount: 1, totalThreadCount: 527 });
     const [badge] = byData('data-thread-count');
-    const reserve = badge?.findAll((node) => node.props.className === css.CompactCountReserve)[0];
-    expect(reserve?.props['aria-hidden']).toBe('true');
-    expect(reserve?.props.children).toBe('527');
+    const [count] = badge?.findAll((node) => node.props.className === css.CompactCountValue) ?? [];
+    expect(count?.props['data-reserve']).toBe('527');
+    expect(count?.props.children).toBe('1');
   });
 
   it('starts with the simple filters', () => {

@@ -1,4 +1,4 @@
-import { globalStyle, style } from '@vanilla-extract/css';
+import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { motion } from '../../ui/styles/Motion.css';
 import { transition } from '../../ui/styles/transition';
@@ -46,12 +46,20 @@ export const CompactCount = style({
   flexShrink: 0,
 });
 
-// The count and an invisible copy of the total share one cell, so the count is always as wide as
-// the total and switching tabs does not shift the controls after it.
-export const CompactCountDigits = style({ display: 'inline-grid', justifyItems: 'start' });
-globalStyle(`${CompactCountDigits} > *`, { gridArea: '1 / 1' });
-
-export const CompactCountReserve = style({ visibility: 'hidden' });
+// An invisible, zero-height copy of the total (`data-reserve`) makes the count as wide as the total,
+// so switching tabs does not shift the controls after it. Generated content stays out of the count's
+// text and accessible name.
+export const CompactCountValue = style({
+  selectors: {
+    '&::after': {
+      content: 'attr(data-reserve)',
+      display: 'block',
+      blockSize: 0,
+      overflow: 'hidden',
+      visibility: 'hidden',
+    },
+  },
+});
 
 const TOGGLE_SIZE = toRem(32);
 
