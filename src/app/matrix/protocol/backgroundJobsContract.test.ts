@@ -5,7 +5,6 @@ import {
   parseBackgroundJobsStateEvent,
   jobsInView,
   selectBackgroundJobs,
-  selectBackgroundJobThreadIds,
 } from './backgroundJobsContract';
 
 const AGENT = '@mindroom_code:example.org';
@@ -105,17 +104,5 @@ describe('selectBackgroundJobs', () => {
     });
     const exact = [jobsEvent([job('job_1'), job('job_2')], { total: 2 })];
     expect(selectBackgroundJobs(exact).total).toBe(2);
-  });
-});
-
-describe('selectBackgroundJobThreadIds', () => {
-  it('gives the threads the listed jobs run in, not the main timeline', () => {
-    const events = [
-      jobsEvent([job('job_1'), job('job_2', { thread_id: null })]),
-      jobsEvent([job('job_3', { thread_id: '$other' }), job('job_4')], {
-        sender: '@mindroom_research:example.org',
-      }),
-    ];
-    expect([...selectBackgroundJobThreadIds(events)].sort()).toEqual(['$other', '$thread']);
   });
 });

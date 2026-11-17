@@ -42,8 +42,7 @@ export const agentRoomState = (room: Room, eventType: string): MatrixEvent[] =>
     return member === null || member.membership === 'join';
   });
 
-/** Whether two reads of agent state hold the same events, in the same order. */
-export const sameEvents = (a: MatrixEvent[], b: MatrixEvent[]): boolean =>
+const sameEvents = (a: MatrixEvent[], b: MatrixEvent[]): boolean =>
   a.length === b.length && a.every((event, index) => event === b[index]);
 
 /**
