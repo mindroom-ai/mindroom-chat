@@ -4,8 +4,8 @@ import {
   Room,
   Thread,
   ThreadEvent,
+  MatrixEvent,
   type IEvent,
-  type MatrixEvent,
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -64,6 +64,7 @@ describe('the listeners a thread holds for its events', () => {
     const listeners = () => thread.listenerCount(ThreadEvent.Update);
     const before = listeners();
 
+    const given: MatrixEvent[] = [];
     let ts = 10;
     for (let round = 1; round <= 5; round += 1) {
       ts += 1;
@@ -72,13 +73,17 @@ describe('the listeners a thread holds for its events', () => {
       const streamed = map(edit(`$edit-${round}`, ts, `$reply-${round}`));
       // eslint-disable-next-line no-await-in-loop
       await add(next, streamed);
-      // A copy the event mapper makes of a reply the thread holds, as a read of the cache or of
-      // the server does.
-      map(reply(`$reply-${round}`, ts));
+      // Another instance of a reply the thread holds, as a read of the cache or of the server
+      // makes, given the thread as the SDK gives it to what it maps.
+      const copy = new MatrixEvent(reply(`$reply-${round}`, ts));
+      copy.setThread(thread);
+      expect(copy).not.toBe(next);
+      given.push(next, streamed, copy);
     }
 
-    expect(thread.events.map((event) => event.getId())).toContain('$reply-5');
-    expect(thread.findEventById('$reply-5')?.getThread()).toBe(thread);
+    // Each kind was given to the thread: the replies, their edits and the copies.
+    expect(given).toHaveLength(15);
+    expect(given.every((event) => event.getThread() === thread)).toBe(true);
     expect(listeners()).toBe(before);
   });
 
