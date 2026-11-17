@@ -23,6 +23,12 @@ const SEG2 = 'parseDate drops the offset before it compares. Fix that, then run 
 const SEG3 = 'All 42 tests pass now. Answer briefly.';
 const BETWEEN = 'parseDate drops the UTC offset; I will keep it and compare instants.';
 const DONE = 'Done.';
+// A thought taller than any window, whose end button is far below its bulb.
+const LONG_STEPS = Array.from(
+  { length: 40 },
+  (_, index) => `Step ${index + 1}: check case ${index + 1} of the parser.`
+);
+const LONG_DONE = 'Every case checked.';
 
 type Tool = { name: string; args: string; result: string };
 const READ: Tool = { name: 'read_file', args: 'path=src/date.ts', result: '84 lines' };
@@ -133,13 +139,14 @@ const toolRows = (reply: Locator) =>
 
 const top = async (locator: Locator) => (await locator.boundingBox())?.y ?? Number.NaN;
 
-/** Each locator starts below the one before it. */
-const expectInOrder = async (locators: Locator[], names: string[]) => {
-  const tops = await Promise.all(locators.map(top));
-  tops.slice(1).forEach((y, index) => {
-    expect(y, `${names[index + 1]} below ${names[index]}`).toBeGreaterThan(tops[index]!);
-  });
-};
+/** Each locator starts below the one before it, once the reply has laid out what it now shows. */
+const expectInOrder = (locators: Locator[], names: string[]) =>
+  expect(async () => {
+    const tops = await Promise.all(locators.map(top));
+    tops.slice(1).forEach((y, index) => {
+      expect(y, `${names[index + 1]} below ${names[index]}`).toBeGreaterThan(tops[index]!);
+    });
+  }).toPass({ timeout: 10_000 });
 
 test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
@@ -166,6 +173,17 @@ test('the bulb shows each thought after the run it followed, beside the cog', as
         { text: SEG3, afterTool: 4, durationMs: 3000 },
       ]),
       duration_ms: 12_000,
+    },
+  });
+  await sendReply({
+    ...agentReply([marker(READ, 1), LONG_DONE], [READ]),
+    'io.mindroom.stream_status': 'completed',
+    'io.mindroom.reasoning': {
+      ...reasoning([
+        { text: 'Go through every case.', afterTool: 0, durationMs: 5000 },
+        { text: LONG_STEPS.join('\n\n'), afterTool: 1, durationMs: 31_000 },
+      ]),
+      duration_ms: 36_000,
     },
   });
 
@@ -239,19 +257,25 @@ test('the bulb shows each thought after the run it followed, beside the cog', as
   await expect(hideButtons).toHaveCount(0);
   await expect(toolRows(reply)).toHaveCount(2);
 
-  // The end button of the last thought, with the bulb scrolled away above it, does the same and
-  // brings the bulb back into view.
+  // The end button of a thought taller than the window, its bulb scrolled away far above it, does
+  // the same and brings the bulb back into view.
   await page.setViewportSize({ width: 1280, height: 360 });
-  await bulb.click();
-  const lastEnd = hideButtons.filter({ hasText: 'Hide thinking' }).last();
+  const long = replyWith(page, LONG_DONE);
+  const longBulb = long.getByRole('button', { name: 'Thought for 36 s' });
+  await longBulb.click();
+  await expect(long).toContainText('Step 40:');
+  const lastEnd = long
+    .getByRole('button', { name: 'Hide thinking' })
+    .filter({ hasText: 'Hide thinking' })
+    .last();
   await lastEnd.scrollIntoViewIfNeeded();
   await expect(lastEnd).toBeInViewport();
-  await expect(bulb).not.toBeInViewport();
+  await expect(longBulb).not.toBeInViewport();
   await lastEnd.click();
-  await expect(bulb).toHaveAttribute('aria-expanded', 'false');
-  await expect(bulb).toBeFocused();
-  await expect(bulb).toBeInViewport();
-  for (const segment of segments) await expect(segment).toHaveCount(0);
+  await expect(longBulb).toHaveAttribute('aria-expanded', 'false');
+  await expect(longBulb).toBeFocused();
+  await expect(longBulb).toBeInViewport();
+  await expect(long).not.toContainText('Step 40:');
 });
 
 test('thinking between two calls in a row splits their run, and old replies think at the top', async ({
