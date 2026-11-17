@@ -82,7 +82,7 @@ describe('getReplyTimeParts', () => {
     expect(getReplyTimeParts(timing, at(5, 9, 0), options)).toEqual({
       end: '00:14',
       short: '16m',
-      tail: '\u00a003s',
+      tail: '\u00a03s',
     });
   });
 

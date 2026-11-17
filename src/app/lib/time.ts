@@ -116,29 +116,26 @@ export const formatWorkDuration = (ms: number, language = 'en'): string => {
 };
 
 /**
- * A duration in the language's narrow units, as a short form and the tail that makes it exact:
- * seconds under a minute ("4s"), then minutes ("7m") with the seconds as the tail (" 12s"), then
- * hours and minutes ("1h 05m"). A no-break space joins the units; fractions round down.
+ * `formatWorkDuration` in two parts, a short form and the tail that makes it exact: seconds under
+ * a minute ("4s"), then minutes ("7m") with the seconds as the tail (" 12s"), then hours and
+ * minutes ("1h 4m"). A no-break space joins the units.
  */
 export const formatDurationParts = (
   ms: number,
   language = 'en'
 ): { short: string; tail: string } => {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const unit = (value: number, name: 'second' | 'minute' | 'hour', padded = false) =>
-    numberFormat(language, {
-      style: 'unit',
-      unit: name,
-      unitDisplay: 'narrow',
-      minimumIntegerDigits: padded ? 2 : 1,
-    }).format(value);
-  if (total < 60) return { short: unit(total, 'second'), tail: '' };
+  const total = Math.max(0, Math.round(ms / 1000));
+  const unit = (value: number, name: 'second' | 'minute' | 'hour') =>
+    unitFormat(language, name, 'narrow').format(value);
   const minutes = Math.floor(total / 60);
+  if (minutes === 0) return { short: unit(total, 'second'), tail: '' };
   if (minutes < 60) {
-    return { short: unit(minutes, 'minute'), tail: `\u00a0${unit(total % 60, 'second', true)}` };
+    return { short: unit(minutes, 'minute'), tail: `\u00a0${unit(total % 60, 'second')}` };
   }
-  const hours = unit(Math.floor(minutes / 60), 'hour');
-  return { short: `${hours}\u00a0${unit(minutes % 60, 'minute', true)}`, tail: '' };
+  return {
+    short: `${unit(Math.floor(minutes / 60), 'hour')}\u00a0${unit(minutes % 60, 'minute')}`,
+    tail: '',
+  };
 };
 
 /**
