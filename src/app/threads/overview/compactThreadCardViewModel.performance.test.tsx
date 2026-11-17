@@ -185,6 +185,20 @@ describe('compact card formatting work', () => {
     harness.unmount();
   });
 
+  it('builds attention with the same snooze clock as its cache key', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(10000);
+    const snoozed = record('$a');
+    snoozed.status.isStreaming = true;
+    snoozed.status.snoozedUntilTs = 20000;
+    const harness = mount(room, [snoozed]);
+    vi.setSystemTime(30000); // The wall clock moves before the snooze timer fires.
+    snoozed.presentation.messageCount += 1; // Force a fresh model, not a cache hit.
+    harness.update([snoozed]);
+    expect(harness.models[0]!.attentionState).toBe('idle');
+    harness.unmount();
+  });
+
   it('keeps scheduled countdowns current when record values stay unchanged', () => {
     vi.useFakeTimers();
     vi.setSystemTime(10000);

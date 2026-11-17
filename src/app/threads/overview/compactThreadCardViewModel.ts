@@ -74,7 +74,9 @@ export const getCompactThreadAttentionState = ({
   const bucket = classifyThreadWorkflow(status, now);
   if (bucket === 'working') return 'streaming';
   if (bucket === 'done') return 'resolved';
-  if (bucket !== 'needsYou' || !lastSenderId) return 'idle';
+  if (bucket !== 'needsYou') return 'idle';
+  if (status.hasBackgroundApproval) return 'needs-attention';
+  if (!lastSenderId) return 'idle';
   if (currentUserId && lastSenderId === currentUserId) return 'waiting';
   return 'needs-attention';
 };
@@ -145,6 +147,7 @@ type BuildCompactThreadCardViewModelFromRecordOptions = {
   room: Room;
   /** The thread it was forked from (`getForkedFrom`), for a fork. */
   forkedFrom?: ThreadForkRef;
+  now?: number;
   currentUserId?: string;
   mx: MatrixClient;
   useAuthentication: boolean;
@@ -156,6 +159,7 @@ export const buildCompactThreadCardViewModelFromRecord = ({
   record,
   room,
   forkedFrom,
+  now,
   currentUserId,
   mx,
   useAuthentication,
@@ -213,6 +217,7 @@ export const buildCompactThreadCardViewModelFromRecord = ({
     : truncateText(latestPreviewText, PREVIEW_TEXT_LIMIT);
   const attentionState = getCompactThreadAttentionState({
     ...status,
+    now,
     lastSenderId,
     currentUserId,
   });
@@ -365,6 +370,7 @@ export const useCompactThreadCardViewModels = ({
         record,
         room,
         forkedFrom,
+        now,
         currentUserId,
         mx,
         useAuthentication,

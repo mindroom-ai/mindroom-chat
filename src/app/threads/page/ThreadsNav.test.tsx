@@ -297,7 +297,7 @@ describe('ThreadsNav', () => {
     ];
     const { container } = renderNav();
     fireEvent.click(screen.getByRole('radio', { name: 'All' }));
-    // It stays with the other quiet threads; no Snoozed group takes it.
+    // It stays with the other quiet threads; no Later group takes it.
     expect(screen.queryByRole('button', { name: /Later/ })).toBeNull();
     expect(screen.getByText('Revisit pricing')).toBeTruthy();
     expect(container.querySelector('[data-thread-snoozed]')).toBeNull();

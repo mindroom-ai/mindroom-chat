@@ -165,10 +165,10 @@ describe('groupThreads', () => {
     [{ hasBackgroundJob: true }, 'working'],
     [{ hasBackgroundJob: true, hasBackgroundApproval: true }, 'needsYou'],
     [{ scheduledTaskCount: 1 }, 'later'],
-    [{ isStreaming: true }, 'recent'],
-    [{ hasBackgroundJob: true, scheduledTaskCount: 1 }, 'recent'],
+    [{ isResolved: true, isStreaming: true }, 'recent'],
+    [{ isResolved: true, hasBackgroundJob: true, scheduledTaskCount: 1 }, 'recent'],
   ] as const)('uses workflow status %j for %s', (status, expected) => {
-    const thread = item('job', { isResolved: expected === 'recent' });
+    const thread = item('job', { isResolved: 'isResolved' in status && status.isResolved });
     Object.assign(thread.entry.threadRecord.status, status);
     expect(shape(groupThreads([thread], 'following', ME, '', NOW))).toEqual([[expected, ['job']]]);
   });

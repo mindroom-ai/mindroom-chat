@@ -148,20 +148,25 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
     [{ scheduledTaskCount: 1 }, 'idle'],
     [{ snoozedUntilTs: Number.MAX_SAFE_INTEGER, isStreaming: true }, 'idle'],
     [{ hasBackgroundJob: true, hasBackgroundApproval: true }, 'needs-attention'],
-  ] as const)('renders workflow status %j as %s', (status, expected) => {
-    const room = makeRoom();
-    const record = buildThreadRecord({ room, threadRootId: '$root' });
-    Object.assign(record.status, status);
-    record.presentation.lastSenderId = '@agent:server';
-    const model = buildCompactThreadCardViewModelFromRecord({
-      record,
-      room,
-      mx: makeMx(),
-      useAuthentication: false,
-      currentUserId: '@me:server',
-    });
-    expect(model.attentionState).toBe(expected);
-  });
+    [{ hasBackgroundApproval: true }, 'needs-attention', '@me:server'],
+    [{ hasBackgroundApproval: true }, 'needs-attention', null],
+  ] as const)(
+    'renders workflow status %j as %s',
+    (status, expected, lastSenderId = '@agent:server') => {
+      const room = makeRoom();
+      const record = buildThreadRecord({ room, threadRootId: '$root' });
+      Object.assign(record.status, status);
+      record.presentation.lastSenderId = lastSenderId ?? undefined;
+      const model = buildCompactThreadCardViewModelFromRecord({
+        record,
+        room,
+        mx: makeMx(),
+        useAuthentication: false,
+        currentUserId: '@me:server',
+      });
+      expect(model.attentionState).toBe(expected);
+    }
+  );
 
   it("names the thread a fork was made from, read from its root's original content", () => {
     const forkRoot = (content: Record<string, unknown>) =>

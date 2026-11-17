@@ -118,12 +118,13 @@ export const sampleCard = (
   const lastSender = answered ? thread.replier : thread.starter;
   const isResolved = state.resolved === true;
   const isStreaming = state.streaming === true;
+  const snoozedUntilTs = state.snoozed && !isResolved ? now + SNOOZE_LENGTH : undefined;
   const attentionState = getCompactThreadAttentionState({
     isResolved,
     isStreaming,
     now,
     scheduledTaskCount: 0,
-    snoozedUntilTs: state.snoozed ? now + SNOOZE_LENGTH : undefined,
+    snoozedUntilTs,
     lastSenderId: sampleUserId(lastSender),
     currentUserId: sampleUserId('you'),
   });
@@ -155,7 +156,7 @@ export const sampleCard = (
     isUnread: state.unread === true,
     isStreaming,
     // A resolved thread shows as resolved only, as in the app.
-    snoozedUntilTs: state.snoozed && !isResolved ? now + SNOOZE_LENGTH : undefined,
+    snoozedUntilTs,
     lastActivityTs,
     lastActivityTitle: new Date(lastActivityTs).toLocaleString(locale),
   };
