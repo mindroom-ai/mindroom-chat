@@ -114,6 +114,69 @@ describe('parseSecretRequestContent', () => {
     expect(parseSecretRequestContent(content(temporary({ display_name: 'X' })))).toBeNull();
   });
 
+  it('reads what the agent chose to show: a label, the page that gives the secret and a field hint', () => {
+    const request = parseSecretRequestContent(
+      content(
+        temporary({
+          label: ' GitHub\n token ',
+          url: 'https://github.com/settings/tokens?type=beta',
+          placeholder: ' ghp_… ',
+        })
+      )
+    );
+
+    expect(request).toMatchObject({
+      kind: 'temporary',
+      label: 'GitHub token',
+      url: 'https://github.com/settings/tokens?type=beta',
+      placeholder: 'ghp_…',
+    });
+  });
+
+  it('gives a key card the link and the hint, and no label: its service names it', () => {
+    const request = parseSecretRequestContent(
+      content(inner({ label: 'GitHub', url: 'http://localhost:8080/keys', placeholder: 'sk-…' }))
+    );
+
+    expect(request).toMatchObject({
+      kind: 'key',
+      url: 'http://localhost:8080/keys',
+      placeholder: 'sk-…',
+    });
+    expect(request).not.toHaveProperty('label');
+  });
+
+  it('shows a card without its link when the link is no http or https page', () => {
+    [
+      'javascript:alert(1)',
+      'ftp://example.org/token',
+      'github.com/settings/tokens',
+      'https://ada:secret@github.com/',
+      'https://ada@github.com/',
+      'https://github.com:99999/',
+      `https://github.com/${'a'.repeat(2000)}`,
+      '',
+      7,
+      null,
+    ].forEach((url) => {
+      const request = parseSecretRequestContent(content(temporary({ url })));
+      expect(request?.kind).toBe('temporary');
+      expect(request).not.toHaveProperty('url');
+    });
+  });
+
+  it('cuts a label and a hint to one short line, and drops an empty or mistyped one', () => {
+    const cut = parseSecretRequestContent(
+      content(temporary({ label: 'L'.repeat(200), placeholder: 'P'.repeat(200) }))
+    );
+    expect(cut).toMatchObject({ label: 'L'.repeat(80), placeholder: 'P'.repeat(80) });
+
+    const dropped = parseSecretRequestContent(content(temporary({ label: ' \n ', placeholder: 7 })));
+    expect(dropped?.kind).toBe('temporary');
+    expect(dropped).not.toHaveProperty('label');
+    expect(dropped).not.toHaveProperty('placeholder');
+  });
+
   it('prefers m.new_content', () => {
     const edited = {
       ...content(inner()),

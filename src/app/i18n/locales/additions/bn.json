@@ -717,6 +717,7 @@
         "showKey": "কী দেখান",
         "hideKey": "কী লুকান",
         "sentTo": "{{host}}-এ পাঠানো হয়",
+        "openLink": "{{host}} খুলুন",
         "save": "সংরক্ষণ করুন",
         "decline": "প্রত্যাখ্যান করুন",
         "savedWaiting": "সংরক্ষিত, এজেন্টের অপেক্ষায়",
@@ -970,7 +971,8 @@
     "unsnooze": "স্থগিত বাতিল করুন",
     "status": {
       "snoozed": "স্নুজ করা"
-    }
+    },
+    "renameHint": "নাম বদলাতে ডাবল-ক্লিক করুন"
   },
   "threadSnooze": {
     "title": "যতক্ষণ পর্যন্ত স্থগিত",
@@ -1299,6 +1301,19 @@
       "snoozed": "স্নুজ করা",
       "idle": "নিষ্ক্রিয়",
       "resolved": "সমাধান করা"
+    },
+    "live": {
+      "tools": "টুল",
+      "toolsRunning_one": "{{count}}টি চলছে",
+      "toolsRunning_other": "{{count}}টি চলছে",
+      "toolsRunningNamed_one": "{{count}}টি চলছে: {{names}}",
+      "toolsRunningNamed_other": "{{count}}টি চলছে: {{names}}",
+      "background": "ব্যাকগ্রাউন্ড",
+      "jobs_one": "{{count}}টি কাজ",
+      "jobs_other": "{{count}}টি কাজ",
+      "jobsWaiting_one": "{{jobs}}, {{count}}টি অনুমোদনের অপেক্ষায়",
+      "jobsWaiting_other": "{{jobs}}, {{count}}টি অনুমোদনের অপেক্ষায়",
+      "waitingForAnswer": "উত্তরের অপেক্ষায়"
     }
   },
   "threadBoard": {

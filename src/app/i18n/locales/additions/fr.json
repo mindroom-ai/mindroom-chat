@@ -726,6 +726,7 @@
         "showKey": "Afficher la clé",
         "hideKey": "Masquer la clé",
         "sentTo": "Envoyée à {{host}}",
+        "openLink": "Ouvrir {{host}}",
         "save": "Enregistrer",
         "decline": "Refuser",
         "savedWaiting": "Enregistrée, en attente de l’agent",
@@ -987,7 +988,8 @@
     "unsnooze": "Annuler le report",
     "status": {
       "snoozed": "Reporté"
-    }
+    },
+    "renameHint": "Double-cliquez pour renommer"
   },
   "threadSnooze": {
     "title": "Reporter jusqu'à",
@@ -1325,6 +1327,23 @@
       "snoozed": "Reportés",
       "idle": "Inactifs",
       "resolved": "Résolus"
+    },
+    "live": {
+      "tools": "Outils",
+      "toolsRunning_one": "{{count}} en cours",
+      "toolsRunning_many": "{{count}} en cours",
+      "toolsRunning_other": "{{count}} en cours",
+      "toolsRunningNamed_one": "{{count}} en cours : {{names}}",
+      "toolsRunningNamed_many": "{{count}} en cours : {{names}}",
+      "toolsRunningNamed_other": "{{count}} en cours : {{names}}",
+      "background": "Arrière-plan",
+      "jobs_one": "{{count}} tâche",
+      "jobs_many": "{{count}} tâches",
+      "jobs_other": "{{count}} tâches",
+      "jobsWaiting_one": "{{jobs}}, {{count}} en attente d’approbation",
+      "jobsWaiting_many": "{{jobs}}, {{count}} en attente d’approbation",
+      "jobsWaiting_other": "{{jobs}}, {{count}} en attente d’approbation",
+      "waitingForAnswer": "En attente d’une réponse"
     }
   },
   "threadBoard": {

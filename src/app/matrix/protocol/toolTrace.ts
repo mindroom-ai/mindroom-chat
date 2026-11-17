@@ -48,3 +48,18 @@ export const getToolTraceV2Events = (
   const toolTrace = asToolTrace(trace);
   return toolTrace?.version === 2 ? getToolTraceEvents(toolTrace) : undefined;
 };
+
+/**
+ * The tool calls a reply runs now: those its trace still shows as started. A stream that ended
+ * without completing a call (it was stopped, or failed) runs none, so `streaming` false gives none.
+ */
+export const runningToolCalls = (
+  events: readonly ToolTraceEvent[] | undefined,
+  streaming: boolean
+): { count: number; names: string[] } => {
+  const running = streaming ? events?.filter(({ type }) => type === 'tool_call_started') ?? [] : [];
+  const names = running.flatMap(({ tool_name: name }) =>
+    typeof name === 'string' && name ? [name] : []
+  );
+  return { count: running.length, names: [...new Set(names)] };
+};

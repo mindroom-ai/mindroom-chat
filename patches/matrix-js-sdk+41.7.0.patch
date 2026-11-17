@@ -4293,7 +4293,7 @@ index a434f69..812e1ee 100644
  
          if (currentServerVersion?.algorithm != "m.megolm_backup.v1.curve25519-aes-sha2") {
 diff --git a/node_modules/matrix-js-sdk/lib/models/event.js b/node_modules/matrix-js-sdk/lib/models/event.js
-index 41c0e07..87e6e91 100644
+index 41c0e07..47b207c 100644
 --- a/node_modules/matrix-js-sdk/lib/models/event.js
 +++ b/node_modules/matrix-js-sdk/lib/models/event.js
 @@ -1319,6 +1319,11 @@ export class MatrixEvent extends TypedEventEmitter {
@@ -4339,8 +4339,26 @@ index 41c0e07..87e6e91 100644
      }
    }
  
+@@ -1534,14 +1545,11 @@ export class MatrixEvent extends TypedEventEmitter {
+     if (this.isState()) {
+       return;
+     }
+-    if (this.thread) {
+-      this.reEmitter.stopReEmitting(this.thread, [ThreadEvent.Update]);
+-    }
++    // MindRoom: the event does not re-emit its thread's `ThreadEvent.Update`. The re-emit left one
++    // listener on the thread per event instance, so a thread kept every copy of every reply and
++    // edit it was ever given, and each update called them all. Nothing listens for it on an event.
+     this.thread = thread;
+     this.setThreadId(thread === null || thread === void 0 ? void 0 : thread.id);
+-    if (thread) {
+-      this.reEmitter.reEmit(thread, [ThreadEvent.Update]);
+-    }
+   }
+ 
+   /**
 diff --git a/node_modules/matrix-js-sdk/src/models/event.ts b/node_modules/matrix-js-sdk/src/models/event.ts
-index 19a2f43..56bddae 100644
+index 19a2f43..9a64b56 100644
 --- a/node_modules/matrix-js-sdk/src/models/event.ts
 +++ b/node_modules/matrix-js-sdk/src/models/event.ts
 @@ -1526,6 +1526,11 @@ export class MatrixEvent extends TypedEventEmitter<MatrixEventEmittedEvents, Mat
@@ -4386,6 +4404,24 @@ index 19a2f43..56bddae 100644
          }
      }
  
+@@ -1740,14 +1751,11 @@ export class MatrixEvent extends TypedEventEmitter<MatrixEventEmittedEvents, Mat
+         if (this.isState()) {
+             return;
+         }
+-        if (this.thread) {
+-            this.reEmitter.stopReEmitting(this.thread, [ThreadEvent.Update]);
+-        }
++        // MindRoom: the event does not re-emit its thread's `ThreadEvent.Update`. The re-emit left one
++        // listener on the thread per event instance, so a thread kept every copy of every reply and
++        // edit it was ever given, and each update called them all. Nothing listens for it on an event.
+         this.thread = thread;
+         this.setThreadId(thread?.id);
+-        if (thread) {
+-            this.reEmitter.reEmit(thread, [ThreadEvent.Update]);
+-        }
+     }
+ 
+     /**
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations.js b/node_modules/matrix-js-sdk/lib/models/relations.js
 index 6be66bb..c5aed05 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations.js

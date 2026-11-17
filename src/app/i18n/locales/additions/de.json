@@ -717,6 +717,7 @@
         "showKey": "Schlüssel anzeigen",
         "hideKey": "Schlüssel verbergen",
         "sentTo": "Wird an {{host}} gesendet",
+        "openLink": "{{host}} öffnen",
         "save": "Speichern",
         "decline": "Ablehnen",
         "savedWaiting": "Gespeichert, wartet auf den Agenten",
@@ -970,7 +971,8 @@
     "unsnooze": "Nicht mehr zurückstellen",
     "status": {
       "snoozed": "Zurückgestellt"
-    }
+    },
+    "renameHint": "Zum Umbenennen doppelklicken"
   },
   "threadSnooze": {
     "title": "Zurückstellen bis",
@@ -1299,6 +1301,19 @@
       "snoozed": "Zurückgestellt",
       "idle": "Inaktiv",
       "resolved": "Gelöst"
+    },
+    "live": {
+      "tools": "Werkzeuge",
+      "toolsRunning_one": "{{count}} läuft",
+      "toolsRunning_other": "{{count}} laufen",
+      "toolsRunningNamed_one": "{{count}} läuft: {{names}}",
+      "toolsRunningNamed_other": "{{count}} laufen: {{names}}",
+      "background": "Hintergrund",
+      "jobs_one": "{{count}} Aufgabe",
+      "jobs_other": "{{count}} Aufgaben",
+      "jobsWaiting_one": "{{jobs}}, {{count}} wartet auf Freigabe",
+      "jobsWaiting_other": "{{jobs}}, {{count}} warten auf Freigabe",
+      "waitingForAnswer": "Wartet auf eine Antwort"
     }
   },
   "threadBoard": {

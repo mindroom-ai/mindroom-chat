@@ -1,6 +1,10 @@
-import type { MatrixEvent } from 'matrix-js-sdk';
-import { reactionOrEditEvent } from '../../matrix/room';
-import { getAiRunInfo } from '../../matrix/protocol/aiRun';
+import { Direction, type MatrixEvent } from 'matrix-js-sdk';
+import type { Thread } from 'matrix-js-sdk/lib/models/thread';
+import { getEditedEvent, getLatestMessageContent, reactionOrEditEvent } from '../../matrix/room';
+import { getAiRunInfo, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
+import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
+import { hasLoadedFirstThreadPage } from '../sdk/threadBootstrapSdk';
+import { getLinkedTimelines, getThreadTimelineEvents } from '../timeline/linkedTimelines';
 import type { ThreadSummaryHistory } from './threadSummaryTimeline';
 
 type ConversationCostTotal = {
@@ -10,7 +14,10 @@ type ConversationCostTotal = {
 };
 
 export type ThreadConversationCost = {
-  /** Whether the thread's first event is loaded, so no older reply is missing from the sums. */
+  /**
+   * Whether the sums are exact: the thread's first event is loaded, so no older reply is missing,
+   * and no agent's run ended without a cost (stopped or failed), so none is left out.
+   */
   complete: boolean;
   /** The conversation's cost through each priced reply. */
   byEventId: ReadonlyMap<string, ConversationCostTotal>;
@@ -29,6 +36,10 @@ type SummarizeOptions = {
 
 // The backend rounds each cost to micro-dollars, so integer sums are exact.
 const MICROS_PER_USD = 1_000_000;
+// Replies that ended so, by their run's status or, on a terminal note without run metadata, their
+// stream status: their usage can be unknown, and then the backend leaves the cost out. A completed
+// run leaves it out only when it used no priced model, so it cost nothing.
+const UNKNOWN_COST_ENDINGS = new Set(['cancelled', 'error', 'interrupted']);
 
 export const summarizeThreadConversationCost = (
   events: readonly MatrixEvent[],
@@ -43,14 +54,21 @@ export const summarizeThreadConversationCost = (
   const replies: { eventId: string; usd: number }[] = [];
   let micros = 0;
   let replyCount = 0;
+  let unknownCost = false;
   events.forEach((event) => {
     const eventId = event.getId();
     const sender = event.getSender() ?? '';
     // Edits and reactions carry no cost of their own; a reply's latest edit is read through it.
     if (!eventId || reactionOrEditEvent(event) || event.isRedacted()) return;
     if (!isTrustedSender(sender) || ignoredUserIds?.has(sender)) return;
-    const costUsd = getAiRunInfo(getContent(event))?.costUsd;
-    if (costUsd === undefined) return;
+    const content = getContent(event);
+    const run = getAiRunInfo(content);
+    const costUsd = run?.costUsd;
+    if (costUsd === undefined) {
+      const endings = [run?.status, getStreamStatusFromContent(content)];
+      if (endings.some((ending) => ending && UNKNOWN_COST_ENDINGS.has(ending))) unknownCost = true;
+      return;
+    }
     const replyMicros = Math.round(costUsd * MICROS_PER_USD);
     micros += replyMicros;
     replyCount += 1;
@@ -59,8 +77,35 @@ export const summarizeThreadConversationCost = (
   });
   if (replyCount === 0) return undefined;
   return {
-    complete: history.sdkLoaded && !history.canPaginateBack && !history.hasMoreCachedBack,
+    complete:
+      !unknownCost && history.sdkLoaded && !history.canPaginateBack && !history.hasMoreCachedBack,
     byEventId,
     replies,
   };
+};
+
+/**
+ * What the replies a thread holds cost, for a surface that shows the thread without opening it.
+ * It sums every linked segment the SDK holds. Without the open thread's session, the sum is
+ * complete only when the oldest segment shows the SDK paged back to the start: it begins at the
+ * root, which the SDK puts there only then, and holds no older page. Only agents' cost counts.
+ */
+export const summarizeLoadedThreadCost = (
+  thread: Thread,
+  viewerId: string | undefined
+): ThreadConversationCost | undefined => {
+  const oldest = getLinkedTimelines(thread.getUnfilteredTimelineSet().getLiveTimeline())[0];
+  return summarizeThreadConversationCost(getThreadTimelineEvents(thread), {
+    history: {
+      sdkLoaded: hasLoadedFirstThreadPage(thread) && oldest?.getEvents()[0]?.getId() === thread.id,
+      canPaginateBack: typeof oldest?.getPaginationToken(Direction.Backward) === 'string',
+      hasMoreCachedBack: false,
+    },
+    isTrustedSender: (userId) => isMindroomAgentUserIdForViewer(userId, viewerId),
+    getContent: (event) =>
+      getLatestMessageContent(
+        event,
+        getEditedEvent(event.getId() ?? '', event, thread.timelineSet)
+      ) as Record<string, unknown>,
+  });
 };

@@ -708,6 +708,7 @@
         "showKey": "显示密钥",
         "hideKey": "隐藏密钥",
         "sentTo": "发送到 {{host}}",
+        "openLink": "打开 {{host}}",
         "save": "保存",
         "decline": "拒绝",
         "savedWaiting": "已保存，等待智能体",
@@ -953,7 +954,8 @@
     "unsnooze": "取消延后",
     "status": {
       "snoozed": "已延后"
-    }
+    },
+    "renameHint": "双击以重命名"
   },
   "threadSnooze": {
     "title": "延后至",
@@ -1273,6 +1275,15 @@
       "snoozed": "已延后",
       "idle": "空闲",
       "resolved": "已解决"
+    },
+    "live": {
+      "tools": "工具",
+      "toolsRunning_other": "{{count}} 个运行中",
+      "toolsRunningNamed_other": "{{count}} 个运行中：{{names}}",
+      "background": "后台",
+      "jobs_other": "{{count}} 个任务",
+      "jobsWaiting_other": "{{jobs}}，{{count}} 个等待批准",
+      "waitingForAnswer": "等待回答"
     }
   },
   "threadBoard": {
