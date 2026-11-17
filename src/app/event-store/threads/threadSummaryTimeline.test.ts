@@ -73,7 +73,7 @@ describe('thread summary timeline plan', () => {
 
   it('compares the text a summary row shows, after its latest edit', () => {
     const edited = summary('$s2', 'Push bug', 11);
-    const plan = planThreadSummaryTimeline([summary('$s1', 'Push bug'), edited], {
+    const plan = planThreadSummaryTimeline([summary('$s1', 'Push bug'), reply('$r1'), edited], {
       history: startLoaded,
       getContent: (event) =>
         event === edited
@@ -105,7 +105,7 @@ describe('thread summary timeline plan', () => {
       },
     });
     const plan = planThreadSummaryTimeline(
-      [summary('$s1', 'Push bug'), fromIgnored, summary('$s2', 'Token refresh', 11)],
+      [summary('$s1', 'Push bug'), reply('$r1'), fromIgnored, summary('$s2', 'Token refresh', 11)],
       { history: startLoaded, ignoredUserIds: new Set(['@spam:example.org']) }
     );
 
@@ -133,7 +133,9 @@ describe('thread summary timeline plan', () => {
     const plan = planThreadSummaryTimeline(
       [
         summary('$s1', 'Push bug'),
+        reply('$r1'),
         summary('$s2', 'APNs logs'),
+        reply('$r2'),
         edit,
         summary('$s3', 'Token refresh'),
       ],
@@ -180,5 +182,103 @@ describe('thread summary timeline plan', () => {
 
     expect(plan.hiddenEventIds.size).toBe(0);
     expect(plan.markersByEventId.get('$s2')).toEqual({ first: false });
+  });
+
+  it('shows back-to-back summaries as one marker that titled the thread', () => {
+    const plan = planThreadSummaryTimeline(
+      [reply('$root'), reply('$r1'), summary('$s1', 'Push bug'), summary('$s2', 'Token refresh')],
+      { history: startLoaded }
+    );
+
+    expect([...plan.hiddenEventIds]).toEqual(['$s1']);
+    expect(plan.markersByEventId.has('$s1')).toBe(false);
+    expect(plan.markersByEventId.get('$s2')).toEqual({ first: true });
+  });
+
+  it('folds a run of summaries into its last, which replaces the title before the run', () => {
+    const plan = planThreadSummaryTimeline(
+      [
+        summary('$s1', 'Push bug'),
+        reply('$r1'),
+        summary('$s2', 'APNs logs'),
+        summary('$s3', 'Token refresh'),
+      ],
+      { history: startLoaded }
+    );
+
+    expect([...plan.hiddenEventIds]).toEqual(['$s2']);
+    expect(plan.markersByEventId.get('$s1')).toEqual({ first: true });
+    expect(plan.markersByEventId.get('$s3')).toEqual({
+      first: false,
+      previousSummaryText: 'Push bug',
+    });
+  });
+
+  it('folds summaries that only edits, reactions and ignored senders separate', () => {
+    const edit = new MatrixEvent({
+      type: 'm.room.message',
+      event_id: '$edit',
+      room_id: '!room:example.org',
+      sender: '@code:example.org',
+      content: {
+        msgtype: 'm.text',
+        body: '* streaming',
+        'm.new_content': { msgtype: 'm.text', body: 'streaming' },
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$r1' },
+      },
+    });
+    const reaction = new MatrixEvent({
+      type: 'm.reaction',
+      event_id: '$reaction',
+      room_id: '!room:example.org',
+      sender: '@bas:example.org',
+      content: { 'm.relates_to': { rel_type: 'm.annotation', event_id: '$r1', key: '👍' } },
+    });
+    const fromIgnored = new MatrixEvent({
+      type: 'm.room.message',
+      event_id: '$ignored',
+      room_id: '!room:example.org',
+      sender: '@spam:example.org',
+      content: { msgtype: 'm.text', body: 'spam' },
+    });
+    const plan = planThreadSummaryTimeline(
+      [
+        reply('$r1'),
+        summary('$s1', 'Push bug'),
+        edit,
+        reaction,
+        fromIgnored,
+        summary('$s2', 'Token refresh'),
+      ],
+      { history: startLoaded, ignoredUserIds: new Set(['@spam:example.org']) }
+    );
+
+    expect([...plan.hiddenEventIds]).toEqual(['$s1']);
+    expect(plan.markersByEventId.get('$s2')).toEqual({ first: true });
+  });
+
+  it('keeps an opened summary visible when another follows it', () => {
+    const plan = planThreadSummaryTimeline(
+      [summary('$s1', 'Push bug'), summary('$s2', 'Token refresh')],
+      { history: startLoaded, revealedEventIds: new Set(['$s1']) }
+    );
+
+    expect(plan.hiddenEventIds.size).toBe(0);
+    expect(plan.markersByEventId.get('$s1')).toEqual({ first: true });
+    expect(plan.markersByEventId.get('$s2')).toEqual({
+      first: false,
+      previousSummaryText: 'Push bug',
+    });
+  });
+
+  it('folds summaries that only a hidden repeat separates', () => {
+    const plan = planThreadSummaryTimeline(
+      [summary('$s1', 'Push bug'), summary('$s2', 'Push bug'), summary('$s3', 'Token refresh')],
+      { history: startLoaded }
+    );
+
+    expect([...plan.hiddenEventIds].sort()).toEqual(['$s1', '$s2']);
+    expect([...plan.markersByEventId.keys()]).toEqual(['$s3']);
+    expect(plan.markersByEventId.get('$s3')).toEqual({ first: true });
   });
 });
