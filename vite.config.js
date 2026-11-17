@@ -198,8 +198,11 @@ export default defineConfig({
   define: { __MINDROOM_SPEECH_MODEL__: JSON.stringify(SPEECH_MODEL_DIR) },
   ...(slotPort ? { cacheDir: `node_modules/.vite-slot-${slotPort}` } : {}),
   plugins: [
-    // Only active when Playwright starts the dev server (see playwright.config.ts).
-    e2eClientConfig(process.env.MINDROOM_E2E_PROVISIONING_URL),
+    // Only active when Playwright (see playwright.config.ts) or scripts/live.py starts the dev server.
+    e2eClientConfig(
+      process.env.MINDROOM_E2E_PROVISIONING_URL,
+      process.env.MINDROOM_E2E_HOMESERVER
+    ),
     // runtime-config.js, authentication-recovery.js, version.json and the build version constants.
     mindroomBuildAssets(),
     // The client plugins MINDROOM_CLIENT_PLUGINS lists (docs/client-plugins.md).

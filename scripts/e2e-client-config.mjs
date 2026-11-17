@@ -23,13 +23,16 @@ const runtimeConfigPath = fileURLToPath(new URL('../config/mindroom.json', impor
  * runtime config, pointing `sidebar.mindRoomProvisioningUrl` at the given origin, so browser
  * tests never reach the hosted provisioning service, and with the recovery password start prompt
  * and the offer of the interface tour off, so neither covers a fresh account's page. With no URL
- * the plugin does nothing.
+ * the plugin does nothing. With a homeserver URL as well (`MINDROOM_E2E_HOMESERVER`, which
+ * `scripts/live.py` sets), that server is the only one listed and the default, so `/login` opens
+ * on it.
  * `vite preview` of a build (`scripts/e2e-slot.sh --preview`) answers it the same way, ahead of
  * the built `config.json`.
  *
  * @param {string | undefined} provisioningUrl
+ * @param {string | undefined} [homeserver]
  */
-export const e2eClientConfig = (provisioningUrl) => {
+export const e2eClientConfig = (provisioningUrl, homeserver) => {
   /** @param {MiddlewareHost} server */
   const answerConfig = (server) => {
     if (!provisioningUrl) return;
@@ -46,6 +49,7 @@ export const e2eClientConfig = (provisioningUrl) => {
       res.end(
         JSON.stringify({
           ...config,
+          ...(homeserver ? { homeserverList: [homeserver], defaultHomeserver: 0 } : {}),
           sidebar: { ...config.sidebar, mindRoomProvisioningUrl: provisioningUrl },
           encryptionRecovery: { ...config.encryptionRecovery, promptAtStart: false },
           tour: { ...config.tour, offerAtStart: false },

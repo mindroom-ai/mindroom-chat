@@ -6,6 +6,7 @@
 #   scripts/e2e-slot.sh 3 --preview npx playwright test e2e/threads/pinned-threads.live.spec.ts
 #   scripts/e2e-slot.sh 3 --rtc --preview npx playwright test e2e/calls/calls.spec.ts
 #   scripts/e2e-slot.sh 3 down        # stop that slot's homeserver, agent stack and call service, delete its data
+#   scripts/e2e-slot.sh 3 up          # start that slot's homeserver empty and leave it running (scripts/live.py)
 #
 # Slot N gets its own disposable Tuwunel (compose project mindroom-client-e2e-N on port 28100+N)
 # and its own Vite dev server port (4300+N). Slot 0 is the default `just hs-up` setup (28008, 4200).
@@ -93,6 +94,11 @@ main() {
     compose down --volumes --remove-orphans
     agent_stack_down
     bash "$repo/scripts/e2e-rtc.sh" "$slot" down
+    exit
+  fi
+  if [ "$1" = up ]; then
+    compose --progress quiet down --volumes --remove-orphans
+    compose --progress quiet up -d --wait
     exit
   fi
 
