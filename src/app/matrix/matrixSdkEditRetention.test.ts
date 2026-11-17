@@ -7,17 +7,23 @@ import {
   MatrixEventEvent,
   ReceiptType,
   Room,
+  RoomEvent,
   Thread,
   type IEvent,
 } from 'matrix-js-sdk';
 import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
 import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
-import { RelationsEvent, setReplacementRetentionPolicy } from 'matrix-js-sdk/lib/models/relations';
+import {
+  getReleasedEdit,
+  RelationsEvent,
+  setReplacementRetentionPolicy,
+} from 'matrix-js-sdk/lib/models/relations';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getThreadUnread } from '../event-store/threads/roomThreadList';
 import { getRoomUnreadInfo } from '../event-store/timeline/timelinePagination';
 import { offersJumpToUnread } from '../timeline/roomTimelineUnread';
+import { keepUnthreadedReceiptEvents } from './receiptReadTs';
 import { getEditedEvent, getReleasableEdits } from './room';
 
 // Upstream, a room's relations keep every edit of a message for as long as the room lives. An
@@ -112,23 +118,15 @@ const threadTimelineEdits = (room: Room) =>
     .flatMap((timeline) => timeline.getEvents())
     .filter((event) => event.getRelation()?.rel_type === 'm.replace');
 
-/** Whether a thread receipt by someone other than its sender names `event`. */
-const isReceiptTarget = (event: MatrixEvent) =>
-  !!event
-    .getThread()
-    ?.getReceiptsForEvent(event)
-    .some((receipt) => receipt.userId !== event.getSender());
-
 /**
  * The edits a thread's timeline holds that the room's relations do not: none, but for one redacted
- * or still being decrypted, which the relations have not taken (yet), and one a thread receipt
- * names. Nothing else reads an edit from a thread's timeline, so one the relations released is
- * gone from it too. The room's own timelines keep every edit: the app reads receipts on them.
+ * or still being decrypted, which the relations have not taken (yet). Nothing reads an edit from a
+ * thread's timeline, so one the relations released is gone from it too. The room's own timelines
+ * keep every edit: the app reads receipts on them.
  */
 const unheldTimelineEdits = (room: Room) =>
   threadTimelineEdits(room)
     .filter((event) => !event.isRedacted() && !event.isBeingDecrypted())
-    .filter((event) => !isReceiptTarget(event))
     .filter(
       (event) =>
         !room.relations
@@ -314,36 +312,97 @@ describe('the edits a room keeps of a message', () => {
     ).toBe(false);
   });
 
-  it.each([
-    ['receipt', ReceiptType.Read],
-    ['private receipt', ReceiptType.ReadPrivate],
-  ] as const)(
-    'leave an edit in its thread while a thread %s names it, which reads the thread',
-    async (_, receiptType) => {
-      const { room, add, kept, inTimelines } = await roomWithReply();
-      await add(edit('$edit-1', 11));
-      const thread = room.getThread(ROOT);
-      if (!thread) throw new Error('the room has no thread');
-      // The reader's other device read the thread up to the stream's edit then.
+  describe('read by a receipt on an edit they released', () => {
+    /** The reader's other device reads up to `eventId`, in the thread or, with no `threadId`, everywhere. */
+    const read = (room: Room, eventId: string, type: ReceiptType, ts: number, threadId?: string) =>
       room.addReceipt(
         new MatrixEvent({
           type: 'm.receipt',
           room_id: ROOM,
           content: {
-            '$edit-1': { [receiptType]: { [ME]: { ts: 12, thread_id: ROOT } } },
+            [eventId]: { [type]: { [ME]: { ts, ...(threadId && { thread_id: threadId }) } } },
           },
         })
       );
-      expect(getThreadUnread(thread, ME)).toBe(false);
+    const receiptTypes = [
+      ['receipt', ReceiptType.Read],
+      ['private receipt', ReceiptType.ReadPrivate],
+    ] as const;
+    const threadOf = (room: Room) => {
+      const thread = room.getThread(ROOT);
+      if (!thread) throw new Error('the room has no thread');
+      return thread;
+    };
 
-      // The stream goes on, with nothing new to read yet.
-      await add(edit('$edit-2', 13));
+    it.each(receiptTypes)(
+      'keep the thread read up to its reply by a thread %s that came first',
+      async (_, receiptType) => {
+        const { room, add, kept, inTimelines } = await roomWithReply();
+        await add(edit('$edit-1', 11));
+        read(room, '$edit-1', receiptType, 12, ROOT);
+        expect(getThreadUnread(threadOf(room), ME)).toBe(false);
 
-      expect(kept()).toEqual(['$edit-2']);
-      expect(getThreadUnread(thread, ME)).toBe(false);
-      expect(inTimelines()).toEqual(['$edit-1', '$edit-2']);
-    }
-  );
+        // The stream goes on, with nothing new to read yet.
+        await add(edit('$edit-2', 13));
+
+        expect(kept()).toEqual(['$edit-2']);
+        expect(inTimelines()).toEqual(['$edit-2']);
+        expect(getThreadUnread(threadOf(room), ME)).toBe(false);
+      }
+    );
+
+    it.each(receiptTypes)(
+      'read the thread up to its reply by a thread %s that comes after',
+      async (_, receiptType) => {
+        // The sync applies a batch's timeline before its receipts.
+        const { room, add, inTimelines } = await roomWithReply();
+        await add(edit('$edit-1', 11));
+        await add(edit('$edit-2', 13));
+
+        read(room, '$edit-1', receiptType, 12, ROOT);
+
+        expect(inTimelines()).toEqual(['$edit-2']);
+        expect(getThreadUnread(threadOf(room), ME)).toBe(false);
+      }
+    );
+
+    it('keep none of the edits a receipt named as it moved on', async () => {
+      const { room, add, kept, inTimelines } = await roomWithReply();
+      for (let round = 1; round <= 6; round += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        await add(edit(`$edit-${round}`, 10 + round));
+        read(room, `$edit-${round}`, ReceiptType.Read, 10 + round, ROOT);
+      }
+
+      await add(edit('$edit-7', 17));
+
+      expect(kept()).toEqual(['$edit-7']);
+      expect(inTimelines()).toEqual(['$edit-7']);
+      expect(getThreadUnread(threadOf(room), ME)).toBe(false);
+    });
+
+    it.each(receiptTypes)(
+      'read no further than the edit an unthreaded %s names',
+      async (_, receiptType) => {
+        const { room, add } = await roomWithReply();
+        keepUnthreadedReceiptEvents(room.client);
+        room.client.reEmitter.reEmit(room, [RoomEvent.Receipt]);
+        await add(edit('$edit-1', 11));
+        await add(
+          new MatrixEvent(
+            message('$reply-2', 20, { 'm.relates_to': { rel_type: 'm.thread', event_id: ROOT } })
+          )
+        );
+        // A device that saw the stream only up to its first edit sends its receipt late.
+        read(room, '$edit-1', receiptType, 100);
+        expect(getThreadUnread(threadOf(room), ME)).toBe(true);
+
+        await add(edit('$edit-2', 21));
+
+        expect(getThreadUnread(threadOf(room), ME)).toBe(true);
+      }
+    );
+  });
 
   it('release the copy a thread holds of an edit the relations took without its thread', async () => {
     const { room, add, kept, inTimelines } = await roomWithReply();
@@ -528,12 +587,15 @@ describe('the edits a room keeps of a message', () => {
       await add(older, edit('$newest', 20));
       await add(redaction('$redaction', '$newest', 30));
       expect(kept()).toEqual([]);
+      // What a receipt on the released edit reads from.
+      expect(getReleasedEdit(room, '$older')).toEqual({ ts: 10, targetId: REPLY, threadId: ROOT });
 
       // A page of history, or the first page of its thread, brings the edit again.
       room.relations.aggregateChildEvent(older);
       await tick();
 
       expect(kept()).toEqual(['$older']);
+      expect(getReleasedEdit(room, '$older')).toBeUndefined();
       expect(reply.replacingEvent()).toBe(older);
       expect(shown()?.body).toBe('$older');
     });
