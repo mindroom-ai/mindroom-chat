@@ -61,6 +61,7 @@ const mount = (events: MatrixEvent[], indexes: number[], readUptoAbsoluteIndex: 
     isHiddenByPlugin: () => false,
     isHiddenByPluginId: () => false,
     renderEvent,
+    isQuietMarkerRow: () => false,
     unreadMarkerRef: () => undefined,
     measureElement: () => undefined,
     ledgerPxAtRender: 0,

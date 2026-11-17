@@ -16,21 +16,11 @@ type Row = {
   fallback?: boolean;
   /** The event it edits; an edit has no row of its own. */
   edits?: string;
-  /** Content beyond the relation, such as a quiet marker's metadata. */
-  content?: Record<string, unknown>;
+  /** Renders as a quiet marker line, such as a thread's title. */
+  quiet?: boolean;
 };
 
-const toEvent = ({
-  id,
-  sender,
-  type,
-  minute,
-  stateKey,
-  replyTo,
-  fallback,
-  edits,
-  content,
-}: Row) => {
+const toEvent = ({ id, sender, type, minute, stateKey, replyTo, fallback, edits }: Row) => {
   const relation = edits
     ? { rel_type: 'm.replace', event_id: edits }
     : replyTo && {
@@ -47,7 +37,6 @@ const toEvent = ({
     getStateKey: () => stateKey,
     getRelation: () => relation || null,
     getWireContent: () => (relation ? { 'm.relates_to': relation } : {}),
-    getContent: () => ({ ...content, ...(relation && { 'm.relates_to': relation }) }),
     replyEventId: edits ? undefined : replyTo,
     isRedaction: () => false,
   } as unknown as MatrixEvent;
@@ -229,10 +218,12 @@ describe('foldTimelineRowContexts', () => {
     /** The rows that quote what they reply to, as the message renderer decides it. */
     const quoting = (rows: Row[], indexes = rows.map((_, index) => index)) => {
       const events = rows.map(toEvent);
+      const quiet = new Set(rows.flatMap((row) => (row.quiet ? [row.id] : [])));
       const contexts = foldTimelineRowContexts({
         indexes,
         getEvent: (index) => events[index],
         isSkipped: () => false,
+        isQuietMarker: (event) => quiet.has(event.getId() ?? ''),
       });
       return indexes.flatMap((index) => {
         const event = events[index];
@@ -280,35 +271,45 @@ describe('foldTimelineRowContexts', () => {
       ).toEqual([]);
     });
 
+    /** `quoting` from every window start agrees with the whole fold. */
+    const quotingFromEveryStart = (rows: Row[]) =>
+      rows.map((_, first) => quoting(rows, rows.map((__, index) => index).slice(first)));
+    const fromEveryStart = (rows: Row[], quoted: string[]) =>
+      rows.map((_, first) =>
+        quoted.filter((id) => rows.findIndex((row) => row.id === id) >= first)
+      );
+
+    // An agent's question, its thread's title and skill review notices, then its answer to the
+    // option the reader picked by reaction.
+    const marker = (id: string, minute: number, replyTo: string): Row =>
+      message(id, '@mindroom_helper:x', minute, { replyTo, fallback: true, quiet: true });
+    const answered = [
+      message('$question', '@mindroom_helper:x', 0),
+      marker('$title', 1, '$question'),
+      marker('$review', 1, '$title'),
+      message('$answer', '@mindroom_helper:x', 3, { replyTo: '$question' }),
+    ];
+
     it('leave out the message right above when only quiet marker rows sit between', () => {
-      // An agent's question, its thread title and skill review notices, then its answer to the
-      // option the reader picked by reaction.
-      const notice = { msgtype: 'm.notice' };
+      expect(quotingFromEveryStart(answered)).toEqual(fromEveryStart(answered, []));
+    });
+
+    it('show it past the same notices where they render as full rows, as in a room', () => {
+      const rows = answered.map((row) => ({ ...row, quiet: false }));
+      expect(quotingFromEveryStart(rows)).toEqual(fromEveryStart(rows, ['$answer']));
+    });
+
+    it('leave out a quiet marker that replies target, right above them past other markers', () => {
       const rows = [
-        message('$question', '@mindroom_helper:x', 0),
-        message('$title', '@mindroom_helper:x', 1, {
-          replyTo: '$question',
-          fallback: true,
-          content: { ...notice, 'io.mindroom.thread_summary': { version: 1, summary: 'Title' } },
-        }),
-        message('$review', '@mindroom_helper:x', 1, {
-          replyTo: '$title',
-          fallback: true,
-          content: {
-            ...notice,
-            'io.mindroom.skill_review': { changes: { skill_name: 'updated' } },
-          },
-        }),
-        message('$snooze', '@mindroom_helper:x', 2, {
-          replyTo: '$review',
-          fallback: true,
-          content: { ...notice, 'io.mindroom.thread_snooze': { event: 'ended' } },
-        }),
-        message('$answer', '@mindroom_helper:x', 3, { replyTo: '$question' }),
+        message('$ask', '@alice:x', 0),
+        marker('$title', 1, '$ask'),
+        message('$first', '@alice:x', 2, { replyTo: '$title' }),
+        message('$second', '@bob:x', 2, { replyTo: '$title' }),
+        marker('$review', 3, '$second'),
+        message('$third', '@alice:x', 4, { replyTo: '$title' }),
+        message('$fourth', '@alice:x', 5, { replyTo: '$ask' }),
       ];
-      expect(quoting(rows)).toEqual([]);
-      expect(quoting(rows, [4])).toEqual([]);
-      expect(quoting(rows, [2, 3, 4])).toEqual([]);
+      expect(quotingFromEveryStart(rows)).toEqual(fromEveryStart(rows, ['$fourth']));
     });
 
     it('show an older message when another message sits between it and the reply', () => {
