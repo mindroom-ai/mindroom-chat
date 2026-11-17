@@ -31,8 +31,9 @@ import {
 // no other request and stays nowhere in the page. The agent then edits the card to saved. Another
 // member of the room sees the card without a field. A redirect from that server, which would replay
 // the key to another origin, fails the answer instead, and the key stays in the field for a retry.
-// An answer from the keyboard leaves the keyboard focus on the card through the agent's edit, also
-// when the edit comes before the server's answer, and on Save after an error.
+// Once answered, the card folds to its header, which opens it again and folds it back.
+// An answer from the keyboard leaves the keyboard focus on the folded card's row through the agent's
+// edit, also when the edit comes before the server's answer, and on Save after an error.
 // An agent may also ask for a temporary secret, which its commands receive as a variable: the card
 // names the variable, and the requester chooses how long MindRoom keeps the value before sending it.
 // The agent may say what the secret is, hint at its form and name the page that gives it: the card
@@ -45,6 +46,8 @@ const MINDROOM_API = 'http://127.0.0.1:29597';
 const ELSEWHERE = 'http://127.0.0.1:29598';
 const CORS = { 'Access-Control-Allow-Origin': '*' };
 const PASSWORD = 'secret-request-spec-password';
+// Set SECRET_REQUEST_SHOTS=<directory> to save screenshots of the folded and the opened card.
+const SHOTS = process.env.SECRET_REQUEST_SHOTS;
 
 test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
@@ -401,7 +404,7 @@ for (const [label, final, waiting] of [
   ['Save', 'saved', 'Saved, waiting for the agent'],
   ['Decline', 'declined', 'Declined, waiting for the agent'],
 ] as const) {
-  test(`${label} from the keyboard leaves the focus on the card through the agent's edit`, async ({
+  test(`${label} from the keyboard leaves the focus on the folded card's row through the agent's edit`, async ({
     context,
     page,
   }) => {
@@ -418,17 +421,17 @@ for (const [label, final, waiting] of [
     await expect(target).toHaveAttribute('aria-disabled', 'true');
     await expect(target).toBeFocused();
     await expect(seeded.card.getByRole('status')).toHaveText(waiting);
-    await expect(seeded.card).toBeFocused();
+    await expect(seeded.card.locator('summary')).toBeFocused();
 
     await editCard(seeded, final);
     await expect(statusChip(page)).toHaveAttribute('data-secret-request-status', final, {
       timeout: 30_000,
     });
-    await expect(seeded.card).toBeFocused();
+    await expect(seeded.card.locator('summary')).toBeFocused();
   });
 }
 
-test("the card takes the keyboard focus when the agent's edit comes before the server's answer", async ({
+test("the folded card's row takes the keyboard focus when the agent's edit comes before the server's answer", async ({
   context,
   page,
 }) => {
@@ -454,12 +457,12 @@ test("the card takes the keyboard focus when the agent's edit comes before the s
   await expect(statusChip(page)).toHaveAttribute('data-secret-request-status', 'saved', {
     timeout: 30_000,
   });
-  await expect(seeded.card).toBeFocused();
+  await expect(seeded.card.locator('summary')).toBeFocused();
   release();
   // The late answer changes nothing: the agent's edit decided.
   await page.waitForTimeout(500);
   await expect(statusChip(page)).toHaveText('Saved');
-  await expect(seeded.card).toBeFocused();
+  await expect(seeded.card.locator('summary')).toBeFocused();
 });
 
 test('an error after Save from the keyboard leaves the focus on Save to retry', async ({
@@ -530,6 +533,11 @@ test('the requester sends a temporary secret and chooses to keep it for 24 hours
   await card.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(card.getByRole('status')).toHaveText('Sent, waiting for the agent');
   await expect(card.locator('input')).toHaveCount(0);
+  // Sent, the card folds to its header: the reason waits in the closed fold.
+  const fold = card.locator('details');
+  await expect(fold).not.toHaveAttribute('open');
+  await expect(card.getByText('To restart the web server.')).toBeHidden();
+  await expect(chip).toBeVisible();
 
   expect(answers).toHaveLength(1);
   expect(answers[0]?.url).toBe(answerUrl);
@@ -545,8 +553,20 @@ test('the requester sends a temporary secret and chooses to keep it for 24 hours
   });
   await expect(chip).toHaveAttribute('data-secret-request-status', 'saved', { timeout: 30_000 });
   await expect(chip).toHaveText('Sent');
-  await expect(card).toContainText('Kept for 24 hours, in a file on the server.');
   await expect(card.getByRole('status')).toHaveCount(0);
+  const kept = card.getByText('Kept for 24 hours, in a file on the server.');
+  await expect(kept).toBeHidden();
+  await expect(fold).not.toHaveAttribute('open');
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/secret-card-folded.png` });
+
+  // A click on the row opens the card, another folds it again.
+  await card.locator('summary').click();
+  await expect(fold).toHaveAttribute('open');
+  await expect(card.getByText('To restart the web server.')).toBeVisible();
+  await expect(kept).toBeVisible();
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/secret-card-opened.png` });
+  await card.locator('summary').click();
+  await expect(kept).toBeHidden();
 
   expect(leaks).toEqual([]);
   expect(
@@ -569,7 +589,8 @@ test("a card shows the agent's label and field hint, and a button that opens the
       'io.mindroom.secret_request': {
         ...content['io.mindroom.secret_request'],
         env: 'GITHUB_TOKEN',
-        reason: 'To push the fix to your fork. A fine-grained token with Contents: write is enough.',
+        reason:
+          'To push the fix to your fork. A fine-grained token with Contents: write is enough.',
         label: 'GitHub token',
         url: TOKEN_PAGE,
         placeholder: 'github_pat_…',
@@ -599,7 +620,9 @@ test("a card shows the agent's label and field hint, and a button that opens the
   await expect(link).toHaveAttribute('href', TOKEN_PAGE);
   const [opened] = await Promise.all([context.waitForEvent('page'), link.click()]);
   await expect(opened).toHaveURL(TOKEN_PAGE);
-  expect(await opened.evaluate(() => window.opener === null && document.referrer === '')).toBe(true);
+  expect(await opened.evaluate(() => window.opener === null && document.referrer === '')).toBe(
+    true
+  );
   await opened.close();
 
   // The card waits as before, its field ready for what the person brings back.
