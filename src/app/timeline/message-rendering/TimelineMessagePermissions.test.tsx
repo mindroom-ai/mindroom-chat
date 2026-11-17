@@ -50,6 +50,7 @@ const emptyData = () => ({
     hiddenEventIds: new Set<string>(),
     markersByEventId: new Map(),
   },
+  secretRequestTimeline: { hiddenEventIds: new Set<string>(), byReply: new Map() },
 });
 
 /** Renders the rows and returns the `canDelete` and `canPinEvent` props each message received. */

@@ -31,6 +31,7 @@ const renderEvent = ({ eventId }: TimelineMessageRow) => <p>{eventId}</p>;
 const messageData = {
   approvalTimeline: { hiddenEventIds: new Set<string>() },
   threadSummaryTimeline: { hiddenEventIds: new Set<string>() },
+  secretRequestTimeline: { hiddenEventIds: new Set<string>(), byReply: new Map() },
 } as unknown as TimelineMessageData;
 
 /** Each mounted tile's event and the dividers above its row: `unread`, or the date. */

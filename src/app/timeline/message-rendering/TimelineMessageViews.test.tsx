@@ -56,6 +56,7 @@ const emptyData = {
     fallbackGroupsByEventId: new Map(),
   },
   threadSummaryTimeline: { hiddenEventIds: new Set<string>(), markersByEventId: new Map() },
+  secretRequestTimeline: { hiddenEventIds: new Set<string>(), byReply: new Map() },
 } as never;
 
 const emptyEditor = () => {

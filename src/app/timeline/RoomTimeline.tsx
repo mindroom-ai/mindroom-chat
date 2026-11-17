@@ -122,6 +122,8 @@ import {
   useThreadApprovalRowMeasurements,
   useThreadApprovalTimeline,
 } from '../approvals/useThreadApprovalTimeline';
+import { useInlineSecretRequestPlan } from '../approvals/useInlineSecretRequestPlan';
+import { InlineSecretRequestsContext } from '../approvals/inlineSecretRequests';
 import { isTimelineAtLiveEnd } from '../event-store/timeline/timelineScrollUtils';
 import { useFooterBottomPin } from './useFooterBottomPin';
 import { listShrinkNotRendered, useListEndClamp } from './useListEndClamp';
@@ -820,6 +822,16 @@ export function RoomTimeline(props: RoomTimelineProps) {
     eventId,
     focusItem?.eventId
   );
+  // Secret request cards the open thread's replies draw at their tool calls, rows hidden here.
+  const secretRequestTimeline = useInlineSecretRequestPlan({
+    events: ownThreadEvents,
+    getContent: getRowContent,
+    ignored: ignoredUsersSet,
+    viewerId: mx.getUserId() ?? undefined,
+    threadId,
+    routeId: eventId,
+    focusId: focusItem?.eventId,
+  });
 
   // While the opening room view does not fill the screen, keep paginating. The fill holds the
   // last row still while the rows above it measure, so a view whose newest row is its first
@@ -1003,10 +1015,19 @@ export function RoomTimeline(props: RoomTimelineProps) {
     () =>
       !threadId
         ? EMPTY_IDS
-        : pluginHiddenThreadIds.size === 0
+        : pluginHiddenThreadIds.size === 0 && secretRequestTimeline.hiddenEventIds.size === 0
         ? approvalTimeline.hiddenEventIds
-        : new Set([...approvalTimeline.hiddenEventIds, ...pluginHiddenThreadIds]),
-    [threadId, approvalTimeline.hiddenEventIds, pluginHiddenThreadIds]
+        : new Set([
+            ...approvalTimeline.hiddenEventIds,
+            ...secretRequestTimeline.hiddenEventIds,
+            ...pluginHiddenThreadIds,
+          ]),
+    [
+      threadId,
+      approvalTimeline.hiddenEventIds,
+      secretRequestTimeline.hiddenEventIds,
+      pluginHiddenThreadIds,
+    ]
   );
   useThreadApprovalRowMeasurements(virtualizer, threadEvents, threadHiddenIds, estimateSize);
 
@@ -1701,6 +1722,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadEventMap: threadState.threadEventMap ?? new Map(),
     approvalTimeline,
     threadSummaryTimeline,
+    secretRequestTimeline,
     handleOpenReply,
     forkPrefixEventIds,
   };
@@ -1822,6 +1844,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
           )}
           <ThreadConversationCostProvider value={threadConversationCost}>
             <ImageSlidesContext.Provider value={getImageSlides}>
+              <InlineSecretRequestsContext.Provider value={secretRequestTimeline.byReply}>
               {feature.wrapExpansion(
                 <div
                   ref={ledger.virtualInnerRef}
@@ -1839,6 +1862,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
                   {tiles}
                 </div>
               )}
+              </InlineSecretRequestsContext.Provider>
             </ImageSlidesContext.Provider>
           </ThreadConversationCostProvider>
           {latestAtTop ? (
