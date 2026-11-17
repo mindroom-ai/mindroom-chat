@@ -176,7 +176,9 @@ describe('compact card formatting work', () => {
     snoozed.status.snoozedUntilTs = 20000;
     const harness = mount(room, [snoozed]);
     expect(harness.models[0]!.attentionState).toBe('idle');
-    act(() => vi.advanceTimersByTime(10000));
+    act(() => {
+      vi.advanceTimersByTime(10000);
+    });
     expect(harness.models[0]!.attentionState).toBe('streaming');
     harness.update([structuredClone(snoozed)]);
     expect(harness.models[0]!.attentionState).toBe('streaming');
