@@ -21,9 +21,9 @@ import {
 // left edge of a page that takes no such swipe itself, slides a drawer in from the start edge over
 // the page, with the icon rail and the section's room list side by side; a room picked there
 // closes it, a space picked there keeps it out with that space's list, and the scrim, Escape, the
-// menu button and a sideways swipe put it away. A room's back chevron still returns to the list,
-// which the drawer then holds out; a swipe from a room's left edge brings the drawer out over the
-// room instead, also for a room opened from a space's lobby. The drawer rounds only its
+// menu button and a sideways swipe put it away. A room has no back chevron; the browser's back
+// returns to the list, which the drawer then holds out, and a swipe from a room's left edge brings
+// the drawer out over the room, also for a room opened from a space's lobby. The drawer rounds only its
 // corner over the page, as the page's card does where it floats, and no line rules the top bar off
 // from the page. 390 by 844 (and 744 by 1133 for the corner and the bar) with touch, in
 // Chromium with real touches and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in
@@ -267,13 +267,17 @@ for (const engine of ENGINES) {
         expect(bar!.x + bar!.width / 2).toBeCloseTo(railBox.x + railBox.width / 2, 0);
         await shoot(page, testInfo, 'home-drawer');
 
-        // A room picked there fills the page under the bar; its back chevron returns to the list,
-        // which the drawer then holds out again.
+        // A room picked there fills the page under the bar, with no back chevron of its own: the
+        // menu button leads to the list. The browser's back returns to the list, which the drawer
+        // then holds out again.
         await pickRoom(page, 'Garden Club', garden);
         await expect(menuButton(page)).toBeVisible();
+        await expect(
+          roomBanner(page).getByRole('button', { name: 'Back', exact: true })
+        ).toHaveCount(0);
         await shoot(page, testInfo, 'room');
-        await roomBanner(page).getByRole('button', { name: 'Back', exact: true }).tap();
-        await expectAt(page, { path: '/home/', room: null }, 'Back returns to Home');
+        await page.goBack();
+        await expectAt(page, { path: '/home/', room: null }, 'back returns to Home');
         await expectDrawer(page, true, 'Home shows its list again');
         // Put away over Home's own page, the drawer comes back out with a swipe from the left edge.
         await menuButton(page).tap();
@@ -325,7 +329,7 @@ for (const engine of ENGINES) {
         await pickRoom(page, 'Harbor Plans', harbor);
 
         // A space keeps the drawer out with its own list, its lobby behind it, at the space's own
-        // address, where its rooms' back chevrons return.
+        // address.
         await openDrawer(page);
         await rail(page).locator(`button[data-id="${space}"]`).tap();
         await expect(roomList(page).getByRole('link', { name: 'Bus Schedule' })).toBeVisible();

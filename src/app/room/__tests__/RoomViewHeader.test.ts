@@ -413,7 +413,7 @@ describe('RoomViewHeader', () => {
     act(() => renderer.unmount());
   });
 
-  it("keeps a phone's header to the back button, the name and the room menu", async () => {
+  it("keeps a phone's header to the name and the room menu", async () => {
     screenSizeState.value = 'Mobile';
     const { renderer } = await renderHeader(0, {
       canvases: [
@@ -435,7 +435,7 @@ describe('RoomViewHeader', () => {
     const labelled = renderer.root
       .findAll((node) => node.type === 'button' && !!node.props['aria-label'])
       .map((node) => node.props['aria-label'] as string);
-    expect(labelled).toEqual(['Back', 'More Options']);
+    expect(labelled).toEqual(['More Options']);
     expect(renderer.root.findAllByType('mock-canvas-header-button' as never)).toHaveLength(0);
 
     await openRoomMenu(renderer);
@@ -740,7 +740,7 @@ describe('RoomViewHeader', () => {
       }
     );
 
-    // A phone's header holds only Back, the name and More (and a call that is on).
+    // A phone's header holds only the name and More (and a call that is on).
     it.each([
       { name: 'was shown', shown: true, open: false },
       { name: 'is open', shown: false, open: true },

@@ -208,7 +208,8 @@ test.describe('a phone slides its pages', () => {
     await expect(threadColumn(page)).toBeHidden();
     expect(await takeSlides(page, 'back to the room'), 'back to the room').toEqual([BACK]);
 
-    await page.getByRole('banner').getByRole('button', { name: 'Back' }).tap();
+    // The browser's back (Android's back button) leaves the room for the list.
+    await page.goBack();
     await shot('4-room-leaves');
     await expect(drawer(page)).toBeVisible();
     expect(await takeSlides(page, 'back to the list'), 'back to the list').toEqual([BACK]);
