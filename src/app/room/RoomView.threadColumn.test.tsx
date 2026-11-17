@@ -524,7 +524,7 @@ it.each([
   renderView({}, size);
   expect(column()?.dataset.thread).toBe('$thread');
   expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
-  // The room's header, with its Back, is the column's.
+  // The room's header is the column's.
   expect(within(screen.getByTestId('thread-column')).getByTestId('room-header')).toBeDefined();
   expect(screen.queryByRole('button', { name: 'Beside' })).toBeNull();
 });

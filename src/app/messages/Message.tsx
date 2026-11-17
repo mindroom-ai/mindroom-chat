@@ -588,6 +588,14 @@ const popOutMaxHeight = (anchor: RectCords, side: 'Top' | 'Bottom'): string => {
   return `calc(100dvh - ${below}px - env(safe-area-inset-bottom, 0px) - ${margin})`;
 };
 
+/**
+ * What takes the focus for a press inside a message row: the row itself, which is focusable, or
+ * one of its controls, such as a link, a reaction, the tool-call disclosure or a code block's
+ * buttons. A press whose nearest match is the row is a press on the message itself.
+ */
+const ROW_FOCUSABLE =
+  'a, button, input, textarea, select, summary, [role="button"], [contenteditable="true"], [tabindex]';
+
 /** A zero-size anchor at one viewport point, so a pop-out opens next to the pointer. */
 const pointRect = (left: number, top: number): RectCords => ({
   x: left,
@@ -649,7 +657,8 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     const menuShown = menuDialogs === 0;
     // The hover toolbar shows while the pointer or the focus is inside the row. A mouse click
     // also focuses the row, but that focus does not keep the toolbar once the pointer leaves;
-    // a tap does, since touch screens have no hover. Where the pointer cannot hover, the row
+    // a tap does, since touch screens have no hover, and the next tap on the message hides it
+    // again: a tap on the message toggles its toolbar. Where the pointer cannot hover, the row
     // takes no hover at all: WebKit hovers the row that lands under the finger after a tap with
     // its emulated mouse, and never ends that hover, so the toolbar stayed there.
     const [pointerInside, setPointerInside] = useState(false);
@@ -668,8 +677,14 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     // Control click on macOS) went down, until its contextmenu event. Safari selects the word
     // under the pointer between the two; that word is the click's, not the reader's selection.
     const selectedAtMenuPress = useRef<boolean>();
+    // Whether a touch or pen press went down while the focus showed the toolbar, until its click.
+    const tapWhileShown = useRef(false);
     const noteRowPointer = (evt: PointerEvent<HTMLDivElement>) => {
       pressedPointer.current = evt.pointerType;
+      // A press that starts on selected text ends that selection: the browser clears it before the
+      // click, so the click can no longer tell.
+      tapWhileShown.current =
+        evt.pointerType !== 'mouse' && focusInside && !edit && !hasSelectedText();
       const opensMenu = evt.button === 2 || (evt.button === 0 && evt.ctrlKey);
       selectedAtMenuPress.current = opensMenu ? hasSelectedText() : undefined;
     };
@@ -686,6 +701,31 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       setFocusInside(
         isKeyboardFocus(evt.target) || pointer === undefined || (pointer !== 'mouse' && tapped)
       );
+    };
+    // A tap on the message itself hides the toolbar its focus showed: the row keeps the focus, so
+    // the tap gives no focus event, and iOS WebKit does not blur the row for a tap on its text.
+    // The row lets go of the focus, so the next tap focuses it and shows the toolbar again. A tap
+    // on one of the row's controls, on the toolbar or inside the row's pop-outs, which React
+    // passes up through their portals, keeps it, as do the tap that ends a text selection and a
+    // menu or an emoji board left open.
+    const hideToolbarOnTap = (evt: MouseEvent<HTMLDivElement>) => {
+      const shownAtPress = tapWhileShown.current;
+      tapWhileShown.current = false;
+      const row = evt.currentTarget;
+      const target = evt.target as Element;
+      if (
+        !shownAtPress ||
+        menuAnchor ||
+        emojiAnchor ||
+        hasSelectedText() ||
+        !row.contains(target) ||
+        toolbarRef.current?.contains(target) ||
+        target.closest(ROW_FOCUSABLE) !== row
+      )
+        return;
+      setFocusInside(false);
+      const focused = document.activeElement;
+      if (focused instanceof HTMLElement && row.contains(focused)) focused.blur();
     };
     // The inline editor has its own buttons, so the toolbar stays away while it is open.
     const toolbarVisible = !edit && (pointerInside || focusInside || !!menuAnchor || !!emojiAnchor);
@@ -1091,6 +1131,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
           {...longPress}
           onPointerDownCapture={noteRowPointer}
           onFocusCapture={noteRowFocus}
+          onClick={hideToolbarOnTap}
           {...hoverProps}
           {...focusWithinProps}
           {...props}

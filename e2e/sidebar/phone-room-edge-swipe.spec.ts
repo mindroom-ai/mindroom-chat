@@ -15,7 +15,7 @@ import {
 
 // On a phone, a swipe from the screen's left edge brings the navigation drawer out over a room, as
 // the top bar's menu button does, and the room stays: it no longer goes back to the list or the
-// room it was opened from, which the room's back chevron still does. A thread open in the room
+// room it was opened from. A thread open in the room
 // takes the swipe itself and steps back to the room only, leaving the drawer away. 390 by 844
 // with touch, in Chromium with real touches and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
 // Playwright's WebKit, in WebKit.
@@ -110,7 +110,7 @@ const expectDrawer = async (page: Page, open: boolean, step: string) => {
 const openFromList = async (page: Page, name: string, room: string) => {
   await roomList(page).getByRole('link', { name }).tap();
   await expectAt(page, inRoom(room), `${name} opens from the list`);
-  await expect(page.getByRole('banner').getByRole('button', { name: 'Back' })).toBeVisible();
+  await expect(page.getByRole('banner').getByRole('heading', { name, exact: true })).toBeVisible();
 };
 
 /**

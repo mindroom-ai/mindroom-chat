@@ -47,8 +47,8 @@ const REPLIES = [
 ] as const;
 // A phone composer keeps voice and Send; Attach, Formatting and Emoji are in More actions' menu.
 const COMPOSER = ['More actions', 'Record voice message', 'Send message'];
-// A phone's room header keeps Back, the name and More Options; the rest is in the room menu.
-const HEADER = ['Back', 'More Options'];
+// A phone's room header keeps the name and More Options; the rest is in the room menu.
+const HEADER = ['More Options'];
 const BANNER = ['Thread options', 'Pin thread', 'Resolve'];
 
 test.use({

@@ -392,7 +392,8 @@ describe('TourDialog', () => {
   it("draws a phone's room on a phone", () => {
     render(<Tour phone />);
     const header = stage().querySelector('[data-tour-header]');
-    expect(header?.querySelector('[aria-label="Back"]')).toBeTruthy();
+    expect(header?.querySelector('[aria-label="More Options"]')).toBeTruthy();
+    expect(header?.querySelector('[aria-label="Back"]')).toBeNull();
     expect(header?.querySelector('[aria-label="Compact view"]')).toBeNull();
     cleanup();
     render(<Tour />);
