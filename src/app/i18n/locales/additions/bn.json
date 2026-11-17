@@ -782,6 +782,9 @@
         "answered": "উত্তর দেওয়া হয়েছে",
         "youChose": "আপনি বেছে নিয়েছেন",
         "nameChose": "{{name}} বেছে নিয়েছেন"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "সাব-এজেন্ট"
       }
     },
     "message-search": {

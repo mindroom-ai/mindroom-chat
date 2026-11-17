@@ -771,6 +771,9 @@
         "answered": "回答済み",
         "youChose": "あなたが選択",
         "nameChose": "{{name}} が選択"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "サブエージェント"
       }
     },
     "message-search": {

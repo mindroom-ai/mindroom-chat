@@ -804,6 +804,9 @@
         "answered": "Ответ дан",
         "youChose": "Ваш выбор",
         "nameChose": "Выбор: {{name}}"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Субагенты"
       }
     },
     "message-search": {

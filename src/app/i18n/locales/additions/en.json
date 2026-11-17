@@ -782,6 +782,9 @@
         "answered": "Answered",
         "youChose": "You chose",
         "nameChose": "{{name}} chose"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Sub-agents"
       }
     },
     "message-search": {

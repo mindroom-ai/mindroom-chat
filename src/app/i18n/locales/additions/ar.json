@@ -826,6 +826,9 @@
         "answered": "تمت الإجابة",
         "youChose": "اخترت",
         "nameChose": "اختار ⁨{{name}}⁩"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "الوكلاء الفرعيون"
       }
     },
     "message-search": {

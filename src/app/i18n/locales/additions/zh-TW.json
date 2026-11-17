@@ -771,6 +771,9 @@
         "answered": "已回答",
         "youChose": "你已選擇",
         "nameChose": "{{name}} 已選擇"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "子代理"
       }
     },
     "message-search": {

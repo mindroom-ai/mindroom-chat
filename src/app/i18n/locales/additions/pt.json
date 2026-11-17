@@ -793,6 +793,9 @@
         "answered": "Respondido",
         "youChose": "Você escolheu",
         "nameChose": "{{name}} escolheu"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Subagentes"
       }
     },
     "message-search": {

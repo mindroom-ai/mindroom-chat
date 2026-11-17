@@ -771,6 +771,9 @@
         "answered": "Dijawab",
         "youChose": "Pilihan Anda",
         "nameChose": "Dipilih oleh {{name}}"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Subagen"
       }
     },
     "message-search": {

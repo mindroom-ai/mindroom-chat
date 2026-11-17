@@ -782,6 +782,9 @@
         "answered": "जवाब दिया",
         "youChose": "आपने चुना",
         "nameChose": "{{name}} ने चुना"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "सब-एजेंट"
       }
     },
     "message-search": {

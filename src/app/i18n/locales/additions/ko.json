@@ -771,6 +771,9 @@
         "answered": "답변함",
         "youChose": "내가 선택함",
         "nameChose": "{{name}} 님이 선택함"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "하위 에이전트"
       }
     },
     "message-search": {

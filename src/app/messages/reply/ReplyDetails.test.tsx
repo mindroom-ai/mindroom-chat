@@ -129,6 +129,24 @@ describe('ReplyDetails', () => {
     expect(histogram()).toBeNull();
   });
 
+  it("adds the subagents' cost under the reply's own cost", () => {
+    render({ ...reply, subagentsCostUsd: 0.42 }, '$r3');
+
+    expect(costCard()?.textContent).toBe('This reply$0.0051Sub-agents$0.42');
+  });
+
+  it("shows no subagents' cost for a reply that ran none", () => {
+    render(reply, '$r3');
+
+    expect(costCard()?.textContent).not.toContain('Sub-agents');
+  });
+
+  it("shows the subagents' cost of a reply without a cost of its own", () => {
+    render({ ...reply, costUsd: undefined, subagentsCostUsd: 0.42 }, '$r3');
+
+    expect(costCard()?.textContent).toBe('Sub-agents$0.42');
+  });
+
   it('leaves out the cost card without a cost', () => {
     render({ ...reply, costUsd: undefined }, '$r3', thread([0.0012, 0.0034, 0.0051]));
 

@@ -17,7 +17,7 @@ import { ModalLayer } from '../ui/ModalLayer';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { saveFile } from '../native/nativeFileSave';
-import { getAiRunInfo, type AiRunInfo } from '../matrix/protocol/aiRun';
+import { getAiRunInfo, withoutAiRunCost, type AiRunInfo } from '../matrix/protocol/aiRun';
 import { getLongTextSource, type LongTextSource } from '../matrix/protocol/longText';
 import {
   downloadLongTextSidecarBlob,
@@ -50,10 +50,8 @@ export const useMessageControls = (
   const aiRunInfo = useMemo(() => {
     const info = getAiRunInfo(content);
     // Anyone can write the run keys; a cost counts only from MindRoom's own accounts.
-    if (!info || info.costUsd === undefined) return info;
-    return isMindroomAgentUserIdForViewer(sender, viewerId)
-      ? info
-      : { ...info, costUsd: undefined };
+    if (!info || (info.costUsd === undefined && info.subagentsCostUsd === undefined)) return info;
+    return isMindroomAgentUserIdForViewer(sender, viewerId) ? info : withoutAiRunCost(info);
   }, [content, sender, viewerId]);
   const longTextSource = useMemo(() => getLongTextSource(content), [content]);
   const resolvedLongTextContent = useLongTextResolvedContent(longTextSource, menuOpen);

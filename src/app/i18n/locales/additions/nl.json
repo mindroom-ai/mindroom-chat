@@ -782,6 +782,9 @@
         "answered": "Beantwoord",
         "youChose": "Jouw keuze",
         "nameChose": "Gekozen door {{name}}"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Subagenten"
       }
     },
     "message-search": {

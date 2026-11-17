@@ -28,6 +28,7 @@ type AiRunTools = {
 
 type AiRunCost = {
   usd?: unknown;
+  subagents_usd?: unknown;
 };
 
 type AiRunMetadata = {
@@ -64,6 +65,11 @@ export type AiRunInfo = {
   toolCount?: number;
   /** The reply's own cost in USD at the deployment's configured model prices. */
   costUsd?: number;
+  /**
+   * What the subagent turns cost whose results the reply's turn received, their own nested
+   * subagents included, in USD at the same prices; not part of `costUsd`.
+   */
+  subagentsCostUsd?: number;
 };
 
 /** The model a run used, as `io.mindroom.ai_run` and sub-agent frames send it. */
@@ -148,11 +154,19 @@ export const getAiRunInfo = (content: Record<string, unknown>): AiRunInfo | unde
     contextUncachedInputTokens: asFiniteNumber(context?.uncached_input_tokens),
     toolCount: asFiniteNumber(tools?.count),
     costUsd: asNonNegativeDecimal(cost?.usd),
+    subagentsCostUsd: asNonNegativeDecimal(cost?.subagents_usd),
   };
 
   const hasAnyInfo = Object.values(info).some((value) => value !== undefined);
   return hasAnyInfo ? info : undefined;
 };
+
+/** The run details without their costs, for a sender whose cost does not count. */
+export const withoutAiRunCost = (info: AiRunInfo): AiRunInfo => ({
+  ...info,
+  costUsd: undefined,
+  subagentsCostUsd: undefined,
+});
 
 const TERMINAL_AI_RUN_STATUSES = new Set(['completed', 'cached', 'error', 'cancelled']);
 

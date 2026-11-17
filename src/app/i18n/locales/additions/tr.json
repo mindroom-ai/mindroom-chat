@@ -782,6 +782,9 @@
         "answered": "Yanıtlandı",
         "youChose": "Seçiminiz",
         "nameChose": "{{name}} seçti"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Alt ajanlar"
       }
     },
     "message-search": {

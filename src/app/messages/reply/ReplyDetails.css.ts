@@ -123,6 +123,21 @@ export const CostNote = style({
   opacity: 0.8,
 });
 
+// One named part of a reply's cost under its figure, such as what its subagents cost.
+export const CostPart = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  columnGap: config.space.S200,
+  fontSize: toRem(12),
+  lineHeight: toRem(16),
+  opacity: 0.85,
+});
+
+export const CostPartValue = style({
+  fontWeight: 600,
+  fontVariantNumeric: 'tabular-nums',
+});
+
 // The chart's colors carry data, so high-contrast modes keep them instead of painting them over.
 const keepDataColors = { forcedColorAdjust: 'none' } as const;
 

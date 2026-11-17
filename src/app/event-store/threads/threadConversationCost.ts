@@ -21,7 +21,7 @@ export type ThreadConversationCost = {
   complete: boolean;
   /** The conversation's cost through each priced reply. */
   byEventId: ReadonlyMap<string, ConversationCostTotal>;
-  /** Each priced reply's own cost, in thread order. */
+  /** Each priced reply's cost, its subagents' included, in thread order. */
   replies: readonly { eventId: string; usd: number }[];
 };
 
@@ -63,13 +63,18 @@ export const summarizeThreadConversationCost = (
     if (!isTrustedSender(sender) || ignoredUserIds?.has(sender)) return;
     const content = getContent(event);
     const run = getAiRunInfo(content);
-    const costUsd = run?.costUsd;
-    if (costUsd === undefined) {
+    // A stopped or failed reply without its own cost leaves the sum a lower bound, even when it
+    // still carries what its subagents cost.
+    if (run?.costUsd === undefined) {
       const endings = [run?.status, getStreamStatusFromContent(content)];
       if (endings.some((ending) => ending && UNKNOWN_COST_ENDINGS.has(ending))) unknownCost = true;
-      return;
     }
-    const replyMicros = Math.round(costUsd * MICROS_PER_USD);
+    // A reply's spend is its own cost plus its subagents'; either alone prices it.
+    const costs = [run?.costUsd, run?.subagentsCostUsd].filter(
+      (usd): usd is number => usd !== undefined
+    );
+    if (costs.length === 0) return;
+    const replyMicros = costs.reduce((sum, usd) => sum + Math.round(usd * MICROS_PER_USD), 0);
     micros += replyMicros;
     replyCount += 1;
     replies.push({ eventId, usd: replyMicros / MICROS_PER_USD });
