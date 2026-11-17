@@ -1,4 +1,3 @@
-import React from 'react';
 import parse from 'html-react-parser';
 import { getDefaultStore } from 'jotai';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
