@@ -79,6 +79,7 @@ vi.mock('./MsgTypeRenderers', () => ({
       renderAfterBody
     ),
 }));
+vi.mock('../canvas/InlineCanvasFrame', () => ({ InlineCanvasFrame: () => null }));
 vi.mock('./ImageOverlay', () => ({ ImageOverlay: () => null }));
 vi.mock('folds', () => ({
   Box: ({ children, ...props }: Record<string, unknown>) =>

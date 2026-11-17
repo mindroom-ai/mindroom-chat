@@ -44,6 +44,7 @@ import { SnoozeEndedMarker } from '../SnoozeEndedMarker';
 import { readSkillReviewNotice } from '../../matrix/protocol/skillReview';
 import { SkillReviewMarker } from '../SkillReviewMarker';
 import { getMessageStateSuffixRenderer } from './messageStateSuffix';
+import { InlineCanvasFrame } from '../canvas/InlineCanvasFrame';
 import { ChatUiActionButton } from '../../ui-actions/ChatUiActionButton';
 import { CHAT_UI_ACTION_KEY, readCanvasNoticeTitle } from '../../matrix/protocol/chatUiProtocol';
 import { CANVAS_RESPONSE_KEY, readCanvasResponse } from '../canvas/canvasMessages';
@@ -623,7 +624,13 @@ export const renderAgentMessageContent = ({
               : renderBody(content)
           }
           // A read-only row (a fork's parent message) answers nothing: its canvas is the parent's.
-          renderAfterBody={readOnly ? undefined : <ChatUiActionButton event={mEvent} />}
+          // An inline page is display-only, so it still shows there.
+          renderAfterBody={
+            <>
+              {canvasTitle && <InlineCanvasFrame event={mEvent} />}
+              {!readOnly && <ChatUiActionButton event={mEvent} />}
+            </>
+          }
         />
       );
     }

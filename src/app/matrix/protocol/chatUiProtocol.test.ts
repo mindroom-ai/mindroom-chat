@@ -248,6 +248,7 @@ describe('readChatUiAction', () => {
         { canvas: { title: '', html: '' } },
         // An edit cannot start sharing what the user does in a page that never said so.
         { share_state: true },
+        { inline: true },
       ].forEach((metadata) => {
         const original = makeUiEvent({ action: 'show_canvas', canvas });
         original.makeReplaced(canvasEdit({ canvas, ...metadata }));
@@ -278,6 +279,56 @@ describe('readChatUiAction', () => {
       expect(
         readChatUiAction(makeUiEvent({ action: 'show_canvas', canvas }), viewerId, room)
       ).not.toHaveProperty('shareState');
+    });
+
+    it("reads each revision's raw and width, and leaves out what it cannot use", () => {
+      const { room } = makeUiRoom();
+      const page = { title: 'Site', html: '<p>site</p>', raw: true, width: 1440 };
+      const original = makeUiEvent({ action: 'show_canvas', canvas: page, inline: true });
+      expect(readChatUiAction(original, viewerId, room)).toMatchObject({ canvas: page });
+      // Presentation belongs to the revision: an update states it again or drops it.
+      original.makeReplaced(
+        canvasEdit({ canvas: { title: 'Site', html: '<p>v2</p>', width: 390 }, inline: true })
+      );
+      expect(readChatUiAction(original, viewerId, room)).toMatchObject({
+        canvas: { title: 'Site', html: '<p>v2</p>', width: 390 },
+        revisionEventId: '$edit',
+      });
+      for (const [raw, width] of [
+        ['yes', 319],
+        [1, 2561],
+        [false, 800.5],
+        [null, '800'],
+      ]) {
+        const shown = readChatUiAction(
+          makeUiEvent({ action: 'show_canvas', canvas: { ...canvas, raw, width } }),
+          viewerId,
+          room
+        );
+        expect(shown).toMatchObject({ canvas });
+        expect(shown && 'canvas' in shown ? shown.canvas : {}).not.toHaveProperty('raw');
+        expect(shown && 'canvas' in shown ? shown.canvas : {}).not.toHaveProperty('width');
+      }
+    });
+
+    it('keeps inline presentation fixed through revisions', () => {
+      const { room } = makeUiRoom();
+      const original = makeUiEvent({ action: 'show_canvas', canvas, inline: true });
+      original.makeReplaced(
+        canvasEdit({ canvas: { title: 'New', html: '<p>new</p>' }, inline: true })
+      );
+      expect(readChatUiAction(original, viewerId, room)).toMatchObject({
+        inline: true,
+        revisionEventId: '$edit',
+      });
+      original.makeReplaced(canvasEdit({ canvas: { title: 'Panel', html: '<p>panel</p>' } }));
+      expect(readChatUiAction(original, viewerId, room)).toMatchObject({
+        inline: true,
+        revisionEventId: '$request',
+      });
+      expect(
+        readChatUiAction(makeUiEvent({ action: 'show_canvas', canvas }), viewerId, room)
+      ).not.toHaveProperty('inline');
     });
 
     it('never treats the edit event itself as a request', () => {

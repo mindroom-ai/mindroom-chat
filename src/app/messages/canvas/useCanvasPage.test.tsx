@@ -4,13 +4,15 @@ import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ChatUiCanvas } from '../matrix/protocol/chatUiProtocol';
+import type { ChatUiCanvas } from '../../matrix/protocol/chatUiProtocol';
 import { type CanvasPage, useCanvasPage } from './useCanvasPage';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const download = vi.hoisted(() => vi.fn());
-vi.mock('../event-store/cache/attachmentRepository', () => ({ downloadCachedAttachment: download }));
+vi.mock('../../event-store/cache/attachmentRepository', () => ({
+  downloadCachedAttachment: download,
+}));
 
 let container: HTMLDivElement;
 let root: Root;

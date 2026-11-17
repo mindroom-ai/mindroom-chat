@@ -59,7 +59,11 @@ const seedPanelRoom = async (): Promise<PanelRoom> => {
  * Seeds the room, serves its computer and call services and config.json with the computer,
  * canvases and the agent's live requests on, then signs the viewer in and opens the thread.
  */
-export const openPanelRoom = async (context: BrowserContext, page: Page): Promise<PanelRoom> => {
+export const openPanelRoom = async (
+  context: BrowserContext,
+  page: Page,
+  { canvas = {} }: { canvas?: Record<string, unknown> } = {}
+): Promise<PanelRoom> => {
   const room = await seedPanelRoom();
   await context.route(`${COMPUTER_API}/**`, (route) =>
     route.fulfill({ status: 400, json: { detail: 'Local fixture computer unavailable' } })
@@ -88,7 +92,7 @@ export const openPanelRoom = async (context: BrowserContext, page: Page): Promis
           ...config.mindroom,
           computers: { apiUrl: COMPUTER_API },
           uiActions: { autoOpenFromHomeservers: [agentServer] },
-          canvas: { enabled: true },
+          canvas: { enabled: true, ...canvas },
         },
       },
     });

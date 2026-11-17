@@ -16,6 +16,10 @@ const toolTraceParserOptionsMock = vi.hoisted(() =>
   vi.fn((options: unknown, _content?: unknown) => options)
 );
 
+vi.mock('../canvas/InlineCanvasFrame', () => ({
+  InlineCanvasFrame: () => React.createElement('div', { 'data-inline-canvas': true }),
+}));
+
 vi.mock('./MsgTypeRenderers', () => ({
   MEmote: ({ content, displayName, renderAfterBody, renderBody }: any) =>
     React.createElement(
@@ -618,6 +622,7 @@ describe('renderAgentMessageContent', () => {
 
     const agentNotice = JSON.stringify((await render(true)).toJSON());
     expect(agentNotice).toContain('Pick a time');
+    expect(agentNotice).toContain('data-inline-canvas');
     expect(agentNotice).not.toContain('Open it in MindRoom Chat');
     // Any sender can write the UI-action key; only MindRoom's accounts show a canvas.
     expect(JSON.stringify((await render(false)).toJSON())).toContain(
@@ -744,22 +749,30 @@ describe('renderAgentMessageContent', () => {
     const content = {
       msgtype: 'm.notice',
       body: 'Open MindRoom Chat to see the canvas.',
-      [CHAT_UI_ACTION_KEY]: { action: 'show_canvas' },
+      [CHAT_UI_ACTION_KEY]: {
+        version: 1,
+        action: 'show_canvas',
+        canvas: { title: 'Pick a time', html: '<p>Tuesday</p>' },
+      },
     };
-    const button = async (readOnly: boolean) =>
+    const rendered = async (readOnly: boolean) =>
       JSON.stringify(
         (
           await renderNode({
+            fromMindroomAgent: true,
             msgType: 'm.notice',
             content,
             mEvent: new MatrixEvent({ type: 'm.room.message', content }),
             readOnly,
           })
         ).toJSON()
-      ).includes('data-ui-action');
+      );
 
-    expect(await button(false)).toBe(true);
-    expect(await button(true)).toBe(false);
+    expect(await rendered(false)).toContain('data-ui-action');
+    const readOnlyRow = await rendered(true);
+    expect(readOnlyRow).not.toContain('data-ui-action');
+    // An inline page is display-only, so a read-only row still shows it.
+    expect(readOnlyRow).toContain('data-inline-canvas');
   });
 
   it('renders extras for MindRoom long-text text paths', async () => {
