@@ -33,6 +33,15 @@ export enum MessageLayout {
 const MESSAGE_SPACINGS = ['0', '100', '200', '300', '400', '500'] as const;
 export type MessageSpacing = (typeof MESSAGE_SPACINGS)[number];
 
+/**
+ * What a message sent while an agent replies in its thread asks of that reply
+ * (`matrix/protocol/midTurn.ts`): steer it, wait for it, or let the agent decide.
+ */
+export const MID_TURN_MODES = ['steer', 'queue', 'auto'] as const;
+export type MidTurnMode = (typeof MID_TURN_MODES)[number];
+export const isMidTurnMode = (value: unknown): value is MidTurnMode =>
+  MID_TURN_MODES.includes(value as MidTurnMode);
+
 /** Page zoom in percent. */
 export const PAGE_ZOOM_MIN = 50;
 export const PAGE_ZOOM_MAX = 150;
@@ -85,6 +94,8 @@ export type Settings = Record<BooleanSettingKey, boolean> &
     pageZoom: number;
     /** dayjs format for dates in the timeline. */
     dateFormatString: string;
+    /** The mode a tap on Send or Enter sends with while an agent replies in the thread. */
+    midTurnSend: MidTurnMode;
     /**
      * Times as 13:00 instead of 1:00 PM; unset, times follow the app language's clock
      * (`useHour24Clock`).
@@ -117,6 +128,7 @@ export const DEFAULT_SETTINGS: Settings = {
   messageLayout: MessageLayout.Modern,
   messageSpacing: '400',
   dateFormatString: 'D MMM YYYY',
+  midTurnSend: 'steer',
 };
 
 /** A whole zoom percentage inside the supported range; anything not a finite number is the default. */
@@ -159,6 +171,9 @@ const sanitizeSettings = (value: unknown): Settings => {
       typeof record.dateFormatString === 'string'
         ? record.dateFormatString
         : DEFAULT_SETTINGS.dateFormatString,
+    midTurnSend: isMidTurnMode(record.midTurnSend)
+      ? record.midTurnSend
+      : DEFAULT_SETTINGS.midTurnSend,
     hour24Clock: typeof record.hour24Clock === 'boolean' ? record.hour24Clock : undefined,
   };
   // A stored value of another type counts by its truthiness, so `null` or `0` turns a setting off.

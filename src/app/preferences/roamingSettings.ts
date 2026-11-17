@@ -23,7 +23,7 @@
  * error reporter) returns this device's own values.
  */
 import { atom } from 'jotai';
-import type { Settings } from './settings';
+import { isMidTurnMode, type Settings } from './settings';
 import { isRecord } from '../lib/isRecord';
 import {
   getSafeLocalStorage,
@@ -56,6 +56,7 @@ export const ROAMING_SETTINGS = {
   hideActivity: 'hideActivity',
   hour24Clock: 'hour24Clock',
   dateFormat: 'dateFormatString',
+  midTurnSend: 'midTurnSend',
 } as const satisfies Record<string, keyof Settings>;
 
 type RoamingKey = (typeof ROAMING_SETTINGS)[keyof typeof ROAMING_SETTINGS];
@@ -64,10 +65,13 @@ export type RoamingSettings = Pick<Settings, RoamingKey>;
 
 export const ROAMING_KEYS: readonly RoamingKey[] = Object.values(ROAMING_SETTINGS);
 
-const isRoamingValue = (key: RoamingKey, value: unknown): boolean =>
-  key === 'dateFormatString'
-    ? typeof value === 'string' && value !== '' && value.length <= DATE_FORMAT_MAX_LENGTH
-    : typeof value === 'boolean';
+const isRoamingValue = (key: RoamingKey, value: unknown): boolean => {
+  if (key === 'dateFormatString') {
+    return typeof value === 'string' && value !== '' && value.length <= DATE_FORMAT_MAX_LENGTH;
+  }
+  if (key === 'midTurnSend') return isMidTurnMode(value);
+  return typeof value === 'boolean';
+};
 
 /** The entries of `values` whose key passes `keep`, in the order of `ROAMING_KEYS`. */
 const pick = (

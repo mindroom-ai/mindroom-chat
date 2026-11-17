@@ -397,7 +397,8 @@
         "deactivate": "Konto löschen, Konto schließen",
         "localMindroom": "koppeln, Kopplungscode, lokal, Desktop",
         "emoji": "Emoji, Sticker, Pakete, eigene Emoji",
-        "errorReports": "Fehler, Absturz, Bug, Diagnose, Telemetrie, Datenschutz"
+        "errorReports": "Fehler, Absturz, Bug, Diagnose, Telemetrie, Datenschutz",
+        "midTurn": "lenken, einreihen, Warteschlange, automatisch, Agent, Antwort, unterbrechen"
       },
       "errorReports": {
         "title": "Fehlerberichte senden",
@@ -900,7 +901,18 @@
     "moreActions": "Weitere Aktionen",
     "lostFiles": "Nicht mit diesem Entwurf behalten: {{files}}. Hänge sie vor dem Senden erneut an.",
     "lostPastes": "Eingefügter Text wurde nicht mit diesem Entwurf behalten. Füge ihn vor dem Senden erneut ein.",
-    "dismissLostFiles": "Ausblenden"
+    "dismissLostFiles": "Ausblenden",
+    "midTurn": {
+      "menuLabel": "Senden, während der Agent antwortet",
+      "steer": "Lenken",
+      "steerHint": "Antwort beenden und mit dieser Nachricht weitermachen",
+      "queue": "Einreihen",
+      "queueHint": "Nach Ende der Antwort senden",
+      "auto": "Automatisch",
+      "autoHint": "Den Agenten entscheiden lassen",
+      "settingTitle": "Senden, während ein Agent antwortet",
+      "settingDescription": "Halte Senden gedrückt, um für eine Nachricht anders zu wählen."
+    }
   },
   "commandPalette": {
     "state": {

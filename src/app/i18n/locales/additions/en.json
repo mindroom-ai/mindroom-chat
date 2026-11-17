@@ -397,7 +397,8 @@
         "deactivate": "delete account, close account",
         "localMindroom": "pair, pairing code, local, desktop",
         "emoji": "emoji, stickers, packs, custom emoji",
-        "errorReports": "errors, crash, bug, diagnostics, telemetry, privacy"
+        "errorReports": "errors, crash, bug, diagnostics, telemetry, privacy",
+        "midTurn": "steer, queue, auto, agent, reply, interrupt"
       },
       "errorReports": {
         "title": "Send error reports",
@@ -900,7 +901,18 @@
     "moreActions": "More actions",
     "lostFiles": "Not kept with this draft: {{files}}. Attach them again before sending.",
     "lostPastes": "Pasted text was not kept with this draft. Paste it again before sending.",
-    "dismissLostFiles": "Dismiss"
+    "dismissLostFiles": "Dismiss",
+    "midTurn": {
+      "menuLabel": "Send while the agent replies",
+      "steer": "Steer",
+      "steerHint": "Stop the reply and carry on with this message",
+      "queue": "Queue",
+      "queueHint": "Send after the reply finishes",
+      "auto": "Auto",
+      "autoHint": "Let the agent decide",
+      "settingTitle": "When an agent is replying, Send",
+      "settingDescription": "Hold Send to choose for one message."
+    }
   },
   "commandPalette": {
     "state": {

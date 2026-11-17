@@ -14,7 +14,7 @@ import { useAtomValue, useStore } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
 import { type IContent, type Room } from 'matrix-js-sdk';
 import type { Descendant, Editor } from 'slate';
-import { Box, Icon, Icons, IconSrc, RectCords, Text, color, config } from 'folds';
+import { Box, Icon, Icons, RectCords, Text, color, config } from 'folds';
 import { PopOut, revealDirectionControls } from '../ui/directional';
 import { Editor as SlateEditor } from 'slate';
 import { getPrevWorldRange, isEmptyEditor, resetEditor, resetEditorHistory } from '../editor/utils';
@@ -40,7 +40,6 @@ import {
   getVideoMsgContent,
 } from '../matrix/send/msgContent';
 import { CommandAutocomplete } from './commands/CommandAutocomplete';
-import * as css from './RoomInput.css';
 import { useCommands } from './commands/useCommands';
 import { useComposingCheck } from '../lib/hooks/useComposingCheck';
 import { useImagePackRooms } from '../emoji/useImagePackRooms';
@@ -58,15 +57,16 @@ import {
 import type { TUploadItem } from '../matrix/state/upload';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { ConversationViewContext, useConversationHidden } from '../navigation/conversationView';
-import { settingsAtom } from '../preferences/settings';
+import { type MidTurnMode, settingsAtom } from '../preferences/settings';
 import { mobileOrTablet } from '../lib/user-agent';
 import { withPasteAttachmentMetadata } from '../matrix/protocol/pasteAttachmentMarker';
 import { MINDROOM_COMMANDS } from './commands/agentCommands';
 import { ThreadModelPicker } from '../models/ModelPicker';
 import { hasMatchingReplyDraft } from './roomInputSendSession';
-import { IconTooltip } from '../ui/IconTooltip';
+import { ComposerIconButton } from './ComposerIconButton';
 import { ComposerFormattingToolbar } from './ComposerFormattingToolbar';
 import { ComposerActionsMenu } from './ComposerActionsMenu';
+import { ComposerSendButton } from './ComposerSendButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { composeTextMessage } from './composeTextMessage';
 import {
@@ -99,6 +99,8 @@ import { useRoomInputVoice } from './useRoomInputVoice';
 import { type HeldSend, useUnconfirmedRootSends } from './useUnconfirmedRootSends';
 import { useSavedVoiceDraft } from './voice/savedVoiceDraft';
 import { type ThreadForkRef, threadForkDraftId } from '../event-store/threads/threadFork';
+import { useThreadStreamingState } from '../event-store/threads/useThreadStreamingState';
+import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 
 export type RoomInputProps = {
   editor: Editor;
@@ -182,62 +184,6 @@ function LostNotice({
   );
 }
 
-type ComposerIconButtonProps = {
-  label: string;
-  icon: IconSrc;
-  /** Pressed state of a toggle, which also fills its icon. */
-  pressed?: boolean;
-  variant?: 'Primary' | 'SurfaceVariant';
-  /** The icon points along the reading direction, so right-to-left languages mirror it. */
-  directional?: boolean;
-  /** The send button answers its send's promise, which the composer tests await. */
-  onPress: (event: React.MouseEvent<HTMLButtonElement>) => void | Promise<unknown>;
-  /** No other control beside it, so its touch hit area takes the full 44 px width. */
-  alone?: boolean;
-  /** A press leaves the focus in the text box, so a phone keeps its keyboard up. */
-  keepsTextFocus?: boolean;
-};
-
-// Pressing a button moves the focus to it (or, where buttons take no focus, out of the text box),
-// which closes a phone's keyboard.
-const keepTextFocus = (event: React.MouseEvent) => event.preventDefault();
-
-/** An icon-only composer button, named by its tooltip and its aria-label alike. */
-function ComposerIconButton({
-  label,
-  icon,
-  pressed,
-  variant = 'SurfaceVariant',
-  directional,
-  onPress,
-  alone,
-  keepsTextFocus,
-}: ComposerIconButtonProps) {
-  return (
-    <IconTooltip position="Top" label={label}>
-      {(triggerRef) => (
-        <IconButton
-          ref={triggerRef}
-          // The click handler keeps the send's promise as its result: callers that await a send
-          // (the composer tests) read it there; a click ignores it, and the send handles
-          // its own failure.
-          // eslint-disable-next-line @typescript-eslint/no-misused-promises
-          onClick={onPress}
-          onMouseDown={keepsTextFocus ? keepTextFocus : undefined}
-          aria-label={label}
-          aria-pressed={pressed}
-          variant={variant}
-          radii="300"
-          size="300"
-          className={alone ? css.ComposerLoneButton : css.ComposerIconButton}
-        >
-          <Icon src={icon} filled={pressed} data-directional={directional || undefined} />
-        </IconButton>
-      )}
-    </IconTooltip>
-  );
-}
-
 const buildUploadMessageContent = async (
   mx: ReturnType<typeof useMatrixClient>,
   item: TUploadItem,
@@ -279,6 +225,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const store = useStore();
     const [isMarkdown] = useSetting(settingsAtom, 'isMarkdown');
     const [enterForNewline] = useSetting(settingsAtom, 'enterForNewline');
+    const [midTurnSend] = useSetting(settingsAtom, 'midTurnSend');
     const userId = mx.getUserId() ?? '';
     // A fork draft keeps its text under a key of its own, not its thread's.
     const draftThreadId = forkFrom ? threadForkDraftId(forkFrom) : threadId;
@@ -316,6 +263,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // A thread's model button starts the row, on phones too: its provider's logo, and a menu.
     const modelPicker = (
       <ThreadModelPicker room={room} threadId={threadId} conversationHidden={conversationHidden} />
+    );
+    // While an agent replies in the thread, holding Send offers how the message meets the reply.
+    // A fork draft starts a thread of its own, and the main timeline has no such check yet.
+    const agentReplying = useThreadStreamingState(
+      room,
+      threadingEnabled && !forkFrom ? threadId : undefined
     );
     // Phones reach stickers through the emoji board's tabs instead of a button of their own.
     const imagePackRooms = useImagePackRooms(roomId, useAtomValue(roomToParentsAtom));
@@ -459,9 +412,18 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       onRoomMessageSent,
     });
 
+    // Every text message says what MindRoom does with it should it arrive while an agent replies
+    // in its thread; the send session keeps it on the message for a retry.
     const buildTextContent = useCallback(
-      (): IContent | undefined =>
-        composeTextMessage(editor, isMarkdown, mx.getUserId() ?? undefined, linkSchemes),
+      (mode: MidTurnMode): IContent | undefined => {
+        const content = composeTextMessage(
+          editor,
+          isMarkdown,
+          mx.getUserId() ?? undefined,
+          linkSchemes
+        );
+        return content && { ...content, [MID_TURN_MODE_KEY]: mode };
+      },
       [editor, isMarkdown, linkSchemes, mx]
     );
 
@@ -489,69 +451,76 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     // A recording begun in the thread stays the thread's: a fork draft neither shows nor sends it.
     const voiceActive = !forkFrom;
-    const submit = useCallback(async () => {
-      if (voiceActive && voice.blocksSubmit()) return;
-      // A `/word` that is no command, such as a typo of one, stays in the composer unsent; one of
-      // MindRoom's commands (`/schedule`) has no `run` and goes out as typed.
-      const unknownCommand = readUnknownCommand(editor.children, commands);
-      if (unknownCommand !== undefined) {
-        setCommandProblem(
-          t('featureUi.room.commandAutocomplete.unknown', { command: `/${unknownCommand}` })
-        );
-        return;
-      }
-      const acting = readActingCommand(editor.children, commands);
-      if (acting) {
-        if (acting.command.inThread && holdForRoot({ kind: 'message' })) return;
-        await runActingCommand(acting);
-        return;
-      }
-      // A paste chip whose text a reload lost leaves the draft with a notice instead of sending.
-      const settled = settlePastes();
-      if (settled !== true && !(await settled)) return;
-      if (holdForRoot({ kind: 'message' })) return;
-      const textContent = buildTextContent();
-      // Sending the text answers the notices of files and pastes a reload lost.
-      if (textContent) {
-        dismissLostFiles();
-        dismissLostPastes();
-      }
-      setSubmitPending(true);
-      try {
-        if (voiceActive && (await voice.submitIfActive(textContent))) return;
-        const sending = sessions.startSendSession({ textContent });
-        // The composer is free again once the send session owns the text.
-        sendTypingStatus(false);
-        await sending;
-      } finally {
-        if (mountedRef.current) setSubmitPending(false);
-      }
-    }, [
-      buildTextContent,
-      commands,
-      dismissLostFiles,
-      dismissLostPastes,
-      editor,
-      holdForRoot,
-      runActingCommand,
-      sendTypingStatus,
-      sessions,
-      settlePastes,
-      t,
-      voice,
-      voiceActive,
-    ]);
+    const submit = useCallback(
+      async (mode: MidTurnMode) => {
+        if (voiceActive && voice.blocksSubmit()) return;
+        // A `/word` that is no command, such as a typo of one, stays in the composer unsent; one of
+        // MindRoom's commands (`/schedule`) has no `run` and goes out as typed.
+        const unknownCommand = readUnknownCommand(editor.children, commands);
+        if (unknownCommand !== undefined) {
+          setCommandProblem(
+            t('featureUi.room.commandAutocomplete.unknown', { command: `/${unknownCommand}` })
+          );
+          return;
+        }
+        const acting = readActingCommand(editor.children, commands);
+        if (acting) {
+          if (acting.command.inThread && holdForRoot({ kind: 'message' })) return;
+          await runActingCommand(acting);
+          return;
+        }
+        // A paste chip whose text a reload lost leaves the draft with a notice instead of sending.
+        const settled = settlePastes();
+        if (settled !== true && !(await settled)) return;
+        if (holdForRoot({ kind: 'message' })) return;
+        const textContent = buildTextContent(mode);
+        // Sending the text answers the notices of files and pastes a reload lost.
+        if (textContent) {
+          dismissLostFiles();
+          dismissLostPastes();
+        }
+        setSubmitPending(true);
+        try {
+          if (voiceActive && (await voice.submitIfActive(textContent))) return;
+          const sending = sessions.startSendSession({ textContent });
+          // The composer is free again once the send session owns the text.
+          sendTypingStatus(false);
+          await sending;
+        } finally {
+          if (mountedRef.current) setSubmitPending(false);
+        }
+      },
+      [
+        buildTextContent,
+        commands,
+        dismissLostFiles,
+        dismissLostPastes,
+        editor,
+        holdForRoot,
+        runActingCommand,
+        sendTypingStatus,
+        sessions,
+        settlePastes,
+        t,
+        voice,
+        voiceActive,
+      ]
+    );
 
     // Every send path goes through here: failures are logged once, and the promise still
-    // rejects for a caller that awaits it.
-    const handleSend = useCallback(() => {
-      const sending = submit();
-      sending.catch((error: unknown) => {
-        // eslint-disable-next-line no-console
-        console.warn('[room-input] could not send the message', error);
-      });
-      return sending;
-    }, [submit]);
+    // rejects for a caller that awaits it. Without a mode picked from the Send button's menu, the
+    // message takes the one the Chats settings name.
+    const handleSend = useCallback(
+      (mode?: MidTurnMode) => {
+        const sending = submit(mode ?? midTurnSend);
+        sending.catch((error: unknown) => {
+          // eslint-disable-next-line no-console
+          console.warn('[room-input] could not send the message', error);
+        });
+        return sending;
+      },
+      [midTurnSend, submit]
+    );
 
     // Only `@` mentions, `:` emoji, and `!` and `/` commands with a match show a menu; anything
     // else sends on Enter.
@@ -855,14 +824,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   />
                 }
               />
-              <ComposerIconButton
+              <ComposerSendButton
                 label={sendLabel}
-                icon={Icons.Send}
-                directional
-                variant="Primary"
-                onPress={handleSend}
                 alone={phone}
-                keepsTextFocus
+                agentReplying={agentReplying}
+                onSend={handleSend}
               />
             </>
           }
