@@ -7,8 +7,26 @@ import {
 import { isRecord } from '../../lib/isRecord';
 import { createUserScopedAtomRegistry } from '../../lib/state/userScopedAtomRegistry';
 import { THREAD_SECTION_ORDER, type ThreadSectionId } from '../threadSections';
+import type { ThreadFilterState } from '../../event-store/threads/roomThreadOverviewModel';
 
 const COMPACT_ROOM_SECTIONS = 'compactRoomSections';
+
+/** The filters Sections decide themselves: resolved, snoozed and idle threads have sections. */
+export type SectionsFilters = Pick<ThreadFilterState, 'resolved' | 'snoozed' | 'idle'>;
+
+/** What Sections apply of those filters: none, every such thread shows in its section. */
+export const SECTIONS_SHOW_ALL: SectionsFilters = { resolved: 'any', snoozed: 'any', idle: 'any' };
+
+/** `state` with the filters Sections decide taken from `from`. */
+export const withSectionsFilters = (
+  state: ThreadFilterState,
+  from: SectionsFilters
+): ThreadFilterState => ({
+  ...state,
+  resolved: from.resolved,
+  snoozed: from.snoozed,
+  idle: from.idle,
+});
 
 /**
  * Whether Compact rooms show their cards in sections (Working, Snoozed, Idle, Resolved), and

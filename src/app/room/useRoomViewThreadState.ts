@@ -47,7 +47,12 @@ import {
   updateThreadFilterKey,
 } from '../event-store/threads/roomThreadOverviewModel';
 import { roomThreadFilterAtomFamily } from '../threads/overview/roomThreadFilterState';
-import { getCompactRoomSectionsAtom } from '../threads/overview/compactRoomSections';
+import {
+  getCompactRoomSectionsAtom,
+  SECTIONS_SHOW_ALL,
+  type SectionsFilters,
+  withSectionsFilters,
+} from '../threads/overview/compactRoomSections';
 import type { RoomViewMode } from '../navigation/roomViewMode';
 import {
   applyParsedThreadFilterQuery,
@@ -158,9 +163,9 @@ export const useRoomViewThreadState = ({
       : hasMindroomAgents
       ? threadFilterState
       : simplifyAgentlessThreadFilterState(threadFilterState);
-    // Sections show resolved and snoozed threads in sections of their own instead of hiding them;
-    // the stored filter keeps its choice for when they are off.
-    return threadSections ? { ...projected, resolved: 'any', snoozed: 'any' } : projected;
+    // Sections show resolved, snoozed and idle threads in sections of their own instead of
+    // filtering them; the stored filter keeps its choice for when they are off.
+    return threadSections ? withSectionsFilters(projected, SECTIONS_SHOW_ALL) : projected;
   }, [hasMindroomAgents, simpleMode, threadFilterState, threadSections]);
   const lastExitedThread = useAtomValue(lastExitedThreadAtom);
   const setLastExitedThread = useSetAtom(lastExitedThreadAtom);
@@ -318,17 +323,15 @@ export const useRoomViewThreadState = ({
   threadSectionsRef.current = threadSections;
   useEffect(() => () => globalThis.clearTimeout(searchQueryDebounceRef.current), []);
 
-  // Sections hide the resolved and snoozed filters, so while they are on every write keeps those
-  // two as stored (`hidden`): a search, a status token or a preset changes nothing the reader
+  // Sections hide the filters they decide themselves, so while they are on every write keeps
+  // those as stored (`hidden`): a search, a status token or a preset changes nothing the reader
   // cannot see. Only a reset of everything sets them, to the room's defaults.
   const storeThreadFilterState = useCallback(
     (
       next: ThreadFilterState,
-      hidden: Pick<ThreadFilterState, 'resolved' | 'snoozed'> = threadFilterStateRef.current
+      hidden: SectionsFilters = threadFilterStateRef.current
     ): ThreadFilterState => {
-      const kept = threadSectionsRef.current
-        ? { ...next, resolved: hidden.resolved, snoozed: hidden.snoozed }
-        : next;
+      const kept = threadSectionsRef.current ? withSectionsFilters(next, hidden) : next;
       threadFilterStateRef.current = kept;
       setThreadFilterState(kept);
       return kept;

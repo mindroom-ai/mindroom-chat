@@ -472,15 +472,52 @@ describe('useRoomViewThreadState', () => {
       ],
     ])('go back to the room defaults with %s', (_name, clear) => {
       vi.useFakeTimers();
-      storeFilter({ ...createDefaultThreadFilterState(), resolved: 'include', snoozed: 'any' });
+      storeFilter({
+        ...createDefaultThreadFilterState(),
+        resolved: 'include',
+        snoozed: 'any',
+        idle: 'exclude',
+      });
       const { store, current } = mountThreadState({ advancedFilters: true });
       act(() => current().handleToggleThreadSections());
 
       act(() => clear(current()));
 
-      expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID))).toMatchObject(hidden);
+      const defaults = { ...hidden, idle: 'any' };
+      expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID))).toMatchObject(defaults);
       act(() => current().handleToggleThreadSections());
-      expect(current().threadFilterState).toMatchObject(hidden);
+      expect(current().threadFilterState).toMatchObject(defaults);
+    });
+
+    it('keep the idle filter too, through a search and a tag, until Sections are off', () => {
+      vi.useFakeTimers();
+      storeFilter({ ...createDefaultThreadFilterState(), ...hidden, idle: 'include' });
+      const { store, current } = mountThreadState({ advancedFilters: true });
+      act(() => current().handleToggleThreadSections());
+      expect(current().threadFilterState.idle).toBe('any');
+
+      act(() => current().handleSearchQueryChange('launch'));
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      act(() => current().handleAddTag('bug'));
+
+      expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID))).toMatchObject({
+        idle: 'include',
+        freeText: 'launch',
+      });
+      act(() => current().handleToggleThreadSections());
+      expect(current().threadFilterState).toMatchObject({ ...hidden, idle: 'include' });
+    });
+
+    it('ignore an is:idle token of a search', () => {
+      const { current, stored, search } = mountWithSections();
+
+      search('is:idle');
+
+      expect(stored()).toMatchObject({ ...hidden, idle: 'any' });
+      // So the box, which shows the filters that apply, drops the token too.
+      expect(current().threadFilterState.idle).toBe('any');
     });
 
     it('survive a preset', () => {

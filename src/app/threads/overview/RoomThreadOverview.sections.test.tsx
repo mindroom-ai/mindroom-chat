@@ -88,22 +88,19 @@ describe('the Sections switch of the Compact filter bar', () => {
     renderBar(false, { onToggleThreadSections: noop, threadSections: true });
     expect(byData('data-sort-by')).toHaveLength(0);
     expect(byData('data-thread-sort-freeze')).toHaveLength(0);
-    // Resolved and snoozed threads have sections of their own; the other filters still apply.
-    expect(filterKeys()).toEqual(['streaming', 'scheduled', 'unread', 'idle']);
+    // Resolved, snoozed and idle threads have sections of their own; the other filters still
+    // apply.
+    expect(filterKeys()).toEqual(['streaming', 'scheduled', 'unread']);
     expect(byData('data-search-toggle')).toHaveLength(1);
   });
 
-  it('offers only the presets that leave resolved and snoozed threads alone', () => {
+  it('leaves out the presets while Sections are on, and offers them again once off', () => {
     renderBar(false, { onToggleThreadSections: noop, threadSections: true });
+    expect(byData('data-preset-button')).toHaveLength(0);
 
-    act(() => {
-      byData('data-preset-button')[0]?.props.onClick();
-    });
-
-    expect(byData('data-preset-option').map((node) => node.props['data-preset-option'])).toEqual([
-      'working',
-      'all',
-    ]);
+    act(() => renderer?.unmount());
+    renderBar(false, { onToggleThreadSections: noop, threadSections: false });
+    expect(byData('data-preset-button')).toHaveLength(1);
   });
 
   it('drops the label of an applied preset when Sections turn on', () => {

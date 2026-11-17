@@ -152,18 +152,12 @@ function TriStateIconToggle({
 function ThreadPresetDropdown({
   onApplyPreset,
   activePresetLabel,
-  threadSections,
 }: {
   onApplyPreset: (preset: FilterPreset) => void;
   activePresetLabel: string | null;
-  /** Sections show resolved and snoozed threads themselves: presets that filter them go. */
-  threadSections: boolean;
 }) {
   const { t } = useTranslation();
-  const presets = threadSections
-    ? FILTER_PRESETS.filter(({ apply }) => !apply.resolved && !apply.snoozed)
-    : FILTER_PRESETS;
-  const filterPresets = presets.map((preset) => {
+  const filterPresets = FILTER_PRESETS.map((preset) => {
     switch (preset.id) {
       case 'needs-attention':
         return {
@@ -891,8 +885,8 @@ export function RoomThreadOverview({
     </TooltipProvider>
   );
 
-  // Sections order their cards themselves and show resolved and snoozed threads in their own
-  // sections, so the sort, its lock and the filters and presets for those two make way for the
+  // Sections order their cards themselves and show resolved, snoozed and idle threads in their
+  // own sections, so the sort, its lock, the presets and the filters for those make way for the
   // switch.
   const sectionsSwitch = handleToggleSectionsWithPresetClear && (
     <ThreadSectionsSwitch on={threadSections} onToggle={handleToggleSectionsWithPresetClear} />
@@ -1038,23 +1032,24 @@ export function RoomThreadOverview({
               <Icon size="50" src={Icons.MessageUnread} />
             </TriStateIconToggle>
 
-            <TriStateIconToggle
-              filterKey="idle"
-              state={state.idle}
-              isOrMode={isOrModeStatusChip(state, 'idle')}
-              onToggle={handleToggleWithPresetClear}
-            >
-              <IconZzz size={14} stroke={1.8} aria-hidden="true" />
-            </TriStateIconToggle>
+            {!threadSections && (
+              <TriStateIconToggle
+                filterKey="idle"
+                state={state.idle}
+                isOrMode={isOrModeStatusChip(state, 'idle')}
+                onToggle={handleToggleWithPresetClear}
+              >
+                <IconZzz size={14} stroke={1.8} aria-hidden="true" />
+              </TriStateIconToggle>
+            )}
           </div>
         )}
 
-        {/* Preset dropdown */}
-        {hasMindroomAgents && (
+        {/* Preset dropdown: its presets filter the thread states Sections show themselves. */}
+        {hasMindroomAgents && !threadSections && (
           <ThreadPresetDropdown
             onApplyPreset={handlePresetApply}
             activePresetLabel={lastAppliedPreset}
-            threadSections={threadSections}
           />
         )}
         {peopleFilter}
