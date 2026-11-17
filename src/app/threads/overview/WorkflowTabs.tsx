@@ -26,7 +26,8 @@ const reducedMotion = () =>
 
 /**
  * A count that rolls like an odometer when it changes: up when it grows, down when it shrinks.
- * Only while `animate`; otherwise it takes the new count as it is.
+ * Only between two renders that both `animate`: the render that starts animating (counts that
+ * finished loading, often with the last page's values) takes its count as it is.
  */
 function RollingCount({
   value,
@@ -37,13 +38,19 @@ function RollingCount({
   animate: boolean;
   language: string;
 }) {
-  const [shown, setShown] = useState({ value, from: undefined as number | undefined, turn: 0 });
-  if (shown.value !== value) {
-    const rolls = animate && !reducedMotion();
+  const [shown, setShown] = useState({
+    value,
+    animate,
+    from: undefined as number | undefined,
+    turn: 0,
+  });
+  if (shown.value !== value || shown.animate !== animate) {
+    const rolls = shown.value !== value && shown.animate && animate && !reducedMotion();
     // A roll replaces one still under way, so an old count never outlasts the next change.
     setShown({
       value,
-      from: rolls ? shown.value : undefined,
+      animate,
+      from: rolls ? shown.value : shown.value === value ? shown.from : undefined,
       turn: rolls ? shown.turn + 1 : shown.turn,
     });
   }
@@ -99,23 +106,25 @@ export function WorkflowTabs({ active, counts, countsSettled, onSelect }: Workfl
   const pillRef = useRef<HTMLSpanElement>(null);
   useSlidingPill(groupRef, pillRef, active);
 
-  // Changes since the last render: a newly pressed tab plays its gesture, and a settled Needs you
-  // count that grows pings. Both start from what the first render showed, so mounting plays
-  // nothing; the next change replaces either, whether or not its animation ended.
+  // Changes since the last render: a newly pressed tab plays its gesture, and a Needs you count
+  // that grows between two settled renders pings. Both start from what the first render showed,
+  // so mounting plays nothing; each ends with its animation or with the next change of its kind.
   const needsYou = counts?.needsYou ?? 0;
   const [seen, setSeen] = useState({
     active,
     needsYou,
+    settled: countsSettled,
     gesture: undefined as ThreadWorkflowTab | undefined,
     ping: 0,
     pinging: false,
   });
-  if (seen.active !== active || seen.needsYou !== needsYou) {
+  if (seen.active !== active || seen.needsYou !== needsYou || seen.settled !== countsSettled) {
     const moves = !reducedMotion();
-    const pings = moves && countsSettled && needsYou > seen.needsYou;
+    const pings = moves && seen.settled && countsSettled && needsYou > seen.needsYou;
     setSeen({
       active,
       needsYou,
+      settled: countsSettled,
       gesture: seen.active === active ? seen.gesture : moves ? active : undefined,
       ping: pings ? seen.ping + 1 : seen.ping,
       pinging: seen.needsYou === needsYou ? seen.pinging : pings,
@@ -155,7 +164,20 @@ export function WorkflowTabs({ active, counts, countsSettled, onSelect }: Workfl
               aria-pressed={active === tab}
               onClick={() => onSelect?.(tab)}
             >
-              <span className={css.WorkflowIcon} aria-hidden="true">
+              <span
+                className={css.WorkflowIcon}
+                aria-hidden="true"
+                onAnimationEnd={(event) => {
+                  // A gesture can be several animations (the list's lines); it ends with the last.
+                  const playing = event.currentTarget
+                    .getAnimations({ subtree: true })
+                    .some((animation) => 'animationName' in animation);
+                  if (playing) return;
+                  setSeen((current) =>
+                    current.gesture === tab ? { ...current, gesture: undefined } : current
+                  );
+                }}
+              >
                 {React.createElement(WORKFLOW_ICONS[tab], {
                   size: toRem(12),
                   stroke: 1.8,

@@ -74,6 +74,23 @@ describe('WorkflowTabs', () => {
     expect(gestures()).toEqual(['done']);
   });
 
+  it('clears a gesture once its last animation ends', () => {
+    render('needsYou', COUNTS);
+    render('all', COUNTS);
+    const icon = tab('all').findByProps({ 'aria-hidden': 'true' });
+    const end = (running: object[]) => {
+      act(() => {
+        icon.props.onAnimationEnd({ currentTarget: { getAnimations: () => running } });
+      });
+    };
+    // One of the list's lines ended; another still slides in.
+    end([{ animationName: 'slideIn' }]);
+    expect(gestures()).toEqual(['all']);
+    // An icon transition still running is not part of the gesture.
+    end([{ transitionProperty: 'width' }]);
+    expect(gestures()).toEqual([]);
+  });
+
   it('takes counts that load page by page silently, and moves only for later changes', () => {
     render('all', ZERO, false);
     render('all', { ...ZERO, needsYou: 2, all: 5 }, false);
@@ -93,6 +110,16 @@ describe('WorkflowTabs', () => {
     expect(rolls()).toEqual(['down', 'up']);
     expect(byClass(css.PingDot)).toHaveLength(0);
     expect(tab('needsYou').props['aria-label']).toBe('Needs you 5');
+  });
+
+  it('takes the last page silently when it arrives with the end of loading', () => {
+    // React batches the last page's counts with the end of loading: one render changes both.
+    render('all', { ...ZERO, needsYou: 2, all: 5 }, false);
+    render('all', COUNTS, true);
+    expect(moving()).toEqual(STILL);
+    render('all', { ...COUNTS, needsYou: 7, all: 29 }, true);
+    expect(rolls()).toEqual(['up', 'up']);
+    expect(byClass(css.PingDot)).toHaveLength(1);
   });
 
   it('makes no motion state with reduced motion', () => {
