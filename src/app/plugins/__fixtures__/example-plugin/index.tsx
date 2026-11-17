@@ -86,7 +86,7 @@
 // another; an Escape in it that nothing took, as on one of its rows, closes the panel, and one that
 // closes the thread's menus, or a profile card its rows opened, leaves it open.
 // A fourth, "Example board", toggled from the room menu, shows the room's threads as a board by
-// state (`ThreadBoard`).
+// state (`ThreadBoard`), and above it the thread the board opened last and how many it opened.
 import {
   useEffect,
   useLayoutEffect,
@@ -910,10 +910,24 @@ function ExampleThread({ roomId }: { roomId: string }) {
   );
 }
 
-/** The room's threads as a board by state. */
+/** The room's threads as a board by state, and the thread it opened last. */
 function ExampleBoard({ roomId }: { roomId: string }) {
   const room = useMatrixClient().getRoom(roomId);
-  return room ? <ThreadBoard room={room} /> : null;
+  const [opened, setOpened] = useState<{ threadId: string; count: number }>();
+  if (!room) return null;
+  return (
+    <>
+      <output data-example-board-opened={opened?.count ?? 0}>
+        {opened ? `Opened ${opened.threadId} (${opened.count})` : 'Opened no thread'}
+      </output>
+      <ThreadBoard
+        room={room}
+        onOpenThread={(threadId) =>
+          setOpened((last) => ({ threadId, count: (last?.count ?? 0) + 1 }))
+        }
+      />
+    </>
+  );
 }
 
 // The card's width: its own beside the conversation, the room's when it fills it or on a phone. Its
