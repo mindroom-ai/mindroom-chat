@@ -45,8 +45,8 @@ import {
   isRoomInputSendSessionStalled,
   resolveRoomInputSendStep,
   RoomInputSendSessionState,
-  SUBMISSION_CONTENT_KEY,
 } from './roomInputSendSession';
+import { SUBMISSION_CONTENT_KEY } from '../matrix/protocol/submission';
 import { getRoomMessageSentNotificationEventId } from '../event-store/timeline/roomMessageSent';
 import { getMessageRelation } from '../matrix/send/composeMessageRelation';
 import {
@@ -514,8 +514,6 @@ export const useRoomInputSendSessionController = ({
         settleFork?.();
         throw error;
       }
-      // MindRoom reads a sidecar's content in place of its preview's, so both carry the marker.
-      eventContent = withSubmissionMarker(session, eventContent, undefined);
       const txnId = mx.makeTxnId();
       const sendPromise = mx.sendMessage(session.roomId, eventContent as any, txnId);
       sendPromise.then(
