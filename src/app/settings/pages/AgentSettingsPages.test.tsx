@@ -15,10 +15,13 @@ vi.mock('../../computer/useAgentServers', () => ({
   useAgentServerUrls: () => discovery.urls,
 }));
 vi.mock('folds', () => ({
-  Text: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
+  Text: ({ children, role }: { children?: React.ReactNode; role?: string }) => (
+    <span role={role}>{children}</span>
+  ),
   Button: ({ children, onClick }: { children?: React.ReactNode; onClick?: () => void }) => (
     <button onClick={onClick}>{children}</button>
   ),
+  color: { Critical: { Main: 'red' } },
 }));
 vi.mock('../../ui/SettingTile', () => ({
   SettingTile: ({
@@ -52,6 +55,8 @@ vi.mock('react-i18next', async () => {
   return { useTranslation: () => ({ t: translateFromEn }) };
 });
 
+const FOUND_HINT = 'Found from your agents, not saved; save it to enter keys here.';
+
 let renderer: ReactTestRenderer;
 let store: ReturnType<typeof createStore>;
 
@@ -79,13 +84,14 @@ beforeEach(() => {
 
 afterEach(() => {
   act(() => renderer.unmount());
+  vi.restoreAllMocks();
 });
 
 describe('Computers settings page', () => {
   it('offers to save the server found from the agents only while nothing names one', () => {
     discovery.urls = ['https://mindroom.lab.example'];
     render();
-    expect(texts()).toContain('Found from your agents, not saved; save it to enter keys here.');
+    expect(texts()).toContain(FOUND_HINT);
     act(() => {
       findUseButton()!.props.onClick();
     });
@@ -93,11 +99,33 @@ describe('Computers settings page', () => {
     expect(store.get(computerServicePreferenceAtom)).toBe('https://mindroom.lab.example');
     expect(renderer.root.findByType('p').children).toEqual(['https://mindroom.lab.example']);
     expect(findUseButton()).toBeUndefined();
-    expect(texts()).not.toContain('Found from your agents, not saved; save it to enter keys here.');
+    expect(texts()).not.toContain(FOUND_HINT);
     act(() => renderer.unmount());
     localStorage.clear();
     store = createStore();
     render('https://computer.example.org');
     expect(findUseButton()).toBeUndefined();
+  });
+
+  it('offers none of several found servers, since a saved one serves every room', () => {
+    discovery.urls = ['https://mindroom.lab.example', 'https://other.example'];
+    render();
+    expect(renderer.root.findAllByType('button')).toHaveLength(0);
+    expect(texts()).not.toContain(FOUND_HINT);
+  });
+
+  it('says so when this device refuses to store the found server', () => {
+    discovery.urls = ['https://mindroom.lab.example'];
+    render();
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    act(() => {
+      findUseButton()!.props.onClick();
+    });
+    const alert = renderer.root.findAllByType('span').find((node) => node.props.role === 'alert');
+    expect(alert?.children).toEqual(['Could not save the computer service on this device.']);
+    expect(store.get(computerServicePreferenceAtom)).toBeNull();
+    expect(findUseButton()).toBeDefined();
   });
 });

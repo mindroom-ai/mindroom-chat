@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { Button, Text } from 'folds';
+import { Button, Text, color } from 'folds';
 import { SettingTile } from '../../ui/SettingTile';
 import { SettingsPageFrame, type SettingsPageProps } from '../../ui/settings/SettingsPageFrame';
 import { SettingsSection } from '../../ui/settings/SettingsSection';
@@ -30,8 +31,10 @@ export function ComputersSettingsPage({ requestClose }: SettingsPageProps) {
   const { t } = useTranslation();
   const { urls, discovered } = useComputerApiUrls();
   const setPreference = useSetAtom(computerServicePreferenceAtom);
-  // A server found from the agents is in use but not saved, and secret requests accept only a saved one.
-  const found = discovered ? urls[0] : undefined;
+  const [saveFailed, setSaveFailed] = useState(false);
+  // A server found from the agents is in use but not saved, and secret requests accept only a saved
+  // one. Only a single found server is offered: a saved one serves every room's agents.
+  const found = discovered && urls.length === 1 ? urls[0] : undefined;
 
   return (
     <SettingsPageFrame
@@ -48,7 +51,7 @@ export function ComputersSettingsPage({ requestClose }: SettingsPageProps) {
           after={
             found !== undefined && (
               <Button
-                onClick={() => setPreference(found)}
+                onClick={() => setSaveFailed(!setPreference(found))}
                 variant="Secondary"
                 fill="Soft"
                 size="300"
@@ -64,6 +67,11 @@ export function ComputersSettingsPage({ requestClose }: SettingsPageProps) {
           {found !== undefined && (
             <Text priority="300" size="T200">
               {t('featureUi.settings.computers.foundNotSaved')}
+            </Text>
+          )}
+          {found !== undefined && saveFailed && (
+            <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
+              {t('settings.general.computers.saveFailed')}
             </Text>
           )}
         </SettingTile>
