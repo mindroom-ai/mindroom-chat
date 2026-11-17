@@ -1,3 +1,26 @@
+diff --git a/node_modules/folds/dist/index.js b/node_modules/folds/dist/index.js
+index c405e8f..7fd2ba0 100644
+--- a/node_modules/folds/dist/index.js
++++ b/node_modules/folds/dist/index.js
+@@ -3564,8 +3564,16 @@ const useTooltip = (position, align, offset, alignOffset, delay) => {
+     };
+   }, [position, align, offset, alignOffset, delay]);
+   useLayoutEffect(() => {
+-    if (open)
+-      positionTooltip();
++    if (!open)
++      return;
++    positionTooltip();
++    const surface = baseRef.current;
++    if (!surface || typeof ResizeObserver === "undefined")
++      return;
++    // Late content can change size without changing the trigger or placement.
++    const observer = new ResizeObserver(positionTooltip);
++    observer.observe(surface);
++    return () => observer.disconnect();
+   }, [open, positionTooltip]);
+   const handleTriggerRef = useCallback((element) => {
+     triggerRef.current = element;
 diff --git a/node_modules/folds/dist/style.css b/node_modules/folds/dist/style.css
 index ada7854..b974149 100644
 --- a/node_modules/folds/dist/style.css
