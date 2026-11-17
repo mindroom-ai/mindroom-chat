@@ -24,7 +24,8 @@ import {
 import { threadRootPluginEvent } from '../threads/cross-room/threadSignals';
 import type { ActivityRow } from './activityRows';
 import { needsYou } from './activityRows';
-import { answerApproval, answerQuestion } from './activityActions';
+import { answerQuestion } from '../messages/reactions/answerQuestion';
+import { answerApproval } from './activityActions';
 import { agentMember } from '../approvals/approvalPeople';
 import { ApprovalArguments } from '../approvals/ApprovalArguments';
 import * as css from './ActivityList.css';
@@ -37,6 +38,7 @@ const sentence = (t: TFunction, row: ActivityRow, names: string[]): string => {
     case 'mention':
     case 'finished':
     case 'stopped':
+      if (row.kind === 'approval' && !name) return t('activity.sentence.approvalUnknown');
       // A mention the highlight count tells of, from a message not loaded, has no known sender.
       if (row.kind === 'mention' && row.type === 'thread' && !row.signals.mentionedBy) {
         return t('activity.sentence.mentionUnknown');

@@ -1,3 +1,6 @@
+import { useRoomBackgroundJobs } from '../../background-jobs/useRoomBackgroundJobs';
+import { indexThreadBackgroundJobs } from '../../matrix/protocol/threadBackgroundJobs';
+import type { ThreadWorkflowCounts } from '../../event-store/threads/threadWorkflow';
 import { useMemo, useRef } from 'react';
 import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { buildThreadSummaryMap, type ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
@@ -21,6 +24,7 @@ import {
 import type { RoomViewMode } from '../../navigation/roomViewMode';
 import {
   computeThreadRecordStatusCounts,
+  computeThreadWorkflowCounts,
   computeThreadRecordTagCounts,
   resolveThreadRecordOverviewRootIds,
 } from '../../event-store/threads/threadRecordOverview';
@@ -95,6 +99,7 @@ export type ThreadIndexSnapshot = {
   activeLiveOverviewThreadRootIds: string[];
   overviewThreadRootIds: string[];
   statusCounts: StatusCounts;
+  bucketCounts: ThreadWorkflowCounts;
   tagCounts: Record<string, number>;
   searchQuery: string;
   threadSortControlSignature: string;
@@ -285,6 +290,12 @@ export const resolveThreadIndexSnapshot = ({
     roomOverviewOrderActive,
     activeLiveOverviewThreadRootIds,
     overviewThreadRootIds,
+    bucketCounts: computeThreadWorkflowCounts(
+      countThreadRootIds,
+      threadRecordMap,
+      threadFilterState,
+      now
+    ),
     statusCounts: computeThreadRecordStatusCounts(countThreadRootIds, threadRecordMap, now),
     tagCounts: computeThreadRecordTagCounts(countThreadRootIds, threadRecordMap),
     searchQuery,
@@ -390,7 +401,12 @@ export const useThreadIndex = ({
     loadedSuccessfully: roomThreadListLoadedSuccessfully,
     fullyLoaded: roomThreadListFullyLoaded,
     retry: refreshRoomThreadList,
-  } = useRoomThreadList(room, compactViewRequested || threadsViewListed);
+  } = useRoomThreadList(
+    room,
+    compactViewRequested || threadsViewListed,
+    overviewChanges,
+    overviewRefreshCounter
+  );
   const roomSurfaceEventEntries = useMemo(() => {
     // Mutable SDK/event metadata can change without changing the timeline array identity.
     void overviewRefreshCounter;
@@ -521,7 +537,7 @@ export const useThreadIndex = ({
     roomThreadListFullyLoaded &&
     !roomThreadListLoading &&
     zeroReplyRootCount > 0;
-  const cachedMetadata = useThreadOverviewCachedMetadata(room.roomId);
+  const cachedMetadata = useThreadOverviewCachedMetadata(room);
 
   const compactThreadRootBodyMap = useMemo(() => {
     return mergeCompactThreadRootBodyMaps(
@@ -553,11 +569,11 @@ export const useThreadIndex = ({
     () => buildThreadRootEventMap(compactRoomSurfaceEntries, compactThreadRootData.indexMap),
     [compactRoomSurfaceEntries, compactThreadRootData.indexMap]
   );
-  // The maps of the last build. A build keeps their records for the threads nothing changed for,
-  // so a room event costs the record of its thread, not one per thread of the room. Each kept
-  // record is checked against what it was built from, so a render React drops leaves nothing wrong.
+  const { jobs } = useRoomBackgroundJobs(room);
+  const jobStates = useMemo(() => indexThreadBackgroundJobs(jobs), [jobs]);
+  // Keep base records only: background-job overlays never become reuse inputs.
   const builtRecordMapsRef = useRef<ThreadIndexRecordMaps>();
-  const { normalThreadRecordMap, compactThreadRecordMap } = useMemo(() => {
+  const baseRecordMaps = useMemo(() => {
     // External hydration can refresh mutable SDK/cache-backed sources without changing map identity.
     void overviewRefreshCounter;
     const built = buildThreadIndexRecordMaps({
@@ -603,6 +619,38 @@ export const useThreadIndex = ({
     overviewRefreshCounter,
     overviewChanges,
   ]);
+  // Base records read SDK timelines. Job-only updates must only overlay their two flags.
+  // Weak keys retain unchanged overlays without retaining old record/history snapshots.
+  const jobOverlays = useMemo(() => new WeakMap<ThreadRecord, ThreadRecord>(), []);
+  const { normalThreadRecordMap, compactThreadRecordMap } = useMemo(() => {
+    const overlay = (records: Map<string, ThreadRecord>) => {
+      let result = records;
+      for (const [id, record] of records) {
+        const flags = jobStates.get(id);
+        if (!flags) continue;
+        let joined = jobOverlays.get(record);
+        if (
+          !joined ||
+          joined.status.hasBackgroundJob !== flags.hasBackgroundJob ||
+          joined.status.hasBackgroundApproval !== flags.hasBackgroundApproval
+        ) {
+          joined = { ...record, status: { ...record.status, ...flags } };
+          jobOverlays.set(record, joined);
+        }
+        if (result === records) result = new Map(records);
+        result.set(id, joined);
+      }
+      return result;
+    };
+    const normal = overlay(baseRecordMaps.normalThreadRecordMap);
+    return {
+      normalThreadRecordMap: normal,
+      compactThreadRecordMap:
+        baseRecordMaps.compactThreadRecordMap === baseRecordMaps.normalThreadRecordMap
+          ? normal
+          : overlay(baseRecordMaps.compactThreadRecordMap),
+    };
+  }, [baseRecordMaps, jobStates, jobOverlays]);
   // Renewed when a snooze ends, so its thread comes back into the list.
   const snoozeNow = useSnoozeNow(
     useMemo(

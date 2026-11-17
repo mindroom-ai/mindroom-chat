@@ -5,7 +5,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { getSettings, settingsAtom } from '../../preferences/settings';
 import { RoomThreadOverview } from './RoomThreadOverview';
 import type { ThreadFilterState } from './RoomThreadOverview';
-import { normalizeThreadSearchText } from '../../event-store/threads/roomThreadOverviewModel';
+import {
+  normalizeThreadSearchText,
+  selectThreadWorkflowTab,
+} from '../../event-store/threads/roomThreadOverviewModel';
 import {
   applyParsedThreadFilterQuery,
   parseThreadFilterQuery,
@@ -34,22 +37,23 @@ vi.mock('folds', async (importOriginal) => {
 
 vi.mock('./RoomThreadOverview.css', () => ({
   Overview: 'Overview',
+  WorkflowTabs: 'WorkflowTabs',
+  WorkflowTab: 'WorkflowTab',
+  WorkflowCount: 'WorkflowCount',
+  WorkflowLabel: 'WorkflowLabel',
+  WorkflowIcon: 'WorkflowIcon',
   ToolbarHeader: 'ToolbarHeader',
-  ToggleGroup: 'ToggleGroup',
   ToggleButton: 'ToggleButton',
-  ToggleInclude: 'ToggleInclude',
-  ToggleIncludeOr: 'ToggleIncludeOr',
-  ToggleExclude: 'ToggleExclude',
   CompactCount: 'CompactCount',
+  CompactCountValue: 'CompactCountValue',
   SortButton: 'SortButton',
   SortButtonActive: 'SortButtonActive',
   PauseButtonActive: 'PauseButtonActive',
   EmptyState: 'EmptyState',
   ResetLink: 'ResetLink',
-  PresetContainer: 'PresetContainer',
-  PresetButton: 'PresetButton',
-  PresetDropdown: 'PresetDropdown',
-  PresetOption: 'PresetOption',
+  FilterContainer: 'FilterContainer',
+  FilterButton: 'FilterButton',
+  FilterDropdown: 'FilterDropdown',
   InfoContainer: 'InfoContainer',
   InfoButton: 'InfoButton',
   InfoPopover: 'InfoPopover',
@@ -119,18 +123,27 @@ const defaultProps = {
   state: makeDefaultState(),
   availableTags: [] as string[],
   isThreadSortFrozen: false,
-  onToggle: vi.fn(),
   onSortDirectionChange: vi.fn(),
   onToggleThreadSortFreeze: vi.fn(),
   onReset: vi.fn(),
   onClearTags: vi.fn(),
   onAddTag: vi.fn(),
   onRemoveTag: vi.fn(),
-  onApplyPreset: vi.fn(),
   onSearchQueryChange: vi.fn(),
 };
 
 describe('RoomThreadOverview', () => {
+  it('keeps explicit accessible labels when workflow tabs compress', () => {
+    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
+    const tabs = renderer.root.findAll((node) => node.props['data-thread-tab']);
+    expect(tabs).toHaveLength(5);
+    for (const tab of tabs) {
+      expect(tab.props['aria-label']).toEqual(expect.any(String));
+      expect(tab.props['aria-label'].length).toBeGreaterThan(0);
+    }
+    renderer.unmount();
+  });
+
   it('keeps only search and sort controls in agentless rooms', () => {
     const renderer = create(
       React.createElement(RoomThreadOverview, {
@@ -173,117 +186,32 @@ describe('RoomThreadOverview', () => {
     renderer.unmount();
   });
 
-  it('renders six icon toggles', () => {
-    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
-
-    const buttons = renderer.root.findAll(
-      (node) => node.type === 'button' && node.props['data-filter-key']
-    );
-    expect(buttons).toHaveLength(6);
-
-    const keys = buttons.map((b) => b.props['data-filter-key']);
-    expect(keys).toEqual(['resolved', 'snoozed', 'streaming', 'scheduled', 'unread', 'idle']);
-
-    renderer.unmount();
-  });
-
-  it('reflects controlled visual state via data-filter-state', () => {
+  it('renders five labeled workflow segments and selects one', () => {
+    const onSelectTab = vi.fn();
     const renderer = create(
       React.createElement(RoomThreadOverview, {
         ...defaultProps,
-        state: makeDefaultState({ resolved: 'include', streaming: 'exclude' }),
+        state: { ...defaultProps.state, tab: 'needsYou' },
+        onSelectTab,
+        bucketCounts: { needsYou: 2, working: 1, later: 3, done: 4, all: 10 },
       })
     );
-
-    const resolvedBtn = renderer.root.find((node) => node.props['data-filter-key'] === 'resolved');
-    expect(resolvedBtn.props['data-filter-state']).toBe('include');
-    expect(resolvedBtn.props.className).toContain('ToggleInclude');
-
-    const streamingBtn = renderer.root.find(
-      (node) => node.props['data-filter-key'] === 'streaming'
+    const tabs = renderer.root.findAll(
+      (node) => node.type === 'button' && !!node.props['data-thread-tab']
     );
-    expect(streamingBtn.props['data-filter-state']).toBe('exclude');
-    expect(streamingBtn.props.className).toContain('ToggleExclude');
-
-    renderer.unmount();
-  });
-
-  it('uses the OR warning class for included chips in OR mode', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        state: makeDefaultState({
-          streaming: 'include',
-          scheduled: 'include',
-          statusMode: 'or',
-        }),
-      })
-    );
-
-    const streamingBtn = renderer.root.find(
-      (node) => node.props['data-filter-key'] === 'streaming'
-    );
-    const scheduledBtn = renderer.root.find(
-      (node) => node.props['data-filter-key'] === 'scheduled'
-    );
-
-    expect(streamingBtn.props.className).toContain('ToggleIncludeOr');
-    expect(scheduledBtn.props.className).toContain('ToggleIncludeOr');
-
-    renderer.unmount();
-  });
-
-  it('keeps the default include class outside OR mode', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        state: makeDefaultState({ streaming: 'include', statusMode: 'and' }),
-      })
-    );
-
-    const streamingBtn = renderer.root.find(
-      (node) => node.props['data-filter-key'] === 'streaming'
-    );
-
-    expect(streamingBtn.props.className).toContain('ToggleInclude');
-    expect(streamingBtn.props.className).not.toContain('ToggleIncludeOr');
-
-    renderer.unmount();
-  });
-
-  it('cycles state on click: any -> include -> exclude -> any', () => {
-    const onToggle = vi.fn();
-
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        onToggle,
-      })
-    );
-
-    const resolvedBtn = renderer.root.find((node) => node.props['data-filter-key'] === 'resolved');
-
+    expect(tabs.map((tab) => tab.props['data-thread-tab'])).toEqual([
+      'needsYou',
+      'working',
+      'later',
+      'done',
+      'all',
+    ]);
+    expect(tabs[0]!.props['aria-pressed']).toBe(true);
     act(() => {
-      resolvedBtn.props.onClick();
+      tabs[1]!.props.onClick();
     });
-
-    expect(onToggle).toHaveBeenCalledWith('resolved');
-
-    renderer.unmount();
-  });
-
-  it('shows aria-valuetext matching state', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        state: makeDefaultState({ resolved: 'include' }),
-      })
-    );
-
-    const resolvedBtn = renderer.root.find((node) => node.props['data-filter-key'] === 'resolved');
-    expect(resolvedBtn.props['aria-valuetext']).toBe('show only');
-
-    renderer.unmount();
+    expect(onSelectTab).toHaveBeenCalledWith('working');
+    expect(renderer.root.findAll((node) => node.props['data-preset-button'])).toHaveLength(0);
   });
 
   it('sort button shows Natural by default', () => {
@@ -520,67 +448,7 @@ describe('RoomThreadOverview', () => {
     renderer.unmount();
   });
 
-  // ═══ Preset dropdown ══════════════════════════════════════════════════
-
-  it('renders preset button', () => {
-    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
-
-    const presetBtn = renderer.root.findAll((node) => node.props['data-preset-button'] === 'true');
-    expect(presetBtn).toHaveLength(1);
-
-    renderer.unmount();
-  });
-
-  it('opens preset dropdown on click', () => {
-    const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
-
-    const presetBtn = renderer.root.find((node) => node.props['data-preset-button'] === 'true');
-
-    act(() => {
-      presetBtn.props.onClick();
-    });
-
-    const dropdown = renderer.root.findAll((node) => node.props['data-preset-dropdown'] === 'true');
-    expect(dropdown).toHaveLength(1);
-
-    // Should have 6 preset options
-    const options = renderer.root.findAll((node) => node.props['data-preset-option'] !== undefined);
-    expect(options).toHaveLength(6);
-
-    renderer.unmount();
-  });
-
-  it('calls onApplyPreset when preset option is selected', () => {
-    const onApplyPreset = vi.fn();
-
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        onApplyPreset,
-      })
-    );
-
-    // Open dropdown
-    const presetBtn = renderer.root.find((node) => node.props['data-preset-button'] === 'true');
-    act(() => {
-      presetBtn.props.onClick();
-    });
-
-    // Select "Needs attention"
-    const option = renderer.root.find(
-      (node) => node.props['data-preset-option'] === 'needs-attention'
-    );
-    act(() => {
-      option.props.onMouseDown({ preventDefault: vi.fn() });
-    });
-
-    expect(onApplyPreset).toHaveBeenCalledTimes(1);
-    expect(onApplyPreset.mock.calls[0]![0].id).toBe('needs-attention');
-
-    renderer.unmount();
-  });
-
-  // ═══ Info popover ═════════════════════════════════════════════════════
+  // ═══ Filter bar ═══════════════════════════════════════════════════════
 
   it('renders info button', () => {
     const renderer = create(React.createElement(RoomThreadOverview, defaultProps));
@@ -681,8 +549,7 @@ describe('RoomThreadOverview', () => {
           setState((current) =>
             applyParsedThreadFilterQuery(current, parseThreadFilterQuery(query))
           ),
-        onToggle: (key: keyof ThreadFilterState) =>
-          setState((current) => ({ ...current, [key]: 'include' })),
+        onSelectTab: (tab) => setState((current) => selectThreadWorkflowTab(current, tab)),
       });
     }
 
@@ -703,11 +570,11 @@ describe('RoomThreadOverview', () => {
     }
 
     act(() => {
-      renderer.root.find((node) => node.props['data-filter-key'] === 'resolved').props.onClick();
+      renderer.root.find((node) => node.props['data-thread-tab'] === 'done').props.onClick();
     });
     expect(
       renderer.root.find((node) => node.props['data-search-input'] === 'true').props.value
-    ).toBe('is:resolved hello world');
+    ).toBe('hello world');
 
     renderer.unmount();
   });
@@ -873,37 +740,6 @@ describe('RoomThreadOverview', () => {
       clear.props.onClick();
     });
     expect(onClearTags).toHaveBeenCalledTimes(1);
-
-    renderer.unmount();
-  });
-
-  it('forgets the applied preset when a tag is checked', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        availableTags: ['blocked'],
-      })
-    );
-    const presetButton = () =>
-      renderer.root.find((node) => node.props['data-preset-button'] === 'true');
-
-    act(() => {
-      presetButton().props.onClick();
-    });
-    const option = renderer.root.find(
-      (node) => node.props['data-preset-option'] === 'needs-attention'
-    );
-    act(() => {
-      option.props.onMouseDown({ preventDefault: vi.fn() });
-    });
-    expect(presetButton().findAllByProps({ children: 'Needs attention' })).not.toHaveLength(0);
-
-    openTags(renderer);
-    act(() => {
-      tagBox(renderer, 'blocked').props.onClick();
-    });
-    expect(presetButton().findAllByProps({ children: 'Needs attention' })).toHaveLength(0);
-    expect(presetButton().findAllByProps({ children: 'Preset' })).not.toHaveLength(0);
 
     renderer.unmount();
   });

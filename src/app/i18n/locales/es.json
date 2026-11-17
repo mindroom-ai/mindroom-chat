@@ -366,8 +366,7 @@
       "streaming": "Transmitiendo",
       "scheduled": "Programado",
       "unread": "Sin leer",
-      "idle": "Inactivo",
-      "idleFilter": "Inactivo (resuelto, sin transmisión y sin tareas)"
+      "idle": "Inactivo"
     },
     "stats": {
       "aria": "Estadísticas de los hilos",
@@ -376,17 +375,6 @@
       "threadCount_other": "{{count}} hilos",
       "tags": "Etiquetas",
       "threadCount_many": "{{count}} hilos"
-    },
-    "filterTooltip": {
-      "any": "{{label}}: se muestran todos. Haz clic para mostrar solo este.",
-      "include": "{{label}}: mostrar solo este. Haz clic para ocultarlo.",
-      "exclude": "{{label}}: oculto. Haz clic para borrar el filtro.",
-      "tagAny": "Etiqueta «{{tag}}»",
-      "tagInclude": "Etiqueta «{{tag}}»: mostrar solo esta. Haz clic para ocultarla.",
-      "tagExclude": "Etiqueta «{{tag}}»: oculta. Haz clic para borrar el filtro.",
-      "stateAny": "se muestran todos",
-      "stateInclude": "mostrar solo este",
-      "stateExclude": "oculto"
     },
     "filters": {
       "scope": "Ámbito",
@@ -1288,25 +1276,15 @@
     "commands": {
       "CommandMe": "Enviar mensaje de acción",
       "CommandNotice": "Enviar mensaje de aviso",
-      "CommandShrug": "Enviar ¯\\_(ツ)_/¯ como mensaje",
-      "CommandTableFlip": "Enviar {{value1}} como mensaje",
-      "CommandUnFlip": "Enviar {{value1}} como mensaje",
       "CommandStartDm": "Iniciar mensaje directo con un usuario. Ejemplo: /startdm userId1",
       "CommandJoin": "Unirse a una sala mediante su dirección. Ejemplo: /join address1 address2",
       "CommandLeave": "Salir de la sala actual.",
       "CommandInvite": "Invitar a un usuario a la sala. Ejemplo: /invite userId1 userId2 [-r reason]",
-      "CommandDisInvite": "Retirar la invitación de un usuario a la sala. Ejemplo: /disinvite userId1 userId2 [-r reason]",
       "CommandKick": "Expulsar a un usuario de la sala. Ejemplo: /kick userId1 userId2 servername [-r reason]",
       "CommandBan": "Vetar a un usuario de la sala. Ejemplo: /ban userId1 userId2 servername [-r reason]",
       "CommandUnBan": "Anular el veto de un usuario de la sala. Ejemplo: /unban userId1 userId2",
       "CommandIgnore": "Ignorar a un usuario. Ejemplo: /ignore userId1 userId2",
-      "CommandUnIgnore": "Dejar de ignorar a un usuario. Ejemplo: /unignore userId1 userId2",
-      "CommandMyRoomNick": "Cambiar el apodo en la sala actual.",
-      "CommandMyRoomAvatar": "Cambiar la imagen de perfil en la sala actual. Ejemplo: /myroomavatar mxc://xyzabc",
-      "CommandConvertToDm": "Convertir la sala en mensaje directo",
-      "CommandConvertToRoom": "Convertir el mensaje directo en sala",
-      "CommandDelete": "Eliminar mensajes de usuarios. Ejemplo: /delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandAcl": "Gestionar la lista de control de acceso del servidor. Ejemplo: /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]"
+      "CommandUnIgnore": "Dejar de ignorar a un usuario. Ejemplo: /unignore userId1 userId2"
     },
     "item": {
       "value1Emoji": "{{value1}} emoji"
@@ -2270,7 +2248,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "voice": {
@@ -2913,8 +2891,6 @@
         "addTagFilter": "Añadir filtro de etiqueta",
         "tag": "+ etiqueta",
         "availableTags": "Etiquetas disponibles",
-        "filterPresets": "Preajustes de filtros",
-        "preset": "Preajuste",
         "searchThreads": "Buscar hilos",
         "searchThreads2": "Buscar hilos...",
         "roomViewMode": "Modo de vista de sala",
@@ -2935,28 +2911,6 @@
         "lockSortOrder": "Bloquear orden (actualmente {{sort}})",
         "threadCount_one": "{{count}} hilo",
         "threadCount_other": "{{count}} hilos",
-        "presets": {
-          "needs-attention": {
-            "label": "Requiere atención",
-            "description": "Hilos sin resolver, sin transmisión y sin programación"
-          },
-          "working": {
-            "label": "En curso",
-            "description": "En transmisión o programados: aquello en lo que estás trabajando ahora"
-          },
-          "review-queue": {
-            "label": "Cola de revisión",
-            "description": "Hilos sin resolver con respuestas sin leer"
-          },
-          "archived": {
-            "label": "Archivados",
-            "description": "Solo hilos resueltos"
-          },
-          "all": {
-            "label": "Todos",
-            "description": "Restablecer todos los filtros"
-          }
-        },
         "showingFilteredThreads_many": "Mostrando {{count}} de {{total}} hilos",
         "showingAllThreads_many": "Mostrando {{count}} hilos",
         "threadCount_many": "{{count}} hilos"
@@ -3122,7 +3076,7 @@
       "intro": "En este hilo, las llamadas a herramientas que piden estas personas se ejecutan sin tarjetas de aprobación.",
       "you": "Tú",
       "until": "Hasta {{time}}",
-      "ownUntil": "Hasta {{time}}. Envía !auto_approve off para terminarla."
+      "ownUntil": "Hasta {{time}}. Envía /auto_approve off para terminarla."
     },
     "notices": {
       "dismiss": "Descartar aviso",

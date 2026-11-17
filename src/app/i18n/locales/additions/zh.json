@@ -84,7 +84,9 @@
       "pack": "与包相同"
     },
     "imageViewer": {
-      "close": "关闭"
+      "close": "关闭",
+      "previous": "上一张图片",
+      "next": "下一张图片"
     },
     "inviteUserPrompt": {
       "close": "关闭",
@@ -139,8 +141,7 @@
       "noCrossSigningKeys": "您的秘密存储中没有交叉签名密钥，因此恢复密钥无法验证此会话。请从您的其他会话中验证它。"
     },
     "commands": {
-      "CommandPlain": "以纯文本发送消息，不使用 Markdown。示例：/plain message",
-      "CommandHtml": "以 HTML 发送消息，不使用 Markdown。示例：/html message"
+      "CommandPlain": "以纯文本发送消息，不使用 Markdown。示例：/plain message"
     },
     "tokenLogin": {
       "signInNotStartedHere": "此登录不是从这里发起的，因此未被使用。请重新登录。"
@@ -155,6 +156,7 @@
     "appUpdate": {
       "available": "MindRoom 有新版本可用。",
       "reload": "重新加载",
+      "updating": "正在更新…",
       "dismiss": "关闭",
       "reloadToUse": "重新加载即可使用。"
     },
@@ -358,7 +360,9 @@
       },
       "computers": {
         "inUse": "正在使用的服务器",
-        "inUseNone": "未设置，因此此设备上的计算机已关闭。"
+        "inUseNone": "未设置，因此此设备上的计算机已关闭。",
+        "useServer": "使用 {{host}}",
+        "foundNotSaved": "从您的智能体中找到，尚未保存；保存后即可在此输入密钥。"
       },
       "keywords": {
         "theme": "深色模式, 浅色模式, 夜间模式, 颜色",
@@ -528,7 +532,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} 失败：{{reason}}",
         "usage": "无法运行 {{command}}。{{usage}}",
-        "ownServer": "未做更改：这会把你自己的服务器（{{server}}）挡在房间之外。",
         "unknown": "{{command}} 不是命令。要作为文本发送，请在消息开头加上 /plain。"
       },
       "jumpToTime": {
@@ -708,13 +711,14 @@
         "showKey": "显示密钥",
         "hideKey": "隐藏密钥",
         "sentTo": "发送到 {{host}}",
+        "openLink": "打开 {{host}}",
         "save": "保存",
         "decline": "拒绝",
         "savedWaiting": "已保存，等待智能体",
         "declinedWaiting": "已拒绝，等待智能体",
         "noLongerActive": "此请求已失效。请再次向智能体请求。",
         "unavailable": "此服务器不支持输入密钥。",
-        "unavailableHint": "要在此输入密钥，请在设置 → {{page}} → {{field}} 中设置您的 MindRoom 服务器。",
+        "unavailableHint": "要在此输入密钥，请在设置 → {{page}} 中保存您的 MindRoom 服务器。",
         "replaces": "将替换当前保存的密钥。",
         "replaceKey": "替换密钥",
         "temporary": {
@@ -760,6 +764,16 @@
       "finishedWork": {
         "workedFor": "工作了 {{duration}}",
         "worked": "已工作"
+      },
+      "questionCard": {
+        "title": "问题",
+        "waiting": "等你回答",
+        "answered": "已回答",
+        "youChose": "你已选择",
+        "nameChose": "{{name}} 已选择"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "子智能体"
       }
     },
     "message-search": {
@@ -780,13 +794,7 @@
         "threadFiltersActive": "讨论串过滤器（已启用）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "高级过滤器",
-        "presets": {
-          "snoozed": {
-            "label": "已延后",
-            "description": "仅已延后的讨论串"
-          }
-        }
+        "advancedFilters": "高级过滤器"
       },
       "threadPeopleFilter": {
         "label": "参与者",
@@ -934,7 +942,11 @@
       "moveRoomDown": "将选中的房间或空间下移",
       "members": "显示或隐藏成员",
       "focusComposer": "标记为已读并转到输入框",
-      "resolveThread": "解决或重新打开当前讨论串",
+      "previousThread": "选中上一个讨论串",
+      "nextThread": "选中下一个讨论串",
+      "openThread": "前往讨论串列表，再打开选中的讨论串",
+      "leaveThread": "离开当前讨论串，再离开讨论串列表",
+      "resolveThread": "解决或重新打开当前或选中的讨论串",
       "newLine": "换行",
       "editLast": "编辑你的最后一条消息（输入框为空时）",
       "inlineCode": "行内代码",
@@ -953,7 +965,22 @@
     "unsnooze": "取消延后",
     "status": {
       "snoozed": "已延后"
-    }
+    },
+    "workflow": {
+      "needsYou": "需要你处理",
+      "working": "处理中",
+      "later": "稍后",
+      "done": "已完成",
+      "all": "全部",
+      "description": {
+        "needsYou": "后台任务需要批准，或没有正在运行或已计划的任务。",
+        "working": "智能体正在回复，或子智能体或后台工具正在运行。",
+        "later": "已暂缓，或正在等待计划任务。",
+        "done": "已解决的讨论串。",
+        "all": "符合其他筛选条件的所有讨论串。"
+      }
+    },
+    "renameHint": "双击以重命名"
   },
   "threadSnooze": {
     "title": "延后至",
@@ -993,6 +1020,7 @@
     },
     "sentence": {
       "approval": "{{name}} 需要批准",
+      "approvalUnknown": "后台任务需要批准",
       "question": "{{name}} 向你提问",
       "invite": "{{name}} 邀请了你",
       "inviteUnknown": "你收到了邀请",
@@ -1060,7 +1088,7 @@
       "working": "智能体工作中",
       "recent": "最近",
       "automations": "自动化",
-      "snoozed": "已延后"
+      "later": "稍后"
     },
     "showMore": "显示更多",
     "chips": {
@@ -1270,9 +1298,18 @@
     "layoutSections": "分区",
     "sections": {
       "working": "进行中",
-      "snoozed": "已延后",
+      "later": "稍后",
       "idle": "空闲",
       "resolved": "已解决"
+    },
+    "live": {
+      "tools": "工具",
+      "toolsRunning_other": "{{count}} 个运行中",
+      "toolsRunningNamed_other": "{{count}} 个运行中：{{names}}",
+      "background": "后台",
+      "jobs_other": "{{count}} 个任务",
+      "jobsWaiting_other": "{{jobs}}，{{count}} 个等待批准",
+      "waitingForAnswer": "等待回答"
     }
   },
   "threadBoard": {

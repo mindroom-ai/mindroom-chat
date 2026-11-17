@@ -365,8 +365,7 @@
       "streaming": "流式响应",
       "scheduled": "已计划",
       "unread": "未读",
-      "idle": "空闲",
-      "idleFilter": "空闲（已解决，不流式传输，无任务）"
+      "idle": "空闲"
     },
     "stats": {
       "aria": "讨论串统计",
@@ -374,17 +373,6 @@
       "threadCount_one": "{{count}} 个讨论串",
       "threadCount_other": "{{count}} 个讨论串",
       "tags": "标签"
-    },
-    "filterTooltip": {
-      "any": "{{label}}：显示全部。单击仅显示。",
-      "include": "{{label}}：仅显示。单击即可隐藏。",
-      "exclude": "{{label}}：隐藏。单击以清除过滤器。",
-      "tagAny": "标签“{{tag}}”",
-      "tagInclude": "标签“{{tag}}”：仅显示。单击即可隐藏。",
-      "tagExclude": "标签“{{tag}}”：隐藏。单击以清除过滤器。",
-      "stateAny": "显示全部",
-      "stateInclude": "仅显示",
-      "stateExclude": "隐藏"
     },
     "filters": {
       "scope": "范围",
@@ -1276,25 +1264,15 @@
     "commands": {
       "CommandMe": "发送操作消息",
       "CommandNotice": "发送通知消息",
-      "CommandShrug": "将 ¯\\_(ツ)_/¯ 作为消息发送",
-      "CommandTableFlip": "将 {{value1}} 作为消息发送",
-      "CommandUnFlip": "将 {{value1}} 作为消息发送",
       "CommandStartDm": "与用户开始私信。示例：/startdm userId1",
       "CommandJoin": "通过地址加入房间。示例：/join address1 address2",
       "CommandLeave": "离开当前房间。",
       "CommandInvite": "邀请用户加入房间。示例：/invite userId1 userId2 [-r reason]",
-      "CommandDisInvite": "撤销用户的房间邀请。示例：/disinvite userId1 userId2 [-r reason]",
       "CommandKick": "将用户移出房间。示例：/kick userId1 userId2 servername [-r reason]",
       "CommandBan": "在房间中封禁用户。示例：/ban userId1 userId2 servername [-r reason]",
       "CommandUnBan": "解除用户的房间封禁。示例：/unban userId1 userId2",
       "CommandIgnore": "忽略用户。示例：/ignore userId1 userId2",
-      "CommandUnIgnore": "取消忽略用户。示例：/unignore userId1 userId2",
-      "CommandMyRoomNick": "更改当前房间的昵称。",
-      "CommandMyRoomAvatar": "更改当前房间中的头像。示例 /myroomavatar mxc://xyzabc",
-      "CommandConvertToDm": "将房间转换为直接消息",
-      "CommandConvertToRoom": "将私信转换为房间",
-      "CommandDelete": "删除用户的消息。示例：/delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandAcl": "管理服务器访问控制列表。示例 /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]"
+      "CommandUnIgnore": "取消忽略用户。示例：/unignore userId1 userId2"
     },
     "item": {
       "value1Emoji": "{{value1}} 表情符号"
@@ -2242,7 +2220,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "voice": {
@@ -2842,8 +2820,6 @@
         "addTagFilter": "添加标签过滤器",
         "tag": "+ 标签",
         "availableTags": "可用标签",
-        "filterPresets": "筛选预设",
-        "preset": "预设",
         "searchThreads": "搜索讨论串",
         "searchThreads2": "搜索讨论串…",
         "roomViewMode": "房间视图模式",
@@ -2863,29 +2839,7 @@
         "unlockSortOrder": "解锁排序顺序（当前为{{sort}}）",
         "lockSortOrder": "锁定排序顺序（当前为{{sort}}）",
         "threadCount_one": "{{count}} 个讨论串",
-        "threadCount_other": "{{count}} 个讨论串",
-        "presets": {
-          "needs-attention": {
-            "label": "需要注意",
-            "description": "未解决、未流式响应且未计划的讨论串"
-          },
-          "working": {
-            "label": "处理中",
-            "description": "正在流式响应或已计划——您当前处理的内容"
-          },
-          "review-queue": {
-            "label": "审核队列",
-            "description": "有未读回复的未解决讨论串"
-          },
-          "archived": {
-            "label": "已存档",
-            "description": "仅已解决的讨论串"
-          },
-          "all": {
-            "label": "全部",
-            "description": "重置所有筛选条件"
-          }
-        }
+        "threadCount_other": "{{count}} 个讨论串"
       },
       "threadTagPicker": {
         "addTag": "添加标签",
@@ -3044,7 +2998,7 @@
       "intro": "在此话题中，这些人请求的工具调用无需审批卡片即可运行。",
       "you": "你",
       "until": "至 {{time}}",
-      "ownUntil": "至 {{time}}。发送 !auto_approve off 可提前结束。"
+      "ownUntil": "至 {{time}}。发送 /auto_approve off 可提前结束。"
     },
     "notices": {
       "dismiss": "关闭通知",

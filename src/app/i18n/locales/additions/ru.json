@@ -93,7 +93,9 @@
       "pack": "Как у набора"
     },
     "imageViewer": {
-      "close": "Закрыть"
+      "close": "Закрыть",
+      "previous": "Предыдущее изображение",
+      "next": "Следующее изображение"
     },
     "inviteUserPrompt": {
       "close": "Закрыть",
@@ -148,8 +150,7 @@
       "noCrossSigningKeys": "В вашем секретном хранилище нет ключей кросс-подписи, поэтому ключ восстановления не может подтвердить этот сеанс. Подтвердите его из другого вашего сеанса."
     },
     "commands": {
-      "CommandPlain": "Отправить сообщение простым текстом, без Markdown. Пример: /plain сообщение",
-      "CommandHtml": "Отправить сообщение как HTML, без Markdown. Пример: /html сообщение"
+      "CommandPlain": "Отправить сообщение простым текстом, без Markdown. Пример: /plain сообщение"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Этот вход был начат не здесь, поэтому он не использован. Войдите снова."
@@ -164,6 +165,7 @@
     "appUpdate": {
       "available": "Доступна новая версия MindRoom.",
       "reload": "Перезагрузить",
+      "updating": "Обновление…",
       "dismiss": "Скрыть",
       "reloadToUse": "Перезагрузите страницу, чтобы перейти на неё."
     },
@@ -373,7 +375,9 @@
       },
       "computers": {
         "inUse": "Используемый сервер",
-        "inUseNone": "Не задан, поэтому компьютеры на этом устройстве отключены."
+        "inUseNone": "Не задан, поэтому компьютеры на этом устройстве отключены.",
+        "useServer": "Использовать {{host}}",
+        "foundNotSaved": "Найден через ваших агентов, но не сохранён; сохраните его, чтобы вводить ключи здесь."
       },
       "keywords": {
         "theme": "тёмная тема, светлая тема, ночной режим, цвета",
@@ -555,7 +559,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} не выполнена: {{reason}}",
         "usage": "Не удалось выполнить {{command}}. {{usage}}",
-        "ownServer": "Ничего не изменено: ваш собственный сервер ({{server}}) потерял бы доступ к комнате.",
         "unknown": "{{command}} не является командой. Чтобы отправить это как текст, начните сообщение с /plain."
       },
       "jumpToTime": {
@@ -735,13 +738,14 @@
         "showKey": "Показать ключ",
         "hideKey": "Скрыть ключ",
         "sentTo": "Отправляется на {{host}}",
+        "openLink": "Открыть {{host}}",
         "save": "Сохранить",
         "decline": "Отклонить",
         "savedWaiting": "Сохранено, ожидание агента",
         "declinedWaiting": "Отклонено, ожидание агента",
         "noLongerActive": "Этот запрос больше не активен. Попросите агента ещё раз.",
         "unavailable": "На этом сервере нельзя вводить ключи.",
-        "unavailableHint": "Чтобы вводить ключи здесь, укажите свой сервер MindRoom в Настройки → {{page}} → {{field}}.",
+        "unavailableHint": "Чтобы вводить ключи здесь, сохраните свой сервер MindRoom в Настройки → {{page}}.",
         "replaces": "Заменит сохранённый сейчас ключ.",
         "replaceKey": "Заменить ключ",
         "temporary": {
@@ -793,6 +797,16 @@
       "finishedWork": {
         "workedFor": "Работал {{duration}}",
         "worked": "Работал"
+      },
+      "questionCard": {
+        "title": "Вопрос",
+        "waiting": "Ждёт вас",
+        "answered": "Ответ дан",
+        "youChose": "Ваш выбор",
+        "nameChose": "Выбор: {{name}}"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Субагенты"
       }
     },
     "message-search": {
@@ -819,13 +833,7 @@
         "threadFiltersActive": "Фильтры веток (активны)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Расширенные фильтры",
-        "presets": {
-          "snoozed": {
-            "label": "Отложенные",
-            "description": "Только отложенные ветки"
-          }
-        }
+        "advancedFilters": "Расширенные фильтры"
       },
       "threadPeopleFilter": {
         "label": "Участники",
@@ -985,7 +993,11 @@
       "moveRoomDown": "Переместить выбранную комнату или пространство вниз",
       "members": "Показать или скрыть участников",
       "focusComposer": "Отметить прочитанным и перейти к полю ввода",
-      "resolveThread": "Отметить открытую ветку решённой или открыть снова",
+      "previousThread": "Выбрать предыдущую ветку",
+      "nextThread": "Выбрать следующую ветку",
+      "openThread": "Перейти к веткам, затем открыть выбранную",
+      "leaveThread": "Выйти из открытой ветки, затем из списка веток",
+      "resolveThread": "Отметить открытую или выбранную ветку решённой или открыть снова",
       "newLine": "Новая строка",
       "editLast": "Изменить последнее сообщение (в пустом поле ввода)",
       "inlineCode": "Встроенный код",
@@ -1004,7 +1016,22 @@
     "unsnooze": "Вернуть",
     "status": {
       "snoozed": "Отложена"
-    }
+    },
+    "workflow": {
+      "needsYou": "Нужно ваше участие",
+      "working": "В работе",
+      "later": "Позже",
+      "done": "Готово",
+      "all": "Все",
+      "description": {
+        "needsYou": "Фоновая задача требует одобрения, либо ничего не выполняется и не запланировано.",
+        "working": "Агент отвечает, либо выполняется субагент или фоновый инструмент.",
+        "later": "Отложены или ожидают запланированную задачу.",
+        "done": "Решённые ветки.",
+        "all": "Все ветки, соответствующие остальным фильтрам."
+      }
+    },
+    "renameHint": "Дважды щёлкните, чтобы переименовать"
   },
   "threadSnooze": {
     "title": "Отложить до",
@@ -1047,6 +1074,7 @@
     },
     "sentence": {
       "approval": "{{name}} ждёт одобрения",
+      "approvalUnknown": "Фоновая задача требует одобрения",
       "question": "{{name}} задаёт вам вопрос",
       "invite": "{{name}} приглашает вас",
       "inviteUnknown": "Вас пригласили",
@@ -1135,7 +1163,7 @@
       "working": "Агенты работают",
       "recent": "Недавние",
       "automations": "Автоматизации",
-      "snoozed": "Отложенные"
+      "later": "Позже"
     },
     "showMore": "Показать больше",
     "chips": {
@@ -1348,9 +1376,30 @@
     "layoutSections": "Разделы",
     "sections": {
       "working": "В работе",
-      "snoozed": "Отложенные",
+      "later": "Позже",
       "idle": "Неактивные",
       "resolved": "Решённые"
+    },
+    "live": {
+      "tools": "Инструменты",
+      "toolsRunning_one": "{{count}} выполняется",
+      "toolsRunning_few": "{{count}} выполняются",
+      "toolsRunning_many": "{{count}} выполняются",
+      "toolsRunning_other": "{{count}} выполняются",
+      "toolsRunningNamed_one": "{{count}} выполняется: {{names}}",
+      "toolsRunningNamed_few": "{{count}} выполняются: {{names}}",
+      "toolsRunningNamed_many": "{{count}} выполняются: {{names}}",
+      "toolsRunningNamed_other": "{{count}} выполняются: {{names}}",
+      "background": "Фоновые задачи",
+      "jobs_one": "{{count}} задача",
+      "jobs_few": "{{count}} задачи",
+      "jobs_many": "{{count}} задач",
+      "jobs_other": "{{count}} задачи",
+      "jobsWaiting_one": "{{jobs}}, {{count}} ожидает одобрения",
+      "jobsWaiting_few": "{{jobs}}, {{count}} ожидают одобрения",
+      "jobsWaiting_many": "{{jobs}}, {{count}} ожидают одобрения",
+      "jobsWaiting_other": "{{jobs}}, {{count}} ожидают одобрения",
+      "waitingForAnswer": "Ожидает ответа"
     }
   },
   "threadBoard": {

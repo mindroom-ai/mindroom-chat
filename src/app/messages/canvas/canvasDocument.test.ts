@@ -1,6 +1,10 @@
 import { JSDOM } from 'jsdom';
 import { describe, expect, it } from 'vitest';
 import {
+  CANVAS_SIZE_MESSAGE,
+  readCanvasSize,
+  clampInlineCanvasHeight,
+  inlineCanvasWindowHeight,
   buildCanvasDocument,
   buildCanvasPage,
   CANVAS_CSP,
@@ -207,9 +211,18 @@ describe('kept inputs', () => {
   const open = (html: string, inputs?: string) => {
     const { window } = new JSDOM(buildCanvasPage(html, 'light', undefined, false, { inputs }), {
       runScripts: 'dangerously',
+      beforeParse(win) {
+        Object.defineProperty(win, 'ResizeObserver', {
+          value: class {
+            observe() {}
+          },
+        });
+      },
     });
     const sent: string[] = [];
-    window.addEventListener('message', (event) => sent.push(event.data.inputs));
+    window.addEventListener('message', (event) => {
+      if (event.data.type === CANVAS_STATE_MESSAGE) sent.push(event.data.inputs);
+    });
     const $ = <T extends Element = HTMLInputElement>(selector: string) =>
       window.document.querySelector(selector) as unknown as T;
     const use = (selector: string, set: (control: HTMLInputElement) => void, type = 'input') => {
@@ -512,11 +525,18 @@ describe('kept inputs', () => {
     const { window } = new JSDOM(buildCanvasPage(RATE, 'light'), {
       runScripts: 'dangerously',
       beforeParse(win) {
+        Object.defineProperty(win, 'ResizeObserver', {
+          value: class {
+            observe() {}
+          },
+        });
         Object.defineProperty(win.navigator, 'userActivation', { value: { hasBeenActive: false } });
       },
     });
     const sent: Array<Record<string, unknown>> = [];
-    window.addEventListener('message', (event) => sent.push(event.data));
+    window.addEventListener('message', (event) => {
+      if (event.data.type === CANVAS_STATE_MESSAGE) sent.push(event.data);
+    });
     await settle();
     (window.document.querySelector('#rate') as HTMLInputElement).value = '7';
     window.document
@@ -775,5 +795,122 @@ describe('canvasFrameWindow', () => {
     });
     const panelFrame = { contentWindow: { frames } } as unknown as HTMLIFrameElement;
     expect(canvasFrameWindow(panelFrame)).toBeUndefined();
+  });
+});
+
+describe('inline canvas sizing', () => {
+  const frame = {} as Window;
+  const message = (height: unknown, overrides: Partial<MessageEvent> = {}) =>
+    ({
+      source: frame,
+      origin: 'null',
+      data: { type: 'mindroom.canvas.size', version: 1, height },
+      ...overrides,
+    } as MessageEvent);
+
+  it('reads only finite positive sizes from its opaque canvas frame', () => {
+    expect(readCanvasSize(message(412.3), frame)).toBe(412.3);
+    for (const height of [NaN, Infinity, 0, -1, '412', undefined]) {
+      expect(readCanvasSize(message(height), frame)).toBeUndefined();
+    }
+    for (const overrides of [
+      { source: {} as Window },
+      { origin: 'https://example.org' },
+      { data: { type: 'mindroom.canvas.size', version: 2, height: 400 } },
+      { data: { type: 'mindroom.canvas.submit', version: 1, height: 400 } },
+      { data: null },
+    ])
+      expect(readCanvasSize(message(400, overrides), frame)).toBeUndefined();
+    expect(readCanvasSize(message(400), undefined)).toBeUndefined();
+  });
+
+  it.each([
+    [10, 80],
+    [412.3, 413],
+    [50000, 20000],
+  ])('clamps %s to %s pixels', (height, expected) => {
+    expect(clampInlineCanvasHeight(height)).toBe(expected);
+  });
+
+  it.each([
+    [1440, 900],
+    [390, 568],
+    [700, 568],
+    [2560, 1080],
+  ])(
+    'lets a page %s pixels wide take a browser window at most %s pixels tall',
+    (width, expected) => {
+      expect(inlineCanvasWindowHeight(width)).toBe(expected);
+    }
+  );
+
+  it('reports the size of inline pages only, on resize, DOM changes, transitions and loads', () => {
+    const page = buildCanvasPage('<p>hi</p>', 'light', undefined, false, {}, { inline: true });
+    expect(page).toContain('new ResizeObserver(queueSize).observe(document.body)');
+    expect(page).toContain('new MutationObserver(queueSize).observe(document.body');
+    expect(page).toContain("['transitionend', 'animationend', 'load']");
+    expect(page).toContain("addEventListener('load', reportSize)");
+    expect(page).toContain(`type: '${CANVAS_SIZE_MESSAGE}'`);
+    expect(buildCanvasPage('<p>hi</p>', 'light')).not.toContain(CANVAS_SIZE_MESSAGE);
+  });
+
+  it('uses transparent padded inline pages without changing panel defaults', () => {
+    const page = buildCanvasPage('', 'light', undefined, false, {}, { inline: true });
+    expect(page).toContain('padding:8px;background:transparent;position:relative');
+    expect(buildCanvasPage('', 'light')).toContain('padding:16px;background:var(--mr-bg)');
+    expect(buildCanvasPage('', 'light')).not.toContain('position:relative');
+    expect(buildCanvasDocument('', 'light', undefined, '', false, {}, { inline: true })).toContain(
+      'padding:8px;background:transparent;position:relative'
+    );
+  });
+
+  it('shows raw pages exactly as written: no theme, base style, or color scheme from Chat', () => {
+    const page = buildCanvasPage(
+      '<p>hi</p>',
+      'dark',
+      undefined,
+      false,
+      {},
+      { inline: true, raw: true }
+    );
+    expect(page).not.toContain('<style>');
+    expect(page).not.toContain('name="color-scheme"');
+    expect(page).not.toContain('--mr-');
+    // The bridge still runs, so the frame still fits the page.
+    expect(page).toContain(`type: '${CANVAS_SIZE_MESSAGE}'`);
+    expect(page).toContain('<p>hi</p>');
+  });
+
+  it('lets remote assets load only when the deployment allows them, and never connections', () => {
+    expect(canvasPolicy(false)).not.toContain('https:');
+    const remote = canvasPolicy(false, true);
+    for (const directive of ['script-src', 'style-src', 'img-src', 'font-src', 'media-src']) {
+      expect(remote).toMatch(new RegExp(`${directive} [^;]*https:`));
+    }
+    for (const directive of ['connect-src', 'form-action', 'frame-src', 'worker-src']) {
+      expect(remote).toContain(`${directive} 'none'`);
+    }
+    expect(canvasPolicy(true, true)).toContain(
+      `script-src 'unsafe-inline' ${CANVAS_LIBRARY_SOURCE} https:`
+    );
+    const doc = buildCanvasDocument(
+      '<p>hi</p>',
+      'light',
+      undefined,
+      '',
+      false,
+      {},
+      { remote: true }
+    );
+    expect(doc.match(/img-src data: blob: https:/g)).toHaveLength(2);
+  });
+
+  it("gives a raw page's frames the browser's color scheme instead of Chat's", () => {
+    const raw = buildCanvasDocument('<p>hi</p>', 'dark', undefined, '', false, {}, { raw: true });
+    expect(raw).toContain('<meta name="color-scheme" content="light dark">');
+    expect(raw).toContain('color-scheme:light dark');
+    const themed = buildCanvasDocument('<p>hi</p>', 'dark', undefined, '', false, {});
+    expect(themed).toContain('<meta name="color-scheme" content="dark">');
+    expect(themed).not.toContain('light dark');
   });
 });

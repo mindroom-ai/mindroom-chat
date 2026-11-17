@@ -17,14 +17,14 @@ import {
   disposableHomeserverIsUp,
 } from '../helpers/disposableAccounts';
 
-// On a phone, a thread's back chevron always leads to the thread's room, and a room's returns to
-// wherever the person opened it from: the room list, a notification, the command palette, the
-// search results, a link in another conversation, Activity, the pinned messages or Jump to Time.
-// A thread opened from its room steps back to it; opened from anywhere else, the room takes the
-// thread's place, so the room's chevron then returns to where the thread was opened from. A
-// room's chevron steps back past every page of the room, and the browser's back then goes on from
-// there. Each way in is its own test, at 390 by 844 with touch, in Chromium and, when
-// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
+// On a phone, a thread's back chevron always leads to the thread's room, wherever the person
+// opened the thread from: the room list, a notification, the command palette, the search results,
+// a link in another conversation, Activity, the pinned messages or Jump to Time. A thread opened
+// from its room steps back to it; opened from anywhere else, the room takes the thread's place, so
+// the browser's back then goes on to where the thread was opened from. The room itself has no
+// chevron: the top bar's menu button leads to the list. Each way in is its own test, at 390 by 844
+// with touch, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in
+// WebKit.
 const PASSWORD = 'phone-back-entries-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
@@ -240,7 +240,6 @@ const place = (page: Page): Place => {
   return { path: url.pathname, room: room ?? null, thread: url.searchParams.get('threadId') };
 };
 
-const HOME: Partial<Place> = { path: '/home/', room: null, thread: null };
 const inRoom = (room: string): Partial<Place> => ({ room, thread: null });
 const inThreadOf = (room: string, thread: string): Partial<Place> => ({ room, thread });
 
@@ -253,16 +252,26 @@ const browserBackLeaves = async (page: Page, room: string, step: string) => {
   await expect.poll(() => place(page).room, { message: step, timeout: 20_000 }).not.toBe(room);
 };
 
-const roomBack = (page: Page) =>
-  page.getByRole('banner').getByRole('button', { name: 'Back', exact: true });
 const threadBack = (page: Page) =>
   page.locator('[data-thread-context-banner]').getByRole('button', { name: 'Back', exact: true });
 
 const shoot = (page: Page, testInfo: TestInfo, name: string) =>
   page.screenshot({ path: testInfo.outputPath(`${name}.png`) });
 
+/** Opens `name` from the room list, which the top bar's menu button slides in over a room. */
 const openFromList = async (page: Page, name: string, room: string) => {
-  await page.getByTestId('resizable-page-nav').getByRole('link', { name }).tap();
+  const drawer = page.locator('#phone-nav-drawer');
+  const sliding = () => drawer.evaluate((panel) => panel.getAnimations().length);
+  // A drawer sliding away after the last room opened is still visible, but already inert: read its
+  // state, not its visibility, and let it finish closing before the menu button brings it back.
+  if ((await drawer.getAttribute('data-open')) === null) {
+    await expect.poll(sliding).toBe(0);
+    await page.locator('#phone-nav-menu-button').tap();
+    // Until it has slid in, a finger on it may still land on the scrim.
+    await expect(drawer).toHaveAttribute('data-open', 'true');
+    await expect.poll(sliding).toBe(0);
+  }
+  await drawer.getByTestId('resizable-page-nav').getByRole('link', { name }).tap();
   await expectAt(page, inRoom(room), `${name} opens from the list`);
 };
 
@@ -326,8 +335,6 @@ const FLOWS: Record<string, Flow> = {
     await openThread(page, garden, gardenRoot);
     await threadBack(page).tap();
     await expectAt(page, inRoom(garden), 'the thread chevron returns to the room');
-    await roomBack(page).tap();
-    await expectAt(page, HOME, 'the room chevron returns to the list');
 
     // The edge swipe leaves a thread for its room, one step, also after another room: the
     // browser must not take the rest of the swipe as its own back.
@@ -346,11 +353,7 @@ const FLOWS: Record<string, Flow> = {
     // Settled: nothing goes back a second step.
     await page.waitForTimeout(1_000);
     await expectAt(page, inRoom(garden), 'the edge swipe went back one step only');
-    await roomBack(page).tap();
-    await expectAt(page, inRoom(harbor), 'the room chevron returns to the first room');
-    await roomBack(page).tap();
-    await expectAt(page, HOME, 'then to the list');
-    await browserBackLeaves(page, garden, 'browser back after the chevrons leaves the list');
+    await browserBackLeaves(page, garden, 'browser back after the swipe leaves the room');
   },
 
   'a notification': async (page, { harbor, books, booksRoot, writer }, testInfo) => {
@@ -376,45 +379,11 @@ const FLOWS: Record<string, Flow> = {
     await clickNewest();
     await expectAt(page, inThreadOf(books, booksRoot), 'the notification opens its thread');
     await threadBack(page).tap();
+    await shoot(page, testInfo, 'notification-thread-back');
     await expectAt(page, inRoom(books), "the thread chevron leads to the thread's room");
-    await roomBack(page).tap();
-    await expectAt(page, inRoom(harbor), 'the room chevron returns to the room it opened over');
-
-    // A message in the room's own timeline opens the room.
-    const next = await count();
-    await sendRoomMessage(
-      HOMESERVER,
-      writer.accessToken,
-      books,
-      text('The swap starts at ten; the tables are by the window.')
-    );
-    await expect.poll(count, { timeout: 30_000 }).toBeGreaterThan(next);
-    await clickNewest();
-    await expectAt(page, inRoom(books), 'the notification opens its room');
-    await roomBack(page).tap();
-    await shoot(page, testInfo, 'notification-room-back');
-    await expectAt(page, inRoom(harbor), 'the room chevron returns to the room it opened over');
-    await roomBack(page).tap();
-    await expectAt(page, HOME, 'then to the list');
-    await browserBackLeaves(page, harbor, 'browser back after the chevrons leaves the list');
   },
 
-  'the command palette': async (page, { harbor, books, garden, gardenRoot, word }, testInfo) => {
-    // A room picked in the palette over another room.
-    await openFromList(page, 'Harbor Plans', harbor);
-    await pressPaletteShortcut(page);
-    await palette(page).getByRole('combobox').fill('Book Swap');
-    await palette(page)
-      .locator('[role="option"][data-kind="room"]')
-      .filter({ hasText: 'Book Swap' })
-      .tap();
-    await expectAt(page, inRoom(books), 'the palette opens the room');
-    await roomBack(page).tap();
-    await shoot(page, testInfo, 'palette-room-back');
-    await expectAt(page, inRoom(harbor), 'the room chevron returns to the room under the palette');
-    await roomBack(page).tap();
-    await expectAt(page, HOME, 'then to the list');
-
+  'the command palette': async (page, { garden, gardenRoot, word }, testInfo) => {
     // A message found in the palette's Messages tab, in a thread. Its snippet starts a few
     // words before the match, so the row is picked by the words around the match.
     await searchMessages(page, word);
@@ -426,14 +395,11 @@ const FLOWS: Record<string, Flow> = {
     await threadBack(page).tap();
     await shoot(page, testInfo, 'palette-thread-back');
     await expectAt(page, inRoom(garden), "the thread chevron leads to the thread's room");
-    await roomBack(page).tap();
-    await expectAt(page, HOME, 'the room chevron returns to the page under the palette');
-    await browserBackLeaves(page, garden, 'browser back after the chevrons leaves the list');
   },
 
   'the search results': async (
     page,
-    { garden, gardenRoot, gardenReply, gardenNote, word },
+    { garden, gardenRoot, gardenReply, word },
     testInfo,
     engine
   ) => {
@@ -446,15 +412,15 @@ const FLOWS: Record<string, Flow> = {
       `[data-event-id="${gardenReply}"][data-thread-root-id="${gardenRoot}"]`
     );
 
-    // A thread reply opens in its thread; its chevron leads to the thread's room, and the room's
-    // to the results.
+    // A thread reply opens in its thread; its chevron leads to the thread's room, which took the
+    // thread's place, so the browser's back returns to the results.
     await openReply.tap();
     await expectAt(page, inThreadOf(garden, gardenRoot), 'the reply opens its thread');
     await threadBack(page).tap();
     await shoot(page, testInfo, 'search-thread-back');
     await expectAt(page, inRoom(garden), "the thread chevron leads to the thread's room");
-    await roomBack(page).tap();
-    await expectAt(page, results, 'the room chevron returns to the results');
+    await page.goBack();
+    await expectAt(page, results, 'the browser back returns to the results');
     await expect(searchbox).toHaveValue(word);
 
     // The edge swipe does the same.
@@ -462,48 +428,20 @@ const FLOWS: Record<string, Flow> = {
     await expectAt(page, inThreadOf(garden, gardenRoot), 'the reply opens its thread again');
     await edgeSwipeBack(page, engine);
     await expectAt(page, inRoom(garden), "the edge swipe leads to the thread's room");
-    await roomBack(page).tap();
-    await expectAt(page, results, 'the room chevron returns to the results again');
-
-    // A message of the room's own timeline opens the room; its chevron returns to the results.
-    await page.locator(`[data-event-id="${gardenNote}"]`).tap();
-    await expectAt(page, inRoom(garden), 'the message opens its room');
-    await roomBack(page).tap();
-    await shoot(page, testInfo, 'search-room-back');
-    await expectAt(page, results, 'the room chevron returns to the results');
-    await expect(searchbox).toHaveValue(word);
-    await page.getByRole('button', { name: 'Back', exact: true }).tap();
-    await expectAt(page, HOME, 'the results go back to the list');
-    await browserBackLeaves(page, garden, 'browser back after the chevrons leaves the list');
   },
 
   'a permalink': async (page, seed, testInfo) => {
-    const { harbor, harborRoot, garden, gardenRoot, gardenReply, gardenNote } = seed;
+    const { harbor, harborRoot, garden, gardenRoot, gardenReply } = seed;
     await openFromList(page, 'Harbor Plans', harbor);
     await openThread(page, harbor, harborRoot);
 
     // A link to a thread reply in another room opens that thread; its chevron leads to that
-    // thread's room, and the room's back to the first thread.
+    // thread's room.
     await page.locator(`a[data-mention-event-id="${gardenReply}"]`).tap();
     await expectAt(page, inThreadOf(garden, gardenRoot), 'the link opens the linked thread');
     await threadBack(page).tap();
     await shoot(page, testInfo, 'permalink-thread-back');
     await expectAt(page, inRoom(garden), "the chevron leads to the linked thread's room");
-    await roomBack(page).tap();
-    await expectAt(page, inThreadOf(harbor, harborRoot), 'the room chevron returns to the thread');
-
-    // A link to a message of the other room's own timeline opens that room.
-    await page.locator(`a[data-mention-event-id="${gardenNote}"]`).tap();
-    await expectAt(page, inRoom(garden), 'the link opens the linked room');
-    await roomBack(page).tap();
-    await shoot(page, testInfo, 'permalink-room-back');
-    await expectAt(page, inThreadOf(harbor, harborRoot), 'the room chevron returns to the thread');
-
-    await threadBack(page).tap();
-    await expectAt(page, inRoom(harbor), 'the thread chevron returns to its room');
-    await roomBack(page).tap();
-    await expectAt(page, HOME, 'the room chevron returns to the list');
-    await browserBackLeaves(page, harbor, 'browser back after the chevrons leaves the list');
   },
 
   Activity: async (page, { books, shelfRoot }, testInfo) => {
@@ -524,9 +462,6 @@ const FLOWS: Record<string, Flow> = {
     await threadBack(page).tap();
     await shoot(page, testInfo, 'activity-thread-back');
     await expectAt(page, inRoom(books), "the thread chevron leads to the thread's room");
-    await roomBack(page).tap();
-    await expectAt(page, activity, 'the room chevron returns to Activity');
-    await expect(row).toBeVisible();
   },
 
   'the pinned messages': async (
@@ -553,12 +488,9 @@ const FLOWS: Record<string, Flow> = {
     await shoot(page, testInfo, 'pin-thread-back');
     await expectAt(page, inRoom(garden), 'the thread chevron returns to the room');
 
-    // A pinned message of the room's own timeline stays in the room; the chevron leaves it.
+    // A pinned message of the room's own timeline stays in the room.
     await openPin(gardenNote, 'planting rota');
     await expectAt(page, inRoom(garden), 'the pinned message opens in the room');
-    await roomBack(page).tap();
-    await expectAt(page, HOME, 'the room chevron returns to the list');
-    await browserBackLeaves(page, garden, 'browser back after the chevron leaves the list');
   },
 
   'Jump to Time': async (page, { garden, gardenRoot }, testInfo) => {
@@ -579,14 +511,11 @@ const FLOWS: Record<string, Flow> = {
     await threadBack(page).tap();
     await expectAt(page, inRoom(garden), 'the thread chevron returns to the room');
 
-    // In the room, the Full view opens at the room's start; the chevron leaves the room.
+    // In the room, the Full view opens at the room's start.
     await jump();
     await expect(page).toHaveURL(/%24|\$/);
+    await shoot(page, testInfo, 'jump-room');
     await expectAt(page, inRoom(garden), 'Jump to Time stays in the room');
-    await roomBack(page).tap();
-    await shoot(page, testInfo, 'jump-room-back');
-    await expectAt(page, HOME, 'the room chevron returns to the list');
-    await browserBackLeaves(page, garden, 'browser back after the chevron leaves the list');
   },
 };
 
@@ -621,7 +550,7 @@ test.beforeEach(async () => {
 
 for (const engine of ENGINES) {
   for (const [entry, flow] of Object.entries(FLOWS)) {
-    test(`${engine}: back from ${entry} leads to the room, then where it was opened from`, async ({
+    test(`${engine}: back from a thread opened from ${entry} leads to its room`, async ({
       browser,
     }, testInfo) => {
       test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');

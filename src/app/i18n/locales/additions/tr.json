@@ -87,7 +87,9 @@
       "pack": "Paketle aynı"
     },
     "imageViewer": {
-      "close": "Kapat"
+      "close": "Kapat",
+      "previous": "Önceki görsel",
+      "next": "Sonraki görsel"
     },
     "inviteUserPrompt": {
       "close": "Kapat",
@@ -142,8 +144,7 @@
       "noCrossSigningKeys": "Gizli depolamanızda çapraz imzalama anahtarı yok, bu yüzden kurtarma anahtarı bu oturumu doğrulayamaz. Onu diğer oturumlarınızdan birinden doğrulayın."
     },
     "commands": {
-      "CommandPlain": "Mesajı Markdown olmadan düz metin olarak gönder. Örnek: /plain mesaj",
-      "CommandHtml": "Mesajı Markdown olmadan HTML olarak gönder. Örnek: /html mesaj"
+      "CommandPlain": "Mesajı Markdown olmadan düz metin olarak gönder. Örnek: /plain mesaj"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Bu oturum açma işlemi burada başlatılmadı, bu yüzden kullanılmadı. Yeniden oturum açın."
@@ -158,6 +159,7 @@
     "appUpdate": {
       "available": "MindRoom'un yeni bir sürümü kullanılabilir.",
       "reload": "Yeniden yükle",
+      "updating": "Güncelleniyor…",
       "dismiss": "Kapat",
       "reloadToUse": "Kullanmak için yeniden yükleyin."
     },
@@ -363,7 +365,9 @@
       },
       "computers": {
         "inUse": "Kullanılan sunucu",
-        "inUseNone": "Ayarlanmadı, bu nedenle bu cihazda bilgisayarlar kapalı."
+        "inUseNone": "Ayarlanmadı, bu nedenle bu cihazda bilgisayarlar kapalı.",
+        "useServer": "{{host}} kullan",
+        "foundNotSaved": "Ajanlarınızdan bulundu, kaydedilmedi; burada anahtar girmek için kaydedin."
       },
       "keywords": {
         "theme": "karanlık mod, aydınlık mod, gece modu, renkler",
@@ -537,7 +541,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} başarısız oldu: {{reason}}",
         "usage": "{{command}} çalıştırılamadı. {{usage}}",
-        "ownServer": "Hiçbir şey değişmedi: bu, kendi sunucunuzu ({{server}}) odanın dışında bırakırdı.",
         "unknown": "{{command}} bir komut değil. Metin olarak göndermek için mesajı /plain ile başlatın."
       },
       "jumpToTime": {
@@ -717,13 +720,14 @@
         "showKey": "Anahtarı göster",
         "hideKey": "Anahtarı gizle",
         "sentTo": "{{host}} adresine gönderilir",
+        "openLink": "{{host}} adresini aç",
         "save": "Kaydet",
         "decline": "Geri çevir",
         "savedWaiting": "Kaydedildi, ajan bekleniyor",
         "declinedWaiting": "Geri çevrildi, ajan bekleniyor",
         "noLongerActive": "Bu istek artık etkin değil. Ajandan yeniden isteyin.",
         "unavailable": "Bu sunucuda anahtar girilemez.",
-        "unavailableHint": "Burada anahtar girmek için MindRoom sunucunuzu Ayarlar → {{page}} → {{field}} bölümünde ayarlayın.",
+        "unavailableHint": "Burada anahtar girmek için MindRoom sunucunuzu Ayarlar → {{page}} bölümünde kaydedin.",
         "replaces": "Şu an kayıtlı anahtarın yerini alır.",
         "replaceKey": "Anahtarı değiştir",
         "temporary": {
@@ -771,6 +775,16 @@
       "finishedWork": {
         "workedFor": "{{duration}} çalıştı",
         "worked": "Çalıştı"
+      },
+      "questionCard": {
+        "title": "Soru",
+        "waiting": "Sizi bekliyor",
+        "answered": "Yanıtlandı",
+        "youChose": "Seçiminiz",
+        "nameChose": "{{name}} seçti"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Alt ajanlar"
       }
     },
     "message-search": {
@@ -793,13 +807,7 @@
         "threadFiltersActive": "Konu filtreleri (etkin)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Gelişmiş filtreler",
-        "presets": {
-          "snoozed": {
-            "label": "Ertelenenler",
-            "description": "Yalnızca ertelenmiş konular"
-          }
-        }
+        "advancedFilters": "Gelişmiş filtreler"
       },
       "threadPeopleFilter": {
         "label": "Kişiler",
@@ -951,7 +959,11 @@
       "moveRoomDown": "Seçili odayı veya alanı aşağı taşı",
       "members": "Üyeleri göster veya gizle",
       "focusComposer": "Okundu olarak işaretle ve mesaj kutusuna git",
-      "resolveThread": "Açık konuyu çözüldü işaretle veya yeniden aç",
+      "previousThread": "Önceki konuyu seç",
+      "nextThread": "Sonraki konuyu seç",
+      "openThread": "Konulara git, ardından seçili konuyu aç",
+      "leaveThread": "Açık konudan, ardından konulardan çık",
+      "resolveThread": "Açık veya seçili konuyu çözüldü işaretle veya yeniden aç",
       "newLine": "Yeni satır",
       "editLast": "Son mesajını düzenle (boş mesaj kutusunda)",
       "inlineCode": "Satır içi kod",
@@ -970,7 +982,22 @@
     "unsnooze": "Ertelemeyi kaldır",
     "status": {
       "snoozed": "Ertelendi"
-    }
+    },
+    "workflow": {
+      "needsYou": "Sizi bekliyor",
+      "working": "Çalışıyor",
+      "later": "Sonra",
+      "done": "Tamamlandı",
+      "all": "Tümü",
+      "description": {
+        "needsYou": "Bir arka plan görevi onay bekliyor veya çalışan ya da zamanlanmış bir iş yok.",
+        "working": "Bir ajan yanıt veriyor veya bir alt ajan ya da arka plan aracı çalışıyor.",
+        "later": "Ertelenmiş veya zamanlanmış bir görevi bekliyor.",
+        "done": "Çözümlenmiş konular.",
+        "all": "Diğer filtrelerinize uyan tüm konular."
+      }
+    },
+    "renameHint": "Yeniden adlandırmak için çift tıklayın"
   },
   "threadSnooze": {
     "title": "Şu zamana kadar ertele",
@@ -1011,6 +1038,7 @@
     },
     "sentence": {
       "approval": "{{name}} onay bekliyor",
+      "approvalUnknown": "Bir arka plan görevi onay bekliyor",
       "question": "{{name}} size bir soru sordu",
       "invite": "{{name}} sizi davet etti",
       "inviteUnknown": "Davet edildiniz",
@@ -1085,7 +1113,7 @@
       "working": "Çalışan ajanlar",
       "recent": "Son konular",
       "automations": "Otomasyonlar",
-      "snoozed": "Ertelenenler"
+      "later": "Sonra"
     },
     "showMore": "Daha fazla göster",
     "chips": {
@@ -1296,9 +1324,22 @@
     "layoutSections": "Bölümler",
     "sections": {
       "working": "Çalışıyor",
-      "snoozed": "Ertelenenler",
+      "later": "Sonra",
       "idle": "Boşta",
       "resolved": "Çözülenler"
+    },
+    "live": {
+      "tools": "Araçlar",
+      "toolsRunning_one": "{{count}} çalışıyor",
+      "toolsRunning_other": "{{count}} çalışıyor",
+      "toolsRunningNamed_one": "{{count}} çalışıyor: {{names}}",
+      "toolsRunningNamed_other": "{{count}} çalışıyor: {{names}}",
+      "background": "Arka plan",
+      "jobs_one": "{{count}} iş",
+      "jobs_other": "{{count}} iş",
+      "jobsWaiting_one": "{{jobs}}, {{count}} onay bekliyor",
+      "jobsWaiting_other": "{{jobs}}, {{count}} onay bekliyor",
+      "waitingForAnswer": "Yanıt bekliyor"
     }
   },
   "threadBoard": {

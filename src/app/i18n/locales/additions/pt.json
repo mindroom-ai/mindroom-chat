@@ -90,7 +90,9 @@
       "pack": "Igual ao pacote"
     },
     "imageViewer": {
-      "close": "Fechar"
+      "close": "Fechar",
+      "previous": "Imagem anterior",
+      "next": "Próxima imagem"
     },
     "inviteUserPrompt": {
       "close": "Fechar",
@@ -145,8 +147,7 @@
       "noCrossSigningKeys": "O seu armazenamento secreto não contém chaves de assinatura cruzada, por isso a chave de recuperação não pode verificar esta sessão. Verifique-a a partir de outra das suas sessões."
     },
     "commands": {
-      "CommandPlain": "Enviar uma mensagem como texto simples, sem Markdown. Exemplo: /plain mensagem",
-      "CommandHtml": "Enviar uma mensagem como HTML, sem Markdown. Exemplo: /html mensagem"
+      "CommandPlain": "Enviar uma mensagem como texto simples, sem Markdown. Exemplo: /plain mensagem"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Este início de sessão não foi iniciado aqui, por isso não foi utilizado. Inicie sessão novamente."
@@ -161,6 +162,7 @@
     "appUpdate": {
       "available": "Está disponível uma nova versão do MindRoom.",
       "reload": "Recarregar",
+      "updating": "Atualizando…",
       "dismiss": "Ignorar",
       "reloadToUse": "Recarregue para a utilizar."
     },
@@ -368,7 +370,9 @@
       },
       "computers": {
         "inUse": "Servidor em utilização",
-        "inUseNone": "Nenhum definido, por isso os computadores estão desativados neste dispositivo."
+        "inUseNone": "Nenhum definido, por isso os computadores estão desativados neste dispositivo.",
+        "useServer": "Usar {{host}}",
+        "foundNotSaved": "Encontrado através dos seus agentes, não guardado; guarde-o para introduzir chaves aqui."
       },
       "keywords": {
         "theme": "modo escuro, modo claro, modo noturno, cores",
@@ -546,7 +550,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} falhou: {{reason}}",
         "usage": "Não foi possível executar {{command}}. {{usage}}",
-        "ownServer": "Nada mudou: isto deixaria o seu próprio servidor ({{server}}) fora da sala.",
         "unknown": "{{command}} não é um comando. Para enviá-lo como texto, comece a mensagem com /plain."
       },
       "jumpToTime": {
@@ -726,13 +729,14 @@
         "showKey": "Mostrar chave",
         "hideKey": "Ocultar chave",
         "sentTo": "Enviada para {{host}}",
+        "openLink": "Abrir {{host}}",
         "save": "Guardar",
         "decline": "Recusar",
         "savedWaiting": "Guardada, a aguardar o agente",
         "declinedWaiting": "Recusada, a aguardar o agente",
         "noLongerActive": "Este pedido já não está ativo. Peça novamente ao agente.",
         "unavailable": "Não é possível introduzir chaves neste servidor.",
-        "unavailableHint": "Para introduzir chaves aqui, defina o seu servidor MindRoom em Definições → {{page}} → {{field}}.",
+        "unavailableHint": "Para introduzir chaves aqui, guarde o seu servidor MindRoom em Definições → {{page}}.",
         "replaces": "Substitui a chave guardada agora.",
         "replaceKey": "Substituir chave",
         "temporary": {
@@ -782,6 +786,16 @@
       "finishedWork": {
         "workedFor": "Trabalhou por {{duration}}",
         "worked": "Trabalhou"
+      },
+      "questionCard": {
+        "title": "Pergunta",
+        "waiting": "À sua espera",
+        "answered": "Respondido",
+        "youChose": "Você escolheu",
+        "nameChose": "{{name}} escolheu"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Subagentes"
       }
     },
     "message-search": {
@@ -806,13 +820,7 @@
         "threadFiltersActive": "Filtros de tópicos (ativos)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtros avançados",
-        "presets": {
-          "snoozed": {
-            "label": "Adiados",
-            "description": "Apenas tópicos adiados"
-          }
-        }
+        "advancedFilters": "Filtros avançados"
       },
       "threadPeopleFilter": {
         "label": "Pessoas",
@@ -968,7 +976,11 @@
       "moveRoomDown": "Mover para baixo a sala ou o espaço em foco",
       "members": "Mostrar ou ocultar membros",
       "focusComposer": "Marcar como lido e ir para a caixa de mensagem",
-      "resolveThread": "Resolver ou reabrir o tópico aberto",
+      "previousThread": "Focar o tópico anterior",
+      "nextThread": "Focar o tópico seguinte",
+      "openThread": "Ir para os tópicos e depois abrir o que está em foco",
+      "leaveThread": "Sair do tópico aberto e depois dos tópicos",
+      "resolveThread": "Resolver ou reabrir o tópico aberto ou em foco",
       "newLine": "Nova linha",
       "editLast": "Editar a sua última mensagem (com a caixa vazia)",
       "inlineCode": "Código em linha",
@@ -987,7 +999,22 @@
     "unsnooze": "Cancelar adiamento",
     "status": {
       "snoozed": "Adiado"
-    }
+    },
+    "workflow": {
+      "needsYou": "Precisa de você",
+      "working": "Em andamento",
+      "later": "Mais tarde",
+      "done": "Concluído",
+      "all": "Todos",
+      "description": {
+        "needsYou": "Uma tarefa em segundo plano precisa de aprovação, ou não há nada em execução nem agendado.",
+        "working": "Um agente está respondendo, ou um subagente ou uma ferramenta em segundo plano está em execução.",
+        "later": "Adiados ou aguardando uma tarefa agendada.",
+        "done": "Tópicos resolvidos.",
+        "all": "Todos os tópicos que correspondem aos seus outros filtros."
+      }
+    },
+    "renameHint": "Faça duplo clique para mudar o nome"
   },
   "threadSnooze": {
     "title": "Adiar até",
@@ -1029,6 +1056,7 @@
     },
     "sentence": {
       "approval": "{{name}} precisa de aprovação",
+      "approvalUnknown": "Uma tarefa em segundo plano precisa de aprovação",
       "question": "{{name}} fez-lhe uma pergunta",
       "invite": "{{name}} enviou-lhe um convite",
       "inviteUnknown": "Recebeu um convite",
@@ -1110,7 +1138,7 @@
       "working": "Agentes a trabalhar",
       "recent": "Recentes",
       "automations": "Automatizações",
-      "snoozed": "Adiados"
+      "later": "Mais tarde"
     },
     "showMore": "Mostrar mais",
     "chips": {
@@ -1322,9 +1350,26 @@
     "layoutSections": "Secções",
     "sections": {
       "working": "Em curso",
-      "snoozed": "Adiados",
+      "later": "Mais tarde",
       "idle": "Inativos",
       "resolved": "Resolvidos"
+    },
+    "live": {
+      "tools": "Ferramentas",
+      "toolsRunning_one": "{{count}} em execução",
+      "toolsRunning_many": "{{count}} em execução",
+      "toolsRunning_other": "{{count}} em execução",
+      "toolsRunningNamed_one": "{{count}} em execução: {{names}}",
+      "toolsRunningNamed_many": "{{count}} em execução: {{names}}",
+      "toolsRunningNamed_other": "{{count}} em execução: {{names}}",
+      "background": "Segundo plano",
+      "jobs_one": "{{count}} tarefa",
+      "jobs_many": "{{count}} tarefas",
+      "jobs_other": "{{count}} tarefas",
+      "jobsWaiting_one": "{{jobs}}, {{count}} aguardando aprovação",
+      "jobsWaiting_many": "{{jobs}}, {{count}} aguardando aprovação",
+      "jobsWaiting_other": "{{jobs}}, {{count}} aguardando aprovação",
+      "waitingForAnswer": "Aguardando uma resposta"
     }
   },
   "threadBoard": {

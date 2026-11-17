@@ -84,7 +84,9 @@
       "pack": "パックと同じ"
     },
     "imageViewer": {
-      "close": "閉じる"
+      "close": "閉じる",
+      "previous": "前の画像",
+      "next": "次の画像"
     },
     "inviteUserPrompt": {
       "close": "閉じる",
@@ -139,8 +141,7 @@
       "noCrossSigningKeys": "シークレットストレージにクロス署名鍵がないため、リカバリーキーではこのセッションを検証できません。ほかのセッションから検証してください。"
     },
     "commands": {
-      "CommandPlain": "Markdown を使わずにプレーンテキストとしてメッセージを送信します。例: /plain message",
-      "CommandHtml": "Markdown を使わずに HTML としてメッセージを送信します。例: /html message"
+      "CommandPlain": "Markdown を使わずにプレーンテキストとしてメッセージを送信します。例: /plain message"
     },
     "tokenLogin": {
       "signInNotStartedHere": "このサインインはここで開始されていないため、使用されませんでした。もう一度サインインしてください。"
@@ -155,6 +156,7 @@
     "appUpdate": {
       "available": "MindRoom の新しいバージョンがあります。",
       "reload": "再読み込み",
+      "updating": "更新中…",
       "dismiss": "閉じる",
       "reloadToUse": "使うには再読み込みしてください。"
     },
@@ -358,7 +360,9 @@
       },
       "computers": {
         "inUse": "使用中のサーバー",
-        "inUseNone": "未設定のため、このデバイスではコンピューターはオフです。"
+        "inUseNone": "未設定のため、このデバイスではコンピューターはオフです。",
+        "useServer": "{{host}} を使用",
+        "foundNotSaved": "エージェントから見つかりましたが、保存されていません。ここでキーを入力するには保存してください。"
       },
       "keywords": {
         "theme": "ダークモード, ライトモード, ナイトモード, 色, テーマ",
@@ -528,7 +532,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} に失敗しました: {{reason}}",
         "usage": "{{command}} を実行できませんでした。{{usage}}",
-        "ownServer": "変更していません: 自分のサーバー ({{server}}) がルームから締め出されます。",
         "unknown": "{{command}} はコマンドではありません。テキストとして送るには、メッセージの先頭に /plain を付けてください。"
       },
       "jumpToTime": {
@@ -708,13 +711,14 @@
         "showKey": "キーを表示",
         "hideKey": "キーを隠す",
         "sentTo": "送信先: {{host}}",
+        "openLink": "{{host}} を開く",
         "save": "保存",
         "decline": "拒否",
         "savedWaiting": "保存しました。エージェントを待っています",
         "declinedWaiting": "拒否しました。エージェントを待っています",
         "noLongerActive": "このリクエストは有効ではなくなりました。もう一度エージェントに依頼してください。",
         "unavailable": "このサーバーではキーを入力できません。",
-        "unavailableHint": "ここでキーを入力するには、設定 → {{page}} → {{field}} で MindRoom サーバーを設定してください。",
+        "unavailableHint": "ここでキーを入力するには、設定 → {{page}} で MindRoom サーバーを保存してください。",
         "replaces": "現在保存されているキーを置き換えます。",
         "replaceKey": "キーを置き換える",
         "temporary": {
@@ -760,6 +764,16 @@
       "finishedWork": {
         "workedFor": "{{duration}} 作業しました",
         "worked": "作業しました"
+      },
+      "questionCard": {
+        "title": "質問",
+        "waiting": "あなたの回答待ち",
+        "answered": "回答済み",
+        "youChose": "あなたが選択",
+        "nameChose": "{{name}} が選択"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "サブエージェント"
       }
     },
     "message-search": {
@@ -780,13 +794,7 @@
         "threadFiltersActive": "スレッドフィルター（有効）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "詳細フィルター",
-        "presets": {
-          "snoozed": {
-            "label": "スヌーズ中",
-            "description": "スヌーズ中のスレッドのみ"
-          }
-        }
+        "advancedFilters": "詳細フィルター"
       },
       "threadPeopleFilter": {
         "label": "参加者",
@@ -934,7 +942,11 @@
       "moveRoomDown": "フォーカス中のルームまたはスペースを下へ移動",
       "members": "メンバーの表示/非表示",
       "focusComposer": "既読にして入力欄へ移動",
-      "resolveThread": "開いているスレッドを解決または再開",
+      "previousThread": "前のスレッドにフォーカス",
+      "nextThread": "次のスレッドにフォーカス",
+      "openThread": "スレッド一覧へ移動し、次にフォーカス中のスレッドを開く",
+      "leaveThread": "開いているスレッドから戻り、次にスレッド一覧から戻る",
+      "resolveThread": "開いている、またはフォーカス中のスレッドを解決または再開",
       "newLine": "改行",
       "editLast": "最後の自分のメッセージを編集（入力欄が空のとき）",
       "inlineCode": "インライン コード",
@@ -953,7 +965,22 @@
     "unsnooze": "スヌーズを解除",
     "status": {
       "snoozed": "スヌーズ中"
-    }
+    },
+    "workflow": {
+      "needsYou": "あなたの対応待ち",
+      "working": "作業中",
+      "later": "後で",
+      "done": "完了",
+      "all": "すべて",
+      "description": {
+        "needsYou": "バックグラウンド処理の承認が必要か、実行中・予定されている処理がありません。",
+        "working": "エージェントが返信中か、サブエージェントまたはバックグラウンドツールが実行中です。",
+        "later": "スヌーズ中、または予定されたタスクの実行待ちです。",
+        "done": "解決済みのスレッドです。",
+        "all": "他のフィルター条件に一致するすべてのスレッドです。"
+      }
+    },
+    "renameHint": "ダブルクリックで名前を変更"
   },
   "threadSnooze": {
     "title": "スヌーズの終了日時",
@@ -993,6 +1020,7 @@
     },
     "sentence": {
       "approval": "{{name}} が承認を求めています",
+      "approvalUnknown": "バックグラウンドジョブの承認が必要です",
       "question": "{{name}} から質問があります",
       "invite": "{{name}} から招待されました",
       "inviteUnknown": "招待されました",
@@ -1060,7 +1088,7 @@
       "working": "エージェントが作業中",
       "recent": "最近",
       "automations": "自動化",
-      "snoozed": "スヌーズ中"
+      "later": "後で"
     },
     "showMore": "もっと見る",
     "chips": {
@@ -1270,9 +1298,18 @@
     "layoutSections": "セクション",
     "sections": {
       "working": "作業中",
-      "snoozed": "スヌーズ中",
+      "later": "後で",
       "idle": "待機中",
       "resolved": "解決済み"
+    },
+    "live": {
+      "tools": "ツール",
+      "toolsRunning_other": "{{count}} 件実行中",
+      "toolsRunningNamed_other": "{{count}} 件実行中: {{names}}",
+      "background": "バックグラウンド",
+      "jobs_other": "{{count}} 件",
+      "jobsWaiting_other": "{{jobs}}、承認待ち {{count}} 件",
+      "waitingForAnswer": "回答待ち"
     }
   },
   "threadBoard": {

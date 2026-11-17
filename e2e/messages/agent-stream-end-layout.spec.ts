@@ -316,7 +316,7 @@ const watchReplyFinish = async (
   await expect(replyRow).toBeVisible({ timeout: 30_000 });
   // The finish settles: the typing line goes, the jobs bar 2 s after the reply, then a while longer
   // for anything that follows them.
-  await expect(page.locator('[data-room-footer] [role="status"]')).toHaveCount(0, {
+  await expect(page.getByRole('status').filter({ hasText: /is typing/ })).toHaveCount(0, {
     timeout: 30_000,
   });
   await expect(page.getByRole('region', { name: /run_shell_command/ })).toHaveCount(0, {

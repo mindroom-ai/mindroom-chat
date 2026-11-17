@@ -17,6 +17,8 @@ import type { CrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRo
 import { buildCompactThreadCardViewModelFromRecord } from '../../threads/overview/compactThreadCardViewModel';
 import { useInitializeShownThread } from '../../threads/useInitializeShownThread';
 import { ThreadStreamingDot } from '../../threads/ThreadStreamingDot';
+import { ThreadLiveStatusRows } from '../../threads/ThreadLiveStatusRows';
+import { ThreadNavPluginDetails } from './ThreadNavPluginDetails';
 import { useRoomViewMode } from '../../navigation/useRoomViewMode';
 import { useToggleThreadResolution } from '../../threads/tags/useRoomThreadTags';
 import * as css from './threadNav.css';
@@ -33,7 +35,8 @@ type ThreadNavItemProps = {
 
 /**
  * One thread in the sidebar's THREADS list: its title, an unread dot, and on hover the room,
- * agents, size and age of the thread, with actions to pin it in the sidebar and resolve it.
+ * agents, size and age of the thread, what runs in it now and plugins' details, with actions to
+ * pin it in the sidebar and resolve it.
  */
 export const ThreadNavItem = memo(
   ({ entry, pinned, onTogglePin, selected }: ThreadNavItemProps) => {
@@ -80,7 +83,7 @@ export const ThreadNavItem = memo(
         entry={entry}
         room={room}
         title={viewModel?.displayTitleText ?? entry.summaryText}
-        streaming={viewModel?.attentionState === 'streaming'}
+        streaming={viewModel?.isStreaming === true}
         agentNames={
           viewModel?.participants
             .filter((participant) => participant.userId !== mx.getUserId())
@@ -196,7 +199,10 @@ function ThreadNavItemRow({
             </Text>
           </>
         )}
+        {/* The tooltip mounts its content only while open, so the rows follow their stores then. */}
+        <ThreadLiveStatusRows room={room} entry={entry} />
       </div>
+      <ThreadNavPluginDetails room={room} threadId={entry.threadRootId} />
     </Box>
   );
 

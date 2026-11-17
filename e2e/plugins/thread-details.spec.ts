@@ -25,20 +25,29 @@ import {
 import { setRoomCompact } from '../helpers/roomViewSwitch';
 import { serveBuild } from '../helpers/staticBuildServer';
 import { touch } from '../helpers/touch';
+import { openThreadsCategory } from '../helpers/threadsCategory';
 
-// The example plugin's details appear in a Compact card's desktop hover card and in its
+// The example plugin's details appear in Compact and sidebar hover cards and in the thread's
 // actions menu, reached by right click on desktop or a long press on a phone. A plain thread
-// has no hover card. THREAD_DETAILS_SHOTS=1 saves both themes and the phone menu to
-// test-results/thread-details/.
+// has no Compact hover card or sidebar plugin group. THREAD_DETAILS_SHOTS=1 saves both themes,
+// the phone menu and the long-title sidebar card to test-results/thread-details/.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const RUN = Date.now().toString(36);
 const GREETING = 'Good morning, orchard';
 const PLAIN = 'Which trees need pruning?';
+const LONG_GREETING =
+  'Good morning, orchard: review the harvest plan, irrigation schedule and orchard maintenance for the coming season';
 
 test.use({ viewport: { width: 1440, height: 900 }, video: 'off' });
 test.describe.configure({ mode: 'serial' });
 
-type Seed = { person: DisposableUser; roomId: string; greetingRoot: string; plainRoot: string };
+type Seed = {
+  person: DisposableUser;
+  roomId: string;
+  greetingRoot: string;
+  plainRoot: string;
+  longGreetingRoot: string;
+};
 
 let build: string | undefined;
 let shippedConfig: Record<string, unknown> = {};
@@ -99,7 +108,18 @@ test.beforeAll(async () => {
     roomId,
     reply(plainRoot, 'The apple trees by the wall.')
   );
-  seeded = { person, roomId, greetingRoot, plainRoot };
+  const longGreetingRoot = await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: LONG_GREETING,
+    'com.example.greeting': { text: LONG_GREETING },
+  });
+  await sendRoomMessage(
+    HOMESERVER,
+    person.accessToken,
+    roomId,
+    reply(longGreetingRoot, 'Ready to review.')
+  );
+  seeded = { person, roomId, greetingRoot, plainRoot, longGreetingRoot };
 });
 
 test.afterAll(() => {
@@ -227,3 +247,137 @@ test('a phone long press shows greeting details without opening the thread', ({ 
       deviceScaleFactor: 3,
     }
   ));
+
+test('sidebar details mount on hover, span wide cards, reposition after growth and leave plain rows without a rule', ({
+  browser,
+}) =>
+  onBuild(browser, {}, async (page, { longGreetingRoot }) => {
+    await expect(card(page, longGreetingRoot)).toBeVisible({ timeout: 60_000 });
+    await openThreadsCategory(page);
+    const rows = page
+      .getByTestId('thread-nav-category')
+      .getByRole('button', { name: /^Open thread:/ });
+    const greetingRow = rows.filter({ hasText: LONG_GREETING }).first();
+    await expect(greetingRow).toBeVisible();
+    await expect(page.locator('[data-example-plugin-details]')).toHaveCount(0);
+    await greetingRow.hover();
+    const tooltip = page.getByRole('tooltip');
+    const detail = tooltip.locator('[data-example-plugin-details]');
+    await expect(detail).toBeVisible();
+    await expect(detail).toContainText(LONG_GREETING);
+    const widths = await detail.evaluate((element) => {
+      const group = element.closest('[data-thread-detail]')!.parentElement!;
+      return {
+        className: group.className,
+        rule: group.getBoundingClientRect().width,
+        rows: group.previousElementSibling!.getBoundingClientRect().width,
+        content: element.getBoundingClientRect().width,
+        border: getComputedStyle(group).borderBlockStartWidth,
+      };
+    });
+    expect(widths.rows).toBeGreaterThan(320);
+    expect(widths.rule).toBeCloseTo(widths.rows, 0);
+    expect(widths.content).toBeLessThanOrEqual(320);
+    expect(widths.border).toBe('1px');
+
+    // Simulate a late response expanding a detail, without moving the pointer.
+    await detail.evaluate((element) => {
+      const bottom = element.closest('[role="tooltip"]')!.getBoundingClientRect().bottom;
+      element.style.height = `${window.innerHeight - bottom + 100}px`;
+    });
+    await expect
+      .poll(async () => {
+        const box = await tooltip.boundingBox();
+        return !!box && box.y >= 0 && box.y + box.height <= page.viewportSize()!.height;
+      })
+      .toBe(true);
+    await detail.evaluate((element) => {
+      element.style.height = '';
+    });
+    await screenshot(page, 'sidebar-long-title');
+
+    // The example plugin has one detail: a copy of it stands in for a second plugin's. The rule
+    // between the two spans the group while each detail stays capped, whether its content is a
+    // block, or bare text and inline spans, and neither widens the card.
+    const second = await detail.evaluate((element) => {
+      const first = element.closest<HTMLElement>('[data-thread-detail]')!;
+      const group = first.parentElement!;
+      const copy = first.cloneNode(true) as HTMLElement;
+      first.after(copy);
+      const rule = () => {
+        const line = getComputedStyle(copy, '::before');
+        const box = group.getBoundingClientRect();
+        const top = box.top + Number.parseFloat(getComputedStyle(group).borderBlockStartWidth);
+        return {
+          width: Number.parseFloat(line.width),
+          height: line.height,
+          color: line.backgroundColor,
+          // The line sits where the copy's own border is; `top` leaves out its margin.
+          offset:
+            top +
+            Number.parseFloat(line.top) +
+            Number.parseFloat(line.marginBlockStart) -
+            copy.getBoundingClientRect().top,
+        };
+      };
+      try {
+        const block = {
+          group: group.getBoundingClientRect().width,
+          content: copy.firstElementChild!.getBoundingClientRect().width,
+          border: getComputedStyle(copy).borderBlockStartWidth,
+          rule: rule(),
+        };
+        const phrase = 'the harvest plan and the irrigation schedule for the coming season ';
+        const words = phrase.repeat(4);
+        const span = () => Object.assign(document.createElement('span'), { textContent: words });
+        copy.replaceChildren(document.createTextNode(words), span(), ' ', span());
+        const range = document.createRange();
+        range.selectNodeContents(copy);
+        const lines = Array.from(range.getClientRects());
+        const start = copy.getBoundingClientRect().left;
+        const inline = {
+          group: group.getBoundingClientRect().width,
+          rule: rule().width,
+          widest: Math.max(...lines.map((line) => line.width)),
+          reach: Math.max(...lines.map((line) => line.right)) - start,
+          lines: new Set(lines.map((line) => Math.round(line.top))).size,
+        };
+        group.style.width = '280px';
+        const narrow = { rule: rule().width, content: copy.getBoundingClientRect().width };
+        return { block, inline, narrow };
+      } finally {
+        copy.remove();
+        group.style.width = '';
+      }
+    });
+    expect(second.block.group).toBeGreaterThan(320);
+    expect(second.block.content).toBeLessThanOrEqual(320);
+    expect(second.inline.lines).toBeGreaterThan(2);
+    expect(second.inline.widest).toBeLessThanOrEqual(320.5);
+    expect(second.inline.reach).toBeLessThanOrEqual(320.5);
+    expect(second.inline.reach).toBeGreaterThan(250);
+    expect(second.inline.group).toBeCloseTo(second.block.group, 0);
+    expect(second.block.border).toBe('1px');
+    expect(second.block.rule.height).toBe('1px');
+    expect(second.block.rule.color).not.toBe('rgba(0, 0, 0, 0)');
+    expect(second.block.rule.width).toBeCloseTo(second.block.group, 0);
+    expect(second.block.rule.offset).toBeCloseTo(0, 0);
+    expect(second.inline.rule).toBeCloseTo(second.block.group, 0);
+    expect(second.narrow.rule).toBeCloseTo(280, 0);
+    expect(second.narrow.content).toBeLessThanOrEqual(280);
+
+    // A listed detail that draws nothing hides the group and its rule.
+    const group = tooltip.locator(`[class=${JSON.stringify(widths.className)}]`);
+    await expect(group).toBeVisible();
+    await detail.evaluate((element) => element.remove());
+    await expect(tooltip).toBeVisible();
+    await expect(group).toBeHidden();
+    expect(await group.evaluate((element) => getComputedStyle(element).display)).toBe('none');
+
+    await rows.filter({ hasText: PLAIN }).first().hover();
+    await expect(page.locator('[data-example-plugin-details]')).toHaveCount(0);
+    // The card itself has a border; only the plugin group's rule must be absent.
+    await expect(
+      page.getByRole('tooltip').locator(`[class=${JSON.stringify(widths.className)}]`)
+    ).toHaveCount(0);
+  }));

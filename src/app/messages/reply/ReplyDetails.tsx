@@ -182,7 +182,15 @@ function CostHistory({ threadCost, index }: { threadCost: ThreadConversationCost
   );
 }
 
-function CostCard({ costUsd, eventId }: { costUsd: number; eventId?: string }) {
+function CostCard({
+  costUsd,
+  subagentsCostUsd,
+  eventId,
+}: {
+  costUsd: number | undefined;
+  subagentsCostUsd: number | undefined;
+  eventId?: string;
+}) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const threadCost = useThreadConversationCost();
@@ -190,6 +198,7 @@ function CostCard({ costUsd, eventId }: { costUsd: number; eventId?: string }) {
   const index =
     threadCost && eventId ? threadCost.replies.findIndex((reply) => reply.eventId === eventId) : -1;
   const conversationCost = throughReply && formatCostUsd(throughReply.usd, language);
+  const subagentsLabel = t('mindroomUi.messages.mindroomReplyDetails.subagents');
   return (
     <section
       className={css.CostCard}
@@ -197,10 +206,30 @@ function CostCard({ costUsd, eventId }: { costUsd: number; eventId?: string }) {
     >
       <div className={throughReply ? css.CostFigures.two : css.CostFigures.one}>
         <div className={css.CostFigure}>
-          <span className={css.CostLabel}>
-            {t('mindroomUi.messages.mindroomReplyDetails.thisReply')}
-          </span>
-          <span className={css.CostValue}>{formatCostUsd(costUsd, language)}</span>
+          {costUsd !== undefined && (
+            <>
+              <span className={css.CostLabel}>
+                {t('mindroomUi.messages.mindroomReplyDetails.thisReply')}
+              </span>
+              <span className={css.CostValue}>{formatCostUsd(costUsd, language)}</span>
+              {/* The subagents whose results this reply received, which its own cost leaves out. */}
+              {subagentsCostUsd !== undefined && (
+                <span className={css.CostPart}>
+                  <span>{subagentsLabel}</span>
+                  <span className={css.CostPartValue}>
+                    {formatCostUsd(subagentsCostUsd, language)}
+                  </span>
+                </span>
+              )}
+            </>
+          )}
+          {/* A reply whose own model had no price still shows what its subagents cost. */}
+          {costUsd === undefined && subagentsCostUsd !== undefined && (
+            <>
+              <span className={css.CostLabel}>{subagentsLabel}</span>
+              <span className={css.CostValue}>{formatCostUsd(subagentsCostUsd, language)}</span>
+            </>
+          )}
         </div>
         {threadCost && throughReply && (
           <div className={css.CostFigure}>
@@ -341,7 +370,13 @@ export function ReplyDetails({
           )}
         </div>
       )}
-      {info.costUsd !== undefined && <CostCard costUsd={info.costUsd} eventId={eventId} />}
+      {(info.costUsd !== undefined || info.subagentsCostUsd !== undefined) && (
+        <CostCard
+          costUsd={info.costUsd}
+          subagentsCostUsd={info.subagentsCostUsd}
+          eventId={eventId}
+        />
+      )}
       <Tokens info={info} />
       <ContextWindow info={info} />
       <Activity info={info} />

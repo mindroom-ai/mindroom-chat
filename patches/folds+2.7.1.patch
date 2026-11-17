@@ -1,3 +1,67 @@
+diff --git a/node_modules/folds/dist/index.js b/node_modules/folds/dist/index.js
+index c405e8f..3f3cb29 100644
+--- a/node_modules/folds/dist/index.js
++++ b/node_modules/folds/dist/index.js
+@@ -3269,9 +3269,10 @@ const PopOut = as(
+       const baseEl = baseRef.current;
+       if (!baseEl || !anchor)
+         return;
++      const target = baseEl.getBoundingClientRect();
+       const pCSS = getRelativeFixedPosition(
+         anchor,
+-        baseEl.getBoundingClientRect(),
++        target,
+         position,
+         align,
+         offset,
+@@ -3281,6 +3282,28 @@ const PopOut = as(
+       baseEl.style.bottom = pCSS.bottom ?? "unset";
+       baseEl.style.left = pCSS.left ?? "unset";
+       baseEl.style.right = pCSS.right ?? "unset";
++      // An axis folds left unset (nothing fits beside the anchor), or whose box overflows the
++      // viewport, is placed again: centered on the anchor, then clamped inside the viewport clear of
++      // the safe-area insets. An axis that already fits keeps folds' placement. A box too large for
++      // the safe area stays inside the bare viewport, and one larger than that starts at its edge.
++      const fitAxis = (start, end, size, viewport, anchorStart, anchorSize) => {
++        const from = start ? parseFloat(start) : end ? viewport - parseFloat(end) - size : void 0;
++        if (from !== void 0 && from >= 0 && from + size <= viewport)
++          return void 0;
++        return from ?? anchorStart + anchorSize / 2 - size / 2;
++      };
++      const clampAxis = (value, size, startInset, endInset) => `clamp(min(calc(env(${startInset}, 0px) + 0.5rem), max(0px, calc(100% - ${size}px))), ${value}px, calc(100% - env(${endInset}, 0px) - 0.5rem - ${size}px))`;
++      const { clientWidth, clientHeight } = document.documentElement;
++      const y = fitAxis(pCSS.top, pCSS.bottom, target.height, clientHeight, anchor.y, anchor.height);
++      if (y !== void 0) {
++        baseEl.style.top = clampAxis(y, target.height, "safe-area-inset-top", "safe-area-inset-bottom");
++        baseEl.style.bottom = "unset";
++      }
++      const x = fitAxis(pCSS.left, pCSS.right, target.width, clientWidth, anchor.x, anchor.width);
++      if (x !== void 0) {
++        baseEl.style.left = clampAxis(x, target.width, "safe-area-inset-left", "safe-area-inset-right");
++        baseEl.style.right = "unset";
++      }
+     }, [anchor, position, align, offset, alignOffset]);
+     useEffect(() => {
+       window.addEventListener("resize", positionPopOut);
+@@ -3564,8 +3587,16 @@ const useTooltip = (position, align, offset, alignOffset, delay) => {
+     };
+   }, [position, align, offset, alignOffset, delay]);
+   useLayoutEffect(() => {
+-    if (open)
+-      positionTooltip();
++    if (!open)
++      return;
++    positionTooltip();
++    const surface = baseRef.current;
++    if (!surface || typeof ResizeObserver === "undefined")
++      return;
++    // Late content can change size without changing the trigger or placement.
++    const observer = new ResizeObserver(positionTooltip);
++    observer.observe(surface);
++    return () => observer.disconnect();
+   }, [open, positionTooltip]);
+   const handleTriggerRef = useCallback((element) => {
+     triggerRef.current = element;
 diff --git a/node_modules/folds/dist/style.css b/node_modules/folds/dist/style.css
 index ada7854..b974149 100644
 --- a/node_modules/folds/dist/style.css

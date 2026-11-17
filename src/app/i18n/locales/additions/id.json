@@ -84,7 +84,9 @@
       "pack": "Sama seperti paket"
     },
     "imageViewer": {
-      "close": "Tutup"
+      "close": "Tutup",
+      "previous": "Gambar sebelumnya",
+      "next": "Gambar berikutnya"
     },
     "inviteUserPrompt": {
       "close": "Tutup",
@@ -139,8 +141,7 @@
       "noCrossSigningKeys": "Penyimpanan rahasia Anda tidak berisi kunci penandatanganan silang, jadi kunci pemulihan tidak dapat memverifikasi sesi ini. Verifikasi dari salah satu sesi Anda yang lain."
     },
     "commands": {
-      "CommandPlain": "Kirim pesan sebagai teks biasa, tanpa Markdown. Contoh: /plain pesan",
-      "CommandHtml": "Kirim pesan sebagai HTML, tanpa Markdown. Contoh: /html pesan"
+      "CommandPlain": "Kirim pesan sebagai teks biasa, tanpa Markdown. Contoh: /plain pesan"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Proses masuk ini tidak dimulai di sini, jadi tidak digunakan. Masuk lagi."
@@ -155,6 +156,7 @@
     "appUpdate": {
       "available": "Versi baru MindRoom tersedia.",
       "reload": "Muat ulang",
+      "updating": "Memperbarui…",
       "dismiss": "Tutup",
       "reloadToUse": "Muat ulang untuk menggunakannya."
     },
@@ -358,7 +360,9 @@
       },
       "computers": {
         "inUse": "Server yang digunakan",
-        "inUseNone": "Belum diatur, jadi komputer nonaktif di perangkat ini."
+        "inUseNone": "Belum diatur, jadi komputer nonaktif di perangkat ini.",
+        "useServer": "Gunakan {{host}}",
+        "foundNotSaved": "Ditemukan dari agen Anda, belum disimpan; simpan untuk memasukkan kunci di sini."
       },
       "keywords": {
         "theme": "mode gelap, mode terang, mode malam, warna",
@@ -528,7 +532,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} gagal: {{reason}}",
         "usage": "Tidak dapat menjalankan {{command}}. {{usage}}",
-        "ownServer": "Tidak ada yang berubah: ini akan mengeluarkan server Anda sendiri ({{server}}) dari ruangan.",
         "unknown": "{{command}} bukan perintah. Untuk mengirimnya sebagai teks, awali pesan dengan /plain."
       },
       "jumpToTime": {
@@ -708,13 +711,14 @@
         "showKey": "Tampilkan kunci",
         "hideKey": "Sembunyikan kunci",
         "sentTo": "Dikirim ke {{host}}",
+        "openLink": "Buka {{host}}",
         "save": "Simpan",
         "decline": "Tolak",
         "savedWaiting": "Tersimpan, menunggu agen",
         "declinedWaiting": "Ditolak, menunggu agen",
         "noLongerActive": "Permintaan ini sudah tidak aktif. Minta lagi kepada agen.",
         "unavailable": "Memasukkan kunci tidak tersedia di server ini.",
-        "unavailableHint": "Untuk memasukkan kunci di sini, atur server MindRoom Anda di Pengaturan → {{page}} → {{field}}.",
+        "unavailableHint": "Untuk memasukkan kunci di sini, simpan server MindRoom Anda di Pengaturan → {{page}}.",
         "replaces": "Menggantikan kunci yang tersimpan sekarang.",
         "replaceKey": "Ganti kunci",
         "temporary": {
@@ -760,6 +764,16 @@
       "finishedWork": {
         "workedFor": "Bekerja selama {{duration}}",
         "worked": "Bekerja"
+      },
+      "questionCard": {
+        "title": "Pertanyaan",
+        "waiting": "Menunggu Anda",
+        "answered": "Dijawab",
+        "youChose": "Pilihan Anda",
+        "nameChose": "Dipilih oleh {{name}}"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Subagen"
       }
     },
     "message-search": {
@@ -780,13 +794,7 @@
         "threadFiltersActive": "Filter utas (aktif)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filter lanjutan",
-        "presets": {
-          "snoozed": {
-            "label": "Ditunda",
-            "description": "Hanya utas yang ditunda"
-          }
-        }
+        "advancedFilters": "Filter lanjutan"
       },
       "threadPeopleFilter": {
         "label": "Orang",
@@ -934,7 +942,11 @@
       "moveRoomDown": "Pindahkan ruang atau space yang difokuskan ke bawah",
       "members": "Tampilkan atau sembunyikan anggota",
       "focusComposer": "Tandai sudah dibaca dan buka kotak pesan",
-      "resolveThread": "Selesaikan atau buka kembali utas yang terbuka",
+      "previousThread": "Fokus ke utas sebelumnya",
+      "nextThread": "Fokus ke utas berikutnya",
+      "openThread": "Ke daftar utas, lalu buka utas yang difokuskan",
+      "leaveThread": "Keluar dari utas yang terbuka, lalu dari daftar utas",
+      "resolveThread": "Selesaikan atau buka kembali utas yang terbuka atau difokuskan",
       "newLine": "Baris baru",
       "editLast": "Edit pesan terakhir Anda (di kotak pesan kosong)",
       "inlineCode": "Kode sebaris",
@@ -953,7 +965,22 @@
     "unsnooze": "Batalkan penundaan",
     "status": {
       "snoozed": "Ditunda"
-    }
+    },
+    "workflow": {
+      "needsYou": "Perlu Anda",
+      "working": "Sedang dikerjakan",
+      "later": "Nanti",
+      "done": "Selesai",
+      "all": "Semua",
+      "description": {
+        "needsYou": "Tugas latar belakang memerlukan persetujuan, atau tidak ada yang berjalan maupun dijadwalkan.",
+        "working": "Agen sedang membalas, atau subagen maupun alat latar belakang sedang berjalan.",
+        "later": "Ditunda, atau menunggu tugas terjadwal.",
+        "done": "Utas yang sudah diselesaikan.",
+        "all": "Semua utas yang cocok dengan filter Anda lainnya."
+      }
+    },
+    "renameHint": "Klik dua kali untuk mengganti nama"
   },
   "threadSnooze": {
     "title": "Tunda hingga",
@@ -993,6 +1020,7 @@
     },
     "sentence": {
       "approval": "{{name}} perlu persetujuan",
+      "approvalUnknown": "Tugas latar belakang memerlukan persetujuan",
       "question": "{{name}} bertanya kepada Anda",
       "invite": "{{name}} mengundang Anda",
       "inviteUnknown": "Anda diundang",
@@ -1060,7 +1088,7 @@
       "working": "Agen sedang bekerja",
       "recent": "Terbaru",
       "automations": "Otomatisasi",
-      "snoozed": "Ditunda"
+      "later": "Nanti"
     },
     "showMore": "Tampilkan lebih banyak",
     "chips": {
@@ -1270,9 +1298,18 @@
     "layoutSections": "Bagian",
     "sections": {
       "working": "Sedang berjalan",
-      "snoozed": "Ditunda",
+      "later": "Nanti",
       "idle": "Tidak aktif",
       "resolved": "Selesai"
+    },
+    "live": {
+      "tools": "Alat",
+      "toolsRunning_other": "{{count}} berjalan",
+      "toolsRunningNamed_other": "{{count}} berjalan: {{names}}",
+      "background": "Latar belakang",
+      "jobs_other": "{{count}} tugas",
+      "jobsWaiting_other": "{{jobs}}, {{count}} menunggu persetujuan",
+      "waitingForAnswer": "Menunggu jawaban"
     }
   },
   "threadBoard": {

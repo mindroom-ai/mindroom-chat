@@ -62,6 +62,7 @@ export const listenForChatUiActions = ({
     if (!ready() || !fresh(event)) return;
     const action = readChatUiAction(event, mx.getSafeUserId(), room);
     if (!action || action.threadId !== threadId) return;
+    if (action.action === 'show_canvas' && action.inline) return;
     const senderServer = getMxIdServer(action.agentUserId);
     if (
       senderServer &&

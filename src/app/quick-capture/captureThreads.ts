@@ -11,6 +11,7 @@ import {
 import { getBundledThreadPreviews } from '../event-store/threads/threadBundledPreviews';
 import { isThreadPinned } from '../event-store/threads/threadPinning';
 import { isThreadResolved } from '../event-store/threads/threadTags';
+import { isWaitingOnYou } from '../event-store/threads/threadWorkflow';
 import { getVisibleThreadEventBodyPreviewText } from '../event-store/threads/threadUtils';
 import { getEditedEvent, getLatestMessageContent } from '../matrix/room';
 import {
@@ -201,7 +202,7 @@ export const readCaptureThreads = (
         reply: () => readReply(mx, room, entry, signals, t),
         pinned: isThreadPinned(room, entry.threadRootId),
         streaming: entry.threadRecord.status.isStreaming,
-        needsYou: !!signals.pendingApproval || !!signals.pendingQuestion,
+        needsYou: isWaitingOnYou(signals, entry.threadRecord.status),
         unread: entry.isUnread,
         resolved: entry.isResolved,
         ...(entry.resolvedTs === undefined ? {} : { resolvedTs: entry.resolvedTs }),

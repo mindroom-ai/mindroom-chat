@@ -15,10 +15,12 @@ import {
   THREAD_RELATION_TYPE,
   Thread,
 } from 'matrix-js-sdk/lib/models/thread';
+import { setReplacementRetentionPolicy } from 'matrix-js-sdk/lib/models/relations';
 import { MemoryStore } from 'matrix-js-sdk/lib/store/memory';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
 import { getFinishingEdit } from '../../event-store/threads/streamFinish';
+import { getReleasableEdits } from '../room';
 import { getThreadSummaryReply, keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
 import { defined } from '../../../test/utils/defined';
 
@@ -462,5 +464,39 @@ describe('edits of unopened threads', () => {
     await settle();
     expect(f.thread().initialEventsFetched).toBe(true);
     expect(f.card()).toEqual({ preview: 'The build passed.', streaming: false });
+  });
+
+  it('leaves the room one edit of the reply, with the edits the app releases', async () => {
+    // As the app does before it starts a client (initMatrix.ts).
+    setReplacementRetentionPolicy(getReleasableEdits);
+    try {
+      const f = await streamingThread();
+      const kept = () =>
+        f
+          .room()
+          .relations.getChildEventsForEvent('$reply', 'm.replace', 'm.room.message')
+          ?.getRelations()
+          .map((event) => event.getId());
+      // The thread, with the server's support, holds the edits it gets before it opens for a replay.
+      await f.deliver([edit('The', 150), edit('The build', 151)]);
+      expect(Thread.hasServerSideSupport).toBe(FeatureSupport.Stable);
+      expect(kept()).toBeUndefined();
+
+      await f.thread().initialize();
+      await settle();
+      expect(f.thread().initialEventsFetched).toBe(true);
+      expect(kept()).toEqual(['$edit-151']);
+
+      // Opened, it adds the edits the sync brings to its timeline.
+      await f.deliver([edit('The build passed', 152), edit('The build passed.', 153)]);
+      await f.deliver([edit('The build passed. All 412 tests are green.', 154, 'completed')]);
+      expect(kept()).toEqual(['$edit-154']);
+      expect(f.card()).toEqual({
+        preview: 'The build passed. All 412 tests are green.',
+        streaming: false,
+      });
+    } finally {
+      setReplacementRetentionPolicy(undefined);
+    }
   });
 });

@@ -1,6 +1,7 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
+import { MatrixClient, Room } from 'matrix-js-sdk';
 import {
   applyThreadOverviewCachedMetadataUpdates,
   createEmptyThreadOverviewCachedMetadata,
@@ -9,16 +10,20 @@ import {
   type ThreadOverviewCachedMetadataController,
 } from './threadOverviewCacheMetadata';
 
+const mx = new MatrixClient({ baseUrl: 'https://server', userId: '@alice:server' });
+const makeRoom = (roomId: string) => new Room(roomId, mx, '@alice:server');
+
 describe('useThreadOverviewCachedMetadata', () => {
   it('publishes one initial snapshot and clears metadata and attempts only on room changes', async () => {
+    const firstRoom = makeRoom('!first:server');
     const snapshots: ThreadOverviewCachedMetadataController[] = [];
-    const Harness = ({ roomId }: { roomId: string }) => {
-      snapshots.push(useThreadOverviewCachedMetadata(roomId));
+    const Harness = ({ room }: { room: Room }) => {
+      snapshots.push(useThreadOverviewCachedMetadata(room));
       return null;
     };
     let renderer!: ReturnType<typeof create>;
     await act(async () => {
-      renderer = create(React.createElement(Harness, { roomId: '!first:server' }));
+      renderer = create(React.createElement(Harness, { room: firstRoom }));
     });
     const first = snapshots.at(-1)!;
     expect(new Set(snapshots.map((snapshot) => snapshot.coverageMap)).size).toBe(1);
@@ -28,18 +33,62 @@ describe('useThreadOverviewCachedMetadata', () => {
     });
     const populated = snapshots.at(-1)!;
     await act(async () => {
-      renderer.update(React.createElement(Harness, { roomId: '!first:server' }));
+      renderer.update(React.createElement(Harness, { room: firstRoom }));
     });
     expect(snapshots.at(-1)).toBe(populated);
     expect(populated.compactRootBodyMap.get('$root')).toBe('cached first room');
     expect(populated.compactRootPreviewAttemptCountsRef.current.get('$root')).toBe(1);
     await act(async () => {
-      renderer.update(React.createElement(Harness, { roomId: '!second:server' }));
+      renderer.update(React.createElement(Harness, { room: makeRoom('!second:server') }));
     });
     const next = snapshots.at(-1)!;
     expect(next.compactRootBodyMap.size).toBe(0);
     expect(next.lastActivityTsMap.size).toBe(0);
     expect(next.compactRootPreviewAttemptCountsRef.current.size).toBe(0);
+    await act(async () => renderer.unmount());
+  });
+
+  it('starts a room mounted again from what its last mount read, as on the way back from a thread', async () => {
+    // Opening a thread unmounts the room's list. The cache's metadata (a reply the SDK has not
+    // applied yet, a newer activity time) must not drop out for the first renders after going
+    // back, or the cards sort without it and trade places again once the cache is read.
+    const room = makeRoom('!back:server');
+    let shown: ThreadOverviewCachedMetadataController | undefined;
+    const Harness = () => {
+      shown = useThreadOverviewCachedMetadata(room);
+      return null;
+    };
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Harness));
+    });
+    await act(async () => {
+      shown?.applyUpdate({ rootId: '$root', nextActivityTs: 42, nextReplyPreviewText: 'reply' });
+    });
+    await act(async () => renderer.unmount());
+
+    let first: ThreadOverviewCachedMetadataController | undefined;
+    const Again = () => {
+      const metadata = useThreadOverviewCachedMetadata(room);
+      first ??= metadata;
+      return null;
+    };
+    await act(async () => {
+      renderer = create(React.createElement(Again));
+    });
+    expect(first?.lastActivityTsMap.get('$root')).toBe(42);
+    expect(first?.latestReplyPreviewMap.get('$root')).toBe('reply');
+    // A room the list never showed starts empty.
+    const otherRoom = makeRoom('!other:server');
+    let other: ThreadOverviewCachedMetadataController | undefined;
+    const Other = () => {
+      other = useThreadOverviewCachedMetadata(otherRoom);
+      return null;
+    };
+    await act(async () => {
+      renderer.update(React.createElement(Other));
+    });
+    expect(other?.lastActivityTsMap.size).toBe(0);
     await act(async () => renderer.unmount());
   });
 });

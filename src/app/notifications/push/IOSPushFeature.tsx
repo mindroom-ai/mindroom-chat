@@ -177,7 +177,7 @@ export function NativeIOSPushOpenFeature() {
     if (!target || !hasCompletedInitialSync) return;
     setTarget(undefined);
     if (mx.getRoom(target.roomId)?.getMyMembership() !== KnownMembership.Join) return;
-    // Its back buttons lead to its room and the room's list, not to where the app was left.
+    // A thread's back button leads to the thread's room, not to where the app was left.
     navigateRoom(target.roomId, target.eventId, { state: OPENED_FROM_OUTSIDE_STATE });
   }, [hasCompletedInitialSync, mx, navigateRoom, target]);
 

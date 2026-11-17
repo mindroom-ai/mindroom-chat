@@ -79,6 +79,7 @@ vi.mock('./MsgTypeRenderers', () => ({
       renderAfterBody
     ),
 }));
+vi.mock('../canvas/InlineCanvasFrame', () => ({ InlineCanvasFrame: () => null }));
 vi.mock('./ImageOverlay', () => ({ ImageOverlay: () => null }));
 vi.mock('folds', () => ({
   Box: ({ children, ...props }: Record<string, unknown>) =>
@@ -134,6 +135,7 @@ vi.mock('../agent-run/Reasoning.css', () => ({
   Chevron: 'Chevron',
 }));
 vi.mock('../agent-run/FinishedWorkFold.css', () => ({ Work: 'Work' }));
+vi.mock('../question/QuestionCard.css', () => ({}));
 vi.mock('../agent-run/OutlineComet.css', () => ({}));
 vi.mock('../agent-run/ToolCallsFold.css', () => ({}));
 vi.mock('../html/HtmlBlocks.css', () => ({
@@ -1587,7 +1589,7 @@ describe('a finished agent reply in a sidecar', () => {
                   '',
                   '🔧 `read_file` [1]',
                   '',
-                  'The answer starts and ends. '.repeat(50),
+                  'The answer starts and ends. '.repeat(220),
                 ].join('\n'),
                 format: 'org.matrix.custom.html',
                 formatted_body:

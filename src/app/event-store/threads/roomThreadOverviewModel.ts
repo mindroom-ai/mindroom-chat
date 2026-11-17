@@ -1,3 +1,4 @@
+import { THREAD_WORKFLOW_TABS, type ThreadWorkflowTab } from './threadWorkflow';
 import type { RoomViewMode } from '../../navigation/roomViewMode';
 import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFilterDsl';
 
@@ -22,6 +23,8 @@ export const THREAD_FILTER_KEYS: ThreadFilterKey[] = [
 ];
 
 export interface ThreadFilterState {
+  /** Absent on legacy states. Selecting a tab clears the legacy status dimensions. */
+  tab?: ThreadWorkflowTab;
   // Status toggles
   resolved: TriState;
   snoozed: TriState;
@@ -64,6 +67,7 @@ export const createDefaultThreadFilterState = (): ThreadFilterState => ({
 });
 
 export interface SerializedThreadFilterState {
+  tab?: ThreadWorkflowTab;
   v: 2;
   resolved: TriState;
   snoozed: TriState;
@@ -124,6 +128,7 @@ export const serializeThreadFilterState = (
 
   return {
     v: 2,
+    ...(state.tab ? { tab: state.tab } : {}),
     resolved: isTriState(state.resolved) ? state.resolved : 'any',
     snoozed: storedSnoozed(state.snoozed),
     streaming: isTriState(state.streaming) ? state.streaming : 'any',
@@ -174,6 +179,9 @@ export const deserializeThreadFilterState = (value: unknown): ThreadFilterState 
   }
 
   const state: ThreadFilterState = {
+    ...(THREAD_WORKFLOW_TABS.includes(value.tab as ThreadWorkflowTab)
+      ? { tab: value.tab as ThreadWorkflowTab }
+      : {}),
     resolved: isTriState(value.resolved) ? value.resolved : defaultState.resolved,
     snoozed: storedSnoozed(value.snoozed),
     streaming: isTriState(value.streaming) ? value.streaming : defaultState.streaming,
@@ -208,12 +216,6 @@ export type VisibleThreadRootData = {
 
 // ─── Tri-state helpers ───────────────────────────────────────────────────────
 
-export const cycleTriState = (state: TriState): TriState => {
-  if (state === 'any') return 'include';
-  if (state === 'include') return 'exclude';
-  return 'any';
-};
-
 export const matchesTriState = (value: boolean, state: TriState): boolean => {
   if (state === 'any') return true;
   return state === 'include' ? value : !value;
@@ -233,6 +235,7 @@ export const isOrModeStatusChip = (state: ThreadFilterState, key: ThreadFilterKe
   state.statusMode === 'or' && state[key] === 'include';
 
 export const hasActiveThreadFilters = (state: ThreadFilterState): boolean =>
+  (state.tab !== undefined && state.tab !== 'all') ||
   THREAD_FILTER_KEYS.some((key) => state[key] !== 'any') ||
   state.tags.size > 0 ||
   (state.freeText ?? '').length > 0 ||
@@ -250,15 +253,6 @@ export const isRoomThreadOverviewActive = (
   threadId: string | undefined,
   state: ThreadFilterState
 ): boolean => !threadId && (hasChosenThreadFilters(state) || state.sortBy !== 'natural');
-
-export const updateThreadFilterKey = (
-  state: ThreadFilterState,
-  key: ThreadFilterKey
-): ThreadFilterState => ({
-  ...state,
-  [key]: cycleTriState(state[key]),
-  statusMode: 'and',
-});
 
 export const cycleSortMode = (
   state: ThreadFilterState
@@ -278,6 +272,7 @@ export const createThreadSortControlSignature = ({
   viewMode?: RoomViewMode;
 }): string =>
   JSON.stringify({
+    tab: state.tab,
     sortBy: state.sortBy,
     sortDirection: state.sortDirection,
     resolved: state.resolved,
@@ -404,76 +399,18 @@ export const collectAvailableRoomTags = (
 
 export type StatusCounts = Record<ThreadFilterKey, number>;
 
-// ─── Filter presets ─────────────────────────────────────────────────────────
-
-export type FilterPreset = {
-  id: string;
-  label: string;
-  description: string;
-  apply: Partial<Record<ThreadFilterKey, TriState>> & { statusMode?: 'and' | 'or' };
-};
-
-export const FILTER_PRESETS: FilterPreset[] = [
-  {
-    id: 'needs-attention',
-    label: 'Needs attention',
-    description: 'Unresolved, non-streaming, non-scheduled threads',
-    apply: { resolved: 'exclude', snoozed: 'exclude', streaming: 'exclude', scheduled: 'exclude' },
-  },
-  {
-    id: 'working',
-    label: 'Working',
-    description: "Streaming or scheduled — what you're working on right now",
-    apply: { streaming: 'include', scheduled: 'include', statusMode: 'or' },
-  },
-  {
-    id: 'review-queue',
-    label: 'Review queue',
-    description: 'Unresolved threads with unread replies',
-    apply: { resolved: 'exclude', snoozed: 'exclude', unread: 'include' },
-  },
-  {
-    id: 'snoozed',
-    label: 'Snoozed',
-    description: 'Snoozed threads only',
-    // A resolved thread shows as resolved even while snoozed, so it belongs to Archived.
-    apply: { resolved: 'exclude', snoozed: 'include' },
-  },
-  {
-    id: 'archived',
-    label: 'Archived',
-    description: 'Resolved threads only',
-    apply: { resolved: 'include' },
-  },
-  {
-    id: 'all',
-    label: 'All',
-    description: 'Reset all filters',
-    apply: {},
-  },
-];
-
-export const applyPreset = (state: ThreadFilterState, preset: FilterPreset): ThreadFilterState => {
-  const { statusMode, ...statusOverrides } = preset.apply;
-  const nextState: ThreadFilterState = {
-    ...state,
-    resolved: 'any',
-    snoozed: 'any',
-    streaming: 'any',
-    scheduled: 'any',
-    unread: 'any',
-    idle: 'any',
-    statusMode: statusMode ?? 'and',
-    ...statusOverrides,
-  };
-  if (preset.id === 'all') {
-    return {
-      ...nextState,
-      tags: new Map(),
-      freeText: '',
-      unsupportedQuery: '',
-      people: [],
-    };
-  }
-  return nextState;
-};
+/** Keep people, tags, text and sort, but replace every legacy status restriction. */
+export const selectThreadWorkflowTab = (
+  state: ThreadFilterState,
+  tab: ThreadWorkflowTab
+): ThreadFilterState => ({
+  ...state,
+  tab,
+  resolved: 'any',
+  snoozed: 'any',
+  streaming: 'any',
+  scheduled: 'any',
+  unread: 'any',
+  idle: 'any',
+  statusMode: 'and',
+});

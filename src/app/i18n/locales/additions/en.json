@@ -87,7 +87,9 @@
       "pack": "Same as pack"
     },
     "imageViewer": {
-      "close": "Close"
+      "close": "Close",
+      "previous": "Previous image",
+      "next": "Next image"
     },
     "inviteUserPrompt": {
       "close": "Close",
@@ -142,8 +144,7 @@
       "noCrossSigningKeys": "Your secret storage holds no cross-signing keys, so the recovery key can't verify this session. Verify it from one of your other sessions."
     },
     "commands": {
-      "CommandPlain": "Send a message as plain text, without Markdown. Example: /plain message",
-      "CommandHtml": "Send a message as HTML, without Markdown. Example: /html message"
+      "CommandPlain": "Send a message as plain text, without Markdown. Example: /plain message"
     },
     "tokenLogin": {
       "signInNotStartedHere": "This sign-in was not started here, so it was not used. Sign in again."
@@ -158,6 +159,7 @@
     "appUpdate": {
       "available": "A new version of MindRoom is available.",
       "reload": "Reload",
+      "updating": "Updating…",
       "dismiss": "Dismiss",
       "reloadToUse": "Reload to use it."
     },
@@ -363,7 +365,9 @@
       },
       "computers": {
         "inUse": "Server in use",
-        "inUseNone": "None set, so computers are off on this device."
+        "inUseNone": "None set, so computers are off on this device.",
+        "useServer": "Use {{host}}",
+        "foundNotSaved": "Found from your agents, not saved; save it to enter keys here."
       },
       "keywords": {
         "theme": "dark mode, light mode, night mode, colors",
@@ -537,7 +541,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} failed: {{reason}}",
         "usage": "Could not run {{command}}. {{usage}}",
-        "ownServer": "Nothing changed: this would shut your own server ({{server}}) out of the room.",
         "unknown": "{{command}} is not a command. To send it as text, start the message with /plain."
       },
       "jumpToTime": {
@@ -717,13 +720,14 @@
         "showKey": "Show key",
         "hideKey": "Hide key",
         "sentTo": "Sent to {{host}}",
+        "openLink": "Open {{host}}",
         "save": "Save",
         "decline": "Decline",
         "savedWaiting": "Saved, waiting for the agent",
         "declinedWaiting": "Declined, waiting for the agent",
         "noLongerActive": "This request is no longer active. Ask the agent again.",
         "unavailable": "Entering keys is not available on this server.",
-        "unavailableHint": "To enter keys here, set your MindRoom server in Settings → {{page}} → {{field}}.",
+        "unavailableHint": "To enter keys here, save your MindRoom server in Settings → {{page}}.",
         "replaces": "Replaces the key saved now.",
         "replaceKey": "Replace key",
         "temporary": {
@@ -771,6 +775,16 @@
       "finishedWork": {
         "workedFor": "Worked for {{duration}}",
         "worked": "Worked"
+      },
+      "questionCard": {
+        "title": "Question",
+        "waiting": "Waiting for you",
+        "answered": "Answered",
+        "youChose": "You chose",
+        "nameChose": "{{name}} chose"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Sub-agents"
       }
     },
     "message-search": {
@@ -793,13 +807,7 @@
         "threadFiltersActive": "Thread filters (active)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Advanced filters",
-        "presets": {
-          "snoozed": {
-            "label": "Snoozed",
-            "description": "Snoozed threads only"
-          }
-        }
+        "advancedFilters": "Advanced filters"
       },
       "threadPeopleFilter": {
         "label": "People",
@@ -951,7 +959,11 @@
       "moveRoomDown": "Move the focused room or space down",
       "members": "Show or hide members",
       "focusComposer": "Mark as read and go to the composer",
-      "resolveThread": "Resolve or reopen the open thread",
+      "previousThread": "Focus the previous thread",
+      "nextThread": "Focus the next thread",
+      "openThread": "Go to the threads, then open the focused one",
+      "leaveThread": "Leave the open thread, then the threads",
+      "resolveThread": "Resolve or reopen the open or focused thread",
       "newLine": "New line",
       "editLast": "Edit your last message (in an empty composer)",
       "inlineCode": "Inline code",
@@ -970,7 +982,22 @@
     "unsnooze": "Unsnooze",
     "status": {
       "snoozed": "Snoozed"
-    }
+    },
+    "workflow": {
+      "needsYou": "Needs you",
+      "working": "Working",
+      "later": "Later",
+      "done": "Done",
+      "all": "All",
+      "description": {
+        "needsYou": "Background approval needed, or nothing running or scheduled.",
+        "working": "An agent is replying, or a subagent or background tool is running.",
+        "later": "Snoozed, or waiting for a scheduled task.",
+        "done": "Resolved threads.",
+        "all": "Every thread matching your other filters."
+      }
+    },
+    "renameHint": "Double-click to rename"
   },
   "threadSnooze": {
     "title": "Snooze until",
@@ -1011,6 +1038,7 @@
     },
     "sentence": {
       "approval": "{{name}} needs approval",
+      "approvalUnknown": "A background job needs approval",
       "question": "{{name}} asked you",
       "invite": "{{name}} invited you",
       "inviteUnknown": "You were invited",
@@ -1085,7 +1113,7 @@
       "working": "Agents working",
       "recent": "Recent",
       "automations": "Automations",
-      "snoozed": "Snoozed"
+      "later": "Later"
     },
     "showMore": "Show more",
     "chips": {
@@ -1296,9 +1324,22 @@
     "layoutSections": "Sections",
     "sections": {
       "working": "Working",
-      "snoozed": "Snoozed",
+      "later": "Later",
       "idle": "Idle",
       "resolved": "Resolved"
+    },
+    "live": {
+      "tools": "Tools",
+      "toolsRunning_one": "{{count}} running",
+      "toolsRunning_other": "{{count}} running",
+      "toolsRunningNamed_one": "{{count}} running: {{names}}",
+      "toolsRunningNamed_other": "{{count}} running: {{names}}",
+      "background": "Background",
+      "jobs_one": "{{count}} job",
+      "jobs_other": "{{count}} jobs",
+      "jobsWaiting_one": "{{jobs}}, {{count}} waiting for approval",
+      "jobsWaiting_other": "{{jobs}}, {{count}} waiting for approval",
+      "waitingForAnswer": "Waiting for an answer"
     }
   },
   "threadBoard": {

@@ -22,8 +22,21 @@ import { isRecord } from '../../lib/isRecord';
 // finished an agent's streamed reply, readable or not: the relation and MindRoom's stream status
 // stay outside the encrypted payload.
 
-/** Entries each map keeps; a full map starts over. */
+/**
+ * Messages each map keeps. A full map drops the message it heard of longest ago, and no more: the
+ * readers are not told, so what they read of every other message must stay as it was.
+ */
 const REMEMBERED_LIMIT = 5000;
+
+/** Keeps `value` as the map's newest entry; a `Map` lists its entries oldest first. */
+const keepNewest = <Value>(map: Map<string, Value>, messageId: string, value: Value) => {
+  map.delete(messageId);
+  if (map.size >= REMEMBERED_LIMIT) {
+    const [oldest] = map.keys();
+    if (oldest !== undefined) map.delete(oldest);
+  }
+  map.set(messageId, value);
+};
 
 // By message ID, which no two rooms or accounts share for different events.
 const newestEdits = new Map<string, MatrixEvent>();
@@ -113,8 +126,7 @@ export const hasStreamEnded = (reply: MatrixEvent): boolean => {
 const keepNewer = (edits: Map<string, MatrixEvent>, eventId: string, edit: MatrixEvent) => {
   const known = edits.get(eventId);
   if (known && known.getTs() >= edit.getTs() && !isRedactedBundledEdit(known)) return;
-  if (edits.size >= REMEMBERED_LIMIT) edits.clear();
-  edits.set(eventId, edit);
+  keepNewest(edits, eventId, edit);
 };
 
 /**
@@ -135,8 +147,7 @@ export const keepSyncedEdits = (mx: MatrixClient): (() => void) => {
     keepNewer(finishingEdits, relation.event_id, event);
     const known = finishes.get(relation.event_id);
     if (known && known.ts >= event.getTs()) return;
-    if (finishes.size >= REMEMBERED_LIMIT) finishes.clear();
-    finishes.set(relation.event_id, { sender: event.getSender(), ts: event.getTs() });
+    keepNewest(finishes, relation.event_id, { sender: event.getSender(), ts: event.getTs() });
   };
   // A room the account forgets goes with its record of redacted edits, so its newest kept edits
   // go too.

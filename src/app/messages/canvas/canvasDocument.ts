@@ -4,6 +4,40 @@ export const CANVAS_SUBMIT_MESSAGE = 'mindroom.canvas.submit';
 export const CANVAS_ESCAPE_MESSAGE = 'mindroom.canvas.escaped';
 export const CANVAS_ERROR_MESSAGE = 'mindroom.canvas.error';
 export const CANVAS_STATE_MESSAGE = 'mindroom.canvas.state';
+export const CANVAS_SIZE_MESSAGE = 'mindroom.canvas.size';
+
+/** Only the opaque page inside this host may resize its frame. */
+export const readCanvasSize = (
+  event: MessageEvent,
+  frame: Window | null | undefined
+): number | undefined => {
+  if (!frame || event.source !== frame || event.origin !== 'null') return undefined;
+  const data: unknown = event.data;
+  if (
+    !data ||
+    typeof data !== 'object' ||
+    !('type' in data) ||
+    data.type !== CANVAS_SIZE_MESSAGE ||
+    !('version' in data) ||
+    data.version !== 1 ||
+    !('height' in data) ||
+    typeof data.height !== 'number' ||
+    !Number.isFinite(data.height) ||
+    data.height <= 0
+  )
+    return undefined;
+  return data.height;
+};
+
+export const clampInlineCanvasHeight = (height: number): number =>
+  Math.min(20000, Math.max(80, Math.ceil(height)));
+
+/**
+ * The most a page shown as a website preview (`raw` or `width`) may take, for a page laid out this
+ * many pixels wide: a 16:10 browser window, at least an iPhone SE's 568 and at most a 1080 desktop.
+ */
+export const inlineCanvasWindowHeight = (width: number): number =>
+  Math.min(1080, Math.max(568, Math.round((width * 10) / 16)));
 
 /** The JSON a page may save as its state, in characters. */
 export const CANVAS_STATE_MAX_LENGTH = 256 * 1024;
@@ -36,16 +70,20 @@ export const CANVAS_LIBRARY_SOURCE = 'https://cdn.jsdelivr.net/npm/';
  * Agent HTML may run inline code but cannot connect anywhere or load external images. With
  * libraries on, it may also load scripts, styles, and fonts from the library source; the CDN then
  * sees which files a viewer loads, and a page can put data in those addresses, so deployments opt in.
+ * With remote assets on, it may load scripts, styles, fonts, images, and media from any https:
+ * address, for previews that use a site's real assets; the same exposure, to any host, so that is
+ * a separate opt-in. Connections, frames, workers, and form submissions stay blocked either way.
  */
-export const canvasPolicy = (libraries: boolean): string => {
-  const source = libraries ? ` ${CANVAS_LIBRARY_SOURCE}` : '';
+export const canvasPolicy = (libraries: boolean, remote = false): string => {
+  const https = remote ? ' https:' : '';
+  const source = `${libraries ? ` ${CANVAS_LIBRARY_SOURCE}` : ''}${https}`;
   return [
     "default-src 'none'",
     `script-src 'unsafe-inline'${source}`,
     `style-src 'unsafe-inline'${source}`,
-    'img-src data: blob:',
+    `img-src data: blob:${https}`,
     `font-src data:${source}`,
-    'media-src data: blob:',
+    `media-src data: blob:${https}`,
     "connect-src 'none'",
     "form-action 'none'",
     "frame-src 'none'",
@@ -218,6 +256,46 @@ const inputsScript = (inputs: string | undefined): string => `
     restore(controls().map((entry) => entry.key));
   }));`;
 
+/** Only inline pages report their height: their host fits the frame to it. */
+const sizeScript = `
+  let lastHeight;
+  let sizeQueued = false;
+  // The body's own extent: it follows the content down and up, and the frame's height never enters it,
+  // so a page cannot grow by being given room. Inline pages make the body the containing block, so
+  // absolutely positioned content counts too; raw pages keep the browser's defaults, so for them
+  // content positioned against the viewport does not count.
+  const reportSize = () => {
+    sizeQueued = false;
+    const body = document.body;
+    if (!body) return;
+    const box = body.getBoundingClientRect();
+    const height = Math.ceil(Math.max(
+      box.top + scrollY + Math.max(body.scrollHeight, box.height)
+        + (parseFloat(getComputedStyle(body).marginBottom) || 0),
+      document.documentElement.getBoundingClientRect().height
+    ));
+    if (height === lastHeight) return;
+    lastHeight = height;
+    parent.parent.postMessage({ type: '${CANVAS_SIZE_MESSAGE}', version: 1, height }, '*');
+  };
+  // Content outside the body's flow can change without resizing the body.
+  const queueSize = () => {
+    if (sizeQueued) return;
+    sizeQueued = true;
+    requestAnimationFrame(reportSize);
+  };
+  document.addEventListener('DOMContentLoaded', () => {
+    new ResizeObserver(queueSize).observe(document.body);
+    new MutationObserver(queueSize).observe(document.body, {
+      subtree: true, childList: true, attributes: true, characterData: true,
+    });
+    reportSize();
+  });
+  // A transition, an animation or an image can change positioned content after the change that started it.
+  ['transitionend', 'animationend', 'load'].forEach((type) => document.addEventListener(type, queueSize, true));
+  addEventListener('load', reportSize);
+`;
+
 // Runs before any agent script. Forms are captured here because the sandbox
 // cannot submit them anywhere; everything else calls window.mindroom.submit,
 // which only offers a snapshot to the host. The host decides whether to send it.
@@ -226,7 +304,8 @@ const inputsScript = (inputs: string | undefined): string => `
 const bridgeScript = (
   colorScheme: CanvasColorScheme,
   lineOffset: number,
-  saved: CanvasSaved
+  saved: CanvasSaved,
+  inline: boolean
 ): string => `(() => {
   // Whether the user has clicked or typed in this page, which no script can fake; undefined where unknown.
   const userActive = () => navigator.userActivation ? navigator.userActivation.hasBeenActive : undefined;
@@ -234,7 +313,7 @@ const bridgeScript = (
     try { delete window[name]; } catch (error) {}
     try { Object.defineProperty(window, name, { value: undefined, configurable: false }); } catch (error) {}
   });
-  const post = (data, options) => {
+${inline ? sizeScript : ''}  const post = (data, options) => {
     const label = options && typeof options.label === 'string' ? options.label : undefined;
     parent.parent.postMessage({ type: '${CANVAS_SUBMIT_MESSAGE}', version: 1, data, label }, '*');
   };
@@ -317,22 +396,42 @@ const bridgeScript = (
 const BASE_STYLE =
   'body{margin:0;padding:16px;background:var(--mr-bg);color:var(--mr-text);font:14px/1.5 var(--mr-font)}';
 
+/**
+ * How a page is shown: in the thread, fitted to its height (`inline`); exactly as written, with no
+ * theme variables, base style, or color scheme from Chat (`raw`); and with remote assets (`remote`).
+ */
+export type CanvasDisplay = { inline?: boolean; raw?: boolean; remote?: boolean };
+
+/** A frame with both schemes uses the browser's preferred one, whatever Chat's theme is. */
+export const RAW_COLOR_SCHEME = 'light dark';
+
+const pageStyle = (theme: CanvasTheme, inline: boolean): string =>
+  `<style>${canvasThemeCss(theme)}${
+    inline
+      ? BASE_STYLE.replace(
+          'padding:16px;background:var(--mr-bg)',
+          'padding:8px;background:transparent;position:relative'
+        )
+      : BASE_STYLE
+  }</style>`;
+
 /** Wrap agent HTML in a document whose policy and bridge are fixed before the agent's markup. */
 export const buildCanvasPage = (
   html: string,
   colorScheme: CanvasColorScheme,
   theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme],
   libraries = false,
-  saved: CanvasSaved = {}
+  saved: CanvasSaved = {},
+  { inline = false, raw = false, remote = false }: CanvasDisplay = {}
 ): string => {
   const head = (lineOffset: number) =>
     [
       '<!doctype html><html><head><meta charset="utf-8">',
-      `<meta http-equiv="Content-Security-Policy" content="${canvasPolicy(libraries)}">`,
-      `<meta name="color-scheme" content="${colorScheme}">`,
+      `<meta http-equiv="Content-Security-Policy" content="${canvasPolicy(libraries, remote)}">`,
+      raw ? '' : `<meta name="color-scheme" content="${colorScheme}">`,
       '<meta name="viewport" content="width=device-width, initial-scale=1">',
-      `<style>${canvasThemeCss(theme)}${BASE_STYLE}</style>`,
-      `<script>${bridgeScript(colorScheme, lineOffset, saved)}</script>`,
+      raw ? '' : pageStyle(theme, inline),
+      `<script>${bridgeScript(colorScheme, lineOffset, saved, inline)}</script>`,
       '</head><body>',
     ].join('');
   // The agent's markup starts on the line after this many line breaks; the number adds none.
@@ -351,14 +450,22 @@ export const buildCanvasDocument = (
   theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme],
   title = '',
   libraries = false,
-  saved: CanvasSaved = {}
+  saved: CanvasSaved = {},
+  display: CanvasDisplay = {}
 ): string =>
   [
     '<!doctype html><html><head><meta charset="utf-8">',
-    `<meta http-equiv="Content-Security-Policy" content="${canvasPolicy(libraries)}">`,
-    `<meta name="color-scheme" content="${colorScheme}">`,
+    `<meta http-equiv="Content-Security-Policy" content="${canvasPolicy(
+      libraries,
+      display.remote
+    )}">`,
+    // A raw page's prefers-color-scheme follows its frame's color scheme, so its frames take the
+    // browser's preference instead of Chat's theme, as if the page were opened on its own.
+    `<meta name="color-scheme" content="${display.raw ? RAW_COLOR_SCHEME : colorScheme}">`,
     '<style>html,body{margin:0;height:100%;overflow:hidden}',
-    'iframe{display:block;border:0;width:100%;height:100%}</style>',
+    `iframe{display:block;border:0;width:100%;height:100%${
+      display.raw ? `;color-scheme:${RAW_COLOR_SCHEME}` : ''
+    }}</style>`,
     '</head><body><script>(() => {',
     "const frame = document.createElement('iframe');",
     `frame.setAttribute('sandbox', '${CANVAS_SANDBOX}');`,
@@ -370,7 +477,9 @@ export const buildCanvasDocument = (
     '  loads += 1;',
     `  if (loads > 1) parent.postMessage({ type: '${CANVAS_ESCAPE_MESSAGE}' }, '*');`,
     '});',
-    `frame.srcdoc = ${scriptLiteral(buildCanvasPage(html, colorScheme, theme, libraries, saved))};`,
+    `frame.srcdoc = ${scriptLiteral(
+      buildCanvasPage(html, colorScheme, theme, libraries, saved, display)
+    )};`,
     'document.body.append(frame);',
     '})();</script></body></html>',
   ].join('');
@@ -380,4 +489,13 @@ export const canvasFrameWindow = (panelFrame: HTMLIFrameElement | null): Window 
   const wrapper = panelFrame?.contentWindow;
   // The wrapper is cross-origin, where reading a frame it does not hold yet throws.
   return wrapper && wrapper.frames.length > 0 ? wrapper.frames[0] : undefined;
+};
+
+/** Hash a document so a changed canvas remounts its frame and drops stale script state. */
+export const canvasDocumentKey = (doc: string): string => {
+  let hash = 5381;
+  for (let index = 0; index < doc.length; index += 1) {
+    hash = (hash * 33) ^ doc.charCodeAt(index);
+  }
+  return `${doc.length}:${hash >>> 0}`;
 };

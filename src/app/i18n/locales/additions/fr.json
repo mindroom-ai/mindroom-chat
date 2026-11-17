@@ -90,7 +90,9 @@
       "pack": "Comme le pack"
     },
     "imageViewer": {
-      "close": "Fermer"
+      "close": "Fermer",
+      "previous": "Image précédente",
+      "next": "Image suivante"
     },
     "inviteUserPrompt": {
       "close": "Fermer",
@@ -145,8 +147,7 @@
       "noCrossSigningKeys": "Votre stockage secret ne contient aucune clé de signature croisée : la clé de récupération ne peut donc pas vérifier cette session. Vérifiez-la depuis une autre de vos sessions."
     },
     "commands": {
-      "CommandPlain": "Envoyer un message en texte brut, sans Markdown. Exemple : /plain message",
-      "CommandHtml": "Envoyer un message en HTML, sans Markdown. Exemple : /html message"
+      "CommandPlain": "Envoyer un message en texte brut, sans Markdown. Exemple : /plain message"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Cette connexion n’a pas été lancée ici, elle n’a donc pas été utilisée. Reconnectez-vous."
@@ -161,6 +162,7 @@
     "appUpdate": {
       "available": "Une nouvelle version de MindRoom est disponible.",
       "reload": "Recharger",
+      "updating": "Mise à jour…",
       "dismiss": "Ignorer",
       "reloadToUse": "Rechargez pour l’utiliser."
     },
@@ -368,7 +370,9 @@
       },
       "computers": {
         "inUse": "Serveur utilisé",
-        "inUseNone": "Aucun défini : les ordinateurs sont désactivés sur cet appareil."
+        "inUseNone": "Aucun défini : les ordinateurs sont désactivés sur cet appareil.",
+        "useServer": "Utiliser {{host}}",
+        "foundNotSaved": "Trouvé via vos agents, non enregistré ; enregistrez-le pour saisir des clés ici."
       },
       "keywords": {
         "theme": "mode sombre, mode clair, mode nuit, couleurs",
@@ -546,7 +550,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} a échoué : {{reason}}",
         "usage": "Impossible d’exécuter {{command}}. {{usage}}",
-        "ownServer": "Rien n’a changé : votre propre serveur ({{server}}) serait exclu du salon.",
         "unknown": "{{command}} n’est pas une commande. Pour l’envoyer comme texte, commencez le message par /plain."
       },
       "jumpToTime": {
@@ -726,13 +729,14 @@
         "showKey": "Afficher la clé",
         "hideKey": "Masquer la clé",
         "sentTo": "Envoyée à {{host}}",
+        "openLink": "Ouvrir {{host}}",
         "save": "Enregistrer",
         "decline": "Refuser",
         "savedWaiting": "Enregistrée, en attente de l’agent",
         "declinedWaiting": "Refusée, en attente de l’agent",
         "noLongerActive": "Cette demande n’est plus active. Redemandez à l’agent.",
         "unavailable": "La saisie de clés n’est pas disponible sur ce serveur.",
-        "unavailableHint": "Pour saisir des clés ici, définissez votre serveur MindRoom dans Paramètres → {{page}} → {{field}}.",
+        "unavailableHint": "Pour saisir des clés ici, enregistrez votre serveur MindRoom dans Paramètres → {{page}}.",
         "replaces": "Remplace la clé enregistrée actuellement.",
         "replaceKey": "Remplacer la clé",
         "temporary": {
@@ -782,6 +786,16 @@
       "finishedWork": {
         "workedFor": "A travaillé pendant {{duration}}",
         "worked": "A travaillé"
+      },
+      "questionCard": {
+        "title": "Question",
+        "waiting": "Vous attend",
+        "answered": "Réponse donnée",
+        "youChose": "Votre choix",
+        "nameChose": "Choix de {{name}}"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Sous-agents"
       }
     },
     "message-search": {
@@ -806,13 +820,7 @@
         "threadFiltersActive": "Filtres de fils (actifs)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtres avancés",
-        "presets": {
-          "snoozed": {
-            "label": "Reportés",
-            "description": "Fils reportés uniquement"
-          }
-        }
+        "advancedFilters": "Filtres avancés"
       },
       "threadPeopleFilter": {
         "label": "Personnes",
@@ -968,7 +976,11 @@
       "moveRoomDown": "Descendre la salle ou l'espace sélectionné",
       "members": "Afficher ou masquer les membres",
       "focusComposer": "Marquer comme lu et aller à la zone de saisie",
-      "resolveThread": "Résoudre ou rouvrir le fil ouvert",
+      "previousThread": "Sélectionner le fil précédent",
+      "nextThread": "Sélectionner le fil suivant",
+      "openThread": "Aller aux fils, puis ouvrir le fil sélectionné",
+      "leaveThread": "Quitter le fil ouvert, puis les fils",
+      "resolveThread": "Résoudre ou rouvrir le fil ouvert ou sélectionné",
       "newLine": "Nouvelle ligne",
       "editLast": "Modifier votre dernier message (zone de saisie vide)",
       "inlineCode": "Code en ligne",
@@ -987,7 +999,22 @@
     "unsnooze": "Annuler le report",
     "status": {
       "snoozed": "Reporté"
-    }
+    },
+    "workflow": {
+      "needsYou": "À vous de jouer",
+      "working": "En cours",
+      "later": "Plus tard",
+      "done": "Terminé",
+      "all": "Tous",
+      "description": {
+        "needsYou": "Une tâche en arrière-plan attend une approbation, ou rien n’est en cours ni planifié.",
+        "working": "Un agent répond, ou un sous-agent ou un outil fonctionne en arrière-plan.",
+        "later": "Mis en veille ou en attente d’une tâche planifiée.",
+        "done": "Fils résolus.",
+        "all": "Tous les fils correspondant à vos autres filtres."
+      }
+    },
+    "renameHint": "Double-cliquez pour renommer"
   },
   "threadSnooze": {
     "title": "Reporter jusqu'à",
@@ -1029,6 +1056,7 @@
     },
     "sentence": {
       "approval": "{{name}} demande une approbation",
+      "approvalUnknown": "Une tâche en arrière-plan nécessite une approbation",
       "question": "{{name}} vous a posé une question",
       "invite": "{{name}} vous a envoyé une invitation",
       "inviteUnknown": "Vous avez reçu une invitation",
@@ -1110,7 +1138,7 @@
       "working": "Agents au travail",
       "recent": "Récents",
       "automations": "Automatisations",
-      "snoozed": "Reportés"
+      "later": "Plus tard"
     },
     "showMore": "Afficher plus",
     "chips": {
@@ -1322,9 +1350,26 @@
     "layoutSections": "Sections",
     "sections": {
       "working": "En cours",
-      "snoozed": "Reportés",
+      "later": "Plus tard",
       "idle": "Inactifs",
       "resolved": "Résolus"
+    },
+    "live": {
+      "tools": "Outils",
+      "toolsRunning_one": "{{count}} en cours",
+      "toolsRunning_many": "{{count}} en cours",
+      "toolsRunning_other": "{{count}} en cours",
+      "toolsRunningNamed_one": "{{count}} en cours : {{names}}",
+      "toolsRunningNamed_many": "{{count}} en cours : {{names}}",
+      "toolsRunningNamed_other": "{{count}} en cours : {{names}}",
+      "background": "Arrière-plan",
+      "jobs_one": "{{count}} tâche",
+      "jobs_many": "{{count}} tâches",
+      "jobs_other": "{{count}} tâches",
+      "jobsWaiting_one": "{{jobs}}, {{count}} en attente d’approbation",
+      "jobsWaiting_many": "{{jobs}}, {{count}} en attente d’approbation",
+      "jobsWaiting_other": "{{jobs}}, {{count}} en attente d’approbation",
+      "waitingForAnswer": "En attente d’une réponse"
     }
   },
   "threadBoard": {

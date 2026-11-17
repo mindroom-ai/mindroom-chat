@@ -1,5 +1,5 @@
-import { style } from '@vanilla-extract/css';
-import { color, config } from 'folds';
+import { globalStyle, style } from '@vanilla-extract/css';
+import { color, config, toRem } from 'folds';
 import { transition } from '../../ui/styles/transition';
 
 export const CategoryState = style({
@@ -175,4 +175,31 @@ export const EntryTooltipDetails = style({
   gridTemplateColumns: 'auto minmax(0, 1fr)',
   gap: `${config.space.S100} ${config.space.S300}`,
   alignItems: 'baseline',
+});
+
+// The plugins' details, under a rule, hidden while none of them drew anything.
+export const EntryTooltipPluginDetails = style({
+  position: 'relative',
+  borderBlockStart: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
+  paddingBlockStart: config.space.S200,
+  selectors: {
+    '&:not(:has([data-thread-detail]:not(:empty)))': { display: 'none' },
+  },
+});
+
+// A detail is at most 320px wide, whatever it holds, and so is what it adds to the card's width.
+globalStyle(`${EntryTooltipPluginDetails} > [data-thread-detail]`, { maxWidth: toRem(320) });
+
+// The rule between two details spans the card, not just the capped detail: the detail's own
+// border (ThreadDetailsList) keeps its place but not its color, and a line over the group's
+// width is drawn where it was.
+const followingDetail = `${EntryTooltipPluginDetails} > [data-thread-detail]:not(:empty) ~ [data-thread-detail]:not(:empty)`;
+globalStyle(followingDetail, { borderBlockStartColor: 'transparent' });
+globalStyle(`${followingDetail}::before`, {
+  content: '""',
+  position: 'absolute',
+  insetInline: 0,
+  blockSize: config.borderWidth.B300,
+  marginBlockStart: `calc(-1 * (${config.borderWidth.B300} + ${config.space.S200}))`,
+  backgroundColor: color.Surface.ContainerLine,
 });

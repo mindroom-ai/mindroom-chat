@@ -102,7 +102,7 @@ export function ThreadFilterPanel({
       ref={panelRef}
       level="overlay"
       variant="SurfaceVariant"
-      className={classNames(overviewCss.PresetDropdown, css.Panel)}
+      className={classNames(overviewCss.FilterDropdown, css.Panel)}
       role="dialog"
       aria-label={label}
       onKeyDown={handleKeyDown}
@@ -218,14 +218,14 @@ export function ThreadFilterDropdown({
   return (
     <div
       ref={containerRef}
-      className={overviewCss.PresetContainer}
+      className={overviewCss.FilterContainer}
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
     >
       <button
         ref={triggerRef}
         type="button"
-        className={classNames(overviewCss.PresetButton, count > 0 && css.TriggerActive)}
+        className={classNames(overviewCss.FilterButton, count > 0 && css.TriggerActive)}
         // While open, a press keeps the focus in the panel: Safari focuses no button, so the
         // panel would lose the focus to nothing and close, and the click would open it again.
         onMouseDown={(event) => {

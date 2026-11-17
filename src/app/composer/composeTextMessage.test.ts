@@ -1,7 +1,9 @@
 import { MsgType } from 'matrix-js-sdk';
 import { createEditor, type Descendant } from 'slate';
 import { describe, expect, it } from 'vitest';
+import { MESSAGE_COMMANDS } from '../editor/messageCommand';
 import { createMentionElement, withInlineElements } from '../editor/utils';
+import { Command } from './commands/useCommands';
 import { composeTextMessage } from './composeTextMessage';
 import { htmlToEditorInput } from '../editor/input';
 
@@ -103,6 +105,22 @@ describe('composeTextMessage', () => {
     expect(content?.msgtype).toBe(MsgType.Text);
   });
 
+  it("sends a MindRoom command as typed, for the room's agents to answer", () => {
+    [
+      '/schedule in 5 min do x',
+      '/Schedule in 5 min do x',
+      '/list_schedules',
+      '/reload-plugins',
+      '/room_model reset',
+    ].forEach((text) =>
+      expect(compose([line({ text })]), text).toEqual({
+        msgtype: MsgType.Text,
+        body: text,
+        'm.mentions': {},
+      })
+    );
+  });
+
   it('sends /plain as the text typed, without reading Markdown or adding HTML', () => {
     expect(compose([line({ text: '/plain a **literal** _thing_' })])).toEqual({
       msgtype: MsgType.Text,
@@ -119,37 +137,7 @@ describe('composeTextMessage', () => {
     });
   });
 
-  it('sends /html as the HTML typed, with its text as the body', () => {
-    expect(compose([line({ text: '/html <b>big</b> &amp; <i>bold</i>' })])).toEqual({
-      msgtype: MsgType.Text,
-      body: 'big & bold',
-      format: 'org.matrix.custom.html',
-      formatted_body: '<b>big</b> &amp; <i>bold</i>',
-      'm.mentions': {},
-    });
-  });
-
-  it('puts the shrug before the message, and sends it alone without text', () => {
-    expect(compose([line({ text: '/shrug no idea' })])).toMatchObject({
-      msgtype: MsgType.Text,
-      body: '¯\\_(ツ)_/¯ no idea',
-    });
-    expect(compose([line({ text: '/shrug' })])).toEqual({
-      msgtype: MsgType.Text,
-      body: '¯\\_(ツ)_/¯',
-      'm.mentions': {},
-    });
-  });
-
-  it('keeps the face in front of formatted text too', () => {
-    expect(compose([line({ text: '/tableflip **enough**' })])).toMatchObject({
-      body: '(╯°□°)╯︵ ┻━┻ **enough**',
-      formatted_body: '(╯°□°)╯︵ ┻━┻ <strong data-md="**">enough</strong>',
-    });
-    expect(compose([line({ text: '/unflip' })])?.body).toBe('┬─┬ノ( º _ ºノ)');
-  });
-
-  it.each(['/invite @bob:example.org', '/shrugs about it'])(
+  it.each(['/invite @bob:example.org', '/plainly put'])(
     'leaves "%s" to the commands that act, or as written',
     (text) => {
       expect(compose([line({ text })])).toMatchObject({ msgtype: MsgType.Text, body: text });
@@ -218,4 +206,9 @@ describe('composeTextMessage', () => {
         '<a data-md href="https://example.org">web</a>'
     );
   });
+});
+
+it('reads only message commands the composer offers', () => {
+  const commands: readonly string[] = Object.values(Command);
+  expect(MESSAGE_COMMANDS.filter((name) => !commands.includes(name))).toEqual([]);
 });

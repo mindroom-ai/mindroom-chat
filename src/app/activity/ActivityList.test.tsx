@@ -15,7 +15,7 @@ import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import type { RegisteredPlugin } from '../plugins/registry';
 import { allInvitesAtom } from '../matrix/state/inviteList';
-import type { ActivityRow, ActivityRowsResult } from './activityRows';
+import { buildActivityRows, type ActivityRow, type ActivityRowsResult } from './activityRows';
 import { activityRowsAtom, activityShowAutomationsAtom } from './activityState';
 import { ActivityList } from './ActivityList';
 import { standInForListMotion } from '../ui/__tests__/listMotionStandIn';
@@ -56,9 +56,9 @@ vi.mock('../plugins/registry', () => ({ registeredPlugins: mocks.plugins }));
 
 vi.mock('./activityActions', () => ({
   answerApproval: mocks.answerApproval,
-  answerQuestion: mocks.answerQuestion,
   markActivityRowsRead: mocks.markActivityRowsRead,
 }));
+vi.mock('../messages/reactions/answerQuestion', () => ({ answerQuestion: mocks.answerQuestion }));
 
 const mx = {
   getUserId: () => '@alice:x',
@@ -304,6 +304,27 @@ describe('ActivityList', () => {
     expect(within(mention).getByText('2 new')).toBeTruthy();
     expect(within(mention).getByText('+1, the v2 opener is stronger')).toBeTruthy();
     expect(within(rowByTitle('Thread read')).getByText('Voice message')).toBeTruthy();
+  });
+
+  it('names a background approval without a sender and seeds its avatar with the row key', () => {
+    const job = threadRow('job', 'approval', {}) as Extract<ActivityRow, { type: 'thread' }>;
+    job.entry.threadRecord.status.hasBackgroundApproval = true;
+    job.entry.lastActivityTs = job.ts;
+    renderList(
+      buildActivityRows({
+        entries: [job.entry],
+        signals: () => quiet,
+        invites: [],
+        now: NOW,
+        showAutomations: false,
+      })
+    );
+    expect.soft(screen.queryByText('A background job needs approval')).not.toBeNull();
+    expect(
+      rowByTitle('Thread job')
+        .querySelector('[data-avatar-fallback-id]')
+        ?.getAttribute('data-avatar-fallback-id')
+    ).toBe(job.key);
   });
 
   it('approves in the row and tells when sending fails', async () => {

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getFinishingEdit,
   getSyncedEdit,
+  hasStreamEnded,
   isStreamingByServer,
   keepSyncedEdits,
 } from './syncedEdits';
@@ -195,5 +196,64 @@ describe('a finishing edit that is redacted', () => {
     mx.emit(ClientEvent.Event, resumed);
     reply.makeReplaced(resumed);
     expect(isEventStreaming(reply, undefined, timelineSet)).toBe(true);
+  });
+});
+
+// Each map keeps 5,000 messages (`REMEMBERED_LIMIT`). A full map was emptied at once, so the edit
+// that finished a reply nobody can decrypt went with it, and the reply read as streaming again.
+describe('a full map of kept edits', () => {
+  const LIMIT = 5000;
+  const editOf = (messageId: string, eventId: string, ts: number, status: string) => {
+    const event = edit(eventId, ts, status);
+    event.event.content = {
+      ...event.event.content,
+      'm.relates_to': { rel_type: 'm.replace', event_id: messageId },
+    };
+    return event;
+  };
+  const start = () => {
+    const mx = Object.assign(new EventEmitter(), {
+      getRoom: () => null,
+    }) as unknown as MatrixClient;
+    keepSyncedEdits(mx);
+    return mx;
+  };
+  /** Finishing edits of `count` other messages, `$other<from>` onwards. */
+  const fill = (mx: MatrixClient, from: number, count: number) => {
+    for (let i = from; i < from + count; i += 1) {
+      mx.emit(ClientEvent.Event, editOf(`$other${i}`, `$edit${i}`, 2, 'completed'));
+    }
+  };
+
+  it('drops its oldest message only, and keeps the edit that finished a newer one', () => {
+    const mx = start();
+    fill(mx, 0, LIMIT - 1);
+    mx.emit(ClientEvent.Event, edit('$stopped', 4, 'cancelled'));
+    // Every map is full now; the next message is one too many.
+    fill(mx, LIMIT, 1);
+
+    expect(getSyncedEdit('$reply')?.getId()).toBe('$stopped');
+    expect(getFinishingEdit(reply)?.getId()).toBe('$stopped');
+    expect(isStreamingByServer(reply)).toBe(false);
+    expect(hasStreamEnded(reply)).toBe(true);
+    expect(getSyncedEdit('$other0')).toBeUndefined();
+    expect(getSyncedEdit('$other1')?.getId()).toBe('$edit1');
+    expect(getSyncedEdit(`$other${LIMIT}`)?.getId()).toBe(`$edit${LIMIT}`);
+  });
+
+  it('counts a message as new again when it gets a newer edit', () => {
+    const mx = start();
+    fill(mx, 0, 1);
+    mx.emit(ClientEvent.Event, edit('$streaming', 2, 'streaming'));
+    fill(mx, 1, LIMIT - 2);
+    // The second oldest message of the full maps gets its finishing edit.
+    mx.emit(ClientEvent.Event, edit('$stopped', 4, 'cancelled'));
+    // Two more messages: the two oldest go, and the reply is no longer one of them.
+    fill(mx, LIMIT, 2);
+
+    expect(getSyncedEdit('$reply')?.getId()).toBe('$stopped');
+    expect(getSyncedEdit('$other0')).toBeUndefined();
+    expect(getSyncedEdit('$other1')).toBeUndefined();
+    expect(getSyncedEdit('$other2')?.getId()).toBe('$edit2');
   });
 });

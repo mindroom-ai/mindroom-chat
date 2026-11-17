@@ -19,7 +19,7 @@ export const emptyHistoryStack: HistoryStack = { entries: [], index: -1 };
 /**
  * The navigation state of a page opened from outside the app, such as by a tapped push: what was
  * on screen before is only where the app was left, so the page's back buttons lead to its own
- * parents instead (a thread's room, a room's list), as they do after a reload.
+ * parents instead (a thread's room), as they do after a reload.
  */
 export const OPENED_FROM_OUTSIDE_STATE = { openedFromOutside: true } as const;
 

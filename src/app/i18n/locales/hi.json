@@ -983,7 +983,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "calls": {
@@ -1597,34 +1597,10 @@
       "roomThreadOverview": {
         "addTagFilter": "टैग फ़िल्टर जोड़ें",
         "availableTags": "उपलब्ध टैग",
-        "filterPresets": "फ़िल्टर प्रीसेट",
         "lastReply": "अंतिम उत्तर",
         "lockSortOrder": "क्रम लॉक करें (अभी {{sort}})",
         "natural": "स्वाभाविक क्रम",
         "noThreadsMatchCurrentFilters": "कोई भी थ्रेड मौजूदा फ़िल्टर से मेल नहीं खाता.",
-        "preset": "प्रीसेट",
-        "presets": {
-          "all": {
-            "description": "सभी फ़िल्टर रीसेट करें",
-            "label": "सभी"
-          },
-          "archived": {
-            "description": "केवल सुलझे हुए थ्रेड",
-            "label": "संग्रहीत"
-          },
-          "needs-attention": {
-            "description": "अनसुलझे, गैर-स्ट्रीमिंग, गैर-अनुसूचित थ्रेड",
-            "label": "ध्यान देने की जरूरत है"
-          },
-          "review-queue": {
-            "description": "अपठित उत्तरों के साथ अनसुलझे थ्रेड",
-            "label": "समीक्षा कतार"
-          },
-          "working": {
-            "description": "स्ट्रीमिंग या शेड्यूल - आप अभी किस पर काम कर रहे हैं",
-            "label": "कार्यरत"
-          }
-        },
         "reset": "रीसेट करें",
         "resetAllThreadFilters": "सभी थ्रेड फ़िल्टर रीसेट करें",
         "roomViewMode": "रूम दृश्य मोड",
@@ -1798,7 +1774,7 @@
       "intro": "इस थ्रेड में, इन लोगों के अनुरोध किए गए टूल कॉल बिना मंज़ूरी कार्ड के चलते हैं।",
       "you": "आप",
       "until": "{{time}} तक",
-      "ownUntil": "{{time}} तक। इसे खत्म करने के लिए !auto_approve off भेजें।"
+      "ownUntil": "{{time}} तक। इसे खत्म करने के लिए /auto_approve off भेजें।"
     },
     "notices": {
       "dismiss": "सूचना ख़ारिज करें",
@@ -2078,26 +2054,16 @@
       "shortcutHint": "खोलने का शॉर्टकट: <shortcut>{{shortcut}}</shortcut>।"
     },
     "commands": {
-      "CommandAcl": "सर्वर एक्सेस नियंत्रण सूची प्रबंधित करें। उदाहरण: /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]",
       "CommandBan": "उपयोगकर्ता को रूम से प्रतिबंधित करें. उदाहरण: /ban userId1 userId2 servername [-r reason]",
-      "CommandConvertToDm": "रूम को सीधे संदेश में बदलें",
-      "CommandConvertToRoom": "सीधे संदेश को रूम में कनवर्ट करें",
-      "CommandDelete": "उपयोगकर्ताओं से संदेश हटाएँ. उदाहरण: /delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandDisInvite": "उपयोगकर्ता का रूम आमंत्रण वापस लें। उदाहरण: /disinvite userId1 userId2 [-r reason]",
       "CommandIgnore": "उपयोगकर्ता की अनदेखी करें। उदाहरण: /ignore userId1 userId2",
       "CommandInvite": "उपयोगकर्ता को रूम में आमंत्रित करें. उदाहरण: /invite userId1 userId2 [-r reason]",
       "CommandJoin": "पते के साथ रूम में शामिल हों. उदाहरण: /join address1 address2",
       "CommandKick": "उपयोगकर्ता को रूम से निकालें। उदाहरण: /kick userId1 userId2 servername [-r reason]",
       "CommandLeave": "वर्तमान रूम छोड़ें.",
       "CommandMe": "कार्रवाई संदेश भेजें",
-      "CommandMyRoomAvatar": "मौजूदा रूम में प्रोफ़ाइल चित्र बदलें. उदाहरण: /myroomavatar mxc://xyzabc",
-      "CommandMyRoomNick": "वर्तमान रूम में उपनाम बदलें।",
       "CommandNotice": "सूचना संदेश भेजें",
-      "CommandShrug": "¯\\_(ツ)_/¯ को संदेश के रूप में भेजें",
       "CommandStartDm": "उपयोगकर्ता के साथ सीधा संदेश प्रारंभ करें. उदाहरण: /startdm userId1",
-      "CommandTableFlip": "संदेश के रूप में {{value1}} भेजें",
       "CommandUnBan": "उपयोगकर्ता का रूम प्रतिबंध हटाएँ। उदाहरण: /unban userId1 userId2",
-      "CommandUnFlip": "संदेश के रूप में {{value1}} भेजें",
       "CommandUnIgnore": "उपयोगकर्ता को अनदेखा करना बंद करें। उदाहरण: /unignore userId1 userId2"
     },
     "configConfig": {
@@ -3009,17 +2975,6 @@
       "tagsPlaceholder": "टैग",
       "unread": "अपठित"
     },
-    "filterTooltip": {
-      "any": "{{label}}: सभी दिख रहे हैं। केवल इन्हें दिखाने के लिए क्लिक करें।",
-      "exclude": "{{label}}: छिपे हुए हैं। फ़िल्टर हटाने के लिए क्लिक करें।",
-      "include": "{{label}}: केवल यही दिख रहे हैं। छिपाने के लिए क्लिक करें।",
-      "stateAny": "सभी दिख रहे हैं",
-      "stateExclude": "छिपा हुआ",
-      "stateInclude": "केवल यही दिख रहे हैं",
-      "tagAny": "टैग \"{{tag}}\"",
-      "tagExclude": "टैग \"{{tag}}\": छिपा हुआ है। फ़िल्टर हटाने के लिए क्लिक करें।",
-      "tagInclude": "टैग \"{{tag}}\": केवल यही दिख रहा है। छिपाने के लिए क्लिक करें।"
-    },
     "replyCount_one": "{{count}} उत्तर",
     "replyCount_other": "{{count}} उत्तर",
     "resolve": "सुलझा हुआ चिह्नित करें",
@@ -3043,7 +2998,6 @@
     },
     "status": {
       "idle": "निष्क्रिय",
-      "idleFilter": "निष्क्रिय (सुलझा हुआ, स्ट्रीमिंग नहीं, कोई कार्य नहीं)",
       "resolved": "सुलझा हुआ",
       "scheduled": "निर्धारित",
       "streaming": "स्ट्रीमिंग",

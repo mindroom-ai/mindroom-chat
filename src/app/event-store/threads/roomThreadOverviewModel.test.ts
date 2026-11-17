@@ -166,23 +166,6 @@ describe('roomThreadOverviewModel', () => {
       expect(isRoomThreadOverviewActive(undefined, { ...stored, resolved: 'exclude' })).toBe(true);
     });
 
-    it('cycles status filters and resets status mode to AND', async () => {
-      const { updateThreadFilterKey } = await import('./roomThreadOverviewModel');
-
-      expect(
-        updateThreadFilterKey(makeDefaultState({ statusMode: 'or' }), 'resolved')
-      ).toMatchObject({
-        resolved: 'include',
-        statusMode: 'and',
-      });
-      expect(
-        updateThreadFilterKey(makeDefaultState({ resolved: 'include' }), 'resolved').resolved
-      ).toBe('exclude');
-      expect(
-        updateThreadFilterKey(makeDefaultState({ resolved: 'exclude' }), 'resolved').resolved
-      ).toBe('any');
-    });
-
     it('cycles natural/last-reply sort modes in the UI order', async () => {
       const { cycleSortMode } = await import('./roomThreadOverviewModel');
 
@@ -290,31 +273,7 @@ describe('roomThreadOverviewModel', () => {
     });
   });
 
-  describe('filter presets', () => {
-    it('has a Snoozed preset and keeps snoozed threads out of Needs attention and Unread', async () => {
-      const { FILTER_PRESETS, applyPreset } = await import('./roomThreadOverviewModel');
-      const preset = (id: string) => {
-        const found = FILTER_PRESETS.find((candidate) => candidate.id === id);
-        if (!found) throw new Error(`${id} preset missing`);
-        return found;
-      };
-
-      expect(preset('snoozed')).toMatchObject({
-        label: 'Snoozed',
-        description: 'Snoozed threads only',
-        apply: { resolved: 'exclude', snoozed: 'include' },
-      });
-      // A resolved and snoozed thread shows as resolved, so the preset leaves it to Archived.
-      expect(
-        applyPreset(makeDefaultState({ resolved: 'include' }), preset('snoozed'))
-      ).toMatchObject({ resolved: 'exclude', snoozed: 'include' });
-      expect(applyPreset(makeDefaultState(), preset('needs-attention')).snoozed).toBe('exclude');
-      expect(applyPreset(makeDefaultState(), preset('review-queue')).snoozed).toBe('exclude');
-      expect(
-        applyPreset(makeDefaultState({ snoozed: 'exclude' }), preset('archived')).snoozed
-      ).toBe('any');
-    });
-
+  describe('retained filter controls', () => {
     it('keeps only an excluding snoozed filter in Simple mode', async () => {
       const { simplifyThreadFilterState } = await import('./roomThreadOverviewModel');
 
@@ -326,37 +285,9 @@ describe('roomThreadOverviewModel', () => {
       );
     });
 
-    it('materializes the working preset as streaming OR scheduled and serializes it', async () => {
-      const { FILTER_PRESETS, applyPreset } = await import('./roomThreadOverviewModel');
-      const { serializeThreadFilterQuery } = await import('./threadFilterDsl');
-      const workingPreset = FILTER_PRESETS.find((preset) => preset.id === 'working');
-      if (!workingPreset) throw new Error('working preset missing');
-
-      const state = applyPreset(makeDefaultState(), workingPreset);
-
-      expect(state).toMatchObject({
-        streaming: 'include',
-        scheduled: 'include',
-        statusMode: 'or',
-      });
-      expect(serializeThreadFilterQuery(state)).toBe('is:streaming OR is:scheduled');
-    });
-
-    it('resets all filters for the all preset', async () => {
-      const { FILTER_PRESETS, applyPreset } = await import('./roomThreadOverviewModel');
-      const allPreset = FILTER_PRESETS.find((preset) => preset.id === 'all');
-      if (!allPreset) throw new Error('all preset missing');
-
-      const state = applyPreset(
-        makeDefaultState({
-          resolved: 'include',
-          tags: new Map([['priority', 'include']]),
-          freeText: 'needle',
-          unsupportedQuery: 'tag:a OR tag:b',
-        }),
-        allPreset
-      );
-
+    it('resets legacy status, tags and query restrictions', async () => {
+      const { resetThreadFilterState } = await import('./roomThreadOverviewModel');
+      const state = resetThreadFilterState();
       expect(state.tags.size).toBe(0);
       expect(state.freeText).toBe('');
       expect(state.unsupportedQuery).toBe('');
@@ -417,4 +348,63 @@ describe('roomThreadOverviewModel', () => {
       });
     });
   });
+});
+
+describe('workflow tab persistence', () => {
+  it('round trips the selected tab without changing the storage version', async () => {
+    const {
+      createDefaultThreadFilterState,
+      serializeThreadFilterState,
+      deserializeThreadFilterState,
+    } = await import('./roomThreadOverviewModel');
+    const state = { ...createDefaultThreadFilterState(), tab: 'working' as const };
+    const stored = serializeThreadFilterState(state);
+    expect(stored.v).toBe(2);
+    expect(deserializeThreadFilterState(stored).tab).toBe('working');
+  });
+});
+
+it('changes the frozen-order signature when the tab changes', async () => {
+  const { createDefaultThreadFilterState, createThreadSortControlSignature } = await import(
+    './roomThreadOverviewModel'
+  );
+  const state = createDefaultThreadFilterState();
+  expect(createThreadSortControlSignature({ state: { ...state, tab: 'working' } })).not.toBe(
+    createThreadSortControlSignature({ state: { ...state, tab: 'needsYou' } })
+  );
+});
+
+it('selecting a tab replaces legacy statuses but preserves people, tags, search and sort', async () => {
+  const {
+    createDefaultThreadFilterState,
+    selectThreadWorkflowTab,
+    serializeThreadFilterState,
+    deserializeThreadFilterState,
+    simplifyThreadFilterState,
+  } = await import('./roomThreadOverviewModel');
+  const state = {
+    ...createDefaultThreadFilterState(),
+    resolved: 'include' as const,
+    unread: 'exclude' as const,
+    snoozed: 'exclude' as const,
+    statusMode: 'or' as const,
+    people: ['@alice:example.org'],
+    tags: new Map([['review', 'include' as const]]),
+    freeText: 'release',
+    sortDirection: 'asc' as const,
+  };
+  const selected = selectThreadWorkflowTab(state, 'working');
+  expect(selected).toEqual({
+    ...state,
+    tab: 'working',
+    resolved: 'any',
+    unread: 'any',
+    snoozed: 'any',
+    statusMode: 'and',
+  });
+  expect(deserializeThreadFilterState(serializeThreadFilterState(state))).toEqual(state);
+  expect(
+    deserializeThreadFilterState({ ...serializeThreadFilterState(state), tab: 'bogus' }).tab
+  ).toBeUndefined();
+  expect(simplifyThreadFilterState(selected).tab).toBeUndefined();
 });

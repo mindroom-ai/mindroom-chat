@@ -1,7 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { switchToStoredUsername } from '../helpers/accounts';
 import { loginWithPassword } from '../helpers/auth';
 import {
   createPrivateRoom,
@@ -18,12 +17,11 @@ import {
 } from '../helpers/disposableAccounts';
 
 // The iOS app opens a tapped push as a page opened from outside the app: a thread's back chevron
-// leads to the thread's room, and the room's to its list, never to the page the app was left on
-// (another conversation, or another account's), and no back chevron leads to the pages of the
-// account that was active before a switch. The app runs as the iOS app here: Capacitor's iOS
-// platform with a stand-in for the push plugin, whose taps the test fires as iOS would deliver
-// them. At 390 by 844 with touch, in Chromium. IOS_PUSH_BACK_SHOTS=<directory> saves the thread
-// and the pages its chevrons lead to.
+// leads to the thread's room, never to the page the app was left on (another conversation, or
+// another account's). The app runs as the iOS app here: Capacitor's iOS platform with a stand-in
+// for the push plugin, whose taps the test fires as iOS would deliver them. At 390 by 844 with
+// touch, in Chromium. IOS_PUSH_BACK_SHOTS=<directory> saves the thread and the room its chevron
+// leads to.
 const PASSWORD = 'ios-push-back-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
@@ -179,8 +177,6 @@ const place = (page: Page): Place => {
 const expectAt = (page: Page, expected: Partial<Place>, step: string) =>
   expect.poll(() => place(page), { message: step, timeout: 20_000 }).toMatchObject(expected);
 
-const roomBack = (page: Page) =>
-  page.getByRole('banner').getByRole('button', { name: 'Back', exact: true });
 const threadBack = (page: Page) =>
   page.locator('[data-thread-context-banner]').getByRole('button', { name: 'Back', exact: true });
 const listLink = (page: Page, name: string) =>
@@ -218,19 +214,14 @@ const asIOSApp = async (page: Page) => {
   await expect(listLink(page, 'Harbor Plans')).toBeVisible({ timeout: 60_000 });
 };
 
-/** The thread a tapped push opened: its chevron leads to its room, and the room's to the list. */
+/** The thread a tapped push opened: its chevron leads to its room. */
 const backFromPushedThread = async (page: Page, { room, root }: Seed, shots: string) => {
   await expectAt(page, { room, thread: root }, 'the push opens the reply in its thread');
   await expect(threadBack(page)).toBeVisible();
   await shoot(page, `${shots}-1-thread`);
   await threadBack(page).tap();
   await expectAt(page, { room, thread: null }, "the thread's chevron leads to its room");
-  await expect(roomBack(page)).toBeVisible();
   await shoot(page, `${shots}-2-room`);
-  await roomBack(page).tap();
-  await expectAt(page, { path: '/home/', room: null, thread: null }, "then to the room's list");
-  await expect(listLink(page, 'Harbor Plans')).toBeVisible();
-  await shoot(page, `${shots}-3-list`);
 };
 
 test.beforeEach(async () => {
@@ -307,19 +298,6 @@ test("a thread another account's push opened leads back to that account's room",
       mindroom_account: 'tag-2',
     });
     await backFromPushedThread(page, second, 'two-accounts');
-
-    // Switched from the account menu, the first account's page leads to its own list, never to
-    // the second account's room shown before the switch.
-    await listLink(page, 'Harbor Plans').tap();
-    await expectAt(page, { room: second.room, thread: null }, "the second account's room opens");
-    await switchToStoredUsername(page, first.username);
-    await expectAt(page, { room: first.dm, thread: null }, "the first account's last page opens");
-    await roomBack(page).tap();
-    await expectAt(
-      page,
-      { path: '/direct/', room: null, thread: null },
-      "its back leads to the first account's list"
-    );
   } finally {
     await context.close();
   }

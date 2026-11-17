@@ -5,7 +5,11 @@ import { useOptionalClientConfig } from '../../config/useClientConfig';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
 import { registeredPlugins, type RegisteredPlugin } from '../../plugins/registry';
-import { shownThreadDetails, type ShownThreadDetail } from '../../plugins/threadDetails';
+import {
+  hasThreadDetails,
+  shownThreadDetails,
+  type ShownThreadDetail,
+} from '../../plugins/threadDetails';
 import { PopOut } from '../../ui/directional';
 import { Menu } from '../../ui/glass/GlassPrimitives';
 import { ThreadDetailsList } from '../ThreadDetailsList';
@@ -36,6 +40,8 @@ export function ThreadCardDetails({
 }) {
   const config = useOptionalClientConfig();
   const latest = useLatestRef({ room, plugins, config, menuOpen });
+  // Without a detail to show, the list gets no listener or observer.
+  const contributes = hasThreadDetails(plugins, config);
   const resetRef = useRef<() => void>();
   const closeRef = useRef<() => void>();
   const [open, setOpen] = useState<OpenDetails>();
@@ -57,7 +63,8 @@ export function ThreadCardDetails({
     const list = listRef.current;
     const doc = list?.ownerDocument;
     const win = doc?.defaultView;
-    if (!list || !doc || !win) return undefined;
+    if (!contributes || !list || !doc || !win) return undefined;
+    const hoverPointer = globalThis.matchMedia?.(HOVER_POINTER_QUERY);
     let card: Element | undefined;
     let point = { x: 0, y: 0 };
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -73,8 +80,10 @@ export function ThreadCardDetails({
     };
     resetRef.current = reset;
     closeRef.current = close;
+    // A badge that opens its own hover card counts as off every card, so leaving it enters the card.
     const cardAt = (target: EventTarget | null | undefined) => {
-      const found = target instanceof Element ? target.closest('[data-scroll-anchor]') : null;
+      if (!(target instanceof Element) || target.closest('[data-own-hover-card]')) return undefined;
+      const found = target.closest('[data-scroll-anchor]');
       return found && list.contains(found) ? found : undefined;
     };
     const underPointer = (target: Element) => {
@@ -88,8 +97,7 @@ export function ThreadCardDetails({
       card = cardAt(event.target);
     };
     const move = (event: PointerEvent) => {
-      if (event.pointerType === 'touch' || !globalThis.matchMedia?.(HOVER_POINTER_QUERY).matches)
-        return;
+      if (event.pointerType === 'touch' || !hoverPointer?.matches) return;
       point = { x: event.clientX, y: event.clientY };
       const next = cardAt(event.target);
       // A dismissal or empty result keeps this card, so only leaving it arms another wait.
@@ -132,7 +140,7 @@ export function ThreadCardDetails({
     list.addEventListener('wheel', close, { passive: true });
     win.addEventListener('scroll', scroll, { capture: true, passive: true });
     return () => {
-      clearTimeout(timer);
+      close();
       mutations.disconnect();
       resetRef.current = undefined;
       closeRef.current = undefined;
@@ -143,7 +151,7 @@ export function ThreadCardDetails({
       list.removeEventListener('wheel', close);
       win.removeEventListener('scroll', scroll, true);
     };
-  }, [listRef, latest]);
+  }, [listRef, latest, contributes]);
 
   useEffect(() => resetRef.current?.(), [room.roomId]);
   useEffect(() => {

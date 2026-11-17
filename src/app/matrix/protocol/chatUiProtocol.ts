@@ -24,9 +24,17 @@ export type ChatUiCanvasDocument = {
   size: number;
 };
 
-export type ChatUiCanvas =
-  | { title: string; html: string }
-  | { title: string; document: ChatUiCanvasDocument };
+/**
+ * How one revision of a page asks to be shown: exactly as written (`raw`), and at a viewport this
+ * many CSS pixels wide (`width`), which an inline frame scales down to fit.
+ */
+export type ChatUiCanvasPresentation = { raw?: true; width?: number };
+
+export type ChatUiCanvas = ChatUiCanvasPresentation &
+  ({ title: string; html: string } | { title: string; document: ChatUiCanvasDocument });
+
+export const MIN_CANVAS_WIDTH = 320;
+export const MAX_CANVAS_WIDTH = 2560;
 
 export const MAX_CANVAS_DOCUMENT_BYTES = 4 * 1024 * 1024;
 
@@ -43,6 +51,7 @@ export type ChatUiAction = ChatUiTarget &
         event: MatrixEvent;
         /** The agent may read what the user does in the page; fixed by the request, so edits keep it. */
         shareState?: true;
+        inline?: true;
       }
   );
 
@@ -99,17 +108,28 @@ const readCanvasDocument = (value: unknown): ChatUiCanvasDocument | undefined =>
   return isMxc(value.url) ? { mxcUrl: value.url, size: value.size } : undefined;
 };
 
+/** Presentation a client does not understand is left out, so the page still shows. */
+const readPresentation = (value: Record<string, unknown>): ChatUiCanvasPresentation => ({
+  ...(value.raw === true ? { raw: true as const } : {}),
+  ...(typeof value.width === 'number' &&
+  Number.isInteger(value.width) &&
+  value.width >= MIN_CANVAS_WIDTH &&
+  value.width <= MAX_CANVAS_WIDTH
+    ? { width: value.width }
+    : {}),
+});
+
 const readCanvas = (value: unknown): ChatUiCanvas | undefined => {
   if (!record(value) || typeof value.title !== 'string') return undefined;
   const title = value.title.trim();
   if (!title || title.length > MAX_CANVAS_TITLE_LENGTH) return undefined;
   if (typeof value.html === 'string') {
     return value.document === undefined && value.html.length <= MAX_CANVAS_HTML_LENGTH
-      ? { title, html: value.html }
+      ? { title, html: value.html, ...readPresentation(value) }
       : undefined;
   }
   const document = readCanvasDocument(value.document);
-  return document ? { title, document } : undefined;
+  return document ? { title, document, ...readPresentation(value) } : undefined;
 };
 
 /**
@@ -134,6 +154,7 @@ const AUTHORITY_FIELDS = [
   'room_id',
   'thread_id',
   'share_state',
+  'inline',
 ];
 
 export type LatestCanvas = {
@@ -268,7 +289,8 @@ export const readChatUiAction = (
     const latest = readLatestCanvas(event, eventId, sender, data);
     if (!latest) return undefined;
     const shared = data.share_state === true ? { shareState: true as const } : {};
-    return { ...target, action: 'show_canvas', ...latest, event, ...shared };
+    const inline = data.inline === true ? { inline: true as const } : {};
+    return { ...target, action: 'show_canvas', ...latest, event, ...shared, ...inline };
   }
   return undefined;
 };

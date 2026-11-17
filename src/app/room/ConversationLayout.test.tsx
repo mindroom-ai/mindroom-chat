@@ -79,9 +79,14 @@ it('draws the header, timeline, dock and footer of the room', () => {
   expect(screen.getByTestId('timeline')).toBeTruthy();
   expect(seen.jobs).toContain(null);
   expect(screen.queryByTestId('approval-queue')).toBeNull();
+  // The typing strip shares the dock's row with the jobs bar, first, so it can sit beside it.
+  expect(
+    [...(screen.getByTestId('jobs').parentElement?.children ?? [])].map((child) =>
+      child.getAttribute('data-testid')
+    )
+  ).toEqual(['typing', 'jobs']);
   const footer = document.querySelector('[data-room-footer="true"]');
   expect([...(footer?.children ?? [])].map((child) => child.getAttribute('data-testid'))).toEqual([
-    'typing',
     'notice',
     'composer',
     'following',

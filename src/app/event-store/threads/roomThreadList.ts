@@ -111,16 +111,9 @@ export const getThreadUnread = (thread: Thread, userId: string): boolean => {
   return !!latestReply && isReplyUnread(thread, userId, latestReply);
 };
 
-/**
- * Return a Map of threadRootId → boolean for all given threads,
- * indicating which have unread messages.
- */
-export const getRoomThreadsUnread = (threads: Thread[], userId: string): Map<string, boolean> =>
-  new Map(threads.map((thread) => [thread.id, getThreadUnread(thread, userId)]));
-
 export const sortThreadsByActivity = (
   threads: Thread[],
-  threadUnreads?: Map<string, boolean>
+  threadUnreads?: ReadonlyMap<string, boolean>
 ): Thread[] => {
   const activity = new Map(threads.map((thread) => [thread, getThreadLastActivityTs(thread)]));
   return [...threads].sort((threadA, threadB) => {

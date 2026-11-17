@@ -365,8 +365,7 @@
       "streaming": "Streaming",
       "scheduled": "Geplant",
       "unread": "Ungelesen",
-      "idle": "Inaktiv",
-      "idleFilter": "Inaktiv (gelöst, kein Streaming, keine Aufgaben)"
+      "idle": "Inaktiv"
     },
     "stats": {
       "aria": "Thread-Statistiken",
@@ -374,17 +373,6 @@
       "threadCount_one": "{{count}} Thread",
       "threadCount_other": "{{count}} Threads",
       "tags": "Tags"
-    },
-    "filterTooltip": {
-      "any": "{{label}}: alle werden angezeigt. Klicken, um nur diese anzuzeigen.",
-      "include": "{{label}}: nur diese werden angezeigt. Klicken, um sie auszublenden.",
-      "exclude": "{{label}}: ausgeblendet. Klicken, um den Filter zu entfernen.",
-      "tagAny": "Tag „{{tag}}“",
-      "tagInclude": "Tag „{{tag}}“: nur anzeigen. Klicken, um auszublenden.",
-      "tagExclude": "Tag „{{tag}}“: ausgeblendet. Klicken, um den Filter zu entfernen.",
-      "stateAny": "alle anzeigen",
-      "stateInclude": "nur anzeigen",
-      "stateExclude": "ausgeblendet"
     },
     "filters": {
       "scope": "Bereich",
@@ -1280,25 +1268,15 @@
     "commands": {
       "CommandMe": "Aktionsnachricht senden",
       "CommandNotice": "Hinweisnachricht senden",
-      "CommandShrug": "¯\\_(ツ)_/¯ als Nachricht senden",
-      "CommandTableFlip": "{{value1}} als Nachricht senden",
-      "CommandUnFlip": "{{value1}} als Nachricht senden",
       "CommandStartDm": "Direktnachricht mit Benutzer starten. Beispiel: /startdm userId1",
       "CommandJoin": "Raum über Adresse beitreten. Beispiel: /join address1 address2",
       "CommandLeave": "Aktuellen Raum verlassen.",
       "CommandInvite": "Benutzer in den Raum einladen. Beispiel: /invite userId1 userId2 [-r reason]",
-      "CommandDisInvite": "Einladung eines Benutzers in den Raum zurückziehen. Beispiel: /disinvite userId1 userId2 [-r reason]",
       "CommandKick": "Benutzer aus dem Raum entfernen. Beispiel: /kick userId1 userId2 servername [-r reason]",
       "CommandBan": "Benutzer im Raum sperren. Beispiel: /ban userId1 userId2 servername [-r reason]",
       "CommandUnBan": "Benutzersperre im Raum aufheben. Beispiel: /unban userId1 userId2",
       "CommandIgnore": "Benutzer ignorieren. Beispiel: /ignore userId1 userId2",
-      "CommandUnIgnore": "Benutzer nicht mehr ignorieren. Beispiel: /unignore userId1 userId2",
-      "CommandMyRoomNick": "Spitznamen im aktuellen Raum ändern.",
-      "CommandMyRoomAvatar": "Profilbild im aktuellen Raum ändern. Beispiel: /myroomavatar mxc://xyzabc",
-      "CommandConvertToDm": "Raum in Direktnachricht umwandeln",
-      "CommandConvertToRoom": "Direktnachricht in Raum umwandeln",
-      "CommandDelete": "Nachrichten von Benutzern löschen. Beispiel: /delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandAcl": "Serverzugriffssteuerungsliste verwalten. Beispiel: /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]"
+      "CommandUnIgnore": "Benutzer nicht mehr ignorieren. Beispiel: /unignore userId1 userId2"
     },
     "item": {
       "value1Emoji": "Emoji {{value1}}"
@@ -2242,7 +2220,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "voice": {
@@ -2855,8 +2833,6 @@
         "addTagFilter": "Tag-Filter hinzufügen",
         "tag": "+ Tag",
         "availableTags": "Verfügbare Tags",
-        "filterPresets": "Filtervoreinstellungen",
-        "preset": "Voreinstellung",
         "searchThreads": "Threads durchsuchen",
         "searchThreads2": "Threads durchsuchen...",
         "roomViewMode": "Raumansichtsmodus",
@@ -2876,29 +2852,7 @@
         "unlockSortOrder": "Sortierung entsperren (aktuell {{sort}})",
         "lockSortOrder": "Sortierung sperren (aktuell {{sort}})",
         "threadCount_one": "{{count}} Thread",
-        "threadCount_other": "{{count}} Threads",
-        "presets": {
-          "needs-attention": {
-            "label": "Aufmerksamkeit erforderlich",
-            "description": "Ungelöste, nicht streamende und nicht geplante Threads"
-          },
-          "working": {
-            "label": "In Arbeit",
-            "description": "Streaming oder geplant – woran du gerade arbeitest"
-          },
-          "review-queue": {
-            "label": "Prüfliste",
-            "description": "Ungelöste Threads mit ungelesenen Antworten"
-          },
-          "archived": {
-            "label": "Archiviert",
-            "description": "Nur gelöste Threads"
-          },
-          "all": {
-            "label": "Alle",
-            "description": "Alle Filter zurücksetzen"
-          }
-        }
+        "threadCount_other": "{{count}} Threads"
       },
       "threadTagPicker": {
         "addTag": "Tag hinzufügen",
@@ -3057,7 +3011,7 @@
       "intro": "In diesem Thread laufen Tool-Aufrufe, die diese Personen anfordern, ohne Freigabekarten.",
       "you": "Du",
       "until": "Bis {{time}}",
-      "ownUntil": "Bis {{time}}. Sende !auto_approve off, um sie zu beenden."
+      "ownUntil": "Bis {{time}}. Sende /auto_approve off, um sie zu beenden."
     },
     "notices": {
       "dismiss": "Hinweis schließen",

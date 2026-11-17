@@ -129,7 +129,10 @@ test('the thread header says whose tool calls run without approval cards, and un
   await chip.click();
   const dialog = page.getByRole('dialog', { name: 'Auto-approve' });
   await expect(
-    dialog.getByText(`Until ${clock(ownEnd)}. Send !auto_approve off to end it.`, { exact: true })
+    dialog.getByText(
+      `Until ${clock(ownEnd)}. Send /auto_approve off (or !auto_approve off) to end it.`,
+      { exact: true }
+    )
   ).toBeVisible();
   await expect(dialog.getByText('Robin', { exact: true })).toBeVisible();
   await expect(dialog.getByText(`Until ${clock(colleagueEnd)}`, { exact: true })).toBeVisible();

@@ -244,7 +244,7 @@ describe('ThreadsNav', () => {
     ];
     renderNav();
     fireEvent.click(screen.getByRole('radio', { name: 'All' }));
-    const snoozed = screen.getByRole('button', { name: /Snoozed/ });
+    const snoozed = screen.getByRole('button', { name: /Later/ });
     const automations = screen.getByRole('button', { name: /Automations/ });
     expect(
       snoozed.compareDocumentPosition(automations) & Node.DOCUMENT_POSITION_FOLLOWING
@@ -278,7 +278,7 @@ describe('ThreadsNav', () => {
       state.items = [item('later', 'Revisit pricing', { snoozedUntilTs: Date.now() + 3600_000 })];
       const { container } = renderNav();
       fireEvent.click(screen.getByRole('radio', { name: 'All' }));
-      fireEvent.click(screen.getByRole('button', { name: /Snoozed/ }));
+      fireEvent.click(screen.getByRole('button', { name: /Later/ }));
       expect(container.querySelector('[data-thread-snoozed]')?.textContent).toMatch(
         /^Snoozed until /
       );
@@ -297,8 +297,8 @@ describe('ThreadsNav', () => {
     ];
     const { container } = renderNav();
     fireEvent.click(screen.getByRole('radio', { name: 'All' }));
-    // It stays with the other quiet threads; no Snoozed group takes it.
-    expect(screen.queryByRole('button', { name: /Snoozed/ })).toBeNull();
+    // It stays with the other quiet threads; no Later group takes it.
+    expect(screen.queryByRole('button', { name: /Later/ })).toBeNull();
     expect(screen.getByText('Revisit pricing')).toBeTruthy();
     expect(container.querySelector('[data-thread-snoozed]')).toBeNull();
     expect(container.textContent).not.toContain('Snoozed until');

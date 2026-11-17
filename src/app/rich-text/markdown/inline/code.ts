@@ -1,4 +1,5 @@
 import { createInsideUrlTest } from '../../../lib/regex';
+import type { InlineMDSpan } from './type';
 
 // Inline code is cut out of the text before any other rule runs, so Markdown inside it stays
 // literal and a rule can never end inside it: `**a `**` b**` is bold around the code `**`.
@@ -11,6 +12,10 @@ type CodeSpan = {
   /** The span as written, backticks included. */
   source: string;
   html: string;
+  /** Where the span is in the text as written, and the length of its backtick runs. */
+  start: number;
+  end: number;
+  ticks: number;
 };
 
 const PRIVATE_USE_CHARACTER = /[-]|[\uDB80-\uDBFF][\uDC00-\uDFFF]/g;
@@ -106,13 +111,24 @@ const findCodeSpans = (text: string): FoundSpan[] => {
   return spans;
 };
 
+/** Turns an offset in the masked text into the offset of the same place in the text as written. */
+export type ToSourceOffset = (maskedOffset: number) => number;
+
 /**
  * Renders `text` with its code spans protected: `render` gets the text with each span replaced
- * by a placeholder and returns HTML, in which the placeholders are then filled in.
+ * by a placeholder and returns HTML, in which the placeholders are then filled in. `onCode`
+ * hears of each span that became a `<code>` element, in offsets of `text`.
  */
-export const withProtectedCode = (text: string, render: (masked: string) => string): string => {
+export const withProtectedCode = (
+  text: string,
+  render: (masked: string, toSource: ToSourceOffset) => string,
+  onCode?: (span: InlineMDSpan) => void
+): string => {
   const found = findCodeSpans(text);
   const spans = new Map<string, CodeSpan>();
+  // Where each placeholder ends in the masked text and its span ends in `text`, in order.
+  const maskedEnds: number[] = [];
+  const sourceEnds: number[] = [];
   let masked = text;
   if (found.length > 0) {
     const placeholders = unusedPrivateCharacters(text);
@@ -122,19 +138,36 @@ export const withProtectedCode = (text: string, render: (masked: string) => stri
       const next = placeholders.next();
       if (next.done) return;
       masked += text.slice(cursor, span.start) + next.value;
+      maskedEnds.push(masked.length);
+      sourceEnds.push(span.end);
       spans.set(next.value, {
         source: text.slice(span.start, span.end),
         html: `<code data-md="${span.ticks}">${span.content}</code>`,
+        start: span.start,
+        end: span.end,
+        ticks: span.ticks.length,
       });
       cursor = span.end;
     });
     masked += text.slice(cursor);
   }
+  const toSource: ToSourceOffset = (offset) => {
+    // The last placeholder that ends at or before `offset`, by binary search.
+    let low = 0;
+    let high = maskedEnds.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if ((maskedEnds[middle] ?? 0) <= offset) low = middle + 1;
+      else high = middle;
+    }
+    if (low === 0) return offset;
+    return offset - (maskedEnds[low - 1] ?? 0) + (sourceEnds[low - 1] ?? 0);
+  };
 
   activeSpans.push(spans);
   try {
-    const html = render(masked);
-    return spans.size > 0 ? fillPlaceholders(html, spans) : html;
+    const html = render(masked, toSource);
+    return spans.size > 0 ? fillPlaceholders(html, spans, onCode) : html;
   } finally {
     activeSpans.pop();
   }
@@ -147,7 +180,11 @@ const lookUp = (placeholder: string): CodeSpan | undefined =>
 export const restoreCodeSource = (text: string): string =>
   text.replace(PRIVATE_USE_CHARACTER, (character) => lookUp(character)?.source ?? character);
 
-const fillPlaceholders = (html: string, spans: Map<string, CodeSpan>): string => {
+const fillPlaceholders = (
+  html: string,
+  spans: Map<string, CodeSpan>,
+  onCode: ((span: InlineMDSpan) => void) | undefined
+): string => {
   let output = '';
   let inTag = false;
   let cursor = 0;
@@ -161,7 +198,12 @@ const fillPlaceholders = (html: string, spans: Map<string, CodeSpan>): string =>
     const span = spans.get(found[0]);
     output += between;
     if (!span) output += found[0];
-    else output += inTag ? span.source : span.html;
+    else if (inTag) output += span.source;
+    else {
+      output += span.html;
+      const { start, end, ticks } = span;
+      onCode?.({ kind: 'code', start, end, open: ticks, close: ticks });
+    }
     cursor = offset + found[0].length;
   }
   return output + html.slice(cursor);

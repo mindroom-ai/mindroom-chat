@@ -2,6 +2,7 @@
 import React, { lazy, useState, type ComponentType } from 'react';
 import { act, cleanup, render } from '@testing-library/react';
 import { MatrixEvent, type Room } from 'matrix-js-sdk';
+import type { RectCords } from 'folds';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ThreadActionsMenu } from './ThreadActionsMenu';
 import * as css from './ThreadActionsMenu.css';
@@ -115,13 +116,16 @@ const deferredDetail = (Loaded: ComponentType<ThreadDetailProps>) => {
   };
 };
 
-const renderMenu = (Component: ComponentType<ThreadDetailProps>) =>
+// A trigger whose bottom edge is at y350, its end edge at x724.
+const renderMenu = (
+  Component: ComponentType<ThreadDetailProps>,
+  anchor: RectCords = { x: 700, y: 326, width: 24, height: 24 }
+) =>
   render(
     <ThreadActionsMenu
       room={room}
       rootId="$root"
-      // A trigger whose bottom edge is at y350, its end edge at x724.
-      anchor={{ x: 700, y: 326, width: 24, height: 24 }}
+      anchor={anchor}
       onClose={() => undefined}
       plugins={[pluginWith(Component)]}
     />
@@ -142,37 +146,83 @@ afterEach(() => {
 });
 
 describe("ThreadActionsMenu's thread details", () => {
-  it('repositions inside the viewport when a lazy detail grows the open menu', async () => {
-    vi.stubGlobal('ResizeObserver', SurfaceResizeObserver);
-    // An own value, removed after the test; a restored getter spy here recurses in later tests.
-    Object.defineProperty(document.documentElement, 'clientWidth', {
-      configurable: true,
-      value: 1000,
-    });
-    Object.defineProperty(document.documentElement, 'clientHeight', {
-      configurable: true,
-      value: 768,
-    });
-    // jsdom has no layout. Model a 200px menu that grows to 600px once its detail loads.
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
-      this: HTMLElement
-    ) {
-      const loaded = this.querySelector('[data-loaded-detail]');
-      return new DOMRect(0, 0, 240, loaded ? 600 : 200);
-    });
-    const Loaded = () => <div data-loaded-detail>Loaded details</div>;
-    const { Detail, load } = deferredDetail(Loaded);
-    renderMenu(Detail);
-    const positioned = menu().parentElement;
-    if (!positioned) throw new Error('The menu has no pop-out');
-    expect(positioned.style.top).toBe('354px');
-
-    await load();
-    expect(positioned.textContent).toContain('Loaded details');
-    resizeSurfaces();
-    // Below the trigger the 600px menu would end at y954, past the 768px viewport.
-    expect(positioned.style.top).toBe('38px');
+  it('observes nothing and describes nothing when no detail shows', () => {
+    const resized = vi.fn();
+    vi.stubGlobal(
+      'ResizeObserver',
+      class extends SurfaceResizeObserver {
+        constructor(callback: ResizeObserverCallback) {
+          super(callback);
+          resized();
+        }
+      }
+    );
+    const mutated = vi.fn();
+    const NativeMutationObserver = MutationObserver;
+    vi.stubGlobal(
+      'MutationObserver',
+      class extends NativeMutationObserver {
+        constructor(callback: MutationCallback) {
+          super(callback);
+          mutated();
+        }
+      }
+    );
+    render(
+      <ThreadActionsMenu
+        room={room}
+        rootId="$root"
+        anchor={{ x: 700, y: 326, width: 24, height: 24 }}
+        onClose={() => undefined}
+        plugins={[]}
+      />
+    );
+    expect(menu()).toBeTruthy();
+    expect(resized).not.toHaveBeenCalled();
+    expect(mutated).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-thread-details]')).toBeNull();
+    expect(menu().hasAttribute('aria-describedby')).toBe(false);
   });
+
+  // The banner passes its trigger's getBoundingClientRect(), a DOMRect whose fields are getters
+  // on its prototype, which a spread does not copy.
+  it.each([
+    ['plain', { x: 700, y: 326, width: 24, height: 24 }],
+    ['DOMRect', new DOMRect(700, 326, 24, 24)],
+  ])(
+    'repositions inside the viewport when a lazy detail grows the open menu (%s anchor)',
+    async (_, anchor) => {
+      vi.stubGlobal('ResizeObserver', SurfaceResizeObserver);
+      // An own value, removed after the test; a restored getter spy here recurses in later tests.
+      Object.defineProperty(document.documentElement, 'clientWidth', {
+        configurable: true,
+        value: 1000,
+      });
+      Object.defineProperty(document.documentElement, 'clientHeight', {
+        configurable: true,
+        value: 768,
+      });
+      // jsdom has no layout. Model a 200px menu that grows to 600px once its detail loads.
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+        this: HTMLElement
+      ) {
+        const loaded = this.querySelector('[data-loaded-detail]');
+        return new DOMRect(0, 0, 240, loaded ? 600 : 200);
+      });
+      const Loaded = () => <div data-loaded-detail>Loaded details</div>;
+      const { Detail, load } = deferredDetail(Loaded);
+      renderMenu(Detail, anchor);
+      const positioned = menu().parentElement;
+      if (!positioned) throw new Error('The menu has no pop-out');
+      expect(positioned.style.top).toBe('354px');
+
+      await load();
+      expect(positioned.textContent).toContain('Loaded details');
+      resizeSurfaces();
+      // Below the trigger the 600px menu would end at y954, past the 768px viewport.
+      expect(positioned.style.top).toBe('38px');
+    }
+  );
 
   it.each([
     ['renders nothing', () => null],

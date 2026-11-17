@@ -5,6 +5,7 @@ import {
   type AutocompleteQuery,
 } from '../editor/autocomplete/autocompleteQuery';
 import { BlockType } from '../editor/types';
+import { MINDROOM_COMMANDS } from './commands/agentCommands';
 import type { CommandRefusal } from './commands/commandRefusal';
 import type { SlashCommand } from './commands/useCommands';
 import { readableReason } from '../lib/errorReason';
@@ -61,7 +62,9 @@ export const readActingCommand = (
   document: Descendant[],
   commands: Record<string, SlashCommand>
 ): ActingCommand | undefined => {
-  const match = /^\/([a-z]+)(?:\s+([\s\S]*))?$/.exec(argumentText(document).trim());
+  // A name is a letter, then letters, digits, `_` and `-`, as MindRoom's `/list_schedules`,
+  // `/reload-plugins` and `/e2ee` are.
+  const match = /^\/([a-z][a-z0-9_-]*)(?:\s+([\s\S]*))?$/.exec(argumentText(document).trim());
   const command = match?.[1] === undefined ? undefined : commands[match[1]];
   if (!match || !command?.run) return undefined;
   return { command, run: command.run, args: match[2] ?? '' };
@@ -81,9 +84,27 @@ export const readUnknownCommand = (
   if (!first || !('type' in first) || first.type !== BlockType.Paragraph) return undefined;
   const [run] = first.children;
   if (!run || !Text.isText(run)) return undefined;
-  const name = /^\/([a-z]+)(?:\s|$)/i.exec(run.text)?.[1];
-  return name !== undefined && !Object.hasOwn(commands, name) ? name : undefined;
+  const name = /^\/([a-z][a-z0-9_-]*)(?:\s|$)/i.exec(run.text)?.[1];
+  if (name === undefined || Object.hasOwn(commands, name)) return undefined;
+  return MINDROOM_NAMES.has(mindroomSpelling(name)) ? undefined : name;
 };
+
+/**
+ * A name as MindRoom matches it: in any case, so `/Schedule` from a phone keyboard that
+ * capitalizes the first word goes out as typed too, and with or without the `-` or `_` between
+ * its words (`/auto-approve`, `/reload_plugins`, `/roommodel`). This also lets through a few
+ * spellings MindRoom does not read (`/reloadplugins`, `/auto--approve`), which then go out as a
+ * message, as every `/word` did before the composer refused any.
+ */
+const mindroomSpelling = (name: string): string => name.toLowerCase().replace(/[-_]/g, '');
+
+/** MindRoom's names, and the other spellings of `list_schedules` it reads. */
+const MINDROOM_NAMES = new Set([
+  ...MINDROOM_COMMANDS.map(({ name }) => mindroomSpelling(name)),
+  'listschedule',
+  'inspectschedules',
+  'inspectschedule',
+]);
 
 /** What the composer says when a command did not run: its usage, or the server's reason. */
 export const describeCommandFailure = (
@@ -98,9 +119,6 @@ export const describeCommandFailure = (
       command: name,
       usage: command.description,
     });
-  }
-  if (refusal?.code === 'ownServer') {
-    return t('featureUi.room.commandAutocomplete.ownServer', { server: refusal.server });
   }
   return t('featureUi.room.commandAutocomplete.failed', {
     command: name,

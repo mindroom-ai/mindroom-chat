@@ -221,7 +221,8 @@ export function ThreadActionsMenu({
 
   useEffect(() => {
     const surface = surfaceRef.current;
-    if (!surface) return undefined;
+    // Without details, the menu neither resizes late nor has a description.
+    if (!surface || details.length === 0) return undefined;
     // Details that render nothing (empty, loading or failed) describe nothing.
     const measure = () =>
       setDescribed(surface.querySelector('[data-thread-detail]:not(:empty)') !== null);
@@ -237,14 +238,16 @@ export function ThreadActionsMenu({
         ? undefined
         : new ResizeObserver(() => {
             // Folds repositions when its anchor changes; lazy details can resize without a window resize.
-            setPlaced({ anchor, copy: { ...anchor } });
+            // The trigger's DOMRect keeps its fields on its prototype, where a spread finds none.
+            const { x, y, width, height } = anchor;
+            setPlaced({ anchor, copy: { x, y, width, height } });
           });
     observer?.observe(surface);
     return () => {
       mutations.disconnect();
       observer?.disconnect();
     };
-  }, [anchor, dialog]);
+  }, [anchor, dialog, details]);
 
   if (dialog === 'snooze') {
     return (
@@ -319,7 +322,6 @@ export function ThreadActionsMenu({
               aria-label={t('threadActions.summary')}
               style={{ ...fieldStyle, minHeight: '5rem', resize: 'vertical' }}
               value={draft}
-              maxLength={SUMMARY_MAX_LENGTH * 2}
               disabled={busy}
               onChange={(evt) => setDraft(evt.target.value)}
             />

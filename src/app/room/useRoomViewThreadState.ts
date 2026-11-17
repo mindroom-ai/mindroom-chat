@@ -1,3 +1,5 @@
+import type { ThreadWorkflowTab } from '../event-store/threads/threadWorkflow';
+import { selectThreadWorkflowTab } from '../event-store/threads/roomThreadOverviewModel';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -31,20 +33,16 @@ import { historyPageOf, previousHistoryOrigin, showsRoom } from '../routes/histo
 import { getCanonicalAliasOrRoomId } from '../matrix/matrix';
 import {
   addTagFilter,
-  applyPreset,
   createDefaultThreadFilterState,
   cycleSortMode,
-  type FilterPreset,
   normalizeThreadSearchText,
   removeTagFilter,
   resetThreadFilterState,
   simplifyAgentlessSimpleThreadFilterState,
   simplifyAgentlessThreadFilterState,
   simplifyThreadFilterState,
-  type ThreadFilterKey,
   type ThreadFilterState,
   type ThreadSortFreezeState,
-  updateThreadFilterKey,
 } from '../event-store/threads/roomThreadOverviewModel';
 import { roomThreadFilterAtomFamily } from '../threads/overview/roomThreadFilterState';
 import type { RoomViewMode } from '../navigation/roomViewMode';
@@ -74,10 +72,11 @@ type UseRoomViewThreadStateOptions = {
 export type RoomViewThreadState = {
   effectiveThreadId?: string;
   handleAddTag: (tag: string) => void;
-  handleApplyPreset: (preset: FilterPreset) => void;
+  handleSelectTab: (tab: ThreadWorkflowTab) => void;
   handleClearPeople: () => void;
   handleClearTags: () => void;
   handleExitThread: () => void;
+  handleOpenThread: (threadId: string) => void;
   handleThreadRootDeleted: () => void;
   /** The open thread failed to load in this room (`ThreadView`'s `onThreadLoadError`). */
   handleThreadLoadError: (threadId: string) => void;
@@ -85,7 +84,6 @@ export type RoomViewThreadState = {
   handleReset: () => void;
   handleSearchQueryChange: (query: string) => void;
   handleSortDirectionChange: () => void;
-  handleToggle: (key: ThreadFilterKey) => void;
   handleToggleThreadSortFreeze: () => void;
   handleToggleUnresolvedOnly: () => void;
   handleTogglePerson: (userId: string) => void;
@@ -126,21 +124,23 @@ export const useRoomViewThreadState = ({
     [roomId, userId]
   );
   const [storedThreadFilterState, setThreadFilterState] = useAtom(threadFilterAtom);
-  // Until the reader sets a filter in the room, Compact hides resolved and snoozed threads.
-  const threadFilterState = useMemo<ThreadFilterState>(
-    () =>
-      storedThreadFilterState ?? {
-        ...createDefaultThreadFilterState(),
-        resolved: effectiveViewMode === 'compact' ? 'exclude' : 'any',
-        snoozed: effectiveViewMode === 'compact' ? 'exclude' : 'any',
-      },
-    [effectiveViewMode, storedThreadFilterState]
-  );
+  const [simpleMode] = useSetting(settingsAtom, 'simpleThreadFilters');
+  // New advanced agent rooms start on Needs you; Simple mode keeps its existing default.
+  const threadFilterState = useMemo<ThreadFilterState>(() => {
+    if (storedThreadFilterState) return storedThreadFilterState;
+    const defaults = createDefaultThreadFilterState();
+    if (hasMindroomAgents && !simpleMode && effectiveViewMode === 'compact')
+      return selectThreadWorkflowTab(defaults, 'needsYou');
+    return {
+      ...defaults,
+      resolved: effectiveViewMode === 'compact' ? 'exclude' : 'any',
+      snoozed: effectiveViewMode === 'compact' ? 'exclude' : 'any',
+    };
+  }, [effectiveViewMode, storedThreadFilterState, hasMindroomAgents, simpleMode]);
   // Project stored filters onto the controls that are currently visible.
   // Persisted advanced filters must not keep hiding threads with no visible
   // cause, but remain stored so they can be restored when those controls
   // become available again.
-  const [simpleMode] = useSetting(settingsAtom, 'simpleThreadFilters');
   const effectiveThreadFilterState = useMemo(() => {
     if (simpleMode) {
       return hasMindroomAgents
@@ -148,7 +148,9 @@ export const useRoomViewThreadState = ({
         : simplifyAgentlessSimpleThreadFilterState(threadFilterState);
     }
     return hasMindroomAgents
-      ? threadFilterState
+      ? threadFilterState.tab
+        ? selectThreadWorkflowTab(threadFilterState, threadFilterState.tab)
+        : threadFilterState
       : simplifyAgentlessThreadFilterState(threadFilterState);
   }, [hasMindroomAgents, simpleMode, threadFilterState]);
   const lastExitedThread = useAtomValue(lastExitedThreadAtom);
@@ -263,6 +265,11 @@ export const useRoomViewThreadState = ({
     [eventId, mx, navigateRoomThreadDirect, roomId, sessionId, setMissingThreadId]
   );
 
+  const handleOpenThread = useCallback(
+    (openedThreadId: string) => navigateRoomThread(roomId, openedThreadId),
+    [navigateRoomThread, roomId]
+  );
+
   const handleSwipeForwardToThread = useCallback(() => {
     if (effectiveViewMode === 'classic') return;
     if (threadId) return;
@@ -293,7 +300,7 @@ export const useRoomViewThreadState = ({
   // (tag:/is:) parsed mid-word would otherwise refilter the overview with
   // transient one-letter filters ("u", "ur", …) and churn the sort-freeze
   // signature. The search input renders its own draft, so typing stays
-  // responsive. Instant filter mutations (chips, presets, tags, sort) FLUSH
+  // responsive. Instant filter mutations (tabs, people, tags, sort) FLUSH
   // the pending query first and compose on top of it — the trailing timer
   // would otherwise clobber a click made inside the debounce window, since
   // applyParsedThreadFilterQuery rebuilds every DSL-owned dimension.
@@ -341,13 +348,6 @@ export const useRoomViewThreadState = ({
       }, 300);
     },
     [flushPendingSearchQuery]
-  );
-
-  const handleToggle = useCallback(
-    (key: ThreadFilterKey) => {
-      setThreadFilterState(updateThreadFilterKey(flushPendingSearchQuery(), key));
-    },
-    [flushPendingSearchQuery, setThreadFilterState]
   );
 
   // Simple mode's single binary control: unresolved-only on/off. Flips only
@@ -422,9 +422,9 @@ export const useRoomViewThreadState = ({
     [flushPendingSearchQuery, setThreadFilterState]
   );
 
-  const handleApplyPreset = useCallback(
-    (preset: FilterPreset) => {
-      setThreadFilterState(applyPreset(flushPendingSearchQuery(), preset));
+  const handleSelectTab = useCallback(
+    (tab: ThreadWorkflowTab) => {
+      setThreadFilterState(selectThreadWorkflowTab(flushPendingSearchQuery(), tab));
     },
     [flushPendingSearchQuery, setThreadFilterState]
   );
@@ -450,16 +450,16 @@ export const useRoomViewThreadState = ({
     }
   }, [hasMindroomAgents, simpleMode]);
 
+  // A thread that opens ends the record of the one left before it. Only as it opens: leaving
+  // records the thread while its address still names it, until the browser has stepped back.
   useEffect(() => {
-    if (threadId) {
-      setLastExitedThread(null);
-      return;
-    }
-
+    if (threadId) setLastExitedThread(null);
+  }, [setLastExitedThread, threadId]);
+  useEffect(() => {
     if (lastExitedThread && lastExitedThread.roomId !== roomId) {
       setLastExitedThread(null);
     }
-  }, [lastExitedThread, roomId, setLastExitedThread, threadId]);
+  }, [lastExitedThread, roomId, setLastExitedThread]);
 
   useEffect(() => () => setLastExitedThread(null), [setLastExitedThread]);
 
@@ -504,17 +504,17 @@ export const useRoomViewThreadState = ({
   return {
     effectiveThreadId,
     handleAddTag,
-    handleApplyPreset,
+    handleSelectTab,
     handleClearPeople,
     handleClearTags,
     handleExitThread,
+    handleOpenThread,
     handleThreadRootDeleted,
     handleThreadLoadError,
     handleRemoveTag,
     handleReset,
     handleSearchQueryChange,
     handleSortDirectionChange,
-    handleToggle,
     handleToggleThreadSortFreeze,
     handleToggleUnresolvedOnly,
     handleTogglePerson,

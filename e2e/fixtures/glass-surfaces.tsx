@@ -203,14 +203,13 @@ function Fixture() {
             state={threadState}
             availableTags={['priority']}
             isThreadSortFrozen={false}
-            onToggle={() => {}}
             onSortDirectionChange={() => {}}
             onToggleThreadSortFreeze={() => {}}
             onReset={() => {}}
             onClearTags={() => {}}
             onRemoveTag={() => {}}
             onAddTag={(tag) => setThreadAction(`Tag: ${tag}`)}
-            onApplyPreset={(preset) => setThreadAction(`Preset: ${preset.id}`)}
+            onSelectTab={(tab) => setThreadAction(`Tab: ${tab}`)}
             onSearchQueryChange={() => {}}
           />
           <output>{threadAction}</output>

@@ -48,7 +48,7 @@ vi.mock('../../ui/glass/GlassPrimitives', () => ({
 
 const SLASH_COMMANDS = [
   { name: 'me', description: 'Sends an action.' },
-  { name: 'shrug', description: 'Puts a shrug before the message.' },
+  { name: 'shush', description: 'Asks for quiet.' },
   { name: 'shout', description: 'Says it louder.' },
 ];
 
@@ -119,20 +119,20 @@ it('lists the commands that start with the typed letters, each with what it does
   renderSlashMenu('/SH');
 
   expect(rows().map(texts)).toEqual([
-    ['/shrug', 'Puts a shrug before the message.'],
+    ['/shush', 'Asks for quiet.'],
     ['/shout', 'Says it louder.'],
   ]);
-  expect(rows().map((row) => row.props['data-slash-command'])).toEqual(['shrug', 'shout']);
+  expect(rows().map((row) => row.props['data-slash-command'])).toEqual(['shush', 'shout']);
 });
 
 it('writes the picked command and a space in place of the typed word', () => {
-  const { editor, requestClose } = renderSlashMenu('/shr');
+  const { editor, requestClose } = renderSlashMenu('/shu');
 
   act(() => {
     defined(rows()[0], 'a command row').props.onClick();
   });
 
-  expect(toPlainText(editor.children, false)).toBe('/shrug ');
+  expect(toPlainText(editor.children, false)).toBe('/shush ');
   expect(requestClose).toHaveBeenCalled();
 });
 
@@ -150,7 +150,7 @@ it('takes the first command on Tab in the composer', () => {
   act(() => defined(windowKeyDown.listener, 'the window key listener')(tab));
 
   expect(tab.preventDefault).toHaveBeenCalled();
-  expect(toPlainText(editor.children, false)).toBe('/shrug ');
+  expect(toPlainText(editor.children, false)).toBe('/shush ');
 });
 
 it('shows nothing when no command starts with the typed letters', () => {
@@ -158,6 +158,37 @@ it('shows nothing when no command starts with the typed letters', () => {
 
   expect(renderer!.toJSON()).toBeNull();
   expect(windowKeyDown.listener).toBeUndefined();
+});
+
+it("shows a MindRoom command's / syntax among the slash commands, and a pick writes its name", () => {
+  const { editor, query, requestClose } = editorWith('/list_s');
+  act(() => {
+    renderer = create(
+      <CommandAutocomplete
+        editor={editor}
+        query={query}
+        title="Commands"
+        commands={[
+          ...SLASH_COMMANDS,
+          {
+            name: 'list_schedules',
+            syntax: '/list_schedules',
+            description: 'List all scheduled tasks.',
+          },
+        ]}
+        requestClose={requestClose}
+      />
+    );
+  });
+
+  expect(rows().map(texts)).toEqual([['/list_schedules', 'List all scheduled tasks.']]);
+  expect(rows()[0]?.props['data-slash-command']).toBe('list_schedules');
+
+  act(() => {
+    defined(rows()[0], 'a command row').props.onClick();
+  });
+
+  expect(toPlainText(editor.children, false)).toBe('/list_schedules ');
 });
 
 it("lists MindRoom's commands with their syntax, and a pick writes the ! command", () => {

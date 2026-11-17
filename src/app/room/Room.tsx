@@ -108,11 +108,6 @@ const LiveTranscriptPanel = lazyPart(
 const HeaderCallButtons = lazyPart(() =>
   import('../calls/HeaderCallButtons').then((module) => ({ default: module.HeaderCallButtons }))
 );
-const HeaderCallMenuEntries = lazyPart(() =>
-  import('../calls/HeaderCallButtons').then((module) => ({
-    default: module.HeaderCallMenuEntries,
-  }))
-);
 
 /** The call panel fits two tiles side by side; wider, it fits more. A plugin's panel opens as wide. */
 const CALL_DEFAULT_WIDTH = 400;
@@ -358,6 +353,7 @@ function RoomContent() {
             expanded={layout === 'filled'}
             onToggleExpanded={() => toggleFilled('canvas')}
             libraries={clientConfig.mindroom?.canvas?.libraries === true}
+            remote={clientConfig.mindroom?.canvas?.remoteAssets === true}
           />
         ),
     },
@@ -757,13 +753,9 @@ function RoomContent() {
     onPanelToggle,
     pluginPanels,
     pluginActions,
-    calls: (placement) => (
+    calls: (
       <Suspense fallback={null}>
-        {placement.at === 'menu' ? (
-          <HeaderCallMenuEntries threadId={threadId} requestClose={placement.requestClose} />
-        ) : (
-          <HeaderCallButtons threadId={threadId} phone={placement.phone} />
-        )}
+        <HeaderCallButtons threadId={threadId} />
       </Suspense>
     ),
   };

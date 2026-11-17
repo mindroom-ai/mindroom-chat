@@ -111,6 +111,17 @@ export const BlockQuote = style({
 
 export const Spoiler = style(tintedSurface);
 
+// Markdown syntax typed in the text, such as `**` or a link's URL: kept as text, at the text's
+// size so nothing moves when a span completes, and faded as the placeholder is, a little less.
+export const MarkdownMarker = style({
+  opacity: 0.5,
+});
+
+export const MarkdownLink = style({
+  color: color.Primary.Main,
+  textDecoration: 'underline',
+});
+
 export const InlineCode = style({
   ...tintedSurface,
   fontFamily: 'var(--font-mono)',

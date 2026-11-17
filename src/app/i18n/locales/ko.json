@@ -365,8 +365,7 @@
       "streaming": "응답 생성 중",
       "scheduled": "예약됨",
       "unread": "읽지 않음",
-      "idle": "대기",
-      "idleFilter": "대기 (해결됨, 응답 생성 없음, 작업 없음)"
+      "idle": "대기"
     },
     "stats": {
       "aria": "스레드 통계",
@@ -374,17 +373,6 @@
       "threadCount_one": "스레드 {{count}}개",
       "threadCount_other": "스레드 {{count}}개",
       "tags": "태그"
-    },
-    "filterTooltip": {
-      "any": "{{label}}: 모두 표시 중. 클릭하면 이것만 표시합니다.",
-      "include": "{{label}}: 이것만 표시 중. 클릭하면 숨깁니다.",
-      "exclude": "{{label}}: 숨기는 중. 클릭하면 필터를 해제합니다.",
-      "tagAny": "\"{{tag}}\" 태그",
-      "tagInclude": "\"{{tag}}\" 태그: 이것만 표시 중. 클릭하면 숨깁니다.",
-      "tagExclude": "\"{{tag}}\" 태그: 숨기는 중. 클릭하면 필터를 해제합니다.",
-      "stateAny": "모두 표시 중",
-      "stateInclude": "이것만 표시",
-      "stateExclude": "숨기는 중"
     },
     "filters": {
       "scope": "범위",
@@ -1280,25 +1268,15 @@
     "commands": {
       "CommandMe": "동작 메시지 보내기",
       "CommandNotice": "공지 메시지 보내기",
-      "CommandShrug": "¯\\_(ツ)_/¯을(를) 메시지로 보내기",
-      "CommandTableFlip": "{{value1}}을(를) 메시지로 보내기",
-      "CommandUnFlip": "{{value1}}을(를) 메시지로 보내기",
       "CommandStartDm": "사용자와 다이렉트 메시지를 시작합니다. 예: /startdm userId1",
       "CommandJoin": "주소로 방에 참여합니다. 예: /join address1 address2",
       "CommandLeave": "현재 방에서 나갑니다.",
       "CommandInvite": "사용자를 방에 초대합니다. 예: /invite userId1 userId2 [-r reason]",
-      "CommandDisInvite": "사용자의 방 초대를 취소합니다. 예: /disinvite userId1 userId2 [-r reason]",
       "CommandKick": "사용자를 방에서 내보냅니다. 예: /kick userId1 userId2 servername [-r reason]",
       "CommandBan": "사용자를 방에서 차단합니다. 예: /ban userId1 userId2 servername [-r reason]",
       "CommandUnBan": "사용자의 방 차단을 해제합니다. 예: /unban userId1 userId2",
       "CommandIgnore": "사용자를 무시합니다. 예: /ignore userId1 userId2",
-      "CommandUnIgnore": "사용자 무시를 해제합니다. 예: /unignore userId1 userId2",
-      "CommandMyRoomNick": "현재 방의 닉네임을 변경합니다.",
-      "CommandMyRoomAvatar": "현재 방의 프로필 사진을 변경합니다. 예 /myroomavatar mxc://xyzabc",
-      "CommandConvertToDm": "방을 다이렉트 메시지로 전환",
-      "CommandConvertToRoom": "다이렉트 메시지를 방으로 전환",
-      "CommandDelete": "사용자의 메시지를 삭제합니다. 예: /delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandAcl": "서버 접근 제어 목록을 관리합니다. 예 /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]"
+      "CommandUnIgnore": "사용자 무시를 해제합니다. 예: /unignore userId1 userId2"
     },
     "item": {
       "value1Emoji": "{{value1}} 이모지"
@@ -2242,7 +2220,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "voice": {
@@ -2842,8 +2820,6 @@
         "addTagFilter": "태그 필터 추가",
         "tag": "+ 태그",
         "availableTags": "사용 가능한 태그",
-        "filterPresets": "필터 사전 설정",
-        "preset": "미리 설정",
         "searchThreads": "스레드 검색",
         "searchThreads2": "스레드 검색...",
         "roomViewMode": "방 보기 모드",
@@ -2863,29 +2839,7 @@
         "unlockSortOrder": "정렬 순서 잠금 해제 (현재 {{sort}})",
         "lockSortOrder": "정렬 순서 잠금 (현재 {{sort}})",
         "threadCount_one": "스레드 {{count}}개",
-        "threadCount_other": "스레드 {{count}}개",
-        "presets": {
-          "needs-attention": {
-            "label": "확인 필요",
-            "description": "응답 생성 중이거나 예약된 작업이 없는 미해결 스레드"
-          },
-          "working": {
-            "label": "작업 중",
-            "description": "응답 생성 중 또는 예약됨 — 현재 진행 중인 작업"
-          },
-          "review-queue": {
-            "label": "검토 대기열",
-            "description": "읽지 않은 답글이 있는 미해결 스레드"
-          },
-          "archived": {
-            "label": "보관됨",
-            "description": "해결된 스레드만"
-          },
-          "all": {
-            "label": "모두",
-            "description": "모든 필터 초기화"
-          }
-        }
+        "threadCount_other": "스레드 {{count}}개"
       },
       "threadTagPicker": {
         "addTag": "태그 추가",
@@ -3044,7 +2998,7 @@
       "intro": "이 스레드에서는 이 사람들이 요청한 도구 호출이 승인 카드 없이 실행됩니다.",
       "you": "나",
       "until": "{{time}}까지",
-      "ownUntil": "{{time}}까지. 끝내려면 !auto_approve off를 보내세요."
+      "ownUntil": "{{time}}까지. 끝내려면 /auto_approve off를 보내세요."
     },
     "notices": {
       "dismiss": "공지 닫기",

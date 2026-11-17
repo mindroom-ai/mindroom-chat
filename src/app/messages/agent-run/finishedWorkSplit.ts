@@ -16,15 +16,14 @@ export type FinishedWorkSplit = {
   tail: string;
 };
 
-// The timeline's long-message length (FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH in
-// timeline/threadCollapsibleMessages.ts, a layer messages may not import).
-const LONG_AGENT_REPLY_LENGTH = 1200;
+// About two printed pages: shorter replies show their work inline, as folding them hides little.
+const LONG_AGENT_REPLY_LENGTH = 6000;
 // A tool marker renders as a full row, however short its line.
 const TOOL_MARKER_LINE_LENGTH = 80;
 
 /**
  * Whether a finished agent reply is long enough to fold its work: its plain body is at least
- * 1200 characters, each tool marker line counted as 80. A length, not a measured height, so every
+ * 6000 characters, each tool marker line counted as 80. A length, not a measured height, so every
  * device and layout agrees and nothing waits for the reply to lay out.
  */
 export const isLongAgentReply = (body: string): boolean =>
@@ -73,7 +72,7 @@ const LEADING_NEWLINE_ELEMENTS = new Set(['pre', 'textarea', 'listing']);
 
 // The browser build parses with DOMParser, which reports no source positions, so the halves are
 // written out again from the nodes. Only text nodes are text: comments and directives drop.
-const serialize = (node: ChildNode): string => {
+export const serializeHtmlNode = (node: ChildNode): string => {
   if (isText(node)) return sanitizeText(node.data);
   if (!isDomElementNode(node)) return '';
   const attributes = Object.entries(node.attribs)
@@ -86,7 +85,7 @@ const serialize = (node: ChildNode): string => {
     LEADING_NEWLINE_ELEMENTS.has(node.name) && first && isText(first) && first.data.startsWith('\n')
       ? '\n'
       : '';
-  return `${open}${leadingNewline}${node.children.map(serialize).join('')}</${node.name}>`;
+  return `${open}${leadingNewline}${node.children.map(serializeHtmlNode).join('')}</${node.name}>`;
 };
 
 const MEDIA_ELEMENTS = new Set(['img', 'video', 'audio']);
@@ -119,13 +118,13 @@ export const splitFinishedWork = (html: string): FinishedWorkSplit | undefined =
   if (last < 0) return undefined;
   const tail = nodes
     .slice(last + 1)
-    .map(serialize)
+    .map(serializeHtmlNode)
     .join('');
   if (!rendersVisibleContent(tail)) return undefined;
   return {
     head: nodes
       .slice(0, last + 1)
-      .map(serialize)
+      .map(serializeHtmlNode)
       .join(''),
     tail,
   };

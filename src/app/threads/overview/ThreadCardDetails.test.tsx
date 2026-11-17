@@ -72,6 +72,9 @@ function Harness({ config = {}, withoutA = false, ...props }: HarnessProps) {
         {!withoutA && (
           <div data-scroll-anchor="$a">
             <span data-testid="a">A</span>
+            <span data-own-hover-card="" style={{ display: 'contents' }}>
+              <span data-testid="a-chip">PR #1</span>
+            </span>
             <button type="button" data-testid="a-menu">
               More Options
             </button>
@@ -116,7 +119,13 @@ let hover: boolean;
 beforeEach(() => {
   vi.useFakeTimers();
   hover = true;
-  vi.stubGlobal('matchMedia', (query: string) => ({ matches: hover, media: query }));
+  // A MediaQueryList's matches is live, as a real one's is.
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    get matches() {
+      return hover;
+    },
+    media: query,
+  }));
   vi.stubGlobal('innerHeight', 768);
   popOut.mockClear();
 });
@@ -323,9 +332,62 @@ describe('ThreadCardDetails', () => {
     point(getByTestId('a'));
     advance();
     expect(shown()).toBeNull();
+    cleanup();
+    hover = true;
     vi.stubGlobal('matchMedia', undefined);
+    const again = render(<Harness />);
+    point(again.getByTestId('a'));
+    advance();
+    expect(shown()).toBeNull();
+  });
+  it('asks for the pointer media query once per mount, not on every move', () => {
+    const media = vi.fn((query: string) => ({
+      get matches() {
+        return hover;
+      },
+      media: query,
+    }));
+    vi.stubGlobal('matchMedia', media);
+    const { getByTestId } = render(<Harness />);
+    point(getByTestId('a'));
+    point(getByTestId('a'), 'pointermove', 60, 55);
+    point(getByTestId('b'));
+    advance();
+    expect(shown()?.textContent).toBe('Details of $b');
+    expect(media).toHaveBeenCalledTimes(1);
+    expect(media).toHaveBeenCalledWith(HOVER_POINTER_QUERY);
+  });
+  it('listens and observes nothing while no plugin config.json leaves on contributes a detail, and starts once one does', () => {
+    const view = document.defaultView;
+    if (!view) throw new Error('The document has no window');
+    const listened = vi.spyOn(HTMLElement.prototype, 'addEventListener');
+    const windowListened = vi.spyOn(view, 'addEventListener');
+    const observed = vi.spyOn(view.MutationObserver.prototype, 'observe');
+    const off = { plugins: { test: { enabled: false } } } as unknown as ClientConfig;
+    const { getByTestId, rerender } = render(<Harness plugins={[plugin([])]} />);
+    const list = getByTestId('list');
+    const onList = () => listened.mock.contexts.filter((element) => element === list);
+    rerender(<Harness config={off} />);
     point(getByTestId('a'));
     advance();
+    expect(shown()).toBeNull();
+    expect(onList()).toHaveLength(0);
+    expect(windowListened).not.toHaveBeenCalledWith('scroll', expect.anything(), expect.anything());
+    expect(observed).not.toHaveBeenCalled();
+    rerender(<Harness />);
+    expect(onList().length).toBeGreaterThan(0);
+    expect(windowListened).toHaveBeenCalledWith('scroll', expect.anything(), expect.anything());
+    expect(observed).toHaveBeenCalledWith(list, { childList: true, subtree: true });
+    point(getByTestId('b'));
+    advance();
+    expect(shown()?.textContent).toBe('Details of $b');
+  });
+  it('closes an open card when its plugin is turned off', () => {
+    const { getByTestId, rerender } = render(<Harness />);
+    point(getByTestId('a'));
+    advance();
+    expect(shown()?.textContent).toBe('Details of $a');
+    rerender(<Harness config={{ plugins: { test: { enabled: false } } } as ClientConfig} />);
     expect(shown()).toBeNull();
   });
   it('opens nothing while a thread menu is open or after the room changed during the wait', () => {
@@ -382,7 +444,9 @@ describe('ThreadCardDetails', () => {
   it('reads the latest room object, plugins and config when the wait ends', () => {
     const shows = vi.fn(() => true);
     const plugins = [plugin([{ Component: Named, shows }])];
-    const { getByTestId, rerender } = render(<Harness plugins={[]} />);
+    const { getByTestId, rerender } = render(
+      <Harness plugins={[plugin([{ Component: Named, shows: () => false }])]} />
+    );
     point(getByTestId('a'));
     advance(300);
     const updatedRoom = { roomId: room.roomId } as Room;
@@ -450,6 +514,39 @@ describe('ThreadCardDetails', () => {
     Object.defineProperty(document, 'elementFromPoint', {
       configurable: true,
       value: () => getByTestId('b'),
+    });
+    point(getByTestId('a'));
+    advance(1000);
+    expect(shown()).toBeNull();
+  });
+  it('stays closed while the pointer rests on a badge with its own hover card, and opens after the wait once it moves onto the card', () => {
+    const { getByTestId } = render(<Harness />);
+    point(getByTestId('a-chip'));
+    advance(1000);
+    point(getByTestId('a-chip'), 'pointermove', 45, 50);
+    advance(1000);
+    expect(shown()).toBeNull();
+    point(getByTestId('a'));
+    advance(499);
+    expect(shown()).toBeNull();
+    advance(1);
+    expect(shown()?.textContent).toBe('Details of $a');
+  });
+  it('closes when the pointer moves from the card onto a badge with its own hover card', () => {
+    const { getByTestId } = render(<Harness />);
+    point(getByTestId('a'));
+    advance();
+    expect(shown()).not.toBeNull();
+    point(getByTestId('a-chip'));
+    expect(shown()).toBeNull();
+    advance(1000);
+    expect(shown()).toBeNull();
+  });
+  it('opens nothing when the wait ends with a badge that has its own hover card under the pointer', () => {
+    const { getByTestId } = render(<Harness />);
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => getByTestId('a-chip'),
     });
     point(getByTestId('a'));
     advance(1000);

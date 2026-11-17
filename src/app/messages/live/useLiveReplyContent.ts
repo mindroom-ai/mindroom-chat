@@ -39,7 +39,7 @@ const getLiveCheckpoint = (content: IContent): LiveOrder | undefined => {
  * Whether the entry shows over the durable content, shows the durable content until a newer
  * frame, or is dropped because it can never show over this reply.
  */
-const getLiveVerdict = (
+export const getLiveVerdict = (
   event: MatrixEvent,
   content: IContent,
   entry: LiveReplyEntry,

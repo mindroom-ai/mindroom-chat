@@ -87,7 +87,9 @@
       "pack": "Wie das Paket"
     },
     "imageViewer": {
-      "close": "Schließen"
+      "close": "Schließen",
+      "previous": "Vorheriges Bild",
+      "next": "Nächstes Bild"
     },
     "inviteUserPrompt": {
       "close": "Schließen",
@@ -142,8 +144,7 @@
       "noCrossSigningKeys": "Dein geheimer Speicher enthält keine Cross-Signing-Schlüssel, daher kann der Wiederherstellungsschlüssel diese Sitzung nicht verifizieren. Verifiziere sie von einer deiner anderen Sitzungen aus."
     },
     "commands": {
-      "CommandPlain": "Nachricht als reinen Text ohne Markdown senden. Beispiel: /plain Nachricht",
-      "CommandHtml": "Nachricht als HTML ohne Markdown senden. Beispiel: /html Nachricht"
+      "CommandPlain": "Nachricht als reinen Text ohne Markdown senden. Beispiel: /plain Nachricht"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Diese Anmeldung wurde nicht hier gestartet und deshalb nicht verwendet. Melde dich erneut an."
@@ -158,6 +159,7 @@
     "appUpdate": {
       "available": "Eine neue Version von MindRoom ist verfügbar.",
       "reload": "Neu laden",
+      "updating": "Wird aktualisiert…",
       "dismiss": "Ausblenden",
       "reloadToUse": "Lade neu, um sie zu verwenden."
     },
@@ -363,7 +365,9 @@
       },
       "computers": {
         "inUse": "Verwendeter Server",
-        "inUseNone": "Keiner festgelegt, daher sind Computer auf diesem Gerät aus."
+        "inUseNone": "Keiner festgelegt, daher sind Computer auf diesem Gerät aus.",
+        "useServer": "{{host}} verwenden",
+        "foundNotSaved": "Über deine Agenten gefunden, nicht gespeichert; speichere ihn, um hier Schlüssel einzugeben."
       },
       "keywords": {
         "theme": "Dunkelmodus, Hellmodus, Nachtmodus, Farben, dark mode",
@@ -537,7 +541,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} fehlgeschlagen: {{reason}}",
         "usage": "{{command}} konnte nicht ausgeführt werden. {{usage}}",
-        "ownServer": "Nichts geändert: Dein eigener Server ({{server}}) würde aus dem Raum ausgeschlossen.",
         "unknown": "{{command}} ist kein Befehl. Um es als Text zu senden, beginne die Nachricht mit /plain."
       },
       "jumpToTime": {
@@ -717,13 +720,14 @@
         "showKey": "Schlüssel anzeigen",
         "hideKey": "Schlüssel verbergen",
         "sentTo": "Wird an {{host}} gesendet",
+        "openLink": "{{host}} öffnen",
         "save": "Speichern",
         "decline": "Ablehnen",
         "savedWaiting": "Gespeichert, wartet auf den Agenten",
         "declinedWaiting": "Abgelehnt, wartet auf den Agenten",
         "noLongerActive": "Diese Anfrage ist nicht mehr aktiv. Frag den Agenten erneut.",
         "unavailable": "Auf diesem Server lassen sich keine Schlüssel eingeben.",
-        "unavailableHint": "Um hier Schlüssel einzugeben, lege deinen MindRoom-Server unter Einstellungen → {{page}} → {{field}} fest.",
+        "unavailableHint": "Um hier Schlüssel einzugeben, speichere deinen MindRoom-Server unter Einstellungen → {{page}}.",
         "replaces": "Ersetzt den jetzt gespeicherten Schlüssel.",
         "replaceKey": "Schlüssel ersetzen",
         "temporary": {
@@ -771,6 +775,16 @@
       "finishedWork": {
         "workedFor": "{{duration}} gearbeitet",
         "worked": "Gearbeitet"
+      },
+      "questionCard": {
+        "title": "Frage",
+        "waiting": "Wartet auf dich",
+        "answered": "Beantwortet",
+        "youChose": "Deine Wahl",
+        "nameChose": "Gewählt von {{name}}"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Sub-Agenten"
       }
     },
     "message-search": {
@@ -793,13 +807,7 @@
         "threadFiltersActive": "Thread-Filter (aktiv)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Erweiterte Filter",
-        "presets": {
-          "snoozed": {
-            "label": "Zurückgestellt",
-            "description": "Nur zurückgestellte Threads"
-          }
-        }
+        "advancedFilters": "Erweiterte Filter"
       },
       "threadPeopleFilter": {
         "label": "Personen",
@@ -951,7 +959,11 @@
       "moveRoomDown": "Fokussierten Raum oder Space nach unten verschieben",
       "members": "Mitglieder ein- oder ausblenden",
       "focusComposer": "Als gelesen markieren und zum Eingabefeld wechseln",
-      "resolveThread": "Geöffneten Thread auflösen oder wieder öffnen",
+      "previousThread": "Vorherigen Thread fokussieren",
+      "nextThread": "Nächsten Thread fokussieren",
+      "openThread": "Zu den Threads, dann den fokussierten öffnen",
+      "leaveThread": "Geöffneten Thread verlassen, dann die Threads",
+      "resolveThread": "Geöffneten oder fokussierten Thread auflösen oder wieder öffnen",
       "newLine": "Neue Zeile",
       "editLast": "Letzte eigene Nachricht bearbeiten (in leerem Eingabefeld)",
       "inlineCode": "Inline-Code",
@@ -970,7 +982,22 @@
     "unsnooze": "Nicht mehr zurückstellen",
     "status": {
       "snoozed": "Zurückgestellt"
-    }
+    },
+    "workflow": {
+      "needsYou": "Du bist gefragt",
+      "working": "In Arbeit",
+      "later": "Später",
+      "done": "Erledigt",
+      "all": "Alle",
+      "description": {
+        "needsYou": "Eine Hintergrundaufgabe benötigt eine Freigabe, oder es läuft nichts und ist nichts geplant.",
+        "working": "Ein Agent antwortet, oder ein Subagent oder Hintergrundwerkzeug ist aktiv.",
+        "later": "Zurückgestellt oder auf eine geplante Aufgabe wartend.",
+        "done": "Erledigte Threads.",
+        "all": "Alle Threads, die deinen anderen Filtern entsprechen."
+      }
+    },
+    "renameHint": "Zum Umbenennen doppelklicken"
   },
   "threadSnooze": {
     "title": "Zurückstellen bis",
@@ -1011,6 +1038,7 @@
     },
     "sentence": {
       "approval": "{{name}} braucht eine Genehmigung",
+      "approvalUnknown": "Eine Hintergrundaufgabe benötigt eine Genehmigung",
       "question": "{{name}} hat dich etwas gefragt",
       "invite": "{{name}} hat dich eingeladen",
       "inviteUnknown": "Du wurdest eingeladen",
@@ -1085,7 +1113,7 @@
       "working": "Agenten arbeiten",
       "recent": "Zuletzt aktiv",
       "automations": "Automatisierungen",
-      "snoozed": "Zurückgestellt"
+      "later": "Später"
     },
     "showMore": "Mehr anzeigen",
     "chips": {
@@ -1296,9 +1324,22 @@
     "layoutSections": "Abschnitte",
     "sections": {
       "working": "In Arbeit",
-      "snoozed": "Zurückgestellt",
+      "later": "Später",
       "idle": "Inaktiv",
       "resolved": "Gelöst"
+    },
+    "live": {
+      "tools": "Werkzeuge",
+      "toolsRunning_one": "{{count}} läuft",
+      "toolsRunning_other": "{{count}} laufen",
+      "toolsRunningNamed_one": "{{count}} läuft: {{names}}",
+      "toolsRunningNamed_other": "{{count}} laufen: {{names}}",
+      "background": "Hintergrund",
+      "jobs_one": "{{count}} Aufgabe",
+      "jobs_other": "{{count}} Aufgaben",
+      "jobsWaiting_one": "{{jobs}}, {{count}} wartet auf Freigabe",
+      "jobsWaiting_other": "{{jobs}}, {{count}} warten auf Freigabe",
+      "waitingForAnswer": "Wartet auf eine Antwort"
     }
   },
   "threadBoard": {

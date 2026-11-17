@@ -13,7 +13,7 @@
     "dev": "vite",
     "start": "vite",
     "build": "vite build",
-    "build:ios": "npm run build && node scripts/ios-client-config.mjs dist/config.json",
+    "build:ios": "scripts/build.sh && node scripts/ios-client-config.mjs dist/config.json",
     "appstore:preflight": "node scripts/appstore-preflight.mjs",
     "appstore:release:preflight": "node scripts/appstore-release-preflight.mjs ios/App/fastlane/screenshots/en-US",
     "appstore:fixture": "scripts/appstore-fixture-up.sh",

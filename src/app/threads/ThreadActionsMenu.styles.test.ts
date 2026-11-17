@@ -12,11 +12,12 @@ vi.mock('@vanilla-extract/css', () => ({
   },
 }));
 
-it('constrains the menu and scrolls its rows without requiring a coarse pointer', () => {
+it('constrains the menu clear of the safe areas and scrolls its rows on every pointer', () => {
   expect(rules.get(ThreadMenu)).toMatchObject({
     display: 'flex',
     flexDirection: 'column',
-    maxHeight: 'calc(100dvh - 4.5rem)',
+    maxHeight:
+      'calc(100dvh - 4.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
   });
   expect(rules.get(ThreadMenuRows)).toMatchObject({
     minHeight: 0,

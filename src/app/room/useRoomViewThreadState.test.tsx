@@ -10,9 +10,12 @@ import {
 } from '../threads/overview/roomThreadFilterState';
 import {
   createDefaultThreadFilterState,
+  hasActiveThreadFilters,
   serializeThreadFilterState,
   type ThreadFilterState,
 } from '../event-store/threads/roomThreadOverviewModel';
+import { matchesThreadRecordFilterState } from '../event-store/threads/threadRecordOverview';
+import type { ThreadRecord } from '../event-store/threads/types';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { useEdgeSwipeForward } from '../navigation/useEdgeSwipeForward';
@@ -30,6 +33,7 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({
     getSafeUserId: () => USER_ID,
     getHomeserverUrl: () => 'https://example.org',
     getRooms: () => joinedRooms.list,
+    getRoom: () => undefined,
   }),
 }));
 const navigation = vi.hoisted(() => ({
@@ -145,6 +149,14 @@ describe('useRoomViewThreadState', () => {
     expect(enabled(useEdgeSwipeForward)).toBe(false);
   });
 
+  it('keeps the record of the thread just left while the address still names it', () => {
+    const { store, current } = mountThreadState({ threadId: '$a' });
+
+    act(() => current().handleExitThread());
+
+    expect(store.get(lastExitedThreadAtom)).toEqual({ roomId: ROOM_ID, threadId: '$a' });
+  });
+
   it('remembers a thread opened in its room as recent', () => {
     mountThreadState({ threadId: '$root' });
 
@@ -244,8 +256,12 @@ describe('useRoomViewThreadState', () => {
     viewMode.current = 'threaded';
     const { store, current } = mountThreadState();
 
-    act(() => current().handleToggle('resolved'));
-    act(() => current().handleToggle('resolved'));
+    vi.useFakeTimers();
+    act(() => current().handleSearchQueryChange('-is:resolved'));
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    vi.useRealTimers();
 
     expect(current().threadFilterState.resolved).toBe('exclude');
     expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID))?.resolved).toBe('exclude');
@@ -280,18 +296,56 @@ describe('useRoomViewThreadState', () => {
     expect(mountThreadState().current().threadFilterState.snoozed).toBe('any');
   });
 
-  it('follows the view for its default until the reader chooses a filter', () => {
+  it('defaults only advanced Compact agent rooms to Needs you and preserves a chosen tab', () => {
     const { current, rerender } = mountThreadState({ advancedFilters: true });
-    expect(current().threadFilterState.resolved).toBe('exclude');
-
+    expect(current().threadFilterState.tab).toBe('needsYou');
+    expect(current().threadFilterState.resolved).toBe('any');
     viewMode.current = 'threaded';
     rerender();
-    expect(current().threadFilterState.resolved).toBe('any');
-
-    act(() => current().handleToggle('resolved'));
+    expect(current().threadFilterState.tab).toBeUndefined();
+    expect(hasActiveThreadFilters(current().threadFilterState)).toBe(false);
+    act(() => current().handleSelectTab('working'));
     viewMode.current = 'compact';
     rerender();
-    expect(current().threadFilterState.resolved).toBe('include');
+    expect(current().threadFilterState.tab).toBe('working');
+  });
+
+  it('keeps a sending root visible when it starts streaming in default advanced Threads', () => {
+    viewMode.current = 'threaded';
+    const { current } = mountThreadState({ advancedFilters: true });
+    const root: ThreadRecord = {
+      roomId: ROOM_ID,
+      threadRootId: '$sending',
+      presentation: {
+        summaryInfo: undefined,
+        summaryText: undefined,
+        rootPreviewText: undefined,
+        latestReplyPreviewText: undefined,
+        lastSenderId: undefined,
+        lastSenderDisplayName: undefined,
+        messageCount: 0,
+        participantIds: [],
+        replyParticipantIds: [],
+        primarySummaryText: undefined,
+        recentThreadSummaryText: undefined,
+      },
+      cache: { eventCount: 0, relationSnapshotComplete: false, tailLoaded: false },
+      absoluteIndex: 0,
+      status: {
+        isKnownThreadRoot: true,
+        replyCount: 0,
+        isResolved: false,
+        isUnread: false,
+        isStreaming: false,
+        hasPendingSend: true,
+        scheduledTaskCount: 0,
+        tags: [],
+      },
+    };
+    expect(matchesThreadRecordFilterState(root, current().threadFilterState)).toBe(true);
+    root.status.hasPendingSend = false;
+    root.status.isStreaming = true;
+    expect(matchesThreadRecordFilterState(root, current().threadFilterState)).toBe(true);
   });
 
   it('shows resolved threads by default outside Compact', () => {
@@ -368,4 +422,27 @@ describe('useRoomViewThreadState', () => {
 
     expect(current().threadSortFreezeState).toBeNull();
   });
+});
+
+it('keeps the default Needs you tab while changing the sort or adding a tag', () => {
+  const { current } = mountThreadState({ advancedFilters: true });
+  act(() => current().handleSortDirectionChange());
+  expect(current().threadFilterState.tab).toBe('needsYou');
+  act(() => current().handleAddTag('review'));
+  expect(current().threadFilterState.tab).toBe('needsYou');
+  expect(current().threadFilterState.tags.get('review')).toBe('include');
+});
+
+it('restores the authoritative Done tab after toggling Unresolved in Simple mode', () => {
+  const { current, store } = mountThreadState({ advancedFilters: true });
+  act(() => current().handleSelectTab('done'));
+  act(() => store.set(settingsAtom, { ...store.get(settingsAtom), simpleThreadFilters: true }));
+  act(() => current().handleToggleUnresolvedOnly());
+  expect(current().threadFilterState.resolved).toBe('exclude');
+  expect(current().threadFilterState.tab).toBeUndefined();
+  act(() => store.set(settingsAtom, { ...store.get(settingsAtom), simpleThreadFilters: false }));
+  expect(current().threadFilterState.tab).toBe('done');
+  expect(current().threadFilterState.resolved).toBe('any');
+  act(() => store.set(settingsAtom, { ...store.get(settingsAtom), simpleThreadFilters: true }));
+  expect(current().threadFilterState.resolved).toBe('exclude');
 });

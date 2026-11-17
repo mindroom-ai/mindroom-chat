@@ -366,8 +366,7 @@
       "streaming": "Trasmissione in corso",
       "scheduled": "Pianificato",
       "unread": "Non letto",
-      "idle": "Inattivo",
-      "idleFilter": "Inattivo (risolto, nessuna trasmissione, nessuna attività)"
+      "idle": "Inattivo"
     },
     "stats": {
       "aria": "Statistiche dei thread",
@@ -376,17 +375,6 @@
       "threadCount_other": "{{count}} thread",
       "tags": "Tag",
       "threadCount_many": "{{count}} thread"
-    },
-    "filterTooltip": {
-      "any": "{{label}}: sono mostrati tutti. Fai clic per mostrare solo questo.",
-      "include": "{{label}}: mostra solo questo. Fai clic per nasconderlo.",
-      "exclude": "{{label}}: nascosto. Fai clic per cancellare il filtro.",
-      "tagAny": "Tag \"{{tag}}\"",
-      "tagInclude": "Tag \"{{tag}}\": mostra solo questo. Fai clic per nasconderlo.",
-      "tagExclude": "Tag \"{{tag}}\": nascosto. Fai clic per cancellare il filtro.",
-      "stateAny": "sono mostrati tutti",
-      "stateInclude": "mostra solo questo",
-      "stateExclude": "nascosto"
     },
     "filters": {
       "scope": "Ambito",
@@ -1288,25 +1276,15 @@
     "commands": {
       "CommandMe": "Invia messaggio d'azione",
       "CommandNotice": "Invia messaggio di avviso",
-      "CommandShrug": "Invia ¯\\_(ツ)_/¯ come messaggio",
-      "CommandTableFlip": "Invia {{value1}} come messaggio",
-      "CommandUnFlip": "Invia {{value1}} come messaggio",
       "CommandStartDm": "Avvia un messaggio diretto con un utente. Esempio: /startdm userId1",
       "CommandJoin": "Entra in una stanza con un indirizzo. Esempio: /join address1 address2",
       "CommandLeave": "Esci dalla stanza attuale.",
       "CommandInvite": "Invita un utente nella stanza. Esempio: /invite userId1 userId2 [-r reason]",
-      "CommandDisInvite": "Revoca l'invito di un utente nella stanza. Esempio: /disinvite userId1 userId2 [-r reason]",
       "CommandKick": "Espelli un utente dalla stanza. Esempio: /kick userId1 userId2 servername [-r reason]",
       "CommandBan": "Bandisci un utente dalla stanza. Esempio: /ban userId1 userId2 servername [-r reason]",
       "CommandUnBan": "Rimuovi il ban di un utente nella stanza. Esempio: /unban userId1 userId2",
       "CommandIgnore": "Ignora un utente. Esempio: /ignore userId1 userId2",
-      "CommandUnIgnore": "Smetti di ignorare un utente. Esempio: /unignore userId1 userId2",
-      "CommandMyRoomNick": "Cambia soprannome nella stanza attuale.",
-      "CommandMyRoomAvatar": "Cambia immagine del profilo nella stanza attuale. Esempio: /myroomavatar mxc://xyzabc",
-      "CommandConvertToDm": "Converti stanza in messaggio diretto",
-      "CommandConvertToRoom": "Converti messaggio diretto in stanza",
-      "CommandDelete": "Elimina i messaggi degli utenti. Esempio: /delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandAcl": "Gestisci l'elenco di controllo degli accessi al server. Esempio: /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]"
+      "CommandUnIgnore": "Smetti di ignorare un utente. Esempio: /unignore userId1 userId2"
     },
     "item": {
       "value1Emoji": "Emoji {{value1}}"
@@ -2270,7 +2248,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "voice": {
@@ -2913,8 +2891,6 @@
         "addTagFilter": "Aggiungi filtro tag",
         "tag": "+ tag",
         "availableTags": "Tag disponibili",
-        "filterPresets": "Preimpostazioni filtro",
-        "preset": "Preimpostazione",
         "searchThreads": "Cerca thread",
         "searchThreads2": "Cerca thread...",
         "roomViewMode": "Modalità di visualizzazione della stanza",
@@ -2935,28 +2911,6 @@
         "lockSortOrder": "Blocca ordinamento (attualmente {{sort}})",
         "threadCount_one": "{{count}} thread",
         "threadCount_other": "{{count}} thread",
-        "presets": {
-          "needs-attention": {
-            "label": "Richiede attenzione",
-            "description": "Thread irrisolti, non in streaming e non pianificati"
-          },
-          "working": {
-            "label": "In lavorazione",
-            "description": "In streaming o pianificati: ciò a cui stai lavorando ora"
-          },
-          "review-queue": {
-            "label": "Coda di revisione",
-            "description": "Thread irrisolti con risposte non lette"
-          },
-          "archived": {
-            "label": "Archiviati",
-            "description": "Solo thread risolti"
-          },
-          "all": {
-            "label": "Tutti",
-            "description": "Reimposta tutti i filtri"
-          }
-        },
         "showingFilteredThreads_many": "Visualizzazione di {{count}} thread su {{total}}",
         "showingAllThreads_many": "{{count}} thread visualizzati",
         "threadCount_many": "{{count}} thread"
@@ -3122,7 +3076,7 @@
       "intro": "In questo thread, le chiamate agli strumenti richieste da queste persone vengono eseguite senza schede di approvazione.",
       "you": "Tu",
       "until": "Fino a {{time}}",
-      "ownUntil": "Fino a {{time}}. Invia !auto_approve off per terminarla."
+      "ownUntil": "Fino a {{time}}. Invia /auto_approve off per terminarla."
     },
     "notices": {
       "dismiss": "Chiudi avviso",

@@ -11,28 +11,29 @@ export const Overview = style([
   glassDenseOverBackdrop,
   {
     margin: `${config.space.S200} ${config.space.S300}`,
-    position: 'relative', minWidth: 0,
+    position: 'relative',
+    minWidth: 0,
     borderRadius: config.radii.R500,
     padding: config.space.S200,
     border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`, // room-light.png: a line outside the glass rim
   },
 ]);
 
+const WORKFLOW_GAP = toRem(2);
+
 export const ToolbarHeader = style({
   display: 'flex',
-  // Wrap between groups when the room is narrow; groups themselves never
-  // break apart (see ToggleGroup), so controls stay in recognizable rows.
+  // Wrap controls into recognizable rows when the room is narrow.
   flexWrap: 'wrap',
   placeItems: 'center start',
-  columnGap: config.space.S200, rowGap: config.space.S100,
-});
-
-export const ToggleGroup = style({
-  display: 'flex',
-  flexWrap: 'nowrap',
-  columnGap: config.space.S100,
-  placeItems: 'center',
-  flexShrink: 0,
+  columnGap: config.space.S200,
+  rowGap: config.space.S100,
+  selectors: {
+    '&:has([data-thread-tab])': {
+      containerType: 'inline-size',
+      columnGap: WORKFLOW_GAP,
+    },
+  },
 });
 
 export const CompactCount = style({
@@ -45,6 +46,21 @@ export const CompactCount = style({
   flexShrink: 0,
 });
 
+// An invisible, zero-height copy of the total (`data-reserve`) makes the count as wide as the total,
+// so switching tabs does not shift the controls after it. Generated content stays out of the count's
+// text and accessible name.
+export const CompactCountValue = style({
+  selectors: {
+    '&::after': {
+      content: 'attr(data-reserve)',
+      display: 'block',
+      blockSize: 0,
+      overflow: 'hidden',
+      visibility: 'hidden',
+    },
+  },
+});
+
 const TOGGLE_SIZE = toRem(32);
 
 // A finger's hit area: the bar's 32 px controls reach out halfway to their neighbours (4 px apart
@@ -53,125 +69,73 @@ const TOGGLE_SIZE = toRem(32);
 const SIMPLE_BAR = '[role="toolbar"]:has([data-simple-unresolved-toggle]) ';
 
 export const ToggleButton = style([
-  // ToggleExclude draws its slash with ::after.
   touchTarget('2px', '', { blockReach: '2px', layer: '::before' }),
   touchTarget('5px', SIMPLE_BAR, { layer: '::before' }),
   {
-  position: 'relative',
-  display: 'inline-grid',
-  placeItems: 'center',
-  width: TOGGLE_SIZE,
-  height: TOGGLE_SIZE,
-  minWidth: TOGGLE_SIZE,
-  padding: 0,
-  boxSizing: 'border-box',
-  borderRadius: config.radii.R400,
-  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`, // a light rim, as on every bar control
-  backgroundColor: color.SurfaceVariant.Container,
-  color: color.SurfaceVariant.OnContainer,
-  opacity: '0.72',
-  cursor: 'pointer',
-  font: 'inherit',
-  transition: transition(['background-color', 'border-color', 'opacity'], motion.duration.Normal),
+    position: 'relative',
+    display: 'inline-grid',
+    placeItems: 'center',
+    width: TOGGLE_SIZE,
+    height: TOGGLE_SIZE,
+    minWidth: TOGGLE_SIZE,
+    padding: 0,
+    boxSizing: 'border-box',
+    borderRadius: config.radii.R400,
+    border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`, // a light rim, as on every bar control
+    backgroundColor: color.SurfaceVariant.Container,
+    color: color.SurfaceVariant.OnContainer,
+    opacity: '0.72',
+    cursor: 'pointer',
+    font: 'inherit',
+    transition: transition(['background-color', 'border-color', 'opacity'], motion.duration.Normal),
 
-  // Only a pointer that can hover tints the button: a touch screen keeps :hover on the
-  // button tapped last, so a toggle tapped off still looked on.
-  '@media': {
-    '(hover: hover)': {
-      selectors: { '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover } },
+    // Only a pointer that can hover tints the button: a touch screen keeps :hover on the
+    // button tapped last, so a toggle tapped off still looked on.
+    '@media': {
+      '(hover: hover)': {
+        selectors: { '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover } },
+      },
     },
-  },
-  selectors: {
-    '&:focus-visible': {
-      outline: `2px solid ${color.Primary.Main}`,
-      outlineOffset: '1px',
+    selectors: {
+      '&:focus-visible': {
+        outline: `2px solid ${color.Primary.Main}`,
+        outlineOffset: '1px',
+      },
     },
-  },
   },
 ]);
-
-export const ToggleInclude = style({
-  backgroundColor: color.Success.Container,
-  borderColor: color.Success.ContainerLine,
-  color: color.Success.OnContainer,
-  opacity: '1',
-
-  '@media': {
-    '(hover: hover)': {
-      selectors: { '&:hover': { backgroundColor: color.Success.ContainerHover } },
-    },
-  },
-});
-
-export const ToggleIncludeOr = style({
-  backgroundColor: color.Warning.Container, // either of the OR chips may match
-  borderColor: color.Warning.ContainerLine,
-  color: color.Warning.OnContainer,
-  opacity: '1',
-
-  '@media': {
-    '(hover: hover)': {
-      selectors: { '&:hover': { backgroundColor: color.Warning.ContainerHover } },
-    },
-  },
-});
-
-export const ToggleExclude = style({
-  backgroundColor: color.Critical.Container, // threads with this status are hidden
-  borderColor: color.Critical.ContainerLine,
-  color: color.Critical.OnContainer,
-  opacity: '1',
-
-  '@media': {
-    '(hover: hover)': {
-      selectors: { '&:hover': { backgroundColor: color.Critical.ContainerHover } },
-    },
-  },
-  selectors: {
-    // A slash across the icon: the status is excluded.
-    '&::after': {
-      content: '""',
-      position: 'absolute',
-      insetBlockStart: '50%', insetInlineStart: '50%',
-      width: '140%',
-      height: toRem(2),
-      backgroundColor: color.Critical.Main,
-      transform: 'translate(-50%, -50%) rotate(-45deg)',
-      pointerEvents: 'none',
-    },
-  },
-});
 
 export const SortButton = style([
   touchTarget('5px', '', { blockReach: '2px' }),
   touchTarget('5px', SIMPLE_BAR),
   {
-  display: 'inline-flex',
-  columnGap: config.space.S100,
-  placeItems: 'center',
-  flexShrink: 0,
-  height: TOGGLE_SIZE,
-  paddingInlineStart: config.space.S200,
-  paddingInlineEnd: config.space.S200,
-  boxSizing: 'border-box',
-  borderRadius: config.radii.R400,
-  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`, // matches the toggles
-  backgroundColor: color.SurfaceVariant.Container,
-  color: color.SurfaceVariant.OnContainer,
-  cursor: 'pointer', whiteSpace: 'nowrap',
-  transition: transition(['background-color', 'border-color'], motion.duration.Normal),
+    display: 'inline-flex',
+    columnGap: config.space.S100,
+    placeItems: 'center',
+    flexShrink: 0,
+    height: TOGGLE_SIZE,
+    paddingInlineStart: config.space.S200,
+    paddingInlineEnd: config.space.S200,
+    boxSizing: 'border-box',
+    borderRadius: config.radii.R400,
+    border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`, // matches the toggles
+    backgroundColor: color.SurfaceVariant.Container,
+    color: color.SurfaceVariant.OnContainer,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    transition: transition(['background-color', 'border-color'], motion.duration.Normal),
 
-  '@media': {
-    '(hover: hover)': {
-      selectors: { '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover } },
+    '@media': {
+      '(hover: hover)': {
+        selectors: { '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover } },
+      },
     },
-  },
-  selectors: {
-    '&:focus-visible': {
-      outline: `2px solid ${color.Primary.Main}`,
-      outlineOffset: '1px',
+    selectors: {
+      '&:focus-visible': {
+        outline: `2px solid ${color.Primary.Main}`,
+        outlineOffset: '1px',
+      },
     },
-  },
   },
 ]);
 
@@ -200,15 +164,15 @@ export const PauseButtonActive = style({
   },
 });
 
-// ─── Preset dropdown ────────────────────────────────────────────────────────
+// ─── Shared filter dropdown ────────────────────────────────────────────────────────
 
-export const PresetContainer = style({
+export const FilterContainer = style({
   position: 'relative',
   display: 'inline-flex',
   flexShrink: 0,
 });
 
-export const PresetButton = style({
+export const FilterButton = style({
   display: 'inline-flex',
   columnGap: config.space.S100,
   placeItems: 'center',
@@ -220,7 +184,8 @@ export const PresetButton = style({
   border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`, // matches the toggles
   backgroundColor: color.SurfaceVariant.Container,
   color: color.SurfaceVariant.OnContainer,
-  cursor: 'pointer', whiteSpace: 'nowrap',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
   font: 'inherit',
   transition: transition(['background-color', 'border-color'], motion.duration.Normal),
   '@media': {
@@ -236,7 +201,7 @@ export const PresetButton = style({
   },
 });
 
-export const PresetDropdown = style({
+export const FilterDropdown = style({
   position: 'absolute',
   top: `calc(${TOGGLE_SIZE} + ${config.space.S100})`,
   insetInlineStart: 0,
@@ -246,31 +211,6 @@ export const PresetDropdown = style({
   padding: config.space.S100, // the options keep clear of the rounded edge
   borderRadius: config.radii.R400,
 });
-
-export const PresetOption = style({
-  display: 'block',
-  width: '100%',
-  boxSizing: 'border-box',
-  paddingBlock: config.space.S100,
-  paddingInline: config.space.S200,
-  border: 'none',
-  borderRadius: config.radii.R300,
-  background: 'none',
-  textAlign: 'start',
-  font: 'inherit',
-  color: 'inherit',
-  cursor: 'pointer',
-  selectors: {
-    '&:hover, &[data-focused]': { backgroundColor: color.SurfaceVariant.ContainerHover,
-    },
-    '&:focus-visible': {
-      outline: `2px solid ${color.Primary.Main}`,
-      outlineOffset: '-2px',
-    },
-  },
-});
-
-// ─── Info popover ───────────────────────────────────────────────────────────
 
 export const InfoContainer = style({
   position: 'relative',
@@ -375,7 +315,8 @@ export const EmptyState = style({
 
 export const ResetLink = style({
   color: color.Primary.Main,
-  textDecoration: 'underline', textUnderlineOffset: toRem(2),
+  textDecoration: 'underline',
+  textUnderlineOffset: toRem(2),
   cursor: 'pointer',
   background: 'none',
   border: 'none',
@@ -388,3 +329,52 @@ export const ResetLink = style({
     },
   },
 });
+
+export const WorkflowTabs = style({
+  display: 'flex',
+  flexShrink: 0,
+  gap: WORKFLOW_GAP,
+  overflowX: 'auto',
+  scrollbarWidth: 'none',
+  height: TOGGLE_SIZE,
+  maxWidth: '100%',
+  borderRadius: config.radii.R400,
+  background: color.SurfaceVariant.Container,
+});
+
+// Reuse the dropdown's complete sizing, including its border-box height. The group has no
+// extra padding or border, so its outer height is the same as the neighbouring triggers.
+export const WorkflowTab = style([
+  FilterButton,
+  {
+    flexShrink: 0,
+    borderColor: 'transparent',
+    background: 'transparent',
+    selectors: {
+      // Keep the inherited focus ring inside the scrollport.
+      '&:focus-visible': { outlineOffset: `calc(-1 * ${config.borderWidth.B400})` },
+      '&[aria-pressed="true"]': {
+        background: color.Primary.Container,
+        color: color.Primary.OnContainer,
+      },
+    },
+  },
+]);
+
+export const WorkflowIcon = style({
+  display: 'none',
+  '@container': {
+    '(max-width: 40rem)': {
+      selectors: { '[aria-pressed="false"] &': { display: 'inline-flex' } },
+    },
+  },
+});
+
+export const WorkflowLabel = style({
+  '@container': {
+    '(max-width: 40rem)': {
+      selectors: { '[aria-pressed="false"] &': { display: 'none' } },
+    },
+  },
+});
+export const WorkflowCount = style({ fontVariantNumeric: 'tabular-nums', opacity: 0.7 });

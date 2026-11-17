@@ -365,8 +365,7 @@
       "streaming": "Streaming",
       "scheduled": "Scheduled",
       "unread": "Unread",
-      "idle": "Idle",
-      "idleFilter": "Idle (resolved, not streaming, no tasks)"
+      "idle": "Idle"
     },
     "stats": {
       "aria": "Thread statistics",
@@ -374,17 +373,6 @@
       "threadCount_one": "{{count}} thread",
       "threadCount_other": "{{count}} threads",
       "tags": "Tags"
-    },
-    "filterTooltip": {
-      "any": "{{label}}: showing all. Click to show only.",
-      "include": "{{label}}: show only. Click to hide.",
-      "exclude": "{{label}}: hiding. Click to clear filter.",
-      "tagAny": "Tag \"{{tag}}\"",
-      "tagInclude": "Tag \"{{tag}}\": show only. Click to hide.",
-      "tagExclude": "Tag \"{{tag}}\": hiding. Click to clear filter.",
-      "stateAny": "showing all",
-      "stateInclude": "show only",
-      "stateExclude": "hiding"
     },
     "filters": {
       "scope": "Scope",
@@ -1280,25 +1268,15 @@
     "commands": {
       "CommandMe": "Send action message",
       "CommandNotice": "Send notice message",
-      "CommandShrug": "Send ¯\\_(ツ)_/¯ as message",
-      "CommandTableFlip": "Send {{value1}} as message",
-      "CommandUnFlip": "Send {{value1}} as message",
       "CommandStartDm": "Start direct message with user. Example: /startdm userId1",
       "CommandJoin": "Join room with address. Example: /join address1 address2",
       "CommandLeave": "Leave current room.",
       "CommandInvite": "Invite user to room. Example: /invite userId1 userId2 [-r reason]",
-      "CommandDisInvite": "Disinvite user to room. Example: /disinvite userId1 userId2 [-r reason]",
       "CommandKick": "Kick user from room. Example: /kick userId1 userId2 servername [-r reason]",
       "CommandBan": "Ban user from room. Example: /ban userId1 userId2 servername [-r reason]",
       "CommandUnBan": "Unban user from room. Example: /unban userId1 userId2",
       "CommandIgnore": "Ignore user. Example: /ignore userId1 userId2",
-      "CommandUnIgnore": "Unignore user. Example: /unignore userId1 userId2",
-      "CommandMyRoomNick": "Change nick in current room.",
-      "CommandMyRoomAvatar": "Change profile picture in current room. Example /myroomavatar mxc://xyzabc",
-      "CommandConvertToDm": "Convert room to direct message",
-      "CommandConvertToRoom": "Convert direct message to room",
-      "CommandDelete": "Delete messages from users. Example: /delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandAcl": "Manage server access control list. Example /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]"
+      "CommandUnIgnore": "Unignore user. Example: /unignore userId1 userId2"
     },
     "item": {
       "value1Emoji": "{{value1}} emoji"
@@ -2242,7 +2220,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model (or !model) with a model key in this thread."
       }
     },
     "voice": {
@@ -2855,8 +2833,6 @@
         "addTagFilter": "Add tag filter",
         "tag": "+ tag",
         "availableTags": "Available tags",
-        "filterPresets": "Filter presets",
-        "preset": "Preset",
         "searchThreads": "Search threads",
         "searchThreads2": "Search threads...",
         "roomViewMode": "Room view mode",
@@ -2876,29 +2852,7 @@
         "unlockSortOrder": "Unlock sort order (currently {{sort}})",
         "lockSortOrder": "Lock sort order (currently {{sort}})",
         "threadCount_one": "{{count}} thread",
-        "threadCount_other": "{{count}} threads",
-        "presets": {
-          "needs-attention": {
-            "label": "Needs attention",
-            "description": "Unresolved, non-streaming, non-scheduled threads"
-          },
-          "working": {
-            "label": "Working",
-            "description": "Streaming or scheduled — what you’re working on right now"
-          },
-          "review-queue": {
-            "label": "Review queue",
-            "description": "Unresolved threads with unread replies"
-          },
-          "archived": {
-            "label": "Archived",
-            "description": "Resolved threads only"
-          },
-          "all": {
-            "label": "All",
-            "description": "Reset all filters"
-          }
-        }
+        "threadCount_other": "{{count}} threads"
       },
       "threadTagPicker": {
         "addTag": "Add tag",
@@ -3057,7 +3011,7 @@
       "intro": "In this thread, tool calls these people request run without approval cards.",
       "you": "You",
       "until": "Until {{time}}",
-      "ownUntil": "Until {{time}}. Send !auto_approve off to end it."
+      "ownUntil": "Until {{time}}. Send /auto_approve off (or !auto_approve off) to end it."
     },
     "notices": {
       "dismiss": "Dismiss notice",

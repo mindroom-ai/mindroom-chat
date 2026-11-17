@@ -41,6 +41,7 @@ import { ThreadView } from './ThreadView';
 import { ComposerNotice, ConversationLayout } from './ConversationLayout';
 import { useLocalEchoRoot } from './useLocalEchoRoot';
 import { noteThreadColumnKey } from './useRoomEscapeReadReceipts';
+import { useThreadKeys } from './useThreadKeys';
 import { THREAD_COLUMN_WIDTH_KEY, useThreadLayout } from './threadLayout';
 
 const BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_cancel';
@@ -188,6 +189,18 @@ export function RoomView({
       ?.querySelector<HTMLElement>('[data-room-footer="true"] [contenteditable="true"]')
       ?.focus();
   }, []);
+  // Before the effect below that sends the focus of a closed thread column to the composer: the
+  // card of a thread the keys left takes it first.
+  useThreadKeys({
+    roomId,
+    areaRef,
+    openThreadId,
+    viewMode,
+    onOpenThread: threadState.handleOpenThread,
+    onExitThread: threadState.handleExitThread,
+    onFocusComposer: focusConversation,
+    onFocusThread: () => focusColumn.current?.(),
+  });
 
   // Beside its thread, the page shows the room's messages too, which its address does not name:
   // notifications count the room as on screen, as they do while the page shows only the room.
@@ -265,7 +278,6 @@ export function RoomView({
     threadFilterState: threadState.threadFilterState,
     threadSortFreezeState: threadState.threadSortFreezeState,
     setThreadSortFreezeState: threadState.setThreadSortFreezeState,
-    onToggle: threadState.handleToggle,
     onSortDirectionChange: threadState.handleSortDirectionChange,
     onToggleThreadSortFreeze: threadState.handleToggleThreadSortFreeze,
     onToggleUnresolvedOnly: threadState.handleToggleUnresolvedOnly,
@@ -275,7 +287,7 @@ export function RoomView({
     onAddTag: threadState.handleAddTag,
     onRemoveTag: threadState.handleRemoveTag,
     onClearTags: threadState.handleClearTags,
-    onApplyPreset: threadState.handleApplyPreset,
+    onSelectTab: threadState.handleSelectTab,
     onSearchQueryChange: threadState.handleSearchQueryChange,
     viewMode,
     compactRoomScrollStateRef,

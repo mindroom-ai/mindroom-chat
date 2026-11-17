@@ -11,6 +11,7 @@ import {
   getRenderableAnnotationsByKey,
   isAgentStopButton,
 } from '../../matrix/protocol/stopReaction';
+import { useHiddenQuestionReactions } from '../question/useHiddenQuestionReactions';
 import * as css from '../styles.css';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 
@@ -87,7 +88,11 @@ export function Reactions({
   useRelationsUpdates(relations);
 
   const myUserId = client.getUserId();
-  const annotations = byFirstUse(getRenderableAnnotationsByKey(relations, targetEvent));
+  // A MindRoom agent's question card shows its options and the answer; their chips would repeat them.
+  const optionKeys = useHiddenQuestionReactions(targetEvent, room.roomId, myUserId ?? undefined);
+  const annotations = byFirstUse(
+    getRenderableAnnotationsByKey(relations, targetEvent).filter(([key]) => !optionKeys.has(key))
+  );
   // Local echoes carry a transaction ID until the server confirms them; they cannot be reacted to.
   const canToggle = !!canSendReaction && isConfirmedMatrixEventId(mEventId);
 

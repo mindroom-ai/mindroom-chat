@@ -9,9 +9,12 @@ import {
   type MatrixClient,
   type Thread,
 } from 'matrix-js-sdk';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { receiptEventsVersion, receiptReadTs } from './receiptReadTs';
 
+// A receipt reads up to the event it names, or to when the server took it while the room does not
+// hold that event. `receiptEventsVersion` counts what may move that, for the thread records kept
+// from one build to the next.
 let mx: MatrixClient;
 let room: Room;
 
@@ -30,106 +33,31 @@ beforeEach(() => {
   room = new Room('!room:server', mx, '@me:server');
 });
 
-describe('receiptReadTs', () => {
-  it('reads up to the event the receipt names', async () => {
-    await room.addLiveEvents([message('$named', 1000)], { addToState: false });
-
-    expect(receiptReadTs(room, room, '$named', 5000)).toBe(1000);
-  });
-
-  it('asks the threads of the room once for an event the client does not hold', () => {
-    const getThreads = vi.spyOn(room, 'getThreads');
-
-    expect(receiptReadTs(room, room, '$edit', 5000)).toBe(5000);
-    expect(receiptReadTs(room, room, '$edit', 5000)).toBe(5000);
-    expect(receiptReadTs(room, room, '$edit', 7000)).toBe(7000);
-
-    expect(getThreads).toHaveBeenCalledTimes(1);
-  });
-
-  it('finds the named event once a timeline of the room holds it', async () => {
+describe('receiptEventsVersion', () => {
+  it('counts a change when a timeline takes an event a receipt was read for', async () => {
     expect(receiptReadTs(room, room, '$late', 5000)).toBe(5000);
+    const before = receiptEventsVersion(room);
 
     await room.addLiveEvents([message('$late', 1000)], { addToState: false });
 
     expect(receiptReadTs(room, room, '$late', 5000)).toBe(1000);
+    expect(receiptEventsVersion(room)).toBe(before + 1);
+    // An event no receipt was read for is no change.
+    await room.addLiveEvents([message('$next', 2000)], { addToState: false });
+    expect(receiptEventsVersion(room)).toBe(before + 1);
   });
 
-  it('finds the named event once a local echo takes its ID', () => {
+  it('counts a change when a local echo takes the ID a receipt was read for', () => {
     const echo = message('~local', 1000);
     echo.setStatus(EventStatus.SENDING);
     room.addPendingEvent(echo, 'txn');
     expect(receiptReadTs(room, room, '$sent', 5000)).toBe(5000);
+    const before = receiptEventsVersion(room);
 
     room.updatePendingEvent(echo, EventStatus.SENT, '$sent');
 
     expect(receiptReadTs(room, room, '$sent', 5000)).toBe(1000);
-  });
-
-  it("finds the named event once the room passes on that a thread's timeline took it", () => {
-    expect(receiptReadTs(room, room, '$reply', 5000)).toBe(5000);
-    const before = receiptEventsVersion(room);
-    const reply = message('$reply', 1000);
-    vi.spyOn(room, 'findEventById').mockImplementation((eventId) =>
-      eventId === '$reply' ? reply : undefined
-    );
-
-    // As the room passes on what a thread's timeline takes.
-    room.emit(RoomEvent.Timeline, reply, room, false, false, {
-      timeline: new EventTimelineSet(room, {}).getLiveTimeline(),
-    });
-
-    expect(receiptReadTs(room, room, '$reply', 5000)).toBe(1000);
     expect(receiptEventsVersion(room)).toBe(before + 1);
-  });
-
-  it('asks the thread a receipt is read in first, also for an event the room did not hold', () => {
-    expect(receiptReadTs(room, room, '$reply', 5000)).toBe(5000);
-    const thread = { findEventById: () => message('$reply', 1000) } as unknown as Thread;
-
-    expect(receiptReadTs(room, thread, '$reply', 5000)).toBe(1000);
-  });
-
-  it('counts a change when the room loses events, from its first lookup on', async () => {
-    const named = message('$named', 1000);
-    await room.addLiveEvents([named], { addToState: false });
-    const thread = { findEventById: () => named } as unknown as Thread;
-    // Answered by the thread: the room is listened to all the same.
-    expect(receiptReadTs(room, thread, '$named', 5000)).toBe(1000);
-    const before = receiptEventsVersion(room);
-
-    room.emit(RoomEvent.Timeline, named, room, undefined, true, {
-      timeline: room.getLiveTimeline(),
-    });
-    expect(receiptEventsVersion(room)).toBe(before + 1);
-    room.emit(RoomEvent.TimelineReset, room, room.getUnfilteredTimelineSet(), true);
-    expect(receiptEventsVersion(room)).toBe(before + 2);
-    room.emit(ThreadEvent.Delete, thread);
-    expect(receiptEventsVersion(room)).toBe(before + 3);
-    // An event a timeline takes that no receipt waited for is no change.
-    await room.addLiveEvents([message('$next', 2000)], { addToState: false });
-    expect(receiptEventsVersion(room)).toBe(before + 3);
-  });
-
-  it("counts no change for a root that moves in the room's lists of threads", async () => {
-    const named = message('$named', 1000);
-    await room.addLiveEvents([named], { addToState: false });
-    expect(receiptReadTs(room, room, '$named', 5000)).toBe(1000);
-    const before = receiptEventsVersion(room);
-    const threadList = new EventTimelineSet(room, {});
-    Object.assign(room, { threadsTimelineSets: [threadList, threadList] });
-
-    room.emit(RoomEvent.Timeline, named, room, undefined, true, {
-      timeline: threadList.getLiveTimeline(),
-    });
-    room.emit(RoomEvent.TimelineReset, room, threadList, true);
-    // Nor for a root the room does not hold that the lists take again.
-    expect(receiptReadTs(room, room, '$listed', 5000)).toBe(5000);
-    room.emit(RoomEvent.Timeline, message('$listed', 1000), room, false, false, {
-      timeline: threadList.getLiveTimeline(),
-    });
-
-    expect(receiptEventsVersion(room)).toBe(before);
   });
 
   it('counts a change when the local echo of a named event moves on, and for its room only', () => {
@@ -149,13 +77,73 @@ describe('receiptReadTs', () => {
     expect(receiptEventsVersion(other)).toBe(before[1]);
   });
 
-  it('keeps no answer for a room stand-in that tells nothing of its events', () => {
-    const findEventById = vi.fn<(eventId: string) => MatrixEvent | undefined>(() => undefined);
-    const standIn = { findEventById } as unknown as Room;
+  it('counts a change when the room loses events, from its first lookup on', async () => {
+    const named = message('$named', 1000);
+    await room.addLiveEvents([named], { addToState: false });
+    const thread = { findEventById: () => named } as unknown as Thread;
+    // Answered by the thread: the room is listened to all the same.
+    expect(receiptReadTs(room, thread, '$other', 5000)).toBe(1000);
+    const before = receiptEventsVersion(room);
 
-    expect(receiptReadTs(standIn, standIn, '$late', 5000)).toBe(5000);
-    findEventById.mockReturnValue(message('$late', 1000));
+    room.emit(RoomEvent.Timeline, message('$other', 1000), room, undefined, true, {
+      timeline: room.getLiveTimeline(),
+    });
+    expect(receiptEventsVersion(room)).toBe(before + 1);
+    room.emit(RoomEvent.TimelineReset, room, room.getUnfilteredTimelineSet(), true);
+    expect(receiptEventsVersion(room)).toBe(before + 2);
+    room.emit(ThreadEvent.Delete, thread);
+    expect(receiptEventsVersion(room)).toBe(before + 3);
+  });
 
-    expect(receiptReadTs(standIn, standIn, '$late', 5000)).toBe(1000);
+  it('counts no change when a timeline drops an event no receipt was read for', async () => {
+    await room.addLiveEvents([message('$named', 1000)], { addToState: false });
+    expect(receiptReadTs(room, room, '$named', 5000)).toBe(1000);
+    const before = receiptEventsVersion(room);
+
+    // A redacted reaction leaves its thread: no receipt reads up to it.
+    room.emit(RoomEvent.Timeline, message('$reaction', 1000), room, undefined, true, {
+      timeline: room.getLiveTimeline(),
+    });
+
+    expect(receiptEventsVersion(room)).toBe(before);
+  });
+
+  it('counts a change when a timeline drops an event a receipt was read for', async () => {
+    const named = message('$named', 1000);
+    await room.addLiveEvents([named], { addToState: false });
+    expect(receiptReadTs(room, room, '$named', 5000)).toBe(1000);
+    const before = receiptEventsVersion(room);
+
+    room.removeEvent('$named');
+
+    expect(receiptReadTs(room, room, '$named', 5000)).toBe(5000);
+    expect(receiptEventsVersion(room)).toBe(before + 1);
+  });
+
+  it("counts no change for what the room's lists of threads take or drop", async () => {
+    const named = message('$named', 1000);
+    await room.addLiveEvents([named], { addToState: false });
+    expect(receiptReadTs(room, room, '$named', 5000)).toBe(1000);
+    const before = receiptEventsVersion(room);
+    const threadList = new EventTimelineSet(room, {});
+    Object.assign(room, { threadsTimelineSets: [threadList, threadList] });
+
+    // A reply moves its thread's root there: dropped, then taken again.
+    room.emit(RoomEvent.Timeline, named, room, undefined, true, {
+      timeline: threadList.getLiveTimeline(),
+    });
+    room.emit(RoomEvent.Timeline, named, room, false, false, {
+      timeline: threadList.getLiveTimeline(),
+    });
+    room.emit(RoomEvent.TimelineReset, room, threadList, true);
+
+    expect(receiptEventsVersion(room)).toBe(before);
+  });
+
+  it('counts nothing for a room stand-in that tells nothing of its events', () => {
+    const standIn = { findEventById: () => message('$named', 1000) } as unknown as Room;
+
+    expect(receiptReadTs(standIn, standIn, '$named', 5000)).toBe(1000);
+    expect(receiptEventsVersion(standIn)).toBe(0);
   });
 });
