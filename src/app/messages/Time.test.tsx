@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { STREAM_IDLE_LIMIT_MS } from '../matrix/client/streamingReplies';
 import { Time } from './Time';
 
 vi.mock('react-i18next', async () => {
@@ -80,7 +81,7 @@ describe('Time', () => {
 
   it('counts a streaming reply up every second, ending now', () => {
     vi.setSystemTime(START + 134_000);
-    const timing = { startTs: START, streaming: true };
+    const timing = { startTs: START, streaming: true, revisionTs: START + 60_000 };
     const { container } = render(<Time ts={START} timing={timing} hour24Clock />);
     const time = timeOf(container);
     expect(container.querySelector('[data-reply-time-live]')).not.toBeNull();
@@ -91,5 +92,19 @@ describe('Time', () => {
     });
     expect(time.textContent).toBe('10:04\u00a0–\u00a0now\u00a0·\u00a02m\u00a015s');
     expect(time.title).toContain('Duration 2m\u00a015s');
+  });
+
+  it('turns a streaming reply back to its plain time once its newest revision goes stale', () => {
+    vi.setSystemTime(START + STREAM_IDLE_LIMIT_MS);
+    const timing = { startTs: START, streaming: true, revisionTs: START };
+    const { container } = render(<Time ts={START} timing={timing} hour24Clock />);
+    const time = timeOf(container);
+    expect(container.querySelector('[data-reply-time-live]')).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(container.querySelector('[data-reply-time-live]')).toBeNull();
+    expect(time.textContent).toBe('10:04');
+    expect(time.title).toBe('5 Mar 2026 10:04:12');
   });
 });

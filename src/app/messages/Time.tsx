@@ -52,8 +52,10 @@ export const Time = as<'time', TimeProps>(
   ) => {
     const { t, i18n } = useTranslation();
     const { language } = i18n;
-    const streaming = !!timing?.streaming;
     const [, tick] = useReducer((count: number) => count + 1, 0);
+    // Undefined for a stream gone stale, which ticks no more.
+    const parts = timing && getReplyTimeParts(timing, Date.now(), { hour24Clock, language });
+    const streaming = !!parts && !!timing?.streaming;
     useEffect(
       () => (streaming ? subscribeRelativeTimeClock(secondsToMs(1), tick) : undefined),
       [streaming]
@@ -73,7 +75,7 @@ export const Time = as<'time', TimeProps>(
         : `${dateOf(ts)} ${time}`;
     }
 
-    if (!timing) {
+    if (!timing || !parts) {
       return (
         <Text
           as="time"
@@ -90,7 +92,7 @@ export const Time = as<'time', TimeProps>(
       );
     }
 
-    const { end, short, tail } = getReplyTimeParts(timing, Date.now(), { hour24Clock, language });
+    const { end, short, tail } = parts;
     const title = [
       t('mindroomUi.messages.replyTime.started', { value1: stamp(ts) }),
       timing.endTs === undefined
@@ -106,8 +108,8 @@ export const Time = as<'time', TimeProps>(
         priority="300"
         dateTime={new Date(ts).toISOString()}
         title={title}
-        tabIndex={0}
         className={classNames(css.ReplyTime, className)}
+        tabIndex={0}
         data-open={open || undefined}
         onClick={() => setOpen((shown) => !shown)}
         onBlur={() => setOpen(false)}

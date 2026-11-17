@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { STREAM_IDLE_LIMIT_MS } from '../matrix/client/streamingReplies';
 import { getReplyTimeParts, getReplyTiming } from './replyTiming';
 
 const at = (day: number, hour: number, minute: number, second = 0) =>
@@ -28,10 +29,12 @@ describe('getReplyTiming', () => {
     expect(getReplyTiming(START, progress.getContent(), progress)).toEqual({
       startTs: START,
       streaming: true,
+      revisionTs: at(5, 10, 5),
     });
     expect(getReplyTiming(START, { body: '…', 'io.mindroom.stream_status': 'pending' })).toEqual({
       startTs: START,
       streaming: true,
+      revisionTs: START,
     });
   });
 
@@ -84,11 +87,23 @@ describe('getReplyTimeParts', () => {
   });
 
   it('runs a streaming reply up to now', () => {
-    const timing = { startTs: START, streaming: true };
+    const timing = { startTs: START, streaming: true, revisionTs: START };
     expect(getReplyTimeParts(timing, START + 134_000, options)).toEqual({
       end: 'now',
       short: '2m',
       tail: '\u00a014s',
     });
+  });
+
+  it('still runs a streaming reply whose newest revision is as old as the idle limit', () => {
+    const timing = { startTs: START, streaming: true, revisionTs: START + 60_000 };
+    const now = START + 60_000 + STREAM_IDLE_LIMIT_MS;
+    expect(getReplyTimeParts(timing, now, options)?.end).toBe('now');
+  });
+
+  it('gives no parts for a streaming reply whose newest revision is older than the idle limit', () => {
+    const timing = { startTs: START, streaming: true, revisionTs: START + 60_000 };
+    const now = START + 60_000 + STREAM_IDLE_LIMIT_MS + 1;
+    expect(getReplyTimeParts(timing, now, options)).toBeUndefined();
   });
 });

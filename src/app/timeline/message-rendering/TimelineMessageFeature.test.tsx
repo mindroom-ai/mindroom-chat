@@ -466,7 +466,7 @@ describe('timeline message feature', () => {
 
     const timingOf = (eventId: string) =>
       renderer.root.findByProps({ 'data-message-id': eventId }).props.replyTiming;
-    expect(timingOf('$reply')).toEqual({ startTs: 1_000, streaming: true });
+    expect(timingOf('$reply')).toEqual({ startTs: 1_000, streaming: true, revisionTs: 1_000 });
     expect(timingOf('$finished')).toEqual({ startTs: 2_000, endTs: 434_000, streaming: false });
     expect(timingOf('$person')).toBeUndefined();
   });
