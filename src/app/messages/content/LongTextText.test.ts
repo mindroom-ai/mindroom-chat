@@ -740,7 +740,7 @@ describe('LongTextText hydration identity', () => {
     const { LongTextKind, LongTextText } = await getLongTextTextModule();
     const content = createPreviewContent();
     const source = createLongTextSource({ previewContent: content });
-    // Warm the REAL cache the way the prewarm pool does.
+    // Warm the REAL cache the way a thread open does before its first paint.
     const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>('../../matrix/protocol/longText');
     await actualLongText.hydrateLongTextSource(
       source,
