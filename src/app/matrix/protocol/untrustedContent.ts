@@ -16,6 +16,7 @@ export const AGENT_ONLY_CONTENT_KEYS: readonly string[] = [
   'io.mindroom.tool_trace',
   'io.mindroom.reasoning',
   'io.mindroom.live_reasoning',
+  'io.mindroom.live_reasoning_segments',
   'io.mindroom.live_activity',
   'io.mindroom.live_checkpoint',
   'io.mindroom.warmup_suffix',

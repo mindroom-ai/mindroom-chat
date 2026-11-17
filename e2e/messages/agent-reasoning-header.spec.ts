@@ -23,7 +23,9 @@ const headerGeometry = async (reply: Locator) =>
   reply.evaluate((element) => {
     // The tool row's button names its panel; the reasoning toggle has none.
     const toggle = element.querySelector('button[aria-expanded]:not([aria-controls])');
-    const [bulb, chevron] = Array.from(toggle?.querySelectorAll('svg') ?? []);
+    // The chevron comes last: after a click the bulb's box also holds the ripple of its outline.
+    const svgs = Array.from(toggle?.querySelectorAll('svg') ?? []);
+    const [bulb, chevron] = [svgs[0], svgs.at(-1)];
     // The bulb's box, which the comet laps while the model thinks, is a span too, hidden.
     const label = toggle?.querySelector(':scope > span:not([aria-hidden])');
     const tile = element.querySelector('button[aria-controls] > span[aria-hidden]');
@@ -216,11 +218,15 @@ test.describe('agent reasoning header', () => {
       2
     );
 
-    // The streaming reply shows the same header, open, with its chevron down.
-    const thinking = page.locator('[data-message-item]').filter({ hasText: 'good first question' });
+    // The streaming reply shows the same header, closed as every bulb starts: its reasoning shows
+    // under the closed bulb only while it grows on screen.
+    const thinking = page
+      .locator('[data-message-item]')
+      .filter({ has: page.getByRole('button', { name: 'Thinking' }) });
     const thinkingToggle = thinking.getByRole('button', { name: 'Thinking' });
-    await expect(thinkingToggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(thinkingToggle).toHaveAttribute('aria-expanded', 'false');
     await expect(thinkingToggle.locator('svg')).toHaveCount(2);
+    await expect(thinking).not.toContainText('good first question');
 
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const collapsed = await headerGeometry(reply);
@@ -233,7 +239,7 @@ test.describe('agent reasoning header', () => {
     expect(Math.abs((collapsed.bulb?.left ?? 0) - (collapsed.tile?.left ?? 99))).toBeLessThan(1.5);
     expect((collapsed.label?.left ?? 0) - (collapsed.bulb?.right ?? 0)).toBeCloseTo(4, 0);
     expect((collapsed.chevron?.left ?? 0) - (collapsed.label?.right ?? 0)).toBeCloseTo(4, 0);
-    expect((await headerGeometry(thinking)).chevronTransform).toBe('matrix(0, 1, -1, 0, 0, 0)');
+    expect((await headerGeometry(thinking)).chevronTransform).toBe('none');
 
     await toggle.click();
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
@@ -242,10 +248,14 @@ test.describe('agent reasoning header', () => {
     await toggle.click();
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
-    // Right to left: the collapsed chevron points left, the open one still points down.
+    // Right to left: the collapsed chevrons point left, the open one still points down.
     await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));
     await turnedChevron(reply).toBe('matrix(-1, 0, 0, -1, 0, 0)');
-    expect((await headerGeometry(thinking)).chevronTransform).toBe('matrix(0, 1, -1, 0, 0, 0)');
+    expect((await headerGeometry(thinking)).chevronTransform).toBe('matrix(-1, 0, 0, -1, 0, 0)');
+    await toggle.click();
+    await turnedChevron(reply).toBe('matrix(0, 1, -1, 0, 0, 0)');
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await page.evaluate(() => document.documentElement.setAttribute('dir', 'ltr'));
 
     if (!SCREENSHOT) return;
@@ -281,21 +291,28 @@ test.describe('agent reasoning header', () => {
       (_, index) => `Step ${index + 1}: weigh what the user needs on day ${index + 1}.`
     );
     await sendReply({
-      body: 'Thinking...',
-      'io.mindroom.stream_status': 'streaming',
-      'io.mindroom.live_reasoning': steps.join('\n\n'),
+      body: 'Here is your first week.',
+      'io.mindroom.stream_status': 'completed',
+      'io.mindroom.reasoning': { text: steps.join('\n\n'), duration_ms: 31_000 },
     });
 
     await open();
     // Found by its header, which stays when the reasoning folds.
     const reply = page
       .locator('[data-message-item]')
-      .filter({ has: page.getByRole('button', { name: 'Thinking' }) });
-    await expect(reply).toContainText('Step 40:', { timeout: 60_000 });
-    await expect(reply).toHaveCount(1);
-    const toggle = reply.getByRole('button', { name: 'Thinking' });
-    const collapse = reply.getByRole('button', { name: 'Collapse' });
+      .filter({ has: page.getByRole('button', { name: 'Thought for 31 s' }) });
+    await expect(reply).toHaveCount(1, { timeout: 60_000 });
+    const toggle = reply.getByRole('button', { name: 'Thought for 31 s' });
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(reply).not.toContainText('Step 40:');
+    await toggle.click();
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(reply).toContainText('Step 40:');
+    // The rail along the reasoning comes first, then the button at its end.
+    const hide = reply.getByRole('button', { name: 'Hide thinking' });
+    await expect(hide).toHaveCount(2);
+    const collapse = hide.filter({ hasText: 'Hide thinking' });
+    await expect(collapse).toHaveCount(1);
     await expect(collapse).not.toHaveAttribute('aria-expanded');
 
     // The reader at the end of the reasoning, its header scrolled away above.
@@ -307,7 +324,7 @@ test.describe('agent reasoning header', () => {
 
     await collapse.click();
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    await expect(collapse).toHaveCount(0);
+    await expect(hide).toHaveCount(0);
     await expect(reply).not.toContainText('Step 40:');
     await expect(toggle).toBeFocused();
     await expect(toggle).toBeInViewport();

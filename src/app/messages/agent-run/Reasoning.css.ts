@@ -1,7 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
-/** The model's reasoning above an agent reply: a toggle and, when open, the reasoning text. */
+/** The reasoning line above an agent reply: a toggle and, under it, the segments at the top. */
 export const Reasoning = style({
   display: 'flex',
   flexDirection: 'column',
@@ -65,7 +65,7 @@ export const CogRow = style({
   marginBottom: config.space.S100,
 });
 
-/** Under open reasoning, a chevron up and "Collapse", in the header's tone, at its edge. */
+/** Under an open segment, a chevron up and "Hide thinking", in the header's tone, at its edge. */
 export const CollapseEnd = style([
   Toggle,
   {
@@ -89,10 +89,48 @@ export const Chevron = style({
   },
 });
 
-export const Body = style({
+/** One reasoning segment where it happened: its rail, then its label, text and end button. */
+export const Segment = style({
+  display: 'flex',
   minWidth: 0,
-  paddingInlineStart: config.space.S300,
-  borderInlineStart: `${config.borderWidth.B400} solid ${color.SurfaceVariant.ContainerLine}`,
+  marginBlock: config.space.S100,
+});
+
+/**
+ * The line along a segment, at the text edge, with the gap to the text: a button that hides the
+ * thinking while the bulb is open, and lights up under the pointer.
+ */
+export const Rail = style({
+  display: 'flex',
+  flexShrink: 0,
+  inlineSize: `calc(${config.borderWidth.B400} + ${config.space.S300})`,
+  padding: 0,
+  background: 'none',
+  border: 'none',
+  cursor: 'pointer',
+  '::before': {
+    content: '""',
+    inlineSize: config.borderWidth.B400,
+    borderRadius: config.borderWidth.B400,
+    background: color.SurfaceVariant.ContainerLine,
+  },
+  selectors: {
+    '&:disabled': { cursor: 'default' },
+    '&:focus-visible::before': { background: color.Primary.Main },
+  },
+  '@media': {
+    '(hover: hover)': {
+      selectors: { '&:enabled:hover::before': { background: color.Primary.Main } },
+    },
+    '(prefers-reduced-motion: no-preference)': {
+      selectors: { '&::before': { transition: 'background 150ms ease' } },
+    },
+  },
+});
+
+export const Body = style({
+  flexGrow: 1,
+  minWidth: 0,
   color: color.SurfaceVariant.OnContainer,
   opacity: 0.8,
   fontSize: toRem(14),

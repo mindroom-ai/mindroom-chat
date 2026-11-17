@@ -1,21 +1,47 @@
-import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import parse, { type HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { Icon, Icons } from 'folds';
 import { renderLiveMarkdown, useLiveMarkdownReady } from '../live/liveMarkdown';
-import { LIVE_ACTIVITY_KEY, LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
+import {
+  LIVE_ACTIVITY_KEY,
+  LIVE_REASONING_KEY,
+  LIVE_REASONING_SEGMENTS_KEY,
+} from '../live/useLiveReplyContent';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 import { ACTIVE_STREAM_STATUSES, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
 import { revealDirectionControls } from '../../ui/directional';
 import { OutlineComet } from './OutlineComet';
-import { ToolCallsCogContext } from './toolCallStatus';
+import { Outline } from './OutlineComet.css';
+import {
+  lastRecordedReasoningSegment,
+  placeReasoningSegments,
+  readReasoningSegments,
+} from './reasoningSegments';
+import { ReasoningSegmentsContext, ToolCallsCogContext } from './toolCallStatus';
+import { CogRipple } from './ToolCallsFold.css';
+import { countToolRefIcons, getRenderedToolRefs } from './toolRefDom';
 import * as css from './Reasoning.css';
 
 /** Final reasoning the runtime stores on a finished reply. */
 const MINDROOM_REASONING_KEY = 'io.mindroom.reasoning';
 
-type FinalReasoning = { text: string; durationMs?: number };
+type FinalReasoning = {
+  text: string;
+  durationMs?: number;
+  /** Where each segment of the text began, as the runtime wrote it (reasoningSegments.ts). */
+  segments: unknown;
+};
 
 /** How long the bulb's comet keeps lapping after the live reasoning last grew. */
 export const THINKING_GLOW_MS = 2000;
@@ -41,14 +67,18 @@ const useChangedRecently = (value: unknown, holdMs: number): boolean => {
 
 const parseFinalReasoning = (value: unknown): FinalReasoning | undefined => {
   if (typeof value !== 'object' || value === null) return undefined;
-  const { text, duration_ms: durationMs } = value as Record<string, unknown>;
+  const { text, duration_ms: durationMs, segments } = value as Record<string, unknown>;
   if (typeof text !== 'string' || text.trim() === '') return undefined;
   return {
     text,
     durationMs:
       typeof durationMs === 'number' && Number.isFinite(durationMs) ? durationMs : undefined,
+    segments,
   };
 };
+
+/** The whole seconds a thought took, one at least. */
+const thoughtSeconds = (durationMs: number): number => Math.max(1, Math.ceil(durationMs / 1000));
 
 const nonEmptyString = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() !== '' ? value : undefined;
@@ -75,62 +105,103 @@ function ReasoningText({ text, htmlReactParserOptions }: ReasoningTextProps) {
   return <div style={{ whiteSpace: 'normal' }}>{rendered}</div>;
 }
 
-type ReasoningBlockProps = {
+/**
+ * The reasoning segments placed at `anchor` (0 for the top of the reply, else the index of the
+ * tool marker a run of calls ends at) that show: all of them while the reply's bulb is open, else
+ * only the one the model is writing. Each has a rail along it and a button at its end, which close
+ * the bulb from where the reader is, however far above it is.
+ */
+export function ReasoningSegmentsAt({ anchor }: { anchor: number }) {
+  const { t } = useTranslation();
+  const reasoning = useContext(ReasoningSegmentsContext);
+  if (!reasoning) return null;
+  const { segments, placement, open, hide, liveIndex, htmlReactParserOptions } = reasoning;
+  const hideLabel = t('mindroomUi.messages.mindroomReasoning.hide');
+  return (
+    <>
+      {placement.get(anchor)?.map((index) => {
+        const segment = segments[index];
+        if (!segment || !(open || index === liveIndex)) return null;
+        let label = t('mindroomUi.messages.mindroomReasoning.thought');
+        if (index === liveIndex) label = t('mindroomUi.messages.mindroomReasoning.thinking');
+        else if (segment.durationMs !== undefined) {
+          label = t('mindroomUi.messages.mindroomReasoning.thoughtFor', {
+            count: thoughtSeconds(segment.durationMs),
+          });
+        }
+        return (
+          <div key={index} className={css.Segment}>
+            {/* Under a closed bulb the segment only shows while it is written: nothing to hide. */}
+            <button
+              type="button"
+              className={css.Rail}
+              aria-label={hideLabel}
+              disabled={!open}
+              onClick={hide}
+            />
+            <div className={css.Body}>
+              <span className={css.Label}>{label}</span>
+              <ReasoningText text={segment.text} htmlReactParserOptions={htmlReactParserOptions} />
+              {open && (
+                <button type="button" className={css.CollapseEnd} onClick={hide}>
+                  <Icon size="50" src={Icons.ChevronTop} aria-hidden />
+                  <span className={css.Label}>{hideLabel}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+type ReasoningHeaderProps = {
   label: string;
-  text: string;
-  defaultExpanded: boolean;
+  open: boolean;
   /** A comet laps the bulb, as it laps the cog while a call runs. */
-  thinking?: boolean;
-  htmlReactParserOptions: HTMLReactParserOptions;
+  thinking: boolean;
+  onToggle: () => void;
+  bulbRef: RefObject<HTMLButtonElement>;
 };
 
-function ReasoningBlock({
-  label,
-  text,
-  defaultExpanded,
-  thinking = false,
-  htmlReactParserOptions,
-}: ReasoningBlockProps) {
-  const { t } = useTranslation();
+/**
+ * The reply's reasoning line: the bulb, which shows every reasoning segment where it happened and
+ * hides them again, as the cog after it does the runs of tool calls, and the segments at the top.
+ */
+function ReasoningHeader({ label, open, thinking, onToggle, bulbRef }: ReasoningHeaderProps) {
   const cog = useContext(ToolCallsCogContext);
-  const [expanded, setExpanded] = useState(defaultExpanded);
-  const toggleRef = useRef<HTMLButtonElement>(null);
-  // Long reasoning puts the header far above: the button under it folds it from where the reader
-  // is, and gives the focus to the header, which scrolls into view if it is off screen.
-  const collapseFromEnd = () => {
-    toggleRef.current?.focus();
-    setExpanded(false);
-  };
+  // Each click sheds a ripple, as the cog's does: the count keys it, so a new one starts while the
+  // last one fades.
+  const [ripples, setRipples] = useState(0);
   return (
     <div className={css.Reasoning}>
       <div className={css.Line}>
         <button
-          ref={toggleRef}
+          ref={bulbRef}
           type="button"
           className={css.Toggle}
-          aria-expanded={expanded}
-          onClick={() => setExpanded((value) => !value)}
+          aria-expanded={open}
+          onClick={() => {
+            setRipples((count) => count + 1);
+            onToggle();
+          }}
         >
           <span className={css.BulbIcon} data-thinking={thinking || undefined} aria-hidden>
             <Icon size="50" src={Icons.Bulb} className={css.Bulb} />
             {thinking && <OutlineComet outline={BULB_OUTLINE} width={1.5} />}
+            {ripples > 0 && (
+              <svg className={Outline} viewBox="0 0 24 24" fill="none">
+                <path key={ripples} className={CogRipple} d={BULB_OUTLINE} />
+              </svg>
+            )}
           </span>
           <span className={css.Label}>{label}</span>
           <Icon size="50" src={Icons.ChevronRight} className={css.Chevron} aria-hidden />
         </button>
         {cog}
       </div>
-      {expanded && (
-        <>
-          <div className={css.Body}>
-            <ReasoningText text={text} htmlReactParserOptions={htmlReactParserOptions} />
-          </div>
-          <button type="button" className={css.CollapseEnd} onClick={collapseFromEnd}>
-            <Icon size="50" src={Icons.ChevronTop} aria-hidden />
-            <span className={css.Label}>{t('mindroomUi.messages.mindroomReasoning.collapse')}</span>
-          </button>
-        </>
-      )}
+      <ReasoningSegmentsAt anchor={0} />
     </div>
   );
 }
@@ -168,61 +239,148 @@ function LiveActivity({ text }: { text: string }) {
   );
 }
 
-function ReasoningHeader({
-  live,
-  final,
-  htmlReactParserOptions,
-}: {
-  live?: string;
-  final?: FinalReasoning;
-  htmlReactParserOptions: HTMLReactParserOptions;
-}) {
-  const { t } = useTranslation();
-  // The model thinks while its live reasoning comes or grows, and a little after: not when a reply
-  // that has some already comes into view.
-  const thinking = useChangedRecently(live, THINKING_GLOW_MS);
-  if (live !== undefined) {
-    return (
-      <ReasoningBlock
-        key="live"
-        label={t('mindroomUi.messages.mindroomReasoning.thinking')}
-        text={live}
-        defaultExpanded
-        thinking={thinking}
-        htmlReactParserOptions={htmlReactParserOptions}
-      />
-    );
-  }
-  if (!final) return null;
-  const seconds =
-    final.durationMs === undefined ? undefined : Math.max(1, Math.ceil(final.durationMs / 1000));
-  return (
-    <ReasoningBlock
-      key="final"
-      label={
-        seconds === undefined
-          ? t('mindroomUi.messages.mindroomReasoning.thought')
-          : t('mindroomUi.messages.mindroomReasoning.thoughtFor', { count: seconds })
-      }
-      text={final.text}
-      defaultExpanded={false}
-      htmlReactParserOptions={htmlReactParserOptions}
-    />
-  );
-}
-
 /** The reply's cog in a row of its own, for a reply without reasoning; nothing without a cog. */
 function ToolCallsCogRow() {
   const cog = useContext(ToolCallsCogContext);
   return cog ? <div className={css.CogRow}>{cog}</div> : null;
 }
 
+type ReplyReasoningProps = {
+  content: Record<string, unknown>;
+  /** The HTML the body renders, whose tool markers place the segments. */
+  html: string | undefined;
+  htmlReactParserOptions: HTMLReactParserOptions;
+  /** The reply's body. */
+  children: ReactNode;
+};
+
+function ReplyReasoning({ content, html, htmlReactParserOptions, children }: ReplyReasoningProps) {
+  const { t } = useTranslation();
+  const final = parseFinalReasoning(content[MINDROOM_REASONING_KEY]);
+  const liveText = nonEmptyString(content[LIVE_REASONING_KEY]);
+  const status = getStreamStatusFromContent(content);
+  const streaming = status === undefined || ACTIVE_STREAM_STATUSES.has(status);
+  const live = liveText !== undefined && (!final || streaming) ? liveText : undefined;
+  const activity = nonEmptyString(content[LIVE_ACTIVITY_KEY]);
+  // The comet laps while the live reasoning comes or grows, and a little after: not when a reply
+  // that has some already comes into view.
+  const thinking = useChangedRecently(live, THINKING_GLOW_MS) && live !== undefined;
+  const recorded = live === undefined ? final?.segments : content[LIVE_REASONING_SEGMENTS_KEY];
+  const last = live === undefined ? undefined : lastRecordedReasoningSegment(live, recorded);
+  // The body as it was when the segment the model writes was first seen to come or grow on screen.
+  // More of the same segment keeps that body, so answer text in the frame of the segment's last
+  // piece is the reply moving on. A new segment takes the body of its own frame, which holds what
+  // came before it there: the tool call it followed, or text. So does every growth of reasoning
+  // whose segments are not recorded, which is one segment that never ends.
+  const { body } = content;
+  const [grew, setGrew] = useState({ live, start: last?.start, html, body, seen: false });
+  if (grew.live !== live) {
+    const same = last !== undefined && last.start === grew.start;
+    setGrew({
+      live,
+      start: last?.start,
+      html: same ? grew.html : html,
+      body: same ? grew.body : body,
+      seen: live !== undefined,
+    });
+  }
+
+  // The bulb starts closed on every reply, as the cog does, and stays as the reader left it when
+  // the reply finishes.
+  const [open, setOpen] = useState(false);
+  const bulbRef = useRef<HTMLButtonElement>(null);
+  // Long replies put the bulb far above: a segment's rail and end button hide the thinking from
+  // where the reader is, and give the focus to the bulb, which scrolls into view if it is off
+  // screen.
+  const hide = useCallback(() => {
+    bulbRef.current?.focus();
+    setOpen(false);
+  }, []);
+
+  const text = live ?? final?.text;
+  const segments = useMemo(
+    () => (text === undefined ? [] : readReasoningSegments(text, recorded)),
+    [text, recorded]
+  );
+  // The tool markers that render as runs of calls, as the body shows them. They place the segments
+  // an open bulb shows after calls, and end the segment the model writes. The body is read for them
+  // only then, and again only when its count of marker icons changes, as a new call's does: not for
+  // each frame of answer text.
+  const icons =
+    html !== undefined &&
+    ((open && segments.some(({ afterTool }) => afterTool > 0)) || (grew.seen && last))
+      ? countToolRefIcons(html)
+      : 0;
+  const [rendered, setRendered] = useState<{ icons: number; markers: readonly number[] }>({
+    icons: 0,
+    markers: [],
+  });
+  if (rendered.icons !== icons) {
+    setRendered({
+      icons,
+      markers:
+        icons > 0 && html !== undefined
+          ? getRenderedToolRefs(sanitizeCustomHtml(html)).toolBlocks.map(({ index }) => index)
+          : [],
+    });
+  }
+  const { markers } = rendered;
+  // The model is writing its last segment from when the live reasoning comes or grows on screen
+  // until the reply moves past it. A tool call that began after the segment did ends it, also when
+  // its marker came in the frame of the segment's last piece, and so does a segment that has begun
+  // without text yet. Answer text ends it too: the body is then other text and other HTML than when
+  // the segment began. One of the two alone is a durable write of the same body (a checkpoint
+  // names a code block's language, and spells a mention out), and a pause changes neither.
+  const movedOn = grew.body !== body && (grew.html !== html || html === undefined);
+  const ended = !!last && (last.blank || markers.some((marker) => marker > last.afterTool));
+  const writing = live !== undefined && grew.seen && !movedOn && !ended;
+  const liveIndex = writing ? segments.length - 1 : undefined;
+  const placement = useMemo(() => placeReasoningSegments(segments, markers), [segments, markers]);
+  const reasoning = useMemo(
+    () => ({ segments, placement, open, hide, liveIndex, htmlReactParserOptions }),
+    [segments, placement, open, hide, liveIndex, htmlReactParserOptions]
+  );
+
+  let label: string | undefined;
+  if (live !== undefined) label = t('mindroomUi.messages.mindroomReasoning.thinking');
+  else if (final) {
+    label =
+      final.durationMs === undefined
+        ? t('mindroomUi.messages.mindroomReasoning.thought')
+        : t('mindroomUi.messages.mindroomReasoning.thoughtFor', {
+            count: thoughtSeconds(final.durationMs),
+          });
+  }
+
+  // One shape with or without reasoning, the cog and activity, so the body keeps its place, and the
+  // state inside it such as an open tool-call list, when warm-up lines or reasoning come and go.
+  return (
+    <ReasoningSegmentsContext.Provider value={reasoning}>
+      {label === undefined ? (
+        <ToolCallsCogRow />
+      ) : (
+        <ReasoningHeader
+          label={label}
+          open={open}
+          thinking={thinking}
+          onToggle={() => setOpen((value) => !value)}
+          bulbRef={bulbRef}
+        />
+      )}
+      {children}
+      {activity !== undefined && <LiveActivity text={activity} />}
+    </ReasoningSegmentsContext.Provider>
+  );
+}
+
 /**
- * Wrap a reply body with the model's reasoning and the runtime's live activity. While the reply
- * streams, the live reasoning (`io.mindroom.live_reasoning`) shows open above the body; a finished
- * reply shows its stored reasoning (`io.mindroom.reasoning`) collapsed with how long it took. The
- * live activity line (`io.mindroom.live_activity`) goes below the body. While the reply's tool
- * calls are hidden, their cog sits on the reasoning's line, or in its place above the body.
+ * Wrap a reply body with the model's reasoning and the runtime's live activity. The reasoning line
+ * above the body says how long the model thought, or that it thinks (`io.mindroom.live_reasoning`,
+ * `io.mindroom.reasoning`); its bulb shows each reasoning segment where it happened, at the top or
+ * after the tool calls of `html` it followed, and while the reply streams the segment being
+ * written shows there under a closed bulb too, until the body goes on. The live activity line
+ * (`io.mindroom.live_activity`) goes below the body. While the reply's tool calls are hidden, their
+ * cog sits on the reasoning's line, or in its place above the body.
  */
 export const withReasoning = (
   content: Record<string, unknown>,
@@ -230,26 +388,11 @@ export const withReasoning = (
   htmlReactParserOptions: HTMLReactParserOptions,
   // The body renderers pass their linkify options too; reasoning renders from Markdown.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _linkifyOpts?: LinkifyOpts
-): ReactNode => {
-  const final = parseFinalReasoning(content[MINDROOM_REASONING_KEY]);
-  const liveText = nonEmptyString(content[LIVE_REASONING_KEY]);
-  const status = getStreamStatusFromContent(content);
-  const streaming = status === undefined || ACTIVE_STREAM_STATUSES.has(status);
-  const live = liveText !== undefined && (!final || streaming) ? liveText : undefined;
-  const activity = nonEmptyString(content[LIVE_ACTIVITY_KEY]);
-
-  const reasoning = live !== undefined || !!final;
-
-  // One shape with or without reasoning, the cog and activity, so the body keeps its place, and the
-  // state inside it such as an open tool-call list, when warm-up lines or reasoning come and go. The
-  // header stays mounted without reasoning, so the first reasoning that comes is news to it.
-  return (
-    <>
-      <ReasoningHeader live={live} final={final} htmlReactParserOptions={htmlReactParserOptions} />
-      {!reasoning && <ToolCallsCogRow />}
-      {body}
-      {activity !== undefined && <LiveActivity text={activity} />}
-    </>
-  );
-};
+  _linkifyOpts?: LinkifyOpts,
+  /** The HTML `body` renders; without it every segment shows at the top. */
+  html?: string
+): ReactNode => (
+  <ReplyReasoning content={content} html={html} htmlReactParserOptions={htmlReactParserOptions}>
+    {body}
+  </ReplyReasoning>
+);

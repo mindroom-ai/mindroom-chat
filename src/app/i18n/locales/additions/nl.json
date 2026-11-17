@@ -670,7 +670,7 @@
   "mindroomUi": {
     "messages": {
       "mindroomReasoning": {
-        "collapse": "Inklappen",
+        "hide": "Denkproces verbergen",
         "thought": "Nagedacht"
       },
       "messageReactionActions": {

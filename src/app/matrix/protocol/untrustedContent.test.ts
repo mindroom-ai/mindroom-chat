@@ -247,6 +247,7 @@ describe('installEventContentGuard', () => {
         'io.mindroom.stream_status': 'streaming',
         'io.mindroom.tool_trace': { version: 2, events: [] },
         'io.mindroom.reasoning': { text: 'imitated' },
+        'io.mindroom.live_reasoning_segments': [{ start: 0, after_tool: 0 }],
         // A transcript would show other members' names and avatars beside words they never said.
         'io.mindroom.call_transcript': {
           duration_seconds: 60,

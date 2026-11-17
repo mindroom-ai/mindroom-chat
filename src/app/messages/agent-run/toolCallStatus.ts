@@ -1,6 +1,8 @@
 import { createContext, useContext, useId, useLayoutEffect, type ReactNode } from 'react';
+import type { HTMLReactParserOptions } from 'html-react-parser';
 import type { ToolApprovalStatus } from '../../matrix/protocol/toolApproval';
 import type { ToolJobHandle } from '../../matrix/protocol/toolJobHandle';
+import type { ReasoningSegment } from './reasoningSegments';
 
 export type ToolCallState = 'running' | 'waiting' | 'done' | 'denied' | 'expired';
 
@@ -29,6 +31,27 @@ export const ToolCallsFoldContext = createContext<ToolCallsFoldState | undefined
  * Reasoning.tsx); nothing while the reply has no hidden tool calls.
  */
 export const ToolCallsCogContext = createContext<ReactNode>(null);
+
+/**
+ * A reply's reasoning segments and where each shows (withReasoning in Reasoning.tsx): under the
+ * reply's header, or after the run of tool calls that ends at a marker.
+ */
+export type ReasoningSegmentsState = {
+  segments: readonly ReasoningSegment[];
+  /** From an anchor (a rendered tool marker's index, or 0 for the top) to its segments' indices. */
+  placement: ReadonlyMap<number, readonly number[]>;
+  /** Whether the bulb shows every segment. */
+  open: boolean;
+  /** Closes the bulb and gives it the focus, which scrolls it into view. */
+  hide: () => void;
+  /** The segment the model is writing, which shows under a closed bulb too. */
+  liveIndex: number | undefined;
+  /** What the segments' Markdown renders with. */
+  htmlReactParserOptions: HTMLReactParserOptions;
+};
+export const ReasoningSegmentsContext = createContext<ReasoningSegmentsState | undefined>(
+  undefined
+);
 
 /** Counts a run's calls on the reply's cog while `calls` is given, and takes them back after. */
 export const useFoldedToolCalls = (calls: readonly FoldedToolCall[] | undefined): void => {

@@ -24,7 +24,7 @@ import { ThinkingPlaceholder } from '../agent-run/ThinkingPlaceholder';
 import { withReasoning } from '../agent-run/Reasoning';
 import { FinishedWorkFold } from '../agent-run/FinishedWorkFold';
 import { isLongAgentReply, splitFinishedWork } from '../agent-run/finishedWorkSplit';
-import { LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
+import { LIVE_REASONING_KEY, LIVE_REASONING_SEGMENTS_KEY } from '../live/useLiveReplyContent';
 import { TranscribingPlaceholder } from '../agent-run/TranscribingPlaceholder';
 import { ThreadSummaryCard } from '../thread-summary/ThreadSummaryCard';
 import { ToolApprovalCard } from '../../approvals/ToolApprovalCard';
@@ -247,8 +247,12 @@ export const renderAgentMessageContent = ({
     };
   };
 
-  const wrapWithReasoning = (bodyContent: Record<string, unknown>, body: ReactNode) =>
-    withReasoning(bodyContent, body, htmlReactParserOptions, linkifyOpts);
+  // The reply's HTML goes along whole: its tool markers place the reasoning segments.
+  const wrapWithReasoning = (
+    bodyContent: Record<string, unknown>,
+    html: string | undefined,
+    body: ReactNode
+  ) => withReasoning(bodyContent, body, htmlReactParserOptions, linkifyOpts, html);
 
   // A long finished reply folds its work, everything up to its last tool call, behind one row, as
   // T3 Code folds a finished turn; the answer after it stays. The work took from the reply's first
@@ -273,7 +277,7 @@ export const renderAgentMessageContent = ({
       bodyHtml: string | undefined = html
     ) => {
       if (!foldsWork || foldEventId === undefined) {
-        return wrapWithReasoning(bodyContent, render(bodyHtml));
+        return wrapWithReasoning(bodyContent, bodyHtml, render(bodyHtml));
       }
       return (
         <AgentWorkBody
@@ -283,7 +287,7 @@ export const renderAgentMessageContent = ({
           finished={finished && canFold}
           durationMs={workDurationMs}
           renderHtml={render}
-          wrapWithReasoning={(body) => wrapWithReasoning(bodyContent, body)}
+          wrapWithReasoning={(body) => wrapWithReasoning(bodyContent, bodyHtml, body)}
         />
       );
     };
@@ -353,7 +357,11 @@ export const renderAgentMessageContent = ({
         // The live reasoning rides on the outer content, not on the preview or the sidecar.
         content[LIVE_REASONING_KEY] === undefined
           ? resolvedContent
-          : { ...resolvedContent, [LIVE_REASONING_KEY]: content[LIVE_REASONING_KEY] },
+          : {
+              ...resolvedContent,
+              [LIVE_REASONING_KEY]: content[LIVE_REASONING_KEY],
+              [LIVE_REASONING_SEGMENTS_KEY]: content[LIVE_REASONING_SEGMENTS_KEY],
+            },
         props.customBody,
         (html) => (
           <AgentRenderBody

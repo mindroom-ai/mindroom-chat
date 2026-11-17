@@ -21,7 +21,14 @@ const meta = {
   started_at: 1762790000.1,
   ended_at: null,
 };
-const docs: LiveDocs = { md: 'Hi', reasoning: '', tools: [], status: 'streaming', activity: '' };
+const docs: LiveDocs = {
+  md: 'Hi',
+  reasoning: '',
+  tools: [],
+  status: 'streaming',
+  activity: '',
+  segments: [],
+};
 const frame = (body: Record<string, unknown>) => ({
   v: 1,
   run: 'del-1',
@@ -48,8 +55,8 @@ describe('sub-agent frames', () => {
       const after =
         'snapshot' in parsed
           ? parsed.snapshot
-          : applyLiveDelta(testCase.before as LiveDocs, parsed.delta);
-      expect(after).toEqual(testCase.after);
+          : applyLiveDelta({ segments: [], ...testCase.before } as LiveDocs, parsed.delta);
+      expect(after).toEqual({ segments: [], ...testCase.after });
     }
   );
 

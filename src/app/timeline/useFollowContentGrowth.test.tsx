@@ -20,8 +20,7 @@ const createScroller = () => {
     offsetHeight: 400,
     scrollTop: 600,
     addEventListener: (type: string, listener: () => void) => listenersOf(type).add(listener),
-    removeEventListener: (type: string, listener: () => void) =>
-      listenersOf(type).delete(listener),
+    removeEventListener: (type: string, listener: () => void) => listenersOf(type).delete(listener),
     scrollTo: vi.fn(({ top }: { top: number }) => {
       scroller.scrollTop = top;
       scroller.scroll();
@@ -102,6 +101,7 @@ describe('useFollowContentGrowth', () => {
           tools: [],
           status: 'streaming',
           activity: '',
+          segments: [],
         },
       },
       Date.now()
