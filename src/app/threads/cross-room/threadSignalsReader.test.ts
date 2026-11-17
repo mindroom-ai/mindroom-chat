@@ -5,7 +5,11 @@ import { rememberSeenThreadRoot } from '../../matrix/seenThreadRoots';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CrossRoomThreadIndexEntry } from './crossRoomThreadIndex';
 import type { ThreadSignals } from './threadSignals';
-import { createThreadSignalsReader, getThreadSignalsReader } from './threadSignalsReader';
+import {
+  createThreadSignalsReader,
+  getThreadSignalsReader,
+  subscribeRoomSignals,
+} from './threadSignalsReader';
 
 const mocks = vi.hoisted(() => ({ read: vi.fn(), receiptEvents: { version: 0 } }));
 vi.mock('./threadSignals', () => ({ readThreadSignals: mocks.read }));
@@ -317,6 +321,27 @@ describe('getThreadSignalsReader', () => {
     expect(readAgain()).toEqual(['$a', '$b']);
     mx.emit(RoomEvent.Receipt, receipt(ME, 'main'), room);
     expect(readAgain()).toEqual(['$a', '$b']);
+  });
+
+  it('tells who listens to a room of each change its threads are read again for', () => {
+    const { mx, room } = setup();
+    const onChange = vi.fn();
+    const unsubscribe = subscribeRoomSignals(mx as unknown as MatrixClient, '!r:x', onChange);
+    const elsewhere = vi.fn();
+    subscribeRoomSignals(mx as unknown as MatrixClient, '!other:x', elsewhere);
+
+    mx.emit(ClientEvent.Event, event({ threadRootId: '$a' }));
+    mx.emit(RoomEvent.TimelineReset, room, {});
+    expect(onChange).toHaveBeenCalledTimes(2);
+    // A live reply frame and someone else's receipt change no thread's signals.
+    mx.emit(ClientEvent.Event, { getId: () => undefined, getRoomId: () => '!r:x' });
+    mx.emit(RoomEvent.Receipt, receipt('@other:x', '$a'), room);
+    expect(onChange).toHaveBeenCalledTimes(2);
+
+    unsubscribe();
+    mx.emit(ClientEvent.Event, event({ threadRootId: '$a' }));
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(elsewhere).not.toHaveBeenCalled();
   });
 
   it("reads every thread when the user's oldest thread receipt of the room changes", () => {

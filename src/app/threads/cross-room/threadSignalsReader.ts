@@ -73,24 +73,31 @@ export const createThreadSignalsReader = (
   };
 };
 
-const readers = new WeakMap<MatrixClient, ThreadSignalsReader>();
+type ClientSignals = {
+  reader: ThreadSignalsReader;
+  /** Who listens to each room's changes, by room ID. */
+  listeners: Map<string, Set<() => void>>;
+};
+
+const clients = new WeakMap<MatrixClient, ClientSignals>();
 
 /**
- * The client's one signals cache, shared by Activity and the Threads page. What the client hears
- * counts for the thread it may show in (`changedThreadId`), so the other threads of the room keep
- * their signals: an event (also one a thread holds back, or one a page of history brings), its
- * decryption, an edit put on or taken off it, a local echo's progress, a redaction, and the
- * user's receipt in a thread, and the thread's timeline starting over. It counts for every thread
- * of the room when the thread is unknown (an event related to one the room does not hold), for
- * the user's receipt outside a thread, a timeline of the room that starts over, and a member who
- * joins or leaves (an agent's presence decides
- * whether a notice is listed). Signals read no one else's receipts and no event without an ID
- * (typing, a live reply frame, account data), so those count for nothing.
+ * The client's one signals cache and who listens to its rooms. What the client hears counts for
+ * the thread it may show in (`changedThreadId`), so the other threads of the room keep their
+ * signals: an event (also one a thread holds back, or one a page of history brings), its
+ * decryption, an edit put on or taken off it, a local echo's progress, a redaction, the user's
+ * receipt in a thread, and the thread's timeline starting over. It counts for every thread of the
+ * room when the thread is unknown (an event related to one the room does not hold), for the
+ * user's receipt outside a thread, a timeline of the room that starts over, and a member who
+ * joins or leaves (an agent's presence decides whether a notice is listed). Signals read no one
+ * else's receipts and no event without an ID (typing, a live reply frame, account data), so those
+ * count for nothing and reach no listener.
  */
-export const getThreadSignalsReader = (mx: MatrixClient): ThreadSignalsReader => {
-  let reader = readers.get(mx);
-  if (!reader) {
+const getClientSignals = (mx: MatrixClient): ClientSignals => {
+  let client = clients.get(mx);
+  if (!client) {
     const changes = new Map<string, ThreadRecordChanges>();
+    const listeners = new Map<string, Set<() => void>>();
     /** Counts for one thread of the room, or without `threadRootId` for all of them. */
     const mark = (roomId: string, threadRootId?: string) => {
       let roomChanges = changes.get(roomId);
@@ -99,6 +106,7 @@ export const getThreadSignalsReader = (mx: MatrixClient): ThreadSignalsReader =>
         changes.set(roomId, roomChanges);
       }
       markThreadRecordChange(roomChanges, threadRootId);
+      listeners.get(roomId)?.forEach((listener) => listener());
     };
     const markEvent = (event: MatrixEvent) => {
       const room = mx.getRoom(event.getRoomId());
@@ -134,11 +142,37 @@ export const getThreadSignalsReader = (mx: MatrixClient): ThreadSignalsReader =>
       else threadIds.forEach((threadId) => mark(room.roomId, threadId));
       oldestThreadedReceiptTs.set(room.roomId, oldest);
     });
-    reader = createThreadSignalsReader((room, threadRootId) => {
+    const reader = createThreadSignalsReader((room, threadRootId) => {
       const roomChanges = changes.get(room.roomId);
       return roomChanges?.threads.get(threadRootId) ?? roomChanges?.room ?? 0;
     });
-    readers.set(mx, reader);
+    client = { reader, listeners };
+    clients.set(mx, client);
   }
-  return reader;
+  return client;
+};
+
+/** The client's one signals cache, shared by Activity and the Threads page. */
+export const getThreadSignalsReader = (mx: MatrixClient): ThreadSignalsReader =>
+  getClientSignals(mx).reader;
+
+/**
+ * Calls `onChange` each time the room hears what any of its threads' signals are read again for,
+ * so a view that shows one thread's signals can follow them. Returns the unsubscribe.
+ */
+export const subscribeRoomSignals = (
+  mx: MatrixClient,
+  roomId: string,
+  onChange: () => void
+): (() => void) => {
+  const { listeners } = getClientSignals(mx);
+  const roomListeners = listeners.get(roomId) ?? new Set();
+  roomListeners.add(onChange);
+  listeners.set(roomId, roomListeners);
+  return () => {
+    roomListeners.delete(onChange);
+    if (roomListeners.size === 0 && listeners.get(roomId) === roomListeners) {
+      listeners.delete(roomId);
+    }
+  };
 };
