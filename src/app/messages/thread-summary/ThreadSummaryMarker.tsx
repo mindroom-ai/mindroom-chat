@@ -93,6 +93,9 @@ export function ThreadSummaryMarker({
     if (!isOpen) return undefined;
     const onKeyDown = (evt: globalThis.KeyboardEvent) => {
       if (evt.key !== 'Escape') return;
+      // This Escape closes the card and nothing else: the room's own (focus the composer,
+      // ShortcutRoot on the window) skips a key whose default was prevented.
+      evt.preventDefault();
       // Focus in the card would fall to the page once it is gone.
       if (within(cardRef.current, document.activeElement)) triggerRef.current?.focus();
       close();

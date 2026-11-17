@@ -418,12 +418,20 @@ describe('ThreadSummaryMarker', () => {
         nodes.link!.focus();
       });
       expect(document.activeElement).toBe(nodes.link);
+      const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
       act(() => {
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+        document.dispatchEvent(escape);
       });
 
       expect(popout(renderer)).toHaveLength(0);
       expect(nodes.trigger!.focus).toHaveBeenCalled();
+      // The room's Escape (focus the composer) skips it, or it would take that focus away.
+      expect(escape.defaultPrevented).toBe(true);
+
+      // With the card closed, Escape is the room's again.
+      const later = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+      document.dispatchEvent(later);
+      expect(later.defaultPrevented).toBe(false);
     });
 
     it('closes on Escape', async () => {
