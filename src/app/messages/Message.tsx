@@ -693,6 +693,9 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       const opensMenu = evt.button === 2 || (evt.button === 0 && evt.ctrlKey);
       selectedAtMenuPress.current = opensMenu ? hasSelectedText() : undefined;
     };
+    // The kind of pointer that last pressed on the header's time: a touch there unfolds the time,
+    // other pointers open the reply details. A touchscreen laptop's primary pointer hovers too.
+    const timePointer = useRef<string>();
     const toolbarRef = useRef<HTMLDivElement>(null);
     // Focus from the keyboard, or from a tap on the message itself, shows the toolbar. A tap on one
     // of the row's controls, such as a streaming reply's Stop, does not: the focus stayed in the
@@ -869,10 +872,13 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
               dateFormatString={dateFormatString}
               // With a hovering pointer the time, whose unfolding moves the small button, opens
               // the details too. A tap keeps unfolding it.
+              onPointerDown={(evt: PointerEvent<HTMLTimeElement>) => {
+                timePointer.current = evt.pointerType;
+              }}
               onClick={
                 controls &&
                 ((evt: MouseEvent<HTMLTimeElement>) => {
-                  if (!canHover()) return;
+                  if (!canHover() || timePointer.current === 'touch') return;
                   evt.preventDefault();
                   openAiRun();
                 })

@@ -156,6 +156,25 @@ describe("an agent reply's header time", () => {
     expect(time.hasAttribute('data-open')).toBe(false);
   });
 
+  it('unfolds on a tap on a touchscreen whose primary pointer hovers', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query === '(hover: hover)',
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
+    const time = await renderMessage(MessageLayout.Modern, timing, WITH_RUN);
+    await act(async () => {
+      // jsdom has no PointerEvent, so the press is a MouseEvent with a pointer type.
+      const down = new MouseEvent('pointerdown', { bubbles: true, button: 0 });
+      Object.defineProperty(down, 'pointerType', { value: 'touch' });
+      time.dispatchEvent(down);
+      fireEvent.click(time);
+    });
+    expect(time.hasAttribute('data-open')).toBe(true);
+    const details = screen.getByRole('button', { name: 'Reply details' });
+    expect(details.getAttribute('aria-expanded')).toBe('false');
+  });
+
   it('keeps unfolding on a tap, with the reply details on its button', async () => {
     const time = await renderMessage(MessageLayout.Modern, timing, WITH_RUN);
     await act(async () => {
