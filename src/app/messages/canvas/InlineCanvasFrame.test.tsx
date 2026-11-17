@@ -181,15 +181,15 @@ describe('InlineCanvasFrame', () => {
     expect(frame().style.width).toBe('1440px');
     expect(frame().style.transform).toBe('scale(0.5)');
     expect(frame().style.background).toContain('rgb(255, 255, 255)');
-    post({ type: 'mindroom.canvas.size', version: 1, height: 1000 });
-    expect(frame().style.height).toBe('1000px');
-    expect((frame().parentElement as HTMLElement).style.height).toBe('500px');
+    post({ type: 'mindroom.canvas.size', version: 1, height: 800 });
+    expect(frame().style.height).toBe('800px');
+    expect((frame().parentElement as HTMLElement).style.height).toBe('400px');
     // A raw page carries none of Chat's styles, and the deployment's remote assets are allowed.
     expect(frame().srcdoc).not.toContain('padding:8px');
     expect(frame().srcdoc).toContain('img-src data: blob: https:');
     vi.unstubAllGlobals();
   });
-  it('gives a page that follows its viewport a window until it reports a height again', () => {
+  it('shows a website preview as a browser window: it starts there and never grows past it', () => {
     const observed: ResizeObserverCallback[] = [];
     vi.stubGlobal(
       'ResizeObserver',
@@ -207,25 +207,33 @@ describe('InlineCanvasFrame', () => {
           callback([{ contentRect: { width } } as ResizeObserverEntry], {} as ResizeObserver)
         )
       );
-    render();
-    post({ type: 'mindroom.canvas.size', version: 1, height: 256 });
-    expect(frame().style.height).toBe('256px');
-    post({ type: 'mindroom.canvas.size', version: 1, height: 352, viewport: true });
-    // A window for the column's width: 16:10, at least 568 pixels.
+    const size = (height: number) => post({ type: 'mindroom.canvas.size', version: 1, height });
+    // A raw page without a width: a window of 16:10 of the column, at least 568 pixels.
+    render(makeUiEvent({ action: 'show_canvas', inline: true, canvas: { ...canvas, raw: true } }));
+    expect(frame().style.height).toBe('568px');
+    // Shorter content fits; taller content, such as a 100vh hero, stops at the window and scrolls.
+    size(300);
+    expect(frame().style.height).toBe('300px');
+    size(5000);
     expect(frame().style.height).toBe('568px');
     column(1600);
     expect(frame().style.height).toBe('1000px');
-    // The page reports a height again only once it is shorter than its window: fit it again.
-    post({ type: 'mindroom.canvas.size', version: 1, height: 300 });
-    expect(frame().style.height).toBe('300px');
-    // A page with its own width gets the window of that width, shrunk with it.
-    const page = { title: 'Site', html: '<p>Site</p>', raw: true, width: 1440 };
+    // A page with its own width takes the window of that width, shrunk with the page.
+    const page = { title: 'Site', html: '<p>Site</p>', width: 1440 };
     render(makeUiEvent({ action: 'show_canvas', inline: true, canvas: page }));
     column(720);
-    post({ type: 'mindroom.canvas.size', version: 1, height: 1200, viewport: true });
     expect(frame().style.height).toBe('900px');
     expect((frame().parentElement as HTMLElement).style.height).toBe('450px');
+    size(20000);
+    expect(frame().style.height).toBe('900px');
+    size(600);
+    expect(frame().style.height).toBe('600px');
     vi.unstubAllGlobals();
+  });
+  it('fits a themed page to its content, past any window', () => {
+    render();
+    post({ type: 'mindroom.canvas.size', version: 1, height: 5000 });
+    expect(frame().style.height).toBe('5000px');
   });
   it('starts a page again when it escapes its frame, until it keeps escaping', () => {
     render();

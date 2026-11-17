@@ -92,13 +92,16 @@ The backend toolkit option `enable_canvas_remote_assets` (like `enable_canvas_li
 
 Raw pages get no `position:relative` on `body`, so the height is the larger of the body's extent and the root element's box. Content positioned against the viewport is not counted; such a page should give its own wrapper a height.
 
-### Pages that follow their viewport (added 2026-11-16)
+### Pages that follow their viewport (added 2026-11-16, reworked)
 
 A page whose height follows its viewport, such as a `100vh` hero with a header, grows at least as much as its frame does, so fitting the frame to it would grow it to the 20000px cap.
-The bridge compares each measurement with the one before: when the frame grew by `g` (at least 1px) and the page grew by `g` or more, the growth is the frame's doing, which also covers two `100vh` sections or a `200vh` block.
-A measurement counts only when the page did not change by itself since the one before: no DOM change (`MutationObserver`), no `load`, `transitionrun`, `transitionend`, `animationstart` or `animationend` event, and no running animation (`document.getAnimations()`). The `ResizeObserver` is not such a sign, because the fit itself resizes the body.
-After two such measurements in a row the bridge posts one size message with `viewport: true`.
-The host answers with a window, as a browser would: 16:10 of the page's layout width (`width`, or the column without it), at least 568 page px (an iPhone SE screen) and at most 1080, and the rest of the page scrolls inside it.
-Without `width` the column is under about 900px, so such a page gets 568px: a hero fills a screenful of the thread and no more.
-While windowed the bridge keeps measuring, and reports nothing while the page is at least as tall as its window, which a page that follows its viewport always is.
-A page that becomes shorter than its window posts an ordinary size report; the host fits the frame to it again, and detection starts afresh.
+Guessing that dependence from the timing of size reports failed three review rounds (pages growing twice as fast as their frame, pages growing by themselves in steps, an unrelated running animation, an exactly `100vh` page that never grows), so nothing guesses it.
+
+A website preview (`raw`, or with its own `width`) is shown like a browser window instead: its frame is never taller than 16:10 of its layout width (`width`, or the column without it), at least 568 page px (an iPhone SE screen) and at most 1080.
+The frame starts at that window, not at 160px, and its height is the smaller of the page's reported height and the window.
+Content shorter than the window fits it; taller content, and any page sized by its viewport, stops exactly at the window and scrolls inside it.
+No loop is possible, because the frame never grows past the window, and starting at the window lets an exactly `100vh` page land there at once.
+Without `width` the column is under about 900px, so such a preview gets at most 568px: a hero fills a screenful of the thread and no more.
+
+A themed inline page (neither `raw` nor `width`) fits its content as before, from 160px up to the 20000px cap and without scrolling; the tool guidance tells agents not to use `vh` units or `height:100%` on `html` or `body` there.
+The size script is unchanged: it reports the body's extent whenever it changes.

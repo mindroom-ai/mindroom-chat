@@ -6,14 +6,11 @@ export const CANVAS_ERROR_MESSAGE = 'mindroom.canvas.error';
 export const CANVAS_STATE_MESSAGE = 'mindroom.canvas.state';
 export const CANVAS_SIZE_MESSAGE = 'mindroom.canvas.size';
 
-/**
- * Only the opaque page inside this host may resize its frame. `viewport` means the page follows its
- * viewport's height, so it wants a browser window instead of a frame fitted to it.
- */
+/** Only the opaque page inside this host may resize its frame. */
 export const readCanvasSize = (
   event: MessageEvent,
   frame: Window | null | undefined
-): { height: number; viewport: boolean } | undefined => {
+): number | undefined => {
   if (!frame || event.source !== frame || event.origin !== 'null') return undefined;
   const data: unknown = event.data;
   if (
@@ -29,15 +26,15 @@ export const readCanvasSize = (
     data.height <= 0
   )
     return undefined;
-  return { height: data.height, viewport: 'viewport' in data && data.viewport === true };
+  return data.height;
 };
 
 export const clampInlineCanvasHeight = (height: number): number =>
   Math.min(20000, Math.max(80, Math.ceil(height)));
 
 /**
- * The window height a page that follows its viewport gets, for a page laid out this many pixels
- * wide: a 16:10 window, at least an iPhone SE's 568 and at most a 1080 desktop.
+ * The most a page shown as a website preview (`raw` or `width`) may take, for a page laid out this
+ * many pixels wide: a 16:10 browser window, at least an iPhone SE's 568 and at most a 1080 desktop.
  */
 export const inlineCanvasWindowHeight = (width: number): number =>
   Math.min(1080, Math.max(568, Math.round((width * 10) / 16)));
@@ -261,85 +258,41 @@ const inputsScript = (inputs: string | undefined): string => `
 
 /** Only inline pages report their height: their host fits the frame to it. */
 const sizeScript = `
-  // The last height sent, and the last measurement: the page's height and its viewport's.
-  let sentHeight;
   let lastHeight;
-  let lastViewport;
   let sizeQueued = false;
-  // Whether the page changed by itself since it was last measured: then a bigger frame explains nothing.
-  let changed = false;
-  let matches = 0;
-  // The host gave the page a window, as a browser would, instead of fitting the frame to it.
-  let windowed = false;
   // The body's own extent: it follows the content down and up, and the frame's height never enters it,
   // so a page cannot grow by being given room. Inline pages make the body the containing block, so
   // absolutely positioned content counts too; raw pages keep the browser's defaults, so for them
   // content positioned against the viewport does not count.
-  const measureSize = () => {
-    const box = document.body.getBoundingClientRect();
-    return Math.ceil(Math.max(
-      box.top + scrollY + Math.max(document.body.scrollHeight, box.height)
-        + (parseFloat(getComputedStyle(document.body).marginBottom) || 0),
-      document.documentElement.getBoundingClientRect().height
-    ));
-  };
-  const animating = () =>
-    !!document.getAnimations && document.getAnimations().some((animation) => animation.playState === 'running');
-  const sendSize = (height, viewport) => {
-    sentHeight = height;
-    parent.parent.postMessage(
-      { type: '${CANVAS_SIZE_MESSAGE}', version: 1, height, ...(viewport ? { viewport } : {}) }, '*'
-    );
-  };
-  // A page sized by its viewport (100vh and more) grows at least as much as its frame does, so every
-  // fit would grow it again. After two such fits in a row with nothing else changing, it asks for a
-  // window of its own and scrolls inside it; a page that follows its viewport is never shorter than
-  // its window, so one that is gets fitted again.
   const reportSize = () => {
     sizeQueued = false;
-    if (!document.body) return;
-    const selfChanged = changed || animating();
-    changed = false;
-    const height = measureSize();
-    const grown = lastViewport === undefined ? 0 : innerHeight - lastViewport;
-    const followed = !selfChanged && height - lastHeight >= grown;
+    const body = document.body;
+    if (!body) return;
+    const box = body.getBoundingClientRect();
+    const height = Math.ceil(Math.max(
+      box.top + scrollY + Math.max(body.scrollHeight, box.height)
+        + (parseFloat(getComputedStyle(body).marginBottom) || 0),
+      document.documentElement.getBoundingClientRect().height
+    ));
+    if (height === lastHeight) return;
     lastHeight = height;
-    lastViewport = innerHeight;
-    if (windowed) {
-      if (height >= innerHeight) return;
-      windowed = false;
-      matches = 0;
-      sentHeight = undefined;
-    } else if (grown >= 1) {
-      matches = followed ? matches + 1 : 0;
-      if (matches >= 2) {
-        windowed = true;
-        return sendSize(height, true);
-      }
-    }
-    if (height !== sentHeight) sendSize(height);
+    parent.parent.postMessage({ type: '${CANVAS_SIZE_MESSAGE}', version: 1, height }, '*');
   };
+  // Content outside the body's flow can change without resizing the body.
   const queueSize = () => {
     if (sizeQueued) return;
     sizeQueued = true;
     requestAnimationFrame(reportSize);
   };
-  const selfChange = () => {
-    changed = true;
-    queueSize();
-  };
-  addEventListener('resize', queueSize);
   document.addEventListener('DOMContentLoaded', () => {
-    // A fit of the frame resizes the body too, so the ResizeObserver is no sign of a change of its own.
     new ResizeObserver(queueSize).observe(document.body);
-    new MutationObserver(selfChange).observe(document.body, {
+    new MutationObserver(queueSize).observe(document.body, {
       subtree: true, childList: true, attributes: true, characterData: true,
     });
     reportSize();
   });
   // A transition, an animation or an image can change positioned content after the change that started it.
-  ['transitionrun', 'transitionend', 'animationstart', 'animationend', 'load'].forEach((type) =>
-    document.addEventListener(type, selfChange, true));
+  ['transitionend', 'animationend', 'load'].forEach((type) => document.addEventListener(type, queueSize, true));
   addEventListener('load', reportSize);
 `;
 

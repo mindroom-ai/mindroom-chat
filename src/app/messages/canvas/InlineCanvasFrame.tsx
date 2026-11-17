@@ -44,9 +44,7 @@ function SizedFrame({
   const { t } = useTranslation();
   const box = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
-  const [height, setHeight] = useState(160);
-  // A page that follows its viewport's height gets a browser window and scrolls inside it.
-  const [windowed, setWindowed] = useState(false);
+  const [reported, setReported] = useState<number>();
   const [column, setColumn] = useState(0);
   const [reloads, setReloads] = useState(0);
   useEffect(() => {
@@ -62,27 +60,26 @@ function SizedFrame({
         return;
       }
       const size = readCanvasSize(event, canvasFrameWindow(frame.current));
-      if (!size) return;
-      // A page that left its window, by becoming shorter than it, is fitted again.
-      setWindowed(size.viewport);
-      if (!size.viewport) setHeight(clampInlineCanvasHeight(size.height));
+      if (size !== undefined) setReported(clampInlineCanvasHeight(size));
     };
     window.addEventListener('message', receive);
     return () => window.removeEventListener('message', receive);
   }, []);
-  // The column sets the scale of a page with its own width, and the window of a page without one.
-  const measured = width !== undefined || windowed;
+  // A website preview (raw, or with its own width) is shown like a browser window: never taller than
+  // 16:10 of its width, the rest scrolling inside it, so a page sized by its viewport cannot grow its
+  // frame. It starts at that window, where a 100vh page already fits. A themed page fits its content.
+  const preview = raw || width !== undefined;
   const stopped = reloads > MAX_ESCAPE_RELOADS;
   useLayoutEffect(() => {
     const element = box.current;
-    if (!measured || stopped || !element) return undefined;
+    if (!preview || stopped || !element) return undefined;
     setColumn(element.clientWidth);
     const observer = new ResizeObserver(([entry]) => {
       if (entry) setColumn(entry.contentRect.width);
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [measured, stopped]);
+  }, [preview, stopped]);
   if (stopped)
     return (
       <Box direction="Column" alignItems="Start" gap="100">
@@ -103,7 +100,8 @@ function SizedFrame({
   // A page with its own viewport width renders at that width and shrinks to the column, so a
   // desktop layout keeps its desktop breakpoint; the frame's box takes the shrunk height.
   const scale = inlineCanvasScale(column, width);
-  const shown = windowed ? inlineCanvasWindowHeight(width ?? column) : height;
+  const limit = inlineCanvasWindowHeight(width ?? column);
+  const shown = preview ? Math.min(reported ?? limit, limit) : reported ?? 160;
   return (
     // A preview is placed, not read: it starts at the left edge in every language, so its scale's
     // origin and its overflow stay on the same side.

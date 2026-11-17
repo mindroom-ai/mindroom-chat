@@ -95,33 +95,49 @@ test('an inline canvas follows absolutely positioned content through transitions
   await expect.poll(height, { timeout: 10_000 }).toBe(250);
 });
 
-// A page whose height follows its viewport gets a 16:10 window, 568 to 1080 page pixels tall.
-const expectWindowed = async (page: Page, title: string, width?: number) => {
+// A website preview (raw, or with its own width) is never taller than a 16:10 browser window, 568 to
+// 1080 page pixels: its frame stops there, shrunk with the page, and the rest scrolls inside it.
+const expectWindow = async (page: Page, title: string, { width = 0, scrolls = true } = {}) => {
   const frame = page.locator(`iframe[title="${title}"]`);
   await expect(frame).toBeVisible({ timeout: 60_000 });
   const column = await frame.evaluate((element) => element.parentElement!.clientWidth);
-  const scale = width === undefined ? 1 : Math.min(1, column / width);
-  const expected = Math.min(1080, Math.max(568, Math.round(((width ?? column) * 10) / 16))) * scale;
+  const scale = width ? Math.min(1, column / width) : 1;
+  const expected = Math.min(1080, Math.max(568, Math.round(((width || column) * 10) / 16))) * scale;
   const shown = async () => (await frame.locator('xpath=..').boundingBox())?.height ?? 0;
   await expect.poll(shown, { timeout: 20_000 }).toBeCloseTo(expected, 0);
   await page.waitForTimeout(1_500);
   expect(await shown()).toBeCloseTo(expected, 0);
-  // The rest of the page scrolls inside the window, as in a browser.
   const inner = page.frameLocator(`iframe[title="${title}"]`).frameLocator('iframe');
-  await expect(inner.getByText('Footer')).toBeAttached();
   expect(
     await inner
       .locator('body')
       .evaluate(() => document.scrollingElement!.scrollHeight > window.innerHeight)
+  ).toBe(scrolls);
+};
+
+// A fitted page's frame is as tall as the page, which does not scroll.
+const expectFitted = async (page: Page, title: string) => {
+  const frame = page.locator(`iframe[title="${title}"]`);
+  const inner = page.frameLocator(`iframe[title="${title}"]`).frameLocator('iframe');
+  const pageHeight = () =>
+    inner
+      .locator('body')
+      .evaluate(() => Math.ceil(document.documentElement.getBoundingClientRect().height));
+  await expect
+    .poll(async () => (await frame.boundingBox())?.height ?? 0, { timeout: 20_000 })
+    .toBeCloseTo(await pageHeight(), 0);
+  expect(
+    await inner
+      .locator('body')
+      .evaluate(() => document.scrollingElement!.scrollHeight <= window.innerHeight)
   ).toBe(true);
 };
 
-test('a page that follows its viewport settles in a window of its own and scrolls inside it', async ({
+test('a website preview sized by its viewport stops at a browser window and scrolls inside it', async ({
   context,
   page,
 }) => {
   const room = await openPanelRoom(context, page);
-  // A header, a 100vh hero and a footer: fitted to its height, it would grow with every fit.
   const hero =
     '<header style="height:60px">Header</header><section style="height:100vh">Hero</section>' +
     '<footer style="height:40px">Footer</footer>';
@@ -129,44 +145,52 @@ test('a page that follows its viewport settles in a window of its own and scroll
   const heroes =
     '<section style="height:100vh">One</section><section style="height:100vh">Two</section>' +
     '<footer style="height:40px">Footer</footer>';
-  await sendInlineCanvas(room, 'Hero page', hero);
+  // An animation elsewhere on the page changes nothing about its window.
+  const animated =
+    '<style>@keyframes pulse{50%{opacity:.4}}h1{animation:pulse 1s infinite}</style>' +
+    '<header><h1>Brand</h1></header><section style="height:100vh">Hero</section><footer>Footer</footer>';
+  await sendInlineCanvas(room, 'Hero page', hero, { raw: true });
   await sendInlineCanvas(room, 'Hero site', hero, { raw: true, width: 1440 });
-  await sendInlineCanvas(room, 'Two heroes', heroes);
-  await expectWindowed(page, 'Hero page');
-  await expectWindowed(page, 'Hero site', 1440);
-  await expectWindowed(page, 'Two heroes');
+  await sendInlineCanvas(room, 'Two heroes', heroes, { raw: true });
+  await sendInlineCanvas(room, 'Animated hero', animated, { raw: true });
+  // Exactly 100vh fills the window and has nothing to scroll.
+  await sendInlineCanvas(
+    room,
+    'Exact viewport',
+    '<style>body{margin:0}</style><div style="height:100vh">Exact</div>',
+    { raw: true }
+  );
+  await expectWindow(page, 'Hero page');
+  await expectWindow(page, 'Hero site', { width: 1440 });
+  await expectWindow(page, 'Two heroes');
+  await expectWindow(page, 'Animated hero');
+  await expectWindow(page, 'Exact viewport', { scrolls: false });
 });
 
-test('a page that grows by itself through transitions is fitted to the end, never windowed', async ({
+test('pages that grow by themselves are fitted: a preview below its window, a themed page past it', async ({
   context,
   page,
 }) => {
   const room = await openPanelRoom(context, page);
   // An accordion opening through a max-height transition, then a box growing with an ease transition.
-  await sendInlineCanvas(
-    room,
-    'Accordion',
+  const accordion = (answer: number) =>
     `<style>.a{overflow:hidden;max-height:0;transition:max-height 1s linear}.a.o{max-height:1000px}
       #g{height:40px;transition:height .8s ease}</style>
-    <p>FAQ</p><div class="a" id="a"><div style="height:900px">Answer</div></div><div id="g"></div>
-    <script>setTimeout(() => a.classList.add('o'), 200); setTimeout(() => { g.style.height = '300px'; }, 1500);</script>`
-  );
-  const frame = page.locator('iframe[title="Accordion"]');
-  await expect(frame).toBeVisible({ timeout: 60_000 });
-  const inner = page.frameLocator('iframe[title="Accordion"]').frameLocator('iframe');
-  // The frame ends as tall as the whole page, past any window, and the page does not scroll.
-  const pageHeight = () =>
-    inner.locator('body').evaluate(() => document.documentElement.getBoundingClientRect().height);
+    <p>FAQ</p><div class="a" id="a"><div style="height:${answer}px">Answer</div></div><div id="g"></div>
+    <script>setTimeout(() => a.classList.add('o'), 200); setTimeout(() => { g.style.height = '100px'; }, 1500);</script>`;
+  await sendInlineCanvas(room, 'Preview accordion', accordion(300), { raw: true });
+  await sendInlineCanvas(room, 'Themed accordion', accordion(1200));
+  const themed = page.locator('iframe[title="Themed accordion"]');
+  await expect(themed).toBeVisible({ timeout: 60_000 });
   await expect
-    .poll(async () => (await frame.boundingBox())?.height ?? 0, { timeout: 20_000 })
+    .poll(async () => (await themed.boundingBox())?.height ?? 0, { timeout: 20_000 })
     .toBeGreaterThan(1080);
   await page.waitForTimeout(1_500);
-  expect((await frame.boundingBox())?.height).toBeCloseTo(Math.ceil(await pageHeight()), 0);
+  await expectFitted(page, 'Preview accordion');
   expect(
-    await inner
-      .locator('body')
-      .evaluate(() => document.scrollingElement!.scrollHeight <= window.innerHeight)
-  ).toBe(true);
+    (await page.locator('iframe[title="Preview accordion"]').boundingBox())?.height
+  ).toBeLessThan(568);
+  await expectFitted(page, 'Themed accordion');
 });
 
 // One pixel PNG for the remote image.
