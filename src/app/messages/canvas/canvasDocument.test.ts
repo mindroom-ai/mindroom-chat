@@ -893,7 +893,7 @@ describe('inline canvas sizing', () => {
         window.dispatchEvent(new window.Event('resize'));
       };
       const change = () => window.document.body.append(window.document.createElement('p'));
-      return { sent, fit, change };
+      return { window, sent, fit, change };
     };
     const settle = async () => {
       for (let task = 0; task < 10; task += 1) {
@@ -904,52 +904,120 @@ describe('inline canvas sizing', () => {
       }
     };
 
-    it('asks once for a window when it grows by as much as its frame did', async () => {
+    const size = (height: number, viewport?: true) => ({
+      type: CANVAS_SIZE_MESSAGE,
+      version: 1,
+      height,
+      ...(viewport ? { viewport } : {}),
+    });
+    // The host fits the frame to each height until the page asks for a window.
+    const fitAll = async (page: ReturnType<typeof open>, times: number) => {
+      for (let fits = 0; fits < times; fits += 1) {
+        const last = page.sent.at(-1) as { height: number; viewport?: true };
+        if (last.viewport) return;
+        page.fit(last.height);
+        // eslint-disable-next-line no-await-in-loop
+        await settle();
+      }
+    };
+
+    it('asks for a window after growing with its frame twice, and then reports nothing', async () => {
       // A header and a 100vh hero.
-      const { sent, fit, change } = open((viewport) => viewport + 96);
+      const page = open((viewport) => viewport + 96);
       await settle();
-      expect(sent).toEqual([{ type: CANVAS_SIZE_MESSAGE, version: 1, height: 256 }]);
-      fit(256);
+      await fitAll(page, 5);
+      expect(page.sent).toEqual([size(256), size(352), size(448, true)]);
+      // In its window it stays taller than the window, so it reports nothing more.
+      page.fit(568);
+      page.change();
       await settle();
-      expect(sent.at(-1)).toEqual({
-        type: CANVAS_SIZE_MESSAGE,
-        version: 1,
-        height: 352,
-        viewport: true,
-      });
-      // In its window it reports nothing more, whatever changes.
-      fit(568);
-      change();
+      expect(page.sent).toHaveLength(3);
+    });
+
+    it('asks for a window when it grows faster than its frame, as two 100vh sections do', async () => {
+      const page = open((viewport) => 2 * viewport + 40);
       await settle();
-      expect(sent).toHaveLength(2);
+      await fitAll(page, 5);
+      expect(page.sent).toEqual([size(360), size(760), size(1560, true)]);
+    });
+
+    it('leaves its window once it is shorter than the window, and is fitted again', async () => {
+      let hero = true;
+      const page = open((viewport) => (hero ? viewport + 96 : 300));
+      await settle();
+      await fitAll(page, 5);
+      page.fit(568);
+      await settle();
+      hero = false;
+      page.change();
+      await settle();
+      expect(page.sent.at(-1)).toEqual(size(300));
+      // Fitted again, it is measured afresh: growing with the frame twice gives it a window again.
+      hero = true;
+      page.change();
+      await settle();
+      await fitAll(page, 5);
+      expect(page.sent.at(-1)).toMatchObject({ viewport: true });
     });
 
     it('keeps fitting content that does not follow its viewport', async () => {
       let height = 400;
-      const { sent, fit, change } = open(() => height);
+      const page = open(() => height);
       await settle();
-      fit(400);
+      page.fit(400);
       // Content that grows and shrinks on its own is fitted as before.
-      height = 700;
-      change();
+      for (const next of [700, 250]) {
+        height = next;
+        page.change();
+        // eslint-disable-next-line no-await-in-loop
+        await settle();
+        page.fit(next);
+      }
       await settle();
-      fit(700);
-      height = 250;
-      change();
+      expect(page.sent).toEqual([size(400), size(700), size(250)]);
+    });
+
+    it('is fitted, never windowed, when its frame grows by a pixel it does not fill', async () => {
+      // A raw page measuring 161 pixels in the 160 pixel frame it starts in.
+      const page = open(() => 161);
       await settle();
-      fit(250);
+      await fitAll(page, 3);
+      page.fit(161);
       await settle();
-      expect(sent).toEqual(
-        [400, 700, 250].map((size) => ({ type: CANVAS_SIZE_MESSAGE, version: 1, height: size }))
-      );
+      expect(page.sent).toEqual([size(161)]);
+    });
+
+    it('is not windowed for growth of its own, from a DOM change or a running animation', async () => {
+      const page = open((viewport) => viewport + 96);
+      await settle();
+      // The page changes itself each time the frame is fitted to it.
+      for (let fits = 0; fits < 4; fits += 1) {
+        page.change();
+        page.fit((page.sent.at(-1) as { height: number }).height);
+        // eslint-disable-next-line no-await-in-loop
+        await settle();
+      }
+      const animated = open((viewport) => viewport + 96);
+      Object.assign(animated.window.document, {
+        getAnimations: () => [{ playState: 'running' }],
+      });
+      await settle();
+      await fitAll(animated, 4);
+      for (const { sent } of [page, animated]) {
+        expect(sent).toHaveLength(5);
+        expect(sent.some((message) => 'viewport' in (message as object))).toBe(false);
+      }
     });
   });
 
   it('reports the size of inline pages only, on resize, DOM changes, transitions and loads', () => {
     const page = buildCanvasPage('<p>hi</p>', 'light', undefined, false, {}, { inline: true });
     expect(page).toContain('new ResizeObserver(queueSize).observe(document.body)');
-    expect(page).toContain('new MutationObserver(queueSize).observe(document.body');
-    expect(page).toContain("['transitionend', 'animationend', 'load']");
+    expect(page).toContain('new MutationObserver(selfChange).observe(document.body');
+    expect(page).toContain(
+      "['transitionrun', 'transitionend', 'animationstart', 'animationend', 'load']"
+    );
+    expect(page).toContain("addEventListener('resize', queueSize)");
     expect(page).toContain("addEventListener('load', reportSize)");
     expect(page).toContain(`type: '${CANVAS_SIZE_MESSAGE}'`);
     expect(buildCanvasPage('<p>hi</p>', 'light')).not.toContain(CANVAS_SIZE_MESSAGE);

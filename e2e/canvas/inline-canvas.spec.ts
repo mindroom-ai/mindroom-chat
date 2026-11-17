@@ -125,10 +125,48 @@ test('a page that follows its viewport settles in a window of its own and scroll
   const hero =
     '<header style="height:60px">Header</header><section style="height:100vh">Hero</section>' +
     '<footer style="height:40px">Footer</footer>';
+  // Two 100vh sections grow twice as fast as their frame.
+  const heroes =
+    '<section style="height:100vh">One</section><section style="height:100vh">Two</section>' +
+    '<footer style="height:40px">Footer</footer>';
   await sendInlineCanvas(room, 'Hero page', hero);
   await sendInlineCanvas(room, 'Hero site', hero, { raw: true, width: 1440 });
+  await sendInlineCanvas(room, 'Two heroes', heroes);
   await expectWindowed(page, 'Hero page');
   await expectWindowed(page, 'Hero site', 1440);
+  await expectWindowed(page, 'Two heroes');
+});
+
+test('a page that grows by itself through transitions is fitted to the end, never windowed', async ({
+  context,
+  page,
+}) => {
+  const room = await openPanelRoom(context, page);
+  // An accordion opening through a max-height transition, then a box growing with an ease transition.
+  await sendInlineCanvas(
+    room,
+    'Accordion',
+    `<style>.a{overflow:hidden;max-height:0;transition:max-height 1s linear}.a.o{max-height:1000px}
+      #g{height:40px;transition:height .8s ease}</style>
+    <p>FAQ</p><div class="a" id="a"><div style="height:900px">Answer</div></div><div id="g"></div>
+    <script>setTimeout(() => a.classList.add('o'), 200); setTimeout(() => { g.style.height = '300px'; }, 1500);</script>`
+  );
+  const frame = page.locator('iframe[title="Accordion"]');
+  await expect(frame).toBeVisible({ timeout: 60_000 });
+  const inner = page.frameLocator('iframe[title="Accordion"]').frameLocator('iframe');
+  // The frame ends as tall as the whole page, past any window, and the page does not scroll.
+  const pageHeight = () =>
+    inner.locator('body').evaluate(() => document.documentElement.getBoundingClientRect().height);
+  await expect
+    .poll(async () => (await frame.boundingBox())?.height ?? 0, { timeout: 20_000 })
+    .toBeGreaterThan(1080);
+  await page.waitForTimeout(1_500);
+  expect((await frame.boundingBox())?.height).toBeCloseTo(Math.ceil(await pageHeight()), 0);
+  expect(
+    await inner
+      .locator('body')
+      .evaluate(() => document.scrollingElement!.scrollHeight <= window.innerHeight)
+  ).toBe(true);
 });
 
 // One pixel PNG for the remote image.

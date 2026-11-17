@@ -189,7 +189,7 @@ describe('InlineCanvasFrame', () => {
     expect(frame().srcdoc).toContain('img-src data: blob: https:');
     vi.unstubAllGlobals();
   });
-  it('gives a page that follows its viewport a window and fits it no more', () => {
+  it('gives a page that follows its viewport a window until it reports a height again', () => {
     const observed: ResizeObserverCallback[] = [];
     vi.stubGlobal(
       'ResizeObserver',
@@ -215,8 +215,9 @@ describe('InlineCanvasFrame', () => {
     expect(frame().style.height).toBe('568px');
     column(1600);
     expect(frame().style.height).toBe('1000px');
-    post({ type: 'mindroom.canvas.size', version: 1, height: 5000 });
-    expect(frame().style.height).toBe('1000px');
+    // The page reports a height again only once it is shorter than its window: fit it again.
+    post({ type: 'mindroom.canvas.size', version: 1, height: 300 });
+    expect(frame().style.height).toBe('300px');
     // A page with its own width gets the window of that width, shrunk with it.
     const page = { title: 'Site', html: '<p>Site</p>', raw: true, width: 1440 };
     render(makeUiEvent({ action: 'show_canvas', inline: true, canvas: page }));

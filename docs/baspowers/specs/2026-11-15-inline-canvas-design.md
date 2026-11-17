@@ -94,8 +94,11 @@ Raw pages get no `position:relative` on `body`, so the height is the larger of t
 
 ### Pages that follow their viewport (added 2026-11-16)
 
-A page whose height follows its viewport, such as a `100vh` hero with a header, grows by as much as its frame does, so fitting the frame to it would grow it to the 20000px cap.
-The bridge spots this on the frame's `resize`: the frame grew and the page grew by the same amount.
-It then posts one size message with `viewport: true` and reports no more; ordinary content, which does not grow when given room, is fitted as before.
+A page whose height follows its viewport, such as a `100vh` hero with a header, grows at least as much as its frame does, so fitting the frame to it would grow it to the 20000px cap.
+The bridge compares each measurement with the one before: when the frame grew by `g` (at least 1px) and the page grew by `g` or more, the growth is the frame's doing, which also covers two `100vh` sections or a `200vh` block.
+A measurement counts only when the page did not change by itself since the one before: no DOM change (`MutationObserver`), no `load`, `transitionrun`, `transitionend`, `animationstart` or `animationend` event, and no running animation (`document.getAnimations()`). The `ResizeObserver` is not such a sign, because the fit itself resizes the body.
+After two such measurements in a row the bridge posts one size message with `viewport: true`.
 The host answers with a window, as a browser would: 16:10 of the page's layout width (`width`, or the column without it), at least 568 page px (an iPhone SE screen) and at most 1080, and the rest of the page scrolls inside it.
 Without `width` the column is under about 900px, so such a page gets 568px: a hero fills a screenful of the thread and no more.
+While windowed the bridge keeps measuring, and reports nothing while the page is at least as tall as its window, which a page that follows its viewport always is.
+A page that becomes shorter than its window posts an ordinary size report; the host fits the frame to it again, and detection starts afresh.

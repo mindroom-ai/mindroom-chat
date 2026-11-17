@@ -62,8 +62,10 @@ function SizedFrame({
         return;
       }
       const size = readCanvasSize(event, canvasFrameWindow(frame.current));
-      if (size?.viewport) setWindowed(true);
-      else if (size) setHeight(clampInlineCanvasHeight(size.height));
+      if (!size) return;
+      // A page that left its window, by becoming shorter than it, is fitted again.
+      setWindowed(size.viewport);
+      if (!size.viewport) setHeight(clampInlineCanvasHeight(size.height));
     };
     window.addEventListener('message', receive);
     return () => window.removeEventListener('message', receive);
