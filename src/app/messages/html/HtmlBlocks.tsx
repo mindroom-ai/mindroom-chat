@@ -330,8 +330,7 @@ const useToolCallApprovals = (jobIds: readonly string[]) => {
  * A run of tool calls. While the reply's thread or room hides tool calls (toolCallVisibility.ts),
  * the run counts its calls on the cog at the top of the reply (ToolCallsFold.tsx) and shows only
  * while that cog is open. Each block reads the choice itself, so changing it redraws the blocks
- * without parsing the replies again. The reasoning that followed the run's last call shows after
- * the run, also while the run itself is hidden.
+ * without parsing the replies again.
  */
 function ToolRefGroupBlock({
   parsedTools,
@@ -365,9 +364,8 @@ function ToolRefGroupBlock({
           return { toolName: tool.toolName, state: states[loadedIndex] ?? 'done' };
         })
   );
-  const reasoning = <ReasoningSegmentsAt anchor={parsedTools.at(-1)?.index ?? 0} />;
   // Without a cog to open them (no ToolCallsFold), the calls show.
-  if (!shown && fold && !fold.open) return reasoning;
+  if (!shown && fold && !fold.open) return null;
   const running = loadedTools.filter((_tool, index) => states[index] === 'running');
   const outputTool = running.filter((tool) => tool.progress).at(-1);
   // Without the trace details the calls' states are unknown, so only count them.
@@ -376,57 +374,65 @@ function ToolRefGroupBlock({
     : TOOL_STATE_ICON[summary.state];
 
   return (
+    <ThreadActivity
+      icon={
+        <ActivityIcon
+          src={icon.src}
+          tone={icon.tone}
+          pending={!metadataStatus && summary.state === 'running'}
+        />
+      }
+      title={
+        metadataStatus
+          ? t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', { count: parsedTools.length })
+          : t(TOOL_STATE_TITLE[summary.state], { count: summary.count })
+      }
+      detail={summary.names}
+      preview={
+        outputTool?.progress && (
+          <>
+            {running.length > 1 && (
+              <div className={activityCss.OutputLabel}>{outputTool.command}</div>
+            )}
+            <pre className={activityCss.Output}>
+              {outputTool.progress.split('\n').slice(-TOOL_OUTPUT_LINES).join('\n')}
+            </pre>
+          </>
+        )
+      }
+    >
+      {loadedTools.map((parsedTool, index) => (
+        <ToolRefGroupItem
+          key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
+          parsedTool={parsedTool}
+          state={states[index]!}
+        />
+      ))}
+      {metadataStatus && (
+        <div className={activityCss.Row}>
+          <ActivityIcon src={Icons.Info} pending={metadataStatus === 'loading'} />
+          <Text size="T200" role="status" className={activityCss.RowText}>
+            {t(
+              metadataStatus === 'loading'
+                ? 'mindroomUi.messages.mindroomHtmlBlocks.loadingToolDetails'
+                : 'mindroomUi.messages.mindroomHtmlBlocks.toolDetailsUnavailable'
+            )}
+          </Text>
+        </div>
+      )}
+    </ThreadActivity>
+  );
+}
+
+/**
+ * A run of tool calls as the parser places it, then the reasoning that followed its last call
+ * (Reasoning.tsx), which shows there also while the run itself is hidden.
+ */
+function ToolRun({ tools }: { tools: ToolBlockRenderData[] }) {
+  return (
     <>
-      <ThreadActivity
-        icon={
-          <ActivityIcon
-            src={icon.src}
-            tone={icon.tone}
-            pending={!metadataStatus && summary.state === 'running'}
-          />
-        }
-        title={
-          metadataStatus
-            ? t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', {
-                count: parsedTools.length,
-              })
-            : t(TOOL_STATE_TITLE[summary.state], { count: summary.count })
-        }
-        detail={summary.names}
-        preview={
-          outputTool?.progress && (
-            <>
-              {running.length > 1 && (
-                <div className={activityCss.OutputLabel}>{outputTool.command}</div>
-              )}
-              <pre className={activityCss.Output}>
-                {outputTool.progress.split('\n').slice(-TOOL_OUTPUT_LINES).join('\n')}
-              </pre>
-            </>
-          )
-        }
-      >
-        {loadedTools.map((parsedTool, index) => (
-          <ToolRefGroupItem
-            key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
-            parsedTool={parsedTool}
-            state={states[index]!}
-          />
-        ))}
-        {metadataStatus && (
-          <div className={activityCss.Row}>
-            <ActivityIcon src={Icons.Info} pending={metadataStatus === 'loading'} />
-            <Text size="T200" role="status" className={activityCss.RowText}>
-              {t(
-                metadataStatus === 'loading'
-                  ? 'mindroomUi.messages.mindroomHtmlBlocks.loadingToolDetails'
-                  : 'mindroomUi.messages.mindroomHtmlBlocks.toolDetailsUnavailable'
-              )}
-            </Text>
-          </div>
-        )}
-      </ThreadActivity>
-      {reasoning}
+      <ToolRefGroupBlock parsedTools={tools} />
+      <ReasoningSegmentsAt anchor={tools.at(-1)?.index ?? 0} />
     </>
   );
 }
@@ -623,9 +629,9 @@ const createToolTraceMarkerParserOptions = (
           items.forEach((item) => consumedToolIndexes.add(item.data.index));
           groupRootIndexes.add(firstItem.data.index);
           const toolBlock = (
-            <ToolRefGroupBlock
+            <ToolRun
               key={`tool-group-${firstItem.data.index}`}
-              parsedTools={items.map((item) => item.data)}
+              tools={items.map((item) => item.data)}
             />
           );
           if (!trailingElement) return toolBlock;
@@ -647,9 +653,9 @@ const createToolTraceMarkerParserOptions = (
             consumedToolIndexes.add(toolRef.index);
             groupRootIndexes.add(toolRef.index);
             chainedToolBlocks.push(
-              <ToolRefGroupBlock
+              <ToolRun
                 key={`tool-group-${toolRef.index}`}
-                parsedTools={[
+                tools={[
                   buildToolRefRenderData(toolRef, traceEvents?.[toolRef.index - 1], metadataStatus),
                 ]}
               />

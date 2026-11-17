@@ -1500,9 +1500,7 @@ describe('useToolTraceMarkerParserOptions', () => {
     const parsed = parse(html, opts) as React.ReactElement;
     const shown = React.Children.toArray(parsed.props.children);
     const toolBlocks = shown.filter(
-      (node) =>
-        React.isValidElement<{ parsedTools?: unknown }>(node) &&
-        Array.isArray(node.props.parsedTools)
+      (node) => React.isValidElement<{ tools?: unknown }>(node) && Array.isArray(node.props.tools)
     );
     expect(toolBlocks).toHaveLength(count);
     expect(renderToStaticMarkup(shown[shown.length - 1] as React.ReactElement)).toBe('<p>Done</p>');
