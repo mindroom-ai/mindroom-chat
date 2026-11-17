@@ -1307,7 +1307,12 @@ describe('ThreadContextBanner rendering', () => {
     expect(resolve.findByType('i').props.src).toBe('check');
     expect(resolve.props.className).toBe('MessageOptionsButton CompactHidden');
     const tips = renderer.root.findAllByProps({ role: 'tooltip' }).map(text);
-    expect(tips).toEqual(['Back', 'Thread options', 'Pin thread', 'Resolve Ctrl+Shift+Enter']);
+    expect(tips).toEqual([
+      'Back Alt+←',
+      'Thread options',
+      'Pin thread',
+      'Resolve Ctrl+Shift+Enter',
+    ]);
     expect(resolve.props['aria-keyshortcuts']).toBe('Control+Shift+Enter');
     // The tooltips replace the native ones.
     expect(renderer.root.findAll((node) => node.type === 'button' && !!node.props.title)).toEqual(
@@ -1350,9 +1355,8 @@ describe('ThreadContextBanner rendering', () => {
 
   it('opens the back tooltip toward the banner in either text direction', () => {
     const backTip = (renderer: ReturnType<typeof renderBanner>) =>
-      renderer.root.findAllByProps({ role: 'tooltip' }).find((tip) => text(tip) === 'Back')!.props[
-        'data-align'
-      ];
+      renderer.root.findAllByProps({ role: 'tooltip' }).find((tip) => text(tip).startsWith('Back'))!
+        .props['data-align'];
     const ltr = renderBanner('A concise thread summary');
     expect(backTip(ltr)).toBe('Start');
     ltr.unmount();
