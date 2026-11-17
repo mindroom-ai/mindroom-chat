@@ -363,6 +363,9 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
   // (5) Two seams, each at its own spot: runs of 4, 5 and 2 calls.
   const two = replyWith(page, TWO);
   await expect(seamsIn(two)).toHaveCount(2);
+  for (const index of [0, 1]) {
+    await expect(seamsIn(two).nth(index)).toHaveAttribute('data-state', 'success');
+  }
   await expect(seamsIn(two).nth(1)).toHaveText('Compacted context · 352k → 10k tokens');
   await expect(toolRows(two)).toHaveCount(3);
   await expectInOrder(
@@ -413,6 +416,7 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
   // (4) Before the reply: the seam at its top, above its calls.
   const pre = replyWith(page, PRE);
   await expect(seamsIn(pre)).toHaveText('Compacted before replying · 348k → 42k tokens');
+  await expect(seamsIn(pre)).toHaveAttribute('data-state', 'success');
   await expectInOrder([seamsIn(pre), toolRows(pre).nth(0)], ['seam', 'calls']);
 
   // (3) Folded behind "Worked": no seam until the fold opens, then inside the work.
@@ -422,6 +426,7 @@ test('each compaction is a seam at its spot in the reply, in each of its states'
   await expect(seamsIn(worked)).toHaveCount(0);
   await workedRow.click();
   await expect(seamsIn(worked)).toHaveCount(1);
+  await expect(seamsIn(worked)).toHaveAttribute('data-state', 'success');
   await expectInOrder(
     [
       workedRow,
@@ -512,6 +517,7 @@ test('a seam stays between the texts while the cog hides the tool calls', async 
   const reply = replyWith(page, CHECKING);
   await expect(reply).toHaveCount(1, { timeout: 60_000 });
   const seam = seamsIn(reply);
+  await expect(seam).toHaveAttribute('data-state', 'success');
   const cog = reply.locator('[data-tool-calls-fold]').getByRole('button');
   await expect(cog).toHaveText('5');
   await expect(toolRows(reply)).toHaveCount(0);
