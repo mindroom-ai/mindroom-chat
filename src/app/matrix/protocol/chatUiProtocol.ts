@@ -49,7 +49,12 @@ export type ChatUiAction = ChatUiTarget &
         canvas: ChatUiCanvas;
         revisionEventId: string;
         event: MatrixEvent;
-        /** The agent may read what the user does in the page; fixed by the request, so edits keep it. */
+        /**
+         * Who asked for the canvas. Every joined member may open it, but only the requester's Chat
+         * opens it on its own and shares its state; fixed by the request, so edits keep it.
+         */
+        requesterId: string;
+        /** The agent may read what the requester does in the page; fixed by the request, so edits keep it. */
         shareState?: true;
         inline?: true;
       }
@@ -221,7 +226,10 @@ export const readCanvasVersion = (
   return readCanvasEdit(version, sender, original);
 };
 
-/** Read authority from the original Matrix event, never from rendered/edited message text. */
+/**
+ * Read authority from the original Matrix event, never from rendered/edited message text. A canvas
+ * opens for every joined member; any other action only for the member who asked for it.
+ */
 export const readChatUiAction = (
   event: MatrixEvent,
   viewerId: string,
@@ -251,7 +259,8 @@ export const readChatUiAction = (
     (!!event.replacingEventId() && (!record(data) || data.action !== 'show_canvas')) ||
     !record(data) ||
     data.version !== 1 ||
-    data.requester_id !== viewerId ||
+    typeof data.requester_id !== 'string' ||
+    (data.requester_id !== viewerId && data.action !== 'show_canvas') ||
     data.agent_user_id !== sender ||
     data.room_id !== room.roomId
   ) {
@@ -290,7 +299,16 @@ export const readChatUiAction = (
     if (!latest) return undefined;
     const shared = data.share_state === true ? { shareState: true as const } : {};
     const inline = data.inline === true ? { inline: true as const } : {};
-    return { ...target, action: 'show_canvas', ...latest, event, ...shared, ...inline };
+    const requesterId = data.requester_id;
+    return {
+      ...target,
+      action: 'show_canvas',
+      ...latest,
+      event,
+      requesterId,
+      ...shared,
+      ...inline,
+    };
   }
   return undefined;
 };

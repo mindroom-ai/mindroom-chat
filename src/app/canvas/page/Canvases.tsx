@@ -183,6 +183,10 @@ export function Canvases() {
                   {rows.map((entry) => {
                     const room = mx.getRoom(entry.roomId);
                     const pinned = pins.some((pin) => pin.canvasId === entry.canvasId);
+                    // Only the requester's Chat shares the page with the agent.
+                    const shared =
+                      entry.shared &&
+                      (entry.requesterId ?? mx.getSafeUserId()) === mx.getSafeUserId();
                     return (
                       <tr key={entry.canvasId}>
                         <td>
@@ -211,9 +215,9 @@ export function Canvases() {
                                 <b {...ownDirectionLine}>{entry.title}</b>
                               </Text>
                             </button>
-                            {(entry.shared || savedIds.has(entry.canvasId)) && (
+                            {(shared || savedIds.has(entry.canvasId)) && (
                               <Box gap="100" wrap="Wrap">
-                                {entry.shared && (
+                                {shared && (
                                   <Badge variant="Secondary" fill="Soft" radii="300">
                                     <Text size="L400">{t('mindroomUi.canvases.shared')}</Text>
                                   </Badge>
