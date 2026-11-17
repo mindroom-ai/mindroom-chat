@@ -658,7 +658,7 @@
   "mindroomUi": {
     "messages": {
       "mindroomReasoning": {
-        "collapse": "접기",
+        "hide": "생각 숨기기",
         "thought": "생각함"
       },
       "messageReactionActions": {

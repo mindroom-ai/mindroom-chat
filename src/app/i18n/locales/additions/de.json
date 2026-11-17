@@ -667,7 +667,7 @@
   "mindroomUi": {
     "messages": {
       "mindroomReasoning": {
-        "collapse": "Einklappen",
+        "hide": "Gedankengang ausblenden",
         "thought": "Nachgedacht"
       },
       "messageReactionActions": {

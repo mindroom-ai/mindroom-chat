@@ -21,6 +21,8 @@ import {
   renderTextWithLatex,
 } from './react-custom-html-parser';
 import { markerParserOptions } from '../../../test/utils/markerParserOptions';
+import { useToolTraceMarkerParserOptions } from './HtmlBlocks';
+import { resolveHtmlReactParserOptions } from '../../rich-text/htmlReactParserOptions';
 import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { ToolCallsFold } from '../agent-run/ToolCallsFold';
 import { withReasoning } from '../agent-run/Reasoning';
@@ -129,6 +131,8 @@ vi.mock('../agent-run/Reasoning.css', () =>
       'CollapseEnd',
       'Label',
       'Chevron',
+      'Segment',
+      'Rail',
       'Body',
     ].map((name) => [name, name])
   )
@@ -1295,6 +1299,70 @@ describe('useToolTraceMarkerParserOptions', () => {
     ).toHaveLength(3);
     expect(expanded).toContain('THIRD');
     expect(expanded).toContain('Done');
+  });
+
+  it('ends a run of calls where thinking shows after one of them, and keeps the run whole under a closed bulb', async () => {
+    const html = [
+      '<p>🔧 <code>first_tool</code> [1]</p>',
+      '<p>🔧 <code>second_tool</code> [2]</p>',
+      '<p>Done.</p>',
+    ].join('');
+    const content = {
+      body: 'Done.',
+      formatted_body: html,
+      'io.mindroom.stream_status': 'completed',
+      'io.mindroom.reasoning': {
+        text: 'Read it first.\n\nNow change it.',
+        duration_ms: 3000,
+        segments: [
+          { start: 0, after_tool: 0 },
+          { start: 16, after_tool: 1 },
+        ],
+      },
+    };
+    const baseOpts = createBaseOpts();
+    // The body as a message renders it: its parser options come from inside the reply's reasoning.
+    function Body() {
+      const options = useToolTraceMarkerParserOptions(baseOpts, content);
+      return React.createElement(
+        React.Fragment,
+        null,
+        parse(html, resolveHtmlReactParserOptions(options))
+      );
+    }
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          React.Fragment,
+          null,
+          withReasoning(content, React.createElement(Body), baseOpts, undefined, html)
+        )
+      );
+    });
+    const text = () => collectTextContent(renderer?.toJSON() ?? null);
+    const bulb = renderer!.root.find(
+      (node) => node.type === 'button' && node.props.className === 'Toggle'
+    );
+
+    expect(text()).toMatch(toolCountLabel(2));
+    expect(text()).not.toContain('Now change it.');
+
+    await act(() => bulb.props.onClick());
+
+    expect(text()).not.toMatch(toolCountLabel(2));
+    expect(text().match(toolCountLabel(1, 'g'))).toHaveLength(2);
+    const order = ['Read it first.', 'first_tool', 'Now change it.', 'second_tool', 'Done.'].map(
+      (part) => text().indexOf(part)
+    );
+    expect(order).not.toContain(-1);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+
+    await act(() => bulb.props.onClick());
+
+    expect(text()).toMatch(toolCountLabel(2));
+    expect(text()).not.toContain('Now change it.');
+    act(() => renderer?.unmount());
   });
 
   it('does not merge marker-prefix paragraphs when each has trailing text', () => {

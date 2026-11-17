@@ -667,7 +667,7 @@
   "mindroomUi": {
     "messages": {
       "mindroomReasoning": {
-        "collapse": "समेटें",
+        "hide": "सोच छिपाएँ",
         "thought": "सोचा"
       },
       "messageReactionActions": {

@@ -667,7 +667,7 @@
   "mindroomUi": {
     "messages": {
       "mindroomReasoning": {
-        "collapse": "Daralt",
+        "hide": "Düşünmeyi gizle",
         "thought": "Düşündü"
       },
       "messageReactionActions": {

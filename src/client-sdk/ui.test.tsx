@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, renderHook, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, renderHook, waitFor } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
 import { type ComponentType, type ReactNode, useLayoutEffect, useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -9,7 +9,6 @@ import {
   useScreenSize as useAppScreenSize,
 } from '../app/lib/hooks/useScreenSize';
 import { withReasoning } from '../app/messages/agent-run/Reasoning';
-import { LIVE_REASONING_KEY } from '../app/messages/live/useLiveReplyContent';
 import { pdfFrameUrl as appPdfFrameUrl } from '../app/messages/viewers/pdfFrame';
 import { PluginSidePanel } from '../app/room/PluginSidePanel';
 import { applyAppTheme } from '../app/theme/appliedTheme';
@@ -131,10 +130,11 @@ describe('useMarkdownHtml', () => {
     expect(shown.querySelector('li code')?.textContent).toBe('two');
     expect(shown.querySelector('a')?.getAttribute('href')).toBe('https://example.org/docs');
 
-    // The app's reasoning, open while it streams, shows the same elements for the same Markdown.
-    const { findByRole } = render(
-      <>{withReasoning({ [LIVE_REASONING_KEY]: MARKDOWN }, null, {})}</>
+    // The app's reasoning, once its bulb is open, shows the same elements for the same Markdown.
+    const { findByRole, getByRole } = render(
+      <>{withReasoning({ 'io.mindroom.reasoning': { text: MARKDOWN } }, null, {})}</>
     );
+    fireEvent.click(getByRole('button', { name: 'Thought' }));
     const heading = await findByRole('heading', { level: 1, name: 'Plan' });
     expect(heading.parentElement?.innerHTML).toBe(shown.innerHTML);
   });

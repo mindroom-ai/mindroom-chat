@@ -658,7 +658,7 @@
   "mindroomUi": {
     "messages": {
       "mindroomReasoning": {
-        "collapse": "收合",
+        "hide": "隱藏思考",
         "thought": "已思考"
       },
       "messageReactionActions": {

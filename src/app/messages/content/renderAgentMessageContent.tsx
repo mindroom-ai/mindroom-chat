@@ -226,8 +226,12 @@ export const renderAgentMessageContent = ({
     };
   };
 
-  const wrapWithReasoning = (bodyContent: Record<string, unknown>, body: ReactNode) =>
-    withReasoning(bodyContent, body, htmlReactParserOptions, linkifyOpts);
+  // The reply's HTML goes along whole: its tool markers place the reasoning segments.
+  const wrapWithReasoning = (
+    bodyContent: Record<string, unknown>,
+    html: string | undefined,
+    body: ReactNode
+  ) => withReasoning(bodyContent, body, htmlReactParserOptions, linkifyOpts, html);
 
   // A long finished reply folds its work, everything up to its last tool call, behind one row, as
   // T3 Code folds a finished turn; the answer after it stays. The work took from the reply's first
@@ -248,7 +252,7 @@ export const renderAgentMessageContent = ({
     canFold = true
   ) => {
     if (!foldsWork || foldEventId === undefined) {
-      return wrapWithReasoning(bodyContent, renderHtml(html));
+      return wrapWithReasoning(bodyContent, html, renderHtml(html));
     }
     return (
       <AgentWorkBody
@@ -258,7 +262,7 @@ export const renderAgentMessageContent = ({
         finished={finished && canFold}
         durationMs={workDurationMs}
         renderHtml={renderHtml}
-        wrapWithReasoning={(body) => wrapWithReasoning(bodyContent, body)}
+        wrapWithReasoning={(body) => wrapWithReasoning(bodyContent, html, body)}
       />
     );
   };

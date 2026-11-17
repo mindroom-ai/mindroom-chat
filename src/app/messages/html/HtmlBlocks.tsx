@@ -30,6 +30,7 @@ import * as css from './HtmlBlocks.css';
 import * as activityCss from '../../ui/ThreadActivity.css';
 import { ActivityIcon, ActivityResult, ActivityTone, ThreadActivity } from '../../ui/ThreadActivity';
 import {
+  ReasoningSegmentsContext,
   resolveToolCallStates,
   summarizeToolCalls,
   TOOL_STATE_TITLE,
@@ -38,6 +39,7 @@ import {
   ToolCallState,
   useFoldedToolCalls,
 } from '../agent-run/toolCallStatus';
+import { ReasoningSegmentsAt } from '../agent-run/Reasoning';
 import { useThreadApprovals } from '../../approvals/ThreadApprovalProvider';
 import { getEffectiveToolApprovalStatus, parseToolApprovalExpiryTimestamp } from '../../matrix/protocol/toolApproval';
 import { parseToolJobHandle } from '../../matrix/protocol/toolJobHandle';
@@ -328,7 +330,8 @@ const useToolCallApprovals = (jobIds: readonly string[]) => {
  * A run of tool calls. While the reply's thread or room hides tool calls (toolCallVisibility.ts),
  * the run counts its calls on the cog at the top of the reply (ToolCallsFold.tsx) and shows only
  * while that cog is open. Each block reads the choice itself, so changing it redraws the blocks
- * without parsing the replies again.
+ * without parsing the replies again. The reasoning that followed the run's last call shows after
+ * the run, also while the run itself is hidden.
  */
 function ToolRefGroupBlock({
   parsedTools,
@@ -362,8 +365,9 @@ function ToolRefGroupBlock({
           return { toolName: tool.toolName, state: states[loadedIndex] ?? 'done' };
         })
   );
+  const reasoning = <ReasoningSegmentsAt anchor={parsedTools.at(-1)?.index ?? 0} />;
   // Without a cog to open them (no ToolCallsFold), the calls show.
-  if (!shown && fold && !fold.open) return null;
+  if (!shown && fold && !fold.open) return reasoning;
   const running = loadedTools.filter((_tool, index) => states[index] === 'running');
   const outputTool = running.filter((tool) => tool.progress).at(-1);
   // Without the trace details the calls' states are unknown, so only count them.
@@ -372,53 +376,58 @@ function ToolRefGroupBlock({
     : TOOL_STATE_ICON[summary.state];
 
   return (
-    <ThreadActivity
-      icon={
-        <ActivityIcon
-          src={icon.src}
-          tone={icon.tone}
-          pending={!metadataStatus && summary.state === 'running'}
-        />
-      }
-      title={
-        metadataStatus
-          ? t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', { count: parsedTools.length })
-          : t(TOOL_STATE_TITLE[summary.state], { count: summary.count })
-      }
-      detail={summary.names}
-      preview={
-        outputTool?.progress && (
-          <>
-            {running.length > 1 && (
-              <div className={activityCss.OutputLabel}>{outputTool.command}</div>
-            )}
-            <pre className={activityCss.Output}>
-              {outputTool.progress.split('\n').slice(-TOOL_OUTPUT_LINES).join('\n')}
-            </pre>
-          </>
-        )
-      }
-    >
-      {loadedTools.map((parsedTool, index) => (
-        <ToolRefGroupItem
-          key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
-          parsedTool={parsedTool}
-          state={states[index]!}
-        />
-      ))}
-      {metadataStatus && (
-        <div className={activityCss.Row}>
-          <ActivityIcon src={Icons.Info} pending={metadataStatus === 'loading'} />
-          <Text size="T200" role="status" className={activityCss.RowText}>
-            {t(
-              metadataStatus === 'loading'
-                ? 'mindroomUi.messages.mindroomHtmlBlocks.loadingToolDetails'
-                : 'mindroomUi.messages.mindroomHtmlBlocks.toolDetailsUnavailable'
-            )}
-          </Text>
-        </div>
-      )}
-    </ThreadActivity>
+    <>
+      <ThreadActivity
+        icon={
+          <ActivityIcon
+            src={icon.src}
+            tone={icon.tone}
+            pending={!metadataStatus && summary.state === 'running'}
+          />
+        }
+        title={
+          metadataStatus
+            ? t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', {
+                count: parsedTools.length,
+              })
+            : t(TOOL_STATE_TITLE[summary.state], { count: summary.count })
+        }
+        detail={summary.names}
+        preview={
+          outputTool?.progress && (
+            <>
+              {running.length > 1 && (
+                <div className={activityCss.OutputLabel}>{outputTool.command}</div>
+              )}
+              <pre className={activityCss.Output}>
+                {outputTool.progress.split('\n').slice(-TOOL_OUTPUT_LINES).join('\n')}
+              </pre>
+            </>
+          )
+        }
+      >
+        {loadedTools.map((parsedTool, index) => (
+          <ToolRefGroupItem
+            key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
+            parsedTool={parsedTool}
+            state={states[index]!}
+          />
+        ))}
+        {metadataStatus && (
+          <div className={activityCss.Row}>
+            <ActivityIcon src={Icons.Info} pending={metadataStatus === 'loading'} />
+            <Text size="T200" role="status" className={activityCss.RowText}>
+              {t(
+                metadataStatus === 'loading'
+                  ? 'mindroomUi.messages.mindroomHtmlBlocks.loadingToolDetails'
+                  : 'mindroomUi.messages.mindroomHtmlBlocks.toolDetailsUnavailable'
+              )}
+            </Text>
+          </div>
+        )}
+      </ThreadActivity>
+      {reasoning}
+    </>
   );
 }
 
@@ -501,7 +510,9 @@ const contentHasMarkerCandidate = (content: Record<string, unknown>): boolean =>
 const createToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,
   traceEvents: ToolTraceEvent[] | undefined,
-  metadataStatus?: ToolMetadataStatus
+  metadataStatus: ToolMetadataStatus | undefined,
+  // The markers a run of calls ends at, because reasoning shows after them.
+  splitAfter: ReadonlySet<number>
 ): HTMLReactParserOptions => {
   const baseReplace = baseOpts.replace;
   const baseTransform = baseOpts.transform;
@@ -564,7 +575,11 @@ const createToolTraceMarkerParserOptions = (
           const previousItem = isDomElementNode(previousSibling)
             ? buildItem(previousSibling)
             : undefined;
-          if (previousItem && !previousItem.trailingElement) {
+          if (
+            previousItem &&
+            !previousItem.trailingElement &&
+            !splitAfter.has(previousItem.data.index)
+          ) {
             return null;
           }
 
@@ -575,7 +590,7 @@ const createToolTraceMarkerParserOptions = (
           // A marker paragraph with trailing content is a narrative boundary.
           // Do not merge across that boundary, otherwise tool ordering appears
           // ahead of the narrative text that introduced each call.
-          if (!firstItem.trailingElement) {
+          if (!firstItem.trailingElement && !splitAfter.has(firstItem.data.index)) {
             let sibling = domNode.next;
             while (sibling) {
               if (isDomTextNode(sibling) && !sibling.data.trim()) {
@@ -596,6 +611,7 @@ const createToolTraceMarkerParserOptions = (
                 trailingElement = item.trailingElement;
                 break;
               }
+              if (splitAfter.has(item.data.index)) break;
               sibling = sibling.next;
             }
           }
@@ -687,9 +703,9 @@ const createToolTraceMarkerParserOptions = (
 /**
  * The marker parser options for one message, as a function that makes fresh ones for each parse
  * (they keep state while they parse). The function stays the same while the base options, whether
- * the content has markers, its tool trace and the metadata status do, so a memoized parse of a
- * message that did not change is kept when the timeline renders again, as it does for every
- * streamed edit of another message.
+ * the content has markers, its tool trace, the metadata status and the markers that reasoning
+ * shows after do, so a memoized parse of a message that did not change is kept when the timeline
+ * renders again, as it does for every streamed edit of another message.
  */
 export const useToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,
@@ -698,10 +714,26 @@ export const useToolTraceMarkerParserOptions = (
 ): HtmlReactParserOptionsSource => {
   const hasMarkers = contentHasMarkerCandidate(content);
   const toolTrace = content[MINDROOM_TOOL_TRACE_KEY];
+  // The markers that reasoning shows after (withReasoning in Reasoning.tsx), where a run of calls
+  // ends so that the thinking between two calls shows between them; none while none shows, and
+  // runs then group as they do without reasoning. As text, which stays the same while they do.
+  const reasoning = useContext(ReasoningSegmentsContext);
+  const splitAfterKey = reasoning
+    ? [...reasoning.placement]
+        .filter(
+          ([, indices]) =>
+            reasoning.open ||
+            (reasoning.liveIndex !== undefined && indices.includes(reasoning.liveIndex))
+        )
+        .map(([anchor]) => anchor)
+        .join()
+    : '';
   return useMemo(() => {
     // Most messages carry no markers, and the base options keep the same identity.
     if (!hasMarkers) return baseOpts;
     const traceEvents = getToolTraceV2Events(toolTrace);
-    return () => createToolTraceMarkerParserOptions(baseOpts, traceEvents, metadataStatus);
-  }, [baseOpts, hasMarkers, toolTrace, metadataStatus]);
+    const splitAfter = new Set(splitAfterKey ? splitAfterKey.split(',').map(Number) : []);
+    return () =>
+      createToolTraceMarkerParserOptions(baseOpts, traceEvents, metadataStatus, splitAfter);
+  }, [baseOpts, hasMarkers, toolTrace, metadataStatus, splitAfterKey]);
 };

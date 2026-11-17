@@ -685,7 +685,7 @@
   "mindroomUi": {
     "messages": {
       "mindroomReasoning": {
-        "collapse": "Свернуть",
+        "hide": "Скрыть размышления",
         "thought": "Подумал"
       },
       "messageReactionActions": {

@@ -22,9 +22,12 @@ vi.mock('./Reasoning.css', () => ({
   CollapseEnd: 'CollapseEnd',
   Label: 'Label',
   Chevron: 'Chevron',
+  Segment: 'Segment',
+  Rail: 'Rail',
   Body: 'Body',
   ActivityCode: 'Code',
 }));
+vi.mock('./ToolCallsFold.css', () => ({ CogRipple: 'CogRipple' }));
 
 const ICON_NAMES = new Map<unknown, string>([
   [Icons.Bulb, 'bulb'],
@@ -105,7 +108,7 @@ describe('reasoning header', () => {
     expect(parts(button)[2]).toEqual({ icon: 'chevron', className: 'Chevron', hidden: true });
   });
 
-  it('gives streaming reasoning the same header, open', () => {
+  it('gives streaming reasoning the same header, closed as the bulb starts', () => {
     const button = toggle({
       body: 'Thinking...',
       'io.mindroom.stream_status': 'streaming',
@@ -117,7 +120,32 @@ describe('reasoning header', () => {
       { label: 'Thinking' },
       { icon: 'chevron', className: 'Chevron', hidden: true },
     ]);
-    expect(button.props['aria-expanded']).toBe(true);
+    expect(button.props['aria-expanded']).toBe(false);
+  });
+
+  it('sheds a ripple of its outline on each click, as the cog does', () => {
+    const button = toggle({
+      body: 'Answer',
+      'io.mindroom.stream_status': 'completed',
+      'io.mindroom.reasoning': { text: 'Weighed two options', duration_ms: 7600 },
+    });
+    const ripples = () => button.findAll((node) => node.props.className === 'CogRipple');
+    expect(ripples()).toHaveLength(0);
+
+    act(() => {
+      button.props.onClick();
+    });
+    const [first] = ripples();
+    expect(ripples()).toHaveLength(1);
+    // Inside the bulb's box, which hides it from assistive technology.
+    expect(first!.parent!.parent!.props.className).toBe('BulbIcon');
+
+    // The next click starts a new one: the same place, another element.
+    act(() => {
+      button.props.onClick();
+    });
+    expect(ripples()).toHaveLength(1);
+    expect(ripples()[0]).not.toBe(first);
   });
 
   describe("the bulb's comet", () => {
@@ -214,19 +242,22 @@ describe('reasoning header', () => {
     });
   });
 
-  it('puts a chevron up and Collapse under open reasoning, which fold it and focus the header', () => {
+  it('puts a chevron up and Hide thinking under open reasoning, which hide it and focus the bulb', () => {
     focused.length = 0;
     const button = toggle({
-      body: 'Thinking...',
-      'io.mindroom.stream_status': 'streaming',
-      'io.mindroom.live_reasoning': 'Comparing options',
+      body: 'Answer',
+      'io.mindroom.stream_status': 'completed',
+      'io.mindroom.reasoning': { text: 'Weighed two options', duration_ms: 7600 },
+    });
+    act(() => {
+      button.props.onClick();
     });
 
     const [end] = collapseEnd();
-    if (!end) throw new Error('No collapse button under the reasoning');
+    if (!end) throw new Error('No button under the reasoning');
     expect(parts(end)).toEqual([
       { icon: 'chevron up', className: undefined, hidden: true },
-      { label: 'Collapse' },
+      { label: 'Hide thinking' },
     ]);
     expect(end.props['aria-expanded']).toBeUndefined();
 
@@ -240,7 +271,7 @@ describe('reasoning header', () => {
     expect(focused).toEqual(['Toggle']);
   });
 
-  it('has no collapse button under folded reasoning', () => {
+  it('has no button to hide reasoning that the bulb keeps hidden', () => {
     toggle({
       body: 'Answer',
       'io.mindroom.stream_status': 'completed',
@@ -283,8 +314,20 @@ describe('reasoning header', () => {
         'io.mindroom.stream_status': 'streaming',
         'io.mindroom.live_reasoning': 'Comparing options',
       });
-      expect(found.parent!.props.className).toBe('Line');
-      expect(found.parent!.findByProps({ className: 'Toggle' }).props['aria-expanded']).toBe(true);
+      const line = found.parent!;
+      expect(line.props.className).toBe('Line');
+      act(() => {
+        line.findByProps({ className: 'Toggle' }).props.onClick();
+      });
+      // The segments at the top come under the line, in the header's own column.
+      expect(
+        line
+          .parent!.findAll(
+            (node) =>
+              typeof node.type === 'string' && ['Line', 'Segment'].includes(node.props.className)
+          )
+          .map((node) => node.props.className)
+      ).toEqual(['Line', 'Segment']);
     });
 
     it('has a row of its own above the body when the reply has no reasoning', () => {
