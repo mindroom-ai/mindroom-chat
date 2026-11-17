@@ -15,6 +15,8 @@ import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
 import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { RelationsEvent, setReplacementRetentionPolicy } from 'matrix-js-sdk/lib/models/relations';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getThreadUnread, isReplyUnread } from '../event-store/threads/roomThreadList';
+import { getThreadEventReadUpTo } from '../event-store/threads/threadEventReadUpTo';
 import { getRoomUnreadInfo } from '../event-store/timeline/timelinePagination';
 import { offersJumpToUnread } from '../timeline/roomTimelineUnread';
 import { getEditedEvent, getReleasableEdits } from './room';
@@ -28,6 +30,7 @@ import { getEditedEvent, getReleasableEdits } from './room';
 
 const ROOM = '!room:example.org';
 const AGENT = '@agent:example.org';
+const OTHER_AGENT = '@other-agent:example.org';
 const ME = '@me:example.org';
 const ROOT = '$root';
 const REPLY = '$reply';
@@ -303,6 +306,78 @@ describe('the edits a room keeps of a message', () => {
         unreadMarkerShown: false,
       })
     ).toBe(false);
+  });
+
+  describe('of a stream, the edits that finish it', () => {
+    const streaming = (id: string, ts: number) =>
+      editWith(id, ts, { [STREAM_STATUS]: 'streaming' });
+    const finishing = (id: string, ts: number) =>
+      editWith(id, ts, { [STREAM_STATUS]: 'completed' });
+
+    it('keep the one at the end of a stream of 50 edits only', async () => {
+      const { add, kept, inTimelines } = await roomWithReply();
+      for (let round = 1; round < 50; round += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        await add(streaming(`$edit-${round}`, 10 + round));
+      }
+      await add(finishing('$edit-50', 60));
+
+      expect(kept()).toEqual(['$edit-50']);
+      expect(inTimelines()).toEqual(['$edit-50']);
+    });
+
+    it('keep each one, as a receipt may name any of them', async () => {
+      const { add, kept, inTimelines } = await roomWithReply();
+      for (let round = 1; round <= 10; round += 1) {
+        const make = round % 4 === 0 ? finishing : streaming;
+        // eslint-disable-next-line no-await-in-loop
+        await add(make(`$edit-${round}`, 10 + round));
+      }
+
+      expect(kept()?.sort()).toEqual(['$edit-10', '$edit-4', '$edit-8']);
+      expect(inTimelines().sort()).toEqual(['$edit-10', '$edit-4', '$edit-8']);
+    });
+
+    // The reader read the thread up to the edit that finished the agent's reply, and the agent then
+    // edited the reply once more.
+    it.each([
+      ['with the policy', 'a finishing', true, finishing],
+      ['with the policy', 'a streaming', true, streaming],
+      ['without a policy', 'a finishing', false, finishing],
+      ['without a policy', 'a streaming', false, streaming],
+    ] as const)(
+      'leave the thread read %s, up to the edit a receipt names, after %s edit',
+      async (_, _kind, withPolicy, make) => {
+        if (!withPolicy) setReplacementRetentionPolicy(undefined);
+        const { room, add } = await roomWithReply();
+        await add(edit('$e1', 11));
+        const reply2 = new MatrixEvent(
+          message(
+            '$reply-2',
+            15,
+            { 'm.relates_to': { rel_type: 'm.thread', event_id: ROOT } },
+            OTHER_AGENT
+          )
+        );
+        await add(reply2);
+        await add(finishing('$e2', 20));
+        room.addReceipt(
+          new MatrixEvent({
+            type: 'm.receipt',
+            room_id: ROOM,
+            content: { $e2: { [ReceiptType.Read]: { [ME]: { ts: 21, thread_id: ROOT } } } },
+          })
+        );
+
+        await add(make('$e3', 25));
+
+        const thread = room.getThread(ROOT);
+        if (!thread) throw new Error('the room has no thread');
+        expect(getThreadEventReadUpTo(thread, ME)).toBe('$e2');
+        expect(isReplyUnread(thread, ME, reply2)).toBe(false);
+        expect(getThreadUnread(thread, ME)).toBe(false);
+      }
+    );
   });
 
   it('release the copy a thread holds of an edit the relations took without its thread', async () => {
