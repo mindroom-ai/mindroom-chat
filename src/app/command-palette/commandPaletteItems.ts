@@ -27,7 +27,12 @@ import { tourAtom } from '../navigation/tourState';
 import { copyToClipboard } from '../lib/dom';
 import { getCanonicalAliasOrRoomId, getMxIdLocalPart } from '../matrix/matrix';
 import { getMemberAvatarMxc } from '../matrix/room';
-import { crossRoomThreadIndexAtom } from '../threads/cross-room/crossRoomThreadIndex';
+import {
+  crossRoomThreadIndexAtom,
+  getCrossRoomThreadIndexKey,
+} from '../threads/cross-room/crossRoomThreadIndex';
+import { makeRecentThreadsAtom } from '../event-store/threads/recentThreads';
+import { getRecentRoomsAtom } from '../navigation/recentRooms';
 import { useMarkRoomsRead } from '../notifications/useMarkRoomsRead';
 import { archivedRoomsAtom, isRoomVisible } from '../matrix/state/archivedRooms';
 import { isThreadPinned } from '../event-store/threads/threadPinning';
@@ -38,6 +43,7 @@ import {
   getCommandPaletteQuickActions,
 } from './commandPaletteActions';
 import { getCommandPaletteRoomRanking } from './commandPaletteRoomRanking';
+import { withRecentVisits } from './commandPaletteRecentVisits';
 import type {
   CommandPaletteActionItem,
   CommandPaletteItem,
@@ -103,7 +109,7 @@ const roomTopic = (room: Room): string | undefined => {
 /**
  * The command palette's items for the signed-in account: quick actions for where the user is,
  * the settings, pages and commands of `useCommandPaletteCommands`, recent threads, rooms and
- * spaces ranked by activity and unread state, and people. Lists keep their identity while their
+ * spaces ranked by the user's last visits, activity and unread state, and people. Lists keep their identity while their
  * inputs do, so search indexes are reused.
  */
 export const useCommandPaletteSource = ({
@@ -136,6 +142,8 @@ export const useCommandPaletteSource = ({
   const [, setThemeId] = useSetting(settingsAtom, 'themeId');
   const theme = useTheme();
   const myUserId = client.getSafeUserId();
+  const recentThreads = useAtomValue(makeRecentThreadsAtom(myUserId));
+  const recentRooms = useAtomValue(getRecentRoomsAtom(myUserId));
 
   const getRoom = useCallback((roomId: string) => client.getRoom(roomId) ?? undefined, [client]);
   const currentRoom = selectedRoomId ? getRoom(selectedRoomId) : undefined;
@@ -182,21 +190,28 @@ export const useCommandPaletteSource = ({
         onSelect: () => (space ? navigateSpace(roomId) : navigateRoom(roomId)),
       });
     });
-    return items;
+    return withRecentVisits(
+      items,
+      recentRooms.map((visit) => `room:${visit.roomId}`),
+      selectedRoomId && `room:${selectedRoomId}`
+    );
   }, [
     directRoomIds,
     getRoom,
     navigateRoom,
     navigateSpace,
     orderedRoomIds,
+    recentRooms,
     roomToParents,
     roomToUnread,
     selectedRoomId,
     selectedSpaceId,
   ]);
 
-  const threads = useMemo<Executable<CommandPaletteThreadItem>[]>(
-    () =>
+  const threads = useMemo<Executable<CommandPaletteThreadItem>[]>(() => {
+    const threadItemId = (roomId: string, threadId: string) =>
+      `thread:${getCrossRoomThreadIndexKey(roomId, threadId)}`;
+    return withRecentVisits(
       Array.from(threadIndex.entries.values())
         .filter((entry) => isRoomVisible(entry.roomId, archivedRooms))
         .sort((a, b) => b.lastActivityTs - a.lastActivityTs)
@@ -218,8 +233,19 @@ export const useCommandPaletteSource = ({
           boost: entry.isUnread ? 10 : 0,
           onSelect: () => navigateRoomThread(entry.roomId, entry.threadRootId),
         })),
-    [archivedRooms, navigateRoomThread, selectedRoomId, selectedThreadId, threadIndex.entries]
-  );
+      recentThreads.map((visit) => threadItemId(visit.roomId, visit.threadId)),
+      selectedRoomId && selectedThreadId
+        ? threadItemId(selectedRoomId, selectedThreadId)
+        : undefined
+    );
+  }, [
+    archivedRooms,
+    navigateRoomThread,
+    recentThreads,
+    selectedRoomId,
+    selectedThreadId,
+    threadIndex.entries,
+  ]);
 
   const currentThreadId = currentRoom ? selectedThreadId : undefined;
   // The thread tag hooks and the agent call hooks need a room; without one open, no thread action

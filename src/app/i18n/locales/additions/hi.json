@@ -665,6 +665,24 @@
       "noCrossSigning": "घड़ी कनेक्ट है पर सत्यापित नहीं: इसे सत्यापित करने के लिए इस iPhone पर एन्क्रिप्शन सेट करें।",
       "noBackup": "घड़ी सत्यापित है, पर कनेक्ट होने से पहले के संदेश नहीं पढ़ सकती: इस iPhone पर की बैकअप चालू करें।",
       "timeout": "घड़ी ने साइन इन पूरा नहीं किया। घड़ी पर MindRoom खोलें और फिर से कनेक्ट करें।"
+    },
+    "roomSettings": {
+      "navigation": {
+        "mindroom": "MindRoom"
+      },
+      "mindroom": {
+        "threadSummaryInstructions": {
+          "label": "थ्रेड शीर्षक के नियम",
+          "description": "इस रूम के थ्रेड को MindRoom का एआई जो शीर्षक देता है, उनके लिए अतिरिक्त नियम। ये सामान्य शीर्षक नियमों से ऊपर माने जाते हैं।",
+          "placeholder": "उदाहरण: इमोजी के बाद ज़्यादा से ज़्यादा 4 शब्द इस्तेमाल करें",
+          "note": "जो शीर्षक पहले से दिए जा चुके हैं, वे अगली बार रीफ़्रेश होने तक अपने शब्द बनाए रखते हैं।"
+        },
+        "save": "सहेजें",
+        "clear": "साफ़ करें",
+        "characterCount": "{{length, number}} / {{max, number}}",
+        "readOnly": "इसे सिर्फ़ वही लोग बदल सकते हैं जिन्हें इस रूम की सेटिंग बदलने की अनुमति है।",
+        "saveFailed": "सेटिंग सहेजी नहीं जा सकी। फिर से कोशिश करें।"
+      }
     }
   },
   "mindroomUi": {
@@ -788,6 +806,9 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} से चल रहा है"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "शीर्षक सेटिंग"
       },
       "replyTime": {
         "started": "शुरू {{value1}}",

@@ -5,6 +5,7 @@ export enum RoomSettingsPage {
   GeneralPage = 'general',
   MembersPage = 'members',
   PermissionsPage = 'permissions',
+  MindroomPage = 'mindroom',
   EmojisStickersPage = 'emojis-stickers',
   DeveloperToolsPage = 'developer-tools',
 }

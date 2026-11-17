@@ -665,6 +665,24 @@
       "noCrossSigning": "The watch is connected but unverified: set up encryption on this iPhone to verify it.",
       "noBackup": "The watch is verified, but it cannot read messages from before it was connected: turn on key backup on this iPhone.",
       "timeout": "The watch did not finish signing in. Open MindRoom on the watch and connect again."
+    },
+    "roomSettings": {
+      "navigation": {
+        "mindroom": "MindRoom"
+      },
+      "mindroom": {
+        "threadSummaryInstructions": {
+          "label": "Thread title rules",
+          "description": "Extra rules for the titles MindRoom's AI gives this room's threads. They take precedence over the usual title rules.",
+          "placeholder": "For example: Use at most 4 words after the emoji",
+          "note": "Titles already set keep their wording until the next refresh."
+        },
+        "save": "Save",
+        "clear": "Clear",
+        "characterCount": "{{length, number}} / {{max, number}}",
+        "readOnly": "Only people allowed to change this room's settings can edit this.",
+        "saveFailed": "Couldn't save the setting. Try again."
+      }
     }
   },
   "mindroomUi": {
@@ -788,6 +806,9 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Running for {{duration}}"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "Title settings"
       },
       "replyTime": {
         "started": "Started {{value1}}",

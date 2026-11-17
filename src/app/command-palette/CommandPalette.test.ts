@@ -503,7 +503,7 @@ describe('CommandPalette', () => {
     expect(kinds).toEqual(['room', 'room', 'space']);
   });
 
-  it('keeps spaces out of the starter rooms on All so Enter switches to a room', async () => {
+  it('keeps spaces out of the starter rooms on All, below the threads', async () => {
     const renderer = renderPalette({
       source: {
         ...FIXTURE_SOURCE,
@@ -512,7 +512,13 @@ describe('CommandPalette', () => {
         ),
       },
     });
-    expect(getOptions(renderer)[0]?.props['data-item-id']).toBe('!general:example.org');
+    const kinds = getOptions(renderer).map((option) => option.props['data-kind']);
+    expect(kinds.indexOf('room')).toBeGreaterThan(kinds.lastIndexOf('thread'));
+    expect(
+      getOptions(renderer).find((option) => option.props['data-kind'] === 'room')?.props[
+        'data-item-id'
+      ]
+    ).toBe('!general:example.org');
     expect(getOptions(renderer).some((option) => option.props['data-kind'] === 'space')).toBe(
       false
     );
@@ -520,15 +526,15 @@ describe('CommandPalette', () => {
     expect(getOptions(renderer)[0]?.props['data-kind']).toBe('space');
   });
 
-  it('renders the starter sections for an empty query, rooms first and no messages', () => {
+  it('renders the starter sections for an empty query, threads first and no messages', () => {
     vi.mocked(FIXTURE_SOURCE.getUsers).mockClear();
     const renderer = renderPalette();
     const groups = renderer.root.findAll(
       (node) => node.props.role === 'group' && node.props['data-section']
     );
     expect(groups.map((group) => group.props['data-section'])).toEqual([
-      'rooms',
       'threads',
+      'rooms',
       'actions',
       'users',
     ]);

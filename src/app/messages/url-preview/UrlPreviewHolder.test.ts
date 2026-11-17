@@ -45,7 +45,9 @@ vi.mock('./UrlPreviewCard.css', () => ({
   UrlPreviewHolderBtn: () => 'arrow',
 }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
-vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
+vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
+  useMediaAuthentication: () => false,
+}));
 vi.mock('../../matrix/matrix', () => ({ mxcUrlToHttp: () => undefined }));
 vi.mock('../content/ImageOverlay', () => ({ ImageOverlay: () => null }));
 vi.mock('../viewers/ImageViewer', () => ({ ImageViewer: () => null }));
@@ -207,14 +209,17 @@ describe('UrlPreviewHolder', () => {
     expect(buttons()).toEqual([]);
   });
 
-  it('removes stale arrows and spacing when all real preview requests fail, then recovers', async () => {
+  it('takes no room while every preview loads or fails, then shows one that arrives', async () => {
     let reject!: (error: Error) => void;
     const request = new Promise((_, fail) => {
       reject = fail;
     });
     mx.getUrlPreview.mockReturnValue(request);
     renderCards(['https://one.example', 'https://two.example', 'https://three.example']);
-    expect(buttons()).toEqual(['ArrowRight']);
+    notifyResize();
+    expect(container.querySelectorAll('[data-preview]')).toHaveLength(0);
+    expect(buttons()).toEqual([]);
+    expect(container.firstElementChild?.getAttribute('style')).toContain('margin-top: 0px');
     await act(async () => {
       reject(new Error('Preview failed'));
     });
@@ -229,7 +234,7 @@ describe('UrlPreviewHolder', () => {
     expect(container.firstElementChild?.getAttribute('style')).toContain('margin-top: 8px');
   });
 
-  it('keeps a successful card after another fails and hides unnecessary controls', async () => {
+  it('keeps a successful card while another loads and after it fails, without controls', async () => {
     let reject!: (error: Error) => void;
     mx.getUrlPreview.mockImplementation((url: string) =>
       url.includes('two')
@@ -240,7 +245,8 @@ describe('UrlPreviewHolder', () => {
     );
     renderCards(['https://one.example', 'https://two.example']);
     await flushPreviews();
-    expect(buttons()).toEqual(['ArrowRight']);
+    expect(container.querySelectorAll('[data-preview]')).toHaveLength(1);
+    expect(buttons()).toEqual([]);
     await act(async () => {
       reject(new Error('Preview failed'));
     });
