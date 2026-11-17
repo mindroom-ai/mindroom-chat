@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   initializeDeepTraceRecorder: vi.fn(),
   setDeepTraceEnabled: vi.fn(),
   clearDeepTrace: vi.fn(),
+  startMemorySampler: vi.fn(),
 }));
 
 vi.mock('./flightRecorder', () => ({
@@ -22,6 +23,8 @@ vi.mock('./flightRecorder', () => ({
   FLIGHT_RECORDER_ABNORMAL_KEY: 'mindroom.flight.abnormal.v1',
   installFlightRecorder: mocks.installFlightRecorder,
 }));
+
+vi.mock('./memorySampler', () => ({ startMemorySampler: mocks.startMemorySampler }));
 
 vi.mock('./deepTrace', () => ({
   initializeDeepTraceRecorder: mocks.initializeDeepTraceRecorder,
@@ -46,6 +49,7 @@ describe('debug mode', () => {
     expect(getDebugModeEnabled()).toBe(true);
     expect(mocks.installFlightRecorder).toHaveBeenCalledOnce();
     expect(mocks.initializeDeepTraceRecorder).toHaveBeenCalledOnce();
+    expect(mocks.startMemorySampler).toHaveBeenCalledOnce();
   });
 
   it('on turns the deep trace on too, so attached logs hold it', async () => {

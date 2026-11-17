@@ -3,6 +3,7 @@ import {
   recordDeepTraceEvent,
   type DeepTraceData,
 } from '../../../diagnostics/deepTrace';
+import { registerMemoryGauge } from '../../../diagnostics/memorySampler';
 
 // An iPhone export showed every cache read hanging after a long suspension while the
 // deep trace's own IndexedDB kept working, with nothing recorded about the cache
@@ -74,6 +75,8 @@ export const traceCacheTransactions = (db: IDBDatabase): void => {
   // Resolve the inherited method per call, so it stays the browser's (or a test's) current one.
   const inherited = Object.getPrototypeOf(db) as IDBDatabase;
   const openTransactions: OpenTransactions = new Map();
+  // The newest connection is the signed-in account's; an older one's count would be stale.
+  registerMemoryGauge('cache_open_transactions', () => openTransactions.size);
   db.transaction = ((
     storeNames: string | string[],
     mode?: IDBTransactionMode,

@@ -15,6 +15,7 @@ import App from './app/shell/App';
 import { isNativeApp, isNativeIOS, registerNativeAppUrlCallbacks } from './app/native/nativeSso';
 import { initializeDeepTraceRecorder, recordDeepTraceEvent } from './app/diagnostics/deepTrace';
 import { getDebugModeEnabled, startFlightRecorder } from './app/diagnostics/debugMode';
+import { startMemorySampler } from './app/diagnostics/memorySampler';
 import {
   installIndexedDbLossRecovery,
   readRecoveryReloadAge,
@@ -67,6 +68,10 @@ const startDiagnostics = (): void => {
     runSafely('flight recorder', startFlightRecorder);
     runSafely('deep trace recorder', () => {
       initializeDeepTraceRecorder();
+    });
+    // It samples only while the deep trace records; debug mode starts it when turned on later.
+    runSafely('memory sampler', () => {
+      startMemorySampler();
     });
   }
   runSafely('IndexedDB loss recovery', () => {

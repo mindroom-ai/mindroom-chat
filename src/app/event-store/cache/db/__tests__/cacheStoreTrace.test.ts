@@ -4,6 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { isDeepTraceRecording, recordDeepTraceEvent } from '../../../../diagnostics/deepTrace';
 import { deleteCacheStoreDb, openCacheStore } from '../cacheStoreDb';
 import { CACHE_STALL_MS } from '../cacheStoreTrace';
+import { sampleMemory } from '../../../../diagnostics/memorySampler';
 
 vi.mock('../../../../diagnostics/deepTrace', () => ({
   isDeepTraceRecording: vi.fn(() => true),
@@ -49,6 +50,21 @@ it('records cache transactions still open after the stall threshold and how they
     ],
     ['storage.cache.transaction_settled', { readwrite: false, events: true, ...duration }],
   ]);
+});
+
+it("counts the newest connection's open transactions in memory samples", async () => {
+  const db = (await openCacheStore(sessionId))!;
+  const read = db.transaction('events', 'readonly');
+  const openCount = () => {
+    record.mockClear();
+    sampleMemory('interval');
+    return record.mock.calls.find(([name]) => name === 'memory.sample')?.[1]
+      ?.cache_open_transactions;
+  };
+
+  expect(openCount()).toBe(1);
+  await settled(read);
+  expect(openCount()).toBe(0);
 });
 
 it('records nothing for cache transactions that finish in time', async () => {

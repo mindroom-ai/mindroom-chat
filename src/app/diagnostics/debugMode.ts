@@ -10,6 +10,7 @@ import {
   installFlightRecorder,
 } from './flightRecorder';
 import { clearDeepTrace, initializeDeepTraceRecorder, setDeepTraceEnabled } from './deepTrace';
+import { startMemorySampler } from './memorySampler';
 
 /**
  * Debug mode, a device-local switch on every platform. On, it records a deep trace with the app's
@@ -83,6 +84,7 @@ export const setDebugModeEnabled = async (
     if (!setStorageItemSafe(storage, DEBUG_MODE_KEY, '1')) return false;
     if (!keepRecorders) startFlightRecorder();
     initializeDeepTraceRecorder();
+    startMemorySampler();
     notifyListeners();
     try {
       await setDeepTraceEnabled(true);
