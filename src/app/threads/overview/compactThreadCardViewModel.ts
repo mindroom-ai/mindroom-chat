@@ -345,7 +345,7 @@ export const useCompactThreadCardViewModels = ({
         record.threadRootId,
         record.presentation,
         record.status,
-        classifyThreadWorkflow(record.status, Date.now()),
+        classifyThreadWorkflow(record.status, now),
         // Read from the SDK room, which may not hold the root yet when the record is built.
         forkedFrom,
       ]);
