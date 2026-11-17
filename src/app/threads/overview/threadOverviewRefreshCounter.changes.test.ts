@@ -74,6 +74,10 @@ const setup = (threadId?: string) => {
     client,
     findEventById: (eventId: string) => held.get(eventId),
     getThread: () => null,
+    // An unopened thread, whose summary names a reply no timeline holds.
+    getThreads: () => [
+      { id: '$unopened', replyToEvent: event({ id: '$summarized', threadRootId: '$unopened' }) },
+    ],
   });
   const hook = renderHook(() => useThreadOverviewRefreshCounter(room as unknown as Room, threadId));
   const state = () => hook.result.current;
@@ -330,11 +334,13 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     client.emit(ClientEvent.Event, editOf('$reply'));
 
     expect(told(fill(0))).toEqual({ marked: ['$root'], counted: 1 });
+    client.emit(ClientEvent.Event, editOf('$summarized'));
+    expect(told(fill(5000))).toEqual({ marked: ['$unopened'], counted: 1 });
     // The messages dropped next are no events of this room.
-    expect(told(fill(5000))).toEqual({ marked: [], counted: 0 });
+    expect(told(fill(10000))).toEqual({ marked: [], counted: 0 });
     unmount();
     client.emit(ClientEvent.Event, editOf('$reply'));
-    expect(told(fill(10000)).marked).toEqual([]);
+    expect(told(fill(15000)).marked).toEqual([]);
     stop();
   });
 

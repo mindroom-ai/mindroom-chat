@@ -27,6 +27,7 @@ import {
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { isRecord } from '../../lib/isRecord';
 import { onSyncedEditForgotten } from '../../matrix/client/syncedEdits';
+import { getThreadSummaryReply } from '../../matrix/client/unopenedThreadEdits';
 
 /**
  * The thread whose record an event of the room may change: the thread it is in, else the thread
@@ -191,9 +192,15 @@ export const useThreadOverviewRefreshCounter = (
     // names that the room lost this way is a change of the room's own (`receiptEventsVersion`).
     const handleReset = (_room: Room | undefined, timelineSet: EventTimelineSet) =>
       markThreadRecordChange(overviewChanges, timelineSet.thread?.id);
-    // The kept edits a record read of a message of this room are gone: no event tells of it.
+    // The kept edits a record read of a message of this room are gone: no event tells of it. The
+    // message is in a timeline, or the reply an unopened thread's summary names.
     const stopForgotten = onSyncedEditForgotten((messageId) => {
-      const held = room.findEventById(messageId);
+      const held =
+        room.findEventById(messageId) ??
+        room
+          .getThreads()
+          .map(getThreadSummaryReply)
+          .find((reply) => reply?.getId() === messageId);
       if (!held) return;
       markEvent(held);
       bump();
