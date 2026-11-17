@@ -10,6 +10,7 @@ import { FIRST_SCREEN_CARDS } from './useStagedCardIds';
 
 const ROOM_ID = '!room:example.org';
 const ME = '@me:example.org';
+const NOW = 1_000;
 
 const state = vi.hoisted(() => ({
   pinned: [] as string[],
@@ -35,9 +36,9 @@ const viewModel = (threadRootId: string): CompactThreadCardViewModel => ({
 });
 
 vi.mock('./useCompactThreadSections', () => ({
-  useCompactThreadSections: ({ enabled }: { enabled: boolean }) => {
-    state.enabled.push(enabled);
-    return enabled ? state.sections : undefined;
+  useCompactThreadSections: ({ now }: { now: number | undefined }) => {
+    state.enabled.push(now !== undefined);
+    return now !== undefined ? state.sections : undefined;
   },
 }));
 vi.mock('./compactThreadCardViewModel', () => ({
@@ -80,7 +81,7 @@ const view = (threadRootIds: string[], sections = true) => (
     threadRecordMap={new Map()}
     onThreadClick={vi.fn()}
     compactRoomScrollStateRef={{ current: new Map() }}
-    sections={sections}
+    sectionsNow={sections ? NOW : undefined}
   />
 );
 
@@ -314,7 +315,7 @@ describe('the Compact room in sections', () => {
           threadRecordMap={new Map()}
           onThreadClick={vi.fn()}
           compactRoomScrollStateRef={{ current: new Map() }}
-          sections
+          sectionsNow={NOW}
         />
       );
 
@@ -377,7 +378,7 @@ describe('the Compact room in sections', () => {
         threadRecordMap={new Map()}
         onThreadClick={vi.fn()}
         compactRoomScrollStateRef={{ current: new Map([[ROOM_ID, place]]) }}
-        sections
+        sectionsNow={NOW}
       />
     );
 

@@ -1557,6 +1557,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // The header's filter button hides the bar; the filters keep applying while it is hidden.
   const filterBarShown =
     showRoomThreadOverviewControls && !plainConversation && !hideThreadFilterBar;
+  // Agent rooms' cards can show in sections; the bar hides the sort only while they do.
+  const sectionsOffered = compactCards && hasMindroomAgents;
+  const threadSectionsShown = sectionsOffered && props.threadSections === true;
   const filterBar = filterBarShown && (
     <FilterBarSlot onHeight={setFilterBarHeight}>
       <RoomThreadOverview
@@ -1584,10 +1587,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
         onRemoveTag={props.onRemoveTag ?? ignoreFilterChange}
         onClearTags={props.onClearTags ?? ignoreFilterChange}
         onSearchQueryChange={props.onSearchQueryChange ?? ignoreFilterChange}
-        // The same flag the sort lock follows (`useRoomViewThreadState`), so the bar never offers
-        // a sort the sections ignore.
-        threadSections={props.threadSections === true}
-        onToggleThreadSections={compactCards ? props.onToggleThreadSections : undefined}
+        threadSections={threadSectionsShown}
+        onToggleThreadSections={sectionsOffered ? props.onToggleThreadSections : undefined}
         peopleFilter={
           props.onTogglePerson && (
             <ThreadPeopleFilter
@@ -1651,7 +1652,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
           onThreadClick={(rootId) => navigateRoomThread(room.roomId, rootId)}
           compactRoomScrollStateRef={compactRoomScrollStateRef}
           filterBarShown={filterBarShown}
-          sections={props.threadSections === true}
+          // The clock the list was filtered at, so the sections show what the selected tab does.
+          sectionsNow={threadSectionsShown ? threadIndex.snoozeNow : undefined}
         />
       </Box>
     );

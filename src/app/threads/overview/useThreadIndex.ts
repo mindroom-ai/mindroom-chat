@@ -118,6 +118,8 @@ export type UseThreadIndexResult = ThreadIndexSnapshot & {
   roomThreadListThreads: Thread[];
   refreshRoomThreadList: () => Promise<void>;
   applyThreadOverviewRelationEvents: (options: FetchedRelationOverviewUpdateOptions) => void;
+  /** The time the list was filtered at, renewed when a snooze ends (Compact's sections use it). */
+  snoozeNow: number;
 };
 
 export type ResolveThreadIndexSnapshotOptions = {
@@ -758,5 +760,6 @@ export const useThreadIndex = ({
     roomThreadListThreads,
     refreshRoomThreadList,
     applyThreadOverviewRelationEvents,
+    snoozeNow,
   };
 };

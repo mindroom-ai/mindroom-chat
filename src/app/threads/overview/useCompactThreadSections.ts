@@ -8,7 +8,6 @@ import {
   type CrossRoomThreadIndexEntry,
 } from '../cross-room/crossRoomThreadIndex';
 import { getThreadSignalsReader } from '../cross-room/threadSignalsReader';
-import { useSnoozeNow } from '../tags/useSnoozeNow';
 import { buildCompactThreadSections, type CompactThreadSection } from './compactThreadSections';
 
 type RoomEntries = ReadonlyMap<string, CrossRoomThreadIndexEntry>;
@@ -43,38 +42,31 @@ const roomEntriesAtom = (roomId: string): Atom<RoomEntries> => {
 };
 
 /**
- * The Compact room's listed cards in sections (`buildCompactThreadSections`) while `enabled`,
- * else undefined. The records carry what classifies them, background jobs included; it reads the
- * threads' index entries and signals for when they started, finished and were resolved, and while
- * off it reads none of them. Renewed when a snooze ends, so its thread leaves Later then.
+ * The Compact room's listed cards in sections (`buildCompactThreadSections`) while `now` is set,
+ * else undefined. `now` is the snooze clock the list was filtered at (`useThreadIndex`), so a
+ * thread the selected tab admits when its snooze ends is classified as the tab did. The records
+ * carry what classifies them, background jobs included; it reads the threads' index entries and
+ * signals for when they started, finished and were resolved, and while off it reads none of them.
  */
 export const useCompactThreadSections = ({
   room,
-  enabled,
+  now,
   threadRootIds,
   threadRecordMap,
   pinnedRootIds,
 }: {
   room: Room;
-  enabled: boolean;
+  now: number | undefined;
   threadRootIds: string[];
   threadRecordMap: ReadonlyMap<string, ThreadRecord>;
   pinnedRootIds: readonly string[];
 }): CompactThreadSection[] | undefined => {
+  const enabled = now !== undefined;
   const entries = useAtomValue(
     useMemo(() => (enabled ? roomEntriesAtom(room.roomId) : noEntriesAtom), [enabled, room.roomId])
   );
-  const now = useSnoozeNow(
-    useMemo(
-      () =>
-        enabled
-          ? threadRootIds.map((rootId) => threadRecordMap.get(rootId)?.status.snoozedUntilTs)
-          : [],
-      [enabled, threadRecordMap, threadRootIds]
-    )
-  );
   return useMemo(() => {
-    if (!enabled) return undefined;
+    if (now === undefined) return undefined;
     // The client's shared signals cache, which Activity and the sidebar keep filled.
     const reader = getThreadSignalsReader(room.client);
     return buildCompactThreadSections({
@@ -85,5 +77,5 @@ export const useCompactThreadSections = ({
       pinnedRootIds,
       now,
     });
-  }, [enabled, entries, now, pinnedRootIds, room, threadRecordMap, threadRootIds]);
+  }, [entries, now, pinnedRootIds, room, threadRecordMap, threadRootIds]);
 };

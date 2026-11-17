@@ -18,6 +18,7 @@ vi.mock('../cross-room/threadSignalsReader', () => ({
 }));
 
 const ROOM_ID = '!room:example.org';
+const NOW = 1_000;
 
 /** A room whose state the hook must not read: the records carry the job flags. */
 const room = () => {
@@ -54,7 +55,7 @@ describe('useCompactThreadSections', () => {
       () =>
         useCompactThreadSections({
           room: offRoom,
-          enabled: false,
+          now: undefined,
           threadRootIds: ['$a'],
           threadRecordMap: recordsOf(record('$a')),
           pinnedRootIds: [],
@@ -76,7 +77,7 @@ describe('useCompactThreadSections', () => {
       ({ threadRecordMap }) =>
         useCompactThreadSections({
           room: jobsRoom,
-          enabled: true,
+          now: NOW,
           threadRootIds: ['$a', '$b', '$c'],
           threadRecordMap,
           pinnedRootIds: [],
@@ -124,7 +125,7 @@ describe('useCompactThreadSections', () => {
       () =>
         useCompactThreadSections({
           room: doneRoom,
-          enabled: true,
+          now: NOW,
           threadRootIds: ['$old', '$new'],
           threadRecordMap: recordsOf(
             record('$old', { isResolved: true }),

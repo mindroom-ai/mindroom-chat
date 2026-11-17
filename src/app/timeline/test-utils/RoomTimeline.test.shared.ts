@@ -1684,6 +1684,7 @@ const createControlledRoomTimelineHarness = (
     initialThreadSortFrozen = false,
     viewModeControl,
     forkAt,
+    extraProps,
   }: {
     room: ReturnType<typeof makeRoom>;
     eventId?: string;
@@ -1697,6 +1698,8 @@ const createControlledRoomTimelineHarness = (
     initialThreadSortFrozen?: boolean;
     viewModeControl?: ViewModeControl;
     forkAt?: string;
+    /** More props for the room timeline, such as the Sections flag and its switch. */
+    extraProps?: Record<string, unknown>;
   }) {
     const [threadFilterState, setThreadFilterState] = React.useState<
       import('../../event-store/threads/roomThreadOverviewModel').ThreadFilterState
@@ -1771,6 +1774,7 @@ const createControlledRoomTimelineHarness = (
         compactRoomScrollStateRef,
         editor,
         forkAt,
+        ...extraProps,
       }),
     });
   };
