@@ -2,12 +2,9 @@ import React, { MutableRefObject, useEffect, useMemo, useRef } from 'react';
 import { act, create } from 'react-test-renderer';
 import { EventStatus, MatrixError } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import { getDefaultStore } from 'jotai';
-import {
-  IReplyDraft,
-  roomUploadAtomFamily,
-  threadViewVoiceComposersAtom,
-} from './roomInputDrafts';
+import { IReplyDraft, roomUploadAtomFamily, threadViewVoiceComposersAtom } from './roomInputDrafts';
 import { ConversationViewContext } from '../navigation/conversationView';
 import { TUploadItem, Upload, UploadStatus } from '../matrix/state/upload';
 import { TUploadContent, toMatrixUploadError } from '../matrix/matrix';
@@ -61,7 +58,8 @@ const createDeferred = <T>() => {
 const createUploadItem = (file: File, prepError?: MatrixError): TUploadItem => ({
   file,
   // A plain staged file: not encrypted, not a voice message, not a text paste.
-  encInfo: undefined, originalFile: file,
+  encInfo: undefined,
+  originalFile: file,
   metadata: {
     markedAsSpoiler: false,
   },
@@ -71,7 +69,8 @@ const createUploadItem = (file: File, prepError?: MatrixError): TUploadItem => (
 const createPasteUploadItem = (file: File, prepError?: MatrixError): TUploadItem => ({
   file,
   // A plain staged file that also carries the marker of a pasted text.
-  encInfo: undefined, originalFile: file,
+  encInfo: undefined,
+  originalFile: file,
   metadata: {
     markedAsSpoiler: false,
     mindroomPasteAttachment: {
@@ -490,7 +489,9 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
       await api.startSendSession();
     });
     const thread = mountThreadView('$event-0');
-    store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']) }]);
+    store.set(threadViewVoiceComposersAtom, [
+      { key: JSON.stringify(['!room:example.org', '$event-0']) },
+    ]);
     unmount();
     expect(thread.current().joinedSendPending).toBe(true);
     // Show beside: the room's composer comes back while the thread's view holds the send; then Back.
@@ -501,7 +502,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     expect(room.current().joinedSendPending).toBe(true);
   });
 
-  it("takes a send parked for its thread over once its own send is done", async () => {
+  it('takes a send parked for its thread over once its own send is done', async () => {
     const store = getDefaultStore();
     const { api, mx, unmount, mountThreadView } = renderHarness({ onRoomMessageSent: () => true });
     const root = createFile('root.txt');
@@ -513,7 +514,9 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     });
     // The thread beside the messages has a send of its own going out.
     const thread = mountThreadView('$event-0');
-    store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']) }]);
+    store.set(threadViewVoiceComposersAtom, [
+      { key: JSON.stringify(['!room:example.org', '$event-0']) },
+    ]);
     const own = createFile('own.txt');
     thread.api.selectedFilesRef.current = [createUploadItem(own)];
     thread.api.uploadsRef.current = [loadingUpload(own)];
@@ -524,7 +527,10 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     store.set(threadViewVoiceComposersAtom, []);
     expect(thread.current().joinedSendPending).toBe(false);
 
-    thread.api.uploadsRef.current = [successUpload(own, 'mxc://mindroom/own'), loadingUpload(child)];
+    thread.api.uploadsRef.current = [
+      successUpload(own, 'mxc://mindroom/own'),
+      loadingUpload(child),
+    ];
     await act(async () => {
       store.set(roomUploadAtomFamily(own), { mxc: 'mxc://mindroom/own' });
       await Promise.resolve();
@@ -1824,6 +1830,33 @@ describe('useRoomInputSendSessionController sends that cannot go out yet', () =>
     });
     expect(textBodies(mx)).toEqual(['one', 'two']);
     expect(api.hasActiveSendSession()).toBe(true);
+  });
+
+  it('keeps the mid-turn mode of each text queued behind an upload', async () => {
+    const { api, mx } = renderHarness({ threadId: '$thread' });
+    const file = createFile('tide-table.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+
+    await act(async () => {
+      await api.startSendSession();
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'one', [MID_TURN_MODE_KEY]: 'queue' },
+      });
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'two', [MID_TURN_MODE_KEY]: 'steer' },
+      });
+    });
+    api.uploadsRef.current = [prepErrorUpload(file)];
+    await act(async () => {
+      await api.processSendSession();
+    });
+
+    const sent = mx.sendMessage.mock.calls.map((call) => call[1] as Record<string, unknown>);
+    expect(sent.map((content) => [content.body, content[MID_TURN_MODE_KEY]])).toEqual([
+      ['one', 'queue'],
+      ['two', 'steer'],
+    ]);
   });
 });
 
