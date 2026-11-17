@@ -295,7 +295,7 @@ describe('saveThreadOpenSeedSnapshot with edits the app cannot show', () => {
     }
   );
 
-  it('drops an unusable edit older than a readable one', async () => {
+  it('keeps an undecryptable edit older than a readable one, whose metadata is unknown', async () => {
     const undecryptable = await makeUndecryptableEdit('$undecryptable', 2900);
 
     saveThreadOpenSeedSnapshot(room, '$root', [
@@ -305,7 +305,21 @@ describe('saveThreadOpenSeedSnapshot with edits the app cannot show', () => {
       makeEdit('$readable', 3000),
     ]);
 
-    expect(seedIds()).toEqual(['$root', '$reply', '$readable']);
+    expect(seedIds()).toEqual(['$root', '$reply', '$undecryptable', '$readable']);
+  });
+
+  it('drops an undecryptable edit older than a readable one once it is redacted', async () => {
+    const undecryptable = await makeUndecryptableEdit('$undecryptable', 2900);
+
+    saveThreadOpenSeedSnapshot(room, '$root', [
+      makeRoot(),
+      makeReply(),
+      undecryptable,
+      makeEdit('$readable', 3000),
+      makeRedaction('$redaction', 3100, '$undecryptable'),
+    ]);
+
+    expect(seedIds()).toEqual(['$root', '$reply', '$readable', '$redaction']);
   });
 });
 
