@@ -2260,7 +2260,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "voice": {
@@ -3112,7 +3112,7 @@
       "intro": "In questo thread, le chiamate agli strumenti richieste da queste persone vengono eseguite senza schede di approvazione.",
       "you": "Tu",
       "until": "Fino a {{time}}",
-      "ownUntil": "Fino a {{time}}. Invia !auto_approve off per terminarla."
+      "ownUntil": "Fino a {{time}}. Invia /auto_approve off per terminarla."
     },
     "notices": {
       "dismiss": "Chiudi avviso",

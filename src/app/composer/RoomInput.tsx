@@ -255,8 +255,8 @@ const buildUploadMessageContent = async (
 };
 
 /**
- * The composer: text with Markdown, mentions, slash commands and MindRoom `!` commands,
- * attachments (picked, dropped, pasted, or large pastes as files), voice messages, and the reply
+ * The composer: text with Markdown, mentions, slash commands (MindRoom's commands among them,
+ * sent as typed; their older `!` form still works), attachments (picked, dropped, pasted, or large pastes as files), voice messages, and the reply
  * being written. One send session carries text and attachments in order; a voice message joins
  * it when sent from the primary Send button.
  */
@@ -491,7 +491,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const voiceActive = !forkFrom;
     const submit = useCallback(async () => {
       if (voiceActive && voice.blocksSubmit()) return;
-      // A `/word` that is no command, such as a typo of one, stays in the composer unsent.
+      // A `/word` that is no command, such as a typo of one, stays in the composer unsent; one of
+      // MindRoom's commands (`/schedule`) has no `run` and goes out as typed.
       const unknownCommand = readUnknownCommand(editor.children, commands);
       if (unknownCommand !== undefined) {
         setCommandProblem(

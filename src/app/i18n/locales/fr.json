@@ -2260,7 +2260,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "voice": {
@@ -3112,7 +3112,7 @@
       "intro": "Dans ce fil, les appels d’outils demandés par ces personnes s’exécutent sans carte d’approbation.",
       "you": "Vous",
       "until": "Jusqu’à {{time}}",
-      "ownUntil": "Jusqu’à {{time}}. Envoyez !auto_approve off pour y mettre fin."
+      "ownUntil": "Jusqu’à {{time}}. Envoyez /auto_approve off pour y mettre fin."
     },
     "notices": {
       "dismiss": "Fermer l’avis",

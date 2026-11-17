@@ -2288,7 +2288,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "voice": {
@@ -3177,7 +3177,7 @@
       "intro": "В этой ветке вызовы инструментов, которые запрашивают эти люди, выполняются без карточек подтверждения.",
       "you": "Вы",
       "until": "До {{time}}",
-      "ownUntil": "До {{time}}. Отправьте !auto_approve off, чтобы закончить."
+      "ownUntil": "До {{time}}. Отправьте /auto_approve off, чтобы закончить."
     },
     "notices": {
       "dismiss": "Скрыть уведомление",

@@ -2232,7 +2232,7 @@
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread."
+        "commandFallback": "You can still send /model with a model key in this thread."
       }
     },
     "voice": {
@@ -3034,7 +3034,7 @@
       "intro": "このスレッドでは、これらの人が依頼したツール呼び出しは承認カードなしで実行されます。",
       "you": "あなた",
       "until": "{{time}} まで",
-      "ownUntil": "{{time}} まで。終了するには !auto_approve off を送信してください。"
+      "ownUntil": "{{time}} まで。終了するには /auto_approve off を送信してください。"
     },
     "notices": {
       "dismiss": "お知らせを閉じる",

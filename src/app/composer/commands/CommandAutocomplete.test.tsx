@@ -160,6 +160,37 @@ it('shows nothing when no command starts with the typed letters', () => {
   expect(windowKeyDown.listener).toBeUndefined();
 });
 
+it("shows a MindRoom command's / syntax among the slash commands, and a pick writes its name", () => {
+  const { editor, query, requestClose } = editorWith('/list_s');
+  act(() => {
+    renderer = create(
+      <CommandAutocomplete
+        editor={editor}
+        query={query}
+        title="Commands"
+        commands={[
+          ...SLASH_COMMANDS,
+          {
+            name: 'list_schedules',
+            syntax: '/list_schedules',
+            description: 'List all scheduled tasks.',
+          },
+        ]}
+        requestClose={requestClose}
+      />
+    );
+  });
+
+  expect(rows().map(texts)).toEqual([['/list_schedules', 'List all scheduled tasks.']]);
+  expect(rows()[0]?.props['data-slash-command']).toBe('list_schedules');
+
+  act(() => {
+    defined(rows()[0], 'a command row').props.onClick();
+  });
+
+  expect(toPlainText(editor.children, false)).toBe('/list_schedules ');
+});
+
 it("lists MindRoom's commands with their syntax, and a pick writes the ! command", () => {
   const { editor, query, requestClose } = editorWith('!sched');
   act(() => {
