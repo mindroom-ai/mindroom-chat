@@ -135,7 +135,8 @@ vi.mock('./PasteAttachmentContent', () => ({
 }));
 
 vi.mock('../agent-run/StreamingIndicator', () => ({
-  renderStreamingIndicator: () => React.createElement('span', { 'data-renderer': 'streaming' }),
+  renderStreamingIndicator: () =>
+    React.createElement('span', { 'data-renderer': 'streaming' }),
 }));
 
 vi.mock('../../ui/PendingSendIndicator.css', () => ({
@@ -1005,9 +1006,9 @@ describe('renderAgentMessageContent', () => {
 
     // What Chat's real hydration returns after downloading a file with these bytes.
     const downloaded = async (file: unknown, raw = JSON.stringify(file)) => {
-      const { hydrateLongTextSource } = await vi.importActual<
-        typeof import('../../matrix/protocol/longText')
-      >('../../matrix/protocol/longText');
+      const { hydrateLongTextSource } = await vi.importActual<typeof import('../../matrix/protocol/longText')>(
+        '../../matrix/protocol/longText'
+      );
       return hydrateLongTextSource(
         { previewContent: { body: '' }, mxcUri: `mxc://test/${raw.length}`, isV2ContentJson: true },
         async () => raw,

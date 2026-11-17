@@ -65,9 +65,9 @@ function SizedFrame({
     window.addEventListener('message', receive);
     return () => window.removeEventListener('message', receive);
   }, []);
-  // A website preview (raw, or with its own width) is shown like a browser window: never taller than
-  // 16:10 of its width, the rest scrolling inside it, so a page sized by its viewport cannot grow its
-  // frame. It starts at that window, where a 100vh page already fits. A themed page fits its content.
+  // A website preview (raw, or with its own width) is laid out in a browser window of a fixed height,
+  // 16:10 of its width, so its viewport never depends on its content; the box shows as much of the
+  // window as the page fills and the rest scrolls inside it. A themed page's frame fits its content.
   const preview = raw || width !== undefined;
   const stopped = reloads > MAX_ESCAPE_RELOADS;
   useLayoutEffect(() => {
@@ -101,7 +101,8 @@ function SizedFrame({
   // desktop layout keeps its desktop breakpoint; the frame's box takes the shrunk height.
   const scale = inlineCanvasScale(column, width);
   const limit = inlineCanvasWindowHeight(width ?? column);
-  const shown = preview ? Math.min(reported ?? limit, limit) : reported ?? 160;
+  const frameHeight = preview ? limit : reported ?? 160;
+  const shown = preview ? Math.min(reported ?? limit, limit) : frameHeight;
   return (
     // A preview is placed, not read: it starts at the left edge in every language, so its scale's
     // origin and its overflow stay on the same side.
@@ -116,7 +117,7 @@ function SizedFrame({
         referrerPolicy="no-referrer"
         style={{
           width: width === undefined ? '100%' : width,
-          height: shown,
+          height: frameHeight,
           display: 'block',
           border: 0,
           // A raw page is a page in a browser: its canvas is white until its own CSS says otherwise.
@@ -162,8 +163,9 @@ function LoadedInlineCanvas({
         ? undefined
         : buildCanvasDocument(
             html,
-            colorScheme,
-            theme,
+            // A raw page uses none of Chat's theme, so switching the theme leaves it as it is.
+            action.canvas.raw === true ? 'light' : colorScheme,
+            action.canvas.raw === true ? undefined : theme,
             action.canvas.title,
             libraries,
             {},

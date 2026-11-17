@@ -95,14 +95,23 @@ test('an inline canvas follows absolutely positioned content through transitions
   await expect.poll(height, { timeout: 10_000 }).toBe(250);
 });
 
-// A website preview (raw, or with its own width) is never taller than a 16:10 browser window, 568 to
-// 1080 page pixels: its frame stops there, shrunk with the page, and the rest scrolls inside it.
-const expectWindow = async (page: Page, title: string, { width = 0, scrolls = true } = {}) => {
+// A website preview (raw, or with its own width) is laid out in a 16:10 browser window, 568 to 1080
+// page pixels tall, shrunk with the page: its box shows as much of the window as the page fills (the
+// whole window unless `fill` says less), and the rest scrolls inside it.
+const expectWindow = async (
+  page: Page,
+  title: string,
+  { width = 0, scrolls = true, fill = (windowHeight: number) => windowHeight } = {}
+) => {
   const frame = page.locator(`iframe[title="${title}"]`);
   await expect(frame).toBeVisible({ timeout: 60_000 });
   const column = await frame.evaluate((element) => element.parentElement!.clientWidth);
-  const scale = width ? Math.min(1, column / width) : 1;
-  const expected = Math.min(1080, Math.max(568, Math.round(((width || column) * 10) / 16))) * scale;
+  // The column is narrower than a page with its own width, so the page really is shrunk.
+  if (width) expect(column).toBeLessThan(width);
+  const scale = width ? column / width : 1;
+  const windowHeight = Math.min(1080, Math.max(568, Math.round(((width || column) * 10) / 16)));
+  expect((await frame.boundingBox())?.height).toBeCloseTo(windowHeight * scale, 0);
+  const expected = fill(windowHeight) * scale;
   const shown = async () => (await frame.locator('xpath=..').boundingBox())?.height ?? 0;
   await expect.poll(shown, { timeout: 20_000 }).toBeCloseTo(expected, 0);
   await page.waitForTimeout(1_500);
@@ -115,9 +124,9 @@ const expectWindow = async (page: Page, title: string, { width = 0, scrolls = tr
   ).toBe(scrolls);
 };
 
-// A fitted page's frame is as tall as the page, which does not scroll.
+// A fitted page shows as tall as the page, which does not scroll.
 const expectFitted = async (page: Page, title: string) => {
-  const frame = page.locator(`iframe[title="${title}"]`);
+  const frame = page.locator(`iframe[title="${title}"]`).locator('xpath=..');
   const inner = page.frameLocator(`iframe[title="${title}"]`).frameLocator('iframe');
   const pageHeight = () =>
     inner
@@ -167,6 +176,32 @@ test('a website preview sized by its viewport stops at a browser window and scro
   await expectWindow(page, 'Exact viewport', { scrolls: false });
 });
 
+test('a website preview with sections of part of its viewport keeps its height', async ({
+  context,
+  page,
+}) => {
+  const room = await openPanelRoom(context, page);
+  // An 80vh hero and a footer: 720 + 100 + the 8px margins in a 900px desktop window.
+  await sendInlineCanvas(
+    room,
+    'Partial hero',
+    '<section style="min-height:80vh">Hero</section><footer style="height:100px">Footer</footer>',
+    { raw: true, width: 1440 }
+  );
+  // Half the window, with no margin: exactly half of it shows.
+  await sendInlineCanvas(
+    room,
+    'Half viewport',
+    '<style>body{margin:0}</style><div style="height:50vh">Half</div>',
+    { raw: true }
+  );
+  await expectWindow(page, 'Partial hero', { width: 1440, scrolls: false, fill: () => 836 });
+  await expectWindow(page, 'Half viewport', {
+    scrolls: false,
+    fill: (windowHeight) => Math.ceil(windowHeight / 2),
+  });
+});
+
 test('pages that grow by themselves are fitted: a preview below its window, a themed page past it', async ({
   context,
   page,
@@ -188,7 +223,8 @@ test('pages that grow by themselves are fitted: a preview below its window, a th
   await page.waitForTimeout(1_500);
   await expectFitted(page, 'Preview accordion');
   expect(
-    (await page.locator('iframe[title="Preview accordion"]').boundingBox())?.height
+    (await page.locator('iframe[title="Preview accordion"]').locator('xpath=..').boundingBox())
+      ?.height
   ).toBeLessThan(568);
   await expectFitted(page, 'Themed accordion');
 });
@@ -229,7 +265,8 @@ test('a raw page renders at its own width, shrunk to the column, with remote ass
     .toBe(1);
   // 600px of content plus the 8px margins, shown at the column's scale.
   const column = await frame.evaluate((element) => element.parentElement!.clientWidth);
-  const scale = Math.min(1, column / 1440);
+  expect(column).toBeLessThan(1440);
+  const scale = column / 1440;
   await expect
     .poll(async () => (await frame.locator('xpath=..').boundingBox())?.height ?? 0, {
       timeout: 20_000,

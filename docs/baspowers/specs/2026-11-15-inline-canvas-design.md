@@ -97,11 +97,12 @@ Raw pages get no `position:relative` on `body`, so the height is the larger of t
 A page whose height follows its viewport, such as a `100vh` hero with a header, grows at least as much as its frame does, so fitting the frame to it would grow it to the 20000px cap.
 Guessing that dependence from the timing of size reports failed three review rounds (pages growing twice as fast as their frame, pages growing by themselves in steps, an unrelated running animation, an exactly `100vh` page that never grows), so nothing guesses it.
 
-A website preview (`raw`, or with its own `width`) is shown like a browser window instead: its frame is never taller than 16:10 of its layout width (`width`, or the column without it), at least 568 page px (an iPhone SE screen) and at most 1080.
-The frame starts at that window, not at 160px, and its height is the smaller of the page's reported height and the window.
-Content shorter than the window fits it; taller content, and any page sized by its viewport, stops exactly at the window and scrolls inside it.
-No loop is possible, because the frame never grows past the window, and starting at the window lets an exactly `100vh` page land there at once.
-Without `width` the column is under about 900px, so such a preview gets at most 568px: a hero fills a screenful of the thread and no more.
+A website preview (`raw`, or with its own `width`) is laid out in a browser window instead: its frame, and so its viewport, is always 16:10 of its layout width (`width`, or the column without it), at least 568 page px (an iPhone SE screen) and at most 1080, whatever the page reports.
+Only the box around the frame follows the page: it shows the smaller of the page's reported height and the window, scaled with the page, and clips the rest.
+Content shorter than the window shows whole; taller content, and any page sized by its viewport, shows the full window and scrolls inside it.
+Because the viewport never depends on the content, there is no feedback at all: a `100vh` page fills the window, a `min-height:80vh` hero with a footer keeps its height, and a `50vh` page shows half the window.
+Without `width` the column is under about 900px, so such a preview gets a 568px window: a hero fills a screenful of the thread and no more.
+A raw page uses none of Chat's theme, so the inline frame builds it with a fixed color scheme and switching Chat's theme does not reload it.
 
 A themed inline page (neither `raw` nor `width`) fits its content as before, from 160px up to the 20000px cap and without scrolling; the tool guidance tells agents not to use `vh` units or `height:100%` on `html` or `body` there.
 The size script is unchanged: it reports the body's extent whenever it changes.

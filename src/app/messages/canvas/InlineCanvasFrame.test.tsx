@@ -23,9 +23,10 @@ vi.mock('./canvasDocument', async (original) => ({
     return windows.get(frame);
   },
 }));
+const appTheme = vi.hoisted(() => ({ kind: 'light' }));
 vi.mock('../../theme/useTheme', () => ({
   ThemeKind: { Dark: 'dark' },
-  useTheme: () => ({ kind: 'light', id: 'light' }),
+  useTheme: () => ({ kind: appTheme.kind, id: appTheme.kind }),
 }));
 
 let root: Root;
@@ -182,14 +183,14 @@ describe('InlineCanvasFrame', () => {
     expect(frame().style.transform).toBe('scale(0.5)');
     expect(frame().style.background).toContain('rgb(255, 255, 255)');
     post({ type: 'mindroom.canvas.size', version: 1, height: 800 });
-    expect(frame().style.height).toBe('800px');
+    expect(frame().style.height).toBe('900px');
     expect((frame().parentElement as HTMLElement).style.height).toBe('400px');
     // A raw page carries none of Chat's styles, and the deployment's remote assets are allowed.
     expect(frame().srcdoc).not.toContain('padding:8px');
     expect(frame().srcdoc).toContain('img-src data: blob: https:');
     vi.unstubAllGlobals();
   });
-  it('shows a website preview as a browser window: it starts there and never grows past it', () => {
+  it('lays a website preview out in a fixed browser window and shows as much of it as the page fills', () => {
     const observed: ResizeObserverCallback[] = [];
     vi.stubGlobal(
       'ResizeObserver',
@@ -208,26 +209,53 @@ describe('InlineCanvasFrame', () => {
         )
       );
     const size = (height: number) => post({ type: 'mindroom.canvas.size', version: 1, height });
-    // A raw page without a width: a window of 16:10 of the column, at least 568 pixels.
+    const box = () => (frame().parentElement as HTMLElement).style.height;
+    // A raw page without a width: a window of 16:10 of the column, at least 568 pixels. The frame,
+    // and so the page's viewport, keeps that height whatever the page reports, so 50vh stays 284.
     render(makeUiEvent({ action: 'show_canvas', inline: true, canvas: { ...canvas, raw: true } }));
-    expect(frame().style.height).toBe('568px');
-    // Shorter content fits; taller content, such as a 100vh hero, stops at the window and scrolls.
+    expect([frame().style.height, box()]).toEqual(['568px', '568px']);
     size(300);
-    expect(frame().style.height).toBe('300px');
+    expect([frame().style.height, box()]).toEqual(['568px', '300px']);
+    // Taller content, such as a 100vh hero, shows the whole window and scrolls inside it.
     size(5000);
-    expect(frame().style.height).toBe('568px');
+    expect([frame().style.height, box()]).toEqual(['568px', '568px']);
     column(1600);
-    expect(frame().style.height).toBe('1000px');
+    expect([frame().style.height, box()]).toEqual(['1000px', '1000px']);
     // A page with its own width takes the window of that width, shrunk with the page.
     const page = { title: 'Site', html: '<p>Site</p>', width: 1440 };
     render(makeUiEvent({ action: 'show_canvas', inline: true, canvas: page }));
     column(720);
-    expect(frame().style.height).toBe('900px');
-    expect((frame().parentElement as HTMLElement).style.height).toBe('450px');
+    expect([frame().style.height, box()]).toEqual(['900px', '450px']);
     size(20000);
-    expect(frame().style.height).toBe('900px');
-    size(600);
-    expect(frame().style.height).toBe('600px');
+    expect([frame().style.height, box()]).toEqual(['900px', '450px']);
+    size(836);
+    expect([frame().style.height, box()]).toEqual(['900px', '418px']);
+    vi.unstubAllGlobals();
+  });
+  it("keeps a raw page as it is when Chat's theme changes, and redraws a themed one", () => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      }
+    );
+    const raw = makeUiEvent({
+      action: 'show_canvas',
+      inline: true,
+      canvas: { ...canvas, raw: true },
+    });
+    const srcdocs = (request: ReturnType<typeof event>) =>
+      ['light', 'dark'].map((kind) => {
+        appTheme.kind = kind;
+        render(request);
+        return frame().srcdoc;
+      });
+    const [rawLight, rawDark] = srcdocs(raw);
+    expect(rawDark).toBe(rawLight);
+    const [themedLight, themedDark] = srcdocs(event());
+    expect(themedDark).not.toBe(themedLight);
+    appTheme.kind = 'light';
     vi.unstubAllGlobals();
   });
   it('fits a themed page to its content, past any window', () => {
