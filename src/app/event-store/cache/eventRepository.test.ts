@@ -5,6 +5,8 @@ import {
   collectLegacyStandaloneReplaceIds,
   collectStateTargetEvents,
   createPreferLiveEventMapper,
+  findEarliestLoadedRoomEventByCacheOrder,
+  getMainTimelineCacheEvents,
   loadThreadCachedPaginationSnapshot,
   loadThreadCachedSnapshot,
   loadRoomCachedBackStateSnapshot,
@@ -18,6 +20,7 @@ import {
   serializeThreadCacheEvents,
 } from './eventRepository';
 import type { CachedRoomEvent } from './db/cacheStoreNormalize';
+import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../../matrix/protocol/backgroundJobsContract';
 import {
   makeEvent as makeMockEvent,
   makeRoom as makeMockRoom,
@@ -65,6 +68,14 @@ const makeRawEdit = (
 });
 
 const mapRawEvent = (rawEvent: Partial<IEvent>): MatrixEvent => new MatrixEvent(rawEvent as IEvent);
+
+const makeJobsEvent = (eventId: string, ts: number) =>
+  makeEvent(eventId, {
+    ts,
+    type: MINDROOM_BACKGROUND_JOBS_EVENT,
+    stateKey: '@mindroom_code:example.org',
+    sender: '@mindroom_code:example.org',
+  });
 
 const makeSdkStyleMapper = (live: MatrixEvent) =>
   vi.fn((rawEvent: Partial<IEvent>): MatrixEvent => {
@@ -398,6 +409,17 @@ describe('eventRepository cache serialization helpers', () => {
         (event) => event.event_id
       )
     ).toEqual(['$root', '$room']);
+  });
+
+  it('leaves the agents jobs state out of the room cache and of the events matched with it', () => {
+    const jobsEvent = makeJobsEvent('$jobs', 100);
+    const roomEvent = makeEvent('$room', { ts: 200 });
+    const room = makeRoom({ liveEvents: [jobsEvent, roomEvent] });
+
+    expect(serializeRoomCacheEvents(room, [jobsEvent, roomEvent]).map((e) => e.event_id)).toEqual([
+      '$room',
+    ]);
+    expect(findEarliestLoadedRoomEventByCacheOrder([jobsEvent, roomEvent])?.getId()).toBe('$room');
   });
 
   it('serializes thread cache payloads with the root event first when provided', () => {
@@ -765,6 +787,30 @@ describe('eventRepository latest room cache hydration snapshots', () => {
     expect(snapshot.status).toBe('hydrate');
     expect(snapshot.events).toEqual([live]);
     expect(live.replacingEvent()?.getId()).toBe('$edit-v2');
+  });
+
+  it('adds no older cached events after the jobs state the room shows', async () => {
+    // Sync brought only the agents' jobs state, which the cache leaves out, and the cache holds
+    // older messages: adding them now would put them after it.
+    const room = makeRoom({ liveEvents: [makeJobsEvent('$jobs', 300)] });
+
+    const snapshot = await loadLatestRoomCacheHydrationSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      limit: 32,
+      loadedEvents: getMainTimelineCacheEvents(room, [room.getLiveTimeline()]),
+      mapEvent: mapRawEvent,
+      loadLatest: async () => ({
+        events: [
+          makeRawMessage('$older', 'older', { ts: 100 }),
+          makeRawMessage('$old', 'old', { ts: 200 }),
+        ],
+        hasMoreBefore: false,
+      }),
+    });
+
+    expect(snapshot.events).toEqual([]);
+    expect(snapshot.prependEvents).toEqual([]);
   });
 
   it('skips latest room cache hydration when the loaded timeline is already newer', async () => {

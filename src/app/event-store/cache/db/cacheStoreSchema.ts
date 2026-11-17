@@ -6,6 +6,7 @@ import type { CachedPaginationTokenMap } from '../eventCacheTokenUtils';
 // per-room references without replacing any v3 data. Schema v7 adds the
 // `embedded_events` lookup store and the summaries' `by_room_event` index,
 // which let a redaction find the rows it changes without reading the room.
+// Schema v8 deletes the agents' jobs state rows the room cache no longer keeps.
 //
 // per-domain caches (`roomEventCache`, `threadEventCache`,
 // `threadSummaryCache`) collapse into one IDB database with three data
@@ -15,7 +16,7 @@ import type { CachedPaginationTokenMap } from '../eventCacheTokenUtils';
 // `getCacheStoreDbName` in `cacheStoreDb.ts` via `getSessionScopedStorageKey`.
 
 export const MINDROOM_CACHE_DB_BASE_NAME = 'mindroom-cache';
-export const CACHE_STORE_DB_VERSION = 7;
+export const CACHE_STORE_DB_VERSION = 8;
 export const EVENTS_BY_ROOM_EVENT_INDEX = 'by_room_event';
 
 export const ATTACHMENTS_BY_ACCESS_BYTES_INDEX = 'by_access_bytes';

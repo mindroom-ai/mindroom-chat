@@ -1,3 +1,4 @@
+import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../../../matrix/protocol/backgroundJobsContract';
 import { getSessionScopedStorageKey } from '../../../matrix/session/sessions';
 import {
   ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX,
@@ -18,6 +19,8 @@ import {
   THREAD_SUMMARIES_BY_ROOM_EVENT_INDEX,
   THREAD_SUMMARIES_BY_ROOM_INDEX,
   THREAD_SUMMARIES_STORE,
+  type CachedEventRecord,
+  type CachedRoomLedgerRecord,
 } from './cacheStoreSchema';
 import { performLegacyDbWipe } from './cacheStoreLegacyWipe';
 import {
@@ -69,6 +72,46 @@ const deleteIndexedDb = async (dbName: string): Promise<void> => {
     request.onerror = () => reject(request.error);
     request.onblocked = () => reject(new CacheStoreBlockedError('delete', dbName));
   });
+};
+
+/**
+ * Deletes the agents' jobs state earlier versions saved, which the room cache no longer keeps
+ * (`serializeRoomCacheEvents`), and takes its rows out of their rooms' ledgers. Agents rewrite it
+ * on every job change, so runs of it could fill whole cached pages. An index made for this finds
+ * the rows and goes again once they are gone.
+ */
+const deleteJobsStateRows = (transaction: IDBTransaction): void => {
+  const events = transaction.objectStore(EVENTS_STORE);
+  const ledger = transaction.objectStore(ROOM_LEDGER_STORE);
+  const byType = 'v8_jobs_state_by_type';
+  const removed = new Map<string, { bytes: number; count: number }>();
+  const cursor = events
+    .createIndex(byType, 'rawEvent.type')
+    .openCursor(IDBKeyRange.only(MINDROOM_BACKGROUND_JOBS_EVENT));
+  cursor.onsuccess = () => {
+    const row = cursor.result;
+    if (row) {
+      const { roomId, approxBytes } = row.value as CachedEventRecord;
+      const room = removed.get(roomId) ?? { bytes: 0, count: 0 };
+      removed.set(roomId, { bytes: room.bytes + (approxBytes || 0), count: room.count + 1 });
+      row.delete();
+      row.continue();
+      return;
+    }
+    events.deleteIndex(byType);
+    removed.forEach(({ bytes, count }, roomId) => {
+      const read = ledger.get(roomId);
+      read.onsuccess = () => {
+        const record = read.result as CachedRoomLedgerRecord | undefined;
+        if (!record) return;
+        ledger.put({
+          ...record,
+          approxBytes: Math.max(0, record.approxBytes - bytes),
+          eventCount: Math.max(0, record.eventCount - count),
+        });
+      };
+    });
+  };
 };
 
 const applyUpgrade = (db: IDBDatabase, transaction: IDBTransaction, oldVersion: number): void => {
@@ -130,6 +173,7 @@ const applyUpgrade = (db: IDBDatabase, transaction: IDBTransaction, oldVersion: 
     // Over fields the rows already have, so the browser fills it from them.
     summaries.createIndex(THREAD_SUMMARIES_BY_ROOM_EVENT_INDEX, ['roomId', 'eventId']);
   }
+  if (oldVersion > 0 && oldVersion < 8) deleteJobsStateRows(transaction);
 };
 
 // D8 legacy-wipe step: after a unified-cache open we delete the three legacy

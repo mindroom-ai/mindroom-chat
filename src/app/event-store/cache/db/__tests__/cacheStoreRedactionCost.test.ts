@@ -389,7 +389,7 @@ describe('a cache an earlier schema wrote (v6)', () => {
   it('opens with every row readable', async () => {
     const db = await openCacheStore(SESSION_ID);
 
-    expect(db?.version).toBe(7);
+    expect(db?.version).toBe(8);
     const target = await loadCachedRoomEvent(SESSION_ID, ROOM_ID, '$old-target');
     expect((bundledEditOf(target) as Raw).event_id).toBe('$old-edit');
     expect((await rootCopyOf('$old-root'))?.event_id).toBe('$old-root');
@@ -464,7 +464,7 @@ describe('a cache an earlier schema wrote (v6)', () => {
     });
     oldTab.onversionchange = () => oldTab.close();
 
-    expect((await openCacheStore(SESSION_ID))?.version).toBe(7);
+    expect((await openCacheStore(SESSION_ID))?.version).toBe(8);
     expect(await redact('$old-edit')).toBeGreaterThan(BYSTANDERS);
   });
 
@@ -479,7 +479,7 @@ describe('a cache an earlier schema wrote (v6)', () => {
     expect(oldTab.version).toBe(6);
 
     oldTab.close();
-    expect((await openCacheStore(SESSION_ID))?.version).toBe(7);
+    expect((await openCacheStore(SESSION_ID))?.version).toBe(8);
     const target = await loadCachedRoomEvent(SESSION_ID, ROOM_ID, '$old-target');
     expect((bundledEditOf(target) as Raw).event_id).toBe('$old-edit');
   });
