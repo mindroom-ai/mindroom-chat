@@ -134,7 +134,8 @@ export const Time = as<'time', TimeProps>(
         }}
         onClick={(evt: MouseEvent<HTMLTimeElement>) => {
           onClick?.(evt);
-          if (!compact) setOpen((shown) => !shown);
+          // A handler that took the click, such as one opening the reply details, keeps it folded.
+          if (!compact && !evt.defaultPrevented) setOpen((shown) => !shown);
         }}
         ref={ref}
       >

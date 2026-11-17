@@ -74,6 +74,7 @@ import {
   DownloadOriginalMenuItem,
   useMessageControls,
 } from './MessageControls';
+import { AiRunDetailsTarget as aiRunDetailsTarget } from './MessageControls.css';
 import {
   getMessageCopyTexts,
   getMessageCopyTextSource,
@@ -853,7 +854,12 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
               <UsernameBold>{senderDisplayName}</UsernameBold>
             </Text>
           </Username>
-          <Box shrink="No" alignItems="Center" gap="100">
+          <Box
+            className={controls ? aiRunDetailsTarget : undefined}
+            shrink="No"
+            alignItems="Center"
+            gap="100"
+          >
             {controls && <AiRunInfoButton open={controls.open} onOpen={openAiRun} />}
             <Time
               ts={mEvent.getTs()}
@@ -861,6 +867,16 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
               timing={replyTiming}
               hour24Clock={hour24Clock}
               dateFormatString={dateFormatString}
+              // With a hovering pointer the time, whose unfolding moves the small button, opens
+              // the details too. A tap keeps unfolding it.
+              onClick={
+                controls &&
+                ((evt: MouseEvent<HTMLTimeElement>) => {
+                  if (!canHover()) return;
+                  evt.preventDefault();
+                  openAiRun();
+                })
+              }
             />
           </Box>
         </Box>
