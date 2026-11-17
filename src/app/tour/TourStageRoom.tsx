@@ -59,7 +59,7 @@ import { useFlipList } from './useFlipList';
 
 type RoomProps = {
   scene: TourScene;
-  /** Draws a phone's room: a back chevron, a room menu, no buttons on pointing at a card. */
+  /** Draws a phone's room: its name and a room menu, no buttons on pointing at a card. */
   phone: boolean;
   /**
    * Whether this is the view the tour is on. A view that is fading out under the next one is
@@ -148,16 +148,7 @@ function RoomHeader({ scene, phone, live }: Omit<RoomProps, 'now'>) {
   if (phone) {
     // A phone keeps the view switch and the filter button in the room menu.
     return (
-      <div className={classNames(css.Header, css.PhoneHeader)} data-tour-header="">
-        <IconButton
-          size="400"
-          radii="300"
-          variant="Surface"
-          fill="None"
-          aria-label={t('mindroomUi.threads.mindroomRoomViewHeader.back')}
-        >
-          <Icon src={Icons.ChevronLeft} className={css.BackChevron} data-directional />
-        </IconButton>
+      <div className={css.Header} data-tour-header="">
         {name}
         {menuButton}
       </div>
