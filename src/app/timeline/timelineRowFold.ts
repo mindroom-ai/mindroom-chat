@@ -1,6 +1,9 @@
 import { RelationType, type MatrixEvent } from 'matrix-js-sdk';
 import { reactionOrEditEvent } from '../matrix/room';
 import { inSameDay, minuteDifference } from '../lib/time';
+import { readSkillReviewNotice } from '../matrix/protocol/skillReview';
+import { isThreadSummaryEvent } from '../matrix/protocol/threadSummary';
+import { readSnoozeEndedNote } from '../matrix/protocol/threadSnooze';
 import { shouldRenderUnreadDividerAt } from '../event-store/timeline/timelineScrollUtils';
 import {
   NOTICE_STATE_EVENT_TYPES,
@@ -61,6 +64,19 @@ export const genuineReplyEventId = (event: MatrixEvent): string | undefined => {
   return replyEventId;
 };
 
+/**
+ * A quiet marker row (a thread's title, a skill review, a snooze that ended) is no message between
+ * a message and a reply to it: a reply quote looks past it, as it does past an event without a row.
+ */
+const isQuietMarker = (event: MatrixEvent): boolean => {
+  const content = event.getContent();
+  return (
+    isThreadSummaryEvent(event) ||
+    readSkillReviewNotice(content) !== null ||
+    readSnoozeEndedNote(content) !== null
+  );
+};
+
 /** Whether `event` continues the group of the row above it: same sender, kind, day, and soon after. */
 const continuesGroup = (above: MatrixEvent, event: MatrixEvent): boolean =>
   inSameDay(above.getTs(), event.getTs()) &&
@@ -114,7 +130,7 @@ const primeReplyRun = (
   let targetId: string | undefined;
   for (let above = index - 1; above >= 0; above -= 1) {
     const event = getEvent(above);
-    if (showsRow(event, isSkipped)) {
+    if (showsRow(event, isSkipped) && !isQuietMarker(event)) {
       if (rowId === undefined) {
         rowId = event.getId();
         targetId = genuineReplyEventId(event);
@@ -149,7 +165,7 @@ type FoldOptions = {
  * whether or not the rows above it are mounted. An event without a row (an edit,
  * a reaction, or an event of a type the timeline draws nothing for) counts as the row above (it
  * ends a group) but renders nothing, so a day change or the read marker at it shows above the
- * next row with output instead, and a reply quote looks past it.
+ * next row with output instead, and a reply quote looks past it, as past a quiet marker row.
  */
 export const foldTimelineRowContexts = ({
   indexes,
@@ -202,7 +218,7 @@ export const foldTimelineRowContexts = ({
       if (hasRow) {
         dayChanged = false;
         lastRowAbsoluteIndex = absoluteIndex;
-        replyRun = continueReplyRun(replyRun, event);
+        if (!isQuietMarker(event)) replyRun = continueReplyRun(replyRun, event);
       }
       above = event;
       aboveHasRow = hasRow;

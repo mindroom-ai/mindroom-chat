@@ -16,9 +16,21 @@ type Row = {
   fallback?: boolean;
   /** The event it edits; an edit has no row of its own. */
   edits?: string;
+  /** Content beyond the relation, such as a quiet marker's metadata. */
+  content?: Record<string, unknown>;
 };
 
-const toEvent = ({ id, sender, type, minute, stateKey, replyTo, fallback, edits }: Row) => {
+const toEvent = ({
+  id,
+  sender,
+  type,
+  minute,
+  stateKey,
+  replyTo,
+  fallback,
+  edits,
+  content,
+}: Row) => {
   const relation = edits
     ? { rel_type: 'm.replace', event_id: edits }
     : replyTo && {
@@ -35,6 +47,7 @@ const toEvent = ({ id, sender, type, minute, stateKey, replyTo, fallback, edits 
     getStateKey: () => stateKey,
     getRelation: () => relation || null,
     getWireContent: () => (relation ? { 'm.relates_to': relation } : {}),
+    getContent: () => ({ ...content, ...(relation && { 'm.relates_to': relation }) }),
     replyEventId: edits ? undefined : replyTo,
     isRedaction: () => false,
   } as unknown as MatrixEvent;
@@ -265,6 +278,37 @@ describe('foldTimelineRowContexts', () => {
           message('$answer', '@mindroom_helper:x', 1, { replyTo: '$ask' }),
         ])
       ).toEqual([]);
+    });
+
+    it('leave out the message right above when only quiet marker rows sit between', () => {
+      // An agent's question, its thread title and skill review notices, then its answer to the
+      // option the reader picked by reaction.
+      const notice = { msgtype: 'm.notice' };
+      const rows = [
+        message('$question', '@mindroom_helper:x', 0),
+        message('$title', '@mindroom_helper:x', 1, {
+          replyTo: '$question',
+          fallback: true,
+          content: { ...notice, 'io.mindroom.thread_summary': { version: 1, summary: 'Title' } },
+        }),
+        message('$review', '@mindroom_helper:x', 1, {
+          replyTo: '$title',
+          fallback: true,
+          content: {
+            ...notice,
+            'io.mindroom.skill_review': { changes: { skill_name: 'updated' } },
+          },
+        }),
+        message('$snooze', '@mindroom_helper:x', 2, {
+          replyTo: '$review',
+          fallback: true,
+          content: { ...notice, 'io.mindroom.thread_snooze': { event: 'ended' } },
+        }),
+        message('$answer', '@mindroom_helper:x', 3, { replyTo: '$question' }),
+      ];
+      expect(quoting(rows)).toEqual([]);
+      expect(quoting(rows, [4])).toEqual([]);
+      expect(quoting(rows, [2, 3, 4])).toEqual([]);
     });
 
     it('show an older message when another message sits between it and the reply', () => {
