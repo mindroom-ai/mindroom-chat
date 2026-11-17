@@ -27,7 +27,9 @@ import { roomMoreOptions } from '../helpers/roomMenu';
 // snooze it (Later, saying until when); a snooze whose time passes wakes its thread (Open); a
 // schedule puts its thread in Later with its next run, until it runs or is cancelled; choosing a
 // card opens its thread filling the room's page, and the board stays live beside it; and in the
-// room's Threads and Classic views the board shows the same threads and moves them too.
+// room's Threads and Classic views the board shows the same threads and moves them too. The
+// plugin is told of each thread the board opens, by a click, Enter or the card menu's Open thread,
+// also of the one the room shows, and of nothing else.
 //   MINDROOM_CLIENT_PLUGINS=$PWD/src/app/plugins/__fixtures__/example-plugin \
 //     scripts/e2e-slot.sh <slot> --preview npx playwright test e2e/plugins/agent-thread-board.spec.ts
 test.skip(
@@ -245,4 +247,63 @@ test("a plugin's board keeps each thread in the column of its state, without a r
     await expect(cardIn(panel, 'done', rootId)).toBeVisible({ timeout: 30_000 });
     await shot(page, viewMode);
   }
+});
+
+test('a plugin is told of each thread its board opens, and of nothing else', async ({
+  page,
+  stack,
+}) => {
+  const word = uniqueWord('told');
+  const firstRoot = await startThread(stack, `${word} first`);
+  const secondRoot = await startThread(stack, `${word} second`);
+  await Promise.all([helperReply(stack, firstRoot), helperReply(stack, secondRoot)]);
+
+  await openLobby(page, stack);
+  const panel = await openBoard(page);
+  const told = panel.locator('output[data-example-board-opened]');
+  const expectTold = async (rootId: string, count: number) => {
+    await expect(told).toHaveText(`Opened ${rootId} (${count})`);
+    await expect(page).toHaveURL(new RegExp(`threadId=${encodeURIComponent(rootId)}`), {
+      timeout: 30_000,
+    });
+  };
+  const first = cardIn(panel, 'open', firstRoot);
+  const second = cardIn(panel, 'open', secondRoot);
+  await expect(first).toBeVisible({ timeout: 60_000 });
+  await expect(second).toBeVisible({ timeout: 60_000 });
+
+  // A thread the room's own cards open is not the board's.
+  await pageCards(page).locator(`[data-thread-root-id="${firstRoot}"]`).click();
+  await expect(page).toHaveURL(new RegExp(`threadId=${encodeURIComponent(firstRoot)}`));
+  await expect(told).toHaveText('Opened no thread');
+
+  // A click on the card of the thread the room already shows, then on another's.
+  await first.click();
+  await expectTold(firstRoot, 1);
+  await second.click();
+  await expectTold(secondRoot, 2);
+
+  // The card menu's Open thread, for the thread shown and for another, by mouse and by keys.
+  await second.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Open thread', exact: true }).click();
+  await expectTold(secondRoot, 3);
+  await first.focus();
+  await page.keyboard.press('Shift+F10');
+  await page.getByRole('menuitem', { name: 'Open thread', exact: true }).press('Enter');
+  await expectTold(firstRoot, 4);
+
+  // Enter on a focused card.
+  await second.focus();
+  await page.keyboard.press('Enter');
+  await expectTold(secondRoot, 5);
+
+  // Resolving a card opens nothing.
+  const row = panel.locator(
+    `[data-thread-board-column="open"] [data-scroll-anchor="${firstRoot}"]`
+  );
+  await row.hover();
+  await row.locator('[data-compact-thread-resolve]').click();
+  await expect(cardIn(panel, 'done', firstRoot)).toBeVisible({ timeout: 30_000 });
+  await expect(told).toHaveText(`Opened ${secondRoot} (5)`);
+  await shot(page, 'told');
 });
