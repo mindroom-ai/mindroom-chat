@@ -7,7 +7,6 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import { MAIN_ROOM_TIMELINE, ReceiptType } from 'matrix-js-sdk/lib/@types/read_receipts';
-import { getReleasedEdit } from 'matrix-js-sdk/lib/models/relations';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { isRecord } from '../lib/isRecord';
 
@@ -109,9 +108,8 @@ const namedEventsOf = (room: Room): NamedEvents | undefined => {
 
 /**
  * How far a receipt in `context` (the room's main timeline, or a thread) reads: up to the event it
- * names. A receipt on an edit the relations released reads up to when the edit was sent
- * (`getReleasedEdit`); one on another event the client does not hold (often a reply's terminal
- * edit, which no timeline keeps) reads up to when the server took it, `takenTs`.
+ * names. A receipt on an event the client does not hold (often a reply's terminal edit, which no
+ * timeline keeps) reads up to when the server took it, `takenTs`.
  */
 export const receiptReadTs = (
   room: Room,
@@ -119,13 +117,14 @@ export const receiptReadTs = (
   eventId: string | undefined,
   takenTs: number
 ): number => {
-  if (!eventId) return takenTs;
   // Before the answer, so the room counts what happens to a named event from the first lookup.
-  namedEventsOf(room)?.asked.add(eventId);
+  if (eventId) namedEventsOf(room)?.asked.add(eventId);
   // Optional calls here and below: room and thread stand-ins in tests often lack receipts, events
   // or, for a thread, its room.
-  const named = context.findEventById?.(eventId) ?? room.findEventById?.(eventId);
-  return named?.getTs() ?? getReleasedEdit(room, eventId)?.ts ?? takenTs;
+  const named = eventId
+    ? context.findEventById?.(eventId) ?? room.findEventById?.(eventId)
+    : undefined;
+  return named?.getTs() ?? takenTs;
 };
 
 const maxOf = (...values: Array<number | undefined>): number | undefined => {

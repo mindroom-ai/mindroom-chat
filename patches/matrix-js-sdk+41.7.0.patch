@@ -4666,10 +4666,10 @@ index 19a2f43..9a64b56 100644
  
      /**
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations.js b/node_modules/matrix-js-sdk/lib/models/relations.js
-index 6be66bb..1dcce42 100644
+index 6be66bb..a3e2781 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations.js
 +++ b/node_modules/matrix-js-sdk/lib/models/relations.js
-@@ -27,6 +27,33 @@ export var RelationsEvent = /*#__PURE__*/function (RelationsEvent) {
+@@ -27,6 +27,21 @@ export var RelationsEvent = /*#__PURE__*/function (RelationsEvent) {
    RelationsEvent["Redaction"] = "Relations.redaction";
    return RelationsEvent;
  }({});
@@ -4688,22 +4688,10 @@ index 6be66bb..1dcce42 100644
 +var releasedEdits = new WeakSet();
 +/** @internal */
 +export var isReleasedEdit = event => releasedEdits.has(event);
-+
-+/**
-+ * MindRoom: what a receipt on a released edit still needs of it, as no timeline holds it: when it
-+ * was sent, the event it replaced and that event's thread. A receipt often names an edit, a streamed
-+ * reply's newest one when the reader read it. Some strings and a number, never the event.
-+ */
-+var releasedEditsOfRooms = new WeakMap();
-+/** MindRoom: what is known of `eventId` of `room` as a released edit, while no relations hold it again. */
-+export var getReleasedEdit = (room, eventId) => {
-+  var _releasedEditsOfRooms;
-+  return room ? (_releasedEditsOfRooms = releasedEditsOfRooms.get(room)) === null || _releasedEditsOfRooms === void 0 ? void 0 : _releasedEditsOfRooms.get(eventId) : undefined;
-+};
  var matchesEventType = function matchesEventType(eventType, targetEventType) {
    var altTargetEventTypes = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : [];
    return [targetEventType, ...altTargetEventTypes].includes(eventType);
-@@ -62,6 +89,7 @@ export class Relations extends TypedEventEmitter {
+@@ -62,6 +77,7 @@ export class Relations extends TypedEventEmitter {
      _defineProperty(this, "targetEvent", null);
      _defineProperty(this, "creationEmitted", false);
      _defineProperty(this, "replacementUpdateId", 0);
@@ -4711,7 +4699,7 @@ index 6be66bb..1dcce42 100644
      _defineProperty(this, "client", void 0);
      /**
       * Listens for event status changes to remove cancelled events.
-@@ -73,6 +101,8 @@ export class Relations extends TypedEventEmitter {
+@@ -73,6 +89,8 @@ export class Relations extends TypedEventEmitter {
        if (!event.isSending()) {
          // Sending is done, so we don't need to listen anymore
          event.removeListener(MatrixEventEvent.Status, this.onEventStatus);
@@ -4720,7 +4708,7 @@ index 6be66bb..1dcce42 100644
          return;
        }
        if (status !== EventStatus.CANCELLED) {
-@@ -102,6 +132,10 @@ export class Relations extends TypedEventEmitter {
+@@ -102,6 +120,10 @@ export class Relations extends TypedEventEmitter {
            // Remove the redacted annotation from aggregation by key
            _this.removeAnnotationFromAggregation(redactedEvent);
          } else if (_this.relationType === RelationType.Replace) {
@@ -4731,7 +4719,7 @@ index 6be66bb..1dcce42 100644
            yield _this.updateTargetEventReplacement();
          }
          redactedEvent.removeListener(MatrixEventEvent.BeforeRedaction, _this.onBeforeRedaction);
-@@ -111,6 +145,12 @@ export class Relations extends TypedEventEmitter {
+@@ -111,6 +133,12 @@ export class Relations extends TypedEventEmitter {
          return _ref.apply(this, arguments);
        };
      }());
@@ -4744,7 +4732,7 @@ index 6be66bb..1dcce42 100644
      this.client = client instanceof Room ? client.client : client;
    }
  
-@@ -147,7 +187,23 @@ export class Relations extends TypedEventEmitter {
+@@ -147,7 +175,18 @@ export class Relations extends TypedEventEmitter {
        if (_this2.relationType === RelationType.Annotation) {
          _this2.addAnnotationToAggregation(event);
        } else if (_this2.relationType === RelationType.Replace) {
@@ -4754,11 +4742,6 @@ index 6be66bb..1dcce42 100644
 +        if (addedId !== undefined && addedId !== event.getId()) _this2.relationEventIds.delete(addedId);
 +        _this2.addedIds.set(event, event.getId());
 +        releasedEdits.delete(event);
-+        var room = _this2.client.getRoom(event.getRoomId());
-+        if (room) {
-+          var _releasedEditsOfRooms2;
-+          (_releasedEditsOfRooms2 = releasedEditsOfRooms.get(room)) === null || _releasedEditsOfRooms2 === void 0 || _releasedEditsOfRooms2.delete(event.getId());
-+        }
 +        if (event.isDecryptionFailure()) event.on(MatrixEventEvent.Decrypted, _this2.onEditDecrypted);
 +        _this2.releaseEdits(event.getSender());
 +        if (!_this2.relations.has(event)) return;
@@ -4768,7 +4751,7 @@ index 6be66bb..1dcce42 100644
        }
        event.on(MatrixEventEvent.BeforeRedaction, _this2.onBeforeRedaction);
        _this2.emit(RelationsEvent.Add, event);
-@@ -170,6 +226,10 @@ export class Relations extends TypedEventEmitter {
+@@ -170,6 +209,10 @@ export class Relations extends TypedEventEmitter {
        if (_this3.relationType === RelationType.Annotation) {
          _this3.removeAnnotationFromAggregation(event);
        } else if (_this3.relationType === RelationType.Replace) {
@@ -4779,7 +4762,7 @@ index 6be66bb..1dcce42 100644
          yield _this3.updateTargetEventReplacement();
        }
        _this3.emit(RelationsEvent.Remove, event);
-@@ -357,9 +417,80 @@ export class Relations extends TypedEventEmitter {
+@@ -357,9 +400,68 @@ export class Relations extends TypedEventEmitter {
        if (!lastReplacement && !targetEvent.replacingEvent()) {
          return;
        }
@@ -4837,34 +4820,22 @@ index 6be66bb..1dcce42 100644
 +   * released edit of a thread's reply leaves the thread's timeline too, and one released before the
 +   * timeline takes it (an older edit a page brings) stays out of it. The timeline may hold another
 +   * instance of the edit than the relations, one that knows its thread when this one does not. The
-+   * room's own timelines keep their edits: the app reads receipts on them. A receipt on a released
-+   * edit reads from what the room keeps of it (`getReleasedEdit`).
++   * room's own timelines keep their edits: the app reads receipts on them.
 +   */
 +  releaseFromTimelines(edit) {
-+    var _edit$getThread, _thread$id;
-+    var room = this.client.getRoom(edit.getRoomId());
-+    var thread = (_edit$getThread = edit.getThread()) !== null && _edit$getThread !== void 0 ? _edit$getThread : room === null || room === void 0 ? void 0 : room.findThreadForEvent(edit);
++    var _edit$getThread, _this$client$getRoom;
 +    releasedEdits.add(edit);
-+    if (room) {
-+      var released = releasedEditsOfRooms.get(room);
-+      if (!released) releasedEditsOfRooms.set(room, released = new Map());
-+      var threadId = (_thread$id = thread === null || thread === void 0 ? void 0 : thread.id) !== null && _thread$id !== void 0 ? _thread$id : edit.threadRootId;
-+      released.set(edit.getId(), {
-+        ts: edit.getTs(),
-+        targetId: edit.relationEventId,
-+        threadId
-+      });
-+    }
++    var thread = (_edit$getThread = edit.getThread()) !== null && _edit$getThread !== void 0 ? _edit$getThread : (_this$client$getRoom = this.client.getRoom(edit.getRoomId())) === null || _this$client$getRoom === void 0 ? void 0 : _this$client$getRoom.findThreadForEvent(edit);
 +    thread === null || thread === void 0 || thread.timelineSet.releaseEvent(edit.getId());
 +  }
    maybeEmitCreated() {
      if (this.creationEmitted) {
        return;
 diff --git a/node_modules/matrix-js-sdk/src/models/relations.ts b/node_modules/matrix-js-sdk/src/models/relations.ts
-index 77ba3b3..b27cc37 100644
+index 77ba3b3..84bf6e1 100644
 --- a/node_modules/matrix-js-sdk/src/models/relations.ts
 +++ b/node_modules/matrix-js-sdk/src/models/relations.ts
-@@ -34,6 +34,38 @@ export type EventHandlerMap = {
+@@ -34,6 +34,23 @@ export type EventHandlerMap = {
      [RelationsEvent.Redaction]: (event: MatrixEvent) => void;
  };
  
@@ -4885,25 +4856,10 @@ index 77ba3b3..b27cc37 100644
 +/** @internal */
 +export const isReleasedEdit = (event: MatrixEvent): boolean => releasedEdits.has(event);
 +
-+/**
-+ * MindRoom: what a receipt on a released edit still needs of it, as no timeline holds it: when it
-+ * was sent, the event it replaced and that event's thread. A receipt often names an edit, a streamed
-+ * reply's newest one when the reader read it. Some strings and a number, never the event.
-+ */
-+export interface ReleasedEdit {
-+    ts: number;
-+    targetId: string;
-+    threadId?: string;
-+}
-+const releasedEditsOfRooms = new WeakMap<Room, Map<string, ReleasedEdit>>();
-+/** MindRoom: what is known of `eventId` of `room` as a released edit, while no relations hold it again. */
-+export const getReleasedEdit = (room: Room | null | undefined, eventId: string): ReleasedEdit | undefined =>
-+    room ? releasedEditsOfRooms.get(room)?.get(eventId) : undefined;
-+
  const matchesEventType = (eventType: string, targetEventType: string, altTargetEventTypes: string[] = []): boolean =>
      [targetEventType, ...altTargetEventTypes].includes(eventType);
  
-@@ -54,6 +86,7 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -54,6 +71,7 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
      private targetEvent: MatrixEvent | null = null;
      private creationEmitted = false;
      private replacementUpdateId = 0;
@@ -4911,7 +4867,7 @@ index 77ba3b3..b27cc37 100644
      private readonly client: MatrixClient;
  
      /**
-@@ -108,7 +141,20 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -108,7 +126,18 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
          if (this.relationType === RelationType.Annotation) {
              this.addAnnotationToAggregation(event);
          } else if (this.relationType === RelationType.Replace) {
@@ -4921,8 +4877,6 @@ index 77ba3b3..b27cc37 100644
 +            if (addedId !== undefined && addedId !== event.getId()) this.relationEventIds.delete(addedId);
 +            this.addedIds.set(event, event.getId()!);
 +            releasedEdits.delete(event);
-+            const room = this.client.getRoom(event.getRoomId());
-+            if (room) releasedEditsOfRooms.get(room)?.delete(event.getId()!);
 +            if (event.isDecryptionFailure()) event.on(MatrixEventEvent.Decrypted, this.onEditDecrypted);
 +            this.releaseEdits(event.getSender());
 +            if (!this.relations.has(event)) return;
@@ -4932,7 +4886,7 @@ index 77ba3b3..b27cc37 100644
          }
  
          event.on(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
-@@ -133,6 +179,10 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -133,6 +162,10 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
          if (this.relationType === RelationType.Annotation) {
              this.removeAnnotationFromAggregation(event);
          } else if (this.relationType === RelationType.Replace) {
@@ -4943,7 +4897,7 @@ index 77ba3b3..b27cc37 100644
              await this.updateTargetEventReplacement();
          }
  
-@@ -149,6 +199,8 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -149,6 +182,8 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
          if (!event.isSending()) {
              // Sending is done, so we don't need to listen anymore
              event.removeListener(MatrixEventEvent.Status, this.onEventStatus);
@@ -4952,7 +4906,7 @@ index 77ba3b3..b27cc37 100644
              return;
          }
          if (status !== EventStatus.CANCELLED) {
-@@ -243,6 +295,10 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -243,6 +278,10 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
              // Remove the redacted annotation from aggregation by key
              this.removeAnnotationFromAggregation(redactedEvent);
          } else if (this.relationType === RelationType.Replace) {
@@ -4963,7 +4917,7 @@ index 77ba3b3..b27cc37 100644
              await this.updateTargetEventReplacement();
          }
  
-@@ -355,7 +411,8 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -355,7 +394,8 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
       * while edits are still being decrypted). A monotonic update counter guards
       * against older async resolutions overriding newer replacement selections.
       */
@@ -4973,7 +4927,7 @@ index 77ba3b3..b27cc37 100644
          if (!this.targetEvent || this.targetEvent.isState()) {
              return;
          }
-@@ -374,9 +431,79 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -374,9 +414,71 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
              return;
          }
  
@@ -5027,19 +4981,11 @@ index 77ba3b3..b27cc37 100644
 +     * released edit of a thread's reply leaves the thread's timeline too, and one released before the
 +     * timeline takes it (an older edit a page brings) stays out of it. The timeline may hold another
 +     * instance of the edit than the relations, one that knows its thread when this one does not. The
-+     * room's own timelines keep their edits: the app reads receipts on them. A receipt on a released
-+     * edit reads from what the room keeps of it (`getReleasedEdit`).
++     * room's own timelines keep their edits: the app reads receipts on them.
 +     */
 +    private releaseFromTimelines(edit: MatrixEvent): void {
-+        const room = this.client.getRoom(edit.getRoomId());
-+        const thread = edit.getThread() ?? room?.findThreadForEvent(edit);
 +        releasedEdits.add(edit);
-+        if (room) {
-+            let released = releasedEditsOfRooms.get(room);
-+            if (!released) releasedEditsOfRooms.set(room, (released = new Map()));
-+            const threadId = thread?.id ?? edit.threadRootId;
-+            released.set(edit.getId()!, { ts: edit.getTs(), targetId: edit.relationEventId!, threadId });
-+        }
++        const thread = edit.getThread() ?? this.client.getRoom(edit.getRoomId())?.findThreadForEvent(edit);
 +        thread?.timelineSet.releaseEvent(edit.getId()!);
 +    }
 +
@@ -5054,10 +5000,10 @@ index 77ba3b3..b27cc37 100644
          if (this.creationEmitted) {
              return;
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations.d.ts b/node_modules/matrix-js-sdk/lib/models/relations.d.ts
-index 933f698..926186d 100644
+index 933f698..16318f4 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/models/relations.d.ts
-@@ -8,6 +8,28 @@ export declare enum RelationsEvent {
+@@ -8,6 +8,16 @@ export declare enum RelationsEvent {
      Remove = "Relations.remove",
      Redaction = "Relations.redaction"
  }
@@ -5071,22 +5017,10 @@ index 933f698..926186d 100644
 +export declare const setReplacementRetentionPolicy: (policy: ReplacementRetentionPolicy | undefined) => void;
 +/** @internal */
 +export declare const isReleasedEdit: (event: MatrixEvent) => boolean;
-+/**
-+ * MindRoom: what a receipt on a released edit still needs of it, as no timeline holds it: when it
-+ * was sent, the event it replaced and that event's thread. A receipt often names an edit, a streamed
-+ * reply's newest one when the reader read it. Some strings and a number, never the event.
-+ */
-+export interface ReleasedEdit {
-+    ts: number;
-+    targetId: string;
-+    threadId?: string;
-+}
-+/** MindRoom: what is known of `eventId` of `room` as a released edit, while no relations hold it again. */
-+export declare const getReleasedEdit: (room: Room | null | undefined, eventId: string) => ReleasedEdit | undefined;
  export type EventHandlerMap = {
      [RelationsEvent.Add]: (event: MatrixEvent) => void;
      [RelationsEvent.Remove]: (event: MatrixEvent) => void;
-@@ -33,6 +55,7 @@ export declare class Relations extends TypedEventEmitter<RelationsEvent, EventHa
+@@ -33,6 +43,7 @@ export declare class Relations extends TypedEventEmitter<RelationsEvent, EventHa
      private targetEvent;
      private creationEmitted;
      private replacementUpdateId;
@@ -5094,7 +5028,7 @@ index 933f698..926186d 100644
      private readonly client;
      /**
       * @param relationType - The type of relation involved, such as "m.annotation", "m.reference", "m.replace", etc.
-@@ -118,6 +141,9 @@ export declare class Relations extends TypedEventEmitter<RelationsEvent, EventHa
+@@ -118,6 +129,9 @@ export declare class Relations extends TypedEventEmitter<RelationsEvent, EventHa
       * against older async resolutions overriding newer replacement selections.
       */
      private updateTargetEventReplacement;

@@ -1,7 +1,6 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { ReceiptType } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { ReadReceipt } from 'matrix-js-sdk/lib/models/read-receipt';
-import { getReleasedEdit } from 'matrix-js-sdk/lib/models/relations';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { unthreadedReceiptReadTs } from '../../matrix/receiptReadTs';
 
@@ -9,9 +8,7 @@ import { unthreadedReceiptReadTs } from '../../matrix/receiptReadTs';
  * The loaded reply that the reader's thread receipt reads through an edit of it. A streamed reply
  * ends with an edit, and the receipt for the finished reply names that edit, which the thread may
  * not hold (after a reload, or on another device, where the server bundles the edit with the
- * reply): the SDK then ignores the receipt, and the thread would look unread. So does a receipt on
- * an older edit the relations released (`getReleasedEdit`), as the stream went on, which reads up
- * to the reply too, before or after the release.
+ * reply): the SDK then ignores the receipt, and the thread would look unread.
  */
 const replyEditedByReceipt = (thread: Thread, userId: string): string | null => {
   const receiptIds = [ReceiptType.Read, ReceiptType.ReadPrivate].flatMap((type) => {
@@ -19,11 +16,9 @@ const replyEditedByReceipt = (thread: Thread, userId: string): string | null => 
     return receipt?.data?.thread_id === thread.id ? [receipt.eventId] : [];
   });
   if (receiptIds.length === 0) return null;
-  const releasedFrom = receiptIds.flatMap((id) => getReleasedEdit(thread.room, id)?.targetId ?? []);
   const editedBy = (event: MatrixEvent) =>
     receiptIds.includes(event.replacingEventId() ?? '') ||
-    receiptIds.includes(event.replacingEvent()?.getId() ?? '') ||
-    releasedFrom.includes(event.getId() ?? '');
+    receiptIds.includes(event.replacingEvent()?.getId() ?? '');
   const replies = [...(thread.events ?? []), thread.replyToEvent].filter(
     (event): event is MatrixEvent => !!event
   );

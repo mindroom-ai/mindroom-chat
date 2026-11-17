@@ -45,7 +45,6 @@ describe('matrix-js-sdk m.replace race backport', () => {
 
     const relations = new Relations(RelationType.Replace, 'm.room.message', {
       getCrypto: () => null,
-      getRoom: () => null,
     } as any);
     await relations.setTargetEvent(targetEvent);
 
