@@ -403,8 +403,14 @@ export function CompactionNoticeSeam({ compaction }: { compaction: ReplyCompacti
     status === 'running' && startedAt !== undefined ? startedAt + NOTICE_GIVE_UP_MS : undefined;
   const [, wake] = useReducer((count: number) => count + 1, 0);
   useEffect(() => {
-    if (deadline === undefined || Date.now() >= deadline) return undefined;
-    const timer = window.setTimeout(wake, deadline - Date.now());
+    if (deadline === undefined) return undefined;
+    const left = deadline - Date.now();
+    // The deadline can pass between the render and this effect: draw it as interrupted now.
+    if (left <= 0) {
+      wake();
+      return undefined;
+    }
+    const timer = window.setTimeout(wake, left);
     return () => window.clearTimeout(timer);
   }, [deadline]);
   const gaveUp = deadline !== undefined && Date.now() >= deadline;

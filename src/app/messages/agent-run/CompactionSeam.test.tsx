@@ -273,6 +273,23 @@ describe('CompactionNoticeSeam', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('turns interrupted when the deadline passes between its render and its effect', () => {
+    const deadline = STARTED + 15 * MINUTE;
+    vi.setSystemTime(deadline - 1);
+    // The first reading, the render's, is just before the deadline; every later one, the
+    // effect's included, is past it.
+    let readings = 0;
+    const now = vi
+      .spyOn(Date, 'now')
+      .mockImplementation(() => (readings++ === 0 ? deadline - 1 : deadline + 1));
+    const renderer = render(<CompactionNoticeSeam compaction={notice()} />);
+    now.mockRestore();
+
+    expect(readings).toBeGreaterThan(1);
+    expect(state(renderer)).toBe('interrupted');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('shows a running notice older than 15 min as interrupted at once', () => {
     vi.setSystemTime(STARTED + 20 * MINUTE);
     const renderer = render(<CompactionNoticeSeam compaction={notice()} />);
