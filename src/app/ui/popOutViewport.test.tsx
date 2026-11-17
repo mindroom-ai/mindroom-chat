@@ -59,7 +59,8 @@ describe("folds' PopOut placement", () => {
     open();
     expect(placed()).toEqual({
       top:
-        'clamp(calc(env(safe-area-inset-top, 0px) + 0.5rem), -242.5px, ' +
+        'clamp(min(calc(env(safe-area-inset-top, 0px) + 0.5rem), max(0px, calc(100% - 893px))), ' +
+        '-242.5px, ' +
         'calc(100% - env(safe-area-inset-bottom, 0px) - 0.5rem - 893px))',
       bottom: 'unset',
       // Beside the trigger on the left, as folds placed it.

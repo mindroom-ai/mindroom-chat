@@ -1,5 +1,5 @@
 diff --git a/node_modules/folds/dist/index.js b/node_modules/folds/dist/index.js
-index c405e8f..77aabcc 100644
+index c405e8f..3f3cb29 100644
 --- a/node_modules/folds/dist/index.js
 +++ b/node_modules/folds/dist/index.js
 @@ -3269,9 +3269,10 @@ const PopOut = as(
@@ -14,20 +14,21 @@ index c405e8f..77aabcc 100644
          position,
          align,
          offset,
-@@ -3281,6 +3282,27 @@ const PopOut = as(
+@@ -3281,6 +3282,28 @@ const PopOut = as(
        baseEl.style.bottom = pCSS.bottom ?? "unset";
        baseEl.style.left = pCSS.left ?? "unset";
        baseEl.style.right = pCSS.right ?? "unset";
 +      // An axis folds left unset (nothing fits beside the anchor), or whose box overflows the
 +      // viewport, is placed again: centered on the anchor, then clamped inside the viewport clear of
-+      // the safe-area insets. An axis that already fits keeps folds' placement.
++      // the safe-area insets. An axis that already fits keeps folds' placement. A box too large for
++      // the safe area stays inside the bare viewport, and one larger than that starts at its edge.
 +      const fitAxis = (start, end, size, viewport, anchorStart, anchorSize) => {
 +        const from = start ? parseFloat(start) : end ? viewport - parseFloat(end) - size : void 0;
 +        if (from !== void 0 && from >= 0 && from + size <= viewport)
 +          return void 0;
 +        return from ?? anchorStart + anchorSize / 2 - size / 2;
 +      };
-+      const clampAxis = (value, size, startInset, endInset) => `clamp(calc(env(${startInset}, 0px) + 0.5rem), ${value}px, calc(100% - env(${endInset}, 0px) - 0.5rem - ${size}px))`;
++      const clampAxis = (value, size, startInset, endInset) => `clamp(min(calc(env(${startInset}, 0px) + 0.5rem), max(0px, calc(100% - ${size}px))), ${value}px, calc(100% - env(${endInset}, 0px) - 0.5rem - ${size}px))`;
 +      const { clientWidth, clientHeight } = document.documentElement;
 +      const y = fitAxis(pCSS.top, pCSS.bottom, target.height, clientHeight, anchor.y, anchor.height);
 +      if (y !== void 0) {
@@ -42,7 +43,7 @@ index c405e8f..77aabcc 100644
      }, [anchor, position, align, offset, alignOffset]);
      useEffect(() => {
        window.addEventListener("resize", positionPopOut);
-@@ -3564,8 +3586,16 @@ const useTooltip = (position, align, offset, alignOffset, delay) => {
+@@ -3564,8 +3587,16 @@ const useTooltip = (position, align, offset, alignOffset, delay) => {
      };
    }, [position, align, offset, alignOffset, delay]);
    useLayoutEffect(() => {
