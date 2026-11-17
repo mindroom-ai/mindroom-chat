@@ -212,6 +212,18 @@ describe('QuestionCard', () => {
     expect(text.indexOf('Green')).toBeLessThan(text.indexOf('Note: after.'));
   });
 
+  it('keeps a copy of the block in a code fence as code, with the card for the real one', () => {
+    const { format: _format, formatted_body: _html, ...rest } = questionContent('');
+    const block =
+      'Which color?\n\n1. 🔴 Red\n2. 🟢 Green\n\nReact with an emoji or type the number to respond.';
+    render({ ...rest, body: `${block}\n\nAs text:\n\n\`\`\`text\n${block}\n\`\`\`` });
+    expect(container.querySelectorAll('[data-question-card]')).toHaveLength(1);
+    expect(container.querySelector('pre code')?.textContent).toBe(`${block}\n`);
+    expect(container.textContent).not.toContain('```');
+    const text = container.textContent ?? '';
+    expect(text.indexOf('Green')).toBeLessThan(text.indexOf('As text:'));
+  });
+
   it('adds only its buttons under a reply that does not show the question as written', () => {
     render(questionContent('<p>Pick one: red or green.</p>'));
     expect(container.textContent).toContain('Pick one: red or green.');

@@ -54,7 +54,6 @@ import { CallTranscriptCard } from './CallTranscriptCard';
 import { readInteractiveQuestion } from '../../matrix/protocol/interactiveQuestion';
 import { QuestionCard } from '../question/QuestionCard';
 import { QuestionReply } from '../question/QuestionReply';
-import { formatQuestionBody } from '../question/questionBlockSplit';
 import { ownDirectionLine } from '../../ui/directional';
 import { matchesEnum } from '../../lib/matchesEnum';
 
@@ -207,9 +206,8 @@ export const renderAgentMessageContent = ({
     if (typeof bodyContent.body !== 'string') return bodyContent;
 
     // MindRoom writes an agent's HTML from its Markdown body; a reply that arrives with the body
-    // alone renders as that HTML would have, with its question's block marked for the card.
+    // alone renders as that HTML would have.
     const formattedBody =
-      (renderQuestionCard && question && formatQuestionBody(bodyContent.body, question)) ||
       (fromMindroomAgent && formatMarkdownTextBodyAsHtml(bodyContent.body)) ||
       formatMessageTextBodyAsHtml(bodyContent.body);
     if (!formattedBody) return bodyContent;

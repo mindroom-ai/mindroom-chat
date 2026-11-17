@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { formatQuestionBody, QUESTION_CARD_PLACE, splitQuestionBlock } from './questionBlockSplit';
+import { formatMarkdownTextBodyAsHtml } from '../html/blocks';
+import { splitQuestionBlock } from './questionBlockSplit';
 
 const question = {
   text: 'Which **color** should the `snake_case_name` take?',
@@ -21,7 +22,7 @@ const block = [
 describe('splitQuestionBlock', () => {
   it('splits off the text before a question that ends the reply', () => {
     expect(splitQuestionBlock(`<p>The build is green.</p>\n${block}`, question)).toEqual({
-      before: '<p>The build is green.</p>\n',
+      before: '<p>The build is green.</p>',
       after: '',
     });
   });
@@ -31,7 +32,7 @@ describe('splitQuestionBlock', () => {
       `<h2>Status</h2>\n${block}\n<p>More <b>after</b>.</p>`,
       question
     );
-    expect(split).toEqual({ before: '<h2>Status</h2>\n', after: '\n<p>More <b>after</b>.</p>' });
+    expect(split).toEqual({ before: '<h2>Status</h2>', after: '<p>More <b>after</b>.</p>' });
   });
 
   it('matches a question over several paragraphs', () => {
@@ -72,8 +73,7 @@ describe('splitQuestionBlock', () => {
   });
 });
 
-describe('formatQuestionBody', () => {
-  // A body-only agent reply, its block as MindRoom writes it (`_render_question_text`).
+describe('splitQuestionBlock on the HTML the app formats from a body-only reply', () => {
   const asked = {
     text: 'Which order should the work take? I recommend tests first (80%).',
     options: [
@@ -81,37 +81,57 @@ describe('formatQuestionBody', () => {
       { key: '⏸️', label: 'Park it for now' },
     ],
   };
+  // As MindRoom writes the block into the body (`_render_question_text`).
   const BLOCK = [
-    'Which order should the work take? I recommend tests first (80%).',
+    asked.text,
     '',
     '1. 🗳️ Tests first, then the code',
     '2. ⏸️ Park it for now',
     '',
     'React with an emoji or type the number to respond.',
   ].join('\n');
+  const split = (body: string) => splitQuestionBlock(formatMarkdownTextBodyAsHtml(body), asked);
 
-  it('marks the block and formats the text around it', () => {
-    const html = formatQuestionBody(`The main choice:\n\n${BLOCK}\n\n**TL;DR:** soon.`, asked);
-    expect(html).toBe(
-      `The main choice:${QUESTION_CARD_PLACE}<strong data-md="**">TL;DR:</strong> soon.`
+  it('finds the block in its line-break layout, the text around it kept as formatted', () => {
+    const html =
+      'The main choice:<br/><br/>Which order should the work take? I recommend tests first (80%).' +
+      '<br/><br/><ol data-md="1."><li>🗳️ Tests first, then the code</li><li>⏸️ Park it for now</li>' +
+      '</ol><br/>React with an emoji or type the number to respond.<br/><br/>' +
+      '<strong data-md="**">TL;DR:</strong> soon.';
+    expect(formatMarkdownTextBodyAsHtml(`The main choice:\n\n${BLOCK}\n\n**TL;DR:** soon.`)).toBe(
+      html
     );
-    expect(formatQuestionBody(BLOCK, asked)).toBe(QUESTION_CARD_PLACE);
+    expect(splitQuestionBlock(html, asked)).toEqual({
+      before: 'The main choice:',
+      after: '<strong data-md="**">TL;DR:</strong> soon.',
+    });
+    expect(split(BLOCK)).toEqual({ before: '', after: '' });
   });
 
-  it('marks the last block, so an example quoted before it stays', () => {
-    const html = formatQuestionBody(`${BLOCK}\n\nAsking now:\n\n${BLOCK}`, asked);
-    expect(html?.match(/question-card/g)).toHaveLength(1);
-    expect(html?.indexOf('Tests first')).toBeLessThan(html?.indexOf(QUESTION_CARD_PLACE) ?? 0);
-    expect(html).toContain('Asking now:');
+  it('takes the real block, and leaves a copy in a code fence as code', () => {
+    const fenced = `\`\`\`text\n${BLOCK}\n\`\`\``;
+    const result = split(`${BLOCK}\n\nAn example:\n\n${fenced}`);
+    expect(result?.before).toBe('');
+    // The parts are the formatter's nodes, written out again as the fold of finished work does.
+    expect(result?.after).toMatch(/^An example:<br><br><pre[^>]*><code[^>]*>Which order/);
   });
 
-  it('finds nothing unless the whole block stands on lines of its own, as only text', () => {
-    expect(formatQuestionBody(BLOCK.replace(/\nReact with.*$/, ''), asked)).toBeUndefined();
-    expect(formatQuestionBody(`See: ${BLOCK}`, asked)).toBeUndefined();
-    expect(formatQuestionBody(BLOCK.replace('80%).', '80%). Or else'), asked)).toBeUndefined();
-    // The app's formatter shows images as their text; a block that renders more than text (a
-    // heading here) is not taken either.
-    const heading = { ...asked, text: `# ${asked.text}` };
-    expect(formatQuestionBody(`# ${BLOCK}`, heading)).toBeUndefined();
+  it('finds nothing when the only copy is in a fence, display math or a quote', () => {
+    expect(split(`Before.\n\n\`\`\`text\n${BLOCK}\n\`\`\`\n\nAfter.`)).toBeUndefined();
+    expect(split(`~~~\n${BLOCK}\n~~~`)).toBeUndefined();
+    expect(split(`$$\n${BLOCK}\n$$`)).toBeUndefined();
+    expect(
+      split(
+        BLOCK.split('\n')
+          .map((line) => `> ${line}`)
+          .join('\n')
+      )
+    ).toBeUndefined();
+  });
+
+  it('finds nothing when a line of the block is joined to other text', () => {
+    expect(split(`See:\n${BLOCK}`)).toBeUndefined();
+    expect(split(`${BLOCK}\nAnd more.`)).toBeUndefined();
+    expect(split(BLOCK.replace('\n\nReact', '\n\nStop.\n\nReact'))).toBeUndefined();
   });
 });
