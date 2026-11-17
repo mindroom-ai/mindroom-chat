@@ -140,8 +140,8 @@ const bodyOf = (length: number) => {
   const counted = lines.reduce((n, line) => n + (line.startsWith('🔧') ? 80 : line.length) + 1, 1);
   return [...lines, '', 'The answer.'.padEnd(length - counted, ' More.')].join('\n');
 };
-const LONG_BODY = bodyOf(1200);
-const SHORT_BODY = bodyOf(1199);
+const LONG_BODY = bodyOf(6000);
+const SHORT_BODY = bodyOf(5999);
 
 /** A reply that searched, read a file, then answered, long enough to fold by default. */
 const reply = (
@@ -291,8 +291,8 @@ describe('finished agent work', () => {
     expect(text()).not.toContain('Let me look.');
   });
 
-  it('folds a finished reply of 1200 characters, its tool markers counted as 80', () => {
-    expect(LONG_BODY.length).toBeLessThan(1200);
+  it('folds a finished reply of 6000 characters, its tool markers counted as 80', () => {
+    expect(LONG_BODY.length).toBeLessThan(6000);
     render(reply('completed', undefined, LONG_BODY));
 
     expect(text()).toContain('Worked for 2m 13s');

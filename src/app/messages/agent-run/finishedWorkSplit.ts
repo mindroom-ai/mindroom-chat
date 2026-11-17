@@ -16,15 +16,14 @@ export type FinishedWorkSplit = {
   tail: string;
 };
 
-// The timeline's long-message length (FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH in
-// timeline/threadCollapsibleMessages.ts, a layer messages may not import).
-const LONG_AGENT_REPLY_LENGTH = 1200;
+// About two printed pages: shorter replies show their work inline, as folding them hides little.
+const LONG_AGENT_REPLY_LENGTH = 6000;
 // A tool marker renders as a full row, however short its line.
 const TOOL_MARKER_LINE_LENGTH = 80;
 
 /**
  * Whether a finished agent reply is long enough to fold its work: its plain body is at least
- * 1200 characters, each tool marker line counted as 80. A length, not a measured height, so every
+ * 6000 characters, each tool marker line counted as 80. A length, not a measured height, so every
  * device and layout agrees and nothing waits for the reply to lay out.
  */
 export const isLongAgentReply = (body: string): boolean =>
