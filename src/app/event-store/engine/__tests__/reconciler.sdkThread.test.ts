@@ -324,7 +324,7 @@ describe('reconciler SDK thread injection', () => {
         const env = setup();
         const sdkThread = createInitializedThreadForRoot(env.room, env.root);
         const older = olderSegment(env, sdkThread);
-        // The older edit leaves the older segment, or never enters it.
+        // The older segment keeps the older edit, its only event, for its place among the others.
         if (order === 'the older segment first') {
           older.add([streamEdit('$old-stream', 1100)], 'older-page');
           liveReplyAndNewerEdit(env, sdkThread);
@@ -333,7 +333,7 @@ describe('reconciler SDK thread injection', () => {
           older.add([streamEdit('$old-stream', 1100)], 'older-page');
         }
         await settle();
-        expect(older.older.getEvents()).toEqual([]);
+        expect(older.older.getEvents().map((event) => event.getId())).toEqual(['$old-stream']);
 
         await reconcile(env, sdkThread, [reply(5), reply(8)]);
         // Pagination brings the replies before the older page, where they belong.
@@ -341,7 +341,7 @@ describe('reconciler SDK thread injection', () => {
 
         expect(segmentEventIds(sdkThread)).toEqual([
           ['$reply-15', '$new-stream'],
-          ['$reply-5', '$reply-7', '$reply-8'],
+          ['$reply-5', '$reply-7', '$reply-8', '$old-stream'],
         ]);
         // The segments still lead from the older one to the live one, and back, without a cycle.
         expect(older.older.getNeighbouringTimeline(Direction.Forward)).toBe(sdkThread.liveTimeline);
