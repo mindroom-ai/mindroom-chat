@@ -121,7 +121,7 @@ describe('PhoneNavDrawer', () => {
         </Provider>
       );
     });
-    // A room's back chevron replaces the room with its space's own page.
+    // The room gives way on the spot to its space's own page.
     await act(async () => {
       await router.navigate('/!space:example.org/', { replace: true });
     });

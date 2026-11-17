@@ -158,7 +158,7 @@ const cornerDot = (marker: `data-${string}`) => (
   />
 );
 
-/** The list a phone's back button leads to from a room the app did not open itself. */
+/** The room's list, which the room menu's Leave goes to once the room is left. */
 const sectionPathOf = (spacePathId: string | undefined, isDirect: boolean): string => {
   if (spacePathId) return getSpacePath(spacePathId);
   return isDirect ? getDirectPath() : getHomePath();

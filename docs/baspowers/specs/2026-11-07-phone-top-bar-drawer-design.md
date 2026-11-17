@@ -57,6 +57,8 @@ Unchanged: the back chevron and the swipe from the start edge still return to wh
 
 Decision note: a first version dropped the room's back chevron for the menu button. Astra advised keeping it for rooms opened from elsewhere (search results, a notification, another room), and `e2e/sidebar/phone-back-entries.spec.ts` and the iOS edge swipe show that contextual back was built on purpose, so it stays; the menu button is the second way to the list.
 
+Superseded by #467: phones no longer show the room header's back chevron; the menu button is the way to the list, and a thread keeps its own chevron.
+
 ## Out of scope
 
 A "new" (+) button in the bar; follow-the-finger dragging of the drawer; tablet and desktop layouts.
