@@ -268,7 +268,7 @@ export class ModelController {
     )
       return;
     if (this.queries.size >= 8) {
-      this.publish(scope, { error: 'Model discovery is busy. Try again.' });
+      this.publish(scope, { loading: false, error: 'Model discovery is busy. Try again.' });
       this.retryLater(scope, false);
       return;
     }
