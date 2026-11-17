@@ -1296,7 +1296,8 @@
     "layout": "Tata letak utas",
     "layoutRecent": "Terbaru",
     "layoutSections": "Bagian",
-    "sectionsHint": "Kelompokkan utas ke Sedang dikerjakan, Perlu Anda, Nanti, dan Selesai",
+    "group": "Kelompokkan",
+    "groupHint": "Kelompokkan menurut status",
     "sections": {
       "working": "Sedang berjalan",
       "later": "Nanti",

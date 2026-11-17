@@ -1322,7 +1322,8 @@
     "layout": "Thread layout",
     "layoutRecent": "Recent",
     "layoutSections": "Sections",
-    "sectionsHint": "Group the threads into Working, Needs you, Later and Done",
+    "group": "Group",
+    "groupHint": "Group by status",
     "sections": {
       "working": "Working",
       "later": "Later",

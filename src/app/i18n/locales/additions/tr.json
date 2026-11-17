@@ -1322,7 +1322,8 @@
     "layout": "Konu düzeni",
     "layoutRecent": "Son",
     "layoutSections": "Bölümler",
-    "sectionsHint": "Konuları Çalışıyor, Sizi bekliyor, Sonra ve Tamamlandı olarak grupla",
+    "group": "Grupla",
+    "groupHint": "Duruma göre grupla",
     "sections": {
       "working": "Çalışıyor",
       "later": "Sonra",

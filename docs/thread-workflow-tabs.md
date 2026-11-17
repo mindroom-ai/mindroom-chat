@@ -22,7 +22,8 @@ Later sorts by active snooze end or next scheduled time, soonest first; unknown 
 follow by latest activity. Pins still lead the section, and its cap and tie ordering are unchanged.
 Pending sends alone do not constitute Working. Resolved and snoozed now precede streaming there too.
 
-In agent rooms, Compact's Sections switch (beside the sort, which it hides with its lock) groups
+In agent rooms, Compact's Group switch (a layers icon labelled "Group", only the icon on a narrow
+bar like the tabs; tooltip "Group by status"; beside the sort, which it hides with its lock) groups
 the cards the filters show by the same classifier, at the same snooze clock as the tab filter
 (`useThreadIndex`'s `snoozeNow`), Working first, then Needs you, Later and Done, each under a
 header with its count; a tab that shows one bucket shows one section. It owns no filter. Working

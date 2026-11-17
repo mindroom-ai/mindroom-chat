@@ -2,13 +2,12 @@ import { createVar, globalStyle, keyframes, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { motion } from '../../ui/styles/Motion.css';
 import { transition } from '../../ui/styles/transition';
-import { FilterButton } from './RoomThreadOverview.css';
+import { FilterButton, NARROW_BAR } from './RoomThreadOverview.css';
 
 const GAP = toRem(2);
 const ICON = toRem(12);
 // Pulls the button's column gap back around an icon or label folded to nothing.
 const CLOSE_GAP = `calc(-1 * ${config.space.S100})`;
-const NARROW = '(max-width: 40rem)';
 const REDUCED = '(prefers-reduced-motion: reduce)';
 // A label unfolds over about as long as the pill's spring (useSlidingPill) takes to settle.
 const UNFOLD = '460ms';
@@ -86,7 +85,7 @@ export const WorkflowIcon = style({
     '[aria-pressed="true"] &': { width: ICON, marginInlineEnd: 0, opacity: 1, transform: 'none' },
   },
   '@container': {
-    [NARROW]: { width: ICON, marginInlineEnd: 0, opacity: 1, transform: 'none' },
+    [NARROW_BAR]: { width: ICON, marginInlineEnd: 0, opacity: 1, transform: 'none' },
   },
 });
 
@@ -101,7 +100,7 @@ export const WorkflowLabel = style({
     transition(['opacity'], motion.duration.Slower),
   ].join(', '),
   '@container': {
-    [NARROW]: {
+    [NARROW_BAR]: {
       selectors: {
         '[aria-pressed="false"] &': {
           gridTemplateColumns: '0fr',

@@ -24,6 +24,7 @@ import * as css from './RoomThreadOverview.css';
 import { ThreadTagFilter } from './ThreadTagFilter';
 import { useKeepInsideToolbar } from './useKeepInsideToolbar';
 import { WorkflowTabs } from './WorkflowTabs';
+import { GroupThreadsIcon } from './GroupThreadsIcon';
 import { localDigits } from '../../lib/localDigits';
 import type {
   ThreadFilterState,
@@ -294,16 +295,20 @@ export type RoomThreadOverviewProps = {
   onToggleThreadSections?: () => void;
 };
 
-/** Compact's switch between the sorted cards and their sections, beside the sort. */
+/**
+ * Compact's Group switch between the sorted cards and their sections, beside the sort. A narrow
+ * bar shows only its icon, as the workflow tabs do.
+ */
 function ThreadSectionsSwitch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   const { t } = useTranslation();
+  const label = t('threadNav.group');
   return (
     <TooltipProvider
       position="Bottom"
       align="Center"
       tooltip={
         <Tooltip style={{ maxWidth: toRem(220) }}>
-          <Text size="T200">{t('threadNav.sectionsHint')}</Text>
+          <Text size="T200">{t('threadNav.groupHint')}</Text>
         </Tooltip>
       }
     >
@@ -314,9 +319,13 @@ function ThreadSectionsSwitch({ on, onToggle }: { on: boolean; onToggle: () => v
           className={classNames(css.SortButton, on && css.SortButtonActive)}
           aria-pressed={on}
           onClick={onToggle}
+          aria-label={label}
           data-thread-sections="true"
         >
-          <Text size="T200">{t('threadNav.layoutSections')}</Text>
+          <Icon size="100" src={GroupThreadsIcon} aria-hidden="true" />
+          <Text size="T200" className={css.SectionsSwitchLabel}>
+            {label}
+          </Text>
         </button>
       )}
     </TooltipProvider>

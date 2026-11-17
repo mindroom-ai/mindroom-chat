@@ -1322,7 +1322,8 @@
     "layout": "Anordnung der Threads",
     "layoutRecent": "Zuletzt",
     "layoutSections": "Abschnitte",
-    "sectionsHint": "Threads gruppieren: In Arbeit, Du bist gefragt, Später und Erledigt",
+    "group": "Gruppieren",
+    "groupHint": "Nach Status gruppieren",
     "sections": {
       "working": "In Arbeit",
       "later": "Später",

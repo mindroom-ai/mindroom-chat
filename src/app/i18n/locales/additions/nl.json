@@ -1322,7 +1322,8 @@
     "layout": "Indeling van threads",
     "layoutRecent": "Recent",
     "layoutSections": "Secties",
-    "sectionsHint": "Threads groeperen in Bezig, Jij bent aan zet, Later en Klaar",
+    "group": "Groeperen",
+    "groupHint": "Groeperen op status",
     "sections": {
       "working": "Bezig",
       "later": "Later",

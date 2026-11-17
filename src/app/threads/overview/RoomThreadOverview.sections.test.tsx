@@ -48,7 +48,7 @@ const byData = (name: string): ReactTestInstance[] =>
 const sectionsSwitch = (): ReactTestInstance | undefined => byData('data-thread-sections')[0];
 const tabs = () => byData('data-thread-tab').map((node) => node.props['data-thread-tab'] as string);
 
-describe('the Sections switch of the Compact filter bar', () => {
+describe('the Group switch of the Compact filter bar', () => {
   it('shows only where the cards can show in sections', () => {
     renderBar(true);
     expect(sectionsSwitch()).toBeUndefined();
@@ -62,7 +62,7 @@ describe('the Sections switch of the Compact filter bar', () => {
     const onToggleThreadSections = vi.fn();
     renderBar(simple, { onToggleThreadSections });
     const toggle = sectionsSwitch();
-    if (!toggle) throw new Error('no Sections switch');
+    if (!toggle) throw new Error('no Group switch');
     expect(toggle.props['aria-pressed']).toBe(false);
     expect(toggle.props.className).not.toContain(css.SortButtonActive);
     expect(byData('data-sort-by')).toHaveLength(1);
@@ -73,6 +73,20 @@ describe('the Sections switch of the Compact filter bar', () => {
 
     expect(onToggleThreadSections).toHaveBeenCalledTimes(1);
   });
+
+  it.each([true, false])(
+    'shows the layers icon and a label a narrow bar folds away (simple: %s)',
+    (simple) => {
+      renderBar(simple, { onToggleThreadSections: noop });
+      const toggle = sectionsSwitch();
+      if (!toggle) throw new Error('no Group switch');
+      expect(toggle.props['aria-label']).toBe('Group');
+      expect(toggle.findAll((node) => node.type === 'path')).toHaveLength(3);
+      expect(toggle.findByProps({ className: css.SectionsSwitchLabel }).props.children).toBe(
+        'Group'
+      );
+    }
+  );
 
   it('leaves out only the sort and its lock, which Sections decide, and keeps every filter', () => {
     renderBar(true, { onToggleThreadSections: noop, threadSections: true });
