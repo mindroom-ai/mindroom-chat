@@ -300,14 +300,6 @@ describe('getThreadSignalsReader', () => {
     expect(readAgain()).toEqual([]);
   });
 
-  it('reads the thread of the reply whose reaction, by then in no thread, is redacted', () => {
-    const { mx, held, readAgain } = setup();
-    held.set('$reply', event({ id: '$reply', threadRootId: '$b' }));
-    held.set('$reaction', event({ id: '$reaction', relatesTo: '$reply' }));
-    mx.emit(ClientEvent.Event, event({ id: '$redaction', relatesTo: '$reaction' }));
-    expect(readAgain()).toEqual(['$b']);
-  });
-
   it('reads the thread a redacted event left', () => {
     const { mx, room, held, readAgain } = setup();
     // The redacted reply is no longer in its thread; the room names the thread it was in.

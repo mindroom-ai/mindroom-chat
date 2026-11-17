@@ -92,8 +92,8 @@ const clients = new WeakMap<MatrixClient, ClientSignals>();
  * room when the thread is unknown (an event related to one the room does not hold), for the
  * user's receipt outside a thread, a timeline of the room that starts over, and a member who
  * joins or leaves (an agent's presence decides whether a notice is listed). Signals read no one
- * else's receipts and no event without an ID (typing, a live reply frame, account data), so those
- * count for nothing and reach no listener. One exception: a room's first receipt after the client
+ * else's receipts, no event without an ID (typing, a live reply frame, account data) and no
+ * state event but the members', so those count for nothing and reach no listener. One exception: a room's first receipt after the client
  * starts, anyone's, counts for all its threads, since how old its oldest thread receipt was before
  * is not known.
  */
