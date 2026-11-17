@@ -25,7 +25,6 @@ import { VideoContent } from './VideoContent';
 import type { RenderImageContentArgs } from './MsgTypeRenderers';
 import { UrlPreviewCard, UrlPreviewHolder } from '../url-preview/UrlPreviewCard';
 import { Image, Video } from '../../ui/media/Media';
-import { ImageViewer } from '../viewers/ImageViewer';
 import { PdfViewer } from '../viewers/PdfViewer';
 import { TextViewer } from '../viewers/TextViewer';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -290,7 +289,6 @@ function CoreMessageContent({
       autoPlay={mediaAutoLoad}
       markedAsSpoiler={content[MEDIA_SPOILER_PROPERTY] === true}
       renderImage={(props) => <Image {...props} />}
-      renderViewer={(props) => <ImageViewer {...props} />}
     />
   );
 

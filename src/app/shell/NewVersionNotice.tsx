@@ -2,8 +2,13 @@ import { useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
-import { Button, Icon, IconButton, Icons, Text } from 'folds';
-import { getNewVersion, reloadForNewVersion, subscribeToNewVersion } from '../config/appUpdate';
+import { Button, Icon, IconButton, Icons, Spinner, Text } from 'folds';
+import {
+  getNewVersion,
+  getReadyVersion,
+  reloadForNewVersion,
+  subscribeToNewVersion,
+} from '../config/appUpdate';
 import { PHONE_SLIDE_OUT_MS, phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
 import { useNoticePresence } from '../ui/noticeSlots';
 import { PageSlot } from '../ui/noticeSlots.css';
@@ -14,20 +19,25 @@ import * as css from './NewVersionNotice.css';
 export const useNewVersion = (): string | undefined =>
   useSyncExternalStore(subscribeToNewVersion, getNewVersion);
 
+/** The new version once its worker has installed, so a reload is quick (config/appUpdate.ts). */
+export const useReadyNewVersion = (): string | undefined =>
+  useSyncExternalStore(subscribeToNewVersion, getReadyVersion);
+
 /**
  * "A new version is available" with a Reload action, on a card that floats over every screen
  * without moving it. Signed in, it takes a place the layout offers (ui/noticeSlots.tsx): the foot
  * of the room list while there is one beside the page, else the top of the page. Signed out, it
  * floats over the top of the app. It appears once the server publishes another build than this
  * page's, found when the page starts, when a part fails to load, when the page is shown again, or
- * by a check every five minutes (src/app/config/appUpdate.ts); dismissed, it plays its way out
- * and stays away for the life of the page.
+ * by a check every five minutes, and that build's worker has installed, so the reload is quick
+ * (src/app/config/appUpdate.ts). While the reload prepares, its button spins and says so.
+ * Dismissed, it plays its way out and stays away for the life of the page.
  */
 export function NewVersionNotice() {
   const { t } = useTranslation();
-  const version = useNewVersion();
+  const version = useReadyNewVersion();
   const phoneLayerOpen = useAtomValue(phoneLayerOpenAtom);
-  // The card's life (useNoticePresence): due once a new version is known, held back while a
+  // The card's life (useNoticePresence): due once a new version is ready, held back while a
   // phone's drawer covers its place, come in, leaving once dismissed, then gone for the page.
   const { shown, slot, placement, leaving, settled, dismiss, onAnimationEnd } = useNoticePresence(
     version !== undefined,
@@ -61,12 +71,18 @@ export function NewVersionNotice() {
           radii="300"
           variant="Primary"
           fill="Solid"
-          before={<Icon src={Icons.Reload} size="50" />}
+          before={
+            reloading ? (
+              <Spinner variant="Primary" fill="Solid" size="50" />
+            ) : (
+              <Icon src={Icons.Reload} size="50" />
+            )
+          }
           disabled={reloading}
           onClick={reload}
         >
           <Text as="span" size="B300">
-            {t('sharedUi.appUpdate.reload')}
+            {reloading ? t('sharedUi.appUpdate.updating') : t('sharedUi.appUpdate.reload')}
           </Text>
         </Button>
       </div>

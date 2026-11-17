@@ -129,6 +129,33 @@ const mxcImageOnly: Transformer = (tagName, attribs) => {
   return { tagName, attribs: rest };
 };
 
+/** The URL an image's non-`mxc://` source loads from, or undefined to drop the image. */
+type ImageSource = (src: string) => string | undefined;
+
+// `value` as an absolute `https:` URL without a username or password, or undefined.
+const httpsImageUrl = (value: string | undefined): string | undefined => {
+  if (!value) return undefined;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return undefined;
+  }
+  return url.protocol === 'https:' && !url.username && !url.password ? url.href : undefined;
+};
+
+// With a caller's `imageSource`, an image whose source is not `mxc://` keeps the URL it returns
+// for that source, when that is an absolute `https:` URL without credentials; otherwise it has none.
+const mappedImage =
+  (imageSource: ImageSource): Transformer =>
+  (tagName, attribs) => {
+    const src = attribs.src ?? '';
+    if (/^mxc:\/\//i.test(src)) return { tagName, attribs };
+    const { src: _src, ...rest } = attribs;
+    const mapped = src ? httpsImageUrl(imageSource(src)) : undefined;
+    return { tagName, attribs: mapped ? { ...rest, src: mapped } : rest };
+  };
+
 const BASE_TRANSFORMS: Record<string, Transformer> = {
   a: linkInNewTab,
   img: mxcImageOnly,
@@ -180,16 +207,19 @@ const toTransformer = (transform: string | Transformer): Transformer =>
   typeof transform === 'string' ? sanitizeHtml.simpleTransform(transform, {}) : transform;
 
 // A caller's transform runs first; the base transform of the resulting tag runs last, so a
-// custom policy cannot undo the link and colour rules.
-const mergeTransforms = (extra: IOptions['transformTags']): Record<string, Transformer> => {
-  const tags = union(Object.keys(BASE_TRANSFORMS), Object.keys(extra ?? {}));
+// custom policy cannot undo the link, colour and image rules.
+const mergeTransforms = (
+  base: Record<string, Transformer>,
+  extra: IOptions['transformTags']
+): Record<string, Transformer> => {
+  const tags = union(Object.keys(base), Object.keys(extra ?? {}));
   return Object.fromEntries(
     tags.map((tag) => {
       const custom = extra?.[tag];
       const transformer: Transformer = (tagName, attribs) => {
         const first = custom ? toTransformer(custom)(tagName, attribs) : { tagName, attribs };
-        const base = BASE_TRANSFORMS[first.tagName];
-        return base ? { ...first, ...base(first.tagName, first.attribs) } : first;
+        const last = base[first.tagName];
+        return last ? { ...first, ...last(first.tagName, first.attribs) } : first;
       };
       return [tag, transformer];
     })
@@ -222,11 +252,17 @@ type SanitizeCustomHtmlOptions = {
   policy?: IOptions;
   /** Extra link schemes, such as `obsidian`, from the client configuration. */
   additionalAllowedUriSchemes?: unknown;
+  /**
+   * Maps an image's source that is not `mxc://` to the `https:` URL it loads from; without it,
+   * or when it returns no absolute `https:` URL without credentials, the image is dropped.
+   */
+  imageSource?: ImageSource;
 };
 
 const buildOptions = ({
   policy,
   additionalAllowedUriSchemes,
+  imageSource,
 }: SanitizeCustomHtmlOptions): IOptions => {
   const withCustomAttributes = mergeAttributes(
     BASE_ATTRIBUTES,
@@ -248,13 +284,16 @@ const buildOptions = ({
       ...(policy?.allowedClasses ?? {}),
     },
     allowedSchemes: allowedLinkSchemes(additionalAllowedUriSchemes),
-    allowedSchemesByTag: { img: ['mxc'] },
+    allowedSchemesByTag: { img: imageSource ? ['mxc', 'https'] : ['mxc'] },
     allowedSchemesAppliedToAttributes: ['href', 'src', 'cite'],
     allowProtocolRelative: false,
-    transformTags: mergeTransforms(policy?.transformTags),
+    transformTags: mergeTransforms(
+      imageSource ? { ...BASE_TRANSFORMS, img: mappedImage(imageSource) } : BASE_TRANSFORMS,
+      policy?.transformTags
+    ),
     // Reply fallbacks (MSC2781) and executable or invisible content are dropped with their text.
     nonTextTags: ['style', 'script', 'textarea', 'option', 'noscript', 'mx-reply'],
-    // An image left without an `mxc://` source is dropped.
+    // An image left without a source (`mxc://`, or what `imageSource` returned) is dropped.
     exclusiveFilter: (frame) => frame.tag === 'img' && !frame.attribs.src,
     disallowedTagsMode: 'discard',
   };

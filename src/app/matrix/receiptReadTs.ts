@@ -1,4 +1,11 @@
-import { RoomEvent, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import {
+  RoomEvent,
+  ThreadEvent,
+  type EventTimelineSet,
+  type MatrixClient,
+  type MatrixEvent,
+  type Room,
+} from 'matrix-js-sdk';
 import { MAIN_ROOM_TIMELINE, ReceiptType } from 'matrix-js-sdk/lib/@types/read_receipts';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { isRecord } from '../lib/isRecord';
@@ -56,6 +63,48 @@ export const keepUnthreadedReceiptEvents = (mx: MatrixClient): (() => void) => {
   };
 };
 
+// The events a room was asked for because a receipt names them, and a count of what may have
+// moved how far such a receipt reads.
+type NamedEvents = { asked: Set<string>; version: number };
+const namedEvents = new WeakMap<Room, NamedEvents>();
+
+/**
+ * A count of the changes in the events `room` holds that may move how far a receipt reads: a
+ * named event a timeline takes, a local echo of one that moves on (it gets its ID, or the server's
+ * time replaces the device's), and events the room loses (a timeline that starts over or drops an
+ * event, a thread that goes). For caches of how far receipts read.
+ */
+export const receiptEventsVersion = (room: Room): number => namedEvents.get(room)?.version ?? 0;
+
+/** Whether the room looks events up in `timelineSet`: not in its lists of threads. */
+const holdsEvents = (room: Room, timelineSet: EventTimelineSet): boolean =>
+  !(room.threadsTimelineSets as readonly EventTimelineSet[]).includes(timelineSet);
+
+const namedEventsOf = (room: Room): NamedEvents | undefined => {
+  const known = namedEvents.get(room);
+  if (known) return known;
+  // Room stand-ins in tests often tell nothing of their events, so nothing is kept for them.
+  if (typeof room.prependListener !== 'function') return undefined;
+  const kept: NamedEvents = { asked: new Set(), version: 0 };
+  // First, so the views that update on an event read the new count.
+  room.prependListener(RoomEvent.Timeline, (event, _room, _toStart, removed, data) => {
+    // A reply moves its thread's root in the lists of threads, which hold no event for lookups.
+    if (!holdsEvents(room, data.timeline.getTimelineSet())) return;
+    if (removed || kept.asked.has(event.getId() ?? '')) kept.version += 1;
+  });
+  room.prependListener(RoomEvent.LocalEchoUpdated, (event) => {
+    if (kept.asked.has(event.getId() ?? '')) kept.version += 1;
+  });
+  room.prependListener(RoomEvent.TimelineReset, (_room, timelineSet) => {
+    if (holdsEvents(room, timelineSet)) kept.version += 1;
+  });
+  room.prependListener(ThreadEvent.Delete, () => {
+    kept.version += 1;
+  });
+  namedEvents.set(room, kept);
+  return kept;
+};
+
 /**
  * How far a receipt in `context` (the room's main timeline, or a thread) reads: up to the event it
  * names. A receipt on an event the client does not hold (often a reply's terminal edit, which no
@@ -67,6 +116,8 @@ export const receiptReadTs = (
   eventId: string | undefined,
   takenTs: number
 ): number => {
+  // Before the answer, so the room counts what happens to a named event from the first lookup.
+  if (eventId) namedEventsOf(room)?.asked.add(eventId);
   // Optional calls here and below: room and thread stand-ins in tests often lack receipts, events
   // or, for a thread, its room.
   const named = eventId

@@ -1,10 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createVoiceCaptureSession, type VoiceCaptureSession } from './voiceCaptureSession';
+import {
+  createVoiceCaptureSession,
+  VOICE_RECORDER_STOP_TIMEOUT_MS,
+  VOICE_RECORDER_TIMESLICE_MS,
+  type VoiceCaptureSession,
+} from './voiceCaptureSession';
 
-const diagnostics = vi.hoisted(() => ({ publish: vi.fn() }));
+const diagnostics = vi.hoisted(() => ({ publish: vi.fn(), trace: vi.fn() }));
 vi.mock('../../diagnostics/flightRecorder', () => ({
   setFlightRecorderVoiceCaptureState: diagnostics.publish,
 }));
+vi.mock('../../diagnostics/deepTrace', () => ({ recordDeepTraceEvent: diagnostics.trace }));
 vi.mock('../../native/nativeSso', () => ({ isNativeApp: () => false }));
 
 class Recorder {
@@ -13,6 +19,8 @@ class Recorder {
   static isTypeSupported = () => true;
 
   state: RecordingState = 'inactive';
+
+  timeslice: number | undefined;
 
   mimeType: string;
 
@@ -33,7 +41,8 @@ class Recorder {
     this.listeners.get(type)?.delete(listener);
   }
 
-  start() {
+  start(timeslice?: number) {
+    this.timeslice = timeslice;
     this.state = 'recording';
   }
 
@@ -129,6 +138,7 @@ beforeEach(() => {
   Audio.instances = [];
   Audio.failure = undefined;
   diagnostics.publish.mockClear();
+  diagnostics.trace.mockClear();
   vi.stubGlobal('window', { isSecureContext: true, AudioContext: Audio });
   vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } });
   vi.stubGlobal('MediaRecorder', Recorder);
@@ -470,6 +480,83 @@ describe('voice capture session', () => {
     expect(vi.getTimerCount()).toBe(0);
     session.clearError();
     expect(session.getSnapshot().errorMessage).toBeUndefined();
+  });
+
+  it('records in timeslices so audio reaches the app before native stop', async () => {
+    const session = capture();
+    await session.start();
+    expect(latest().timeslice).toBe(VOICE_RECORDER_TIMESLICE_MS);
+  });
+
+  it('sends the audio already delivered when native stop never arrives', async () => {
+    const session = capture();
+    await session.start();
+    vi.advanceTimersByTime(2000);
+    const recorder = latest();
+    recorder.emitData(new Blob(['early'], { type: 'audio/mp4' }));
+    let settled = false;
+    const result = session.finish().finally(() => {
+      settled = true;
+    });
+    await vi.advanceTimersByTimeAsync(VOICE_RECORDER_STOP_TIMEOUT_MS - 1);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    const finished = await result;
+    expect(finished.status).toBe('captured');
+    if (finished.status === 'captured') {
+      expect(await finished.recording.file.text()).toBe('early');
+      expect(finished.recording.duration).toBe(2000);
+    }
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    expect(diagnostics.publish).toHaveBeenLastCalledWith('inactive');
+    expect(diagnostics.trace).toHaveBeenCalledWith('voice.capture.stop_timeout', {
+      chunk_count: 1,
+    });
+    recorder.emitData(new Blob(['late']));
+    recorder.emitStop();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('fails instead of hanging when native stop never arrives without audio', async () => {
+    const session = capture();
+    await session.start();
+    const result = session.finish();
+    await vi.advanceTimersByTimeAsync(VOICE_RECORDER_STOP_TIMEOUT_MS);
+    expect(await result).toEqual({ status: 'failed' });
+    expect(session.getSnapshot()).toMatchObject({
+      phase: 'idle',
+      errorMessage: 'No audio data was captured.',
+    });
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the stop deadline for an accepted send after release', async () => {
+    const session = capture();
+    await session.start();
+    latest().emitData(new Blob(['kept']));
+    const result = session.finish();
+    session.releaseOwner();
+    await vi.advanceTimersByTimeAsync(VOICE_RECORDER_STOP_TIMEOUT_MS);
+    const finished = await result;
+    expect(finished.status).toBe('captured');
+    if (finished.status === 'captured') expect(await finished.recording.file.text()).toBe('kept');
+  });
+
+  it('discards when native stop never arrives', async () => {
+    const session = capture();
+    await session.start();
+    const result = session.discard();
+    await vi.advanceTimersByTimeAsync(VOICE_RECORDER_STOP_TIMEOUT_MS);
+    expect(await result).toBe(false);
+    expect(session.getSnapshot().phase).toBe('idle');
+  });
+
+  it('cancels the stop deadline once native stop arrives', async () => {
+    const session = capture();
+    await session.start();
+    expect((await finish(session)).status).toBe('captured');
+    expect(vi.getTimerCount()).toBe(0);
+    expect(diagnostics.trace).not.toHaveBeenCalled();
   });
 
   it('rejects empty audio and unsolicited stops without producing captured data', async () => {

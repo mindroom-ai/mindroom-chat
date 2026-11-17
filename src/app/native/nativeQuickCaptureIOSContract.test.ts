@@ -38,7 +38,22 @@ describe('MindRoomQuickCapturePlugin native contract', () => {
 
   it('rejects with the codes the web side knows, and UNSUPPORTED off the Mac', () => {
     CODES.forEach((code) => expect(screenshotSource).toContain(`= "${code}"`));
-    const offMac = pluginSource.match(/#else([\s\S]*?)#endif/)?.[1];
+    // Store-specific branches may nest inside the outer Catalyst branch.
+    let depth = 0;
+    let capturing = false;
+    const lines: string[] = [];
+    for (const line of pluginSource
+      .slice(pluginSource.indexOf('#if targetEnvironment(macCatalyst)'))
+      .split('\n')) {
+      if (/^#if\b/.test(line)) depth += 1;
+      if (/^#else\b/.test(line) && depth === 1) {
+        capturing = true;
+        continue;
+      }
+      if (/^#endif\b/.test(line) && --depth === 0) break;
+      if (capturing) lines.push(line);
+    }
+    const offMac = lines.join('\n');
     expect(offMac).toContain('call.reject("Quick Capture is only on the Mac", "UNSUPPORTED")');
   });
 

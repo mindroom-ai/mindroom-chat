@@ -90,7 +90,9 @@
       "pack": "Igual que el paquete"
     },
     "imageViewer": {
-      "close": "Cerrar"
+      "close": "Cerrar",
+      "previous": "Imagen anterior",
+      "next": "Imagen siguiente"
     },
     "inviteUserPrompt": {
       "close": "Cerrar",
@@ -160,6 +162,7 @@
     "appUpdate": {
       "available": "Hay una nueva versión de MindRoom disponible.",
       "reload": "Recargar",
+      "updating": "Actualizando…",
       "dismiss": "Descartar",
       "reloadToUse": "Recarga para usarla."
     },
@@ -724,6 +727,7 @@
         "showKey": "Mostrar clave",
         "hideKey": "Ocultar clave",
         "sentTo": "Se envía a {{host}}",
+        "openLink": "Abrir {{host}}",
         "save": "Guardar",
         "decline": "Rechazar",
         "savedWaiting": "Guardada, esperando al agente",
@@ -761,6 +765,25 @@
           "declined": "Rechazada",
           "expired": "Caducada"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Habilidad <code>{{skill}}</code> actualizada",
+        "createdOne": "Habilidad <code>{{skill}}</code> creada",
+        "updatedMany_one": "{{count}} habilidad actualizada",
+        "updatedMany_many": "{{count}} habilidades actualizadas",
+        "updatedMany_other": "{{count}} habilidades actualizadas",
+        "createdMany_one": "{{count}} habilidad creada",
+        "createdMany_many": "{{count}} habilidades creadas",
+        "createdMany_other": "{{count}} habilidades creadas",
+        "created": "creado",
+        "updated": "actualizado",
+        "removed": "eliminado",
+        "diffTruncated": "Diff truncado",
+        "diffLabel": "Diff de {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "Trabajó durante {{duration}}",
+        "worked": "Trabajó"
       }
     },
     "message-search": {
@@ -947,7 +970,11 @@
       "moveRoomDown": "Bajar la sala o el espacio enfocado",
       "members": "Mostrar u ocultar miembros",
       "focusComposer": "Marcar como leído e ir al editor",
-      "resolveThread": "Resolver o reabrir el hilo abierto",
+      "previousThread": "Enfocar el hilo anterior",
+      "nextThread": "Enfocar el hilo siguiente",
+      "openThread": "Ir a los hilos y luego abrir el enfocado",
+      "leaveThread": "Salir del hilo abierto y luego de los hilos",
+      "resolveThread": "Resolver o reabrir el hilo abierto o enfocado",
       "newLine": "Nueva línea",
       "editLast": "Editar tu último mensaje (con el editor vacío)",
       "inlineCode": "Código en línea",
@@ -966,7 +993,8 @@
     "unsnooze": "Dejar de posponer",
     "status": {
       "snoozed": "Pospuesto"
-    }
+    },
+    "renameHint": "Haz doble clic para cambiar el nombre"
   },
   "threadSnooze": {
     "title": "Posponer hasta",
@@ -1304,6 +1332,30 @@
       "snoozed": "Pospuestos",
       "idle": "Inactivos",
       "resolved": "Resueltos"
+    },
+    "live": {
+      "tools": "Herramientas",
+      "toolsRunning_one": "{{count}} en ejecución",
+      "toolsRunning_many": "{{count}} en ejecución",
+      "toolsRunning_other": "{{count}} en ejecución",
+      "toolsRunningNamed_one": "{{count}} en ejecución: {{names}}",
+      "toolsRunningNamed_many": "{{count}} en ejecución: {{names}}",
+      "toolsRunningNamed_other": "{{count}} en ejecución: {{names}}",
+      "background": "Segundo plano",
+      "jobs_one": "{{count}} tarea",
+      "jobs_many": "{{count}} tareas",
+      "jobs_other": "{{count}} tareas",
+      "jobsWaiting_one": "{{jobs}}, {{count}} esperando aprobación",
+      "jobsWaiting_many": "{{jobs}}, {{count}} esperando aprobación",
+      "jobsWaiting_other": "{{jobs}}, {{count}} esperando aprobación",
+      "waitingForAnswer": "Esperando una respuesta"
     }
+  },
+  "threadBoard": {
+    "label": "Hilos por estado",
+    "working": "En curso",
+    "later": "Más tarde",
+    "open": "Abiertos",
+    "done": "Hechos"
   }
 }

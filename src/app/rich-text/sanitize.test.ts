@@ -140,4 +140,94 @@ describe('customHtmlSanitizerPolicy', () => {
     });
     expect(sanitized).toContain('href="obsidian://open?vault=notes&amp;file=daily"');
   });
+
+  describe('imageSource', () => {
+    const SHOT = '<img src="https://github.com/user-attachments/assets/1234" alt="shot">';
+    const MXC = '<img src="mxc://example.org/cat" alt="cat">';
+
+    it('drops an https image and keeps an mxc one without a resolver, as before', () => {
+      expect(sanitizeCustomHtml(SHOT)).not.toContain('<img');
+      expect(sanitizeCustomHtml(SHOT, { additionalAllowedUriSchemes: ['https'] })).not.toContain(
+        '<img'
+      );
+      expect(sanitizeCustomHtml(MXC)).toContain('src="mxc://example.org/cat"');
+    });
+
+    it('keeps an https image whose source the resolver returns', () => {
+      const sanitized = sanitizeCustomHtml(SHOT, { imageSource: (src) => src });
+      expect(sanitized).toContain('src="https://github.com/user-attachments/assets/1234"');
+      expect(sanitized).toContain('alt="shot"');
+    });
+
+    it("uses the resolver's URL, and passes it the image's source", () => {
+      const seen: string[] = [];
+      const sanitized = sanitizeCustomHtml(SHOT, {
+        imageSource: (src) => {
+          seen.push(src);
+          return 'https://proxy.example/image?id=1234';
+        },
+      });
+      expect(seen).toEqual(['https://github.com/user-attachments/assets/1234']);
+      expect(sanitized).toContain('src="https://proxy.example/image?id=1234"');
+      expect(sanitized).not.toContain('github.com');
+    });
+
+    it('drops the image when the resolver returns nothing, a non-https or a credentialed URL', () => {
+      const results = [
+        undefined,
+        '',
+        'http://x.example/a.png',
+        ['java', 'script:alert(1)'].join(''),
+        'data:image/png;base64,AAAA',
+        '//x.example/a.png',
+        '/a.png',
+        'not a url',
+        'https://user:pass@x.example/a.png',
+        'https://user@x.example/a.png',
+      ];
+      results.forEach((result) => {
+        expect(sanitizeCustomHtml(SHOT, { imageSource: () => result })).not.toContain('<img');
+      });
+    });
+
+    it('keeps mxc images as before, without asking the resolver', () => {
+      const seen: string[] = [];
+      const sanitized = sanitizeCustomHtml(MXC, {
+        imageSource: (src) => {
+          seen.push(src);
+          return undefined;
+        },
+      });
+      expect(sanitized).toContain('src="mxc://example.org/cat"');
+      expect(seen).toEqual([]);
+    });
+
+    it("runs a caller's img transform first, so it cannot bypass the resolver", () => {
+      const sanitized = sanitizeCustomHtml(MXC, {
+        imageSource: () => undefined,
+        policy: {
+          transformTags: {
+            img: (tagName, attribs) => ({
+              tagName,
+              attribs: { ...attribs, src: 'https://evil.example/a.png' },
+            }),
+          },
+        },
+      });
+      expect(sanitized).not.toContain('<img');
+      // Without a resolver the base rule still drops what the transform put in.
+      expect(
+        sanitizeCustomHtml(MXC, {
+          policy: {
+            transformTags: {
+              img: (tagName, attribs) => ({
+                tagName,
+                attribs: { ...attribs, src: 'https://evil.example/a.png' },
+              }),
+            },
+          },
+        })
+      ).not.toContain('<img');
+    });
+  });
 });

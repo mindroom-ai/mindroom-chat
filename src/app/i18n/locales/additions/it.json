@@ -90,7 +90,9 @@
       "pack": "Come il pacchetto"
     },
     "imageViewer": {
-      "close": "Chiudi"
+      "close": "Chiudi",
+      "previous": "Immagine precedente",
+      "next": "Immagine successiva"
     },
     "inviteUserPrompt": {
       "close": "Chiudi",
@@ -160,6 +162,7 @@
     "appUpdate": {
       "available": "È disponibile una nuova versione di MindRoom.",
       "reload": "Ricarica",
+      "updating": "Aggiornamento…",
       "dismiss": "Ignora",
       "reloadToUse": "Ricarica per usarla."
     },
@@ -724,6 +727,7 @@
         "showKey": "Mostra chiave",
         "hideKey": "Nascondi chiave",
         "sentTo": "Inviata a {{host}}",
+        "openLink": "Apri {{host}}",
         "save": "Salva",
         "decline": "Rifiuta",
         "savedWaiting": "Salvata, in attesa dell’agente",
@@ -761,6 +765,25 @@
           "declined": "Rifiutata",
           "expired": "Scaduta"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Skill <code>{{skill}}</code> aggiornata",
+        "createdOne": "Skill <code>{{skill}}</code> creata",
+        "updatedMany_one": "{{count}} skill aggiornata",
+        "updatedMany_many": "{{count}} skill aggiornate",
+        "updatedMany_other": "{{count}} skill aggiornate",
+        "createdMany_one": "{{count}} skill creata",
+        "createdMany_many": "{{count}} skill create",
+        "createdMany_other": "{{count}} skill create",
+        "created": "creato",
+        "updated": "aggiornato",
+        "removed": "rimosso",
+        "diffTruncated": "Diff troncato",
+        "diffLabel": "Diff di {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "Ha lavorato per {{duration}}",
+        "worked": "Ha lavorato"
       }
     },
     "message-search": {
@@ -947,7 +970,11 @@
       "moveRoomDown": "Sposta in basso la stanza o lo spazio selezionato",
       "members": "Mostra o nascondi i membri",
       "focusComposer": "Segna come letto e vai al campo di scrittura",
-      "resolveThread": "Risolvi o riapri il thread aperto",
+      "previousThread": "Seleziona il thread precedente",
+      "nextThread": "Seleziona il thread successivo",
+      "openThread": "Vai ai thread, poi apri quello selezionato",
+      "leaveThread": "Esci dal thread aperto, poi dai thread",
+      "resolveThread": "Risolvi o riapri il thread aperto o selezionato",
       "newLine": "Nuova riga",
       "editLast": "Modifica il tuo ultimo messaggio (campo di scrittura vuoto)",
       "inlineCode": "Codice in linea",
@@ -966,7 +993,8 @@
     "unsnooze": "Annulla posticipo",
     "status": {
       "snoozed": "Posticipato"
-    }
+    },
+    "renameHint": "Fai doppio clic per rinominare"
   },
   "threadSnooze": {
     "title": "Posticipa fino a",
@@ -1304,6 +1332,30 @@
       "snoozed": "Posticipati",
       "idle": "Inattivi",
       "resolved": "Risolti"
+    },
+    "live": {
+      "tools": "Strumenti",
+      "toolsRunning_one": "{{count}} in esecuzione",
+      "toolsRunning_many": "{{count}} in esecuzione",
+      "toolsRunning_other": "{{count}} in esecuzione",
+      "toolsRunningNamed_one": "{{count}} in esecuzione: {{names}}",
+      "toolsRunningNamed_many": "{{count}} in esecuzione: {{names}}",
+      "toolsRunningNamed_other": "{{count}} in esecuzione: {{names}}",
+      "background": "Background",
+      "jobs_one": "{{count}} attività",
+      "jobs_many": "{{count}} attività",
+      "jobs_other": "{{count}} attività",
+      "jobsWaiting_one": "{{jobs}}, {{count}} in attesa di approvazione",
+      "jobsWaiting_many": "{{jobs}}, {{count}} in attesa di approvazione",
+      "jobsWaiting_other": "{{jobs}}, {{count}} in attesa di approvazione",
+      "waitingForAnswer": "In attesa di una risposta"
     }
+  },
+  "threadBoard": {
+    "label": "Thread per stato",
+    "working": "In corso",
+    "later": "Più tardi",
+    "open": "Aperti",
+    "done": "Fatti"
   }
 }

@@ -84,7 +84,9 @@
       "pack": "パックと同じ"
     },
     "imageViewer": {
-      "close": "閉じる"
+      "close": "閉じる",
+      "previous": "前の画像",
+      "next": "次の画像"
     },
     "inviteUserPrompt": {
       "close": "閉じる",
@@ -154,6 +156,7 @@
     "appUpdate": {
       "available": "MindRoom の新しいバージョンがあります。",
       "reload": "再読み込み",
+      "updating": "更新中…",
       "dismiss": "閉じる",
       "reloadToUse": "使うには再読み込みしてください。"
     },
@@ -706,6 +709,7 @@
         "showKey": "キーを表示",
         "hideKey": "キーを隠す",
         "sentTo": "送信先: {{host}}",
+        "openLink": "{{host}} を開く",
         "save": "保存",
         "decline": "拒否",
         "savedWaiting": "保存しました。エージェントを待っています",
@@ -743,6 +747,21 @@
           "declined": "拒否済み",
           "expired": "期限切れ"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "スキル <code>{{skill}}</code> を更新しました",
+        "createdOne": "スキル <code>{{skill}}</code> を作成しました",
+        "updatedMany_other": "{{count}} 件のスキルを更新しました",
+        "createdMany_other": "{{count}} 件のスキルを作成しました",
+        "created": "作成",
+        "updated": "更新",
+        "removed": "削除",
+        "diffTruncated": "差分は省略されています",
+        "diffLabel": "{{path}} の差分"
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} 作業しました",
+        "worked": "作業しました"
       }
     },
     "message-search": {
@@ -917,7 +936,11 @@
       "moveRoomDown": "フォーカス中のルームまたはスペースを下へ移動",
       "members": "メンバーの表示/非表示",
       "focusComposer": "既読にして入力欄へ移動",
-      "resolveThread": "開いているスレッドを解決または再開",
+      "previousThread": "前のスレッドにフォーカス",
+      "nextThread": "次のスレッドにフォーカス",
+      "openThread": "スレッド一覧へ移動し、次にフォーカス中のスレッドを開く",
+      "leaveThread": "開いているスレッドから戻り、次にスレッド一覧から戻る",
+      "resolveThread": "開いている、またはフォーカス中のスレッドを解決または再開",
       "newLine": "改行",
       "editLast": "最後の自分のメッセージを編集（入力欄が空のとき）",
       "inlineCode": "インライン コード",
@@ -936,7 +959,8 @@
     "unsnooze": "スヌーズを解除",
     "status": {
       "snoozed": "スヌーズ中"
-    }
+    },
+    "renameHint": "ダブルクリックで名前を変更"
   },
   "threadSnooze": {
     "title": "スヌーズの終了日時",
@@ -1256,6 +1280,22 @@
       "snoozed": "スヌーズ中",
       "idle": "待機中",
       "resolved": "解決済み"
+    },
+    "live": {
+      "tools": "ツール",
+      "toolsRunning_other": "{{count}} 件実行中",
+      "toolsRunningNamed_other": "{{count}} 件実行中: {{names}}",
+      "background": "バックグラウンド",
+      "jobs_other": "{{count}} 件",
+      "jobsWaiting_other": "{{jobs}}、承認待ち {{count}} 件",
+      "waitingForAnswer": "回答待ち"
     }
+  },
+  "threadBoard": {
+    "label": "状態別のスレッド",
+    "working": "作業中",
+    "later": "後で",
+    "open": "未完了",
+    "done": "完了"
   }
 }

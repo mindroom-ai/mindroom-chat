@@ -1,3 +1,4 @@
+import { parseAiRunModel, type AiRunModelInfo } from './aiRun';
 import { parseLiveFrame, type LiveDelta, type LiveDocs, type LiveOrder } from './liveFrame';
 
 /** Event type of the ephemeral frames that stream a MindRoom sub-agent run. */
@@ -30,6 +31,11 @@ export type SubagentMeta = {
   status: SubagentStatus;
   startedAt: number;
   endedAt: number | null;
+  /**
+   * The model the run is on, which can be a `run_subagent` override or a mid-run switch, as
+   * `io.mindroom.ai_run` names it. MindRoom before the field sends none.
+   */
+  model?: AiRunModelInfo;
   /** Only on snapshots. */
   task?: string;
   /** Only on snapshots of an ended run. */
@@ -57,7 +63,7 @@ const isStatus = (value: unknown): value is SubagentStatus =>
 const parseMeta = (value: unknown, run: string): SubagentMeta | null => {
   if (!isRecord(value)) return null;
   const { agent, caller, root, parent, thread_id: threadId, source, status } = value;
-  const { subagent = run, started_at: startedAt, ended_at: endedAt, task, result } = value;
+  const { subagent = run, started_at: startedAt, ended_at: endedAt, model, task, result } = value;
   if (typeof agent !== 'string' || typeof caller !== 'string' || typeof root !== 'string') {
     return null;
   }
@@ -71,6 +77,7 @@ const parseMeta = (value: unknown, run: string): SubagentMeta | null => {
   if (task !== undefined && typeof task !== 'string') return null;
   // MindRoom sends `result: null` for an ended run without one.
   if (result !== undefined && result !== null && typeof result !== 'string') return null;
+  const modelInfo = parseAiRunModel(model);
   return {
     agent,
     subagent,
@@ -82,6 +89,7 @@ const parseMeta = (value: unknown, run: string): SubagentMeta | null => {
     status,
     startedAt,
     endedAt,
+    ...(modelInfo ? { model: modelInfo } : {}),
     ...(task === undefined ? {} : { task }),
     ...(typeof result === 'string' ? { result } : {}),
   };

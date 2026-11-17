@@ -9,6 +9,7 @@ import { useResizeObserver } from '../lib/hooks/useResizeObserver';
 import { formatCallDuration } from '../lib/time';
 import type { LiveDocs } from '../matrix/protocol/liveFrame';
 import { isActiveSubagentStatus } from '../matrix/protocol/subagentFrame';
+import { getAiRunCompactModelLabel, getAiRunModelLabel } from '../messages/agent-run/aiRunDisplay';
 import { RenderMessageContent } from '../messages/content/RenderMessageContent';
 import { LINKIFY_OPTS } from '../messages/html/react-custom-html-parser';
 import { MessageBase, ModernLayout, UsernameBold } from '../messages/layout/layout';
@@ -197,6 +198,7 @@ export function SubagentRunView({
   const agent = useAgentProfile(room, meta.agent);
   const active = isActiveSubagentStatus(meta.status);
   const elapsed = elapsedSeconds(meta, now);
+  const modelLabel = meta.model && getAiRunCompactModelLabel(meta.model);
   const { threadId } = meta;
 
   // A sub-agent at work opens at its newest text; an ended one at its first task.
@@ -251,6 +253,15 @@ export function SubagentRunView({
             {agent.name}
           </Text>
           <Text as="div" size="T200" priority="300" className={css.Standing}>
+            {modelLabel && (
+              <span
+                className={css.StandingModel}
+                title={meta.model && getAiRunModelLabel(meta.model)}
+                data-subagent-model=""
+              >
+                {modelLabel}
+              </span>
+            )}
             <RunStatus status={meta.status} />
             {elapsed !== undefined && <span>{formatCallDuration(elapsed, language)}</span>}
           </Text>

@@ -9,6 +9,11 @@ import React, {
   useId,
 } from 'react';
 import { countCacheProbe } from '../event-store/cache/cacheProbe';
+import {
+  ExpandAllInitContext,
+  ManualExpansionStateContext,
+  rememberManualExpansionState,
+} from '../messages/manualExpansionState';
 import * as css from './CollapsibleMessage.css';
 
 const MAX_HEIGHT = '11em';
@@ -17,38 +22,7 @@ const FADE_EM = 4;
 /** What keeps its own click in a folded message's faded lines. */
 const OWN_CLICK = 'a, button, input, select, textarea, summary, [role="button"], [role="link"]';
 
-// The owning timeline's expand/collapse-all baseline, scoped to that timeline
-// instance. Newly mounted rows read it render-purely as their initial expanded
-// state (virtualized timelines mount rows lazily), and mounted rows follow its
-// changes in an effect, one commit after the timeline captures its reader
-// anchor. `undefined` means "no override — use the per-message default".
-export const ExpandAllInitContext = React.createContext<boolean | undefined>(undefined);
-
-// Manual expansion is user preference, unlike the module-level overflow
-// verdict cache below (which is only a measurement warm-start hint). Keep it
-// in a room/thread timeline-owned Map so virtualization remounts can reuse it
-// without leaking UI state across navigation.
-export const ManualExpansionStateContext = React.createContext<Map<string, boolean> | undefined>(
-  undefined
-);
 const ExpansionLayoutChangeContext = React.createContext<(() => void) | undefined>(undefined);
-export const MANUAL_EXPANSION_STATE_LIMIT = 4000;
-
-export const rememberManualExpansionState = (
-  state: Map<string, boolean>,
-  key: string,
-  expanded: boolean,
-  limit = MANUAL_EXPANSION_STATE_LIMIT
-) => {
-  // Refresh existing keys so oldest-entry eviction retains recently-used rows.
-  state.delete(key);
-  state.set(key, expanded);
-  while (state.size > limit) {
-    const oldestKey = state.keys().next().value;
-    if (oldestKey === undefined) break;
-    state.delete(oldestKey);
-  }
-};
 
 export function CollapsibleMessageStateProvider({
   children,

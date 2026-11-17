@@ -37,7 +37,7 @@ in the native app without a service worker it carries the account's access token
 
 ### `room`
 
-`room` takes the user to rooms and threads, names the thread a room's page shows, creates sub-rooms and names the rooms a room is a sub-room of, shows a person's profile card, names the floating one that is open and closes it, and shows a thread on a plugin's own surface: `useRoomNavigate()` gives `navigateRoom(roomId, options?)`, which opens a room where the app opens it (in its space, in Direct, or in Home), and `navigateRoomThread(roomId, threadId, options?)`, which opens a thread whose back button leads to its room (a step back when the thread was opened from the room, else the room in the thread's place, so the browser's Back returns to the page it was opened from), where the app's own thread links open it: in the room page's thread column, beside the room's messages once the person chose that on this device and the page has room for both, else filling the page.
+`room` takes the user to rooms and threads, names the thread a room's page shows, creates sub-rooms and names the rooms a room is a sub-room of, shows a person's profile card, names the floating one that is open and closes it, and shows a thread, or a room's threads as a board by state, on a plugin's own surface: `useRoomNavigate()` gives `navigateRoom(roomId, options?)`, which opens a room where the app opens it (in its space, in Direct, or in Home), and `navigateRoomThread(roomId, threadId, options?)`, which opens a thread whose back button leads to its room (a step back when the thread was opened from the room, else the room in the thread's place, so the browser's Back returns to the page it was opened from), where the app's own thread links open it: in the room page's thread column, beside the room's messages once the person chose that on this device and the page has room for both, else filling the page.
 `options` is `{ eventId?, replace? }`: `eventId` opens the room, or the thread, at that event, scrolled to and marked as the app's own message links open one, and `replace: true` puts the room or the thread in place of the current page in the history, so Back skips that page.
 Only those two count, so a callback's extra argument there (an index, a click event) opens the room or the thread itself, as a new page.
 And `useRoomHref(roomId, threadId?)` is the `href` of the room or the thread at that path, with the base path or the hash router the app uses.
@@ -75,6 +75,17 @@ It may show a thread of the room whose page is open, also the one that page show
 Reply drafts in the composer of the timeline it was chosen in, and Up in an empty composer edits only in the timeline of the composer that has the focus;
 and while the room's page is behind the panel (on a phone, or filling the room) the view's composer keeps its menus and typing notices (not while its own side panel is folded), and read receipts and notifications count the thread as on screen while the view shows it, not while its side panel is folded or under a phone's navigation drawer.
 Its menus, and the profile card its rows open, take their Escape at the document, after it bubbled through the plugin's elements, so a plugin that closes its surface on Escape listens on the window, which only an Escape nothing took reaches (one that is not `defaultPrevented`), as the example plugin's Example thread panel does.
+
+#### `ThreadBoard`
+
+`ThreadBoard` (`{ room }`) is the threads of `room` as a board, for a plugin's own surface such as its side panel: a column for each state, left to right Working (a reply in the thread streams, or a live background job names it in its `threadId`), Later (snoozed, or a scheduled task of the thread is pending), Open (none of the others) and Done (resolved).
+A thread is in one column, the first of Working, Done, Later and Open that applies: a resolved thread that streams again is in Working, a resolved one with a schedule in Done.
+Its threads are the room's threads with at least one reply (or one of the signed-in user's still sending), as the app's thread index holds them and the Threads page lists them: a top-level message nobody replied to is no card, nor is a pinned event without a thread, and a thread whose first reply is still on its way shows once that reply does. It shows them in any view of the room, while a thread fills the room's page, and with no room page behind it, and builds no index of its own. While the board shows, the room's whole thread list loads; until it is in, and until the index has looked at the rooms once, one line above the columns says it is loading threads, and a room without a thread known yet shows only that line, never that it has none.
+Each thread shows as its Compact card, with its title, preview, tags, people, unread mark, badges (client plugins' `threadCardBadges` too) and actions (resolve, snooze and the thread's menu), and choosing a card, also with Enter, opens the thread in the room's page.
+Working and Done list the newest activity first, Open its unread threads first, then the newest, and Later the soonest first, by the snooze's end or the next run, a schedule without a time last; each card says when. Among the cards a column shows, a pinned thread leads, under Pinned, as in the Compact view.
+Open and Done show their first 20 threads and a Show more for 20 more; Working and Later show all; each column's header names it and counts all its threads. A room without a thread shows one line instead.
+A thread moves to its column as its state changes, also when a snooze ends or a one-time schedule's time comes with nothing else happening in the room.
+It fills its parent, a flex column; its columns scroll sideways where they do not fit, and each scrolls down by itself. Its code loads only once one renders, and it shows nothing while it loads.
 
 ### `server`
 
@@ -121,6 +132,7 @@ and `IconTooltip`, an icon button's tooltip, placed so too.
 
 For text, such as an agent's, that a plugin shows as the app does, `ui` also has `useMarkdownHtml(markdown)`, the HTML of `markdown` as the app renders an agent's reply while it streams: sanitized, with the link schemes `messageRendering.additionalAllowedUriSchemes` in `config.json` adds;
 undefined until the app's Markdown renderer has loaded, which it starts loading, and rendered again once it has;
+its images keep only `mxc://` sources unless the plugin passes `useMarkdownHtml(markdown, { imageSource })`, whose mapping decides which other images load and from where: it gets an image's source and returns the absolute `https:` URL without a username or password to load it from, or undefined, and an image without such a URL is dropped;
 `sanitizeHtml(html)`, `html` with only what the app keeps of a message's HTML, under the app's default policy, which a plugin cannot loosen: no script, event handler or `javascript:` link, and images only from `mxc://` sources, which `mxcUrlToHttp` turns into ones a browser loads;
 and `replaceMatrixUserIdsWithDisplayNames(room, text)`, `text` with the Matrix user ID of each member of `room` replaced by the name the app shows for them there, also before trailing punctuation, as thread previews show an agent's message, which names people by their IDs;
 other IDs stay.
@@ -172,7 +184,7 @@ one that uses `useMindroomServer`, `useMindroomServerStatus` or `useRoomComputer
 
 ## SDK versions
 
-`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 57), naming the plugin.
+`apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 59), naming the plugin.
 The SDK only grows: nothing a plugin uses is changed or removed, and each addition raises that version, a new export as well as a new kind of contribution in `ClientPlugin` or a new field of the declaration, so a plugin built for an older SDK still builds and one that uses a newer addition never builds into a client that would ignore it.
 
 ### What each version added
@@ -233,6 +245,8 @@ The SDK only grows: nothing a plugin uses is changed or removed, and each additi
 - version 55 a message renderer's `hidden`
 - version 56 thread card badges
 - version 57 thread details
+- version 58 `room`'s `ThreadBoard`
+- version 59 `useMarkdownHtml`'s `imageSource`
 
 ## Pinches
 

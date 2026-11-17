@@ -123,7 +123,7 @@ describe('cacheStore attachment schema', () => {
       const transaction = db?.transaction([EVENTS_STORE, ATTACHMENT_REFERENCES_STORE], 'readonly');
       const eventRequest = transaction?.objectStore(EVENTS_STORE).get(seededEvent.cacheKey);
       const references = transaction?.objectStore(ATTACHMENT_REFERENCES_STORE);
-      expect(db?.version).toBe(6);
+      expect(db?.version).toBe(7);
       expect(
         db
           ?.transaction(ATTACHMENTS_STORE)
