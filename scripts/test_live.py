@@ -51,7 +51,7 @@ class KeyFileTests(unittest.TestCase):
         self.assertEqual(live.read_key_file(self.TEXT, ("OTHER",)), {"OTHER": "value"})
 
     def test_empty_values_and_other_names_are_left_out(self) -> None:
-        self.assertEqual(live.read_key_file('OPENAI_API_KEY=\nOPENAI_API_KEY_2=x\n', live.KEY_NAMES), {})
+        self.assertEqual(live.read_key_file("OPENAI_API_KEY=\nOPENAI_API_KEY_2=x\n", live.KEY_NAMES), {})
 
     def test_the_file_only_fills_keys_the_environment_lacks(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -71,7 +71,10 @@ class SlotTests(unittest.TestCase):
         self.assertIsNone(live.pick_slot(range(50, 52), lambda slot: True))
 
     def taken(self, slot: int, projects: set[str] = frozenset(), live_slots: set[int] = frozenset()) -> bool:
-        with tempfile.TemporaryDirectory() as directory, mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": directory}):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": directory}),
+        ):
             return live.slot_taken(slot, set(projects), set(live_slots))
 
     def test_a_slot_is_taken_by_a_deployment_a_compose_project_or_a_stack(self) -> None:
@@ -87,9 +90,7 @@ class SlotTests(unittest.TestCase):
 
     def test_a_listener_on_any_port_of_the_slot_takes_it(self) -> None:
         ports = live.slot_ports(57)
-        self.assertEqual(
-            sorted(ports), [4357, 28157, 29257, 29357, 29457, 29557, 29657, 29757, 29857, 29957]
-        )
+        self.assertEqual(sorted(ports), [4357, 28157, 29257, 29357, 29457, 29557, 29657, 29757, 29857, 29957])
         with mock.patch.object(live, "port_in_use", side_effect=lambda port: port == 29757):
             self.assertTrue(self.taken(57))
 
@@ -115,8 +116,18 @@ class StateTests(unittest.TestCase):
         self.assertEqual(
             state["agents"],
             [
-                {"name": "router", "displayName": "MindRoom", "userId": STACK_STATE["agents"]["router"], "role": "router"},
-                {"name": "helper", "displayName": "Helper", "userId": STACK_STATE["agents"]["helper"], "model": "GPT-6 Luna"},
+                {
+                    "name": "router",
+                    "displayName": "MindRoom",
+                    "userId": STACK_STATE["agents"]["router"],
+                    "role": "router",
+                },
+                {
+                    "name": "helper",
+                    "displayName": "Helper",
+                    "userId": STACK_STATE["agents"]["helper"],
+                    "model": "GPT-6 Luna",
+                },
             ],
         )
         self.assertEqual(state["backend"]["config"], "/tmp/mindroom-client-agents/slot-57/config.yaml")

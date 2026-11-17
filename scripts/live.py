@@ -7,9 +7,9 @@ Usage: python3 scripts/live.py up [--slot N] [--backend DIR] [--helper-model lun
 
 `up` picks a free e2e slot in 50-99 (or --slot N) and starts, all on that slot:
   1. its own empty Tuwunel homeserver on 28100+N (`scripts/e2e-slot.sh N up`, e2e/docker-compose.yaml);
-  2. this checkout's Chat, the Vite dev server on http://127.0.0.1:4300+N, whose /config.json lists only that
-     homeserver, so /login opens on it (scripts/e2e-client-config.mjs). A checkout without node_modules gets
-     `npm ci` first;
+  2. this checkout's Chat, the Vite dev server (`vite --host 127.0.0.1 --port 4300+N --strictPort`), whose
+     /config.json lists only that homeserver, so /login opens on it (scripts/e2e-client-config.mjs). A checkout
+     without node_modules gets `npm ci` first;
   3. a MindRoom backend (scripts/agent-stack/stack.py N up --model live): a Helper agent, a normal assistant on GPT-6
      Luna (or Claude Haiku 5.5 with --helper-model haiku; both are in the config's models), and a fresh test account
      invited to the lobby.
@@ -176,7 +176,8 @@ def live_state(slot: int, stack_state: dict, chat: dict, backend: dict, state_fi
 def summary(state: dict) -> str:
     """The short block `up` prints for a person."""
     agents = ", ".join(
-        f"{agent['displayName']} {agent['userId']} ({agent.get('model') or agent.get('role')})" for agent in state["agents"]
+        f"{agent['displayName']} {agent['userId']} ({agent.get('model') or agent.get('role')})"
+        for agent in state["agents"]
     )
     backend = state["backend"]
     return "\n".join(
@@ -208,7 +209,9 @@ def live_root() -> Path:
         root.mkdir(mode=0o700, parents=True)
     info = root.lstat()
     if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o022:
-        raise LiveError(f"refusing {root}: it must be a directory (not a symlink) of yours that no one else may write to")
+        raise LiveError(
+            f"refusing {root}: it must be a directory (not a symlink) of yours that no one else may write to"
+        )
     return root
 
 
@@ -240,6 +243,8 @@ def locked(path: Path):
 
 def port_in_use(port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        # As servers bind: a port that closed connections leave in TIME_WAIT is free, one with a listener is not.
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             probe.bind(("127.0.0.1", port))
         except OSError:
@@ -340,7 +345,7 @@ def backend_source(backend: str | None) -> tuple[Path, str, str]:
     except subprocess.CalledProcessError as error:
         raise LiveError(f"{checkout} has no origin/main; pass --backend {checkout} to run its working tree") from error
     age = git(checkout, "log", "-1", "--format=%cr", sha)
-    return checkout, sha, f"origin/main of {checkout}, committed {age} (`git -C {checkout} fetch` for a newer one)"
+    return checkout, sha, f"origin/main of {checkout}, committed {age}; `git -C {checkout} fetch` brings a newer one"
 
 
 def check_tools() -> None:
@@ -367,17 +372,22 @@ def up(args: argparse.Namespace) -> int:
         raise LiveError(
             f"{' and '.join(missing)} is in neither the environment nor {env_file}; set it or pass --env-file FILE"
         )
-    if not (REPOSITORY / "node_modules").is_dir():
-        say(f"{REPOSITORY} has no node_modules; running `npm ci --no-audit --no-fund` (a few minutes)")
-        install_log = live_root() / "npm-ci.log"
-        run_logged(["npm", "ci", "--no-audit", "--no-fund"], install_log)
+    # npm writes node_modules/.package-lock.json last, so an install that stopped halfway runs again.
+    installed = REPOSITORY / "node_modules" / ".package-lock.json"
+    if not installed.is_file():
+        with locked(live_root() / "npm-ci.lock"):
+            if not installed.is_file():
+                say(f"{REPOSITORY} has no node_modules; running `npm ci --no-audit --no-fund` (a few minutes)")
+                run_logged(["npm", "ci", "--no-audit", "--no-fund"], live_root() / "npm-ci.log")
 
     with locked(live_root() / "pick.lock"):
         live = set(read_states())
         projects = docker_projects()
         if args.slot is not None:
             if slot_taken(args.slot, projects, live):
-                raise LiveError(f"slot {args.slot} is in use (`just live status`, `docker ps`, `ss -ltn`); pick another")
+                raise LiveError(
+                    f"slot {args.slot} is in use (`just live status`, `docker ps`, `ss -ltn`); pick another"
+                )
             slot = args.slot
         else:
             slot = pick_slot(SLOTS, lambda n: slot_taken(n, projects, live))
@@ -412,7 +422,16 @@ def up(args: argparse.Namespace) -> int:
             "E2E_APP_PORT": str(port["app"]),
         }
         chat_pid = stack.start_process(
-            ["npx", "vite", "--host", "127.0.0.1", "--port", str(port["app"]), "--strictPort"],
+            # `npx vite` without npm's process in between, so the recorded PID is the server's.
+            [
+                "node",
+                "node_modules/vite/bin/vite.js",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                str(port["app"]),
+                "--strictPort",
+            ],
             cwd=REPOSITORY,
             env=chat_env,
             log_path=chat_log,
@@ -516,7 +535,9 @@ def stop_slot(slot: int) -> None:
 
 
 def mine(states: dict[int, dict]) -> list[int]:
-    return sorted(slot for slot, state in states.items() if (state.get("chat") or {}).get("checkout") == str(REPOSITORY))
+    return sorted(
+        slot for slot, state in states.items() if (state.get("chat") or {}).get("checkout") == str(REPOSITORY)
+    )
 
 
 def down(args: argparse.Namespace) -> int:
@@ -542,7 +563,7 @@ def down(args: argparse.Namespace) -> int:
 def status(args: argparse.Namespace) -> int:
     states = read_states()
     rows = []
-    for slot, state in sorted(states.items()):
+    for _slot, state in sorted(states.items()):
         if state.get("status") == "ready":
             chat = stack.alive((state.get("chat") or {}).get("pid"), "vite")
             server = stack.http_json("GET", f"{state['homeserver']}/_matrix/client/versions", timeout=3)[0] == 200

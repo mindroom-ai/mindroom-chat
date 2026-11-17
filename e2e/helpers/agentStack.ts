@@ -22,8 +22,8 @@ import { matrixFetch, sendRoomMessage } from './matrix';
  *
  * The first spec of a run starts the stack (a minute, several the first time a MindRoom commit is installed);
  * later specs reuse it until `python3 scripts/agent-stack/stack.py <slot> down` or `scripts/e2e-slot.sh <slot> down`.
- * The specs skip themselves when there is no MindRoom checkout (E2E_MINDROOM_CHECKOUT, default
- * /home/basnijholt/Work/dev/mindroom) or no homeserver on the slot's port. E2E_PLUGIN_DIRS adds plugin
+ * The specs skip themselves when there is no MindRoom checkout (E2E_MINDROOM_CHECKOUT, default the
+ * first of ~/repos/dev/mindroom and ~/Work/dev/mindroom that exists) or no homeserver on the slot's port. E2E_PLUGIN_DIRS adds plugin
  * directories to the stack (stack.py's docstring), and a stack started with other ones restarts.
  */
 
