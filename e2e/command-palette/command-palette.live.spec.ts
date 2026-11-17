@@ -76,7 +76,7 @@ test.describe('command palette', () => {
     await expect(page).toHaveURL(new RegExp(encodeURIComponent(roomId)));
   });
 
-  test('lists threads above rooms, sinks the open room, keeps one trigger, and moves room search to the menu', async ({
+  test('lists rooms, sinks the open room, keeps one trigger, and moves room search to the menu', async ({
     page,
   }, testInfo) => {
     const homeserver = getHomeserver();
