@@ -31,15 +31,9 @@ format *paths:
 dev *args:
     npx vite {{args}}
 
-# Production build into dist/; docs/deployment.md "Build" lists what it holds. The npm dependencies' THIRD_PARTY_NOTICES.txt in public/licenses/ comes from scripts/third-party-notices.mjs. While MINDROOM_CLIENT_PLUGINS is unset, it builds in the client plugins bundled-plugins.txt pins (scripts/bundled-plugins.mjs downloads and installs them); `MINDROOM_CLIENT_PLUGINS= just build` builds none.
+# Production build into dist/; docs/deployment.md "Build" lists what it holds. The npm dependencies' THIRD_PARTY_NOTICES.txt in public/licenses/ comes from scripts/third-party-notices.mjs. While MINDROOM_CLIENT_PLUGINS is unset, it builds in the client plugins bundled-plugins.txt pins (scripts/build.sh, which `npm run build:ios` runs too, so the iOS and Mac apps ship them); `MINDROOM_CLIENT_PLUGINS= just build` builds none.
 build:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [ -z "${MINDROOM_CLIENT_PLUGINS+set}" ]; then
-      MINDROOM_CLIENT_PLUGINS=$(node scripts/bundled-plugins.mjs)
-      export MINDROOM_CLIENT_PLUGINS
-    fi
-    npx vite build
+    scripts/build.sh
 
 # Cut a release by hand: tag GitHub main (or the commit of main you name) with the next calendar version vYYYY.M.N and publish its GitHub release, with notes from the commits since the last release; the release event then publishes its container image (.github/workflows/image.yml) and its Mac DMG (.github/workflows/macos.yml). Shows the plan and asks before it creates anything; --dry-run only shows it, --yes does not ask. Needs `gh` signed in with write access. docs/ios-release.md describes the scheme; .github/workflows/release.yml does the same after CI while package.json says "autoRelease": true.
 release *args:
