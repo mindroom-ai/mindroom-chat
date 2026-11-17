@@ -390,6 +390,7 @@ export function SecretRequestCard({
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const card = useRef<HTMLDivElement>(null);
+  const summary = useRef<HTMLElement>(null);
   const glassRef = useGlassHighlight<HTMLDivElement>(card);
   const viewerId = useMatrixClient().getUserId();
   const room = useApprovalRoom(roomId);
@@ -423,18 +424,111 @@ export function SecretRequestCard({
   }, [open, request.expiresAt, clockTick]);
 
   // The form went away, after the answer or with the agent's edit, whichever came first, while an
-  // answer from the keyboard was on its way: the card, which stays through the edit, takes the
-  // focus the page got. Focus moved elsewhere on purpose stays there. Without such an answer none
-  // moves (the form gave up its focus): focus put in the row would show the row's toolbar as if it
-  // came from the keyboard.
+  // answer from the keyboard was on its way: the folded card's row, which stays through the edit
+  // and opens it again, takes the focus the page got. Focus moved elsewhere on purpose stays there.
+  // Without such an answer none moves (the form gave up its focus): focus put in the row would
+  // show the row's toolbar as if it came from the keyboard.
   const formShown = open && isRequester;
   useEffect(() => {
     if (formShown || !keyboardAnswer.current) return;
     keyboardAnswer.current = false;
     if (document.activeElement === document.body || document.activeElement === null) {
-      card.current?.focus({ preventScroll: true });
+      (summary.current ?? card.current)?.focus({ preventScroll: true });
     }
   }, [formShown]);
+
+  const header = (
+    <>
+      <span className={sectionCss.SectionIcon} aria-hidden>
+        <Icon size="100" src={Icons.Lock} />
+      </span>
+      <span className={css.Title}>
+        <IsolatedText
+          text={
+            request.kind === 'temporary'
+              ? // What the agent calls the secret, when it said.
+                (request.label && isolateInSentence(request.label)) ||
+                t('mindroomUi.messages.secretRequestCard.temporary.title', {
+                  agent: userDisplayName(room, agentUserId),
+                })
+              : t('mindroomUi.messages.secretRequestCard.title', {
+                  name: isolateInSentence(request.displayName),
+                })
+          }
+        />
+      </span>
+      <span
+        data-secret-request-status={chip}
+        className={classNames(
+          sectionCss.StatusChip,
+          chip === 'waitingForYou' && sectionCss.StatusChipAttention,
+          chip === 'saved' && sectionCss.StatusChipDone
+        )}
+      >
+        {temporary && chip === 'saved'
+          ? t('mindroomUi.messages.secretRequestCard.temporary.sent')
+          : t(CHIP_KEYS[chip])}
+      </span>
+    </>
+  );
+  const details = (
+    <>
+      {request.reason && (
+        <Text size="T300" className={css.Reason} {...ownDirectionBlock}>
+          {request.reason}
+        </Text>
+      )}
+      {temporary && (
+        <Text size="T200">
+          <IsolatedText
+            text={t('mindroomUi.messages.secretRequestCard.temporary.givenAs', {
+              agent: userDisplayName(room, agentUserId),
+              variable: isolateInSentence(temporary.env),
+            })}
+          />
+        </Text>
+      )}
+      {(hosts.length > 0 || timeLeft) && (
+        <Text size="T200" className={sectionCss.SectionMeta}>
+          {hosts.length > 0 && (
+            <IsolatedText
+              text={t('mindroomUi.messages.secretRequestCard.usedOnlyFor', {
+                hosts: isolateInSentence(hosts.join(', ')),
+              })}
+            />
+          )}
+          {hosts.length > 0 && timeLeft && ' · '}
+          {timeLeft && t('mindroomUi.messages.threadApprovalControls.expires', { time: timeLeft })}
+        </Text>
+      )}
+      {open && request.kind === 'key' && request.replaces && (
+        <Text size="T200">{t('mindroomUi.messages.secretRequestCard.replaces')}</Text>
+      )}
+      {temporary?.kept && status === 'saved' && keptSeconds !== undefined && (
+        <Text size="T200" className={sectionCss.SectionMeta}>
+          {t(KEPT_KEYS[temporary.kept], { duration: formatLifetime(keptSeconds, language) })}
+        </Text>
+      )}
+      {open && !isRequester && (
+        <Text size="T200">
+          <IsolatedText
+            text={t('mindroomUi.messages.secretRequestCard.waitingFor', {
+              name: userDisplayName(room, request.requesterId),
+            })}
+          />
+        </Text>
+      )}
+      {formShown && (
+        <SecretRequestAnswer
+          request={request}
+          roomId={roomId}
+          agentUserId={agentUserId}
+          keyboardAnswer={keyboardAnswer}
+          onAnswer={setAnswer}
+        />
+      )}
+    </>
+  );
 
   return (
     <Box
@@ -450,108 +544,39 @@ export function SecretRequestCard({
           : 'mindroomUi.messages.secretRequestCard.label'
       )}
     >
-      <div className={sectionCss.SectionHeader}>
-        <span className={sectionCss.SectionIcon} aria-hidden>
-          <Icon size="100" src={Icons.Lock} />
-        </span>
-        <span className={css.Title}>
-          <IsolatedText
-            text={
-              request.kind === 'temporary'
-                ? // What the agent calls the secret, when it said.
-                  (request.label && isolateInSentence(request.label)) ||
-                  t('mindroomUi.messages.secretRequestCard.temporary.title', {
-                    agent: userDisplayName(room, agentUserId),
-                  })
-                : t('mindroomUi.messages.secretRequestCard.title', {
-                    name: isolateInSentence(request.displayName),
-                  })
-            }
-          />
-        </span>
-        <span
-          data-secret-request-status={chip}
-          className={classNames(
-            sectionCss.StatusChip,
-            chip === 'waitingForYou' && sectionCss.StatusChipAttention,
-            chip === 'saved' && sectionCss.StatusChipDone
+      {open ? (
+        <div className={sectionCss.SectionHeader}>{header}</div>
+      ) : (
+        // Done, the card folds to its row, which opens it again.
+        <details className={css.Fold}>
+          <summary ref={summary} className={css.FoldRow}>
+            {header}
+            <Icon
+              src={Icons.ChevronBottom}
+              size="100"
+              className={sectionCss.ReceiptChevron}
+              aria-hidden
+            />
+          </summary>
+          <div className={classNames(sectionCss.SectionBody, css.FoldBody)}>{details}</div>
+        </details>
+      )}
+      {/* Outside the fold and in the same place open or done, so that it stays mounted through
+      the answer and a screen reader announces the text it gets. */}
+      {isRequester && waitingForEdit && (open || answer) && (
+        <div role="status" className={classNames(sectionCss.SectionBody, css.Status)}>
+          {answer && (
+            <Text size="T200">
+              {t(
+                temporary && answer === 'saved'
+                  ? 'mindroomUi.messages.secretRequestCard.temporary.sentWaiting'
+                  : ANSWER_KEYS[answer]
+              )}
+            </Text>
           )}
-        >
-          {temporary && chip === 'saved'
-            ? t('mindroomUi.messages.secretRequestCard.temporary.sent')
-            : t(CHIP_KEYS[chip])}
-        </span>
-      </div>
-      <div className={sectionCss.SectionBody}>
-        {request.reason && (
-          <Text size="T300" className={css.Reason} {...ownDirectionBlock}>
-            {request.reason}
-          </Text>
-        )}
-        {temporary && (
-          <Text size="T200">
-            <IsolatedText
-              text={t('mindroomUi.messages.secretRequestCard.temporary.givenAs', {
-                agent: userDisplayName(room, agentUserId),
-                variable: isolateInSentence(temporary.env),
-              })}
-            />
-          </Text>
-        )}
-        {(hosts.length > 0 || timeLeft) && (
-          <Text size="T200" className={sectionCss.SectionMeta}>
-            {hosts.length > 0 && (
-              <IsolatedText
-                text={t('mindroomUi.messages.secretRequestCard.usedOnlyFor', {
-                  hosts: isolateInSentence(hosts.join(', ')),
-                })}
-              />
-            )}
-            {hosts.length > 0 && timeLeft && ' · '}
-            {timeLeft &&
-              t('mindroomUi.messages.threadApprovalControls.expires', { time: timeLeft })}
-          </Text>
-        )}
-        {open && request.kind === 'key' && request.replaces && (
-          <Text size="T200">{t('mindroomUi.messages.secretRequestCard.replaces')}</Text>
-        )}
-        {temporary?.kept && status === 'saved' && keptSeconds !== undefined && (
-          <Text size="T200" className={sectionCss.SectionMeta}>
-            {t(KEPT_KEYS[temporary.kept], { duration: formatLifetime(keptSeconds, language) })}
-          </Text>
-        )}
-        {isRequester && waitingForEdit && (open || answer) && (
-          <div role="status" className={css.Status}>
-            {answer && (
-              <Text size="T200">
-                {t(
-                  temporary && answer === 'saved'
-                    ? 'mindroomUi.messages.secretRequestCard.temporary.sentWaiting'
-                    : ANSWER_KEYS[answer]
-                )}
-              </Text>
-            )}
-          </div>
-        )}
-        {open && !isRequester && (
-          <Text size="T200">
-            <IsolatedText
-              text={t('mindroomUi.messages.secretRequestCard.waitingFor', {
-                name: userDisplayName(room, request.requesterId),
-              })}
-            />
-          </Text>
-        )}
-        {formShown && (
-          <SecretRequestAnswer
-            request={request}
-            roomId={roomId}
-            agentUserId={agentUserId}
-            keyboardAnswer={keyboardAnswer}
-            onAnswer={setAnswer}
-          />
-        )}
-      </div>
+        </div>
+      )}
+      {open && <div className={sectionCss.SectionBody}>{details}</div>}
     </Box>
   );
 }
