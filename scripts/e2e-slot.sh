@@ -116,7 +116,7 @@ main() {
   private_dir "$snapshots"
   live="/tmp/mindroom-slots/$slot.live.json"
   if [ -e "$live" ]; then
-    echo "e2e-slot $slot: a live deployment uses the slot ($live; \`just live down --slot $slot\` stops it); pick another slot" >&2
+    echo "e2e-slot $slot: a live deployment uses the slot ($live; the dev repo's \`scripts/live.py down --slot $slot\` stops it); pick another slot" >&2
     exit 2
   fi
   take_run_token "$@"

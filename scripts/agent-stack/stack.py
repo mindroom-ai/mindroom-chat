@@ -1577,7 +1577,7 @@ def main() -> int:
         choices=MODES,
         default=os.environ.get("E2E_AGENT_MODEL") or "stub",
         help="stub (default, or $E2E_AGENT_MODEL), real: Claude Haiku 5.5 and GPT-6 Luna following the specs' "
-        "script, or live: a normal assistant on GPT-6 Luna (scripts/live.py), with the keys of the environment",
+        "script, or live: a normal assistant on GPT-6 Luna (the dev repo's scripts/live.py), with the keys of the environment",
     )
     parser.add_argument(
         "--transcription",
