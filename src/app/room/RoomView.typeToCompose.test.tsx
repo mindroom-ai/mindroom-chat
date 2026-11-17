@@ -65,6 +65,8 @@ const focusedElement = (tagName: 'canvas' | 'div', parent: HTMLElement = documen
 };
 
 const pressA = (target: Element) => fireEvent.keyDown(target, { key: 'a', code: 'KeyA' });
+const pressPaste = (target: Element, modifiers: Partial<KeyboardEventInit>) =>
+  fireEvent.keyDown(target, { key: 'v', code: 'KeyV', ...modifiers });
 const pressEscape = () =>
   runShortcut('focusComposer', new KeyboardEvent('keydown', { key: 'Escape' }));
 
@@ -72,6 +74,33 @@ it('moves a letter typed with nothing focused to the composer', () => {
   render(<RoomView room={room} />);
   pressA(document.body);
   expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' }));
+});
+
+it.each([
+  ['Cmd+V', { metaKey: true }],
+  ['Ctrl+V', { ctrlKey: true }],
+  ['Cmd+Shift+V', { metaKey: true, shiftKey: true }],
+  ['Ctrl+Shift+V', { ctrlKey: true, shiftKey: true }],
+])('moves a paste (%s) with nothing focused to the composer', (_name, modifiers) => {
+  render(<RoomView room={room} />);
+  pressPaste(document.body, modifiers);
+  expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' }));
+});
+
+it('leaves a paste with Alt held where it was', () => {
+  render(<RoomView room={room} />);
+  pressPaste(document.body, { metaKey: true, altKey: true });
+  pressPaste(document.body, { ctrlKey: true, altKey: true });
+  expect(document.activeElement).toBe(document.body);
+});
+
+it('leaves a paste into a focused field in that field', () => {
+  render(<RoomView room={room} />);
+  const field = document.body.appendChild(document.createElement('input'));
+  field.focus();
+  pressPaste(field, { ctrlKey: true });
+  pressPaste(field, { metaKey: true });
+  expect(document.activeElement).toBe(field);
 });
 
 it('goes back to the composer on Escape with nothing focused', () => {
