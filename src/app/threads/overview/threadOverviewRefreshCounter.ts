@@ -24,7 +24,7 @@ import { isRecord } from '../../lib/isRecord';
  * of the event it relates to, else that event or itself, either of which may be a root. Undefined
  * when it relates to an event the room does not hold, whose thread is then unknown.
  */
-const changedThreadId = (room: Room, mEvent: MatrixEvent): string | undefined => {
+export const changedThreadId = (room: Room, mEvent: MatrixEvent): string | undefined => {
   if (mEvent.threadRootId) return mEvent.threadRootId;
   const relatedId = mEvent.getAssociatedId() ?? mEvent.getRelation()?.event_id;
   if (!relatedId) return mEvent.getId();
@@ -40,7 +40,7 @@ export const KEPT_RECORD_CHECK_MS = 1000;
  * else's. Undefined when one of them is unthreaded or for the main timeline: such a receipt reads
  * the root of every thread, or all of each.
  */
-const receiptThreadIds = (receipt: MatrixEvent, userId: string): string[] | undefined => {
+export const receiptThreadIds = (receipt: MatrixEvent, userId: string): string[] | undefined => {
   const threadIds: string[] = [];
   const own = Object.values(receipt.getContent()).flatMap((byType) =>
     isRecord(byType)
@@ -164,11 +164,12 @@ export const useThreadOverviewRefreshCounter = (
       if (threadRootId) markThreadRecordChange(overviewChanges, threadRootId);
       markEvent(mEvent);
     };
-    // A record names its people and reads who is in the room, and whether the room is encrypted.
-    // The sync repeats member events that change neither, one for the sender of many a batch.
+    // A record names its people and reads who is in the room. The sync repeats member events that
+    // change neither, one for the sender of many a batch.
     const handleMember = (_mEvent: MatrixEvent, member: RoomMember) => {
       if (member.roomId === room.roomId) markThreadRecordChange(overviewChanges);
     };
+    // A record reads whether the room is encrypted.
     const handleState = (mEvent: MatrixEvent, state: RoomState) => {
       if (
         state.roomId === room.roomId &&

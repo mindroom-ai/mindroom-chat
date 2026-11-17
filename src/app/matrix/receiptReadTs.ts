@@ -70,9 +70,10 @@ const namedEvents = new WeakMap<Room, NamedEvents>();
 
 /**
  * A count of the changes in the events `room` holds that may move how far a receipt reads: a
- * named event a timeline takes, a local echo of one that moves on (it gets its ID, or the server's
- * time replaces the device's), and events the room loses (a timeline that starts over or drops an
- * event, a thread that goes). For caches of how far receipts read.
+ * named event a timeline takes or drops, a local echo of one that moves on (it gets its ID, or the
+ * server's time replaces the device's), and events the room may lose with no word of which (a
+ * timeline that starts over, a thread that goes). For caches of how far receipts read. An event no
+ * receipt was read for counts nothing: the redaction of a reaction takes it out of its thread.
  */
 export const receiptEventsVersion = (room: Room): number => namedEvents.get(room)?.version ?? 0;
 
@@ -87,10 +88,10 @@ const namedEventsOf = (room: Room): NamedEvents | undefined => {
   if (typeof room.prependListener !== 'function') return undefined;
   const kept: NamedEvents = { asked: new Set(), version: 0 };
   // First, so the views that update on an event read the new count.
-  room.prependListener(RoomEvent.Timeline, (event, _room, _toStart, removed, data) => {
+  room.prependListener(RoomEvent.Timeline, (event, _room, _toStart, _removed, data) => {
     // A reply moves its thread's root in the lists of threads, which hold no event for lookups.
     if (!holdsEvents(room, data.timeline.getTimelineSet())) return;
-    if (removed || kept.asked.has(event.getId() ?? '')) kept.version += 1;
+    if (kept.asked.has(event.getId() ?? '')) kept.version += 1;
   });
   room.prependListener(RoomEvent.LocalEchoUpdated, (event) => {
     if (kept.asked.has(event.getId() ?? '')) kept.version += 1;
