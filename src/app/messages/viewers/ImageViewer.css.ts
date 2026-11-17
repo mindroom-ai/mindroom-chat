@@ -27,7 +27,7 @@ export const ImageViewerContent = style([
   centeredFlex,
   {
     flexGrow: 1,
-    minHeight: 0,
+    minWidth: 0,
     overflow: 'hidden',
     backgroundColor: color.SurfaceVariant.Container,
     touchAction: 'none',
@@ -50,3 +50,25 @@ export const ImageViewerImg = style([
     },
   },
 ]);
+
+// Holds the image area and, over its middle edges, the arrows to the previous and next picture.
+export const ImageViewerStage = style([
+  DefaultReset,
+  {
+    position: 'relative',
+    display: 'flex',
+    flexGrow: 1,
+    minHeight: 0,
+  },
+]);
+
+export const ImageViewerStep = style({
+  position: 'absolute',
+  insetBlockStart: '50%',
+  transform: 'translateY(-50%)',
+  selectors: {
+    '&[data-edge="start"]': { insetInlineStart: config.space.S200 },
+    '&[data-edge="end"]': { insetInlineEnd: config.space.S200 },
+    '&[aria-disabled="true"]': { opacity: 0.4, cursor: 'default' },
+  },
+});

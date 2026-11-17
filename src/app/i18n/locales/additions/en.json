@@ -87,7 +87,9 @@
       "pack": "Same as pack"
     },
     "imageViewer": {
-      "close": "Close"
+      "close": "Close",
+      "previous": "Previous image",
+      "next": "Next image"
     },
     "inviteUserPrompt": {
       "close": "Close",
@@ -142,8 +144,7 @@
       "noCrossSigningKeys": "Your secret storage holds no cross-signing keys, so the recovery key can't verify this session. Verify it from one of your other sessions."
     },
     "commands": {
-      "CommandPlain": "Send a message as plain text, without Markdown. Example: /plain message",
-      "CommandHtml": "Send a message as HTML, without Markdown. Example: /html message"
+      "CommandPlain": "Send a message as plain text, without Markdown. Example: /plain message"
     },
     "tokenLogin": {
       "signInNotStartedHere": "This sign-in was not started here, so it was not used. Sign in again."
@@ -158,6 +159,7 @@
     "appUpdate": {
       "available": "A new version of MindRoom is available.",
       "reload": "Reload",
+      "updating": "Updating…",
       "dismiss": "Dismiss",
       "reloadToUse": "Reload to use it."
     },
@@ -537,7 +539,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} failed: {{reason}}",
         "usage": "Could not run {{command}}. {{usage}}",
-        "ownServer": "Nothing changed: this would shut your own server ({{server}}) out of the room.",
         "unknown": "{{command}} is not a command. To send it as text, start the message with /plain."
       },
       "jumpToTime": {
@@ -952,7 +953,11 @@
       "moveRoomDown": "Move the focused room or space down",
       "members": "Show or hide members",
       "focusComposer": "Mark as read and go to the composer",
-      "resolveThread": "Resolve or reopen the open thread",
+      "previousThread": "Focus the previous thread",
+      "nextThread": "Focus the next thread",
+      "openThread": "Go to the threads, then open the focused one",
+      "leaveThread": "Leave the open thread, then the threads",
+      "resolveThread": "Resolve or reopen the open or focused thread",
       "newLine": "New line",
       "editLast": "Edit your last message (in an empty composer)",
       "inlineCode": "Inline code",

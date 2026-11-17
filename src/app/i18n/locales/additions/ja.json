@@ -84,7 +84,9 @@
       "pack": "パックと同じ"
     },
     "imageViewer": {
-      "close": "閉じる"
+      "close": "閉じる",
+      "previous": "前の画像",
+      "next": "次の画像"
     },
     "inviteUserPrompt": {
       "close": "閉じる",
@@ -139,8 +141,7 @@
       "noCrossSigningKeys": "シークレットストレージにクロス署名鍵がないため、リカバリーキーではこのセッションを検証できません。ほかのセッションから検証してください。"
     },
     "commands": {
-      "CommandPlain": "Markdown を使わずにプレーンテキストとしてメッセージを送信します。例: /plain message",
-      "CommandHtml": "Markdown を使わずに HTML としてメッセージを送信します。例: /html message"
+      "CommandPlain": "Markdown を使わずにプレーンテキストとしてメッセージを送信します。例: /plain message"
     },
     "tokenLogin": {
       "signInNotStartedHere": "このサインインはここで開始されていないため、使用されませんでした。もう一度サインインしてください。"
@@ -155,6 +156,7 @@
     "appUpdate": {
       "available": "MindRoom の新しいバージョンがあります。",
       "reload": "再読み込み",
+      "updating": "更新中…",
       "dismiss": "閉じる",
       "reloadToUse": "使うには再読み込みしてください。"
     },
@@ -528,7 +530,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} に失敗しました: {{reason}}",
         "usage": "{{command}} を実行できませんでした。{{usage}}",
-        "ownServer": "変更していません: 自分のサーバー ({{server}}) がルームから締め出されます。",
         "unknown": "{{command}} はコマンドではありません。テキストとして送るには、メッセージの先頭に /plain を付けてください。"
       },
       "jumpToTime": {
@@ -935,7 +936,11 @@
       "moveRoomDown": "フォーカス中のルームまたはスペースを下へ移動",
       "members": "メンバーの表示/非表示",
       "focusComposer": "既読にして入力欄へ移動",
-      "resolveThread": "開いているスレッドを解決または再開",
+      "previousThread": "前のスレッドにフォーカス",
+      "nextThread": "次のスレッドにフォーカス",
+      "openThread": "スレッド一覧へ移動し、次にフォーカス中のスレッドを開く",
+      "leaveThread": "開いているスレッドから戻り、次にスレッド一覧から戻る",
+      "resolveThread": "開いている、またはフォーカス中のスレッドを解決または再開",
       "newLine": "改行",
       "editLast": "最後の自分のメッセージを編集（入力欄が空のとき）",
       "inlineCode": "インライン コード",

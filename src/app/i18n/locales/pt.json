@@ -1288,25 +1288,15 @@
     "commands": {
       "CommandMe": "Enviar mensagem de ação",
       "CommandNotice": "Enviar mensagem de aviso",
-      "CommandShrug": "Enviar ¯\\_(ツ)_/¯ como mensagem",
-      "CommandTableFlip": "Enviar {{value1}} como mensagem",
-      "CommandUnFlip": "Enviar {{value1}} como mensagem",
       "CommandStartDm": "Iniciar mensagem direta com um utilizador. Exemplo: /startdm userId1",
       "CommandJoin": "Entrar numa sala pelo endereço. Exemplo: /join address1 address2",
       "CommandLeave": "Sair da sala atual.",
       "CommandInvite": "Convidar um utilizador para a sala. Exemplo: /invite userId1 userId2 [-r reason]",
-      "CommandDisInvite": "Retirar o convite de um utilizador para a sala. Exemplo: /disinvite userId1 userId2 [-r reason]",
       "CommandKick": "Expulsar um utilizador da sala. Exemplo: /kick userId1 userId2 servername [-r reason]",
       "CommandBan": "Interditar um utilizador da sala. Exemplo: /ban userId1 userId2 servername [-r reason]",
       "CommandUnBan": "Remover a interdição de um utilizador da sala. Exemplo: /unban userId1 userId2",
       "CommandIgnore": "Ignorar um utilizador. Exemplo: /ignore userId1 userId2",
-      "CommandUnIgnore": "Deixar de ignorar um utilizador. Exemplo: /unignore userId1 userId2",
-      "CommandMyRoomNick": "Alterar a alcunha na sala atual.",
-      "CommandMyRoomAvatar": "Alterar a imagem de perfil na sala atual. Exemplo: /myroomavatar mxc://xyzabc",
-      "CommandConvertToDm": "Converter sala em mensagem direta",
-      "CommandConvertToRoom": "Converter mensagem direta em sala",
-      "CommandDelete": "Eliminar mensagens de utilizadores. Exemplo: /delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandAcl": "Gerir a lista de controlo de acesso do servidor. Exemplo: /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]"
+      "CommandUnIgnore": "Deixar de ignorar um utilizador. Exemplo: /unignore userId1 userId2"
     },
     "item": {
       "value1Emoji": "{{value1}} emoji"

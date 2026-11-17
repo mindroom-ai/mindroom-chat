@@ -87,7 +87,9 @@
       "pack": "Zelfde als pakket"
     },
     "imageViewer": {
-      "close": "Sluiten"
+      "close": "Sluiten",
+      "previous": "Vorige afbeelding",
+      "next": "Volgende afbeelding"
     },
     "inviteUserPrompt": {
       "close": "Sluiten",
@@ -142,8 +144,7 @@
       "noCrossSigningKeys": "Je geheime opslag bevat geen kruiselingse ondertekeningssleutels, dus de herstelsleutel kan deze sessie niet verifiëren. Verifieer haar vanuit een van je andere sessies."
     },
     "commands": {
-      "CommandPlain": "Stuur een bericht als platte tekst, zonder Markdown. Voorbeeld: /plain bericht",
-      "CommandHtml": "Stuur een bericht als HTML, zonder Markdown. Voorbeeld: /html bericht"
+      "CommandPlain": "Stuur een bericht als platte tekst, zonder Markdown. Voorbeeld: /plain bericht"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Deze aanmelding is hier niet gestart en is daarom niet gebruikt. Meld je opnieuw aan."
@@ -158,6 +159,7 @@
     "appUpdate": {
       "available": "Er is een nieuwe versie van MindRoom beschikbaar.",
       "reload": "Opnieuw laden",
+      "updating": "Bijwerken…",
       "dismiss": "Sluiten",
       "reloadToUse": "Laad opnieuw om die te gebruiken."
     },
@@ -537,7 +539,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} mislukt: {{reason}}",
         "usage": "Kon {{command}} niet uitvoeren. {{usage}}",
-        "ownServer": "Niets gewijzigd: je eigen server ({{server}}) zou uit de ruimte worden gesloten.",
         "unknown": "{{command}} is geen opdracht. Begin het bericht met /plain om het als tekst te versturen."
       },
       "jumpToTime": {
@@ -952,7 +953,11 @@
       "moveRoomDown": "Geselecteerde kamer of space omlaag verplaatsen",
       "members": "Leden tonen of verbergen",
       "focusComposer": "Als gelezen markeren en naar het invoerveld gaan",
-      "resolveThread": "Open thread oplossen of heropenen",
+      "previousThread": "Vorige thread selecteren",
+      "nextThread": "Volgende thread selecteren",
+      "openThread": "Naar de threads, daarna de geselecteerde openen",
+      "leaveThread": "Open thread verlaten, daarna de threads",
+      "resolveThread": "Open of geselecteerde thread oplossen of heropenen",
       "newLine": "Nieuwe regel",
       "editLast": "Je laatste bericht bewerken (in een leeg invoerveld)",
       "inlineCode": "Inline code",

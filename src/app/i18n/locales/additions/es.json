@@ -90,7 +90,9 @@
       "pack": "Igual que el paquete"
     },
     "imageViewer": {
-      "close": "Cerrar"
+      "close": "Cerrar",
+      "previous": "Imagen anterior",
+      "next": "Imagen siguiente"
     },
     "inviteUserPrompt": {
       "close": "Cerrar",
@@ -145,8 +147,7 @@
       "noCrossSigningKeys": "Tu almacenamiento secreto no contiene claves de firma cruzada, así que la clave de recuperación no puede verificar esta sesión. Verifícala desde otra de tus sesiones."
     },
     "commands": {
-      "CommandPlain": "Enviar un mensaje como texto sin formato, sin Markdown. Ejemplo: /plain mensaje",
-      "CommandHtml": "Enviar un mensaje como HTML, sin Markdown. Ejemplo: /html mensaje"
+      "CommandPlain": "Enviar un mensaje como texto sin formato, sin Markdown. Ejemplo: /plain mensaje"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Este inicio de sesión no empezó aquí, así que no se usó. Vuelve a iniciar sesión."
@@ -161,6 +162,7 @@
     "appUpdate": {
       "available": "Hay una nueva versión de MindRoom disponible.",
       "reload": "Recargar",
+      "updating": "Actualizando…",
       "dismiss": "Descartar",
       "reloadToUse": "Recarga para usarla."
     },
@@ -546,7 +548,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} falló: {{reason}}",
         "usage": "No se pudo ejecutar {{command}}. {{usage}}",
-        "ownServer": "No se cambió nada: esto dejaría a tu propio servidor ({{server}}) fuera de la sala.",
         "unknown": "{{command}} no es un comando. Para enviarlo como texto, empieza el mensaje con /plain."
       },
       "jumpToTime": {
@@ -969,7 +970,11 @@
       "moveRoomDown": "Bajar la sala o el espacio enfocado",
       "members": "Mostrar u ocultar miembros",
       "focusComposer": "Marcar como leído e ir al editor",
-      "resolveThread": "Resolver o reabrir el hilo abierto",
+      "previousThread": "Enfocar el hilo anterior",
+      "nextThread": "Enfocar el hilo siguiente",
+      "openThread": "Ir a los hilos y luego abrir el enfocado",
+      "leaveThread": "Salir del hilo abierto y luego de los hilos",
+      "resolveThread": "Resolver o reabrir el hilo abierto o enfocado",
       "newLine": "Nueva línea",
       "editLast": "Editar tu último mensaje (con el editor vacío)",
       "inlineCode": "Código en línea",

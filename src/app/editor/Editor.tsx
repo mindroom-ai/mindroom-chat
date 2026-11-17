@@ -237,7 +237,7 @@ type CustomEditorProps = EditorSlots & {
   styleMarkdown?: boolean;
   /** The extra URI schemes Markdown links may use, as sending takes them. */
   linkSchemes?: readonly string[];
-  /** Whether `/plain` or `/html` at the start sends without Markdown, as the room composer does. */
+  /** Whether `/plain` at the start sends without Markdown, as the room composer does. */
   markdownCommands?: boolean;
   onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
   onKeyUp?: KeyboardEventHandler<HTMLDivElement>;

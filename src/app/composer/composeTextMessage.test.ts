@@ -121,37 +121,7 @@ describe('composeTextMessage', () => {
     });
   });
 
-  it('sends /html as the HTML typed, with its text as the body', () => {
-    expect(compose([line({ text: '/html <b>big</b> &amp; <i>bold</i>' })])).toEqual({
-      msgtype: MsgType.Text,
-      body: 'big & bold',
-      format: 'org.matrix.custom.html',
-      formatted_body: '<b>big</b> &amp; <i>bold</i>',
-      'm.mentions': {},
-    });
-  });
-
-  it('puts the shrug before the message, and sends it alone without text', () => {
-    expect(compose([line({ text: '/shrug no idea' })])).toMatchObject({
-      msgtype: MsgType.Text,
-      body: '¯\\_(ツ)_/¯ no idea',
-    });
-    expect(compose([line({ text: '/shrug' })])).toEqual({
-      msgtype: MsgType.Text,
-      body: '¯\\_(ツ)_/¯',
-      'm.mentions': {},
-    });
-  });
-
-  it('keeps the face in front of formatted text too', () => {
-    expect(compose([line({ text: '/tableflip **enough**' })])).toMatchObject({
-      body: '(╯°□°)╯︵ ┻━┻ **enough**',
-      formatted_body: '(╯°□°)╯︵ ┻━┻ <strong data-md="**">enough</strong>',
-    });
-    expect(compose([line({ text: '/unflip' })])?.body).toBe('┬─┬ノ( º _ ºノ)');
-  });
-
-  it.each(['/invite @bob:example.org', '/shrugs about it'])(
+  it.each(['/invite @bob:example.org', '/plainly put'])(
     'leaves "%s" to the commands that act, or as written',
     (text) => {
       expect(compose([line({ text })])).toMatchObject({ msgtype: MsgType.Text, body: text });

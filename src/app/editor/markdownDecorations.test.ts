@@ -146,13 +146,25 @@ describe('createMarkdownDecorate', () => {
     ).toEqual(['italic "ab"', 'marker "_"', 'marker "_"']);
   });
 
-  it.each(['/plain **a**', '/html **a**', '/plain'])(
+  it.each(['/plain **a**', '/plain'])(
     'styles nothing in %s where commands are read, sent as typed',
     (text) => {
       const document = [paragraph({ text }), paragraph({ text: '**b**' })];
       expect(decorated(document, { commands: true })).toEqual([]);
     }
   );
+
+  it.each(['/html **a**', '/shrug **a**'])('styles %s as text, no longer a command', (text) => {
+    const document = [paragraph({ text })];
+    expect(decorated(document, { commands: true })).toEqual([
+      'bold "a"',
+      'marker "**"',
+      'marker "**"',
+    ]);
+    expect(sent(takeMessageCommand(document).document)).toContain(
+      '<strong data-md="**">a</strong>'
+    );
+  });
 
   it('styles /plain where no commands are read, as the edit box saves it', () => {
     expect(decoratedLine('/plain **a**')).toEqual(['bold "a"', 'marker "**"', 'marker "**"']);

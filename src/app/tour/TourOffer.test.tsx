@@ -17,6 +17,7 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: vi.fn() }))
 // A new version is known, for the test that shows both cards.
 vi.mock('../config/appUpdate', () => ({
   getNewVersion: () => 'build-2',
+  getReadyVersion: () => 'build-2',
   subscribeToNewVersion: () => () => undefined,
   reloadForNewVersion: async () => undefined,
 }));

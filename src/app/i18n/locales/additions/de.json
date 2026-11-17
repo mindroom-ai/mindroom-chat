@@ -87,7 +87,9 @@
       "pack": "Wie das Paket"
     },
     "imageViewer": {
-      "close": "Schließen"
+      "close": "Schließen",
+      "previous": "Vorheriges Bild",
+      "next": "Nächstes Bild"
     },
     "inviteUserPrompt": {
       "close": "Schließen",
@@ -142,8 +144,7 @@
       "noCrossSigningKeys": "Dein geheimer Speicher enthält keine Cross-Signing-Schlüssel, daher kann der Wiederherstellungsschlüssel diese Sitzung nicht verifizieren. Verifiziere sie von einer deiner anderen Sitzungen aus."
     },
     "commands": {
-      "CommandPlain": "Nachricht als reinen Text ohne Markdown senden. Beispiel: /plain Nachricht",
-      "CommandHtml": "Nachricht als HTML ohne Markdown senden. Beispiel: /html Nachricht"
+      "CommandPlain": "Nachricht als reinen Text ohne Markdown senden. Beispiel: /plain Nachricht"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Diese Anmeldung wurde nicht hier gestartet und deshalb nicht verwendet. Melde dich erneut an."
@@ -158,6 +159,7 @@
     "appUpdate": {
       "available": "Eine neue Version von MindRoom ist verfügbar.",
       "reload": "Neu laden",
+      "updating": "Wird aktualisiert…",
       "dismiss": "Ausblenden",
       "reloadToUse": "Lade neu, um sie zu verwenden."
     },
@@ -537,7 +539,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} fehlgeschlagen: {{reason}}",
         "usage": "{{command}} konnte nicht ausgeführt werden. {{usage}}",
-        "ownServer": "Nichts geändert: Dein eigener Server ({{server}}) würde aus dem Raum ausgeschlossen.",
         "unknown": "{{command}} ist kein Befehl. Um es als Text zu senden, beginne die Nachricht mit /plain."
       },
       "jumpToTime": {
@@ -952,7 +953,11 @@
       "moveRoomDown": "Fokussierten Raum oder Space nach unten verschieben",
       "members": "Mitglieder ein- oder ausblenden",
       "focusComposer": "Als gelesen markieren und zum Eingabefeld wechseln",
-      "resolveThread": "Geöffneten Thread auflösen oder wieder öffnen",
+      "previousThread": "Vorherigen Thread fokussieren",
+      "nextThread": "Nächsten Thread fokussieren",
+      "openThread": "Zu den Threads, dann den fokussierten öffnen",
+      "leaveThread": "Geöffneten Thread verlassen, dann die Threads",
+      "resolveThread": "Geöffneten oder fokussierten Thread auflösen oder wieder öffnen",
       "newLine": "Neue Zeile",
       "editLast": "Letzte eigene Nachricht bearbeiten (in leerem Eingabefeld)",
       "inlineCode": "Inline-Code",

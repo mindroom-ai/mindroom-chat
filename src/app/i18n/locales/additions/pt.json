@@ -90,7 +90,9 @@
       "pack": "Igual ao pacote"
     },
     "imageViewer": {
-      "close": "Fechar"
+      "close": "Fechar",
+      "previous": "Imagem anterior",
+      "next": "Próxima imagem"
     },
     "inviteUserPrompt": {
       "close": "Fechar",
@@ -145,8 +147,7 @@
       "noCrossSigningKeys": "O seu armazenamento secreto não contém chaves de assinatura cruzada, por isso a chave de recuperação não pode verificar esta sessão. Verifique-a a partir de outra das suas sessões."
     },
     "commands": {
-      "CommandPlain": "Enviar uma mensagem como texto simples, sem Markdown. Exemplo: /plain mensagem",
-      "CommandHtml": "Enviar uma mensagem como HTML, sem Markdown. Exemplo: /html mensagem"
+      "CommandPlain": "Enviar uma mensagem como texto simples, sem Markdown. Exemplo: /plain mensagem"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Este início de sessão não foi iniciado aqui, por isso não foi utilizado. Inicie sessão novamente."
@@ -161,6 +162,7 @@
     "appUpdate": {
       "available": "Está disponível uma nova versão do MindRoom.",
       "reload": "Recarregar",
+      "updating": "Atualizando…",
       "dismiss": "Ignorar",
       "reloadToUse": "Recarregue para a utilizar."
     },
@@ -546,7 +548,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} falhou: {{reason}}",
         "usage": "Não foi possível executar {{command}}. {{usage}}",
-        "ownServer": "Nada mudou: isto deixaria o seu próprio servidor ({{server}}) fora da sala.",
         "unknown": "{{command}} não é um comando. Para enviá-lo como texto, comece a mensagem com /plain."
       },
       "jumpToTime": {
@@ -969,7 +970,11 @@
       "moveRoomDown": "Mover para baixo a sala ou o espaço em foco",
       "members": "Mostrar ou ocultar membros",
       "focusComposer": "Marcar como lido e ir para a caixa de mensagem",
-      "resolveThread": "Resolver ou reabrir o tópico aberto",
+      "previousThread": "Focar o tópico anterior",
+      "nextThread": "Focar o tópico seguinte",
+      "openThread": "Ir para os tópicos e depois abrir o que está em foco",
+      "leaveThread": "Sair do tópico aberto e depois dos tópicos",
+      "resolveThread": "Resolver ou reabrir o tópico aberto ou em foco",
       "newLine": "Nova linha",
       "editLast": "Editar a sua última mensagem (com a caixa vazia)",
       "inlineCode": "Código em linha",

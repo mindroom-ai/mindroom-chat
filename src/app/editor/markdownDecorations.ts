@@ -211,8 +211,8 @@ type MarkdownDecorateOptions = {
   linkSchemes?: readonly string[];
   /**
    * Whether a message command at the start (`/me`, `/plain`, ...) is taken off before sending,
-   * as the room composer does; `/plain` and `/html` then send without Markdown. The message edit
-   * box reads no commands.
+   * as the room composer does; `/plain` then sends without Markdown. The message edit box
+   * reads no commands.
    */
   commands?: boolean;
 };

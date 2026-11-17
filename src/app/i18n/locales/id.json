@@ -1276,25 +1276,15 @@
     "commands": {
       "CommandMe": "Kirim pesan tindakan",
       "CommandNotice": "Kirim pesan pemberitahuan",
-      "CommandShrug": "Kirim ¯\\_(ツ)_/¯ sebagai pesan",
-      "CommandTableFlip": "Kirim {{value1}} sebagai pesan",
-      "CommandUnFlip": "Kirim {{value1}} sebagai pesan",
       "CommandStartDm": "Mulai pesan langsung dengan pengguna. Contoh: /startdm userId1",
       "CommandJoin": "Bergabung ke ruang dengan alamat. Contoh: /join address1 address2",
       "CommandLeave": "Tinggalkan ruang saat ini.",
       "CommandInvite": "Undang pengguna ke ruang. Contoh: /invite userId1 userId2 [-r reason]",
-      "CommandDisInvite": "Batalkan undangan pengguna ke ruang. Contoh: /disinvite userId1 userId2 [-r reason]",
       "CommandKick": "Keluarkan pengguna dari ruang. Contoh: /kick userId1 userId2 servername [-r reason]",
       "CommandBan": "Larang pengguna dari ruang. Contoh: /ban userId1 userId2 servername [-r reason]",
       "CommandUnBan": "Cabut larangan pengguna di ruang. Contoh: /unban userId1 userId2",
       "CommandIgnore": "Abaikan pengguna. Contoh: /ignore userId1 userId2",
-      "CommandUnIgnore": "Berhenti mengabaikan pengguna. Contoh: /unignore userId1 userId2",
-      "CommandMyRoomNick": "Ubah nama panggilan di ruang saat ini.",
-      "CommandMyRoomAvatar": "Ubah foto profil di ruang saat ini. Contoh /myroomavatar mxc://xyzabc",
-      "CommandConvertToDm": "Ubah ruang menjadi pesan langsung",
-      "CommandConvertToRoom": "Ubah pesan langsung menjadi ruang",
-      "CommandDelete": "Hapus pesan pengguna. Contoh: /delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandAcl": "Kelola daftar kontrol akses server. Contoh /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]"
+      "CommandUnIgnore": "Berhenti mengabaikan pengguna. Contoh: /unignore userId1 userId2"
     },
     "item": {
       "value1Emoji": "Emoji {{value1}}"

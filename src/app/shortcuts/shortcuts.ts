@@ -108,6 +108,36 @@ const DEFINITIONS = {
     field: 'never',
     local: true,
   },
+  // In a room's Compact cards. ⌘ (Ctrl elsewhere) and Alt with the arrows have no text meaning,
+  // so these act from a composer with text too.
+  previousThread: {
+    keys: 'mod+alt+up',
+    labelKey: 'shortcuts.actions.previousThread',
+    group: 'rooms',
+    field: 'always',
+    repeats: true,
+  },
+  nextThread: {
+    keys: 'mod+alt+down',
+    labelKey: 'shortcuts.actions.nextThread',
+    group: 'rooms',
+    field: 'always',
+    repeats: true,
+  },
+  // Alt and the left or right arrow move by word in text, and are a browser's Back and Forward
+  // outside macOS: leaving a thread and opening it again are those steps.
+  openThread: {
+    keys: 'alt+right',
+    labelKey: 'shortcuts.actions.openThread',
+    group: 'rooms',
+    field: 'empty',
+  },
+  leaveThread: {
+    keys: 'alt+left',
+    labelKey: 'shortcuts.actions.leaveThread',
+    group: 'rooms',
+    field: 'empty',
+  },
   members: {
     keys: 'mod+shift+m',
     labelKey: 'shortcuts.actions.members',
@@ -225,6 +255,8 @@ const parseKeys = (keys: string): ParsedKeys => {
 const NAMED_KEYS: Record<string, string> = {
   up: 'ArrowUp',
   down: 'ArrowDown',
+  left: 'ArrowLeft',
+  right: 'ArrowRight',
   enter: 'Enter',
   escape: 'Escape',
 };
@@ -391,6 +423,8 @@ const MAC_SYMBOLS: Record<string, string> = {
   shift: KeySymbol.Shift,
   up: KeySymbol.ArrowUp,
   down: KeySymbol.ArrowDown,
+  left: KeySymbol.ArrowLeft,
+  right: KeySymbol.ArrowRight,
   enter: KeySymbol.Enter,
   escape: 'Esc',
 };
@@ -401,6 +435,8 @@ const OTHER_NAMES: Record<string, string> = {
   shift: 'Shift',
   up: KeySymbol.ArrowUp,
   down: KeySymbol.ArrowDown,
+  left: KeySymbol.ArrowLeft,
+  right: KeySymbol.ArrowRight,
   enter: 'Enter',
   escape: 'Esc',
 };
@@ -430,6 +466,8 @@ const ARIA_NAMES: Record<string, string> = {
   shift: 'Shift',
   up: 'ArrowUp',
   down: 'ArrowDown',
+  left: 'ArrowLeft',
+  right: 'ArrowRight',
   enter: 'Enter',
   escape: 'Escape',
 };

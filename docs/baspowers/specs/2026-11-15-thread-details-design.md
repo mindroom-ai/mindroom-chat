@@ -64,7 +64,7 @@ Out:
 
 - Every place the menu opens shows it: the Compact card's More Options button, a right-click, the ContextMenu key, the new long press, and the open thread's banner (`ThreadContextBanner`).
 - The group is not a menu item and is not in the focus order; the menu's first item still takes the focus. The group is the menu's description (`aria-describedby`), so a screen reader hears it as the menu opens.
-- It scrolls with the menu when the menu's height is capped. The thread's menu has no cap today; on touch screens it gets the room menu's (`calc(100dvh - 4.5rem)`, rows scrolling inside the rim, `src/app/room/RoomActionsMenu.css.ts`).
+- It scrolls with the menu's rows under the menu's height cap, on every pointer type (`calc(100dvh - 4.5rem)`, rows scrolling inside the rim, `src/app/threads/ThreadActionsMenu.css.ts`).
 - No contribution `shows`: no group.
 
 ### Long press on a Compact card

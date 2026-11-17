@@ -1276,25 +1276,15 @@
     "commands": {
       "CommandMe": "アクションメッセージを送信する",
       "CommandNotice": "通知メッセージを送信する",
-      "CommandShrug": "¯\\_(ツ)_/¯ をメッセージとして送信します",
-      "CommandTableFlip": "{{value1}} をメッセージとして送信",
-      "CommandUnFlip": "{{value1}} をメッセージとして送信",
       "CommandStartDm": "ユーザーとのダイレクトメッセージを開始します。例：/startdm userId1",
       "CommandJoin": "アドレスを指定してルームに参加します。例：/join address1 address2",
       "CommandLeave": "現在のルームを出ます。",
       "CommandInvite": "ユーザーをルームに招待します。例：/invite userId1 userId2 [-r reason]",
-      "CommandDisInvite": "ユーザーへのルーム招待を取り消します。例：/disinvite userId1 userId2 [-r reason]",
       "CommandKick": "ユーザーをルームから退出させます。例：/kick userId1 userId2 servername [-r reason]",
       "CommandBan": "ユーザーをルームから禁止します。例：/ban userId1 userId2 servername [-r reason]",
       "CommandUnBan": "ユーザーのルームでの禁止を解除します。例：/unban userId1 userId2",
       "CommandIgnore": "ユーザーを無視します。例：/ignore userId1 userId2",
-      "CommandUnIgnore": "ユーザーの無視を解除します。例：/unignore userId1 userId2",
-      "CommandMyRoomNick": "現在のルームのニックネームを変更します。",
-      "CommandMyRoomAvatar": "現在のルームでプロフィール画像を変更します。例 /myroomavatar mxc://xyzabc",
-      "CommandConvertToDm": "ルームをダイレクト メッセージに変換する",
-      "CommandConvertToRoom": "ダイレクト メッセージをルームに変換する",
-      "CommandDelete": "ユーザーのメッセージを削除します。例：/delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandAcl": "サーバーのアクセス制御リストを管理します。例 /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]"
+      "CommandUnIgnore": "ユーザーの無視を解除します。例：/unignore userId1 userId2"
     },
     "item": {
       "value1Emoji": "{{value1}} 絵文字"
