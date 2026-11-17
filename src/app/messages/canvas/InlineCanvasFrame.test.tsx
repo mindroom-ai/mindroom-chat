@@ -110,6 +110,28 @@ describe('InlineCanvasFrame', () => {
     render(event(), false);
     expect(container.querySelector('iframe')).toBeNull();
   });
+  it('runs no page made for another member, nor fetches it', async () => {
+    const request = makeUiEvent({
+      action: 'show_canvas',
+      inline: true,
+      requester_id: '@bob:example.org',
+      canvas: {
+        title: 'Uploaded',
+        document: { mimetype: 'text/html', size: 40, url: 'mxc://example.org/page' },
+      },
+    });
+    const downloads = download.mock.calls.length;
+    await act(async () => {
+      render(request, true, true);
+    });
+    expect(container.querySelector('iframe')).toBeNull();
+    expect(container.textContent).toBe('');
+    expect(download.mock.calls.length).toBe(downloads);
+    render(
+      makeUiEvent({ action: 'show_canvas', inline: true, canvas, requester_id: '@bob:example.org' })
+    );
+    expect(container.querySelector('iframe')).toBeNull();
+  });
   it('loads an uploaded page and offers a retry after failure', async () => {
     download.mockRejectedValueOnce(new Error('offline'));
     const request = makeUiEvent({

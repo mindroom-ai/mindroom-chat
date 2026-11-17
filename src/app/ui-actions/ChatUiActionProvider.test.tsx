@@ -153,26 +153,31 @@ describe('Chat UI request buttons', () => {
     expect(perform).not.toHaveBeenCalled();
   });
 
-  it('opens a canvas made for another member only when its button is activated', async () => {
-    const event = makeUiEvent({
-      action: 'show_canvas',
-      requester_id: '@bob:example.org',
-      canvas: { title: 'Chapter 1', html: '<p>Once</p>' },
-    });
-    const { mx, room, perform } = setup(event);
-    event.event.origin_server_ts = Date.now();
-    await act(() =>
-      mx.emit(RoomEvent.Timeline, event, room, false, false, {
-        liveEvent: true,
-        timeline: room.getLiveTimeline(),
-      })
-    );
-    expect(perform).not.toHaveBeenCalled();
-    await act(async () => container.querySelector('button')!.click());
-    expect(perform).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'show_canvas', requesterId: '@bob:example.org' })
-    );
-  });
+  it.each([{ inline: false }, { inline: true }])(
+    'opens a canvas made for another member only when its button is activated (%j)',
+    async ({ inline }) => {
+      const event = makeUiEvent({
+        action: 'show_canvas',
+        inline,
+        requester_id: '@bob:example.org',
+        canvas: { title: 'Chapter 1', html: '<p>Once</p>' },
+      });
+      const { mx, room, perform } = setup(event);
+      event.event.origin_server_ts = Date.now();
+      await act(() =>
+        mx.emit(RoomEvent.Timeline, event, room, false, false, {
+          liveEvent: true,
+          timeline: room.getLiveTimeline(),
+        })
+      );
+      expect(perform).not.toHaveBeenCalled();
+      expect(container.querySelector('button')?.textContent).toBe('Open canvas');
+      await act(async () => container.querySelector('button')!.click());
+      expect(perform).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'show_canvas', requesterId: '@bob:example.org' })
+      );
+    }
+  );
 
   it('never offers another user any other action button', () => {
     setup(makeUiEvent({ requester_id: '@bob:example.org' }));
