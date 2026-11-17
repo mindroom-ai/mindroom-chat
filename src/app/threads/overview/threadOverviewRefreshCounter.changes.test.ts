@@ -8,14 +8,13 @@ import {
   RoomMemberEvent,
   RoomStateEvent,
   ThreadEvent,
+  type MatrixClient,
   type MatrixEvent,
   type Room,
 } from 'matrix-js-sdk';
-import { describe, expect, it, vi } from 'vitest';
-import {
-  KEPT_RECORD_CHECK_MS,
-  useThreadOverviewRefreshCounter,
-} from './threadOverviewRefreshCounter';
+import { describe, expect, it } from 'vitest';
+import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
+import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter';
 
 // What the room's thread records are told of each event: the thread it may have changed, or the
 // whole room. The records of the other threads are kept (`ThreadRecordReuse`), so each source a
@@ -299,37 +298,55 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     ).toEqual([]);
   });
 
-  it('marks the room and counts once, a second after a build kept a record', () => {
-    vi.useFakeTimers();
-    const { state, told } = setup();
-    const kept = () => state().overviewChanges.onKept?.();
+  it('marks the room and counts for a member event a timeline takes, as a page of history brings', () => {
+    const { room, told } = setup();
+    const member = event({ id: '$member', type: 'm.room.member' });
 
-    // Two builds that kept records wait for one check.
-    expect(told(kept)).toEqual({ marked: [], counted: 0 });
-    expect(told(() => vi.advanceTimersByTime(KEPT_RECORD_CHECK_MS - 1)).counted).toBe(0);
-    kept();
-    expect(told(() => vi.advanceTimersByTime(1))).toEqual({ marked: 'room', counted: 1 });
-    // The build that follows keeps none, so nothing more comes.
-    expect(told(() => vi.advanceTimersByTime(KEPT_RECORD_CHECK_MS)).counted).toBe(0);
-    // A later kept build is checked again.
-    kept();
-    expect(told(() => vi.advanceTimersByTime(KEPT_RECORD_CHECK_MS)).marked).toBe('room');
-    vi.useRealTimers();
+    // A member who left shows the name of their newest member event the room has loaded.
+    expect(told(() => room.emit(RoomEvent.Timeline, member, room, true, false))).toEqual({
+      marked: 'room',
+      counted: 1,
+    });
   });
 
-  it('checks no kept record once it stops listening', () => {
-    vi.useFakeTimers();
+  it('marks the thread of a message whose kept edits a full store drops, and counts', () => {
+    const { client, told, unmount } = setup();
+    const stop = keepSyncedEdits(
+      Object.assign(client, { getRoom: () => null }) as unknown as MatrixClient
+    );
+    const editOf = (messageId: string) =>
+      ({
+        getId: () => `$edit-of-${messageId}`,
+        getRoomId: () => '!other:example.org',
+        getTs: () => 1,
+        isRedacted: () => false,
+        getWireContent: () => ({ 'm.relates_to': { rel_type: 'm.replace', event_id: messageId } }),
+        getContent: () => ({}),
+      } as unknown as MatrixEvent);
+    /** The store keeps 5,000 messages: one more drops the one it heard of longest ago. */
+    const fill = (from: number) => () => {
+      for (let i = from; i < from + 5000; i += 1) client.emit(ClientEvent.Event, editOf(`$m${i}`));
+    };
+    client.emit(ClientEvent.Event, editOf('$reply'));
+
+    expect(told(fill(0))).toEqual({ marked: ['$root'], counted: 1 });
+    // The messages dropped next are no events of this room.
+    expect(told(fill(5000))).toEqual({ marked: [], counted: 0 });
+    unmount();
+    client.emit(ClientEvent.Event, editOf('$reply'));
+    expect(told(fill(10000)).marked).toEqual([]);
+    stop();
+  });
+
+  it('says that it hears the room while it does', () => {
     const { state, unmount } = setup();
     const changes = state().overviewChanges;
-    changes.onKept?.();
+    expect(changes.listened).toBe(true);
 
     unmount();
-    const before = changes.count;
-    vi.advanceTimersByTime(KEPT_RECORD_CHECK_MS);
 
-    expect(changes.count).toBe(before);
-    expect(changes.onKept).toBeUndefined();
-    vi.useRealTimers();
+    expect(changes.listened).toBe(false);
+    expect(setup('$open').state().overviewChanges.listened).toBeFalsy();
   });
 
   it('marks the thread of each event the client hears of this room, without a count', () => {

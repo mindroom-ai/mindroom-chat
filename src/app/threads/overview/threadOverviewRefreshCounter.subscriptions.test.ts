@@ -58,6 +58,7 @@ type FakeRoom = ReturnType<typeof fakeRoom>;
 const fakeEvent = (eventId: string, threadRootId?: string, roomId = '!room:example.org') => ({
   getId: () => eventId,
   getRoomId: () => roomId,
+  getType: () => 'm.room.message',
   isThreadRoot: false,
   threadRootId,
   getAssociatedId: () => undefined,

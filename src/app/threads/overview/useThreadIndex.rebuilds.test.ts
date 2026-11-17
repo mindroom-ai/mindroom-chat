@@ -8,11 +8,12 @@ import {
   RoomEvent,
   RoomMemberEvent,
   ThreadEvent,
+  type IRoomTimelineData,
   type MatrixClient,
   type RoomMember,
   type Thread,
 } from 'matrix-js-sdk';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createThreadRecordChanges } from '../../event-store/threads/threadRecord';
 import { DIRECT_ROOM_TIMELINE_FILTER_STATE } from '../../event-store/timeline/roomTimelineViewState';
 
@@ -56,10 +57,7 @@ import { buildThreadIndexRecordMaps } from './threadIndexRecords';
 // eslint-disable-next-line import/first
 import { useThreadIndex, type UseThreadIndexOptions } from './useThreadIndex';
 // eslint-disable-next-line import/first
-import {
-  KEPT_RECORD_CHECK_MS,
-  useThreadOverviewRefreshCounter,
-} from './threadOverviewRefreshCounter';
+import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter';
 
 let mx: MatrixClient;
 let room: Room;
@@ -83,12 +81,6 @@ beforeEach(() => {
   // A pinned root nobody answered: a zero-reply root of the Compact list.
   state.pinnedEvents = [root('$root')];
   state.list = { ...state.list, loading: true };
-  // A second after a build kept a record, every record is built again: on the tests' own clock.
-  vi.useFakeTimers();
-});
-
-afterEach(() => {
-  vi.useRealTimers();
 });
 
 const options = (): UseThreadIndexOptions => ({
@@ -240,24 +232,23 @@ describe('useThreadIndex record builds', () => {
     expect(records().get('$b')).not.toBe(before.get('$b'));
   });
 
-  it('builds every record a second after it kept one, in a room where nothing more happens', () => {
+  it('builds every record when a page of history brings a member event, in a room where nothing more happens', () => {
     const records = renderListeningIndex();
-    act(() => {
-      room.emit(ThreadEvent.Update, { id: '$a' } as Thread);
+    const before = records();
+    // The name a member had before they left, which their records show from then on.
+    const joined = new MatrixEvent({
+      type: 'm.room.member',
+      room_id: room.roomId,
+      event_id: '$joined',
+      state_key: '@alice:server',
+      content: { membership: 'join', displayname: 'Alice' },
     });
-    const kept = records();
 
     act(() => {
-      vi.advanceTimersByTime(KEPT_RECORD_CHECK_MS);
+      room.emit(RoomEvent.Timeline, joined, room, true, false, {} as IRoomTimelineData);
     });
 
-    expect(records().get('$a')).not.toBe(kept.get('$a'));
-    expect(records().get('$b')).not.toBe(kept.get('$b'));
-    // That build kept none, so the room rests.
-    const rested = records();
-    act(() => {
-      vi.advanceTimersByTime(KEPT_RECORD_CHECK_MS);
-    });
-    expect(records()).toBe(rested);
+    expect(records().get('$a')).not.toBe(before.get('$a'));
+    expect(records().get('$b')).not.toBe(before.get('$b'));
   });
 });

@@ -90,24 +90,6 @@ describe('buildThreadRecordMap reuse', () => {
     expect(second.get('$b')).toBe(first.get('$b'));
   });
 
-  it('tells the listener of a build that kept a record, once, and not of one that kept none', () => {
-    changes.onKept = vi.fn();
-    const first = build();
-    expect(changes.onKept).not.toHaveBeenCalled();
-
-    build(first);
-    expect(changes.onKept).toHaveBeenCalledTimes(1);
-
-    // A record that only moved is kept too.
-    markThreadRecordChange(changes, '$b');
-    const moved = build(first, { absoluteIndexMap: new Map([['$a', 2]]) });
-    expect(changes.onKept).toHaveBeenCalledTimes(2);
-
-    markThreadRecordChange(changes);
-    build(moved);
-    expect(changes.onKept).toHaveBeenCalledTimes(2);
-  });
-
   it('builds only the record of the thread a change was marked for', () => {
     const first = build();
     expect(unread(first)).toEqual([true, true]);
