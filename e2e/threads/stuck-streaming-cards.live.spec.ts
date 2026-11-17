@@ -317,6 +317,8 @@ const check = async (page: Page, world: World, engine: string, quietRoomId: stri
     filterState: createDefaultThreadFilterState(),
   });
   await openRoom(page, world);
+  // Verify the seed took effect before streaming, rather than relying on the room's default.
+  await expect(page.locator('[data-thread-tab="all"]')).toHaveAttribute('aria-pressed', 'true');
 
   // The reader watches the room while every agent starts replies in many threads.
   const streams: Stream[] = [];
