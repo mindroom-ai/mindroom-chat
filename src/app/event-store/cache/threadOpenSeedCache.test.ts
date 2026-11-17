@@ -278,7 +278,7 @@ describe('saveThreadOpenSeedSnapshot with edits the app cannot show', () => {
   });
 
   it.each([EventStatus.CANCELLED, EventStatus.SENDING])(
-    'keeps the sent edit before a newer one whose status is %s',
+    'keeps the newest sent edit and a newer one whose status is %s',
     (status) => {
       const pending = makeEdit('$pending', 3100);
       pending.setStatus(status);

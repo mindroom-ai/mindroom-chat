@@ -4423,7 +4423,7 @@ index 19a2f43..9a64b56 100644
  
      /**
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations.js b/node_modules/matrix-js-sdk/lib/models/relations.js
-index 6be66bb..6253e3e 100644
+index 6be66bb..da0fd8b 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations.js
 +++ b/node_modules/matrix-js-sdk/lib/models/relations.js
 @@ -27,6 +27,16 @@ export var RelationsEvent = /*#__PURE__*/function (RelationsEvent) {
@@ -4460,7 +4460,17 @@ index 6be66bb..6253e3e 100644
          return;
        }
        if (status !== EventStatus.CANCELLED) {
-@@ -102,6 +115,10 @@ export class Relations extends TypedEventEmitter {
+@@ -95,6 +108,9 @@ export class Relations extends TypedEventEmitter {
+     _defineProperty(this, "onBeforeRedaction", /*#__PURE__*/function () {
+       var _ref = _asyncToGenerator(function* (redactedEvent) {
+         if (!_this.relations.has(redactedEvent)) {
++          // MindRoom: an edit released while it could not be decrypted, see `releaseEdits`.
++          redactedEvent.removeListener(MatrixEventEvent.Decrypted, _this.onEditDecrypted);
++          redactedEvent.removeListener(MatrixEventEvent.BeforeRedaction, _this.onBeforeRedaction);
+           return;
+         }
+         _this.relations.delete(redactedEvent);
+@@ -102,6 +118,10 @@ export class Relations extends TypedEventEmitter {
            // Remove the redacted annotation from aggregation by key
            _this.removeAnnotationFromAggregation(redactedEvent);
          } else if (_this.relationType === RelationType.Replace) {
@@ -4471,25 +4481,40 @@ index 6be66bb..6253e3e 100644
            yield _this.updateTargetEventReplacement();
          }
          redactedEvent.removeListener(MatrixEventEvent.BeforeRedaction, _this.onBeforeRedaction);
-@@ -111,6 +128,12 @@ export class Relations extends TypedEventEmitter {
+@@ -111,6 +131,21 @@ export class Relations extends TypedEventEmitter {
          return _ref.apply(this, arguments);
        };
      }());
-+    /** MindRoom: an edit that failed to decrypt is listened to until it decrypts or leaves. */
++    /**
++     * MindRoom: an edit that failed to decrypt is listened to until it decrypts, leaves, or is
++     * redacted. Released while it could not be read, it comes again once it decrypts, for the
++     * policy to decide on it again.
++     */
 +    _defineProperty(this, "onEditDecrypted", edit => {
 +      if (edit.isDecryptionFailure()) return;
 +      edit.removeListener(MatrixEventEvent.Decrypted, this.onEditDecrypted);
-+      this.releaseEdits(edit.getSender(), true);
++      if (this.relations.has(edit)) {
++        this.releaseEdits(edit.getSender(), true);
++        return;
++      }
++      edit.removeListener(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
++      void this.addEvent(edit);
 +    });
      this.client = client instanceof Room ? client.client : client;
    }
  
-@@ -147,7 +170,14 @@ export class Relations extends TypedEventEmitter {
+@@ -147,7 +182,20 @@ export class Relations extends TypedEventEmitter {
        if (_this2.relationType === RelationType.Annotation) {
          _this2.addAnnotationToAggregation(event);
        } else if (_this2.relationType === RelationType.Replace) {
-+        // MindRoom: the policy may release the new edit itself, as one older than the edit shown.
++        // MindRoom: the policy may release the new edit itself, as one older than the edit shown. A
++        // held edit that comes again, under the ID the server gave it, is known by that ID only.
++        var addedId = _this2.addedIds.get(event);
++        if (addedId !== undefined && addedId !== event.getId()) _this2.relationEventIds.delete(addedId);
 +        _this2.addedIds.set(event, event.getId());
++        // MindRoom: it may be listened to already, held or released (`releaseEdits`).
++        event.removeListener(MatrixEventEvent.BeforeRedaction, _this2.onBeforeRedaction);
++        event.removeListener(MatrixEventEvent.Decrypted, _this2.onEditDecrypted);
 +        if (event.isDecryptionFailure()) event.on(MatrixEventEvent.Decrypted, _this2.onEditDecrypted);
 +        _this2.releaseEdits(event.getSender());
 +        if (!_this2.relations.has(event)) return;
@@ -4499,7 +4524,7 @@ index 6be66bb..6253e3e 100644
        }
        event.on(MatrixEventEvent.BeforeRedaction, _this2.onBeforeRedaction);
        _this2.emit(RelationsEvent.Add, event);
-@@ -170,6 +200,10 @@ export class Relations extends TypedEventEmitter {
+@@ -170,6 +218,10 @@ export class Relations extends TypedEventEmitter {
        if (_this3.relationType === RelationType.Annotation) {
          _this3.removeAnnotationFromAggregation(event);
        } else if (_this3.relationType === RelationType.Replace) {
@@ -4510,7 +4535,7 @@ index 6be66bb..6253e3e 100644
          yield _this3.updateTargetEventReplacement();
        }
        _this3.emit(RelationsEvent.Remove, event);
-@@ -357,9 +391,53 @@ export class Relations extends TypedEventEmitter {
+@@ -357,9 +409,59 @@ export class Relations extends TypedEventEmitter {
        if (!lastReplacement && !targetEvent.replacingEvent()) {
          return;
        }
@@ -4558,6 +4583,12 @@ index 6be66bb..6253e3e 100644
 +      edit.removeListener(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
 +      edit.removeListener(MatrixEventEvent.Status, this.onEventStatus);
 +      edit.removeListener(MatrixEventEvent.Decrypted, this.onEditDecrypted);
++      // MindRoom: an edit that could not be decrypted may carry metadata its key reveals, so it is
++      // taken again once it decrypts (`onEditDecrypted`), unless it is redacted first.
++      if (edit.isDecryptionFailure()) {
++        edit.on(MatrixEventEvent.Decrypted, this.onEditDecrypted);
++        edit.on(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
++      }
 +    }
 +    if (update) void this.updateTargetEventReplacement();
 +  }
@@ -4565,7 +4596,7 @@ index 6be66bb..6253e3e 100644
      if (this.creationEmitted) {
        return;
 diff --git a/node_modules/matrix-js-sdk/src/models/relations.ts b/node_modules/matrix-js-sdk/src/models/relations.ts
-index 77ba3b3..db87404 100644
+index 77ba3b3..60ebbe1 100644
 --- a/node_modules/matrix-js-sdk/src/models/relations.ts
 +++ b/node_modules/matrix-js-sdk/src/models/relations.ts
 @@ -34,6 +34,18 @@ export type EventHandlerMap = {
@@ -4595,12 +4626,18 @@ index 77ba3b3..db87404 100644
      private readonly client: MatrixClient;
  
      /**
-@@ -108,7 +121,14 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -108,7 +121,20 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
          if (this.relationType === RelationType.Annotation) {
              this.addAnnotationToAggregation(event);
          } else if (this.relationType === RelationType.Replace) {
-+            // MindRoom: the policy may release the new edit itself, as one older than the edit shown.
++            // MindRoom: the policy may release the new edit itself, as one older than the edit shown. A
++            // held edit that comes again, under the ID the server gave it, is known by that ID only.
++            const addedId = this.addedIds.get(event);
++            if (addedId !== undefined && addedId !== event.getId()) this.relationEventIds.delete(addedId);
 +            this.addedIds.set(event, event.getId()!);
++            // MindRoom: it may be listened to already, held or released (`releaseEdits`).
++            event.removeListener(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
++            event.removeListener(MatrixEventEvent.Decrypted, this.onEditDecrypted);
 +            if (event.isDecryptionFailure()) event.on(MatrixEventEvent.Decrypted, this.onEditDecrypted);
 +            this.releaseEdits(event.getSender());
 +            if (!this.relations.has(event)) return;
@@ -4610,7 +4647,7 @@ index 77ba3b3..db87404 100644
          }
  
          event.on(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
-@@ -133,6 +153,10 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -133,6 +159,10 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
          if (this.relationType === RelationType.Annotation) {
              this.removeAnnotationFromAggregation(event);
          } else if (this.relationType === RelationType.Replace) {
@@ -4621,7 +4658,7 @@ index 77ba3b3..db87404 100644
              await this.updateTargetEventReplacement();
          }
  
-@@ -149,6 +173,8 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -149,6 +179,8 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
          if (!event.isSending()) {
              // Sending is done, so we don't need to listen anymore
              event.removeListener(MatrixEventEvent.Status, this.onEventStatus);
@@ -4630,7 +4667,17 @@ index 77ba3b3..db87404 100644
              return;
          }
          if (status !== EventStatus.CANCELLED) {
-@@ -243,6 +269,10 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -234,6 +266,9 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+      */
+     private onBeforeRedaction = async (redactedEvent: MatrixEvent): Promise<void> => {
+         if (!this.relations.has(redactedEvent)) {
++            // MindRoom: an edit released while it could not be decrypted, see `releaseEdits`.
++            redactedEvent.removeListener(MatrixEventEvent.Decrypted, this.onEditDecrypted);
++            redactedEvent.removeListener(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
+             return;
+         }
+ 
+@@ -243,6 +278,10 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
              // Remove the redacted annotation from aggregation by key
              this.removeAnnotationFromAggregation(redactedEvent);
          } else if (this.relationType === RelationType.Replace) {
@@ -4641,7 +4688,7 @@ index 77ba3b3..db87404 100644
              await this.updateTargetEventReplacement();
          }
  
-@@ -355,7 +385,8 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -355,7 +394,8 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
       * while edits are still being decrypted). A monotonic update counter guards
       * against older async resolutions overriding newer replacement selections.
       */
@@ -4651,7 +4698,7 @@ index 77ba3b3..db87404 100644
          if (!this.targetEvent || this.targetEvent.isState()) {
              return;
          }
-@@ -374,9 +405,57 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -374,9 +414,72 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
              return;
          }
  
@@ -4695,15 +4742,30 @@ index 77ba3b3..db87404 100644
 +            edit.removeListener(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
 +            edit.removeListener(MatrixEventEvent.Status, this.onEventStatus);
 +            edit.removeListener(MatrixEventEvent.Decrypted, this.onEditDecrypted);
++            // MindRoom: an edit that could not be decrypted may carry metadata its key reveals, so it is
++            // taken again once it decrypts (`onEditDecrypted`), unless it is redacted first.
++            if (edit.isDecryptionFailure()) {
++                edit.on(MatrixEventEvent.Decrypted, this.onEditDecrypted);
++                edit.on(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
++            }
 +        }
 +        if (update) void this.updateTargetEventReplacement();
 +    }
 +
-+    /** MindRoom: an edit that failed to decrypt is listened to until it decrypts or leaves. */
++    /**
++     * MindRoom: an edit that failed to decrypt is listened to until it decrypts, leaves, or is
++     * redacted. Released while it could not be read, it comes again once it decrypts, for the
++     * policy to decide on it again.
++     */
 +    private onEditDecrypted = (edit: MatrixEvent): void => {
 +        if (edit.isDecryptionFailure()) return;
 +        edit.removeListener(MatrixEventEvent.Decrypted, this.onEditDecrypted);
-+        this.releaseEdits(edit.getSender(), true);
++        if (this.relations.has(edit)) {
++            this.releaseEdits(edit.getSender(), true);
++            return;
++        }
++        edit.removeListener(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
++        void this.addEvent(edit);
 +    };
 +
      private maybeEmitCreated(): void {

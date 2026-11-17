@@ -62,8 +62,8 @@ const reaction = (id: string, key: string, sender: string) =>
 const redaction = (id: string, redacts: string, ts: number, sender = AGENT) =>
   new MatrixEvent({ ...message(id, ts, { redacts }, sender), type: 'm.room.redaction', redacts });
 
-/** An edit as an encrypted room delivers it, whose key arrives on the second attempt. */
-const encryptedEdit = async (id: string, ts: number) => {
+/** An edit as an encrypted room delivers it, which fails to decrypt until its key arrives. */
+const encryptedEdit = async (id: string, ts: number, metadata: Record<string, unknown> = {}) => {
   const event = new MatrixEvent({
     ...message(id, ts, {}),
     type: 'm.room.encrypted',
@@ -73,20 +73,27 @@ const encryptedEdit = async (id: string, ts: number) => {
       'm.relates_to': { rel_type: 'm.replace', event_id: REPLY },
     },
   });
+  let keyed = false;
   const crypto = {
-    decryptEvent: vi
-      .fn()
-      .mockRejectedValueOnce(
-        new DecryptionError(DecryptionFailureCode.MEGOLM_UNKNOWN_INBOUND_SESSION_ID, 'no key yet')
-      )
-      .mockResolvedValueOnce({
-        clearEvent: { type: 'm.room.message', content: editContent(id, REPLY) },
-      }),
+    decryptEvent: vi.fn(async () => {
+      if (!keyed) {
+        throw new DecryptionError(
+          DecryptionFailureCode.MEGOLM_UNKNOWN_INBOUND_SESSION_ID,
+          'no key yet'
+        );
+      }
+      return { clearEvent: { type: 'm.room.message', content: editContent(id, REPLY, metadata) } };
+    }),
   };
   await event.attemptDecryption(crypto as never);
   expect(event.isDecryptionFailure()).toBe(true);
-  const keyArrives = () => event.attemptDecryption(crypto as never, { isRetry: true });
-  return { event, keyArrives };
+  /** Another attempt without the key: the edit fails to decrypt again. */
+  const failsAgain = () => event.attemptDecryption(crypto as never, { isRetry: true });
+  const keyArrives = () => {
+    keyed = true;
+    return event.attemptDecryption(crypto as never, { isRetry: true });
+  };
+  return { event, failsAgain, keyArrives };
 };
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -367,6 +374,20 @@ describe('the edits a room keeps of a message', () => {
       expect(mine?.replacingEvent()).toBe(pending);
     });
 
+    it('remember the formerly pending edit they hold by the ID the server gave it only', async () => {
+      const { room, echoed, pending, kept, ids } = await withPendingEdit();
+      await echoed();
+      const listeners = pending.listenerCount(MatrixEventEvent.BeforeRedaction);
+
+      // A read of the timeline that holds it aggregates the held edit again, under its new ID.
+      room.relations.aggregateChildEvent(pending);
+      await tick();
+
+      expect(kept('$mine')).toEqual(['$echoed']);
+      expect(ids('$mine')).toEqual(['$echoed']);
+      expect(pending.listenerCount(MatrixEventEvent.BeforeRedaction)).toBe(listeners);
+    });
+
     it('show the sent edit again once the pending one is cancelled', async () => {
       const { room, mine, pending, kept } = await withPendingEdit();
 
@@ -416,6 +437,123 @@ describe('the edits a room keeps of a message', () => {
       expect(
         unreadable.map(({ event }) => event.listenerCount(MatrixEventEvent.Decrypted))
       ).toEqual(listeners);
+    });
+
+    /** An older edit with a tool trace that cannot be decrypted yet, and a newer readable one without. */
+    const withReleasedUnreadableEdit = async (order: 'unreadable first' | 'readable first') => {
+      const made = await roomWithReply();
+      const unreadable = await encryptedEdit('$unreadable', 10, { [TOOL_TRACE]: trace('search') });
+      const listening = () => ({
+        decrypted: unreadable.event.listenerCount(MatrixEventEvent.Decrypted),
+        redaction: unreadable.event.listenerCount(MatrixEventEvent.BeforeRedaction),
+      });
+      const before = listening();
+      const readable = edit('$readable', 20);
+      // A page of a thread or of history comes decrypted, or failed to be, before the room adds it.
+      if (order === 'unreadable first') await made.add(unreadable.event, readable);
+      else await made.add(readable, unreadable.event);
+      return { ...made, unreadable, listening, before };
+    };
+
+    it.each(['unreadable first', 'readable first'] as const)(
+      'take an older one they released again once it decrypts, for the tool trace it carries (%s)',
+      async (order) => {
+        const { kept, ids, shown, unreadable } = await withReleasedUnreadableEdit(order);
+        expect(kept()).toEqual(['$readable']);
+        expect(shown()?.[TOOL_TRACE]).toBeUndefined();
+
+        await unreadable.keyArrives();
+        await tick();
+
+        expect(kept()).toEqual(['$readable', '$unreadable']);
+        expect(ids()).toEqual(['$readable', '$unreadable']);
+        expect(shown()).toMatchObject({ body: '$readable', [TOOL_TRACE]: trace('search') });
+      }
+    );
+
+    it('do not hold an older one they released while it still cannot be decrypted', async () => {
+      const { kept, ids, unreadable, listening, before } =
+        await withReleasedUnreadableEdit('readable first');
+
+      await unreadable.failsAgain();
+      await tick();
+
+      expect(unreadable.event.isDecryptionFailure()).toBe(true);
+      expect(kept()).toEqual(['$readable']);
+      expect(ids()).toEqual(['$readable']);
+      // Only the edit points at the relations, to be taken again once it decrypts.
+      expect(listening()).toEqual({
+        decrypted: before.decrypted + 1,
+        redaction: before.redaction + 1,
+      });
+    });
+
+    it('listen to an older one they released once, however often it comes', async () => {
+      const { room, kept, unreadable, listening, before } =
+        await withReleasedUnreadableEdit('unreadable first');
+
+      // A further page brings the edit again, still unreadable, and it is released again.
+      room.relations.aggregateChildEvent(unreadable.event);
+      await tick();
+      expect(kept()).toEqual(['$readable']);
+      expect(listening()).toEqual({
+        decrypted: before.decrypted + 1,
+        redaction: before.redaction + 1,
+      });
+
+      await unreadable.keyArrives();
+      await tick();
+
+      expect(kept()).toEqual(['$readable', '$unreadable']);
+      // Held now, and readable: listened to for its redaction only.
+      expect(listening()).toEqual({ decrypted: before.decrypted, redaction: before.redaction + 1 });
+    });
+
+    it('listen to an older one they released once when they take it again', async () => {
+      const { room, add, kept, unreadable, listening, before } =
+        await withReleasedUnreadableEdit('readable first');
+      await add(redaction('$redaction', '$readable', 30));
+      expect(kept()).toEqual([]);
+
+      // A further page brings the edit again, still unreadable, the only edit left to hold.
+      room.relations.aggregateChildEvent(unreadable.event);
+      await tick();
+      expect(kept()).toEqual(['$unreadable']);
+      expect(listening()).toEqual({
+        decrypted: before.decrypted + 1,
+        redaction: before.redaction + 1,
+      });
+
+      await unreadable.keyArrives();
+      await tick();
+
+      expect(kept()).toEqual(['$unreadable']);
+      expect(listening()).toEqual({ decrypted: before.decrypted, redaction: before.redaction + 1 });
+    });
+
+    it('stop listening to an older one they released once it is redacted', async () => {
+      const { add, kept, unreadable, listening, before } =
+        await withReleasedUnreadableEdit('readable first');
+
+      await add(redaction('$redaction', '$unreadable', 30));
+
+      expect(unreadable.event.isRedacted()).toBe(true);
+      expect(kept()).toEqual(['$readable']);
+      expect(listening()).toEqual(before);
+    });
+
+    it('let an older one they released go once it decrypts without metadata of its own', async () => {
+      const made = await roomWithReply();
+      const unreadable = await encryptedEdit('$unreadable', 10);
+      const before = unreadable.event.listenerCount(MatrixEventEvent.Decrypted);
+      await made.add(edit('$readable', 20), unreadable.event);
+
+      await unreadable.keyArrives();
+      await tick();
+
+      expect(made.kept()).toEqual(['$readable']);
+      expect(made.ids()).toEqual(['$readable']);
+      expect(unreadable.event.listenerCount(MatrixEventEvent.Decrypted)).toBe(before);
     });
   });
 
