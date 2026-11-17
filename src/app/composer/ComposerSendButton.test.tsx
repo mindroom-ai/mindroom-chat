@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Provider, createStore } from 'jotai';
+import { conversationCoveredAtom } from '../navigation/conversationCover';
 import { LONG_PRESS_MS } from '../lib/hooks/useLongPress';
 import type { MidTurnMode } from '../preferences/midTurnModes';
 import { ComposerSendButton } from './ComposerSendButton';
@@ -15,10 +17,13 @@ class TestPointerEvent extends MouseEvent {
 
   readonly pointerId: number;
 
+  readonly pointerType: string;
+
   constructor(type: string, init: PointerEventInit = {}) {
     super(type, init);
     this.isPrimary = init.isPrimary ?? false;
     this.pointerId = init.pointerId ?? 1;
+    this.pointerType = init.pointerType ?? '';
   }
 }
 
@@ -39,9 +44,11 @@ describe('the Send button', () => {
 
   const setup = (agentReplying: boolean, defaultMode: MidTurnMode = 'auto', hasText = true) => {
     const onSend = vi.fn();
+    const store = createStore();
     render(
-      <>
+      <Provider store={store}>
         <p>Outside the menu</p>
+        <textarea aria-label="Message" />
         <ComposerSendButton
           label="Send message"
           agentReplying={agentReplying}
@@ -49,9 +56,9 @@ describe('the Send button', () => {
           defaultMode={defaultMode}
           onSend={onSend}
         />
-      </>
+      </Provider>
     );
-    return { onSend, button: screen.getByRole('button', { name: 'Send message' }) };
+    return { onSend, store, button: screen.getByRole('button', { name: 'Send message' }) };
   };
   /** Holds the button down for a long press and lets go, which clicks it. */
   const hold = (button: HTMLElement) => {
@@ -169,5 +176,176 @@ describe('the Send button', () => {
     expect(screen.queryByRole('menu')).toBeNull();
     expect(onSend.mock.calls).toEqual([[]]);
     expect(button.getAttribute('aria-haspopup')).toBeNull();
+  });
+
+  const mouse = { pointerType: 'mouse' };
+  /** A mouse comes to rest on `element`, as a browser tells it: pointer, then mouse events. */
+  const enter = (element: HTMLElement, pointer = mouse) => {
+    fireEvent.pointerEnter(element, pointer);
+    if (pointer.pointerType === 'mouse') fireEvent.mouseEnter(element);
+  };
+  const leave = (element: HTMLElement, pointer = mouse) => {
+    fireEvent.pointerLeave(element, pointer);
+    if (pointer.pointerType === 'mouse') fireEvent.mouseLeave(element);
+  };
+  const wait = (ms: number) =>
+    act(() => {
+      vi.advanceTimersByTime(ms);
+    });
+  /** Rests the mouse on the button until the menu opens. */
+  const rest = (button: HTMLElement) => {
+    enter(button);
+    wait(300);
+    expect(screen.queryByRole('menu')).not.toBeNull();
+  };
+
+  it('opens the modes for a mouse resting on it, not one passing over it', () => {
+    const { onSend, button } = setup(true);
+    enter(button);
+    wait(299);
+    expect(screen.queryByRole('menu')).toBeNull();
+    wait(1);
+    expect(screen.queryByRole('menu')).not.toBeNull();
+    expect(button.getAttribute('aria-expanded')).toBe('true');
+    expect(onSend).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Steer' }));
+    expect(onSend.mock.calls).toEqual([['steer']]);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('opens nothing for a mouse that moves on before the delay', () => {
+    const { button } = setup(true);
+    enter(button);
+    wait(200);
+    leave(button);
+    wait(1000);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('opens nothing for a finger or a pen coming onto it', () => {
+    const { button } = setup(true);
+    enter(button, { pointerType: 'touch' });
+    wait(1000);
+    expect(screen.queryByRole('menu')).toBeNull();
+    leave(button, { pointerType: 'touch' });
+    enter(button, { pointerType: 'pen' });
+    wait(1000);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('opens nothing for a resting mouse while no agent replies, or without text', () => {
+    const first = setup(false);
+    enter(first.button);
+    wait(1000);
+    expect(screen.queryByRole('menu')).toBeNull();
+    cleanup();
+
+    const second = setup(true, 'auto', false);
+    enter(second.button);
+    wait(1000);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('closes shortly after the mouse leaves, and stays while it crosses to the menu', () => {
+    const { button } = setup(true);
+    rest(button);
+    leave(button);
+    wait(100);
+    const menu = screen.getByRole('menu');
+    enter(menu);
+    wait(1000);
+    expect(screen.queryByRole('menu')).not.toBeNull();
+
+    leave(menu);
+    wait(100);
+    enter(button);
+    wait(1000);
+    expect(screen.queryByRole('menu')).not.toBeNull();
+
+    leave(button);
+    wait(199);
+    expect(screen.queryByRole('menu')).not.toBeNull();
+    wait(1);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('stays open after the mouse leaves while focus is in the menu', () => {
+    const { button } = setup(true);
+    rest(button);
+    screen.getByRole('menuitem', { name: 'Queue' }).focus();
+    leave(button);
+    wait(1000);
+    expect(screen.queryByRole('menu')).not.toBeNull();
+  });
+
+  it('sends once with the default mode on a click while a resting mouse opened the menu', () => {
+    const { onSend, button } = setup(true, 'queue');
+    rest(button);
+    fireEvent.pointerDown(button, { ...press, ...mouse });
+    fireEvent.mouseDown(button);
+    expect(screen.queryByRole('menu')).toBeNull();
+    fireEvent.pointerUp(button, { ...press, ...mouse });
+    fireEvent.mouseUp(button);
+    fireEvent.click(button);
+    expect(onSend.mock.calls).toEqual([[]]);
+    // The mouse still rests on the button, which does not open the menu again.
+    wait(1000);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('opens nothing on a resting mouse that presses before the delay, and holds as before', () => {
+    const { onSend, button } = setup(true);
+    enter(button);
+    wait(100);
+    fireEvent.pointerDown(button, { ...press, ...mouse });
+    wait(LONG_PRESS_MS - 1);
+    expect(screen.queryByRole('menu')).toBeNull();
+    wait(1);
+    expect(screen.queryByRole('menu')).not.toBeNull();
+    fireEvent.pointerUp(button, { ...press, ...mouse });
+    fireEvent.mouseUp(button);
+    fireEvent.click(button);
+    expect(onSend).not.toHaveBeenCalled();
+    // A menu a hold opened stays as the mouse goes.
+    leave(button);
+    wait(1000);
+    expect(screen.queryByRole('menu')).not.toBeNull();
+  });
+
+  it('leaves the text box its focus and its arrow keys under a menu a resting mouse opened', () => {
+    const { button } = setup(true);
+    const text = screen.getByRole('textbox', { name: 'Message' });
+    text.focus();
+    rest(button);
+    expect(document.activeElement).toBe(text);
+    fireEvent.keyDown(text, { key: 'ArrowDown', keyCode: 40, which: 40 });
+    fireEvent.keyDown(text, { key: 'ArrowUp', keyCode: 38, which: 38 });
+    expect(document.activeElement).toBe(text);
+
+    // Once focus is in the menu, the arrows move through it.
+    screen.getByRole('menuitem', { name: 'Steer' }).focus();
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown', keyCode: 40, which: 40 });
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Queue' }));
+  });
+
+  it("hides the button's tooltip under the menu", () => {
+    const { button } = setup(true);
+    enter(button);
+    wait(250);
+    expect(screen.queryByRole('tooltip')).not.toBeNull();
+    wait(50);
+    expect(screen.queryByRole('menu')).not.toBeNull();
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it('closes a menu a resting mouse opened as the conversation hides', () => {
+    const { store, button } = setup(true);
+    rest(button);
+    act(() => {
+      store.set(conversationCoveredAtom, true);
+    });
+    expect(screen.queryByRole('menu')).toBeNull();
   });
 });
