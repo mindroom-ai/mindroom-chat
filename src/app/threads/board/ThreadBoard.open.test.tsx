@@ -123,7 +123,7 @@ const index = (rootIds: string[]) => {
       },
       cache: {},
       absoluteIndex: 0,
-    } as ThreadRecord;
+    } as unknown as ThreadRecord;
     entries.set(`${ROOM_ID}|${threadRootId}`, {
       roomId: ROOM_ID,
       threadRootId,
