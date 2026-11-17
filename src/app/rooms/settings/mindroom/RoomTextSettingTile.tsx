@@ -13,6 +13,8 @@ import type { RoomTextSettingDefinition } from './roomSettingDefinitions';
 
 const STRINGS = 'featureUi.roomSettings.mindroom';
 
+type Saved = { value: string; eventId: string; older: ReadonlySet<string | undefined> };
+
 /**
  * A free-text room setting: a field with the room's value, Save for a changed text and Clear for
  * a set one. It follows the room's state, apart from what the person is typing, and is read-only
@@ -34,9 +36,12 @@ export function RoomTextSettingTile({
   const event = useStateEvent(room, ROOM_SETTINGS_EVENT, definition.key);
   const eventId = event?.getId();
   const live = readRoomSettingValue(event?.getContent()) ?? '';
-  // The value a save left, until the room's state moves past the event shown when it went out.
-  const [saved, setSaved] = useState<{ value: string; before: string | undefined }>();
-  const baseline = saved && saved.before === eventId ? saved.value : live;
+  // The latest save's value and event, and the events older than it: those the room showed when
+  // this tile's saves went out, and the saves' own. While the room shows one of those, the save
+  // counts; its own echo or anyone else's event ends that.
+  const [saved, setSaved] = useState<Saved>();
+  const baseline =
+    saved && eventId !== saved.eventId && saved.older.has(eventId) ? saved.value : live;
   // The person's text while it differs from the baseline; undefined follows the room.
   const [draft, setDraft] = useState<string>();
   const [sending, setSending] = useState(false);
@@ -55,9 +60,13 @@ export function RoomTextSettingTile({
     client
       .sendStateEvent(room.roomId, ROOM_SETTINGS_EVENT as never, content as never, definition.key)
       .then(
-        () => {
+        ({ event_id: sentId }) => {
           if (!alive()) return;
-          setSaved({ value, before });
+          setSaved((last) => ({
+            value,
+            eventId: sentId,
+            older: new Set([...(last?.older ?? []), last?.eventId, before]),
+          }));
           setDraft(undefined);
           setSending(false);
         },

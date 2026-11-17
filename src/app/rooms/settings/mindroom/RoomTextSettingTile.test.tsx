@@ -87,25 +87,28 @@ vi.mock('folds', () => {
 
 let eventCount = 0;
 /** Sets the room's live `thread_summary_instructions` event to one with `content`. */
-const setLive = (content: object | undefined) => {
-  eventCount += 1;
-  const id = `$event${eventCount}`;
+const setLive = (content: object | undefined, id = `$event${(eventCount += 1)}`) => {
   live.event =
     content === undefined
       ? undefined
       : ({ getId: () => id, getContent: () => content } as unknown as MatrixEvent);
 };
+/** The room's state showing the echo of the event the tile's `call`th send created. */
+const echo = (call: number) => {
+  setLive(sentContent(call) as object, `$sent${call}`);
+  refresh();
+};
 
-/** A send that settles when the test says so. */
+/** A send that settles when the test says so, with the event ID `$sent<call>`. */
 const deferSend = () => {
   const settle = {} as { resolve: () => Promise<void>; reject: () => Promise<void> };
-  client.sendStateEvent.mockImplementationOnce(
-    () =>
-      new Promise((resolve, reject) => {
-        settle.resolve = () => act(async () => resolve({ event_id: '$sent' }));
-        settle.reject = () => act(async () => reject(new Error('M_FORBIDDEN')));
-      })
-  );
+  client.sendStateEvent.mockImplementationOnce(() => {
+    const call = client.sendStateEvent.mock.calls.length - 1;
+    return new Promise((resolve, reject) => {
+      settle.resolve = () => act(async () => resolve({ event_id: `$sent${call}` }));
+      settle.reject = () => act(async () => reject(new Error('M_FORBIDDEN')));
+    });
+  });
   return settle;
 };
 
@@ -128,7 +131,9 @@ beforeEach(() => {
   live.event = undefined;
   live.canSend = true;
   client.sendStateEvent.mockReset();
-  client.sendStateEvent.mockResolvedValue({ event_id: '$sent' });
+  client.sendStateEvent.mockImplementation(async () => ({
+    event_id: `$sent${client.sendStateEvent.mock.calls.length - 1}`,
+  }));
 });
 
 afterEach(() => {
@@ -286,6 +291,49 @@ describe('RoomTextSettingTile', () => {
     setLive({ value: 'Name the topic first' });
     refresh();
     expect(field().value).toBe('Name the topic first');
+    expect(saveButton().disabled).toBe(true);
+  });
+
+  it('keeps a later save when an earlier echo arrives while it is pending', async () => {
+    setLive({ value: 'Use at most 4 words' });
+    mount();
+    type('Use at most 5 words');
+    await act(async () => clickSave());
+    type('Use at most 6 words');
+    const second = deferSend();
+    clickSave();
+    echo(0);
+    await second.resolve();
+
+    expect(field().value).toBe('Use at most 6 words');
+    expect(saveButton().disabled).toBe(true);
+    expect(clearButton()).not.toBeNull();
+    // Its own echo, and then someone else's change, show as they come.
+    echo(1);
+    expect(field().value).toBe('Use at most 6 words');
+    setLive({ value: 'Name the topic first' });
+    refresh();
+    expect(field().value).toBe('Name the topic first');
+  });
+
+  it.each([
+    ['in order', [0, 1]],
+    ['out of order', [1, 0]],
+  ])('keeps a Clear after a Save when both echoes come late, %s', async (_name, echoes) => {
+    setLive({ value: 'Use at most 4 words' });
+    mount();
+    type('Use at most 5 words');
+    await act(async () => clickSave());
+    await act(async () => fireEvent.click(clearButton()!));
+    expect(sentContent(1)).toEqual({});
+    expect(field().value).toBe('');
+
+    // The server holds the Clear, whichever echo comes first.
+    echoes.forEach((call) => {
+      echo(call);
+      expect(field().value).toBe('');
+      expect(clearButton()).toBeNull();
+    });
     expect(saveButton().disabled).toBe(true);
   });
 
