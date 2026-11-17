@@ -258,11 +258,13 @@ test('a thread opened for the first time paints its replies once, its long reply
   expect(first.ids, 'the first painted frame holds the long reply').toContain(longId);
   expect(first.longWhole, 'the first painted frame shows the long reply whole').toBe(true);
   const later = frames.slice(painted + 1);
-  // A row the first frame did not have, placed before one it had, came in above it.
+  // A row the first frame did not have, in view before one it had, came in above it. A row the
+  // list mounts beside its view once the thread shows is not in view: the reader sees none of it.
   const insertedAbove = later.filter((frame) =>
     frame.ids.some(
       (id, index) =>
         !first.ids.includes(id) &&
+        frame.visible.includes(id) &&
         frame.ids.slice(index + 1).some((next) => first.ids.includes(next))
     )
   );
