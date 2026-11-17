@@ -348,4 +348,111 @@ describe('the Send button', () => {
     });
     expect(screen.queryByRole('menu')).toBeNull();
   });
+
+  it('cancels a pending rest when the conversation hides, so showing again opens nothing', () => {
+    const { store, button } = setup(true);
+    enter(button);
+    wait(100);
+    act(() => {
+      store.set(conversationCoveredAtom, true);
+    });
+    wait(100);
+    act(() => {
+      store.set(conversationCoveredAtom, false);
+    });
+    wait(1000);
+    expect(screen.queryByRole('menu')).toBeNull();
+    // A new rest opens it again.
+    leave(button);
+    rest(button);
+  });
+
+  /** The button alone, rendered again with other props. */
+  const renderAlone = () => {
+    const props = {
+      label: 'Send message',
+      agentReplying: true,
+      hasText: () => true,
+      defaultMode: 'auto' as const,
+      onSend: vi.fn(),
+    };
+    const view = render(<ComposerSendButton {...props} />);
+    const replying = (agentReplying: boolean) =>
+      view.rerender(<ComposerSendButton {...props} agentReplying={agentReplying} />);
+    return { replying, button: screen.getByRole('button', { name: 'Send message' }) };
+  };
+
+  it('cancels a pending rest when the reply ends, so a new reply opens nothing', () => {
+    const { replying, button } = renderAlone();
+    enter(button);
+    wait(100);
+    replying(false);
+    wait(100);
+    replying(true);
+    wait(1000);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('closes a menu a resting mouse opened when the reply ends', () => {
+    const { replying, button } = renderAlone();
+    rest(button);
+    replying(false);
+    expect(screen.queryByRole('menu')).toBeNull();
+    replying(true);
+    wait(1000);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('keeps a menu a mouse hold dismissed with Escape closed, through the wait and the lift', () => {
+    const { onSend, button } = setup(true);
+    const down = { ...press, ...mouse, buttons: 1 };
+    enter(button);
+    fireEvent.pointerDown(button, down);
+    wait(LONG_PRESS_MS);
+    expect(screen.queryByRole('menu')).not.toBeNull();
+    // The menu's full-window layer covers the button, which the pointer leaves.
+    leave(button);
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape', keyCode: 27 });
+    expect(screen.queryByRole('menu')).toBeNull();
+    // With the layer gone, the pointer, still down, is over the button again.
+    fireEvent.pointerEnter(button, down);
+    fireEvent.mouseEnter(button, { buttons: 1 });
+    wait(1000);
+    expect(screen.queryByRole('menu')).toBeNull();
+    fireEvent.pointerUp(button, { ...press, ...mouse });
+    fireEvent.mouseUp(button);
+    fireEvent.click(button);
+    wait(1000);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('closes a menu a resting mouse opened once Enter sent the text, or the text is gone', () => {
+    let text = true;
+    const onSend = vi.fn();
+    render(
+      <>
+        <textarea aria-label="Message" />
+        <ComposerSendButton
+          label="Send message"
+          agentReplying
+          hasText={() => text}
+          defaultMode="auto"
+          onSend={onSend}
+        />
+      </>
+    );
+    const box = screen.getByRole('textbox', { name: 'Message' });
+    box.focus();
+    rest(screen.getByRole('button', { name: 'Send message' }));
+    // A key that leaves the text in place keeps the menu.
+    fireEvent.keyDown(box, { key: 'a' });
+    fireEvent.keyUp(box, { key: 'a' });
+    expect(screen.queryByRole('menu')).not.toBeNull();
+    // Enter sends and empties the composer, which RoomInput does on its keydown.
+    fireEvent.keyDown(box, { key: 'Enter', keyCode: 13, which: 13 });
+    text = false;
+    fireEvent.keyUp(box, { key: 'Enter', keyCode: 13, which: 13 });
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
 });

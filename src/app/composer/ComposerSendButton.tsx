@@ -64,8 +64,9 @@ const HOVER_CLOSE_MS = 200;
  * the thread, holding it `LONG_PRESS_MS` opens a menu above it: Steer, Queue and Auto, each with a
  * line on what it does; the one picked sends the message with that mode. A mouse resting on it
  * `HOVER_OPEN_MS` opens the same menu, which closes again once the mouse has left both for
- * `HOVER_CLOSE_MS`, unless focus is in it; a click on the button still sends with the default
- * mode. A finger or a pen only holds. Without a reply, or without text to send (a voice message or
+ * `HOVER_CLOSE_MS`, unless focus is in it, and once the reply ends, the conversation hides or the
+ * text is sent or gone; a click on the button still sends with the default mode. A finger or a pen
+ * only holds, and a mouse with a button down never rests. Without a reply, or without text to send (a voice message or
  * files alone carry no mode), a hold is a tap and a rest opens nothing. Escape closes the menu, and
  * focus goes back to the button if it was in the menu.
  */
@@ -88,8 +89,8 @@ export function ComposerSendButton({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const refocusRef = useRef(false);
   const canOpen = () => agentReplying && hasText();
-  const canOpenRef = useRef(canOpen);
-  canOpenRef.current = canOpen;
+  const canHoverRef = useRef(canOpen);
+  canHoverRef.current = () => !conversationHidden && canOpen();
   const press = usePointerLongPress((element) => {
     buttonRef.current = element;
     setMenu({ anchor: element.getBoundingClientRect(), hover: false });
@@ -97,6 +98,26 @@ export function ComposerSendButton({
   // Opens the menu for a mouse resting on the button, or closes it once the mouse has gone.
   const hoverTimer = useRef<number>();
   useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
+  const closeHover = () => setMenu((current) => (current?.hover ? undefined : current));
+  // A rest counts only while the menu may open: once the conversation hides or the reply ends, a
+  // pending rest is dropped and a menu it opened closes; only a new rest opens it again.
+  const hoverAllowed = agentReplying && !conversationHidden;
+  useEffect(() => {
+    if (hoverAllowed) return;
+    window.clearTimeout(hoverTimer.current);
+    closeHover();
+  }, [hoverAllowed]);
+  // Typing goes on under a menu a rest opened. It closes once a key has sent the text or deleted it;
+  // `hasText` reads the editor, which a key has changed by its keyup.
+  const hoverOpen = menu?.hover === true;
+  useEffect(() => {
+    if (!hoverOpen) return undefined;
+    const onKeyUp = () => {
+      if (!canHoverRef.current()) closeHover();
+    };
+    document.addEventListener('keyup', onKeyUp, true);
+    return () => document.removeEventListener('keyup', onKeyUp, true);
+  }, [hoverOpen]);
   const menuLabel = t('composer.midTurn.menuLabel');
 
   // Focus goes back once the menu and its focus trap are gone, which a still active trap would undo.
@@ -114,10 +135,12 @@ export function ComposerSendButton({
   const onPointerEnter = (evt: PointerEvent<HTMLElement>) => {
     if (evt.pointerType !== 'mouse') return;
     window.clearTimeout(hoverTimer.current);
-    if (menu) return;
+    // A mouse coming on with a button down is mid-press: a hold, or the menu a hold opened going
+    // away from under it, which must not come back as a rest.
+    if (menu || evt.buttons !== 0) return;
     const element = evt.currentTarget;
     hoverTimer.current = window.setTimeout(() => {
-      if (!canOpenRef.current()) return;
+      if (!canHoverRef.current()) return;
       buttonRef.current = element;
       setMenu({ anchor: element.getBoundingClientRect(), hover: true });
     }, HOVER_OPEN_MS);
@@ -125,25 +148,25 @@ export function ComposerSendButton({
   const onPointerLeave = (evt: PointerEvent<HTMLElement>) => {
     if (evt.pointerType !== 'mouse') return;
     window.clearTimeout(hoverTimer.current);
-    if (!menu?.hover) return;
+    if (!hoverOpen) return;
     hoverTimer.current = window.setTimeout(() => {
       // A keyboard in the menu keeps it.
       if (menuRef.current?.contains(document.activeElement)) return;
-      setMenu((current) => (current?.hover ? undefined : current));
+      closeHover();
     }, HOVER_CLOSE_MS);
   };
   // In a menu a mouse opened, the arrows move through it only once focus is there, and otherwise
   // stay with the text box; after a hold they also bring focus in from it.
   const arrowKey = (name: 'arrowdown' | 'arrowup') => (event: KeyboardEvent) =>
     isHotkey(name, event) &&
-    (!menu?.hover || !!menuRef.current?.contains(event.target as Node | null));
+    (!hoverOpen || !!menuRef.current?.contains(event.target as Node | null));
 
   return (
     <PopOut
       // folds lays a full-window layer under the menu. After a hold it takes the press that closes
       // the menu; under a menu a mouse opened it lets the pointer through, so the button stays
       // hovered and its click sends.
-      style={menu?.hover ? { pointerEvents: 'none' } : undefined}
+      style={hoverOpen ? { pointerEvents: 'none' } : undefined}
       anchor={anchor}
       position="Top"
       align="End"
@@ -213,7 +236,10 @@ export function ComposerSendButton({
         icon={Icons.Send}
         directional
         variant="Primary"
-        onPress={() => onSend()}
+        onPress={() => {
+          closeHover();
+          return onSend();
+        }}
         alone={alone}
         keepsTextFocus
         aria-haspopup={agentReplying ? 'menu' : undefined}
