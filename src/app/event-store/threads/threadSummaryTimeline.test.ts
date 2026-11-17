@@ -281,4 +281,19 @@ describe('thread summary timeline plan', () => {
     expect([...plan.markersByEventId.keys()]).toEqual(['$s3']);
     expect(plan.markersByEventId.get('$s3')).toEqual({ first: true });
   });
+
+  it('gives a folded run that returns to the title before it no text it replaces', () => {
+    const plan = planThreadSummaryTimeline(
+      [
+        summary('$s1', 'Push bug'),
+        reply('$r1'),
+        summary('$s2', 'Token refresh'),
+        summary('$s3', 'Push bug'),
+      ],
+      { history: startLoaded }
+    );
+
+    expect([...plan.hiddenEventIds]).toEqual(['$s2']);
+    expect(plan.markersByEventId.get('$s3')).toEqual({ first: false });
+  });
 });

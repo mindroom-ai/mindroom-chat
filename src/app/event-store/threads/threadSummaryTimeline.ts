@@ -80,7 +80,11 @@ export const planThreadSummaryTimeline = (
     if (lastMarker && !repeated && !revealedEventIds?.has(lastMarker.eventId)) {
       hiddenEventIds.add(lastMarker.eventId);
       markersByEventId.delete(lastMarker.eventId);
-      plan = lastMarker.plan;
+      // A run that comes back to the title before it replaces nothing.
+      plan =
+        lastMarker.plan.previousSummaryText === summaryText
+          ? { first: lastMarker.plan.first }
+          : lastMarker.plan;
     }
     markersByEventId.set(eventId, plan);
     lastMarker = { eventId, plan };
