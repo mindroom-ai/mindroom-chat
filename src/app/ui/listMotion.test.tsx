@@ -199,19 +199,37 @@ describe('useListMotion', () => {
     expect(motion.cancel).toHaveBeenCalledTimes(running);
   });
 
-  it('lets the moves run on when a change leaves every row in view where it shows', () => {
+  it('lets the play of a row that shows where it did run on, and starts the moved ones again', () => {
     // A filter change mounts its cards a chunk per task: each chunk restarted the glides the
     // browser had not started yet, and the cards jumped back to where they were for each one.
+    const { rerender } = render(<List order={['a', 'b', 'c']} />);
+    rerender(<List order={['c', 'a', 'b']} />);
+    const playOf = (key: string) =>
+      motion.plays.find((play) => !raises(play) && play.element.dataset.motionRow === key);
+    const [c, a, b] = ['c', 'a', 'b'].map(playOf);
+
+    rerender(<List order={['c', 'new', 'a', 'b']} />);
+
+    expect(c?.animation.playState).toBe('running');
+    expect(a?.animation.playState).toBe('idle');
+    expect(b?.animation.playState).toBe('idle');
+    // The rows that moved glide again from where they showed, the new one fades in.
+    expect(playedByRow()).toMatchObject({
+      a: [glide(-100), glide(-100)],
+      new: [expect.anything()],
+    });
+    expect(playedByRow().c).toEqual([glide(200)]);
+  });
+
+  it('leaves the plays that ended alone', async () => {
     const { rerender } = render(<List order={['a', 'b']} />);
     rerender(<List order={['b', 'a']} />);
-    const running = motion.plays.length;
+    await motion.finish();
 
-    rerender(<List order={['b', 'a', 'new']} />);
+    rerender(<List order={['a', 'b']} />);
 
     expect(motion.cancel).not.toHaveBeenCalled();
-    expect(motion.plays.slice(running).map(({ element }) => element.dataset.motionRow)).toEqual([
-      'new',
-    ]);
+    expect(motion.glided().slice(-2).sort()).toEqual(['a', 'b']);
   });
 
   it('ends a play the browser does not end: no row stays away from its place or after it left', async () => {

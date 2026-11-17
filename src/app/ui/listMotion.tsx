@@ -225,8 +225,9 @@ class BeforeChange extends PureComponent<BeforeChangeProps> {
  * page's style and layout inside the commit, work its next frame would have done. Rows play by
  * `translate`, `scale` and `opacity`, which no layout follows; a row is read while it plays, so
  * keep code that measures rows off the row element itself. A change of `order` while rows play
- * starts their glides again from where they show and ends their fades at once, and a play the
- * browser has not ended after `LONGEST_PLAY_MS` is ended. Nothing plays
+ * starts the glides of rows that moved again from where they show, lets the plays of rows that
+ * show where they did run on, and ends the fades of rows that left at once; a play the browser
+ * has not ended after `LONGEST_PLAY_MS` is ended. Nothing plays
  * when no row in view stays, with reduced motion, in a page nobody sees, or without Web
  * Animations. Call it after a hook that scrolls the list in a layout effect: the rows are read
  * where that leaves them.
@@ -247,22 +248,27 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
     beforeRef.current = undefined;
     const list = listRef.current;
     if (!before || !list) return;
-    // A change that left every row in view where it shows, as cards mounting below it, lets the
-    // plays run on. Started again, a play the browser has not started yet, as when such changes
-    // come one per task, shows its first frame each time: a Compact room's cards jumped back to
-    // their places of the last filter for every chunk of cards a filter change mounted.
+    // A row that still shows where it did keeps its play. Started again, a glide the browser has
+    // not begun shows its first frame: a Compact room's cards jumped back to where the last
+    // filter had them for each chunk of cards a filter change mounted. A row that moved was read
+    // where it showed and starts again there; the copies of rows that left end at once.
     const running = runningRef.current.filter(
       ({ playState }) => playState !== 'finished' && playState !== 'idle'
     );
-    const stayed =
-      running.length > 0 &&
-      [...before.rows.values()].every(
-        ({ row, rect }) => row.isConnected && samePlace(row.getBoundingClientRect(), rect)
-      );
-    // A row still moving from the last change was read where it showed; it starts again there.
-    if (!stayed) running.forEach((animation) => animation.cancel());
+    const stayed = new Set<Element>();
+    if (running.length > 0) {
+      before.rows.forEach(({ row, rect }) => {
+        if (row.isConnected && samePlace(row.getBoundingClientRect(), rect)) stayed.add(row);
+      });
+    }
+    const kept = running.filter((animation) => {
+      const target = (animation.effect as KeyframeEffect | null)?.target;
+      if (target && stayed.has(target)) return true;
+      animation.cancel();
+      return false;
+    });
     const started = play(list, before);
-    runningRef.current = stayed ? [...running, ...started] : started;
+    runningRef.current = [...kept, ...started];
     // Not cleared: a list that goes mid-play ends its play too. (One that ended is not changed.)
     if (started.length > 0) {
       setTimeout(() => started.forEach((animation) => animation.cancel()), LONGEST_PLAY_MS);
