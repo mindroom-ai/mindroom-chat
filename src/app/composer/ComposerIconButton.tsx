@@ -20,7 +20,8 @@ type ComposerIconButtonProps = Omit<
   /** No other control beside it, so its touch hit area takes the full 44 px width. */
   alone?: boolean;
   /** A press leaves the focus in the text box, so a phone keeps its keyboard up. */
-  keepsTextFocus?: boolean;  /** Hides its name's tooltip, under a menu it opened. */
+  keepsTextFocus?: boolean;
+  /** Hides its name's tooltip, under a menu it opened. */
   tooltipHidden?: boolean;
 };
 
