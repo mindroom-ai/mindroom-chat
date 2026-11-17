@@ -79,6 +79,27 @@ describe('buildActivityRows', () => {
     expect(kinds(rows)).toEqual(['a:approval', 'b:mention', 'c:reply', 'd:stopped']);
   });
 
+  it('keeps old background approvals unread in Needs you, even without a reply or involvement', () => {
+    const job = entry('job', { isInvolved: false, lastActivityTs: NOW - 8 * DAY });
+    job.threadRecord.status.hasBackgroundApproval = true;
+    const { rows, hiddenAutomations } = build([[job, { automation: true }]], {
+      signals: () => ({ ...quiet, automation: true }),
+    });
+    expect(kinds(rows)).toEqual(['job:approval']);
+    expect(filterActivityRows(rows, 'needsYou', true)).toEqual(rows);
+    expect(unreadCount(rows)).toBe(1);
+    expect(hiddenAutomations).toBe(0);
+  });
+
+  it.each([
+    { isResolved: true, resolvedTs: NOW },
+    { snoozedUntilTs: NOW + DAY, snoozedAtTs: NOW },
+  ])('still hides background approvals under %j', (state) => {
+    const job = entry('job', state);
+    job.threadRecord.status.hasBackgroundApproval = true;
+    expect(build([[job, {}]]).rows).toEqual([]);
+  });
+
   it('keeps read threads of the last 7 days and drops older ones', () => {
     const { rows } = build([
       [entry('recent', { lastActivityTs: NOW - 2 * DAY }), {}],

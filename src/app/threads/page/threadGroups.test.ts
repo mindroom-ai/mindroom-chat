@@ -173,6 +173,16 @@ describe('groupThreads', () => {
     expect(shape(groupThreads([thread], 'following', ME, '', NOW))).toEqual([[expected, ['job']]]);
   });
 
+  it.each([
+    [{}, { newCount: 1 }],
+    [{ isInvolved: false }, { automation: true }],
+    [{ snoozedUntilTs: NOW + 1 }, {}],
+  ])('prioritizes background approvals like foreground requests: %j %j', (entry, signals) => {
+    const job = item('job', entry, signals);
+    job.entry.threadRecord.status.hasBackgroundApproval = true;
+    expect(shape(groupThreads([job], 'all', ME, '', NOW))).toEqual([['needsYou', ['job']]]);
+  });
+
   it('returns a snoozed thread to Recent when its time has passed', () => {
     const items = [item('later', { snoozedUntilTs: NOW })];
     expect(shape(groupThreads(items, 'following', ME, '', NOW - 1))).toEqual([

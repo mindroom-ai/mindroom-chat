@@ -1,6 +1,7 @@
 import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
 import { isSnoozedAt } from '../event-store/threads/threadSnooze';
+import { isWaitingOnYou } from '../event-store/threads/threadWorkflow';
 
 export type ActivityKind =
   | 'approval'
@@ -58,9 +59,10 @@ const isShownAutomation = (row: ActivityRow): boolean =>
 export const unreadCount = (rows: ActivityRow[]): number =>
   rows.filter((row) => row.unread && !isShownAutomation(row)).length;
 
-const threadKind = (signals: ThreadSignals): ActivityThreadRow['kind'] => {
+const threadKind = (signals: ThreadSignals, waits: boolean): ActivityThreadRow['kind'] => {
   if (signals.pendingApproval) return 'approval';
   if (signals.pendingQuestion) return 'question';
+  if (waits) return 'approval';
   if (signals.mentionedMe) return 'mention';
   const { outcome, lastReply } = signals;
   if (outcome && (!lastReply || outcome.ts >= lastReply.ts)) return outcome.kind;
@@ -122,7 +124,7 @@ export const buildActivityRows = ({
       continue;
     }
     const recent = now - entry.lastActivityTs <= ACTIVITY_READ_WINDOW_MS;
-    const waits = !!threadSignals.pendingApproval || !!threadSignals.pendingQuestion;
+    const waits = isWaitingOnYou(threadSignals, entry.threadRecord.status);
     const named = threadSignals.mentionedMe;
     // What waits for the person or names them stays however old; the rest leaves after the window.
     if (!waits && !named) {
@@ -136,7 +138,7 @@ export const buildActivityRows = ({
     }
     // A mention is unread by its signal: it may sit in the root, which no reply count holds.
     const unread = waits || named || threadSignals.newCount > 0;
-    const kind = threadKind(threadSignals);
+    const kind = threadKind(threadSignals, waits);
     // A reply row says who replied; a thread with no counted reply has nothing to tell yet.
     if (kind === 'reply' && !threadSignals.lastReply && threadSignals.newCount === 0) continue;
     const actorIds = actorsOf(kind, threadSignals);
