@@ -261,10 +261,15 @@ const shoot = (page: Page, testInfo: TestInfo, name: string) =>
 /** Opens `name` from the room list, which the top bar's menu button slides in over a room. */
 const openFromList = async (page: Page, name: string, room: string) => {
   const drawer = page.locator('#phone-nav-drawer');
-  if (!(await drawer.isVisible())) {
+  const sliding = () => drawer.evaluate((panel) => panel.getAnimations().length);
+  // A drawer sliding away after the last room opened is still visible, but already inert: read its
+  // state, not its visibility, and let it finish closing before the menu button brings it back.
+  if ((await drawer.getAttribute('data-open')) === null) {
+    await expect.poll(sliding).toBe(0);
     await page.locator('#phone-nav-menu-button').tap();
     // Until it has slid in, a finger on it may still land on the scrim.
-    await expect.poll(() => drawer.evaluate((panel) => panel.getAnimations().length)).toBe(0);
+    await expect(drawer).toHaveAttribute('data-open', 'true');
+    await expect.poll(sliding).toBe(0);
   }
   await drawer.getByTestId('resizable-page-nav').getByRole('link', { name }).tap();
   await expectAt(page, inRoom(room), `${name} opens from the list`);
