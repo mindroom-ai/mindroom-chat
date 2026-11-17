@@ -727,6 +727,61 @@ describe('MindroomReasoning', () => {
         expect(segmentTexts(root)).toEqual([]);
       });
 
+      it('hides the segment when one frame brings its last piece and the first answer text', () => {
+        vi.useFakeTimers();
+        // The reply's first thought, over the thinking placeholder: no answer yet.
+        const thought = (reasoning: string | undefined, answer?: string) => ({
+          msgtype: 'm.text',
+          body: answer ?? 'Thinking...',
+          ...(answer === undefined
+            ? {}
+            : { format: 'org.matrix.custom.html', formatted_body: `<p>${answer}</p>` }),
+          'io.mindroom.stream_status': 'streaming',
+          [LIVE]: reasoning,
+          'io.mindroom.live_reasoning_segments': reasoning && [{ start: 0, after_tool: 0 }],
+        });
+        const root = render(thought(undefined));
+        act(() => renderer?.update(element(thought('Checking'))));
+        expect(segmentTexts(root)).toEqual(['ThinkingChecking']);
+
+        act(() => renderer?.update(element(thought('Checking complete.', 'It is stale.'))));
+
+        // The answer came after the thought's last piece, so the thought has ended.
+        expect(segmentTexts(root)).toEqual([]);
+        expect(text(root)).toBe('ThinkingIt is stale.');
+
+        // The answer pauses: no frame follows.
+        act(() => {
+          vi.advanceTimersByTime(5000);
+        });
+        expect(segmentTexts(root)).toEqual([]);
+      });
+
+      it.each([
+        ['the tool call before it', '\n\n🔧 `grep` [2]', marker('grep', 2), 2],
+        ['answer text before it', '\n\nStale so far.', '<p>Stale so far.</p>', 1],
+      ])(
+        'shows a new segment whose first piece comes in one frame with %s',
+        (_name, body, html, afterTool) => {
+          const root = renderThinking(streaming(twoThoughts, LIVE_SEGMENTS));
+          const third = `${twoThoughts}\n\nSo`;
+
+          act(() =>
+            renderer?.update(
+              element({
+                ...goneOn(third, body, html),
+                'io.mindroom.live_reasoning_segments': [
+                  ...LIVE_SEGMENTS,
+                  { start: twoThoughts.length + 2, after_tool: afterTool },
+                ],
+              })
+            )
+          );
+
+          expect(segmentTexts(root)).toEqual(['ThinkingSo']);
+        }
+      );
+
       const code = (attributes: string, text = '') =>
         goneOn(twoThoughts, text, `<pre><code${attributes}>x = 1\n</code></pre>`);
 

@@ -142,6 +142,7 @@ describe('lastRecordedReasoningSegment', () => {
 
   it('is blank while the last segment has begun without text', () => {
     expect(lastRecordedReasoningSegment('first\n\n', segments)).toEqual({
+      start: 6,
       afterTool: 2,
       blank: true,
     });
@@ -150,10 +151,12 @@ describe('lastRecordedReasoningSegment', () => {
 
   it('is not blank once the last segment has text, and keeps the calls before it', () => {
     expect(lastRecordedReasoningSegment('first\n\ns', segments)).toEqual({
+      start: 6,
       afterTool: 2,
       blank: false,
     });
     expect(lastRecordedReasoningSegment('first', [{ start: 0, after_tool: 0 }])).toEqual({
+      start: 0,
       afterTool: 0,
       blank: false,
     });

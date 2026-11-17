@@ -54,16 +54,16 @@ export const readReasoningSegments = (text: string, segments: unknown): Reasonin
 };
 
 /**
- * The segment the model began last, as recorded: the visible tool calls started before it, and
- * whether it has no text yet (`readReasoningSegments` leaves it out until its text comes).
- * Undefined for segments the reader does not follow.
+ * The segment the model began last, as recorded: where it starts, the visible tool calls started
+ * before it, and whether it has no text yet (`readReasoningSegments` leaves it out until its text
+ * comes). Undefined for segments the reader does not follow.
  */
 export const lastRecordedReasoningSegment = (
   text: string,
   segments: unknown
-): { afterTool: number; blank: boolean } | undefined => {
+): { start: number; afterTool: number; blank: boolean } | undefined => {
   const last = parseSegments(segments, text.length)?.at(-1);
-  return last && { afterTool: last.afterTool, blank: text.slice(last.start).trim() === '' };
+  return last && { ...last, blank: text.slice(last.start).trim() === '' };
 };
 
 /**

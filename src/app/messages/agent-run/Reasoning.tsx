@@ -265,10 +265,25 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   // The comet laps while the live reasoning comes or grows, and a little after: not when a reply
   // that has some already comes into view.
   const thinking = useChangedRecently(live, THINKING_GLOW_MS) && live !== undefined;
-  // The body as it was when the live reasoning last came or grew on screen.
+  const recorded = live === undefined ? final?.segments : content[LIVE_REASONING_SEGMENTS_KEY];
+  const last = live === undefined ? undefined : lastRecordedReasoningSegment(live, recorded);
+  // The body as it was when the segment the model writes was first seen to come or grow on screen.
+  // More of the same segment keeps that body, so answer text in the frame of the segment's last
+  // piece is the reply moving on. A new segment takes the body of its own frame, which holds what
+  // came before it there: the tool call it followed, or text. So does every growth of reasoning
+  // whose segments are not recorded, which is one segment that never ends.
   const { body } = content;
-  const [grew, setGrew] = useState({ live, html, body, seen: false });
-  if (grew.live !== live) setGrew({ live, html, body, seen: live !== undefined });
+  const [grew, setGrew] = useState({ live, start: last?.start, html, body, seen: false });
+  if (grew.live !== live) {
+    const same = last !== undefined && last.start === grew.start;
+    setGrew({
+      live,
+      start: last?.start,
+      html: same ? grew.html : html,
+      body: same ? grew.body : body,
+      seen: live !== undefined,
+    });
+  }
 
   // The bulb starts closed on every reply, as the cog does, and stays as the reader left it when
   // the reply finishes.
@@ -283,7 +298,6 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   }, []);
 
   const text = live ?? final?.text;
-  const recorded = live === undefined ? final?.segments : content[LIVE_REASONING_SEGMENTS_KEY];
   const segments = useMemo(
     () => (text === undefined ? [] : readReasoningSegments(text, recorded)),
     [text, recorded]
@@ -292,7 +306,6 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   // an open bulb shows after calls, and end the segment the model writes. The body is read for them
   // only then, and again only when its count of marker icons changes, as a new call's does: not for
   // each frame of answer text.
-  const last = live === undefined ? undefined : lastRecordedReasoningSegment(live, recorded);
   const icons =
     html !== undefined &&
     ((open && segments.some(({ afterTool }) => afterTool > 0)) || (grew.seen && last))
@@ -316,7 +329,7 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   // until the reply moves past it. A tool call that began after the segment did ends it, also when
   // its marker came in the frame of the segment's last piece, and so does a segment that has begun
   // without text yet. Answer text ends it too: the body is then other text and other HTML than when
-  // the reasoning grew. One of the two alone is a durable write of the same body (a checkpoint
+  // the segment began. One of the two alone is a durable write of the same body (a checkpoint
   // names a code block's language, and spells a mention out), and a pause changes neither.
   const movedOn = grew.body !== body && (grew.html !== html || html === undefined);
   const ended = !!last && (last.blank || markers.some((marker) => marker > last.afterTool));
