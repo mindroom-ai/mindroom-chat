@@ -427,7 +427,18 @@ for (const [label, final, waiting] of [
     await expect(statusChip(page)).toHaveAttribute('data-secret-request-status', final, {
       timeout: 30_000,
     });
-    await expect(seeded.card.locator('summary')).toBeFocused();
+    const row = seeded.card.locator('summary');
+    await expect(row).toBeFocused();
+
+    // Enter on the folded row opens the card and Enter again folds it, the focus staying on the row.
+    const reason = seeded.card.getByText('To open the pull request for the fix.');
+    await expect(reason).toBeHidden();
+    await page.keyboard.press('Enter');
+    await expect(reason).toBeVisible();
+    await expect(row).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(reason).toBeHidden();
+    await expect(row).toBeFocused();
   });
 }
 

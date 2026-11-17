@@ -329,6 +329,28 @@ describe('SecretRequestCard', () => {
       }
     );
 
+    it('leaves a done key card with nothing to reveal unfolded, with no row to open', () => {
+      render(request({ status: 'saved', reason: '', hosts: [] }));
+
+      expect(chip()).toBe('Saved');
+      expect(fold()).toBeNull();
+      expect(row()).toBeNull();
+    });
+
+    it('gives keyboard focus to the card when a done card has nothing to fold', async () => {
+      env.send.mockResolvedValue(answer(204));
+      render(request({ reason: '', hosts: [] }));
+      type('ghp_secret');
+      act(() => input()?.focus());
+
+      await pressEnter();
+      await settle();
+
+      expect(status()?.textContent).toBe('Saved, waiting for the agent');
+      expect(row()).toBeNull();
+      expect(document.activeElement).toBe(card());
+    });
+
     it('folds a temporary secret once sent, its keep inside the fold', () => {
       render(temporary({ status: 'saved', kept: 'memory' }));
 

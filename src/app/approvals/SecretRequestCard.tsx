@@ -471,6 +471,9 @@ export function SecretRequestCard({
       </span>
     </>
   );
+  // What `details` shows of a card that is done: its reason, a temporary secret's variable and
+  // keep, or a key's hosts. A card with none of them has nothing to fold.
+  const foldable = Boolean(request.reason) || temporary !== undefined || hosts.length > 0;
   const details = (
     <>
       {request.reason && (
@@ -544,7 +547,7 @@ export function SecretRequestCard({
           : 'mindroomUi.messages.secretRequestCard.label'
       )}
     >
-      {open ? (
+      {open || !foldable ? (
         <div className={sectionCss.SectionHeader}>{header}</div>
       ) : (
         // Done, the card folds to its row, which opens it again.
