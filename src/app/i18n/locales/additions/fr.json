@@ -784,6 +784,9 @@
       "finishedWork": {
         "workedFor": "A travaillé pendant {{duration}}",
         "worked": "A travaillé"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Sous-agents"
       }
     },
     "message-search": {

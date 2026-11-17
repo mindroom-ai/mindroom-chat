@@ -773,6 +773,9 @@
       "finishedWork": {
         "workedFor": "{{duration}} çalıştı",
         "worked": "Çalıştı"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Alt ajanlar"
       }
     },
     "message-search": {

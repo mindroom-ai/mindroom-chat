@@ -762,6 +762,9 @@
       "finishedWork": {
         "workedFor": "工作了 {{duration}}",
         "worked": "已工作"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "子智能体"
       }
     },
     "message-search": {

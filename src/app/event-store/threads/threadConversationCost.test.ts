@@ -98,6 +98,26 @@ describe('summarizeThreadConversationCost', () => {
     expect(cost).toBeUndefined();
   });
 
+  it("counts the subagents' cost on the reply that received their results", () => {
+    const run = (cost: Record<string, string>) => ({
+      'io.mindroom.ai_run': { version: 1, status: 'completed', cost },
+    });
+    const cost = summarizeThreadConversationCost(
+      [
+        message('$r1', AGENT, undefined, run({ usd: '0.01', subagents_usd: '0.25' })),
+        message('$r2', AGENT, undefined, run({ subagents_usd: '0.5' })),
+      ],
+      { history: loaded, isTrustedSender }
+    );
+
+    expect(cost?.replies).toEqual([
+      { eventId: '$r1', usd: 0.26 },
+      { eventId: '$r2', usd: 0.5 },
+    ]);
+    expect(cost?.byEventId.get('$r1')).toEqual({ usd: 0.26, replyCount: 1 });
+    expect(cost?.byEventId.get('$r2')).toEqual({ usd: 0.76, replyCount: 2 });
+  });
+
   it('skips replies without cost', () => {
     const cost = summarizeThreadConversationCost(
       [message('$r1', AGENT), message('$r2', AGENT, '0.02')],

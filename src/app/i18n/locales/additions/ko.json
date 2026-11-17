@@ -762,6 +762,9 @@
       "finishedWork": {
         "workedFor": "{{duration}} 동안 작업함",
         "worked": "작업함"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "하위 에이전트"
       }
     },
     "message-search": {

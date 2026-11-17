@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getAiRunInfo, isAiRunStreaming } from './aiRun';
+import { getAiRunInfo, isAiRunStreaming, withoutAiRunCost } from './aiRun';
 
 describe('getAiRunInfo', () => {
   it('extracts metadata from top-level message content', () => {
@@ -235,6 +235,30 @@ describe('getAiRunInfo reply cost', () => {
       expect(getAiRunInfo(withRun({ cost: { usd } }))?.costUsd).toBeUndefined();
     });
     expect(getAiRunInfo(withRun({ cost: '0.5' }))?.costUsd).toBeUndefined();
+  });
+
+  it('parses the subagents cost beside the reply cost', () => {
+    const info = getAiRunInfo(withRun({ cost: { usd: '0.0125', subagents_usd: '0.375' } }));
+    expect(info?.costUsd).toBe(0.0125);
+    expect(info?.subagentsCostUsd).toBe(0.375);
+    expect(getAiRunInfo(withRun({ cost: { subagents_usd: 2 } }))?.subagentsCostUsd).toBe(2);
+  });
+
+  it('leaves the subagents cost out when it is absent or malformed', () => {
+    expect(getAiRunInfo(withRun({ cost: { usd: '0.0125' } }))?.subagentsCostUsd).toBeUndefined();
+    ['abc', '-1', '', '1e309', -1, {}, null].forEach((subagents) => {
+      const info = getAiRunInfo(withRun({ cost: { usd: '0.0125', subagents_usd: subagents } }));
+      expect(info?.subagentsCostUsd).toBeUndefined();
+      expect(info?.costUsd).toBe(0.0125);
+    });
+  });
+
+  it('drops both costs for a sender whose cost does not count', () => {
+    const info = getAiRunInfo(withRun({ cost: { usd: '0.0125', subagents_usd: '0.375' } }))!;
+    const untrusted = withoutAiRunCost(info);
+    expect(untrusted.costUsd).toBeUndefined();
+    expect(untrusted.subagentsCostUsd).toBeUndefined();
+    expect(untrusted.status).toBe('completed');
   });
 
   it('parses time_to_first_token strings the backend sends', () => {

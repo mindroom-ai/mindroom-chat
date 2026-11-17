@@ -795,6 +795,9 @@
       "finishedWork": {
         "workedFor": "Работал {{duration}}",
         "worked": "Работал"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Субагенты"
       }
     },
     "message-search": {
