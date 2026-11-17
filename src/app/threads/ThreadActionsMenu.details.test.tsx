@@ -142,6 +142,44 @@ afterEach(() => {
 });
 
 describe("ThreadActionsMenu's thread details", () => {
+  it('observes nothing and describes nothing when no detail shows', () => {
+    const resized = vi.fn();
+    vi.stubGlobal(
+      'ResizeObserver',
+      class extends SurfaceResizeObserver {
+        constructor(callback: ResizeObserverCallback) {
+          super(callback);
+          resized();
+        }
+      }
+    );
+    const mutated = vi.fn();
+    const NativeMutationObserver = MutationObserver;
+    vi.stubGlobal(
+      'MutationObserver',
+      class extends NativeMutationObserver {
+        constructor(callback: MutationCallback) {
+          super(callback);
+          mutated();
+        }
+      }
+    );
+    render(
+      <ThreadActionsMenu
+        room={room}
+        rootId="$root"
+        anchor={{ x: 700, y: 326, width: 24, height: 24 }}
+        onClose={() => undefined}
+        plugins={[]}
+      />
+    );
+    expect(menu()).toBeTruthy();
+    expect(resized).not.toHaveBeenCalled();
+    expect(mutated).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-thread-details]')).toBeNull();
+    expect(menu().hasAttribute('aria-describedby')).toBe(false);
+  });
+
   it('repositions inside the viewport when a lazy detail grows the open menu', async () => {
     vi.stubGlobal('ResizeObserver', SurfaceResizeObserver);
     // An own value, removed after the test; a restored getter spy here recurses in later tests.
