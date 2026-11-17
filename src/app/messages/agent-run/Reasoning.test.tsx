@@ -643,29 +643,34 @@ describe('MindroomReasoning', () => {
       });
 
       it.each([
-        ['bulb', (root: ReturnType<typeof render>) => header(root)],
+        ['header', (root: ReturnType<typeof render>) => header(root)],
         ['rail', (root: ReturnType<typeof render>) => rails(root).at(-1)],
         ['button at the end', (root: ReturnType<typeof render>) => ends(root).at(-1)],
-      ])('shows no segment once the %s closes the bulb, also while the model writes on', async (_name, closer) => {
-        const root = renderThinking(streaming(twoThoughts, LIVE_SEGMENTS));
-        await act(() => header(root).props.onClick());
-        await act(() => closer(root)?.props.onClick());
+      ])(
+        'shows no segment once the reader closes the bulb with its %s, also while the model writes on',
+        async (_name, closer) => {
+          const root = renderThinking(streaming(twoThoughts, LIVE_SEGMENTS));
+          await act(() => header(root).props.onClick());
+          await act(() => closer(root)?.props.onClick());
 
-        expect(header(root).props['aria-expanded']).toBe(false);
-        expect(segmentTexts(root)).toEqual([]);
+          expect(header(root).props['aria-expanded']).toBe(false);
+          expect(segmentTexts(root)).toEqual([]);
 
-        act(() => renderer?.update(element(streaming(`${twoThoughts} Clear it.`, LIVE_SEGMENTS))));
+          act(() =>
+            renderer?.update(element(streaming(`${twoThoughts} Clear it.`, LIVE_SEGMENTS)))
+          );
 
-        expect(segmentTexts(root)).toEqual([]);
+          expect(segmentTexts(root)).toEqual([]);
 
-        // Opened again, the bulb shows the segment being written as such.
-        await act(() => header(root).props.onClick());
+          // Opened again, the bulb shows the segment being written as such.
+          await act(() => header(root).props.onClick());
 
-        expect(segmentTexts(root)).toEqual([
-          'ThoughtPlan the search.Hide thinking',
-          'ThinkingThe cache is stale. Clear it.Hide thinking',
-        ]);
-      });
+          expect(segmentTexts(root)).toEqual([
+            'ThoughtPlan the search.Hide thinking',
+            'ThinkingThe cache is stale. Clear it.Hide thinking',
+          ]);
+        }
+      );
 
       it('shows no segment while the one the model began has no text yet', () => {
         // The thought before it ended when the tool call came, and stays in the bulb.
