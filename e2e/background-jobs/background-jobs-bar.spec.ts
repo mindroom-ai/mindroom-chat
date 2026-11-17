@@ -219,7 +219,9 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   await page.screenshot({ path: testInfo.outputPath('desktop-unlisted-jobs.png') });
 
   // Wide, the typing strip and the jobs bar share the line above the composer, the strip first;
-  // on a phone the bar goes above the strip.
+  // on a phone the bar goes above the strip. (At 1280 px with the members panel open, this long
+  // typing name leaves the bar under 20rem, so it already goes above.)
+  await page.setViewportSize({ width: 1600, height: 800 });
   const setTyping = (typing: boolean) =>
     matrixFetch(
       HOMESERVER,
@@ -245,14 +247,10 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
       barAbove: jobs.y + jobs.height <= strip.y,
     };
   };
-  await expect
-    .poll(placement)
-    .toEqual({ stripFirst: true, sameBottom: true, barAbove: false });
+  await expect.poll(placement).toEqual({ stripFirst: true, sameBottom: true, barAbove: false });
   await page.screenshot({ path: testInfo.outputPath('desktop-typing-beside-jobs.png') });
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect
-    .poll(placement)
-    .toEqual({ stripFirst: false, sameBottom: false, barAbove: true });
+  await expect.poll(placement).toEqual({ stripFirst: false, sameBottom: false, barAbove: true });
   await page.screenshot({ path: testInfo.outputPath('phone-typing-under-jobs.png') });
   await setTyping(false);
   await expect(typingStrip).toHaveCount(0);
