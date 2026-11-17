@@ -2178,10 +2178,13 @@ describe('useRoomInputSendSessionController submission markers', () => {
     expect(markerOf(mx, 2)).toEqual({ id, more: false });
   });
 
-  // The board replaces an item to change it, and the file goes out as changed.
-  const buildWithSpoiler: BuildUploadMessageContent = async (fileItem, mxc) => ({
+  // The board replaces an item to set its spoiler flag; the file goes out with the flag it has
+  // as it leaves, without building its content again.
+  const SPOILER = 'page.codeberg.everypizza.msc4193.spoiler';
+  const buildImage: BuildUploadMessageContent = async (fileItem, mxc) => ({
     ...(await buildFileContent(fileItem, mxc)),
-    ...(fileItem.metadata.markedAsSpoiler ? { spoiler: true } : {}),
+    msgtype: 'm.image',
+    ...(fileItem.metadata.markedAsSpoiler ? { [SPOILER]: true } : {}),
   });
   const markAsSpoiler = (api: HarnessApi, file: File) => {
     const replace = (item: TUploadItem) =>
@@ -2191,9 +2194,12 @@ describe('useRoomInputSendSessionController submission markers', () => {
     api.selectedFilesRef.current = api.selectedFilesRef.current.map(replace);
     api.sendSessionUploadItemsRef.current = api.sendSessionUploadItemsRef.current.map(replace);
   };
+  const builtNames = (build: ReturnType<typeof vi.fn>) =>
+    build.mock.calls.map((call) => (call[0] as TUploadItem).file.name);
 
   it('sends a file marked as a spoiler after its send failed as a spoiler on Send again', async () => {
-    const { api, mx } = renderHarness({ buildUploadMessageContent: buildWithSpoiler });
+    const build = vi.fn(buildImage);
+    const { api, mx } = renderHarness({ buildUploadMessageContent: build });
     const photo = createFile('photo.png');
     api.selectedFilesRef.current = [createUploadItem(photo)];
     api.uploadsRef.current = [successUpload(photo)];
@@ -2202,22 +2208,23 @@ describe('useRoomInputSendSessionController submission markers', () => {
     await act(async () => {
       await api.startSendSession();
     });
-    expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty('spoiler');
+    expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty([SPOILER]);
 
     markAsSpoiler(api, photo);
     await act(async () => {
       await api.startSendSession();
     });
     expect(mx.sendMessage).toHaveBeenCalledTimes(2);
-    expect(mx.sendMessage.mock.calls[1]![1]).toMatchObject({ body: 'photo.png', spoiler: true });
+    expect(mx.sendMessage.mock.calls[1]![1]).toMatchObject({ body: 'photo.png', [SPOILER]: true });
+    expect(builtNames(build)).toEqual(['photo.png']);
   });
 
-  it('builds a file again that was changed while another file built', async () => {
+  it('sends a file marked as a spoiler while another file built as a spoiler', async () => {
     const video = createDeferred<IContent>();
-    const { api, mx } = renderHarness({
-      buildUploadMessageContent: (fileItem, mxc) =>
-        fileItem.file.name === 'clip.mp4' ? video.promise : buildWithSpoiler(fileItem, mxc),
-    });
+    const build = vi.fn((fileItem: TUploadItem, mxc: string) =>
+      fileItem.file.name === 'clip.mp4' ? video.promise : buildImage(fileItem, mxc)
+    );
+    const { api, mx } = renderHarness({ buildUploadMessageContent: build });
     const photo = createFile('photo.png');
     const clip = createFile('clip.mp4');
     api.selectedFilesRef.current = [createUploadItem(photo), createUploadItem(clip)];
@@ -2236,7 +2243,47 @@ describe('useRoomInputSendSessionController submission markers', () => {
       await sending;
     });
     expect(sentBodies(mx)).toEqual(['photo.png', 'clip.mp4']);
-    expect(mx.sendMessage.mock.calls[0]![1]).toMatchObject({ spoiler: true });
+    expect(mx.sendMessage.mock.calls[0]![1]).toMatchObject({ [SPOILER]: true });
+    expect(builtNames(build)).toEqual(['photo.png', 'clip.mp4']);
+  });
+
+  // Building a video again (frame and thumbnail) after the submission's first event left could
+  // outlast MindRoom's hold.
+  it('sends a video marked as a spoiler while an earlier file goes out without building it again', async () => {
+    const build = vi.fn((fileItem: TUploadItem, mxc: string) =>
+      fileItem.file.name === 'clip.mp4'
+        ? Promise.resolve({ msgtype: 'm.video', body: 'clip.mp4', url: mxc })
+        : buildImage(fileItem, mxc)
+    );
+    const { api, mx } = renderHarness({ buildUploadMessageContent: build });
+    const photoSend = createDeferred<{ event_id: string }>();
+    mx.sendMessage.mockReturnValueOnce(photoSend.promise);
+    const photo = createFile('photo.png');
+    const clip = createFile('clip.mp4');
+    api.selectedFilesRef.current = [createUploadItem(photo), createUploadItem(clip)];
+    api.uploadsRef.current = [successUpload(photo), successUpload(clip)];
+
+    let sending!: Promise<void>;
+    act(() => {
+      sending = api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Look' } });
+    });
+    await vi.waitFor(() => expect(mx.sendMessage).toHaveBeenCalledTimes(1));
+    markAsSpoiler(api, clip);
+    await act(async () => {
+      photoSend.resolve({ event_id: '$photo' });
+      await sending;
+    });
+
+    expect(sentBodies(mx)).toEqual(['photo.png', 'clip.mp4', 'Look']);
+    expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty([SPOILER]);
+    expect(mx.sendMessage.mock.calls[1]![1]).toMatchObject({ msgtype: 'm.video', [SPOILER]: true });
+    expect(builtNames(build)).toEqual(['photo.png', 'clip.mp4']);
+    const { id } = markerOf(mx, 0) as { id: string };
+    expect([markerOf(mx, 0), markerOf(mx, 1), markerOf(mx, 2)]).toEqual([
+      { id, more: true },
+      { id, more: true },
+      { id, more: false },
+    ]);
   });
 
   const removeFile = (api: HarnessApi, file: File) => {

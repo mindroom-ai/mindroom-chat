@@ -34,6 +34,7 @@ import {
   MAX_EVENT_CONTENT_BYTES,
 } from '../matrix/protocol/longText';
 import { uploadLongTextSidecar } from '../matrix/send/longTextSidecarUpload';
+import { withCurrentSpoiler } from '../matrix/send/msgContent';
 import { createPasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
 import { discardFailedLocalEcho } from '../matrix/protocol/pendingLocalEcho';
 import {
@@ -71,7 +72,7 @@ type SendSession = RoomInputSendSessionState & {
   uploads?: Upload[];
   /**
    * Each file's event content as built for its upload, without relation or marker, and the item
-   * it was built from: the board replaces an item to change it (a spoiler set before Send again).
+   * it was built from. The spoiler flag, which the board changes, is applied as the file goes out.
    */
   preparedContent: Map<TUploadContent, PreparedContent>;
   onUploadSent?: (file: TUploadContent) => void;
@@ -410,6 +411,19 @@ const findSessionFileItem = (session: SendSession, file: TUploadContent) => {
   return staged.find((item) => item.file === file) ?? enrolled.find((item) => item.file === file);
 };
 
+/**
+ * Whether content built from item `built` holds for item `current`: the board replaces an item to
+ * set its spoiler flag (`withCurrentSpoiler` applies it at send time), which needs no new build.
+ */
+const hasSameBuildInputs = (built: TUploadItem, current: TUploadItem | undefined): boolean =>
+  built === current ||
+  (current !== undefined &&
+    built.file === current.file &&
+    built.originalFile === current.originalFile &&
+    built.encInfo === current.encInfo &&
+    built.metadata.mindroomPasteAttachment === current.metadata.mindroomPasteAttachment &&
+    built.metadata.voiceMessage === current.metadata.voiceMessage);
+
 /** The content built for the file's current item and upload, if it is still that. */
 const getPreparedContent = (
   session: SendSession,
@@ -417,7 +431,8 @@ const getPreparedContent = (
   mxc: string
 ): PreparedContent | undefined => {
   const prepared = session.preparedContent.get(file);
-  return prepared?.mxc === mxc && prepared.item === findSessionFileItem(session, file)
+  return prepared?.mxc === mxc &&
+    hasSameBuildInputs(prepared.item, findSessionFileItem(session, file))
     ? prepared
     : undefined;
 };
@@ -474,7 +489,7 @@ const prepareSessionFiles = async (session: SendSession): Promise<boolean> => {
     const upload = uploads.find((candidate) => candidate.file === file);
     const current =
       pending.includes(file) &&
-      findSessionFileItem(session, file) === item &&
+      hasSameBuildInputs(item, findSessionFileItem(session, file)) &&
       upload?.status === UploadStatus.Success &&
       upload.mxc === mxc;
     if (!current) return;
@@ -663,13 +678,11 @@ export const useRoomInputSendSessionController = ({
         relation,
         settleFork,
       } = await placeMessage(session, content, getUploadRelationForSendSession(session, isRoot));
+      const item = findSessionFileItem(session, file);
+      const outgoing = item ? withCurrentSpoiler(contentWithRelation, item) : contentWithRelation;
       const txnId = mx.makeTxnId();
       const response = await mx
-        .sendMessage(
-          session.roomId,
-          withSubmissionMarker(session, contentWithRelation, file) as any,
-          txnId
-        )
+        .sendMessage(session.roomId, withSubmissionMarker(session, outgoing, file) as any, txnId)
         .catch((error: unknown) => {
           settleFork?.();
           // The composer keeps the attachment to send again; drop the unsent echo.

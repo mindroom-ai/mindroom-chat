@@ -8,7 +8,7 @@ import {
 } from '../types/common';
 import type { TUploadItem } from '../state/upload';
 import { VOICE_WAVEFORM_BAR_COUNT } from '../../lib/audioWaveform';
-import { getAudioMsgContent } from './msgContent';
+import { getAudioMsgContent, MEDIA_SPOILER_PROPERTY, withCurrentSpoiler } from './msgContent';
 
 const createUploadItem = (file: File, duration?: number, waveform?: number[]): TUploadItem => ({
   file,
@@ -112,5 +112,30 @@ describe('getAudioMsgContent', () => {
         size: file.size,
       },
     });
+  });
+});
+
+describe('withCurrentSpoiler', () => {
+  const file = new File(['x'], 'photo.png', { type: 'image/png' });
+  const item = createUploadItem(file);
+  const spoiler = { ...item, metadata: { ...item.metadata, markedAsSpoiler: true } };
+
+  it('sets or clears the flag of a picture or video as the item has it now', () => {
+    const image = { msgtype: MsgType.Image, body: 'photo.png' };
+    expect(withCurrentSpoiler(image, spoiler)).toEqual({
+      ...image,
+      [MEDIA_SPOILER_PROPERTY]: true,
+    });
+    expect(withCurrentSpoiler({ ...image, [MEDIA_SPOILER_PROPERTY]: true }, item)).toEqual(image);
+    const video = { msgtype: MsgType.Video, body: 'clip.mp4' };
+    expect(withCurrentSpoiler(video, spoiler)).toEqual({
+      ...video,
+      [MEDIA_SPOILER_PROPERTY]: true,
+    });
+  });
+
+  it('leaves other content as it is', () => {
+    const content = { msgtype: MsgType.File, body: 'notes.txt' };
+    expect(withCurrentSpoiler(content, spoiler)).toBe(content);
   });
 });
