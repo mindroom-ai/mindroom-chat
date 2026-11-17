@@ -210,14 +210,25 @@ export const loadImageElement = (url: string): Promise<HTMLImageElement> =>
 /** How long a video may take to show its first frame before it is sent without one. */
 export const VIDEO_LOAD_TIMEOUT_MS = 10_000;
 
-/** Inside the first frame of any video. A seek to the current time, zero, loads nothing. */
-const FIRST_FRAME_SECONDS = 0.001;
+/**
+ * The times a frame is looked for at, in turn. The first is inside the first frame of a video
+ * whose picture starts at zero; a seek to the current time, zero, loads nothing. WebKit shows no
+ * frame at a time before the picture starts (B-frames without an edit list, sound that leads the
+ * picture), so the later ones look further in.
+ */
+const FRAME_SEEK_SECONDS = [0.001, 0.1, 0.5];
 
 /**
- * Loads a video up to its first frame, for its dimensions or to draw a thumbnail. A seek asks
- * for the frame, so the video never plays: WebKit loads only the metadata of a video that
+ * How long a seek that ended may take to show its frame, and a seek whose frame is shown to end.
+ * Safari and Firefox were measured to need under 0.1 s.
+ */
+export const VIDEO_FRAME_WAIT_MS = 500;
+
+/**
+ * Loads a video up to a frame near its start, for its dimensions or to draw a thumbnail. A seek
+ * asks for the frame, so the video never plays: WebKit loads only the metadata of a video that
  * neither plays nor seeks, and one that plays until `loadeddata` often has no frame to draw
- * there yet. Rejects on the video's `error`, and when no frame is there after
+ * there yet. Rejects on the video's `error`, and when the load has not ended after
  * `VIDEO_LOAD_TIMEOUT_MS`, so a send never waits on it.
  */
 export const loadVideoElement = (url: string): Promise<HTMLVideoElement> => {
@@ -242,24 +253,50 @@ export const loadVideoElement = (url: string): Promise<HTMLVideoElement> => {
       () => fail(` within ${VIDEO_LOAD_TIMEOUT_MS} ms`),
       VIDEO_LOAD_TIMEOUT_MS
     );
-    listeners.signal.addEventListener('abort', () => clearTimeout(timer));
+    let wait: ReturnType<typeof setTimeout> | undefined;
+    listeners.signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      clearTimeout(wait);
+    });
 
     // The frame can be drawn once the browser has shown one and the seek has ended. Neither is
-    // enough alone: Safari ends the seek up to a second before it has the frame, and Firefox
-    // shows a frame it cannot draw yet while it seeks. A browser that cannot tell when it shows
-    // a frame counts as having shown it.
+    // enough alone: Safari ends the seek before it has the frame, and Firefox shows a frame it
+    // cannot draw yet while it seeks. A browser that cannot tell when it shows a frame counts as
+    // having shown it.
     const tellsFrames = 'requestVideoFrameCallback' in video;
     let frameShown = !tellsFrames;
-    const readyIfDrawable = () => {
-      if (frameShown && !video.seeking) ready();
+    let seeks = 0;
+    const seekOn = () => {
+      const seconds = FRAME_SEEK_SECONDS[seeks];
+      seeks += 1;
+      if (seconds === undefined) {
+        // Nowhere left to look, as in a page that shows no frame because it is not on screen:
+        // the video goes on as it is, with its dimensions.
+        ready();
+        return;
+      }
+      video.currentTime = seconds;
+      // Only the first seek waits on the file to load.
+      if (seeks > 1) settle();
+    };
+    // Runs on each sign of progress. Once the browser has data at the time sought, what is still
+    // missing gets `VIDEO_FRAME_WAIT_MS` to follow. Then the load goes on without it: without
+    // the end of the seek when a frame is shown (WebKit never ends the seek of some WebM files,
+    // yet draws the frame), else with a seek further in.
+    const settle = () => {
+      if (frameShown && !video.seeking) {
+        ready();
+        return;
+      }
+      // No data yet: the seek is still loading it, or the browser cannot decode the file.
+      if (video.readyState < video.HAVE_CURRENT_DATA) return;
+      clearTimeout(wait);
+      wait = setTimeout(frameShown ? ready : seekOn, VIDEO_FRAME_WAIT_MS);
     };
     const onFrame = () => {
       if (listeners.signal.aborted) return;
       frameShown = true;
-      readyIfDrawable();
-      // Still seeking: the next frame looks again, as a seek the browser drops (Safari, for
-      // WebM) ends without a `seeked`.
-      if (!listeners.signal.aborted) video.requestVideoFrameCallback(onFrame);
+      settle();
     };
     on('loadedmetadata', () => {
       // No picture the browser can decode (only sound): no frame will come.
@@ -268,10 +305,10 @@ export const loadVideoElement = (url: string): Promise<HTMLVideoElement> => {
         return;
       }
       if (tellsFrames) video.requestVideoFrameCallback(onFrame);
-      video.currentTime = FIRST_FRAME_SECONDS;
+      seekOn();
     });
-    on('seeked', readyIfDrawable);
-    on('loadeddata', readyIfDrawable);
+    on('seeked', settle);
+    on('loadeddata', settle);
     on('error', () => fail(''));
     video.src = url;
   });
