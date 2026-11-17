@@ -159,7 +159,7 @@ describe('readCompactionNotice', () => {
   it('reads a v3 success notice, started at the event time', () => {
     expect(readCompactionNotice(notice(SUCCESS), ORIGIN_TS)).toEqual({
       id: 'notice',
-      phase: 'mid_turn',
+      phase: 'notice',
       afterTool: 0,
       status: 'success',
       startedAt: ORIGIN_TS,
@@ -197,7 +197,7 @@ describe('readCompactionNotice', () => {
 
     expect(read).toEqual({
       id: 'notice',
-      phase: 'mid_turn',
+      phase: 'notice',
       afterTool: 0,
       status: 'running',
       startedAt: ORIGIN_TS,
@@ -220,12 +220,25 @@ describe('readCompactionNotice', () => {
       history_budget_tokens: 351792,
     };
 
-    expect(readCompactionNotice(notice(failed), ORIGIN_TS)).toMatchObject({
+    expect(readCompactionNotice(notice(failed), ORIGIN_TS)).toEqual({
+      id: 'notice',
+      phase: 'notice',
+      afterTool: 0,
       status: 'timeout',
-      beforeTokens: 0,
+      startedAt: ORIGIN_TS,
       durationMs: 120000,
+      summaryModel: 'haiku',
       failureReason: 'Timed out after 120 s.',
       historyBudgetTokens: 351792,
+    });
+  });
+
+  it('reads an automatic notice as a notice, whose turn phase is unknown', () => {
+    expect(readCompactionNotice(notice({ ...SUCCESS, mode: 'auto' }), ORIGIN_TS)).toMatchObject({
+      phase: 'notice',
+    });
+    expect(readCompactionNotice(notice({ ...SUCCESS, mode: undefined }), ORIGIN_TS)).toMatchObject({
+      phase: 'notice',
     });
   });
 

@@ -9,17 +9,19 @@ export type CompactionStatus = 'running' | 'success' | 'failed' | 'timeout';
 
 /**
  * One compaction, from a reply's list or an old notice. `afterTool` counts the visible tool calls
- * the reply started before it, as reasoning segments do; `manual` is only an old notice's phase.
+ * the reply started before it, as reasoning segments do. Only notices have the phases `manual`
+ * and `notice` (automatic, before or during an unknown turn), and only a failure notice lacks
+ * `beforeTokens`.
  */
 export type ReplyCompaction = {
   id: string;
-  phase: 'pre_turn' | 'mid_turn' | 'manual';
+  phase: 'pre_turn' | 'mid_turn' | 'manual' | 'notice';
   afterTool: number;
   status: CompactionStatus;
   startedAt?: number;
   durationMs?: number;
   summaryModel?: string;
-  beforeTokens: number;
+  beforeTokens?: number;
   afterTokens?: number;
   historyBudgetTokens?: number;
   runsBefore?: number;
@@ -86,8 +88,9 @@ export const readReplyCompactions = (value: unknown): ReplyCompaction[] =>
 /**
  * The compaction of an old `io.mindroom.compaction` notice, which started when the notice was
  * sent (`originTs`). Notices before version 3 carry no status and were sent only after success;
- * a failure notice carries no token count, so it reads as 0. Undefined when the content is not a
- * compaction notice or its status is unknown.
+ * a failure notice carries no token count, so it has no `beforeTokens`. Undefined when the
+ * content is not a compaction notice, its status is unknown, or a running or successful one has
+ * no token count.
  */
 export const readCompactionNotice = (
   content: Record<string, unknown>,
@@ -102,11 +105,11 @@ export const readCompactionNotice = (
   if (beforeTokens === undefined && !failed) return undefined;
   return {
     id: 'notice',
-    phase: notice.mode === 'manual' ? 'manual' : 'mid_turn',
+    phase: notice.mode === 'manual' ? 'manual' : 'notice',
     afterTool: 0,
     status,
     ...readOptionalFields(notice),
     startedAt: originTs,
-    beforeTokens: beforeTokens ?? 0,
+    ...(beforeTokens !== undefined && { beforeTokens }),
   };
 };
