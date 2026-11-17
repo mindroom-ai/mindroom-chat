@@ -59,4 +59,14 @@ describe('copyResolvedEditMetadata', () => {
 
     expect(shortEdit).toEqual({ msgtype: 'm.text', body: 'Short now' });
   });
+
+  it('never copies the time a borrowed stream status was sent without its status', () => {
+    const latest: Record<string, unknown> = { body: 'Edited by hand' };
+
+    copyResolvedEditMetadata(latest, [
+      { 'm.new_content': { 'io.mindroom.stream_status_ts': 2000 } },
+    ]);
+
+    expect(latest).toEqual({ body: 'Edited by hand' });
+  });
 });

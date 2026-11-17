@@ -798,6 +798,12 @@
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Pengaturan judul"
+      },
+      "replyTime": {
+        "started": "Dimulai {{value1}}",
+        "finished": "Selesai {{value1}}",
+        "stillStreaming": "Masih berjalan",
+        "duration": "Durasi {{value1}}"
       }
     },
     "message-search": {

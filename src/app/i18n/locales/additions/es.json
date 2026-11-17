@@ -820,6 +820,12 @@
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Ajustes de títulos"
+      },
+      "replyTime": {
+        "started": "Empezó {{value1}}",
+        "finished": "Terminó {{value1}}",
+        "stillStreaming": "Aún en curso",
+        "duration": "Duración {{value1}}"
       }
     },
     "message-search": {

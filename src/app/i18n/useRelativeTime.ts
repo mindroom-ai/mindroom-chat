@@ -30,7 +30,11 @@ const getRelativeTimeClock = (intervalMs: number): RelativeTimeClock => {
   return nextClock;
 };
 
-const subscribeRelativeTimeClock = (
+/**
+ * Calls `listener` every `intervalMs` on one timer that every listener of that interval shares.
+ * Returns a function that unsubscribes it.
+ */
+export const subscribeRelativeTimeClock = (
   intervalMs: number,
   listener: RelativeTimeClockListener
 ): (() => void) => {

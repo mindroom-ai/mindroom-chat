@@ -809,6 +809,12 @@
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Title settings"
+      },
+      "replyTime": {
+        "started": "Started {{value1}}",
+        "finished": "Finished {{value1}}",
+        "stillStreaming": "Still streaming",
+        "duration": "Duration {{value1}}"
       }
     },
     "message-search": {

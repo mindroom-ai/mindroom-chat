@@ -798,6 +798,12 @@
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "タイトルの設定"
+      },
+      "replyTime": {
+        "started": "開始 {{value1}}",
+        "finished": "終了 {{value1}}",
+        "stillStreaming": "まだ生成中",
+        "duration": "所要時間 {{value1}}"
       }
     },
     "message-search": {

@@ -853,6 +853,12 @@
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "إعدادات العناوين"
+      },
+      "replyTime": {
+        "started": "بدأ ⁨{{value1}}⁩",
+        "finished": "انتهى ⁨{{value1}}⁩",
+        "stillStreaming": "لا يزال يُبث",
+        "duration": "المدة ⁨{{value1}}⁩"
       }
     },
     "message-search": {

@@ -831,6 +831,12 @@
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Настройки названий"
+      },
+      "replyTime": {
+        "started": "Начато {{value1}}",
+        "finished": "Завершено {{value1}}",
+        "stillStreaming": "Ещё идёт",
+        "duration": "Длительность {{value1}}"
       }
     },
     "message-search": {
