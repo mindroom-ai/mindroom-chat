@@ -34,7 +34,7 @@ describe('the Send button', () => {
     vi.unstubAllGlobals();
   });
 
-  const setup = (agentReplying: boolean, defaultMode: MidTurnMode = 'steer') => {
+  const setup = (agentReplying: boolean, defaultMode: MidTurnMode = 'auto') => {
     const onSend = vi.fn();
     render(
       <ComposerSendButton
@@ -72,9 +72,9 @@ describe('the Send button', () => {
     expect(button.getAttribute('aria-expanded')).toBe('true');
     const items = screen.getAllByRole('menuitem');
     expect(items.map((item) => item.textContent)).toEqual([
-      'Steer (default)Stop the reply and carry on with this message',
+      'SteerStop the reply and carry on with this message',
       'QueueSend after the reply finishes',
-      'AutoLet the agent decide',
+      'Auto (default)Let the agent decide',
     ]);
 
     fireEvent.click(screen.getByRole('menuitem', { name: 'Queue' }));

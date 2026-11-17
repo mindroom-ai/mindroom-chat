@@ -128,7 +128,7 @@ export const DEFAULT_SETTINGS: Settings = {
   messageLayout: MessageLayout.Modern,
   messageSpacing: '400',
   dateFormatString: 'D MMM YYYY',
-  midTurnSend: 'steer',
+  midTurnSend: 'auto',
 };
 
 /** A whole zoom percentage inside the supported range; anything not a finite number is the default. */

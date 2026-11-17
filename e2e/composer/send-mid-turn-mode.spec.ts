@@ -10,7 +10,7 @@ import { joinRoom, matrixFetch, registerAgentAccount, sendRoomMessage } from '..
 
 // While an agent replies in a thread, holding Send opens Steer, Queue and Auto; the message goes
 // out with the mode picked as `io.mindroom.mid_turn` (mindroom#4074), and a tap sends the Chats
-// setting's default, Steer. Against the disposable homeserver of a slot (scripts/e2e-slot.sh):
+// setting's default, Auto, which the backend also takes for a message without the key. Against the disposable homeserver of a slot (scripts/e2e-slot.sh):
 //   scripts/e2e-slot.sh <slot> npx playwright test e2e/composer/send-mid-turn-mode.spec.ts
 
 const PASSWORD = 'send-mid-turn-mode-password';
@@ -116,5 +116,5 @@ test('holding Send while an agent replies sends the mode picked', async ({ page 
   await page.keyboard.type('And the south breakwater.');
   await sendButton(page).click();
   const tapped = await sentContent(reader.accessToken, roomId, 'And the south breakwater.');
-  expect(tapped['io.mindroom.mid_turn']).toBe('steer');
+  expect(tapped['io.mindroom.mid_turn']).toBe('auto');
 });

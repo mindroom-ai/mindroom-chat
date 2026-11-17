@@ -44,7 +44,7 @@ describe('getSettings', () => {
     expect(getSettings().showToolCalls).toBe(false);
   });
 
-  it('sends with Steer while an agent replies, unless a known mode is stored', async () => {
+  it('sends with Auto while an agent replies, as a message without a mode does, unless a known mode is stored', async () => {
     const { getSettings } = await import('./settings');
     const stored = (midTurnSend: unknown) => {
       storageValue = JSON.stringify({ midTurnSend });
@@ -52,11 +52,11 @@ describe('getSettings', () => {
     };
 
     storageValue = null;
-    expect(getSettings().midTurnSend).toBe('steer');
+    expect(getSettings().midTurnSend).toBe('auto');
     expect(stored('queue')).toBe('queue');
-    expect(stored('auto')).toBe('auto');
-    expect(stored('Queue')).toBe('steer');
-    expect(stored(1)).toBe('steer');
+    expect(stored('steer')).toBe('steer');
+    expect(stored('Queue')).toBe('auto');
+    expect(stored(1)).toBe('auto');
 
     storageValue = null;
   });
