@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen } from '@testing-library/react';
-import { useEffect, useLayoutEffect } from 'react';
+import { useContext, useEffect, useLayoutEffect } from 'react';
 import { getDefaultStore, type PrimitiveAtom } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
@@ -22,7 +22,12 @@ import { computerServicePreferenceAtom } from '../computer/computerServiceSettin
 import * as membersDrawer from '../members/useMembersDrawer';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { putSession } from '../matrix/session/sessions';
-import { type RoomSidePanelControl, useRoomSidePanel } from '../plugins/sidePanels';
+import {
+  type PluginPanelControls,
+  PluginPanelControlsContext,
+  type RoomSidePanelControl,
+  useRoomSidePanel,
+} from '../plugins/sidePanels';
 import { type PanelFrame, usePanelFrame } from '../ui/panels/panelFrameContext';
 import type { RoomViewProps } from './RoomView';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
@@ -692,6 +697,58 @@ describe('the side panels of a room', () => {
     await act(async () => state.view?.onPanelToggle?.('notes/panel'));
     expect(screen.getByText(`Notes of ${room.roomId}`)).toBeTruthy();
     expect(screen.queryByText(/^Notes request/)).toBeNull();
+  });
+
+  /** What the room gives the plugins' code in the conversation, as the room has it now. */
+  let roomControls: PluginPanelControls | undefined;
+  function RoomControls() {
+    roomControls = useContext(PluginPanelControlsContext);
+    return null;
+  }
+  const withRoomControls = () => {
+    state.inView = [<Card key="panel" panel="panel" />, <RoomControls key="room" />];
+  };
+
+  it("tells whether a plugin's panel shows a request", async () => {
+    withRoomControls();
+    await renderRoom();
+    expect(roomControls?.showsRequest('notes/panel', { n: 1 })).toBe(false);
+    await act(async () => controls.panel?.open({ n: 1 }));
+    expect(roomControls?.showsRequest('notes/panel', { n: 1 })).toBe(true);
+    expect(roomControls?.showsRequest('notes/panel', { n: 2 })).toBe(false);
+    expect(roomControls?.showsRequest('other/panel', { n: 1 })).toBe(false);
+    // A request JSON cannot hold matches nothing.
+    expect(roomControls?.showsRequest('notes/panel', { n: 1n })).toBe(false);
+    // It reads the room as it is when called, so it keeps its identity.
+    const held = roomControls?.showsRequest;
+    await act(async () => controls.panel?.open({ n: 2 }));
+    expect(roomControls?.showsRequest).toBe(held);
+    expect(held?.('notes/panel', { n: 2 })).toBe(true);
+    await act(async () => controls.panel?.close());
+    expect(held?.('notes/panel', { n: 2 })).toBe(false);
+  });
+
+  it('a folded panel does not count as showing its request', async () => {
+    withRoomControls();
+    await renderRoom();
+    await act(async () => controls.panel?.open({ n: 1 }));
+    await act(async () => screen.getByRole('button', { name: 'Fill the room with Notes' }).click());
+    expect(roomControls?.showsRequest('notes/panel', { n: 1 })).toBe(true);
+    await act(async () => screen.getByRole('button', { name: 'Fold Notes to the edge' }).click());
+    expect(roomControls?.showsRequest('notes/panel', { n: 1 })).toBe(false);
+    await act(async () => screen.getByRole('button', { name: 'Unfold Notes' }).click());
+    expect(roomControls?.showsRequest('notes/panel', { n: 1 })).toBe(true);
+  });
+
+  it("a room switch reads the new room's panel", async () => {
+    withRoomControls();
+    const showRoom = await renderRoom();
+    await act(async () => controls.panel?.open({ n: 1 }));
+    const held = roomControls?.showsRequest;
+    await showRoom('!other:example.org');
+    expect(roomControls?.showsRequest('notes/panel', { n: 1 })).toBe(false);
+    // Nor does the room left still tell of its panel.
+    expect(held?.('notes/panel', { n: 1 })).toBe(false);
   });
 
   it("acts on the room's panels as they are when a plugin's code calls, not when it got them", async () => {
