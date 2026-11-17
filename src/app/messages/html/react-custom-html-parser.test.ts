@@ -1443,6 +1443,71 @@ describe('useToolTraceMarkerParserOptions', () => {
     act(() => renderer?.unmount());
   });
 
+  it.each([
+    ['its only call', 1],
+    ['the last of its calls', 2],
+  ])(
+    'drops the boundary br of the paragraph after a run that thinking ends at %s',
+    async (_name, calls) => {
+      const html = [
+        ...Array.from(
+          { length: calls },
+          (_, index) => `<p>🔧 <code>matrix_message</code> [${index + 1}]</p>`
+        ),
+        '<p><br/>No magic - just dropping old turns when the window fills up.</p>',
+      ].join('');
+      const content = {
+        body: 'No magic.',
+        formatted_body: html,
+        'io.mindroom.stream_status': 'completed',
+        'io.mindroom.reasoning': {
+          text: 'Explain the window.',
+          duration_ms: 3000,
+          segments: [{ start: 0, after_tool: calls }],
+        },
+      };
+      const baseOpts = createBaseOpts();
+      // The body as a message renders it: its parser options come from inside the reply's reasoning.
+      function Body() {
+        const options = useToolTraceMarkerParserOptions(baseOpts, content);
+        return React.createElement(
+          React.Fragment,
+          null,
+          parse(html, resolveHtmlReactParserOptions(options))
+        );
+      }
+      let renderer: ReactTestRenderer | undefined;
+      act(() => {
+        renderer = create(
+          React.createElement(
+            React.Fragment,
+            null,
+            withReasoning(content, React.createElement(Body), baseOpts, undefined, html)
+          )
+        );
+      });
+      const text = () => collectTextContent(renderer?.toJSON() ?? null);
+      const breaks = () => renderer!.root.findAllByType('br');
+      const bulb = renderer!.root.find(
+        (node) => node.type === 'button' && node.props.className === 'Toggle'
+      );
+      // Under the closed bulb the run is whole, and the paragraph after it starts with its text.
+      expect(breaks()).toHaveLength(0);
+
+      await act(() => bulb.props.onClick());
+
+      // The thinking after the run's last call ends the run there, and changes nothing after it.
+      const order = ['matrix_message', 'Explain the window.', 'No magic'].map((part) =>
+        text().indexOf(part)
+      );
+      expect(order).not.toContain(-1);
+      expect(order).toEqual([...order].sort((a, b) => a - b));
+      expect(text()).toMatch(toolCountLabel(calls));
+      expect(breaks()).toHaveLength(0);
+      act(() => renderer?.unmount());
+    }
+  );
+
   it('does not merge marker-prefix paragraphs when each has trailing text', () => {
     const markup = renderWithToolTrace(
       [

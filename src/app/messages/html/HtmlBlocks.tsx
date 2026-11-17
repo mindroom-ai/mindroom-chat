@@ -596,7 +596,10 @@ const createToolTraceMarkerParserOptions = (
           // A marker paragraph with trailing content is a narrative boundary.
           // Do not merge across that boundary, otherwise tool ordering appears
           // ahead of the narrative text that introduced each call.
-          if (!firstItem.trailingElement && !splitAfter.has(firstItem.data.index)) {
+          if (!firstItem.trailingElement) {
+            // Reasoning that shows after a marker ends the run there. What follows the run is
+            // still looked for, since its boundary is cleaned up either way.
+            let merging = !splitAfter.has(firstItem.data.index);
             let sibling = domNode.next;
             while (sibling) {
               if (isDomTextNode(sibling) && !sibling.data.trim()) {
@@ -611,13 +614,14 @@ const createToolTraceMarkerParserOptions = (
                 boundaryFollower = sibling;
                 break;
               }
+              if (!merging) break;
 
               items.push(item);
               if (item.trailingElement) {
                 trailingElement = item.trailingElement;
                 break;
               }
-              if (splitAfter.has(item.data.index)) break;
+              merging = !splitAfter.has(item.data.index);
               sibling = sibling.next;
             }
           }
