@@ -11,6 +11,7 @@ import {
   setStorageItemSafe,
 } from '../lib/safeLocalStorage';
 import { isRecord } from '../lib/isRecord';
+import { isMidTurnMode, type MidTurnMode } from './midTurnModes';
 import {
   keepDeviceRoamingSettings,
   overlayRoamingSettings,
@@ -85,6 +86,8 @@ export type Settings = Record<BooleanSettingKey, boolean> &
     pageZoom: number;
     /** dayjs format for dates in the timeline. */
     dateFormatString: string;
+    /** The mode a tap on Send or Enter sends with while an agent replies in the thread. */
+    midTurnSend: MidTurnMode;
     /**
      * Times as 13:00 instead of 1:00 PM; unset, times follow the app language's clock
      * (`useHour24Clock`).
@@ -117,6 +120,7 @@ export const DEFAULT_SETTINGS: Settings = {
   messageLayout: MessageLayout.Modern,
   messageSpacing: '400',
   dateFormatString: 'D MMM YYYY',
+  midTurnSend: 'auto',
 };
 
 /** A whole zoom percentage inside the supported range; anything not a finite number is the default. */
@@ -159,6 +163,9 @@ const sanitizeSettings = (value: unknown): Settings => {
       typeof record.dateFormatString === 'string'
         ? record.dateFormatString
         : DEFAULT_SETTINGS.dateFormatString,
+    midTurnSend: isMidTurnMode(record.midTurnSend)
+      ? record.midTurnSend
+      : DEFAULT_SETTINGS.midTurnSend,
     hour24Clock: typeof record.hour24Clock === 'boolean' ? record.hour24Clock : undefined,
   };
   // A stored value of another type counts by its truthiness, so `null` or `0` turns a setting off.

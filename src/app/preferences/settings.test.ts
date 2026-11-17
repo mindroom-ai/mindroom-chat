@@ -44,6 +44,23 @@ describe('getSettings', () => {
     expect(getSettings().showToolCalls).toBe(false);
   });
 
+  it('sends with Auto while an agent replies, as a message without a mode does, unless a known mode is stored', async () => {
+    const { getSettings } = await import('./settings');
+    const stored = (midTurnSend: unknown) => {
+      storageValue = JSON.stringify({ midTurnSend });
+      return getSettings().midTurnSend;
+    };
+
+    storageValue = null;
+    expect(getSettings().midTurnSend).toBe('auto');
+    expect(stored('queue')).toBe('queue');
+    expect(stored('steer')).toBe('steer');
+    expect(stored('Queue')).toBe('auto');
+    expect(stored(1)).toBe('auto');
+
+    storageValue = null;
+  });
+
   it('sanitizes persisted page zoom values', async () => {
     const { getSettings, PAGE_ZOOM_DEFAULT, PAGE_ZOOM_MAX, PAGE_ZOOM_MIN } = await import(
       './settings'

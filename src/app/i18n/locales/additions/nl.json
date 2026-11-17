@@ -397,7 +397,8 @@
         "deactivate": "account verwijderen, account opheffen",
         "localMindroom": "koppelen, koppelcode, lokaal, desktop",
         "emoji": "emoji, stickers, pakketten, eigen emoji",
-        "errorReports": "fouten, crash, bug, diagnose, telemetrie, privacy"
+        "errorReports": "fouten, crash, bug, diagnose, telemetrie, privacy",
+        "midTurn": "bijsturen, wachtrij, automatisch, agent, antwoord, onderbreken"
       },
       "errorReports": {
         "title": "Foutrapporten versturen",
@@ -809,6 +810,12 @@
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Titelinstellingen…"
+      },
+      "replyTime": {
+        "started": "Begonnen {{value1}}",
+        "finished": "Klaar {{value1}}",
+        "stillStreaming": "Nog bezig",
+        "duration": "Duur {{value1}}"
       }
     },
     "message-search": {
@@ -921,7 +928,19 @@
     "moreActions": "Meer acties",
     "lostFiles": "Niet bewaard bij dit concept: {{files}}. Voeg ze opnieuw toe voordat je verstuurt.",
     "lostPastes": "Geplakte tekst is niet bewaard bij dit concept. Plak hem opnieuw voordat je verstuurt.",
-    "dismissLostFiles": "Sluiten"
+    "dismissLostFiles": "Sluiten",
+    "midTurn": {
+      "menuLabel": "Verzenden terwijl de agent antwoordt",
+      "steer": "Bijsturen",
+      "defaultChoice": "{{label}} (standaard)",
+      "steerHint": "Het antwoord stoppen en verdergaan met dit bericht",
+      "queue": "In de wachtrij",
+      "queueHint": "Verzenden zodra het antwoord klaar is",
+      "auto": "Automatisch",
+      "autoHint": "De agent laten beslissen",
+      "settingTitle": "Verzenden terwijl een agent antwoordt",
+      "settingDescription": "Houd Verzenden ingedrukt om per bericht te kiezen."
+    }
   },
   "commandPalette": {
     "state": {

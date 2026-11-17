@@ -40,6 +40,7 @@ import { EmojiBoard } from '../emoji/board/LazyEmojiBoard';
 import { useMemberEventParser } from './useMemberEventParser';
 import { describeRoomStateChange, RoomStateSentence } from './roomStateChange';
 import { Time } from './Time';
+import type { ReplyTiming } from './replyTiming';
 import { LONG_PRESS_SLOP, useLongPress } from '../lib/hooks/useLongPress';
 import {
   AvatarBase,
@@ -499,6 +500,8 @@ type MessageSubject = {
   mEvent: MatrixEvent;
   /** Content after edits and long-text hydration, used by the controls. */
   resolvedMessageContent?: Record<string, unknown>;
+  /** An agent reply's start and finish, which its header's time shows with its duration. */
+  replyTiming?: ReplyTiming;
   relations?: Relations;
 };
 
@@ -637,6 +640,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       onForkClick,
       onReactionToggle,
       resolvedMessageContent,
+      replyTiming,
       children,
       ...props
     },
@@ -854,6 +858,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
             <Time
               ts={mEvent.getTs()}
               compact={compactLayout}
+              timing={replyTiming}
               hour24Clock={hour24Clock}
               dateFormatString={dateFormatString}
             />

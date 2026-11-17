@@ -368,6 +368,20 @@ vi.mock('../ComposerActionsMenu', () => ({
   ComposerActionsMenu: () => React.createElement('button', { 'aria-label': 'More actions' }),
 }));
 
+// Its hold menu has a test of its own (ComposerSendButton.test.tsx); a click sends.
+vi.mock('../ComposerSendButton', () => ({
+  ComposerSendButton: ({ label, onSend }: { label: string; onSend: () => unknown }) =>
+    React.createElement('button', {
+      'aria-label': label,
+      variant: 'Primary',
+      onClick: () => onSend(),
+    }),
+}));
+
+vi.mock('../../event-store/threads/useThreadStreamingState', () => ({
+  useThreadStreamingState: () => false,
+}));
+
 vi.mock('../../models/ModelPicker', () => ({
   ThreadModelPicker: ({ room, threadId }: { room: Room; threadId?: string }) => {
     modelPickerState.props.push({ room, threadId });

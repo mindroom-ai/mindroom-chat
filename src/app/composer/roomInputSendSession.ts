@@ -3,6 +3,7 @@ import { IReplyDraft } from './roomInputDrafts';
 import { Upload, UploadStatus } from '../matrix/state/upload';
 import { TUploadContent } from '../matrix/matrix';
 import { getMessageRelation } from '../matrix/send/composeMessageRelation';
+import { randomUuid } from '../lib/randomUuid';
 
 export type RoomInputSendMode = 'room' | 'existing-thread' | 'auto-thread-upload-root';
 
@@ -14,6 +15,21 @@ export type RoomInputSendSessionState = {
   blockedRoot: boolean;
   sentFiles: Set<TUploadContent>;
   failedFiles: Set<TUploadContent>;
+  /** Names the submission in the `io.mindroom.submission` marker of each of its events. */
+  submissionId: string;
+};
+
+/**
+ * The content key of the marker on every event of a composer submission that has an attachment.
+ * The MindRoom backend holds such a submission until the event that says `more: false`, so its
+ * files and its caption make one agent turn.
+ */
+export const SUBMISSION_CONTENT_KEY = 'io.mindroom.submission';
+
+export type SubmissionMarker = {
+  id: string;
+  /** The session will send another event of this submission without the person doing anything. */
+  more: boolean;
 };
 
 export type RoomInputSendStep =
@@ -112,6 +128,7 @@ export const createRoomInputSendSessionState = ({
   blockedRoot: false,
   sentFiles: new Set(),
   failedFiles: new Set(),
+  submissionId: randomUuid(),
 });
 
 const getPendingFiles = (
@@ -181,9 +198,9 @@ export const resolveRoomInputSendStep = (
     return { kind: 'send-upload', file, mxc: upload.mxc, isRoot: false };
   }
 
-  // Attachments go out first and the caption goes last: MindRoom coalesces a media batch into
-  // one agent turn and closes it on the trailing text event. Files awaiting a manual retry do
-  // not hold the caption back.
+  // Attachments go out first and the caption goes last: each event says whether more of the
+  // submission follows (getSubmissionMarker), and MindRoom holds the files for the caption that
+  // closes it. Files awaiting a manual retry do not hold the caption back.
   if (session.textPending) {
     return { kind: 'send-text' };
   }
@@ -193,6 +210,32 @@ export const resolveRoomInputSendStep = (
   }
 
   return { kind: 'wait' };
+};
+
+/**
+ * The marker for the event the session sends now: `sending` is the file going out, or undefined
+ * for the text. It says `more` while the text is still to go or another file can still go without
+ * a retry. The text always ends the submission, and so does a file sent again after it. A session
+ * without files sends a text alone, with no marker.
+ */
+export const getSubmissionMarker = (
+  session: RoomInputSendSessionState,
+  uploads: Upload[],
+  activeFiles: TUploadContent[],
+  sending: TUploadContent | undefined
+): SubmissionMarker | undefined => {
+  if (session.orderedFiles.length === 0) return undefined;
+  if (sending === undefined) return { id: session.submissionId, more: false };
+  if (session.textPending) return { id: session.submissionId, more: true };
+
+  const uploadMap = new Map(uploads.map((upload) => [upload.file, upload]));
+  const more = getPendingFiles(session, activeFiles).some(
+    (file) =>
+      file !== sending &&
+      !session.failedFiles.has(file) &&
+      uploadMap.get(file)?.status !== UploadStatus.Error
+  );
+  return { id: session.submissionId, more };
 };
 
 export const hasRoomInputSendFailures = (session: RoomInputSendSessionState): boolean =>
