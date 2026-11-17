@@ -1,13 +1,15 @@
 import { RelationType } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import { IReplyDraft } from './roomInputDrafts';
-import { UploadStatus } from '../matrix/state/upload';
+import { Upload, UploadStatus } from '../matrix/state/upload';
 import {
   createRoomInputSendSessionState,
+  getSubmissionMarker,
   getTextRelationForSendSession,
   getUploadRelationForSendSession,
   isRoomInputSendSessionStalled,
   resolveRoomInputSendStep,
+  RoomInputSendSessionState,
 } from './roomInputSendSession';
 
 const createFile = (name: string, type = 'image/png') => new File(['x'], name, { type });
@@ -519,5 +521,171 @@ describe('roomInputSendSession', () => {
         [first, second]
       )
     ).toBe(false);
+  });
+});
+
+type SentEvent = { event: string; id: string | undefined; more: boolean | undefined };
+
+/**
+ * Sends what the session can send now, as the controller does, and returns each event that went
+ * out with its marker. A file in `failing` fails to send.
+ */
+const sendWhatCanGo = (
+  session: RoomInputSendSessionState,
+  uploads: Upload[],
+  activeFiles: File[],
+  failing: Set<File> = new Set()
+): SentEvent[] => {
+  const sent: SentEvent[] = [];
+  for (;;) {
+    const step = resolveRoomInputSendStep(session, uploads, activeFiles);
+    if (step.kind === 'wait' || step.kind === 'complete') return sent;
+    const sending = step.kind === 'send-upload' ? step.file : undefined;
+    const marker = getSubmissionMarker(session, uploads, activeFiles, sending);
+    if (step.kind === 'send-text') {
+      session.textPending = false;
+    } else if (failing.has(step.file)) {
+      if (step.isRoot) session.blockedRoot = true;
+      else session.failedFiles.add(step.file);
+      continue;
+    } else {
+      session.sentFiles.add(step.file);
+      if (step.isRoot) session.rootEventId = `$${step.file.name}`;
+    }
+    sent.push({ event: sending?.name ?? 'text', id: marker?.id, more: marker?.more });
+  }
+};
+
+const marked = (session: RoomInputSendSessionState, event: string, more: boolean) => ({
+  event,
+  id: session.submissionId,
+  more,
+});
+
+describe('getSubmissionMarker', () => {
+  it('marks the files of a captioned send as followed and the caption as the last event', () => {
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    const session = createRoomInputSendSessionState({ files: [first, second], hasText: true });
+
+    expect(session.submissionId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(
+      sendWhatCanGo(session, [successUpload(first), successUpload(second)], [first, second])
+    ).toEqual([
+      marked(session, 'first.png', true),
+      marked(session, 'second.png', true),
+      marked(session, 'text', false),
+    ]);
+  });
+
+  it('marks a file followed while another file still uploads, and the last file as the end', () => {
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    const session = createRoomInputSendSessionState({ files: [first, second], hasText: false });
+
+    expect(
+      sendWhatCanGo(session, [successUpload(first), loadingUpload(second)], [first, second])
+    ).toEqual([marked(session, 'first.png', true)]);
+    expect(
+      sendWhatCanGo(session, [successUpload(first), successUpload(second)], [first, second])
+    ).toEqual([marked(session, 'second.png', false)]);
+  });
+
+  it('marks a lone file as the end of its submission', () => {
+    const file = createFile('file.png');
+    const session = createRoomInputSendSessionState({ files: [file], hasText: false });
+
+    expect(sendWhatCanGo(session, [successUpload(file)], [file])).toEqual([
+      marked(session, 'file.png', false),
+    ]);
+  });
+
+  it('leaves a text sent without attachments unmarked', () => {
+    const session = createRoomInputSendSessionState({ files: [], hasText: true });
+
+    expect(sendWhatCanGo(session, [], [])).toEqual([
+      { event: 'text', id: undefined, more: undefined },
+    ]);
+  });
+
+  it('does not count a file that waits for a retry as one more to come', () => {
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    const third = createFile('third.png');
+    const session = createRoomInputSendSessionState({
+      files: [first, second, third],
+      hasText: false,
+    });
+
+    // The second upload failed; the third goes on without it and ends the submission.
+    expect(
+      sendWhatCanGo(
+        session,
+        [successUpload(first), errorUpload(second), successUpload(third)],
+        [first, second, third]
+      )
+    ).toEqual([marked(session, 'first.png', true), marked(session, 'third.png', false)]);
+  });
+
+  it('ends a submission with the caption when a later file fails to send', () => {
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    const session = createRoomInputSendSessionState({ files: [first, second], hasText: true });
+
+    expect(
+      sendWhatCanGo(
+        session,
+        [successUpload(first), successUpload(second)],
+        [first, second],
+        new Set([second])
+      )
+    ).toEqual([marked(session, 'first.png', true), marked(session, 'text', false)]);
+  });
+
+  it('sends the caption as the end while the root waits to be sent again, and the root after it', () => {
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    const session = createRoomInputSendSessionState({ files: [first, second], hasText: true });
+    const uploads = [successUpload(first), successUpload(second)];
+
+    expect(sendWhatCanGo(session, uploads, [first, second], new Set([first]))).toEqual([
+      marked(session, 'text', false),
+    ]);
+
+    // Send again: the root goes with the file after it, which ends the submission once more.
+    session.blockedRoot = false;
+    expect(sendWhatCanGo(session, uploads, [first, second])).toEqual([
+      marked(session, 'first.png', true),
+      marked(session, 'second.png', false),
+    ]);
+  });
+
+  it('marks a file sent again after the caption as the end of its submission', () => {
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    const session = createRoomInputSendSessionState({
+      files: [first, second],
+      hasText: true,
+      threadId: '$thread',
+    });
+    const uploads = [successUpload(first), successUpload(second)];
+
+    expect(sendWhatCanGo(session, uploads, [first, second], new Set([first]))).toEqual([
+      marked(session, 'second.png', true),
+      marked(session, 'text', false),
+    ]);
+
+    session.failedFiles.clear();
+    expect(sendWhatCanGo(session, uploads, [first, second])).toEqual([
+      marked(session, 'first.png', false),
+    ]);
+  });
+
+  it('gives each submission its own id', () => {
+    const file = createFile('file.png');
+
+    expect(createRoomInputSendSessionState({ files: [file], hasText: true }).submissionId).not.toBe(
+      createRoomInputSendSessionState({ files: [file], hasText: true }).submissionId
+    );
   });
 });

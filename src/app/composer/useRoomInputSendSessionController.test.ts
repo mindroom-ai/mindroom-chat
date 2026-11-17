@@ -2016,3 +2016,71 @@ describe('useRoomInputSendSessionController in a fork draft', () => {
     );
   });
 });
+
+describe('useRoomInputSendSessionController submission markers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const markerOf = (mx: ReturnType<typeof renderHarness>['mx'], index: number) =>
+    (mx.sendMessage.mock.calls[index]![1] as Record<string, unknown>)['io.mindroom.submission'];
+
+  it('marks the files and the caption of one send as one submission the caption ends', async () => {
+    const { api, mx } = renderHarness();
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    api.selectedFilesRef.current = [createUploadItem(first), createUploadItem(second)];
+    api.uploadsRef.current = [successUpload(first), successUpload(second)];
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'What are these?' } });
+    });
+
+    expect(sentBodies(mx)).toEqual(['first.png', 'second.png', 'What are these?']);
+    const id = (markerOf(mx, 0) as { id: string }).id;
+    expect(id).toMatch(/^[0-9a-f-]{36}$/);
+    expect([markerOf(mx, 0), markerOf(mx, 1), markerOf(mx, 2)]).toEqual([
+      { id, more: true },
+      { id, more: true },
+      { id, more: false },
+    ]);
+  });
+
+  it('sends a text without attachments unmarked', async () => {
+    const { api, mx } = renderHarness();
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'hello' } });
+    });
+
+    expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty('io.mindroom.submission');
+  });
+
+  it('marks a caption too large for one event in its sidecar and on its preview', async () => {
+    const { api, mx } = renderHarness();
+    const file = createFile('report.pdf');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [successUpload(file)];
+    const longBody = 'word '.repeat(10_000).trim();
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: longBody } });
+    });
+
+    expect(mx.sendMessage).toHaveBeenCalledTimes(2);
+    const { id } = markerOf(mx, 0) as { id: string };
+    expect(markerOf(mx, 0)).toEqual({ id, more: true });
+    const preview = mx.sendMessage.mock.calls[1]![1] as Record<string, unknown>;
+    expect(preview).toMatchObject({
+      msgtype: 'm.file',
+      'io.mindroom.long_text': { version: 2 },
+      'io.mindroom.submission': { id, more: false },
+    });
+    // MindRoom reads the sidecar's content in place of the preview's.
+    const uploaded = parseLongTextJsonSidecar(await mx.uploadContent.mock.calls[0]![0].text());
+    expect(uploaded).toMatchObject({
+      body: longBody,
+      'io.mindroom.submission': { id, more: false },
+    });
+  });
+});
