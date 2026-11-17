@@ -8,6 +8,11 @@ import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthenticatio
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../matrix/matrix';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../matrix/room';
 import { getThreadScheduledDisplayText, getThreadScheduledLabel } from './compactThreadCardUtils';
+import {
+  classifyThreadWorkflow,
+  type ThreadWorkflowStatus,
+} from '../../event-store/threads/threadWorkflow';
+import { useSnoozeNow } from '../tags/useSnoozeNow';
 import { getThreadPrimarySummaryText } from '../../event-store/threads/threadPresentation';
 import {
   localizeThreadPreview,
@@ -57,18 +62,20 @@ export const getCompactThreadMessageCountLabel = (
 };
 
 export const getCompactThreadAttentionState = ({
-  isResolved,
-  isStreaming,
   lastSenderId,
   currentUserId,
-}: {
-  isResolved: boolean;
-  isStreaming: boolean;
+  now = Date.now(),
+  ...status
+}: ThreadWorkflowStatus & {
+  now?: number;
   lastSenderId: string | undefined;
   currentUserId: string | undefined;
 }): CompactThreadAttentionState => {
-  if (isStreaming) return 'streaming';
-  if (isResolved) return 'resolved';
+  const bucket = classifyThreadWorkflow(status, now);
+  if (bucket === 'working') return 'streaming';
+  if (bucket === 'done') return 'resolved';
+  if (bucket !== 'needsYou') return 'idle';
+  if (status.hasBackgroundApproval) return 'needs-attention';
   if (!lastSenderId) return 'idle';
   if (currentUserId && lastSenderId === currentUserId) return 'waiting';
   return 'needs-attention';
@@ -140,6 +147,7 @@ type BuildCompactThreadCardViewModelFromRecordOptions = {
   room: Room;
   /** The thread it was forked from (`getForkedFrom`), for a fork. */
   forkedFrom?: ThreadForkRef;
+  now?: number;
   currentUserId?: string;
   mx: MatrixClient;
   useAuthentication: boolean;
@@ -151,6 +159,7 @@ export const buildCompactThreadCardViewModelFromRecord = ({
   record,
   room,
   forkedFrom,
+  now,
   currentUserId,
   mx,
   useAuthentication,
@@ -207,8 +216,8 @@ export const buildCompactThreadCardViewModelFromRecord = ({
     ? `${lastSenderName}: ${truncateText(latestPreviewText, PREVIEW_TEXT_LIMIT)}`
     : truncateText(latestPreviewText, PREVIEW_TEXT_LIMIT);
   const attentionState = getCompactThreadAttentionState({
-    isResolved: status.isResolved,
-    isStreaming: status.isStreaming,
+    ...status,
+    now,
     lastSenderId,
     currentUserId,
   });
@@ -291,6 +300,9 @@ export const useCompactThreadCardViewModels = ({
   const language = useAppLanguageCode();
   const useAuthentication = useMediaAuthentication();
   const currentUserId = mx.getUserId() ?? undefined;
+  const now = useSnoozeNow(
+    threadRootIds.map((id) => threadRecordMap.get(id)?.status.snoozedUntilTs)
+  );
   // Records are rebuilt on every index refresh. Snapshot their values before
   // formatting so an unrelated streaming edit does not rebuild every card.
   const viewModelCacheRef = useRef<{
@@ -338,6 +350,7 @@ export const useCompactThreadCardViewModels = ({
         record.threadRootId,
         record.presentation,
         record.status,
+        classifyThreadWorkflow(record.status, now),
         // Read from the SDK room, which may not hold the root yet when the record is built.
         forkedFrom,
       ]);
@@ -357,6 +370,7 @@ export const useCompactThreadCardViewModels = ({
         record,
         room,
         forkedFrom,
+        now,
         currentUserId,
         mx,
         useAuthentication,
@@ -372,5 +386,15 @@ export const useCompactThreadCardViewModels = ({
 
     viewModelCacheRef.current = { mx, room, t, contextSignature, models: nextCache };
     return viewModels;
-  }, [currentUserId, language, mx, room, t, threadRecordMap, threadRootIds, useAuthentication]);
+  }, [
+    currentUserId,
+    language,
+    mx,
+    now,
+    room,
+    t,
+    threadRecordMap,
+    threadRootIds,
+    useAuthentication,
+  ]);
 };

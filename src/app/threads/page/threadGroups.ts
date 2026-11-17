@@ -7,17 +7,11 @@ import {
   isCrossRoomThreadEntryEligible,
 } from '../cross-room/crossRoomThreadOrder';
 import type { ThreadSignals } from '../cross-room/threadSignals';
-import { isSnoozedAt } from '../../event-store/threads/threadSnooze';
+import { classifyThreadWorkflow } from '../../event-store/threads/threadWorkflow';
 
 /** Mine: threads the user started; Following: threads they take part in; All: every thread. */
 export type ThreadsScope = 'mine' | 'following' | 'all';
-export type ThreadGroupId =
-  | 'needsYou'
-  | 'unread'
-  | 'working'
-  | 'recent'
-  | 'snoozed'
-  | 'automations';
+export type ThreadGroupId = 'needsYou' | 'unread' | 'working' | 'recent' | 'later' | 'automations';
 export type ThreadListItem = { entry: CrossRoomThreadIndexEntry; signals: ThreadSignals };
 export type ThreadGroup = { id: ThreadGroupId; items: ThreadListItem[] };
 
@@ -26,7 +20,7 @@ const GROUP_ORDER: ThreadGroupId[] = [
   'unread',
   'working',
   'recent',
-  'snoozed',
+  'later',
   'automations',
 ];
 
@@ -44,17 +38,24 @@ const groupOf = (
   if (signals.pendingApproval || signals.pendingQuestion) return 'needsYou';
   if (signals.automation && !entry.isInvolved) return scope === 'all' ? 'automations' : undefined;
   if (signals.newCount > 0 || signals.mentionedMe) return 'unread';
-  if (entry.threadRecord.status.isStreaming) return 'working';
-  // Resolved wins over a snooze, as everywhere else: the thread stays with the quiet ones.
-  if (!entry.isResolved && isSnoozedAt(entry.snoozedUntilTs, now)) return 'snoozed';
+  const bucket = classifyThreadWorkflow(
+    {
+      ...entry.threadRecord.status,
+      isResolved: entry.isResolved,
+      snoozedUntilTs: entry.snoozedUntilTs,
+    },
+    now
+  );
+  if (bucket === 'working' || bucket === 'later') return bucket;
+  if (bucket === 'needsYou' && entry.threadRecord.status.hasBackgroundApproval) return 'needsYou';
   return 'recent';
 };
 
 /**
  * The Threads page's groups for `scope` and the search `query`: each thread with replies in the
- * first group that fits (needs you, unread, an agent working, recent, snoozed, automations),
+ * first group that fits (needs you, unread, an agent working, recent, later, automations),
  * newest first; empty groups are left out. Automations, threads agents run alone, show only under
- * All. A thread snoozed at `now` that would sit in Recent goes to Snoozed instead.
+ * All. The shared workflow rules place snoozed and scheduled threads in Later.
  */
 export const groupThreads = (
   items: Iterable<ThreadListItem>,
