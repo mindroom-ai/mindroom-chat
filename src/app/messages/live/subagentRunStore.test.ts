@@ -50,6 +50,8 @@ const docs = (md: string): LiveDocs => ({
   tools: [],
   status: 'streaming',
   activity: '',
+
+  segments: [],
 });
 const snapshot = (
   seq: number,

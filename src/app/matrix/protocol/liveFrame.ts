@@ -3,6 +3,12 @@ import type { ToolTraceEvent } from './toolTrace';
 /** Event type of the ephemeral frames that stream a MindRoom reply. */
 export const LIVE_FRAME_EVENT_TYPE = 'io.mindroom.live';
 
+/**
+ * Where a reasoning segment starts in the reasoning (UTF-16 units) and how many visible tool calls
+ * started before it.
+ */
+export type LiveReasoningSegment = { start: number; after_tool: number };
+
 /** A reply's live state: what its next durable edit would show. */
 export type LiveDocs = {
   md: string;
@@ -10,6 +16,7 @@ export type LiveDocs = {
   tools: ToolTraceEvent[];
   status: string;
   activity: string;
+  segments: LiveReasoningSegment[];
 };
 
 /** Replaces `del` UTF-16 units at `at` with `ins`; `len` is the document length afterwards. */
@@ -24,6 +31,7 @@ export type LiveDelta = {
   tools?: LiveToolsDelta;
   status?: string;
   activity?: string;
+  segments?: LiveReasoningSegment[];
 };
 
 export type LiveOrder = { sid: string; seq: number };
@@ -46,6 +54,12 @@ const isStatus = (value: unknown): value is string =>
 
 const parseTools = (value: unknown): ToolTraceEvent[] | null =>
   Array.isArray(value) && value.every(isRecord) ? (value as ToolTraceEvent[]) : null;
+
+const parseSegments = (value: unknown): LiveReasoningSegment[] | null =>
+  Array.isArray(value) &&
+  value.every((entry) => isRecord(entry) && isCount(entry.start) && isCount(entry.after_tool))
+    ? value.map(({ start, after_tool }: LiveReasoningSegment) => ({ start, after_tool }))
+    : null;
 
 const parseSplice = (value: unknown): LiveSplice | null => {
   if (!isRecord(value)) return null;
@@ -73,9 +87,11 @@ const parseSnapshot = (value: unknown): LiveDocs | null => {
   if (!isRecord(value)) return null;
   const { md, reasoning, status, activity } = value;
   const tools = parseTools(value.tools);
+  // Older backends send no segments.
+  const segments = 'segments' in value ? parseSegments(value.segments) : [];
   if (typeof md !== 'string' || typeof reasoning !== 'string' || !tools) return null;
-  if (!isStatus(status) || typeof activity !== 'string') return null;
-  return { md, reasoning, tools, status, activity };
+  if (!isStatus(status) || typeof activity !== 'string' || !segments) return null;
+  return { md, reasoning, tools, status, activity, segments };
 };
 
 const parseDelta = (value: unknown): LiveDelta | null => {
@@ -103,6 +119,11 @@ const parseDelta = (value: unknown): LiveDelta | null => {
   if ('activity' in value) {
     if (typeof value.activity !== 'string') return null;
     delta.activity = value.activity;
+  }
+  if ('segments' in value) {
+    const segments = parseSegments(value.segments);
+    if (!segments) return null;
+    delta.segments = segments;
   }
   return Object.keys(delta).length > 0 ? delta : null;
 };
@@ -156,6 +177,7 @@ export const applyLiveDelta = (docs: LiveDocs, delta: LiveDelta): LiveDocs | nul
     tools,
     status: delta.status ?? docs.status,
     activity: delta.activity ?? docs.activity,
+    segments: delta.segments ?? docs.segments,
   };
 };
 

@@ -98,6 +98,8 @@ const docs = (md: string, tools: ToolTraceEvent[] = [], working = true): LiveDoc
   tools,
   status: working ? 'streaming' : 'pending',
   activity: '',
+
+  segments: [],
 });
 
 const seqs = new Map<string, number>();

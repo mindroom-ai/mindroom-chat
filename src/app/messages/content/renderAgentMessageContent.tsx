@@ -24,7 +24,7 @@ import { ThinkingPlaceholder } from '../agent-run/ThinkingPlaceholder';
 import { withReasoning } from '../agent-run/Reasoning';
 import { FinishedWorkFold } from '../agent-run/FinishedWorkFold';
 import { isLongAgentReply, splitFinishedWork } from '../agent-run/finishedWorkSplit';
-import { LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
+import { LIVE_REASONING_KEY, LIVE_REASONING_SEGMENTS_KEY } from '../live/useLiveReplyContent';
 import { TranscribingPlaceholder } from '../agent-run/TranscribingPlaceholder';
 import { ThreadSummaryCard } from '../thread-summary/ThreadSummaryCard';
 import { ToolApprovalCard } from '../../approvals/ToolApprovalCard';
@@ -317,7 +317,11 @@ export const renderAgentMessageContent = ({
         // The live reasoning rides on the outer content, not on the preview or the sidecar.
         content[LIVE_REASONING_KEY] === undefined
           ? resolvedContent
-          : { ...resolvedContent, [LIVE_REASONING_KEY]: content[LIVE_REASONING_KEY] },
+          : {
+              ...resolvedContent,
+              [LIVE_REASONING_KEY]: content[LIVE_REASONING_KEY],
+              [LIVE_REASONING_SEGMENTS_KEY]: content[LIVE_REASONING_SEGMENTS_KEY],
+            },
         props.customBody,
         (html) => (
           <AgentRenderBody
