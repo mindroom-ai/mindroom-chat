@@ -19,6 +19,7 @@ import {
 } from '../agent-run/toolRefDom';
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from '../../matrix/protocol/messageExtrasData';
 import { PasteMarker, parsePasteMarker } from '../../matrix/protocol/pasteAttachmentMarker';
+import { subagentToolStartedAt } from '../../matrix/protocol/subagentFrame';
 import {
   MINDROOM_TOOL_TRACE_KEY,
   ToolTraceEvent,
@@ -32,8 +33,10 @@ import { ActivityIcon, ActivityResult, ActivityTone, ThreadActivity } from '../.
 import {
   ReasoningSegmentsContext,
   resolveToolCallStates,
+  runningToolElapsed,
   summarizeToolCalls,
   TOOL_STATE_TITLE,
+  ToolCallClockContext,
   ToolCallMessageContext,
   ToolCallsFoldContext,
   ToolCallState,
@@ -46,6 +49,7 @@ import { parseToolJobHandle } from '../../matrix/protocol/toolJobHandle';
 import { ApprovalArgumentFields } from '../../approvals/ApprovalArgumentFields';
 import { toToolArgumentFields } from '../../approvals/argumentFields';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
+import { formatWorkDuration } from '../../lib/time';
 import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
 import { revealDirectionControls } from '../../ui/directional';
 import type { HtmlReactParserOptionsSource } from '../../rich-text/htmlReactParserOptions';
@@ -196,6 +200,8 @@ type ToolBlockRenderData = {
   result?: string;
   resultInline: boolean;
   progress?: string;
+  /** When a running call started, in Unix seconds, from frames that say (subagentToolStartedAt). */
+  startedAt?: number;
 };
 
 // How many of a running call's last output lines show under its tool calls.
@@ -245,6 +251,7 @@ const buildToolRefRenderData = (
       argsPreview,
       resultInline: false,
       progress: asToolOutput(eventRaw?.progress),
+      startedAt: eventRaw && subagentToolStartedAt(eventRaw),
     };
   }
 
@@ -278,19 +285,40 @@ const TOOL_STATE_ICON: Record<ToolCallState, { src: IconSrc; tone: ActivityTone 
   expired: { src: Icons.Clock, tone: 'neutral' },
 };
 
+/** How long a running call has run, muted beside its name or on its run's line. */
+function ToolElapsed({ seconds }: { seconds: number }) {
+  const { t } = useTranslation();
+  const duration = formatWorkDuration(seconds * 1000, useAppLanguageCode());
+  return (
+    <span
+      className={activityCss.Elapsed}
+      title={t('mindroomUi.messages.mindroomHtmlBlocks.toolRunningFor', { duration })}
+      data-tool-elapsed=""
+    >
+      {duration}
+    </span>
+  );
+}
+
 function ToolRefGroupItem({
   parsedTool,
   state,
+  elapsed,
 }: {
   parsedTool: ToolBlockRenderData;
   state: ToolCallState;
+  /** Seconds the call has run, once a running call shows it (runningToolElapsed). */
+  elapsed?: number;
 }) {
   const { src, tone } = TOOL_STATE_ICON[state];
   return (
     <div className={activityCss.Row} data-tool-index={parsedTool.index}>
       <ActivityIcon src={src} tone={tone} pending={state === 'running'} />
       <div className={activityCss.RowBody}>
-        <span className={activityCss.RowName}>{parsedTool.toolName}</span>
+        <span className={activityCss.RowHead}>
+          <span className={activityCss.RowName}>{parsedTool.toolName}</span>
+          {elapsed !== undefined && <ToolElapsed seconds={elapsed} />}
+        </span>
         {parsedTool.argsPreview && (
           <div className={activityCss.RowText}>
             <ApprovalArgumentFields value={parsedTool.argsPreview} parse={toToolArgumentFields} />
@@ -341,6 +369,7 @@ function ToolRefGroupBlock({
   const message = useContext(ToolCallMessageContext);
   const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
   const fold = useContext(ToolCallsFoldContext);
+  const now = useContext(ToolCallClockContext);
   const loadedTools = parsedTools.filter(
     (tool) => tool.status !== 'loading' && tool.status !== 'unavailable'
   );
@@ -368,6 +397,15 @@ function ToolRefGroupBlock({
   if (!shown && fold && !fold.open) return null;
   const running = loadedTools.filter((_tool, index) => states[index] === 'running');
   const outputTool = running.filter((tool) => tool.progress).at(-1);
+  // Only a running call shows how long it has run; the line shows the one that ran longest.
+  const elapsed = loadedTools.map((tool, index) =>
+    states[index] === 'running' ? runningToolElapsed(tool.startedAt, now) : undefined
+  );
+  const longest = elapsed.reduce<number | undefined>(
+    (most, seconds) =>
+      seconds !== undefined && (most === undefined || seconds > most) ? seconds : most,
+    undefined
+  );
   // Without the trace details the calls' states are unknown, so only count them.
   const icon = metadataStatus
     ? { src: Icons.Terminal, tone: 'neutral' as const }
@@ -388,6 +426,7 @@ function ToolRefGroupBlock({
           : t(TOOL_STATE_TITLE[summary.state], { count: summary.count })
       }
       detail={summary.names}
+      aside={longest !== undefined && <ToolElapsed seconds={longest} />}
       preview={
         outputTool?.progress && (
           <>
@@ -406,6 +445,7 @@ function ToolRefGroupBlock({
           key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
           parsedTool={parsedTool}
           state={states[index]!}
+          elapsed={elapsed[index]}
         />
       ))}
       {metadataStatus && (

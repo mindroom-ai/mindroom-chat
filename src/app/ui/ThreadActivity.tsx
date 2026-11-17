@@ -30,12 +30,15 @@ export function ThreadActivity({
   icon,
   title,
   detail,
+  aside,
   preview,
   children,
 }: {
   icon: ReactNode;
   title: string;
   detail?: string;
+  // Shown at the end of the line, after the detail, which gives way first.
+  aside?: ReactNode;
   // Shown under the line whether or not the panel is open.
   preview?: ReactNode;
   children?: ReactNode;
@@ -57,6 +60,7 @@ export function ThreadActivity({
           <IsolatedText text={title} />
         </span>
         {detail && <span className={css.Detail} {...ownDirectionLine}>{detail}</span>}
+        {aside}
         <Icon size="50" className={css.Chevron} src={Icons.ChevronRight} aria-hidden />
       </button>
       {preview}

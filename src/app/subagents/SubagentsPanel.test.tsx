@@ -456,6 +456,81 @@ describe('SubagentsPanel', () => {
     expect(body?.querySelector('[data-tool-index="1"]')?.textContent).toContain('git tag');
   });
 
+  it('shows how long a running tool call has run once it ran 10 seconds, on one ticking clock', () => {
+    // The panel's clock ticks by its interval.
+    vi.useRealTimers();
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'], now: NOW * 1000 });
+    ingest(
+      'run',
+      meta('running', { startedAt: NOW - 300 }),
+      docs('Working.\n\n🔧 `bash` [1] ⏳\n\n🔧 `grep` [2] ⏳\n\n🔧 `read_file` [3]\n\n', [
+        { type: 'tool_call_started', tool_name: 'bash', started_at: NOW - 125 },
+        { type: 'tool_call_started', tool_name: 'grep', started_at: NOW - 4 },
+        {
+          type: 'tool_call_completed',
+          tool_name: 'read_file',
+          result_preview: 'ok',
+          started_at: NOW - 200,
+        },
+      ])
+    );
+    render();
+    open('run');
+    const elapsed = (scope: Element | null | undefined) =>
+      scope?.querySelector('[data-tool-elapsed]')?.textContent ?? null;
+    const row = (index: number) => transcript()?.querySelector(`[data-tool-index="${index}"]`);
+    const line = transcript()?.querySelector<HTMLButtonElement>(
+      '[data-message-disclosure] > button'
+    );
+
+    // Folded, the line shows the call that has run longest.
+    expect(elapsed(line)).toBe('2m 5s');
+    act(() => line?.click());
+    expect(elapsed(row(1))).toBe('2m 5s');
+    expect(row(1)?.querySelector('[data-tool-elapsed]')?.getAttribute('title')).toBe(
+      'Running for 2m 5s'
+    );
+    expect(elapsed(row(2))).toBeNull();
+    // A finished call shows nothing new.
+    expect(elapsed(row(3))).toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(elapsed(row(1))).toBe('2m 15s');
+    expect(elapsed(row(2))).toBe('14s');
+    expect(elapsed(line)).toBe('2m 15s');
+  });
+
+  it('shows no tool time without a start from MindRoom, nor once the run has ended', () => {
+    ingest(
+      'older',
+      meta('running'),
+      docs('Working.\n\n🔧 `bash` [1] ⏳\n\n', [{ type: 'tool_call_started', tool_name: 'bash' }])
+    );
+    ingest(
+      'ended',
+      meta('completed', { startedAt: NOW - 30 }),
+      docs(
+        'Stopped.\n\n🔧 `bash` [1] ⏳\n\n',
+        [{ type: 'tool_call_started', tool_name: 'bash', started_at: NOW - 600 }],
+        false
+      )
+    );
+    render();
+
+    ['older', 'ended'].forEach((run) => {
+      open(run);
+      const line = transcript()?.querySelector<HTMLButtonElement>(
+        '[data-message-disclosure] > button'
+      );
+      act(() => line?.click());
+      expect(transcript()?.querySelector('[data-tool-index="1"]')).not.toBeNull();
+      expect(transcript()?.querySelector('[data-tool-elapsed]')).toBeNull();
+      act(() => button(container, 'Back').click());
+    });
+  });
+
   it('shows the typing dots while an open run is running, not while it waits for approval', () => {
     ingest('waiting', meta('awaiting_approval'), docs('May I run it?'));
     ingest('busy', meta('running', { startedAt: NOW - 30 }), docs('Working.'));
