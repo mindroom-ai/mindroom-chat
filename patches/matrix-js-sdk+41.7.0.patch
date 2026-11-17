@@ -4423,10 +4423,19 @@ index 19a2f43..9a64b56 100644
  
      /**
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations.js b/node_modules/matrix-js-sdk/lib/models/relations.js
-index 6be66bb..c5aed05 100644
+index 6be66bb..94754ce 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations.js
 +++ b/node_modules/matrix-js-sdk/lib/models/relations.js
-@@ -102,6 +102,7 @@ export class Relations extends TypedEventEmitter {
+@@ -73,6 +73,8 @@ export class Relations extends TypedEventEmitter {
+       if (!event.isSending()) {
+         // Sending is done, so we don't need to listen anymore
+         event.removeListener(MatrixEventEvent.Status, this.onEventStatus);
++        // MindRoom: sent, an edit takes the place of its sender's older ones.
++        if (this.relationType === RelationType.Replace) this.dropOlderEdits(event.getSender());
+         return;
+       }
+       if (status !== EventStatus.CANCELLED) {
+@@ -102,6 +104,7 @@ export class Relations extends TypedEventEmitter {
            // Remove the redacted annotation from aggregation by key
            _this.removeAnnotationFromAggregation(redactedEvent);
          } else if (_this.relationType === RelationType.Replace) {
@@ -4434,7 +4443,17 @@ index 6be66bb..c5aed05 100644
            yield _this.updateTargetEventReplacement();
          }
          redactedEvent.removeListener(MatrixEventEvent.BeforeRedaction, _this.onBeforeRedaction);
-@@ -170,6 +171,7 @@ export class Relations extends TypedEventEmitter {
+@@ -147,6 +150,9 @@ export class Relations extends TypedEventEmitter {
+       if (_this2.relationType === RelationType.Annotation) {
+         _this2.addAnnotationToAggregation(event);
+       } else if (_this2.relationType === RelationType.Replace) {
++        // MindRoom: an edit older than one its sender sent already is not kept.
++        _this2.dropOlderEdits(event.getSender());
++        if (!_this2.relations.has(event)) return;
+         yield _this2.updateTargetEventReplacement();
+       }
+       event.on(MatrixEventEvent.BeforeRedaction, _this2.onBeforeRedaction);
+@@ -170,6 +176,7 @@ export class Relations extends TypedEventEmitter {
        if (_this3.relationType === RelationType.Annotation) {
          _this3.removeAnnotationFromAggregation(event);
        } else if (_this3.relationType === RelationType.Replace) {
@@ -4442,7 +4461,7 @@ index 6be66bb..c5aed05 100644
          yield _this3.updateTargetEventReplacement();
        }
        _this3.emit(RelationsEvent.Remove, event);
-@@ -357,9 +359,33 @@ export class Relations extends TypedEventEmitter {
+@@ -357,9 +364,50 @@ export class Relations extends TypedEventEmitter {
        if (!lastReplacement && !targetEvent.replacingEvent()) {
          return;
        }
@@ -4473,14 +4492,41 @@ index 6be66bb..c5aed05 100644
 +      "m.relations": rest
 +    }));
 +  }
++  /**
++   * MindRoom: only a sender's newest edit can show, so a sent edit is dropped once its sender has a
++   * newer sent edit that decrypted. Upstream kept every edit for as long as the room lived, and went
++   * through all of them on each further one: a streamed reply is edited hundreds of times, each edit
++   * with the whole text so far. An edit still being sent stays, as it may be cancelled, and one that
++   * failed to decrypt takes no older edit's place, as the app shows the newest edit it can read.
++   */
++  dropOlderEdits(sender) {
++    var sent = [...this.relations].filter(edit => edit.getSender() === sender && !edit.isSending());
++    var newest = Math.max(...sent.filter(edit => !edit.isDecryptionFailure()).map(edit => edit.getTs()));
++    for (var edit of sent) {
++      if (edit.getTs() >= newest) continue;
++      this.relations.delete(edit);
++      this.relationEventIds.delete(edit.getId());
++      edit.removeListener(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
++    }
++  }
    maybeEmitCreated() {
      if (this.creationEmitted) {
        return;
 diff --git a/node_modules/matrix-js-sdk/src/models/relations.ts b/node_modules/matrix-js-sdk/src/models/relations.ts
-index 77ba3b3..ec2e2fa 100644
+index 77ba3b3..0fbe8ea 100644
 --- a/node_modules/matrix-js-sdk/src/models/relations.ts
 +++ b/node_modules/matrix-js-sdk/src/models/relations.ts
-@@ -133,6 +133,7 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -108,6 +108,9 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+         if (this.relationType === RelationType.Annotation) {
+             this.addAnnotationToAggregation(event);
+         } else if (this.relationType === RelationType.Replace) {
++            // MindRoom: an edit older than one its sender sent already is not kept.
++            this.dropOlderEdits(event.getSender());
++            if (!this.relations.has(event)) return;
+             await this.updateTargetEventReplacement();
+         }
+ 
+@@ -133,6 +136,7 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
          if (this.relationType === RelationType.Annotation) {
              this.removeAnnotationFromAggregation(event);
          } else if (this.relationType === RelationType.Replace) {
@@ -4488,7 +4534,16 @@ index 77ba3b3..ec2e2fa 100644
              await this.updateTargetEventReplacement();
          }
  
-@@ -243,6 +244,7 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -149,6 +153,8 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+         if (!event.isSending()) {
+             // Sending is done, so we don't need to listen anymore
+             event.removeListener(MatrixEventEvent.Status, this.onEventStatus);
++            // MindRoom: sent, an edit takes the place of its sender's older ones.
++            if (this.relationType === RelationType.Replace) this.dropOlderEdits(event.getSender());
+             return;
+         }
+         if (status !== EventStatus.CANCELLED) {
+@@ -243,6 +249,7 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
              // Remove the redacted annotation from aggregation by key
              this.removeAnnotationFromAggregation(redactedEvent);
          } else if (this.relationType === RelationType.Replace) {
@@ -4496,7 +4551,7 @@ index 77ba3b3..ec2e2fa 100644
              await this.updateTargetEventReplacement();
          }
  
-@@ -355,7 +357,8 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -355,7 +362,8 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
       * while edits are still being decrypted). A monotonic update counter guards
       * against older async resolutions overriding newer replacement selections.
       */
@@ -4506,7 +4561,7 @@ index 77ba3b3..ec2e2fa 100644
          if (!this.targetEvent || this.targetEvent.isState()) {
              return;
          }
-@@ -374,9 +377,31 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -374,9 +382,49 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
              return;
          }
  
@@ -4533,6 +4588,24 @@ index 77ba3b3..ec2e2fa 100644
 +        const rest = { ...relations };
 +        delete rest[RelationType.Replace];
 +        this.targetEvent!.setUnsigned({ ...unsigned, "m.relations": rest });
++    }
++
++    /**
++     * MindRoom: only a sender's newest edit can show, so a sent edit is dropped once its sender has a
++     * newer sent edit that decrypted. Upstream kept every edit for as long as the room lived, and went
++     * through all of them on each further one: a streamed reply is edited hundreds of times, each edit
++     * with the whole text so far. An edit still being sent stays, as it may be cancelled, and one that
++     * failed to decrypt takes no older edit's place, as the app shows the newest edit it can read.
++     */
++    private dropOlderEdits(sender: string | undefined): void {
++        const sent = [...this.relations].filter((edit) => edit.getSender() === sender && !edit.isSending());
++        const newest = Math.max(...sent.filter((edit) => !edit.isDecryptionFailure()).map((edit) => edit.getTs()));
++        for (const edit of sent) {
++            if (edit.getTs() >= newest) continue;
++            this.relations.delete(edit);
++            this.relationEventIds.delete(edit.getId()!);
++            edit.removeListener(MatrixEventEvent.BeforeRedaction, this.onBeforeRedaction);
++        }
 +    }
 +
      private maybeEmitCreated(): void {
