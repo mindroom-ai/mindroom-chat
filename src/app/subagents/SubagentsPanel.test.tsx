@@ -118,13 +118,13 @@ let container: HTMLDivElement;
 let root: Root;
 const onClose = vi.fn();
 
-const render = (screenSize: ScreenSize = ScreenSize.Desktop) => {
+const render = (screenSize: ScreenSize = ScreenSize.Desktop, threadId?: string | null) => {
   act(() => {
     root.render(
       <ScreenSizeProvider value={screenSize}>
         <ClientConfigProvider value={{}}>
           <MatrixClientProvider value={mx}>
-            <SubagentsPanel room={room} onClose={onClose} />
+            <SubagentsPanel room={room} threadId={threadId} onClose={onClose} />
           </MatrixClientProvider>
         </ClientConfigProvider>
       </ScreenSizeProvider>
@@ -184,6 +184,25 @@ describe('SubagentsPanel', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('lists only the runs started in the conversation on screen, and counts only those', () => {
+    ingest('here', meta('running', { threadId: '$thread:example.org' }), docs('Here.'));
+    ingest('other', meta('running', { threadId: '$other:example.org' }), docs('Elsewhere.'));
+    ingest('room', meta('running', { threadId: null }), docs('In the room.'));
+    render(ScreenSize.Desktop, '$thread:example.org');
+
+    expect(cards().map((element) => element.dataset.subagent)).toEqual(['here']);
+    expect(container.querySelector('header')?.textContent).toContain('1 active');
+
+    // The room's own timeline lists the runs started there, not those of its threads.
+    render(ScreenSize.Desktop, null);
+    expect(cards().map((element) => element.dataset.subagent)).toEqual(['room']);
+
+    // A thread without runs says so of the thread.
+    render(ScreenSize.Desktop, '$empty:example.org');
+    expect(cards()).toHaveLength(0);
+    expect(container.textContent).toContain('No sub-agents are running in this thread.');
+  });
+
   it('lists a card per run, the one that started first on top, titled by its task', () => {
     ingest('late', meta('running', { agent: 'writer', startedAt: NOW - 10 }), docs('Drafting.'));
     ingest(
@@ -214,6 +233,54 @@ describe('SubagentsPanel', () => {
     expect(card('run').querySelector('img')?.getAttribute('src')).toBe(
       'https://media.example.org/example.org/helper'
     );
+  });
+
+  it("shows the model of a sub-agent's newest turn after its agent, and none it was not sent", () => {
+    const opus = {
+      modelConfig: 'harry_opus',
+      modelDisplayName: 'Opus 5.5',
+      modelId: 'anthropic/claude-opus-5.5',
+      modelProvider: 'openrouter',
+    };
+    ingest(
+      'modeled',
+      meta('completed', { subagent: 'modeled', model: { modelConfig: 'sonnet' } }),
+      docs('A.')
+    );
+    ingest(
+      'modeled-2',
+      meta('running', { subagent: 'modeled', model: opus, startedAt: NOW - 10 }),
+      docs('B.')
+    );
+    ingest(
+      'unnamed',
+      meta('running', { model: { modelConfig: 'bedtime_fable' }, startedAt: NOW - 8 }),
+      docs('C.')
+    );
+    ingest('old', meta('running', { startedAt: NOW - 5 }), docs('D.'));
+    render();
+
+    const model = card('modeled').querySelector('[data-subagent-model]');
+    expect(model?.textContent).toBe('Opus 5.5');
+    expect(model?.getAttribute('title')).toBe(
+      'harry_opus (openrouter / anthropic/claude-opus-5.5)'
+    );
+    // Without a display name, the short name the message badge shows.
+    expect(card('unnamed').querySelector('[data-subagent-model]')?.textContent).toBe(
+      'Bedtime Fable'
+    );
+    // After the agent's name, before its status.
+    const name = [...card('modeled').querySelectorAll('span')].find(
+      (element) => element.textContent === 'Research Desk'
+    );
+    expect(name?.compareDocumentPosition(model as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(model?.nextElementSibling?.textContent).toBe('Running');
+    expect(card('old').querySelector('[data-subagent-model]')).toBeNull();
+
+    open('modeled');
+    const standing = container.querySelector('header [data-subagent-model]');
+    expect(standing?.textContent).toBe('Opus 5.5');
+    expect(standing?.nextElementSibling?.textContent).toBe('Running');
   });
 
   it('lists finished runs after the running ones, the one that ended last first', () => {

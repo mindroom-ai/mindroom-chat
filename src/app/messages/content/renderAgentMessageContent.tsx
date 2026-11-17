@@ -1,4 +1,4 @@
-import { type ComponentProps, type ReactNode } from 'react';
+import { useMemo, type ComponentProps, type ReactNode } from 'react';
 import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { Box, Icon, Icons } from 'folds';
 import type { HTMLReactParserOptions } from 'html-react-parser';
@@ -15,13 +15,15 @@ import {
 } from '../../matrix/protocol/messageExtrasData';
 import { useToolTraceMarkerParserOptions } from '../html/HtmlBlocks';
 import type { ToolMetadataStatus } from '../../matrix/protocol/toolTrace';
-import { isAiRunStreaming } from '../../matrix/protocol/aiRun';
+import { getAiRunInfo, isAiRunStreaming } from '../../matrix/protocol/aiRun';
 import { formatMarkdownTextBodyAsHtml, formatMessageTextBodyAsHtml } from '../html/blocks';
-import { getLongTextSource } from '../../matrix/protocol/longText';
+import { getLongTextSource, hasLongTextMetadata } from '../../matrix/protocol/longText';
 import { LongTextKind, LongTextText } from './LongTextText';
 import { PasteAttachmentContent } from './PasteAttachmentContent';
 import { ThinkingPlaceholder } from '../agent-run/ThinkingPlaceholder';
 import { withReasoning } from '../agent-run/Reasoning';
+import { FinishedWorkFold } from '../agent-run/FinishedWorkFold';
+import { isLongAgentReply, splitFinishedWork } from '../agent-run/finishedWorkSplit';
 import { LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
 import { TranscribingPlaceholder } from '../agent-run/TranscribingPlaceholder';
 import { ThreadSummaryCard } from '../thread-summary/ThreadSummaryCard';
@@ -39,6 +41,8 @@ import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { parseSecretRequestContent } from '../../matrix/protocol/secretRequest';
 import { readSnoozeEndedNote } from '../../matrix/protocol/threadSnooze';
 import { SnoozeEndedMarker } from '../SnoozeEndedMarker';
+import { readSkillReviewNotice } from '../../matrix/protocol/skillReview';
+import { SkillReviewMarker } from '../SkillReviewMarker';
 import { getMessageStateSuffixRenderer } from './messageStateSuffix';
 import { InlineCanvasFrame } from '../canvas/InlineCanvasFrame';
 import { ChatUiActionButton } from '../../ui-actions/ChatUiActionButton';
@@ -50,6 +54,9 @@ import { readCallTranscript } from '../../matrix/protocol/callTranscript';
 import { CallTranscriptCard } from './CallTranscriptCard';
 import { ownDirectionLine } from '../../ui/directional';
 import { matchesEnum } from '../../lib/matchesEnum';
+
+/** Run statuses of a reply that finished on its own; a failed or stopped one keeps its work open. */
+const FINISHED_AI_RUN_STATUSES = new Set(['completed', 'cached']);
 
 export type RenderAgentMessageContentOptions = {
   mEvent?: MatrixEvent;
@@ -71,6 +78,8 @@ export type RenderAgentMessageContentOptions = {
   renderUrlsPreview?: (urls: string[]) => ReactNode;
   showMessageExtras?: boolean;
   hydrateLongText?: boolean;
+  /** Shown in another thread's view (a fork's prefix): its cards offer no decisions there. */
+  readOnly?: boolean;
 };
 
 type AgentRenderBodyProps = Omit<ComponentProps<typeof RenderBody>, 'htmlReactParserOptions'> & {
@@ -99,6 +108,59 @@ function AgentRenderBody({
   );
 }
 
+type AgentWorkBodyProps = {
+  /** The body's plain text, whose length decides whether it folds. */
+  body: string;
+  /** The body's HTML; undefined for a plain body or the thinking placeholder. */
+  html?: string;
+  foldKey: string;
+  /** Whether the reply finished and may fold its work. */
+  finished: boolean;
+  durationMs?: number;
+  /** The body of the given HTML. */
+  renderHtml: (customBody: string | undefined) => ReactNode;
+  /** The reasoning header and tool-call cog around a body. */
+  wrapWithReasoning: (body: ReactNode) => ReactNode;
+};
+
+/**
+ * An agent reply, in the same tree from its first streamed frame on, with or without tool calls,
+ * so the state inside it, such as collapsed reasoning, stays as they come; its work folded once it
+ * finished long, with an answer after its last tool call.
+ */
+function AgentWorkBody({
+  body,
+  html,
+  foldKey,
+  finished,
+  durationMs,
+  renderHtml,
+  wrapWithReasoning,
+}: AgentWorkBodyProps) {
+  // A timeline renders its rows again on each streamed edit of any reply; the split waits for this
+  // reply's own body to change, and for it to finish long.
+  const split = useMemo(
+    () =>
+      finished && html !== undefined && isLongAgentReply(body)
+        ? splitFinishedWork(html)
+        : undefined,
+    [finished, body, html]
+  );
+  return (
+    <FinishedWorkFold
+      foldKey={foldKey}
+      durationMs={durationMs}
+      whole={wrapWithReasoning(renderHtml(html))}
+      folded={
+        split && {
+          work: wrapWithReasoning(renderHtml(split.head)),
+          answer: renderHtml(split.tail),
+        }
+      }
+    />
+  );
+}
+
 export const renderAgentMessageContent = ({
   mEvent,
   fromMindroomAgent = false,
@@ -118,6 +180,7 @@ export const renderAgentMessageContent = ({
   renderUrlsPreview,
   showMessageExtras = false,
   hydrateLongText = true,
+  readOnly,
 }: RenderAgentMessageContentOptions): ReactNode | undefined => {
   const withToolRefFormattedBodyFallback = (bodyContent: Record<string, unknown>) => {
     if (typeof bodyContent.formatted_body === 'string') return bodyContent;
@@ -167,6 +230,40 @@ export const renderAgentMessageContent = ({
   const wrapWithReasoning = (bodyContent: Record<string, unknown>, body: ReactNode) =>
     withReasoning(bodyContent, body, htmlReactParserOptions, linkifyOpts);
 
+  // A long finished reply folds its work, everything up to its last tool call, behind one row, as
+  // T3 Code folds a finished turn; the answer after it stays. The work took from the reply's first
+  // event to its final edit. Search results and highlighted rows show the whole reply.
+  const foldEventId = eventId ?? mEvent?.getId();
+  const status = getAiRunInfo(content)?.status;
+  const foldsWork = fromMindroomAgent && highlightRegex === undefined;
+  const finished = !!status && FINISHED_AI_RUN_STATUSES.has(status);
+  const finalEditTs = mEvent?.replacingEvent()?.getTs();
+  const workDurationMs =
+    finalEditTs === undefined || mEvent === undefined ? undefined : finalEditTs - mEvent.getTs();
+
+  /** The reply's reasoning and body, the work folded when it finished. */
+  const wrapAgentBody = (
+    bodyContent: Record<string, unknown>,
+    html: string | undefined,
+    renderHtml: (customBody: string | undefined) => ReactNode,
+    canFold = true
+  ) => {
+    if (!foldsWork || foldEventId === undefined) {
+      return wrapWithReasoning(bodyContent, renderHtml(html));
+    }
+    return (
+      <AgentWorkBody
+        body={typeof bodyContent.body === 'string' ? bodyContent.body : ''}
+        html={html}
+        foldKey={`finished-work:${foldEventId}`}
+        finished={finished && canFold}
+        durationMs={workDurationMs}
+        renderHtml={renderHtml}
+        wrapWithReasoning={(body) => wrapWithReasoning(bodyContent, body)}
+      />
+    );
+  };
+
   const renderBody =
     (bodyContent: Record<string, unknown>) => (props: { body: string; customBody?: string }) => {
       const { body, customBody: providedCustomBody } = props;
@@ -180,17 +277,16 @@ export const renderAgentMessageContent = ({
           ? renderableContent.formatted_body
           : undefined);
 
-      return wrapWithReasoning(
-        renderableContent,
+      return wrapAgentBody(renderableContent, customBody, (html) => (
         <AgentRenderBody
           {...props}
-          customBody={customBody}
+          customBody={html}
           highlightRegex={highlightRegex}
           htmlReactParserOptions={htmlReactParserOptions}
           markerContent={renderableContent}
           linkifyOpts={linkifyOpts}
         />
-      );
+      ));
     };
 
   // A long call's transcript is only in the sidecar; until it is hydrated, and when the card may
@@ -218,19 +314,26 @@ export const renderAgentMessageContent = ({
   ) =>
     renderLongCallTranscript(
       resolvedContent,
-      wrapWithReasoning(
+      wrapAgentBody(
         // The live reasoning rides on the outer content, not on the preview or the sidecar.
         content[LIVE_REASONING_KEY] === undefined
           ? resolvedContent
           : { ...resolvedContent, [LIVE_REASONING_KEY]: content[LIVE_REASONING_KEY] },
-        <AgentRenderBody
-          {...props}
-          highlightRegex={highlightRegex}
-          htmlReactParserOptions={htmlReactParserOptions}
-          markerContent={resolvedContent}
-          metadataStatus={metadataStatus}
-          linkifyOpts={linkifyOpts}
-        />
+        props.customBody,
+        (html) => (
+          <AgentRenderBody
+            {...props}
+            customBody={html}
+            highlightRegex={highlightRegex}
+            htmlReactParserOptions={htmlReactParserOptions}
+            markerContent={resolvedContent}
+            metadataStatus={metadataStatus}
+            linkifyOpts={linkifyOpts}
+          />
+        ),
+        // The preview stops partway, also when the sidecar could not be read; only the whole
+        // reply from the sidecar folds.
+        !hasLongTextMetadata(resolvedContent)
       )
     );
 
@@ -287,10 +390,12 @@ export const renderAgentMessageContent = ({
     );
   }
 
-  // An open thread shows this as a marker row of its own (useTimelineMessageFeature); other
+  // An open thread shows these as marker rows of their own (useTimelineMessageFeature); other
   // views, such as threads shown in the room, keep the message row with the marker as its body.
   const snoozeEndedNote = fromMindroomAgent ? readSnoozeEndedNote(content) : null;
   if (snoozeEndedNote !== null) return <SnoozeEndedMarker note={snoozeEndedNote} />;
+  const skillReview = fromMindroomAgent ? readSkillReviewNotice(content) : null;
+  if (skillReview) return <SkillReviewMarker review={skillReview} />;
 
   // An agent asking for a key; any member can write this content, which then renders as its body.
   // The answer goes to the sender's own MindRoom server.
@@ -303,6 +408,7 @@ export const renderAgentMessageContent = ({
         request={secretRequest}
         roomId={secretRequestRoomId}
         agentUserId={secretRequestSender}
+        readOnly={readOnly}
       />
     );
   }
@@ -311,7 +417,13 @@ export const renderAgentMessageContent = ({
     // Only MindRoom sends approval cards; any member can post this event type.
     const approval = fromMindroomAgent ? parseToolApprovalContent(eventType, content) : null;
     return approval ? (
-      <ToolApprovalCard approval={approval} roomId={roomId} eventId={eventId} threadId={threadId} />
+      <ToolApprovalCard
+        approval={approval}
+        roomId={roomId}
+        eventId={eventId}
+        threadId={threadId}
+        readOnly={readOnly}
+      />
     ) : (
       <BrokenContent />
     );
@@ -336,7 +448,13 @@ export const renderAgentMessageContent = ({
           content={content}
           renderStateSuffix={getMessageStateSuffix()}
           renderBody={() =>
-            wrapWithReasoning(content, <ThinkingPlaceholder startedAt={mEvent?.getTs()} />)
+            // In the reply's own tree, so its reasoning stays as the first text replaces this.
+            wrapAgentBody(
+              content,
+              undefined,
+              () => <ThinkingPlaceholder startedAt={mEvent?.getTs()} />,
+              false
+            )
           }
           renderAfterBody={renderMessageExtras(content)}
         />
@@ -470,10 +588,12 @@ export const renderAgentMessageContent = ({
                 )
               : renderBody(content)
           }
+          // A read-only row (a fork's parent message) answers nothing: its canvas is the parent's.
+          // An inline page is display-only, so it still shows there.
           renderAfterBody={
             <>
               {canvasTitle && <InlineCanvasFrame event={mEvent} />}
-              <ChatUiActionButton event={mEvent} />
+              {!readOnly && <ChatUiActionButton event={mEvent} />}
             </>
           }
         />

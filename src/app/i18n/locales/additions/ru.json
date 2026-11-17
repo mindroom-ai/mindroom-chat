@@ -412,7 +412,9 @@
       },
       "about": {
         "thirdPartyNotices": "Уведомления о стороннем ПО",
-        "soundsCredit": "Звуки уведомлений и приглашений синтезированы специально для этого приложения."
+        "soundsCredit": "Звуки уведомлений и приглашений синтезированы специально для этого приложения.",
+        "debugMode": "Режим отладки",
+        "debugModeDescription": "Записывает диагностику на этом устройстве, чтобы вы могли её экспортировать и включить подробную диагностическую трассировку."
       }
     },
     "createChat": {
@@ -733,6 +735,7 @@
         "showKey": "Показать ключ",
         "hideKey": "Скрыть ключ",
         "sentTo": "Отправляется на {{host}}",
+        "openLink": "Открыть {{host}}",
         "save": "Сохранить",
         "decline": "Отклонить",
         "savedWaiting": "Сохранено, ожидание агента",
@@ -770,6 +773,27 @@
           "declined": "Отклонён",
           "expired": "Истёк"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Навык <code>{{skill}}</code> обновлён",
+        "createdOne": "Навык <code>{{skill}}</code> создан",
+        "updatedMany_one": "Обновлён {{count}} навык",
+        "updatedMany_few": "Обновлено {{count}} навыка",
+        "updatedMany_many": "Обновлено {{count}} навыков",
+        "updatedMany_other": "Обновлено {{count}} навыка",
+        "createdMany_one": "Создан {{count}} навык",
+        "createdMany_few": "Создано {{count}} навыка",
+        "createdMany_many": "Создано {{count}} навыков",
+        "createdMany_other": "Создано {{count}} навыка",
+        "created": "создан",
+        "updated": "обновлён",
+        "removed": "удалён",
+        "diffTruncated": "Diff обрезан",
+        "diffLabel": "Diff файла {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "Работал {{duration}}",
+        "worked": "Работал"
       }
     },
     "message-search": {
@@ -861,6 +885,7 @@
       "title": "Субагенты",
       "close": "Закрыть",
       "empty": "В этой комнате нет работающих субагентов.",
+      "emptyThread": "В этой ветке нет работающих субагентов.",
       "back": "Назад",
       "nested_one": "{{count}} субагент",
       "nested_few": "{{count}} субагента",
@@ -980,7 +1005,8 @@
     "unsnooze": "Вернуть",
     "status": {
       "snoozed": "Отложена"
-    }
+    },
+    "renameHint": "Дважды щёлкните, чтобы переименовать"
   },
   "threadSnooze": {
     "title": "Отложить до",
@@ -990,6 +1016,18 @@
     "nextMonday": "В следующий понедельник в 09:00",
     "pickDateTime": "Выбрать дату и время",
     "pastTime": "Выберите время в будущем"
+  },
+  "threadFork": {
+    "forkedFrom": "Ответвление от {{title}}",
+    "openInOriginalThread": "Открыть в исходной ветке",
+    "forkFromHere": "Ответвить отсюда",
+    "forkThread": "Ответвить ветку",
+    "forking": "Создаётся ответвление от {{title}}",
+    "continueInNewThread": "Продолжить в новой ветке",
+    "forkCount_one": "{{count}} ответвление",
+    "forkCount_few": "{{count}} ответвления",
+    "forkCount_many": "{{count}} ответвлений",
+    "forkCount_other": "{{count}} ответвления"
   },
   "activity": {
     "title": "Активность",
@@ -1315,6 +1353,34 @@
       "snoozed": "Отложенные",
       "idle": "Неактивные",
       "resolved": "Решённые"
+    },
+    "live": {
+      "tools": "Инструменты",
+      "toolsRunning_one": "{{count}} выполняется",
+      "toolsRunning_few": "{{count}} выполняются",
+      "toolsRunning_many": "{{count}} выполняются",
+      "toolsRunning_other": "{{count}} выполняются",
+      "toolsRunningNamed_one": "{{count}} выполняется: {{names}}",
+      "toolsRunningNamed_few": "{{count}} выполняются: {{names}}",
+      "toolsRunningNamed_many": "{{count}} выполняются: {{names}}",
+      "toolsRunningNamed_other": "{{count}} выполняются: {{names}}",
+      "background": "Фоновые задачи",
+      "jobs_one": "{{count}} задача",
+      "jobs_few": "{{count}} задачи",
+      "jobs_many": "{{count}} задач",
+      "jobs_other": "{{count}} задачи",
+      "jobsWaiting_one": "{{jobs}}, {{count}} ожидает одобрения",
+      "jobsWaiting_few": "{{jobs}}, {{count}} ожидают одобрения",
+      "jobsWaiting_many": "{{jobs}}, {{count}} ожидают одобрения",
+      "jobsWaiting_other": "{{jobs}}, {{count}} ожидают одобрения",
+      "waitingForAnswer": "Ожидает ответа"
     }
+  },
+  "threadBoard": {
+    "label": "Треды по состоянию",
+    "working": "В работе",
+    "later": "Позже",
+    "open": "Открытые",
+    "done": "Готово"
   }
 }

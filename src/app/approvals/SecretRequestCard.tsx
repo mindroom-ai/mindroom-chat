@@ -220,6 +220,29 @@ function SecretRequestAnswer({
 
   return (
     <div ref={area} className={css.Answer}>
+      {request.url && (
+        // The agent chose the page, so the button names its host as the browser reads it.
+        <Button
+          as="a"
+          href={request.url}
+          target="_blank"
+          rel="noreferrer noopener"
+          className={css.Link}
+          size="300"
+          radii="300"
+          variant="Secondary"
+          fill="Soft"
+          after={<Icon size="100" src={Icons.External} />}
+        >
+          <Text size="B300" className={css.LinkText}>
+            <IsolatedText
+              text={t('mindroomUi.messages.secretRequestCard.openLink', {
+                host: isolateInSentence(new URL(request.url).host),
+              })}
+            />
+          </Text>
+        </Button>
+      )}
       {temporary && (
         <fieldset className={css.Keep}>
           <Text as="legend" size="T200" className={sectionCss.SectionMeta}>
@@ -266,9 +289,10 @@ function SecretRequestAnswer({
           aria-describedby={error ? errorId : undefined}
           aria-invalid={error ? true : undefined}
           placeholder={
-            temporary
+            request.placeholder ??
+            (temporary
               ? t('mindroomUi.messages.secretRequestCard.temporary.placeholder')
-              : t('mindroomUi.messages.secretRequestCard.placeholder')
+              : t('mindroomUi.messages.secretRequestCard.placeholder'))
           }
           onChange={(event) => setHasKey(event.currentTarget.value.trim() !== '')}
           // Not a sign-in field: browsers and password managers neither fill nor save it.
@@ -347,17 +371,22 @@ function SecretRequestAnswer({
 /**
  * An agent's request for a secret (`io.mindroom.secret_request`), with a field for the person
  * asked while it is pending: a service's key, with the agent's reason and the hosts the key may go
- * to, or a temporary secret, with the variable the agent's commands receive it as.
- * `agentUserId` is the card's sender, whose own MindRoom server takes the answer.
+ * to, or a temporary secret, with the variable the agent's commands receive it as. The agent may
+ * also name the secret (a temporary one's title), hint at its form in the empty field, and name
+ * the page that gives it, which the person asked opens with a button above the field.
+ * `agentUserId` is the card's sender, whose own MindRoom server takes the answer. A `readOnly`
+ * card (another thread's view, such as a fork's prefix) shows the request without the field.
  */
 export function SecretRequestCard({
   request,
   roomId,
   agentUserId,
+  readOnly = false,
 }: {
   request: SecretRequest;
   roomId: string;
   agentUserId: string;
+  readOnly?: boolean;
 }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
@@ -369,7 +398,8 @@ export function SecretRequestCard({
   const [clockTick, setClockTick] = useState(0);
   const keyboardAnswer = useRef(false);
   const now = Date.now();
-  const isRequester = request.requesterId === viewerId;
+  // The person asked, where the card can take their answer.
+  const isRequester = request.requesterId === viewerId && !readOnly;
   // The agent's edit decides; until it comes, an answer the server took holds whatever the clock says.
   const waitingForEdit = request.status === 'pending';
   const status: SecretRequestStatus =
@@ -429,7 +459,9 @@ export function SecretRequestCard({
           <IsolatedText
             text={
               request.kind === 'temporary'
-                ? t('mindroomUi.messages.secretRequestCard.temporary.title', {
+                ? // What the agent calls the secret, when it said.
+                  (request.label && isolateInSentence(request.label)) ||
+                  t('mindroomUi.messages.secretRequestCard.temporary.title', {
                     agent: userDisplayName(room, agentUserId),
                   })
                 : t('mindroomUi.messages.secretRequestCard.title', {

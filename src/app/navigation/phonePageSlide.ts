@@ -37,8 +37,11 @@ let playing = false;
 
 /**
  * Runs `change`, which may change what a phone shows, and slides when it shows deeper or less
- * deep after it: a room over the list and a thread over its room come in from the end edge, and
- * leave to it on the way back, the page under them moving a third as far (phonePageSlide.css.ts).
+ * deep after it: a thread over its room comes in from the end edge, and a thread or a room leaves
+ * to it on the way back to the room or the list, the page under them moving a third as far
+ * (phonePageSlide.css.ts). The page stays put where the list goes away, as it does for a tap on a
+ * room in it: the drawer slides away to the start edge on its own over the page the change shows
+ * (sidebar/PhoneNavDrawer.css.ts).
  *
  * The browser plays the slide between two pictures of the page (a view transition), so no element
  * moves and nothing that measures the page sees it. It takes the first picture a frame after the
@@ -50,7 +53,7 @@ let playing = false;
  * `change` runs at once, and nothing slides, off the phone layout, in a browser without view
  * transitions and with reduced motion. Nothing slides either when the change leaves the phone
  * layout, or leaves a dialog open over the page (one that closes with the change, as a search
- * that opens a room, does not count).
+ * that opens a thread, does not count).
  */
 export const slidePhonePage = (change: Change): void => {
   if (waiting) {
@@ -73,17 +76,25 @@ export const slidePhonePage = (change: Change): void => {
   const from = depth();
   const changes = [change];
   waiting = changes;
-  // Names what slides (phonePageSlide.css.ts) for the picture of the page as it is.
-  root.dataset.pageSlide = '';
+  // Names what slides (phonePageSlide.css.ts) for the picture of the page as it is. Nothing slides
+  // from the list, which goes away on its own: the drawer keeps its slide, which the name would
+  // turn off. Its changes still wait for the picture, so the room a tap in the list opens comes
+  // with the drawer going away, and a slide asked for meanwhile does not stop the drawer's.
+  if (from !== 0) root.dataset.pageSlide = '';
   const transition = page.startViewTransition(() => {
     waiting = undefined;
     playing = true;
     flushSync(() => changes.forEach((each) => each(true)));
     const to = depth();
-    // Nothing to slide where the page is as deep as it was, and nothing where the pictures would
-    // not fit: the phone layout is gone (signed out, turned sideways), or a dialog still open
-    // over the page would show under them.
-    if (to === from || !page.querySelector(`[${PHONE_STAGE}]`) || hasBlockingPortalOverlay()) {
+    // Nothing to slide from the list, nor where the page is as deep as it was, and nothing where
+    // the pictures would not fit: the phone layout is gone (signed out, turned sideways), or a
+    // dialog still open over the page would show under them.
+    if (
+      from === 0 ||
+      to === from ||
+      !page.querySelector(`[${PHONE_STAGE}]`) ||
+      hasBlockingPortalOverlay()
+    ) {
       transition.skipTransition();
     } else root.dataset.pageSlide = to > from ? 'forward' : 'back';
   });

@@ -402,7 +402,9 @@
       },
       "about": {
         "thirdPartyNotices": "Üçüncü taraf bildirimleri",
-        "soundsCredit": "Bildirim ve davet sesleri bu uygulama için sentezlenmiş zil sesleridir."
+        "soundsCredit": "Bildirim ve davet sesleri bu uygulama için sentezlenmiş zil sesleridir.",
+        "debugMode": "Hata ayıklama modu",
+        "debugModeDescription": "Bu cihazda tanılama verilerini kaydeder; böylece bunları dışa aktarabilir ve ayrıntılı tanılama izlemeyi açabilirsiniz."
       }
     },
     "createChat": {
@@ -715,6 +717,7 @@
         "showKey": "Anahtarı göster",
         "hideKey": "Anahtarı gizle",
         "sentTo": "{{host}} adresine gönderilir",
+        "openLink": "{{host}} adresini aç",
         "save": "Kaydet",
         "decline": "Geri çevir",
         "savedWaiting": "Kaydedildi, ajan bekleniyor",
@@ -752,6 +755,23 @@
           "declined": "Geri çevrildi",
           "expired": "Süresi doldu"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "<code>{{skill}}</code> becerisi güncellendi",
+        "createdOne": "<code>{{skill}}</code> becerisi oluşturuldu",
+        "updatedMany_one": "{{count}} beceri güncellendi",
+        "updatedMany_other": "{{count}} beceri güncellendi",
+        "createdMany_one": "{{count}} beceri oluşturuldu",
+        "createdMany_other": "{{count}} beceri oluşturuldu",
+        "created": "oluşturuldu",
+        "updated": "güncellendi",
+        "removed": "kaldırıldı",
+        "diffTruncated": "Diff kısaltıldı",
+        "diffLabel": "{{path}} için diff"
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} çalıştı",
+        "worked": "Çalıştı"
       }
     },
     "message-search": {
@@ -839,6 +859,7 @@
       "title": "Alt ajanlar",
       "close": "Kapat",
       "empty": "Bu odada çalışan alt ajan yok.",
+      "emptyThread": "Bu konuda çalışan alt ajan yok.",
       "back": "Geri",
       "nested_one": "{{count}} alt ajan",
       "nested_other": "{{count}} alt ajan",
@@ -950,7 +971,8 @@
     "unsnooze": "Ertelemeyi kaldır",
     "status": {
       "snoozed": "Ertelendi"
-    }
+    },
+    "renameHint": "Yeniden adlandırmak için çift tıklayın"
   },
   "threadSnooze": {
     "title": "Şu zamana kadar ertele",
@@ -960,6 +982,16 @@
     "nextMonday": "Gelecek pazartesi 09:00",
     "pickDateTime": "Tarih ve saat seç",
     "pastTime": "Gelecekte bir zaman seçin"
+  },
+  "threadFork": {
+    "forkedFrom": "{{title}} konusundan ayrıldı",
+    "openInOriginalThread": "Asıl konuda aç",
+    "forkFromHere": "Buradan ayır",
+    "forkThread": "Konuyu ayır",
+    "forking": "{{title}} konusundan ayrılıyor",
+    "continueInNewThread": "Yeni bir konuda devam et",
+    "forkCount_one": "{{count}} ayrım",
+    "forkCount_other": "{{count}} ayrım"
   },
   "activity": {
     "title": "Etkinlik",
@@ -1269,6 +1301,26 @@
       "snoozed": "Ertelenenler",
       "idle": "Boşta",
       "resolved": "Çözülenler"
+    },
+    "live": {
+      "tools": "Araçlar",
+      "toolsRunning_one": "{{count}} çalışıyor",
+      "toolsRunning_other": "{{count}} çalışıyor",
+      "toolsRunningNamed_one": "{{count}} çalışıyor: {{names}}",
+      "toolsRunningNamed_other": "{{count}} çalışıyor: {{names}}",
+      "background": "Arka plan",
+      "jobs_one": "{{count}} iş",
+      "jobs_other": "{{count}} iş",
+      "jobsWaiting_one": "{{jobs}}, {{count}} onay bekliyor",
+      "jobsWaiting_other": "{{jobs}}, {{count}} onay bekliyor",
+      "waitingForAnswer": "Yanıt bekliyor"
     }
+  },
+  "threadBoard": {
+    "label": "Duruma göre ileti dizileri",
+    "working": "Çalışılıyor",
+    "later": "Sonra",
+    "open": "Açık",
+    "done": "Bitti"
   }
 }

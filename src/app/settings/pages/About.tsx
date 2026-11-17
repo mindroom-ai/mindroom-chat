@@ -22,6 +22,7 @@ import {
   subscribeDeepTraceStatus,
 } from '../../diagnostics/deepTrace';
 import { buildDiagnosticsExport } from '../../diagnostics/diagnosticsExport';
+import { getDebugModeEnabled, setDebugModeEnabled } from '../../diagnostics/debugMode';
 import { APP_RELEASE_VERSION } from '../../config/appVersion';
 import { parseDsn } from '../../bug-reports/error-reporting/errorReporting';
 import { SettingSwitchTile } from '../../ui/settings/SettingSwitchTile';
@@ -178,6 +179,49 @@ function DeepTraceSetting() {
             disabled={pending}
           />
         </Box>
+      }
+    />
+  );
+}
+
+/**
+ * Debug mode in a browser, where the iOS app's diagnostics are off until it is turned on. On, it
+ * shows the diagnostics export and the deep tracing switch.
+ */
+function DebugModeSetting({
+  enabled,
+  onChange,
+}: {
+  enabled: boolean;
+  onChange: (enabled: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const [pending, setPending] = useState(false);
+
+  const handleToggle = async (next: boolean) => {
+    setPending(true);
+    try {
+      await setDebugModeEnabled(next);
+    } catch {
+      // The switch shows the saved choice again below.
+    } finally {
+      setPending(false);
+      onChange(getDebugModeEnabled());
+    }
+  };
+
+  return (
+    <SettingTile
+      focusId="debugMode"
+      title={t('featureUi.settings.about.debugMode')}
+      description={t('featureUi.settings.about.debugModeDescription')}
+      after={
+        <Switch
+          variant="Primary"
+          value={enabled}
+          onChange={(next) => void handleToggle(next)}
+          disabled={pending}
+        />
       }
     />
   );
@@ -414,24 +458,25 @@ function AppIdentity() {
 }
 
 /**
- * App version, diagnostics tools in the iOS app, error reports when configured, the interface
- * tour, and credits.
+ * App version, diagnostics tools (always in the iOS app, behind debug mode elsewhere), error
+ * reports when configured, the interface tour, and credits.
  */
 export function About({ requestClose, closeDialog }: AboutProps) {
   const { t } = useTranslation();
   const nativeDiagnostics = isNativeIOS();
+  const [debugMode, setDebugMode] = useState(() => getDebugModeEnabled());
+  const diagnostics = nativeDiagnostics || debugMode;
   const collectorHost = parseDsn(useClientConfig().errorReporting?.dsn)?.host;
 
   return (
     <SettingsPageFrame title={t('settings.nav.about')} requestClose={requestClose}>
       <AppIdentity />
-      {(nativeDiagnostics || collectorHost) && (
-        <AboutSection title={t('featureUi.settings.about.options')}>
-          {nativeDiagnostics && <DiagnosticsExport />}
-          {nativeDiagnostics && <DeepTraceSetting />}
-          {collectorHost && <ErrorReportsSetting host={collectorHost} />}
-        </AboutSection>
-      )}
+      <AboutSection title={t('featureUi.settings.about.options')}>
+        {!nativeDiagnostics && <DebugModeSetting enabled={debugMode} onChange={setDebugMode} />}
+        {diagnostics && <DiagnosticsExport />}
+        {diagnostics && <DeepTraceSetting />}
+        {collectorHost && <ErrorReportsSetting host={collectorHost} />}
+      </AboutSection>
       <AboutSection title={t('tour.entries.settingsSection')}>
         <TourSetting onStart={closeDialog ?? requestClose} />
       </AboutSection>

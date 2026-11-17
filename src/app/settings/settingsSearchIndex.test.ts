@@ -22,6 +22,7 @@ const VALUES = {
 const WEB: SettingsContext = {
   native: false,
   nativeIOS: false,
+  diagnostics: false,
   localMindroom: true,
   serverAdmin: false,
   useSystemTheme: true,

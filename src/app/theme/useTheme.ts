@@ -110,6 +110,12 @@ export const themeSettingsAtom = atom((get) =>
   effectiveThemeSettings(get(settingsAtom), get(deploymentThemeAtom))
 );
 
+/**
+ * The ID of a theme the app shows for a look in place of the chosen one, which stays stored: the
+ * command palette's Theme page sets it to its highlighted theme and clears it as it leaves.
+ */
+export const themePreviewAtom = atom<string | undefined>(undefined);
+
 const DARK_SCHEME_QUERY = '(prefers-color-scheme: dark)';
 
 const readSystemThemeKind = (): ThemeKind =>
@@ -148,9 +154,10 @@ export const useSignedOutTheme = (): Theme => {
 /**
  * The theme the settings select (with the deployment's default, `effectiveThemeSettings`): the
  * fixed theme, or with "use system theme" the light or dark theme picked for the system's current
- * preference.
+ * preference. Signed in, it is the app's theme, but for a theme shown for a look
+ * (`themePreviewAtom`).
  */
-const useActiveTheme = (): Theme => {
+export const useChosenTheme = (): Theme => {
   const systemKind = useSystemThemeKind();
   const { themeId, useSystemTheme, lightThemeId, darkThemeId } = useAtomValue(themeSettingsAtom);
 
@@ -170,7 +177,7 @@ export const ThemeContextProvider = ThemeContext.Provider;
 /** The theme the app shows: the provided one, or the one the settings select. */
 export const useTheme = (): Theme => {
   const provided = useContext(ThemeContext);
-  const active = useActiveTheme();
+  const active = useChosenTheme();
   return provided ?? active;
 };
 

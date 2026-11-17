@@ -42,6 +42,10 @@ type UseThreadRenderStateOpts = {
   threadInitialSdkLoaded?: boolean;
   timelineRevision?: number;
   debugTraceId?: string;
+  /** A fork's parent messages up to its fork point (`useThreadForkPrefix`), shown before its own. */
+  prefixEvents?: MatrixEvent[];
+  /** A fork draft's fork point: the rows end there when it is one of the thread's own events. */
+  forkAt?: string;
 };
 
 type ThreadRelationState = {
@@ -56,11 +60,19 @@ type ThreadFallbackState = {
 
 const EMPTY_THREAD_EVENTS: MatrixEvent[] = [];
 
+/**
+ * The thread's rows: the root, the SDK thread's events, the supplemental ones and the local echoes,
+ * in thread order. A fork's prefix goes before them once the thread has rows of its own; `ownEvents`
+ * leaves it out. In a fork draft the rows end at the fork point (`forkPointIndex`), while
+ * `ownEvents` keeps the whole thread.
+ */
 const buildThreadEvents = ({
   room,
   threadId,
   thread,
   fallbackEvents,
+  prefixEvents,
+  forkAt,
   threadInitialCacheHydrated,
   threadInitialSdkLoaded = false,
 }: {
@@ -68,10 +80,14 @@ const buildThreadEvents = ({
   threadId: string;
   thread: Thread | null;
   fallbackEvents: MatrixEvent[];
+  prefixEvents: MatrixEvent[];
+  forkAt: string | undefined;
   threadInitialCacheHydrated: boolean;
   threadInitialSdkLoaded: boolean;
 }): {
   events: MatrixEvent[];
+  ownEvents: MatrixEvent[];
+  forkPointIndex: number | undefined;
   indexMap: Map<string, number>;
   initialRenderMode: ThreadInitialRenderMode;
 } => {
@@ -103,21 +119,38 @@ const buildThreadEvents = ({
 
   getPendingThreadEvents(room, threadId).forEach((event) => addThreadEvent(event));
 
+  // The parent's messages belong to the parent's thread; they sort before the fork's root.
+  const prefixIds = new Set(prefixEvents.map((mEvent) => mEvent.getId()));
+  if (collectedEvents.length > 0) prefixEvents.forEach((mEvent) => addThreadEvent(mEvent, false));
+
   const resolveConfirmedId = buildResolveConfirmedEventId(room, collectedEvents);
   const sortedEvents = mergeThreadRenderEvents([], collectedEvents, resolveConfirmedId);
+  const ownEvents =
+    prefixIds.size === 0
+      ? sortedEvents
+      : sortedEvents.filter((mEvent) => !prefixIds.has(mEvent.getId()));
+  // A fork draft shows the thread up to its fork point, one of its own events, and nothing after.
+  const cut =
+    forkAt === undefined || prefixIds.has(forkAt)
+      ? -1
+      : sortedEvents.findIndex((mEvent) => mEvent.getId() === forkAt);
+  const forkPointIndex = cut === -1 ? undefined : cut;
+  const events = forkPointIndex === undefined ? sortedEvents : sortedEvents.slice(0, cut + 1);
 
   const indexMap = new Map<string, number>();
-  sortedEvents.forEach((mEvent, index) => {
+  events.forEach((mEvent, index) => {
     const eventId = mEvent.getId();
     if (eventId) indexMap.set(eventId, index);
   });
 
   return {
-    events: sortedEvents,
+    events,
+    ownEvents,
+    forkPointIndex,
     indexMap,
     initialRenderMode: getThreadInitialRenderMode({
       initializationComplete,
-      availableEventCount: sortedEvents.length,
+      availableEventCount: ownEvents.length,
     }),
   };
 };
@@ -132,10 +165,17 @@ export const useThreadRenderState = ({
   threadInitialSdkLoaded = false,
   timelineRevision = 0,
   debugTraceId,
+  prefixEvents = EMPTY_THREAD_EVENTS,
+  forkAt,
 }: UseThreadRenderStateOpts): {
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
   threadEventIndexMap: Map<string, number>;
+  /** The rows: a fork's prefix, then the thread's own events. */
   threadEvents: MatrixEvent[];
+  /** The thread's own events, without a fork's prefix: what it reads, counts and loads. */
+  ownThreadEvents: MatrixEvent[];
+  /** In a fork draft, the row of its fork point, the last of `threadEvents`. */
+  forkPointIndex: number | undefined;
   threadInitialRenderMode: ThreadInitialRenderMode;
   setSupplementalThreadEvents: (expectedThreadId: string, events: MatrixEvent[]) => void;
   resetThreadRenderState: (nextThreadId?: string) => void;
@@ -304,6 +344,8 @@ export const useThreadRenderState = ({
     if (!threadId) {
       return {
         events: EMPTY_THREAD_EVENTS,
+        ownEvents: EMPTY_THREAD_EVENTS,
+        forkPointIndex: undefined,
         indexMap: new Map<string, number>(),
         initialRenderMode: 'live' as const,
       };
@@ -314,11 +356,15 @@ export const useThreadRenderState = ({
       threadId,
       thread,
       fallbackEvents,
+      prefixEvents,
+      forkAt,
       threadInitialCacheHydrated,
       threadInitialSdkLoaded,
     });
   }, [
     fallbackEvents,
+    forkAt,
+    prefixEvents,
     room,
     thread,
     threadEventRefreshTick,
@@ -329,6 +375,8 @@ export const useThreadRenderState = ({
   ]);
   const {
     events: threadEvents,
+    ownEvents: ownThreadEvents,
+    forkPointIndex,
     indexMap: threadEventIndexMap,
     initialRenderMode: threadInitialRenderMode,
   } = threadEventState;
@@ -375,6 +423,8 @@ export const useThreadRenderState = ({
     threadEventIndexMapRef,
     threadEventIndexMap,
     threadEvents,
+    ownThreadEvents,
+    forkPointIndex,
     threadInitialRenderMode,
     setSupplementalThreadEvents,
     resetThreadRenderState,

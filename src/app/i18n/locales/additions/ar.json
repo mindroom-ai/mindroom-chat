@@ -422,7 +422,9 @@
       },
       "about": {
         "thirdPartyNotices": "إشعارات الجهات الخارجية",
-        "soundsCredit": "أصوات الإشعارات والدعوات نغمات مُركَّبة صُنعت لهذا التطبيق."
+        "soundsCredit": "أصوات الإشعارات والدعوات نغمات مُركَّبة صُنعت لهذا التطبيق.",
+        "debugMode": "وضع التصحيح",
+        "debugModeDescription": "يسجّل التشخيصات على هذا الجهاز لتتمكن من تصديرها وتفعيل التتبع التشخيصي المفصل."
       }
     },
     "createChat": {
@@ -751,6 +753,7 @@
         "showKey": "إظهار المفتاح",
         "hideKey": "إخفاء المفتاح",
         "sentTo": "يُرسَل إلى ⁨{{host}}⁩",
+        "openLink": "فتح ⁨{{host}}⁩",
         "save": "حفظ",
         "decline": "رفض",
         "savedWaiting": "تم الحفظ، في انتظار الوكيل",
@@ -788,6 +791,31 @@
           "declined": "مرفوض",
           "expired": "منتهي الصلاحية"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "تم تحديث المهارة <code>⁨{{skill}}⁩</code>",
+        "createdOne": "تم إنشاء المهارة <code>⁨{{skill}}⁩</code>",
+        "updatedMany_zero": "تم تحديث ⁨{{count}}⁩ مهارة",
+        "updatedMany_one": "تم تحديث ⁨{{count}}⁩ مهارة",
+        "updatedMany_two": "تم تحديث مهارتين (⁨{{count}}⁩)",
+        "updatedMany_few": "تم تحديث ⁨{{count}}⁩ مهارات",
+        "updatedMany_many": "تم تحديث ⁨{{count}}⁩ مهارة",
+        "updatedMany_other": "تم تحديث ⁨{{count}}⁩ مهارة",
+        "createdMany_zero": "تم إنشاء ⁨{{count}}⁩ مهارة",
+        "createdMany_one": "تم إنشاء ⁨{{count}}⁩ مهارة",
+        "createdMany_two": "تم إنشاء مهارتين (⁨{{count}}⁩)",
+        "createdMany_few": "تم إنشاء ⁨{{count}}⁩ مهارات",
+        "createdMany_many": "تم إنشاء ⁨{{count}}⁩ مهارة",
+        "createdMany_other": "تم إنشاء ⁨{{count}}⁩ مهارة",
+        "created": "أُنشئ",
+        "updated": "حُدّث",
+        "removed": "أُزيل",
+        "diffTruncated": "تم اقتطاع الفرق",
+        "diffLabel": "الفرق في ⁨{{path}}⁩"
+      },
+      "finishedWork": {
+        "workedFor": "عمل لمدة ⁨{{duration}}⁩",
+        "worked": "عمل"
       }
     },
     "message-search": {
@@ -883,6 +911,7 @@
       "title": "الوكلاء الفرعيون",
       "close": "إغلاق",
       "empty": "لا يعمل أي وكيل فرعي في هذه الغرفة.",
+      "emptyThread": "لا يعمل أي وكيل فرعي في هذه السلسلة.",
       "back": "رجوع",
       "nested_zero": "الوكلاء الفرعيون: ⁨{{count}}⁩",
       "nested_one": "الوكلاء الفرعيون: ⁨{{count}}⁩",
@@ -1010,7 +1039,8 @@
     "unsnooze": "إلغاء التأجيل",
     "status": {
       "snoozed": "مؤجلة"
-    }
+    },
+    "renameHint": "انقر نقرًا مزدوجًا لإعادة التسمية"
   },
   "threadSnooze": {
     "title": "تأجيل حتى",
@@ -1020,6 +1050,20 @@
     "nextMonday": "الاثنين القادم 09:00",
     "pickDateTime": "اختيار التاريخ والوقت",
     "pastTime": "اختر وقتًا في المستقبل"
+  },
+  "threadFork": {
+    "forkedFrom": "متفرّع من ⁨{{title}}⁩",
+    "openInOriginalThread": "فتح في سلسلة المحادثة الأصلية",
+    "forkFromHere": "التفريع من هنا",
+    "forkThread": "تفريع سلسلة المحادثة",
+    "forking": "تفريع ⁨{{title}}⁩",
+    "continueInNewThread": "المتابعة في سلسلة محادثة جديدة",
+    "forkCount_zero": "⁨{{count}}⁩ تفريعة",
+    "forkCount_one": "⁨{{count}}⁩ تفريعة",
+    "forkCount_two": "⁨{{count}}⁩ تفريعتان",
+    "forkCount_few": "⁨{{count}}⁩ تفريعات",
+    "forkCount_many": "⁨{{count}}⁩ تفريعةً",
+    "forkCount_other": "⁨{{count}}⁩ تفريعة"
   },
   "activity": {
     "title": "النشاط",
@@ -1361,6 +1405,42 @@
       "snoozed": "مؤجلة",
       "idle": "خاملة",
       "resolved": "محلولة"
+    },
+    "live": {
+      "tools": "الأدوات",
+      "toolsRunning_zero": "⁨{{count}}⁩ قيد التشغيل",
+      "toolsRunning_one": "⁨{{count}}⁩ قيد التشغيل",
+      "toolsRunning_two": "⁨{{count}}⁩ قيد التشغيل",
+      "toolsRunning_few": "⁨{{count}}⁩ قيد التشغيل",
+      "toolsRunning_many": "⁨{{count}}⁩ قيد التشغيل",
+      "toolsRunning_other": "⁨{{count}}⁩ قيد التشغيل",
+      "toolsRunningNamed_zero": "⁨{{count}}⁩ قيد التشغيل: ⁨{{names}}⁩",
+      "toolsRunningNamed_one": "⁨{{count}}⁩ قيد التشغيل: ⁨{{names}}⁩",
+      "toolsRunningNamed_two": "⁨{{count}}⁩ قيد التشغيل: ⁨{{names}}⁩",
+      "toolsRunningNamed_few": "⁨{{count}}⁩ قيد التشغيل: ⁨{{names}}⁩",
+      "toolsRunningNamed_many": "⁨{{count}}⁩ قيد التشغيل: ⁨{{names}}⁩",
+      "toolsRunningNamed_other": "⁨{{count}}⁩ قيد التشغيل: ⁨{{names}}⁩",
+      "background": "الخلفية",
+      "jobs_zero": "⁨{{count}}⁩ مهمة",
+      "jobs_one": "مهمة واحدة (⁨{{count}}⁩)",
+      "jobs_two": "مهمتان (⁨{{count}}⁩)",
+      "jobs_few": "⁨{{count}}⁩ مهام",
+      "jobs_many": "⁨{{count}}⁩ مهمة",
+      "jobs_other": "⁨{{count}}⁩ مهمة",
+      "jobsWaiting_zero": "⁨{{jobs}}⁩، ⁨{{count}}⁩ بانتظار الموافقة",
+      "jobsWaiting_one": "⁨{{jobs}}⁩، ⁨{{count}}⁩ بانتظار الموافقة",
+      "jobsWaiting_two": "⁨{{jobs}}⁩، ⁨{{count}}⁩ بانتظار الموافقة",
+      "jobsWaiting_few": "⁨{{jobs}}⁩، ⁨{{count}}⁩ بانتظار الموافقة",
+      "jobsWaiting_many": "⁨{{jobs}}⁩، ⁨{{count}}⁩ بانتظار الموافقة",
+      "jobsWaiting_other": "⁨{{jobs}}⁩، ⁨{{count}}⁩ بانتظار الموافقة",
+      "waitingForAnswer": "بانتظار إجابة"
     }
+  },
+  "threadBoard": {
+    "label": "المحادثات حسب الحالة",
+    "working": "قيد العمل",
+    "later": "لاحقًا",
+    "open": "مفتوحة",
+    "done": "منتهية"
   }
 }

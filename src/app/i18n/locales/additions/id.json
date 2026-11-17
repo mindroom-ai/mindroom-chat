@@ -397,7 +397,9 @@
       },
       "about": {
         "thirdPartyNotices": "Pemberitahuan pihak ketiga",
-        "soundsCredit": "Suara notifikasi dan undangan adalah nada yang disintesis untuk aplikasi ini."
+        "soundsCredit": "Suara notifikasi dan undangan adalah nada yang disintesis untuk aplikasi ini.",
+        "debugMode": "Mode debug",
+        "debugModeDescription": "Merekam diagnostik di perangkat ini agar Anda dapat mengekspornya dan mengaktifkan pelacakan diagnostik mendalam."
       }
     },
     "createChat": {
@@ -706,6 +708,7 @@
         "showKey": "Tampilkan kunci",
         "hideKey": "Sembunyikan kunci",
         "sentTo": "Dikirim ke {{host}}",
+        "openLink": "Buka {{host}}",
         "save": "Simpan",
         "decline": "Tolak",
         "savedWaiting": "Tersimpan, menunggu agen",
@@ -743,6 +746,21 @@
           "declined": "Ditolak",
           "expired": "Kedaluwarsa"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Skill <code>{{skill}}</code> diperbarui",
+        "createdOne": "Skill <code>{{skill}}</code> dibuat",
+        "updatedMany_other": "{{count}} skill diperbarui",
+        "createdMany_other": "{{count}} skill dibuat",
+        "created": "dibuat",
+        "updated": "diperbarui",
+        "removed": "dihapus",
+        "diffTruncated": "Diff dipotong",
+        "diffLabel": "Diff {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "Bekerja selama {{duration}}",
+        "worked": "Bekerja"
       }
     },
     "message-search": {
@@ -828,6 +846,7 @@
       "title": "Subagen",
       "close": "Tutup",
       "empty": "Tidak ada subagen yang berjalan di ruangan ini.",
+      "emptyThread": "Tidak ada subagen yang berjalan di utas ini.",
       "back": "Kembali",
       "nested_other": "{{count}} subagen",
       "turns_other": "{{count}} giliran",
@@ -935,7 +954,8 @@
     "unsnooze": "Batalkan penundaan",
     "status": {
       "snoozed": "Ditunda"
-    }
+    },
+    "renameHint": "Klik dua kali untuk mengganti nama"
   },
   "threadSnooze": {
     "title": "Tunda hingga",
@@ -945,6 +965,15 @@
     "nextMonday": "Senin depan 09:00",
     "pickDateTime": "Pilih tanggal dan waktu",
     "pastTime": "Pilih waktu di masa depan"
+  },
+  "threadFork": {
+    "forkedFrom": "Bercabang dari {{title}}",
+    "openInOriginalThread": "Buka di utas asli",
+    "forkFromHere": "Cabangkan dari sini",
+    "forkThread": "Cabangkan utas",
+    "forking": "Mencabangkan {{title}}",
+    "continueInNewThread": "Lanjutkan di utas baru",
+    "forkCount_other": "{{count}} cabang"
   },
   "activity": {
     "title": "Aktivitas",
@@ -1246,6 +1275,22 @@
       "snoozed": "Ditunda",
       "idle": "Tidak aktif",
       "resolved": "Selesai"
+    },
+    "live": {
+      "tools": "Alat",
+      "toolsRunning_other": "{{count}} berjalan",
+      "toolsRunningNamed_other": "{{count}} berjalan: {{names}}",
+      "background": "Latar belakang",
+      "jobs_other": "{{count}} tugas",
+      "jobsWaiting_other": "{{jobs}}, {{count}} menunggu persetujuan",
+      "waitingForAnswer": "Menunggu jawaban"
     }
+  },
+  "threadBoard": {
+    "label": "Utas menurut status",
+    "working": "Dikerjakan",
+    "later": "Nanti",
+    "open": "Terbuka",
+    "done": "Selesai"
   }
 }

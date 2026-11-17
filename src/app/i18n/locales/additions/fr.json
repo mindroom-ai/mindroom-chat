@@ -407,7 +407,9 @@
       },
       "about": {
         "thirdPartyNotices": "Avis de tiers",
-        "soundsCredit": "Les sons de notification et d'invitation sont des carillons synthétisés pour cette application."
+        "soundsCredit": "Les sons de notification et d'invitation sont des carillons synthétisés pour cette application.",
+        "debugMode": "Mode débogage",
+        "debugModeDescription": "Enregistre des diagnostics sur cet appareil pour que vous puissiez les exporter et activer le traçage de diagnostic approfondi."
       }
     },
     "createChat": {
@@ -724,6 +726,7 @@
         "showKey": "Afficher la clé",
         "hideKey": "Masquer la clé",
         "sentTo": "Envoyée à {{host}}",
+        "openLink": "Ouvrir {{host}}",
         "save": "Enregistrer",
         "decline": "Refuser",
         "savedWaiting": "Enregistrée, en attente de l’agent",
@@ -761,6 +764,25 @@
           "declined": "Refusée",
           "expired": "Expirée"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Compétence <code>{{skill}}</code> mise à jour",
+        "createdOne": "Compétence <code>{{skill}}</code> créée",
+        "updatedMany_one": "{{count}} compétence mise à jour",
+        "updatedMany_many": "{{count}} compétences mises à jour",
+        "updatedMany_other": "{{count}} compétences mises à jour",
+        "createdMany_one": "{{count}} compétence créée",
+        "createdMany_many": "{{count}} compétences créées",
+        "createdMany_other": "{{count}} compétences créées",
+        "created": "créé",
+        "updated": "mis à jour",
+        "removed": "supprimé",
+        "diffTruncated": "Diff tronqué",
+        "diffLabel": "Diff de {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "A travaillé pendant {{duration}}",
+        "worked": "A travaillé"
       }
     },
     "message-search": {
@@ -850,6 +872,7 @@
       "title": "Sous-agents",
       "close": "Fermer",
       "empty": "Aucun sous-agent n’est en cours dans ce salon.",
+      "emptyThread": "Aucun sous-agent n’est en cours dans ce fil.",
       "back": "Retour",
       "nested_one": "{{count}} sous-agent",
       "nested_many": "{{count}} sous-agents",
@@ -965,7 +988,8 @@
     "unsnooze": "Annuler le report",
     "status": {
       "snoozed": "Reporté"
-    }
+    },
+    "renameHint": "Double-cliquez pour renommer"
   },
   "threadSnooze": {
     "title": "Reporter jusqu'à",
@@ -975,6 +999,17 @@
     "nextMonday": "Lundi prochain 09:00",
     "pickDateTime": "Choisir la date et l'heure",
     "pastTime": "Choisissez une heure dans le futur"
+  },
+  "threadFork": {
+    "forkedFrom": "Dérivé de {{title}}",
+    "openInOriginalThread": "Ouvrir dans le fil d'origine",
+    "forkFromHere": "Dériver à partir d'ici",
+    "forkThread": "Dériver le fil",
+    "forking": "Dérivation de {{title}}",
+    "continueInNewThread": "Continuer dans un nouveau fil",
+    "forkCount_one": "{{count}} dérivation",
+    "forkCount_many": "{{count}} dérivations",
+    "forkCount_other": "{{count}} dérivations"
   },
   "activity": {
     "title": "Activité",
@@ -1292,6 +1327,30 @@
       "snoozed": "Reportés",
       "idle": "Inactifs",
       "resolved": "Résolus"
+    },
+    "live": {
+      "tools": "Outils",
+      "toolsRunning_one": "{{count}} en cours",
+      "toolsRunning_many": "{{count}} en cours",
+      "toolsRunning_other": "{{count}} en cours",
+      "toolsRunningNamed_one": "{{count}} en cours : {{names}}",
+      "toolsRunningNamed_many": "{{count}} en cours : {{names}}",
+      "toolsRunningNamed_other": "{{count}} en cours : {{names}}",
+      "background": "Arrière-plan",
+      "jobs_one": "{{count}} tâche",
+      "jobs_many": "{{count}} tâches",
+      "jobs_other": "{{count}} tâches",
+      "jobsWaiting_one": "{{jobs}}, {{count}} en attente d’approbation",
+      "jobsWaiting_many": "{{jobs}}, {{count}} en attente d’approbation",
+      "jobsWaiting_other": "{{jobs}}, {{count}} en attente d’approbation",
+      "waitingForAnswer": "En attente d’une réponse"
     }
+  },
+  "threadBoard": {
+    "label": "Fils par état",
+    "working": "En cours",
+    "later": "Plus tard",
+    "open": "Ouverts",
+    "done": "Terminés"
   }
 }

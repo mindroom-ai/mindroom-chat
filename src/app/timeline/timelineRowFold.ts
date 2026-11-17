@@ -138,6 +138,8 @@ type FoldOptions = {
   /** Position of a row's event in the loaded timeline, for the unread divider. */
   getAbsoluteIndex?: (index: number) => number | undefined;
   readUptoAbsoluteIndex?: number;
+  /** A row that starts a group whatever is above it: a fork's first own row, under its divider. */
+  groupStartIndex?: number;
 };
 
 /**
@@ -155,6 +157,7 @@ export const foldTimelineRowContexts = ({
   isSkipped,
   getAbsoluteIndex,
   readUptoAbsoluteIndex,
+  groupStartIndex,
 }: FoldOptions): Map<number, TimelineRowContext> => {
   const contexts = new Map<number, TimelineRowContext>();
   const firstIndex = indexes[0];
@@ -177,7 +180,12 @@ export const foldTimelineRowContexts = ({
       const hasRow = !isRowlessTimelineEvent(event);
       const absoluteIndex = getAbsoluteIndex?.(index);
       const groupsWithAbove =
-        hasRow && aboveHasRow && !dayChanged && !!above && continuesGroup(above, event);
+        hasRow &&
+        aboveHasRow &&
+        !dayChanged &&
+        index !== groupStartIndex &&
+        !!above &&
+        continuesGroup(above, event);
       const unreadDivider =
         hasRow &&
         shouldRenderUnreadDividerAt({

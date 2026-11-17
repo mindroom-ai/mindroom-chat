@@ -28,6 +28,11 @@ target 'App' do
   # Add your Pods here
 end
 
+# The Store Mac app reuses the client and plugins with separate sandbox/signing settings.
+target 'AppStoreMac' do
+  capacitor_pods
+end
+
 post_install do |installer|
   assertDeploymentTarget(installer)
   # Resource bundles contain no executable code and need no separate signature.

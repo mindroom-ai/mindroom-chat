@@ -14,6 +14,7 @@ const t: SettingsTranslate = (key) => key;
 const CONTEXT: SettingsContext = {
   native: false,
   nativeIOS: false,
+  diagnostics: false,
   localMindroom: true,
   serverAdmin: false,
   useSystemTheme: true,

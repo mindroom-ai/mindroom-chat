@@ -402,7 +402,9 @@
       },
       "about": {
         "thirdPartyNotices": "तृतीय-पक्ष सूचनाएँ",
-        "soundsCredit": "सूचना और आमंत्रण की ध्वनियाँ इस ऐप के लिए संश्लेषित की गई झंकारें हैं।"
+        "soundsCredit": "सूचना और आमंत्रण की ध्वनियाँ इस ऐप के लिए संश्लेषित की गई झंकारें हैं।",
+        "debugMode": "डीबग मोड",
+        "debugModeDescription": "इस डिवाइस पर डायग्नोस्टिक्स रिकॉर्ड करता है, ताकि आप उन्हें एक्सपोर्ट कर सकें और गहन निदान अनुरेखण चालू कर सकें।"
       }
     },
     "createChat": {
@@ -715,6 +717,7 @@
         "showKey": "कुंजी दिखाएँ",
         "hideKey": "कुंजी छिपाएँ",
         "sentTo": "{{host}} को भेजी जाती है",
+        "openLink": "{{host}} खोलें",
         "save": "सहेजें",
         "decline": "अस्वीकार करें",
         "savedWaiting": "सहेजी गई, एजेंट की प्रतीक्षा",
@@ -752,6 +755,23 @@
           "declined": "अस्वीकृत",
           "expired": "खत्म हो चुका"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "स्किल <code>{{skill}}</code> अपडेट किया गया",
+        "createdOne": "स्किल <code>{{skill}}</code> बनाया गया",
+        "updatedMany_one": "{{count}} स्किल अपडेट किया गया",
+        "updatedMany_other": "{{count}} स्किल अपडेट किए गए",
+        "createdMany_one": "{{count}} स्किल बनाया गया",
+        "createdMany_other": "{{count}} स्किल बनाए गए",
+        "created": "बनाया गया",
+        "updated": "अपडेट किया गया",
+        "removed": "हटाया गया",
+        "diffTruncated": "डिफ़ छोटा किया गया",
+        "diffLabel": "{{path}} का डिफ़"
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} तक काम किया",
+        "worked": "काम किया"
       }
     },
     "message-search": {
@@ -839,6 +859,7 @@
       "title": "सब-एजेंट",
       "close": "बंद करें",
       "empty": "इस रूम में कोई सब-एजेंट नहीं चल रहा है।",
+      "emptyThread": "इस थ्रेड में कोई सब-एजेंट नहीं चल रहा है।",
       "back": "वापस",
       "nested_one": "{{count}} सब-एजेंट",
       "nested_other": "{{count}} सब-एजेंट",
@@ -950,7 +971,8 @@
     "unsnooze": "स्थगन हटाएँ",
     "status": {
       "snoozed": "स्नूज़ किया गया"
-    }
+    },
+    "renameHint": "नाम बदलने के लिए डबल-क्लिक करें"
   },
   "threadSnooze": {
     "title": "कब तक स्थगित करें",
@@ -960,6 +982,16 @@
     "nextMonday": "अगले सोमवार 09:00",
     "pickDateTime": "तारीख और समय चुनें",
     "pastTime": "भविष्य का समय चुनें"
+  },
+  "threadFork": {
+    "forkedFrom": "{{title}} से शाखा बनाई गई",
+    "openInOriginalThread": "मूल थ्रेड में खोलें",
+    "forkFromHere": "यहाँ से शाखा बनाएँ",
+    "forkThread": "थ्रेड की शाखा बनाएँ",
+    "forking": "{{title}} की शाखा बनाई जा रही है",
+    "continueInNewThread": "नए थ्रेड में जारी रखें",
+    "forkCount_one": "{{count}} शाखा",
+    "forkCount_other": "{{count}} शाखाएँ"
   },
   "activity": {
     "title": "गतिविधि",
@@ -1269,6 +1301,26 @@
       "snoozed": "स्नूज़ किए गए",
       "idle": "निष्क्रिय",
       "resolved": "सुलझे हुए"
+    },
+    "live": {
+      "tools": "टूल",
+      "toolsRunning_one": "{{count}} चल रहा है",
+      "toolsRunning_other": "{{count}} चल रहे हैं",
+      "toolsRunningNamed_one": "{{count}} चल रहा है: {{names}}",
+      "toolsRunningNamed_other": "{{count}} चल रहे हैं: {{names}}",
+      "background": "बैकग्राउंड",
+      "jobs_one": "{{count}} कार्य",
+      "jobs_other": "{{count}} कार्य",
+      "jobsWaiting_one": "{{jobs}}, {{count}} स्वीकृति की प्रतीक्षा में",
+      "jobsWaiting_other": "{{jobs}}, {{count}} स्वीकृति की प्रतीक्षा में",
+      "waitingForAnswer": "उत्तर की प्रतीक्षा"
     }
+  },
+  "threadBoard": {
+    "label": "स्थिति के अनुसार थ्रेड",
+    "working": "काम जारी",
+    "later": "बाद में",
+    "open": "खुले",
+    "done": "पूरे"
   }
 }

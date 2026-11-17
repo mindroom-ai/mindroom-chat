@@ -162,6 +162,8 @@ const FIXTURE_ACTIONS: CommandPaletteSource['actions'] = [
 ];
 
 // The rows only typed text finds, and the Theme page's choices, each with a spy to choose it.
+// What the pages' rows show for a look now, in order: each row adds its ID and takes it out.
+const previewed: string[] = [];
 const choice = (id: string, title: string, current: boolean, sortRank: number) => ({
   id,
   kind: 'action' as const,
@@ -169,6 +171,12 @@ const choice = (id: string, title: string, current: boolean, sortRank: number) =
   current,
   sortRank,
   onSelect: vi.fn(),
+  preview: () => {
+    previewed.push(id);
+    return () => {
+      previewed.splice(previewed.indexOf(id), 1);
+    };
+  },
 });
 const LIGHT = choice('theme:light', 'Light', false, 3);
 const DARK = choice('theme:dark', 'Dark', true, 2);
@@ -1154,6 +1162,32 @@ describe('CommandPalette pages and rows that keep it open', () => {
     expect(getInput(renderer).props['aria-label']).toBe('Theme');
     expect(getInput(renderer).props.placeholder).toBe('Filter results');
     expect(requestClose).not.toHaveBeenCalled();
+  });
+
+  it('the highlighted choice of a page shows for a look, until the highlight or the page goes', async () => {
+    // Earlier cases leave their palettes mounted, some in the page.
+    previewed.length = 0;
+    const renderer = renderPalette({ initialTab: 'actions' });
+    // A row typed text finds on the first list shows nothing.
+    await type(renderer, 'dracula');
+    expect(selectedId(renderer)).toBe('theme:dracula');
+    expect(previewed).toEqual([]);
+    await type(renderer, '');
+
+    await openThemePage(renderer);
+    expect(previewed).toEqual(['theme:dark']);
+    await press(renderer, 'ArrowDown');
+    expect(previewed).toEqual(['theme:dracula']);
+    await hover(renderer, 'theme:light');
+    expect(previewed).toEqual(['theme:light']);
+    await press(renderer, 'Escape');
+    expect(previewed).toEqual([]);
+
+    await openThemePage(renderer);
+    await press(renderer, 'ArrowUp');
+    expect(previewed).toEqual(['theme:light']);
+    act(() => renderer.unmount());
+    expect(previewed).toEqual([]);
   });
 
   it('typing filters the page', async () => {

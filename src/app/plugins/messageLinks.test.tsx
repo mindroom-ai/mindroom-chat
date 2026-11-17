@@ -28,6 +28,7 @@ const plugin = (id: string, messageLinks: MessageLink[]): RegisteredPlugin => ({
   roomActions: [],
   messageLinks,
   threadCardBadges: [],
+  threadDetails: [],
 });
 
 const matcher = (plugins: RegisteredPlugin[], config?: ClientConfig) =>

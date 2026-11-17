@@ -274,7 +274,11 @@ describe('readThreadSignals', () => {
       waitsUntil: 2000 + QUESTION_WAITS_MS,
     });
     expect(
-      readThreadSignals(room, ROOT, ME, 2000 + QUESTION_WAITS_MS + 1).pendingQuestion
+      readThreadSignals(room, ROOT, ME, 2000 + QUESTION_WAITS_MS - 1).pendingQuestion
+    ).toMatchObject({ eventId: '$q' });
+    // It lapses at waitsUntil itself, when a view's timer reads it again, as an approval does.
+    expect(
+      readThreadSignals(room, ROOT, ME, 2000 + QUESTION_WAITS_MS).pendingQuestion
     ).toBeUndefined();
   });
 

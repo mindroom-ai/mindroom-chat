@@ -51,6 +51,7 @@ vi.mock('../../event-store/threads/useThreadPinning', () => ({
 vi.mock('../useInitializeShownThread', () => ({ useInitializeShownThread: () => undefined }));
 vi.mock('./useThreadRootLiveCallRow', () => ({ useThreadRootLiveCallRow: () => undefined }));
 vi.mock('./ThreadCardBadges', () => ({ ThreadCardBadges: () => null }));
+vi.mock('./ThreadCardDetails', () => ({ ThreadCardDetails: () => null }));
 vi.mock('../../ui/InsetScrollbar', () => ({ InsetScrollbar: () => null }));
 vi.mock('../ThreadActionsMenu', () => ({ ThreadActionsMenu: () => null }));
 vi.mock('../../i18n/useRelativeTime', () => ({ useRelativeTime: () => '' }));

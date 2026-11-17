@@ -22,6 +22,8 @@ on:
   pull_request:
     paths:
       - docker/**
+      - bundled-plugins.txt
+      - scripts/bundled-plugins.mjs
       - scripts/image-smoke-test.sh
       - .github/workflows/image.yml
   workflow_dispatch:

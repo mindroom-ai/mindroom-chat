@@ -402,7 +402,9 @@
       },
       "about": {
         "thirdPartyNotices": "Kennisgevingen van derden",
-        "soundsCredit": "De meldings- en uitnodigingsgeluiden zijn klanken die voor deze app zijn gesynthetiseerd."
+        "soundsCredit": "De meldings- en uitnodigingsgeluiden zijn klanken die voor deze app zijn gesynthetiseerd.",
+        "debugMode": "Debugmodus",
+        "debugModeDescription": "Legt diagnostiek vast op dit apparaat, zodat je die kunt exporteren en uitgebreide diagnostische tracering kunt inschakelen."
       }
     },
     "createChat": {
@@ -715,6 +717,7 @@
         "showKey": "Sleutel tonen",
         "hideKey": "Sleutel verbergen",
         "sentTo": "Gaat naar {{host}}",
+        "openLink": "{{host}} openen",
         "save": "Opslaan",
         "decline": "Weigeren",
         "savedWaiting": "Opgeslagen, wacht op de agent",
@@ -752,6 +755,23 @@
           "declined": "Geweigerd",
           "expired": "Verlopen"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Skill <code>{{skill}}</code> bijgewerkt",
+        "createdOne": "Skill <code>{{skill}}</code> aangemaakt",
+        "updatedMany_one": "{{count}} skill bijgewerkt",
+        "updatedMany_other": "{{count}} skills bijgewerkt",
+        "createdMany_one": "{{count}} skill aangemaakt",
+        "createdMany_other": "{{count}} skills aangemaakt",
+        "created": "aangemaakt",
+        "updated": "bijgewerkt",
+        "removed": "verwijderd",
+        "diffTruncated": "Diff ingekort",
+        "diffLabel": "Diff van {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} gewerkt",
+        "worked": "Gewerkt"
       }
     },
     "message-search": {
@@ -839,6 +859,7 @@
       "title": "Subagenten",
       "close": "Sluiten",
       "empty": "Er zijn geen subagenten actief in deze kamer.",
+      "emptyThread": "Er zijn geen subagenten actief in deze thread.",
       "back": "Terug",
       "nested_one": "{{count}} subagent",
       "nested_other": "{{count}} subagenten",
@@ -950,7 +971,8 @@
     "unsnooze": "Snooze opheffen",
     "status": {
       "snoozed": "Gesnoozed"
-    }
+    },
+    "renameHint": "Dubbelklik om de naam te wijzigen"
   },
   "threadSnooze": {
     "title": "Snoozen tot",
@@ -960,6 +982,16 @@
     "nextMonday": "Volgende maandag 09:00",
     "pickDateTime": "Datum en tijd kiezen",
     "pastTime": "Kies een tijd in de toekomst"
+  },
+  "threadFork": {
+    "forkedFrom": "Afgesplitst van {{title}}",
+    "openInOriginalThread": "Openen in oorspronkelijke thread",
+    "forkFromHere": "Hier afsplitsen",
+    "forkThread": "Thread afsplitsen",
+    "forking": "{{title}} afsplitsen",
+    "continueInNewThread": "Verdergaan in een nieuwe thread",
+    "forkCount_one": "{{count}} afsplitsing",
+    "forkCount_other": "{{count}} afsplitsingen"
   },
   "activity": {
     "title": "Activiteit",
@@ -1269,6 +1301,26 @@
       "snoozed": "Gesnoozed",
       "idle": "Inactief",
       "resolved": "Opgelost"
+    },
+    "live": {
+      "tools": "Gereedschappen",
+      "toolsRunning_one": "{{count}} actief",
+      "toolsRunning_other": "{{count}} actief",
+      "toolsRunningNamed_one": "{{count}} actief: {{names}}",
+      "toolsRunningNamed_other": "{{count}} actief: {{names}}",
+      "background": "Achtergrond",
+      "jobs_one": "{{count}} taak",
+      "jobs_other": "{{count}} taken",
+      "jobsWaiting_one": "{{jobs}}, {{count}} wacht op goedkeuring",
+      "jobsWaiting_other": "{{jobs}}, {{count}} wachten op goedkeuring",
+      "waitingForAnswer": "Wacht op een antwoord"
     }
+  },
+  "threadBoard": {
+    "label": "Threads per status",
+    "working": "Bezig",
+    "later": "Later",
+    "open": "Open",
+    "done": "Klaar"
   }
 }

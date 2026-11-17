@@ -63,6 +63,8 @@ export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId' | 'threadFilter
   room: Room;
   eventId?: string;
   threadId?: string;
+  /** The open thread is a fork draft from this message of it (`ThreadView`). */
+  forkAt?: string;
   /** The route asks to show `eventId` in the room timeline rather than in its thread. */
   focusEventInRoom?: boolean;
   onThreadLoadError?: (threadId: string) => void;
@@ -114,6 +116,7 @@ export function RoomView({
   room,
   eventId,
   threadId,
+  forkAt,
   focusEventInRoom,
   hasMindroomAgents,
   onThreadLoadError,
@@ -368,6 +371,7 @@ export function RoomView({
                 room={room}
                 threadId={openThreadId}
                 eventId={focusEventInRoom ? undefined : eventId}
+                forkAt={forkAt}
                 header={threadBanner}
                 // The banner's title follows the summaries the thread's own events bring.
                 summaryMap={timelineProps.summaryMap}

@@ -1,5 +1,5 @@
 import { globalStyle, style, type GlobalStyleRule } from '@vanilla-extract/css';
-import { config } from 'folds';
+import { config, toRem } from 'folds';
 import { SectionTitle } from './ThreadApprovals.css';
 
 /** "GitHub key": a long service name ends in an ellipsis before it pushes the chip out. */
@@ -19,6 +19,28 @@ export const Reason = style({ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }
  */
 export const Masked = style({});
 globalStyle(`${Masked} input`, { WebkitTextSecurity: 'disc' } as unknown as GlobalStyleRule);
+
+/**
+ * The button to the page that gives the secret: as wide as its text, never wider than the card,
+ * and a button to the eye, so without a link's underline. A host too long for one line wraps and
+ * the button grows with it: the end of a host says whose page it is, so it is never cut off.
+ */
+export const Link = style({
+  selectors: {
+    // Twice, to stand above the height a button has for its size.
+    '&&': {
+      alignSelf: 'flex-start',
+      maxInlineSize: '100%',
+      blockSize: 'auto',
+      minBlockSize: toRem(32),
+      paddingBlock: config.space.S100,
+      textDecoration: 'none',
+    },
+  },
+});
+
+/** The button's text, which breaks inside a host that has no place to break. */
+export const LinkText = style({ minInlineSize: 0, overflowWrap: 'anywhere' });
 
 /** The requester's choice, field and buttons, which lie in the card as if no element held them. */
 export const Answer = style({ display: 'contents' });

@@ -127,6 +127,8 @@ export type ConversationLayoutProps = {
   timeline: ReactNode;
   focusConversation: () => void;
   canCancelJobs: boolean;
+  /** A fork draft: the thread's approvals and jobs show without acting on the thread. */
+  readOnly?: boolean;
   notice?: ReactNode;
   composer?: ReactNode;
   /** Takes no room in its row and shows only `children` (the room under a filling thread). */
@@ -152,6 +154,7 @@ export function ConversationLayout({
   timeline,
   focusConversation,
   canCancelJobs,
+  readOnly = false,
   notice,
   composer,
   collapsed = false,
@@ -194,7 +197,7 @@ export function ConversationLayout({
             <ThreadApprovalProvider
               room={room}
               // A message not yet on the server has no approvals, and no relations to ask for.
-              threadId={isConfirmedMatrixEventId(threadId) ? threadId : undefined}
+              threadId={!readOnly && isConfirmedMatrixEventId(threadId) ? threadId : undefined}
               focusConversation={focusConversation}
             >
               <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>
@@ -205,10 +208,10 @@ export function ConversationLayout({
                   <BackgroundJobsBar
                     room={room}
                     threadId={threadId ?? null}
-                    canCancel={canCancelJobs}
+                    canCancel={canCancelJobs && !readOnly}
                     subagentRuns={subagentRuns}
                   />
-                  {threadId && <ThreadApprovalQueue />}
+                  {threadId && !readOnly && <ThreadApprovalQueue />}
                 </div>
               </div>
             </ThreadApprovalProvider>

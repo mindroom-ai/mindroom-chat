@@ -226,13 +226,29 @@ export const useBindRoomToUnreadAtom = (
       });
     resetAll(initialRooms);
 
-    const update = (room: Room) => setUnread(getRoomUnreadAction(mx, room));
+    // IDs of the rooms whose counts changed and are not counted again yet.
+    const pendingCounts = new Set<string>();
+    /** Sets a room's entry now, which covers every count change that still waited. */
+    const setEntry = (roomId: string, action: RoomToUnreadAction) => {
+      pendingCounts.delete(roomId);
+      setUnread(action);
+    };
+    const update = (room: Room) => setEntry(room.roomId, getRoomUnreadAction(mx, room));
 
-    // Counts can change without a timeline event (another device read the room).
+    // Counts can change without a timeline event (another device read the room). A sync sets
+    // the two counts of each thread it lists one by one, with an event each, so the room is
+    // counted once after the burst and not once per event: each count is a sum over all threads.
+    const updateAfterCounts = (room: Room) => {
+      if (pendingCounts.has(room.roomId)) return;
+      pendingCounts.add(room.roomId);
+      queueMicrotask(() => {
+        if (pendingCounts.has(room.roomId)) update(room);
+      });
+    };
     const countListeners = new Map<Room, () => void>();
     const watchCounts = (room: Room) => {
       if (countListeners.has(room)) return;
-      const listener = () => update(room);
+      const listener = () => updateAfterCounts(room);
       room.on(RoomEvent.UnreadNotifications, listener);
       countListeners.set(room, listener);
     };
@@ -253,7 +269,8 @@ export const useBindRoomToUnreadAtom = (
       const receipts = userId ? getOwnReadReceipts(event, userId) : [];
       // Other members' receipts do not change what this user has read.
       if (receipts.length === 0) return;
-      setUnread(
+      setEntry(
+        room.roomId,
         sendingOwnReceipt
           ? toUnreadAction(mx, room, getOptimisticReceiptUnreadInfo(room, receipts))
           : getRoomUnreadAction(mx, room)
@@ -263,7 +280,7 @@ export const useBindRoomToUnreadAtom = (
       watchCounts(room);
       update(room);
     };
-    const handleDeleteRoom = (roomId: string) => setUnread({ type: 'DELETE', roomId });
+    const handleDeleteRoom = (roomId: string) => setEntry(roomId, { type: 'DELETE', roomId });
     // Muting a room, or unmuting it, changes whether its unread messages show.
     const handleAccountData = (event: MatrixEvent) => {
       if (matchesEnum(event.getType(), EventType.PushRules)) resetAll(mx.getRooms());
@@ -276,6 +293,7 @@ export const useBindRoomToUnreadAtom = (
     mx.on(ClientEvent.DeleteRoom, handleDeleteRoom);
     mx.on(ClientEvent.AccountData, handleAccountData);
     return () => {
+      pendingCounts.clear();
       mx.removeListener(RoomEvent.Timeline, handleTimeline);
       mx.removeListener(RoomEvent.Receipt, handleReceipt);
       mx.removeListener(RoomEvent.MyMembership, update);

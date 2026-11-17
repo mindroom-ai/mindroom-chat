@@ -397,7 +397,9 @@
       },
       "about": {
         "thirdPartyNotices": "第三方聲明",
-        "soundsCredit": "通知和邀請提示音是為本應用程式合成的鈴聲。"
+        "soundsCredit": "通知和邀請提示音是為本應用程式合成的鈴聲。",
+        "debugMode": "除錯模式",
+        "debugModeDescription": "在此裝置上記錄診斷資訊，以便匯出並開啟深度診斷追蹤。"
       }
     },
     "createChat": {
@@ -706,6 +708,7 @@
         "showKey": "顯示金鑰",
         "hideKey": "隱藏金鑰",
         "sentTo": "傳送到 {{host}}",
+        "openLink": "開啟 {{host}}",
         "save": "儲存",
         "decline": "拒絕",
         "savedWaiting": "已儲存，等待代理程式",
@@ -743,6 +746,21 @@
           "declined": "已拒絕",
           "expired": "已到期"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "已更新技能 <code>{{skill}}</code>",
+        "createdOne": "已建立技能 <code>{{skill}}</code>",
+        "updatedMany_other": "已更新 {{count}} 個技能",
+        "createdMany_other": "已建立 {{count}} 個技能",
+        "created": "已建立",
+        "updated": "已更新",
+        "removed": "已刪除",
+        "diffTruncated": "差異已截斷",
+        "diffLabel": "{{path}} 的差異"
+      },
+      "finishedWork": {
+        "workedFor": "工作了 {{duration}}",
+        "worked": "已工作"
       }
     },
     "message-search": {
@@ -828,6 +846,7 @@
       "title": "子代理",
       "close": "關閉",
       "empty": "此聊天室中沒有正在執行的子代理。",
+      "emptyThread": "此討論串中沒有正在執行的子代理。",
       "back": "返回",
       "nested_other": "{{count}} 個子代理",
       "turns_other": "{{count}} 輪",
@@ -935,7 +954,8 @@
     "unsnooze": "取消延後",
     "status": {
       "snoozed": "已延後"
-    }
+    },
+    "renameHint": "按兩下以重新命名"
   },
   "threadSnooze": {
     "title": "延後至",
@@ -945,6 +965,15 @@
     "nextMonday": "下週一 09:00",
     "pickDateTime": "選擇日期和時間",
     "pastTime": "請選擇未來的時間"
+  },
+  "threadFork": {
+    "forkedFrom": "分支自 {{title}}",
+    "openInOriginalThread": "在原討論串中開啟",
+    "forkFromHere": "從此處分支",
+    "forkThread": "分支討論串",
+    "forking": "正在從 {{title}} 分支",
+    "continueInNewThread": "在新討論串中繼續",
+    "forkCount_other": "{{count}} 個分支"
   },
   "activity": {
     "title": "動態",
@@ -1246,6 +1275,22 @@
       "snoozed": "已延後",
       "idle": "閒置",
       "resolved": "已解決"
+    },
+    "live": {
+      "tools": "工具",
+      "toolsRunning_other": "{{count}} 個執行中",
+      "toolsRunningNamed_other": "{{count}} 個執行中：{{names}}",
+      "background": "背景",
+      "jobs_other": "{{count}} 個工作",
+      "jobsWaiting_other": "{{jobs}}，{{count}} 個等待核准",
+      "waitingForAnswer": "等待回答"
     }
+  },
+  "threadBoard": {
+    "label": "依狀態分列的討論串",
+    "working": "進行中",
+    "later": "稍後",
+    "open": "未完成",
+    "done": "已完成"
   }
 }

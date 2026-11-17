@@ -30,10 +30,12 @@ import { IconTooltip } from '../../ui/IconTooltip';
 import { useListMotion } from '../../ui/listMotion';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
-import { useStagedCardIds } from './useStagedCardIds';
+import { firstRenderCardCount, useStagedCardIds } from './useStagedCardIds';
 import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import { ThreadCardBadges } from './ThreadCardBadges';
+import { ThreadCardDetails } from './ThreadCardDetails';
+import { useLongPress } from '../../lib/hooks/useLongPress';
 
 const ThreadActionsMenu = lazy(() =>
   import('../ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -114,23 +116,29 @@ const CompactThreadCardRow = React.memo(
       [room, rootId]
     );
 
+    const openMenuAt = (x: number, y: number, shell: HTMLElement) => {
+      onOpenMenu({
+        roomId,
+        rootId,
+        viewModel,
+        anchor: { x, y, width: 0, height: 0 },
+        trigger: shell.querySelector<HTMLButtonElement>('[data-thread-root-id]') ?? undefined,
+      });
+    };
+    const longPress = useLongPress(openMenuAt, (evt) =>
+      evt.currentTarget.contains(evt.target as Node)
+    );
+
     return (
       <div
+        {...longPress}
         ref={shownRef}
         className={css.CardShell}
         data-scroll-anchor={rootId}
         onContextMenu={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          onOpenMenu({
-            roomId,
-            rootId,
-            viewModel,
-            anchor: { x: event.clientX, y: event.clientY, width: 0, height: 0 },
-            trigger:
-              event.currentTarget.querySelector<HTMLButtonElement>('[data-thread-root-id]') ??
-              undefined,
-          });
+          openMenuAt(event.clientX, event.clientY, event.currentTarget);
         }}
         onKeyDown={(event) => {
           if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
@@ -161,6 +169,7 @@ const CompactThreadCardRow = React.memo(
                   onClick={onThreadClick}
                   attachment={callRow && <LazyCallRow {...callRow} />}
                   badges={badges}
+                  room={room}
                 />
               )}
             />
@@ -270,8 +279,13 @@ export function CompactRoomView({
   const focusHeld = focusInside && !!contentRef.current?.contains(document.activeElement);
   const orderHeld = pointerInside || focusHeld || !!menu;
   const shownRootIds = useHeldThreadOrder(threadRootIds, orderHeld, viewRef);
-  // A filter change mounts the cards it brings back a chunk at a time.
-  const stagedRootIds = useStagedCardIds(room.roomId, shownRootIds);
+  // A filter change mounts the cards it brings back a chunk at a time, and so does a mount after
+  // the cards of its first screen, or of the place the reader left (`useScrollAnchorMemory`).
+  const stagedRootIds = useStagedCardIds(
+    room.roomId,
+    shownRootIds,
+    firstRenderCardCount(shownRootIds, compactRoomScrollStateRef.current.get(room.roomId))
+  );
   const cardViewModels = useCompactThreadCardViewModels({
     room,
     threadRootIds: stagedRootIds,
@@ -376,6 +390,7 @@ export function CompactRoomView({
     // Touch screens hide the hover Resolve button; a swipe resolves or reopens.
     const swipeEnabled =
       canToggle &&
+      menu?.rootId !== rootId &&
       !pinned &&
       isConfirmedMatrixEventId(rootId) &&
       !updatingThreadRootIds.has(rootId);
@@ -408,7 +423,14 @@ export function CompactRoomView({
   };
 
   return (
-    <Box ref={viewRef} className={css.View} data-compact-room-view="true" tabIndex={-1}>
+    <Box
+      ref={viewRef}
+      className={css.View}
+      data-compact-room-view="true"
+      // Cards still to mount: the cards' end is further down than the view's.
+      data-cards-pending={stagedRootIds.length < shownRootIds.length || undefined}
+      tabIndex={-1}
+    >
       <Box
         ref={contentRef}
         className={`${SwipeList} ${css.Cards}`}
@@ -468,6 +490,7 @@ export function CompactRoomView({
         className={overlay.Scrollbar}
         label={t('threadNav.messages')}
       />
+      <ThreadCardDetails room={room} listRef={contentRef} menuOpen={!!menu} />
       {menu && menuModel && (
         <Suspense fallback={null}>
           <ThreadActionsMenu

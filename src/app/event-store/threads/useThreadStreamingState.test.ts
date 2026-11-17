@@ -5,7 +5,11 @@ import { RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
 import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { getThreadStreamingState, useThreadStreamingState } from './useThreadStreamingState';
+import {
+  getThreadStreamingReplies,
+  getThreadStreamingState,
+  useThreadStreamingState,
+} from './useThreadStreamingState';
 
 const THREAD_ROOT_ID = '$root';
 
@@ -205,6 +209,39 @@ const renderHookHarness = (
     renderer: renderer as ReactTestRenderer,
   };
 };
+
+describe('getThreadStreamingReplies', () => {
+  it('finds every reply that streams, and none once they finished', () => {
+    const relationMap = new Map<string, MockRelations>();
+    const earlier = makeThreadReplyEvent('$earlier', 100);
+    const first = makeThreadReplyEvent('$first', 200, {
+      'io.mindroom.stream_status': 'streaming',
+    });
+    const second = makeThreadReplyEvent('$second', 250, {
+      'io.mindroom.stream_status': 'streaming',
+    });
+    const thread = makeThread({ relationMap, timelineEvents: [earlier, first, second] });
+    const room = makeRoom({
+      rootEventId: '$root',
+      thread,
+      roomTimelineSet: makeTimelineSet(relationMap, () => []),
+    });
+
+    expect(getThreadStreamingReplies(room, '$root')).toEqual([first, second]);
+    expect(getThreadStreamingReplies(room, '$other')).toEqual([]);
+
+    [first, second].forEach((reply) =>
+      reply.setUnsigned({
+        'm.relations': {
+          'm.replace': makeEditEvent(`${reply.getId()}-done`, 300, reply.getId()!, {
+            'io.mindroom.stream_status': 'completed',
+          }).event,
+        },
+      })
+    );
+    expect(getThreadStreamingReplies(room, '$root')).toEqual([]);
+  });
+});
 
 describe('useThreadStreamingState', () => {
   it('copies bundled edits shallowly without changing them and observes newer bundles', () => {
@@ -423,6 +460,82 @@ describe('useThreadStreamingState', () => {
     expect(getSnapshot()).toBe(false);
 
     renderer.unmount();
+  });
+
+  it('reads the tail once for a burst of thread updates, as history loading sends', () => {
+    const relationMap = new Map<string, MockRelations>();
+    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
+    const reply = makeThreadReplyEvent('$reply', 200);
+    const thread = makeThread({ lastReply: reply, relationMap, timelineEvents: [reply] });
+    const room = makeRoom({ rootEventId: '$root', thread, roomTimelineSet });
+    const { getSnapshot, renderer } = renderHookHarness(room);
+    const lookups = vi.mocked(thread.getUnfilteredTimelineSet().relations.getChildEventsForEvent);
+    lookups.mockClear();
+
+    act(() => {
+      thread.emit(ThreadEvent.Update, thread);
+    });
+    const lookupsForOneUpdate = lookups.mock.calls.length;
+    expect(lookupsForOneUpdate).toBeGreaterThan(0);
+    lookups.mockClear();
+
+    // The SDK sends one update for every event a page of older history adds.
+    act(() => {
+      for (let i = 0; i < 50; i += 1) thread.emit(ThreadEvent.Update, thread);
+    });
+    expect(lookups.mock.calls.length).toBe(lookupsForOneUpdate);
+    expect(getSnapshot()).toBe(false);
+
+    // An update the burst carries still shows.
+    const streamingReply = makeThreadReplyEvent('$streaming', 300, {
+      'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+    });
+    act(() => {
+      thread.setTimelineEvents([reply, streamingReply]);
+      thread.setLastReply(streamingReply);
+      for (let i = 0; i < 50; i += 1) thread.emit(ThreadEvent.Update, thread);
+    });
+    expect(getSnapshot()).toBe(true);
+
+    renderer.unmount();
+  });
+
+  it('checks a thread it switches to again once it listens to it', () => {
+    const relationMap = new Map<string, MockRelations>();
+    const roomTimelineSet = makeTimelineSet(relationMap, () => []);
+    const first = makeThread({ lastReply: makeThreadReplyEvent('$first-reply', 200), relationMap });
+    const quietReply = makeThreadReplyEvent('$second-reply', 200);
+    const second = makeThread({ lastReply: quietReply, relationMap });
+    const threads: Record<string, MockThread> = { $first: first, $second: second };
+    const room = {
+      getThread: (threadRootId: string) => threads[threadRootId],
+      getUnfilteredTimelineSet: () => roomTimelineSet,
+    } as unknown as Room;
+    let latest: HookValue = false;
+    // A reply of the new thread starts streaming after the switch rendered, before the hook
+    // listens to that thread.
+    function Switching({ threadRootId }: { threadRootId: string }) {
+      latest = useThreadStreamingState(room, threadRootId);
+      React.useLayoutEffect(() => {
+        if (threadRootId !== '$second') return;
+        const streaming = makeThreadReplyEvent('$second-streaming', 300, {
+          'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+        });
+        second.setTimelineEvents([quietReply, streaming]);
+        second.setLastReply(streaming);
+        second.emit(ThreadEvent.NewReply, second, streaming);
+      }, [threadRootId]);
+      return null;
+    }
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(React.createElement(Switching, { threadRootId: '$first' }));
+    });
+    expect(latest).toBe(false);
+
+    act(() => renderer!.update(React.createElement(Switching, { threadRootId: '$second' })));
+    expect(latest).toBe(true);
+    act(() => renderer!.unmount());
   });
 
   it('updates when the thread switches to a new streaming reply', () => {

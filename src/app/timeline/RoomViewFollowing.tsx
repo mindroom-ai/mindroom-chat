@@ -91,34 +91,48 @@ const useFollowers = (room: Room, threadId: string | undefined, myUserId: string
   const [following, setFollowing] = useState(() => readFollowers(room, threadId, myUserId));
 
   useEffect(() => {
+    let subscribed = true;
+    let readPending = false;
     const refresh = () => {
       const next = readFollowers(room, threadId, myUserId);
       setFollowing((previous) => (sameFollowing(previous, next) ? previous : next));
     };
+    // Each read asks every member's receipt. The SDK adds a page of older history, the events of a
+    // thread being opened, or a batch of members in one go, with an event for each: on a long
+    // thread they come by the hundred. They share one read once the SDK is done, which also sees
+    // what it sets after an event, such as a new member's membership.
+    const refreshSoon = () => {
+      if (readPending) return;
+      readPending = true;
+      queueMicrotask(() => {
+        readPending = false;
+        if (subscribed) refresh();
+      });
+    };
     // The room passes on the events and receipts of all its threads, many a second while agents
-    // stream, and each refresh asks every member's receipt; only those of the shown timeline can
-    // change who has read its newest event.
+    // stream; only those of the shown timeline can change who has read its newest event.
     const refreshForTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (...[, , , , data]) => {
       if (data?.timeline && data.timeline !== shownTimeline(room, threadId)) return;
-      refresh();
+      refreshSoon();
     };
     const refreshForThread = (thread: Thread) => {
-      if (thread.id === threadId) refresh();
+      if (thread.id === threadId) refreshSoon();
     };
     const refreshForReceipt = (receiptEvent: MatrixEvent | undefined) => {
-      if (hasShownTimelineReceipt(receiptEvent, threadId)) refresh();
+      if (hasShownTimelineReceipt(receiptEvent, threadId)) refreshSoon();
     };
     refresh();
     room.on(RoomEvent.Receipt, refreshForReceipt);
     room.on(RoomEvent.Timeline, refreshForTimeline);
     room.on(ThreadEvent.Update, refreshForThread);
     // Members load lazily, so a follower may only be known once the member list arrives.
-    room.on(RoomStateEvent.NewMember, refresh);
+    room.on(RoomStateEvent.NewMember, refreshSoon);
     return () => {
+      subscribed = false;
       room.removeListener(RoomEvent.Receipt, refreshForReceipt);
       room.removeListener(RoomEvent.Timeline, refreshForTimeline);
       room.removeListener(ThreadEvent.Update, refreshForThread);
-      room.removeListener(RoomStateEvent.NewMember, refresh);
+      room.removeListener(RoomStateEvent.NewMember, refreshSoon);
     };
   }, [room, threadId, myUserId]);
 
