@@ -15,6 +15,7 @@ import {
   saveThreadEventsToCache,
 } from '../../event-store/cache/db';
 import { useRoomThreadList } from './useRoomThreadList';
+import { createThreadRecordChanges } from '../../event-store/threads/threadRecord';
 import { buildCompactThreadRootData } from '../../event-store/threads/compactThreadRootData';
 
 /** Roots whose revision the hook computed, in order. */
@@ -37,6 +38,8 @@ vi.mock('../../event-store/cache/eventRepository', async (original) => {
 });
 
 const userId = '@alice:example.org';
+/** No listener marks it, so each build checks every thread. */
+const changes = createThreadRecordChanges();
 const roomId = '!offline:example.org';
 let renderer: ReactTestRenderer | undefined;
 let sessionId: string;
@@ -136,7 +139,7 @@ it('restores 400 cached threads while only one is in the SDK and discovery is pe
   expect(room.getThreads()).toHaveLength(1);
   let ids: string[] = [];
   function Harness() {
-    const { threads } = useRoomThreadList(room);
+    const { threads } = useRoomThreadList(room, true, changes, 0);
     ids = buildCompactThreadRootData({
       room,
       threads,
@@ -261,7 +264,7 @@ const decryptEvent = (event: MatrixEvent, content: Promise<object>) =>
 const showList = (mx: MatrixClient, engine: Engine, room: Room) => {
   const list: { current?: ReturnType<typeof useRoomThreadList> } = {};
   function Harness() {
-    list.current = useRoomThreadList(room);
+    list.current = useRoomThreadList(room, true, changes, 0);
     return null;
   }
   renderer = create(
@@ -585,7 +588,7 @@ it('saves only changed listed roots when the overview is shown again', async () 
   });
   let loading = true;
   function Harness() {
-    loading = useRoomThreadList(room).loading;
+    loading = useRoomThreadList(room, true, changes, 0).loading;
     return null;
   }
   const showOverview = async () => {
@@ -692,7 +695,7 @@ it('saves encrypted listed roots once decrypted, and again when a failed one dec
   });
   let loading = true;
   function Harness() {
-    loading = useRoomThreadList(room).loading;
+    loading = useRoomThreadList(room, true, changes, 0).loading;
     return null;
   }
   const showOverview = async (whileShown?: () => Promise<void>) => {

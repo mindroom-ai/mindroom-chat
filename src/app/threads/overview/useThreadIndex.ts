@@ -390,7 +390,12 @@ export const useThreadIndex = ({
     loadedSuccessfully: roomThreadListLoadedSuccessfully,
     fullyLoaded: roomThreadListFullyLoaded,
     retry: refreshRoomThreadList,
-  } = useRoomThreadList(room, compactViewRequested || threadsViewListed);
+  } = useRoomThreadList(
+    room,
+    compactViewRequested || threadsViewListed,
+    overviewChanges,
+    overviewRefreshCounter
+  );
   const roomSurfaceEventEntries = useMemo(() => {
     // Mutable SDK/event metadata can change without changing the timeline array identity.
     void overviewRefreshCounter;
