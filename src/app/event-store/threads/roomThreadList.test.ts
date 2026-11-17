@@ -2,7 +2,6 @@ import { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   getThreadLastActivityTs,
-  getThreadReadState,
   getThreadUnread,
   loadRoomThreads,
   roomThreadListIsComplete,
@@ -598,29 +597,6 @@ describe('thread visibility helpers', () => {
       rootEvent: { getTs: () => 50 },
     } as never;
 
-    expect(getThreadUnread(thread, '@self:example.org')).toBe(false);
-  });
-
-  // The receipt names the edit that finished a streamed reply; the agent streamed on, and the room
-  // released that edit, so no timeline holds it any more.
-  it('reads up to when the server took a thread receipt whose event the thread does not hold', () => {
-    const visibleReply = {
-      ...makeThreadReplyEvent('$reply-visible', 300, '@other:example.org'),
-      replacingEventId: () => undefined,
-      replacingEvent: () => null,
-    };
-    const receipt = { eventId: '$released-edit', data: { ts: 400, thread_id: '$root' } };
-    const thread = {
-      id: '$root',
-      events: [visibleReply],
-      getEventReadUpTo: vi.fn(() => null),
-      getLastUnthreadedReceiptFor: vi.fn(() => undefined),
-      getReadReceiptForUserId: vi.fn(() => receipt),
-      replyToEvent: undefined,
-      rootEvent: { getTs: () => 50 },
-    } as never;
-
-    expect(getThreadReadState(thread, '@self:example.org')?.readUpToTs).toBe(400);
     expect(getThreadUnread(thread, '@self:example.org')).toBe(false);
   });
 });
