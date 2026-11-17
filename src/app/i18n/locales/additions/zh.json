@@ -157,6 +157,7 @@
     "appUpdate": {
       "available": "MindRoom 有新版本可用。",
       "reload": "重新加载",
+      "updating": "正在更新…",
       "dismiss": "关闭",
       "reloadToUse": "重新加载即可使用。"
     },

@@ -160,6 +160,7 @@
     "appUpdate": {
       "available": "A new version of MindRoom is available.",
       "reload": "Reload",
+      "updating": "Updating…",
       "dismiss": "Dismiss",
       "reloadToUse": "Reload to use it."
     },

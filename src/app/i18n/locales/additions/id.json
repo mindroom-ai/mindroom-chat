@@ -157,6 +157,7 @@
     "appUpdate": {
       "available": "Versi baru MindRoom tersedia.",
       "reload": "Muat ulang",
+      "updating": "Memperbarui…",
       "dismiss": "Tutup",
       "reloadToUse": "Muat ulang untuk menggunakannya."
     },

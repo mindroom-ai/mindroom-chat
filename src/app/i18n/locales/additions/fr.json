@@ -163,6 +163,7 @@
     "appUpdate": {
       "available": "Une nouvelle version de MindRoom est disponible.",
       "reload": "Recharger",
+      "updating": "Mise à jour…",
       "dismiss": "Ignorer",
       "reloadToUse": "Rechargez pour l’utiliser."
     },
