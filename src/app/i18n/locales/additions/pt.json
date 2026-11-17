@@ -793,6 +793,9 @@
         "answered": "Respondido",
         "youChose": "Você escolheu",
         "nameChose": "{{name}} escolheu"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Subagentes"
       }
     },
     "message-search": {
@@ -1053,6 +1056,7 @@
     },
     "sentence": {
       "approval": "{{name}} precisa de aprovação",
+      "approvalUnknown": "Uma tarefa em segundo plano precisa de aprovação",
       "question": "{{name}} fez-lhe uma pergunta",
       "invite": "{{name}} enviou-lhe um convite",
       "inviteUnknown": "Recebeu um convite",

@@ -826,6 +826,9 @@
         "answered": "تمت الإجابة",
         "youChose": "اخترت",
         "nameChose": "اختار ⁨{{name}}⁩"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "الوكلاء الفرعيون"
       }
     },
     "message-search": {
@@ -1107,6 +1110,7 @@
     },
     "sentence": {
       "approval": "يحتاج ⁨{{name}}⁩ إلى موافقة",
+      "approvalUnknown": "تحتاج مهمة في الخلفية إلى موافقة",
       "question": "سألك ⁨{{name}}⁩",
       "invite": "دعاك ⁨{{name}}⁩",
       "inviteUnknown": "تمت دعوتك",

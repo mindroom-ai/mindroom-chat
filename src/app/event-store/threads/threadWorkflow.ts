@@ -20,6 +20,13 @@ export type ThreadWorkflowStatus = {
   hasBackgroundApproval?: boolean;
 };
 
+/** A foreground request or background job waiting for the person, independent of workflow buckets. */
+export const isWaitingOnYou = (
+  signals: { pendingApproval?: unknown; pendingQuestion?: unknown },
+  status: Pick<ThreadWorkflowStatus, 'hasBackgroundApproval'>
+): boolean =>
+  !!(signals.pendingApproval || signals.pendingQuestion || status.hasBackgroundApproval);
+
 /** Shared by the room overview and sidebar sections. First match wins, independent of unread state. */
 export const classifyThreadWorkflow = (
   status: ThreadWorkflowStatus,

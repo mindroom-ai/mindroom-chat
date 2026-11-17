@@ -782,6 +782,9 @@
         "answered": "Yanıtlandı",
         "youChose": "Seçiminiz",
         "nameChose": "{{name}} seçti"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Alt ajanlar"
       }
     },
     "message-search": {
@@ -1035,6 +1038,7 @@
     },
     "sentence": {
       "approval": "{{name}} onay bekliyor",
+      "approvalUnknown": "Bir arka plan görevi onay bekliyor",
       "question": "{{name}} size bir soru sordu",
       "invite": "{{name}} sizi davet etti",
       "inviteUnknown": "Davet edildiniz",

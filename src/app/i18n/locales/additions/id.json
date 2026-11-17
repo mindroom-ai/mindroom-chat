@@ -771,6 +771,9 @@
         "answered": "Dijawab",
         "youChose": "Pilihan Anda",
         "nameChose": "Dipilih oleh {{name}}"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Subagen"
       }
     },
     "message-search": {
@@ -1017,6 +1020,7 @@
     },
     "sentence": {
       "approval": "{{name}} perlu persetujuan",
+      "approvalUnknown": "Tugas latar belakang memerlukan persetujuan",
       "question": "{{name}} bertanya kepada Anda",
       "invite": "{{name}} mengundang Anda",
       "inviteUnknown": "Anda diundang",

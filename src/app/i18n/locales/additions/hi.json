@@ -782,6 +782,9 @@
         "answered": "जवाब दिया",
         "youChose": "आपने चुना",
         "nameChose": "{{name}} ने चुना"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "सब-एजेंट"
       }
     },
     "message-search": {
@@ -1035,6 +1038,7 @@
     },
     "sentence": {
       "approval": "{{name}} को मंज़ूरी चाहिए",
+      "approvalUnknown": "बैकग्राउंड में चल रहे एक काम को मंज़ूरी चाहिए",
       "question": "{{name}} ने आपसे सवाल पूछा",
       "invite": "{{name}} ने आपको आमंत्रित किया",
       "inviteUnknown": "आपको आमंत्रित किया गया",

@@ -771,6 +771,9 @@
         "answered": "답변함",
         "youChose": "내가 선택함",
         "nameChose": "{{name}} 님이 선택함"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "하위 에이전트"
       }
     },
     "message-search": {
@@ -1017,6 +1020,7 @@
     },
     "sentence": {
       "approval": "{{name}} 님이 승인을 기다립니다",
+      "approvalUnknown": "백그라운드 작업에 승인이 필요합니다",
       "question": "{{name}} 님이 질문했습니다",
       "invite": "{{name}} 님이 초대했습니다",
       "inviteUnknown": "초대를 받았습니다",

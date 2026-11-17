@@ -771,6 +771,9 @@
         "answered": "已回答",
         "youChose": "你已選擇",
         "nameChose": "{{name}} 已選擇"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "子代理"
       }
     },
     "message-search": {
@@ -1017,6 +1020,7 @@
     },
     "sentence": {
       "approval": "{{name}} 需要核准",
+      "approvalUnknown": "背景工作需要核准",
       "question": "{{name}} 向你提問",
       "invite": "{{name}} 邀請了你",
       "inviteUnknown": "你收到了邀請",

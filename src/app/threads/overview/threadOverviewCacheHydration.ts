@@ -397,6 +397,7 @@ export const useThreadOverviewCacheHydration = ({
     lastActivityTsMap: cachedThreadLastActivityTsMap,
     coverageMap: cachedThreadCoverageMap,
     compactRootPreviewAttemptCountsRef,
+    inheritedRootIdsRef,
     applyUpdates,
   } = cachedMetadata;
   const preferImmediatePublicationRef = useRef(false);
@@ -431,7 +432,7 @@ export const useThreadOverviewCacheHydration = ({
     const changedThreads = new Map(changedThreadsRef.current);
 
     const threadRootIdsToLoad = overviewThreadRootIds.filter((rootId) => {
-      if (changedThreads.has(rootId)) return true;
+      if (changedThreads.has(rootId) || inheritedRootIdsRef.current.has(rootId)) return true;
       const needsCacheCoverage = !cachedThreadCoverageMap.has(rootId);
       const needsActivityTs = !cachedThreadLastActivityTsMap.has(rootId) && needsCacheCoverage;
 
@@ -568,6 +569,7 @@ export const useThreadOverviewCacheHydration = ({
       if (cancelled) return;
 
       attemptedRootIds.forEach((rootId) => {
+        inheritedRootIdsRef.current.delete(rootId);
         // A write during this read still needs another pass, even when this pass changes no text.
         if (changedThreadsRef.current.get(rootId) === changedThreads.get(rootId))
           changedThreadsRef.current.delete(rootId);
@@ -615,6 +617,7 @@ export const useThreadOverviewCacheHydration = ({
     onStoreThreadSummary,
     overviewThreadMetadataCacheLimit,
     overviewThreadRootIds,
+    inheritedRootIdsRef,
     room,
     room.roomId,
     roomThreadListThreads,

@@ -448,6 +448,10 @@ const isUnreadableEdit = (edit: MatrixEvent): boolean =>
   isUndecryptable(edit) ||
   (matchesEnum(edit.getType(), EventType.RoomMessageEncrypted) && !getNewContent(edit));
 
+/** Whether `getEditedEvent` can show `edit` once it is not redacted: it decrypted and replaces. */
+const isReadableEdit = (edit: MatrixEvent): boolean =>
+  !isUnreadableEdit(edit) && isUsableEdit(edit);
+
 /**
  * The edit to show for `mEvent`: the newest readable replacement by its sender among the SDK's
  * applied replacement, the relation edits in `timelineSet`, and the replacement bundled by the
@@ -468,7 +472,7 @@ export const getEditedEvent = (
     serializedReplacementCandidate
   ).filter(
     // An edit the client cannot read yet shows once it decrypts; until then the newest one it can.
-    (candidate) => !isUnreadableEdit(candidate) && isUsableEdit(candidate)
+    isReadableEdit
   );
 
   const latest = getLatestEdit(mEvent, candidates);
@@ -479,6 +483,38 @@ export const getEditedEvent = (
     .sort((a, b) => (isEventOrderedAfter(a, b) ? -1 : 1));
   fillMetadataFromOlderEdits(latest, older);
   return latest;
+};
+
+/** The MindRoom metadata `getEditedEvent` would borrow from `edit` for a newer edit lacking it. */
+const getBorrowableKeys = (edit: MatrixEvent): string[] => {
+  const borrowable: Record<string, unknown> = {};
+  copyResolvedEditMetadata(borrowable, [edit.getContent()]);
+  return Object.keys(borrowable);
+};
+
+/**
+ * Of one sender's edits of one message, those `getEditedEvent` can neither show nor borrow from
+ * any more, which what holds them (the SDK's relations, the thread open seed) can release. An
+ * edit not sent yet stays. Of the others, newest first, all stay up to the first one that is not
+ * redacted and readable, the one shown; an older edit then stays only while it is readable and
+ * carries metadata no newer kept readable edit has.
+ */
+export const getReleasableEdits = (
+  edits: readonly MatrixEvent[],
+  isRedacted = (edit: MatrixEvent): boolean => edit.isRedacted()
+): MatrixEvent[] => {
+  // The metadata of the kept readable edits, from the shown one on.
+  let keptKeys: Set<string> | undefined;
+  return [...edits]
+    .sort((a, b) => (isEventOrderedAfter(a, b) ? -1 : 1))
+    .filter((edit) => {
+      if (edit.status) return false;
+      const readable = !isRedacted(edit) && isReadableEdit(edit);
+      const keys = readable ? getBorrowableKeys(edit) : [];
+      if (keptKeys && keys.every((key) => keptKeys?.has(key))) return true;
+      if (readable) keptKeys = new Set([...(keptKeys ?? []), ...keys]);
+      return false;
+    });
 };
 
 /**

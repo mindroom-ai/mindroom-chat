@@ -150,6 +150,15 @@ describe('readCaptureThreads', () => {
     expect(mocks.read).toHaveBeenCalledWith(room, entries[0], '@me:x', NOW);
   });
 
+  it('needs you for a background approval without claiming the job is live streaming', () => {
+    const job = makeEntry('$job');
+    job.threadRecord.status.hasBackgroundJob = true;
+    job.threadRecord.status.hasBackgroundApproval = true;
+    expect(readCaptureThreads(mx, makeRoom(), [job], t, NOW)).toMatchObject([
+      { threadId: '$job', needsYou: true, streaming: false },
+    ]);
+  });
+
   it('needs you for a pending approval or a pending question', () => {
     const entries = [makeEntry('$approval'), makeEntry('$question'), makeEntry('$quiet')];
     mocks.read.mockImplementation((_room: Room, entry: CrossRoomThreadIndexEntry) => {

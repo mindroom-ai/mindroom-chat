@@ -1089,6 +1089,8 @@ vi.mock('../../event-store/cache/eventCacheEditUtils', () => ({
   aggregateCachedRelationEvents: vi.fn(),
   collectRedactedRelationTargetsFromLookup: vi.fn(() => []),
   hydrateCachedEvents: vi.fn(() => []),
+  // Like the serializer below, which keeps every edit.
+  isStandaloneSameSenderReplace: () => false,
   reconcileRelationEventsWithAggregation: vi.fn(),
   serializeEventsForCache: (
     _room: unknown,

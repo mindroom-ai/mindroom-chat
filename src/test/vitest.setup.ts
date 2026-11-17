@@ -57,6 +57,8 @@ vi.mock('../app/messages/reply/ReplyDetails.css', () => {
     CostLabel: 'reply-details-cost-label',
     CostValue: 'reply-details-cost-value',
     CostNote: 'reply-details-cost-note',
+    CostPart: 'reply-details-cost-part',
+    CostPartValue: 'reply-details-cost-part-value',
     Bars: 'reply-details-bars',
     HiddenLabel: 'reply-details-hidden-label',
     Bar: { earlier: 'bar-earlier', current: 'bar-current', later: 'bar-later' },

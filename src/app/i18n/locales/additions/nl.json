@@ -782,6 +782,9 @@
         "answered": "Beantwoord",
         "youChose": "Jouw keuze",
         "nameChose": "Gekozen door {{name}}"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Subagenten"
       }
     },
     "message-search": {
@@ -1035,6 +1038,7 @@
     },
     "sentence": {
       "approval": "{{name}} vraagt om goedkeuring",
+      "approvalUnknown": "Een achtergrondtaak heeft goedkeuring nodig",
       "question": "{{name}} heeft je iets gevraagd",
       "invite": "{{name}} heeft je uitgenodigd",
       "inviteUnknown": "Je bent uitgenodigd",

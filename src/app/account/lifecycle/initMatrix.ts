@@ -3,12 +3,14 @@ import { Method } from 'matrix-js-sdk/lib/http-api';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
 import type { CryptoCallbacks } from 'matrix-js-sdk/lib/crypto-api';
+import { setReplacementRetentionPolicy } from 'matrix-js-sdk/lib/models/relations';
 
 import { createMatrixClient } from '../../matrix/client/matrixClientFactory';
 import {
   installEventContentGuard,
   trustAgentsOfViewer,
 } from '../../matrix/protocol/untrustedContent';
+import { getReleasableEdits } from '../../matrix/room';
 import { removeSessionAndReload, removeStoredSession } from './sessionLifecycle';
 import { LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT } from '../../matrix/client/clientSyncPolicy';
 import { dropSettledScheduledTasks } from '../../matrix/client/savedSyncScheduledTasks';
@@ -262,6 +264,8 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
   // Every event's content is read through the shape and trust checks, with this account's agents.
   installEventContentGuard();
   trustAgentsOfViewer(userId);
+  // A room's relations release the edits of a message the app has no use for any more.
+  setReplacementRetentionPolicy(getReleasableEdits);
   const mx = createMatrixClient({
     baseUrl: session.baseUrl,
     accessToken: session.accessToken,

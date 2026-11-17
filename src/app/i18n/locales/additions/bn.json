@@ -782,6 +782,9 @@
         "answered": "উত্তর দেওয়া হয়েছে",
         "youChose": "আপনি বেছে নিয়েছেন",
         "nameChose": "{{name}} বেছে নিয়েছেন"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "সাব-এজেন্ট"
       }
     },
     "message-search": {
@@ -1035,6 +1038,7 @@
     },
     "sentence": {
       "approval": "{{name}} অনুমোদন চাইছে",
+      "approvalUnknown": "ব্যাকগ্রাউন্ডের একটি কাজের অনুমোদন প্রয়োজন",
       "question": "{{name}} আপনাকে প্রশ্ন করেছে",
       "invite": "{{name}} আপনাকে আমন্ত্রণ জানিয়েছে",
       "inviteUnknown": "আপনাকে আমন্ত্রণ জানানো হয়েছে",

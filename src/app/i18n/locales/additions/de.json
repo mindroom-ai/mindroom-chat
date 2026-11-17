@@ -782,6 +782,9 @@
         "answered": "Beantwortet",
         "youChose": "Deine Wahl",
         "nameChose": "Gewählt von {{name}}"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "Sub-Agenten"
       }
     },
     "message-search": {
@@ -1035,6 +1038,7 @@
     },
     "sentence": {
       "approval": "{{name}} braucht eine Genehmigung",
+      "approvalUnknown": "Eine Hintergrundaufgabe benötigt eine Genehmigung",
       "question": "{{name}} hat dich etwas gefragt",
       "invite": "{{name}} hat dich eingeladen",
       "inviteUnknown": "Du wurdest eingeladen",

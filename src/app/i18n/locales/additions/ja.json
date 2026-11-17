@@ -771,6 +771,9 @@
         "answered": "回答済み",
         "youChose": "あなたが選択",
         "nameChose": "{{name}} が選択"
+      },
+      "mindroomReplyDetails": {
+        "subagents": "サブエージェント"
       }
     },
     "message-search": {
@@ -1017,6 +1020,7 @@
     },
     "sentence": {
       "approval": "{{name}} が承認を求めています",
+      "approvalUnknown": "バックグラウンドジョブの承認が必要です",
       "question": "{{name}} から質問があります",
       "invite": "{{name}} から招待されました",
       "inviteUnknown": "招待されました",

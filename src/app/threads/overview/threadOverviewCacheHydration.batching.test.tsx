@@ -65,7 +65,7 @@ const mount = async () => {
     activeRoom?: Room;
     sessionId?: string;
   }) {
-    const cachedMetadata = useThreadOverviewCachedMetadata(activeRoom.roomId);
+    const cachedMetadata = useThreadOverviewCachedMetadata(activeRoom);
     replyPreviews = cachedMetadata.latestReplyPreviewMap;
     const size = cachedMetadata.coverageMap.size;
     if (publishedSizes.at(-1) !== size) publishedSizes.push(size);
