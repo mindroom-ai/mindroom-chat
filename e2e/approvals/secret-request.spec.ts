@@ -103,7 +103,8 @@ const openThread = async (
   context: BrowserContext,
   page: Page,
   user: DisposableUser,
-  room: ThreadFixture
+  room: ThreadFixture,
+  showToolCalls = true
 ) => {
   await context.route('**/config.json', async (route) => {
     const response = await route.fetch();
@@ -118,7 +119,7 @@ const openThread = async (
       },
     });
   });
-  await loginWithPassword(page, { homeserver: HOMESERVER, ...user });
+  await loginWithPassword(page, { homeserver: HOMESERVER, ...user, showToolCalls });
   await page.goto(
     `/home/${encodeURIComponent(room.roomId)}?threadId=${encodeURIComponent(room.rootId)}`
   );
@@ -757,7 +758,8 @@ test('a request drawn in its reply waits at its tool call, then closes to a line
   });
   const leaks = watchLeaks(context, secret, answerUrl);
 
-  await openThread(context, page, requester, room);
+  // As a reader who never showed tool calls.
+  await openThread(context, page, requester, room, false);
   const reply = page.locator(`[data-message-id="${replyId}"]`);
   const line = reply.locator('[data-secret-request-line]');
   await expect(line).toHaveAttribute('data-secret-request-line', 'pending', { timeout: 30_000 });
@@ -847,7 +849,8 @@ test('a waiting request in its reply fits a phone', async ({ context, page }) =>
   await routeSignIn(context, requester, `session-${randomUUID()}`);
   await page.setViewportSize({ width: 390, height: 844 });
 
-  await openThread(context, page, requester, room);
+  // As a reader who never showed tool calls.
+  await openThread(context, page, requester, room, false);
   const reply = page.locator(`[data-message-id="${replyId}"]`);
   const line = reply.locator('[data-secret-request-line="pending"]');
   await expect(line).toBeVisible({ timeout: 30_000 });
