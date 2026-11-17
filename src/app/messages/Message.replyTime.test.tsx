@@ -100,8 +100,15 @@ describe("an agent reply's header time", () => {
     expect(time.textContent).toBe('10:04');
   });
 
+  it('is no Tab stop of its own: the message row, which unfolds it, is the one', async () => {
+    const time = await renderMessage(MessageLayout.Modern, timing);
+    expect(time.hasAttribute('tabindex')).toBe(false);
+    expect(time.closest<HTMLElement>('[data-message-id="$event"]')?.tabIndex).toBe(0);
+  });
+
   it("unfolds on a tap that leaves the message's toolbar hidden", async () => {
     const time = await renderMessage(MessageLayout.Modern, timing);
+    const row = time.closest<HTMLElement>('[data-message-id="$event"]')!;
     // jsdom cannot tell a tap's focus from the keyboard's (`:focus-visible`); a browser can.
     const { matches } = Element.prototype;
     vi.spyOn(Element.prototype, 'matches').mockImplementation(function focusVisible(
@@ -114,7 +121,8 @@ describe("an agent reply's header time", () => {
       const down = new MouseEvent('pointerdown', { bubbles: true, button: 0 });
       Object.defineProperty(down, 'pointerType', { value: 'touch' });
       time.dispatchEvent(down);
-      time.focus();
+      // The press focuses the row, the nearest focusable element, unless the time prevents it.
+      if (fireEvent.mouseDown(time)) row.focus();
       fireEvent.click(time);
     });
     expect(time.hasAttribute('data-open')).toBe(true);

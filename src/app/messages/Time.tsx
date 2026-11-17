@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useState, type ReactNode } from 'react';
+import { useEffect, useId, useReducer, useState, type MouseEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import classNames from 'classnames';
@@ -47,6 +47,8 @@ export const Time = as<'time', TimeProps>(
       dateFormatString = 'D MMM YYYY',
       timing,
       className,
+      onClick,
+      onMouseDown,
       ...props
     },
     ref
@@ -62,8 +64,19 @@ export const Time = as<'time', TimeProps>(
       [streaming]
     );
     // A tap opens the folded parts, which have no hover on touch screens, until the next tap or
-    // until the focus leaves.
+    // a press anywhere else. The keyboard unfolds them through the message row's focus.
     const [open, setOpen] = useState(false);
+    const openId = useId();
+    useEffect(() => {
+      if (!open) return undefined;
+      const closeElsewhere = (evt: PointerEvent) => {
+        const pressed =
+          evt.target instanceof Element ? evt.target.closest('time[data-open]') : null;
+        if (pressed?.getAttribute('data-open') !== openId) setOpen(false);
+      };
+      document.addEventListener('pointerdown', closeElsewhere, true);
+      return () => document.removeEventListener('pointerdown', closeElsewhere, true);
+    }, [open, openId]);
 
     const time = timeHourMinute(ts, hour24Clock, language);
     const dateOf = (at: number) => localDigits(dayjs(at).format(dateFormatString), language);
@@ -85,6 +98,8 @@ export const Time = as<'time', TimeProps>(
           dateTime={new Date(ts).toISOString()}
           title={stamp(ts)}
           className={className}
+          onClick={onClick}
+          onMouseDown={onMouseDown}
           {...props}
           ref={ref}
         >
@@ -109,16 +124,18 @@ export const Time = as<'time', TimeProps>(
         priority="300"
         dateTime={new Date(ts).toISOString()}
         title={title}
-        className={classNames(css.ReplyTime, className)}
-        {...(compact
-          ? {}
-          : {
-              tabIndex: 0,
-              'data-open': open || undefined,
-              onClick: () => setOpen((shown) => !shown),
-              onBlur: () => setOpen(false),
-            })}
         {...props}
+        className={classNames(css.ReplyTime, className)}
+        data-open={!compact && open ? openId : undefined}
+        onMouseDown={(evt: MouseEvent<HTMLTimeElement>) => {
+          onMouseDown?.(evt);
+          // A press leaves the focus where it was: on the row it would show the row's toolbar.
+          if (!compact) evt.preventDefault();
+        }}
+        onClick={(evt: MouseEvent<HTMLTimeElement>) => {
+          onClick?.(evt);
+          if (!compact) setOpen((shown) => !shown);
+        }}
         ref={ref}
       >
         {streaming && <span className={css.Dot} data-reply-time-live="" aria-hidden />}

@@ -2,6 +2,7 @@ import { keyframes, style } from '@vanilla-extract/css';
 import { color } from 'folds';
 import { motion } from '../ui/styles/Motion.css';
 import { transition } from '../ui/styles/transition';
+import { MessageBase } from './styles.css';
 
 /** An agent reply's time: its start and duration, which unfolds its finish and exact duration. */
 export const ReplyTime = style({
@@ -13,15 +14,16 @@ export const ReplyTime = style({
 });
 
 /**
- * A part of the time that unfolds while the pointer hovers the time, the keyboard focuses it, or
- * a tap opened it: its width grows from none to its text's (grid `0fr` to `1fr`) as it fades in.
+ * A part of the time that unfolds while the pointer hovers the time, the keyboard focuses its
+ * message row, or a tap opened it: its width grows from none to its text's (grid `0fr` to `1fr`)
+ * as it fades in.
  */
 export const Fold = style({
   display: 'inline-grid',
   gridTemplateColumns: '0fr',
   transition: transition(['grid-template-columns'], motion.duration.Slower),
   selectors: {
-    [`${ReplyTime}:focus-visible &, ${ReplyTime}[data-open] &`]: {
+    [`${MessageBase}:focus-visible &, ${ReplyTime}[data-open] &`]: {
       gridTemplateColumns: '1fr',
     },
   },
@@ -38,7 +40,7 @@ export const FoldText = style({
   opacity: 0,
   transition: transition(['opacity'], motion.duration.Slower),
   selectors: {
-    [`${ReplyTime}:focus-visible &, ${ReplyTime}[data-open] &`]: { opacity: 1 },
+    [`${MessageBase}:focus-visible &, ${ReplyTime}[data-open] &`]: { opacity: 1 },
   },
   '@media': {
     '(hover: hover)': {

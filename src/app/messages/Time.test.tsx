@@ -57,19 +57,42 @@ describe('Time', () => {
     );
   });
 
-  it('unfolds on a tap and folds again on the next one or when the focus leaves', () => {
+  it('unfolds on a tap and folds again on the next tap or a press elsewhere', () => {
     const timing = { startTs: START, endTs: at(10, 11, 24), streaming: false };
     const { container } = render(<Time ts={START} timing={timing} hour24Clock />);
     const time = timeOf(container);
-    expect(time.tabIndex).toBe(0);
+    // No Tab stop of its own: the keyboard unfolds it through the message row's focus.
+    expect(time.hasAttribute('tabindex')).toBe(false);
     expect(time.hasAttribute('data-open')).toBe(false);
     fireEvent.click(time);
     expect(time.hasAttribute('data-open')).toBe(true);
+    fireEvent.pointerDown(time);
     fireEvent.click(time);
     expect(time.hasAttribute('data-open')).toBe(false);
     fireEvent.click(time);
-    fireEvent.blur(time);
+    fireEvent.pointerDown(document.body);
     expect(time.hasAttribute('data-open')).toBe(false);
+  });
+
+  it('keeps the focus where it was on a press, so a tap leaves the row as it was', () => {
+    const timing = { startTs: START, endTs: at(10, 11, 24), streaming: false };
+    const { container } = render(<Time ts={START} timing={timing} hour24Clock />);
+    expect(fireEvent.mouseDown(timeOf(container))).toBe(false);
+  });
+
+  it("keeps its tap toggle beside a caller's click and press handlers", () => {
+    const timing = { startTs: START, endTs: at(10, 11, 24), streaming: false };
+    const onClick = vi.fn();
+    const onMouseDown = vi.fn();
+    const { container } = render(
+      <Time ts={START} timing={timing} hour24Clock onClick={onClick} onMouseDown={onMouseDown} />
+    );
+    const time = timeOf(container);
+    expect(fireEvent.mouseDown(time)).toBe(false);
+    fireEvent.click(time);
+    expect(onMouseDown).toHaveBeenCalledTimes(1);
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(time.hasAttribute('data-open')).toBe(true);
   });
 
   it('leaves out the finish of a reply that ends in the minute it started', () => {
