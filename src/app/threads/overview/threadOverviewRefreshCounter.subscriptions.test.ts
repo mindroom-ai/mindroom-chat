@@ -113,7 +113,7 @@ const renderCounter = async (room: FakeRoom, threadId?: string) => {
 describe('useThreadOverviewRefreshCounter subscriptions', () => {
   // Regression (P2-e2ee-F005): WebKit decrypted a thread's newest reply after the cards were drawn,
   // and the card kept an older reply's preview for good.
-  it('counts a thread event of this room that decrypts, once per batch', async () => {
+  it('counts an event of this room that decrypts, once per batch', async () => {
     const room = fakeRoom('!room:example.org');
     const view = await renderCounter(room);
 
@@ -136,13 +136,24 @@ describe('useThreadOverviewRefreshCounter subscriptions', () => {
         setTimeout(resolve, 0);
       });
     });
-    expect(view.counter()).toBe(1);
+    // A message outside any thread may be the event a receipt names; another room's is not heard.
+    expect(view.counter()).toBe(2);
+    await act(async () => {
+      room.client.emit(
+        MatrixEventEvent.Decrypted,
+        fakeEvent('$other', '$root', '!other:example.org')
+      );
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+    expect(view.counter()).toBe(2);
 
     await view.unmount();
     expect(room.client.count(MatrixEventEvent.Decrypted)).toBe(0);
   });
 
-  it('counts added timeline events of this room that concern a thread', async () => {
+  it('counts the events a timeline of this room takes or loses', async () => {
     const room = fakeRoom('!room:example.org');
     const other = fakeRoom('!other:example.org');
     const view = await renderCounter(room);
@@ -151,15 +162,19 @@ describe('useThreadOverviewRefreshCounter subscriptions', () => {
     await view.emit(room, RoomEvent.Timeline, reply, room, false, false, {});
     expect(view.counter()).toBe(1);
 
-    await view.emit(room, RoomEvent.Timeline, reply, room, false, true, {});
     await view.emit(room, RoomEvent.Timeline, reply, other, false, false, {});
     await view.emit(room, RoomEvent.Timeline, reply, undefined, false, false, {});
-    await view.emit(room, RoomEvent.Timeline, fakeEvent('$plain'), room, false, false, {});
     expect(view.counter()).toBe(1);
+
+    // One a timeline loses, and a message outside any thread: a receipt may name either.
+    await view.emit(room, RoomEvent.Timeline, reply, room, false, true, {});
+    expect(view.counter()).toBe(2);
+    await view.emit(room, RoomEvent.Timeline, fakeEvent('$plain'), room, false, false, {});
+    expect(view.counter()).toBe(3);
 
     // Older events that pagination adds at the start count like live ones.
     await view.emit(room, RoomEvent.Timeline, fakeEvent('$older', '$root'), room, true, false, {});
-    expect(view.counter()).toBe(2);
+    expect(view.counter()).toBe(4);
 
     await view.unmount();
   });

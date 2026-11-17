@@ -18,7 +18,6 @@ import type {
   RoomState,
   Thread,
 } from 'matrix-js-sdk';
-import { shouldRefreshOverviewForTimelineEvent } from '../open/threadBootstrap';
 import {
   createThreadRecordChanges,
   markThreadRecordChange,
@@ -28,7 +27,6 @@ import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { isRecord } from '../../lib/isRecord';
 import { onSyncedEditForgotten } from '../../matrix/client/syncedEdits';
 import { getThreadSummaryReply } from '../../matrix/client/unopenedThreadEdits';
-import { receiptEventsVersion } from '../../matrix/receiptReadTs';
 
 /**
  * The thread whose record an event of the room may change: the thread it is in, else the thread
@@ -82,29 +80,27 @@ export const receiptThreadIds = (receipt: MatrixEvent, userId: string): string[]
  * sort order), much of which comes from SDK thread objects and read receipts rather than from the
  * view's own timeline state.
  *
- * While no thread is open, the count goes up by one for every room timeline event that concerns a
- * thread (a root, a reply, or an event related to one of them), every read receipt of the room,
- * and every thread that is created, updated, deleted or gets a new reply. Such an event decrypting
- * later counts too, once per batch: until then a card can only show an older reply, and WebKit
- * often decrypts after the cards are drawn (P2-e2ee-F005). Inside a thread nothing
- * listens and the count keeps its value. The listeners change only with the room or the thread:
- * the setter, which callers also use to ask for a recompute, keeps its identity.
+ * While no thread is open, the count goes up for everything that may change what the overview
+ * shows of the room: every event a timeline of the room takes or loses and every event the client
+ * hears of the room (the edits kept from the sync are in by then), an edit put on or taken off an
+ * event, a local echo's progress, a redaction, a timeline that starts over, every read receipt of
+ * the room, every thread that is created, updated, deleted or gets a new reply (a reply that stops
+ * streaming by the clock, or that the streaming checks forget, comes as such an update:
+ * streamingReplies.ts), a member's new name or membership, the room's encryption, and a message
+ * whose kept edits a full store drops (`onSyncedEditForgotten`). An event that decrypts later
+ * counts too, once per batch: until then a card can only show an older reply, and WebKit often
+ * decrypts after the cards are drawn (P2-e2ee-F005). Inside a thread nothing listens and the count
+ * keeps its value. The listeners change only with the room or the thread: the setter, which
+ * callers also use to ask for a recompute, keeps its identity.
  *
  * `overviewChanges` says what each count may have changed, for the thread records kept from one
- * count to the next (`ThreadRecordReuse`): the thread of the event, thread update or reader's
- * thread receipt, or the whole room (the reader's other receipts, a caller's request, an event
- * whose thread is unknown). It also
- * takes what a record reads that raises no count: every event the client hears of the room (the
- * edits kept from the sync are in by then), an edit put on or taken off an event, a local echo's
- * progress, a redaction, and a timeline that starts over (a thread's for that thread, the room's for
- * every thread). A member's new name or membership and the room's encryption mark the room and
- * count, and so does, without a mark, an event a receipt names that the room comes to hold or
- * loses (`receiptEventsVersion`). Someone else's receipt changes no record. A member event a timeline takes or loses marks the room and
- * counts: a page of history may bring the name a member had before they left. So does a message
- * whose kept edits a full store drops (`onSyncedEditForgotten`), for its thread. A
- * reply that stops streaming by the clock, or that the streaming checks forget, comes as an update
- * of its thread (streamingReplies.ts). While these listeners hear the room,
- * `overviewChanges.listened` says so.
+ * count to the next (`ThreadRecordReuse`): the thread of the event, thread update, dropped message
+ * or reader's thread receipt, or the whole room (the reader's other receipts, a caller's request,
+ * an event whose thread is unknown, the room's own timeline that starts over, a member's change
+ * or a member event a timeline takes, which may bring the name a member had before they left, and
+ * the room's encryption). Someone else's receipt changes no record. Every mark comes with a
+ * count: a mark alone would leave the record as it was until something else counted. While these
+ * listeners hear the room, `overviewChanges.listened` says so.
  */
 export const useThreadOverviewRefreshCounter = (
   room: Room,
@@ -131,35 +127,22 @@ export const useThreadOverviewRefreshCounter = (
     markThreadRecordChange(overviewChanges);
     overviewChanges.listened = true;
     const bump = () => setCounter((count) => count + 1);
-    const markEvent = (mEvent: MatrixEvent) =>
-      changedThreadIds(room, mEvent).forEach((id) => markThreadRecordChange(overviewChanges, id));
-    // An event a receipt names that the room comes to hold or loses moves how far that receipt
-    // reads in every thread. The room counts it before these listeners hear of the event
-    // (`receiptEventsVersion`), and a build reads that count; often nothing else counts then.
-    let receiptEvents = receiptEventsVersion(room);
-    const countReceiptEvents = () => {
-      const version = receiptEventsVersion(room);
-      if (version !== receiptEvents) bump();
-      receiptEvents = version;
+    // Every mark counts: a mark no count follows is a record kept as it was, in a room where
+    // nothing more happens.
+    const mark = (threadRootId?: string) => {
+      markThreadRecordChange(overviewChanges, threadRootId);
+      bump();
     };
-    const handleTimeline = (
-      mEvent: MatrixEvent,
-      eventRoom: Room | undefined,
-      _toStartOfTimeline: boolean | undefined,
-      removed: boolean
-    ) => {
+    const markEvent = (mEvent: MatrixEvent) =>
+      changedThreadIds(room, mEvent).forEach((id) => mark(id));
+    // Also a message outside any thread: it may be the event a receipt names, which moves how far
+    // that receipt reads in every thread once the room holds it (`receiptEventsVersion`).
+    const handleTimeline = (mEvent: MatrixEvent, eventRoom: Room | undefined) => {
       if (eventRoom?.roomId !== room.roomId) return;
       markEvent(mEvent);
       // A record names a member who left by their newest member event the room has loaded
       // (`getMemberDisplayName`), which a page of history may bring; no member changes then.
-      const ofMember = mEvent.getType() === (EventType.RoomMember as string);
-      if (ofMember) markThreadRecordChange(overviewChanges);
-      if (ofMember || (!removed && shouldRefreshOverviewForTimelineEvent(room, mEvent))) bump();
-      countReceiptEvents();
-    };
-    const handleEcho = (mEvent: MatrixEvent) => {
-      markEvent(mEvent);
-      countReceiptEvents();
+      if (mEvent.getType() === (EventType.RoomMember as string)) mark();
     };
     // Optional calls: the rooms of some view tests carry a client stand-in without listeners.
     const client: Partial<Pick<MatrixClient, 'on' | 'removeListener' | 'getUserId'>> | undefined =
@@ -178,6 +161,7 @@ export const useThreadOverviewRefreshCounter = (
         threadIds.forEach((id) => markThreadRecordChange(overviewChanges, id));
       }
       oldestThreadedReceiptTs = oldest;
+      // Once, also for someone else's receipt, which marks nothing.
       bump();
     };
     // Without an ID it is no event of a timeline (typing, a receipt, account data).
@@ -186,16 +170,14 @@ export const useThreadOverviewRefreshCounter = (
     };
     // By then the redacted event has left its thread, which the room names.
     const handleRedaction = (mEvent: MatrixEvent, _room: Room, threadRootId?: string) => {
-      if (threadRootId) markThreadRecordChange(overviewChanges, threadRootId);
+      if (threadRootId) mark(threadRootId);
       markEvent(mEvent);
     };
     // A record names its people and reads who is in the room. The sync repeats member events that
     // change neither, one for the sender of many a batch. A change often comes without an event of
     // a timeline: the room's member list, loaded late, may bring a second member of one name.
     const handleMember = (_mEvent: MatrixEvent, member: RoomMember) => {
-      if (member.roomId !== room.roomId) return;
-      markThreadRecordChange(overviewChanges);
-      bump();
+      if (member.roomId === room.roomId) mark();
     };
     // A record reads whether the room is encrypted.
     const handleState = (mEvent: MatrixEvent, state: RoomState) => {
@@ -203,17 +185,14 @@ export const useThreadOverviewRefreshCounter = (
         state.roomId === room.roomId &&
         mEvent.getType() === (EventType.RoomEncryption as string)
       ) {
-        markThreadRecordChange(overviewChanges);
-        bump();
+        mark();
       }
     };
     // A thread's timeline that starts over (for its first page, or after a sync with a gap) shows
     // other events of that thread; the room's may have lost events of any. An event a receipt
     // names that the room lost this way is a change of the room's own (`receiptEventsVersion`).
-    const handleReset = (_room: Room | undefined, timelineSet: EventTimelineSet) => {
-      markThreadRecordChange(overviewChanges, timelineSet.thread?.id);
-      countReceiptEvents();
-    };
+    const handleReset = (_room: Room | undefined, timelineSet: EventTimelineSet) =>
+      mark(timelineSet.thread?.id);
     // The kept edits a record read of a message are gone: no event tells of it. The message is in
     // a timeline, or the reply an unopened thread's summary names, or else perhaps a root no
     // timeline holds (a pinned one), whose record goes by its own ID.
@@ -225,21 +204,16 @@ export const useThreadOverviewRefreshCounter = (
           .map(getThreadSummaryReply)
           .find((reply) => reply?.getId() === messageId);
       if (held) markEvent(held);
-      else markThreadRecordChange(overviewChanges, messageId);
-      bump();
+      else mark(messageId);
     });
-    const handleThread = (thread: Thread | undefined) => {
-      markThreadRecordChange(overviewChanges, thread?.id);
-      bump();
-    };
+    const handleThread = (thread: Thread | undefined) => mark(thread?.id);
 
+    // The events of a batch decrypt one by one: they are marked at once and counted once.
     let decryptedBump: ReturnType<typeof setTimeout> | undefined;
     const handleDecrypted = (mEvent: MatrixEvent) => {
       if (mEvent.getRoomId() !== room.roomId) return;
-      markEvent(mEvent);
-      if (decryptedBump !== undefined) return;
-      if (!shouldRefreshOverviewForTimelineEvent(room, mEvent)) return;
-      decryptedBump = setTimeout(() => {
+      changedThreadIds(room, mEvent).forEach((id) => markThreadRecordChange(overviewChanges, id));
+      decryptedBump ??= setTimeout(() => {
         decryptedBump = undefined;
         bump();
       }, 0);
@@ -247,7 +221,7 @@ export const useThreadOverviewRefreshCounter = (
 
     room.on(RoomEvent.Timeline, handleTimeline);
     room.on(RoomEvent.Receipt, handleReceipt);
-    room.on(RoomEvent.LocalEchoUpdated, handleEcho);
+    room.on(RoomEvent.LocalEchoUpdated, markEvent);
     room.on(RoomEvent.Redaction, handleRedaction);
     room.on(RoomEvent.TimelineReset, handleReset);
     client?.on?.(MatrixEventEvent.Decrypted, handleDecrypted);
@@ -263,7 +237,7 @@ export const useThreadOverviewRefreshCounter = (
     return () => {
       room.removeListener(RoomEvent.Timeline, handleTimeline);
       room.removeListener(RoomEvent.Receipt, handleReceipt);
-      room.removeListener(RoomEvent.LocalEchoUpdated, handleEcho);
+      room.removeListener(RoomEvent.LocalEchoUpdated, markEvent);
       room.removeListener(RoomEvent.Redaction, handleRedaction);
       room.removeListener(RoomEvent.TimelineReset, handleReset);
       client?.removeListener?.(MatrixEventEvent.Decrypted, handleDecrypted);

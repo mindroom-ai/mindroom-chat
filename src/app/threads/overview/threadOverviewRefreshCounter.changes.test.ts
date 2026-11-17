@@ -12,9 +12,8 @@ import {
   type MatrixEvent,
   type Room,
 } from 'matrix-js-sdk';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
-import { receiptEventsVersion } from '../../matrix/receiptReadTs';
 import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter';
 
 // What the room's thread records are told of each event: the thread it may have changed, or the
@@ -92,18 +91,13 @@ const setup = (threadId?: string) => {
       after.room > before
         ? 'room'
         : [...after.threads].filter(([, count]) => count > before).map(([id]) => id);
-    return { marked, counted: state().overviewRefreshCounter - overviewRefreshCounter };
+    return { marked, counted: state().overviewRefreshCounter > overviewRefreshCounter };
   };
   return { room, client, state, told, oldest, unmount: hook.unmount };
 };
 
-vi.mock('../../matrix/receiptReadTs', () => ({ receiptEventsVersion: vi.fn(() => 0) }));
-
-afterEach(() => {
-  // A hook of an earlier test would hear the store of kept edits, which every client shares.
-  cleanup();
-  vi.mocked(receiptEventsVersion).mockReturnValue(0);
-});
+// A hook of an earlier test would hear the store of kept edits, which every client shares.
+afterEach(cleanup);
 
 describe('useThreadOverviewRefreshCounter changes', () => {
   it('marks the room when it starts to listen', () => {
@@ -145,13 +139,13 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     ).toEqual(marked);
   });
 
-  it('marks the thread of an event a timeline loses, which raises no count', () => {
+  it('marks the thread of an event a timeline loses, and counts', () => {
     const { room, told } = setup();
     const lost = event({ id: '$new', threadRootId: '$root' });
 
     expect(told(() => room.emit(RoomEvent.Timeline, lost, room, undefined, true))).toEqual({
       marked: ['$root'],
-      counted: 0,
+      counted: true,
     });
   });
 
@@ -160,7 +154,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
 
     expect(told(() => room.emit(ThreadEvent.Update, { id: '$root' }))).toEqual({
       marked: ['$root'],
-      counted: 1,
+      counted: true,
     });
     expect(told(() => room.emit(ThreadEvent.NewReply, { id: '$other' })).marked).toEqual([
       '$other',
@@ -176,12 +170,12 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     expect(told(() => room.emit(RoomEvent.Receipt, receiptOf('@alice:example.org'), room))).toEqual(
       {
         marked: [],
-        counted: 1,
+        counted: true,
       }
     );
     expect(told(() => room.emit(RoomEvent.Receipt, receiptOf(ME), room))).toEqual({
       marked: 'room',
-      counted: 1,
+      counted: true,
     });
     expect(told(() => room.emit(RoomEvent.Receipt, receiptOf(ME, 'main'), room)).marked).toBe(
       'room'
@@ -194,7 +188,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
 
     expect(told(() => room.emit(RoomEvent.Receipt, receiptOf(ME, '$root'), room))).toEqual({
       marked: ['$root'],
-      counted: 1,
+      counted: true,
     });
     // Someone else's receipt for the main timeline in the same event changes nothing.
     const mixed = event({
@@ -230,7 +224,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
 
     expect(told(() => state().setOverviewRefreshCounter((count) => count + 1))).toEqual({
       marked: 'room',
-      counted: 1,
+      counted: true,
     });
   });
 
@@ -245,7 +239,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
         client.emit(MatrixEventEvent.Decrypted, first);
         client.emit(MatrixEventEvent.Decrypted, second);
       })
-    ).toEqual({ marked: ['$a', '$b'], counted: 0 });
+    ).toEqual({ marked: ['$a', '$b'], counted: false });
     await act(async () => {
       await new Promise((resolve) => {
         setTimeout(resolve, 0);
@@ -256,13 +250,13 @@ describe('useThreadOverviewRefreshCounter changes', () => {
   });
 
   // Sources a record reads that raise no count: each shows at the next count of any event.
-  it('marks the thread of a local echo that moves on without a count', () => {
+  it('marks the thread of a local echo that moves on, and counts', () => {
     const { room, told } = setup();
     const echo = event({ id: '$new', threadRootId: '$root' });
 
     expect(told(() => room.emit(RoomEvent.LocalEchoUpdated, echo, room))).toEqual({
       marked: ['$root'],
-      counted: 0,
+      counted: true,
     });
   });
 
@@ -273,7 +267,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
 
     expect(told(() => room.emit(RoomEvent.Redaction, redaction, room, '$root'))).toEqual({
       marked: ['$root', '$redaction', '$plain'],
-      counted: 0,
+      counted: true,
     });
     expect(told(() => room.emit(RoomEvent.Redaction, redaction, room, undefined)).marked).toEqual([
       '$redaction',
@@ -281,12 +275,12 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     ]);
   });
 
-  it('marks the room for a timeline of the room that starts over, without a count', () => {
+  it('marks the room for a timeline of the room that starts over, and counts', () => {
     const { room, told } = setup();
 
     expect(told(() => room.emit(RoomEvent.TimelineReset, room, {}))).toEqual({
       marked: 'room',
-      counted: 0,
+      counted: true,
     });
   });
 
@@ -295,7 +289,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
 
     expect(
       told(() => room.emit(RoomEvent.TimelineReset, room, { thread: { id: '$root' } }))
-    ).toEqual({ marked: ['$root'], counted: 0 });
+    ).toEqual({ marked: ['$root'], counted: true });
   });
 
   it('marks the thread of an event an edit is put on or taken off', () => {
@@ -304,7 +298,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
 
     expect(told(emit({ id: '$reply', threadRootId: '$root' }))).toEqual({
       marked: ['$root'],
-      counted: 0,
+      counted: true,
     });
     expect(
       told(emit({ id: '$reply', threadRootId: '$root', roomId: '!other:example.org' })).marked
@@ -318,7 +312,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     // A member who left shows the name of their newest member event the room has loaded.
     expect(told(() => room.emit(RoomEvent.Timeline, member, room, true, false))).toEqual({
       marked: 'room',
-      counted: 1,
+      counted: true,
     });
   });
 
@@ -343,8 +337,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     client.emit(ClientEvent.Event, editOf('$reply'));
 
     // The store holds `$reply` and 4,999 more: the next message drops `$reply`.
-    expect(told(fill(0))).toEqual({ marked: ['$root'], counted: 1 });
-    // Each message the full store takes drops one: 5,001 here, `$summarized` the last.
+    expect(told(fill(0))).toEqual({ marked: ['$root'], counted: true });
     const dropped = told(() => {
       client.emit(ClientEvent.Event, editOf('$summarized'));
       fill(5000)();
@@ -352,40 +345,11 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     expect(dropped.marked).toContain('$unopened');
     // A message the room does not find may be a root no timeline holds, such as a pinned one.
     expect(dropped.marked).toContain('$m4999');
-    expect(dropped.counted).toBe(5001);
+    expect(dropped.counted).toBe(true);
     unmount();
     client.emit(ClientEvent.Event, editOf('$reply'));
     expect(told(fill(10000)).marked).toEqual([]);
     stop();
-  });
-
-  it.each([
-    ['a timeline takes', RoomEvent.Timeline, ['$plain'], false],
-    ['a timeline loses', RoomEvent.Timeline, ['$plain'], true],
-    ['a local echo becomes', RoomEvent.LocalEchoUpdated, ['$plain'], false],
-  ])(
-    'counts when %s an event a receipt names, which moves how far that receipt reads',
-    (_what, name, marked, removed) => {
-      const { room, told } = setup();
-      const named = event({ id: '$plain' });
-      const emit = () => room.emit(name, named, room, true, removed);
-
-      // A message outside any thread counts for nothing by itself.
-      expect(told(emit)).toEqual({ marked, counted: 0 });
-      // The room counts what happened to a named event before this listener hears of it.
-      vi.mocked(receiptEventsVersion).mockReturnValue(1);
-      expect(told(emit)).toEqual({ marked, counted: 1 });
-      expect(told(emit)).toEqual({ marked, counted: 0 });
-    }
-  );
-
-  it('counts when a timeline that starts over took an event a receipt names with it', () => {
-    const { room, told } = setup();
-    const reset = () => room.emit(RoomEvent.TimelineReset, room, { thread: { id: '$root' } });
-
-    vi.mocked(receiptEventsVersion).mockReturnValue(1);
-    expect(told(reset)).toEqual({ marked: ['$root'], counted: 1 });
-    expect(told(reset)).toEqual({ marked: ['$root'], counted: 0 });
   });
 
   it('says that it hears the room while it does', () => {
@@ -399,13 +363,13 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     expect(setup('$open').state().overviewChanges.listened).toBe(false);
   });
 
-  it('marks the thread of each event the client hears of this room, without a count', () => {
+  it('marks the thread of each event the client hears of this room, and counts', () => {
     const { client, told } = setup();
     const emit = (fake: FakeEvent) => () => client.emit(ClientEvent.Event, event(fake));
 
     expect(told(emit({ id: '$edit', threadRootId: '$root' }))).toEqual({
       marked: ['$root'],
-      counted: 0,
+      counted: true,
     });
     expect(told(emit({ id: '$edit', relatesTo: '$gone' })).marked).toBe('room');
     expect(
@@ -425,8 +389,8 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     const emit = (roomId: string) => () =>
       client.emit(RoomStateEvent.Events, event({ id: '$state', type }), { roomId });
 
-    expect(told(emit(ROOM_ID))).toEqual({ marked, counted: marked === 'room' ? 1 : 0 });
-    expect(told(emit('!other:example.org'))).toEqual({ marked: [], counted: 0 });
+    expect(told(emit(ROOM_ID))).toEqual({ marked, counted: marked === 'room' });
+    expect(told(emit('!other:example.org'))).toEqual({ marked: [], counted: false });
   });
 
   it.each([
@@ -437,7 +401,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     const emit = (roomId: string) => () =>
       client.emit(name, event({ id: '$member', type: 'm.room.member' }), { roomId });
 
-    expect(told(emit(ROOM_ID))).toEqual({ marked: 'room', counted: 1 });
-    expect(told(emit('!other:example.org'))).toEqual({ marked: [], counted: 0 });
+    expect(told(emit(ROOM_ID))).toEqual({ marked: 'room', counted: true });
+    expect(told(emit('!other:example.org'))).toEqual({ marked: [], counted: false });
   });
 });
