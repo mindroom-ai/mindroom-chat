@@ -1,4 +1,3 @@
-import type { MatrixEvent } from 'matrix-js-sdk';
 import {
   ACTIVE_STREAM_STATUSES,
   getStreamStatusFromContent,
@@ -18,7 +17,7 @@ export type ReplyTiming = { startTs: number; endTs?: number; streaming: boolean 
 export const getReplyTiming = (
   startTs: number,
   content: Record<string, unknown>,
-  edit?: Pick<MatrixEvent, 'getTs' | 'getContent'>
+  edit?: { getTs(): number; getContent(): Record<string, unknown> }
 ): ReplyTiming | undefined => {
   const status = getStreamStatusFromContent(content);
   if (status && ACTIVE_STREAM_STATUSES.has(status)) return { startTs, streaming: true };
