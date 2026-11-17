@@ -370,7 +370,9 @@
       },
       "computers": {
         "inUse": "Servidor em utilização",
-        "inUseNone": "Nenhum definido, por isso os computadores estão desativados neste dispositivo."
+        "inUseNone": "Nenhum definido, por isso os computadores estão desativados neste dispositivo.",
+        "useServer": "Usar {{host}}",
+        "foundNotSaved": "Encontrado através dos seus agentes, não guardado; guarde-o para introduzir chaves aqui."
       },
       "keywords": {
         "theme": "modo escuro, modo claro, modo noturno, cores",
@@ -734,7 +736,7 @@
         "declinedWaiting": "Recusada, a aguardar o agente",
         "noLongerActive": "Este pedido já não está ativo. Peça novamente ao agente.",
         "unavailable": "Não é possível introduzir chaves neste servidor.",
-        "unavailableHint": "Para introduzir chaves aqui, defina o seu servidor MindRoom em Definições → {{page}} → {{field}}.",
+        "unavailableHint": "Para introduzir chaves aqui, guarde o seu servidor MindRoom em Definições → {{page}}.",
         "replaces": "Substitui a chave guardada agora.",
         "replaceKey": "Substituir chave",
         "temporary": {

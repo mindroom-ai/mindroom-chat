@@ -1,4 +1,4 @@
-import { ChangeEvent, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
 import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Input, Text, color } from 'folds';
@@ -34,6 +34,8 @@ export function ComputerSettings({ className }: { className?: string }) {
   const shownValue = preference ?? deploymentUrl ?? '';
   const [draft, setDraft] = useState(shownValue);
   const [feedback, setFeedback] = useState<Feedback>();
+  // A preference saved elsewhere (the Server in use tile) shows here too.
+  useEffect(() => setDraft(shownValue), [shownValue]);
 
   // While nothing is set, the server found from the agents is what a blank field means.
   const placeholder =

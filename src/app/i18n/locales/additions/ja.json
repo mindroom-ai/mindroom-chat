@@ -360,7 +360,9 @@
       },
       "computers": {
         "inUse": "使用中のサーバー",
-        "inUseNone": "未設定のため、このデバイスではコンピューターはオフです。"
+        "inUseNone": "未設定のため、このデバイスではコンピューターはオフです。",
+        "useServer": "{{host}} を使用",
+        "foundNotSaved": "エージェントから見つかりましたが、保存されていません。ここでキーを入力するには保存してください。"
       },
       "keywords": {
         "theme": "ダークモード, ライトモード, ナイトモード, 色, テーマ",
@@ -716,7 +718,7 @@
         "declinedWaiting": "拒否しました。エージェントを待っています",
         "noLongerActive": "このリクエストは有効ではなくなりました。もう一度エージェントに依頼してください。",
         "unavailable": "このサーバーではキーを入力できません。",
-        "unavailableHint": "ここでキーを入力するには、設定 → {{page}} → {{field}} で MindRoom サーバーを設定してください。",
+        "unavailableHint": "ここでキーを入力するには、設定 → {{page}} で MindRoom サーバーを保存してください。",
         "replaces": "現在保存されているキーを置き換えます。",
         "replaceKey": "キーを置き換える",
         "temporary": {

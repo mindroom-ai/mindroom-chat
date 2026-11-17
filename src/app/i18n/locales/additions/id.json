@@ -360,7 +360,9 @@
       },
       "computers": {
         "inUse": "Server yang digunakan",
-        "inUseNone": "Belum diatur, jadi komputer nonaktif di perangkat ini."
+        "inUseNone": "Belum diatur, jadi komputer nonaktif di perangkat ini.",
+        "useServer": "Gunakan {{host}}",
+        "foundNotSaved": "Ditemukan dari agen Anda, belum disimpan; simpan untuk memasukkan kunci di sini."
       },
       "keywords": {
         "theme": "mode gelap, mode terang, mode malam, warna",
@@ -716,7 +718,7 @@
         "declinedWaiting": "Ditolak, menunggu agen",
         "noLongerActive": "Permintaan ini sudah tidak aktif. Minta lagi kepada agen.",
         "unavailable": "Memasukkan kunci tidak tersedia di server ini.",
-        "unavailableHint": "Untuk memasukkan kunci di sini, atur server MindRoom Anda di Pengaturan → {{page}} → {{field}}.",
+        "unavailableHint": "Untuk memasukkan kunci di sini, simpan server MindRoom Anda di Pengaturan → {{page}}.",
         "replaces": "Menggantikan kunci yang tersimpan sekarang.",
         "replaceKey": "Ganti kunci",
         "temporary": {
