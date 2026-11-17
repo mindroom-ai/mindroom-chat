@@ -485,14 +485,18 @@ Thread details (`src/app/plugins/threadDetails.ts`) are the eleventh kind: `Clie
 `shows(room, threadId)`, pure and synchronous, says whether the thread has that detail; without it, every thread does, and one that throws counts as false, logged as "[plugin <id>@<version>] its thread details' shows failed".
 The app reads which details show as a surface opens and keeps that list until it closes; only threads whose root the server confirmed (`$` IDs) have details.
 `Component` gets `{ room, threadId }`: the thread's room (matrix-js-sdk's `Room`) and the ID of its root event, and draws rows of text, with no control, no link and nothing focusable.
-It renders inside the room's page, so room hooks such as `useRoomSidePanel` and `useRoomNavigate` work in it.
+In the Compact card's hover card and the thread menu, it renders inside the room's page, so `useRoomSidePanel` and `useShownThread` have the room's context.
+In the sidebar THREADS hover card, it renders outside a room's page: `useRoomSidePanel` and `useShownThread` return undefined, as on the search page.
+`useRoomNavigate` works on every surface.
+The sidebar THREADS hover card (`src/app/sidebar/threads/ThreadNavItem.tsx`) shows the same details after its live status rows, under a hairline only while a detail draws something.
+It opens with no delay, so a detail that loads on mount should use cached, cancellable requests.
 The Compact card's hover card (`src/app/threads/overview/ThreadCardDetails.tsx`) shows after a pointer rests on the card for 500 ms, on devices with a fine pointer that can hover, never on touch.
 It opens at the pointer, below it in the window's upper half and above it in the lower half, mirrored in right-to-left, at most 320 px wide, read-only and hidden from assistive technology (`aria-hidden`).
 Leaving the card, a press, a click, a wheel scroll, opening the menu or a room change closes it; after a press, click, wheel scroll or the menu, it stays closed until the pointer leaves the card.
 A thread card badge with `hoverCard: true` counts as outside the card, so it stays closed over that badge and moving onto the badge leaves the card.
 A programmatic scroll closes it only when another card or none is now under the pointer, not when the list's own scroll adjustment leaves the same card there.
 The same details form the first group of the thread's menu (`src/app/threads/ThreadActionsMenu.tsx`), reached through More Options, right-click, the ContextMenu key, a long press on a Compact card or the open thread's banner.
-That group describes the menu (`aria-describedby`) and scrolls with its rows on touch screens, under the menu's height cap.
+That group describes the menu (`aria-describedby`) and scrolls with its rows under the menu's height cap, on every pointer type.
 Contributions show in build order, with a hairline between those that drew something, and the hover card stays hidden while none did.
 A detail that loads its code (a `lazy` component) shows nothing until the code has loaded, while the other details show.
 A detail that throws shows nothing, and the failure is logged and reported with its plugin's tag ("[plugin <id>@<version>] failed to render its thread details").

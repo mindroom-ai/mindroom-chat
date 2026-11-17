@@ -221,7 +221,8 @@ export function ThreadActionsMenu({
 
   useEffect(() => {
     const surface = surfaceRef.current;
-    if (!surface) return undefined;
+    // Without details, the menu neither resizes late nor has a description.
+    if (!surface || details.length === 0) return undefined;
     // Details that render nothing (empty, loading or failed) describe nothing.
     const measure = () =>
       setDescribed(surface.querySelector('[data-thread-detail]:not(:empty)') !== null);
@@ -244,7 +245,7 @@ export function ThreadActionsMenu({
       mutations.disconnect();
       observer?.disconnect();
     };
-  }, [anchor, dialog]);
+  }, [anchor, dialog, details]);
 
   if (dialog === 'snooze') {
     return (
