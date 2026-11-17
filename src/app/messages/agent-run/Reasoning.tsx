@@ -445,15 +445,15 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
 
 /**
  * Wrap a reply body with the model's reasoning, its history compactions and the runtime's live
- * activity. Each compaction (`io.mindroom.compactions`, or `io.mindroom.live_compactions` while the
- * reply streams) shows as a seam where it ran, placed as the reasoning segments are. The reasoning line
- * above the body says how long the model thought, or that it thinks (`io.mindroom.live_reasoning`,
- * `io.mindroom.reasoning`); its bulb shows each reasoning segment where it happened, at the top or
- * after the tool calls of `html` it followed, and while the reply streams the segment being
- * written shows there under a closed bulb too, until the body goes on or the reader closes the
- * bulb. The live activity line (`io.mindroom.live_activity`) goes below the body. While the
- * reply's tool calls are hidden, their cog sits on the reasoning's line, or in its place above the
- * body.
+ * activity. Each compaction (`io.mindroom.compactions`, or `io.mindroom.live_compactions` while
+ * the reply streams) shows as a seam where it ran, placed as the reasoning segments are. The
+ * reasoning line above the body says how long the model thought, or that it thinks
+ * (`io.mindroom.live_reasoning`, `io.mindroom.reasoning`); its bulb shows each reasoning segment
+ * where it happened, at the top or after the tool calls of `html` it followed, and while the
+ * reply streams the segment being written shows there under a closed bulb too, until the body
+ * goes on or the reader closes the bulb. The live activity line (`io.mindroom.live_activity`)
+ * goes below the body. While the reply's tool calls are hidden, their cog sits on the reasoning's
+ * line, or in its place above the body.
  */
 export const withReasoning = (
   content: Record<string, unknown>,
