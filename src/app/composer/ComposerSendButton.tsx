@@ -18,6 +18,8 @@ type ComposerSendButtonProps = {
   alone?: boolean;
   /** An agent replies in the thread now, so holding the button offers the modes. */
   agentReplying: boolean;
+  /** Whether the composer holds text to send; only a text message carries a mode. */
+  hasText: () => boolean;
   /** The mode a tap sends with, from the Chats setting; its row in the menu says so. */
   defaultMode: MidTurnMode;
   /** Sends the message, with the mode picked from the menu, or the default one for a tap. */
@@ -56,13 +58,15 @@ const arrowKey = (name: 'arrowdown' | 'arrowup') => (event: KeyboardEvent) => is
 /**
  * The composer's Send button. A tap or Enter sends with the default mode. While an agent replies in
  * the thread, holding it `LONG_PRESS_MS` opens a menu above it: Steer, Queue and Auto, each with a
- * line on what it does; the one picked sends the message with that mode. Without a reply, a hold
- * is a tap. Escape closes the menu, and focus goes back to the button if it was in the menu.
+ * line on what it does; the one picked sends the message with that mode. Without a reply, or
+ * without text to send (a voice message or files alone carry no mode), a hold is a tap. Escape
+ * closes the menu, and focus goes back to the button if it was in the menu.
  */
 export function ComposerSendButton({
   label,
   alone,
   agentReplying,
+  hasText,
   defaultMode,
   onSend,
 }: ComposerSendButtonProps) {
@@ -79,7 +83,7 @@ export function ComposerSendButton({
       buttonRef.current = element;
       setAnchor(element.getBoundingClientRect());
     },
-    () => agentReplying
+    () => agentReplying && hasText()
   );
   const menuLabel = t('composer.midTurn.menuLabel');
 
@@ -108,8 +112,8 @@ export function ComposerSendButton({
             returnFocusOnDeactivate: false,
             isKeyForward: arrowKey('arrowdown'),
             isKeyBackward: arrowKey('arrowup'),
-            // The click that ends the hold comes after the menu opened; it closes nothing.
-            clickOutsideDeactivates: (event) => event.type !== 'click' && close(),
+            // The lift that ends the hold closes nothing: usePointerLongPress drops its events.
+            clickOutsideDeactivates: close,
             escapeDeactivates: () => {
               // The text box keeps the focus it had; focus in the menu goes back to the button.
               refocusRef.current = !!menuRef.current?.contains(document.activeElement);

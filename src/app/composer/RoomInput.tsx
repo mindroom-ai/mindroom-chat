@@ -828,6 +828,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 label={sendLabel}
                 alone={phone}
                 agentReplying={agentReplying}
+                hasText={() => buildTextContent(midTurnSend) !== undefined}
                 defaultMode={midTurnSend}
                 onSend={handleSend}
               />

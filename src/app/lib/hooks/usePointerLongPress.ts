@@ -3,20 +3,27 @@ import { LONG_PRESS_MS, LONG_PRESS_SLOP } from './useLongPress';
 
 type Press = { timer: ReturnType<typeof setTimeout>; x: number; y: number };
 
+// What the browser still sends for a press that fired, after the pointer events: the mouse events a
+// finger's lift makes and the click that ends the press. Every new press starts with a pointerdown.
+const ENDING_EVENTS = ['mousedown', 'mouseup', 'click'] as const;
+
 /**
  * Pointer handlers, for a mouse, a finger and a pen alike, that call `onLongPress` with the element
  * they are on once the pointer has rested `LONG_PRESS_MS` on it. Moving more than
  * `LONG_PRESS_SLOP`, lifting, leaving the element or the browser cancelling the pointer ends the
- * press first. Once the press fired, the click that ends it is dropped, so a hold never also does
- * what a tap does, and neither does the context menu a resting finger would open. `canStart`
- * decides per press whether one may begin; when it may not, the element works as before.
+ * press first. Once the press fired, the mouse events and the click that end it are dropped
+ * page-wide until the next press or key, so a hold never also does what a tap does, nor does its
+ * lift count as a press outside a menu it opened; no context menu opens under a resting finger
+ * either. `canStart` decides per press whether one may begin; when it may not, the element works as
+ * before.
  */
 export function usePointerLongPress(
   onLongPress: (element: HTMLElement) => void,
   canStart: () => boolean
 ) {
   const press = useRef<Press>();
-  const fired = useRef(false);
+  // Set while the end of a press that fired is dropped; stops dropping it.
+  const ending = useRef<() => void>();
   const latest = useRef(onLongPress);
   latest.current = onLongPress;
 
@@ -25,22 +32,41 @@ export function usePointerLongPress(
     press.current = undefined;
   };
 
-  // An element that unmounts mid-press stops its timer.
+  // An element that unmounts mid-press stops its timer and drops nothing more.
   useEffect(
     () => () => {
       if (press.current) clearTimeout(press.current.timer);
+      ending.current?.();
     },
     []
   );
 
+  // Window capture runs before any other listener, a focus trap's on the document among them.
+  const dropEnding = () => {
+    const drop = (event: Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.type === 'click') stop();
+    };
+    const stop = () => {
+      ENDING_EVENTS.forEach((type) => window.removeEventListener(type, drop, true));
+      window.removeEventListener('pointerdown', stop, true);
+      window.removeEventListener('keydown', stop, true);
+      ending.current = undefined;
+    };
+    ENDING_EVENTS.forEach((type) => window.addEventListener(type, drop, true));
+    window.addEventListener('pointerdown', stop, true);
+    window.addEventListener('keydown', stop, true);
+    ending.current = stop;
+  };
+
   const onPointerDown = (evt: PointerEvent<HTMLElement>) => {
     cancel();
-    fired.current = false;
     if (!evt.isPrimary || evt.button !== 0 || !canStart()) return;
     const element = evt.currentTarget;
     const timer = setTimeout(() => {
       press.current = undefined;
-      fired.current = true;
+      dropEnding();
       latest.current(element);
     }, LONG_PRESS_MS);
     press.current = { timer, x: evt.clientX, y: evt.clientY };
@@ -53,15 +79,8 @@ export function usePointerLongPress(
     }
   };
 
-  const onClickCapture = (evt: MouseEvent<HTMLElement>) => {
-    if (!fired.current) return;
-    fired.current = false;
-    evt.preventDefault();
-    evt.stopPropagation();
-  };
-
   const onContextMenu = (evt: MouseEvent<HTMLElement>) => {
-    if (press.current || fired.current) evt.preventDefault();
+    if (press.current || ending.current) evt.preventDefault();
   };
 
   return {
@@ -70,7 +89,6 @@ export function usePointerLongPress(
     onPointerUp: cancel,
     onPointerCancel: cancel,
     onPointerLeave: cancel,
-    onClickCapture,
     onContextMenu,
   };
 }
