@@ -220,10 +220,31 @@ export const loadImageElement = (url: string): Promise<HTMLImageElement> =>
   loadMedia(document.createElement('img'), 'load', url);
 
 /** Loads a video's metadata and first frame from a URL. */
+/** How long a video may take to show its first frame before it is sent without one. */
+export const VIDEO_LOAD_TIMEOUT_MS = 10_000;
+
+/**
+ * Loads a video up to its first frame, for its dimensions or to draw a thumbnail. iOS WebKit
+ * decodes no frame of a video that never plays, so it plays muted until then. A video that
+ * still shows no frame after `VIDEO_LOAD_TIMEOUT_MS` rejects, so a send never waits on it.
+ */
 export const loadVideoElement = (url: string): Promise<HTMLVideoElement> => {
   const video = document.createElement('video');
   Object.assign(video, { preload: 'metadata', playsInline: true, muted: true });
-  return loadMedia(video, 'loadeddata', url);
+  const loaded = loadMedia(video, 'loadeddata', url);
+  // A refused play (Low Power Mode) leaves the timeout to settle the load.
+  video.play()?.catch(() => undefined);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`Could not load video ${url} within ${VIDEO_LOAD_TIMEOUT_MS} ms`)),
+      VIDEO_LOAD_TIMEOUT_MS
+    );
+  });
+  return Promise.race([loaded, timedOut]).finally(() => {
+    clearTimeout(timer);
+    video.pause();
+  });
 };
 
 export const getDataTransferFiles = (dataTransfer: DataTransfer): File[] | undefined => {

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getThumbnail, loadImageElement, loadVideoElement } from './dom';
+import { getThumbnail, loadImageElement, loadVideoElement, VIDEO_LOAD_TIMEOUT_MS } from './dom';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -37,16 +37,42 @@ describe('loadImageElement', () => {
 });
 
 describe('loadVideoElement', () => {
+  // jsdom implements neither play nor pause.
+  const stubPlayback = (play: () => Promise<void> = () => Promise.resolve()) => ({
+    play: vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(play),
+    pause: vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined),
+  });
+
   it('resolves with a muted, inline video with metadata preloading once a frame is ready', async () => {
     settleLater('loadeddata');
+    const { play, pause } = stubPlayback();
     const video = await loadVideoElement('blob:video');
     expect(video.preload).toBe('metadata');
     expect(video.playsInline).toBe(true);
     expect(video.muted).toBe(true);
+    // iOS WebKit decodes no first frame of a video that never plays.
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(pause).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects when no frame arrives in time, also when playing is refused', async () => {
+    vi.useFakeTimers();
+    try {
+      stubPlayback(() => Promise.reject(new DOMException('refused', 'NotAllowedError')));
+      const loading = loadVideoElement('blob:silent');
+      const settled = expect(loading).rejects.toThrow(
+        `Could not load video blob:silent within ${VIDEO_LOAD_TIMEOUT_MS} ms`
+      );
+      await vi.advanceTimersByTimeAsync(VIDEO_LOAD_TIMEOUT_MS);
+      await settled;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('rejects naming the url when the video fails', async () => {
     settleLater('error');
+    stubPlayback();
     await expect(loadVideoElement('blob:broken')).rejects.toThrow(
       'Could not load video blob:broken'
     );
