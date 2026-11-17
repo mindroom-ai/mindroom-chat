@@ -18,8 +18,9 @@
  *   on `<body>`; focus goes back to the control it came from. A dialog gives focus back however it
  *   closed. After a pointer press on a menu nothing moves, so a click elsewhere keeps its own focus.
  * - A layer marked `data-owns-focus` (`OWNS_FOCUS_ATTRIBUTE`) moves focus itself, as the thread
- *   title marker's card does (Tab reaches it from the marker, Escape gives focus back): none of the
- *   above touches it.
+ *   title marker's card does (Tab reaches it from the marker, Escape gives focus back): it is
+ *   never focused, kept or wrapped by this module as it opens; focus still returns to its opener
+ *   when it closes leaving focus on the body.
  */
 
 const PORTAL_CONTAINER_ID = 'portalContainer';

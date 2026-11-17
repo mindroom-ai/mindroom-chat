@@ -167,10 +167,13 @@ describe('ThreadSummaryMarker', () => {
     const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
 
     await act(() => trigger(renderer).props.onClick());
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
     act(() => {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      document.dispatchEvent(escape);
     });
     expect(popout(renderer)).toHaveLength(0);
+    // The room's Escape (focus the composer) still runs.
+    expect(escape.defaultPrevented).toBe(false);
 
     await act(() => trigger(renderer).props.onClick());
     act(() => {
@@ -434,15 +437,21 @@ describe('ThreadSummaryMarker', () => {
       expect(later.defaultPrevented).toBe(false);
     });
 
-    it('closes on Escape', async () => {
+    it('closes a hovered card on Escape and leaves the room its Escape', async () => {
       const renderer = renderWithSettings();
 
-      await act(() => trigger(renderer).props.onClick());
+      await act(() => trigger(renderer).props.onPointerEnter(mouse));
+      expect(popout(renderer)).toHaveLength(1);
+      const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
       act(() => {
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+        document.dispatchEvent(escape);
       });
 
       expect(popout(renderer)).toHaveLength(0);
+      // Focus is not in the card, so nothing goes back to the marker, and the room's Escape
+      // (focus the composer) runs as it did for the plain tooltip.
+      expect(escape.defaultPrevented).toBe(false);
+      expect(nodes.trigger!.focus).not.toHaveBeenCalled();
     });
   });
 });

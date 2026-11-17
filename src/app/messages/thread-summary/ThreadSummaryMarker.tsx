@@ -93,11 +93,14 @@ export function ThreadSummaryMarker({
     if (!isOpen) return undefined;
     const onKeyDown = (evt: globalThis.KeyboardEvent) => {
       if (evt.key !== 'Escape') return;
-      // This Escape closes the card and nothing else: the room's own (focus the composer,
-      // ShortcutRoot on the window) skips a key whose default was prevented.
-      evt.preventDefault();
-      // Focus in the card would fall to the page once it is gone.
-      if (within(cardRef.current, document.activeElement)) triggerRef.current?.focus();
+      // Focus in the card would fall to the page once it is gone, so it goes back to the marker,
+      // and the room's Escape (focus the composer, ShortcutRoot on the window), which skips a key
+      // whose default was prevented, must not take it from there. With focus elsewhere that
+      // Escape still runs, as it did for the plain tooltip.
+      if (within(cardRef.current, document.activeElement)) {
+        evt.preventDefault();
+        triggerRef.current?.focus();
+      }
       close();
     };
     const onPointerDown = (evt: Event) => {
