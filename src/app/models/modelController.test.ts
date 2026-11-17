@@ -644,9 +644,12 @@ describe('shared model discovery', () => {
     h.controller.subscribe(h.room, '$b', () => {});
     await flush();
     expect(h.snapshot('$b')).toMatchObject({ eligible: true, canMutate: false });
+    const asked = h.request().request_id;
     h.member('@someone:test');
     h.mx.emit(RoomMemberEvent.Membership, new MatrixEvent({}), h.room.getMember('@someone:test')!);
-    expect(h.snapshot('$b')).toMatchObject({ eligible: true, canMutate: false });
+    await flush();
+    expect(h.request().request_id).not.toBe(asked);
+    expect(h.snapshot('$b')).toMatchObject({ eligible: true, loading: true, canMutate: false });
   });
   it('starts counting failures again after an answer', async () => {
     const h = setup();
@@ -689,8 +692,12 @@ describe('shared model discovery', () => {
     await h.discover();
     h.controller.refresh(h.room, '$root');
     await flush();
-    for (const delay of [3000, 10000, 30000, 60000])
+    const attempts = new Set([h.request().request_id]);
+    for (const delay of [3000, 10000, 30000, 60000]) {
       await vi.advanceTimersByTimeAsync(12000 + delay);
+      attempts.add(h.request().request_id);
+    }
+    expect(attempts.size).toBe(5);
     await vi.advanceTimersByTimeAsync(12000);
     expect(h.snapshot()).toMatchObject({ eligible: true, loading: false });
     expect(h.snapshot().models).toHaveLength(2);
