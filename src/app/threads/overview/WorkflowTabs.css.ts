@@ -4,7 +4,10 @@ import { motion } from '../../ui/styles/Motion.css';
 import { transition } from '../../ui/styles/transition';
 import { FilterButton } from './RoomThreadOverview.css';
 
-const GAP = toRem(2);
+// The pill and the tabs sit this far inside the group's rim.
+const INSET = toRem(2);
+// Concentric with the group's corners: its radius less the rim and the inset.
+const INNER_RADIUS = `calc(${config.radii.R400} - ${config.borderWidth.B300} - ${INSET})`;
 const ICON = toRem(12);
 // Pulls the button's column gap back around an icon or label folded to nothing.
 const CLOSE_GAP = `calc(-1 * ${config.space.S100})`;
@@ -16,40 +19,49 @@ const ROLL = `380ms ${motion.easing.Decelerate}`;
 // An icon's gesture starts once the pill is on its way.
 const GESTURE_DELAY = 90;
 
+// One outlined track around the five tabs, with the same rim, radius and 32 px outer height as
+// the dropdowns beside it, so they read as one control.
 export const WorkflowTabs = style({
   position: 'relative',
   isolation: 'isolate',
   display: 'flex',
   flexShrink: 0,
-  gap: GAP,
   overflowX: 'auto',
   scrollbarWidth: 'none',
+  boxSizing: 'border-box',
   height: toRem(32),
   maxWidth: '100%',
+  padding: INSET,
+  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
   borderRadius: config.radii.R400,
   background: color.SurfaceVariant.Container,
 });
 
 // One pill for the pressed tab, under the buttons (it comes first; they are positioned too).
+// It carries the active rim, as the other lit controls do (the sort button, the dropdowns).
 export const WorkflowPill = style({
   position: 'absolute',
-  insetBlock: 0,
+  insetBlock: INSET,
   // eslint-disable-next-line no-restricted-syntax -- the pill follows offsetLeft, which counts from the physical left in either direction
   left: 0,
-  borderRadius: config.radii.R400,
+  boxSizing: 'border-box',
+  border: `${config.borderWidth.B300} solid ${color.Primary.ContainerLine}`,
+  borderRadius: INNER_RADIUS,
   background: color.Primary.Container,
   pointerEvents: 'none',
   willChange: 'transform, width',
   transition: transition(['opacity'], motion.duration.Normal),
 });
 
-// Reuse the dropdown's complete sizing, including its border-box height. The group has no
-// extra padding or border, so its outer height is the same as the neighbouring triggers.
+// Reuse the dropdown's sizing, but fill the track inside its rim and inset: the group, not each
+// tab, is as tall as the neighbouring triggers.
 export const WorkflowTab = style([
   FilterButton,
   {
     position: 'relative',
     flexShrink: 0,
+    height: '100%',
+    borderRadius: INNER_RADIUS,
     borderColor: 'transparent',
     background: 'transparent',
     WebkitTapHighlightColor: 'transparent',
