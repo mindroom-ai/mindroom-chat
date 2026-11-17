@@ -62,6 +62,7 @@ const fixture = (renderedEvents: MatrixEvent[] = []) => {
       append: vi.fn(() => {
         order.push('append');
       }),
+      getEvents: vi.fn(() => []),
       invalidateTimeline: vi.fn(() => {
         order.push('invalidate');
       }),

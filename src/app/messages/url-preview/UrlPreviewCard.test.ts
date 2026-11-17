@@ -120,6 +120,23 @@ describe('UrlPreviewCard', () => {
     expect(loadPreview).toHaveBeenCalledTimes(1);
   });
 
+  it.each(['idle', 'loading', 'error'])(
+    'paints nothing while its preview is %s, so a failed preview never shows a box',
+    async (status) => {
+      loadPreview.mockResolvedValue(undefined);
+      previewState.current = { status };
+      let renderer!: ReturnType<typeof create>;
+      await act(async () => {
+        renderer = create(
+          React.createElement(UrlPreviewCard, { url: 'https://example.com', ts: 1 })
+        );
+        await Promise.resolve();
+      });
+      expect(renderer.toJSON()).toBeNull();
+      act(() => renderer.unmount());
+    }
+  );
+
   it("shows the direction controls of the page's site name, title and description as code points", async () => {
     loadPreview.mockResolvedValue(undefined);
     previewState.current = {
