@@ -880,6 +880,25 @@ describe('example plugin', () => {
     expect(link.match(new URL('https://example.com/items/7'))).toBe(false);
   });
 
+  it('opens its panel on the item of an example.org panel item link', async () => {
+    const [, link] = plugin.messageLinks ?? [];
+    if (!link?.sidePanel) throw new Error('the example plugin has no message link to its panel');
+    expect(link.match(new URL('https://example.org/panel-items/3'))).toBe(true);
+    expect(link.match(new URL('https://example.org/items/3'))).toBe(false);
+    expect(link.sidePanel.id).toBe('panel');
+    const request = link.sidePanel.request(new URL('https://example.org/panel-items/3'));
+    expect(request).toEqual({ item: '3' });
+    const panel = plugin.sidePanels?.find(({ id }) => id === 'panel');
+    if (!panel) throw new Error('the example plugin has no panel');
+    // The panel reads the room's members through the account's client.
+    const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
+    const view = await renderPluginComponent(
+      <panel.Component roomId="!lobby:example.org" request={request} />,
+      { id: 'example', plugin, client }
+    );
+    expect(view.getByTestId('example-panel-item').textContent).toBe('Example panel item 3');
+  });
+
   it('names the item in its link card', async () => {
     const [link] = plugin.messageLinks ?? [];
     if (!link) throw new Error('the example plugin has no message link');

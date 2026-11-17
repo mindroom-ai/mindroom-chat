@@ -30,6 +30,7 @@ import * as css from './HtmlBlocks.css';
 import * as activityCss from '../../ui/ThreadActivity.css';
 import { ActivityIcon, ActivityResult, ActivityTone, ThreadActivity } from '../../ui/ThreadActivity';
 import {
+  ReasoningSegmentsContext,
   resolveToolCallStates,
   summarizeToolCalls,
   TOOL_STATE_TITLE,
@@ -38,6 +39,7 @@ import {
   ToolCallState,
   useFoldedToolCalls,
 } from '../agent-run/toolCallStatus';
+import { ReasoningSegmentsAt } from '../agent-run/Reasoning';
 import { useThreadApprovals } from '../../approvals/ThreadApprovalProvider';
 import { getEffectiveToolApprovalStatus, parseToolApprovalExpiryTimestamp } from '../../matrix/protocol/toolApproval';
 import { parseToolJobHandle } from '../../matrix/protocol/toolJobHandle';
@@ -422,6 +424,19 @@ function ToolRefGroupBlock({
   );
 }
 
+/**
+ * A run of tool calls as the parser places it, then the reasoning that followed its last call
+ * (Reasoning.tsx), which shows there also while the run itself is hidden.
+ */
+function ToolRun({ tools }: { tools: ToolBlockRenderData[] }) {
+  return (
+    <>
+      <ToolRefGroupBlock parsedTools={tools} />
+      <ReasoningSegmentsAt anchor={tools.at(-1)?.index ?? 0} />
+    </>
+  );
+}
+
 const cloneDomChildNode = (node: ChildNode): ChildNode => {
   if (isDomTextNode(node)) {
     return new DOMText(node.data);
@@ -501,7 +516,9 @@ const contentHasMarkerCandidate = (content: Record<string, unknown>): boolean =>
 const createToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,
   traceEvents: ToolTraceEvent[] | undefined,
-  metadataStatus?: ToolMetadataStatus
+  metadataStatus: ToolMetadataStatus | undefined,
+  // The markers a run of calls ends at, because reasoning shows after them.
+  splitAfter: ReadonlySet<number>
 ): HTMLReactParserOptions => {
   const baseReplace = baseOpts.replace;
   const baseTransform = baseOpts.transform;
@@ -564,7 +581,11 @@ const createToolTraceMarkerParserOptions = (
           const previousItem = isDomElementNode(previousSibling)
             ? buildItem(previousSibling)
             : undefined;
-          if (previousItem && !previousItem.trailingElement) {
+          if (
+            previousItem &&
+            !previousItem.trailingElement &&
+            !splitAfter.has(previousItem.data.index)
+          ) {
             return null;
           }
 
@@ -576,6 +597,9 @@ const createToolTraceMarkerParserOptions = (
           // Do not merge across that boundary, otherwise tool ordering appears
           // ahead of the narrative text that introduced each call.
           if (!firstItem.trailingElement) {
+            // Reasoning that shows after a marker ends the run there. What follows the run is
+            // still looked for, since its boundary is cleaned up either way.
+            let merging = !splitAfter.has(firstItem.data.index);
             let sibling = domNode.next;
             while (sibling) {
               if (isDomTextNode(sibling) && !sibling.data.trim()) {
@@ -590,12 +614,14 @@ const createToolTraceMarkerParserOptions = (
                 boundaryFollower = sibling;
                 break;
               }
+              if (!merging) break;
 
               items.push(item);
               if (item.trailingElement) {
                 trailingElement = item.trailingElement;
                 break;
               }
+              merging = !splitAfter.has(item.data.index);
               sibling = sibling.next;
             }
           }
@@ -607,9 +633,9 @@ const createToolTraceMarkerParserOptions = (
           items.forEach((item) => consumedToolIndexes.add(item.data.index));
           groupRootIndexes.add(firstItem.data.index);
           const toolBlock = (
-            <ToolRefGroupBlock
+            <ToolRun
               key={`tool-group-${firstItem.data.index}`}
-              parsedTools={items.map((item) => item.data)}
+              tools={items.map((item) => item.data)}
             />
           );
           if (!trailingElement) return toolBlock;
@@ -631,9 +657,9 @@ const createToolTraceMarkerParserOptions = (
             consumedToolIndexes.add(toolRef.index);
             groupRootIndexes.add(toolRef.index);
             chainedToolBlocks.push(
-              <ToolRefGroupBlock
+              <ToolRun
                 key={`tool-group-${toolRef.index}`}
-                parsedTools={[
+                tools={[
                   buildToolRefRenderData(toolRef, traceEvents?.[toolRef.index - 1], metadataStatus),
                 ]}
               />
@@ -687,9 +713,9 @@ const createToolTraceMarkerParserOptions = (
 /**
  * The marker parser options for one message, as a function that makes fresh ones for each parse
  * (they keep state while they parse). The function stays the same while the base options, whether
- * the content has markers, its tool trace and the metadata status do, so a memoized parse of a
- * message that did not change is kept when the timeline renders again, as it does for every
- * streamed edit of another message.
+ * the content has markers, its tool trace, the metadata status and the markers that reasoning
+ * shows after do, so a memoized parse of a message that did not change is kept when the timeline
+ * renders again, as it does for every streamed edit of another message.
  */
 export const useToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,
@@ -698,10 +724,28 @@ export const useToolTraceMarkerParserOptions = (
 ): HtmlReactParserOptionsSource => {
   const hasMarkers = contentHasMarkerCandidate(content);
   const toolTrace = content[MINDROOM_TOOL_TRACE_KEY];
+  // The markers that reasoning shows after (withReasoning in Reasoning.tsx), where a run of calls
+  // ends so that the thinking between two calls shows between them; none while none shows after a
+  // call, and runs then group as they do without reasoning. As text, which stays the same while
+  // they do.
+  const reasoning = useContext(ReasoningSegmentsContext);
+  const splitAfterKey = reasoning
+    ? [...reasoning.placement]
+        .filter(
+          ([anchor, indices]) =>
+            anchor > 0 &&
+            (reasoning.open ||
+              (reasoning.liveIndex !== undefined && indices.includes(reasoning.liveIndex)))
+        )
+        .map(([anchor]) => anchor)
+        .join()
+    : '';
   return useMemo(() => {
     // Most messages carry no markers, and the base options keep the same identity.
     if (!hasMarkers) return baseOpts;
     const traceEvents = getToolTraceV2Events(toolTrace);
-    return () => createToolTraceMarkerParserOptions(baseOpts, traceEvents, metadataStatus);
-  }, [baseOpts, hasMarkers, toolTrace, metadataStatus]);
+    const splitAfter = new Set(splitAfterKey ? splitAfterKey.split(',').map(Number) : []);
+    return () =>
+      createToolTraceMarkerParserOptions(baseOpts, traceEvents, metadataStatus, splitAfter);
+  }, [baseOpts, hasMarkers, toolTrace, metadataStatus, splitAfterKey]);
 };

@@ -15,14 +15,18 @@ const link = (fields: Partial<MessageLink> = {}): MessageLink => ({
   ...fields,
 });
 
-const plugin = (id: string, messageLinks: MessageLink[]): RegisteredPlugin => ({
+const plugin = (
+  id: string,
+  messageLinks: MessageLink[],
+  sidePanels: RegisteredPlugin['sidePanels'] = []
+): RegisteredPlugin => ({
   id,
   tag: `${id}@1.0.0`,
   conversationCovers: [],
   messageRenderers: [],
   pages: [],
   roomHeaderSlot: [],
-  sidePanels: [],
+  sidePanels,
   headerActions: [],
   slashCommands: [],
   roomActions: [],
@@ -45,6 +49,41 @@ describe('useMessageLinkMatcher', () => {
     expect(isMessageLink('https://example.org')).toBe(false);
     expect(isMessageLink({ match: () => true })).toBe(false);
     expect(isMessageLink(null)).toBe(false);
+  });
+
+  it('keeps a link whose side panel is an id and a request function, and no other', () => {
+    expect(isMessageLink(link({ sidePanel: { id: 'p', request: () => 1 } }))).toBe(true);
+    expect(isMessageLink({ ...link(), sidePanel: { id: 3, request: () => 1 } })).toBe(false);
+    expect(isMessageLink({ ...link(), sidePanel: { id: 'p' } })).toBe(false);
+    expect(isMessageLink({ ...link(), sidePanel: 'p' })).toBe(false);
+  });
+
+  it("gives an opted-in link its plugin's panel, under the plugin's id", () => {
+    const request = (url: URL) => url.pathname;
+    const panels = [{ id: 'p', label: 'P', Component }];
+    const cards = matcher([
+      plugin(
+        'a',
+        [
+          link({ match: (url) => url.host === 'github.com', sidePanel: { id: 'p', request } }),
+          link(),
+        ],
+        panels
+      ),
+    ]);
+    expect(cards(PULL)?.sidePanel).toEqual({ id: 'a/p', request });
+    expect(cards('https://other.example/x')).toEqual({ tag: 'a@1.0.0', Component });
+  });
+
+  it('gives no panel to a link that names one its plugin does not have', () => {
+    const cards = matcher([
+      plugin(
+        'a',
+        [link({ sidePanel: { id: 'missing', request: () => 1 } })],
+        [{ id: 'p', label: 'P', Component }]
+      ),
+    ]);
+    expect(cards(PULL)).toEqual({ tag: 'a@1.0.0', Component });
   });
 
   it('takes the first match in build order', () => {

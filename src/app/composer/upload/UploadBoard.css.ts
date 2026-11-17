@@ -9,9 +9,9 @@ export const UploadBoardBase = style([
   { pointerEvents: 'none', position: 'relative' },
 ]);
 
-// In a room view the approvals and background jobs dock floats between the timeline and the
-// composer; its height is the footer inset minus the composer's (MindroomRoomView). The panel
-// rises above the dock, so neither covers the other's controls.
+// In a room view the dock of the typing strip, background jobs and approvals floats between the
+// timeline and the composer; its height is the footer inset minus the composer's
+// (ConversationLayout). The panel rises above the dock, so neither covers the other's controls.
 const dockHeight = 'calc(var(--room-footer-height, 0px) - var(--room-composer-height, 0px))';
 
 /** Spans the anchor's width S200 above it (and above the dock) and pushes the panel to the end. */

@@ -246,6 +246,18 @@ export const InfoButton = style({
   },
 });
 
+// After InfoButton, whose background and color it overrides.
+export const SearchButtonFiltering = style({
+  backgroundColor: color.Primary.Container,
+  color: color.Primary.OnContainer,
+
+  '@media': {
+    '(hover: hover)': {
+      selectors: { '&:hover': { backgroundColor: color.Primary.ContainerHover } },
+    },
+  },
+});
+
 export const InfoPopover = style({
   position: 'absolute',
   top: `calc(${TOGGLE_SIZE} + ${config.space.S100})`,
@@ -329,52 +341,3 @@ export const ResetLink = style({
     },
   },
 });
-
-export const WorkflowTabs = style({
-  display: 'flex',
-  flexShrink: 0,
-  gap: WORKFLOW_GAP,
-  overflowX: 'auto',
-  scrollbarWidth: 'none',
-  height: TOGGLE_SIZE,
-  maxWidth: '100%',
-  borderRadius: config.radii.R400,
-  background: color.SurfaceVariant.Container,
-});
-
-// Reuse the dropdown's complete sizing, including its border-box height. The group has no
-// extra padding or border, so its outer height is the same as the neighbouring triggers.
-export const WorkflowTab = style([
-  FilterButton,
-  {
-    flexShrink: 0,
-    borderColor: 'transparent',
-    background: 'transparent',
-    selectors: {
-      // Keep the inherited focus ring inside the scrollport.
-      '&:focus-visible': { outlineOffset: `calc(-1 * ${config.borderWidth.B400})` },
-      '&[aria-pressed="true"]': {
-        background: color.Primary.Container,
-        color: color.Primary.OnContainer,
-      },
-    },
-  },
-]);
-
-export const WorkflowIcon = style({
-  display: 'none',
-  '@container': {
-    '(max-width: 40rem)': {
-      selectors: { '[aria-pressed="false"] &': { display: 'inline-flex' } },
-    },
-  },
-});
-
-export const WorkflowLabel = style({
-  '@container': {
-    '(max-width: 40rem)': {
-      selectors: { '[aria-pressed="false"] &': { display: 'none' } },
-    },
-  },
-});
-export const WorkflowCount = style({ fontVariantNumeric: 'tabular-nums', opacity: 0.7 });

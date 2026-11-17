@@ -186,7 +186,14 @@ describe('ThreadLiveStatusRows', () => {
           startedAt: 1762790000,
           endedAt: null,
         },
-        snapshot: { md: '', reasoning: '', tools: [], status: 'streaming', activity: '' },
+        snapshot: {
+          md: '',
+          reasoning: '',
+          tools: [],
+          status: 'streaming',
+          activity: '',
+          segments: [],
+        },
       },
       Date.now()
     );
@@ -236,6 +243,7 @@ describe('ThreadLiveStatusRows', () => {
             tools: [completed('shell'), started('grep')],
             status: 'streaming',
             activity: '',
+            segments: [],
           },
         },
         Date.now()
@@ -285,6 +293,7 @@ describe('ThreadLiveStatusRows', () => {
           tools: [started('shell'), started('grep')],
           status: 'streaming',
           activity: '',
+          segments: [],
         },
       },
       Date.now()

@@ -133,6 +133,16 @@ describe('useThreadIndex record builds', () => {
     expect(result.current.compactThreadRecordMap).toBe(records);
   });
 
+  it('counts are not settled on the render that turns the thread list off', () => {
+    state.list = { ...state.list, loading: false, loadedSuccessfully: true };
+    const { result, rerender } = renderHook(useThreadIndex, { initialProps: options() });
+    expect(result.current.threadListSettled).toBe(true);
+    // The unfiltered Threads view lists no thread list. Its first render still reads the list's
+    // last load, which the list resets only after that render.
+    rerender({ ...options(), compactViewRequested: false, effectiveViewMode: 'threaded' });
+    expect(result.current.threadListSettled).toBe(false);
+  });
+
   it('keeps no record from before a thread was open', () => {
     const fixed = options();
     const { result, rerender } = renderHook(useThreadIndex, { initialProps: fixed });

@@ -127,7 +127,14 @@ const run = (status: SubagentStatus, threadId: string | null = THREAD) => {
     startedAt: 1_762_790_000,
     endedAt: ended ? 1_762_790_060 : null,
   };
-  const snapshot = { md: 'Looking.', reasoning: '', tools: [], status: 'streaming', activity: '' };
+  const snapshot = {
+    md: 'Looking.',
+    reasoning: '',
+    tools: [],
+    status: 'streaming',
+    activity: '',
+    segments: [],
+  };
   act(() =>
     store().ingest(ROOM_ID, SENDER, { run: `run-${serial}`, sid: 's', seq: 0, meta, snapshot }, 0)
   );

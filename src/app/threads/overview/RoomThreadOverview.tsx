@@ -1,5 +1,4 @@
 import {
-  THREAD_WORKFLOW_TABS,
   type ThreadWorkflowTab,
   type ThreadWorkflowCounts,
 } from '../../event-store/threads/threadWorkflow';
@@ -8,11 +7,6 @@ import { Box, Icon, Icons, Text, Tooltip, toRem } from 'folds';
 import { TooltipProvider } from '../../ui/directional';
 import { useTranslation } from 'react-i18next';
 import {
-  IconBell,
-  IconCheck,
-  IconClock,
-  IconList,
-  IconLoader,
   IconFilter,
   IconInfoCircle,
   IconLock,
@@ -29,6 +23,7 @@ import { settingsAtom } from '../../preferences/settings';
 import * as css from './RoomThreadOverview.css';
 import { ThreadTagFilter } from './ThreadTagFilter';
 import { useKeepInsideToolbar } from './useKeepInsideToolbar';
+import { WorkflowTabs } from './WorkflowTabs';
 import { localDigits } from '../../lib/localDigits';
 import type {
   ThreadFilterState,
@@ -37,6 +32,7 @@ import type {
 } from '../../event-store/threads/roomThreadOverviewModel';
 import {
   hasActiveThreadFilters,
+  hasSearchOnlyThreadFilters,
   THREAD_FILTER_KEYS,
   normalizeThreadSearchText,
 } from '../../event-store/threads/roomThreadOverviewModel';
@@ -48,13 +44,6 @@ import {
 
 // How long a filter change's summary stays in the live region.
 const SPOKEN_SUMMARY_MS = 5_000;
-const WORKFLOW_ICONS = {
-  needsYou: IconBell,
-  working: IconLoader,
-  later: IconClock,
-  done: IconCheck,
-  all: IconList,
-};
 const VISUALLY_HIDDEN = {
   position: 'absolute',
   width: 1,
@@ -195,13 +184,16 @@ function ThreadInfoPopover({
 
 function ThreadSearchBar({
   searchQuery,
+  filtering,
   onSearchQueryChange,
 }: {
   searchQuery: string;
+  /** The query filters by something no other control shows, so the button lights up. */
+  filtering: boolean;
   onSearchQueryChange: (query: string) => void;
 }) {
   const { t } = useTranslation();
-  // Collapsed until asked for, even while a query filters; the sort button shows active filters.
+  // Collapsed until asked for, even while a query filters; the button then shows that it does.
   const [expanded, setExpanded] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -240,7 +232,7 @@ function ThreadSearchBar({
           <button
             ref={triggerRef}
             type="button"
-            className={css.InfoButton}
+            className={classNames(css.InfoButton, filtering && css.SearchButtonFiltering)}
             onClick={handleToggle}
             aria-label={t('mindroomUi.threads.roomThreadOverview.searchThreads')}
             aria-expanded={expanded}
@@ -270,11 +262,15 @@ function ThreadSearchBar({
 // ─── RoomThreadOverview ──────────────────────────────────────────────────────
 
 export type RoomThreadOverviewProps = {
+  /** The room shown: a new one starts the workflow tabs afresh, without motion. */
+  roomId?: string;
   hasMindroomAgents: boolean;
   threadCount: number;
   totalThreadCount: number;
   statusCounts?: StatusCounts;
   bucketCounts?: ThreadWorkflowCounts;
+  /** Whether `bucketCounts` stopped loading, so their changes may move (WorkflowTabs). */
+  countsSettled?: boolean;
   onSelectTab?: (tab: ThreadWorkflowTab) => void;
   tagCounts?: Record<string, number>;
   state: ThreadFilterState;
@@ -329,11 +325,9 @@ function ThreadSectionsSwitch({ on, onToggle }: { on: boolean; onToggle: () => v
 
 function ThreadSortControl({
   state,
-  active = false,
   onChange,
 }: {
   state: ThreadFilterState;
-  active?: boolean;
   onChange: () => void;
 }) {
   const { t } = useTranslation();
@@ -356,7 +350,7 @@ function ThreadSortControl({
         <button
           ref={triggerRef}
           type="button"
-          className={classNames(css.SortButton, active && css.SortButtonActive)}
+          className={css.SortButton}
           onClick={onChange}
           aria-label={sortLabel}
           data-sort-by={state.sortBy}
@@ -381,11 +375,13 @@ function ThreadSortControl({
 }
 
 export function RoomThreadOverview({
+  roomId,
   hasMindroomAgents,
   threadCount,
   totalThreadCount,
   statusCounts,
   bucketCounts,
+  countsSettled = false,
   onSelectTab,
   tagCounts,
   state,
@@ -642,54 +638,16 @@ export function RoomThreadOverview({
         {hasMindroomAgents && countBadge}
 
         {hasMindroomAgents && (
-          <div
-            className={css.WorkflowTabs}
-            role="group"
-            aria-label={t('mindroomUi.threads.roomThreadOverview.statusFilters')}
-          >
-            {THREAD_WORKFLOW_TABS.map((tab) => (
-              <TooltipProvider
-                key={tab}
-                position="Bottom"
-                align="Center"
-                tooltip={
-                  <Tooltip style={{ maxWidth: toRem(320) }}>
-                    <Text size="T200">{t(`thread.workflow.description.${tab}`)}</Text>
-                  </Tooltip>
-                }
-              >
-                {(triggerRef) => (
-                  <button
-                    ref={triggerRef}
-                    type="button"
-                    data-thread-tab={tab}
-                    className={css.WorkflowTab}
-                    aria-label={`${t(`thread.workflow.${tab}`)} ${localDigits(
-                      String(bucketCounts?.[tab] ?? 0),
-                      i18n.language
-                    )}`}
-                    aria-pressed={
-                      (state.tab ??
-                        (THREAD_FILTER_KEYS.some((key) => state[key] !== 'any')
-                          ? undefined
-                          : 'all')) === tab
-                    }
-                    onClick={() => onSelectTab?.(tab)}
-                  >
-                    <span className={css.WorkflowIcon} aria-hidden="true">
-                      {React.createElement(WORKFLOW_ICONS[tab], { size: toRem(12), stroke: 1.8 })}
-                    </span>
-                    <Text size="T200" className={css.WorkflowLabel}>
-                      {t(`thread.workflow.${tab}`)}
-                    </Text>
-                    <Text size="T200" className={css.WorkflowCount}>
-                      {localDigits(String(bucketCounts?.[tab] ?? 0), i18n.language)}
-                    </Text>
-                  </button>
-                )}
-              </TooltipProvider>
-            ))}
-          </div>
+          <WorkflowTabs
+            key={roomId}
+            active={
+              state.tab ??
+              (THREAD_FILTER_KEYS.some((key) => state[key] !== 'any') ? undefined : 'all')
+            }
+            counts={bucketCounts}
+            countsSettled={countsSettled}
+            onSelect={onSelectTab}
+          />
         )}
         {/* Info */}
         {hasMindroomAgents && (
@@ -712,11 +670,13 @@ export function RoomThreadOverview({
           />
         )}
 
-        {!threadSections && (
-          <ThreadSortControl state={state} active={filtersActive} onChange={handleSort} />
-        )}
+        {!threadSections && <ThreadSortControl state={state} onChange={handleSort} />}
         {sectionsSwitch}
-        <ThreadSearchBar searchQuery={searchQueryDraft} onSearchQueryChange={handleSearch} />
+        <ThreadSearchBar
+          searchQuery={searchQueryDraft}
+          filtering={hasSearchOnlyThreadFilters(state)}
+          onSearchQueryChange={handleSearch}
+        />
         {hasMindroomAgents && !threadSections && state.sortBy !== 'natural' && (
           <TooltipProvider
             position="Bottom"

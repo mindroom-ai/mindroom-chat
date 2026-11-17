@@ -80,12 +80,15 @@ vi.mock('../agent-run/Reasoning.css', () => ({
   CollapseEnd: 'CollapseEnd',
   Label: 'Label',
   Chevron: 'Chevron',
+  Segment: 'Segment',
+  Rail: 'Rail',
   Body: 'Body',
   ActivityCode: 'ActivityCode',
   Bulb: 'Bulb',
   BulbIcon: 'BulbIcon',
 }));
-vi.mock('../agent-run/OutlineComet.css', () => ({}));
+vi.mock('../agent-run/OutlineComet.css', () => ({ Outline: 'Outline' }));
+vi.mock('../agent-run/ToolCallsFold.css', () => ({ CogRipple: 'CogRipple' }));
 vi.mock('../html/HtmlBlocks.css', () => ({
   Block: 'Block',
   BlockBody: 'BlockBody',
@@ -333,23 +336,76 @@ describe('finished agent work', () => {
     });
 
     render(streaming(MINDROOM_THINKING_PLACEHOLDER_BODY));
+    // The bulb starts closed; the reader opens it.
     act(() => {
       reasoningToggle().props.onClick();
     });
-    expect(reasoningToggle().props['aria-expanded']).toBe(false);
+    expect(reasoningToggle().props['aria-expanded']).toBe(true);
 
     // Two blocks: the parser keys the blocks of a body with more than one, so the first block of
     // any reply mounts again as its second arrives.
     const blocks = '<p>Let me look.</p><p>Searching.</p>';
     render(streaming('Let me look. Searching.', blocks));
-    expect(reasoningToggle().props['aria-expanded']).toBe(false);
+    expect(reasoningToggle().props['aria-expanded']).toBe(true);
     const before = firstParagraph();
 
     render(streaming('Let me look. Searching.', `${blocks}${marker('web_search', 1)}`));
-    expect(reasoningToggle().props['aria-expanded']).toBe(false);
+    expect(reasoningToggle().props['aria-expanded']).toBe(true);
     // Compared as a boolean: a failed toBe would print the whole fiber tree.
     expect(firstParagraph() === before).toBe(true);
     expect(toolCalls()).toEqual(['web_search']);
+  });
+
+  it('keeps every reasoning segment inside the folded work, and none in the answer', () => {
+    const first = 'Which source is newest?';
+    const last = 'The file settles it.';
+    render({
+      ...reply('completed'),
+      'io.mindroom.reasoning': {
+        text: `${first}\n\n${last}`,
+        duration_ms: 9000,
+        segments: [
+          { start: 0, after_tool: 0, duration_ms: 4000 },
+          // After the last tool call, right before the answer.
+          { start: first.length + 2, after_tool: 2, duration_ms: 5000 },
+        ],
+      },
+    });
+    expect(text()).not.toContain('Thought for');
+
+    act(() => {
+      workedRow().props.onClick();
+    });
+    const bulb = renderer!.root.find(
+      (node) => node.type === 'button' && textOf(node) === 'Thought for 9 s'
+    );
+    expect(text()).not.toContain(first);
+    act(() => {
+      bulb.props.onClick();
+    });
+
+    // The row's own element holds the work; the answer follows it.
+    const work = workedRow().parent!;
+    const segments = renderer!.root.findAll(
+      (node) => node.type === 'div' && node.props.className === 'Segment'
+    );
+    expect(segments.map((segment) => textOf(segment).replace(/\n/g, ''))).toEqual([
+      `Thought for 4 s${first}Hide thinking`,
+      `Thought for 5 s${last}Hide thinking`,
+    ]);
+    const inWork = (node: ReactTestInstance | null): boolean =>
+      !!node && (node === work || inWork(node.parent));
+    expect(segments.map((segment) => inWork(segment))).toEqual([true, true]);
+    const answer = renderer!.root.find(
+      (node) => node.type === 'p' && textOf(node).startsWith('The answer.')
+    );
+    expect(inWork(answer)).toBe(false);
+    // In the order it happened: the last thought after the last tool call, before the answer.
+    const order = [first, 'web_search', 'read_file', last, 'The answer.'].map((part) =>
+      text().indexOf(part)
+    );
+    expect(order).not.toContain(-1);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
   });
 
   it('does not split a short reply', () => {

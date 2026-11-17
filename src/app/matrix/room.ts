@@ -20,6 +20,7 @@ import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from './e
 import { copyResolvedEditMetadata } from './protocol/editMetadata';
 import { getAppliedEdit, isUsableEdit } from './protocol/untrustedContent';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from './protocol/toolApproval';
+import { hasTerminalStreamMetadata } from './protocol/aiRun';
 import { isRecord } from '../lib/isRecord';
 import { mxcUrlToHttp } from './mediaUrl';
 import { matchesEnum } from '../lib/matchesEnum';
@@ -495,9 +496,11 @@ const getBorrowableKeys = (edit: MatrixEvent): string[] => {
 /**
  * Of one sender's edits of one message, those `getEditedEvent` can neither show nor borrow from
  * any more, which what holds them (the SDK's relations, the thread open seed) can release. An
- * edit not sent yet stays. Of the others, newest first, all stay up to the first one that is not
- * redacted and readable, the one shown; an older edit then stays only while it is readable and
- * carries metadata no newer kept readable edit has.
+ * edit not sent yet stays, and so does one that could not be decrypted, whose metadata is unknown
+ * until its key arrives, and so does one that finishes a stream, which a receipt on the finished
+ * reply names (`hasTerminalStreamMetadata`). Of the others, newest first, all stay up to the first
+ * one that is not redacted and readable, the one shown; an older edit then stays only while it is
+ * readable and carries metadata no newer kept readable edit has.
  */
 export const getReleasableEdits = (
   edits: readonly MatrixEvent[],
@@ -509,9 +512,12 @@ export const getReleasableEdits = (
     .sort((a, b) => (isEventOrderedAfter(a, b) ? -1 : 1))
     .filter((edit) => {
       if (edit.status) return false;
-      const readable = !isRedacted(edit) && isReadableEdit(edit);
+      const redacted = isRedacted(edit);
+      if (!redacted && isUndecryptable(edit)) return false;
+      const readable = !redacted && isReadableEdit(edit);
       const keys = readable ? getBorrowableKeys(edit) : [];
-      if (keptKeys && keys.every((key) => keptKeys?.has(key))) return true;
+      const finishing = readable && hasTerminalStreamMetadata(edit.getContent());
+      if (!finishing && keptKeys && keys.every((key) => keptKeys?.has(key))) return true;
       if (readable) keptKeys = new Set([...(keptKeys ?? []), ...keys]);
       return false;
     });
@@ -545,17 +551,16 @@ export const hasUndecryptedNewerEdit = (
   );
 
 /**
- * The edits of `mEvent` by its sender still waiting to decrypt. Its row repaints once each one
- * decrypts or fails to, so the newer text or the note on an undecryptable edit shows.
+ * The edits of `mEvent` by its sender still waiting to decrypt, or that failed to and may once
+ * their key arrives. Its row repaints once each one decrypts or fails to, so the newer text, the
+ * note on an undecryptable edit, or the metadata an older edit lends the shown one shows.
  */
 export const getPendingEdits = (
   eventId: string,
   mEvent: MatrixEvent,
   timelineSet: Pick<EventTimelineSet, 'relations'> | undefined
 ): MatrixEvent[] =>
-  getEditCandidates(eventId, mEvent, timelineSet).filter(
-    (candidate) => isUnreadableYet(candidate) && !isUndecryptable(candidate)
-  );
+  getEditCandidates(eventId, mEvent, timelineSet).filter(isUnreadableYet);
 
 /**
  * The event's own content. The SDK's `getContent` gives the `m.new_content` of the edit it

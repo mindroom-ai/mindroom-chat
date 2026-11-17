@@ -278,7 +278,7 @@ describe('saveThreadOpenSeedSnapshot with edits the app cannot show', () => {
   });
 
   it.each([EventStatus.CANCELLED, EventStatus.SENDING])(
-    'keeps the sent edit before a newer one whose status is %s',
+    'keeps the newest sent edit and a newer one whose status is %s',
     (status) => {
       const pending = makeEdit('$pending', 3100);
       pending.setStatus(status);
@@ -295,7 +295,7 @@ describe('saveThreadOpenSeedSnapshot with edits the app cannot show', () => {
     }
   );
 
-  it('drops an unusable edit older than a readable one', async () => {
+  it('keeps an undecryptable edit older than a readable one, whose metadata is unknown', async () => {
     const undecryptable = await makeUndecryptableEdit('$undecryptable', 2900);
 
     saveThreadOpenSeedSnapshot(room, '$root', [
@@ -305,7 +305,21 @@ describe('saveThreadOpenSeedSnapshot with edits the app cannot show', () => {
       makeEdit('$readable', 3000),
     ]);
 
-    expect(seedIds()).toEqual(['$root', '$reply', '$readable']);
+    expect(seedIds()).toEqual(['$root', '$reply', '$undecryptable', '$readable']);
+  });
+
+  it('drops an undecryptable edit older than a readable one once it is redacted', async () => {
+    const undecryptable = await makeUndecryptableEdit('$undecryptable', 2900);
+
+    saveThreadOpenSeedSnapshot(room, '$root', [
+      makeRoot(),
+      makeReply(),
+      undecryptable,
+      makeEdit('$readable', 3000),
+      makeRedaction('$redaction', 3100, '$undecryptable'),
+    ]);
+
+    expect(seedIds()).toEqual(['$root', '$reply', '$readable', '$redaction']);
   });
 });
 
@@ -351,7 +365,8 @@ describe('saveThreadOpenSeedSnapshot with metadata a newer edit borrows', () => 
 
     expect(shown).toEqual({ body: '$body-later', toolTrace: trace('tool-4') });
     saveThreadOpenSeedSnapshot(room, '$root', compactThenMerge());
-    expect(seedIds()).toEqual(['$root', '$reply', '$traced-4', '$body-later']);
+    // The edit that finished the stream stays too: a receipt on the finished reply names it.
+    expect(seedIds()).toEqual(['$root', '$reply', '$traced-4', '$body-4', '$body-later']);
   });
 
   it('drops older edits whose metadata every newer kept edit carries', () => {

@@ -6,7 +6,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type { LiveDocs, LiveFrame } from '../../matrix/protocol/liveFrame';
 import { loadLiveMarkdown } from './liveMarkdown';
 import { getLiveReplyStore, LIVE_REPLY_FRESHNESS_MS } from './liveReplyStore';
-import { useLiveReplyContent } from './useLiveReplyContent';
+import { LIVE_REASONING_SEGMENTS_KEY, useLiveReplyContent } from './useLiveReplyContent';
 import { isThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
 
 const ROOM = '!room:example';
@@ -18,7 +18,8 @@ const tool = { type: 'tool_call_started', tool_name: 'web_search' };
 const snapshot = (
   seq: number,
   md = 'Live **text**',
-  reasoning = 'Weighing options'
+  reasoning = 'Weighing options',
+  segments: LiveDocs['segments'] = []
 ): LiveFrame & { snapshot: LiveDocs } => ({
   reply: REPLY,
   sid: SID,
@@ -29,8 +30,13 @@ const snapshot = (
     tools: [tool],
     status: 'streaming',
     activity: 'Preparing isolated worker... 3s elapsed.',
+    segments,
   },
 });
+const SEGMENTS = [
+  { start: 0, after_tool: 0 },
+  { start: 9, after_tool: 1 },
+];
 
 const durable = (status: string, extra: Record<string, unknown> = {}): IContent => {
   const newContent = {
@@ -120,6 +126,23 @@ describe('useLiveReplyContent', () => {
       'com.mindroom.message_extras': { sections: [] },
     });
     expect(live()).toBe(true);
+  });
+
+  it('shows the live reasoning segments', () => {
+    ingest(snapshot(0, 'Live **text**', 'Weighing\n\noptions', SEGMENTS));
+    render(durable('streaming'));
+
+    expect(shown()[LIVE_REASONING_SEGMENTS_KEY]).toEqual(SEGMENTS);
+  });
+
+  it('keeps the live reasoning segments over a durable checkpoint that covers the entry', () => {
+    ingest(snapshot(4, 'Frame four', 'Weighing\n\noptions', SEGMENTS));
+    render(durable('streaming', { 'io.mindroom.live_checkpoint': { sid: SID, seq: 4 } }));
+
+    expect(shown()).toMatchObject({
+      'io.mindroom.live_reasoning': 'Weighing\n\noptions',
+      [LIVE_REASONING_SEGMENTS_KEY]: SEGMENTS,
+    });
   });
 
   it('shows the thinking placeholder while the live Markdown is empty', () => {

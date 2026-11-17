@@ -218,6 +218,68 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   await expect(partial.getByRole('listitem')).toHaveCount(3);
   await page.screenshot({ path: testInfo.outputPath('desktop-unlisted-jobs.png') });
 
+  // Wide, the typing strip and the jobs bar share the line above the composer, the strip first;
+  // on a phone the bar goes above the strip. (At 1280 px with the members panel open, this long
+  // typing name leaves the bar under 20rem, so it already goes above.)
+  await page.setViewportSize({ width: 1600, height: 800 });
+  const setTyping = (typing: boolean) =>
+    matrixFetch(
+      HOMESERVER,
+      `/rooms/${encodeURIComponent(fixture.roomId)}/typing/${encodeURIComponent(coder.user_id)}`,
+      {
+        method: 'PUT',
+        accessToken: coder.access_token,
+        body: JSON.stringify({ typing, timeout: 60_000 }),
+      }
+    );
+  await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
+  const typingStrip = page.getByRole('status').filter({ hasText: /is typing/ });
+  const jobsBar = page.getByRole('region', { name: /background jobs/ });
+  await setTyping(true);
+  await expect(typingStrip).toBeVisible();
+  await expect(jobsBar).toBeVisible();
+  const placement = async () => {
+    const strip = (await typingStrip.boundingBox())!;
+    const jobs = (await jobsBar.boundingBox())!;
+    return {
+      stripFirst: strip.x + strip.width < jobs.x,
+      sameBottom: Math.abs(strip.y + strip.height - (jobs.y + jobs.height)) < 1,
+      barAbove: jobs.y + jobs.height <= strip.y,
+      sameHeight: Math.abs(strip.height - jobs.height) < 0.5,
+      sameWidth: Math.abs(strip.width - jobs.width) < 0.5,
+    };
+  };
+  await expect.poll(placement).toEqual({
+    stripFirst: true,
+    sameBottom: true,
+    barAbove: false,
+    sameHeight: true,
+    sameWidth: false,
+  });
+  // Beside the bar, the strip stays as wide as its text.
+  const stripText = typingStrip.locator('p');
+  expect(await stripText.evaluate((text) => text.scrollWidth - text.clientWidth)).toBe(0);
+  // The gap between the two takes no clicks: they reach the timeline under the dock.
+  expect(
+    await typingStrip.evaluate((strip) => {
+      const box = strip.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.right + 4, box.top + box.height / 2);
+      return !!hit && !strip.parentElement?.parentElement?.contains(hit);
+    })
+  ).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('desktop-typing-beside-jobs.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(placement).toEqual({
+    stripFirst: false,
+    sameBottom: false,
+    barAbove: true,
+    sameHeight: true,
+    sameWidth: true,
+  });
+  await page.screenshot({ path: testInfo.outputPath('phone-typing-under-jobs.png') });
+  await setTyping(false);
+  await expect(typingStrip).toHaveCount(0);
+
   // On a phone, the bar sits above the composer in light and dark.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(
