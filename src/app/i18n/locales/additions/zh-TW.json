@@ -360,7 +360,8 @@
       },
       "computers": {
         "inUse": "使用中的伺服器",
-        "inUseNone": "未設定，因此此裝置上的電腦已關閉。"
+        "inUseNone": "未設定，因此此裝置上的電腦已關閉。",
+        "useServer": "使用 {{host}}"
       },
       "keywords": {
         "theme": "深色模式, 淺色模式, 夜間模式, 顏色",
@@ -716,7 +717,7 @@
         "declinedWaiting": "已拒絕，等待代理程式",
         "noLongerActive": "此請求已失效。請再次向代理程式提出。",
         "unavailable": "此伺服器不支援輸入金鑰。",
-        "unavailableHint": "若要在此輸入金鑰，請在設定 → {{page}} → {{field}} 中設定您的 MindRoom 伺服器。",
+        "unavailableHint": "若要在此輸入金鑰，請在設定 → {{page}} → {{field}} 中儲存您的 MindRoom 伺服器。",
         "replaces": "將取代目前儲存的金鑰。",
         "replaceKey": "取代金鑰",
         "temporary": {

@@ -370,7 +370,8 @@
       },
       "computers": {
         "inUse": "Server in uso",
-        "inUseNone": "Nessuno impostato, quindi i computer sono disattivati su questo dispositivo."
+        "inUseNone": "Nessuno impostato, quindi i computer sono disattivati su questo dispositivo.",
+        "useServer": "Usa {{host}}"
       },
       "keywords": {
         "theme": "modalità scura, modalità chiara, modalità notte, colori",
@@ -734,7 +735,7 @@
         "declinedWaiting": "Rifiutata, in attesa dell’agente",
         "noLongerActive": "Questa richiesta non è più attiva. Chiedi di nuovo all’agente.",
         "unavailable": "L’inserimento delle chiavi non è disponibile su questo server.",
-        "unavailableHint": "Per inserire chiavi qui, imposta il tuo server MindRoom in Impostazioni → {{page}} → {{field}}.",
+        "unavailableHint": "Per inserire chiavi qui, salva il tuo server MindRoom in Impostazioni → {{page}} → {{field}}.",
         "replaces": "Sostituisce la chiave salvata ora.",
         "replaceKey": "Sostituisci chiave",
         "temporary": {

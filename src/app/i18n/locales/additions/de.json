@@ -365,7 +365,8 @@
       },
       "computers": {
         "inUse": "Verwendeter Server",
-        "inUseNone": "Keiner festgelegt, daher sind Computer auf diesem Gerät aus."
+        "inUseNone": "Keiner festgelegt, daher sind Computer auf diesem Gerät aus.",
+        "useServer": "{{host}} verwenden"
       },
       "keywords": {
         "theme": "Dunkelmodus, Hellmodus, Nachtmodus, Farben, dark mode",
@@ -725,7 +726,7 @@
         "declinedWaiting": "Abgelehnt, wartet auf den Agenten",
         "noLongerActive": "Diese Anfrage ist nicht mehr aktiv. Frag den Agenten erneut.",
         "unavailable": "Auf diesem Server lassen sich keine Schlüssel eingeben.",
-        "unavailableHint": "Um hier Schlüssel einzugeben, lege deinen MindRoom-Server unter Einstellungen → {{page}} → {{field}} fest.",
+        "unavailableHint": "Um hier Schlüssel einzugeben, speichere deinen MindRoom-Server unter Einstellungen → {{page}} → {{field}}.",
         "replaces": "Ersetzt den jetzt gespeicherten Schlüssel.",
         "replaceKey": "Schlüssel ersetzen",
         "temporary": {

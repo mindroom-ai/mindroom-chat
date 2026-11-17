@@ -370,7 +370,8 @@
       },
       "computers": {
         "inUse": "Serveur utilisé",
-        "inUseNone": "Aucun défini : les ordinateurs sont désactivés sur cet appareil."
+        "inUseNone": "Aucun défini : les ordinateurs sont désactivés sur cet appareil.",
+        "useServer": "Utiliser {{host}}"
       },
       "keywords": {
         "theme": "mode sombre, mode clair, mode nuit, couleurs",
@@ -734,7 +735,7 @@
         "declinedWaiting": "Refusée, en attente de l’agent",
         "noLongerActive": "Cette demande n’est plus active. Redemandez à l’agent.",
         "unavailable": "La saisie de clés n’est pas disponible sur ce serveur.",
-        "unavailableHint": "Pour saisir des clés ici, définissez votre serveur MindRoom dans Paramètres → {{page}} → {{field}}.",
+        "unavailableHint": "Pour saisir des clés ici, enregistrez votre serveur MindRoom dans Paramètres → {{page}} → {{field}}.",
         "replaces": "Remplace la clé enregistrée actuellement.",
         "replaceKey": "Remplacer la clé",
         "temporary": {

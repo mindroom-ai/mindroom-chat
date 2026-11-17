@@ -95,6 +95,19 @@ describe('computer service settings', () => {
     expect(input().props.placeholder).toBeUndefined();
   });
 
+  it('offers to save the server found from the agents only while nothing names one', async () => {
+    discovery.urls = ['https://mindroom.lab.example'];
+    render();
+    await click('Use mindroom.lab.example');
+    expect(loadComputerServicePreference()).toBe('https://mindroom.lab.example');
+    expect(input().props.value).toBe('https://mindroom.lab.example');
+    expect(message('status').children).toEqual(['Computer service saved.']);
+    expect(button('Use mindroom.lab.example')).toBeUndefined();
+    act(() => renderer.unmount());
+    render('https://computer.example.org');
+    expect(button('Use mindroom.lab.example')).toBeUndefined();
+  });
+
   it('keeps a service the user previously saved', () => {
     act(() => {
       store.set(computerServicePreferenceAtom, 'https://custom.example');

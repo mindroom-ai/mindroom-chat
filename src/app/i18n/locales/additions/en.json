@@ -365,7 +365,8 @@
       },
       "computers": {
         "inUse": "Server in use",
-        "inUseNone": "None set, so computers are off on this device."
+        "inUseNone": "None set, so computers are off on this device.",
+        "useServer": "Use {{host}}"
       },
       "keywords": {
         "theme": "dark mode, light mode, night mode, colors",
@@ -725,7 +726,7 @@
         "declinedWaiting": "Declined, waiting for the agent",
         "noLongerActive": "This request is no longer active. Ask the agent again.",
         "unavailable": "Entering keys is not available on this server.",
-        "unavailableHint": "To enter keys here, set your MindRoom server in Settings → {{page}} → {{field}}.",
+        "unavailableHint": "To enter keys here, save your MindRoom server in Settings → {{page}} → {{field}}.",
         "replaces": "Replaces the key saved now.",
         "replaceKey": "Replace key",
         "temporary": {

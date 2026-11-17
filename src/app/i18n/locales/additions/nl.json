@@ -365,7 +365,8 @@
       },
       "computers": {
         "inUse": "Server in gebruik",
-        "inUseNone": "Niets ingesteld, dus computers staan uit op dit apparaat."
+        "inUseNone": "Niets ingesteld, dus computers staan uit op dit apparaat.",
+        "useServer": "{{host}} gebruiken"
       },
       "keywords": {
         "theme": "donkere modus, lichte modus, nachtmodus, kleuren",
@@ -725,7 +726,7 @@
         "declinedWaiting": "Geweigerd, wacht op de agent",
         "noLongerActive": "Dit verzoek is niet meer actief. Vraag het de agent opnieuw.",
         "unavailable": "Sleutels invoeren is op deze server niet beschikbaar.",
-        "unavailableHint": "Stel je MindRoom-server in via Instellingen → {{page}} → {{field}} om hier sleutels in te voeren.",
+        "unavailableHint": "Sla je MindRoom-server op via Instellingen → {{page}} → {{field}} om hier sleutels in te voeren.",
         "replaces": "Vervangt de sleutel die nu is opgeslagen.",
         "replaceKey": "Sleutel vervangen",
         "temporary": {
