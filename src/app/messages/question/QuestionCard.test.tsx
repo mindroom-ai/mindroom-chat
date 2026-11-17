@@ -234,7 +234,8 @@ describe('QuestionCard', () => {
     const html = `${example}\n<p>🔧 <code>read_file</code> [1]</p>\n<p>Now:</p>\n${QUESTION_HTML}`;
     render({
       ...questionContent(html),
-      body: `Which color? ${'x'.repeat(1300)}`,
+      // Long enough to fold its work (`isLongAgentReply`: 6000 characters).
+      body: `Which color? ${'x'.repeat(6000)}`,
       'io.mindroom.tool_trace': {
         version: 2,
         events: [{ type: 'tool_call_completed', tool_name: 'read_file' }],
