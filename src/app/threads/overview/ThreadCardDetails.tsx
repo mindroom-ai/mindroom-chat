@@ -73,8 +73,10 @@ export function ThreadCardDetails({
     };
     resetRef.current = reset;
     closeRef.current = close;
+    // A badge that opens its own hover card counts as off every card, so leaving it enters the card.
     const cardAt = (target: EventTarget | null | undefined) => {
-      const found = target instanceof Element ? target.closest('[data-scroll-anchor]') : null;
+      if (!(target instanceof Element) || target.closest('[data-own-hover-card]')) return undefined;
+      const found = target.closest('[data-scroll-anchor]');
       return found && list.contains(found) ? found : undefined;
     };
     const underPointer = (target: Element) => {

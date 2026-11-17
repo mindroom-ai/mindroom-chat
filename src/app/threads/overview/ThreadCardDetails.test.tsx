@@ -72,6 +72,9 @@ function Harness({ config = {}, withoutA = false, ...props }: HarnessProps) {
         {!withoutA && (
           <div data-scroll-anchor="$a">
             <span data-testid="a">A</span>
+            <span data-own-hover-card="" style={{ display: 'contents' }}>
+              <span data-testid="a-chip">PR #1</span>
+            </span>
             <button type="button" data-testid="a-menu">
               More Options
             </button>
@@ -450,6 +453,39 @@ describe('ThreadCardDetails', () => {
     Object.defineProperty(document, 'elementFromPoint', {
       configurable: true,
       value: () => getByTestId('b'),
+    });
+    point(getByTestId('a'));
+    advance(1000);
+    expect(shown()).toBeNull();
+  });
+  it('stays closed while the pointer rests on a badge with its own hover card, and opens after the wait once it moves onto the card', () => {
+    const { getByTestId } = render(<Harness />);
+    point(getByTestId('a-chip'));
+    advance(1000);
+    point(getByTestId('a-chip'), 'pointermove', 45, 50);
+    advance(1000);
+    expect(shown()).toBeNull();
+    point(getByTestId('a'));
+    advance(499);
+    expect(shown()).toBeNull();
+    advance(1);
+    expect(shown()?.textContent).toBe('Details of $a');
+  });
+  it('closes when the pointer moves from the card onto a badge with its own hover card', () => {
+    const { getByTestId } = render(<Harness />);
+    point(getByTestId('a'));
+    advance();
+    expect(shown()).not.toBeNull();
+    point(getByTestId('a-chip'));
+    expect(shown()).toBeNull();
+    advance(1000);
+    expect(shown()).toBeNull();
+  });
+  it('opens nothing when the wait ends with a badge that has its own hover card under the pointer', () => {
+    const { getByTestId } = render(<Harness />);
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => getByTestId('a-chip'),
     });
     point(getByTestId('a'));
     advance(1000);
