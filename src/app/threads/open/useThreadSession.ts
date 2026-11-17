@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Direction } from 'matrix-js-sdk';
+import type { PersistThreadEventCache } from '../../event-store/engine/enginePersistFacade';
 import { countCacheProbe } from '../../event-store/cache/cacheProbe';
 import { logTimelineDebug } from '../../diagnostics/timelineDebug';
 import { isLocalEchoEventId } from '../../event-store/threads/threadRouteUtils';
@@ -22,6 +23,23 @@ import type {
   ThreadTargetCommands,
   ThreadSessionCommands,
 } from './threadSessionTypes';
+
+/**
+ * The open's cache writes, each made in a task after the one that asked for it, in the order they
+ * were asked for. A write serializes every event it is given, and a thread whose timeline is
+ * already loaded asks for its first one in the task of the press that opens it, before the
+ * thread has been painted.
+ */
+const writeAfterThisTask =
+  (write: PersistThreadEventCache): PersistThreadEventCache =>
+  (...args) => {
+    setTimeout(() => write(...args), 0);
+  };
+
+const nextTask = (): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
 
 const initialState = {
   open: {
@@ -238,7 +256,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
           ...current,
           open: { ...current.open, latestPending: shouldScrollToLatestOnOpen },
         }));
-        const persistThreadEventCache = runtime.beginCacheWrite();
+        const persistThreadEventCache = writeAfterThisTask(runtime.beginCacheWrite());
         let cacheResult: Awaited<ReturnType<typeof runThreadOpenCacheFirst>> | undefined;
         let liveProgressed = false;
         let networkLoadError = false;
@@ -342,6 +360,12 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
             if (!isCurrentThreadOpen()) return;
             if (!shouldContinue) return;
             liveProgressed = true;
+            // A thread whose timeline is already loaded gets here in the task of the press that
+            // opened it, where React renders each update at once, one render of every row per
+            // step below. In a later task the steps render together, after the thread's first
+            // paint, which needs none of them.
+            await nextTask();
+            if (!isCurrentThreadOpen()) return;
             publish((current) => ({ ...current, open: { ...current.open, sdkReady: true } }));
             const cachedPage = cacheResult?.hydratedCachedPage;
             const thread = room.getThread(threadId);

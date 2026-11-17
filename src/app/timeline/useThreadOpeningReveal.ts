@@ -1,6 +1,7 @@
 import { type RefObject, useEffect, useLayoutEffect } from 'react';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { reactionOrEditEvent } from '../matrix/room';
+import { scrollToLatestEnd } from './roomTimelineScroll';
 import { useViewScopedState } from './roomTimelineViewScope';
 
 /** The longest a thread's rows stay hidden while it opens, whatever holds them back. */
@@ -16,16 +17,26 @@ type ThreadOpeningRevealOptions = {
   scrollRef: RefObject<HTMLElement>;
   /** Whether the reader took the position over: a gesture, a jump, a request for older history. */
   readerTookOver: () => boolean;
+  /**
+   * Whether this commit shows the rows at the sizes measured so far: not at sizes a measurement
+   * of this commit replaced, and not at a list height held back for the next render.
+   */
+  rowsAtMeasuredSizes: () => boolean;
 };
 
+const atEndOf = (scrollArea: HTMLElement): boolean =>
+  scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1;
+
 /**
- * Whether an opening thread keeps its rows hidden. A thread that opens at its newest reply renders
- * the rows the client already holds (the root and the newest replies) before its open pins them
- * to the bottom, and on a long thread they would paint at the top and jump there a moment later.
- * The rows stay hidden until the view first rests at the end of its scroll range with the list's
- * last tile mounted (the virtual list can still hold the rows of the scroll position before the
- * pin), checked after every commit, after the pins; or the reader takes over; or
- * THREAD_REVEAL_AFTER_MS pass. Once shown, they stay shown for the view. The last tile is the last
+ * Whether an opening thread keeps its rows hidden. A thread that opens at its newest reply starts
+ * its list at its end with the rows near its view, at estimated sizes: measured, they move the
+ * end, and painted then they would jump there a moment later. While the rows are hidden, every
+ * commit leaves the view at the end of its scroll range, and the rows show once a commit rests
+ * there with the list's last tile mounted, at the sizes measured so far, and with rows up to the
+ * top of the view (or the thread's first row): a list measured shorter than estimated leaves the
+ * top of the view empty until the rows above mount. Checked after every commit, after the pins.
+ * The rows also show when the reader takes over, whose scroll then stands, or after
+ * THREAD_REVEAL_AFTER_MS. Once shown, they stay shown for the view. The last tile is the last
  * row's that is not an edit or a reaction: those have no tile once they measure to no height
  * (renderTimelineTiles), and a streamed reply leaves its edits at the end of the list.
  */
@@ -35,19 +46,35 @@ export const useThreadOpeningReveal = ({
   rows,
   scrollRef,
   readerTookOver,
+  rowsAtMeasuredSizes,
 }: ThreadOpeningRevealOptions): boolean => {
   const [revealed, setRevealed] = useViewScopedState(viewKey, () => !opensAtLatest);
 
   useLayoutEffect(() => {
     if (revealed) return;
+    if (readerTookOver()) {
+      setRevealed(true);
+      return;
+    }
     const scrollArea = scrollRef.current;
-    const lastTileIndex = rows.findLastIndex((row) => !reactionOrEditEvent(row));
-    const atEnd =
-      !!scrollArea &&
+    if (!scrollArea) return;
+    if (!atEndOf(scrollArea)) scrollToLatestEnd(scrollArea, false);
+    const isTile = (row: MatrixEvent) => !reactionOrEditEvent(row);
+    const lastTileIndex = rows.findLastIndex(isTile);
+    const firstTile = scrollArea.querySelector('[data-index]');
+    const filled =
+      !!firstTile &&
+      (Number(firstTile.getAttribute('data-index')) <= rows.findIndex(isTile) ||
+        firstTile.getBoundingClientRect().top <= scrollArea.getBoundingClientRect().top + 1);
+    if (
       lastTileIndex >= 0 &&
-      scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1 &&
-      !!scrollArea.querySelector(`[data-index="${lastTileIndex}"]`);
-    if (atEnd || readerTookOver()) setRevealed(true);
+      atEndOf(scrollArea) &&
+      !!scrollArea.querySelector(`[data-index="${lastTileIndex}"]`) &&
+      filled &&
+      rowsAtMeasuredSizes()
+    ) {
+      setRevealed(true);
+    }
   });
 
   useEffect(() => {

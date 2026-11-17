@@ -2,7 +2,9 @@ import type { ThreadWorkflowTab } from '../event-store/threads/threadWorkflow';
 import {
   type Dispatch,
   type SetStateAction,
+  startTransition,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useReducer,
@@ -928,6 +930,13 @@ export function RoomTimeline(props: RoomTimelineProps) {
     return !!scrollArea && !isNearLatestEnd(scrollArea, true);
   }, [getScrollElement]);
   const latestPinAsked = useLatestPinAsked(scrollToBottomRef);
+  // A thread that opens at its newest reply starts its list there, with the rows near its view;
+  // the rows kept ready around them follow once it shows (below, after the reveal).
+  const threadOpensAtLatest = !!threadId && !eventId && !isLocalEchoEventId(threadId);
+  const [rowsAroundViewReady, setRowsAroundViewReady] = useViewScopedState(
+    viewKey,
+    () => !threadOpensAtLatest
+  );
   const ledger = useTimelineScrollLedgerController({
     alive,
     anchorRoomRows: latestAtTop && !latestPinAsked ? anchorBelowLatestEnd : undefined,
@@ -946,6 +955,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadEvents,
     threadId,
     threadInitialRenderMode,
+    startAtEnd: threadOpensAtLatest,
+    rowsNearViewOnly: !rowsAroundViewReady,
     leadingKey: threadId
       ? [
           threadLoadError ? 'error' : '',
@@ -1127,16 +1138,25 @@ export function RoomTimeline(props: RoomTimelineProps) {
     unreadInfo,
     unreadScrollAnchorIndex: windowState.unreadScrollAnchorIndex,
   });
+  const renderedRowsSize = virtualizer.getTotalSize();
   // After the pins above: a thread opening at its newest reply shows its rows once they rest there
   // (a local echo root, a thread still being created, has no open to wait for).
   const hideOpeningThreadRows = useThreadOpeningReveal({
     viewKey,
-    opensAtLatest: !!threadId && !eventId && !isLocalEchoEventId(threadId),
+    opensAtLatest: threadOpensAtLatest,
     rows: threadEvents,
     scrollRef,
     readerTookOver: () =>
       readerScrolledRef.current.value || backController.isOpenBottomPinSuppressed(),
+    rowsAtMeasuredSizes: () =>
+      !beforePaint && virtualizerRef.current.getTotalSize() === renderedRowsSize,
   });
+  // Once the thread shows, the rows kept ready around its view mount, in a render that gives way
+  // to the reader's input and to the replies that stream.
+  useEffect(() => {
+    if (hideOpeningThreadRows || rowsAroundViewReady) return;
+    startTransition(() => setRowsAroundViewReady(true));
+  }, [hideOpeningThreadRows, rowsAroundViewReady, setRowsAroundViewReady]);
 
   const {
     handleJumpToLatest: showLatestRows,

@@ -77,6 +77,16 @@ export type TimelineScrollLedgerControllerOptions = {
   threadId?: string;
   threadInitialRenderMode: ThreadInitialRenderMode;
   /**
+   * The list starts at its end: a thread that opens at its newest reply mounts its newest rows
+   * first, not its first rows. Read when the list is made.
+   */
+  startAtEnd?: boolean;
+  /**
+   * A thread mounts the rows in view and half a view of rows on each side, not the two views it
+   * keeps ready for a fast swipe: every render of an opening thread renders each mounted row.
+   */
+  rowsNearViewOnly?: boolean;
+  /**
    * What the timeline renders above its rows: a thread's lines between its banner and its rows,
    * or the room's start (the room intro) and the line above its rows.
    */
@@ -195,6 +205,8 @@ export const useTimelineScrollLedgerController = ({
   threadEvents,
   threadId,
   threadInitialRenderMode,
+  startAtEnd = false,
+  rowsNearViewOnly = false,
   leadingKey = '',
   automaticFill,
 }: TimelineScrollLedgerControllerOptions): TimelineScrollLedgerController => {
@@ -348,13 +360,23 @@ export const useTimelineScrollLedgerController = ({
 
   // Extraction runs after useVirtualizer returns, against this render's
   // instance/options. A fresh callback invalidates the range cache on resize.
-  const rangeExtractor = (range: Range): number[] => threadScrollRange(range, virtualizer);
+  const rangeExtractor = (range: Range): number[] =>
+    threadScrollRange(range, virtualizer, rowsNearViewOnly ? 0.5 : 2);
   const virtualizer = useVirtualizer<HTMLDivElement, Element>({
     count: itemCount,
     getScrollElement,
     estimateSize,
-    overscan: 10,
+    overscan: rowsNearViewOnly ? 1 : 10,
     ...(threadId ? { rangeExtractor } : {}),
+    // The rows' estimated end, past the last scroll position: virtual-core scrolls there when
+    // the scroll area mounts, and the browser stops at the end.
+    initialOffset: startAtEnd
+      ? () => {
+          let end = 0;
+          for (let index = 0; index < itemCount; index += 1) end += estimateSize(index);
+          return end;
+        }
+      : 0,
     observeElementRect: observeTimelineRect,
     scrollMargin: -ledgerPxAtRender,
     // The caller intentionally supplies a fresh function on each render so
@@ -362,6 +384,16 @@ export const useTimelineScrollLedgerController = ({
     getItemKey,
   });
   const virtualizerRef = useRef(virtualizer);
+  // virtual-core scrolled the scroll area it was just given to the rows' estimated end, where
+  // the browser stopped at the real one, and hears of that position only with the scroll event.
+  // The rows mount for it now. After virtual-core's own layout effect, which does the scroll.
+  const startedAtEndRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const scrollElement = getScrollElement();
+    if (!startAtEnd || !scrollElement || startedAtEndRef.current === scrollElement) return;
+    startedAtEndRef.current = scrollElement;
+    virtualizer.scrollOffset = scrollElement.scrollTop;
+  });
   const measureElement = useMemo(
     () => createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer)),
     [virtualizer]

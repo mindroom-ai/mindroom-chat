@@ -3,7 +3,9 @@ import { defaultRangeExtractor, type Range, type Virtualizer } from '@tanstack/r
 /** Keep real content ready for a fast swipe, even across zero-height edits. */
 export const threadScrollRange = (
   range: Range,
-  virtualizer: Virtualizer<HTMLDivElement, Element>
+  virtualizer: Virtualizer<HTMLDivElement, Element>,
+  /** How much is kept mounted on each side of the rows in view, in heights of the view. */
+  viewsAround = 2
 ): number[] => {
   const height = virtualizer.scrollRect?.height ?? virtualizer.options.initialRect?.height ?? 0;
   if (height <= 0) return defaultRangeExtractor(range);
@@ -16,7 +18,7 @@ export const threadScrollRange = (
   // Binary-search pixel boundaries instead of walking potentially thousands
   // of invisible relation events. All coordinates include the same ledger
   // scrollMargin, so a prepend/fold cannot shift this buffer out of alignment.
-  const buffer = height * 2;
+  const buffer = height * viewsAround;
   const first = virtualizer.getVirtualItemForOffset(firstVisible.start - buffer);
   const last = virtualizer.getVirtualItemForOffset(lastVisible.end + buffer);
   const start = Math.min(range.startIndex, first?.index ?? 0);
