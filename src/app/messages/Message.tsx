@@ -681,7 +681,10 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     const tapWhileShown = useRef(false);
     const noteRowPointer = (evt: PointerEvent<HTMLDivElement>) => {
       pressedPointer.current = evt.pointerType;
-      tapWhileShown.current = evt.pointerType !== 'mouse' && focusInside && !edit;
+      // A press that starts on selected text ends that selection: the browser clears it before the
+      // click, so the click can no longer tell.
+      tapWhileShown.current =
+        evt.pointerType !== 'mouse' && focusInside && !edit && !hasSelectedText();
       const opensMenu = evt.button === 2 || (evt.button === 0 && evt.ctrlKey);
       selectedAtMenuPress.current = opensMenu ? hasSelectedText() : undefined;
     };

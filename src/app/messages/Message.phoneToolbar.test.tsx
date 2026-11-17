@@ -73,15 +73,22 @@ const toolbarShown = (): boolean => screen.queryByRole('button', { name: 'Reply'
 
 /**
  * A press on `target` with `pointerType`, as a browser sends it: a pointerdown, the focus the
- * press gives (`focus`, or none when the focus stays where it is), and the click.
+ * press gives (`focus`, or none when the focus stays where it is), what the browser does before
+ * the click (`beforeClick`), and the click.
  */
-const press = async (target: HTMLElement, pointerType: string, focus?: HTMLElement) => {
+const press = async (
+  target: HTMLElement,
+  pointerType: string,
+  focus?: HTMLElement,
+  beforeClick?: () => void
+) => {
   await act(async () => {
     // jsdom has no PointerEvent.
     const down = new MouseEvent('pointerdown', { bubbles: true, button: 0 });
     Object.defineProperty(down, 'pointerType', { value: pointerType });
     target.dispatchEvent(down);
     focus?.focus();
+    beforeClick?.();
     fireEvent.click(target);
   });
 };
@@ -129,9 +136,20 @@ describe('Message toolbar on a phone', () => {
     const text = await renderMessage();
     await press(text, 'touch', row());
 
+    // The browser clears the selection between the press and its click.
     const selection = document.getSelection();
     selection?.selectAllChildren(text);
-    await press(text, 'touch');
+    await press(text, 'touch', undefined, () => selection?.removeAllRanges());
+    expect(toolbarShown()).toBe(true);
+    expect(document.activeElement).toBe(row());
+  });
+
+  it('keeps the toolbar for a tap that selects text', async () => {
+    const text = await renderMessage();
+    await press(text, 'touch', row());
+
+    const selection = document.getSelection();
+    await press(text, 'touch', undefined, () => selection?.selectAllChildren(text));
     expect(toolbarShown()).toBe(true);
     selection?.removeAllRanges();
   });
