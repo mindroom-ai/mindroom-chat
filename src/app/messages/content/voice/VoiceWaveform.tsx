@@ -55,6 +55,27 @@ const prefersReducedMotion = (): boolean =>
   typeof window.matchMedia === 'function' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+const renderBars = (
+  bars: number[],
+  compact: boolean | undefined,
+  getClassName: (index: number) => string
+) =>
+  bars.map((point, index) => {
+    const height = getBarHeight(point, compact);
+    return (
+      <rect
+        // eslint-disable-next-line react/no-array-index-key
+        key={index}
+        className={getClassName(index)}
+        x={index * (BAR_WIDTH + BAR_GAP)}
+        y={(SVG_HEIGHT - height) / 2}
+        width={BAR_WIDTH}
+        height={height}
+        rx="1"
+      />
+    );
+  });
+
 type Glide = { animation: Animation; fromSteps: number };
 
 // Each new sample moves the bars a step left. Rather than jump, the strip starts that far to
@@ -99,6 +120,29 @@ const useLiveGlide = (stripRef: RefObject<HTMLDivElement>, sampleCount: number |
   }, [sampleCount, stripRef]);
 };
 
+// Media reports its time only a few times a second, so a fill drawn from those reports moves in
+// visible jumps. While playing, redraw the fill's width from the media every animation frame
+// instead. Each render first writes the fill from the last report, so `progress` is a dependency:
+// the effect then redraws from the media before the frame is painted.
+const usePlayedFill = (
+  fillRef: RefObject<SVGSVGElement>,
+  fullWidth: number,
+  progress: number,
+  getProgress: (() => number) | undefined
+) => {
+  useLayoutEffect(() => {
+    const fill = fillRef.current;
+    if (!fill || !getProgress) return undefined;
+    let frame = 0;
+    const draw = () => {
+      fill.setAttribute('width', String(clampProgress(getProgress()) * fullWidth));
+      frame = requestAnimationFrame(draw);
+    };
+    draw();
+    return () => cancelAnimationFrame(frame);
+  }, [fillRef, fullWidth, progress, getProgress]);
+};
+
 type VoiceWaveformProps = {
   waveform?: number[];
   progress?: number;
@@ -106,6 +150,8 @@ type VoiceWaveformProps = {
   compact?: boolean;
   /** Compact only: the live recording's sample count, whose growth glides the bars left. */
   liveSampleCount?: number;
+  /** While playing: reads the played share, so the fill follows every frame (see usePlayedFill). */
+  getProgress?: () => number;
   label?: string;
   valueText?: string;
   disabled?: boolean;
@@ -118,6 +164,7 @@ export function VoiceWaveform({
   dimmed,
   compact,
   liveSampleCount,
+  getProgress,
   label,
   valueText,
   disabled,
@@ -130,7 +177,8 @@ export function VoiceWaveform({
   const compactUnrecordedBarCount = compact ? getCompactUnrecordedBarCount(waveform) : 0;
   const svgWidth = getSvgWidth(bars.length || VOICE_WAVEFORM_BAR_COUNT);
   const normalizedProgress = clampProgress(progress);
-  const activeBars = Math.round(normalizedProgress * bars.length);
+  const fillRef = useRef<SVGSVGElement>(null);
+  usePlayedFill(fillRef, svgWidth, normalizedProgress, compact ? undefined : getProgress);
 
   const handleKeyDown: KeyboardEventHandler<HTMLElement> = (event) => {
     if (!onSeekProgress || disabled) return;
@@ -174,27 +222,20 @@ export function VoiceWaveform({
       aria-hidden="true"
       focusable="false"
     >
-      {bars.map((point, index) => {
-        const height = getBarHeight(point, compact);
-        const y = (SVG_HEIGHT - height) / 2;
-
-        return (
-          <rect
-            // eslint-disable-next-line react/no-array-index-key
-            key={index}
-            className={classNames(
-              index < activeBars ? css.BarActive : css.Bar,
-              compact && css.BarCompact,
-              compact && index < compactUnrecordedBarCount && css.BarCompactUnrecorded
-            )}
-            x={index * (BAR_WIDTH + BAR_GAP)}
-            y={y}
-            width={BAR_WIDTH}
-            height={height}
-            rx="1"
-          />
-        );
-      })}
+      {renderBars(bars, compact, (index) =>
+        classNames(
+          css.Bar,
+          compact && css.BarCompact,
+          compact && index < compactUnrecordedBarCount && css.BarCompactUnrecorded
+        )
+      )}
+      {/* The played part: the same bars in the active color, cut off at the playback position
+          by this nested svg's viewport, so the fill moves by pixels rather than whole bars. */}
+      {compact ? null : (
+        <svg ref={fillRef} width={normalizedProgress * svgWidth} height={SVG_HEIGHT}>
+          {renderBars(bars, compact, () => css.BarActive)}
+        </svg>
+      )}
     </svg>
   );
   const content = compact ? (
