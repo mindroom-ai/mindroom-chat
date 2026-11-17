@@ -87,7 +87,10 @@ export function ThreadLiveStatusRows({ room, entry }: ThreadLiveStatusRowsProps)
   const { jobs: roomJobs, total: roomTotal } = useRoomBackgroundJobs(room);
   const jobs = useMemo(() => jobsInView(roomJobs, threadId), [roomJobs, threadId]);
   // The status, tools and cost read more than the entry follows: a reaction that answers, an edit
-  // or a decryption. So they are read again whenever the room hears anything.
+  // or a decryption. So they are read again whenever the room hears what its threads' signals are
+  // read again for (`subscribeRoomSignals`): an event with an ID, the person's own receipt, a
+  // timeline that starts over, a member who joins or leaves. Live reply frames and sub-agent runs
+  // have no ID; their stores tell of them (`useRunningTools`, `useRoomSubagentCounts`).
   const [roomChanges, roomChanged] = useForceUpdate();
   useEffect(
     () => subscribeRoomSignals(mx, room.roomId, roomChanged),

@@ -351,7 +351,17 @@ describe('ThreadLiveStatusRows', () => {
 
     asking = false;
     act(() => {
-      mx.emit(ClientEvent.Event, new MatrixEvent({ type: 'm.reaction', room_id: ROOM_ID }));
+      mx.emit(
+        ClientEvent.Event,
+        new MatrixEvent({
+          type: 'm.reaction',
+          room_id: ROOM_ID,
+          event_id: '$reaction',
+          content: {
+            'm.relates_to': { rel_type: RelationType.Annotation, event_id: '$plain', key: '1' },
+          },
+        })
+      );
     });
 
     expect(textOf(rows)).toEqual([]);
