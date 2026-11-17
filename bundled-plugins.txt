@@ -1,5 +1,6 @@
-# The client plugins MindRoom Chat's own builds ship by default (scripts/bundled-plugins.mjs): `just build` and
-# the container image (docker/Dockerfile) build them in while MINDROOM_CLIENT_PLUGINS is unset.
+# The client plugins MindRoom Chat's own builds ship by default (scripts/bundled-plugins.mjs): `just build`,
+# `npm run build:ios` (the iOS and Mac apps, through scripts/build.sh) and the container image
+# (docker/Dockerfile) build them in while MINDROOM_CLIENT_PLUGINS is unset.
 # One per line: `<GitHub repository URL> <full commit SHA>`; `#` starts a comment. To bump a plugin, put the
 # new commit here in a pull request; the image workflow then builds and checks the image with it.
 
