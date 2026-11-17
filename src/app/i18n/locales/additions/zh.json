@@ -888,6 +888,7 @@
     "midTurn": {
       "menuLabel": "智能体回复时发送",
       "steer": "转向",
+      "defaultChoice": "{{label}}（默认）",
       "steerHint": "停止回复，用这条消息继续",
       "queue": "排队",
       "queueHint": "回复结束后发送",

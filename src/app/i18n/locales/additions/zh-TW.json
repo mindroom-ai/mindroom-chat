@@ -888,6 +888,7 @@
     "midTurn": {
       "menuLabel": "代理程式回覆時傳送",
       "steer": "轉向",
+      "defaultChoice": "{{label}}（預設）",
       "steerHint": "停止回覆，以這則訊息繼續",
       "queue": "排入佇列",
       "queueHint": "回覆結束後傳送",

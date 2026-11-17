@@ -905,6 +905,7 @@
     "midTurn": {
       "menuLabel": "Ajan yanıt verirken gönder",
       "steer": "Yönlendir",
+      "defaultChoice": "{{label}} (varsayılan)",
       "steerHint": "Yanıtı durdur ve bu mesajla devam et",
       "queue": "Sıraya al",
       "queueHint": "Yanıt bittikten sonra gönder",

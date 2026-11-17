@@ -905,6 +905,7 @@
     "midTurn": {
       "menuLabel": "Senden, während der Agent antwortet",
       "steer": "Lenken",
+      "defaultChoice": "{{label}} (Standard)",
       "steerHint": "Antwort beenden und mit dieser Nachricht weitermachen",
       "queue": "Einreihen",
       "queueHint": "Nach Ende der Antwort senden",

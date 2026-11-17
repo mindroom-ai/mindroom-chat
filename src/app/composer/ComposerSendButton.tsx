@@ -18,6 +18,8 @@ type ComposerSendButtonProps = {
   alone?: boolean;
   /** An agent replies in the thread now, so holding the button offers the modes. */
   agentReplying: boolean;
+  /** The mode a tap sends with, from the Chats setting; its row in the menu says so. */
+  defaultMode: MidTurnMode;
   /** Sends the message, with the mode picked from the menu, or the default one for a tap. */
   onSend: (mode?: MidTurnMode) => void | Promise<unknown>;
 };
@@ -61,6 +63,7 @@ export function ComposerSendButton({
   label,
   alone,
   agentReplying,
+  defaultMode,
   onSend,
 }: ComposerSendButtonProps) {
   const { t } = useTranslation();
@@ -126,7 +129,11 @@ export function ComposerSendButton({
                   key={choice.mode}
                   role="menuitem"
                   className={css.ComposerMenuItem}
-                  label={t(choice.label)}
+                  label={
+                    choice.mode === defaultMode
+                      ? t('composer.midTurn.defaultChoice', { label: t(choice.label) })
+                      : t(choice.label)
+                  }
                   description={t(choice.hint)}
                   icon={choice.icon}
                   directional={choice.mode === 'steer'}

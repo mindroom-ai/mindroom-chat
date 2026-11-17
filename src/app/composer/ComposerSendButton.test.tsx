@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LONG_PRESS_MS } from '../lib/hooks/useLongPress';
+import type { MidTurnMode } from '../preferences/settings';
 import { ComposerSendButton } from './ComposerSendButton';
 
 // jsdom lays nothing out, so the trap would find no control to hold.
@@ -33,10 +34,15 @@ describe('the Send button', () => {
     vi.unstubAllGlobals();
   });
 
-  const setup = (agentReplying: boolean) => {
+  const setup = (agentReplying: boolean, defaultMode: MidTurnMode = 'steer') => {
     const onSend = vi.fn();
     render(
-      <ComposerSendButton label="Send message" agentReplying={agentReplying} onSend={onSend} />
+      <ComposerSendButton
+        label="Send message"
+        agentReplying={agentReplying}
+        defaultMode={defaultMode}
+        onSend={onSend}
+      />
     );
     return { onSend, button: screen.getByRole('button', { name: 'Send message' }) };
   };
@@ -66,7 +72,7 @@ describe('the Send button', () => {
     expect(button.getAttribute('aria-expanded')).toBe('true');
     const items = screen.getAllByRole('menuitem');
     expect(items.map((item) => item.textContent)).toEqual([
-      'SteerStop the reply and carry on with this message',
+      'Steer (default)Stop the reply and carry on with this message',
       'QueueSend after the reply finishes',
       'AutoLet the agent decide',
     ]);
@@ -74,6 +80,13 @@ describe('the Send button', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Queue' }));
     expect(onSend.mock.calls).toEqual([['queue']]);
     expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('marks the mode a tap sends with', () => {
+    const { button } = setup(true, 'queue');
+    hold(button);
+    expect(screen.getByRole('menuitem', { name: 'Queue (default)' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Steer' })).toBeTruthy();
   });
 
   it('sends on a hold, as on a tap, while no agent replies', () => {

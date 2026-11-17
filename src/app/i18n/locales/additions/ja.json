@@ -888,6 +888,7 @@
     "midTurn": {
       "menuLabel": "エージェントの返信中に送信",
       "steer": "割り込み",
+      "defaultChoice": "{{label}}（デフォルト）",
       "steerHint": "返信を止めて、このメッセージで続ける",
       "queue": "待機",
       "queueHint": "返信が終わってから送信",

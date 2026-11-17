@@ -888,6 +888,7 @@
     "midTurn": {
       "menuLabel": "에이전트 답변 중 보내기",
       "steer": "방향 전환",
+      "defaultChoice": "{{label}} (기본값)",
       "steerHint": "답변을 멈추고 이 메시지로 이어가기",
       "queue": "대기열",
       "queueHint": "답변이 끝난 뒤 보내기",

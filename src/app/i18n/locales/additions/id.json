@@ -888,6 +888,7 @@
     "midTurn": {
       "menuLabel": "Kirim saat agen membalas",
       "steer": "Arahkan",
+      "defaultChoice": "{{label}} (bawaan)",
       "steerHint": "Hentikan balasan dan lanjutkan dengan pesan ini",
       "queue": "Antrekan",
       "queueHint": "Kirim setelah balasan selesai",

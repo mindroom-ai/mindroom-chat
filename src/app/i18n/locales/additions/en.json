@@ -905,6 +905,7 @@
     "midTurn": {
       "menuLabel": "Send while the agent replies",
       "steer": "Steer",
+      "defaultChoice": "{{label}} (default)",
       "steerHint": "Stop the reply and carry on with this message",
       "queue": "Queue",
       "queueHint": "Send after the reply finishes",

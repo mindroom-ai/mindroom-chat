@@ -922,6 +922,7 @@
     "midTurn": {
       "menuLabel": "Envoyer pendant la réponse de l'agent",
       "steer": "Réorienter",
+      "defaultChoice": "{{label}} (par défaut)",
       "steerHint": "Arrêter la réponse et continuer avec ce message",
       "queue": "Mettre en file",
       "queueHint": "Envoyer une fois la réponse terminée",
