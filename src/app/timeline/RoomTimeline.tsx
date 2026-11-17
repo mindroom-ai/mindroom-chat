@@ -1154,6 +1154,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
     readerTookOver: () =>
       readerScrolledRef.current.value || backController.isOpenBottomPinSuppressed(),
     rowsAtMeasuredSizes: () => !beforePaint && virtualizerRef.current.getTotalSize() === listHeight,
+    measurementCorrectionPx: ledger.readMeasurementCorrectionPx,
+    // The tail is loaded, or the open that was pending ended without one.
+    openSettled: threadTailLoaded || (threadOpenedAtLatest && !threadLatestOpenPending),
   });
   // Once the thread shows, the rows kept ready around its view mount, in a render that gives way
   // to the reader's input and to the replies that stream.

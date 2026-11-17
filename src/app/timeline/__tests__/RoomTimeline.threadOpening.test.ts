@@ -32,6 +32,33 @@ vi.mock('../timelineScrollLedgerController', async (importOriginal) => {
   };
 });
 
+/** What an open's cache read and SDK load wait for, while a test holds the open. */
+const openGate = vi.hoisted(() => ({ wait: undefined as Promise<void> | undefined }));
+vi.mock('../../threads/open/threadOpenCacheFirst', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../threads/open/threadOpenCacheFirst')>();
+  return {
+    ...actual,
+    runThreadOpenCacheFirst: async (
+      options: Parameters<typeof actual.runThreadOpenCacheFirst>[0]
+    ) => {
+      await openGate.wait;
+      return actual.runThreadOpenCacheFirst(options);
+    },
+  };
+});
+vi.mock('../../threads/open/threadOpenSdkBootstrap', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../threads/open/threadOpenSdkBootstrap')>();
+  return {
+    ...actual,
+    runThreadOpenSdkBootstrap: async (
+      options: Parameters<typeof actual.runThreadOpenSdkBootstrap>[0]
+    ) => {
+      await openGate.wait;
+      return actual.runThreadOpenSdkBootstrap(options);
+    },
+  };
+});
+
 type ListOptions = { overscan: number; initialOffset: number | (() => number) };
 const listOptions = () => roomTimelineVirtualizerState.lastOptions as unknown as ListOptions;
 
@@ -91,7 +118,7 @@ const setup = async (extra: Record<string, unknown>) => {
 importBeforeTests(() => import('../RoomTimeline'));
 
 describe('RoomTimeline thread opening', () => {
-  it('starts a thread that opens at its newest reply at the end of its list', async () => {
+  it('gives the list of a thread that opens at its newest reply an end to start at', async () => {
     const { unmount } = await setup({ threadId: '$root' });
     const { initialOffset } = listOptions();
     expect(typeof initialOffset === 'function' && initialOffset()).toBeGreaterThan(0);
@@ -119,6 +146,25 @@ describe('RoomTimeline thread opening', () => {
 
     // The rows mount at the end of the list: the thread shows, and takes its rows around the view.
     scroll.mounted.rows = true;
+    await render();
+    expect(listOptions().overscan).toBe(10);
+    await unmount();
+  });
+
+  it('keeps an opening thread hidden until its open has ended', async () => {
+    // The open waits for its cache and the server: the rows the client holds may end before
+    // the thread does.
+    let answer!: () => void;
+    openGate.wait = new Promise((resolve) => {
+      answer = resolve;
+    });
+    const { scroll, render, unmount } = await setup({ threadId: '$root' });
+    scroll.mounted.rows = true;
+    await render();
+    expect(listOptions().overscan).toBe(1);
+
+    openGate.wait = undefined;
+    answer();
     await render();
     expect(listOptions().overscan).toBe(10);
     await unmount();

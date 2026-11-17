@@ -78,7 +78,8 @@ export type TimelineScrollLedgerControllerOptions = {
   threadInitialRenderMode: ThreadInitialRenderMode;
   /**
    * The list starts at its end: a thread that opens at its newest reply mounts its newest rows
-   * first, not its first rows. Read when the list is made.
+   * first, not its first rows. The list takes its first offset from it when it is made, and the
+   * position of each scroll area it is given, once, while it is set.
    */
   startAtEnd?: boolean;
   /**

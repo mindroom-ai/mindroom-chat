@@ -43,8 +43,8 @@ type Frame = {
   ids: string[];
   /** The rows at least partly in view, in order. */
   visible: string[];
-  /** The top of the first row in view, from the top of the scroll area (null without a row). */
-  top: number | null;
+  /** The tops of the rows in view, from the top of the scroll area, in order. */
+  tops: number[];
   /** Whether the long reply's row shows its whole text (null while it is not mounted). */
   longWhole: boolean | null;
   /** Whether the list shows the "Loading full response" line anywhere. */
@@ -146,7 +146,7 @@ const installFrameSampler = (keys: typeof KEYS) => {
         t: Math.round(performance.now() - start),
         ids: rows.map((row) => row.dataset.messageId ?? ''),
         visible: inView.map((row) => row.dataset.messageId ?? ''),
-        top: inView[0] ? Math.round(inView[0].getBoundingClientRect().top - box.top) : null,
+        tops: inView.map((row) => Math.round(row.getBoundingClientRect().top - box.top)),
         longWhole: longRow ? !!longRow.textContent?.includes(keys.marker) : null,
         loadingLine: !!scroller.textContent?.includes('Loading full response'),
       });
@@ -278,7 +278,9 @@ test('a thread opened for the first time paints its replies once, its long reply
   ).toEqual([]);
   // The same rows, at the same place: a row that lands above the view must not move them.
   expect(
-    later.filter((frame) => Math.abs((frame.top ?? 0) - (first.top ?? 0)) > 1),
+    later.filter((frame) =>
+      frame.tops.some((top, index) => Math.abs(top - (first.tops[index] ?? top)) > 1)
+    ),
     'frames whose rows in view moved from where the first paint had them'
   ).toEqual([]);
   expect(
