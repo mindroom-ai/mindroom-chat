@@ -185,13 +185,22 @@ describe('getThreadEventReadUpTo', () => {
     expect(getThreadUnread(thread, USER_ID)).toBe(true);
   });
 
-  it('reads nothing through a receipt on an event that edits no loaded reply', async () => {
-    const { room, thread } = await setupThread();
-    room.addReceipt(receipt(USER_ID, '$unknown-edit', 3000, '$root'));
+  it.each([
+    [3000, false],
+    [1500, true],
+  ])(
+    'reads no reply through a receipt on an event the thread does not hold, only up to when the server took it (%i)',
+    async (takenTs, unread) => {
+      const { room, thread } = await setupThread();
+      // Such as the edit that finished a streamed reply, which the room released once the agent
+      // streamed on.
+      room.addReceipt(receipt(USER_ID, '$unknown-edit', takenTs, '$root'));
 
-    expect(getThreadEventReadUpTo(thread, USER_ID)).toBeNull();
-    expect(getThreadUnread(thread, USER_ID)).toBe(true);
-  });
+      expect(getThreadEventReadUpTo(thread, USER_ID)).toBeNull();
+      expect(getThreadReadState(thread, USER_ID)?.readUpToTs).toBe(takenTs);
+      expect(getThreadUnread(thread, USER_ID)).toBe(unread);
+    }
+  );
 
   it('keeps the newer of a public and a private unthreaded receipt', async () => {
     const { room, thread } = await setupThread();

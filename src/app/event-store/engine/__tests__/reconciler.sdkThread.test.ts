@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createClient, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
+import { createClient, Direction, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
 import type { IEvent, Thread } from 'matrix-js-sdk';
 import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { FeatureSupport, Thread as SdkThread, ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
+import { setReplacementRetentionPolicy } from 'matrix-js-sdk/lib/models/relations';
+import { getReleasableEdits } from '../../../matrix/room';
 import { createBackfillScheduler } from '../backfillScheduler';
 import { scheduleReconcile } from '../reconciler';
 import { createInitializedThreadForRoot } from '../../sdk/threadBootstrapSdk';
@@ -279,5 +281,66 @@ describe('reconciler SDK thread injection', () => {
     expect(sdkThread.replayEvents?.length).toBe(replayBefore);
     // The render still receives the repaired batch.
     expect(onRepaired).toHaveBeenCalledTimes(1);
+  });
+
+  describe('while the room releases the edits it has no use for', () => {
+    beforeEach(() => {
+      // As the app does before it starts a client (initMatrix.ts).
+      setReplacementRetentionPolicy(getReleasableEdits);
+    });
+    afterEach(() => {
+      setReplacementRetentionPolicy(undefined);
+    });
+
+    it('keeps the place of an older segment that held only an edit the room released', async () => {
+      const env = setup();
+      const sdkThread = createInitializedThreadForRoot(env.room, env.root);
+      // An older page of the thread, standing alone, with only an edit of a stream in it.
+      const { timelineSet } = sdkThread;
+      const older = timelineSet.addTimeline();
+      const olderEdit = env.mapper({ ...edit(1), event_id: '$old-stream', origin_server_ts: 1100 });
+      sdkThread.setEventMetadata(olderEdit);
+      timelineSet.addEventsToTimeline([olderEdit], true, false, older, 'older-page');
+      // The live page: a reply, and a newer edit of the stream, which releases the older one.
+      sdkThread.addEvents(
+        [
+          env.mapper(reply(15)),
+          env.mapper({ ...edit(1), event_id: '$new-stream', origin_server_ts: 2000 }),
+        ],
+        false
+      );
+      older.setNeighbouringTimeline(sdkThread.liveTimeline, Direction.Forward);
+      sdkThread.liveTimeline.setNeighbouringTimeline(older, Direction.Backward);
+      await settle();
+
+      await reconcile(env, sdkThread, [reply(5), reply(8)]);
+      // Pagination brings the replies before the older page, where they belong.
+      const page = [reply(8), reply(7), reply(5)].map(env.mapper);
+      page.forEach((event) => sdkThread.setEventMetadata(event));
+      timelineSet.addEventsToTimeline(page, true, false, older, 'earlier');
+
+      // The older segment kept its only event, the place the reconcile put the replies behind.
+      expect(segmentEventIds(sdkThread)).toEqual([
+        ['$reply-15', '$new-stream'],
+        ['$reply-5', '$reply-7', '$reply-8', '$old-stream'],
+      ]);
+      // The segments still lead from the older one to the live one, and back, without a cycle.
+      expect(older.getNeighbouringTimeline(Direction.Forward)).toBe(sdkThread.liveTimeline);
+      expect(older.getNeighbouringTimeline(Direction.Backward)).toBeNull();
+      expect(timelineSet.compareEventOrdering('$reply-5', '$reply-7')).toBeLessThan(0);
+      expect(timelineSet.compareEventOrdering('$reply-8', '$reply-15')).toBeLessThan(0);
+      // So a later server receipt advances the read position.
+      const receipt = (eventId: string, ts: number) =>
+        sdkThread.addReceiptToStructure(
+          eventId,
+          'm.read' as never,
+          '@bob:example.org',
+          { ts, thread_id: ROOT },
+          false
+        );
+      receipt('$reply-5', 500);
+      receipt('$reply-7', 700);
+      expect(sdkThread.getReadReceiptForUserId('@bob:example.org')?.eventId).toBe('$reply-7');
+    });
   });
 });

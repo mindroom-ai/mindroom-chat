@@ -54,11 +54,16 @@ export const getThreadReadState = (
   // known only through the bundled summary. Resolve those receipt IDs here too.
   const readUpToId = getThreadEventReadUpTo(thread, userId);
   const readEventIds = new Set([readUpToId]);
+  // When the server took each receipt, by the event it names.
+  const takenTs = new Map<string, number>();
   for (const receiptType of [ReceiptType.Read, ReceiptType.ReadPrivate]) {
     // A retained local echo can mask a newer server receipt outside the timeline.
     for (const ignoreSynthesized of [false, true]) {
       const receipt = thread.getReadReceiptForUserId(userId, ignoreSynthesized, receiptType);
-      if (receipt && receipt.data.thread_id === thread.id) readEventIds.add(receipt.eventId);
+      if (receipt && receipt.data.thread_id === thread.id) {
+        readEventIds.add(receipt.eventId);
+        takenTs.set(receipt.eventId, Math.max(takenTs.get(receipt.eventId) ?? 0, receipt.data.ts));
+      }
     }
   }
   let readUpToTs = unthreadedReceiptReadTs(thread.room, userId, thread);
@@ -66,10 +71,14 @@ export const getThreadReadState = (
   for (const eventId of readEventIds) {
     if (!eventId) continue;
     const event = findThreadReceiptEvent(thread, eventId);
+    // A receipt on an event the thread does not hold (often the edit that finished a streamed
+    // reply, which the room released once the agent streamed on) reads up to when the server
+    // took it, as `receiptReadTs` does.
+    const eventTs = event ? event.getTs() : takenTs.get(eventId);
+    if (eventTs === undefined) continue;
     // Preserve the SDK's consistency check for raw receipt targets.
-    if (!event || (eventId !== readUpToId && event.threadRootId !== thread.id)) continue;
-    validReadEventIds.add(eventId);
-    const eventTs = event.getTs();
+    if (event && eventId !== readUpToId && event.threadRootId !== thread.id) continue;
+    if (event) validReadEventIds.add(eventId);
     if (readUpToTs === undefined || eventTs > readUpToTs) {
       readUpToTs = eventTs;
     }
