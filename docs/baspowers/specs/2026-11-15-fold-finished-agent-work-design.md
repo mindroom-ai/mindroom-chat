@@ -27,8 +27,8 @@ A MindRoom agent reply folds when all of these hold:
    length"): its plain `body` (the sidecar's once read) has an effective length of at least
    6000 characters, about two printed pages (owner, 2026-11-16: 1200 folded too eagerly),
    where each tool marker line counts as 80 characters, because it renders as a full row. A
-   length, not a measured height: an earlier version measured the rendered reply against the viewport, and review kept finding races in
-   it (the cog mounting after the measurement, the Android keyboard shrinking the viewport for a
+   length, not a measured height: an earlier version measured the rendered reply against the
+   viewport, and review kept finding races in it (the cog mounting after the measurement, the Android keyboard shrinking the viewport for a
    cached verdict, images loading later, zero-size panels), and the element it measured broke
    inline bodies. A length is the same on every device and needs no layout.
 5. It is not a search result or a highlighted row (`highlightRegex` set); those show the whole
