@@ -17,7 +17,7 @@ import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBacken
 import { Membership, MessageEvent, MsgType, RoomType, StateEvent } from './types/room';
 import { getMxIdLocalPart } from './matrix';
 import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from './editEvent';
-import { copyResolvedEditMetadata } from './protocol/editMetadata';
+import { copyResolvedEditMetadata, STREAM_STATUS_TS_KEY } from './protocol/editMetadata';
 import { getAppliedEdit, isUsableEdit } from './protocol/untrustedContent';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from './protocol/toolApproval';
 import { hasTerminalStreamMetadata, STREAM_STATUS_KEY } from './protocol/aiRun';
@@ -387,15 +387,19 @@ const getNewContent = (edit: MatrixEvent): Record<string, unknown> | undefined =
   return isRecord(newContent) ? newContent : undefined;
 };
 
-/** When the edit whose stream status an edit borrowed was sent, by the edit that borrowed it. */
-const borrowedStreamStatusTs = new WeakMap<object, number>();
-
 /**
  * When the stream status `edit` shows was sent: its own time, or that of the older edit it
- * borrowed the status from (an agent's later edit by hand carries none).
+ * borrowed the status from (an agent's later edit by hand carries none). The time is kept in the
+ * content the status was written to, so it survives the event cache.
  */
-export const getEditStreamFinishTs = (edit: Pick<MatrixEvent, 'getTs'>): number =>
-  borrowedStreamStatusTs.get(edit) ?? edit.getTs();
+export const getEditStreamFinishTs = (edit: {
+  getTs(): number;
+  getContent(): Record<string, unknown>;
+}): number => {
+  const newContent = edit.getContent()['m.new_content'];
+  const borrowedTs = isRecord(newContent) ? newContent[STREAM_STATUS_TS_KEY] : undefined;
+  return typeof borrowedTs === 'number' ? borrowedTs : edit.getTs();
+};
 
 const carriesStreamStatus = (edit: MatrixEvent): boolean =>
   getNewContent(edit)?.[STREAM_STATUS_KEY] !== undefined ||
@@ -420,7 +424,7 @@ const fillMetadataFromOlderEdits = (latest: MatrixEvent, older: MatrixEvent[]): 
     if (newContent[key] !== undefined || wrapper[key] !== undefined) return;
     newContent[key] = value;
     const source = key === STREAM_STATUS_KEY ? older.find(carriesStreamStatus) : undefined;
-    if (source) borrowedStreamStatusTs.set(latest, getEditStreamFinishTs(source));
+    if (source) newContent[STREAM_STATUS_TS_KEY] = getEditStreamFinishTs(source);
   });
 };
 

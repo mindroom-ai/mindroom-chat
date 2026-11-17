@@ -818,6 +818,22 @@ describe('the finish of a stream an edit borrows its status from', () => {
     expect(getEditStreamFinishTs(editedEvent!)).toBe(2000);
   });
 
+  it('is that of a newer finished stream, not of an older edit that borrowed an earlier one', () => {
+    const targetEvent = makeMessageEvent('$target', 1000);
+    const finish = statusEdit('$finish', 2000, 'completed');
+    const manual = statusEdit('$manual', 9000);
+    getEditedEvent('$target', targetEvent, relationsOf(finish, manual));
+    const rerun = statusEdit('$rerun', 15000, 'completed');
+    const later = statusEdit('$later', 20000);
+
+    const editedEvent = getEditedEvent(
+      '$target',
+      targetEvent,
+      relationsOf(finish, manual, rerun, later)
+    );
+    expect(getEditStreamFinishTs(editedEvent!)).toBe(15000);
+  });
+
   it('is the time of the newest edit itself when that edit finished it', () => {
     const targetEvent = makeMessageEvent('$target', 1000);
     const progress = statusEdit('$progress', 2000, 'streaming');

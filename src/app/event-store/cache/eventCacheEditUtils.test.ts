@@ -10,6 +10,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
 import { installEventContentGuard } from '../../matrix/protocol/untrustedContent';
+import { getEditedEvent, getEditStreamFinishTs } from '../../matrix/room';
 import { createPreferLiveEventMapper } from './eventRepository';
 import { insertCachedRoomTimeline } from '../sdk/roomTimelineSdk';
 import {
@@ -558,6 +559,37 @@ describe('cached copies of an edit redacted from a bundle', () => {
     expect(cached.getContent().body).toBe('original');
     expect(JSON.stringify(cached.event)).not.toContain('secret');
     expect(JSON.stringify(savedRoot)).not.toContain('secret');
+  });
+});
+
+describe('a cached edit that borrowed a finished stream status', () => {
+  const relationsOf = (...edits: MatrixEvent[]) =>
+    ({
+      relations: { getChildEventsForEvent: () => ({ getRelations: () => edits }) },
+    } as never);
+
+  it('keeps the finish of the edit it borrowed from after a cache replay', () => {
+    const targetEvent = makeMessageEvent('$target', 1000);
+    const finish = makeEditEvent('$finish', 2000, '$target');
+    (finish.getContent()['m.new_content'] as Record<string, unknown>)['io.mindroom.stream_status'] =
+      'completed';
+    const manual = makeEditEvent('$manual', 9000, '$target');
+    expect(
+      getEditStreamFinishTs(getEditedEvent('$target', targetEvent, relationsOf(finish, manual))!)
+    ).toBe(2000);
+
+    const replayed = JSON.parse(
+      JSON.stringify(serializeEventsForCache(room, [finish, manual]))
+    ) as Partial<IEvent>[];
+    const [replayedFinish, replayedManual] = replayed.map((raw) => new MatrixEvent(raw));
+    const editedEvent = getEditedEvent(
+      '$target',
+      makeMessageEvent('$target', 1000),
+      relationsOf(replayedFinish!, replayedManual!)
+    );
+
+    expect(editedEvent?.getId()).toBe('$manual');
+    expect(getEditStreamFinishTs(editedEvent!)).toBe(2000);
   });
 });
 
