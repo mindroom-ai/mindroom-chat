@@ -116,6 +116,32 @@ export const formatWorkDuration = (ms: number, language = 'en'): string => {
 };
 
 /**
+ * A duration in the language's narrow units, as a short form and the tail that makes it exact:
+ * seconds under a minute ("4s"), then minutes ("7m") with the seconds as the tail (" 12s"), then
+ * hours and minutes ("1h 05m"). A no-break space joins the units; fractions round down.
+ */
+export const formatDurationParts = (
+  ms: number,
+  language = 'en'
+): { short: string; tail: string } => {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const unit = (value: number, name: 'second' | 'minute' | 'hour', padded = false) =>
+    numberFormat(language, {
+      style: 'unit',
+      unit: name,
+      unitDisplay: 'narrow',
+      minimumIntegerDigits: padded ? 2 : 1,
+    }).format(value);
+  if (total < 60) return { short: unit(total, 'second'), tail: '' };
+  const minutes = Math.floor(total / 60);
+  if (minutes < 60) {
+    return { short: unit(minutes, 'minute'), tail: `\u00a0${unit(total % 60, 'second', true)}` };
+  }
+  const hours = `${unit(Math.floor(minutes / 60), 'hour')}\u00a0${unit(minutes % 60, 'minute', true)}`;
+  return { short: hours, tail: '' };
+};
+
+/**
  * A moment of a call, from its start, as a clock: `m:ss`, from an hour on `h:mm:ss`; fractions
  * round down.
  */
