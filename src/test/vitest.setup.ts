@@ -33,6 +33,8 @@ vi.mock('../app/ui/ThreadActivity.css', () => ({
   Row: 'activity-row',
   RowBody: 'activity-row-body',
   RowName: 'activity-row-name',
+  RowHead: 'activity-row-head',
+  Elapsed: 'activity-elapsed',
   RowText: 'activity-row-text',
   Result: 'activity-result',
 }));

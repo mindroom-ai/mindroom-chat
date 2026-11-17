@@ -785,6 +785,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "Sub-agents"
+      },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "Running for {{duration}}"
       }
     },
     "message-search": {

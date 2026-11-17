@@ -774,6 +774,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "子智能体"
+      },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "已运行 {{duration}}"
       }
     },
     "message-search": {

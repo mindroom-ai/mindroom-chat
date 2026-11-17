@@ -774,6 +774,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "하위 에이전트"
+      },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "{{duration}} 동안 실행 중"
       }
     },
     "message-search": {

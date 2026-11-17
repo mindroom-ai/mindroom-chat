@@ -6,6 +6,8 @@ export type ToolTraceEvent = {
   truncated?: unknown;
   // The latest output a running call reported; only live frames carry it.
   progress?: unknown;
+  // When the call started, in Unix seconds; only sub-agent frames carry it (subagentToolStartedAt).
+  started_at?: unknown;
 };
 
 export type ToolMetadataStatus = 'loading' | 'unavailable';
