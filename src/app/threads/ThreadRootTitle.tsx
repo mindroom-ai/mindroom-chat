@@ -116,8 +116,19 @@ export const getThreadRootTitle = (
   return text ? replaceMatrixUserIdsWithDisplayNames(room, text) : undefined;
 };
 
-/** The banner's title line from the thread's first message, cut at a word to fit one line. */
-export function ThreadRootTitle({ text }: { text: string }) {
+/**
+ * The banner's title line from the thread's first message, cut at a word to fit one line. `hint`
+ * follows the whole text in its tooltip.
+ */
+export function ThreadRootTitle({
+  text,
+  hint,
+  onDoubleClick,
+}: {
+  text: string;
+  hint?: string;
+  onDoubleClick?: () => void;
+}) {
   const ref = useRef<HTMLElement>(null);
   const shown = useWordFitText(ref, text);
   return (
@@ -128,7 +139,8 @@ export function ThreadRootTitle({ text }: { text: string }) {
       className={css.SummaryText}
       size="T300"
       truncate
-      title={text}
+      title={hint ? `${text}\n${hint}` : text}
+      onDoubleClick={onDoubleClick}
       {...ownDirectionLine}
     >
       {shown}

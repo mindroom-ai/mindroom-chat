@@ -23,6 +23,8 @@ import { getFinishingEdit, hasStreamEnded } from '../../matrix/client/syncedEdit
 
 type ThreadStreamingSnapshot = {
   isStreaming: boolean;
+  /** The tail replies that stream, oldest first: agents can stream at once. */
+  replies: MatrixEvent[];
   trackedEvents: MatrixEvent[];
   trackedRelations: Relations[];
 };
@@ -131,13 +133,13 @@ const getThreadStreamingSnapshot = (
 ): ThreadStreamingSnapshot => {
   const trackedEvents = getThreadStreamingEvents(room, threadRootId);
   if (!room || !threadRootId || trackedEvents.length === 0) {
-    return { isStreaming: false, trackedEvents, trackedRelations: [] };
+    return { isStreaming: false, replies: [], trackedEvents, trackedRelations: [] };
   }
 
   const thread = room.getThread(threadRootId);
   const timelineSet = thread?.getUnfilteredTimelineSet?.() ?? room.getUnfilteredTimelineSet();
   const trackedRelations: Relations[] = [];
-  let isStreaming = false;
+  const replies: MatrixEvent[] = [];
 
   trackedEvents.forEach((mEvent) => {
     const eventId = mEvent.getId();
@@ -146,22 +148,24 @@ const getThreadStreamingSnapshot = (
       trackedRelations.push(relations);
     }
 
-    if (
-      !isStreaming &&
-      isEventStreaming(mEvent, relations, timelineSet) &&
-      isStreamingReplyCurrent(room, mEvent)
-    ) {
-      isStreaming = true;
+    if (isEventStreaming(mEvent, relations, timelineSet) && isStreamingReplyCurrent(room, mEvent)) {
+      replies.push(mEvent);
     }
   });
 
-  return { isStreaming, trackedEvents, trackedRelations };
+  return { isStreaming: replies.length > 0, replies, trackedEvents, trackedRelations };
 };
 
 export const getThreadStreamingState = (
   room: Room | undefined,
   threadRootId: string | undefined
 ): boolean => getThreadStreamingSnapshot(room, threadRootId).isStreaming;
+
+/** The replies of the thread's tail that stream now, whose tool traces say what they run. */
+export const getThreadStreamingReplies = (
+  room: Room | undefined,
+  threadRootId: string | undefined
+): MatrixEvent[] => getThreadStreamingSnapshot(room, threadRootId).replies;
 
 export const useThreadStreamingState = (
   room: Room | undefined,

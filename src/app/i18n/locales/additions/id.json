@@ -708,6 +708,7 @@
         "showKey": "Tampilkan kunci",
         "hideKey": "Sembunyikan kunci",
         "sentTo": "Dikirim ke {{host}}",
+        "openLink": "Buka {{host}}",
         "save": "Simpan",
         "decline": "Tolak",
         "savedWaiting": "Tersimpan, menunggu agen",
@@ -953,7 +954,8 @@
     "unsnooze": "Batalkan penundaan",
     "status": {
       "snoozed": "Ditunda"
-    }
+    },
+    "renameHint": "Klik dua kali untuk mengganti nama"
   },
   "threadSnooze": {
     "title": "Tunda hingga",
@@ -1273,6 +1275,15 @@
       "snoozed": "Ditunda",
       "idle": "Tidak aktif",
       "resolved": "Selesai"
+    },
+    "live": {
+      "tools": "Alat",
+      "toolsRunning_other": "{{count}} berjalan",
+      "toolsRunningNamed_other": "{{count}} berjalan: {{names}}",
+      "background": "Latar belakang",
+      "jobs_other": "{{count}} tugas",
+      "jobsWaiting_other": "{{jobs}}, {{count}} menunggu persetujuan",
+      "waitingForAnswer": "Menunggu jawaban"
     }
   },
   "threadBoard": {

@@ -753,6 +753,7 @@
         "showKey": "إظهار المفتاح",
         "hideKey": "إخفاء المفتاح",
         "sentTo": "يُرسَل إلى ⁨{{host}}⁩",
+        "openLink": "فتح ⁨{{host}}⁩",
         "save": "حفظ",
         "decline": "رفض",
         "savedWaiting": "تم الحفظ، في انتظار الوكيل",
@@ -1038,7 +1039,8 @@
     "unsnooze": "إلغاء التأجيل",
     "status": {
       "snoozed": "مؤجلة"
-    }
+    },
+    "renameHint": "انقر نقرًا مزدوجًا لإعادة التسمية"
   },
   "threadSnooze": {
     "title": "تأجيل حتى",
@@ -1403,6 +1405,35 @@
       "snoozed": "مؤجلة",
       "idle": "خاملة",
       "resolved": "محلولة"
+    },
+    "live": {
+      "tools": "الأدوات",
+      "toolsRunning_zero": "⁨{{count}}⁩ قيد التشغيل",
+      "toolsRunning_one": "⁨{{count}}⁩ قيد التشغيل",
+      "toolsRunning_two": "⁨{{count}}⁩ قيد التشغيل",
+      "toolsRunning_few": "⁨{{count}}⁩ قيد التشغيل",
+      "toolsRunning_many": "⁨{{count}}⁩ قيد التشغيل",
+      "toolsRunning_other": "⁨{{count}}⁩ قيد التشغيل",
+      "toolsRunningNamed_zero": "⁨{{count}}⁩ قيد التشغيل: ⁨{{names}}⁩",
+      "toolsRunningNamed_one": "⁨{{count}}⁩ قيد التشغيل: ⁨{{names}}⁩",
+      "toolsRunningNamed_two": "⁨{{count}}⁩ قيد التشغيل: ⁨{{names}}⁩",
+      "toolsRunningNamed_few": "⁨{{count}}⁩ قيد التشغيل: ⁨{{names}}⁩",
+      "toolsRunningNamed_many": "⁨{{count}}⁩ قيد التشغيل: ⁨{{names}}⁩",
+      "toolsRunningNamed_other": "⁨{{count}}⁩ قيد التشغيل: ⁨{{names}}⁩",
+      "background": "الخلفية",
+      "jobs_zero": "⁨{{count}}⁩ مهمة",
+      "jobs_one": "مهمة واحدة (⁨{{count}}⁩)",
+      "jobs_two": "مهمتان (⁨{{count}}⁩)",
+      "jobs_few": "⁨{{count}}⁩ مهام",
+      "jobs_many": "⁨{{count}}⁩ مهمة",
+      "jobs_other": "⁨{{count}}⁩ مهمة",
+      "jobsWaiting_zero": "⁨{{jobs}}⁩، ⁨{{count}}⁩ بانتظار الموافقة",
+      "jobsWaiting_one": "⁨{{jobs}}⁩، ⁨{{count}}⁩ بانتظار الموافقة",
+      "jobsWaiting_two": "⁨{{jobs}}⁩، ⁨{{count}}⁩ بانتظار الموافقة",
+      "jobsWaiting_few": "⁨{{jobs}}⁩، ⁨{{count}}⁩ بانتظار الموافقة",
+      "jobsWaiting_many": "⁨{{jobs}}⁩، ⁨{{count}}⁩ بانتظار الموافقة",
+      "jobsWaiting_other": "⁨{{jobs}}⁩، ⁨{{count}}⁩ بانتظار الموافقة",
+      "waitingForAnswer": "بانتظار إجابة"
     }
   },
   "threadBoard": {
