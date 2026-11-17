@@ -81,6 +81,32 @@ describe('createThreadOpenSeedSession', () => {
     );
   });
 
+  it('finds a gap where the first open knows of replies its rows leave out, and none on the next open', () => {
+    const root = makeEvent('$root', {
+      isThreadRoot: true,
+      ts: 1,
+      unsigned: { 'm.relations': { 'm.thread': { count: 2 } } },
+    });
+    const middle = makeEvent('$middle', { threadRootId: '$root', ts: 2 });
+    const latest = makeEvent('$latest', { threadRootId: '$root', ts: 3 });
+    // Sync knows the root and the newest reply, not the one before it.
+    const room = makeRoom({ liveEvents: [root, latest] });
+    const open = () =>
+      createThreadOpenSeedSession({
+        debugTraceId: 'test',
+        ...makeRefs(),
+        room: room as never,
+        roomTimelineSet: room.getUnfilteredTimelineSet() as never,
+        setSupplementalThreadEvents: vi.fn(),
+        shouldScrollToLatestOnOpen: true,
+      });
+
+    expect(open().hasGap()).toBe(true);
+    // The first open's page stays for the session, so the next open has every reply.
+    saveThreadOpenSeedSnapshot(room as never, '$root', [middle, latest] as never);
+    expect(open().hasGap()).toBe(false);
+  });
+
   // ISSUE-207 P7.2 audit finding #2 — `void p.finally(cb)` re-rejects.
   // When the thread-seed scheduler promise rejects (engine teardown
   // aborting a queued 'thread-seed' job), the .finally shape produced
