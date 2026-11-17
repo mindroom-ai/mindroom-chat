@@ -8,14 +8,24 @@ import { NewVersionNotice } from './NewVersionNotice';
 
 const update = vi.hoisted(() => {
   const listeners = new Set<() => void>();
-  const state: { version: string | undefined } = { version: undefined };
+  // `installing` holds the new version back from being ready, as while its worker installs.
+  const state: { version: string | undefined; installing: boolean } = {
+    version: undefined,
+    installing: false,
+  };
+  const notify = () => listeners.forEach((listener) => listener());
   return {
     state,
     publish: (version: string) => {
       state.version = version;
-      listeners.forEach((listener) => listener());
+      notify();
+    },
+    installed: () => {
+      state.installing = false;
+      notify();
     },
     getNewVersion: () => state.version,
+    getReadyVersion: () => (state.installing ? undefined : state.version),
     subscribeToNewVersion: (listener: () => void) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -24,6 +34,10 @@ const update = vi.hoisted(() => {
   };
 });
 vi.mock('../config/appUpdate', () => update);
+vi.mock('folds', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('folds')>()),
+  Spinner: () => <span data-spinner />,
+}));
 
 /** The notice's live region, which the page has from the start. */
 const liveRegion = (container: HTMLElement): HTMLElement => {
@@ -37,6 +51,7 @@ describe('NewVersionNotice', () => {
     vi.useRealTimers();
     cleanup();
     update.state.version = undefined;
+    update.state.installing = false;
     update.reloadForNewVersion.mockClear();
     getDefaultStore().set(listNoticeSlotAtom, null);
     getDefaultStore().set(pageNoticeSlotAtom, null);
@@ -64,7 +79,7 @@ describe('NewVersionNotice', () => {
     render(<NewVersionNotice />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Reload' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Reload' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Updating…' }));
 
     expect(update.reloadForNewVersion).toHaveBeenCalledOnce();
   });
@@ -84,6 +99,42 @@ describe('NewVersionNotice', () => {
 
     act(() => update.publish('build-3'));
     expect(liveRegion(container).textContent).toBe('');
+  });
+
+  it("waits until the new version's worker has installed", () => {
+    update.state.installing = true;
+    const { container } = render(<NewVersionNotice />);
+
+    act(() => update.publish('build-2'));
+    expect(liveRegion(container).textContent).toBe('');
+
+    act(() => update.installed());
+    expect(liveRegion(container).textContent).toContain('A new version of MindRoom is available.');
+  });
+
+  it('shows a spinner and says it is updating while the reload prepares, and Reload again if it fails', async () => {
+    let fail = () => {};
+    update.reloadForNewVersion.mockImplementationOnce(
+      () =>
+        new Promise<undefined>((_, reject) => {
+          fail = () => reject(new Error('no reload'));
+        })
+    );
+    update.state.version = 'build-2';
+    render(<NewVersionNotice />);
+    const button = screen.getByRole('button', { name: 'Reload' });
+    expect(button.querySelector('[data-spinner]')).toBeNull();
+
+    fireEvent.click(button);
+    const updating = screen.getByRole('button', { name: 'Updating…' });
+    expect(updating).toHaveProperty('disabled', true);
+    expect(updating.querySelector('[data-spinner]')).toBeTruthy();
+    expect(update.reloadForNewVersion).toHaveBeenCalledOnce();
+
+    await act(async () => fail());
+    const again = screen.getByRole('button', { name: 'Reload' });
+    expect(again).toHaveProperty('disabled', false);
+    expect(again.querySelector('[data-spinner]')).toBeNull();
   });
 
   it("takes the room list's place while there is one, else the page's", () => {

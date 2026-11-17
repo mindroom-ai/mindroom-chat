@@ -90,7 +90,9 @@
       "pack": "Comme le pack"
     },
     "imageViewer": {
-      "close": "Fermer"
+      "close": "Fermer",
+      "previous": "Image précédente",
+      "next": "Image suivante"
     },
     "inviteUserPrompt": {
       "close": "Fermer",
@@ -161,6 +163,7 @@
     "appUpdate": {
       "available": "Une nouvelle version de MindRoom est disponible.",
       "reload": "Recharger",
+      "updating": "Mise à jour…",
       "dismiss": "Ignorer",
       "reloadToUse": "Rechargez pour l’utiliser."
     },
@@ -976,7 +979,11 @@
       "moveRoomDown": "Descendre la salle ou l'espace sélectionné",
       "members": "Afficher ou masquer les membres",
       "focusComposer": "Marquer comme lu et aller à la zone de saisie",
-      "resolveThread": "Résoudre ou rouvrir le fil ouvert",
+      "previousThread": "Sélectionner le fil précédent",
+      "nextThread": "Sélectionner le fil suivant",
+      "openThread": "Aller aux fils, puis ouvrir le fil sélectionné",
+      "leaveThread": "Quitter le fil ouvert, puis les fils",
+      "resolveThread": "Résoudre ou rouvrir le fil ouvert ou sélectionné",
       "newLine": "Nouvelle ligne",
       "editLast": "Modifier votre dernier message (zone de saisie vide)",
       "inlineCode": "Code en ligne",
