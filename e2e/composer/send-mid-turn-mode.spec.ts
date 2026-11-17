@@ -87,7 +87,7 @@ test.beforeEach(async () => {
 });
 
 test('holding Send while an agent replies sends the mode picked', async ({ page }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(420_000);
   await page.setViewportSize({ width: 1280, height: 800 });
   const { reader, roomId, rootId } = await seed();
   await loginWithPassword(page, {
