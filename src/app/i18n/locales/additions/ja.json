@@ -1020,6 +1020,7 @@
     },
     "sentence": {
       "approval": "{{name}} が承認を求めています",
+      "approvalUnknown": "バックグラウンドジョブの承認が必要です",
       "question": "{{name}} から質問があります",
       "invite": "{{name}} から招待されました",
       "inviteUnknown": "招待されました",

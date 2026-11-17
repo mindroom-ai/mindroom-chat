@@ -1056,6 +1056,7 @@
     },
     "sentence": {
       "approval": "{{name}} chiede un’approvazione",
+      "approvalUnknown": "Un’attività in background richiede approvazione",
       "question": "{{name}} ti ha fatto una domanda",
       "invite": "{{name}} ti ha inviato un invito",
       "inviteUnknown": "Hai ricevuto un invito",

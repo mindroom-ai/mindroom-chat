@@ -1020,6 +1020,7 @@
     },
     "sentence": {
       "approval": "{{name}} 需要批准",
+      "approvalUnknown": "后台任务需要批准",
       "question": "{{name}} 向你提问",
       "invite": "{{name}} 邀请了你",
       "inviteUnknown": "你收到了邀请",

@@ -1038,6 +1038,7 @@
     },
     "sentence": {
       "approval": "{{name}} needs approval",
+      "approvalUnknown": "A background job needs approval",
       "question": "{{name}} asked you",
       "invite": "{{name}} invited you",
       "inviteUnknown": "You were invited",
