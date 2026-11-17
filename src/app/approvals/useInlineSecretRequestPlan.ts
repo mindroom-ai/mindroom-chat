@@ -1,10 +1,7 @@
 import { useRef } from 'react';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
-import {
-  planInlineSecretRequests,
-  type InlineSecretRequestPlan,
-} from './inlineSecretRequests';
+import { planInlineSecretRequests, type InlineSecretRequestPlan } from './inlineSecretRequests';
 
 const EMPTY_PLAN: InlineSecretRequestPlan = { hiddenEventIds: new Set(), byReply: new Map() };
 

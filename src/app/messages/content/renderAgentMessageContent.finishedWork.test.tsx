@@ -10,6 +10,12 @@ import { renderAgentMessageContent } from './renderAgentMessageContent';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
 import { splitFinishedWork } from '../agent-run/finishedWorkSplit';
 import { LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
+import {
+  InlineSecretRequestsContext,
+  type InlineSecretRequests,
+} from '../../approvals/inlineSecretRequests';
+import type { SecretRequest, SecretRequestStatus } from '../../matrix/protocol/secretRequest';
+import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { MINDROOM_THINKING_PLACEHOLDER_BODY } from '../../matrix/protocol/thinkingPlaceholder';
 
 // The folded work shows its tool calls once open, so these tests show them.
@@ -100,6 +106,10 @@ vi.mock('../html/HtmlBlocks.css', () => ({
 }));
 
 vi.mock('../../ui/PendingSendIndicator.css', () => ({ Container: 'PendingSendIndicator' }));
+vi.mock('../../approvals/SecretRequestLine', () => ({
+  SecretRequestLine: ({ request }: { request: SecretRequest }) =>
+    React.createElement('div', null, `secret ${request.status}`),
+}));
 
 vi.mock('../agent-run/TranscribingPlaceholder.css', () => ({
   Placeholder: 'TranscribingPlaceholder',
@@ -125,7 +135,11 @@ const marker = (name: string, index: number) => `<p>🔧 <code>${name}</code> [$
 
 const toolTrace = (...toolNames: string[]) => ({
   version: 2,
-  events: toolNames.map((name) => ({ type: 'tool_call_completed', tool_name: name })),
+  events: toolNames.map((name, index) => ({
+    type: 'tool_call_completed',
+    tool_name: name,
+    tool_call_id: `call_${index + 1}`,
+  })),
 });
 
 /** The plain body of a reply with two tool calls, `length` characters long with its markers. */
@@ -180,26 +194,35 @@ vi.spyOn(mEvent, 'replacingEvent').mockReturnValue(
 let replyCount = 0;
 let replyId = '$reply';
 
+const NO_SECRETS: InlineSecretRequests = new Map();
+
 let renderer: ReactTestRenderer | undefined;
 const render = (
   content: Record<string, unknown>,
   fromMindroomAgent = true,
-  highlightRegex?: RegExp
+  highlightRegex?: RegExp,
+  secrets = NO_SECRETS
 ) =>
   act(() => {
     const tree = (
       <ClientConfigProvider value={{}}>
-        {renderAgentMessageContent({
-          mEvent,
-          eventId: replyId,
-          fromMindroomAgent,
-          highlightRegex,
-          displayName: 'Agent',
-          msgType: 'm.text',
-          content,
-          htmlReactParserOptions,
-          linkifyOpts,
-        })}
+        <InlineSecretRequestsContext.Provider value={secrets}>
+          <ToolCallMessageContext.Provider
+            value={{ eventId: replyId, roomId: '!room:example.org' }}
+          >
+            {renderAgentMessageContent({
+              mEvent,
+              eventId: replyId,
+              fromMindroomAgent,
+              highlightRegex,
+              displayName: 'Agent',
+              msgType: 'm.text',
+              content,
+              htmlReactParserOptions,
+              linkifyOpts,
+            })}
+          </ToolCallMessageContext.Provider>
+        </InlineSecretRequestsContext.Provider>
       </ClientConfigProvider>
     );
     if (renderer) renderer.update(tree);
@@ -283,6 +306,43 @@ describe('finished agent work', () => {
 
     expect(text()).not.toContain('Worked');
     expect(text()).toContain('Let me look.');
+  });
+
+  it('keeps the work open while a secret request in it waits, and folds it once done', () => {
+    const secrets = (status: SecretRequestStatus): InlineSecretRequests =>
+      new Map([
+        [
+          replyId,
+          new Map([
+            [
+              'call_2',
+              {
+                eventId: '$card',
+                agentUserId: '@agent:example.org',
+                request: {
+                  kind: 'temporary',
+                  requestId: 'req-1',
+                  requesterId: '@bas:example.org',
+                  env: 'SUDO_PASSWORD',
+                  keep: { memory: 900 },
+                  kept: null,
+                  reason: 'To restart',
+                  status,
+                  expiresAt: Date.now() + 60_000,
+                },
+              },
+            ],
+          ]),
+        ],
+      ]);
+    render(reply('completed'), true, undefined, secrets('pending'));
+    expect(text()).not.toContain('Worked');
+    expect(text()).toContain('Now the file.');
+    expect(text()).toContain('secret pending');
+
+    render(reply('completed'), true, undefined, secrets('saved'));
+    expect(text()).toContain('Worked for 2m 13s');
+    expect(text()).not.toContain('secret');
   });
 
   it('folds a reply once it finishes on screen', () => {

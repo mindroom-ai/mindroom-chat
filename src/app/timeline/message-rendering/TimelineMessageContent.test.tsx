@@ -12,7 +12,9 @@ import { defined } from '../../../test/utils/defined';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
 const reactionMocks = vi.hoisted(() => ({ toggleReaction: vi.fn(async () => undefined) }));
-vi.mock('../../messages/reactions/reactionToggle', () => ({ toggleReaction: reactionMocks.toggleReaction }));
+vi.mock('../../messages/reactions/reactionToggle', () => ({
+  toggleReaction: reactionMocks.toggleReaction,
+}));
 
 const emptyData = () => ({
   threadRecordMap: new Map(),

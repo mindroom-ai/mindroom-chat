@@ -96,7 +96,9 @@ const readLink = (value: unknown): string | undefined => {
 };
 
 /** What the agent chose to show on either kind of card, each only when the card has it. */
-const readShown = (value: Record<string, unknown>): Pick<SecretRequestBase, 'url' | 'placeholder'> => {
+const readShown = (
+  value: Record<string, unknown>
+): Pick<SecretRequestBase, 'url' | 'placeholder'> => {
   const url = readLink(value.url);
   const placeholder = readLine(value.placeholder);
   return { ...(url && { url }), ...(placeholder && { placeholder }) };

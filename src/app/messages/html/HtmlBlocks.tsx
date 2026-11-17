@@ -3,11 +3,7 @@ import React, { ReactNode, useContext, useMemo, useState } from 'react';
 import { Element, HTMLReactParserOptions, Text as DOMText, domToReact } from 'html-react-parser';
 import { ChildNode } from 'domhandler';
 import { Box, Icon, IconSrc, Icons, Text } from 'folds';
-import {
-  MINDROOM_TOOL_REF_ICON,
-  ToolRefParseResult,
-  parseToolRefHtml,
-} from './blocks';
+import { MINDROOM_TOOL_REF_ICON, ToolRefParseResult, parseToolRefHtml } from './blocks';
 import {
   extractTextFromChildren,
   getToolRefPrefixFromElement,
@@ -39,7 +35,12 @@ import {
 import { SecretRequestLine } from '../../approvals/SecretRequestLine';
 import * as css from './HtmlBlocks.css';
 import * as activityCss from '../../ui/ThreadActivity.css';
-import { ActivityIcon, ActivityResult, ActivityTone, ThreadActivity } from '../../ui/ThreadActivity';
+import {
+  ActivityIcon,
+  ActivityResult,
+  ActivityTone,
+  ThreadActivity,
+} from '../../ui/ThreadActivity';
 import {
   ReasoningSegmentsContext,
   resolveToolCallStates,
@@ -54,7 +55,10 @@ import {
 } from '../agent-run/toolCallStatus';
 import { ReasoningSegmentsAt } from '../agent-run/Reasoning';
 import { useThreadApprovals } from '../../approvals/ThreadApprovalProvider';
-import { getEffectiveToolApprovalStatus, parseToolApprovalExpiryTimestamp } from '../../matrix/protocol/toolApproval';
+import {
+  getEffectiveToolApprovalStatus,
+  parseToolApprovalExpiryTimestamp,
+} from '../../matrix/protocol/toolApproval';
 import { parseToolJobHandle } from '../../matrix/protocol/toolJobHandle';
 import { ApprovalArgumentFields } from '../../approvals/ApprovalArgumentFields';
 import { toToolArgumentFields } from '../../approvals/argumentFields';
@@ -195,11 +199,7 @@ function NamedBlock({
   );
 }
 
-type ToolBlockStatus =
-  | 'pending'
-  | 'completed'
-  | 'completed_with_result'
-  | ToolMetadataStatus;
+type ToolBlockStatus = 'pending' | 'completed' | 'completed_with_result' | ToolMetadataStatus;
 
 type ToolBlockRenderData = {
   index: number;
@@ -382,11 +382,7 @@ const useToolCallApprovals = (jobIds: readonly string[]) => {
  * while that cog is open. Each block reads the choice itself, so changing it redraws the blocks
  * without parsing the replies again.
  */
-function ToolRefGroupBlock({
-  parsedTools,
-}: {
-  parsedTools: ToolBlockRenderData[];
-}) {
+function ToolRefGroupBlock({ parsedTools }: { parsedTools: ToolBlockRenderData[] }) {
   const { t } = useTranslation();
   const message = useContext(ToolCallMessageContext);
   const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
@@ -495,11 +491,8 @@ function InlineSecretRequestBlock({ secret }: { secret: InlineSecretRequest }) {
   const fold = useContext(ToolCallsFoldContext);
   const { request, agentUserId } = secret;
   const status = effectiveSecretRequestStatus(request, Date.now());
-  const toolName =
-    request.kind === 'key' ? request.displayName : request.label ?? request.env;
-  useFoldedToolCalls(
-    shown ? undefined : [{ toolName, state: SECRET_REQUEST_CALL_STATE[status] }]
-  );
+  const toolName = request.kind === 'key' ? request.displayName : request.label ?? request.env;
+  useFoldedToolCalls(shown ? undefined : [{ toolName, state: SECRET_REQUEST_CALL_STATE[status] }]);
   const roomId = message?.roomId;
   if (!roomId || (status !== 'pending' && !shown && fold && !fold.open)) return null;
   return <SecretRequestLine request={request} roomId={roomId} agentUserId={agentUserId} />;

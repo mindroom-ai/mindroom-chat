@@ -1845,23 +1845,25 @@ export function RoomTimeline(props: RoomTimelineProps) {
           <ThreadConversationCostProvider value={threadConversationCost}>
             <ImageSlidesContext.Provider value={getImageSlides}>
               <InlineSecretRequestsContext.Provider value={secretRequestTimeline.byReply}>
-              {feature.wrapExpansion(
-                <div
-                  ref={ledger.virtualInnerRef}
-                  data-thread-count={threadId ? threadEvents.length : undefined}
-                  data-testid={threadId ? undefined : 'room-virtual-inner'}
-                  style={{
-                    ...overlay.overviewInsetStop,
-                    position: 'relative',
-                    height: listHeight,
-                    visibility:
-                      automaticFill.hideInitialRows || hideOpeningThreadRows ? 'hidden' : undefined,
-                  }}
-                >
-                  {latestAtTop ? frontSentinel : backSentinel}
-                  {tiles}
-                </div>
-              )}
+                {feature.wrapExpansion(
+                  <div
+                    ref={ledger.virtualInnerRef}
+                    data-thread-count={threadId ? threadEvents.length : undefined}
+                    data-testid={threadId ? undefined : 'room-virtual-inner'}
+                    style={{
+                      ...overlay.overviewInsetStop,
+                      position: 'relative',
+                      height: listHeight,
+                      visibility:
+                        automaticFill.hideInitialRows || hideOpeningThreadRows
+                          ? 'hidden'
+                          : undefined,
+                    }}
+                  >
+                    {latestAtTop ? frontSentinel : backSentinel}
+                    {tiles}
+                  </div>
+                )}
               </InlineSecretRequestsContext.Provider>
             </ImageSlidesContext.Provider>
           </ThreadConversationCostProvider>
