@@ -810,6 +810,66 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Выполняется уже {{duration}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} с",
+        "keptHistory": "вся история сохранена",
+        "tokensShort": "{{before}} → {{after}} токенов",
+        "label": {
+          "running": "Сжатие контекста…",
+          "preTurn": "Сжато перед ответом",
+          "midTurn": "Контекст сжат",
+          "manual": "Сжато по запросу",
+          "failed": "Сжатие не удалось",
+          "timeout": "Время сжатия истекло",
+          "interrupted": "Сжатие прервано"
+        },
+        "title": "Контекст сжат",
+        "tag": {
+          "preTurn": "перед ответом",
+          "midTurn": "посреди хода",
+          "manual": "вручную"
+        },
+        "subtitle": {
+          "preTurn": "Перед первым запросом этого ответа к модели.",
+          "midTurn": "Между двумя запросами к модели, после вызова инструмента {{n, number}}.",
+          "midTurnNoTools": "Между двумя запросами к модели.",
+          "manual": "Запрошено командой сжатия.",
+          "unfinished": "Ответ продолжился со всей историей."
+        },
+        "gauge": {
+          "was": "было {{p, number}} % бюджета",
+          "now": "сейчас {{p, number}} %",
+          "used": "{{p, number}} % бюджета",
+          "unchanged": "{{p, number}} % бюджета, без изменений"
+        },
+        "row": {
+          "history": "История",
+          "saved": "Сэкономлено",
+          "budget": "Бюджет",
+          "folded": "Свёрнуто",
+          "folding": "Сворачивается",
+          "summarizedBy": "Сводку сделала",
+          "summaryModel": "Модель сводки",
+          "when": "Когда",
+          "started": "Начато",
+          "reason": "Причина",
+          "gaveUpAfter": "Прекращено через"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> токенов",
+          "history": "<b>{{n, number}}</b> токенов",
+          "tokens": "{{n, number}} токенов",
+          "saved": "{{n, number}} токенов ({{p, number}} %)",
+          "runs_one": "{{count, number}} запуск",
+          "runs_few": "{{count, number}} запуска",
+          "runs_many": "{{count, number}} запусков",
+          "runs_other": "{{count, number}} запуска",
+          "folded": "{{runs}} в 1 сводку",
+          "folding": "{{runs}}, готово: {{done, number}}",
+          "summarizedBy": "{{model}} за {{duration}}",
+          "interrupted": "Ответ завершился раньше, чем была готова сводка."
+        }
       }
     },
     "message-search": {

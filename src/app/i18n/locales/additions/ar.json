@@ -832,6 +832,68 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "قيد التشغيل منذ ⁨{{duration}}⁩"
+      },
+      "compactionSeam": {
+        "elapsed": "⁨{{n, number}}⁩ ث",
+        "keptHistory": "احتُفظ بالسجل الكامل",
+        "tokensShort": "⁨{{before}}⁩ ← ⁨{{after}}⁩ رمز",
+        "label": {
+          "running": "جارٍ ضغط السياق…",
+          "preTurn": "ضُغط قبل الرد",
+          "midTurn": "ضُغط السياق",
+          "manual": "ضُغط عند الطلب",
+          "failed": "فشل الضغط",
+          "timeout": "انتهت مهلة الضغط",
+          "interrupted": "انقطع الضغط"
+        },
+        "title": "ضُغط السياق",
+        "tag": {
+          "preTurn": "قبل الرد",
+          "midTurn": "أثناء الدور",
+          "manual": "يدوي"
+        },
+        "subtitle": {
+          "preTurn": "قبل أول طلب لهذا الرد إلى النموذج.",
+          "midTurn": "بين طلبين إلى النموذج، بعد استدعاء الأداة ⁨{{n, number}}⁩.",
+          "midTurnNoTools": "بين طلبين إلى النموذج.",
+          "manual": "طُلب بأمر الضغط.",
+          "unfinished": "تابع الرد بسجله الكامل."
+        },
+        "gauge": {
+          "was": "كان ⁨{{p, number}}⁩٪ من الميزانية",
+          "now": "الآن ⁨{{p, number}}⁩٪",
+          "used": "⁨{{p, number}}⁩٪ من الميزانية",
+          "unchanged": "⁨{{p, number}}⁩٪ من الميزانية، دون تغيير"
+        },
+        "row": {
+          "history": "السجل",
+          "saved": "الموفَّر",
+          "budget": "الميزانية",
+          "folded": "المطويّ",
+          "folding": "قيد الطي",
+          "summarizedBy": "لخّصه",
+          "summaryModel": "نموذج التلخيص",
+          "when": "متى",
+          "started": "البدء",
+          "reason": "السبب",
+          "gaveUpAfter": "توقف بعد"
+        },
+        "value": {
+          "historyChange": "<b>⁨{{before, number}}⁩ ← ⁨{{after, number}}⁩</b> رمز",
+          "history": "<b>⁨{{n, number}}⁩</b> رمز",
+          "tokens": "⁨{{n, number}}⁩ رمز",
+          "saved": "⁨{{n, number}}⁩ رمز (⁨{{p, number}}⁩٪)",
+          "runs_zero": "⁨{{count, number}}⁩ تشغيل",
+          "runs_one": "تشغيل واحد (⁨{{count, number}}⁩)",
+          "runs_two": "تشغيلان (⁨{{count, number}}⁩)",
+          "runs_few": "⁨{{count, number}}⁩ تشغيلات",
+          "runs_many": "⁨{{count, number}}⁩ تشغيلًا",
+          "runs_other": "⁨{{count, number}}⁩ تشغيل",
+          "folded": "⁨{{runs}}⁩ في ملخص واحد",
+          "folding": "⁨{{runs}}⁩، اكتمل ⁨{{done, number}}⁩",
+          "summarizedBy": "⁨{{model}}⁩ في ⁨{{duration}}⁩",
+          "interrupted": "انتهى الرد قبل اكتمال الملخص."
+        }
       }
     },
     "message-search": {

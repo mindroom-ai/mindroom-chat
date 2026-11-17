@@ -799,6 +799,65 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "En cours depuis {{duration}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} s",
+        "keptHistory": "historique complet conservé",
+        "tokensShort": "{{before}} → {{after}} jetons",
+        "label": {
+          "running": "Compactage du contexte…",
+          "preTurn": "Compacté avant de répondre",
+          "midTurn": "Contexte compacté",
+          "manual": "Compacté sur demande",
+          "failed": "Échec du compactage",
+          "timeout": "Compactage expiré",
+          "interrupted": "Compactage interrompu"
+        },
+        "title": "Contexte compacté",
+        "tag": {
+          "preTurn": "avant la réponse",
+          "midTurn": "en cours de tour",
+          "manual": "manuel"
+        },
+        "subtitle": {
+          "preTurn": "Avant la première requête au modèle de cette réponse.",
+          "midTurn": "Entre deux requêtes au modèle, après l’appel d’outil {{n, number}}.",
+          "midTurnNoTools": "Entre deux requêtes au modèle.",
+          "manual": "Demandé avec la commande de compactage.",
+          "unfinished": "La réponse a continué avec tout son historique."
+        },
+        "gauge": {
+          "was": "était à {{p, number}} % du budget",
+          "now": "maintenant {{p, number}} %",
+          "used": "{{p, number}} % du budget",
+          "unchanged": "{{p, number}} % du budget, inchangé"
+        },
+        "row": {
+          "history": "Historique",
+          "saved": "Économisé",
+          "budget": "Budget",
+          "folded": "Regroupé",
+          "folding": "Regroupement",
+          "summarizedBy": "Résumé par",
+          "summaryModel": "Modèle de résumé",
+          "when": "Quand",
+          "started": "Démarré",
+          "reason": "Raison",
+          "gaveUpAfter": "Abandon après"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> jetons",
+          "history": "<b>{{n, number}}</b> jetons",
+          "tokens": "{{n, number}} jetons",
+          "saved": "{{n, number}} jetons ({{p, number}} %)",
+          "runs_one": "{{count, number}} exécution",
+          "runs_many": "{{count, number}} d’exécutions",
+          "runs_other": "{{count, number}} exécutions",
+          "folded": "{{runs}} en 1 résumé",
+          "folding": "{{runs}}, {{done, number}} terminées",
+          "summarizedBy": "{{model}} en {{duration}}",
+          "interrupted": "La réponse s’est terminée avant la fin du résumé."
+        }
       }
     },
     "message-search": {

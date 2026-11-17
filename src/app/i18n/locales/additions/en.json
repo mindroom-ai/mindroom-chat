@@ -788,6 +788,64 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Running for {{duration}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} s",
+        "keptHistory": "kept full history",
+        "tokensShort": "{{before}} → {{after}} tokens",
+        "label": {
+          "running": "Compacting context…",
+          "preTurn": "Compacted before replying",
+          "midTurn": "Compacted context",
+          "manual": "Compacted on request",
+          "failed": "Compaction failed",
+          "timeout": "Compaction timed out",
+          "interrupted": "Compaction interrupted"
+        },
+        "title": "Context compacted",
+        "tag": {
+          "preTurn": "before the reply",
+          "midTurn": "mid-turn",
+          "manual": "manual"
+        },
+        "subtitle": {
+          "preTurn": "Before this reply’s first model request.",
+          "midTurn": "Between two model requests, after tool call {{n, number}}.",
+          "midTurnNoTools": "Between two model requests.",
+          "manual": "Requested with the compact command.",
+          "unfinished": "The reply went on with its full history."
+        },
+        "gauge": {
+          "was": "was {{p, number}}% of budget",
+          "now": "now {{p, number}}%",
+          "used": "{{p, number}}% of budget",
+          "unchanged": "{{p, number}}% of budget, unchanged"
+        },
+        "row": {
+          "history": "History",
+          "saved": "Saved",
+          "budget": "Budget",
+          "folded": "Folded",
+          "folding": "Folding",
+          "summarizedBy": "Summarized by",
+          "summaryModel": "Summary model",
+          "when": "When",
+          "started": "Started",
+          "reason": "Reason",
+          "gaveUpAfter": "Gave up after"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> tokens",
+          "history": "<b>{{n, number}}</b> tokens",
+          "tokens": "{{n, number}} tokens",
+          "saved": "{{n, number}} tokens ({{p, number}}%)",
+          "runs_one": "{{count, number}} run",
+          "runs_other": "{{count, number}} runs",
+          "folded": "{{runs}} into 1 summary",
+          "folding": "{{runs}}, {{done, number}} done",
+          "summarizedBy": "{{model}} in {{duration}}",
+          "interrupted": "The reply ended before the summary finished."
+        }
       }
     },
     "message-search": {

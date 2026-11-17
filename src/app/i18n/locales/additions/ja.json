@@ -777,6 +777,63 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}}実行中"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} 秒",
+        "keptHistory": "履歴はすべて保持",
+        "tokensShort": "{{before}} → {{after}} トークン",
+        "label": {
+          "running": "コンテキストを圧縮中…",
+          "preTurn": "返信前に圧縮",
+          "midTurn": "コンテキストを圧縮",
+          "manual": "リクエストにより圧縮",
+          "failed": "圧縮に失敗",
+          "timeout": "圧縮がタイムアウト",
+          "interrupted": "圧縮が中断"
+        },
+        "title": "コンテキストを圧縮しました",
+        "tag": {
+          "preTurn": "返信前",
+          "midTurn": "ターン途中",
+          "manual": "手動"
+        },
+        "subtitle": {
+          "preTurn": "この返信の最初のモデルリクエストの前。",
+          "midTurn": "2 つのモデルリクエストの間、ツール呼び出し {{n, number}} の後。",
+          "midTurnNoTools": "2 つのモデルリクエストの間。",
+          "manual": "圧縮コマンドでリクエストされました。",
+          "unfinished": "返信は履歴をすべて保持したまま続きました。"
+        },
+        "gauge": {
+          "was": "以前は予算の {{p, number}}%",
+          "now": "現在 {{p, number}}%",
+          "used": "予算の {{p, number}}%",
+          "unchanged": "予算の {{p, number}}%、変化なし"
+        },
+        "row": {
+          "history": "履歴",
+          "saved": "削減",
+          "budget": "予算",
+          "folded": "まとめた数",
+          "folding": "まとめ中",
+          "summarizedBy": "要約したモデル",
+          "summaryModel": "要約モデル",
+          "when": "日時",
+          "started": "開始",
+          "reason": "理由",
+          "gaveUpAfter": "中止までの時間"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> トークン",
+          "history": "<b>{{n, number}}</b> トークン",
+          "tokens": "{{n, number}} トークン",
+          "saved": "{{n, number}} トークン ({{p, number}}%)",
+          "runs_other": "{{count, number}} 回の実行",
+          "folded": "{{runs}}を 1 つの要約に",
+          "folding": "{{runs}}、{{done, number}} 件完了",
+          "summarizedBy": "{{model}}（{{duration}}）",
+          "interrupted": "要約が終わる前に返信が終了しました。"
+        }
       }
     },
     "message-search": {

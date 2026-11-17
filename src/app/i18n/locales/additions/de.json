@@ -788,6 +788,64 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Läuft seit {{duration}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} s",
+        "keptHistory": "voller Verlauf behalten",
+        "tokensShort": "{{before}} → {{after}} Tokens",
+        "label": {
+          "running": "Kontext wird verdichtet…",
+          "preTurn": "Vor der Antwort verdichtet",
+          "midTurn": "Kontext verdichtet",
+          "manual": "Auf Anfrage verdichtet",
+          "failed": "Verdichtung fehlgeschlagen",
+          "timeout": "Verdichtung abgelaufen",
+          "interrupted": "Verdichtung unterbrochen"
+        },
+        "title": "Kontext verdichtet",
+        "tag": {
+          "preTurn": "vor der Antwort",
+          "midTurn": "mitten im Zug",
+          "manual": "manuell"
+        },
+        "subtitle": {
+          "preTurn": "Vor der ersten Modellanfrage dieser Antwort.",
+          "midTurn": "Zwischen zwei Modellanfragen, nach Tool-Aufruf {{n, number}}.",
+          "midTurnNoTools": "Zwischen zwei Modellanfragen.",
+          "manual": "Mit dem Befehl zum Verdichten angefordert.",
+          "unfinished": "Die Antwort lief mit ihrem vollen Verlauf weiter."
+        },
+        "gauge": {
+          "was": "vorher {{p, number}} % des Budgets",
+          "now": "jetzt {{p, number}} %",
+          "used": "{{p, number}} % des Budgets",
+          "unchanged": "{{p, number}} % des Budgets, unverändert"
+        },
+        "row": {
+          "history": "Verlauf",
+          "saved": "Gespart",
+          "budget": "Budget",
+          "folded": "Zusammengefasst",
+          "folding": "Wird zusammengefasst",
+          "summarizedBy": "Zusammengefasst von",
+          "summaryModel": "Modell der Zusammenfassung",
+          "when": "Wann",
+          "started": "Gestartet",
+          "reason": "Grund",
+          "gaveUpAfter": "Aufgegeben nach"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> Tokens",
+          "history": "<b>{{n, number}}</b> Tokens",
+          "tokens": "{{n, number}} Tokens",
+          "saved": "{{n, number}} Tokens ({{p, number}} %)",
+          "runs_one": "{{count, number}} Durchlauf",
+          "runs_other": "{{count, number}} Durchläufe",
+          "folded": "{{runs}} in 1 Zusammenfassung",
+          "folding": "{{runs}}, {{done, number}} fertig",
+          "summarizedBy": "{{model}} in {{duration}}",
+          "interrupted": "Die Antwort endete, bevor die Zusammenfassung fertig war."
+        }
       }
     },
     "message-search": {

@@ -799,6 +799,65 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "In esecuzione da {{duration}}"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}} s",
+        "keptHistory": "cronologia completa mantenuta",
+        "tokensShort": "{{before}} → {{after}} token",
+        "label": {
+          "running": "Compattazione del contesto…",
+          "preTurn": "Compattato prima di rispondere",
+          "midTurn": "Contesto compattato",
+          "manual": "Compattato su richiesta",
+          "failed": "Compattazione non riuscita",
+          "timeout": "Compattazione scaduta",
+          "interrupted": "Compattazione interrotta"
+        },
+        "title": "Contesto compattato",
+        "tag": {
+          "preTurn": "prima della risposta",
+          "midTurn": "a metà turno",
+          "manual": "manuale"
+        },
+        "subtitle": {
+          "preTurn": "Prima della prima richiesta al modello di questa risposta.",
+          "midTurn": "Tra due richieste al modello, dopo la chiamata allo strumento {{n, number}}.",
+          "midTurnNoTools": "Tra due richieste al modello.",
+          "manual": "Richiesto con il comando di compattazione.",
+          "unfinished": "La risposta è proseguita con tutta la cronologia."
+        },
+        "gauge": {
+          "was": "era il {{p, number}}% del budget",
+          "now": "ora {{p, number}}%",
+          "used": "{{p, number}}% del budget",
+          "unchanged": "{{p, number}}% del budget, invariato"
+        },
+        "row": {
+          "history": "Cronologia",
+          "saved": "Risparmiati",
+          "budget": "Budget",
+          "folded": "Raggruppate",
+          "folding": "In raggruppamento",
+          "summarizedBy": "Riassunto da",
+          "summaryModel": "Modello di riassunto",
+          "when": "Quando",
+          "started": "Avviata",
+          "reason": "Motivo",
+          "gaveUpAfter": "Interrotta dopo"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> token",
+          "history": "<b>{{n, number}}</b> token",
+          "tokens": "{{n, number}} token",
+          "saved": "{{n, number}} token ({{p, number}}%)",
+          "runs_one": "{{count, number}} esecuzione",
+          "runs_many": "{{count, number}} di esecuzioni",
+          "runs_other": "{{count, number}} esecuzioni",
+          "folded": "{{runs}} in 1 riassunto",
+          "folding": "{{runs}}, {{done, number}} completate",
+          "summarizedBy": "{{model}} in {{duration}}",
+          "interrupted": "La risposta è terminata prima che il riassunto fosse pronto."
+        }
       }
     },
     "message-search": {

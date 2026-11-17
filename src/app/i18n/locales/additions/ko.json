@@ -777,6 +777,63 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}} 동안 실행 중"
+      },
+      "compactionSeam": {
+        "elapsed": "{{n, number}}초",
+        "keptHistory": "전체 기록 유지",
+        "tokensShort": "{{before}} → {{after}} 토큰",
+        "label": {
+          "running": "컨텍스트 압축 중…",
+          "preTurn": "답장 전에 압축됨",
+          "midTurn": "컨텍스트 압축됨",
+          "manual": "요청으로 압축됨",
+          "failed": "압축 실패",
+          "timeout": "압축 시간 초과",
+          "interrupted": "압축 중단됨"
+        },
+        "title": "컨텍스트가 압축됨",
+        "tag": {
+          "preTurn": "답장 전",
+          "midTurn": "턴 중간",
+          "manual": "수동"
+        },
+        "subtitle": {
+          "preTurn": "이 답장의 첫 모델 요청 전.",
+          "midTurn": "두 모델 요청 사이, 도구 호출 {{n, number}} 이후.",
+          "midTurnNoTools": "두 모델 요청 사이.",
+          "manual": "압축 명령으로 요청됨.",
+          "unfinished": "답장은 전체 기록을 유지한 채 계속되었습니다."
+        },
+        "gauge": {
+          "was": "이전 예산의 {{p, number}}%",
+          "now": "현재 {{p, number}}%",
+          "used": "예산의 {{p, number}}%",
+          "unchanged": "예산의 {{p, number}}%, 변화 없음"
+        },
+        "row": {
+          "history": "기록",
+          "saved": "절약",
+          "budget": "예산",
+          "folded": "묶음",
+          "folding": "묶는 중",
+          "summarizedBy": "요약 모델",
+          "summaryModel": "요약 모델",
+          "when": "시각",
+          "started": "시작",
+          "reason": "이유",
+          "gaveUpAfter": "중단까지"
+        },
+        "value": {
+          "historyChange": "<b>{{before, number}} → {{after, number}}</b> 토큰",
+          "history": "<b>{{n, number}}</b> 토큰",
+          "tokens": "{{n, number}} 토큰",
+          "saved": "{{n, number}} 토큰 ({{p, number}}%)",
+          "runs_other": "실행 {{count, number}}개",
+          "folded": "{{runs}}를 요약 1개로",
+          "folding": "{{runs}}, {{done, number}}개 완료",
+          "summarizedBy": "{{model}}, {{duration}}",
+          "interrupted": "요약이 끝나기 전에 답장이 끝났습니다."
+        }
       }
     },
     "message-search": {
