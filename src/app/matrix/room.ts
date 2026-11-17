@@ -548,17 +548,16 @@ export const hasUndecryptedNewerEdit = (
   );
 
 /**
- * The edits of `mEvent` by its sender still waiting to decrypt. Its row repaints once each one
- * decrypts or fails to, so the newer text or the note on an undecryptable edit shows.
+ * The edits of `mEvent` by its sender still waiting to decrypt, or that failed to and may once
+ * their key arrives. Its row repaints once each one decrypts or fails to, so the newer text, the
+ * note on an undecryptable edit, or the metadata an older edit lends the shown one shows.
  */
 export const getPendingEdits = (
   eventId: string,
   mEvent: MatrixEvent,
   timelineSet: Pick<EventTimelineSet, 'relations'> | undefined
 ): MatrixEvent[] =>
-  getEditCandidates(eventId, mEvent, timelineSet).filter(
-    (candidate) => isUnreadableYet(candidate) && !isUndecryptable(candidate)
-  );
+  getEditCandidates(eventId, mEvent, timelineSet).filter(isUnreadableYet);
 
 /**
  * The event's own content. The SDK's `getContent` gives the `m.new_content` of the edit it
