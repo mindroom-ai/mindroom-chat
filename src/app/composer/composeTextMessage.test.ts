@@ -1,7 +1,9 @@
 import { MsgType } from 'matrix-js-sdk';
 import { createEditor, type Descendant } from 'slate';
 import { describe, expect, it } from 'vitest';
+import { MESSAGE_COMMANDS } from '../editor/messageCommand';
 import { createMentionElement, withInlineElements } from '../editor/utils';
+import { Command } from './commands/useCommands';
 import { composeTextMessage } from './composeTextMessage';
 import { htmlToEditorInput } from '../editor/input';
 
@@ -218,4 +220,9 @@ describe('composeTextMessage', () => {
         '<a data-md href="https://example.org">web</a>'
     );
   });
+});
+
+it('reads only message commands the composer offers', () => {
+  const commands: readonly string[] = Object.values(Command);
+  expect(MESSAGE_COMMANDS.filter((name) => !commands.includes(name))).toEqual([]);
 });

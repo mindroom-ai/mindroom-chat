@@ -2,6 +2,7 @@ import { createEditor, Editor, Text, Transforms, type Descendant } from 'slate';
 import { describe, expect, it } from 'vitest';
 import { cpuNow } from '../../test/utils/cpuNow';
 import { createMarkdownDecorate, MAX_LINE_RANGES, type MarkdownRange } from './markdownDecorations';
+import { takeMessageCommand } from './messageCommand';
 import { toMatrixCustomHTML } from './output';
 import type { InlineContent } from './slate';
 import { BlockType } from './types';
@@ -236,6 +237,49 @@ describe('createMarkdownDecorate', () => {
     const leaves = Text.decorations({ text }, ranges);
     expect(cpuNow() - start).toBeLessThan(25);
     expect(leaves.length).toBeGreaterThan(ranges.length);
+  });
+
+  it('styles a message after its command, at its offsets in the typed text', () => {
+    const editor = editorWith([paragraph({ text: '/me **waves**' })]);
+    const ranges = createMarkdownDecorate({ commands: true })([editor, []]);
+    expect(describeRanges(editor, ranges)).toEqual(['bold "waves"', 'marker "**"', 'marker "**"']);
+    expect(ranges[0]).toMatchObject({
+      anchor: { path: [0, 0], offset: 6 },
+      focus: { path: [0, 0], offset: 11 },
+    });
+  });
+
+  it.each([
+    ['/me ```', '```'],
+    ['/me $$', '$$'],
+    ['/notice ```', '```'],
+  ])('styles nothing in the block %s opens, sent without the command', (first, last) => {
+    const document = [
+      paragraph({ text: first }),
+      paragraph({ text: '**a**' }),
+      paragraph({ text: last }),
+    ];
+    expect(decorated(document, { commands: true })).toEqual([]);
+    expect(sent(takeMessageCommand(document).document)).not.toContain('<strong');
+    // The edit box sends the command as text, so no block starts and the line is bold.
+    expect(decorated(document)).toEqual(['bold "a"', 'marker "**"', 'marker "**"']);
+    expect(sent(document)).toContain('<strong data-md="**">a</strong>');
+  });
+
+  it('styles nothing in a table, whose cells are sent one by one', () => {
+    const document = [paragraph({ text: '| **a | b** |' }), paragraph({ text: '| --- | --- |' })];
+    expect(decorated(document)).toEqual([]);
+    expect(sent(document)).toContain('<th>**a</th><th>b**</th>');
+  });
+
+  it('styles nothing in a table cell yet, and the line after the table again', () => {
+    const document = [
+      paragraph({ text: '| **x** | y |' }),
+      paragraph({ text: '| --- | --- |' }),
+      paragraph({ text: '**after**' }),
+    ];
+    expect(decorated(document)).toEqual(['bold "after"', 'marker "**"', 'marker "**"']);
+    expect(sent(document)).toContain('<th><strong data-md="**">x</strong></th>');
   });
 
   it('styles a message that starts with another command', () => {

@@ -1,22 +1,20 @@
-import {
-  Editor,
-  Element,
-  Text,
-  type Descendant,
-  type NodeEntry,
-  type Path,
-  type Range,
-} from 'slate';
+import { Editor, Element, type Descendant, type NodeEntry, type Path, type Range } from 'slate';
 import { findBlocksMD } from '../rich-text/markdown/block/parser';
-import { LITERAL_BLOCK_MD_RULES, SENT_BLOCK_MD_RULES } from '../rich-text/markdown/block/rules';
+import {
+  LITERAL_BLOCK_MD_RULES,
+  SENT_BLOCK_MD_RULES,
+  TableRule,
+} from '../rich-text/markdown/block/rules';
 import { findInlineMDSpans } from '../rich-text/markdown/inline/parser';
 import { INLINE_MD_RULES, inlineMDRulesWithLinkSchemes } from '../rich-text/markdown/inline/rules';
+import type { BlockMDRule } from '../rich-text/markdown/block/type';
 import type {
   InlineMDRule,
   InlineMDSpan,
   InlineMDSpanKind,
 } from '../rich-text/markdown/inline/type';
 import { sanitizeText } from '../rich-text/sanitize';
+import { findMessageCommand, sendsAsTyped } from './messageCommand';
 import { linkTags, nodeToCustomHtml, textMarkTags } from './output';
 import { BlockType } from './types';
 
@@ -26,7 +24,7 @@ import { BlockType } from './types';
 // read the way sending reads it: its HTML (text escaped, marks as tags, mentions and other atoms
 // as their HTML) goes through the inline parser of the sent message, and the spans the parser
 // reports map back to the line's text, so the styling shows what the message will send. Lines
-// sending reads as code or math, by its own block parser, stay unstyled.
+// sending reads as code, math or a table, by its own block parser, stay unstyled.
 
 /** What a decoration sets on the text it covers: the marks `RenderLeaf` draws, and Markdown syntax. */
 export type MarkdownLeaf = {
@@ -64,18 +62,6 @@ const CONTAINER_BLOCKS: ReadonlySet<string> = new Set([
   BlockType.UnorderedList,
 ]);
 
-// `/plain` and `/html` at the start send the text without reading Markdown in it, as
-// `composeTextMessage` (`composer/`) reads them: plain text at the start of the first paragraph.
-const RAW_COMMAND = /^\/(?:plain|html)(?:\s+|$)/;
-
-/** Whether the document starts with a command that sends it without reading Markdown. */
-const sendsWithoutMarkdown = (document: Descendant[]): boolean => {
-  const first = document[0];
-  if (!first || !Element.isElement(first) || first.type !== BlockType.Paragraph) return false;
-  const run = first.children[0];
-  return !!run && Text.isText(run) && RAW_COMMAND.test(run.text);
-};
-
 const ESCAPED = /[&<>"']/;
 
 /** Sending puts no mark tags around empty text. */
@@ -89,7 +75,7 @@ const NO_TAGS = { open: '', close: '' };
  */
 type LineSource = { html: string; at: number[]; places: { path: Path; offset: number }[] };
 
-const readLine = (editor: Editor, children: Descendant[]): LineSource => {
+const readLine = (editor: Editor, children: Descendant[], skip: number): LineSource => {
   const source: LineSource = { html: '', at: [], places: [] };
   const read = (nodes: Descendant[], parent: Path) => {
     nodes.forEach((node, index) => {
@@ -105,12 +91,14 @@ const readLine = (editor: Editor, children: Descendant[]): LineSource => {
         source.html += close;
         return;
       }
-      const { text } = node;
+      // Sending drops a leading command, the first `skip` characters of the line's first text.
+      const from = path.length === 1 && path[0] === 0 ? skip : 0;
+      const text = node.text.slice(from);
       const { open, close } = text === '' ? NO_TAGS : textMarkTags(node);
       source.html += open;
       for (let offset = 0; offset <= text.length; offset += 1) {
         source.at.push(source.html.length);
-        source.places.push({ path, offset });
+        source.places.push({ path, offset: from + offset });
         const character = text.charAt(offset);
         source.html += ESCAPED.test(character) ? sanitizeText(character) : character;
       }
@@ -183,32 +171,43 @@ const lineRanges = (source: LineSource, path: Path, rules: InlineMDRule[]): Mark
 };
 
 /**
- * Which of a run of paragraph lines sending reads as code or math, where it reads no inline
- * Markdown: it joins the run into one Markdown text and reads its blocks, as `toMatrixCustomHTML`
- * does, so a fence or a `$$` line changes the lines after it as it changes the sent message.
+ * The blocks whose lines are not sent as lines of inline Markdown: code and math, sent as
+ * written, and tables, whose cells are read one by one.
  */
-const literalLines = (lines: string[]): Set<number> => {
-  const literal = new Set<number>();
+const UNSTYLED_BLOCK_MD_RULES: ReadonlySet<BlockMDRule> = new Set([
+  ...LITERAL_BLOCK_MD_RULES,
+  TableRule,
+]);
+
+/**
+ * Which of a run of paragraph lines sending reads in a code, math or table block, which the line
+ * styling cannot show: it joins the run into one Markdown text and reads its blocks, as
+ * `toMatrixCustomHTML` does, so a fence or a `$$` line changes the lines after it as it changes
+ * the sent message.
+ */
+const unstyledLines = (lines: string[]): Set<number> => {
+  const unstyled = new Set<number>();
   const blocks = findBlocksMD(lines.join('\n'), SENT_BLOCK_MD_RULES);
   let line = 0;
   let lineStart = 0;
   blocks.forEach((block) => {
-    if (!LITERAL_BLOCK_MD_RULES.has(block.rule)) return;
+    if (!UNSTYLED_BLOCK_MD_RULES.has(block.rule)) return;
     while (line < lines.length && lineStart < block.end) {
-      if (lineStart >= block.start) literal.add(line);
+      if (lineStart >= block.start) unstyled.add(line);
       lineStart += (lines[line] ?? '').length + 1;
       line += 1;
     }
   });
-  return literal;
+  return unstyled;
 };
 
 type MarkdownDecorateOptions = {
   /** The deployment's extra link schemes, as sending takes them. */
   linkSchemes?: readonly string[];
   /**
-   * Whether `/plain` or `/html` at the start sends the message without reading Markdown, as the
-   * room composer reads them; the message edit box reads no commands.
+   * Whether a message command at the start (`/me`, `/plain`, ...) is taken off before sending,
+   * as the room composer does; `/plain` and `/html` then send without Markdown. The message edit
+   * box reads no commands.
    */
   commands?: boolean;
 };
@@ -234,12 +233,15 @@ export const createMarkdownDecorate = (
     if (path.length > 0 || !Editor.isEditor(node)) return [];
     const editor = node;
     const document = editor.children;
-    if (commands && sendsWithoutMarkdown(document)) return [];
+    const command = commands ? findMessageCommand(document) : undefined;
+    if (command && sendsAsTyped(command.command)) return [];
     const lineOf = (element: Element, elementPath: Path): Line => {
-      const key = elementPath.join(',');
+      // The command is part of the first line's text only, and sending reads that line without it.
+      const skip = command && elementPath.length === 1 && elementPath[0] === 0 ? command.length : 0;
+      const key = `${elementPath.join(',')}:${skip}`;
       let line = cache.get(element);
       if (line?.path !== key) {
-        const source = readLine(editor, element.children);
+        const source = readLine(editor, element.children, skip);
         line = { path: key, html: source.html, ranges: lineRanges(source, elementPath, rules) };
         cache.set(element, line);
       }
@@ -251,9 +253,9 @@ export const createMarkdownDecorate = (
     let run: Line[] = [];
     const flushRun = () => {
       if (run.length === 0) return;
-      const literal = literalLines(run.map((line) => line.html));
+      const unstyled = unstyledLines(run.map((line) => line.html));
       run.forEach((line, index) => {
-        if (!literal.has(index)) push(line);
+        if (!unstyled.has(index)) push(line);
       });
       run = [];
     };
