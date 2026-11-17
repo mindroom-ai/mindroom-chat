@@ -28,7 +28,7 @@ export type ChatUiActionOptions = {
 };
 
 type ChatUiActions = {
-  /** The action a message requests of this viewer, read from the event as it is now. */
+  /** The action a message offers this viewer, read from the event as it is now. */
   read: (event: MatrixEvent) => ChatUiAction | undefined;
   unavailable: (action: ChatUiAction) => string | undefined;
   /** Runs a message's action on an explicit click, after showing its conversation. */
@@ -44,7 +44,8 @@ const isForeground = (): boolean =>
 /**
  * Runs the UI actions agents request (show the computer, a canvas, a settings page, the
  * members). Rendering a request never runs it: a click does, or a live request from an allowed
- * homeserver while the app is in the foreground. An action for another conversation first
+ * homeserver while the app is in the foreground, for the member who asked (another member opens a
+ * canvas made for someone else with its button). An action for another conversation first
  * navigates there and runs once that conversation is on screen.
  */
 export const useChatUiActions = (options: ChatUiActionOptions): ChatUiActions => {

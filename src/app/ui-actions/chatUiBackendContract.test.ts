@@ -2,7 +2,11 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { readChatUiAction, type ChatUiCanvas, type ChatUiSettingsSection } from '../matrix/protocol/chatUiProtocol';
+import {
+  readChatUiAction,
+  type ChatUiCanvas,
+  type ChatUiSettingsSection,
+} from '../matrix/protocol/chatUiProtocol';
 
 type ContractEvent = {
   event_id: string;
@@ -104,7 +108,13 @@ const expectedCases = new Map<string, ExpectedAction>();
 
 const mx = new MatrixClient({ baseUrl: 'https://localhost', userId: contract.viewer_id });
 const room = new Room(contract.room_id, mx, contract.viewer_id);
-const memberIds = new Set([contract.viewer_id, ...contract.cases.map(({ event }) => event.sender)]);
+// A member the backend's agent did not answer.
+const otherMemberId = '@bob:localhost';
+const memberIds = new Set([
+  contract.viewer_id,
+  otherMemberId,
+  ...contract.cases.map(({ event }) => event.sender),
+]);
 memberIds.forEach((userId) => {
   room.currentState.setStateEvents([
     new MatrixEvent({
@@ -138,9 +148,32 @@ describe('MindRoom backend Chat UI wire contract', () => {
         threadId: id.startsWith('thread/') ? '$thread' : undefined,
         ...expected,
         ...(expected?.action === 'show_canvas'
-          ? { event: matrixEvent, revisionEventId: replacement?.event_id ?? event.event_id }
+          ? {
+              event: matrixEvent,
+              revisionEventId: replacement?.event_id ?? event.event_id,
+              requesterId: contract.viewer_id,
+            }
           : {}),
       });
+    }
+  );
+
+  it.each(contract.cases)(
+    'opens $id for another joined member only when it is a canvas',
+    ({ id, event, replacement }) => {
+      const matrixEvent = new MatrixEvent(event);
+      if (replacement) matrixEvent.makeReplaced(new MatrixEvent(replacement));
+      const action = readChatUiAction(matrixEvent, otherMemberId, room);
+      if (expectedCases.get(id)?.action === 'show_canvas') {
+        // The update still applies: it is held against the request's own requester.
+        expect(action).toMatchObject({
+          action: 'show_canvas',
+          requesterId: contract.viewer_id,
+          revisionEventId: replacement?.event_id ?? event.event_id,
+        });
+      } else {
+        expect(action).toBeUndefined();
+      }
     }
   );
 });

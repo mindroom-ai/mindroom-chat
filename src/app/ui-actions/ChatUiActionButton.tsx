@@ -20,7 +20,8 @@ const actionIcon = (action: ChatUiAction) => {
 
 /**
  * The button under an agent's UI request notice ("View computer", "Open canvas", ...). It is
- * shown only to the user the request is for, and says why when the action cannot run now.
+ * shown only to the user the request is for, a canvas's to every joined member, and says why when
+ * the action cannot run now.
  */
 export function ChatUiActionButton({ event }: { event: MatrixEvent }) {
   const { t } = useTranslation();
