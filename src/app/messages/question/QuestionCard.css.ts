@@ -170,7 +170,6 @@ export const Chosen = style({
   maxWidth: '50%',
   fontSize: toRem(12),
   fontWeight: config.fontWeight.W600,
-  selectors: { '& > svg': { flexShrink: 0 } },
 });
 
 /** A long answerer name ends in an ellipsis rather than squeezing the option's label. */
