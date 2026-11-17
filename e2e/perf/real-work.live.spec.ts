@@ -64,10 +64,10 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
  *
  * Each writes test-results/perf/real-work/<scenario>-<engine>-<throttle>x-<streams>s.json: the
  * probe's result plus `timings` ({ name, ms } of the open, each switch and the cold load; an open
- * or a switch to a thread also has `<name>-settled`: the time from the same press to the frame
- * from which the message rows shown stayed the same ones for 1 s, with `rows`, how many they
- * were. A thread shows its first row before its history is there, so the first row alone can come
- * early on an open that keeps changing),
+ * or a switch to a thread also has `<name>-settled`: the time from the same press to the last
+ * frame in which a message row came into view for the first time, once 1 s passed without
+ * another, with `rows`, how many were in view then. A thread shows its first row before its
+ * history is there, so the first row alone can come early on an open that keeps changing),
  * `typing` (key latency), `target` (the streams asked for) and `achieved` (what the driver saw in
  * its 5 s reports that overlap the window: replies streaming on average, live frames, edits and
  * jobs state writes a second, replies given up as stuck). A window that held under 80 % of the
@@ -420,28 +420,43 @@ const showThread = async (run: Run): Promise<boolean> => {
   return streaming;
 };
 
-/** How long the shown rows must stay the same ones to count as settled. */
+/** How long no new row may come into view for the rows to count as settled. */
 const SETTLED_QUIET_MS = 1_000;
 type SettledOutcome = { ms?: number; rows?: number; error?: string };
 
 /**
- * Watches, from the next press on, which message rows are shown (their event IDs, hidden rows
- * left out), once per animation frame, on the clock of `timeToVisible`. The promise it returns
- * gives the time from the press to the frame from which those rows stayed the same for
- * SETTLED_QUIET_MS, and how many rows that were. Call it before the press, and the function it
- * returns after it. Fails when the rows have not settled 30 s after the press.
+ * Watches, from the next press on, which message rows are in view (shown, and inside the scroll
+ * area that holds them: a list also mounts rows beside its view), once per animation frame, on
+ * the clock of `timeToVisible`. The promise it returns gives the time from the press to the last
+ * frame in which a row came into view for the first time, once SETTLED_QUIET_MS passed without
+ * another, and how many rows were in view in that frame. A row that leaves the view is no
+ * change: a reply that streams pushes rows out at the top. Call it before the press, and the
+ * function it returns after it. Fails when rows still come into view 30 s after the press.
  */
 const watchRowsSettled = async (page: Page, name: string): Promise<() => Promise<Timing>> => {
   await page.evaluate(
     ({ selector, quietMs }) => {
-      const shown = () =>
-        Array.from(document.querySelectorAll(selector))
-          .filter((row) =>
-            row.checkVisibility
-              ? row.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
-              : true
-          )
-          .map((row) => row.getAttribute('data-message-id') ?? '');
+      let area: Element | null = null;
+      const scrollAreaOf = (row: Element) => {
+        if (area?.contains(row)) return area;
+        area = row.parentElement;
+        while (area && !/^(auto|scroll)$/.test(getComputedStyle(area).overflowY)) {
+          area = area.parentElement;
+        }
+        return area;
+      };
+      const inView = () =>
+        Array.from(document.querySelectorAll(selector)).flatMap((row) => {
+          const hidden =
+            row.checkVisibility &&
+            !row.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
+          if (hidden) return [];
+          const within = (scrollAreaOf(row) ?? document.documentElement).getBoundingClientRect();
+          const box = row.getBoundingClientRect();
+          return box.bottom > within.top + 1 && box.top < within.bottom - 1
+            ? [row.getAttribute('data-message-id') ?? '']
+            : [];
+        });
       (window as unknown as { __realWorkSettled?: Promise<SettledOutcome> }).__realWorkSettled =
         new Promise<SettledOutcome>((resolve) => {
           const start = (event: Event) => {
@@ -449,19 +464,21 @@ const watchRowsSettled = async (page: Page, name: string): Promise<() => Promise
             const now = performance.now();
             const age = now - event.timeStamp;
             const startedAt = age >= 0 && age < 60_000 ? event.timeStamp : now;
-            let rows: string[] = [];
+            const seen = new Set<string>();
+            let rows = 0;
             let changedAt = now;
             const tick = () => {
               const at = performance.now();
-              const next = shown();
-              if (next.join(' ') !== rows.join(' ')) {
-                rows = next;
+              const shown = inView();
+              if (shown.some((id) => !seen.has(id))) {
+                shown.forEach((id) => seen.add(id));
+                rows = shown.length;
                 changedAt = at;
               }
-              if (rows.length > 0 && at - changedAt >= quietMs) {
-                resolve({ ms: changedAt - startedAt, rows: rows.length });
+              if (seen.size > 0 && at - changedAt >= quietMs) {
+                resolve({ ms: changedAt - startedAt, rows });
               } else if (at - startedAt > 30_000) {
-                resolve({ error: 'the rows shown had not stayed the same for 1 s after 30 s' });
+                resolve({ error: 'rows still came into view 30 s after the press' });
               } else {
                 requestAnimationFrame(tick);
               }
