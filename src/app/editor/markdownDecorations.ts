@@ -163,8 +163,13 @@ const spanRanges = (
  */
 export const MAX_LINE_RANGES = 200;
 
-/** The ranges that style the line read in `source`, at `path`. */
+/**
+ * The ranges that style the line read in `source`, at `path`. A line holding a line break (as an
+ * edited message's HTML can give) is sent split at it before inline Markdown is read, so it is
+ * shown plain rather than styled across the break.
+ */
 const lineRanges = (source: LineSource, path: Path, rules: InlineMDRule[]): MarkdownRange[] => {
+  if (source.html.includes('\n')) return [];
   const ranges: MarkdownRange[] = [];
   findInlineMDSpans(source.html, rules).forEach((span) => spanRanges(source, path, span, ranges));
   return ranges.length > MAX_LINE_RANGES ? [] : ranges;

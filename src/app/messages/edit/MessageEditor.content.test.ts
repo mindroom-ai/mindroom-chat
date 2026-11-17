@@ -53,6 +53,30 @@ describe('the content of an edit', () => {
     );
   });
 
+  it('styles nothing in a line holding a line break, which is saved split at it', () => {
+    const editor = editorWith(
+      getEditorDocument(
+        {
+          msgtype: 'm.text',
+          body: 'first\nsecond',
+          format: 'org.matrix.custom.html',
+          formatted_body: '<strong>first\nsecond</strong>',
+        },
+        true
+      )
+    );
+    expect(editor.children).toEqual([
+      { type: 'paragraph', children: [{ text: '**first\nsecond**' }] },
+    ]);
+    expect(createMarkdownDecorate()([editor, []])).toEqual([]);
+    // Saved as before: the markers stay text, so no HTML is needed.
+    expect(getEditedContent(editor, true, 'm.text', ME)).toEqual({
+      msgtype: 'm.text',
+      body: '**first\nsecond**',
+      'm.mentions': {},
+    });
+  });
+
   it('lists the people the new text mentions, never the sender', () => {
     const editor = editorWith([
       {
