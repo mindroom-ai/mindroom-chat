@@ -363,9 +363,13 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
             // A thread whose timeline is already loaded gets here in the task of the press that
             // opened it, where React renders each update at once, one render of every row per
             // step below. In a later task the steps render together, after the thread's first
-            // paint, which needs none of them.
-            await nextTask();
-            if (!isCurrentThreadOpen()) return;
+            // paint, which needs none of them when the thread opens at its newest reply. An open
+            // at an event goes on at once: its first paint is the jump to that event, queued
+            // below, and nothing may move the rows before it.
+            if (shouldScrollToLatestOnOpen) {
+              await nextTask();
+              if (!isCurrentThreadOpen()) return;
+            }
             publish((current) => ({ ...current, open: { ...current.open, sdkReady: true } }));
             const cachedPage = cacheResult?.hydratedCachedPage;
             const thread = room.getThread(threadId);

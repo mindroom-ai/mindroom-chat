@@ -763,8 +763,8 @@ describe('thread session opening', () => {
         expect(fixture.rendered.get('$reply')).toBe(fixture.reply);
         expect(view.session.snapshot.history.hasMoreCachedBack).toBe(true);
       }
+      // An open at an event takes its steps after the SDK load at once, not in a later task.
       await act(async () => sdk.resolve(false));
-      await afterOpenTask();
       expect(view.session.snapshot.history.tailLoaded).toBe(true);
       expect(view.session.targets.getPending()?.eventId).toBe('$reply');
       expect(view.targetIndexes.length).toBeGreaterThan(0);
