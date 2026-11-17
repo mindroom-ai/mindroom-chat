@@ -144,8 +144,7 @@
       "noCrossSigningKeys": "আপনার গোপন স্টোরেজে কোনো ক্রস-সাইনিং কী নেই, তাই রিকভারি কী দিয়ে এই সেশন যাচাই করা যাবে না। আপনার অন্য কোনো সেশন থেকে এটি যাচাই করুন।"
     },
     "commands": {
-      "CommandPlain": "Markdown ছাড়া সাধারণ টেক্সট হিসেবে বার্তা পাঠান। উদাহরণ: /plain message",
-      "CommandHtml": "Markdown ছাড়া HTML হিসেবে বার্তা পাঠান। উদাহরণ: /html message"
+      "CommandPlain": "Markdown ছাড়া সাধারণ টেক্সট হিসেবে বার্তা পাঠান। উদাহরণ: /plain message"
     },
     "tokenLogin": {
       "signInNotStartedHere": "এই সাইন-ইন এখানে শুরু হয়নি, তাই এটি ব্যবহার করা হয়নি। আবার সাইন ইন করুন।"
@@ -540,7 +539,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} ব্যর্থ হয়েছে: {{reason}}",
         "usage": "{{command}} চালানো যায়নি। {{usage}}",
-        "ownServer": "কিছুই বদলায়নি: এতে আপনার নিজের সার্ভার ({{server}}) রুম থেকে বাদ পড়ত।",
         "unknown": "{{command}} কোনো কমান্ড নয়। এটি টেক্সট হিসেবে পাঠাতে বার্তাটি /plain দিয়ে শুরু করুন।"
       },
       "jumpToTime": {
