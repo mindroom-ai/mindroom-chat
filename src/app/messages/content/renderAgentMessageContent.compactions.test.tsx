@@ -146,7 +146,9 @@ const markerLine = (name: string, index: number) => `🔧 \`${name}\` [${index}]
 
 /** Marker lines for the tools `t<from>` to `t<to>`, one paragraph each. */
 const markerLines = (from: number, to: number) =>
-  Array.from({ length: to - from + 1 }, (_, offset) => markerLine(`t${from + offset}`, from + offset));
+  Array.from({ length: to - from + 1 }, (_, offset) =>
+    markerLine(`t${from + offset}`, from + offset)
+  );
 
 const toolTrace = (count: number) => ({
   version: 2,
@@ -208,13 +210,13 @@ const render = (content: Record<string, unknown>) =>
         {/* As RenderMessageContent wraps a reply: its cog folds the calls while they are hidden. */}
         <ToolCallsFold>
           {renderAgentMessageContent({
-          mEvent,
-          eventId: replyId,
-          fromMindroomAgent: true,
-          displayName: 'Agent',
-          msgType: 'm.text',
-          content,
-          htmlReactParserOptions,
+            mEvent,
+            eventId: replyId,
+            fromMindroomAgent: true,
+            displayName: 'Agent',
+            msgType: 'm.text',
+            content,
+            htmlReactParserOptions,
             linkifyOpts,
           })}
         </ToolCallsFold>
@@ -309,13 +311,7 @@ describe('compaction seams in a reply', () => {
   it('splits a run of consecutive tool calls at a compaction between them', () => {
     render(reply(paragraphs('Intro.', markerLines(1, 5), 'Done.'), [entry('c1', 3)]));
 
-    expect(sequence()).toEqual([
-      'Intro.',
-      'tools:t1, t2, t3',
-      'seam',
-      'tools:t4, t5',
-      'Done.',
-    ]);
+    expect(sequence()).toEqual(['Intro.', 'tools:t1, t2, t3', 'seam', 'tools:t4, t5', 'Done.']);
   });
 
   it('keeps a run whole without a compaction inside it', () => {
@@ -429,7 +425,13 @@ describe('compaction seams in finished and live replies', () => {
     const answer = 'The answer.'.padEnd(6000, ' More.');
     render(
       reply(
-        paragraphs('Let me look.', markerLine('t1', 1), 'Now the file.', markerLine('t2', 2), answer),
+        paragraphs(
+          'Let me look.',
+          markerLine('t1', 1),
+          'Now the file.',
+          markerLine('t2', 2),
+          answer
+        ),
         [entry('c1', 0), entry('c2', 1), entry('c3', 2)],
         { 'io.mindroom.ai_run': { version: 1, status: 'completed' } }
       )
