@@ -1,5 +1,6 @@
 import { MatrixEvent, Room } from 'matrix-js-sdk';
-import { getLatestEdit } from '../../matrix/room';
+import { collectKnownRedactedEventIds, createIsKnownRedacted } from '../../matrix/eventRevision';
+import { getReleasableEdits } from '../../matrix/room';
 import { isStandaloneSameSenderReplace } from './eventCacheEditUtils';
 
 let threadOpenSeedSnapshots = new WeakMap<Room, Map<string, MatrixEvent[]>>();
@@ -20,10 +21,11 @@ export const getThreadOpenSeedSnapshot = (room: Room, threadId: string): MatrixE
   getRoomThreadOpenSeedStore(room).get(threadId)?.slice() ?? [];
 
 /**
- * The events without the same-sender edits a newer one supersedes, as the event cache stores them
- * (`serializeEventsForCache`): a streamed reply leaves one edit per chunk, each with its own ID.
+ * The events without the same-sender edits the app can no longer show or borrow from
+ * (`getReleasableEdits`): a streamed reply leaves one edit per chunk, which the event cache folds
+ * into its target (`isStandaloneSameSenderReplace`).
  */
-const dropSupersededEdits = (events: MatrixEvent[]): MatrixEvent[] => {
+const dropSupersededEdits = (room: Room, events: MatrixEvent[]): MatrixEvent[] => {
   const eventsById = new Map<string, MatrixEvent>();
   events.forEach((event) => {
     const eventId = event.getId();
@@ -37,12 +39,19 @@ const dropSupersededEdits = (events: MatrixEvent[]): MatrixEvent[] => {
     edits.push(event);
     editsByTarget.set(target, edits);
   });
-  const latestEdits = new Set(
-    Array.from(editsByTarget, ([target, edits]) => getLatestEdit(target, edits))
+  if (editsByTarget.size === 0) return events.slice();
+
+  const isKnownRedacted = createIsKnownRedacted(
+    room,
+    collectKnownRedactedEventIds(
+      room,
+      events.map((event) => event.event)
+    )
   );
-  return events.filter(
-    (event) => !isStandaloneSameSenderReplace(event, eventsById) || latestEdits.has(event)
+  const dropped = new Set(
+    [...editsByTarget.values()].flatMap((edits) => getReleasableEdits(edits, isKnownRedacted))
   );
+  return events.filter((event) => !dropped.has(event));
 };
 
 export const saveThreadOpenSeedSnapshot = (
@@ -51,7 +60,7 @@ export const saveThreadOpenSeedSnapshot = (
   events: MatrixEvent[]
 ): void => {
   if (events.length === 0) return;
-  getRoomThreadOpenSeedStore(room).set(threadId, dropSupersededEdits(events));
+  getRoomThreadOpenSeedStore(room).set(threadId, dropSupersededEdits(room, events));
 };
 
 export const clearThreadOpenSeedSnapshotsForTests = (): void => {
