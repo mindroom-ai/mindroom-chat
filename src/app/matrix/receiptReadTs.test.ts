@@ -18,14 +18,19 @@ import { receiptEventsVersion, receiptReadTs } from './receiptReadTs';
 let mx: MatrixClient;
 let room: Room;
 
-const message = (eventId: string, ts: number): MatrixEvent =>
+/** A message, or with `rootId` a reply in that thread. */
+const message = (eventId: string, ts: number, rootId?: string): MatrixEvent =>
   new MatrixEvent({
     type: 'm.room.message',
     room_id: room.roomId,
     event_id: eventId,
     sender: '@alice:server',
     origin_server_ts: ts,
-    content: { msgtype: 'm.text', body: eventId },
+    content: {
+      msgtype: 'm.text',
+      body: eventId,
+      ...(rootId && { 'm.relates_to': { rel_type: 'm.thread', event_id: rootId } }),
+    },
   });
 
 beforeEach(() => {
@@ -143,27 +148,14 @@ describe('receiptEventsVersion', () => {
   describe('a timeline that starts over', () => {
     let thread: Thread;
 
-    const reply = (eventId: string, ts: number, rootId: string): MatrixEvent =>
-      new MatrixEvent({
-        type: 'm.room.message',
-        room_id: room.roomId,
-        event_id: eventId,
-        sender: '@alice:server',
-        origin_server_ts: ts,
-        content: {
-          msgtype: 'm.text',
-          body: eventId,
-          'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
-        },
+    const addReply = (to: Thread, event: MatrixEvent) =>
+      to.timelineSet.addEventToTimeline(event, to.liveTimeline, {
+        toStartOfTimeline: false,
+        addToState: false,
       });
     const threadOf = (rootId: string, ...replies: MatrixEvent[]): Thread => {
       const made = room.createThread(rootId, undefined, [], false);
-      replies.forEach((event) =>
-        made.timelineSet.addEventToTimeline(event, made.liveTimeline, {
-          toStartOfTimeline: false,
-          addToState: false,
-        })
-      );
+      replies.forEach((event) => addReply(made, event));
       return made;
     };
 
@@ -175,7 +167,7 @@ describe('receiptEventsVersion', () => {
       mx.createMessagesRequest = () => Promise.reject(new Error('offline'));
       room = new Room('!room:server', mx, '@me:server', { timelineSupport: true });
       await room.addLiveEvents([message('$main', 1000)], { addToState: false });
-      thread = threadOf('$root', reply('$reply', 2000, '$root'));
+      thread = threadOf('$root', message('$reply', 2000, '$root'));
       expect(receiptReadTs(room, room, '$main', 5000)).toBe(1000);
       expect(receiptReadTs(room, thread, '$reply', 5000)).toBe(2000);
     });
@@ -216,7 +208,7 @@ describe('receiptEventsVersion', () => {
     });
 
     it('counts no change when a timeline drops only events no receipt was read for', () => {
-      const other = threadOf('$other', reply('$unnamed', 3000, '$other'));
+      const other = threadOf('$other', message('$unnamed', 3000, '$other'));
       const before = receiptEventsVersion(room);
 
       // A thread's first page replaces what it showed.
@@ -229,10 +221,7 @@ describe('receiptEventsVersion', () => {
     it('counts a change when a timeline drops a named event it took after the lookup', () => {
       const other = threadOf('$other');
       expect(receiptReadTs(room, other, '$late', 5000)).toBe(5000);
-      other.timelineSet.addEventToTimeline(reply('$late', 3000, '$other'), other.liveTimeline, {
-        toStartOfTimeline: false,
-        addToState: false,
-      });
+      addReply(other, message('$late', 3000, '$other'));
       const before = receiptEventsVersion(room);
 
       other.timelineSet.resetLiveTimeline();

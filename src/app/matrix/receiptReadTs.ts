@@ -127,16 +127,15 @@ export const receiptReadTs = (
   eventId: string | undefined,
   takenTs: number
 ): number => {
+  if (!eventId) return takenTs;
   // Before the answer, so the room counts what happens to a named event from the first lookup.
-  const kept = eventId ? namedEventsOf(room) : undefined;
-  if (eventId) kept?.asked.add(eventId);
+  const kept = namedEventsOf(room);
+  kept?.asked.add(eventId);
   // Optional calls here and below: room and thread stand-ins in tests often lack receipts, events
   // or, for a thread, its room.
-  const named = eventId
-    ? context.findEventById?.(eventId) ?? room.findEventById?.(eventId)
-    : undefined;
-  if (eventId && named) kept?.held.add(eventId);
-  else if (eventId) kept?.held.delete(eventId);
+  const named = context.findEventById?.(eventId) ?? room.findEventById?.(eventId);
+  if (named) kept?.held.add(eventId);
+  else kept?.held.delete(eventId);
   return named?.getTs() ?? takenTs;
 };
 
