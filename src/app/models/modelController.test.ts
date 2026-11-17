@@ -573,6 +573,28 @@ describe('shared model discovery', () => {
     await flush();
     expect(h.snapshot()).toMatchObject({ eligible: true, canMutate: true });
   });
+  it('gives up on one thread without evicting the room cache another thread just verified', async () => {
+    const h = setup();
+    await h.discover();
+    h.controller.subscribe(h.room, '$a', () => {});
+    await flush();
+    expect(h.snapshot('$a').eligible).toBe(true);
+    // Four unanswered attempts: 12 s, then retries after 3, 10 and 30 s.
+    for (const delay of [0, 3000, 10000, 30000]) await vi.advanceTimersByTimeAsync(delay + 12000);
+    expect(h.snapshot('$a')).toMatchObject({ eligible: true, canMutate: false });
+    h.controller.subscribe(h.room, '$b', () => {});
+    await flush();
+    expect(h.request().thread_id).toBe('$b');
+    h.response(h.request());
+    await flush();
+    expect(h.snapshot('$b')).toMatchObject({ eligible: true, canMutate: true });
+    // The fifth attempt, 60 s later, also goes unanswered.
+    await vi.advanceTimersByTimeAsync(60000 + 12000);
+    expect(h.snapshot('$a').eligible).toBe(false);
+    expect(h.snapshot('$b').eligible).toBe(true);
+    h.controller.subscribe(h.room, '$c', () => {});
+    expect(h.snapshot('$c').eligible).toBe(true);
+  });
   it('hides a revalidating button after 5 failed attempts and shows it on a later answer', async () => {
     const h = setup();
     await h.discover();
@@ -589,7 +611,7 @@ describe('shared model discovery', () => {
     expect(h.snapshot().error).toBeDefined();
     await vi.advanceTimersByTimeAsync(60000 + 12000);
     expect(h.snapshot().eligible).toBe(false);
-    // Another thread of the room no longer starts from the dead room cache either.
+    // The membership change cleared the room cache, so another thread starts hidden too.
     expect(h.snapshot('$second').eligible).toBe(false);
     await vi.advanceTimersByTimeAsync(60000);
     expect(h.snapshot().loading).toBe(true);

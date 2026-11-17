@@ -373,8 +373,8 @@ export class ModelController {
       scope.snapshot.eligible &&
       !scope.catalogs.size
     ) {
-      // A room that lost its router keeps no dead button; the retries bring it back.
-      this.roomCatalogs.delete(scope.room.roomId);
+      // This thread keeps no dead button; the retries bring it back. The room cache stays: only
+      // answers and membership or device invalidation change it, as another thread may be fine.
       scope.kept = undefined;
       this.publish(scope, { ...emptySnapshot(), pending: !!scope.send });
     }
