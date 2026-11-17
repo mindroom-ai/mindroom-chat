@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { transition } from '../../ui/styles/transition';
 
@@ -179,10 +179,11 @@ export const EntryTooltipDetails = style({
 
 // The plugins' details, under a rule, hidden while none of them drew anything.
 export const EntryTooltipPluginDetails = style({
-  maxWidth: toRem(320),
   borderBlockStart: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
   paddingBlockStart: config.space.S200,
   selectors: {
     '&:not(:has([data-thread-detail]:not(:empty)))': { display: 'none' },
   },
 });
+
+globalStyle(`${EntryTooltipPluginDetails} > [data-thread-detail]`, { maxWidth: toRem(320) });

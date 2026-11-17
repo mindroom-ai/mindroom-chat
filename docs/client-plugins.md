@@ -485,6 +485,7 @@ In the Compact card's hover card and the thread menu, it renders inside the room
 In the sidebar THREADS hover card, it renders outside a room's page: `useRoomSidePanel` and `useShownThread` return undefined, as on the search page.
 `useRoomNavigate` works on every surface.
 The sidebar THREADS hover card (`src/app/sidebar/threads/ThreadNavItem.tsx`) shows the same details after its live status rows, under a hairline only while a detail draws something.
+It opens with no delay, so a detail that loads on mount should use cached, cancellable requests.
 The Compact card's hover card (`src/app/threads/overview/ThreadCardDetails.tsx`) shows after a pointer rests on the card for 500 ms, on devices with a fine pointer that can hover, never on touch.
 It opens at the pointer, below it in the window's upper half and above it in the lower half, mirrored in right-to-left, at most 320 px wide, read-only and hidden from assistive technology (`aria-hidden`).
 Leaving the card, a press, a click, a wheel scroll, opening the menu or a room change closes it; after a press, click, wheel scroll or the menu, it stays closed until the pointer leaves the card.
