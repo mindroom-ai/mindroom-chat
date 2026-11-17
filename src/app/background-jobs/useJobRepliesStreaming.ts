@@ -146,8 +146,8 @@ export const useJobRepliesStreaming = (
       _removed: boolean,
       data: IRoomTimelineData
     ) => refresh(data.timeline.getTimelineSet().thread?.id ?? MAIN);
-    // A thread's reset is its own. The main timeline resets at a sync gap, which leaves no
-    // conversation as it was.
+    // A thread's reset is its own. A timeline set without a thread (the main timeline, which
+    // resets at a sync gap, or any other set of the room) leaves no conversation as it was.
     const onReset = (_room: Room | undefined, timelineSet: EventTimelineSet) =>
       timelineSet.thread ? refresh(timelineSet.thread.id) : refreshAll();
     // News of a message that began a thread comes by that thread, and the message itself is in

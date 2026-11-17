@@ -25,6 +25,7 @@ const makeRoom = () => {
   const lists = new Map<string | null, MatrixEvent[]>();
   const sets = new Map<string | null, ReturnType<typeof makeSet>>();
   const threads = new Map<string, ReturnType<typeof makeThread>>();
+  const roots = new Map<string, MatrixEvent>();
   const makeSet = (id: string | null) => {
     const timeline = {
       getEvents: () => {
@@ -44,7 +45,13 @@ const makeRoom = () => {
   const makeThread = (id: string) => ({
     id,
     getUnfilteredTimelineSet: () => sets.get(id)!,
-    lastReply: () => lists.get(id)?.at(-1) ?? null,
+    // Only a reply: the root comes by `rootEvent`, as the SDK keeps it.
+    rootEvent: undefined as MatrixEvent | undefined,
+    lastReply: () =>
+      lists
+        .get(id)
+        ?.filter((event) => event !== roots.get(id))
+        .at(-1) ?? null,
   });
   const setOf = (id: string | null) => {
     if (id !== null && !threads.has(id)) threads.set(id, makeThread(id));
@@ -87,6 +94,8 @@ const makeRoom = () => {
   /** Puts a message that another conversation holds into this one too, as a thread's root is. */
   const share = (event: MatrixEvent, conversation: string) => {
     setOf(conversation);
+    roots.set(conversation, event);
+    threads.get(conversation)!.rootEvent = event;
     lists.set(conversation, [...(lists.get(conversation) ?? []), event]);
   };
   return { room: room as unknown as Room, reads, put, announce, finish, clear, share };
@@ -197,7 +206,8 @@ it('reads every conversation that holds an edited reply', () => {
   room.share(root, '$a');
   show([job('$a'), job(MAIN)]);
   expect(streaming).toBe(true);
-  act(() => room.finish(root));
+  // The edit is on the root itself, so both conversations that hold it read again.
+  expect(readsOf(() => room.finish(root)).sort()).toEqual(['$a', MAIN]);
   expect(streaming).toBe(false);
 });
 
