@@ -181,29 +181,52 @@ for (const viewport of [
     });
 
     // A title posted while the reply streams, then the one after it: one row.
-    test('shows back-to-back summaries as one marker', async ({ page }, testInfo) => {
+    test('folds a title that follows the last one into its marker', async ({ page }, testInfo) => {
       test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
       const thread = await setUpThread(page);
-      await thread.say(
-        thread.agent.accessToken,
-        'APNs accepts every push, so the token goes stale.'
-      );
-      await thread.summarize(FIRST_SUMMARY, 1);
-      await thread.summarize(LATEST_SUMMARY, 2);
+      const { session, agent, say, summarize } = thread;
+      // Enough messages that the thread scrolls.
+      for (let n = 1; n <= 8; n += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        await say(n % 2 ? session.accessToken : agent.accessToken, `Push check ${n}: no push.`);
+      }
+      await say(agent.accessToken, 'APNs accepts every push, so the token goes stale.');
+      await summarize(FIRST_SUMMARY, 1);
 
       await openThread(page, thread);
       const banner = page.locator('[data-thread-context-banner]');
-      await expect(banner.locator('[data-thread-context-summary]')).toHaveText(LATEST_SUMMARY);
+      await expect(banner.locator('[data-thread-context-summary]')).toHaveText(FIRST_SUMMARY);
       const titled = page.getByRole('button', { name: 'AI titled this thread' });
+      const updated = page.getByRole('button', { name: 'AI title updated' });
       await expect(titled).toHaveCount(1);
-      await expect(page.getByRole('button', { name: 'AI title updated' })).toHaveCount(0);
+      const scroll = () =>
+        page.evaluate(() => {
+          let element = document.querySelector<HTMLElement>('[data-thread-count]')?.parentElement;
+          while (element && !/auto|scroll/.test(getComputedStyle(element).overflowY)) {
+            element = element.parentElement;
+          }
+          if (!element) throw new Error('Thread scroller missing');
+          return {
+            overflow: element.scrollHeight - element.clientHeight,
+            bottomGap: element.scrollHeight - element.clientHeight - element.scrollTop,
+          };
+        });
+      await expect.poll(async () => (await scroll()).bottomGap).toBeLessThan(2);
+      expect((await scroll()).overflow).toBeGreaterThan(0);
+
+      await summarize(LATEST_SUMMARY, 2);
+      await expect(banner.locator('[data-thread-context-summary]')).toHaveText(LATEST_SUMMARY);
+      await expect(updated).toHaveCount(0);
+      await expect(titled).toHaveCount(1);
+      await expect.poll(async () => (await scroll()).bottomGap).toBeLessThan(2);
 
       const details = page.locator('[data-thread-summary-details]');
       if (viewport.touch) await press(page, true, titled);
       else await titled.hover();
       await expect(details).toContainText(LATEST_SUMMARY);
       await expect(details).not.toContainText('Was:');
-      await page.screenshot({ path: testInfo.outputPath('back-to-back.png') });
+      await expect(updated).toHaveCount(0);
+      await page.screenshot({ path: testInfo.outputPath('back-to-back-live.png') });
     });
   });
 }
