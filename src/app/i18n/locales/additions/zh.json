@@ -762,6 +762,13 @@
       "finishedWork": {
         "workedFor": "工作了 {{duration}}",
         "worked": "已工作"
+      },
+      "questionCard": {
+        "title": "问题",
+        "waiting": "等你回答",
+        "answered": "已回答",
+        "youChose": "你已选择",
+        "nameChose": "{{name}} 已选择"
       }
     },
     "message-search": {

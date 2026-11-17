@@ -762,6 +762,13 @@
       "finishedWork": {
         "workedFor": "Bekerja selama {{duration}}",
         "worked": "Bekerja"
+      },
+      "questionCard": {
+        "title": "Pertanyaan",
+        "waiting": "Menunggu Anda",
+        "answered": "Dijawab",
+        "youChose": "Pilihan Anda",
+        "nameChose": "Dipilih oleh {{name}}"
       }
     },
     "message-search": {

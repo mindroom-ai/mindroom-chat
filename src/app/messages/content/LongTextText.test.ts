@@ -134,6 +134,7 @@ vi.mock('../agent-run/Reasoning.css', () => ({
   Chevron: 'Chevron',
 }));
 vi.mock('../agent-run/FinishedWorkFold.css', () => ({ Work: 'Work' }));
+vi.mock('../question/QuestionCard.css', () => ({}));
 vi.mock('../agent-run/OutlineComet.css', () => ({}));
 vi.mock('../html/HtmlBlocks.css', () => ({
   Block: 'MindroomBlock',

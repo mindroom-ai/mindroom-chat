@@ -762,6 +762,13 @@
       "finishedWork": {
         "workedFor": "{{duration}} 동안 작업함",
         "worked": "작업함"
+      },
+      "questionCard": {
+        "title": "질문",
+        "waiting": "내 답변 대기 중",
+        "answered": "답변함",
+        "youChose": "내가 선택함",
+        "nameChose": "{{name}} 님이 선택함"
       }
     },
     "message-search": {

@@ -773,6 +773,13 @@
       "finishedWork": {
         "workedFor": "{{duration}} gewerkt",
         "worked": "Gewerkt"
+      },
+      "questionCard": {
+        "title": "Vraag",
+        "waiting": "Wacht op jou",
+        "answered": "Beantwoord",
+        "youChose": "Jouw keuze",
+        "nameChose": "Gekozen door {{name}}"
       }
     },
     "message-search": {

@@ -817,6 +817,13 @@
       "finishedWork": {
         "workedFor": "عمل لمدة ⁨{{duration}}⁩",
         "worked": "عمل"
+      },
+      "questionCard": {
+        "title": "سؤال",
+        "waiting": "بانتظارك",
+        "answered": "تمت الإجابة",
+        "youChose": "اخترت",
+        "nameChose": "اختار ⁨{{name}}⁩"
       }
     },
     "message-search": {

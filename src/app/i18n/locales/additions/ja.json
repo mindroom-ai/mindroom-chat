@@ -762,6 +762,13 @@
       "finishedWork": {
         "workedFor": "{{duration}} 作業しました",
         "worked": "作業しました"
+      },
+      "questionCard": {
+        "title": "質問",
+        "waiting": "あなたの回答待ち",
+        "answered": "回答済み",
+        "youChose": "あなたが選択",
+        "nameChose": "{{name}} が選択"
       }
     },
     "message-search": {

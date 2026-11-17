@@ -773,6 +773,13 @@
       "finishedWork": {
         "workedFor": "{{duration}} तक काम किया",
         "worked": "काम किया"
+      },
+      "questionCard": {
+        "title": "सवाल",
+        "waiting": "आपकी प्रतीक्षा में",
+        "answered": "जवाब दिया",
+        "youChose": "आपने चुना",
+        "nameChose": "{{name}} ने चुना"
       }
     },
     "message-search": {

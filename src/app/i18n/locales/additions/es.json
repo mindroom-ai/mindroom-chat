@@ -784,6 +784,13 @@
       "finishedWork": {
         "workedFor": "Trabajó durante {{duration}}",
         "worked": "Trabajó"
+      },
+      "questionCard": {
+        "title": "Pregunta",
+        "waiting": "Te espera",
+        "answered": "Respondido",
+        "youChose": "Elegiste",
+        "nameChose": "{{name}} eligió"
       }
     },
     "message-search": {

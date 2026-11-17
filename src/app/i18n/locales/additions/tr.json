@@ -773,6 +773,13 @@
       "finishedWork": {
         "workedFor": "{{duration}} çalıştı",
         "worked": "Çalıştı"
+      },
+      "questionCard": {
+        "title": "Soru",
+        "waiting": "Sizi bekliyor",
+        "answered": "Yanıtlandı",
+        "youChose": "Seçiminiz",
+        "nameChose": "{{name}} seçti"
       }
     },
     "message-search": {
