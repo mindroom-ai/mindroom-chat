@@ -1568,6 +1568,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
         }
         statusCounts={threadIndex.statusCounts}
         bucketCounts={threadIndex.bucketCounts}
+        countsSettled={threadIndex.threadListSettled}
         onSelectTab={props.onSelectTab ?? ignoreFilterChange}
         tagCounts={threadIndex.tagCounts}
         state={threadFilterState}

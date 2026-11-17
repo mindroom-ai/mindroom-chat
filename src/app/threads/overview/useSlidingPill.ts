@@ -32,14 +32,14 @@ export function useSlidingPill(
     let frame = 0;
     let lastTime = 0;
 
-    const place = (now?: number) => {
-      frame = 0;
+    // Places the pill, a spring step on from `now` when given; true while it still moves.
+    const place = (now?: number): boolean => {
       const button = group.querySelector<HTMLElement>('[aria-pressed="true"]');
       if (!button || button.offsetWidth === 0) {
         x = undefined;
         lastTime = 0;
         pill.style.opacity = '0';
-        return;
+        return false;
       }
       const left = button.offsetLeft;
       const size = button.offsetWidth;
@@ -61,19 +61,29 @@ export function useSlidingPill(
       pill.style.transform = `translateX(${x.value}px)`;
       pill.style.width = `${width.value}px`;
       lastTime = moving && now !== undefined ? now : 0;
-      if (moving) frame = requestAnimationFrame(place);
+      return moving;
+    };
+    // `frame` is the one pending frame. Only `tick` and `placeNow` clear it, each once that frame
+    // ran or was cancelled, so cleanup always cancels the frame still to come.
+    const tick = (now: number) => {
+      frame = place(now) ? requestAnimationFrame(tick) : 0;
+    };
+    const placeNow = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      place();
     };
     const kick = () => {
-      if (!frame) frame = requestAnimationFrame(place);
+      if (!frame) frame = requestAnimationFrame(tick);
     };
     kickRef.current = kick;
 
-    place();
+    placeNow();
     // A resize is seen after layout and before paint: without motion the pill lands there at once.
     const observer =
       typeof ResizeObserver === 'undefined'
         ? undefined
-        : new ResizeObserver(() => (playsMotion(pill) ? kick() : place()));
+        : new ResizeObserver(() => (playsMotion(pill) ? kick() : placeNow()));
     observer?.observe(group);
     for (const child of Array.from(group.children)) {
       if (child !== pill) observer?.observe(child);

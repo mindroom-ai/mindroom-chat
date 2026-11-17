@@ -20,37 +20,41 @@ const WORKFLOW_ICONS = {
   all: IconList,
 };
 
-/** A count that rolls like an odometer when it changes: up when it grows, down when it shrinks. */
-function RollingCount({ value, language }: { value: number | undefined; language: string }) {
-  const text = localDigits(String(value ?? 0), language);
-  const [shown, setShown] = useState({
-    value,
-    text,
-    from: undefined as string | undefined,
-    up: true,
-    turn: 0,
-  });
+// Motion state is made only when it can play: an animation that never runs never ends.
+const reducedMotion = () =>
+  globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+
+/**
+ * A count that rolls like an odometer when it changes: up when it grows, down when it shrinks.
+ * Only while `animate`; otherwise it takes the new count as it is.
+ */
+function RollingCount({
+  value,
+  animate,
+  language,
+}: {
+  value: number;
+  animate: boolean;
+  language: string;
+}) {
+  const [shown, setShown] = useState({ value, from: undefined as number | undefined, turn: 0 });
   if (shown.value !== value) {
-    // A count that arrives (from none) shows without rolling.
-    const previous = shown.value;
-    const rolls = previous !== undefined && value !== undefined;
+    const rolls = animate && !reducedMotion();
+    // A roll replaces one still under way, so an old count never outlasts the next change.
     setShown({
       value,
-      text,
-      from: rolls ? shown.text : undefined,
-      up: rolls ? value > previous : shown.up,
+      from: rolls ? shown.value : undefined,
       turn: rolls ? shown.turn + 1 : shown.turn,
     });
-  } else if (shown.text !== text) {
-    setShown({ ...shown, text });
   }
-  const { from, up, turn } = shown;
+  const { from, turn } = shown;
+  const digits = (count: number) => localDigits(String(count), language);
   return (
     <Text
       as="span"
       size="T200"
       className={css.WorkflowCount}
-      data-roll={turn > 0 ? (up ? 'up' : 'down') : undefined}
+      data-roll={from === undefined ? undefined : from < value ? 'up' : 'down'}
     >
       {from !== undefined && (
         <span
@@ -62,11 +66,11 @@ function RollingCount({ value, language }: { value: number | undefined; language
             )
           }
         >
-          {from}
+          {digits(from)}
         </span>
       )}
-      <span key={`in-${turn}`} className={turn > 0 ? css.RollIn : undefined}>
-        {shown.text}
+      <span key={`in-${turn}`} className={from === undefined ? undefined : css.RollIn}>
+        {digits(value)}
       </span>
     </Text>
   );
@@ -76,36 +80,45 @@ export type WorkflowTabsProps = {
   /** The pressed tab; none while other filters pick the threads. */
   active: ThreadWorkflowTab | undefined;
   counts: ThreadWorkflowCounts | undefined;
+  /**
+   * Whether the counts have stopped loading. Until then they only take their new values: a room
+   * whose threads arrive page by page neither rolls them nor pings Needs you.
+   */
+  countsSettled: boolean;
   onSelect?: (tab: ThreadWorkflowTab) => void;
 };
 
 /**
  * The Needs you / Working / Later / Done / All tabs. One pill glides to the pressed tab, whose icon
- * makes a small gesture; counts roll when they change, and a new thread pings Needs you. Nothing
- * moves on mount: give it a `key` per room so a room switch starts it afresh.
+ * makes a small gesture; settled counts roll when they change, and a new thread pings Needs you.
+ * Nothing moves on mount: give it a `key` per room so a room switch starts it afresh.
  */
-export function WorkflowTabs({ active, counts, onSelect }: WorkflowTabsProps) {
+export function WorkflowTabs({ active, counts, countsSettled, onSelect }: WorkflowTabsProps) {
   const { t, i18n } = useTranslation();
   const groupRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLSpanElement>(null);
   useSlidingPill(groupRef, pillRef, active);
 
-  // Changes since the last render: a newly pressed tab plays its gesture, and a Needs you count
-  // that grows pings. Both start from what the first render showed, so mounting plays nothing.
-  const needsYou = counts?.needsYou;
+  // Changes since the last render: a newly pressed tab plays its gesture, and a settled Needs you
+  // count that grows pings. Both start from what the first render showed, so mounting plays
+  // nothing; the next change replaces either, whether or not its animation ended.
+  const needsYou = counts?.needsYou ?? 0;
   const [seen, setSeen] = useState({
     active,
     needsYou,
     gesture: undefined as ThreadWorkflowTab | undefined,
-    pings: 0,
+    ping: 0,
+    pinging: false,
   });
   if (seen.active !== active || seen.needsYou !== needsYou) {
-    const grew = seen.needsYou !== undefined && needsYou !== undefined && needsYou > seen.needsYou;
+    const moves = !reducedMotion();
+    const pings = moves && countsSettled && needsYou > seen.needsYou;
     setSeen({
       active,
       needsYou,
-      gesture: seen.active !== active ? active : seen.gesture,
-      pings: grew ? seen.pings + 1 : seen.pings,
+      gesture: seen.active === active ? seen.gesture : moves ? active : undefined,
+      ping: pings ? seen.ping + 1 : seen.ping,
+      pinging: seen.needsYou === needsYou ? seen.pinging : pings,
     });
   }
 
@@ -154,9 +167,24 @@ export function WorkflowTabs({ active, counts, onSelect }: WorkflowTabsProps) {
                   {t(`thread.workflow.${tab}`)}
                 </Text>
               </span>
-              <RollingCount value={counts?.[tab]} language={i18n.language} />
-              {tab === 'needsYou' && seen.pings > 0 && (
-                <span key={seen.pings} className={css.PingDot} aria-hidden="true" />
+              <RollingCount
+                value={counts?.[tab] ?? 0}
+                animate={countsSettled}
+                language={i18n.language}
+              />
+              {tab === 'needsYou' && seen.pinging && (
+                <span
+                  key={seen.ping}
+                  className={css.PingDot}
+                  aria-hidden="true"
+                  onAnimationEnd={(event) => {
+                    if (event.animationName !== css.pingPop) return;
+                    const { ping } = seen;
+                    setSeen((current) =>
+                      current.ping === ping ? { ...current, pinging: false } : current
+                    );
+                  }}
+                />
               )}
             </button>
           )}

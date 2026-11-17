@@ -1,7 +1,6 @@
 import { createVar, globalStyle, keyframes, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { motion } from '../../ui/styles/Motion.css';
-import { springEasing } from '../../ui/styles/spring';
 import { transition } from '../../ui/styles/transition';
 import { FilterButton } from './RoomThreadOverview.css';
 
@@ -11,10 +10,9 @@ const ICON = toRem(12);
 const CLOSE_GAP = `calc(-1 * ${config.space.S100})`;
 const NARROW = '(max-width: 40rem)';
 const REDUCED = '(prefers-reduced-motion: reduce)';
-// The pill's spring (useSlidingPill), so a label unfolds in step with it.
-const GLIDE = springEasing(0.78, 460);
-// A softer spring for the odometer counts.
-const SOFT = `380ms ${springEasing(0.9, 380)}`;
+// A label unfolds over about as long as the pill's spring (useSlidingPill) takes to settle.
+const UNFOLD = '460ms';
+const ROLL = `380ms ${motion.easing.Decelerate}`;
 // An icon's gesture starts once the pill is on its way.
 const GESTURE_DELAY = 90;
 
@@ -99,7 +97,7 @@ export const WorkflowLabel = style({
   display: 'inline-grid',
   gridTemplateColumns: '1fr',
   transition: [
-    transition(['grid-template-columns', 'margin-inline-end'], '460ms', GLIDE),
+    transition(['grid-template-columns', 'margin-inline-end'], UNFOLD),
     transition(['opacity'], motion.duration.Slower),
   ].join(', '),
   '@container': {
@@ -138,18 +136,18 @@ export const WorkflowCount = style({
 globalStyle(`${WorkflowCount} > *`, { gridArea: '1 / 1' });
 
 export const RollIn = style({
-  animation: `${rollIn} ${SOFT}`,
+  animation: `${rollIn} ${ROLL}`,
   '@media': { [REDUCED]: { animation: 'none' } },
 });
 export const RollOut = style({
-  animation: `${rollOut} ${SOFT} forwards`,
-  // Without the animation nothing would end to remove the old count.
+  animation: `${rollOut} ${ROLL} forwards`,
   '@media': { [REDUCED]: { display: 'none' } },
 });
 
 // ─── A new thread pings Needs you ──────────────────────────────────────────
 
-const pop = keyframes({
+// Its end removes the dot (WorkflowTabs).
+export const pingPop = keyframes({
   '0%': {
     opacity: 0,
     transform: 'scale(0.4)',
@@ -175,7 +173,7 @@ export const PingDot = style({
   background: color.Primary.Main,
   opacity: 0,
   pointerEvents: 'none',
-  animation: `${pop} 3.8s ${motion.easing.Standard} forwards, ${pulse} 1.6s ease-out 2`,
+  animation: `${pingPop} 3.8s ${motion.easing.Standard} forwards, ${pulse} 1.6s ease-out 2`,
   '@media': { [REDUCED]: { animation: 'none' } },
 });
 

@@ -20,12 +20,24 @@ for (const width of [320, 390]) {
       await expect(tabs).toHaveCount(5);
       await page.evaluate(() => document.fonts.ready);
       const frame = tabs.first().locator('..');
-      // A selection unfolds the pressed tab's label and folds the last one's; the scroll steps
-      // below measure the bar once that motion has ended.
+      // A selection unfolds the pressed tab's label and folds the last one's (CSS transitions,
+      // which set the scroll width), and the pill springs over (a script, which no CSS animation
+      // shows). The scroll steps below start once both are done: no transition runs in the group
+      // and the pill covers the pressed tab.
       const settled = () =>
         expect
-          .poll(() => frame.evaluate((element) => element.getAnimations({ subtree: true }).length))
-          .toBe(0);
+          .poll(() =>
+            frame.evaluate((element) => {
+              if (element.getAnimations({ subtree: true }).length > 0) return false;
+              const pill = element.querySelector(':scope > [aria-hidden="true"]')!;
+              const pressed = element.querySelector('[aria-pressed="true"]')!;
+              const [from, to] = [pill, pressed].map((node) => node.getBoundingClientRect());
+              return (
+                Math.abs(from!.left - to!.left) < 0.5 && Math.abs(from!.width - to!.width) < 0.5
+              );
+            })
+          )
+          .toBe(true);
       const metrics = await frame.evaluate((element) => {
         const box = element.getBoundingClientRect();
         const style = getComputedStyle(element);
@@ -93,13 +105,15 @@ for (const width of [320, 390]) {
           .first()
           .getByText(language === 'it' ? 'Serve il tuo intervento' : 'Needs you', { exact: true })
       ).toBeVisible();
-      // Arrow steps return to the start (the pressed tab's icon makes it more than one step).
-      await expect
-        .poll(async () => {
-          await page.keyboard.press('ArrowLeft');
-          return frame.evaluate((element) => element.scrollLeft);
-        })
-        .toBe(0);
+      // Before the pressed tab showed its icon, one 40 px arrow step reached the start. The icon
+      // (12 px and the 4 px gap) leaves the scroll up to 16 px further along, so two steps do.
+      await page.keyboard.press('ArrowLeft');
+      await page.keyboard.press('ArrowLeft');
+      await expect(frame).toHaveJSProperty('scrollLeft', 0);
+      const pressedBox = (await tabs.first().boundingBox())!;
+      const scrollport = (await frame.boundingBox())!;
+      expect(pressedBox.x).toBeGreaterThanOrEqual(scrollport.x);
+      expect(pressedBox.x + pressedBox.width).toBeLessThanOrEqual(scrollport.x + scrollport.width);
       await page.screenshot({
         path: testInfo.outputPath(`impl2-overflow-${width}-${language}.png`),
       });

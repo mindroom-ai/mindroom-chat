@@ -265,6 +265,8 @@ export type RoomThreadOverviewProps = {
   totalThreadCount: number;
   statusCounts?: StatusCounts;
   bucketCounts?: ThreadWorkflowCounts;
+  /** Whether `bucketCounts` stopped loading, so their changes may move (WorkflowTabs). */
+  countsSettled?: boolean;
   onSelectTab?: (tab: ThreadWorkflowTab) => void;
   tagCounts?: Record<string, number>;
   state: ThreadFilterState;
@@ -344,6 +346,7 @@ export function RoomThreadOverview({
   totalThreadCount,
   statusCounts,
   bucketCounts,
+  countsSettled = false,
   onSelectTab,
   tagCounts,
   state,
@@ -593,6 +596,7 @@ export function RoomThreadOverview({
               (THREAD_FILTER_KEYS.some((key) => state[key] !== 'any') ? undefined : 'all')
             }
             counts={bucketCounts}
+            countsSettled={countsSettled}
             onSelect={onSelectTab}
           />
         )}
