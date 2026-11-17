@@ -1,11 +1,7 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { createClient, Direction, MatrixEvent, Room } from 'matrix-js-sdk';
-import { afterEach, expect, it, vi } from 'vitest';
-import { paginateRoomHistory } from '../event-store/sdk/roomHistoryPageSdk';
-import {
-  MINDROOM_BACKGROUND_JOBS_EVENT,
-  type BackgroundJob,
-} from '../matrix/protocol/backgroundJobsContract';
+import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { afterEach, expect, it } from 'vitest';
+import { MINDROOM_BACKGROUND_JOBS_EVENT, type BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
 import { useRoomBackgroundJobs } from './useRoomBackgroundJobs';
 
 const viewer = '@alice:example.org';
@@ -107,26 +103,4 @@ it('does not render again for unrelated room state', async () => {
   await addState(room, stateEvent('m.room.topic', '', { topic: 'Release prep' }));
 
   expect(seen).toHaveLength(renders);
-});
-
-it('follows the jobs sync brings in, though pages of room history leave them out', async () => {
-  const room = makeRoom();
-  await room.addLiveEvents([membership('join'), jobsEvent(['job_1'])], { addToState: true });
-  const seen = mount(room);
-  // A page of history, which asks the server to leave the jobs state out.
-  const edge = room.getLiveTimeline();
-  edge.setPaginationToken('older', Direction.Backward);
-  vi.spyOn(room.client, 'createMessagesRequest').mockResolvedValue({
-    chunk: [],
-    start: 'older',
-    end: 'oldest',
-  });
-  await act(async () => {
-    await paginateRoomHistory(room.client, room, edge, true, 20, false);
-  });
-
-  // Each change of the jobs reaches the room as a state event in the sync timeline.
-  await addState(room, jobsEvent(['job_1', 'job_2']));
-
-  expect(seen.at(-1)?.map((job) => job.jobId)).toEqual(['job_1', 'job_2']);
 });

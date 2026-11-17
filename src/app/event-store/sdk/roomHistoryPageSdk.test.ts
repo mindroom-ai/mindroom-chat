@@ -1,4 +1,4 @@
-import { Direction, Filter, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { Direction, Filter, MatrixClient, MatrixEvent, Room, type IRoomEvent } from 'matrix-js-sdk';
 import { logger } from 'matrix-js-sdk/lib/logger';
 import { describe, expect, it, vi } from 'vitest';
 import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../../matrix/protocol/backgroundJobsContract';
@@ -102,15 +102,45 @@ describe('paginateRoomHistory', () => {
     return JSON.parse(params?.filter ?? '{}') as Record<string, unknown>;
   };
 
-  it('leaves the agents jobs state out of the room history it asks for', async () => {
+  it('leaves the agents jobs state out of the older history it asks for', async () => {
     const { mx, room: paged } = makeRoom();
 
     expect((await requestedFilter(mx, paged, true)).not_types).toEqual([
       MINDROOM_BACKGROUND_JOBS_EVENT,
     ]);
-    expect((await requestedFilter(mx, paged, false)).not_types).toEqual([
-      MINDROOM_BACKGROUND_JOBS_EVENT,
-    ]);
+    expect((await requestedFilter(mx, paged, false)).not_types).toBeUndefined();
+  });
+
+  it('joins a history view to a live timeline of only jobs state, and follows it on', async () => {
+    const { mx, room: paged } = makeRoom();
+    const jobs = event('$jobs', 2, {
+      type: MINDROOM_BACKGROUND_JOBS_EVENT,
+      state_key: '@mindroom_code:example.org',
+      sender: '@mindroom_code:example.org',
+      content: { jobs: [], total: 0 },
+    });
+    await paged.addLiveEvents([jobs], { addToState: false });
+    // A permalink opened an older timeline, whose next page reaches the live one.
+    const history = paged.getUnfilteredTimelineSet().addTimeline();
+    paged.addEventsToTimeline([event('$old', 1)], false, false, history, 'after-old');
+    // A page that left the jobs state out would come back empty and end the timeline there.
+    vi.spyOn(mx, 'createMessagesRequest').mockImplementation(
+      async (_roomId, from, _l, _d, filter) =>
+        filter
+          ? { chunk: [], start: from! }
+          : { chunk: [jobs.event as IRoomEvent], start: from!, end: 'after-jobs' }
+    );
+
+    await paginateRoomHistory(mx, paged, history, false, 20, false);
+    await paged.addLiveEvents([event('$new', 3)], { addToState: false });
+
+    expect(history.getNeighbouringTimeline(Direction.Forward)).toBe(paged.getLiveTimeline());
+    expect(
+      paged
+        .getLiveTimeline()
+        .getEvents()
+        .map((e) => e.getId())
+    ).toEqual(['$jobs', '$new']);
   });
 
   it('keeps the filter of a filtered timeline, adding the jobs state to the types it leaves out', async () => {

@@ -13,9 +13,11 @@ import { MINDROOM_BACKGROUND_JOBS_EVENT } from '../../matrix/protocol/background
 import { holdPageThreadEvents, keepHistoryReplies } from '../timeline/classicHistoryReplies';
 
 /**
- * The filter of a page of room history: `timelineFilter`, also leaving out the agents' jobs state.
- * Agents rewrite it on every job change and the app reads only the current state, which sync keeps
- * (so sync is not filtered); its copies in history would only hold memory.
+ * The filter of a page of older room history: `timelineFilter`, also leaving out the agents' jobs
+ * state. Agents rewrite it on every job change and the app reads only the current state, which sync
+ * keeps (so sync is not filtered); its copies in history would only hold memory. Pages forward stay
+ * unfiltered: they find where they reach the live timeline by its events, which can all be jobs
+ * state.
  */
 export const roomHistoryFilter = (timelineFilter?: Filter): Filter => {
   const timeline = (timelineFilter?.getRoomTimelineFilterComponent()?.toJSON() ??
@@ -57,11 +59,11 @@ export const splitTimelinePage = (
 
 /**
  * One page of the room's own history at `edge`, loaded as `MatrixClient.paginateEventTimeline`
- * loads it, with three differences: it leaves the agents' jobs state out (`roomHistoryFilter`),
- * events the timeline would refuse are kept as relations only (`splitTimelinePage`), and with
- * `keepReplies` (the Classic view) the page's thread replies, which the SDK drops, are kept with
- * `edge`, and decrypted in an encrypted room; they wait there for the cache
- * (`takePageThreadEvents`). Resolves to whether more history lies that way.
+ * loads it, with three differences: older pages leave the agents' jobs state out
+ * (`roomHistoryFilter`), events the timeline would refuse are kept as relations only
+ * (`splitTimelinePage`), and with `keepReplies` (the Classic view) the page's thread replies, which
+ * the SDK drops, are kept with `edge`, and decrypted in an encrypted room; they wait there for the
+ * cache (`takePageThreadEvents`). Resolves to whether more history lies that way.
  */
 export const paginateRoomHistory = (
   mx: MatrixClient,
@@ -80,7 +82,7 @@ export const paginateRoomHistory = (
       edge.getPaginationToken(dir),
       limit,
       dir,
-      roomHistoryFilter(edge.getFilter())
+      backwards ? roomHistoryFilter(edge.getFilter()) : edge.getFilter()
     )
     .then(async (response) => {
       const mapper = mx.getEventMapper();
