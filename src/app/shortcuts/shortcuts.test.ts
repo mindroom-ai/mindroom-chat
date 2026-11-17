@@ -161,6 +161,9 @@ describe('formatShortcut and ariaShortcut', () => {
     ['nextRoom', '⌥↓', 'Alt+↓'],
     ['previousUnread', '⌥⇧↑', 'Alt+Shift+↑'],
     ['resolveThread', '⌘⇧↵', 'Ctrl+Shift+Enter'],
+    ['nextThread', '⌘⌥↓', 'Ctrl+Alt+↓'],
+    ['openThread', '⌥→', 'Alt+→'],
+    ['leaveThread', '⌥←', 'Alt+←'],
     ['focusComposer', 'Esc', 'Esc'],
   ])('%s is %s on Apple platforms and %s elsewhere', (id, apple, other) => {
     expect(formatShortcut(id, true)).toBe(apple);
@@ -171,6 +174,8 @@ describe('formatShortcut and ariaShortcut', () => {
     expect(ariaShortcut('members', true)).toBe('Meta+Shift+M');
     expect(ariaShortcut('members', false)).toBe('Control+Shift+M');
     expect(ariaShortcut('previousRoom', false)).toBe('Alt+ArrowUp');
+    expect(ariaShortcut('leaveThread', false)).toBe('Alt+ArrowLeft');
+    expect(ariaShortcut('previousThread', true)).toBe('Meta+Alt+ArrowUp');
     // The palette's own button sets this value itself.
     expect(shortcutOfAria('Control+K', false)).toBe('palette');
     expect(shortcutOfAria('Meta+Shift+M', true)).toBe('members');
@@ -225,9 +230,14 @@ describe('findShortcut', () => {
     expect(inField({ key: 'M', ctrlKey: true, shiftKey: true })).toBe('members');
     expect(inField({ key: 'F', ctrlKey: true, shiftKey: true })).toBe('messageSearch');
     expect(inField({ key: 'L', ctrlKey: true, shiftKey: true })).toBe('callView');
+    expect(inField({ key: 'ArrowDown', ctrlKey: true, altKey: true })).toBe('nextThread');
+    expect(inField({ key: 'ArrowUp', ctrlKey: true, altKey: true })).toBe('previousThread');
     // Paragraph moves and selections, Escape, and a slip of the send key stay with the field.
     expect(inField({ key: 'ArrowUp', altKey: true })).toBeUndefined();
     expect(inField({ key: 'ArrowDown', altKey: true, shiftKey: true })).toBeUndefined();
+    // Alt and the left or right arrow move by word.
+    expect(inField({ key: 'ArrowLeft', altKey: true })).toBeUndefined();
+    expect(inField({ key: 'ArrowRight', altKey: true })).toBeUndefined();
     expect(inField({ key: 'Enter', ctrlKey: true, shiftKey: true })).toBeUndefined();
     expect(inField({ key: 'Escape' })).toBeUndefined();
   });
@@ -240,6 +250,8 @@ describe('findShortcut', () => {
     const inField = (keys: Press) => findShortcut(press({ ...keys, target }), context());
     expect(inField({ key: 'ArrowUp', altKey: true })).toBe('previousRoom');
     expect(inField({ key: 'ArrowDown', altKey: true, shiftKey: true })).toBe('nextUnread');
+    expect(inField({ key: 'ArrowLeft', altKey: true })).toBe('leaveThread');
+    expect(inField({ key: 'ArrowRight', altKey: true })).toBe('openThread');
     expect(inField({ key: 'Enter', ctrlKey: true, shiftKey: true })).toBe('resolveThread');
     expect(inField({ key: 'Escape' })).toBeUndefined();
   });
