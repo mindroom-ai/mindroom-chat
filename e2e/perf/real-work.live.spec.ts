@@ -54,14 +54,20 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
  *
  *   compact-idle    30 s of the Compact view left alone
  *   compact-scroll  the wheel in 600 px steps, 10 s down and 10 s up
- *   thread-open     a press on a streaming thread's card to its first message row, then 5 s
+ *   thread-open     a press on a streaming thread's card to its first message row, and to the
+ *                   rows it settles on, then 5 s
  *   thread-idle     30 s of the open thread left alone
  *   thread-type     10 s of typing in the thread's composer
- *   switch          Back, then another streaming thread, 5 times, each timed
+ *   switch          Back, then another streaming thread, 5 times, each timed (the thread to its
+ *                   first row and to its settled rows)
  *   cold-load       a reload of the room, to its first card, then 5 s
  *
  * Each writes test-results/perf/real-work/<scenario>-<engine>-<throttle>x-<streams>s.json: the
- * probe's result plus `timings` ({ name, ms } of the open, each switch and the cold load),
+ * probe's result plus `timings` ({ name, ms } of the open, each switch and the cold load; an open
+ * or a switch to a thread also has `<name>-settled`: the time from the same press to the frame
+ * from which the message rows shown stayed the same ones for 1 s, with `rows`, how many they
+ * were. A thread shows its first row before its history is there, so the first row alone can come
+ * early on an open that keeps changing),
  * `typing` (key latency), `target` (the streams asked for) and `achieved` (what the driver saw in
  * its 5 s reports that overlap the window: replies streaming on average, live frames, edits and
  * jobs state writes a second, replies given up as stuck). A window that held under 80 % of the
@@ -163,7 +169,7 @@ const CARD = '[data-compact-room-view] [data-thread-root-id]';
 const ROW = '[data-message-id]';
 const COLD_LOAD_FLAG = 'perf:real-work-cold-load';
 
-type Timing = { name: string; ms: number };
+type Timing = { name: string; ms: number; rows?: number };
 type DriverLine = {
   t: number;
   target: number;
@@ -414,6 +420,70 @@ const showThread = async (run: Run): Promise<boolean> => {
   return streaming;
 };
 
+/** How long the shown rows must stay the same ones to count as settled. */
+const SETTLED_QUIET_MS = 1_000;
+type SettledOutcome = { ms?: number; rows?: number; error?: string };
+
+/**
+ * Watches, from the next press on, which message rows are shown (their event IDs, hidden rows
+ * left out), once per animation frame, on the clock of `timeToVisible`. The promise it returns
+ * gives the time from the press to the frame from which those rows stayed the same for
+ * SETTLED_QUIET_MS, and how many rows that were. Call it before the press, and the function it
+ * returns after it. Fails when the rows have not settled 30 s after the press.
+ */
+const watchRowsSettled = async (page: Page, name: string): Promise<() => Promise<Timing>> => {
+  await page.evaluate(
+    ({ selector, quietMs }) => {
+      const shown = () =>
+        Array.from(document.querySelectorAll(selector))
+          .filter((row) =>
+            row.checkVisibility
+              ? row.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
+              : true
+          )
+          .map((row) => row.getAttribute('data-message-id') ?? '');
+      (window as unknown as { __realWorkSettled?: Promise<SettledOutcome> }).__realWorkSettled =
+        new Promise<SettledOutcome>((resolve) => {
+          const start = (event: Event) => {
+            document.removeEventListener('pointerdown', start, true);
+            const now = performance.now();
+            const age = now - event.timeStamp;
+            const startedAt = age >= 0 && age < 60_000 ? event.timeStamp : now;
+            let rows: string[] = [];
+            let changedAt = now;
+            const tick = () => {
+              const at = performance.now();
+              const next = shown();
+              if (next.join(' ') !== rows.join(' ')) {
+                rows = next;
+                changedAt = at;
+              }
+              if (rows.length > 0 && at - changedAt >= quietMs) {
+                resolve({ ms: changedAt - startedAt, rows: rows.length });
+              } else if (at - startedAt > 30_000) {
+                resolve({ error: 'the rows shown had not stayed the same for 1 s after 30 s' });
+              } else {
+                requestAnimationFrame(tick);
+              }
+            };
+            requestAnimationFrame(tick);
+          };
+          document.addEventListener('pointerdown', start, true);
+        });
+    },
+    { selector: ROW, quietMs: SETTLED_QUIET_MS }
+  );
+  return async () => {
+    const outcome = await page.evaluate(
+      () => (window as unknown as { __realWorkSettled?: Promise<SettledOutcome> }).__realWorkSettled
+    );
+    if (outcome?.ms === undefined) {
+      throw new Error(`${name}: ${outcome?.error ?? 'the page loaded again before rows settled'}`);
+    }
+    return { name, ms: round(outcome.ms), rows: outcome.rows };
+  };
+};
+
 type Measured = { timings?: Timing[]; typing?: Stats; openedStreaming?: boolean };
 
 const idle = async (run: Run): Promise<void> => {
@@ -447,11 +517,12 @@ const SCENARIO: Record<
     measure: async (run) => {
       const { page } = run;
       const { root, streaming } = await pickThread(run);
+      const settled = await watchRowsSettled(page, 'open-settled');
       const ms = await timeToVisible(page, () => card(page, root).click(), ROW);
       await expect(banner(page)).toBeVisible();
       // The rest of the thread arrives and settles inside the window.
-      await page.waitForTimeout(5_000);
-      return { timings: [{ name: 'open', ms }], openedStreaming: streaming };
+      const [settledTiming] = await Promise.all([settled(), page.waitForTimeout(5_000)]);
+      return { timings: [{ name: 'open', ms }, settledTiming], openedStreaming: streaming };
     },
   },
   'thread-idle': { prepare: showThread, measure: idle },
@@ -476,10 +547,13 @@ const SCENARIO: Record<
         const { root, streaming } = await pickThread(run, current);
         current = root;
         openedStreaming &&= streaming;
+        const settled = await watchRowsSettled(page, `switch-${turn}-settled`);
         const ms = await timeToVisible(page, () => card(page, root).click(), ROW);
         await expect(banner(page)).toBeVisible();
         timings.push({ name: `switch-${turn}`, ms });
-        await page.waitForTimeout(1_000);
+        // As long as before when the rows settle at once: 1 s after the first row.
+        const [settledTiming] = await Promise.all([settled(), page.waitForTimeout(1_000)]);
+        timings.push(settledTiming);
       }
       return { timings, openedStreaming };
     },
