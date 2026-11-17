@@ -757,6 +757,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           editableName="RoomInput"
           styleMarkdown={isMarkdown}
           linkSchemes={linkSchemes}
+          markdownCommands
           // The composer floats over the timeline and the cards, which scroll beneath it.
           className={glassDenseOverBackdrop}
           placeholder={forkFrom ? t('threadFork.continueInNewThread') : t('composer.placeholder')}

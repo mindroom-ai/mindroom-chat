@@ -12,7 +12,7 @@ import {
   editorPasteMarkerElementToPlainText,
 } from './editorExtensions';
 import { BlockType } from './types';
-import type { CustomElement, FormattedText, MentionElement } from './slate';
+import type { CustomElement, FormattedText, LinkElement, MentionElement } from './slate';
 
 type OutputOptions = {
   /** Render text marks (bold, italic, ...) as HTML. */
@@ -62,6 +62,12 @@ export const textMarkTags = (node: FormattedText): { open: string; close: string
   return { open, close };
 };
 
+/** The tags a link is sent in, around its text. */
+export const linkTags = (node: LinkElement): { open: string; close: string } => ({
+  open: `<a href="${sanitizeText(node.href)}">`,
+  close: '</a>',
+});
+
 const textToCustomHtml = (node: FormattedText, opts: OutputOptions): string => {
   const html = sanitizeText(node.text);
   if (!opts.allowTextFormatting || html === '') return html;
@@ -79,8 +85,10 @@ const inlineElementToCustomHtml = (node: CustomElement, children: string): strin
       return `<img data-mx-emoticon src="${sanitizeText(node.key)}" alt="${sanitizeText(
         node.shortcode
       )}" title="${sanitizeText(node.shortcode)}" height="32" />`;
-    case BlockType.Link:
-      return `<a href="${sanitizeText(node.href)}">${children}</a>`;
+    case BlockType.Link: {
+      const { open, close } = linkTags(node);
+      return open + children + close;
+    }
     case BlockType.PasteMarker:
       return editorPasteMarkerElementToCustomHtml(node);
     default:

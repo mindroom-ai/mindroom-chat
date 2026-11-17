@@ -51,6 +51,7 @@ const textBox = (props: {
   ariaLabel?: string;
   initialValue?: Descendant[];
   styleMarkdown?: boolean;
+  markdownCommands?: boolean;
 }) => {
   function Harness() {
     const editor = useEditor();
@@ -120,9 +121,18 @@ describe('CustomEditor', () => {
       expect(editable.querySelector('strong')).toBeNull();
     });
 
-    it('styles nothing in a message sent with /plain', () => {
-      textBox({ styleMarkdown: true, initialValue: line('/plain a **b**') });
+    it('styles nothing in a message sent with /plain where commands are read', () => {
+      textBox({
+        styleMarkdown: true,
+        markdownCommands: true,
+        initialValue: line('/plain a **b**'),
+      });
       expect(markers()).toEqual([]);
+    });
+
+    it('styles /plain where no commands are read, as in the edit box', () => {
+      textBox({ styleMarkdown: true, initialValue: line('/plain a **b**') });
+      expect(markers()).toEqual(['**', '**']);
     });
   });
 });

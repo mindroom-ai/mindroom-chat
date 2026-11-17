@@ -1,11 +1,11 @@
-import { createEditor, Editor, Transforms, type Descendant } from 'slate';
+import { createEditor, Editor, Text, Transforms, type Descendant } from 'slate';
 import { describe, expect, it } from 'vitest';
 import { cpuNow } from '../../test/utils/cpuNow';
-import { createMarkdownDecorate, findBlockCue, type MarkdownRange } from './markdownDecorations';
+import { createMarkdownDecorate, MAX_LINE_RANGES, type MarkdownRange } from './markdownDecorations';
 import { toMatrixCustomHTML } from './output';
 import type { InlineContent } from './slate';
 import { BlockType } from './types';
-import { createMentionElement, withInlineElements } from './utils';
+import { createLinkElement, createMentionElement, withInlineElements } from './utils';
 
 const paragraph = (...children: InlineContent[]): Descendant => ({
   type: BlockType.Paragraph,
@@ -25,10 +25,20 @@ const describeRanges = (editor: Editor, ranges: MarkdownRange[]): string[] =>
     return `${Object.keys(leaf).join('+')} ${JSON.stringify(Editor.string(editor, range))}`;
   });
 
-const decorated = (document: Descendant[], linkSchemes?: readonly string[]): string[] => {
+const decorated = (
+  document: Descendant[],
+  options?: Parameters<typeof createMarkdownDecorate>[0]
+): string[] => {
   const editor = editorWith(document);
-  return describeRanges(editor, createMarkdownDecorate(linkSchemes)([editor, []]));
+  return describeRanges(editor, createMarkdownDecorate(options)([editor, []]));
 };
+
+const sent = (document: Descendant[]): string =>
+  toMatrixCustomHTML(document, {
+    allowInlineMarkdown: true,
+    allowBlockMarkdown: true,
+    allowTextFormatting: true,
+  });
 
 const decoratedLine = (text: string): string[] => decorated([paragraph({ text })]);
 
@@ -136,11 +146,97 @@ describe('createMarkdownDecorate', () => {
   });
 
   it.each(['/plain **a**', '/html **a**', '/plain'])(
-    'styles nothing in %s, sent as typed',
+    'styles nothing in %s where commands are read, sent as typed',
     (text) => {
-      expect(decorated([paragraph({ text }), paragraph({ text: '**b**' })])).toEqual([]);
+      const document = [paragraph({ text }), paragraph({ text: '**b**' })];
+      expect(decorated(document, { commands: true })).toEqual([]);
     }
   );
+
+  it('styles /plain where no commands are read, as the edit box saves it', () => {
+    expect(decoratedLine('/plain **a**')).toEqual(['bold "a"', 'marker "**"', 'marker "**"']);
+  });
+
+  it('styles only the Markdown inside a link, through its empty text neighbours', () => {
+    const document = [
+      paragraph({ text: '' }, createLinkElement('https://example.org', 'before **bold** after'), {
+        text: '',
+      }),
+    ];
+    const editor = editorWith(document);
+    const ranges = createMarkdownDecorate()([editor, []]);
+    expect(describeRanges(editor, ranges)).toEqual(['bold "bold"', 'marker "**"', 'marker "**"']);
+    expect(ranges[0]).toMatchObject({
+      anchor: { path: [0, 1, 0], offset: 9 },
+      focus: { path: [0, 1, 0], offset: 13 },
+    });
+    expect(sent(document)).toBe(
+      '<a href="https://example.org">before <strong data-md="**">bold</strong> after</a>'
+    );
+  });
+
+  it.each([
+    ['a fenced code block', '```'],
+    ['display math', '$$'],
+  ])('styles nothing inside %s, sent as written', (_name, fence) => {
+    const document = [
+      paragraph({ text: fence }),
+      paragraph({ text: '**a**' }),
+      paragraph({ text: fence }),
+    ];
+    expect(decorated(document)).toEqual([]);
+    expect(sent(document)).not.toContain('<strong');
+  });
+
+  it('styles a fence line inside a list item as sending reads it, in the item', () => {
+    const document = [
+      paragraph({ text: '- a' }),
+      paragraph({ text: '  ```' }),
+      paragraph({ text: '  **b**' }),
+      paragraph({ text: '  ```' }),
+    ];
+    expect(decorated(document)).toEqual(['bold "b"', 'marker "**"', 'marker "**"']);
+    expect(sent(document)).toContain('<strong data-md="**">b</strong>');
+  });
+
+  it('unstyles and restyles an unchanged line as fences around it come and go', () => {
+    const editor = editorWith([
+      paragraph({ text: '' }),
+      paragraph({ text: '**a**' }),
+      paragraph({ text: '' }),
+    ]);
+    const middle = editor.children[1];
+    const decorate = createMarkdownDecorate();
+    const styled = describeRanges(editor, decorate([editor, []]));
+    expect(styled).toEqual(['bold "a"', 'marker "**"', 'marker "**"']);
+
+    Transforms.insertText(editor, '```', { at: { path: [0, 0], offset: 0 } });
+    expect(describeRanges(editor, decorate([editor, []]))).toEqual(styled);
+    Transforms.insertText(editor, '```', { at: { path: [2, 0], offset: 0 } });
+    expect(decorate([editor, []])).toEqual([]);
+
+    Transforms.delete(editor, { at: { path: [2, 0], offset: 0 }, distance: 3 });
+    expect(editor.children[1]).toBe(middle);
+    expect(describeRanges(editor, decorate([editor, []]))).toEqual(styled);
+  });
+
+  it('shows a line with more ranges than the cap plain', () => {
+    // Each `**a** ` gives three ranges: the bold text and its two markers.
+    const spans = Math.floor(MAX_LINE_RANGES / 3);
+    expect(decoratedLine('**a** '.repeat(spans))).toHaveLength(spans * 3);
+    expect(decoratedLine('**a** '.repeat(spans + 1))).toEqual([]);
+  });
+
+  it('keeps applying the ranges of a line at the cap cheap, as Slate splits its text', () => {
+    // Slate's cost is about the count of ranges squared: 1,500 ranges take about 60 ms.
+    const text = '**a** '.repeat(Math.floor(MAX_LINE_RANGES / 3));
+    const editor = editorWith([paragraph({ text })]);
+    const ranges = createMarkdownDecorate()([editor, []]);
+    const start = cpuNow();
+    const leaves = Text.decorations({ text }, ranges);
+    expect(cpuNow() - start).toBeLessThan(25);
+    expect(leaves.length).toBeGreaterThan(ranges.length);
+  });
 
   it('styles a message that starts with another command', () => {
     expect(decoratedLine('/me **waves**')).toEqual(['bold "waves"', 'marker "**"', 'marker "**"']);
@@ -175,21 +271,10 @@ describe('createMarkdownDecorate', () => {
     ]);
   });
 
-  it.each([
-    [
-      '## **Title**',
-      ['bold "## **Title**"', 'marker "## "', 'bold "Title"', 'marker "**"', 'marker "**"'],
-    ],
-    ['> quoted', ['marker "> "']],
-    ['- item', ['marker "- "']],
-    ['12. item', ['marker "12. "']],
-  ])('shows the block cue of %s', (text, ranges) => {
-    expect(decoratedLine(text)).toEqual(ranges);
-  });
-
   it('links only the schemes sending links', () => {
     expect(decoratedLine('[a](matrix:r/room:example.org)')).toEqual([]);
-    expect(decorated([paragraph({ text: '[a](matrix:r/room:example.org)' })], ['matrix'])).toEqual([
+    const document = [paragraph({ text: '[a](matrix:r/room:example.org)' })];
+    expect(decorated(document, { linkSchemes: ['matrix'] })).toEqual([
       'linkLabel "a"',
       'marker "["',
       'marker "](matrix:r/room:example.org)"',
@@ -224,31 +309,10 @@ describe('createMarkdownDecorate', () => {
     ['bold', '**a** '.repeat(4_000)],
     ['code and links', '`a` [b](https://example.org) '.repeat(4_000)],
     ['underscores', '_'.repeat(16_000)],
-  ])('decorates a line of 16k delimiters of %s in under a second', (_name, text) => {
+  ])('reads a line of 16k delimiters of %s in under a second', (_name, text) => {
     const editor = editorWith([paragraph({ text })]);
     const start = cpuNow();
-    expect(createMarkdownDecorate()([editor, []]).length).toBeGreaterThan(0);
+    expect(createMarkdownDecorate()([editor, []]).length).toBeLessThanOrEqual(MAX_LINE_RANGES);
     expect(cpuNow() - start).toBeLessThan(1000);
   });
-});
-
-describe('findBlockCue', () => {
-  it.each([
-    ['# a', { marker: 2, heading: true }],
-    ['###### a', { marker: 7, heading: true }],
-    ['#\ta', { marker: 2, heading: true }],
-    ['>a', { marker: 1, heading: false }],
-    ['> a', { marker: 2, heading: false }],
-    ['* a', { marker: 2, heading: false }],
-    ['   1. a', { marker: 6, heading: false }],
-  ])('reads %s', (line, cue) => {
-    expect(findBlockCue(line)).toEqual(cue);
-  });
-
-  it.each(['#a', '# ', '####### a', '-a', '    - a', '1.a', 'a # b'])(
-    'finds no cue in %s',
-    (line) => {
-      expect(findBlockCue(line)).toBeUndefined();
-    }
-  );
 });

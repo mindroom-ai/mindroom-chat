@@ -1,4 +1,14 @@
-import { Element, Text, type Descendant, type NodeEntry, type Path, type Range } from 'slate';
+import {
+  Editor,
+  Element,
+  Text,
+  type Descendant,
+  type NodeEntry,
+  type Path,
+  type Range,
+} from 'slate';
+import { findBlocksMD } from '../rich-text/markdown/block/parser';
+import { LITERAL_BLOCK_MD_RULES, SENT_BLOCK_MD_RULES } from '../rich-text/markdown/block/rules';
 import { findInlineMDSpans } from '../rich-text/markdown/inline/parser';
 import { INLINE_MD_RULES, inlineMDRulesWithLinkSchemes } from '../rich-text/markdown/inline/rules';
 import type {
@@ -7,16 +17,16 @@ import type {
   InlineMDSpanKind,
 } from '../rich-text/markdown/inline/type';
 import { sanitizeText } from '../rich-text/sanitize';
-import { nodeToCustomHtml, textMarkTags } from './output';
+import { linkTags, nodeToCustomHtml, textMarkTags } from './output';
 import { BlockType } from './types';
-import type { InlineContent } from './slate';
 
 // Typed Markdown shown styled in place, as Discord and Slate's markdown-preview example do: the
 // text keeps every character, Markdown syntax included, and decorations only change how it looks.
 // So selecting, copying, undo, drafts and sending see the raw Markdown, as before. Each line is
 // read the way sending reads it: its HTML (text escaped, marks as tags, mentions and other atoms
 // as their HTML) goes through the inline parser of the sent message, and the spans the parser
-// reports map back to the line's text, so the styling shows what the message will send.
+// reports map back to the line's text, so the styling shows what the message will send. Lines
+// sending reads as code or math, by its own block parser, stay unstyled.
 
 /** What a decoration sets on the text it covers: the marks `RenderLeaf` draws, and Markdown syntax. */
 export type MarkdownLeaf = {
@@ -40,9 +50,8 @@ const MARK_OF_KIND: Partial<Record<InlineMDSpanKind, keyof MarkdownLeaf>> = {
   spoiler: 'spoiler',
 };
 
-/** Blocks whose line the sent message reads inline Markdown in. */
+/** Blocks whose line the sent message reads inline Markdown in, besides paragraphs. */
 const LINE_BLOCKS: ReadonlySet<string> = new Set([
-  BlockType.Paragraph,
   BlockType.Heading,
   BlockType.QuoteLine,
   BlockType.ListItem,
@@ -74,40 +83,49 @@ const NO_TAGS = { open: '', close: '' };
 
 /**
  * A line's HTML as sending builds it, and where its text sits in it: for each place between two
- * characters of a text child (and at either end), its offset in `html`, the child and the offset
- * in that child, in order. Atoms add their HTML and no places, so a range never ends inside one.
+ * characters of a text node (and at either end), its offset in `html` and its point, by the path
+ * from the line and the offset in that text, in document order. Atoms (void elements) add their
+ * HTML and no places, so a range never ends inside one; a link adds its tags around its text.
  */
-type LineSource = { html: string; at: number[]; child: number[]; offset: number[] };
+type LineSource = { html: string; at: number[]; places: { path: Path; offset: number }[] };
 
-const readLine = (children: InlineContent[]): LineSource => {
-  const source: LineSource = { html: '', at: [], child: [], offset: [] };
-  children.forEach((node, index) => {
-    if (!Text.isText(node)) {
-      source.html += nodeToCustomHtml(node, { allowTextFormatting: true });
-      return;
-    }
-    const { text } = node;
-    const { open, close } = text === '' ? NO_TAGS : textMarkTags(node);
-    source.html += open;
-    for (let offset = 0; offset <= text.length; offset += 1) {
-      source.at.push(source.html.length);
-      source.child.push(index);
-      source.offset.push(offset);
-      const character = text.charAt(offset);
-      source.html += ESCAPED.test(character) ? sanitizeText(character) : character;
-    }
-    source.html += close;
-  });
+const readLine = (editor: Editor, children: Descendant[]): LineSource => {
+  const source: LineSource = { html: '', at: [], places: [] };
+  const read = (nodes: Descendant[], parent: Path) => {
+    nodes.forEach((node, index) => {
+      const path = [...parent, index];
+      if (Element.isElement(node)) {
+        if (editor.isVoid(node)) {
+          source.html += nodeToCustomHtml(node, { allowTextFormatting: true });
+          return;
+        }
+        const { open, close } = node.type === BlockType.Link ? linkTags(node) : NO_TAGS;
+        source.html += open;
+        read(node.children, path);
+        source.html += close;
+        return;
+      }
+      const { text } = node;
+      const { open, close } = text === '' ? NO_TAGS : textMarkTags(node);
+      source.html += open;
+      for (let offset = 0; offset <= text.length; offset += 1) {
+        source.at.push(source.html.length);
+        source.places.push({ path, offset });
+        const character = text.charAt(offset);
+        source.html += ESCAPED.test(character) ? sanitizeText(character) : character;
+      }
+      source.html += close;
+    });
+  };
+  read(children, []);
   return source;
 };
 
-type Place = { child: number; offset: number };
-
 /**
- * The place of a range edge at `htmlOffset`: the last place at or before it for a start, the
- * first at or after it for an end, so a range covers any HTML it starts or ends inside.
+ * The index of the place of a range edge at `htmlOffset`: the last place at or before it for a
+ * start, the first at or after it for an end, so a range covers any HTML it starts or ends inside.
  */
-const placeAt = (source: LineSource, htmlOffset: number, edge: 'start' | 'end'): Place | null => {
+const placeAt = (source: LineSource, htmlOffset: number, edge: 'start' | 'end'): number => {
   const { at } = source;
   // The first place after `htmlOffset` (start) or at or after it (end), by binary search.
   let low = 0;
@@ -118,20 +136,8 @@ const placeAt = (source: LineSource, htmlOffset: number, edge: 'start' | 'end'):
     if (edge === 'start' ? value <= htmlOffset : value < htmlOffset) low = middle + 1;
     else high = middle;
   }
-  const index = edge === 'start' ? low - 1 : low;
-  const child = source.child[index];
-  const offset = source.offset[index];
-  return child === undefined || offset === undefined ? null : { child, offset };
+  return edge === 'start' ? low - 1 : low;
 };
-
-const isBefore = (a: Place, b: Place): boolean =>
-  a.child < b.child || (a.child === b.child && a.offset < b.offset);
-
-const toRange = (path: Path, from: Place, to: Place, leaf: MarkdownLeaf): MarkdownRange => ({
-  anchor: { path: [...path, from.child], offset: from.offset },
-  focus: { path: [...path, to.child], offset: to.offset },
-  ...leaf,
-});
 
 /** The ranges of one span the parser found, in a line at `path`. */
 const spanRanges = (
@@ -141,9 +147,17 @@ const spanRanges = (
   ranges: MarkdownRange[]
 ): void => {
   const add = (start: number, end: number, leaf: MarkdownLeaf) => {
-    const from = placeAt(source, start, 'start');
-    const to = placeAt(source, end, 'end');
-    if (from && to && isBefore(from, to)) ranges.push(toRange(path, from, to, leaf));
+    const fromIndex = placeAt(source, start, 'start');
+    const toIndex = placeAt(source, end, 'end');
+    const from = source.places[fromIndex];
+    const to = source.places[toIndex];
+    if (from && to && fromIndex < toIndex) {
+      ranges.push({
+        anchor: { path: [...path, ...from.path], offset: from.offset },
+        focus: { path: [...path, ...to.path], offset: to.offset },
+        ...leaf,
+      });
+    }
   };
   const { kind, start, end, open, close } = span;
   const mark = MARK_OF_KIND[kind];
@@ -154,92 +168,110 @@ const spanRanges = (
   add(end - close, end, { marker: true });
 };
 
-const HEADING_CUE = /^#{1,6}[ \t]+(?=\S)/;
-const QUOTE_CUE = /^> ?/;
-const LIST_CUE = /^ {0,3}(?:[*-]|\d{1,9}\.) +/;
+/**
+ * The most ranges a line is styled with. Slate splits a text by each range in turn, so applying
+ * ranges costs about their count squared: 200 take about 2 ms, 1,500 about 60 ms (a line of
+ * `**a** ` 500 times). A line with more is shown plain, as before this styling.
+ */
+export const MAX_LINE_RANGES = 200;
+
+/** The ranges that style the line read in `source`, at `path`. */
+const lineRanges = (source: LineSource, path: Path, rules: InlineMDRule[]): MarkdownRange[] => {
+  const ranges: MarkdownRange[] = [];
+  findInlineMDSpans(source.html, rules).forEach((span) => spanRanges(source, path, span, ranges));
+  return ranges.length > MAX_LINE_RANGES ? [] : ranges;
+};
 
 /**
- * The block Markdown a line typed in a paragraph starts with, as sending reads it: the length of
- * its marker (`## `, `> `, `- `, `1. `) and whether it makes the line a heading. Each line is
- * read on its own, so a line inside a fenced code block still shows its cue.
+ * Which of a run of paragraph lines sending reads as code or math, where it reads no inline
+ * Markdown: it joins the run into one Markdown text and reads its blocks, as `toMatrixCustomHTML`
+ * does, so a fence or a `$$` line changes the lines after it as it changes the sent message.
  */
-export const findBlockCue = (line: string): { marker: number; heading: boolean } | undefined => {
-  const heading = HEADING_CUE.exec(line);
-  if (heading) return { marker: heading[0].length, heading: true };
-  const other = QUOTE_CUE.exec(line) ?? LIST_CUE.exec(line);
-  return other ? { marker: other[0].length, heading: false } : undefined;
+const literalLines = (lines: string[]): Set<number> => {
+  const literal = new Set<number>();
+  const blocks = findBlocksMD(lines.join('\n'), SENT_BLOCK_MD_RULES);
+  let line = 0;
+  let lineStart = 0;
+  blocks.forEach((block) => {
+    if (!LITERAL_BLOCK_MD_RULES.has(block.rule)) return;
+    while (line < lines.length && lineStart < block.end) {
+      if (lineStart >= block.start) literal.add(line);
+      lineStart += (lines[line] ?? '').length + 1;
+      line += 1;
+    }
+  });
+  return literal;
 };
 
-/** The block cue ranges of a paragraph at `path`: its marker dimmed, a heading's line bold. */
-const blockCueRanges = (children: InlineContent[], path: Path, ranges: MarkdownRange[]): void => {
-  const first = children[0];
-  const cue = first && Text.isText(first) ? findBlockCue(first.text) : undefined;
-  if (!cue) return;
-  const start = { child: 0, offset: 0 };
-  if (cue.heading) {
-    const lastIndex = children.length - 1;
-    const last = children[lastIndex];
-    const end = { child: lastIndex, offset: last && Text.isText(last) ? last.text.length : 0 };
-    ranges.push(toRange(path, start, end, { bold: true }));
-  }
-  ranges.push(toRange(path, start, { child: 0, offset: cue.marker }, { marker: true }));
-};
-
-/** The ranges that style the line block at `path`. */
-const lineRanges = (
-  children: InlineContent[],
-  path: Path,
-  paragraph: boolean,
-  rules: InlineMDRule[]
-): MarkdownRange[] => {
-  const ranges: MarkdownRange[] = [];
-  if (paragraph) blockCueRanges(children, path, ranges);
-  const source = readLine(children);
-  findInlineMDSpans(source.html, rules).forEach((span) => spanRanges(source, path, span, ranges));
-  return ranges;
+type MarkdownDecorateOptions = {
+  /** The deployment's extra link schemes, as sending takes them. */
+  linkSchemes?: readonly string[];
+  /**
+   * Whether `/plain` or `/html` at the start sends the message without reading Markdown, as the
+   * room composer reads them; the message edit box reads no commands.
+   */
+  commands?: boolean;
 };
 
 /**
  * A Slate `decorate` that shows the composer's Markdown styled while its syntax stays visible,
  * dimmed. It answers for the whole document at the editor's own entry, as `/plain` in the first
- * line changes every line, and nothing for other entries. Each line's ranges are kept until the
- * line changes or moves, so a keystroke reads only the line it changed. `linkSchemes` are the
- * deployment's extra link schemes, as sending takes them.
+ * line or a code fence changes the lines after it, and nothing for other entries. Each line's
+ * ranges are kept until the line changes or moves, so a keystroke reads only the line it changed;
+ * which lines are code is read anew each time, as a neighbour can change it.
  */
 export const createMarkdownDecorate = (
-  linkSchemes?: readonly string[]
+  options: MarkdownDecorateOptions = {}
 ): ((entry: NodeEntry) => MarkdownRange[]) => {
+  const { linkSchemes, commands = false } = options;
   const rules =
     linkSchemes && linkSchemes.length > 0
       ? inlineMDRulesWithLinkSchemes(linkSchemes)
       : INLINE_MD_RULES;
-  const cache = new WeakMap<Element, { path: string; ranges: MarkdownRange[] }>();
+  type Line = { path: string; html: string; ranges: MarkdownRange[] };
+  const cache = new WeakMap<Element, Line>();
   return ([node, path]) => {
-    if (path.length > 0 || !('children' in node)) return [];
-    const document = node.children;
-    if (sendsWithoutMarkdown(document)) return [];
-    const ranges: MarkdownRange[] = [];
-    const visit = (nodes: Descendant[], parent: Path) => {
-      nodes.forEach((child, index) => {
-        if (!Element.isElement(child)) return;
-        const childPath = [...parent, index];
-        if (CONTAINER_BLOCKS.has(child.type)) {
-          visit(child.children, childPath);
-          return;
-        }
-        if (!LINE_BLOCKS.has(child.type)) return;
-        const key = childPath.join(',');
-        let entry = cache.get(child);
-        if (entry?.path !== key) {
-          const paragraph = child.type === BlockType.Paragraph;
-          const children = child.children as InlineContent[];
-          entry = { path: key, ranges: lineRanges(children, childPath, paragraph, rules) };
-          cache.set(child, entry);
-        }
-        entry.ranges.forEach((range) => ranges.push(range));
-      });
+    if (path.length > 0 || !Editor.isEditor(node)) return [];
+    const editor = node;
+    const document = editor.children;
+    if (commands && sendsWithoutMarkdown(document)) return [];
+    const lineOf = (element: Element, elementPath: Path): Line => {
+      const key = elementPath.join(',');
+      let line = cache.get(element);
+      if (line?.path !== key) {
+        const source = readLine(editor, element.children);
+        line = { path: key, html: source.html, ranges: lineRanges(source, elementPath, rules) };
+        cache.set(element, line);
+      }
+      return line;
     };
-    visit(document, []);
+    const ranges: MarkdownRange[] = [];
+    const push = (line: Line) => line.ranges.forEach((range) => ranges.push(range));
+    // Sending reads each run of top-level paragraphs as one Markdown text.
+    let run: Line[] = [];
+    const flushRun = () => {
+      if (run.length === 0) return;
+      const literal = literalLines(run.map((line) => line.html));
+      run.forEach((line, index) => {
+        if (!literal.has(index)) push(line);
+      });
+      run = [];
+    };
+    const visit = (child: Descendant, childPath: Path) => {
+      if (!Element.isElement(child)) return;
+      if (CONTAINER_BLOCKS.has(child.type)) {
+        child.children.forEach((grandchild, index) => visit(grandchild, [...childPath, index]));
+      } else if (LINE_BLOCKS.has(child.type)) push(lineOf(child, childPath));
+    };
+    document.forEach((child, index) => {
+      if (Element.isElement(child) && child.type === BlockType.Paragraph) {
+        run.push(lineOf(child, [index]));
+        return;
+      }
+      flushRun();
+      visit(child, [index]);
+    });
+    flushRun();
     return ranges;
   };
 };

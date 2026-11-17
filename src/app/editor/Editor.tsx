@@ -237,6 +237,8 @@ type CustomEditorProps = EditorSlots & {
   styleMarkdown?: boolean;
   /** The extra URI schemes Markdown links may use, as sending takes them. */
   linkSchemes?: readonly string[];
+  /** Whether `/plain` or `/html` at the start sends without Markdown, as the room composer does. */
+  markdownCommands?: boolean;
   onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
   onKeyUp?: KeyboardEventHandler<HTMLDivElement>;
   onChange?: (value: Descendant[]) => void;
@@ -278,10 +280,13 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
   const { editor, onChange, top, bottom, before, after, className, style } = props;
   const { placeholder, ariaLabel = placeholder, editableName, maxHeight = '50vh' } = props;
   const { readOnly, onKeyDown, onKeyUp, onPaste, initialValue = emptyDocument } = props;
-  const { styleMarkdown, linkSchemes } = props;
+  const { styleMarkdown, linkSchemes, markdownCommands } = props;
   const decorate = useMemo(
-    () => (styleMarkdown ? createMarkdownDecorate(linkSchemes) : undefined),
-    [styleMarkdown, linkSchemes]
+    () =>
+      styleMarkdown
+        ? createMarkdownDecorate({ linkSchemes, commands: markdownCommands })
+        : undefined,
+    [styleMarkdown, linkSchemes, markdownCommands]
   );
 
   // When this returns true, Slate skips its own handling of the key (as after a preventDefault

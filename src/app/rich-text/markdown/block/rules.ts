@@ -341,6 +341,12 @@ export const BLOCK_MD_RULES: BlockMDRule[] = [
   ListRule,
 ];
 
+/** The blocks whose text is sent as written, never read as inline Markdown: code and math. */
+export const LITERAL_BLOCK_MD_RULES: ReadonlySet<BlockMDRule> = new Set([
+  CodeBlockRule,
+  BlockMathRule,
+]);
+
 /**
  * The block rules of a message being sent: every rule above, and tables. Messages are read with
  * the rules above only, so a table someone sent as Markdown text is not redrawn.
