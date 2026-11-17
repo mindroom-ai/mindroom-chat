@@ -35,6 +35,12 @@ export const MarkerTrigger = style({
   },
 });
 
+/** The settings button beside the marker: as quiet as the marker, and always shown. */
+export const MarkerSettings = style([
+  MarkerTrigger,
+  { marginInlineStart: config.space.S100, padding: `${toRem(1)} ${toRem(3)}` },
+]);
+
 export const MarkerDetails = style({
   display: 'flex',
   flexDirection: 'column',

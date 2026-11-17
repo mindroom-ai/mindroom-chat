@@ -656,6 +656,24 @@
       "noCrossSigning": "Jam terhubung tetapi belum diverifikasi: siapkan enkripsi di iPhone ini untuk memverifikasinya.",
       "noBackup": "Jam sudah diverifikasi, tetapi tidak dapat membaca pesan sebelum terhubung: aktifkan cadangan kunci di iPhone ini.",
       "timeout": "Jam tidak menyelesaikan proses masuk. Buka MindRoom di jam dan hubungkan lagi."
+    },
+    "roomSettings": {
+      "navigation": {
+        "mindroom": "MindRoom"
+      },
+      "mindroom": {
+        "threadSummaryInstructions": {
+          "label": "Aturan judul utas",
+          "description": "Aturan tambahan untuk judul yang diberikan AI MindRoom pada utas di ruang ini. Aturan ini lebih diutamakan daripada aturan judul biasa.",
+          "placeholder": "Contoh: Gunakan paling banyak 4 kata setelah emoji",
+          "note": "Judul yang sudah ada tetap memakai kata-katanya sampai diperbarui lagi."
+        },
+        "save": "Simpan",
+        "clear": "Hapus",
+        "characterCount": "{{length, number}} / {{max, number}}",
+        "readOnly": "Hanya orang yang boleh mengubah pengaturan ruang ini yang dapat mengeditnya.",
+        "saveFailed": "Pengaturan tidak dapat disimpan. Coba lagi."
+      }
     }
   },
   "mindroomUi": {
@@ -777,6 +795,9 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Berjalan selama {{duration}}"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "Pengaturan judul"
       }
     },
     "message-search": {

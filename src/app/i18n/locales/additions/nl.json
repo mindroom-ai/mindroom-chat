@@ -665,6 +665,24 @@
       "noCrossSigning": "De watch is verbonden maar niet geverifieerd: stel versleuteling in op deze iPhone om hem te verifiëren.",
       "noBackup": "De watch is geverifieerd, maar kan berichten van vóór de verbinding niet lezen: zet sleutelback-up aan op deze iPhone.",
       "timeout": "De watch heeft het aanmelden niet afgerond. Open MindRoom op de watch en verbind opnieuw."
+    },
+    "roomSettings": {
+      "navigation": {
+        "mindroom": "MindRoom"
+      },
+      "mindroom": {
+        "threadSummaryInstructions": {
+          "label": "Regels voor threadtitels",
+          "description": "Extra regels voor de titels die de AI van MindRoom aan de threads van deze kamer geeft. Ze gaan voor op de gewone titelregels.",
+          "placeholder": "Bijvoorbeeld: gebruik hoogstens 4 woorden na de emoji",
+          "note": "Titels die er al staan, houden hun bewoording tot de volgende verversing."
+        },
+        "save": "Opslaan",
+        "clear": "Wissen",
+        "characterCount": "{{length, number}} / {{max, number}}",
+        "readOnly": "Alleen wie de instellingen van deze kamer mag wijzigen, kan dit bewerken.",
+        "saveFailed": "Kan de instelling niet opslaan. Probeer het opnieuw."
+      }
     }
   },
   "mindroomUi": {
@@ -788,6 +806,9 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "Loopt al {{duration}}"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "Titelinstellingen"
       }
     },
     "message-search": {

@@ -40,6 +40,7 @@ vi.mock('./permissions/RoomPermissionsPage', () => ({
   RoomPermissionsPage: marker('permissions'),
 }));
 vi.mock('./RoomPacksPage', () => ({ RoomPacksPage: marker('packs') }));
+vi.mock('./mindroom/RoomMindroomPage', () => ({ RoomMindroomPage: marker('mindroom') }));
 vi.mock('./developer-tools/RoomDeveloperToolsPage', () => ({
   RoomDeveloperToolsPage: marker('developer-tools'),
 }));
@@ -138,6 +139,21 @@ describe('room and space settings dialog', () => {
 
     act(() => menuEntry('Permissions').click());
     expect(parts()).toEqual({ permissions: 'true' });
+  });
+
+  it("lists a room's MindRoom page and opens it", () => {
+    act(() => openSettings(ROOM));
+    act(() => menuEntry('MindRoom').click());
+
+    expect(parts()).toEqual({ mindroom: 'false' });
+  });
+
+  it('leaves the MindRoom page out of a space, which opens on General when asked for it', () => {
+    act(() => openSettings(SPACE, RoomSettingsPage.MindroomPage));
+
+    expect(menuEntry('MindRoom')).toBeUndefined();
+    expect(parts()).toMatchObject({ access: 'true', avatar: 'true' });
+    expect(parts()).not.toHaveProperty('mindroom');
   });
 
   it("opens the page asked for in the space's settings that are open already", () => {

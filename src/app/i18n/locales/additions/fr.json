@@ -674,6 +674,24 @@
       "noCrossSigning": "La montre est connectée mais non vérifiée : configurez le chiffrement sur cet iPhone pour la vérifier.",
       "noBackup": "La montre est vérifiée, mais ne peut pas lire les messages d’avant sa connexion : activez la sauvegarde des clés sur cet iPhone.",
       "timeout": "La montre n’a pas terminé la connexion. Ouvrez MindRoom sur la montre et reconnectez-la."
+    },
+    "roomSettings": {
+      "navigation": {
+        "mindroom": "MindRoom"
+      },
+      "mindroom": {
+        "threadSummaryInstructions": {
+          "label": "Règles des titres de fils",
+          "description": "Règles supplémentaires pour les titres que l’IA de MindRoom donne aux fils de ce salon. Elles priment sur les règles de titre habituelles.",
+          "placeholder": "Par exemple : utilisez au plus 4 mots après l’emoji",
+          "note": "Les titres déjà attribués gardent leur formulation jusqu’à la prochaine actualisation."
+        },
+        "save": "Enregistrer",
+        "clear": "Effacer",
+        "characterCount": "{{length, number}} / {{max, number}}",
+        "readOnly": "Seules les personnes autorisées à modifier les paramètres de ce salon peuvent changer ceci.",
+        "saveFailed": "Impossible d’enregistrer le paramètre. Réessayez."
+      }
     }
   },
   "mindroomUi": {
@@ -799,6 +817,9 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "En cours depuis {{duration}}"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "Paramètres des titres"
       }
     },
     "message-search": {

@@ -11,6 +11,13 @@ vi.mock('folds', () => ({
     React.createElement(Tag, props, children),
   Tooltip: ({ children, ...props }: any) =>
     React.createElement('div', { ...props, 'data-tooltip': true }, children),
+  TooltipProvider: ({ children, tooltip }: any) =>
+    React.createElement(
+      React.Fragment,
+      null,
+      children(() => undefined),
+      React.createElement('div', { 'data-hover-tooltip': true }, tooltip)
+    ),
   PopOut: ({ anchor, content, position, align, offset, ...props }: any) =>
     anchor
       ? React.createElement('div', { ...props, 'data-popout': true, 'data-top': anchor.y }, content)
@@ -19,12 +26,14 @@ vi.mock('folds', () => ({
 
 vi.mock('@tabler/icons-react', () => ({
   IconSparkles: () => React.createElement('svg'),
+  IconSettings: () => React.createElement('svg', { 'data-icon': 'settings' }),
 }));
 
 vi.mock('./ThreadSummaryMarker.css', () => ({
   Marker: 'Marker',
   MarkerTrigger: 'MarkerTrigger',
   MarkerDetails: 'MarkerDetails',
+  MarkerSettings: 'MarkerSettings',
 }));
 
 const text = (value: ReactTestInstance | string): string =>
@@ -193,5 +202,43 @@ describe('ThreadSummaryMarker', () => {
     const description = renderer.root.find((node) => node.props.id === describedBy);
     expect(text(description)).toContain('Fixing token refresh');
     expect(text(description)).toContain('Was: Push bug');
+  });
+
+  describe('title settings button', () => {
+    const settingsButton = (renderer: ReactTestRenderer) =>
+      renderer.root.findAll(
+        (node) => node.type === 'button' && node.props['aria-label'] === 'Title settings'
+      );
+
+    it('is absent without a way to open the settings', () => {
+      const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
+
+      expect(settingsButton(renderer)).toHaveLength(0);
+      expect(renderer.root.findAllByType('button')).toHaveLength(1);
+    });
+
+    it('opens the settings, beside a details trigger that works as before', async () => {
+      const onOpenSettings = vi.fn();
+      const renderer = render(
+        <ThreadSummaryMarker summaryInfo={summaryInfo} onOpenSettings={onOpenSettings} />
+      );
+      const [gear] = settingsButton(renderer);
+
+      // A native button, so Enter and Space press it as a click does.
+      expect(gear!.props.type).toBe('button');
+      expect(gear!.findAll((node) => node.props['data-icon'] === 'settings')).toHaveLength(1);
+      const hint = renderer.root.find((node) => node.props['data-hover-tooltip'] === true);
+      expect(text(hint)).toBe('Title settings');
+      act(() => {
+        gear!.props.onClick();
+      });
+      expect(onOpenSettings).toHaveBeenCalledTimes(1);
+      expect(popout(renderer)).toHaveLength(0);
+
+      const details = renderer.root.findAllByType('button')[0]!;
+      await act(() => details.props.onClick());
+      expect(popout(renderer)).toHaveLength(1);
+      expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    });
   });
 });

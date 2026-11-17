@@ -656,6 +656,24 @@
       "noCrossSigning": "ウォッチは接続されていますが未確認です。確認するには、このiPhoneで暗号化を設定してください。",
       "noBackup": "ウォッチは確認済みですが、接続前のメッセージは読めません。このiPhoneで鍵のバックアップをオンにしてください。",
       "timeout": "ウォッチのサインインが完了しませんでした。ウォッチでMindRoomを開いて、もう一度接続してください。"
+    },
+    "roomSettings": {
+      "navigation": {
+        "mindroom": "MindRoom"
+      },
+      "mindroom": {
+        "threadSummaryInstructions": {
+          "label": "スレッドタイトルのルール",
+          "description": "このルームのスレッドに MindRoom の AI が付けるタイトルの追加ルールです。通常のタイトルのルールより優先されます。",
+          "placeholder": "例: 絵文字のあとは 4 語以内にする",
+          "note": "すでに付いているタイトルは、次に更新されるまで今の表現のままです。"
+        },
+        "save": "保存",
+        "clear": "クリア",
+        "characterCount": "{{length, number}} / {{max, number}}",
+        "readOnly": "このルームの設定を変更できる人だけが編集できます。",
+        "saveFailed": "設定を保存できませんでした。もう一度お試しください。"
+      }
     }
   },
   "mindroomUi": {
@@ -777,6 +795,9 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "{{duration}}実行中"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "タイトルの設定"
       }
     },
     "message-search": {

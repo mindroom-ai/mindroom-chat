@@ -656,6 +656,24 @@
       "noCrossSigning": "手錶已連線但未驗證：請在此 iPhone 上設定加密以驗證它。",
       "noBackup": "手錶已驗證，但無法讀取連線前的訊息：請在此 iPhone 上開啟金鑰備份。",
       "timeout": "手錶未完成登入。請在手錶上開啟 MindRoom 並重新連線。"
+    },
+    "roomSettings": {
+      "navigation": {
+        "mindroom": "MindRoom"
+      },
+      "mindroom": {
+        "threadSummaryInstructions": {
+          "label": "討論串標題規則",
+          "description": "MindRoom 的 AI 為此聊天室的討論串取標題時遵循的額外規則，優先於一般標題規則。",
+          "placeholder": "例如：表情符號後最多使用 4 個詞",
+          "note": "已有的標題會保留原本的措辭，直到下次重新整理。"
+        },
+        "save": "儲存",
+        "clear": "清除",
+        "characterCount": "{{length, number}} / {{max, number}}",
+        "readOnly": "只有能變更此聊天室設定的人才能編輯此項。",
+        "saveFailed": "無法儲存設定，請再試一次。"
+      }
     }
   },
   "mindroomUi": {
@@ -777,6 +795,9 @@
       },
       "mindroomHtmlBlocks": {
         "toolRunningFor": "已執行 {{duration}}"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "標題設定"
       }
     },
     "message-search": {
