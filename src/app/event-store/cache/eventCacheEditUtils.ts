@@ -389,7 +389,7 @@ export const hydrateCachedEvents = ({
  * streamed with N edits used to leave ~N+1 records). Cross-sender replaces
  * are still emitted so hydration can decide what to do with them.
  */
-const isStandaloneSameSenderReplace = (
+export const isStandaloneSameSenderReplace = (
   mEvent: MatrixEvent,
   eventsById: Map<string, MatrixEvent>
 ): boolean => {
