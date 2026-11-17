@@ -25,11 +25,12 @@ type Compare = (left: ThreadRecord, right: ThreadRecord) => number;
  * The Compact room's listed threads (`threadRootIds`, filtered and in the list's order) in the
  * workflow buckets the tabs count (`classifyThreadWorkflow`), empty ones left out, so a tab that
  * shows one bucket shows one section. Working goes by when each thread started, Needs you by when
- * its last run finished or its newest message came (`signalsOf`, read once per such thread), Later
- * by when it comes back (`threadReturnTs`), soonest first, and Done by when it was resolved. The
- * index entry of the thread (`entryOf`), when the index has it, gives when it started and was
- * resolved; the record stands in for what it lacks. Ties keep the list's order, and the room's
- * pinned threads (`pinnedRootIds`, in the list's order) lead their section.
+ * its last run finished or its newest message came (`signalsOf`, read once per such thread; a
+ * streaming reply's edits count only once it ends), Later by when it comes back
+ * (`threadReturnTs`), soonest first, and Done by when it was resolved. The index entry of the
+ * thread (`entryOf`), when the index has it, gives when it started and was resolved; the record
+ * stands in for what it lacks. Ties keep the list's order, and the room's pinned threads
+ * (`pinnedRootIds`, in the list's order) lead their section.
  */
 export const buildCompactThreadSections = ({
   threadRootIds,
@@ -70,7 +71,10 @@ export const buildCompactThreadSections = ({
     grouped.needsYou.map((item) => {
       const entry = entryOf(item.threadRootId);
       const signals = entry && signalsOf(entry);
-      const ts = Math.max(signals?.outcome?.ts ?? 0, signals?.newsTs ?? 0, activityOf(item));
+      // A reply that still streams counts from when it was sent (`activityOf`), not by its
+      // newest edit (`newsTs`), so a thread that needs you keeps its place at every chunk.
+      const newsTs = item.status.isStreaming ? 0 : signals?.newsTs ?? 0;
+      const ts = Math.max(signals?.outcome?.ts ?? 0, newsTs, activityOf(item));
       return [item, ts] as const;
     })
   );

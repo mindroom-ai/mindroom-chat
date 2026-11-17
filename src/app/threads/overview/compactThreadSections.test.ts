@@ -140,6 +140,42 @@ describe('buildCompactThreadSections', () => {
     ).toEqual([['needsYou', ['$ran-late', '$wrote-late', '$quiet']]]);
   });
 
+  it('keeps a Needs you thread in place while an agent streams in it', () => {
+    // Its background job waits on an approval, so it needs you, while an agent streams a reply.
+    const streamingRecords = recordsOf(
+      record('$approval', {
+        isStreaming: true,
+        hasBackgroundJob: true,
+        hasBackgroundApproval: true,
+        lastActivityTs: 100,
+      }),
+      record('$other', { lastActivityTs: 200 })
+    );
+    const entries = new Map(['$approval', '$other'].map((id) => [id, { threadRootId: id }]));
+    const orderAt = (newsTs: number, records = streamingRecords) =>
+      build({
+        threadRootIds: ['$approval', '$other'],
+        records,
+        entries,
+        signals: new Map([['$approval', { newsTs }]]),
+      });
+
+    // Each streamed chunk is a newer edit: none moves the thread.
+    expect(orderAt(300)).toEqual([['needsYou', ['$other', '$approval']]]);
+    expect(orderAt(400)).toEqual([['needsYou', ['$other', '$approval']]]);
+
+    // Once the stream ends, its newest message counts.
+    const finished = recordsOf(
+      record('$approval', {
+        hasBackgroundJob: true,
+        hasBackgroundApproval: true,
+        lastActivityTs: 100,
+      }),
+      record('$other', { lastActivityTs: 200 })
+    );
+    expect(orderAt(400, finished)).toEqual([['needsYou', ['$approval', '$other']]]);
+  });
+
   it('orders Later by when each thread comes back, soonest first, unknown times last', () => {
     const records = recordsOf(
       record('$unknown', { scheduledTaskCount: 1 }),

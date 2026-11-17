@@ -22,11 +22,13 @@ Later sorts by active snooze end or next scheduled time, soonest first; unknown 
 follow by latest activity. Pins still lead the section, and its cap and tie ordering are unchanged.
 Pending sends alone do not constitute Working. Resolved and snoozed now precede streaming there too.
 
-Compact's Sections switch (beside the sort, which it hides with its lock) groups the cards the
-filters show by the same classifier, Working first, then Needs you, Later and Done, each under a
+In agent rooms, Compact's Sections switch (beside the sort, which it hides with its lock) groups
+the cards the filters show by the same classifier, at the same snooze clock as the tab filter
+(`useThreadIndex`'s `snoozeNow`), Working first, then Needs you, Later and Done, each under a
 header with its count; a tab that shows one bucket shows one section. It owns no filter. Working
-goes by when each thread started, Needs you by when its last run finished, Later by the same return
-time as the sidebar (`threadReturnTs`), and Done by when it was resolved; pins lead each section.
+goes by when each thread started, Needs you by when its last run finished or its newest message
+came (a reply still streaming counts from when it was sent), Later by the same return time as the
+sidebar (`threadReturnTs`), and Done by when it was resolved; pins lead each section.
 The switch and the folded sections are stored per account (`compactRoomSections:<userId>`), Done
 folded at first.
 
