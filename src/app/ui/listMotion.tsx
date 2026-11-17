@@ -117,6 +117,10 @@ const leave = (list: HTMLElement, { row, rect }: Place, before: Before): Animati
   return animation;
 };
 
+/** Whether a row shows within half a pixel of where it showed. */
+const samePlace = (now: DOMRect, was: DOMRect): boolean =>
+  Math.abs(now.left - was.left) < 0.5 && Math.abs(now.top - was.top) < 0.5;
+
 /** Plays the change from `before` to the list as it is now; returns what it started. */
 const play = (list: HTMLElement, before: Before): Animation[] => {
   const all = rowsOf(list);
@@ -141,9 +145,9 @@ const play = (list: HTMLElement, before: Before): Animation[] => {
       return;
     }
     const rect = now?.rect ?? row.getBoundingClientRect();
-    const dx = was.rect.left - rect.left;
-    const dy = was.rect.top - rect.top;
-    if (Math.abs(dx) >= 0.5 || Math.abs(dy) >= 0.5) moves.push({ row, dx, dy });
+    if (!samePlace(rect, was.rect)) {
+      moves.push({ row, dx: was.rect.left - rect.left, dy: was.rect.top - rect.top });
+    }
   });
   // No row in view stayed: the list shows something else (another room, another search), and
   // nothing of the old one is left to follow.
@@ -243,10 +247,22 @@ export const useListMotion = (listRef: RefObject<HTMLElement>, order: string): R
     beforeRef.current = undefined;
     const list = listRef.current;
     if (!before || !list) return;
+    // A change that left every row in view where it shows, as cards mounting below it, lets the
+    // plays run on. Started again, a play the browser has not started yet, as when such changes
+    // come one per task, shows its first frame each time: a Compact room's cards jumped back to
+    // their places of the last filter for every chunk of cards a filter change mounted.
+    const running = runningRef.current.filter(
+      ({ playState }) => playState !== 'finished' && playState !== 'idle'
+    );
+    const stayed =
+      running.length > 0 &&
+      [...before.rows.values()].every(
+        ({ row, rect }) => row.isConnected && samePlace(row.getBoundingClientRect(), rect)
+      );
     // A row still moving from the last change was read where it showed; it starts again there.
-    runningRef.current.forEach((animation) => animation.cancel());
+    if (!stayed) running.forEach((animation) => animation.cancel());
     const started = play(list, before);
-    runningRef.current = started;
+    runningRef.current = stayed ? [...running, ...started] : started;
     // Not cleared: a list that goes mid-play ends its play too. (One that ended is not changed.)
     if (started.length > 0) {
       setTimeout(() => started.forEach((animation) => animation.cancel()), LONGEST_PLAY_MS);

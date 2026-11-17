@@ -199,6 +199,21 @@ describe('useListMotion', () => {
     expect(motion.cancel).toHaveBeenCalledTimes(running);
   });
 
+  it('lets the moves run on when a change leaves every row in view where it shows', () => {
+    // A filter change mounts its cards a chunk per task: each chunk restarted the glides the
+    // browser had not started yet, and the cards jumped back to where they were for each one.
+    const { rerender } = render(<List order={['a', 'b']} />);
+    rerender(<List order={['b', 'a']} />);
+    const running = motion.plays.length;
+
+    rerender(<List order={['b', 'a', 'new']} />);
+
+    expect(motion.cancel).not.toHaveBeenCalled();
+    expect(motion.plays.slice(running).map(({ element }) => element.dataset.motionRow)).toEqual([
+      'new',
+    ]);
+  });
+
   it('ends a play the browser does not end: no row stays away from its place or after it left', async () => {
     // On a phone, cards that left stayed where they stood. Whatever a browser does with an
     // animation, a row is not left as the play's first frame shows it.
