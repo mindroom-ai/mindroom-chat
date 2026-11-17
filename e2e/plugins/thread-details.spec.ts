@@ -296,26 +296,75 @@ test('sidebar details mount on hover, span wide cards, reposition after growth a
     });
     await screenshot(page, 'sidebar-long-title');
 
-    // The example plugin has one detail: a copy of it stands in for a second plugin's, and the
-    // rule between the two spans the group while each detail's content stays capped.
+    // The example plugin has one detail: a copy of it stands in for a second plugin's. The rule
+    // between the two spans the group while each detail stays capped, whether its content is a
+    // block, or bare text and inline spans, and neither widens the card.
     const second = await detail.evaluate((element) => {
       const first = element.closest<HTMLElement>('[data-thread-detail]')!;
+      const group = first.parentElement!;
       const copy = first.cloneNode(true) as HTMLElement;
-      copy.setAttribute('data-thread-detail-copy', '');
       first.after(copy);
-      const style = getComputedStyle(copy);
-      return {
-        group: first.parentElement!.getBoundingClientRect().width,
-        rule: copy.getBoundingClientRect().width,
-        content: copy.firstElementChild!.getBoundingClientRect().width,
-        border: style.borderBlockStartWidth,
+      const rule = () => {
+        const line = getComputedStyle(copy, '::before');
+        const box = group.getBoundingClientRect();
+        const top = box.top + Number.parseFloat(getComputedStyle(group).borderBlockStartWidth);
+        return {
+          width: Number.parseFloat(line.width),
+          height: line.height,
+          color: line.backgroundColor,
+          // The line sits where the copy's own border is; `top` leaves out its margin.
+          offset:
+            top +
+            Number.parseFloat(line.top) +
+            Number.parseFloat(line.marginBlockStart) -
+            copy.getBoundingClientRect().top,
+        };
       };
+      try {
+        const block = {
+          group: group.getBoundingClientRect().width,
+          content: copy.firstElementChild!.getBoundingClientRect().width,
+          border: getComputedStyle(copy).borderBlockStartWidth,
+          rule: rule(),
+        };
+        const phrase = 'the harvest plan and the irrigation schedule for the coming season ';
+        const words = phrase.repeat(4);
+        const span = () => Object.assign(document.createElement('span'), { textContent: words });
+        copy.replaceChildren(document.createTextNode(words), span(), ' ', span());
+        const range = document.createRange();
+        range.selectNodeContents(copy);
+        const lines = Array.from(range.getClientRects());
+        const start = copy.getBoundingClientRect().left;
+        const inline = {
+          group: group.getBoundingClientRect().width,
+          rule: rule().width,
+          widest: Math.max(...lines.map((line) => line.width)),
+          reach: Math.max(...lines.map((line) => line.right)) - start,
+          lines: new Set(lines.map((line) => Math.round(line.top))).size,
+        };
+        group.style.width = '280px';
+        const narrow = { rule: rule().width, content: copy.getBoundingClientRect().width };
+        return { block, inline, narrow };
+      } finally {
+        copy.remove();
+        group.style.width = '';
+      }
     });
-    expect(second.border).toBe('1px');
-    expect(second.group).toBeGreaterThan(320);
-    expect(second.rule).toBeCloseTo(second.group, 0);
-    expect(second.content).toBeLessThanOrEqual(320);
-    await tooltip.locator('[data-thread-detail-copy]').evaluate((element) => element.remove());
+    expect(second.block.group).toBeGreaterThan(320);
+    expect(second.block.content).toBeLessThanOrEqual(320);
+    expect(second.inline.lines).toBeGreaterThan(2);
+    expect(second.inline.widest).toBeLessThanOrEqual(320.5);
+    expect(second.inline.reach).toBeLessThanOrEqual(320.5);
+    expect(second.inline.reach).toBeGreaterThan(250);
+    expect(second.inline.group).toBeCloseTo(second.block.group, 0);
+    expect(second.block.border).toBe('1px');
+    expect(second.block.rule.height).toBe('1px');
+    expect(second.block.rule.color).not.toBe('rgba(0, 0, 0, 0)');
+    expect(second.block.rule.width).toBeCloseTo(second.block.group, 0);
+    expect(second.block.rule.offset).toBeCloseTo(0, 0);
+    expect(second.inline.rule).toBeCloseTo(second.block.group, 0);
+    expect(second.narrow.rule).toBeCloseTo(280, 0);
+    expect(second.narrow.content).toBeLessThanOrEqual(280);
 
     // A listed detail that draws nothing hides the group and its rule.
     const group = tooltip.locator(`[class=${JSON.stringify(widths.className)}]`);
