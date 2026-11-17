@@ -156,4 +156,22 @@ test('holding Send while an agent replies sends the mode picked', async ({ page 
   await expect(menu).toBeHidden();
   const clicked = await sentContent(reader.accessToken, roomId, 'Last, the fog horn.');
   expect(clicked['io.mindroom.mid_turn']).toBe('auto');
+
+  // A hold the mouse lets go of without moving, then Escape: the menu's layer goes from over Send
+  // and the browser tells Send the mouse is on it, which must not open the menu as a rest.
+  await composer(page).click();
+  await page.keyboard.type('And the buoys.');
+  await holdSend(page);
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await page.waitForTimeout(600);
+  await expect(menu).toBeHidden();
+  // Leaving and coming back is a rest again.
+  await page.mouse.move(box.x - 300, box.y + box.height / 2, { steps: 4 });
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await expect(composer(page)).toContainText('And the buoys.');
 });
