@@ -604,6 +604,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
       reset: (nextThreadId) => threadStateRef.current.resetThreadRenderState(nextThreadId),
       append: (targetThreadId, events) =>
         threadStateRef.current.setSupplementalThreadEvents(targetThreadId, events),
+      getEvents: (targetThreadId) => threadStateRef.current.getThreadRenderEvents(targetThreadId),
       invalidateTimeline: () => setTimeline((current) => ({ ...current })),
     }),
     [setTimeline, threadStateRef]

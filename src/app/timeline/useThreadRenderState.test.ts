@@ -12,6 +12,7 @@ import {
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { useThreadRenderState } from './useThreadRenderState';
+import { getTailLongTextSources } from '../threads/open/threadOpenFirstPaint';
 
 const makeMessageEvent = (
   eventId: string,
@@ -385,6 +386,60 @@ describe('useThreadRenderState', () => {
     expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
     expect(getSnapshot().threadEvents[1]).toBe(refetchedFallbackReply);
     expect(getSnapshot().threadEvents[1]!.replacingEvent()?.getId()).toBe('$edit-13');
+
+    renderer.unmount();
+  });
+
+  it('gives the first paint the long text of the newer cached replacement, not the stale live one', () => {
+    const longText = (name: string) => ({
+      body: name,
+      msgtype: 'm.text',
+      url: `mxc://example.org/${name}`,
+      info: { mimetype: 'application/json' },
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    });
+    const longEdit = (eventId: string, ts: number, name: string) =>
+      new MatrixEvent({
+        content: {
+          body: `* ${name}`,
+          'm.new_content': longText(name),
+          'm.relates_to': { event_id: '$reply', rel_type: 'm.replace' },
+          msgtype: 'm.text',
+        },
+        event_id: eventId,
+        origin_server_ts: ts,
+        room_id: '!room:example.org',
+        sender: '@alice:example.org',
+        type: 'm.room.message',
+      });
+    const rootEvent = makeMessageEvent('$root', 1);
+    const staleLiveReply = makeMessageEvent('$reply', 2);
+    staleLiveReply.makeReplaced(longEdit('$edit-8', 8, 'stale'));
+    const cachedReply = makeMessageEvent('$reply', 2);
+    cachedReply.event.unsigned = {
+      'm.relations': { 'm.replace': longEdit('$edit-13', 13, 'shown').event },
+    };
+    const room = makeRoom(rootEvent);
+    const { getSnapshot, renderer } = renderHookHarness({
+      room,
+      roomTimelineSet: makeTimelineSet(),
+      threadTimelineSet: undefined,
+      threadId: '$root',
+      thread: makeThread(rootEvent, [staleLiveReply]),
+      threadInitialCacheHydrated: false,
+      threadFirstPaintHeld: true,
+    });
+    act(() => {
+      getSnapshot().setSupplementalThreadEvents('$root', [cachedReply]);
+    });
+
+    // Held, no rows show; the first paint reads the rows the release will show.
+    expect(getSnapshot().threadEvents).toEqual([]);
+    const rows = getSnapshot().getThreadRenderEvents('$root');
+    expect(rows[1]).toBe(cachedReply);
+    expect(getTailLongTextSources(rows, undefined).map((tail) => tail.mxcUri)).toEqual([
+      'mxc://example.org/shown',
+    ]);
 
     renderer.unmount();
   });

@@ -42,6 +42,8 @@ export type ThreadTargetCommands = {
 export type ThreadRenderPort = {
   reset(threadId?: string): void;
   append(threadId: string, events: MatrixEvent[]): void;
+  /** The rows the timeline shows for the thread once its first paint is let through. */
+  getEvents(threadId: string): MatrixEvent[];
   invalidateTimeline(): void;
 };
 export type ThreadOpenViewportPort = {

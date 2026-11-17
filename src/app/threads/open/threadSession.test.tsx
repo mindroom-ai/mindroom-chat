@@ -91,6 +91,7 @@ const openFixture = () => {
       append: vi.fn((_id, events: MatrixEvent[]) =>
         events.forEach((event) => rendered.set(event.getId()!, event))
       ),
+      getEvents: vi.fn(() => [...rendered.values()]),
       invalidateTimeline: vi.fn(),
     },
     viewport: { resetForOpen: vi.fn(), resetAfterLeave: vi.fn(), requestLatestPin: vi.fn() },

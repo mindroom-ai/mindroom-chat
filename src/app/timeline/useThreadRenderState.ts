@@ -31,6 +31,7 @@ import { logTimelineDebug } from '../diagnostics/timelineDebug';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { getPendingThreadEvents } from '../event-store/cache/pendingThreadEvents';
 import { getThreadTimelineEvents } from '../event-store/timeline/linkedTimelines';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
 
 type UseThreadRenderStateOpts = {
   room: Room;
@@ -182,8 +183,11 @@ export const useThreadRenderState = ({
   threadInitialRenderMode: ThreadInitialRenderMode;
   setSupplementalThreadEvents: (expectedThreadId: string, events: MatrixEvent[]) => void;
   resetThreadRenderState: (nextThreadId?: string) => void;
+  /** The thread's rows as they show once nothing holds them, read now (no render needed). */
+  getThreadRenderEvents: (expectedThreadId: string) => MatrixEvent[];
 } => {
   const threadEventIndexMapRef = useRef<Map<string, number>>(new Map());
+  const openThreadRef = useLatestRef({ threadId, thread });
   const threadSupplementalRelationIdsRef = useRef<ThreadRelationState>({
     threadId: undefined,
     relationEventIds: new Set(),
@@ -292,6 +296,25 @@ export const useThreadRenderState = ({
       setFallbackThreadEventsState(nextFallbackState);
     },
     [room, roomTimelineSet, threadTimelineSet]
+  );
+
+  const getThreadRenderEvents = useCallback(
+    (expectedThreadId: string) => {
+      const fallback = fallbackThreadEventsRef.current;
+      const open = openThreadRef.current;
+      if (open.threadId !== expectedThreadId) return EMPTY_THREAD_EVENTS;
+      return buildThreadEvents({
+        room,
+        threadId: expectedThreadId,
+        thread: open.thread,
+        fallbackEvents: fallback.threadId === expectedThreadId ? fallback.events : [],
+        prefixEvents: EMPTY_THREAD_EVENTS,
+        forkAt: undefined,
+        threadInitialCacheHydrated: true,
+        threadInitialSdkLoaded: true,
+      }).ownEvents;
+    },
+    [openThreadRef, room]
   );
 
   const resetThreadRenderState = useCallback((nextThreadId?: string) => {
@@ -432,5 +455,6 @@ export const useThreadRenderState = ({
     threadInitialRenderMode,
     setSupplementalThreadEvents,
     resetThreadRenderState,
+    getThreadRenderEvents,
   };
 };

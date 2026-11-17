@@ -16,7 +16,7 @@ import {
   runThreadOpenSdkBootstrap,
 } from './threadOpenSdkBootstrap';
 import { runThreadOpenTargetEvent } from './threadOpenTargetEvent';
-import { createThreadFirstPaintGate, hydrateThreadTailLongTexts } from './threadOpenFirstPaint';
+import { createThreadFirstPaintGate, getTailLongTextSources } from './threadOpenFirstPaint';
 import type {
   PendingThreadTarget,
   ThreadOpenRuntime,
@@ -239,17 +239,25 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
         };
         // A first open that knows of replies its first rows leave out shows the loading state
         // until a view without them is in and its last long texts have loaded, not the root and
-        // newest reply with the rest arriving between them a moment later.
-        const firstPaint = createThreadFirstPaintGate(
-          shouldScrollToLatestOnOpen && threadOpenSeedSession.hasGap(),
-          () => {
+        // newest reply with the rest arriving between them a moment later. Its long texts are
+        // those of the rows the timeline will show.
+        const firstPaint = createThreadFirstPaintGate({
+          held: shouldScrollToLatestOnOpen && threadOpenSeedSession.hasGap(),
+          mx,
+          readTail: () =>
+            getTailLongTextSources(
+              render.getEvents(threadId),
+              room.getThread(threadId)?.getUnfilteredTimelineSet() ??
+                room.getUnfilteredTimelineSet()
+            ),
+          onRelease: () => {
             if (!isCurrentThreadOpen()) return;
             publish((current) => ({
               ...current,
               open: { ...current.open, firstPaintHeld: false },
             }));
-          }
-        );
+          },
+        });
         threadOpenSeedSession.startUntargetedSeedPrewarmWait(isCurrentThreadOpen);
         if (!shouldScrollToLatestOnOpen) threadOpenSeedSession.applyInitialRoomThreadSeed();
         publish((current) => ({
@@ -320,10 +328,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
           },
         }).then((result) => {
           cacheResult = result;
-          if (cacheComplete) {
-            const cachedEvents = result.hydratedCachedPage?.hydratedEvents;
-            firstPaint.ready(() => hydrateThreadTailLongTexts(mx, room, threadId, cachedEvents));
-          }
+          if (cacheComplete) firstPaint.ready();
         });
         void cacheWork.catch(() => logTimelineDebug(debugTraceId, 'thread-cache-hydrate-error'));
 
@@ -365,7 +370,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
                 }
               },
             });
-            firstPaint.ready(() => hydrateThreadTailLongTexts(mx, room, threadId));
+            firstPaint.ready();
             if (!isCurrentThreadOpen()) return;
             if (!shouldContinue) return;
             liveProgressed = true;
