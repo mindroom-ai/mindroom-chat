@@ -152,7 +152,7 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
     [{ hasBackgroundApproval: true }, 'needs-attention', null],
   ] as const)(
     'renders workflow status %j as %s',
-    (status, expected, lastSenderId = '@agent:server') => {
+    (status, expected, lastSenderId: string | null = '@agent:server') => {
       const room = makeRoom();
       const record = buildThreadRecord({ room, threadRootId: '$root' });
       Object.assign(record.status, status);
