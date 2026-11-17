@@ -706,14 +706,15 @@ describe('LongTextText hydration identity', () => {
     }
   });
 
-  it('shows the loading line while a preview without text of its own waits for the sidecar', async () => {
+  it.each([
+    ['only a reply fallback', { body: '> <@alice:example.org> Previous reply\n\n' }],
+    ['an empty paragraph', { body: '', format: 'org.matrix.custom.html', formatted_body: '<p></p>' }],
+    ['HTML in an unrendered format', { body: '', format: 'x.y', formatted_body: '<b>x</b>' }],
+  ])('shows the loading line while a preview of %s waits for its sidecar', async (_, preview) => {
     vi.useFakeTimers();
     try {
       const { LongTextKind, LongTextText } = await getLongTextTextModule();
-      const content = {
-        ...createPreviewContent(),
-        body: '> <@alice:example.org> Previous reply\n\n',
-      };
+      const content = { ...createPreviewContent(), ...preview };
       longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(new Promise(() => undefined));
       let renderer!: ReactTestRenderer;
       await act(async () => {

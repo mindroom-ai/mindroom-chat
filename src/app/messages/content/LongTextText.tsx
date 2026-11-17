@@ -307,12 +307,10 @@ export function LongTextText({
 
   const afterBody = renderAfterBody?.(content, displayContent);
   // Until the whole message is in, the preview shows on its own: link previews come from the
-  // full body, and the loading line only stands in for a preview with no text of its own.
+  // full body, and the loading line only stands in for a preview with no plain text of its own.
   // Either would appear and go while the sidecar loads, moving the rows around it.
   const urlsPreview = toolMetadataStatus === 'loading' ? undefined : renderUrlsPreview;
-  const previewHasText =
-    hasRenderableFormattedBody(displayContent) ||
-    trimReplyFromBody(getStringValue(displayContent, 'body') ?? '').trim().length > 0;
+  const previewHasText = !!trimReplyFromBody(getStringValue(displayContent, 'body') ?? '').trim();
 
   let textContent: ReactNode;
   if (kind === LongTextKind.Emote) {
