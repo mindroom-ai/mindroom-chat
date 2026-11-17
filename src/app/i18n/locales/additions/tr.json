@@ -1322,6 +1322,8 @@
     "layout": "Konu düzeni",
     "layoutRecent": "Son",
     "layoutSections": "Bölümler",
+    "group": "Grupla",
+    "groupHint": "Duruma göre grupla",
     "sections": {
       "working": "Çalışıyor",
       "later": "Sonra",

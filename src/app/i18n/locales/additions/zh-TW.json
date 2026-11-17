@@ -1296,6 +1296,8 @@
     "layout": "討論串版面",
     "layoutRecent": "最近",
     "layoutSections": "分區",
+    "group": "分組",
+    "groupHint": "依狀態分組",
     "sections": {
       "working": "進行中",
       "later": "稍後",

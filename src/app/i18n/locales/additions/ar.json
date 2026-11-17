@@ -1426,6 +1426,8 @@
     "layout": "تخطيط سلاسل المحادثات",
     "layoutRecent": "الأحدث",
     "layoutSections": "أقسام",
+    "group": "تجميع",
+    "groupHint": "تجميع حسب الحالة",
     "sections": {
       "working": "قيد العمل",
       "later": "لاحقًا",

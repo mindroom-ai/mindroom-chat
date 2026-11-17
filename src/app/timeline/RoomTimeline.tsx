@@ -204,6 +204,10 @@ export type RoomTimelineProps = {
   onClearTags?: () => void;
   onSelectTab?: (tab: ThreadWorkflowTab) => void;
   onSearchQueryChange?: (query: string) => void;
+  /** Compact shows its cards in sections (Working, Needs you, Later, Done). */
+  threadSections?: boolean;
+  /** The Compact filter bar's switch for `threadSections`. */
+  onToggleThreadSections?: () => void;
   viewMode: RoomViewMode;
   compactRoomScrollStateRef?: MutableRefObject<ScrollAnchorMemory>;
   /** Where the room's rows were when a thread opened over them (`useThreadReturnPlace`). */
@@ -1553,6 +1557,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // The header's filter button hides the bar; the filters keep applying while it is hidden.
   const filterBarShown =
     showRoomThreadOverviewControls && !plainConversation && !hideThreadFilterBar;
+  // Agent rooms' cards can show in sections; the bar hides the sort only while they do.
+  const sectionsOffered = compactCards && hasMindroomAgents;
+  const threadSectionsShown = sectionsOffered && props.threadSections === true;
   const filterBar = filterBarShown && (
     <FilterBarSlot onHeight={setFilterBarHeight}>
       <RoomThreadOverview
@@ -1582,6 +1589,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
         onRemoveTag={props.onRemoveTag ?? ignoreFilterChange}
         onClearTags={props.onClearTags ?? ignoreFilterChange}
         onSearchQueryChange={props.onSearchQueryChange ?? ignoreFilterChange}
+        threadSections={threadSectionsShown}
+        onToggleThreadSections={sectionsOffered ? props.onToggleThreadSections : undefined}
         peopleFilter={
           props.onTogglePerson && (
             <ThreadPeopleFilter
@@ -1645,6 +1654,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
           onThreadClick={(rootId) => navigateRoomThread(room.roomId, rootId)}
           compactRoomScrollStateRef={compactRoomScrollStateRef}
           filterBarShown={filterBarShown}
+          // The clock the list was filtered at, so the sections show what the selected tab does.
+          sectionsNow={threadSectionsShown ? threadIndex.snoozeNow : undefined}
         />
       </Box>
     );

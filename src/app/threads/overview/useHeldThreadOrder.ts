@@ -16,7 +16,7 @@ import {
  * puts before every shown thread leads (the top of a newest-first list, its live end), one it
  * puts after all of them ends the list, and one between follows its live neighbour.
  */
-const holdOrder = (shownIds: string[], liveIds: string[]): string[] => {
+export const holdOrder = (shownIds: readonly string[], liveIds: readonly string[]): string[] => {
   const live = new Set(liveIds);
   const kept = shownIds.filter((id) => live.has(id));
   const keptIds = new Set(kept);

@@ -1322,6 +1322,8 @@
     "layout": "Thread layout",
     "layoutRecent": "Recent",
     "layoutSections": "Sections",
+    "group": "Group",
+    "groupHint": "Group by status",
     "sections": {
       "working": "Working",
       "later": "Later",

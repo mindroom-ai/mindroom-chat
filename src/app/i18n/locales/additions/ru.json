@@ -1374,6 +1374,8 @@
     "layout": "Вид списка веток",
     "layoutRecent": "Недавние",
     "layoutSections": "Разделы",
+    "group": "Группы",
+    "groupHint": "Группировать по статусу",
     "sections": {
       "working": "В работе",
       "later": "Позже",

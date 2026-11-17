@@ -1322,6 +1322,8 @@
     "layout": "Indeling van threads",
     "layoutRecent": "Recent",
     "layoutSections": "Secties",
+    "group": "Groeperen",
+    "groupHint": "Groeperen op status",
     "sections": {
       "working": "Bezig",
       "later": "Later",

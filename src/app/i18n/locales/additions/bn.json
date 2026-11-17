@@ -1322,6 +1322,8 @@
     "layout": "থ্রেডের বিন্যাস",
     "layoutRecent": "সাম্প্রতিক",
     "layoutSections": "বিভাগ",
+    "group": "গ্রুপ",
+    "groupHint": "অবস্থা অনুযায়ী গ্রুপ করুন",
     "sections": {
       "working": "কাজ চলছে",
       "later": "পরে",

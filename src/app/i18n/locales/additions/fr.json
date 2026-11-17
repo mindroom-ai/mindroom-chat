@@ -1348,6 +1348,8 @@
     "layout": "Disposition des fils",
     "layoutRecent": "Récents",
     "layoutSections": "Sections",
+    "group": "Grouper",
+    "groupHint": "Grouper par statut",
     "sections": {
       "working": "En cours",
       "later": "Plus tard",

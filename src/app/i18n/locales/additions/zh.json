@@ -1296,6 +1296,8 @@
     "layout": "讨论串布局",
     "layoutRecent": "最近",
     "layoutSections": "分区",
+    "group": "分组",
+    "groupHint": "按状态分组",
     "sections": {
       "working": "进行中",
       "later": "稍后",

@@ -1296,6 +1296,8 @@
     "layout": "スレッドの表示方法",
     "layoutRecent": "最近",
     "layoutSections": "セクション",
+    "group": "グループ",
+    "groupHint": "状態ごとにグループ化",
     "sections": {
       "working": "作業中",
       "later": "後で",

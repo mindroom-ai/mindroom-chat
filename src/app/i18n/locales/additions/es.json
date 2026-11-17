@@ -1348,6 +1348,8 @@
     "layout": "Disposición de los hilos",
     "layoutRecent": "Recientes",
     "layoutSections": "Secciones",
+    "group": "Agrupar",
+    "groupHint": "Agrupar por estado",
     "sections": {
       "working": "En curso",
       "later": "Más tarde",

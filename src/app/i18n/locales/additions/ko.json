@@ -1296,6 +1296,8 @@
     "layout": "스레드 배치",
     "layoutRecent": "최근",
     "layoutSections": "섹션",
+    "group": "그룹",
+    "groupHint": "상태별로 그룹화",
     "sections": {
       "working": "작업 중",
       "later": "나중에",

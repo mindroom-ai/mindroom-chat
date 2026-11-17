@@ -1348,6 +1348,8 @@
     "layout": "Disposição dos tópicos",
     "layoutRecent": "Recentes",
     "layoutSections": "Secções",
+    "group": "Agrupar",
+    "groupHint": "Agrupar por estado",
     "sections": {
       "working": "Em curso",
       "later": "Mais tarde",
