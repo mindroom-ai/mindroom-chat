@@ -5,6 +5,7 @@ import {
   useState,
   type FocusEvent,
   type KeyboardEvent,
+  type MouseEvent,
   type PointerEvent,
 } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
@@ -45,9 +46,6 @@ export function ThreadSummaryMarker({
   const cardRef = useRef<HTMLDivElement>(null);
   const linkRef = useRef<HTMLButtonElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout>>();
-  // A press in the card that moves focus nowhere (Safari does not focus a pressed button) blurs
-  // the trigger without a related target; it must not close the card it landed in.
-  const pressedCard = useRef(false);
   const [open, setOpen] = useState<{ mode: OpenMode; anchor: RectCords }>();
   const descriptionId = useId();
   const cardId = useId();
@@ -59,13 +57,18 @@ export function ThreadSummaryMarker({
   };
   const close = () => {
     cancelClose();
-    pressedCard.current = false;
     setOpen(undefined);
   };
   const show = (mode: OpenMode) => {
     cancelClose();
     const trigger = triggerRef.current;
     if (trigger) setOpen({ mode, anchor: trigger.getBoundingClientRect() });
+  };
+  // The keyboard or focus reached the card: the pointer leaving must not take it, nor a close
+  // the pointer already started, or the focus in it would drop to the page.
+  const pin = () => {
+    cancelClose();
+    setOpen((current) => current && { ...current, mode: 'pinned' });
   };
   // The pointer left the marker or its card: a card it can enter waits for it a moment.
   const leave = (evt: PointerEvent) => {
@@ -79,9 +82,7 @@ export function ThreadSummaryMarker({
   };
   const onFocusLeave = (evt: FocusEvent) => {
     const next = evt.relatedTarget;
-    if (within(triggerRef.current, next) || within(cardRef.current, next)) return;
-    if (pressedCard.current) return;
-    close();
+    if (!within(triggerRef.current, next) && !within(cardRef.current, next)) close();
   };
 
   useEffect(() => () => clearTimeout(closeTimer.current), []);
@@ -188,13 +189,11 @@ export function ThreadSummaryMarker({
         }}
         onPointerLeave={leave}
         onClick={() => (open?.mode === 'pinned' ? close() : show('pinned'))}
-        onFocus={() => {
-          pressedCard.current = false;
-        }}
         onKeyDown={(evt: KeyboardEvent) => {
           // The card lives in the body, so Tab would skip it; send it to the card's link.
           if (evt.key !== 'Tab' || evt.shiftKey || !open || !linkRef.current) return;
           evt.preventDefault();
+          pin();
           linkRef.current.focus();
         }}
         onBlur={onFocusLeave}
@@ -231,12 +230,10 @@ export function ThreadSummaryMarker({
                 if (evt.pointerType === 'mouse') cancelClose();
               }}
               onPointerLeave={leave}
-              onPointerDownCapture={() => {
-                pressedCard.current = true;
-              }}
-              onFocus={() => {
-                pressedCard.current = false;
-              }}
+              // A press in the card keeps focus where it is (Safari focuses no pressed button,
+              // so the marker would blur to nothing and close the card under the press).
+              onMouseDown={(evt: MouseEvent) => evt.preventDefault()}
+              onFocus={pin}
               onBlur={onFocusLeave}
             >
               {details}

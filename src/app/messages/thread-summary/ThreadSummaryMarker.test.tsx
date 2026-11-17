@@ -41,7 +41,7 @@ let nodes: { trigger?: HTMLElement; card?: HTMLElement; link?: HTMLElement } = {
 const nodeMock = (element: React.ReactElement<Record<string, unknown>>) => {
   const node = document.createElement(typeof element.type === 'string' ? element.type : 'div');
   node.getBoundingClientRect = () => ({ ...triggerRect } as DOMRect);
-  node.focus = vi.fn();
+  vi.spyOn(node, 'focus');
   if (element.props.className === 'MarkerTrigger') nodes.trigger = node;
   if (element.props.className === 'MarkerSettingsLink') nodes.link = node;
   if (element.props.role === 'dialog') {
@@ -333,7 +333,60 @@ describe('ThreadSummaryMarker', () => {
       expect(popout(renderer)).toHaveLength(0);
     });
 
-    it('counts a press in the card as inside', async () => {
+    it('goes on from the marker on a plain Tab from the link', async () => {
+      const renderer = renderWithSettings();
+
+      await act(() => trigger(renderer).props.onClick());
+      const tab = keyDown('Tab');
+      act(() => {
+        link(renderer).props.onKeyDown(tab);
+      });
+
+      // The browser's own Tab then moves on from the marker, past the card in the body.
+      expect(nodes.trigger!.focus).toHaveBeenCalled();
+      expect(tab.preventDefault).not.toHaveBeenCalled();
+    });
+
+    it('keeps the card when Tab reaches the link while a pointer close is pending', async () => {
+      vi.useFakeTimers();
+      const renderer = renderWithSettings();
+
+      await act(() => trigger(renderer).props.onPointerEnter(mouse));
+      await act(() => trigger(renderer).props.onPointerLeave(mouse));
+      act(() => {
+        trigger(renderer).props.onKeyDown(keyDown('Tab'));
+      });
+      expect(nodes.link!.focus).toHaveBeenCalled();
+      act(() => {
+        vi.advanceTimersByTime(MARKER_DETAILS_CLOSE_DELAY_MS * 4);
+      });
+      expect(popout(renderer)).toHaveLength(1);
+
+      // Pinned now: the pointer leaving the card does not start another close.
+      await act(() => card(renderer).props.onPointerLeave(mouse));
+      act(() => {
+        vi.advanceTimersByTime(MARKER_DETAILS_CLOSE_DELAY_MS * 4);
+      });
+      expect(popout(renderer)).toHaveLength(1);
+    });
+
+    it('keeps the card while its link has focus and the pointer leaves', async () => {
+      vi.useFakeTimers();
+      const renderer = renderWithSettings();
+
+      await act(() => trigger(renderer).props.onPointerEnter(mouse));
+      await act(() => trigger(renderer).props.onPointerLeave(mouse));
+      await act(() => card(renderer).props.onPointerEnter(mouse));
+      await act(() => card(renderer).props.onFocus());
+      await act(() => card(renderer).props.onPointerLeave(mouse));
+      act(() => {
+        vi.advanceTimersByTime(MARKER_DETAILS_CLOSE_DELAY_MS * 4);
+      });
+
+      expect(popout(renderer)).toHaveLength(1);
+    });
+
+    it('counts a press in the card as inside and keeps focus where it is', async () => {
       const renderer = renderWithSettings();
 
       await act(() => trigger(renderer).props.onClick());
@@ -342,17 +395,31 @@ describe('ThreadSummaryMarker', () => {
       });
       expect(popout(renderer)).toHaveLength(1);
 
-      // A press that focuses nothing (Safari) blurs the marker without a related target.
-      act(() => {
-        card(renderer).props.onPointerDownCapture();
-      });
-      await act(() => trigger(renderer).props.onBlur({ relatedTarget: null }));
-      expect(popout(renderer)).toHaveLength(1);
+      // Without the focus moving, the marker does not blur to nothing under the press (Safari).
+      const press = { preventDefault: vi.fn() };
+      card(renderer).props.onMouseDown(press);
+      expect(press.preventDefault).toHaveBeenCalled();
 
       act(() => {
         document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
       });
       expect(popout(renderer)).toHaveLength(0);
+    });
+
+    it('closes on Escape and gives focus in the card back to the marker', async () => {
+      const renderer = renderWithSettings();
+
+      await act(() => trigger(renderer).props.onClick());
+      act(() => {
+        nodes.link!.focus();
+      });
+      expect(document.activeElement).toBe(nodes.link);
+      act(() => {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      });
+
+      expect(popout(renderer)).toHaveLength(0);
+      expect(nodes.trigger!.focus).toHaveBeenCalled();
     });
 
     it('closes on Escape', async () => {
