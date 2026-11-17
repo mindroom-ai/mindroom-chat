@@ -103,7 +103,7 @@ const gradeOf = (matches: readonly CommandPaletteMatch<unknown>[]): number => {
 /**
  * The sections of `tab` that the client fills from what it holds, for `searchText` (trimmed), in
  * the order shown. On All, typed text puts the section whose first row matches best first;
- * sections that match alike keep the order rooms, threads, people, actions. Only local rows
+ * sections that match alike keep the order threads, rooms, people, actions. Only local rows
  * decide the order, so a section never moves when the server answers. A section without rows is
  * left out, except People for typed text, which the server's user directory may still fill.
  */

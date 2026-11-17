@@ -1,26 +1,28 @@
 import type { CommandPaletteSectionId, CommandPaletteTab } from './commandPaletteTypes';
 
-// Switching rooms is the most common reason to open the palette, so rooms lead All. Messages
-// come from the server after everything else, so they go last and arrive below what is shown.
+// Going back to a thread just left is the most common reason to open the palette, so threads,
+// whose visited ones come first, lead All; rooms follow. Messages come from the server after
+// everything else, so they go last and arrive below what is shown.
 const ALL_EMPTY_SECTION_ORDER: readonly CommandPaletteSectionId[] = [
-  'rooms',
   'threads',
+  'rooms',
   'actions',
   'users',
 ];
 
 const ALL_TYPED_SECTION_ORDER: readonly CommandPaletteSectionId[] = [
-  'rooms',
   'threads',
+  'rooms',
   'users',
   'actions',
   'messages',
 ];
 
-// All shows the top few of each section; a section's own tab shows many more.
+// All shows the top few of each section; a section's own tab shows many more. Five threads leave
+// two active ones below the three visited last.
 const ALL_TAB_SECTION_LIMITS: Readonly<Record<CommandPaletteSectionId, number>> = {
   rooms: 5,
-  threads: 3,
+  threads: 5,
   users: 3,
   actions: 3,
   messages: 3,
