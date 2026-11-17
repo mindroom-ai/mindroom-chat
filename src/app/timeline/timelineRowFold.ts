@@ -85,48 +85,65 @@ const showsRow = (
  * The reply quote state after a row. `targetId` is set while the rows down to `rowId` all reply
  * to it, starting right below it: a message, the router's transcript of it, and the agent's
  * answer to it, or two agents answering one question. A reply to `targetId` from the next row
- * continues that run, so its quote would repeat the message right above the run.
+ * continues that run, so its quote would repeat the message right above the run. `markerIds` are
+ * the quiet marker rows below `rowId`: they show right above the next row too, but are no message
+ * between it and the rows above them.
  */
-type ReplyRun = { rowId?: string; targetId?: string };
+type ReplyRun = { rowId?: string; targetId?: string; markerIds?: readonly string[] };
+
+/** Whether a reply to `replyId` shows its target right above, past the run's `rowId`. */
+const showsAbove = (run: ReplyRun, replyId: string): boolean =>
+  replyId === run.targetId || !!run.markerIds?.includes(replyId);
 
 /** The message a reply on `event` needs no quote for, given the run of rows above it. */
 const inPlaceReplyEventId = (run: ReplyRun, event: MatrixEvent): string | undefined => {
   const replyId = genuineReplyEventId(event);
-  return replyId !== undefined && replyId === run.targetId ? replyId : run.rowId;
+  return replyId !== undefined && showsAbove(run, replyId) ? replyId : run.rowId;
 };
 
 const continueReplyRun = (run: ReplyRun, event: MatrixEvent): ReplyRun => {
   const replyId = genuineReplyEventId(event);
-  const continues = replyId !== undefined && (replyId === run.targetId || replyId === run.rowId);
+  const continues = replyId !== undefined && (showsAbove(run, replyId) || replyId === run.rowId);
   return { rowId: event.getId(), targetId: continues ? replyId : undefined };
 };
 
+const passMarker = (run: ReplyRun, event: MatrixEvent): ReplyRun => ({
+  ...run,
+  markerIds: [...(run.markerIds ?? []), event.getId() ?? ''],
+});
+
 /**
- * The reply run above `index`, read backwards: the nearest row, and the message it and the rows
- * above it all reply to, if that message sits right above them. Matches folding from the top.
+ * The reply run above `index`, read backwards: the quiet markers below the nearest other row, that
+ * row, and the message it and the rows above it all reply to, if that message sits right above
+ * them past quiet markers. Matches folding from the top.
  */
 const primeReplyRun = (
   getEvent: (index: number) => MatrixEvent | undefined,
   index: number,
-  isSkipped: (event: MatrixEvent) => boolean
+  isSkipped: (event: MatrixEvent) => boolean,
+  isQuietMarker: (event: MatrixEvent) => boolean
 ): ReplyRun => {
+  const markerIds: string[] = [];
   let rowId: string | undefined;
   let targetId: string | undefined;
   for (let above = index - 1; above >= 0; above -= 1) {
     const event = getEvent(above);
     if (showsRow(event, isSkipped)) {
-      if (rowId === undefined) {
+      if (rowId !== undefined && event.getId() === targetId) {
+        return { rowId, targetId, markerIds: markerIds.reverse() };
+      }
+      if (isQuietMarker(event)) {
+        if (rowId === undefined) markerIds.push(event.getId() ?? '');
+      } else if (rowId === undefined) {
         rowId = event.getId();
         targetId = genuineReplyEventId(event);
         if (targetId === undefined) break;
-      } else if (event.getId() === targetId) {
-        return { rowId, targetId };
       } else if (genuineReplyEventId(event) !== targetId) {
         break;
       }
     }
   }
-  return { rowId };
+  return { rowId, markerIds: markerIds.reverse() };
 };
 
 type FoldOptions = {
@@ -140,6 +157,11 @@ type FoldOptions = {
   readUptoAbsoluteIndex?: number;
   /** A row that starts a group whatever is above it: a fork's first own row, under its divider. */
   groupStartIndex?: number;
+  /**
+   * A row that renders as a quiet marker line, such as a thread's title: no message between a
+   * message and a reply to it, so the reply's quote looks past it.
+   */
+  isQuietMarker?: (event: MatrixEvent) => boolean;
 };
 
 /**
@@ -149,7 +171,7 @@ type FoldOptions = {
  * whether or not the rows above it are mounted. An event without a row (an edit,
  * a reaction, or an event of a type the timeline draws nothing for) counts as the row above (it
  * ends a group) but renders nothing, so a day change or the read marker at it shows above the
- * next row with output instead, and a reply quote looks past it.
+ * next row with output instead, and a reply quote looks past it, as past a quiet marker row.
  */
 export const foldTimelineRowContexts = ({
   indexes,
@@ -158,6 +180,7 @@ export const foldTimelineRowContexts = ({
   getAbsoluteIndex,
   readUptoAbsoluteIndex,
   groupStartIndex,
+  isQuietMarker = () => false,
 }: FoldOptions): Map<number, TimelineRowContext> => {
   const contexts = new Map<number, TimelineRowContext>();
   const firstIndex = indexes[0];
@@ -171,7 +194,7 @@ export const foldTimelineRowContexts = ({
   let above: MatrixEvent | undefined;
   let aboveHasRow = false;
   let dayChanged = false;
-  let replyRun = primeReplyRun(getEvent, before, isSkipped);
+  let replyRun = primeReplyRun(getEvent, before, isSkipped, isQuietMarker);
 
   for (let index = Math.max(before, 0); index <= lastIndex; index += 1) {
     const event = getEvent(index);
@@ -202,7 +225,9 @@ export const foldTimelineRowContexts = ({
       if (hasRow) {
         dayChanged = false;
         lastRowAbsoluteIndex = absoluteIndex;
-        replyRun = continueReplyRun(replyRun, event);
+        replyRun = isQuietMarker(event)
+          ? passMarker(replyRun, event)
+          : continueReplyRun(replyRun, event);
       }
       above = event;
       aboveHasRow = hasRow;

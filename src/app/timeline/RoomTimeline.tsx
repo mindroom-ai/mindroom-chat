@@ -1720,6 +1720,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     isHiddenByPlugin,
     isHiddenByPluginId,
     renderEvent: feature.renderEvent,
+    isQuietMarkerRow: feature.isQuietMarkerRow,
     forkDivider,
     forkingDivider,
     unreadMarkerRef: setUnreadMarker,
