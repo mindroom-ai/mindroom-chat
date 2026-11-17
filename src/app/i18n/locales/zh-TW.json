@@ -1276,25 +1276,15 @@
     "commands": {
       "CommandMe": "傳送操作訊息",
       "CommandNotice": "傳送通知訊息",
-      "CommandShrug": "將 ¯\\_(ツ)_/¯ 作為訊息傳送",
-      "CommandTableFlip": "將 {{value1}} 作為訊息傳送",
-      "CommandUnFlip": "將 {{value1}} 作為訊息傳送",
       "CommandStartDm": "與使用者開始私訊。範例：/startdm userId1",
       "CommandJoin": "使用地址加入房間。範例：/join address1 address2",
       "CommandLeave": "離開目前房間。",
       "CommandInvite": "邀請使用者加入房間。範例：/invite userId1 userId2 [-r reason]",
-      "CommandDisInvite": "撤銷使用者的房間邀請。範例：/disinvite userId1 userId2 [-r reason]",
       "CommandKick": "將使用者移出房間。範例：/kick userId1 userId2 servername [-r reason]",
       "CommandBan": "在房間中封鎖使用者。範例：/ban userId1 userId2 servername [-r reason]",
       "CommandUnBan": "解除使用者的房間封鎖。範例：/unban userId1 userId2",
       "CommandIgnore": "忽略使用者。範例：/ignore userId1 userId2",
-      "CommandUnIgnore": "取消忽略使用者。範例：/unignore userId1 userId2",
-      "CommandMyRoomNick": "變更目前房間的暱稱。",
-      "CommandMyRoomAvatar": "變更目前房間中的大頭貼。範例 /myroomavatar mxc://xyzabc",
-      "CommandConvertToDm": "將房間轉換為直接訊息",
-      "CommandConvertToRoom": "將私訊轉換為房間",
-      "CommandDelete": "刪除使用者的訊息。範例：/delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandAcl": "管理伺服器存取控制清單。範例 /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]"
+      "CommandUnIgnore": "取消忽略使用者。範例：/unignore userId1 userId2"
     },
     "item": {
       "value1Emoji": "{{value1}} 表情符號"

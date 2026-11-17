@@ -125,12 +125,23 @@ const useRoomThreadListComplete = (room: Room): boolean => {
   return roomThreadListIsComplete(room);
 };
 
+export type ThreadBoardProps = {
+  room: Room;
+  /**
+   * Told the root of each thread the board opens, by any of its cards' ways (a click or tap, Enter,
+   * the card menu's Open thread), also of the thread the room already shows. It runs before the
+   * board opens the thread, so what a host changes to make room for it (folding its panel) is
+   * never later than the thread shows.
+   */
+  onOpenThread?: (threadRootId: string) => void;
+};
+
 /**
  * The room's threads, those with a reply or one of the user's sending, in a column each by state:
  * Working, Later, Open, Done (`threadBoardColumns.ts`), from the app-wide thread index, in any
  * view of the room and beside any page. It fills its parent and scrolls inside it.
  */
-export function ThreadBoard({ room }: { room: Room }) {
+export function ThreadBoard({ room, onOpenThread }: ThreadBoardProps) {
   const { t } = useTranslation();
   const { navigateRoomThread } = useRoomNavigate();
   const indexed = useRoomThreadRecords(room.roomId);
@@ -152,8 +163,11 @@ export function ThreadBoard({ room }: { room: Room }) {
   const columns = useMemo(() => groupThreadBoard(records, { jobs, now }), [records, jobs, now]);
   const { roomId } = room;
   const openThread = useCallback(
-    (rootId: string) => navigateRoomThread(roomId, rootId),
-    [navigateRoomThread, roomId]
+    (rootId: string) => {
+      onOpenThread?.(rootId);
+      navigateRoomThread(roomId, rootId);
+    },
+    [navigateRoomThread, onOpenThread, roomId]
   );
 
   // Until the index has scanned the rooms and the room's thread list is in, it may lack threads.

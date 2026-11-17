@@ -1288,25 +1288,15 @@
     "commands": {
       "CommandMe": "Invia messaggio d'azione",
       "CommandNotice": "Invia messaggio di avviso",
-      "CommandShrug": "Invia ¯\\_(ツ)_/¯ come messaggio",
-      "CommandTableFlip": "Invia {{value1}} come messaggio",
-      "CommandUnFlip": "Invia {{value1}} come messaggio",
       "CommandStartDm": "Avvia un messaggio diretto con un utente. Esempio: /startdm userId1",
       "CommandJoin": "Entra in una stanza con un indirizzo. Esempio: /join address1 address2",
       "CommandLeave": "Esci dalla stanza attuale.",
       "CommandInvite": "Invita un utente nella stanza. Esempio: /invite userId1 userId2 [-r reason]",
-      "CommandDisInvite": "Revoca l'invito di un utente nella stanza. Esempio: /disinvite userId1 userId2 [-r reason]",
       "CommandKick": "Espelli un utente dalla stanza. Esempio: /kick userId1 userId2 servername [-r reason]",
       "CommandBan": "Bandisci un utente dalla stanza. Esempio: /ban userId1 userId2 servername [-r reason]",
       "CommandUnBan": "Rimuovi il ban di un utente nella stanza. Esempio: /unban userId1 userId2",
       "CommandIgnore": "Ignora un utente. Esempio: /ignore userId1 userId2",
-      "CommandUnIgnore": "Smetti di ignorare un utente. Esempio: /unignore userId1 userId2",
-      "CommandMyRoomNick": "Cambia soprannome nella stanza attuale.",
-      "CommandMyRoomAvatar": "Cambia immagine del profilo nella stanza attuale. Esempio: /myroomavatar mxc://xyzabc",
-      "CommandConvertToDm": "Converti stanza in messaggio diretto",
-      "CommandConvertToRoom": "Converti messaggio diretto in stanza",
-      "CommandDelete": "Elimina i messaggi degli utenti. Esempio: /delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandAcl": "Gestisci l'elenco di controllo degli accessi al server. Esempio: /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]"
+      "CommandUnIgnore": "Smetti di ignorare un utente. Esempio: /unignore userId1 userId2"
     },
     "item": {
       "value1Emoji": "Emoji {{value1}}"

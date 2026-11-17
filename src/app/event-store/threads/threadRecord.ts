@@ -52,7 +52,6 @@ type BuildThreadRecordOptions = {
   fallbackLatestReplyPreviewText?: string;
   fallbackLatestReplyTs?: number;
   fallbackLastSenderId?: string;
-  fallbackLastSenderDisplayName?: string;
   fallbackMessageCount?: number;
   fallbackLastActivityTs?: number;
   fallbackParticipantIds?: string[];
@@ -74,7 +73,6 @@ type BuildThreadRecordMapOptions = {
   fallbackLatestReplyPreviewMap?: ReadonlyMap<string, string>;
   fallbackLatestReplyTsMap?: ReadonlyMap<string, number>;
   fallbackLastSenderIdMap?: ReadonlyMap<string, string>;
-  fallbackLastSenderDisplayNameMap?: ReadonlyMap<string, string>;
   fallbackMessageCountMap?: ReadonlyMap<string, number>;
   fallbackLastActivityTsMap?: ReadonlyMap<string, number>;
   fallbackParticipantMap?: ReadonlyMap<string, string[]>;
@@ -325,7 +323,6 @@ export const buildThreadRecord = ({
   fallbackLatestReplyPreviewText,
   fallbackLatestReplyTs,
   fallbackLastSenderId,
-  fallbackLastSenderDisplayName,
   fallbackMessageCount,
   fallbackLastActivityTs,
   fallbackParticipantIds,
@@ -387,7 +384,6 @@ export const buildThreadRecord = ({
     fallbackLatestReplyTs,
     fallbackLastActivityTs,
     fallbackLastSenderId,
-    fallbackLastSenderDisplayName,
     fallbackMessageCount: serverCounted
       ? recordReplyCount
       : Math.max(fallbackMessageCount ?? 0, recordReplyCount ?? 0),
@@ -491,7 +487,6 @@ export const buildThreadRecordMap = ({
   fallbackLatestReplyPreviewMap,
   fallbackLatestReplyTsMap,
   fallbackLastSenderIdMap,
-  fallbackLastSenderDisplayNameMap,
   fallbackMessageCountMap,
   fallbackLastActivityTsMap,
   fallbackParticipantMap,
@@ -519,7 +514,6 @@ export const buildThreadRecordMap = ({
       fallbackLatestReplyPreviewText: fallbackLatestReplyPreviewMap?.get(threadRootId),
       fallbackLatestReplyTs: fallbackLatestReplyTsMap?.get(threadRootId),
       fallbackLastSenderId: fallbackLastSenderIdMap?.get(threadRootId),
-      fallbackLastSenderDisplayName: fallbackLastSenderDisplayNameMap?.get(threadRootId),
       fallbackMessageCount: fallbackMessageCountMap?.get(threadRootId),
       fallbackLastActivityTs: fallbackLastActivityTsMap?.get(threadRootId),
       fallbackParticipantIds: fallbackParticipantMap?.get(threadRootId),

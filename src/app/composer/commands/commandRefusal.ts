@@ -1,5 +1,5 @@
 /** Why a command did not run, for the composer to explain in the person's language. */
-export type CommandRefusal = { code: 'usage' } | { code: 'ownServer'; server: string };
+export type CommandRefusal = { code: 'usage' };
 
 /** Thrown by a command that refuses to run; any other error carries its own reason. */
 export class CommandRefusedError extends Error {
