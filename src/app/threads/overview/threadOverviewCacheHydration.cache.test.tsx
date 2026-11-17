@@ -47,7 +47,7 @@ it('reads later overview batches even when the first threads have no cached repl
   const noRecords = new Map();
   let previews: ReadonlyMap<string, string> = new Map();
   function Harness() {
-    const cachedMetadata = useThreadOverviewCachedMetadata(room.roomId);
+    const cachedMetadata = useThreadOverviewCachedMetadata(room);
     previews = cachedMetadata.latestReplyPreviewMap;
     useThreadOverviewCacheHydration({
       overviewThreadRootIds: roots,
