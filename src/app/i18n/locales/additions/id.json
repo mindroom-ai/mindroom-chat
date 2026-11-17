@@ -774,6 +774,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "Subagen"
+      },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "Berjalan selama {{duration}}"
       }
     },
     "message-search": {

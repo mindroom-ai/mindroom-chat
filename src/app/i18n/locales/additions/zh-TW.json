@@ -774,6 +774,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "子代理"
+      },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "已執行 {{duration}}"
       }
     },
     "message-search": {

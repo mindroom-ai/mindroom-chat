@@ -807,6 +807,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "Субагенты"
+      },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "Выполняется уже {{duration}}"
       }
     },
     "message-search": {

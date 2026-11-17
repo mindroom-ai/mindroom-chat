@@ -7,33 +7,77 @@ import {
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
 import { sendRoomMessage } from '../helpers/matrix';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A letter typed while the focus is outside the composer moves the focus to the composer and
-// types there. A region of the page that needs its own typing keeps its keys: one marked
-// `data-keeps-typing`, and one whose handler cancels the keys it takes (`preventDefault`).
-// Chromium, against the disposable homeserver of `just hs-up` (or a slot of scripts/e2e-slot.sh).
+// types there, and a paste (Cmd+V or Ctrl+V) pastes there: in the room, and in an open thread
+// that fills the page, into the thread's composer. A region of the page that needs its own typing
+// keeps its keys: one marked `data-keeps-typing`, and one whose handler cancels the keys it takes
+// (`preventDefault`). Chromium, and the pastes in WebKit too when PLAYWRIGHT_WEBKIT_EXECUTABLE
+// names it, against the disposable homeserver of `just hs-up` (or a slot of scripts/e2e-slot.sh).
 const PASSWORD = 'type-to-compose-spec-password';
 const RUN = Date.now().toString(36);
 const MESSAGE = 'The shed gets its second coat of paint on Saturday.';
 
-test.use({ viewport: { width: 1280, height: 800 } });
+const VIEWPORT = { width: 1280, height: 800 };
+const PASTED = 'Bring the green brushes too.';
+
+test.use({ viewport: VIEWPORT });
 
 test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
-/** Signs a new account in and opens its room, which holds one message. */
-const openRoom = async (page: Page, name: string) => {
+/**
+ * Signs a new account in and opens its room, which holds one message, or that message's thread,
+ * which fills the page as threads do until a person shows one beside the room.
+ */
+const openRoom = async (page: Page, name: string, where: 'room' | 'thread' = 'room') => {
   const user = await registerDisposableUser(`type_to_compose_${name}_${RUN}`, PASSWORD);
   const roomId = await createRoom(HOMESERVER, user.accessToken, { name: 'Garden Shed' });
-  await sendRoomMessage(HOMESERVER, user.accessToken, roomId, { msgtype: 'm.text', body: MESSAGE });
+  const rootId = await sendRoomMessage(HOMESERVER, user.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: MESSAGE,
+  });
   await loginWithPassword(page, { homeserver: HOMESERVER, ...user });
-  await page.goto(`/home/${encodeURIComponent(roomId)}`);
-  const message = page.getByText(MESSAGE, { exact: true });
-  await expect(message).toBeVisible({ timeout: 30_000 });
-  const composer = page.locator('[data-editable-name="RoomInput"]');
-  await expect(composer).toBeVisible();
+  const thread = where === 'thread' ? `?threadId=${encodeURIComponent(rootId)}` : '';
+  await page.goto(`/home/${encodeURIComponent(roomId)}${thread}`);
+  const footer = page.locator(`[data-room-footer="true"][data-footer-of="${where}"]`);
+  const composer = footer.locator('[data-editable-name="RoomInput"]');
+  await expect(composer).toBeVisible({ timeout: 30_000 });
+  const message = page.getByText(MESSAGE, { exact: true }).last();
+  await expect(message).toBeVisible();
   return { composer, message };
+};
+
+/**
+ * Puts `text` on the clipboard with a native copy from a field of its own, which reaches the
+ * clipboard the same way in every engine, then takes the field away.
+ */
+const copyText = async (page: Page, text: string) => {
+  await page.evaluate(() => {
+    const field = document.createElement('textarea');
+    field.setAttribute('aria-label', 'Clipboard source');
+    field.style.cssText = 'position: fixed; top: 120px; left: 480px; z-index: 1000;';
+    document.body.append(field);
+  });
+  const field = page.getByRole('textbox', { name: 'Clipboard source' });
+  await field.fill(text);
+  await field.selectText();
+  await page.keyboard.press('ControlOrMeta+c');
+  await field.evaluate((element) => element.remove());
+};
+
+/** Copies a text, clicks the message (nothing editable focused) and pastes with Cmd+V or Ctrl+V. */
+const pastesIntoComposer = async (page: Page, name: string, where: 'room' | 'thread') => {
+  const { composer, message } = await openRoom(page, name, where);
+  await copyText(page, PASTED);
+  await message.click();
+  await expect(composer).not.toBeFocused();
+  await page.keyboard.press('ControlOrMeta+v');
+  await page.screenshot({ path: test.info().outputPath(`paste-${name}.png`) });
+  await expect(composer).toBeFocused();
+  await expect(composer).toHaveText(PASTED);
 };
 
 /**
@@ -94,3 +138,42 @@ test('a letter typed on the timeline starts a message in the composer', async ({
   await expect(composer).toBeFocused();
   await expect(composer).toHaveText('hello');
 });
+
+test('a paste on the timeline goes into the composer', async ({ page }) => {
+  await pastesIntoComposer(page, 'paste_room', 'room');
+});
+
+test("a paste in an open thread goes into the thread's composer", async ({ page }) => {
+  await pastesIntoComposer(page, 'paste_thread', 'thread');
+});
+
+test('a pasted image is staged in the composer as a file', async ({ context, page }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const { composer, message } = await openRoom(page, 'paste_image');
+  // A 1x1 PNG, as a screenshot copied to the clipboard would be.
+  await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    const png = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!png) throw new Error('No PNG');
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+  });
+  await message.click();
+  await page.keyboard.press('ControlOrMeta+v');
+  await expect(composer).toBeFocused();
+  // The composer stages the file (its card names it) and puts no text in the draft.
+  await expect(page.locator('[title="image.png"]')).toBeVisible({ timeout: 10_000 });
+  await page.screenshot({ path: test.info().outputPath('paste-image.png') });
+  await expect(composer.locator('[data-slate-string]')).toHaveCount(0);
+});
+
+for (const where of ['room', 'thread'] as const) {
+  test(`a paste goes into the composer in the ${where} (WebKit)`, async ({ baseURL }) => {
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.setTimeout(180_000);
+    await onWebKitPage({ viewport: VIEWPORT, baseURL }, (page) =>
+      pastesIntoComposer(page, `webkit_paste_${where}`, where)
+    );
+  });
+}
