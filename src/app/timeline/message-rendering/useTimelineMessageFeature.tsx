@@ -668,7 +668,9 @@ export const useTimelineMessageFeature = ({
             }
             resolvedMessageContent={content}
             replyTiming={
-              kind === 'message' ? getReplyTiming(event.getTs(), content, editedEvent) : undefined
+              kind === 'message' && isMindroomAgentUserId(event.getSender() ?? undefined)
+                ? getReplyTiming(event.getTs(), content, editedEvent)
+                : undefined
             }
             messageLayout={messageLayout}
             messageSpacing={messageSpacing}
