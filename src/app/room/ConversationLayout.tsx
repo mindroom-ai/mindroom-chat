@@ -35,8 +35,8 @@ const COLLAPSED_STYLE: CSSProperties = {
 const TIMELINE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
 // Groups what a plugin's cover hides, without a box of its own in the layout.
 const CONVERSATION_STYLE: CSSProperties = { display: 'contents' };
-// Background jobs and approvals float just above the composer, under what rises from it (the
-// footer, at the same z-index, comes later).
+// The typing strip, background jobs and approvals float just above the composer, under what
+// rises from it (the footer, at the same z-index, comes later).
 const DOCK_STYLE: CSSProperties = {
   position: 'absolute',
   insetInline: 0,
@@ -141,8 +141,8 @@ export type ConversationLayoutProps = {
 
 /**
  * One conversation, the room's own messages or a thread, as the room page shows it: the timeline
- * under a floating header (when it has one) and a floating footer with the typing notice, the
- * composer (or why there is none) and read receipts, with background jobs and the thread's
+ * under a floating header (when it has one) and a floating footer with the composer (or why
+ * there is none) and read receipts, with the typing notice, background jobs and the thread's
  * approvals above the composer. The room area and the thread view (`ThreadView`) both draw
  * through it, so a thread looks the same wherever it shows.
  */
@@ -205,12 +205,15 @@ export function ConversationLayout({
               </Box>
               <div ref={dockRef} style={DOCK_STYLE}>
                 <div style={DOCK_CONTENT_STYLE}>
-                  <BackgroundJobsBar
-                    room={room}
-                    threadId={threadId ?? null}
-                    canCancel={canCancelJobs && !readOnly}
-                    subagentRuns={subagentRuns}
-                  />
+                  <div className={overlay.DockRow}>
+                    <RoomViewTyping room={room} threadId={threadId} />
+                    <BackgroundJobsBar
+                      room={room}
+                      threadId={threadId ?? null}
+                      canCancel={canCancelJobs && !readOnly}
+                      subagentRuns={subagentRuns}
+                    />
+                  </div>
                   {threadId && !readOnly && <ThreadApprovalQueue />}
                 </div>
               </div>
@@ -222,7 +225,6 @@ export function ConversationLayout({
               data-room-footer="true"
               data-footer-of={threadId ? 'thread' : 'room'}
             >
-              <RoomViewTyping room={room} threadId={threadId} />
               {notice}
               {composer}
               <RoomViewFollowing room={room} threadId={threadId} />

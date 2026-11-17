@@ -8,7 +8,7 @@ const arrive = keyframes({
   to: { opacity: 1, transform: 'none' },
 });
 
-// A small glass strip above the composer, inset like the approval bar and the composer card.
+// A small glass strip above the composer, inset like the composer card by the dock's row.
 export const TypingStrip = style([
   glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
   glassFloating,
@@ -18,9 +18,8 @@ export const TypingStrip = style([
     gap: config.space.S200,
     // The strip hugs its text, up to the composer's width.
     inlineSize: 'fit-content',
-    maxInlineSize: `calc(100% - 2 * ${config.space.S400})`,
+    maxInlineSize: '100%',
     minWidth: 0,
-    marginInline: config.space.S400,
     marginBlockEnd: config.space.S200,
     paddingBlock: toRem(2),
     paddingInlineStart: config.space.S300,
@@ -36,7 +35,7 @@ export const TypingStrip = style([
 ]);
 
 // The ✕ that drops the strip: 24 px, 44 by 44 px to a finger. Its area reaches 8 px past the strip
-// on each side, as far as the gaps to the bar above it and to the composer below it go.
+// on each side, as far as the gaps to the jobs bar beside or above it and to the composer go.
 export const DropButton = style(touchTarget('22px'));
 
 export const TypingText = style({
