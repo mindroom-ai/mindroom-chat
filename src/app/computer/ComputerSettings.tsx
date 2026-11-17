@@ -63,13 +63,6 @@ export function ComputerSettings({ className }: { className?: string }) {
     }
   };
 
-  // Saving the found server makes it the person's choice, which secret requests also accept.
-  const saveDiscovered = () => {
-    if (placeholder === undefined || !persist(placeholder)) return;
-    setDraft(placeholder);
-    setFeedback('saved');
-  };
-
   const followDefault = () => {
     if (!persist(null)) return;
     setFeedback(undefined);
@@ -108,21 +101,6 @@ export function ComputerSettings({ className }: { className?: string }) {
               <Button onClick={save} variant="Primary" fill="Soft" size="300" radii="300">
                 <Text size="B300">{t('settings.general.computers.save')}</Text>
               </Button>
-              {placeholder !== undefined && (
-                <Button
-                  onClick={saveDiscovered}
-                  variant="Secondary"
-                  fill="Soft"
-                  size="300"
-                  radii="300"
-                >
-                  <Text size="B300">
-                    {t('featureUi.settings.computers.useServer', {
-                      host: new URL(placeholder).host,
-                    })}
-                  </Text>
-                </Button>
-              )}
               <Button
                 onClick={followDefault}
                 variant="Secondary"

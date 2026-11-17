@@ -366,7 +366,8 @@
       "computers": {
         "inUse": "Kullanılan sunucu",
         "inUseNone": "Ayarlanmadı, bu nedenle bu cihazda bilgisayarlar kapalı.",
-        "useServer": "{{host}} kullan"
+        "useServer": "{{host}} kullan",
+        "foundNotSaved": "Ajanlarınızdan bulundu, kaydedilmedi; burada anahtar girmek için kaydedin."
       },
       "keywords": {
         "theme": "karanlık mod, aydınlık mod, gece modu, renkler",
@@ -726,7 +727,7 @@
         "declinedWaiting": "Geri çevrildi, ajan bekleniyor",
         "noLongerActive": "Bu istek artık etkin değil. Ajandan yeniden isteyin.",
         "unavailable": "Bu sunucuda anahtar girilemez.",
-        "unavailableHint": "Burada anahtar girmek için MindRoom sunucunuzu Ayarlar → {{page}} → {{field}} bölümünde kaydedin.",
+        "unavailableHint": "Burada anahtar girmek için MindRoom sunucunuzu Ayarlar → {{page}} bölümünde kaydedin.",
         "replaces": "Şu an kayıtlı anahtarın yerini alır.",
         "replaceKey": "Anahtarı değiştir",
         "temporary": {

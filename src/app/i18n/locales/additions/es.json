@@ -371,7 +371,8 @@
       "computers": {
         "inUse": "Servidor en uso",
         "inUseNone": "No hay ninguno, así que los ordenadores están desactivados en este dispositivo.",
-        "useServer": "Usar {{host}}"
+        "useServer": "Usar {{host}}",
+        "foundNotSaved": "Encontrado a través de tus agentes, sin guardar; guárdalo para introducir claves aquí."
       },
       "keywords": {
         "theme": "modo oscuro, modo claro, modo noche, colores",
@@ -735,7 +736,7 @@
         "declinedWaiting": "Rechazada, esperando al agente",
         "noLongerActive": "Esta solicitud ya no está activa. Vuelve a pedírselo al agente.",
         "unavailable": "No se pueden introducir claves en este servidor.",
-        "unavailableHint": "Para introducir claves aquí, guarda tu servidor de MindRoom en Ajustes → {{page}} → {{field}}.",
+        "unavailableHint": "Para introducir claves aquí, guarda tu servidor de MindRoom en Ajustes → {{page}}.",
         "replaces": "Reemplaza la clave guardada ahora.",
         "replaceKey": "Reemplazar clave",
         "temporary": {
