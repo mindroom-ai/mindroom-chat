@@ -218,6 +218,45 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   await expect(partial.getByRole('listitem')).toHaveCount(3);
   await page.screenshot({ path: testInfo.outputPath('desktop-unlisted-jobs.png') });
 
+  // Wide, the typing strip and the jobs bar share the line above the composer, the strip first;
+  // on a phone the bar goes above the strip.
+  const setTyping = (typing: boolean) =>
+    matrixFetch(
+      HOMESERVER,
+      `/rooms/${encodeURIComponent(fixture.roomId)}/typing/${encodeURIComponent(coder.user_id)}`,
+      {
+        method: 'PUT',
+        accessToken: coder.access_token,
+        body: JSON.stringify({ typing, timeout: 60_000 }),
+      }
+    );
+  await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
+  const typingStrip = page.getByRole('status').filter({ hasText: /is typing/ });
+  const jobsBar = page.getByRole('region', { name: /background jobs/ });
+  await setTyping(true);
+  await expect(typingStrip).toBeVisible();
+  await expect(jobsBar).toBeVisible();
+  const placement = async () => {
+    const strip = (await typingStrip.boundingBox())!;
+    const jobs = (await jobsBar.boundingBox())!;
+    return {
+      stripFirst: strip.x + strip.width < jobs.x,
+      sameBottom: Math.abs(strip.y + strip.height - (jobs.y + jobs.height)) < 1,
+      barAbove: jobs.y + jobs.height <= strip.y,
+    };
+  };
+  await expect
+    .poll(placement)
+    .toEqual({ stripFirst: true, sameBottom: true, barAbove: false });
+  await page.screenshot({ path: testInfo.outputPath('desktop-typing-beside-jobs.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(placement)
+    .toEqual({ stripFirst: false, sameBottom: false, barAbove: true });
+  await page.screenshot({ path: testInfo.outputPath('phone-typing-under-jobs.png') });
+  await setTyping(false);
+  await expect(typingStrip).toHaveCount(0);
+
   // On a phone, the bar sits above the composer in light and dark.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(
