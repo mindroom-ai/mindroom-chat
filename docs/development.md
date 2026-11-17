@@ -22,6 +22,7 @@ The dev server answers `/config.json` with `config/mindroom.json`, so the sign-i
   3. Set the `image:` line of `e2e/docker-compose.yaml` to `ghcr.io/mindroom-ai/mindroom-tuwunel:<tag>@sha256:<digest>`.
   4. Run the smoke specs of `.github/workflows/ci.yml` (and any spec the release notes touch) against it, and fix the client in the same branch when one fails.
 - **Test backend.** `just agent-stack <slot> up` runs a real MindRoom backend against an end-to-end slot's homeserver, which must already run, with a stub model by default (no model is called). It needs `uv` and a MindRoom Git checkout. The agent specs (`e2e/<domain>/agent-*.spec.ts` that use `e2e/helpers/agentStack.ts`) start it themselves and skip without a checkout. The docstring of `scripts/agent-stack/stack.py` describes its options, ports, environment variables and exit codes, and `e2e/helpers/agentStack.ts` the options of the specs' `test`.
+- **Live tests** run on a fresh throwaway deployment, started with `~/repos/dev/scripts/live.py up --chat <this checkout> [--backend <mindroom worktree>]` (mindroom-ai/dev), never on lab or production.
 
 `just --list` shows every recipe; `AGENTS.md` describes them.
 

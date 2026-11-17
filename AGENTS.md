@@ -43,6 +43,8 @@ Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, 
 | `just check` | the full local check, every recipe its `justfile` line names. What CI runs: the `justfile` comment |
 | `scripts/push-gate.sh <checkout> --slot <n> [--rev <commit>] [--base <rev>]` | the checks the coordinator runs on a commit before every push: build, type, lint and unit checks, a key scan and 15 smoke specs; one summary table. Details: the script's header |
 
+Live tests run on a fresh throwaway deployment, started with `~/repos/dev/scripts/live.py up --chat <this checkout> [--backend <mindroom worktree>]` (mindroom-ai/dev), never on lab or production.
+
 ## Commits
 
 - Unsigned (`git -c commit.gpgsign=false commit`), on a branch, delivered as a pull request; never push to `main`.
