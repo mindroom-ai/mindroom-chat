@@ -32,6 +32,11 @@ export type ApplyThreadOverviewCachedMetadataUpdatesOptions = {
 
 export type ThreadOverviewCachedMetadataController = ThreadOverviewCachedMetadataSnapshot & {
   compactRootPreviewAttemptCountsRef: MutableRefObject<Map<string, number>>;
+  /**
+   * The threads this snapshot came with from an earlier mount, each until hydration reads it
+   * again: cache writes while no list was mounted went unheard.
+   */
+  inheritedRootIdsRef: MutableRefObject<Set<string>>;
   applyUpdate: (
     update: ThreadOverviewCachedMetadataUpdate | null | undefined,
     options?: ApplyThreadOverviewCachedMetadataUpdatesOptions
@@ -196,13 +201,17 @@ export const useThreadOverviewCachedMetadata = (
   const [snapshot, setSnapshot] = useState(() => snapshotOf(room));
   const snapshotRoomRef = useRef(room);
   const compactRootPreviewAttemptCountsRef = useRef<Map<string, number>>(new Map());
+  const [firstInheritedRootIds] = useState(() => new Set(snapshot.coverageMap.keys()));
+  const inheritedRootIdsRef = useRef(firstInheritedRootIds);
 
   useEffect(() => {
     // The initial snapshot is already this room's; replacing it rebuilds every thread record.
     if (snapshotRoomRef.current === room) return;
     snapshotRoomRef.current = room;
     compactRootPreviewAttemptCountsRef.current = new Map();
-    setSnapshot(snapshotOf(room));
+    const kept = snapshotOf(room);
+    inheritedRootIdsRef.current = new Set(kept.coverageMap.keys());
+    setSnapshot(kept);
   }, [room]);
 
   const applyUpdates = useCallback(
@@ -236,6 +245,7 @@ export const useThreadOverviewCachedMetadata = (
     () => ({
       ...snapshot,
       compactRootPreviewAttemptCountsRef,
+      inheritedRootIdsRef,
       applyUpdate,
       applyUpdates,
     }),
