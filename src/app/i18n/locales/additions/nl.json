@@ -775,6 +775,16 @@
           "saved": "Opgeslagen",
           "declined": "Geweigerd",
           "expired": "Verlopen"
+        },
+        "line": {
+          "expires": "Verloopt {{time}}",
+          "sentKept": "Verstuurd · {{duration}} bewaard"
+        },
+        "facts": {
+          "nothingSent": "Er is niets verstuurd of bewaard.",
+          "noAnswer": "Geen antwoord op tijd, dus er is niets verstuurd.",
+          "askedAs": "Gevraagd voor de opdrachten van {{agent}} in dit gesprek als {{variable}}.",
+          "replaced": "Heeft de eerder opgeslagen sleutel vervangen."
         }
       },
       "skillReviewMarker": {

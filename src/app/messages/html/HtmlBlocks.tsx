@@ -26,7 +26,17 @@ import {
   ToolMetadataStatus,
   getToolTraceV2Events,
   isToolTraceV2,
+  toolTraceCallId,
 } from '../../matrix/protocol/toolTrace';
+import {
+  effectiveSecretRequestStatus,
+  type SecretRequest,
+} from '../../matrix/protocol/secretRequest';
+import {
+  useInlineSecretRequests,
+  type InlineSecretRequest,
+} from '../../approvals/inlineSecretRequests';
+import { SecretRequestLine } from '../../approvals/SecretRequestLine';
 import * as css from './HtmlBlocks.css';
 import * as activityCss from '../../ui/ThreadActivity.css';
 import { ActivityIcon, ActivityResult, ActivityTone, ThreadActivity } from '../../ui/ThreadActivity';
@@ -202,6 +212,8 @@ type ToolBlockRenderData = {
   progress?: string;
   /** When a running call started, in Unix seconds, from frames that say (subagentToolStartedAt). */
   startedAt?: number;
+  /** The call's ID in the trace, which a secret request may name (inlineSecretRequests.ts). */
+  toolCallId?: string;
 };
 
 // How many of a running call's last output lines show under its tool calls.
@@ -227,10 +239,12 @@ const buildToolRefRenderData = (
   const argsPreview = asToolTraceText(eventRaw?.args_preview);
   const resultPreview = asToolTraceText(eventRaw?.result_preview);
   const command = argsPreview ? `${traceToolName}(${argsPreview})` : traceToolName;
+  const toolCallId = toolTraceCallId(eventRaw);
 
   if (!eventRaw && metadataStatus) {
     return {
       index: toolRef.index,
+      toolCallId,
       status: metadataStatus,
       command,
       toolName: traceToolName,
@@ -245,6 +259,7 @@ const buildToolRefRenderData = (
   ) {
     return {
       index: toolRef.index,
+      toolCallId,
       status: 'pending',
       command,
       toolName: traceToolName,
@@ -258,6 +273,7 @@ const buildToolRefRenderData = (
   if (resultPreview) {
     return {
       index: toolRef.index,
+      toolCallId,
       status: 'completed_with_result',
       command,
       toolName: traceToolName,
@@ -269,6 +285,7 @@ const buildToolRefRenderData = (
 
   return {
     index: toolRef.index,
+    toolCallId,
     status: 'completed',
     command,
     toolName: traceToolName,
@@ -460,14 +477,76 @@ function ToolRefGroupBlock({
   );
 }
 
+const SECRET_REQUEST_CALL_STATE = {
+  pending: 'waiting',
+  saved: 'done',
+  declined: 'denied',
+  expired: 'expired',
+} as const satisfies Record<SecretRequest['status'], ToolCallState>;
+
+/**
+ * A secret request the reply draws at the call that asked, instead of that call's line. While it
+ * waits it shows even where the reply's calls are hidden, and the cog counts it as waiting; once
+ * done it hides with them.
+ */
+function InlineSecretRequestBlock({ secret }: { secret: InlineSecretRequest }) {
+  const message = useContext(ToolCallMessageContext);
+  const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
+  const fold = useContext(ToolCallsFoldContext);
+  const { request, agentUserId } = secret;
+  const status = effectiveSecretRequestStatus(request, Date.now());
+  const toolName =
+    request.kind === 'key' ? request.displayName : request.label ?? request.env;
+  useFoldedToolCalls(
+    shown ? undefined : [{ toolName, state: SECRET_REQUEST_CALL_STATE[status] }]
+  );
+  const roomId = message?.roomId;
+  if (!roomId || (status !== 'pending' && !shown && fold && !fold.open)) return null;
+  return <SecretRequestLine request={request} roomId={roomId} agentUserId={agentUserId} />;
+}
+
+type ToolRunPart =
+  | { tools: ToolBlockRenderData[]; secret?: undefined }
+  | { secret: InlineSecretRequest; index: number };
+
+/** A run of calls, split at each call a secret request names, which takes that call's place. */
+const splitToolRunAtSecretRequests = (
+  tools: ToolBlockRenderData[],
+  secrets: ReadonlyMap<string, InlineSecretRequest>
+): ToolRunPart[] => {
+  if (secrets.size === 0) return [{ tools }];
+  const parts: ToolRunPart[] = [];
+  let run: ToolBlockRenderData[] = [];
+  tools.forEach((tool) => {
+    const secret = tool.toolCallId === undefined ? undefined : secrets.get(tool.toolCallId);
+    if (!secret) {
+      run.push(tool);
+      return;
+    }
+    if (run.length > 0) parts.push({ tools: run });
+    run = [];
+    parts.push({ secret, index: tool.index });
+  });
+  if (run.length > 0) parts.push({ tools: run });
+  return parts;
+};
+
 /**
  * A run of tool calls as the parser places it, then the reasoning that followed its last call
- * (Reasoning.tsx), which shows there also while the run itself is hidden.
+ * (Reasoning.tsx), which shows there also while the run itself is hidden. A secret request for
+ * one of its calls splits it, drawn on its own line where that call was.
  */
 function ToolRun({ tools }: { tools: ToolBlockRenderData[] }) {
+  const secrets = useInlineSecretRequests(useContext(ToolCallMessageContext)?.eventId);
   return (
     <>
-      <ToolRefGroupBlock parsedTools={tools} />
+      {splitToolRunAtSecretRequests(tools, secrets).map((part) =>
+        part.secret ? (
+          <InlineSecretRequestBlock key={`secret-${part.index}`} secret={part.secret} />
+        ) : (
+          <ToolRefGroupBlock key={`tools-${part.tools[0]!.index}`} parsedTools={part.tools} />
+        )
+      )}
       <ReasoningSegmentsAt anchor={tools.at(-1)?.index ?? 0} />
     </>
   );

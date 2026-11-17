@@ -784,6 +784,16 @@
           "saved": "Salvata",
           "declined": "Rifiutata",
           "expired": "Scaduta"
+        },
+        "line": {
+          "expires": "Scade {{time}}",
+          "sentKept": "Inviato · conservato {{duration}}"
+        },
+        "facts": {
+          "nothingSent": "Non è stato inviato né conservato nulla.",
+          "noAnswer": "Nessuna risposta in tempo, quindi non è stato inviato nulla.",
+          "askedAs": "Richiesto per i comandi di {{agent}} in questa conversazione come {{variable}}.",
+          "replaced": "Ha sostituito la chiave salvata prima."
         }
       },
       "skillReviewMarker": {

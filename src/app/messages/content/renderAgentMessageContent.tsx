@@ -1,4 +1,4 @@
-import { useMemo, type ComponentProps, type ReactNode } from 'react';
+import { useContext, useMemo, type ComponentProps, type ReactNode } from 'react';
 import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { Box, Icon, Icons } from 'folds';
 import type { HTMLReactParserOptions } from 'html-react-parser';
@@ -29,6 +29,8 @@ import { TranscribingPlaceholder } from '../agent-run/TranscribingPlaceholder';
 import { ThreadSummaryCard } from '../thread-summary/ThreadSummaryCard';
 import { ToolApprovalCard } from '../../approvals/ToolApprovalCard';
 import { SecretRequestCard } from '../../approvals/SecretRequestCard';
+import { useInlineSecretRequests } from '../../approvals/inlineSecretRequests';
+import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { renderStreamingIndicator } from '../agent-run/StreamingIndicator';
 import { isThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
 import { isTranscribingPlaceholder } from '../../matrix/protocol/transcribingPlaceholder';
@@ -38,7 +40,10 @@ import {
   parseToolApprovalContent,
 } from '../../matrix/protocol/toolApproval';
 import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
-import { parseSecretRequestContent } from '../../matrix/protocol/secretRequest';
+import {
+  effectiveSecretRequestStatus,
+  parseSecretRequestContent,
+} from '../../matrix/protocol/secretRequest';
 import { readSnoozeEndedNote } from '../../matrix/protocol/threadSnooze';
 import { SnoozeEndedMarker } from '../SnoozeEndedMarker';
 import { readSkillReviewNotice } from '../../matrix/protocol/skillReview';
@@ -140,14 +145,20 @@ function AgentWorkBody({
   renderHtml,
   wrapWithReasoning,
 }: AgentWorkBodyProps) {
+  // A secret request that waits shows in the work, so the work stays open until it is done.
+  const secrets = useInlineSecretRequests(useContext(ToolCallMessageContext)?.eventId);
+  const now = Date.now();
+  const waiting = [...secrets.values()].some(
+    ({ request }) => effectiveSecretRequestStatus(request, now) === 'pending'
+  );
   // A timeline renders its rows again on each streamed edit of any reply; the split waits for this
   // reply's own body to change, and for it to finish long.
   const split = useMemo(
     () =>
-      finished && html !== undefined && isLongAgentReply(body)
+      finished && !waiting && html !== undefined && isLongAgentReply(body)
         ? splitFinishedWork(html)
         : undefined,
-    [finished, body, html]
+    [finished, waiting, body, html]
   );
   return (
     <FinishedWorkFold

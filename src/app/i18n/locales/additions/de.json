@@ -775,6 +775,16 @@
           "saved": "Gespeichert",
           "declined": "Abgelehnt",
           "expired": "Abgelaufen"
+        },
+        "line": {
+          "expires": "Läuft ab {{time}}",
+          "sentKept": "Gesendet · {{duration}} aufbewahrt"
+        },
+        "facts": {
+          "nothingSent": "Nichts wurde gesendet oder aufbewahrt.",
+          "noAnswer": "Keine Antwort rechtzeitig, daher wurde nichts gesendet.",
+          "askedAs": "Angefragt für die Befehle von {{agent}} in dieser Unterhaltung als {{variable}}.",
+          "replaced": "Hat den zuvor gespeicherten Schlüssel ersetzt."
         }
       },
       "skillReviewMarker": {

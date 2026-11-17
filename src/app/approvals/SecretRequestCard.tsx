@@ -30,7 +30,8 @@ const MAX_DETAIL_LENGTH = 300;
 /** What the requester's answer did while the card still reads pending, until the agent edits it. */
 type Answer = 'saved' | 'declined' | 'inactive';
 
-type Chip = SecretRequestStatus | 'waitingForYou';
+export type SecretRequestChipState = SecretRequestStatus | 'waitingForYou';
+type Chip = SecretRequestChipState;
 
 const CHIP_KEYS = {
   waitingForYou: 'mindroomUi.messages.secretRequestCard.status.waitingForYou',
@@ -60,7 +61,7 @@ const KEEP_KEYS = {
   disk: 'mindroomUi.messages.secretRequestCard.temporary.keep.disk',
 } as const satisfies Record<SecretKeep, string>;
 
-const KEPT_KEYS = {
+export const KEPT_KEYS = {
   memory: 'mindroomUi.messages.secretRequestCard.temporary.kept.memory',
   disk: 'mindroomUi.messages.secretRequestCard.temporary.kept.disk',
 } as const satisfies Record<SecretKeep, string>;
@@ -80,7 +81,7 @@ const readDetail = async (response: Response): Promise<string | undefined> => {
  * nor the field's `value` attribute holds it, until it goes to the origin `useAgentMindroomServer`
  * allows for the asking agent; it is cleared once the server took it or the request is gone.
  */
-function SecretRequestAnswer({
+export function SecretRequestAnswer({
   request,
   roomId,
   agentUserId,
@@ -368,37 +369,22 @@ function SecretRequestAnswer({
 }
 
 /**
- * An agent's request for a secret (`io.mindroom.secret_request`), with a field for the person
- * asked while it is pending: a service's key, with the agent's reason and the hosts the key may go
- * to, or a temporary secret, with the variable the agent's commands receive it as. The agent may
- * also name the secret (a temporary one's title), hint at its form in the empty field, and name
- * the page that gives it, which the person asked opens with a button above the field.
- * `agentUserId` is the card's sender, whose own MindRoom server takes the answer. A `readOnly`
- * card (another thread's view, such as a fork's prefix) shows the request without the field.
+ * What a request shows now, for its card and for its line in a reply (SecretRequestLine.tsx): the
+ * agent's edit decides its status, and until it comes an answer the server took does, whatever
+ * the clock says. While it is open the clock ticks each minute, for the time left, and at the
+ * deadline. Once the form went away while an answer from the keyboard was on its way, the
+ * request's own control (`summaryRef`, else `cardRef`) takes the focus the page got.
  */
-export function SecretRequestCard({
-  request,
-  roomId,
-  agentUserId,
-  readOnly = false,
-}: {
-  request: SecretRequest;
-  roomId: string;
-  agentUserId: string;
-  readOnly?: boolean;
-}) {
-  const { t } = useTranslation();
+export const useSecretRequestState = (request: SecretRequest, readOnly: boolean) => {
   const language = useAppLanguageCode();
-  const card = useRef<HTMLDivElement>(null);
-  const summary = useRef<HTMLElement>(null);
-  const glassRef = useGlassHighlight<HTMLDivElement>(card);
   const viewerId = useMatrixClient().getUserId();
-  const room = useApprovalRoom(roomId);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const summaryRef = useRef<HTMLElement>(null);
   const [answer, setAnswer] = useState<Answer>();
   const [clockTick, setClockTick] = useState(0);
   const keyboardAnswer = useRef(false);
   const now = Date.now();
-  // The person asked, where the card can take their answer.
+  // The person asked, where the request can take their answer.
   const isRequester = request.requesterId === viewerId && !readOnly;
   // The agent's edit decides; until it comes, an answer the server took holds whatever the clock says.
   const waitingForEdit = request.status === 'pending';
@@ -407,9 +393,6 @@ export function SecretRequestCard({
   const open = status === 'pending';
   const chip: Chip = open && isRequester ? 'waitingForYou' : status;
   const timeLeft = open ? formatTimeUntil(request.expiresAt, now, language) : undefined;
-  const temporary = request.kind === 'temporary' ? request : undefined;
-  const hosts = request.kind === 'key' ? request.hosts : [];
-  const keptSeconds = temporary?.kept ? temporary.keep[temporary.kept] : undefined;
 
   // Each minute while open, for the time left, and at the deadline, when the card turns expired.
   useEffect(() => {
@@ -433,48 +416,108 @@ export function SecretRequestCard({
     if (formShown || !keyboardAnswer.current) return;
     keyboardAnswer.current = false;
     if (document.activeElement === document.body || document.activeElement === null) {
-      (summary.current ?? card.current)?.focus({ preventScroll: true });
+      (summaryRef.current ?? cardRef.current)?.focus({ preventScroll: true });
     }
   }, [formShown]);
 
-  const header = (
-    <>
-      <span className={sectionCss.SectionIcon} aria-hidden>
-        <Icon size="100" src={Icons.Lock} />
-      </span>
-      <span className={css.Title}>
-        <IsolatedText
-          text={
-            request.kind === 'temporary'
-              ? // What the agent calls the secret, when it said.
-                (request.label && isolateInSentence(request.label)) ||
-                t('mindroomUi.messages.secretRequestCard.temporary.title', {
-                  agent: userDisplayName(room, agentUserId),
-                })
-              : t('mindroomUi.messages.secretRequestCard.title', {
-                  name: isolateInSentence(request.displayName),
-                })
-          }
-        />
-      </span>
-      <span
-        data-secret-request-status={chip}
-        className={classNames(
-          sectionCss.StatusChip,
-          chip === 'waitingForYou' && sectionCss.StatusChipAttention,
-          chip === 'saved' && sectionCss.StatusChipDone
-        )}
-      >
-        {temporary && chip === 'saved'
-          ? t('mindroomUi.messages.secretRequestCard.temporary.sent')
-          : t(CHIP_KEYS[chip])}
-      </span>
-    </>
+  return {
+    cardRef,
+    summaryRef,
+    answer,
+    setAnswer,
+    keyboardAnswer,
+    isRequester,
+    waitingForEdit,
+    status,
+    open,
+    chip,
+    timeLeft,
+    formShown,
+  };
+};
+
+export type SecretRequestState = ReturnType<typeof useSecretRequestState>;
+
+/** The request's status as a chip, a temporary secret's saved one as Sent. */
+export function SecretRequestChip({
+  chip,
+  temporary,
+}: {
+  chip: SecretRequestChipState;
+  temporary: boolean;
+}) {
+  const { t } = useTranslation();
+  return (
+    <span
+      data-secret-request-status={chip}
+      className={classNames(
+        sectionCss.StatusChip,
+        chip === 'waitingForYou' && sectionCss.StatusChipAttention,
+        chip === 'saved' && sectionCss.StatusChipDone
+      )}
+    >
+      {temporary && chip === 'saved'
+        ? t('mindroomUi.messages.secretRequestCard.temporary.sent')
+        : t(CHIP_KEYS[chip])}
+    </span>
   );
-  // What `details` shows of a card that is done: its reason, a temporary secret's variable and
-  // keep, or a key's hosts. A card with none of them has nothing to fold.
-  const foldable = Boolean(request.reason) || temporary !== undefined || hosts.length > 0;
-  const details = (
+}
+
+/**
+ * What the requester's answer did until the agent's edit comes. It stays mounted from before the
+ * answer, open or done, so that a screen reader announces the text it gets.
+ */
+export function SecretRequestAnswerStatus({
+  state,
+  temporary,
+}: {
+  state: SecretRequestState;
+  temporary: boolean;
+}) {
+  const { t } = useTranslation();
+  const { isRequester, waitingForEdit, open, answer } = state;
+  if (!isRequester || !waitingForEdit || (!open && !answer)) return null;
+  return (
+    <div role="status" className={classNames(sectionCss.SectionBody, css.Status)}>
+      {answer && (
+        <Text size="T200">
+          {t(
+            temporary && answer === 'saved'
+              ? 'mindroomUi.messages.secretRequestCard.temporary.sentWaiting'
+              : ANSWER_KEYS[answer]
+          )}
+        </Text>
+      )}
+    </div>
+  );
+}
+
+/**
+ * What an open request says under its title: the agent's reason, a temporary secret's variable,
+ * a key's hosts and the time left (`showExpiry`), and for the person asked the form.
+ */
+export function SecretRequestDetails({
+  request,
+  roomId,
+  agentUserId,
+  state,
+  showExpiry = true,
+}: {
+  request: SecretRequest;
+  roomId: string;
+  agentUserId: string;
+  state: SecretRequestState;
+  showExpiry?: boolean;
+}) {
+  const { t } = useTranslation();
+  const language = useAppLanguageCode();
+  const room = useApprovalRoom(roomId);
+  const { status, open, isRequester, formShown, keyboardAnswer, setAnswer } = state;
+  const timeLeft = showExpiry ? state.timeLeft : undefined;
+  const temporary = request.kind === 'temporary' ? request : undefined;
+  const hosts = request.kind === 'key' ? request.hosts : [];
+  const keptSeconds = temporary?.kept ? temporary.keep[temporary.kept] : undefined;
+  return (
     <>
       {request.reason && (
         <Text size="T300" className={css.Reason} {...ownDirectionBlock}>
@@ -532,6 +575,71 @@ export function SecretRequestCard({
       )}
     </>
   );
+}
+
+/**
+ * An agent's request for a secret (`io.mindroom.secret_request`), with a field for the person
+ * asked while it is pending: a service's key, with the agent's reason and the hosts the key may go
+ * to, or a temporary secret, with the variable the agent's commands receive it as. The agent may
+ * also name the secret (a temporary one's title), hint at its form in the empty field, and name
+ * the page that gives it, which the person asked opens with a button above the field.
+ * `agentUserId` is the card's sender, whose own MindRoom server takes the answer. A `readOnly`
+ * card (another thread's view, such as a fork's prefix) shows the request without the field.
+ * A reply that names the request draws it at its tool call instead (SecretRequestLine.tsx).
+ */
+export function SecretRequestCard({
+  request,
+  roomId,
+  agentUserId,
+  readOnly = false,
+}: {
+  request: SecretRequest;
+  roomId: string;
+  agentUserId: string;
+  readOnly?: boolean;
+}) {
+  const { t } = useTranslation();
+  const room = useApprovalRoom(roomId);
+  const state = useSecretRequestState(request, readOnly);
+  const { cardRef, summaryRef, open, chip } = state;
+  const glassRef = useGlassHighlight<HTMLDivElement>(cardRef);
+  const temporary = request.kind === 'temporary' ? request : undefined;
+  const hosts = request.kind === 'key' ? request.hosts : [];
+
+  const header = (
+    <>
+      <span className={sectionCss.SectionIcon} aria-hidden>
+        <Icon size="100" src={Icons.Lock} />
+      </span>
+      <span className={css.Title}>
+        <IsolatedText
+          text={
+            request.kind === 'temporary'
+              ? // What the agent calls the secret, when it said.
+                (request.label && isolateInSentence(request.label)) ||
+                t('mindroomUi.messages.secretRequestCard.temporary.title', {
+                  agent: userDisplayName(room, agentUserId),
+                })
+              : t('mindroomUi.messages.secretRequestCard.title', {
+                  name: isolateInSentence(request.displayName),
+                })
+          }
+        />
+      </span>
+      <SecretRequestChip chip={chip} temporary={!!temporary} />
+    </>
+  );
+  // What the details show of a card that is done: its reason, a temporary secret's variable and
+  // keep, or a key's hosts. A card with none of them has nothing to fold.
+  const foldable = Boolean(request.reason) || temporary !== undefined || hosts.length > 0;
+  const details = (
+    <SecretRequestDetails
+      request={request}
+      roomId={roomId}
+      agentUserId={agentUserId}
+      state={state}
+    />
+  );
 
   return (
     <Box
@@ -552,7 +660,7 @@ export function SecretRequestCard({
       ) : (
         // Done, the card folds to its row, which opens it again.
         <details className={css.Fold}>
-          <summary ref={summary} className={css.FoldRow}>
+          <summary ref={summaryRef} className={css.FoldRow}>
             {header}
             <Icon
               src={Icons.ChevronBottom}
@@ -564,21 +672,8 @@ export function SecretRequestCard({
           <div className={classNames(sectionCss.SectionBody, css.FoldBody)}>{details}</div>
         </details>
       )}
-      {/* Outside the fold and in the same place open or done, so that it stays mounted through
-      the answer and a screen reader announces the text it gets. */}
-      {isRequester && waitingForEdit && (open || answer) && (
-        <div role="status" className={classNames(sectionCss.SectionBody, css.Status)}>
-          {answer && (
-            <Text size="T200">
-              {t(
-                temporary && answer === 'saved'
-                  ? 'mindroomUi.messages.secretRequestCard.temporary.sentWaiting'
-                  : ANSWER_KEYS[answer]
-              )}
-            </Text>
-          )}
-        </div>
-      )}
+      {/* Outside the fold and in the same place open or done. */}
+      <SecretRequestAnswerStatus state={state} temporary={!!temporary} />
       {open && <div className={sectionCss.SectionBody}>{details}</div>}
     </Box>
   );

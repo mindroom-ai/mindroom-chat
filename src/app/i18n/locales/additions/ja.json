@@ -766,6 +766,16 @@
           "saved": "保存済み",
           "declined": "拒否済み",
           "expired": "期限切れ"
+        },
+        "line": {
+          "expires": "期限: {{time}}",
+          "sentKept": "送信済み · {{duration}}保持"
+        },
+        "facts": {
+          "nothingSent": "何も送信も保持もされていません。",
+          "noAnswer": "時間内に回答がなかったため、何も送信されていません。",
+          "askedAs": "この会話で {{agent}} のコマンド用に {{variable}} として求められました。",
+          "replaced": "以前保存されていたキーを置き換えました。"
         }
       },
       "skillReviewMarker": {

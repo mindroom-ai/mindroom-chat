@@ -775,6 +775,16 @@
           "saved": "Kaydedildi",
           "declined": "Geri çevrildi",
           "expired": "Süresi doldu"
+        },
+        "line": {
+          "expires": "Süre doluyor: {{time}}",
+          "sentKept": "Gönderildi · {{duration}} saklanır"
+        },
+        "facts": {
+          "nothingSent": "Hiçbir şey gönderilmedi veya saklanmadı.",
+          "noAnswer": "Zamanında yanıt gelmedi, bu yüzden hiçbir şey gönderilmedi.",
+          "askedAs": "Bu konuşmada {{agent}} adlı ajanın komutları için {{variable}} olarak istendi.",
+          "replaced": "Önceden kayıtlı anahtarın yerini aldı."
         }
       },
       "skillReviewMarker": {
