@@ -847,6 +847,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "الوكلاء الفرعيون"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "إعدادات العناوين"
       }
     },
     "message-search": {

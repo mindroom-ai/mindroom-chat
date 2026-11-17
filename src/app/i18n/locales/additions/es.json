@@ -814,6 +814,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "Subagentes"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "Ajustes de títulos"
       }
     },
     "message-search": {

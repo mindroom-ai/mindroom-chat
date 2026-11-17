@@ -792,6 +792,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "하위 에이전트"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "제목 설정"
       }
     },
     "message-search": {

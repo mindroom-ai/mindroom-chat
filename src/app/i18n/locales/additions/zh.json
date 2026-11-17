@@ -792,6 +792,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "子智能体"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "标题设置"
       }
     },
     "message-search": {

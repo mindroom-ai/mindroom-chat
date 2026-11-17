@@ -1,8 +1,8 @@
 import { useEffect, useId, useRef, useState, type PointerEvent } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Text, Tooltip, type RectCords } from 'folds';
-import { PopOut, revealDirectionControls } from '../../ui/directional';
-import { IconSparkles } from '@tabler/icons-react';
+import { PopOut, TooltipProvider, revealDirectionControls } from '../../ui/directional';
+import { IconSettings, IconSparkles } from '@tabler/icons-react';
 import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import type { ThreadSummaryMarkerPlan } from '../../event-store/threads/threadSummaryTimeline';
 import * as css from './ThreadSummaryMarker.css';
@@ -10,6 +10,8 @@ import * as css from './ThreadSummaryMarker.css';
 type ThreadSummaryMarkerProps = {
   summaryInfo: ThreadSummaryInfo;
   plan?: ThreadSummaryMarkerPlan;
+  /** Opens the room's title settings; without it the marker has no settings button. */
+  onOpenSettings?: () => void;
 };
 
 type OpenMode = 'hover' | 'pinned';
@@ -20,6 +22,7 @@ type OpenMode = 'hover' | 'pinned';
 export function ThreadSummaryMarker({
   summaryInfo,
   plan,
+  onOpenSettings,
 }: ThreadSummaryMarkerProps) {
   const { t } = useTranslation();
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -62,6 +65,8 @@ export function ThreadSummaryMarker({
   if (summaryInfo.isManual) label = t('mindroomUi.messages.mindroomThreadSummaryMarker.edited');
   else if (plan?.first) label = t('mindroomUi.messages.mindroomThreadSummaryMarker.titled');
 
+  const settingsLabel = t('mindroomUi.messages.mindroomThreadSummaryMarker.titleSettings');
+
   let provenance = t('sharedUi.threadSummary.provenance');
   if (summaryInfo.isManual) provenance = t('sharedUi.threadSummary.manual');
   else if (typeof summaryInfo.messageCount === 'number')
@@ -100,6 +105,29 @@ export function ThreadSummaryMarker({
           {label}
         </Text>
       </button>
+      {onOpenSettings && (
+        <TooltipProvider
+          position="Top"
+          offset={4}
+          tooltip={
+            <Tooltip>
+              <Text size="T200">{settingsLabel}</Text>
+            </Tooltip>
+          }
+        >
+          {(tooltipRef) => (
+            <button
+              ref={tooltipRef}
+              type="button"
+              className={css.MarkerSettings}
+              aria-label={settingsLabel}
+              onClick={onOpenSettings}
+            >
+              <IconSettings size={14} aria-hidden />
+            </button>
+          )}
+        </TooltipProvider>
+      )}
       <span id={descriptionId} hidden>
         {revealDirectionControls(summaryInfo.summaryText ?? '')} {previous}
       </span>

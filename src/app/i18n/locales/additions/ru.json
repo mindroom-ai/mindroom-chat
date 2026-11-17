@@ -825,6 +825,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "Субагенты"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "Настройки названий"
       }
     },
     "message-search": {

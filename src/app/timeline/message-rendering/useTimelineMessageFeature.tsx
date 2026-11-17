@@ -33,6 +33,8 @@ import { useRoomThreadMode } from '../../matrix/hooks/useRoomThreadMode';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { useSpaceOptionally } from '../../matrix/hooks/useSpace';
 import { useOpenUserRoomProfile } from '../../navigation/useUserRoomProfileState';
+import { RoomSettingsPage } from '../../navigation/roomSettingsState';
+import { useOpenRoomSettings } from '../../navigation/useRoomSettingsState';
 import { isEmptyEditor } from '../../editor/utils';
 import { Reply } from '../../messages/reply/Reply';
 import { MessageAside } from '../../messages/layout/MessageAside';
@@ -304,11 +306,20 @@ const readQuietMarker = (
   sender: string | undefined,
   content: Record<string, unknown>,
   data: TimelineMessageData,
-  viewerId: string | undefined
+  viewerId: string | undefined,
+  onOpenTitleSettings?: () => void
 ): ReactNode | null => {
   const summaryInfo = getThreadSummaryInfo(content);
   const plan = summaryInfo && data.threadSummaryTimeline.markersByEventId.get(eventId);
-  if (summaryInfo && plan) return <ThreadSummaryMarker summaryInfo={summaryInfo} plan={plan} />;
+  if (summaryInfo && plan) {
+    return (
+      <ThreadSummaryMarker
+        summaryInfo={summaryInfo}
+        plan={plan}
+        onOpenSettings={onOpenTitleSettings}
+      />
+    );
+  }
   if (!isMindroomAgentUserIdForViewer(sender, viewerId)) return null;
   const snoozeEndedNote = readSnoozeEndedNote(content);
   if (snoozeEndedNote !== null) return <SnoozeEndedMarker note={snoozeEndedNote} />;
@@ -347,6 +358,11 @@ export const useTimelineMessageFeature = ({
   }, [manualExpansionState]);
   const renderedEventsRef = useRef<MatrixEvent[]>([]);
   renderedEventsRef.current = [];
+  const openRoomSettings = useOpenRoomSettings();
+  const openTitleSettings = useCallback(
+    () => openRoomSettings(room.roomId, RoomSettingsPage.MindroomPage),
+    [openRoomSettings, room.roomId]
+  );
 
   const threadIdRef = useRef(threadId);
   threadIdRef.current = threadId;
@@ -506,7 +522,8 @@ export const useTimelineMessageFeature = ({
               event.getSender() ?? undefined,
               content,
               data,
-              userId ?? undefined
+              userId ?? undefined,
+              openTitleSettings
             )
           : null;
       if (quietMarker) {
@@ -759,6 +776,7 @@ export const useTimelineMessageFeature = ({
       messageLayout,
       messageSpacing,
       navigateRoomThread,
+      openTitleSettings,
       reactionFailedEventId,
       room,
       showThreadRepliesInRoom,

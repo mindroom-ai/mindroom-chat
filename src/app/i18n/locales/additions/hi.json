@@ -803,6 +803,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "सब-एजेंट"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "शीर्षक सेटिंग"
       }
     },
     "message-search": {

@@ -803,6 +803,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "সাব-এজেন্ট"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "শিরোনামের সেটিংস"
       }
     },
     "message-search": {

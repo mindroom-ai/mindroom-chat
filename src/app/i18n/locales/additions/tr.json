@@ -803,6 +803,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "Alt ajanlar"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "Başlık ayarları"
       }
     },
     "message-search": {

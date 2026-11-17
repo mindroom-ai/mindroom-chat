@@ -792,6 +792,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "Subagen"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "Pengaturan judul"
       }
     },
     "message-search": {

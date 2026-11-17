@@ -803,6 +803,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "Subagenten"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "Titelinstellingen"
       }
     },
     "message-search": {

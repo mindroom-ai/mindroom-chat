@@ -792,6 +792,9 @@
       },
       "mindroomReplyDetails": {
         "subagents": "サブエージェント"
+      },
+      "mindroomThreadSummaryMarker": {
+        "titleSettings": "タイトルの設定"
       }
     },
     "message-search": {
