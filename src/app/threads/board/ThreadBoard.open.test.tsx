@@ -72,6 +72,9 @@ vi.mock('../../event-store/threads/useThreadPinning', () => ({
   }),
 }));
 vi.mock('../useInitializeShownThread', () => ({ useInitializeShownThread: () => undefined }));
+vi.mock('../overview/useCompactThreadSections', () => ({
+  useCompactThreadSections: () => undefined,
+}));
 vi.mock('../overview/useThreadRootLiveCallRow', () => ({
   useThreadRootLiveCallRow: () => undefined,
 }));
