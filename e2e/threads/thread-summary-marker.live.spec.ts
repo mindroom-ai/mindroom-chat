@@ -31,8 +31,8 @@ const openRoute = (page: Page, url: string) =>
 
 // MindRoom posts a summary after an agent's first reply and then every ten
 // messages. In the open thread each one is a quiet marker under the reply; a
-// summary that repeats the previous one leaves no row, and the full title
-// shows on hover or tap.
+// summary that repeats the previous one leaves no row, summaries back to back
+// show as one, and the full title shows on hover or tap.
 for (const viewport of [
   { name: 'desktop', width: 1280, height: 800, touch: false },
   { name: 'phone', width: 390, height: 844, touch: true },
@@ -40,8 +40,8 @@ for (const viewport of [
   test.describe(viewport.name, () => {
     test.use({ hasTouch: viewport.touch, isMobile: viewport.touch });
 
-    test('shows summaries in a thread as small markers', async ({ page }, testInfo) => {
-      test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
+    // A thread by the user in a room with the Code agent, and ways to post in it.
+    const setUpThread = async (page: Page) => {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       // The local Matrix fixture has no provisioning service.
       await page.route('**/v1/local-mindroom/connections', (route) =>
@@ -97,6 +97,23 @@ for (const viewport of [
           },
           'm.relates_to': inThread,
         });
+      return { homeserver, credentials, session, agent, roomId, rootId, say, summarize };
+    };
+    const openThread = async (
+      page: Page,
+      { homeserver, credentials, roomId, rootId }: Awaited<ReturnType<typeof setUpThread>>
+    ) => {
+      await loginWithPassword(page, { homeserver, ...credentials });
+      await openRoute(
+        page,
+        `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`
+      );
+    };
+
+    test('shows summaries in a thread as small markers', async ({ page }, testInfo) => {
+      test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
+      const thread = await setUpThread(page);
+      const { session, agent, say, summarize } = thread;
       await say(agent.accessToken, 'Checking the APNs delivery logs and background refresh.');
       await summarize(FIRST_SUMMARY, 2);
       await say(session.accessToken, 'It happens on iOS 18 too, not only 17.');
@@ -108,11 +125,7 @@ for (const viewport of [
       await summarize(LATEST_SUMMARY, 7);
       await say(session.accessToken, 'Nice, merging after lunch.');
 
-      await loginWithPassword(page, { homeserver, ...credentials });
-      await openRoute(
-        page,
-        `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`
-      );
+      await openThread(page, thread);
       const banner = page.locator('[data-thread-context-banner]');
       await expect(banner.locator('[data-thread-context-summary]')).toHaveText(LATEST_SUMMARY);
       await expect(page.getByText('Nice, merging after lunch.')).toBeVisible();
@@ -165,6 +178,32 @@ for (const viewport of [
       // A press elsewhere closes them.
       await press(page, viewport.touch, away);
       await expect(details).toHaveCount(0);
+    });
+
+    // A title posted while the reply streams, then the one after it: one row.
+    test('shows back-to-back summaries as one marker', async ({ page }, testInfo) => {
+      test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
+      const thread = await setUpThread(page);
+      await thread.say(
+        thread.agent.accessToken,
+        'APNs accepts every push, so the token goes stale.'
+      );
+      await thread.summarize(FIRST_SUMMARY, 1);
+      await thread.summarize(LATEST_SUMMARY, 2);
+
+      await openThread(page, thread);
+      const banner = page.locator('[data-thread-context-banner]');
+      await expect(banner.locator('[data-thread-context-summary]')).toHaveText(LATEST_SUMMARY);
+      const titled = page.getByRole('button', { name: 'AI titled this thread' });
+      await expect(titled).toHaveCount(1);
+      await expect(page.getByRole('button', { name: 'AI title updated' })).toHaveCount(0);
+
+      const details = page.locator('[data-thread-summary-details]');
+      if (viewport.touch) await press(page, true, titled);
+      else await titled.hover();
+      await expect(details).toContainText(LATEST_SUMMARY);
+      await expect(details).not.toContainText('Was:');
+      await page.screenshot({ path: testInfo.outputPath('back-to-back.png') });
     });
   });
 }
