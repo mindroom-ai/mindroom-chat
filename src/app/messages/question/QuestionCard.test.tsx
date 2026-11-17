@@ -197,6 +197,21 @@ describe('QuestionCard', () => {
     expect(card()?.dataset.questionCard).toBe('waiting');
   });
 
+  it('takes the place of the block in a reply that has only its Markdown body', () => {
+    // Most agent replies: the client formats the body itself, as inline text with line breaks.
+    const { format: _format, formatted_body: _html, ...rest } = questionContent('');
+    const block =
+      'Which color?\n\n1. 🔴 Red\n2. 🟢 Green\n\nReact with an emoji or type the number to respond.';
+    render({ ...rest, body: `The choice:\n\n${block}\n\n**Note:** after.` });
+    expect(container.querySelectorAll('[data-question-card]')).toHaveLength(1);
+    expect(card()?.textContent).toContain('Which color?');
+    expect(container.querySelector('ol')).toBeNull();
+    expect(container.textContent).not.toContain('React with an emoji');
+    const text = container.textContent ?? '';
+    expect(text.indexOf('The choice:')).toBeLessThan(text.indexOf('Which color?'));
+    expect(text.indexOf('Green')).toBeLessThan(text.indexOf('Note: after.'));
+  });
+
   it('adds only its buttons under a reply that does not show the question as written', () => {
     render(questionContent('<p>Pick one: red or green.</p>'));
     expect(container.textContent).toContain('Pick one: red or green.');

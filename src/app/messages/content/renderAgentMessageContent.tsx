@@ -54,6 +54,7 @@ import { CallTranscriptCard } from './CallTranscriptCard';
 import { readInteractiveQuestion } from '../../matrix/protocol/interactiveQuestion';
 import { QuestionCard } from '../question/QuestionCard';
 import { QuestionReply } from '../question/QuestionReply';
+import { formatQuestionBody } from '../question/questionBlockSplit';
 import { ownDirectionLine } from '../../ui/directional';
 import { matchesEnum } from '../../lib/matchesEnum';
 
@@ -184,13 +185,31 @@ export const renderAgentMessageContent = ({
   hydrateLongText = true,
   readOnly,
 }: RenderAgentMessageContentOptions): ReactNode | undefined => {
+  // A MindRoom agent's question shows as a card with a button per option.
+  const question = fromMindroomAgent
+    ? readInteractiveQuestion(content, mEvent?.getOriginalContent())
+    : undefined;
+  const renderQuestionCard =
+    question && mEvent
+      ? (showText: boolean) => (
+          <QuestionCard
+            question={question}
+            mEvent={mEvent}
+            roomId={roomId ?? mEvent.getRoomId()}
+            threadId={threadId}
+            readOnly={readOnly}
+            showText={showText}
+          />
+        )
+      : undefined;
   const withToolRefFormattedBodyFallback = (bodyContent: Record<string, unknown>) => {
     if (typeof bodyContent.formatted_body === 'string') return bodyContent;
     if (typeof bodyContent.body !== 'string') return bodyContent;
 
     // MindRoom writes an agent's HTML from its Markdown body; a reply that arrives with the body
-    // alone renders as that HTML would have.
+    // alone renders as that HTML would have, with its question's block marked for the card.
     const formattedBody =
+      (renderQuestionCard && question && formatQuestionBody(bodyContent.body, question)) ||
       (fromMindroomAgent && formatMarkdownTextBodyAsHtml(bodyContent.body)) ||
       formatMessageTextBodyAsHtml(bodyContent.body);
     if (!formattedBody) return bodyContent;
@@ -242,24 +261,6 @@ export const renderAgentMessageContent = ({
   const finalEditTs = mEvent?.replacingEvent()?.getTs();
   const workDurationMs =
     finalEditTs === undefined || mEvent === undefined ? undefined : finalEditTs - mEvent.getTs();
-
-  // A MindRoom agent's question shows as a card with a button per option.
-  const question = fromMindroomAgent
-    ? readInteractiveQuestion(content, mEvent?.getOriginalContent())
-    : undefined;
-  const renderQuestionCard =
-    question && mEvent
-      ? (showText: boolean) => (
-          <QuestionCard
-            question={question}
-            mEvent={mEvent}
-            roomId={roomId ?? mEvent.getRoomId()}
-            threadId={threadId}
-            readOnly={readOnly}
-            showText={showText}
-          />
-        )
-      : undefined;
 
   /** The reply's reasoning and body, the work folded when it finished, and its question card. */
   const wrapAgentBody = (

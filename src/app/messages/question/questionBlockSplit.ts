@@ -124,3 +124,60 @@ export const splitQuestionBlock = (
   }
   return undefined;
 };
+
+/**
+ * Stands in for the question's block in a reply's HTML, so the card goes where the block was in
+ * whichever part of the reply holds it once its finished work folds: private-use characters,
+ * which no reply writes, in a paragraph of its own, which the fold's split keeps whole.
+ */
+export const QUESTION_CARD_PLACE = '<p>\uE000question-card\uE000</p>';
+
+const TEXT_BLOCK_TAGS = new Set(['p', 'ol', 'li']);
+
+const holdsOnlyText = (nodes: ChildNode[]): boolean =>
+  nodes.every(
+    (node) =>
+      isText(node) ||
+      (isDomElementNode(node) &&
+        (INLINE_TAGS.has(node.name) || TEXT_BLOCK_TAGS.has(node.name)) &&
+        holdsOnlyText(node.children))
+  );
+
+/**
+ * The HTML of an agent reply that has only its Markdown body, with the question's block marked by
+ * `QUESTION_CARD_PLACE`: the block exactly as MindRoom writes it into the body (the question, a
+ * blank line, `N. <emoji> <label>` lines, a blank line, the instruction line), on lines of its
+ * own, its last occurrence, and the text around it formatted as the body would be. Undefined when
+ * the body holds no such block, the block would show more than text, or a part cannot be formatted.
+ */
+export const formatQuestionBody = (
+  body: string,
+  question: InteractiveQuestion
+): string | undefined => {
+  const source = body.replace(/\r\n?/g, '\n');
+  const block = [
+    question.text,
+    '',
+    ...question.options.map((option, index) => `${index + 1}. ${option.key} ${option.label}`),
+    '',
+    INTERACTIVE_INSTRUCTION_TEXT,
+  ].join('\n');
+  const at = source.lastIndexOf(block);
+  const end = at + block.length;
+  if (
+    at < 0 ||
+    (at > 0 && source[at - 1] !== '\n') ||
+    (end < source.length && source[end] !== '\n')
+  ) {
+    return undefined;
+  }
+  const blockHtml = formatMarkdownTextBodyAsHtml(block);
+  if (!blockHtml || !holdsOnlyText(htmlToDOM(blockHtml) as ChildNode[])) return undefined;
+  const format = (part: string): string | undefined =>
+    part.trim() === '' ? '' : formatMarkdownTextBodyAsHtml(part) || undefined;
+  // The blank lines around the block part it from its neighbours, as the card does.
+  const before = format(source.slice(0, at).replace(/\n+$/, ''));
+  const after = format(source.slice(end).replace(/^\n+/, ''));
+  if (before === undefined || after === undefined) return undefined;
+  return `${before}${QUESTION_CARD_PLACE}${after}`;
+};

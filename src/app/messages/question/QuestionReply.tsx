@@ -1,13 +1,8 @@
 import { useMemo, type ReactNode } from 'react';
 import type { InteractiveQuestion } from '../../matrix/protocol/interactiveQuestion';
-import { splitQuestionBlock } from './questionBlockSplit';
+import { QUESTION_CARD_PLACE, splitQuestionBlock } from './questionBlockSplit';
 
 type RenderHtml = (html: string | undefined) => ReactNode;
-
-// Stands in for the question's block in the reply's HTML, so the card goes where the block was in
-// whichever part of the reply holds it once its finished work folds. Private-use characters, which
-// no reply writes, and a paragraph of its own, which the fold's split keeps whole.
-const CARD_PLACE = '<p>\uE000question-card\uE000</p>';
 
 type QuestionReplyProps = {
   html: string | undefined;
@@ -34,8 +29,10 @@ export function QuestionReply({
   const questionKey = JSON.stringify(question);
   const marked = useMemo(() => {
     if (!html) return undefined;
+    // A body-only reply's HTML comes with the place marked (`formatQuestionBody`).
+    if (html.includes(QUESTION_CARD_PLACE)) return html;
     const split = splitQuestionBlock(html, JSON.parse(questionKey) as InteractiveQuestion);
-    return split && `${split.before}${CARD_PLACE}${split.after}`;
+    return split && `${split.before}${QUESTION_CARD_PLACE}${split.after}`;
   }, [html, questionKey]);
   if (marked === undefined) {
     return (
@@ -46,10 +43,10 @@ export function QuestionReply({
     );
   }
   const renderPart: RenderHtml = (part) => {
-    const at = part?.indexOf(CARD_PLACE) ?? -1;
+    const at = part?.indexOf(QUESTION_CARD_PLACE) ?? -1;
     if (!part || at < 0) return renderHtml(part);
     const before = part.slice(0, at);
-    const after = part.slice(at + CARD_PLACE.length);
+    const after = part.slice(at + QUESTION_CARD_PLACE.length);
     return (
       <>
         {before.trim() !== '' && renderHtml(before)}

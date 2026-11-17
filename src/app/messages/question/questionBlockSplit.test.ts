@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { splitQuestionBlock } from './questionBlockSplit';
+import { formatQuestionBody, QUESTION_CARD_PLACE, splitQuestionBlock } from './questionBlockSplit';
 
 const question = {
   text: 'Which **color** should the `snake_case_name` take?',
@@ -69,5 +69,49 @@ describe('splitQuestionBlock', () => {
     expect(splitQuestionBlock(block.replace('🟢 Green', '🟡 Green'), question)).toBeUndefined();
     expect(splitQuestionBlock(block.replace('take?', 'get?'), question)).toBeUndefined();
     expect(splitQuestionBlock('<p>The build is green.</p>', question)).toBeUndefined();
+  });
+});
+
+describe('formatQuestionBody', () => {
+  // A body-only agent reply, its block as MindRoom writes it (`_render_question_text`).
+  const asked = {
+    text: 'Which order should the work take? I recommend tests first (80%).',
+    options: [
+      { key: '🗳️', label: 'Tests first, then the code' },
+      { key: '⏸️', label: 'Park it for now' },
+    ],
+  };
+  const BLOCK = [
+    'Which order should the work take? I recommend tests first (80%).',
+    '',
+    '1. 🗳️ Tests first, then the code',
+    '2. ⏸️ Park it for now',
+    '',
+    'React with an emoji or type the number to respond.',
+  ].join('\n');
+
+  it('marks the block and formats the text around it', () => {
+    const html = formatQuestionBody(`The main choice:\n\n${BLOCK}\n\n**TL;DR:** soon.`, asked);
+    expect(html).toBe(
+      `The main choice:${QUESTION_CARD_PLACE}<strong data-md="**">TL;DR:</strong> soon.`
+    );
+    expect(formatQuestionBody(BLOCK, asked)).toBe(QUESTION_CARD_PLACE);
+  });
+
+  it('marks the last block, so an example quoted before it stays', () => {
+    const html = formatQuestionBody(`${BLOCK}\n\nAsking now:\n\n${BLOCK}`, asked);
+    expect(html?.match(/question-card/g)).toHaveLength(1);
+    expect(html?.indexOf('Tests first')).toBeLessThan(html?.indexOf(QUESTION_CARD_PLACE) ?? 0);
+    expect(html).toContain('Asking now:');
+  });
+
+  it('finds nothing unless the whole block stands on lines of its own, as only text', () => {
+    expect(formatQuestionBody(BLOCK.replace(/\nReact with.*$/, ''), asked)).toBeUndefined();
+    expect(formatQuestionBody(`See: ${BLOCK}`, asked)).toBeUndefined();
+    expect(formatQuestionBody(BLOCK.replace('80%).', '80%). Or else'), asked)).toBeUndefined();
+    // The app's formatter shows images as their text; a block that renders more than text (a
+    // heading here) is not taken either.
+    const heading = { ...asked, text: `# ${asked.text}` };
+    expect(formatQuestionBody(`# ${BLOCK}`, heading)).toBeUndefined();
   });
 });
