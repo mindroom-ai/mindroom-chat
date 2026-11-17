@@ -210,7 +210,7 @@ describe('useThreadIndex record builds', () => {
     expect(records().get('$b')).not.toBe(before.get('$b'));
   });
 
-  it('builds every record at the next count after a member of the room took a new name', () => {
+  it('builds every record when a member of the room took a new name, in a room where nothing more happens', () => {
     const records = renderListeningIndex();
     const before = records();
     const member = new MatrixEvent({
@@ -222,10 +222,6 @@ describe('useThreadIndex record builds', () => {
 
     act(() => {
       mx.emit(RoomMemberEvent.Name, member, { roomId: room.roomId } as RoomMember, 'Alice');
-    });
-    expect(records()).toBe(before);
-    act(() => {
-      room.emit(RoomEvent.Receipt, receiptOf('@alice:server'), room);
     });
 
     expect(records().get('$a')).not.toBe(before.get('$a'));

@@ -12,8 +12,9 @@ import {
   type MatrixEvent,
   type Room,
 } from 'matrix-js-sdk';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
+import { receiptEventsVersion } from '../../matrix/receiptReadTs';
 import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter';
 
 // What the room's thread records are told of each event: the thread it may have changed, or the
@@ -96,8 +97,13 @@ const setup = (threadId?: string) => {
   return { room, client, state, told, oldest, unmount: hook.unmount };
 };
 
-// A hook of an earlier test would hear the store of kept edits, which every client shares.
-afterEach(cleanup);
+vi.mock('../../matrix/receiptReadTs', () => ({ receiptEventsVersion: vi.fn(() => 0) }));
+
+afterEach(() => {
+  // A hook of an earlier test would hear the store of kept edits, which every client shares.
+  cleanup();
+  vi.mocked(receiptEventsVersion).mockReturnValue(0);
+});
 
 describe('useThreadOverviewRefreshCounter changes', () => {
   it('marks the room when it starts to listen', () => {
@@ -353,6 +359,35 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     stop();
   });
 
+  it.each([
+    ['a timeline takes', RoomEvent.Timeline, ['$plain'], false],
+    ['a timeline loses', RoomEvent.Timeline, ['$plain'], true],
+    ['a local echo becomes', RoomEvent.LocalEchoUpdated, ['$plain'], false],
+  ])(
+    'counts when %s an event a receipt names, which moves how far that receipt reads',
+    (_what, name, marked, removed) => {
+      const { room, told } = setup();
+      const named = event({ id: '$plain' });
+      const emit = () => room.emit(name, named, room, true, removed);
+
+      // A message outside any thread counts for nothing by itself.
+      expect(told(emit)).toEqual({ marked, counted: 0 });
+      // The room counts what happened to a named event before this listener hears of it.
+      vi.mocked(receiptEventsVersion).mockReturnValue(1);
+      expect(told(emit)).toEqual({ marked, counted: 1 });
+      expect(told(emit)).toEqual({ marked, counted: 0 });
+    }
+  );
+
+  it('counts when a timeline that starts over took an event a receipt names with it', () => {
+    const { room, told } = setup();
+    const reset = () => room.emit(RoomEvent.TimelineReset, room, { thread: { id: '$root' } });
+
+    vi.mocked(receiptEventsVersion).mockReturnValue(1);
+    expect(told(reset)).toEqual({ marked: ['$root'], counted: 1 });
+    expect(told(reset)).toEqual({ marked: ['$root'], counted: 0 });
+  });
+
   it('says that it hears the room while it does', () => {
     const { state, unmount } = setup();
     const changes = state().overviewChanges;
@@ -381,7 +416,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
   });
 
   it.each([
-    ['marks the room for', 'its encryption', 'm.room.encryption', 'room'],
+    ['marks the room and counts for', 'its encryption', 'm.room.encryption', 'room'],
     // The sync repeats member events that change nothing; a member's change has its own events.
     ['marks nothing for', 'a member event', 'm.room.member', []],
     ['marks nothing for', 'its topic', 'm.room.topic', []],
@@ -390,19 +425,19 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     const emit = (roomId: string) => () =>
       client.emit(RoomStateEvent.Events, event({ id: '$state', type }), { roomId });
 
-    expect(told(emit(ROOM_ID))).toEqual({ marked, counted: 0 });
-    expect(told(emit('!other:example.org')).marked).toEqual([]);
+    expect(told(emit(ROOM_ID))).toEqual({ marked, counted: marked === 'room' ? 1 : 0 });
+    expect(told(emit('!other:example.org'))).toEqual({ marked: [], counted: 0 });
   });
 
   it.each([
     ['name', RoomMemberEvent.Name],
     ['membership', RoomMemberEvent.Membership],
-  ])("marks the room for a member's new %s", (_name, name) => {
+  ])("marks the room and counts for a member's new %s", (_name, name) => {
     const { client, told } = setup();
     const emit = (roomId: string) => () =>
       client.emit(name, event({ id: '$member', type: 'm.room.member' }), { roomId });
 
-    expect(told(emit(ROOM_ID))).toEqual({ marked: 'room', counted: 0 });
-    expect(told(emit('!other:example.org')).marked).toEqual([]);
+    expect(told(emit(ROOM_ID))).toEqual({ marked: 'room', counted: 1 });
+    expect(told(emit('!other:example.org'))).toEqual({ marked: [], counted: 0 });
   });
 });

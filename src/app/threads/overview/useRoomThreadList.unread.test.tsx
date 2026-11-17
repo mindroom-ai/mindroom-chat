@@ -8,6 +8,7 @@ import {
   ReceiptType,
   RelationType,
   Room,
+  RoomEvent,
   ThreadEvent,
   type MatrixClient,
 } from 'matrix-js-sdk';
@@ -18,6 +19,7 @@ import { SyncEngineProvider } from '../../event-store/engine/engineContext';
 import { createSyncEngine } from '../../event-store/engine/syncEngine';
 import { getThreadUnread } from '../../event-store/threads/roomThreadList';
 import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
+import { keepUnthreadedReceiptEvents } from '../../matrix/receiptReadTs';
 import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter';
 import { useRoomThreadList } from './useRoomThreadList';
 
@@ -188,6 +190,28 @@ describe('useRoomThreadList unread marks', () => {
     const gone = room.getThread('$b')!;
     expect(await checkedBy(() => gone.emit(ThreadEvent.Delete, gone))).toEqual([]);
     expect([...unreads().keys()].sort()).toEqual(['$a', '$c', '$d']);
+  });
+
+  it('checks every thread when history brings the event a receipt names, in a room where nothing more happens', async () => {
+    const stop = keepUnthreadedReceiptEvents(mx);
+    const unreads = await renderList();
+    // The reader's receipt names an event the room does not hold yet, so it reads up to when the
+    // server took it: after every reply.
+    const read = receipt('$named', 3000);
+    await checkedBy(() => {
+      mx.emit(RoomEvent.Receipt, read, room);
+      room.addReceipt(read);
+    });
+    expect(Object.fromEntries(unreads())).toEqual({ $a: false, $b: false, $c: false });
+
+    // The event is older than the replies: the receipt reads none of them.
+    expect(
+      await checkedBy(() =>
+        room.addEventsToTimeline([message('$named', 500)], true, false, room.getLiveTimeline())
+      )
+    ).toEqual(IDS);
+    expect(Object.fromEntries(unreads())).toEqual({ $a: true, $b: true, $c: true });
+    stop();
   });
 
   it('checks the thread of a reply whose kept edits a full store drops, which no event tells of', async () => {

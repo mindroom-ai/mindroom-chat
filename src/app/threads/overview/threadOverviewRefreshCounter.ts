@@ -28,6 +28,7 @@ import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { isRecord } from '../../lib/isRecord';
 import { onSyncedEditForgotten } from '../../matrix/client/syncedEdits';
 import { getThreadSummaryReply } from '../../matrix/client/unopenedThreadEdits';
+import { receiptEventsVersion } from '../../matrix/receiptReadTs';
 
 /**
  * The thread whose record an event of the room may change: the thread it is in, else the thread
@@ -95,9 +96,10 @@ export const receiptThreadIds = (receipt: MatrixEvent, userId: string): string[]
  * whose thread is unknown). It also
  * takes what a record reads that raises no count: every event the client hears of the room (the
  * edits kept from the sync are in by then), an edit put on or taken off an event, a local echo's
- * progress, a redaction, a timeline that starts over (a thread's for that thread, the room's for
- * every thread), a member's new name or membership, and the room's encryption. Someone
- * else's receipt changes no record. A member event a timeline takes or loses marks the room and
+ * progress, a redaction, and a timeline that starts over (a thread's for that thread, the room's for
+ * every thread). A member's new name or membership and the room's encryption mark the room and
+ * count, and so does, without a mark, an event a receipt names that the room comes to hold or
+ * loses (`receiptEventsVersion`). Someone else's receipt changes no record. A member event a timeline takes or loses marks the room and
  * counts: a page of history may bring the name a member had before they left. So does a message
  * whose kept edits a full store drops (`onSyncedEditForgotten`), for its thread. A
  * reply that stops streaming by the clock, or that the streaming checks forget, comes as an update
@@ -131,6 +133,15 @@ export const useThreadOverviewRefreshCounter = (
     const bump = () => setCounter((count) => count + 1);
     const markEvent = (mEvent: MatrixEvent) =>
       changedThreadIds(room, mEvent).forEach((id) => markThreadRecordChange(overviewChanges, id));
+    // An event a receipt names that the room comes to hold or loses moves how far that receipt
+    // reads in every thread. The room counts it before these listeners hear of the event
+    // (`receiptEventsVersion`), and a build reads that count; often nothing else counts then.
+    let receiptEvents = receiptEventsVersion(room);
+    const countReceiptEvents = () => {
+      const version = receiptEventsVersion(room);
+      if (version !== receiptEvents) bump();
+      receiptEvents = version;
+    };
     const handleTimeline = (
       mEvent: MatrixEvent,
       eventRoom: Room | undefined,
@@ -144,6 +155,11 @@ export const useThreadOverviewRefreshCounter = (
       const ofMember = mEvent.getType() === (EventType.RoomMember as string);
       if (ofMember) markThreadRecordChange(overviewChanges);
       if (ofMember || (!removed && shouldRefreshOverviewForTimelineEvent(room, mEvent))) bump();
+      countReceiptEvents();
+    };
+    const handleEcho = (mEvent: MatrixEvent) => {
+      markEvent(mEvent);
+      countReceiptEvents();
     };
     // Optional calls: the rooms of some view tests carry a client stand-in without listeners.
     const client: Partial<Pick<MatrixClient, 'on' | 'removeListener' | 'getUserId'>> | undefined =
@@ -174,9 +190,12 @@ export const useThreadOverviewRefreshCounter = (
       markEvent(mEvent);
     };
     // A record names its people and reads who is in the room. The sync repeats member events that
-    // change neither, one for the sender of many a batch.
+    // change neither, one for the sender of many a batch. A change often comes without an event of
+    // a timeline: the room's member list, loaded late, may bring a second member of one name.
     const handleMember = (_mEvent: MatrixEvent, member: RoomMember) => {
-      if (member.roomId === room.roomId) markThreadRecordChange(overviewChanges);
+      if (member.roomId !== room.roomId) return;
+      markThreadRecordChange(overviewChanges);
+      bump();
     };
     // A record reads whether the room is encrypted.
     const handleState = (mEvent: MatrixEvent, state: RoomState) => {
@@ -185,13 +204,16 @@ export const useThreadOverviewRefreshCounter = (
         mEvent.getType() === (EventType.RoomEncryption as string)
       ) {
         markThreadRecordChange(overviewChanges);
+        bump();
       }
     };
     // A thread's timeline that starts over (for its first page, or after a sync with a gap) shows
     // other events of that thread; the room's may have lost events of any. An event a receipt
     // names that the room lost this way is a change of the room's own (`receiptEventsVersion`).
-    const handleReset = (_room: Room | undefined, timelineSet: EventTimelineSet) =>
+    const handleReset = (_room: Room | undefined, timelineSet: EventTimelineSet) => {
       markThreadRecordChange(overviewChanges, timelineSet.thread?.id);
+      countReceiptEvents();
+    };
     // The kept edits a record read of a message are gone: no event tells of it. The message is in
     // a timeline, or the reply an unopened thread's summary names, or else perhaps a root no
     // timeline holds (a pinned one), whose record goes by its own ID.
@@ -225,7 +247,7 @@ export const useThreadOverviewRefreshCounter = (
 
     room.on(RoomEvent.Timeline, handleTimeline);
     room.on(RoomEvent.Receipt, handleReceipt);
-    room.on(RoomEvent.LocalEchoUpdated, markEvent);
+    room.on(RoomEvent.LocalEchoUpdated, handleEcho);
     room.on(RoomEvent.Redaction, handleRedaction);
     room.on(RoomEvent.TimelineReset, handleReset);
     client?.on?.(MatrixEventEvent.Decrypted, handleDecrypted);
@@ -241,7 +263,7 @@ export const useThreadOverviewRefreshCounter = (
     return () => {
       room.removeListener(RoomEvent.Timeline, handleTimeline);
       room.removeListener(RoomEvent.Receipt, handleReceipt);
-      room.removeListener(RoomEvent.LocalEchoUpdated, markEvent);
+      room.removeListener(RoomEvent.LocalEchoUpdated, handleEcho);
       room.removeListener(RoomEvent.Redaction, handleRedaction);
       room.removeListener(RoomEvent.TimelineReset, handleReset);
       client?.removeListener?.(MatrixEventEvent.Decrypted, handleDecrypted);
