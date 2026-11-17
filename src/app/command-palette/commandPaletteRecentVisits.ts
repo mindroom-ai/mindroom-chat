@@ -10,7 +10,8 @@ type RankedRow = { id: string; sortRank?: number; boost?: number };
  * Lifts the rows the user visited last. `visitedIds` are row IDs, newest visit first; the open row
  * (`openId`) is never lifted and keeps its place. The first `RECENT_VISIT_PINS` visited rows the
  * list holds rank above every other row, newest visit first, so they lead while nothing is typed;
- * every visited row gains `RECENT_VISIT_BOOST` for typed text.
+ * every visited row gains `RECENT_VISIT_BOOST` for typed text. Typed matches of one score and boost
+ * fall back to that rank too, so among them the visit last made still comes first.
  */
 export const withRecentVisits = <T extends RankedRow>(
   rows: T[],

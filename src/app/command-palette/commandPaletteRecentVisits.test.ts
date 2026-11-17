@@ -42,9 +42,9 @@ describe('withRecentVisits', () => {
 
     expect(visited.map((row) => row.boost)).toEqual([20, 10, 20, 20, 20, 0]);
     expect(visited[1]).toBe(rows[1]);
-    // Every row matches "notes" equally well: the visited ones lead, the open one keeps no boost.
-    expect(order(visited, 'notes').slice(0, 4).sort()).toEqual(['a', 'c', 'd', 'x']);
-    expect(order(visited, 'notes').slice(4)).toEqual(['b', 'e']);
+    // Every row matches "notes" equally well: the visited ones lead, the pinned ones newest visit
+    // first, and the open one keeps no boost.
+    expect(order(visited, 'notes')).toEqual(['d', 'x', 'c', 'a', 'b', 'e']);
   });
 
   it('returns the list itself when nothing was visited', () => {
