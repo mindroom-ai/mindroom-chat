@@ -502,7 +502,13 @@ export function RoomThreadOverview({
       {(triggerRef) => (
         <span ref={triggerRef} className={css.CompactCount} data-thread-count="true">
           <IconMessages size={14} stroke={1.8} aria-hidden="true" />
-          <Text size="T200">{localDigits(String(threadCount), i18n.language)}</Text>
+          <Text
+            size="T200"
+            className={css.CompactCountValue}
+            data-reserve={localDigits(String(totalThreadCount), i18n.language)}
+          >
+            {localDigits(String(threadCount), i18n.language)}
+          </Text>
         </span>
       )}
     </TooltipProvider>

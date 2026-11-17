@@ -46,6 +46,21 @@ export const CompactCount = style({
   flexShrink: 0,
 });
 
+// An invisible, zero-height copy of the total (`data-reserve`) makes the count as wide as the total,
+// so switching tabs does not shift the controls after it. Generated content stays out of the count's
+// text and accessible name.
+export const CompactCountValue = style({
+  selectors: {
+    '&::after': {
+      content: 'attr(data-reserve)',
+      display: 'block',
+      blockSize: 0,
+      overflow: 'hidden',
+      visibility: 'hidden',
+    },
+  },
+});
+
 const TOGGLE_SIZE = toRem(32);
 
 // A finger's hit area: the bar's 32 px controls reach out halfway to their neighbours (4 px apart
