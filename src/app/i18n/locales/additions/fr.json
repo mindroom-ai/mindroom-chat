@@ -402,7 +402,8 @@
         "deactivate": "supprimer le compte, fermer le compte",
         "localMindroom": "associer, code d’association, local, ordinateur",
         "emoji": "emoji, autocollants, packs, emoji personnalisés",
-        "errorReports": "erreurs, plantage, bug, diagnostic, télémétrie, confidentialité"
+        "errorReports": "erreurs, plantage, bug, diagnostic, télémétrie, confidentialité",
+        "midTurn": "réorienter, file d'attente, auto, agent, réponse, interrompre"
       },
       "errorReports": {
         "title": "Envoyer des rapports d’erreur",
@@ -944,7 +945,19 @@
     "moreActions": "Plus d’actions",
     "lostFiles": "Non conservés avec ce brouillon : {{files}}. Joignez-les à nouveau avant l’envoi.",
     "lostPastes": "Le texte collé n’a pas été conservé avec ce brouillon. Collez-le à nouveau avant l’envoi.",
-    "dismissLostFiles": "Ignorer"
+    "dismissLostFiles": "Ignorer",
+    "midTurn": {
+      "menuLabel": "Envoyer pendant la réponse de l'agent",
+      "steer": "Réorienter",
+      "defaultChoice": "{{label}} (par défaut)",
+      "steerHint": "Arrêter la réponse et continuer avec ce message",
+      "queue": "Mettre en file",
+      "queueHint": "Envoyer une fois la réponse terminée",
+      "auto": "Auto",
+      "autoHint": "Laisser l'agent décider",
+      "settingTitle": "Envoyer pendant la réponse d'un agent",
+      "settingDescription": "Maintenez Envoyer pour choisir pour un seul message."
+    }
   },
   "commandPalette": {
     "state": {

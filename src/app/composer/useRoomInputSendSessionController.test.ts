@@ -2,6 +2,7 @@ import React, { MutableRefObject, useEffect, useMemo, useRef } from 'react';
 import { act, create } from 'react-test-renderer';
 import { EventStatus, MatrixError } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import { getDefaultStore } from 'jotai';
 import {
   IReplyDraft,
@@ -1824,6 +1825,33 @@ describe('useRoomInputSendSessionController sends that cannot go out yet', () =>
     });
     expect(textBodies(mx)).toEqual(['one', 'two']);
     expect(api.hasActiveSendSession()).toBe(true);
+  });
+
+  it('keeps the mid-turn mode of each text queued behind an upload', async () => {
+    const { api, mx } = renderHarness({ threadId: '$thread' });
+    const file = createFile('tide-table.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+
+    await act(async () => {
+      await api.startSendSession();
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'one', [MID_TURN_MODE_KEY]: 'queue' },
+      });
+      await api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'two', [MID_TURN_MODE_KEY]: 'steer' },
+      });
+    });
+    api.uploadsRef.current = [prepErrorUpload(file)];
+    await act(async () => {
+      await api.processSendSession();
+    });
+
+    const sent = mx.sendMessage.mock.calls.map((call) => call[1] as Record<string, unknown>);
+    expect(sent.map((content) => [content.body, content[MID_TURN_MODE_KEY]])).toEqual([
+      ['one', 'queue'],
+      ['two', 'steer'],
+    ]);
   });
 });
 

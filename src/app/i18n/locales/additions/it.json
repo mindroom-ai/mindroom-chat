@@ -402,7 +402,8 @@
         "deactivate": "elimina account, chiudi account",
         "localMindroom": "associa, codice di associazione, locale, desktop",
         "emoji": "emoji, sticker, pacchetti, emoji personalizzate",
-        "errorReports": "errori, arresto anomalo, bug, diagnostica, telemetria, privacy"
+        "errorReports": "errori, arresto anomalo, bug, diagnostica, telemetria, privacy",
+        "midTurn": "reindirizza, coda, automatico, agente, risposta, interrompi"
       },
       "errorReports": {
         "title": "Invia segnalazioni di errore",
@@ -944,7 +945,19 @@
     "moreActions": "Altre azioni",
     "lostFiles": "Non conservati con questa bozza: {{files}}. Allegali di nuovo prima di inviare.",
     "lostPastes": "Il testo incollato non è stato conservato con questa bozza. Incollalo di nuovo prima di inviare.",
-    "dismissLostFiles": "Ignora"
+    "dismissLostFiles": "Ignora",
+    "midTurn": {
+      "menuLabel": "Invia mentre l'agente risponde",
+      "steer": "Reindirizza",
+      "defaultChoice": "{{label}} (predefinito)",
+      "steerHint": "Interrompi la risposta e continua con questo messaggio",
+      "queue": "In coda",
+      "queueHint": "Invia al termine della risposta",
+      "auto": "Automatico",
+      "autoHint": "Lascia decidere all'agente",
+      "settingTitle": "Invia mentre un agente risponde",
+      "settingDescription": "Tieni premuto Invia per scegliere per un solo messaggio."
+    }
   },
   "commandPalette": {
     "state": {

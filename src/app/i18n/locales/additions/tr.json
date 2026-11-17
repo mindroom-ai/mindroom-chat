@@ -397,7 +397,8 @@
         "deactivate": "hesabı sil, hesabı kapat",
         "localMindroom": "eşleştir, eşleştirme kodu, yerel, masaüstü",
         "emoji": "emoji, çıkartmalar, paketler, özel emoji",
-        "errorReports": "hatalar, çökme, hata, tanılama, telemetri, gizlilik"
+        "errorReports": "hatalar, çökme, hata, tanılama, telemetri, gizlilik",
+        "midTurn": "yönlendir, sıra, otomatik, ajan, yanıt, kes"
       },
       "errorReports": {
         "title": "Hata raporları gönder",
@@ -927,7 +928,19 @@
     "moreActions": "Diğer işlemler",
     "lostFiles": "Bu taslakla saklanmadı: {{files}}. Göndermeden önce yeniden ekleyin.",
     "lostPastes": "Yapıştırılan metin bu taslakla saklanmadı. Göndermeden önce yeniden yapıştırın.",
-    "dismissLostFiles": "Kapat"
+    "dismissLostFiles": "Kapat",
+    "midTurn": {
+      "menuLabel": "Ajan yanıt verirken gönder",
+      "steer": "Yönlendir",
+      "defaultChoice": "{{label}} (varsayılan)",
+      "steerHint": "Yanıtı durdur ve bu mesajla devam et",
+      "queue": "Sıraya al",
+      "queueHint": "Yanıt bittikten sonra gönder",
+      "auto": "Otomatik",
+      "autoHint": "Kararı ajana bırak",
+      "settingTitle": "Bir ajan yanıt verirken gönder",
+      "settingDescription": "Tek bir mesaj için seçmek üzere Gönder'e basılı tutun."
+    }
   },
   "commandPalette": {
     "state": {

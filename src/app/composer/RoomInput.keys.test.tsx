@@ -2,7 +2,8 @@ import React, { createRef, useEffect } from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EventStatus, type Room } from 'matrix-js-sdk';
+import { EventStatus, type IContent, type Room } from 'matrix-js-sdk';
+import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import { UserMentionAutocomplete } from '../editor/autocomplete/UserMentionAutocomplete';
 import { ThreadModelPicker } from '../models/ModelPicker';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
@@ -15,6 +16,7 @@ import { roomIdToReplyDraftAtomFamily } from './roomInputDrafts';
 import { RoomInputReplyPreview } from './RoomInputReplyPreview';
 import type { SlashCommand } from './commands/useCommands';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
+import { ComposerSendButton } from './ComposerSendButton';
 
 type EditorProps = {
   editableName?: string;
@@ -64,12 +66,19 @@ vi.mock('../editor/output', () => ({
   trimCustomHtml: (value: string) => value,
 }));
 vi.mock('../editor/Editor', () => ({
-  CustomEditor: (props: EditorProps & { top?: React.ReactNode; before?: React.ReactNode }) => {
+  CustomEditor: (
+    props: EditorProps & {
+      top?: React.ReactNode;
+      before?: React.ReactNode;
+      after?: React.ReactNode;
+    }
+  ) => {
     state.editorProps = props;
     return (
       <>
         {props.top}
         {props.before}
+        {props.after}
       </>
     );
   },
@@ -117,7 +126,15 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({
 vi.mock('./useTypingStatusUpdater', () => ({
   useTypingStatusUpdater: () => vi.fn(),
 }));
-vi.mock('../preferences/useSetting', () => ({ useSetting: () => [false] }));
+// Send while an agent replies defaults to Queue here, so its mode shows apart from Steer.
+vi.mock('../preferences/useSetting', () => ({
+  useSetting: (_atom: unknown, key: string) => [key === 'midTurnSend' ? 'queue' : false],
+}));
+// Its hold menu has a test of its own; these read the props the composer gives it.
+vi.mock('./ComposerSendButton', () => ({ ComposerSendButton: () => null }));
+vi.mock('../event-store/threads/useThreadStreamingState', () => ({
+  useThreadStreamingState: () => false,
+}));
 vi.mock('../lib/user-agent', () => ({ mobileOrTablet: () => false }));
 vi.mock('../matrix/protocol/pasteAttachmentMarker', () => ({
   withPasteAttachmentMetadata: (content: unknown) => content,
@@ -240,6 +257,35 @@ const pressEnterAfterMention = async (document: unknown[] = []): Promise<boolean
 importBeforeTests(() => import('./RoomInput'));
 
 describe('composer', () => {
+  describe('the mid-turn mode of a text message', () => {
+    const text = [{ type: 'paragraph', children: [{ text: 'Tide times?' }] }];
+    const sentMode = () =>
+      (
+        state.startSendSession.mock.calls[0] as unknown as [{ textContent: IContent }] | undefined
+      )?.[0].textContent[MID_TURN_MODE_KEY];
+
+    it('is the default from the Chats settings for Enter and a tap on Send', async () => {
+      state.mentionHasSuggestions = false;
+      await mountComposer(text, { threadId: '$root:example.org' });
+      await pressEnter();
+      expect(sentMode()).toBe('queue');
+      state.startSendSession.mockClear();
+      await act(async () => {
+        await renderer!.root.findByType(ComposerSendButton).props.onSend();
+      });
+      expect(sentMode()).toBe('queue');
+    });
+
+    it("is the one picked from the Send button's menu", async () => {
+      state.mentionHasSuggestions = false;
+      await mountComposer(text, { threadId: '$root:example.org' });
+      await act(async () => {
+        await renderer!.root.findByType(ComposerSendButton).props.onSend('auto');
+      });
+      expect(sentMode()).toBe('auto');
+    });
+  });
+
   it('names its text box RoomInput for the timeline shortcuts', async () => {
     state.mentionHasSuggestions = true;
     await pressEnterAfterMention();

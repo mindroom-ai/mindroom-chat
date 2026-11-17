@@ -392,7 +392,8 @@
         "deactivate": "hapus akun, tutup akun",
         "localMindroom": "pasangkan, kode pemasangan, lokal, desktop",
         "emoji": "emoji, stiker, paket, emoji kustom",
-        "errorReports": "kesalahan, crash, bug, diagnostik, telemetri, privasi"
+        "errorReports": "kesalahan, crash, bug, diagnostik, telemetri, privasi",
+        "midTurn": "arahkan, antrean, otomatis, agen, balasan, sela"
       },
       "errorReports": {
         "title": "Kirim laporan kesalahan",
@@ -910,7 +911,19 @@
     "moreActions": "Tindakan lainnya",
     "lostFiles": "Tidak disimpan bersama draf ini: {{files}}. Lampirkan lagi sebelum mengirim.",
     "lostPastes": "Teks yang ditempel tidak disimpan bersama draf ini. Tempel lagi sebelum mengirim.",
-    "dismissLostFiles": "Tutup"
+    "dismissLostFiles": "Tutup",
+    "midTurn": {
+      "menuLabel": "Kirim saat agen membalas",
+      "steer": "Arahkan",
+      "defaultChoice": "{{label}} (bawaan)",
+      "steerHint": "Hentikan balasan dan lanjutkan dengan pesan ini",
+      "queue": "Antrekan",
+      "queueHint": "Kirim setelah balasan selesai",
+      "auto": "Otomatis",
+      "autoHint": "Biarkan agen memutuskan",
+      "settingTitle": "Kirim saat agen sedang membalas",
+      "settingDescription": "Tahan Kirim untuk memilih bagi satu pesan."
+    }
   },
   "commandPalette": {
     "state": {
