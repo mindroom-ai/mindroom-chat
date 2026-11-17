@@ -295,6 +295,30 @@ describe('the Compact room in sections', () => {
       expect(rows()).toEqual(['#working 1', '$b', '#idle 2', '$n', '$a', '#resolved 1']);
     });
 
+    it('holds no section of the room before when the next room opens under the pointer', () => {
+      const { rerender } = render(view(['$streaming', '$job', '$snoozed', '$idle', '$done']));
+      const list = document.querySelector<HTMLElement>('[data-compact-room-view] > div')!;
+      act(() => {
+        fireEvent.pointerEnter(list);
+      });
+
+      // The same view shows the next room (Alt+Down), the pointer still on the cards.
+      const nextRoom = { roomId: '!next:example.org', myUserId: ME } as unknown as Room;
+      state.sections = [{ id: 'idle', rootIds: ['$b1', '$b2'] }];
+      rerender(
+        <CompactRoomView
+          room={nextRoom}
+          threadRootIds={['$b1', '$b2']}
+          threadRecordMap={new Map()}
+          onThreadClick={vi.fn()}
+          compactRoomScrollStateRef={{ current: new Map() }}
+          sections
+        />
+      );
+
+      expect(rows()).toEqual(['#idle 2', '$b1', '$b2']);
+    });
+
     it('shows a new thread under its own header, which comes with it', () => {
       state.sections = [{ id: 'idle', rootIds: ['$a'] }];
       const { rerender } = render(view(['$a']));

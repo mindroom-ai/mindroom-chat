@@ -36,7 +36,7 @@ import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import { ThreadCardBadges } from './ThreadCardBadges';
 import { useCompactThreadSections } from './useCompactThreadSections';
-import { holdCompactThreadSections } from './compactThreadSections';
+import { holdCompactThreadSections, type CompactThreadSection } from './compactThreadSections';
 import { getCompactRoomSectionsAtom } from './compactRoomSections';
 import type { ThreadSectionId } from '../threadSections';
 import { ThreadCardDetails } from './ThreadCardDetails';
@@ -311,18 +311,18 @@ export function CompactRoomView({
   );
   const { folded } = sectionsChoice;
   // While the order is held, the cards keep the sections they showed in and their places there,
-  // and the headers stay: in sections, this is the hold, and the hook below holds no order.
-  const shownSectionsRef = useRef(threadSections);
-  const heldSections = useMemo(
-    () =>
-      orderHeld && threadSections && shownSectionsRef.current
-        ? holdCompactThreadSections(threadSections, shownSectionsRef.current)
-        : threadSections,
-    [orderHeld, threadSections]
-  );
+  // and the headers stay: in sections, this is the hold, and the hook below holds no order. Only
+  // this room's: the view stays mounted when the next room opens under the pointer.
+  const shownSectionsRef = useRef<{ roomId: string; sections?: CompactThreadSection[] }>();
+  const heldSections = useMemo(() => {
+    const shown = shownSectionsRef.current;
+    return orderHeld && threadSections && shown?.roomId === room.roomId && shown.sections
+      ? holdCompactThreadSections(threadSections, shown.sections)
+      : threadSections;
+  }, [orderHeld, room.roomId, threadSections]);
   useLayoutEffect(() => {
-    shownSectionsRef.current = heldSections;
-  }, [heldSections]);
+    shownSectionsRef.current = { roomId: room.roomId, sections: heldSections };
+  }, [heldSections, room.roomId]);
   // In sections, the list's rows are each section's header and, unless it is folded, its cards.
   const listedRows = useMemo(
     () =>
