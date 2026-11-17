@@ -259,6 +259,14 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   // Beside the bar, the strip stays as wide as its text.
   const stripText = typingStrip.locator('p');
   expect(await stripText.evaluate((text) => text.scrollWidth - text.clientWidth)).toBe(0);
+  // The gap between the two takes no clicks: they reach the timeline under the dock.
+  expect(
+    await typingStrip.evaluate((strip) => {
+      const box = strip.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.right + 4, box.top + box.height / 2);
+      return !!hit && !strip.parentElement?.parentElement?.contains(hit);
+    })
+  ).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('desktop-typing-beside-jobs.png') });
   await page.setViewportSize({ width: 390, height: 844 });
   await expect.poll(placement).toEqual({

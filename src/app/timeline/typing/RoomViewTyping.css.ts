@@ -16,12 +16,13 @@ export const TypingStrip = style([
     display: 'flex',
     alignItems: 'center',
     gap: config.space.S200,
-    // Beside the jobs bar the strip hugs its text, the bar taking nearly all the room left (its
-    // flex-grow is far larger); on a line of its own it spans it, as the jobs bar does.
+    // The strip hugs its text. With the jobs bar in its row it grows too: beside the bar the bar
+    // takes nearly all the room left (its flex-grow is far larger), and on a line of its own,
+    // under the bar, the strip spans it as the bar does.
     inlineSize: 'fit-content',
     maxInlineSize: '100%',
-    flexGrow: 1,
     minWidth: 0,
+    selectors: { '&:not(:only-child)': { flexGrow: 1 } },
     marginBlockEnd: config.space.S200,
     // As tall as the jobs bar: the same padding around a 24 px line.
     paddingBlock: config.space.S100,

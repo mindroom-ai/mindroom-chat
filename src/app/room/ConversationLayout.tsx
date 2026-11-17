@@ -44,7 +44,7 @@ const DOCK_STYLE: CSSProperties = {
   zIndex: 5,
   pointerEvents: 'none',
 };
-const DOCK_CONTENT_STYLE: CSSProperties = { pointerEvents: 'auto' };
+const APPROVALS_STYLE: CSSProperties = { pointerEvents: 'auto' };
 // Where the composer would be: why it is not there; or above it, what to do about the unsent root.
 const NOTICE_GAP = config.space.S400;
 const NOTICE_STYLE: CSSProperties = {
@@ -204,18 +204,20 @@ export function ConversationLayout({
                 {timeline}
               </Box>
               <div ref={dockRef} style={DOCK_STYLE}>
-                <div style={DOCK_CONTENT_STYLE}>
-                  <div className={overlay.DockRow}>
-                    <RoomViewTyping room={room} threadId={threadId} />
-                    <BackgroundJobsBar
-                      room={room}
-                      threadId={threadId ?? null}
-                      canCancel={canCancelJobs && !readOnly}
-                      subagentRuns={subagentRuns}
-                    />
-                  </div>
-                  {threadId && !readOnly && <ThreadApprovalQueue />}
+                <div className={overlay.DockRow}>
+                  <RoomViewTyping room={room} threadId={threadId} />
+                  <BackgroundJobsBar
+                    room={room}
+                    threadId={threadId ?? null}
+                    canCancel={canCancelJobs && !readOnly}
+                    subagentRuns={subagentRuns}
+                  />
                 </div>
+                {threadId && !readOnly && (
+                  <div style={APPROVALS_STYLE}>
+                    <ThreadApprovalQueue />
+                  </div>
+                )}
               </div>
             </ThreadApprovalProvider>
             {/* Outside the approval provider: opening a thread must not remount the composer. */}
