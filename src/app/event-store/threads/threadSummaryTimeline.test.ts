@@ -296,4 +296,23 @@ describe('thread summary timeline plan', () => {
     expect([...plan.hiddenEventIds]).toEqual(['$s2']);
     expect(plan.markersByEventId.get('$s3')).toEqual({ first: false });
   });
+
+  it('keeps the title before a run once the run moves on from returning to it', () => {
+    const plan = planThreadSummaryTimeline(
+      [
+        summary('$s1', 'Push bug'),
+        reply('$r1'),
+        summary('$s2', 'Token refresh'),
+        summary('$s3', 'Push bug'),
+        summary('$s4', 'APNs expiry'),
+      ],
+      { history: startLoaded }
+    );
+
+    expect([...plan.hiddenEventIds]).toEqual(['$s2', '$s3']);
+    expect(plan.markersByEventId.get('$s4')).toEqual({
+      first: false,
+      previousSummaryText: 'Push bug',
+    });
+  });
 });

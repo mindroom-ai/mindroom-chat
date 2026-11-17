@@ -51,8 +51,9 @@ export const planThreadSummaryTimeline = (
   const hiddenEventIds = new Set<string>();
   const markersByEventId = new Map<string, ThreadSummaryMarkerPlan>();
   let previousSummaryText: string | undefined;
-  // The last marker planned, while no other row has followed it.
-  let lastMarker: { eventId: string; plan: ThreadSummaryMarkerPlan } | undefined;
+  // The last marker planned, while no other row has followed it, with the plan
+  // its run started from (`first`, the title before the run).
+  let lastMarker: { eventId: string; run: ThreadSummaryMarkerPlan } | undefined;
 
   events.forEach((event) => {
     const eventId = event.getId();
@@ -73,21 +74,21 @@ export const planThreadSummaryTimeline = (
       hiddenEventIds.add(eventId);
       return;
     }
-    let plan: ThreadSummaryMarkerPlan = {
+    let run: ThreadSummaryMarkerPlan = {
       first: previousSummaryText === undefined && historyStartLoaded,
       ...(previousSummaryText !== undefined && !repeated ? { previousSummaryText } : {}),
     };
     if (lastMarker && !repeated && !revealedEventIds?.has(lastMarker.eventId)) {
       hiddenEventIds.add(lastMarker.eventId);
       markersByEventId.delete(lastMarker.eventId);
-      // A run that comes back to the title before it replaces nothing.
-      plan =
-        lastMarker.plan.previousSummaryText === summaryText
-          ? { first: lastMarker.plan.first }
-          : lastMarker.plan;
+      run = lastMarker.run;
     }
-    markersByEventId.set(eventId, plan);
-    lastMarker = { eventId, plan };
+    // A run that comes back to the title before it replaces nothing.
+    markersByEventId.set(
+      eventId,
+      run.previousSummaryText === summaryText ? { first: run.first } : run
+    );
+    lastMarker = { eventId, run };
     previousSummaryText = summaryText;
   });
 
