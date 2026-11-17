@@ -808,7 +808,7 @@
         "toolRunningFor": "Running for {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "Title settings"
+        "titleSettings": "Title settings…"
       }
     },
     "message-search": {

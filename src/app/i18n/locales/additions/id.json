@@ -797,7 +797,7 @@
         "toolRunningFor": "Berjalan selama {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "Pengaturan judul"
+        "titleSettings": "Pengaturan judul…"
       }
     },
     "message-search": {

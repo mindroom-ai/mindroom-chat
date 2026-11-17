@@ -808,7 +808,7 @@
         "toolRunningFor": "Loopt al {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "Titelinstellingen"
+        "titleSettings": "Titelinstellingen…"
       }
     },
     "message-search": {

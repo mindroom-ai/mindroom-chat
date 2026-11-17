@@ -852,7 +852,7 @@
         "toolRunningFor": "قيد التشغيل منذ ⁨{{duration}}⁩"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "إعدادات العناوين"
+        "titleSettings": "إعدادات العناوين…"
       }
     },
     "message-search": {

@@ -3,21 +3,15 @@
 import React from 'react';
 import { act, create, ReactTestInstance, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ThreadSummaryMarker } from './ThreadSummaryMarker';
+import { MARKER_DETAILS_CLOSE_DELAY_MS, ThreadSummaryMarker } from './ThreadSummaryMarker';
 
 vi.mock('folds', () => ({
   Box: ({ as: Tag = 'div', children, ...props }: any) => React.createElement(Tag, props, children),
   Text: ({ as: Tag = 'span', children, size, priority, ...props }: any) =>
     React.createElement(Tag, props, children),
-  Tooltip: ({ children, ...props }: any) =>
-    React.createElement('div', { ...props, 'data-tooltip': true }, children),
-  TooltipProvider: ({ children, tooltip }: any) =>
-    React.createElement(
-      React.Fragment,
-      null,
-      children(() => undefined),
-      React.createElement('div', { 'data-hover-tooltip': true }, tooltip)
-    ),
+  Tooltip: React.forwardRef(({ children, ...props }: any, ref) =>
+    React.createElement('div', { ...props, ref, 'data-tooltip': true }, children)
+  ),
   PopOut: ({ anchor, content, position, align, offset, ...props }: any) =>
     anchor
       ? React.createElement('div', { ...props, 'data-popout': true, 'data-top': anchor.y }, content)
@@ -26,14 +20,13 @@ vi.mock('folds', () => ({
 
 vi.mock('@tabler/icons-react', () => ({
   IconSparkles: () => React.createElement('svg'),
-  IconSettings: () => React.createElement('svg', { 'data-icon': 'settings' }),
 }));
 
 vi.mock('./ThreadSummaryMarker.css', () => ({
   Marker: 'Marker',
   MarkerTrigger: 'MarkerTrigger',
   MarkerDetails: 'MarkerDetails',
-  MarkerSettings: 'MarkerSettings',
+  MarkerSettingsLink: 'MarkerSettingsLink',
 }));
 
 const text = (value: ReactTestInstance | string): string =>
@@ -42,25 +35,40 @@ const text = (value: ReactTestInstance | string): string =>
 const summaryInfo = { summaryText: 'Fixing token refresh', messageCount: 21 };
 const triggerRect = { x: 10, y: 20, width: 100, height: 16 };
 const renderers: ReactTestRenderer[] = [];
+// Real elements stand in for the rendered ones, so a test can point events at them; the card
+// holds its link as the real card does.
+let nodes: { trigger?: HTMLElement; card?: HTMLElement; link?: HTMLElement } = {};
+const nodeMock = (element: React.ReactElement<Record<string, unknown>>) => {
+  const node = document.createElement(typeof element.type === 'string' ? element.type : 'div');
+  node.getBoundingClientRect = () => ({ ...triggerRect } as DOMRect);
+  node.focus = vi.fn();
+  if (element.props.className === 'MarkerTrigger') nodes.trigger = node;
+  if (element.props.className === 'MarkerSettingsLink') nodes.link = node;
+  if (element.props.role === 'dialog') {
+    nodes.card = node;
+    if (nodes.link) node.append(nodes.link);
+    document.body.append(node);
+  }
+  return node;
+};
 const render = (element: React.ReactElement) => {
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = create(element, {
-      createNodeMock: () => ({
-        getBoundingClientRect: () => ({ ...triggerRect }),
-        contains: () => false,
-      }),
-    });
+    renderer = create(element, { createNodeMock: nodeMock });
   });
   renderers.push(renderer);
   return renderer;
 };
-const trigger = (renderer: ReactTestRenderer) => renderer.root.findByType('button');
+const trigger = (renderer: ReactTestRenderer) =>
+  renderer.root.findByProps({ className: 'MarkerTrigger' });
 const popout = (renderer: ReactTestRenderer) =>
   renderer.root.findAll((node) => node.props['data-popout'] === true);
 
 afterEach(() => {
   act(() => renderers.splice(0).forEach((renderer) => renderer.unmount()));
+  nodes.card?.remove();
+  nodes = {};
+  vi.useRealTimers();
 });
 
 describe('ThreadSummaryMarker', () => {
@@ -130,7 +138,11 @@ describe('ThreadSummaryMarker', () => {
     // The tooltip inside has the role, not the layer in the body, which index.css hides on
     // touch screens.
     expect(layer?.props.role).toBeUndefined();
-    expect(layer?.findByProps({ 'data-tooltip': true }).props.role).toBe('tooltip');
+    const card = layer!.findByProps({ 'data-tooltip': true });
+    expect(card.props.role).toBe('tooltip');
+    expect(card.props.style).toBeUndefined();
+    expect(renderer.root.findAllByType('button')).toHaveLength(1);
+    expect(trigger(renderer).props['aria-haspopup']).toBeUndefined();
   });
 
   it('opens while a mouse hovers and closes when it leaves', async () => {
@@ -170,7 +182,7 @@ describe('ThreadSummaryMarker', () => {
     const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
 
     await act(() => trigger(renderer).props.onClick());
-    await act(() => trigger(renderer).props.onBlur());
+    await act(() => trigger(renderer).props.onBlur({ relatedTarget: document.body }));
 
     expect(popout(renderer)).toHaveLength(0);
   });
@@ -204,41 +216,154 @@ describe('ThreadSummaryMarker', () => {
     expect(text(description)).toContain('Was: Push bug');
   });
 
-  describe('title settings button', () => {
-    const settingsButton = (renderer: ReactTestRenderer) =>
-      renderer.root.findAll(
-        (node) => node.type === 'button' && node.props['aria-label'] === 'Title settings'
-      );
+  describe('with a way to open the title settings', () => {
+    const renderWithSettings = (onOpenSettings = vi.fn()) =>
+      render(<ThreadSummaryMarker summaryInfo={summaryInfo} onOpenSettings={onOpenSettings} />);
+    const card = (renderer: ReactTestRenderer) =>
+      renderer.root.findByProps({ 'data-tooltip': true });
+    const link = (renderer: ReactTestRenderer) =>
+      renderer.root.findByProps({ className: 'MarkerSettingsLink' });
+    const keyDown = (key: string, shiftKey = false) => ({ key, shiftKey, preventDefault: vi.fn() });
+    const mouse = { pointerType: 'mouse' };
 
-    it('is absent without a way to open the settings', () => {
-      const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
+    it('shows no button beside the marker, only the marker itself', () => {
+      const renderer = renderWithSettings();
 
-      expect(settingsButton(renderer)).toHaveLength(0);
       expect(renderer.root.findAllByType('button')).toHaveLength(1);
+      expect(text(trigger(renderer))).toBe('AI title updated');
     });
 
-    it('opens the settings, beside a details trigger that works as before', async () => {
-      const onOpenSettings = vi.fn();
-      const renderer = render(
-        <ThreadSummaryMarker summaryInfo={summaryInfo} onOpenSettings={onOpenSettings} />
-      );
-      const [gear] = settingsButton(renderer);
+    it('opens a card the pointer can enter, a dialog with a Title settings link', async () => {
+      const renderer = renderWithSettings();
 
+      await act(() => trigger(renderer).props.onClick());
+
+      const [layer] = popout(renderer);
+      // The layer still lets the pointer through; only the card takes it.
+      expect(layer!.props.style).toEqual({ pointerEvents: 'none' });
+      expect(card(renderer).props.style).toEqual({ pointerEvents: 'auto' });
+      expect(card(renderer).props.role).toBe('dialog');
+      expect(card(renderer).props['aria-label']).toBe('AI title updated');
+      expect(trigger(renderer).props['aria-haspopup']).toBe('dialog');
+      expect(trigger(renderer).props['aria-controls']).toBe(card(renderer).props.id);
       // A native button, so Enter and Space press it as a click does.
-      expect(gear!.props.type).toBe('button');
-      expect(gear!.findAll((node) => node.props['data-icon'] === 'settings')).toHaveLength(1);
-      const hint = renderer.root.find((node) => node.props['data-hover-tooltip'] === true);
-      expect(text(hint)).toBe('Title settings');
-      act(() => {
-        gear!.props.onClick();
-      });
+      expect(link(renderer).props.type).toBe('button');
+      expect(text(link(renderer))).toBe('Title settings…');
+    });
+
+    it('closes the card and opens the settings from the link', async () => {
+      const onOpenSettings = vi.fn();
+      const renderer = renderWithSettings(onOpenSettings);
+
+      await act(() => trigger(renderer).props.onClick());
+      await act(() => link(renderer).props.onClick());
+
       expect(onOpenSettings).toHaveBeenCalledTimes(1);
       expect(popout(renderer)).toHaveLength(0);
+    });
 
-      const details = renderer.root.findAllByType('button')[0]!;
-      await act(() => details.props.onClick());
+    it('waits for the pointer to reach the card before closing', async () => {
+      vi.useFakeTimers();
+      const renderer = renderWithSettings();
+
+      await act(() => trigger(renderer).props.onPointerEnter(mouse));
+      await act(() => trigger(renderer).props.onPointerLeave(mouse));
+      act(() => {
+        vi.advanceTimersByTime(MARKER_DETAILS_CLOSE_DELAY_MS - 1);
+      });
       expect(popout(renderer)).toHaveLength(1);
-      expect(onOpenSettings).toHaveBeenCalledTimes(1);
+
+      // The card cancels the close while the pointer is on it.
+      await act(() => card(renderer).props.onPointerEnter(mouse));
+      act(() => {
+        vi.advanceTimersByTime(MARKER_DETAILS_CLOSE_DELAY_MS * 4);
+      });
+      expect(popout(renderer)).toHaveLength(1);
+
+      await act(() => card(renderer).props.onPointerLeave(mouse));
+      act(() => {
+        vi.advanceTimersByTime(MARKER_DETAILS_CLOSE_DELAY_MS - 1);
+      });
+      expect(popout(renderer)).toHaveLength(1);
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(popout(renderer)).toHaveLength(0);
+    });
+
+    it('stays pinned after a click when the pointer leaves', async () => {
+      vi.useFakeTimers();
+      const renderer = renderWithSettings();
+
+      await act(() => trigger(renderer).props.onPointerEnter(mouse));
+      await act(() => trigger(renderer).props.onClick());
+      await act(() => trigger(renderer).props.onPointerLeave(mouse));
+      act(() => {
+        vi.advanceTimersByTime(MARKER_DETAILS_CLOSE_DELAY_MS * 4);
+      });
+
+      expect(popout(renderer)).toHaveLength(1);
+    });
+
+    it('takes Tab from the marker into the link without closing', async () => {
+      const renderer = renderWithSettings();
+
+      await act(() => trigger(renderer).props.onClick());
+      const tab = keyDown('Tab');
+      act(() => {
+        trigger(renderer).props.onKeyDown(tab);
+      });
+      expect(tab.preventDefault).toHaveBeenCalled();
+      expect(nodes.link!.focus).toHaveBeenCalled();
+      await act(() => trigger(renderer).props.onBlur({ relatedTarget: nodes.link }));
+      expect(popout(renderer)).toHaveLength(1);
+
+      // Shift+Tab from the link goes back to the marker, which keeps the card.
+      const back = keyDown('Tab', true);
+      act(() => {
+        link(renderer).props.onKeyDown(back);
+      });
+      expect(back.preventDefault).toHaveBeenCalled();
+      expect(nodes.trigger!.focus).toHaveBeenCalled();
+      await act(() => card(renderer).props.onBlur({ relatedTarget: nodes.trigger }));
+      expect(popout(renderer)).toHaveLength(1);
+
+      // Focus that leaves both closes it.
+      await act(() => card(renderer).props.onBlur({ relatedTarget: document.body }));
+      expect(popout(renderer)).toHaveLength(0);
+    });
+
+    it('counts a press in the card as inside', async () => {
+      const renderer = renderWithSettings();
+
+      await act(() => trigger(renderer).props.onClick());
+      act(() => {
+        nodes.link!.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      });
+      expect(popout(renderer)).toHaveLength(1);
+
+      // A press that focuses nothing (Safari) blurs the marker without a related target.
+      act(() => {
+        card(renderer).props.onPointerDownCapture();
+      });
+      await act(() => trigger(renderer).props.onBlur({ relatedTarget: null }));
+      expect(popout(renderer)).toHaveLength(1);
+
+      act(() => {
+        document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      });
+      expect(popout(renderer)).toHaveLength(0);
+    });
+
+    it('closes on Escape', async () => {
+      const renderer = renderWithSettings();
+
+      await act(() => trigger(renderer).props.onClick());
+      act(() => {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      });
+
+      expect(popout(renderer)).toHaveLength(0);
     });
   });
 });

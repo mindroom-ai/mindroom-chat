@@ -797,7 +797,7 @@
         "toolRunningFor": "{{duration}} 동안 실행 중"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "제목 설정"
+        "titleSettings": "제목 설정…"
       }
     },
     "message-search": {

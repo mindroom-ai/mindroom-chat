@@ -808,7 +808,7 @@
         "toolRunningFor": "{{duration}} süredir çalışıyor"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "Başlık ayarları"
+        "titleSettings": "Başlık ayarları…"
       }
     },
     "message-search": {

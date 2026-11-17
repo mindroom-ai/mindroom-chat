@@ -819,7 +819,7 @@
         "toolRunningFor": "En cours depuis {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "Paramètres des titres"
+        "titleSettings": "Paramètres des titres…"
       }
     },
     "message-search": {

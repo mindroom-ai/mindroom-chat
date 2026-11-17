@@ -808,7 +808,7 @@
         "toolRunningFor": "{{duration}} ধরে চলছে"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "শিরোনামের সেটিংস"
+        "titleSettings": "শিরোনামের সেটিংস…"
       }
     },
     "message-search": {

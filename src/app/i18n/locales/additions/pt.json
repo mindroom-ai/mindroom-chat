@@ -819,7 +819,7 @@
         "toolRunningFor": "Em execução há {{duration}}"
       },
       "mindroomThreadSummaryMarker": {
-        "titleSettings": "Definições de títulos"
+        "titleSettings": "Definições de títulos…"
       }
     },
     "message-search": {
