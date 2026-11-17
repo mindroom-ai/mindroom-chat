@@ -46,8 +46,8 @@ export type MessageLink = {
   `useRoomSidePanel` does.
 - `request(url)` must be pure and synchronous and return what the panel's `Component` gets as
   `request`. It must be JSON-safe, since a `remember`ed panel already stores it as JSON.
-- `isMessageLink` stays as it is. A malformed `sidePanel` (no string `id`, `request` not a
-  function) is dropped at registration, logged with the plugin's tag, and the link keeps its card.
+- A `sidePanel` that is not `{ id: string, request: function }` leaves the link out at
+  registration (`isMessageLink`), as a non-boolean `hoverCard` leaves a badge out.
 - Declarative rather than an `onClick` callback. The host owns the panel state, the phone check
   and the click, so a plugin can't open a new tab outside the click, which Safari would block.
   Plugins also need no hooks or bookkeeping of what the panel shows.
@@ -86,9 +86,8 @@ inside a click handler and keeps its identity. `MessageLinkCards` reads the cont
 the same behavior wherever it renders inside those providers, and falls back to the card where
 there are none.
 
-`openPluginPanel` already unfolds a folded panel or leaves the shown one as it is. If tests show it
-does not unfold, `MessageLinkCards` sets the layout to `beside` through the same path as the
-header toggle (`onPanelToggle`).
+Opening goes through `PluginPanelControls.open`, whose `request` (`roomPanels.ts`) resets a folded
+panel's layout and keeps one that fills the room.
 
 ### Plugin
 
@@ -102,8 +101,8 @@ messageLinks: [{
 }],
 ```
 
-The request must be the same object `PullRequestCard` passes to `panel.open(ref)` (same keys in
-the same order) so that JSON equality holds for a panel opened either way. The card stays as it
+`PullRequestCard` passes `parsePullRequestUrl(new URL(href))` to `panel.open`, the same value, so
+JSON equality holds for a panel opened either way. The card stays as it
 is: phones use it, and so do pages without panel controls. The plugin's required API version
 becomes 62, and `mindroom-infra/pins` gets a bump after both PRs merge.
 
@@ -122,7 +121,7 @@ Host (`MessageLinkCards.test.tsx`, `sidePanels`/`Room` tests):
 - A click while the panel shows the same request unfolded is not prevented (default proceeds).
 - A click while the panel shows another request, or is folded, opens it with the new request.
 - On a phone, a click shows the card. Without controls, a click shows the card.
-- A throwing `request` shows the card and logs. A malformed `sidePanel` is dropped at registration.
+- A throwing `request` shows the card and logs. A malformed `sidePanel` leaves the link out.
 - Modified, middle and context-menu clicks are unchanged (existing tests).
 - e2e `e2e/plugins/message-link.spec.ts`: the example plugin opts in. Desktop: click → panel, no
   card; click again → a popup page with the link's URL. Phone viewport: tap → card.
