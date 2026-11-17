@@ -466,6 +466,18 @@ describe('useRoomViewThreadState', () => {
     expect(current().threadSortFreezeState).toBeNull();
   });
 
+  it('shows no sections in a room without agents, whose cards keep their sort', () => {
+    const { store, current } = mountThreadState({
+      hasMindroomAgents: false,
+      advancedFilters: true,
+    });
+
+    act(() => current().handleToggleThreadSections());
+
+    expect(store.get(getCompactRoomSectionsAtom(USER_ID)).on).toBe(true);
+    expect(current().threadSections).toBe(false);
+  });
+
   it('shows no sections in the Threads view', () => {
     viewMode.current = 'threaded';
     const { current } = mountThreadState({ advancedFilters: true });

@@ -161,7 +161,8 @@ export const useRoomViewThreadState = ({
   const [compactSections, updateCompactSections] = useAtom(
     useMemo(() => getCompactRoomSectionsAtom(userId), [userId])
   );
-  const threadSections = effectiveViewMode === 'compact' && compactSections.on;
+  // Only agent rooms have the workflow buckets; a room without agents keeps its cards' sort.
+  const threadSections = effectiveViewMode === 'compact' && hasMindroomAgents && compactSections.on;
   const lastExitedThread = useAtomValue(lastExitedThreadAtom);
   const setLastExitedThread = useSetAtom(lastExitedThreadAtom);
   const [threadSortFreezeState, setThreadSortFreezeState] = useState<ThreadSortFreezeState | null>(
