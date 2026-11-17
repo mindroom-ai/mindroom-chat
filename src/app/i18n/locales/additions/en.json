@@ -87,7 +87,9 @@
       "pack": "Same as pack"
     },
     "imageViewer": {
-      "close": "Close"
+      "close": "Close",
+      "previous": "Previous image",
+      "next": "Next image"
     },
     "inviteUserPrompt": {
       "close": "Close",
@@ -158,6 +160,7 @@
     "appUpdate": {
       "available": "A new version of MindRoom is available.",
       "reload": "Reload",
+      "updating": "Updating…",
       "dismiss": "Dismiss",
       "reloadToUse": "Reload to use it."
     },
@@ -952,7 +955,11 @@
       "moveRoomDown": "Move the focused room or space down",
       "members": "Show or hide members",
       "focusComposer": "Mark as read and go to the composer",
-      "resolveThread": "Resolve or reopen the open thread",
+      "previousThread": "Focus the previous thread",
+      "nextThread": "Focus the next thread",
+      "openThread": "Go to the threads, then open the focused one",
+      "leaveThread": "Leave the open thread, then the threads",
+      "resolveThread": "Resolve or reopen the open or focused thread",
       "newLine": "New line",
       "editLast": "Edit your last message (in an empty composer)",
       "inlineCode": "Inline code",

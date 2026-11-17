@@ -6,6 +6,7 @@ import { phoneNavDrawerOpenAtom } from './phoneNavDrawer';
 import {
   PHONE_STAGE,
   afterWaitingSlide,
+  movePhoneNavDrawer,
   slidePhonePage,
   withPhonePageSlide,
 } from './phonePageSlide';
@@ -25,9 +26,28 @@ const root = document.documentElement;
 const browser = () => {
   let update: (() => void) | undefined;
   let end: () => void = () => undefined;
-  const skipTransition = vi.fn();
+  let skipped = false;
+  /** The direction of each slide that played, as its change left it. */
+  const plays: string[] = [];
+  const takePicture = () => {
+    const run = update;
+    update = undefined;
+    run?.();
+    const direction = root.dataset.pageSlide;
+    if (run && !skipped && direction) plays.push(direction);
+  };
+  // As the browser does: a slide skipped before its picture still runs its change, and it ends
+  // after that; one skipped later jumps to its end.
+  const skipTransition = vi.fn(() => {
+    skipped = true;
+    void Promise.resolve().then(() => {
+      takePicture();
+      end();
+    });
+  });
   const start = vi.fn((callback: () => void) => {
     update = callback;
+    skipped = false;
     const finished = new Promise<void>((resolve) => {
       end = resolve;
     });
@@ -37,12 +57,9 @@ const browser = () => {
   return {
     start,
     skipTransition,
+    plays,
     /** The picture is taken: the page changes. */
-    takePicture: () => {
-      const run = update;
-      update = undefined;
-      run?.();
-    },
+    takePicture,
     /** The slide has played to its end. */
     finish: async () => {
       end();
@@ -137,7 +154,9 @@ describe('slidePhonePage', () => {
     await page.finish();
   });
 
-  it('slides back when a thread closes, and when the list comes back', async () => {
+  // A navigation back to the list, as the browser's back: a person brings it out with
+  // `movePhoneNavDrawer`, which plays no slide.
+  it('slides back when a thread closes, and when a navigation brings the list back', async () => {
     const page = browser();
     showThread(true);
     slidePhonePage(() => showThread(false));
@@ -265,6 +284,95 @@ describe('afterWaitingSlide', () => {
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
     // The list never showed: nothing slides.
     expect(page.skipTransition).toHaveBeenCalledTimes(1);
+    await page.finish();
+  });
+});
+
+describe('movePhoneNavDrawer', () => {
+  const set = (open: boolean) => showList(open);
+
+  it('brings the list out at once over the page, which stays put', () => {
+    const page = browser();
+    movePhoneNavDrawer(true, set);
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
+    // Nothing turns off the drawer's own slide, not even for a moment.
+    expect(page.start).not.toHaveBeenCalled();
+    expect(root.dataset.pageSlide).toBeUndefined();
+  });
+
+  /** `set`, which also notes the marker the page has when the drawer comes out. */
+  const noting = () => {
+    const markers: (string | undefined)[] = [];
+    const setNoting = (open: boolean) => {
+      markers.push(root.dataset.pageSlide);
+      set(open);
+    };
+    return { markers, set: setNoting };
+  };
+
+  it('skips a slide that waits for its picture, whose change still runs, and comes out after it', async () => {
+    const page = browser();
+    slidePhonePage(() => showThread(true));
+    expect(root.dataset.pageSlide).toBe('');
+    const drawer = noting();
+    movePhoneNavDrawer(true, drawer.set);
+    expect(page.skipTransition).toHaveBeenCalledTimes(1);
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+
+    // The browser runs the skipped slide's change, then ends it.
+    await vi.waitFor(() => expect(store.get(phoneNavDrawerOpenAtom)).toBe(true));
+    expect(store.get(conversationUnderThreadAtom)).toBe(true);
+    // No slide played, and the drawer came out with no marker to turn off its own slide.
+    expect(page.plays).toEqual([]);
+    expect(drawer.markers).toEqual([undefined]);
+    expect(root.dataset.pageSlide).toBeUndefined();
+  });
+
+  it('cuts a slide that plays short and comes out once its marker is gone', async () => {
+    const page = browser();
+    slidePhonePage(() => showThread(true));
+    page.takePicture();
+    expect(page.plays).toEqual(['forward']);
+    const drawer = noting();
+    movePhoneNavDrawer(true, drawer.set);
+    expect(page.skipTransition).toHaveBeenCalledTimes(1);
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+
+    await vi.waitFor(() => expect(store.get(phoneNavDrawerOpenAtom)).toBe(true));
+    expect(drawer.markers).toEqual([undefined]);
+    // The next change slides again.
+    slidePhonePage(() => showThread(false));
+    expect(page.start).toHaveBeenCalledTimes(2);
+    page.takePicture();
+    await page.finish();
+  });
+
+  it('stays away when the phone layout goes before the slide it cut short is over', async () => {
+    browser();
+    slidePhonePage(() => showThread(true));
+    movePhoneNavDrawer(true, set);
+    document.body.replaceChildren();
+    // The skipped slide runs its change and ends.
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+    expect(store.get(conversationUnderThreadAtom)).toBe(true);
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+  });
+
+  it('puts the list away through slidePhonePage, where nothing slides from the list', async () => {
+    const page = browser();
+    showList(true);
+    movePhoneNavDrawer(false, set);
+    // It waits for the picture with the navigation a tap on a link in the list starts.
+    expect(page.start).toHaveBeenCalledTimes(1);
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
+    expect(root.dataset.pageSlide).toBeUndefined();
+
+    page.takePicture();
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+    expect(page.skipTransition).toHaveBeenCalledTimes(1);
+    expect(root.dataset.pageSlide).toBeUndefined();
     await page.finish();
   });
 });

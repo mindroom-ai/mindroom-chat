@@ -13,11 +13,12 @@ import {
 
 // On a phone, a thread comes in from the right edge over its room, and a thread or a room leaves
 // to it on the way back to the room or the list, as a page of a phone's own apps does
-// (src/app/navigation/phonePageSlide.ts); the menu button brings the list back the same way. The
-// page under moves a third as far, and the top bar stays. Where the list goes away (a room tapped
-// in it, the menu button again), the page stays put and the drawer slides away to the left over
-// it. Nothing slides between two pages of the same depth, or for someone who asked for reduced
-// motion. 390 by 844 with touch.
+// (src/app/navigation/phonePageSlide.ts). The page under moves a third as far, and the top bar
+// stays. The menu button brings the list out over the page, which stays put while the drawer
+// slides in from the left on its own. Where the list goes away (a room tapped in it, the menu
+// button again), the page stays put too and the drawer slides away to the left over it. Nothing
+// slides between two pages of the same depth, or for someone who asked for reduced motion. 390 by
+// 844 with touch.
 // Set PAGE_SLIDE_SHOTS=<directory> to save a frame of each slide with the motion slowed to a tenth.
 const PASSWORD = 'phone-page-slide-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -146,7 +147,7 @@ const seed = async (test: string) => {
 const drawer = (page: Page) => page.locator('#phone-nav-drawer');
 const menuButton = (page: Page) => page.locator('#phone-nav-menu-button');
 const threadColumn = (page: Page) => page.getByTestId('thread-column');
-// The thread's own Back, under the room header's, which leads to the list.
+// The thread's own Back, in its banner.
 const threadBack = (page: Page) => threadColumn(page).getByRole('button', { name: 'Back' }).last();
 const card = (page: Page, root: string) => page.locator(`[data-thread-root-id="${root}"]`).first();
 
@@ -220,12 +221,16 @@ test.describe('a phone slides its pages', () => {
     await takeSlides(page, 'the other room');
     await takeDrawerSlide(page, 'the other room');
 
-    // The menu button moves between the page and the list the same way.
-    await menuButton(page).tap();
-    await shot('5-list-comes-back');
-    await expect(drawer(page)).toBeVisible();
-    expect(await takeSlides(page, 'the menu button'), 'the list comes back').toEqual([BACK]);
+    // The menu button brings the list out over the page, which stays put, and puts it away.
     await spliceDrawerSlides(page);
+    await menuButton(page).tap();
+    await shot('5-list-comes-out');
+    await expect(drawer(page)).toBeVisible();
+    expect(await takeSlides(page, 'the menu button'), 'the page stays put').toEqual([]);
+    expect(await takeDrawerSlide(page, 'the menu button'), 'the drawer slides in').toEqual([
+      'transitionrun',
+      'transitionend',
+    ]);
     await menuButton(page).tap();
     await expect(drawer(page)).toBeHidden();
     expect(await takeSlides(page, 'the menu button again'), 'the page stays put').toEqual([]);

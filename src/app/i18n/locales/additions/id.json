@@ -84,7 +84,9 @@
       "pack": "Sama seperti paket"
     },
     "imageViewer": {
-      "close": "Tutup"
+      "close": "Tutup",
+      "previous": "Gambar sebelumnya",
+      "next": "Gambar berikutnya"
     },
     "inviteUserPrompt": {
       "close": "Tutup",
@@ -155,6 +157,7 @@
     "appUpdate": {
       "available": "Versi baru MindRoom tersedia.",
       "reload": "Muat ulang",
+      "updating": "Memperbarui…",
       "dismiss": "Tutup",
       "reloadToUse": "Muat ulang untuk menggunakannya."
     },
@@ -935,7 +938,11 @@
       "moveRoomDown": "Pindahkan ruang atau space yang difokuskan ke bawah",
       "members": "Tampilkan atau sembunyikan anggota",
       "focusComposer": "Tandai sudah dibaca dan buka kotak pesan",
-      "resolveThread": "Selesaikan atau buka kembali utas yang terbuka",
+      "previousThread": "Fokus ke utas sebelumnya",
+      "nextThread": "Fokus ke utas berikutnya",
+      "openThread": "Ke daftar utas, lalu buka utas yang difokuskan",
+      "leaveThread": "Keluar dari utas yang terbuka, lalu dari daftar utas",
+      "resolveThread": "Selesaikan atau buka kembali utas yang terbuka atau difokuskan",
       "newLine": "Baris baru",
       "editLast": "Edit pesan terakhir Anda (di kotak pesan kosong)",
       "inlineCode": "Kode sebaris",

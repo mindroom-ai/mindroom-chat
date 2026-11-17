@@ -451,13 +451,8 @@ describe("the room header's actions", () => {
       ],
       onCanvasOpen: vi.fn(),
       onCanvasClose: vi.fn(),
-      // A call is on: a phone's row keeps its button, the menu offers the rest.
-      calls: (placement) =>
-        placement.at === 'menu' ? (
-          <button type="button">Call Helper</button>
-        ) : (
-          <button type="button" aria-label={placement.phone ? 'Join the call' : 'Start a call'} />
-        ),
+      // The call buttons stay in the row on every screen.
+      calls: <button type="button" aria-label="Start a call" />,
       pluginPanels: [{ id: 'notes/panel', label: 'Notes' }],
       onPanelToggle: vi.fn(),
     });
@@ -494,7 +489,7 @@ describe("the room header's actions", () => {
   it("folds a phone's actions into the room menu, in the row's order", () => {
     screen.size = 'Mobile';
     renderEverything();
-    expect(rowLabels()).toEqual(['Join the call', 'More Options']);
+    expect(rowLabels()).toEqual(['Start a call', 'More Options']);
     openMenu();
     expect(roomEntries()).toEqual([
       'Compact view',
@@ -505,7 +500,6 @@ describe("the room header's actions", () => {
       'Pinned Messages',
       'Show Members',
       'Notes',
-      'Call Helper',
     ]);
   });
 

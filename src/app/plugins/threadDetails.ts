@@ -30,6 +30,13 @@ export type ShownThreadDetail = {
   Component: ThreadDetail['Component'];
 };
 
+/** Whether a plugin config.json leaves on contributes a thread detail. */
+export const hasThreadDetails = (
+  plugins: readonly RegisteredPlugin[],
+  config: ClientConfig | undefined
+): boolean =>
+  plugins.some((plugin) => plugin.threadDetails.length > 0 && isPluginEnabled(config, plugin.id));
+
 /**
  * The details the plugins config.json leaves on show for the thread, in build order, each with its
  * plugin's tag. A `shows` that throws leaves out only its entry, logged with the plugin's tag.

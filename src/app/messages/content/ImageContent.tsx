@@ -1,93 +1,21 @@
 import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSetAtom } from 'jotai';
-import FocusTrap from 'focus-trap-react';
-import {
-  Box,
-  Button,
-  Chip,
-  Icon,
-  Icons,
-  Overlay,
-  OverlayBackdrop,
-  OverlayCenter,
-  Spinner,
-  Text,
-  as,
-} from 'folds';
+import { Box, Button, Chip, Icon, Icons, Spinner, Text, as } from 'folds';
 import classNames from 'classnames';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import type { IEncryptedFile, IImageInfo } from '../../matrix/types/common';
 import type { EventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
-import { Modal } from '../../ui/glass/GlassPrimitives';
 import { BlurHash, getInfoBlurHash } from '../../ui/media/BlurHash';
-import { useViewerFrame } from './viewerFrame';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { AsyncStatus, useAsyncCallback } from '../../lib/hooks/useAsyncCallback';
 import { revokeBlobUrl, useBlobUrlCleanup } from '../../lib/hooks/useBlobUrlCleanup';
 import { downloadCachedAttachment } from '../../event-store/cache/attachmentRepository';
 import { canUseServerThumbnail, loadServerScaledPicture } from './serverThumbnail';
-import { imageViewerOpenAtom } from '../../navigation/imageViewerState';
 import { revealDirectionControls } from '../../ui/directional';
 import { getBlobSafeMimeType, FALLBACK_MIMETYPE } from '../../lib/mimeTypes';
-import { stopPropagation } from '../../lib/keyboard';
-import { PINCH_SURFACE_ATTRIBUTE } from '../../theme/usePinchToZoom';
+import { loadImageOriginal } from './imageOriginal';
+import { ImageGallery } from './ImageGallery';
 import * as css from './style.css';
-
-/** Marks the history entry pushed while an image viewer is open, so Back closes the viewer. */
-export const IMAGE_VIEWER_HISTORY_MARKER = '__mindroomImageViewer';
-
-// The viewer pinches its own picture: the page zoom leaves pinches over its frame alone, its
-// safe-area padding on a phone included (theme/usePinchToZoom.ts).
-const PINCH_SURFACE = { [PINCH_SURFACE_ATTRIBUTE]: '' };
-
-type HistoryState = Record<string, unknown> | null | undefined;
-
-const hasViewerMarker = (state: HistoryState): boolean =>
-  !!state && typeof state === 'object' && state[IMAGE_VIEWER_HISTORY_MARKER] === true;
-
-const withoutViewerMarker = (state: HistoryState): Record<string, unknown> => {
-  const rest = { ...state };
-  delete rest[IMAGE_VIEWER_HISTORY_MARKER];
-  return rest;
-};
-
-/**
- * While `open`, keeps one history entry for the viewer: Back (popstate) closes it, closing it
- * any other way consumes that entry, and leaving the page strips the marker so a reload does
- * not come back to a stale viewer entry.
- */
-const useViewerHistoryEntry = (open: boolean, close: () => void) => {
-  useEffect(() => {
-    if (!open) return undefined;
-    const { history } = window;
-    history.pushState(
-      { ...(history.state as HistoryState), [IMAGE_VIEWER_HISTORY_MARKER]: true },
-      ''
-    );
-    let consumed = false;
-
-    const handlePopState = () => {
-      consumed = true;
-      close();
-    };
-    const handlePageHide = () => {
-      if (consumed) return;
-      consumed = true;
-      if (hasViewerMarker(history.state as HistoryState)) {
-        history.replaceState(withoutViewerMarker(history.state as HistoryState), '');
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    window.addEventListener('pagehide', handlePageHide);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-      window.removeEventListener('pagehide', handlePageHide);
-      if (!consumed && hasViewerMarker(history.state as HistoryState)) history.back();
-    };
-  }, [open, close]);
-};
 
 type RenderImageContentProps = {
   src: string;
@@ -101,12 +29,6 @@ type RenderImageContentProps = {
   onError: () => void;
 };
 
-type RenderImageViewerProps = {
-  src: string;
-  alt: string;
-  requestClose: () => void;
-};
-
 type ImageContentProps = {
   body: string;
   mimeType?: string;
@@ -118,7 +40,6 @@ type ImageContentProps = {
   autoPlay?: boolean;
   markedAsSpoiler?: boolean;
   renderImage: (props: RenderImageContentProps) => ReactNode;
-  renderViewer: (props: RenderImageViewerProps) => ReactNode;
 };
 
 type ImageThumbnail = {
@@ -140,39 +61,6 @@ const getImageThumbnail = (info: IImageInfo | undefined): ImageThumbnail | undef
   };
 };
 
-/**
- * While `active`, loads the original picture for the viewer and returns its blob URL once it is
- * there; the URL is revoked when the viewer closes. A failed load closes the viewer again.
- */
-const useOriginalForViewer = (
-  active: boolean,
-  loadOriginal: () => Promise<string>,
-  onFailure: () => void
-): string | undefined => {
-  const [original, setOriginal] = useState<string>();
-  useEffect(() => {
-    if (!active) return undefined;
-    let current = true;
-    let objectUrl: string | undefined;
-    loadOriginal().then(
-      (url) => {
-        objectUrl = url;
-        if (current) setOriginal(url);
-        else revokeBlobUrl(url);
-      },
-      () => {
-        if (current) onFailure();
-      }
-    );
-    return () => {
-      current = false;
-      if (objectUrl) revokeBlobUrl(objectUrl);
-      setOriginal(undefined);
-    };
-  }, [active, loadOriginal, onFailure]);
-  return original;
-};
-
 /** A layer over the whole image box that centres what it holds, such as a button or spinner. */
 function CenteredLayer({ children }: { children: ReactNode }) {
   return (
@@ -184,7 +72,8 @@ function CenteredLayer({ children }: { children: ReactNode }) {
 
 /**
  * An `m.image` attachment: loads the image (right away, or on "View" without `autoPlay`), keeps
- * a spoiler blurred until it is revealed, and opens the full viewer on click or Enter.
+ * a spoiler blurred until it is revealed, and opens the full viewer on click or Enter, which
+ * pages on through the conversation's other pictures (ImageGallery.tsx).
  */
 export const ImageContent = as<'div', ImageContentProps>(
   (
@@ -198,7 +87,6 @@ export const ImageContent = as<'div', ImageContentProps>(
       autoPlay = true,
       markedAsSpoiler = false,
       renderImage,
-      renderViewer,
       className,
       ...props
     },
@@ -206,7 +94,6 @@ export const ImageContent = as<'div', ImageContentProps>(
   ) => {
     const { t } = useTranslation();
     const mx = useMatrixClient();
-    const setImageViewerOpen = useSetAtom(imageViewerOpenAtom);
     const [viewerOpen, setViewerOpen] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const [failed, setFailed] = useState(false);
@@ -229,18 +116,17 @@ export const ImageContent = as<'div', ImageContentProps>(
     thumbnailRef.current = thumbnail;
     const thumbnailKey = thumbnail ? `${thumbnail.mxcUri}|${thumbnail.mimeType}` : '';
 
-    const loadOriginal = useCallback(async () => {
-      const file = encInfoRef.current;
-      const blob = await downloadCachedAttachment(mx, {
-        owner: ownerRef.current,
-        mxcUri: url,
-        encryptedFile: file ? { ...file, url } : undefined,
-        // A type the browser would run (SVG) is loaded as plain bytes instead.
-        mimeType: getBlobSafeMimeType(mimeType ?? FALLBACK_MIMETYPE),
-      });
-      return URL.createObjectURL(blob);
+    const loadOriginal = useCallback(
+      () =>
+        loadImageOriginal(mx, {
+          owner: ownerRef.current,
+          url,
+          encInfo: encInfoRef.current,
+          mimeType,
+        }),
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [mx, ownerKey, url, encKey, mimeType]);
+      [mx, ownerKey, url, encKey, mimeType]
+    );
 
     const [srcState, loadSrc] = useAsyncCallback(
       useCallback(async () => {
@@ -270,25 +156,9 @@ export const ImageContent = as<'div', ImageContentProps>(
       if (autoPlay) load();
     }, [autoPlay, load]);
 
-    const viewerFrame = useViewerFrame();
     const closeViewer = useCallback(() => setViewerOpen(false), []);
-    useViewerHistoryEntry(viewerOpen, closeViewer);
-    const scaledInTimeline = !!thumbnail || serverScaled;
-    const original = useOriginalForViewer(
-      viewerOpen && scaledInTimeline,
-      loadOriginal,
-      closeViewer
-    );
-
-    useEffect(() => {
-      if (!viewerOpen) return undefined;
-      setImageViewerOpen(true);
-      return () => setImageViewerOpen(false);
-    }, [viewerOpen, setImageViewerOpen]);
 
     const src = srcState.status === AsyncStatus.Success ? srcState.data : undefined;
-    // The viewer saves what it shows, so it waits for the original rather than show the thumbnail.
-    const viewerSrc = scaledInTimeline ? original : src;
     const blurHash = getInfoBlurHash(info);
     const aspectRatio = info?.w && info?.h ? `${info.w} / ${info.h}` : undefined;
     // The name shows its direction controls, so `scan<U+202E>gpj.exe` cannot pass for a JPEG; the
@@ -310,31 +180,20 @@ export const ImageContent = as<'div', ImageContentProps>(
         ref={ref}
       >
         {blurHash && !loaded && <BlurHash hash={blurHash} />}
-        {viewerSrc && (
-          <Overlay open={viewerOpen} backdrop={<OverlayBackdrop />}>
-            <OverlayCenter style={viewerFrame.centerStyle}>
-              <FocusTrap
-                focusTrapOptions={{
-                  initialFocus: false,
-                  onDeactivate: closeViewer,
-                  clickOutsideDeactivates: true,
-                  escapeDeactivates: stopPropagation,
-                }}
-              >
-                <Modal
-                  {...PINCH_SURFACE}
-                  role="dialog"
-                  aria-modal="true"
-                  aria-label={shownName}
-                  style={viewerFrame.modalStyle}
-                  size="500"
-                  onContextMenu={(evt: React.MouseEvent) => evt.stopPropagation()}
-                >
-                  {renderViewer({ src: viewerSrc, alt: body, requestClose: closeViewer })}
-                </Modal>
-              </FocusTrap>
-            </OverlayCenter>
-          </Overlay>
+        {viewerOpen && (
+          // The viewer loads and saves the original, never the timeline's thumbnail.
+          <ImageGallery
+            slide={{
+              eventId: owner?.eventId ?? '',
+              body,
+              url,
+              mimeType: mimeType ?? FALLBACK_MIMETYPE,
+              info: info ?? {},
+              encInfo,
+              owner,
+            }}
+            requestClose={closeViewer}
+          />
         )}
         {src && (
           <Box className={classNames(css.AbsoluteContainer, !spoilerRevealed && css.Blur)}>
@@ -363,9 +222,7 @@ export const ImageContent = as<'div', ImageContentProps>(
             </Button>
           </CenteredLayer>
         )}
-        {(srcState.status === AsyncStatus.Loading ||
-          (src && !loaded && !failed) ||
-          (viewerOpen && !viewerSrc)) &&
+        {(srcState.status === AsyncStatus.Loading || (src && !loaded && !failed)) &&
           (spoilerRevealed || !src) && (
             <CenteredLayer>
               <Spinner variant="Secondary" size="400" />
