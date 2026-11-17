@@ -85,7 +85,7 @@ describe('receiptEventsVersion', () => {
     expect(receiptReadTs(room, thread, '$other', 5000)).toBe(1000);
     const before = receiptEventsVersion(room);
 
-    room.emit(RoomEvent.Timeline, message('$dropped', 1000), room, undefined, true, {
+    room.emit(RoomEvent.Timeline, message('$other', 1000), room, undefined, true, {
       timeline: room.getLiveTimeline(),
     });
     expect(receiptEventsVersion(room)).toBe(before + 1);
@@ -93,6 +93,31 @@ describe('receiptEventsVersion', () => {
     expect(receiptEventsVersion(room)).toBe(before + 2);
     room.emit(ThreadEvent.Delete, thread);
     expect(receiptEventsVersion(room)).toBe(before + 3);
+  });
+
+  it('counts no change when a timeline drops an event no receipt was read for', async () => {
+    await room.addLiveEvents([message('$named', 1000)], { addToState: false });
+    expect(receiptReadTs(room, room, '$named', 5000)).toBe(1000);
+    const before = receiptEventsVersion(room);
+
+    // A redacted reaction leaves its thread: no receipt reads up to it.
+    room.emit(RoomEvent.Timeline, message('$reaction', 1000), room, undefined, true, {
+      timeline: room.getLiveTimeline(),
+    });
+
+    expect(receiptEventsVersion(room)).toBe(before);
+  });
+
+  it('counts a change when a timeline drops an event a receipt was read for', async () => {
+    const named = message('$named', 1000);
+    await room.addLiveEvents([named], { addToState: false });
+    expect(receiptReadTs(room, room, '$named', 5000)).toBe(1000);
+    const before = receiptEventsVersion(room);
+
+    room.removeEvent('$named');
+
+    expect(receiptReadTs(room, room, '$named', 5000)).toBe(5000);
+    expect(receiptEventsVersion(room)).toBe(before + 1);
   });
 
   it("counts no change for what the room's lists of threads take or drop", async () => {
