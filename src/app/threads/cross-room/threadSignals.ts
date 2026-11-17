@@ -360,7 +360,7 @@ export const readThreadSignals = (
     if (
       wroteSince ||
       askedSomeoneElse ||
-      now - askedAt > QUESTION_WAITS_MS ||
+      now - askedAt >= QUESTION_WAITS_MS ||
       answeredByReaction(room, pendingQuestion, userId)
     ) {
       pendingQuestion = undefined;

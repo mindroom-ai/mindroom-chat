@@ -48,7 +48,7 @@ vi.mock('../../ui/glass/GlassPrimitives', () => ({
 
 const SLASH_COMMANDS = [
   { name: 'me', description: 'Sends an action.' },
-  { name: 'shrug', description: 'Puts a shrug before the message.' },
+  { name: 'shush', description: 'Asks for quiet.' },
   { name: 'shout', description: 'Says it louder.' },
 ];
 
@@ -119,20 +119,20 @@ it('lists the commands that start with the typed letters, each with what it does
   renderSlashMenu('/SH');
 
   expect(rows().map(texts)).toEqual([
-    ['/shrug', 'Puts a shrug before the message.'],
+    ['/shush', 'Asks for quiet.'],
     ['/shout', 'Says it louder.'],
   ]);
-  expect(rows().map((row) => row.props['data-slash-command'])).toEqual(['shrug', 'shout']);
+  expect(rows().map((row) => row.props['data-slash-command'])).toEqual(['shush', 'shout']);
 });
 
 it('writes the picked command and a space in place of the typed word', () => {
-  const { editor, requestClose } = renderSlashMenu('/shr');
+  const { editor, requestClose } = renderSlashMenu('/shu');
 
   act(() => {
     defined(rows()[0], 'a command row').props.onClick();
   });
 
-  expect(toPlainText(editor.children, false)).toBe('/shrug ');
+  expect(toPlainText(editor.children, false)).toBe('/shush ');
   expect(requestClose).toHaveBeenCalled();
 });
 
@@ -150,7 +150,7 @@ it('takes the first command on Tab in the composer', () => {
   act(() => defined(windowKeyDown.listener, 'the window key listener')(tab));
 
   expect(tab.preventDefault).toHaveBeenCalled();
-  expect(toPlainText(editor.children, false)).toBe('/shrug ');
+  expect(toPlainText(editor.children, false)).toBe('/shush ');
 });
 
 it('shows nothing when no command starts with the typed letters', () => {

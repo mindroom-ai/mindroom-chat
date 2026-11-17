@@ -78,7 +78,7 @@ export const AGENT_CALL_ERROR_KEYS = {
 
 /**
  * The newest agent call that did not start, from a place that cannot show why itself (the
- * header button, the phone room menu, which closes before the call starts). The account-wide
+ * header button, the command palette, which closes before the call starts). The account-wide
  * call notices show it.
  */
 export type AgentCallFailure = { error: AgentCallError; id: number };

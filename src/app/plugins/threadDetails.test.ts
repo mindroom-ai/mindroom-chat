@@ -3,7 +3,12 @@ import type { Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
 import type { RegisteredPlugin } from './registry';
-import { isThreadDetail, shownThreadDetails, type ThreadDetail } from './threadDetails';
+import {
+  hasThreadDetails,
+  isThreadDetail,
+  shownThreadDetails,
+  type ThreadDetail,
+} from './threadDetails';
 
 const A = (): null => null;
 const B = (): null => null;
@@ -78,6 +83,19 @@ describe('shownThreadDetails', () => {
     expect(logged).toHaveBeenCalledWith(
       "[plugin broken@1.0.0] its thread details' shows failed",
       failure
+    );
+  });
+});
+
+describe('hasThreadDetails', () => {
+  it('says whether a plugin config.json leaves on contributes a thread detail', () => {
+    const off = { plugins: { alpha: { enabled: false } } } as unknown as ClientConfig;
+    expect(hasThreadDetails([], undefined)).toBe(false);
+    expect(hasThreadDetails([plugin('alpha', []), plugin('beta', [{ Component: A }])], off)).toBe(
+      true
+    );
+    expect(hasThreadDetails([plugin('alpha', [{ Component: A }]), plugin('beta', [])], off)).toBe(
+      false
     );
   });
 });

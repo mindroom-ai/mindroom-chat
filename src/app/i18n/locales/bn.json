@@ -2078,26 +2078,16 @@
       "shortcutHint": "খোলার শর্টকাট: <shortcut>{{shortcut}}</shortcut>।"
     },
     "commands": {
-      "CommandAcl": "সার্ভার অ্যাক্সেস নিয়ন্ত্রণ তালিকা পরিচালনা করুন। উদাহরণ: /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]",
       "CommandBan": "রুম থেকে ব্যবহারকারী নিষিদ্ধ করুন। উদাহরণ: /ban userId1 userId2 servername [-r reason]",
-      "CommandConvertToDm": "রুমকে সরাসরি বার্তায় রূপান্তর করুন",
-      "CommandConvertToRoom": "সরাসরি বার্তাকে রুমে রূপান্তর করুন",
-      "CommandDelete": "ব্যবহারকারীদের থেকে বার্তা মুছুন. উদাহরণ: /delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandDisInvite": "ব্যবহারকারীর রুমের আমন্ত্রণ ফিরিয়ে নিন। উদাহরণ: /disinvite userId1 userId2 [-r reason]",
       "CommandIgnore": "ব্যবহারকারীকে উপেক্ষা করুন। উদাহরণ: /ignore userId1 userId2",
       "CommandInvite": "ব্যবহারকারীকে রুমে আমন্ত্রণ জানান। উদাহরণ: /invite userId1 userId2 [-r reason]",
       "CommandJoin": "ঠিকানা সহ রুমে যোগ দিন। উদাহরণ: /join address1 address2",
       "CommandKick": "ব্যবহারকারীকে রুম থেকে সরান। উদাহরণ: /kick userId1 userId2 servername [-r reason]",
       "CommandLeave": "বর্তমান রুম ছেড়ে দিন।",
       "CommandMe": "কর্ম বার্তা পাঠান",
-      "CommandMyRoomAvatar": "বর্তমান রুমে প্রোফাইল ছবি পরিবর্তন করুন। উদাহরণ: /myroomavatar mxc://xyzabc",
-      "CommandMyRoomNick": "বর্তমান রুমে ডাকনাম বদলান।",
       "CommandNotice": "নোটিশ বার্তা পাঠান",
-      "CommandShrug": "বার্তা হিসাবে ¯\\_(ツ)_/¯ পাঠান",
       "CommandStartDm": "ব্যবহারকারীর সাথে সরাসরি বার্তা শুরু করুন। উদাহরণ: /startdm userId1",
-      "CommandTableFlip": "বার্তা হিসাবে {{value1}} পাঠান",
       "CommandUnBan": "ব্যবহারকারীর রুমের নিষেধাজ্ঞা তুলে নিন। উদাহরণ: /unban userId1 userId2",
-      "CommandUnFlip": "বার্তা হিসাবে {{value1}} পাঠান",
       "CommandUnIgnore": "ব্যবহারকারীকে উপেক্ষা করা বন্ধ করুন। উদাহরণ: /unignore userId1 userId2"
     },
     "configConfig": {

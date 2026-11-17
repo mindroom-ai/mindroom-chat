@@ -1276,25 +1276,15 @@
     "commands": {
       "CommandMe": "Eylem mesajı gönder",
       "CommandNotice": "Bilgilendirme mesajı gönder",
-      "CommandShrug": "Mesaj olarak ¯\\_(ツ)_/¯ gönder",
-      "CommandTableFlip": "Mesaj olarak {{value1}} gönder",
-      "CommandUnFlip": "Mesaj olarak {{value1}} gönder",
       "CommandStartDm": "Kullanıcıyla doğrudan mesaj başlat. Örnek: /startdm userId1",
       "CommandJoin": "Adresiyle odaya katıl. Örnek: /join address1 address2",
       "CommandLeave": "Geçerli odadan ayrıl.",
       "CommandInvite": "Kullanıcıyı odaya davet et. Örnek: /invite userId1 userId2 [-r reason]",
-      "CommandDisInvite": "Kullanıcının oda davetini iptal et. Örnek: /disinvite userId1 userId2 [-r reason]",
       "CommandKick": "Kullanıcıyı odadan çıkar. Örnek: /kick userId1 userId2 servername [-r reason]",
       "CommandBan": "Kullanıcıyı odadan yasakla. Örnek: /ban userId1 userId2 servername [-r reason]",
       "CommandUnBan": "Kullanıcının oda yasağını kaldır. Örnek: /unban userId1 userId2",
       "CommandIgnore": "Kullanıcıyı yoksay. Örnek: /ignore userId1 userId2",
-      "CommandUnIgnore": "Kullanıcıyı yoksaymayı bırak. Örnek: /unignore userId1 userId2",
-      "CommandMyRoomNick": "Geçerli odadaki takma adı değiştir.",
-      "CommandMyRoomAvatar": "Geçerli odadaki profil resmini değiştir. Örnek /myroomavatar mxc://xyzabc",
-      "CommandConvertToDm": "Odayı doğrudan mesaja dönüştür",
-      "CommandConvertToRoom": "Doğrudan mesajı odaya dönüştür",
-      "CommandDelete": "Kullanıcıların mesajlarını sil. Örnek: /delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandAcl": "Sunucu erişim denetim listesini yönet. Örnek /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]"
+      "CommandUnIgnore": "Kullanıcıyı yoksaymayı bırak. Örnek: /unignore userId1 userId2"
     },
     "item": {
       "value1Emoji": "{{value1}} emojisi"

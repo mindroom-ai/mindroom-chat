@@ -221,7 +221,8 @@ export function ThreadActionsMenu({
 
   useEffect(() => {
     const surface = surfaceRef.current;
-    if (!surface) return undefined;
+    // Without details, the menu neither resizes late nor has a description.
+    if (!surface || details.length === 0) return undefined;
     // Details that render nothing (empty, loading or failed) describe nothing.
     const measure = () =>
       setDescribed(surface.querySelector('[data-thread-detail]:not(:empty)') !== null);
@@ -244,7 +245,7 @@ export function ThreadActionsMenu({
       mutations.disconnect();
       observer?.disconnect();
     };
-  }, [anchor, dialog]);
+  }, [anchor, dialog, details]);
 
   if (dialog === 'snooze') {
     return (
@@ -319,7 +320,6 @@ export function ThreadActionsMenu({
               aria-label={t('threadActions.summary')}
               style={{ ...fieldStyle, minHeight: '5rem', resize: 'vertical' }}
               value={draft}
-              maxLength={SUMMARY_MAX_LENGTH * 2}
               disabled={busy}
               onChange={(evt) => setDraft(evt.target.value)}
             />

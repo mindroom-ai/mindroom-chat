@@ -1280,25 +1280,15 @@
     "commands": {
       "CommandMe": "Send action message",
       "CommandNotice": "Send notice message",
-      "CommandShrug": "Send ¯\\_(ツ)_/¯ as message",
-      "CommandTableFlip": "Send {{value1}} as message",
-      "CommandUnFlip": "Send {{value1}} as message",
       "CommandStartDm": "Start direct message with user. Example: /startdm userId1",
       "CommandJoin": "Join room with address. Example: /join address1 address2",
       "CommandLeave": "Leave current room.",
       "CommandInvite": "Invite user to room. Example: /invite userId1 userId2 [-r reason]",
-      "CommandDisInvite": "Disinvite user to room. Example: /disinvite userId1 userId2 [-r reason]",
       "CommandKick": "Kick user from room. Example: /kick userId1 userId2 servername [-r reason]",
       "CommandBan": "Ban user from room. Example: /ban userId1 userId2 servername [-r reason]",
       "CommandUnBan": "Unban user from room. Example: /unban userId1 userId2",
       "CommandIgnore": "Ignore user. Example: /ignore userId1 userId2",
-      "CommandUnIgnore": "Unignore user. Example: /unignore userId1 userId2",
-      "CommandMyRoomNick": "Change nick in current room.",
-      "CommandMyRoomAvatar": "Change profile picture in current room. Example /myroomavatar mxc://xyzabc",
-      "CommandConvertToDm": "Convert room to direct message",
-      "CommandConvertToRoom": "Convert direct message to room",
-      "CommandDelete": "Delete messages from users. Example: /delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]",
-      "CommandAcl": "Manage server access control list. Example /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]"
+      "CommandUnIgnore": "Unignore user. Example: /unignore userId1 userId2"
     },
     "item": {
       "value1Emoji": "{{value1}} emoji"

@@ -11,11 +11,14 @@ import {
   disposableHomeserverIsUp,
 } from '../helpers/disposableAccounts';
 
-// On a phone, what shows deeper comes in from the right edge and leaves to it on the way back, as
-// a page of a phone's own apps does (src/app/navigation/phonePageSlide.ts): a room over the list,
-// a thread over its room, and back; the menu button moves between the list and the page the same
-// way. The page under moves a third as far, and the top bar stays. Nothing slides between two
-// pages of the same depth, or for someone who asked for reduced motion. 390 by 844 with touch.
+// On a phone, a thread comes in from the right edge over its room, and a thread or a room leaves
+// to it on the way back to the room or the list, as a page of a phone's own apps does
+// (src/app/navigation/phonePageSlide.ts). The page under moves a third as far, and the top bar
+// stays. The menu button brings the list out over the page, which stays put while the drawer
+// slides in from the left on its own. Where the list goes away (a room tapped in it, the menu
+// button again), the page stays put too and the drawer slides away to the left over it. Nothing
+// slides between two pages of the same depth, or for someone who asked for reduced motion. 390 by
+// 844 with touch.
 // Set PAGE_SLIDE_SHOTS=<directory> to save a frame of each slide with the motion slowed to a tenth.
 const PASSWORD = 'phone-page-slide-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -54,7 +57,41 @@ const recordSlides = (page: Page) =>
       if (!event.pseudoElement.startsWith('::view-transition')) return;
       slides.at(-1)?.plays.push(`${event.pseudoElement} ${event.animationName}`);
     });
+    // What the drawer's own slide does: it starts, and plays to its end or is cut short.
+    const drawerSlides: string[] = [];
+    (window as unknown as { drawerSlides: string[] }).drawerSlides = drawerSlides;
+    for (const type of ['transitionrun', 'transitionend', 'transitioncancel'] as const) {
+      document.addEventListener(
+        type,
+        (event) => {
+          const { target } = event;
+          if (!(target instanceof Element) || target.id !== 'phone-nav-drawer') return;
+          if (event.propertyName === 'transform') drawerSlides.push(type);
+        },
+        true
+      );
+    }
   });
+
+/** What the drawer's own slide did since the last call, which forgets it. */
+const spliceDrawerSlides = (page: Page): Promise<string[]> =>
+  page.evaluate(() => (window as unknown as { drawerSlides: string[] }).drawerSlides.splice(0));
+
+/** The drawer's own slide since the last call, once it has ended. */
+const takeDrawerSlide = async (page: Page, step: string): Promise<string[]> => {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() =>
+          (window as unknown as { drawerSlides: string[] }).drawerSlides.some(
+            (each) => each !== 'transitionrun'
+          )
+        ),
+      { message: `${step}: the drawer's slide ends`, timeout: 30_000 }
+    )
+    .toBe(true);
+  return spliceDrawerSlides(page);
+};
 
 /** The slides since the last call, once the one that plays has ended. */
 const takeSlides = async (page: Page, step: string): Promise<Slide[]> => {
@@ -119,7 +156,9 @@ test.describe('a phone slides its pages', () => {
     test.skip(!(await disposableHomeserverIsUp()), 'needs the disposable homeserver (just hs-up)');
   });
 
-  test('a room and a thread come in from the right and leave to it', async ({ page }) => {
+  test('the list slides away over a room, and a thread comes in from the right', async ({
+    page,
+  }) => {
     test.setTimeout(180_000);
     const { username, root } = await seed('slides');
     await recordSlides(page);
@@ -145,12 +184,17 @@ test.describe('a phone slides its pages', () => {
       await page.screenshot({ path: `${SHOTS}/${name}.png` });
     };
 
+    // Whatever the drawer did on the way in is no part of what follows.
+    await spliceDrawerSlides(page);
     await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
-    await shot('1-room-comes-in');
+    await shot('1-list-slides-away');
     await expect(card(page, root)).toBeVisible({ timeout: 60_000 });
     await expect(drawer(page)).toBeHidden();
-    expect(await takeSlides(page, 'a room from the list'), 'a room from the list').toEqual([
-      FORWARD,
+    // The page stays put, and the drawer slides away over the room to its end.
+    expect(await takeSlides(page, 'a room from the list'), 'a room from the list').toEqual([]);
+    expect(await takeDrawerSlide(page, 'a room from the list'), 'the drawer slides away').toEqual([
+      'transitionrun',
+      'transitionend',
     ]);
 
     await card(page, root).tap();
@@ -174,15 +218,25 @@ test.describe('a phone slides its pages', () => {
     await drawer(page).getByRole('link', { name: 'Harbor Plans' }).tap();
     await expect(drawer(page)).toBeHidden();
     await takeSlides(page, 'the other room');
+    await takeDrawerSlide(page, 'the other room');
 
-    // The menu button moves between the page and the list the same way.
+    // The menu button brings the list out over the page, which stays put, and puts it away.
+    await spliceDrawerSlides(page);
     await menuButton(page).tap();
-    await shot('5-list-comes-back');
+    await shot('5-list-comes-out');
     await expect(drawer(page)).toBeVisible();
-    expect(await takeSlides(page, 'the menu button'), 'the list comes back').toEqual([BACK]);
+    expect(await takeSlides(page, 'the menu button'), 'the page stays put').toEqual([]);
+    expect(await takeDrawerSlide(page, 'the menu button'), 'the drawer slides in').toEqual([
+      'transitionrun',
+      'transitionend',
+    ]);
     await menuButton(page).tap();
     await expect(drawer(page)).toBeHidden();
-    expect(await takeSlides(page, 'the menu button again'), 'the page comes in').toEqual([FORWARD]);
+    expect(await takeSlides(page, 'the menu button again'), 'the page stays put').toEqual([]);
+    expect(await takeDrawerSlide(page, 'the menu button again'), 'the drawer slides away').toEqual([
+      'transitionrun',
+      'transitionend',
+    ]);
   });
 
   test('nothing slides for someone who asked for reduced motion', async ({ page }) => {

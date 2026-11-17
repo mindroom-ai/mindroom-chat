@@ -449,13 +449,7 @@ vi.mock('../commands/useCommands', () => ({
   Command: {
     Me: 'me',
     Notice: 'notice',
-    Shrug: 'shrug',
-    TableFlip: 'tableflip',
-    UnFlip: 'unflip',
   },
-  SHRUG: 'SHRUG',
-  TABLEFLIP: 'TABLEFLIP',
-  UNFLIP: 'UNFLIP',
   useCommands: () => ({}),
 }));
 
@@ -543,9 +537,14 @@ vi.mock('../RoomInputExtensions', async () => {
       replyDraft: IReplyDraft | undefined;
       threadingEnabled: boolean;
     }) =>
-      getMessageRelation(context.replyDraft?.eventId, context.replyDraft?.relation, context.threadId, {
-        allowThreadRelation: context.threadingEnabled,
-      }),
+      getMessageRelation(
+        context.replyDraft?.eventId,
+        context.replyDraft?.relation,
+        context.threadId,
+        {
+          allowThreadRelation: context.threadingEnabled,
+        }
+      ),
     isRoomInputAutocompleteQuery: (query?: { prefix?: string }) => query?.prefix === '!',
     RoomInputAutocomplete: () => null,
     RoomInputReplyContext: ({

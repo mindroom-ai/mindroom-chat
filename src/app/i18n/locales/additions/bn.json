@@ -87,7 +87,9 @@
       "pack": "প্যাকের মতো"
     },
     "imageViewer": {
-      "close": "বন্ধ করুন"
+      "close": "বন্ধ করুন",
+      "previous": "আগের ছবি",
+      "next": "পরের ছবি"
     },
     "inviteUserPrompt": {
       "close": "বন্ধ করুন",
@@ -142,8 +144,7 @@
       "noCrossSigningKeys": "আপনার গোপন স্টোরেজে কোনো ক্রস-সাইনিং কী নেই, তাই রিকভারি কী দিয়ে এই সেশন যাচাই করা যাবে না। আপনার অন্য কোনো সেশন থেকে এটি যাচাই করুন।"
     },
     "commands": {
-      "CommandPlain": "Markdown ছাড়া সাধারণ টেক্সট হিসেবে বার্তা পাঠান। উদাহরণ: /plain message",
-      "CommandHtml": "Markdown ছাড়া HTML হিসেবে বার্তা পাঠান। উদাহরণ: /html message"
+      "CommandPlain": "Markdown ছাড়া সাধারণ টেক্সট হিসেবে বার্তা পাঠান। উদাহরণ: /plain message"
     },
     "tokenLogin": {
       "signInNotStartedHere": "এই সাইন-ইন এখানে শুরু হয়নি, তাই এটি ব্যবহার করা হয়নি। আবার সাইন ইন করুন।"
@@ -158,6 +159,7 @@
     "appUpdate": {
       "available": "MindRoom-এর একটি নতুন সংস্করণ উপলব্ধ।",
       "reload": "আবার লোড করুন",
+      "updating": "আপডেট হচ্ছে…",
       "dismiss": "সরিয়ে দিন",
       "reloadToUse": "এটি ব্যবহার করতে আবার লোড করুন।"
     },
@@ -537,7 +539,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} ব্যর্থ হয়েছে: {{reason}}",
         "usage": "{{command}} চালানো যায়নি। {{usage}}",
-        "ownServer": "কিছুই বদলায়নি: এতে আপনার নিজের সার্ভার ({{server}}) রুম থেকে বাদ পড়ত।",
         "unknown": "{{command}} কোনো কমান্ড নয়। এটি টেক্সট হিসেবে পাঠাতে বার্তাটি /plain দিয়ে শুরু করুন।"
       },
       "jumpToTime": {
@@ -717,6 +718,7 @@
         "showKey": "কী দেখান",
         "hideKey": "কী লুকান",
         "sentTo": "{{host}}-এ পাঠানো হয়",
+        "openLink": "{{host}} খুলুন",
         "save": "সংরক্ষণ করুন",
         "decline": "প্রত্যাখ্যান করুন",
         "savedWaiting": "সংরক্ষিত, এজেন্টের অপেক্ষায়",
@@ -754,6 +756,23 @@
           "declined": "প্রত্যাখ্যাত",
           "expired": "মেয়াদ শেষ"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "স্কিল <code>{{skill}}</code> আপডেট হয়েছে",
+        "createdOne": "স্কিল <code>{{skill}}</code> তৈরি হয়েছে",
+        "updatedMany_one": "{{count}}টি স্কিল আপডেট হয়েছে",
+        "updatedMany_other": "{{count}}টি স্কিল আপডেট হয়েছে",
+        "createdMany_one": "{{count}}টি স্কিল তৈরি হয়েছে",
+        "createdMany_other": "{{count}}টি স্কিল তৈরি হয়েছে",
+        "created": "তৈরি হয়েছে",
+        "updated": "আপডেট হয়েছে",
+        "removed": "সরানো হয়েছে",
+        "diffTruncated": "ডিফ ছোট করা হয়েছে",
+        "diffLabel": "{{path}}-এর ডিফ"
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} কাজ করেছে",
+        "worked": "কাজ করেছে"
       }
     },
     "message-search": {
@@ -934,7 +953,11 @@
       "moveRoomDown": "নির্বাচিত রুম বা স্পেস নিচে সরান",
       "members": "সদস্যদের দেখান বা লুকান",
       "focusComposer": "পঠিত হিসেবে চিহ্নিত করে লেখার বাক্সে যান",
-      "resolveThread": "খোলা থ্রেড সমাধান করুন বা আবার খুলুন",
+      "previousThread": "আগের থ্রেড নির্বাচন করুন",
+      "nextThread": "পরের থ্রেড নির্বাচন করুন",
+      "openThread": "থ্রেডের তালিকায় যান, তারপর নির্বাচিত থ্রেড খুলুন",
+      "leaveThread": "খোলা থ্রেড থেকে, তারপর থ্রেডের তালিকা থেকে বেরিয়ে আসুন",
+      "resolveThread": "খোলা বা নির্বাচিত থ্রেড সমাধান করুন বা আবার খুলুন",
       "newLine": "নতুন লাইন",
       "editLast": "আপনার শেষ বার্তা সম্পাদনা করুন (খালি লেখার বাক্সে)",
       "inlineCode": "ইনলাইন কোড",
@@ -953,7 +976,8 @@
     "unsnooze": "স্থগিত বাতিল করুন",
     "status": {
       "snoozed": "স্নুজ করা"
-    }
+    },
+    "renameHint": "নাম বদলাতে ডাবল-ক্লিক করুন"
   },
   "threadSnooze": {
     "title": "যতক্ষণ পর্যন্ত স্থগিত",
@@ -1282,6 +1306,26 @@
       "snoozed": "স্নুজ করা",
       "idle": "নিষ্ক্রিয়",
       "resolved": "সমাধান করা"
+    },
+    "live": {
+      "tools": "টুল",
+      "toolsRunning_one": "{{count}}টি চলছে",
+      "toolsRunning_other": "{{count}}টি চলছে",
+      "toolsRunningNamed_one": "{{count}}টি চলছে: {{names}}",
+      "toolsRunningNamed_other": "{{count}}টি চলছে: {{names}}",
+      "background": "ব্যাকগ্রাউন্ড",
+      "jobs_one": "{{count}}টি কাজ",
+      "jobs_other": "{{count}}টি কাজ",
+      "jobsWaiting_one": "{{jobs}}, {{count}}টি অনুমোদনের অপেক্ষায়",
+      "jobsWaiting_other": "{{jobs}}, {{count}}টি অনুমোদনের অপেক্ষায়",
+      "waitingForAnswer": "উত্তরের অপেক্ষায়"
     }
+  },
+  "threadBoard": {
+    "label": "অবস্থা অনুযায়ী থ্রেড",
+    "working": "কাজ চলছে",
+    "later": "পরে",
+    "open": "খোলা",
+    "done": "সম্পন্ন"
   }
 }

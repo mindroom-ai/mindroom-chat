@@ -31,6 +31,9 @@ import {
   invalidateCachedAttachmentReferences,
 } from './cacheStoreAttachments';
 import {
+  EMBED_OWNER_EVENT,
+  EMBED_OWNER_META,
+  EMBEDDED_EVENTS_STORE,
   EVENTS_BY_SCOPE_TS_INDEX,
   EVENTS_BY_ROOM_EVENT_INDEX,
   EVENTS_STORE,
@@ -40,16 +43,19 @@ import {
   MAX_EVENT_ID,
   MAX_EVENT_TS,
   META_STORE,
+  PRE_V7_ROWS_KEY,
   ROOM_LEDGER_STORE,
   ROOM_SCOPE,
-  THREAD_SUMMARIES_BY_ROOM_INDEX,
+  THREAD_SUMMARIES_BY_ROOM_EVENT_INDEX,
   THREAD_SUMMARIES_STORE,
+  buildEmbeddedEventKey,
+  buildEmbeddedEventOwnersRange,
   buildEventCacheKey,
   buildMetaKey,
+  buildRoomEmbedsListedKey,
   estimateRawEventBytes,
   type CachedEventRecord,
   type CachedMetaRecord,
-  type CachedThreadSummaryRecord,
 } from './cacheStoreSchema';
 import {
   filterPageableCachedThreadEvents,
@@ -204,11 +210,44 @@ const collectRedactedTombstones = (
   return tombstones;
 };
 
+const NO_EVENT_IDS: ReadonlySet<string> = new Set();
+
+/** The events an event row's copy embeds: what `EMBEDDED_EVENTS_STORE` lists the row under. */
+const embeddedIdsOfEvent = (rawEvent: Partial<IEvent> | undefined): ReadonlySet<string> =>
+  rawEvent ? collectEmbeddedRelationEventIds([rawEvent]) : NO_EVENT_IDS;
+
+/** The same for a meta row's thread root, which is also listed under the root's own ID. */
+const embeddedIdsOfRoot = (rootEvent: Partial<IEvent> | undefined): ReadonlySet<string> => {
+  if (!rootEvent) return NO_EVENT_IDS;
+  const eventIds = collectEmbeddedRelationEventIds([rootEvent]);
+  if (typeof rootEvent.event_id === 'string') eventIds.add(rootEvent.event_id);
+  return eventIds;
+};
+
+/** Bring one row's keys in `EMBEDDED_EVENTS_STORE` from what it embedded to what it embeds. */
+const listEmbeddedEvents = (
+  embeddedStore: IDBObjectStore,
+  roomId: string,
+  ownerKind: typeof EMBED_OWNER_EVENT | typeof EMBED_OWNER_META,
+  ownerKey: string,
+  previous: ReadonlySet<string>,
+  next: ReadonlySet<string>
+): void => {
+  previous.forEach((eventId) => {
+    if (!next.has(eventId))
+      embeddedStore.delete(buildEmbeddedEventKey(roomId, eventId, ownerKind, ownerKey));
+  });
+  next.forEach((eventId) => {
+    if (!previous.has(eventId))
+      embeddedStore.put(1, buildEmbeddedEventKey(roomId, eventId, ownerKind, ownerKey));
+  });
+};
+
 /**
  * Return the subset of `redactedEventIds` that have no marker row yet
- * on the room's meta store. Callers use this to gate the room-wide
- * scrub cursor: once an id is marked, every historical repair for it
- * has been applied and re-scrubbing on later saves is pure work.
+ * on the room's meta store. Callers use this to gate the scrub: once
+ * an id is marked, every historical repair for it has been applied and
+ * re-scrubbing on later saves is pure work.
  *
  * Thin wrapper over `loadKnownRedactedRelationEventIds`: the shared
  * helper already does the exact per-id `metaStore.get` fan-in with
@@ -243,6 +282,13 @@ const collectRedactedIdsWithoutMarker = async (
   });
 };
 
+/**
+ * Mark `redactedEventIds` redacted and repair the room's rows that hold one of them: the event's
+ * own copies (deleted, or merged with its tombstone), the rows that embed it, and the thread
+ * summary made from it. The rows are found by key (`EVENTS_BY_ROOM_EVENT_INDEX`,
+ * `EMBEDDED_EVENTS_STORE`), so the work follows the redaction, not the room's size. Only a room
+ * whose rows an earlier schema wrote is read whole, once, which lists its rows for the next time.
+ */
 const runScrubRedactedRelationsTxn = async (
   db: IDBDatabase,
   roomId: string,
@@ -258,6 +304,7 @@ const runScrubRedactedRelationsTxn = async (
         ATTACHMENTS_STORE,
         ATTACHMENT_REFERENCES_STORE,
         THREAD_SUMMARIES_STORE,
+        EMBEDDED_EVENTS_STORE,
       ],
       'readwrite'
     );
@@ -267,6 +314,8 @@ const runScrubRedactedRelationsTxn = async (
     const eventStore = transaction.objectStore(EVENTS_STORE);
     const metaStore = transaction.objectStore(META_STORE);
     const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
+    const summaryStore = transaction.objectStore(THREAD_SUMMARIES_STORE);
+    const embeddedStore = transaction.objectStore(EMBEDDED_EVENTS_STORE);
     const ledger = createLedgerTracker(roomId);
 
     redactedEventIds.forEach((eventId) => {
@@ -277,21 +326,14 @@ const runScrubRedactedRelationsTxn = async (
         scope,
         updatedAt: Date.now(),
       } satisfies CachedMetaRecord);
-    });
 
-    // A redacted summary notice must not remain a thread's cached title.
-    const summaryCursorRequest = transaction
-      .objectStore(THREAD_SUMMARIES_STORE)
-      .index(THREAD_SUMMARIES_BY_ROOM_INDEX)
-      .openCursor(IDBKeyRange.only(roomId));
-    summaryCursorRequest.onsuccess = () => {
-      const cursor = summaryCursorRequest.result;
-      if (!cursor) return;
-      const { eventId } = cursor.value as CachedThreadSummaryRecord;
-      if (eventId && redactedEventIds.has(eventId)) cursor.delete();
-      cursor.continue();
-    };
-    summaryCursorRequest.onerror = () => reject(summaryCursorRequest.error);
+      // A redacted summary notice must not remain a thread's cached title.
+      const summaryRequest = summaryStore
+        .index(THREAD_SUMMARIES_BY_ROOM_EVENT_INDEX)
+        .getAllKeys(IDBKeyRange.only([roomId, eventId]));
+      summaryRequest.onsuccess = () =>
+        summaryRequest.result.forEach((cacheKey) => summaryStore.delete(cacheKey));
+    });
 
     const repairRawEvent = (
       rawEvent: Partial<IEvent>,
@@ -310,60 +352,159 @@ const runScrubRedactedRelationsTxn = async (
       return stripRedactedRelationsFromRawEvent(merged, redactedEventIds);
     };
 
-    ledger.readBaseline(ledgerStore, eventStore, () => {
-      const eventRange = IDBKeyRange.bound(
-        [roomId, ROOM_SCOPE, 0, ''],
-        [roomId, MAX_EVENT_ID, MAX_EVENT_TS, MAX_EVENT_ID]
-      );
-      const cursorRequest = eventStore.index(EVENTS_BY_SCOPE_TS_INDEX).openCursor(eventRange);
+    // Reading a whole room, the lookup keys are written after its two cursors end: a write
+    // between a cursor's steps makes Chromium's next step slow (5 times the whole read at 10,000
+    // rows, where 4 rows in 10 have a key to write). The few repaired rows are written at once.
+    const listAfterCursors: (() => void)[] = [];
+    let openCursors = 2;
+    const cursorEnded = (): void => {
+      openCursors -= 1;
+      if (openCursors !== 0) return;
+      listAfterCursors.forEach((list) => list());
+      embeddedStore.put(1, buildRoomEmbedsListedKey(roomId));
+    };
+
+    /** `listed`: whether the row's keys in `EMBEDDED_EVENTS_STORE` are known to exist. */
+    const repairEventRecord = (previous: CachedEventRecord, listed: boolean): void => {
+      const rawEvent = repairRawEvent(previous.rawEvent, previous.eventId);
+      // What waits for the cursors holds the row's key and IDs, not the row.
+      const { cacheKey } = previous;
+      const previousIds = listed ? embeddedIdsOfEvent(previous.rawEvent) : NO_EVENT_IDS;
+      const nextIds = embeddedIdsOfEvent(rawEvent);
+      const list = (): void =>
+        listEmbeddedEvents(
+          embeddedStore,
+          roomId,
+          EMBED_OWNER_EVENT,
+          cacheKey,
+          previousIds,
+          nextIds
+        );
+      if (listed) list();
+      else if (nextIds.size > 0) listAfterCursors.push(list);
+      if (!rawEvent) {
+        ledger.noteDelete(previous);
+        eventStore.delete(previous.cacheKey);
+      } else if (rawEvent !== previous.rawEvent) {
+        const nextRecord: CachedEventRecord = {
+          ...previous,
+          rawEvent,
+          approxBytes: estimateRawEventBytes(rawEvent),
+        };
+        ledger.notePut(nextRecord, previous);
+        eventStore.put(nextRecord);
+      }
+    };
+
+    const repairMetaRecord = (currentMeta: CachedMetaRecord, listed: boolean): void => {
+      if (!currentMeta.rootEvent) return;
+      const previousRoot = currentMeta.rootEvent;
+      const rootEvent = repairRawEvent(previousRoot, previousRoot.event_id);
+      const { metaKey } = currentMeta;
+      const previousIds = listed ? embeddedIdsOfRoot(previousRoot) : NO_EVENT_IDS;
+      const nextIds = embeddedIdsOfRoot(rootEvent);
+      const list = (): void =>
+        listEmbeddedEvents(embeddedStore, roomId, EMBED_OWNER_META, metaKey, previousIds, nextIds);
+      if (listed) list();
+      else listAfterCursors.push(list);
+      if (rootEvent !== currentMeta.rootEvent)
+        metaStore.put({ ...currentMeta, rootEvent, updatedAt: Date.now() });
+    };
+
+    /** Rows an earlier schema wrote are not listed: repair every row of the room, and list it. */
+    const repairEveryRow = (): void => {
+      const cursorRequest = eventStore
+        .index(EVENTS_BY_SCOPE_TS_INDEX)
+        .openCursor(
+          IDBKeyRange.bound(
+            [roomId, ROOM_SCOPE, 0, ''],
+            [roomId, MAX_EVENT_ID, MAX_EVENT_TS, MAX_EVENT_ID]
+          )
+        );
       cursorRequest.onsuccess = () => {
         const cursor = cursorRequest.result;
         if (!cursor) {
           ledger.finalize(ledgerStore);
+          cursorEnded();
           return;
         }
-
-        const previous = cursor.value as CachedEventRecord;
-        const rawEvent = repairRawEvent(previous.rawEvent, previous.eventId);
-        if (!rawEvent) {
-          ledger.noteDelete(previous);
-          cursor.delete();
-          cursor.continue();
-          return;
-        }
-
-        if (rawEvent !== previous.rawEvent) {
-          const nextRecord: CachedEventRecord = {
-            ...previous,
-            rawEvent,
-            approxBytes: estimateRawEventBytes(rawEvent),
-          };
-          ledger.notePut(nextRecord, previous);
-          cursor.update(nextRecord);
-        }
+        repairEventRecord(cursor.value as CachedEventRecord, false);
         cursor.continue();
       };
-      cursorRequest.onerror = () => reject(cursorRequest.error);
-    });
 
-    const metaCursorRequest = metaStore.openCursor(
-      IDBKeyRange.bound(buildMetaKey(roomId, ROOM_SCOPE), buildMetaKey(roomId, MAX_EVENT_ID))
-    );
-    metaCursorRequest.onsuccess = () => {
-      const cursor = metaCursorRequest.result;
-      if (!cursor) return;
-      const currentMeta = cursor.value as CachedMetaRecord;
-      if (currentMeta.rootEvent) {
-        const rootEvent = repairRawEvent(currentMeta.rootEvent, currentMeta.rootEvent.event_id);
-        if (!rootEvent) {
-          cursor.update({ ...currentMeta, rootEvent: undefined, updatedAt: Date.now() });
-        } else if (rootEvent !== currentMeta.rootEvent) {
-          cursor.update({ ...currentMeta, rootEvent, updatedAt: Date.now() });
+      const metaCursorRequest = metaStore.openCursor(
+        IDBKeyRange.bound(buildMetaKey(roomId, ROOM_SCOPE), buildMetaKey(roomId, MAX_EVENT_ID))
+      );
+      metaCursorRequest.onsuccess = () => {
+        const cursor = metaCursorRequest.result;
+        if (!cursor) {
+          cursorEnded();
+          return;
         }
-      }
-      cursor.continue();
+        repairMetaRecord(cursor.value as CachedMetaRecord, false);
+        cursor.continue();
+      };
     };
-    metaCursorRequest.onerror = () => reject(metaCursorRequest.error);
+
+    const repairListedRows = (): void => {
+      const eventKeys = new Set<IDBValidKey>();
+      const metaKeys = new Set<IDBValidKey>();
+      // A tombstone is merged into its event's copies even when an earlier save marked the event.
+      const eventIds = new Set([...redactedEventIds, ...tombstones.keys()]);
+      let pendingLookups = 2 * eventIds.size;
+      const repairFound = (): void => {
+        pendingLookups -= 1;
+        if (pendingLookups !== 0) return;
+        metaKeys.forEach((metaKey) => {
+          const request = metaStore.get(metaKey);
+          request.onsuccess = () => {
+            if (request.result) repairMetaRecord(request.result as CachedMetaRecord, true);
+          };
+        });
+        // One more than the rows, so the ledger is written once, also when there is none.
+        let pendingEvents = eventKeys.size + 1;
+        const eventDone = (): void => {
+          pendingEvents -= 1;
+          if (pendingEvents === 0) ledger.finalize(ledgerStore);
+        };
+        eventKeys.forEach((cacheKey) => {
+          const request = eventStore.get(cacheKey);
+          request.onsuccess = () => {
+            if (request.result) repairEventRecord(request.result as CachedEventRecord, true);
+            eventDone();
+          };
+        });
+        eventDone();
+      };
+      eventIds.forEach((eventId) => {
+        const ownRequest = eventStore
+          .index(EVENTS_BY_ROOM_EVENT_INDEX)
+          .getAllKeys(IDBKeyRange.only([roomId, eventId]));
+        ownRequest.onsuccess = () => {
+          ownRequest.result.forEach((cacheKey) => eventKeys.add(cacheKey));
+          repairFound();
+        };
+        const ownersRequest = embeddedStore.getAllKeys(
+          buildEmbeddedEventOwnersRange(roomId, eventId)
+        );
+        ownersRequest.onsuccess = () => {
+          (ownersRequest.result as [string, string, number, string][]).forEach(
+            ([, , ownerKind, ownerKey]) =>
+              (ownerKind === EMBED_OWNER_META ? metaKeys : eventKeys).add(ownerKey)
+          );
+          repairFound();
+        };
+      });
+    };
+
+    ledger.readBaseline(ledgerStore, eventStore, () => {
+      const preV7Request = embeddedStore.get(PRE_V7_ROWS_KEY);
+      const listedRequest = embeddedStore.get(buildRoomEmbedsListedKey(roomId));
+      listedRequest.onsuccess = () => {
+        if (preV7Request.result && !listedRequest.result) repairEveryRow();
+        else repairListedRows();
+      };
+    });
 
     transaction.oncomplete = () => resolve();
     transaction.onerror = (event) => reject((event.target as IDBRequest).error);
@@ -767,6 +908,7 @@ export const saveRoomEventsToCache = async (
  */
 type SchedulePutsOptions = {
   eventStore: IDBObjectStore;
+  embeddedStore: IDBObjectStore;
   ledger: LedgerTracker | undefined;
   ledgerStore: IDBObjectStore | undefined;
   roomId: string;
@@ -784,6 +926,7 @@ type SchedulePutsOptions = {
 
 const scheduleEventPutsWithLedger = ({
   eventStore,
+  embeddedStore,
   ledger,
   ledgerStore,
   roomId,
@@ -835,6 +978,14 @@ const scheduleEventPutsWithLedger = ({
       countCacheProbe(probeKey);
       if (ledger) ledger.notePut(eventRecord, previous);
       eventStore.put(eventRecord);
+      listEmbeddedEvents(
+        embeddedStore,
+        roomId,
+        EMBED_OWNER_EVENT,
+        cacheKey,
+        embeddedIdsOfEvent(previous?.rawEvent),
+        embeddedIdsOfEvent(eventRecord.rawEvent)
+      );
       saveAcceptedAttachmentOwner(transaction, eventRecord.rawEvent, attachmentOwners);
       persistedEventIds[index] = rawEvent.event_id;
       maybeFinalizeLedger();
@@ -854,10 +1005,18 @@ const runSaveRoomEventsTxn = async (
 ): Promise<void> =>
   new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(
-      [EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE, ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE],
+      [
+        EVENTS_STORE,
+        META_STORE,
+        ROOM_LEDGER_STORE,
+        ATTACHMENTS_STORE,
+        ATTACHMENT_REFERENCES_STORE,
+        EMBEDDED_EVENTS_STORE,
+      ],
       'readwrite'
     );
     const eventStore = transaction.objectStore(EVENTS_STORE);
+    const embeddedStore = transaction.objectStore(EMBEDDED_EVENTS_STORE);
     const metaStore = transaction.objectStore(META_STORE);
     const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
     const ledger = createLedgerTracker(roomId);
@@ -918,6 +1077,7 @@ const runSaveRoomEventsTxn = async (
         ledger.readBaseline(ledgerStore, eventStore, () => {
           scheduleEventPutsWithLedger({
             eventStore,
+            embeddedStore,
             transaction,
             attachmentOwners,
             ledger,
@@ -1316,7 +1476,7 @@ export const saveThreadEventsToCacheCommitted = async (
       threadId
     );
     if (redactedEventIds.size > 0) {
-      // Gate the room-wide scrub on marker presence (see room-save above).
+      // Gate the scrub on marker presence (see room-save above).
       const unscrubbedIds = await collectRedactedIdsWithoutMarker(db, roomId, redactedEventIds);
       if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
       if (unscrubbedIds.size > 0)
@@ -1389,11 +1549,13 @@ const runSaveThreadEventsTxn = async (
         META_STORE,
         ATTACHMENTS_STORE,
         ATTACHMENT_REFERENCES_STORE,
+        EMBEDDED_EVENTS_STORE,
         ...(hasEventPuts ? [ROOM_LEDGER_STORE] : []),
       ],
       'readwrite'
     );
     const eventStore = transaction.objectStore(EVENTS_STORE);
+    const embeddedStore = transaction.objectStore(EMBEDDED_EVENTS_STORE);
     const metaStore = transaction.objectStore(META_STORE);
     const ledgerStore = hasEventPuts ? transaction.objectStore(ROOM_LEDGER_STORE) : undefined;
     const metaKey = buildMetaKey(roomId, threadId);
@@ -1466,6 +1628,14 @@ const runSaveThreadEventsTxn = async (
               lastOpenedTs: currentMeta?.lastOpenedTs,
             };
             metaStore.put(nextMeta);
+            listEmbeddedEvents(
+              embeddedStore,
+              roomId,
+              EMBED_OWNER_META,
+              metaKey,
+              embeddedIdsOfRoot(currentMeta?.rootEvent),
+              embeddedIdsOfRoot(nextMeta.rootEvent)
+            );
             if (nextMeta.rootEvent)
               saveAcceptedAttachmentOwner(transaction, nextMeta.rootEvent, attachmentOwners);
           };
@@ -1475,6 +1645,7 @@ const runSaveThreadEventsTxn = async (
         const scheduleWrites = (): void =>
           scheduleEventPutsWithLedger({
             eventStore,
+            embeddedStore,
             transaction,
             attachmentOwners,
             ledger,
@@ -1563,9 +1734,9 @@ export const noteThreadOpened = (
 ): Promise<void> => noteScopeOpened(sessionId, roomId, threadId);
 
 /**
- * Fallback for redaction cleanup: given only a room + event id, walk the
- * room's thread-scoped records (all scopes != '') and delete any record
- * whose `eventId` matches. Room-timeline records (scope=='') are skipped —
+ * Fallback for redaction cleanup: given only a room + event id, delete the
+ * event's thread-scoped records (all scopes != ''), found through the
+ * room-and-event index. Room-timeline records (scope=='') are skipped:
  * the redaction path calls `deleteRoomEventsFromCache` separately for
  * those.
  *
@@ -1598,13 +1769,9 @@ export const deleteThreadEventFromCacheByEventId = async (
       const ledger = createLedgerTracker(roomId);
       const deletedScopes = new Set<string>();
       ledger.readBaseline(ledgerStore, eventStore, () => {
-        const index = eventStore.index(EVENTS_BY_SCOPE_TS_INDEX);
-        const range = IDBKeyRange.bound(
-          [roomId, '', 0, ''],
-          [roomId, MAX_EVENT_ID, MAX_EVENT_TS, MAX_EVENT_ID]
-        );
-
-        const cursorRequest = index.openCursor(range);
+        const cursorRequest = eventStore
+          .index(EVENTS_BY_ROOM_EVENT_INDEX)
+          .openCursor(IDBKeyRange.only([roomId, eventId]));
         cursorRequest.onsuccess = () => {
           const cursor = cursorRequest.result;
           if (!cursor) {
@@ -1614,7 +1781,7 @@ export const deleteThreadEventFromCacheByEventId = async (
           }
           const record = cursor.value as CachedEventRecord;
           // Skip the room-timeline slice; only clean up thread records.
-          if (record.scope !== '' && record.eventId === eventId) {
+          if (record.scope !== '') {
             countCacheProbe('eventDeletes');
             ledger.noteDelete(record);
             deletedScopes.add(record.scope);

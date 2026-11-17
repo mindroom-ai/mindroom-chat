@@ -84,7 +84,9 @@
       "pack": "Sama seperti paket"
     },
     "imageViewer": {
-      "close": "Tutup"
+      "close": "Tutup",
+      "previous": "Gambar sebelumnya",
+      "next": "Gambar berikutnya"
     },
     "inviteUserPrompt": {
       "close": "Tutup",
@@ -139,8 +141,7 @@
       "noCrossSigningKeys": "Penyimpanan rahasia Anda tidak berisi kunci penandatanganan silang, jadi kunci pemulihan tidak dapat memverifikasi sesi ini. Verifikasi dari salah satu sesi Anda yang lain."
     },
     "commands": {
-      "CommandPlain": "Kirim pesan sebagai teks biasa, tanpa Markdown. Contoh: /plain pesan",
-      "CommandHtml": "Kirim pesan sebagai HTML, tanpa Markdown. Contoh: /html pesan"
+      "CommandPlain": "Kirim pesan sebagai teks biasa, tanpa Markdown. Contoh: /plain pesan"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Proses masuk ini tidak dimulai di sini, jadi tidak digunakan. Masuk lagi."
@@ -155,6 +156,7 @@
     "appUpdate": {
       "available": "Versi baru MindRoom tersedia.",
       "reload": "Muat ulang",
+      "updating": "Memperbarui…",
       "dismiss": "Tutup",
       "reloadToUse": "Muat ulang untuk menggunakannya."
     },
@@ -528,7 +530,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} gagal: {{reason}}",
         "usage": "Tidak dapat menjalankan {{command}}. {{usage}}",
-        "ownServer": "Tidak ada yang berubah: ini akan mengeluarkan server Anda sendiri ({{server}}) dari ruangan.",
         "unknown": "{{command}} bukan perintah. Untuk mengirimnya sebagai teks, awali pesan dengan /plain."
       },
       "jumpToTime": {
@@ -708,6 +709,7 @@
         "showKey": "Tampilkan kunci",
         "hideKey": "Sembunyikan kunci",
         "sentTo": "Dikirim ke {{host}}",
+        "openLink": "Buka {{host}}",
         "save": "Simpan",
         "decline": "Tolak",
         "savedWaiting": "Tersimpan, menunggu agen",
@@ -745,6 +747,21 @@
           "declined": "Ditolak",
           "expired": "Kedaluwarsa"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Skill <code>{{skill}}</code> diperbarui",
+        "createdOne": "Skill <code>{{skill}}</code> dibuat",
+        "updatedMany_other": "{{count}} skill diperbarui",
+        "createdMany_other": "{{count}} skill dibuat",
+        "created": "dibuat",
+        "updated": "diperbarui",
+        "removed": "dihapus",
+        "diffTruncated": "Diff dipotong",
+        "diffLabel": "Diff {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "Bekerja selama {{duration}}",
+        "worked": "Bekerja"
       }
     },
     "message-search": {
@@ -919,7 +936,11 @@
       "moveRoomDown": "Pindahkan ruang atau space yang difokuskan ke bawah",
       "members": "Tampilkan atau sembunyikan anggota",
       "focusComposer": "Tandai sudah dibaca dan buka kotak pesan",
-      "resolveThread": "Selesaikan atau buka kembali utas yang terbuka",
+      "previousThread": "Fokus ke utas sebelumnya",
+      "nextThread": "Fokus ke utas berikutnya",
+      "openThread": "Ke daftar utas, lalu buka utas yang difokuskan",
+      "leaveThread": "Keluar dari utas yang terbuka, lalu dari daftar utas",
+      "resolveThread": "Selesaikan atau buka kembali utas yang terbuka atau difokuskan",
       "newLine": "Baris baru",
       "editLast": "Edit pesan terakhir Anda (di kotak pesan kosong)",
       "inlineCode": "Kode sebaris",
@@ -938,7 +959,8 @@
     "unsnooze": "Batalkan penundaan",
     "status": {
       "snoozed": "Ditunda"
-    }
+    },
+    "renameHint": "Klik dua kali untuk mengganti nama"
   },
   "threadSnooze": {
     "title": "Tunda hingga",
@@ -1258,6 +1280,22 @@
       "snoozed": "Ditunda",
       "idle": "Tidak aktif",
       "resolved": "Selesai"
+    },
+    "live": {
+      "tools": "Alat",
+      "toolsRunning_other": "{{count}} berjalan",
+      "toolsRunningNamed_other": "{{count}} berjalan: {{names}}",
+      "background": "Latar belakang",
+      "jobs_other": "{{count}} tugas",
+      "jobsWaiting_other": "{{jobs}}, {{count}} menunggu persetujuan",
+      "waitingForAnswer": "Menunggu jawaban"
     }
+  },
+  "threadBoard": {
+    "label": "Utas menurut status",
+    "working": "Dikerjakan",
+    "later": "Nanti",
+    "open": "Terbuka",
+    "done": "Selesai"
   }
 }

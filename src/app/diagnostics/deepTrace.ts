@@ -256,6 +256,7 @@ const STATIC_EVENT_NAMES = new Set([
   'trace.build.unknown',
   'trace.session.start',
   'trace.session.stop',
+  'voice.capture.stop_timeout',
 ]);
 
 const SAFE_EVENT_PATTERNS = [

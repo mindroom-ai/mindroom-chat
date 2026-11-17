@@ -40,6 +40,8 @@ import { CompactRoomWithoutThreads } from './CompactRoomWithoutThreads';
 import * as overlay from '../ui/styles/RoomOverlay.css';
 import { ThreadTimelineHeader } from '../threads/ThreadTimelineHeader';
 import { TimelineMinimap } from './TimelineMinimap';
+import { buildImageSlides, ImageSlidesContext } from '../messages/content/imageSlides';
+import { forkPrefixThreadId, rowEditTimelineSet } from './forkPrefixTimelineSet';
 import { useTimelineMessageFeature } from './message-rendering/useTimelineMessageFeature';
 import type { TimelineMessageData } from './message-rendering/types';
 import type { RoomViewMode } from '../navigation/roomViewMode';
@@ -396,10 +398,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const [unreadInfo, setUnreadInfo] = useRoomUnreadInfo(room, !!threadId || !!eventId);
   const readUptoEventIdRef = useLatestRef(unreadInfo?.readUptoEventId);
 
-  const { overviewRefreshCounter, setOverviewRefreshCounter } = useThreadOverviewRefreshCounter(
-    room,
-    threadId
-  );
+  const { overviewRefreshCounter, setOverviewRefreshCounter, overviewChanges } =
+    useThreadOverviewRefreshCounter(room, threadId);
   // The room's rows come from its timeline once more, so a deleted thread's root leaves the
   // overview, a frozen sort order included.
   const rederiveRoomRows = useCallback(
@@ -488,6 +488,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     requestedThreadFilterState,
     threadSortFreezeState,
     overviewRefreshCounter,
+    overviewChanges,
     sessionId,
     mx,
     onStoreThreadSummary: onStoreThreadSummary as (
@@ -765,6 +766,34 @@ export function RoomTimeline(props: RoomTimelineProps) {
         : EMPTY_IDS,
     [threadRowHidden, threadEvents, isHiddenByPlugin]
   );
+  // Rows read edits from the open thread's set, or in the room view from the room's.
+  const rowTimelineSet =
+    (threadId && threadState.threadTimelineSet) || room.getUnfilteredTimelineSet();
+  // The image viewer pages through the pictures of the conversation on screen, as its rows show
+  // them. It reads them when it opens and on each step, so newly loaded ones join; the getter
+  // keeps its identity, so a timeline update does not render the open viewer again.
+  const imageSlideSourceRef = useLatestRef({
+    events: threadId ? threadEvents : roomRows,
+    rowTimelineSet,
+    forkPrefixEventIds,
+    isHiddenByPlugin,
+    ignoredUsersSet,
+  });
+  const getImageSlides = useCallback(() => {
+    const source = imageSlideSourceRef.current;
+    return buildImageSlides(
+      source.events,
+      // As its row does.
+      (event) =>
+        rowEditTimelineSet(
+          room,
+          forkPrefixThreadId(event, event.getId() ?? '', source.forkPrefixEventIds),
+          source.rowTimelineSet
+        ),
+      source.isHiddenByPlugin,
+      source.ignoredUsersSet
+    );
+  }, [imageSlideSourceRef, room]);
   // What each agent reply of the open thread and the thread so far cost, for Reply details.
   const threadConversationCost = useThreadConversationCostSummary(
     threadId ? threadEvents : undefined,
@@ -1674,7 +1703,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     readUptoAbsoluteIndex: latestAtTop ? undefined : windowState.readUptoAbsoluteIndex,
     ignoredUsersSet,
     showHiddenEvents,
-    timelineSet: (threadId && threadState.threadTimelineSet) || room.getUnfilteredTimelineSet(),
+    timelineSet: rowTimelineSet,
     focusItem,
     messageData,
     isHiddenByPlugin,
@@ -1778,23 +1807,25 @@ export function RoomTimeline(props: RoomTimelineProps) {
             </div>
           )}
           <ThreadConversationCostProvider value={threadConversationCost}>
-            {feature.wrapExpansion(
-              <div
-                ref={ledger.virtualInnerRef}
-                data-thread-count={threadId ? threadEvents.length : undefined}
-                data-testid={threadId ? undefined : 'room-virtual-inner'}
-                style={{
-                  ...overlay.overviewInsetStop,
-                  position: 'relative',
-                  height: listHeight,
-                  visibility:
-                    automaticFill.hideInitialRows || hideOpeningThreadRows ? 'hidden' : undefined,
-                }}
-              >
-                {latestAtTop ? frontSentinel : backSentinel}
-                {tiles}
-              </div>
-            )}
+            <ImageSlidesContext.Provider value={getImageSlides}>
+              {feature.wrapExpansion(
+                <div
+                  ref={ledger.virtualInnerRef}
+                  data-thread-count={threadId ? threadEvents.length : undefined}
+                  data-testid={threadId ? undefined : 'room-virtual-inner'}
+                  style={{
+                    ...overlay.overviewInsetStop,
+                    position: 'relative',
+                    height: listHeight,
+                    visibility:
+                      automaticFill.hideInitialRows || hideOpeningThreadRows ? 'hidden' : undefined,
+                  }}
+                >
+                  {latestAtTop ? frontSentinel : backSentinel}
+                  {tiles}
+                </div>
+              )}
+            </ImageSlidesContext.Provider>
           </ThreadConversationCostProvider>
           {latestAtTop ? (
             <>

@@ -40,12 +40,14 @@ import { useLiquidGlass } from '../ui/glass/liquid/useLiquidGlass';
 import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
 import { shortcutAttributes } from '../shortcuts/ShortcutKeys';
+import { focusedCompactCard } from './overview/compactCardKeys';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { getThreadRootTitle, ThreadRootTitle } from './ThreadRootTitle';
+import { InlineThreadTitleEditor } from './InlineThreadTitleEditor';
 
 const ThreadActionsMenu = lazy(() =>
   import('./ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -272,6 +274,8 @@ export function ThreadContextBanner({
   // Not a thread that a side panel in the conversation's place hides.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
   useShortcut('resolveThread', () => {
+    // On a focused card beside the thread, the keys are that card's (CompactRoomView).
+    if (focusedCompactCard()) return false;
     if (behindPanel || resolveDisabled || !mutableThreadRootId || isPinned) return false;
     handleToggleResolve();
     return true;
@@ -281,6 +285,7 @@ export function ThreadContextBanner({
   const hasScheduled = !!(headerModel.bannerScheduledText && headerModel.scheduledLabel);
   // Without an AI summary, the start of the thread's first message is its title.
   const rootTitle = getThreadRootTitle(room, headerRecord.presentation, t);
+  const title = headerModel.summaryText || rootTitle;
   const snoozedText = useSnoozedUntilText(headerModel.snoozedUntilTs);
   const hasSubtitle = !!headerModel.summaryText || !!rootTitle || hasScheduled || !!snoozedText;
   // A pinned thread shows the pin instead of the resolve chip and its byline.
@@ -294,7 +299,11 @@ export function ThreadContextBanner({
   ) : (
     // At the banner's start, so its tooltip opens toward the banner, not past it.
     // folds aligns to physical edges, and right-to-left puts the button on the right.
-    <IconTooltip label={t('thread.back')} align={i18n.dir() === 'rtl' ? 'End' : 'Start'}>
+    <IconTooltip
+      label={t('thread.back')}
+      shortcut="leaveThread"
+      align={i18n.dir() === 'rtl' ? 'End' : 'Start'}
+    >
       {(triggerRef) => (
         <IconButton
           ref={triggerRef}
@@ -302,6 +311,7 @@ export function ThreadContextBanner({
           variant="SurfaceVariant"
           fill="None"
           aria-label={t('thread.back')}
+          {...shortcutAttributes('leaveThread')}
           onClick={onExitThread}
         >
           <Icon data-directional src={Icons.ArrowLeft} />
@@ -401,28 +411,36 @@ export function ThreadContextBanner({
               </Box>
               {(hasSubtitle || showResolver) && (
                 <div className={css.SubtitleRow}>
-                  {headerModel.summaryText && (
-                    <Text
-                      // Remounting replays the tint for each new summary.
-                      key={headerModel.summaryText}
-                      as="span"
-                      data-thread-context-summary="true"
-                      className={classNames(
-                        css.SummaryText,
-                        summaryChanged && css.SummaryTextChanged
-                      )}
-                      onAnimationEnd={() =>
-                        setShownSummary((shown) => ({ ...shown, changed: false }))
+                  {title && (
+                    <InlineThreadTitleEditor room={room} rootId={threadRootId} text={title}>
+                      {({ onDoubleClick, hint }) =>
+                        headerModel.summaryText ? (
+                          <Text
+                            // Remounting replays the tint for each new summary.
+                            key={headerModel.summaryText}
+                            as="span"
+                            data-thread-context-summary="true"
+                            className={classNames(
+                              css.SummaryText,
+                              summaryChanged && css.SummaryTextChanged
+                            )}
+                            onAnimationEnd={() =>
+                              setShownSummary((shown) => ({ ...shown, changed: false }))
+                            }
+                            onDoubleClick={onDoubleClick}
+                            size="T300"
+                            truncate
+                            title={revealDirectionControls(hint ? `${title}\n${hint}` : title)}
+                            {...ownDirectionLine}
+                          >
+                            {revealDirectionControls(headerModel.summaryText)}
+                          </Text>
+                        ) : (
+                          <ThreadRootTitle text={title} hint={hint} onDoubleClick={onDoubleClick} />
+                        )
                       }
-                      size="T300"
-                      truncate
-                      title={revealDirectionControls(headerModel.summaryText)}
-                      {...ownDirectionLine}
-                    >
-                      {revealDirectionControls(headerModel.summaryText)}
-                    </Text>
+                    </InlineThreadTitleEditor>
                   )}
-                  {rootTitle && <ThreadRootTitle text={rootTitle} />}
                   {hasScheduled && (
                     <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
                       {(headerModel.summaryText || rootTitle) && (

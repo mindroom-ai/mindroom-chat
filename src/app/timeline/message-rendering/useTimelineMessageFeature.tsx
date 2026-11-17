@@ -81,12 +81,15 @@ import { ThreadSummaryMarker } from '../../messages/thread-summary/ThreadSummary
 import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { readSnoozeEndedNote } from '../../matrix/protocol/threadSnooze';
 import { SnoozeEndedMarker } from '../../messages/SnoozeEndedMarker';
+import { readSkillReviewNotice } from '../../matrix/protocol/skillReview';
+import { SkillReviewMarker } from '../../messages/SkillReviewMarker';
 import { getToolApprovalRenderContent } from '../../matrix/protocol/toolApproval';
 import { shouldShowLinkFavicons } from '../../rich-text/linkFaviconPolicy';
 import { renderThreadBadge } from '../ThreadBadge';
 import { buildRoomTimelineReplyDraft } from '../roomTimelineReplyDraft';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
-import { forkTargetFor, ownThreadId } from '../../event-store/threads/threadFork';
+import { forkTargetFor } from '../../event-store/threads/threadFork';
+import { forkPrefixThreadId, rowEditTimelineSet } from '../forkPrefixTimelineSet';
 import { useStartThreadFork } from '../../threads/fork/useStartThreadFork';
 import { ThreadForksChip } from '../../threads/fork/ThreadForksChip';
 import { useThreadForks } from '../../threads/fork/useThreadForks';
@@ -456,16 +459,10 @@ export const useTimelineMessageFeature = ({
       if (!kind) return null;
 
       // A fork shows its parent's messages before its own. They stay the parent's: read-only
-      // here, their cards answer in the parent's thread and their reactions are read there. A
-      // parent's root copied from the cache may not know it starts a thread: its ID names it.
-      const prefixThreadId = data.forkPrefixEventIds?.has(eventId)
-        ? ownThreadId(event) ?? eventId
-        : undefined;
+      // here, their cards answer in the parent's thread and their reactions are read there.
+      const prefixThreadId = forkPrefixThreadId(event, eventId, data.forkPrefixEventIds);
       const readOnly = prefixThreadId !== undefined;
-      const parentTimelineSet = prefixThreadId
-        ? room.getThread(prefixThreadId)?.getUnfilteredTimelineSet()
-        : undefined;
-      const timelineSet = parentTimelineSet ?? row.timelineSet;
+      const timelineSet = rowEditTimelineSet(room, prefixThreadId, row.timelineSet);
       const editedEvent = getEditedEvent(eventId, event, timelineSet);
       // A newer edit that could not be decrypted leaves this version shown, with a note; a row
       // that shows no readable version says so itself (P2-e2ee-F004).
@@ -496,14 +493,13 @@ export const useTimelineMessageFeature = ({
           </MessageAside>
         );
       }
-      // Inside a thread, the backend's snooze-ended message is one quiet line, not an agent's
-      // reply: no avatar, name or toolbar. Only a MindRoom agent's counts.
-      const snoozeEndedNote =
-        threadId &&
+      // Inside a thread, the backend's snooze-ended and skill review messages are one quiet
+      // line, not an agent's reply: no avatar, name or toolbar. Only a MindRoom agent's count.
+      const agentNotice =
+        !!threadId &&
         kind === 'message' &&
-        isMindroomAgentUserIdForViewer(event.getSender() ?? undefined, userId ?? undefined)
-          ? readSnoozeEndedNote(content)
-          : null;
+        isMindroomAgentUserIdForViewer(event.getSender() ?? undefined, userId ?? undefined);
+      const snoozeEndedNote = agentNotice ? readSnoozeEndedNote(content) : null;
       if (snoozeEndedNote !== null) {
         return (
           <MessageAside
@@ -513,6 +509,19 @@ export const useTimelineMessageFeature = ({
             spaced
           >
             <SnoozeEndedMarker note={snoozeEndedNote} />
+          </MessageAside>
+        );
+      }
+      const skillReview = agentNotice ? readSkillReviewNotice(content) : null;
+      if (skillReview) {
+        return (
+          <MessageAside
+            key={eventId}
+            data-message-id={eventId}
+            data-message-item={row.index}
+            spaced
+          >
+            <SkillReviewMarker review={skillReview} />
           </MessageAside>
         );
       }

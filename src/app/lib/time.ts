@@ -48,8 +48,11 @@ const relativeTimeFormat = (language: string, options: Intl.RelativeTimeFormatOp
 const numberFormat = (language: string, options: Intl.NumberFormatOptions) =>
   cachedFormatter('number', language, options, () => new Intl.NumberFormat(language, options));
 
-const unitFormat = (language: string, unit: 'second' | 'minute' | 'hour') =>
-  numberFormat(language, { style: 'unit', unit, unitDisplay: 'short' });
+const unitFormat = (
+  language: string,
+  unit: 'second' | 'minute' | 'hour',
+  unitDisplay: Intl.NumberFormatOptions['unitDisplay'] = 'short'
+) => numberFormat(language, { style: 'unit', unit, unitDisplay });
 
 /**
  * How long something lasts, in words: hours when it is a whole number of them ("24 hours"), else
@@ -76,6 +79,34 @@ export const formatCallDuration = (seconds: number, language = 'en'): string => 
   const rest = minutes % 60;
   const parts = [unitFormat(language, 'hour').format(hours)];
   if (rest > 0) parts.push(unitFormat(language, 'minute').format(rest));
+  return cachedFormatter(
+    'list',
+    language,
+    { type: 'unit', style: 'narrow' },
+    () => new Intl.ListFormat(language, { type: 'unit', style: 'narrow' })
+  ).format(parts);
+};
+
+/**
+ * How long an agent worked, as T3 Code shows it: seconds under a minute ("45s"), then minutes and
+ * seconds ("2m 13s"), then hours and minutes ("1h 4m"), in the language's own units and digits.
+ */
+export const formatWorkDuration = (ms: number, language = 'en'): string => {
+  const totalSeconds = Math.max(0, Math.round(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours === 0 && minutes === 0) return unitFormat(language, 'second', 'narrow').format(seconds);
+  const parts =
+    hours > 0
+      ? [
+          unitFormat(language, 'hour', 'narrow').format(hours),
+          unitFormat(language, 'minute', 'narrow').format(minutes),
+        ]
+      : [
+          unitFormat(language, 'minute', 'narrow').format(minutes),
+          unitFormat(language, 'second', 'narrow').format(seconds),
+        ];
   return cachedFormatter(
     'list',
     language,

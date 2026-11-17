@@ -93,7 +93,9 @@
       "pack": "Как у набора"
     },
     "imageViewer": {
-      "close": "Закрыть"
+      "close": "Закрыть",
+      "previous": "Предыдущее изображение",
+      "next": "Следующее изображение"
     },
     "inviteUserPrompt": {
       "close": "Закрыть",
@@ -148,8 +150,7 @@
       "noCrossSigningKeys": "В вашем секретном хранилище нет ключей кросс-подписи, поэтому ключ восстановления не может подтвердить этот сеанс. Подтвердите его из другого вашего сеанса."
     },
     "commands": {
-      "CommandPlain": "Отправить сообщение простым текстом, без Markdown. Пример: /plain сообщение",
-      "CommandHtml": "Отправить сообщение как HTML, без Markdown. Пример: /html сообщение"
+      "CommandPlain": "Отправить сообщение простым текстом, без Markdown. Пример: /plain сообщение"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Этот вход был начат не здесь, поэтому он не использован. Войдите снова."
@@ -164,6 +165,7 @@
     "appUpdate": {
       "available": "Доступна новая версия MindRoom.",
       "reload": "Перезагрузить",
+      "updating": "Обновление…",
       "dismiss": "Скрыть",
       "reloadToUse": "Перезагрузите страницу, чтобы перейти на неё."
     },
@@ -555,7 +557,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} не выполнена: {{reason}}",
         "usage": "Не удалось выполнить {{command}}. {{usage}}",
-        "ownServer": "Ничего не изменено: ваш собственный сервер ({{server}}) потерял бы доступ к комнате.",
         "unknown": "{{command}} не является командой. Чтобы отправить это как текст, начните сообщение с /plain."
       },
       "jumpToTime": {
@@ -735,6 +736,7 @@
         "showKey": "Показать ключ",
         "hideKey": "Скрыть ключ",
         "sentTo": "Отправляется на {{host}}",
+        "openLink": "Открыть {{host}}",
         "save": "Сохранить",
         "decline": "Отклонить",
         "savedWaiting": "Сохранено, ожидание агента",
@@ -772,6 +774,27 @@
           "declined": "Отклонён",
           "expired": "Истёк"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "Навык <code>{{skill}}</code> обновлён",
+        "createdOne": "Навык <code>{{skill}}</code> создан",
+        "updatedMany_one": "Обновлён {{count}} навык",
+        "updatedMany_few": "Обновлено {{count}} навыка",
+        "updatedMany_many": "Обновлено {{count}} навыков",
+        "updatedMany_other": "Обновлено {{count}} навыка",
+        "createdMany_one": "Создан {{count}} навык",
+        "createdMany_few": "Создано {{count}} навыка",
+        "createdMany_many": "Создано {{count}} навыков",
+        "createdMany_other": "Создано {{count}} навыка",
+        "created": "создан",
+        "updated": "обновлён",
+        "removed": "удалён",
+        "diffTruncated": "Diff обрезан",
+        "diffLabel": "Diff файла {{path}}"
+      },
+      "finishedWork": {
+        "workedFor": "Работал {{duration}}",
+        "worked": "Работал"
       }
     },
     "message-search": {
@@ -964,7 +987,11 @@
       "moveRoomDown": "Переместить выбранную комнату или пространство вниз",
       "members": "Показать или скрыть участников",
       "focusComposer": "Отметить прочитанным и перейти к полю ввода",
-      "resolveThread": "Отметить открытую ветку решённой или открыть снова",
+      "previousThread": "Выбрать предыдущую ветку",
+      "nextThread": "Выбрать следующую ветку",
+      "openThread": "Перейти к веткам, затем открыть выбранную",
+      "leaveThread": "Выйти из открытой ветки, затем из списка веток",
+      "resolveThread": "Отметить открытую или выбранную ветку решённой или открыть снова",
       "newLine": "Новая строка",
       "editLast": "Изменить последнее сообщение (в пустом поле ввода)",
       "inlineCode": "Встроенный код",
@@ -983,7 +1010,8 @@
     "unsnooze": "Вернуть",
     "status": {
       "snoozed": "Отложена"
-    }
+    },
+    "renameHint": "Дважды щёлкните, чтобы переименовать"
   },
   "threadSnooze": {
     "title": "Отложить до",
@@ -1330,6 +1358,34 @@
       "snoozed": "Отложенные",
       "idle": "Неактивные",
       "resolved": "Решённые"
+    },
+    "live": {
+      "tools": "Инструменты",
+      "toolsRunning_one": "{{count}} выполняется",
+      "toolsRunning_few": "{{count}} выполняются",
+      "toolsRunning_many": "{{count}} выполняются",
+      "toolsRunning_other": "{{count}} выполняются",
+      "toolsRunningNamed_one": "{{count}} выполняется: {{names}}",
+      "toolsRunningNamed_few": "{{count}} выполняются: {{names}}",
+      "toolsRunningNamed_many": "{{count}} выполняются: {{names}}",
+      "toolsRunningNamed_other": "{{count}} выполняются: {{names}}",
+      "background": "Фоновые задачи",
+      "jobs_one": "{{count}} задача",
+      "jobs_few": "{{count}} задачи",
+      "jobs_many": "{{count}} задач",
+      "jobs_other": "{{count}} задачи",
+      "jobsWaiting_one": "{{jobs}}, {{count}} ожидает одобрения",
+      "jobsWaiting_few": "{{jobs}}, {{count}} ожидают одобрения",
+      "jobsWaiting_many": "{{jobs}}, {{count}} ожидают одобрения",
+      "jobsWaiting_other": "{{jobs}}, {{count}} ожидают одобрения",
+      "waitingForAnswer": "Ожидает ответа"
     }
+  },
+  "threadBoard": {
+    "label": "Треды по состоянию",
+    "working": "В работе",
+    "later": "Позже",
+    "open": "Открытые",
+    "done": "Готово"
   }
 }

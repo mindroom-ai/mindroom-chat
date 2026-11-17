@@ -25,20 +25,30 @@ import {
 import { setRoomCompact } from '../helpers/roomViewSwitch';
 import { serveBuild } from '../helpers/staticBuildServer';
 import { touch } from '../helpers/touch';
+import { openThreadsCategory } from '../helpers/threadsCategory';
 
-// The example plugin's details appear in a Compact card's desktop hover card and in its
+// The example plugin's details appear in Compact and sidebar hover cards and in the thread's
 // actions menu, reached by right click on desktop or a long press on a phone. A plain thread
-// has no hover card. THREAD_DETAILS_SHOTS=1 saves both themes and the phone menu to
-// test-results/thread-details/.
+// has no Compact hover card or sidebar plugin group. THREAD_DETAILS_SHOTS=1 saves both themes
+// and the phone menu to test-results/thread-details/, plus the long-title sidebar card to
+// /tmp/sidebar-hover-status-shots/d-plugin-detail.png.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const RUN = Date.now().toString(36);
 const GREETING = 'Good morning, orchard';
 const PLAIN = 'Which trees need pruning?';
+const LONG_GREETING =
+  'Good morning, orchard: review the harvest plan, irrigation schedule and orchard maintenance for the coming season';
 
-test.use({ viewport: { width: 1440, height: 900 }, video: 'off' });
+test.use({ viewport: { width: 1440, height: 900 }, video: 'off', trace: 'off' });
 test.describe.configure({ mode: 'serial' });
 
-type Seed = { person: DisposableUser; roomId: string; greetingRoot: string; plainRoot: string };
+type Seed = {
+  person: DisposableUser;
+  roomId: string;
+  greetingRoot: string;
+  plainRoot: string;
+  longGreetingRoot: string;
+};
 
 let build: string | undefined;
 let shippedConfig: Record<string, unknown> = {};
@@ -99,7 +109,18 @@ test.beforeAll(async () => {
     roomId,
     reply(plainRoot, 'The apple trees by the wall.')
   );
-  seeded = { person, roomId, greetingRoot, plainRoot };
+  const longGreetingRoot = await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: LONG_GREETING,
+    'com.example.greeting': { text: LONG_GREETING },
+  });
+  await sendRoomMessage(
+    HOMESERVER,
+    person.accessToken,
+    roomId,
+    reply(longGreetingRoot, 'Ready to review.')
+  );
+  seeded = { person, roomId, greetingRoot, plainRoot, longGreetingRoot };
 });
 
 test.afterAll(() => {
@@ -227,3 +248,62 @@ test('a phone long press shows greeting details without opening the thread', ({ 
       deviceScaleFactor: 3,
     }
   ));
+
+test('sidebar details mount on hover, span wide cards, reposition after growth and leave plain rows without a rule', ({
+  browser,
+}) =>
+  onBuild(browser, {}, async (page, { longGreetingRoot }) => {
+    await expect(card(page, longGreetingRoot)).toBeVisible({ timeout: 60_000 });
+    await openThreadsCategory(page);
+    const rows = page
+      .getByTestId('thread-nav-category')
+      .getByRole('button', { name: /^Open thread:/ });
+    const greetingRow = rows.filter({ hasText: LONG_GREETING }).first();
+    await expect(greetingRow).toBeVisible();
+    await expect(page.locator('[data-example-plugin-details]')).toHaveCount(0);
+    await greetingRow.hover();
+    const tooltip = page.getByRole('tooltip');
+    const detail = tooltip.locator('[data-example-plugin-details]');
+    await expect(detail).toBeVisible();
+    await expect(detail).toContainText(LONG_GREETING);
+    const widths = await detail.evaluate((element) => {
+      const group = element.closest('[data-thread-detail]')!.parentElement!;
+      return {
+        className: group.className,
+        rule: group.getBoundingClientRect().width,
+        rows: group.previousElementSibling!.getBoundingClientRect().width,
+        content: element.getBoundingClientRect().width,
+        border: getComputedStyle(group).borderBlockStartWidth,
+      };
+    });
+    expect(widths.rows).toBeGreaterThan(320);
+    expect(widths.rule).toBeCloseTo(widths.rows, 0);
+    expect(widths.content).toBeLessThanOrEqual(320);
+    expect(widths.border).toBe('1px');
+
+    // Simulate a late response expanding a detail, without moving the pointer.
+    await detail.evaluate((element) => {
+      const bottom = element.closest('[role="tooltip"]')!.getBoundingClientRect().bottom;
+      element.style.height = `${window.innerHeight - bottom + 100}px`;
+    });
+    await expect
+      .poll(async () => {
+        const box = await tooltip.boundingBox();
+        return !!box && box.y >= 0 && box.y + box.height <= page.viewportSize()!.height;
+      })
+      .toBe(true);
+    await detail.evaluate((element) => {
+      element.style.height = '';
+    });
+    if (process.env.THREAD_DETAILS_SHOTS === '1') {
+      mkdirSync('/tmp/sidebar-hover-status-shots', { recursive: true });
+      await page.screenshot({ path: '/tmp/sidebar-hover-status-shots/d-plugin-detail.png' });
+    }
+
+    await rows.filter({ hasText: PLAIN }).first().hover();
+    await expect(page.locator('[data-example-plugin-details]')).toHaveCount(0);
+    // The card itself has a border; only the plugin group's rule must be absent.
+    await expect(
+      page.getByRole('tooltip').locator(`[class=${JSON.stringify(widths.className)}]`)
+    ).toHaveCount(0);
+  }));

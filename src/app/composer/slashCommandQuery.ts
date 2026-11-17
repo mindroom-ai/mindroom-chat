@@ -120,9 +120,6 @@ export const describeCommandFailure = (
       usage: command.description,
     });
   }
-  if (refusal?.code === 'ownServer') {
-    return t('featureUi.room.commandAutocomplete.ownServer', { server: refusal.server });
-  }
   return t('featureUi.room.commandAutocomplete.failed', {
     command: name,
     reason: readableReason(error),

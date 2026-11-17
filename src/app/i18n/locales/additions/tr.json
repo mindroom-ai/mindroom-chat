@@ -87,7 +87,9 @@
       "pack": "Paketle aynı"
     },
     "imageViewer": {
-      "close": "Kapat"
+      "close": "Kapat",
+      "previous": "Önceki görsel",
+      "next": "Sonraki görsel"
     },
     "inviteUserPrompt": {
       "close": "Kapat",
@@ -142,8 +144,7 @@
       "noCrossSigningKeys": "Gizli depolamanızda çapraz imzalama anahtarı yok, bu yüzden kurtarma anahtarı bu oturumu doğrulayamaz. Onu diğer oturumlarınızdan birinden doğrulayın."
     },
     "commands": {
-      "CommandPlain": "Mesajı Markdown olmadan düz metin olarak gönder. Örnek: /plain mesaj",
-      "CommandHtml": "Mesajı Markdown olmadan HTML olarak gönder. Örnek: /html mesaj"
+      "CommandPlain": "Mesajı Markdown olmadan düz metin olarak gönder. Örnek: /plain mesaj"
     },
     "tokenLogin": {
       "signInNotStartedHere": "Bu oturum açma işlemi burada başlatılmadı, bu yüzden kullanılmadı. Yeniden oturum açın."
@@ -158,6 +159,7 @@
     "appUpdate": {
       "available": "MindRoom'un yeni bir sürümü kullanılabilir.",
       "reload": "Yeniden yükle",
+      "updating": "Güncelleniyor…",
       "dismiss": "Kapat",
       "reloadToUse": "Kullanmak için yeniden yükleyin."
     },
@@ -537,7 +539,6 @@
       "commandAutocomplete": {
         "failed": "{{command}} başarısız oldu: {{reason}}",
         "usage": "{{command}} çalıştırılamadı. {{usage}}",
-        "ownServer": "Hiçbir şey değişmedi: bu, kendi sunucunuzu ({{server}}) odanın dışında bırakırdı.",
         "unknown": "{{command}} bir komut değil. Metin olarak göndermek için mesajı /plain ile başlatın."
       },
       "jumpToTime": {
@@ -717,6 +718,7 @@
         "showKey": "Anahtarı göster",
         "hideKey": "Anahtarı gizle",
         "sentTo": "{{host}} adresine gönderilir",
+        "openLink": "{{host}} adresini aç",
         "save": "Kaydet",
         "decline": "Geri çevir",
         "savedWaiting": "Kaydedildi, ajan bekleniyor",
@@ -754,6 +756,23 @@
           "declined": "Geri çevrildi",
           "expired": "Süresi doldu"
         }
+      },
+      "skillReviewMarker": {
+        "updatedOne": "<code>{{skill}}</code> becerisi güncellendi",
+        "createdOne": "<code>{{skill}}</code> becerisi oluşturuldu",
+        "updatedMany_one": "{{count}} beceri güncellendi",
+        "updatedMany_other": "{{count}} beceri güncellendi",
+        "createdMany_one": "{{count}} beceri oluşturuldu",
+        "createdMany_other": "{{count}} beceri oluşturuldu",
+        "created": "oluşturuldu",
+        "updated": "güncellendi",
+        "removed": "kaldırıldı",
+        "diffTruncated": "Diff kısaltıldı",
+        "diffLabel": "{{path}} için diff"
+      },
+      "finishedWork": {
+        "workedFor": "{{duration}} çalıştı",
+        "worked": "Çalıştı"
       }
     },
     "message-search": {
@@ -934,7 +953,11 @@
       "moveRoomDown": "Seçili odayı veya alanı aşağı taşı",
       "members": "Üyeleri göster veya gizle",
       "focusComposer": "Okundu olarak işaretle ve mesaj kutusuna git",
-      "resolveThread": "Açık konuyu çözüldü işaretle veya yeniden aç",
+      "previousThread": "Önceki konuyu seç",
+      "nextThread": "Sonraki konuyu seç",
+      "openThread": "Konulara git, ardından seçili konuyu aç",
+      "leaveThread": "Açık konudan, ardından konulardan çık",
+      "resolveThread": "Açık veya seçili konuyu çözüldü işaretle veya yeniden aç",
       "newLine": "Yeni satır",
       "editLast": "Son mesajını düzenle (boş mesaj kutusunda)",
       "inlineCode": "Satır içi kod",
@@ -953,7 +976,8 @@
     "unsnooze": "Ertelemeyi kaldır",
     "status": {
       "snoozed": "Ertelendi"
-    }
+    },
+    "renameHint": "Yeniden adlandırmak için çift tıklayın"
   },
   "threadSnooze": {
     "title": "Şu zamana kadar ertele",
@@ -1282,6 +1306,26 @@
       "snoozed": "Ertelenenler",
       "idle": "Boşta",
       "resolved": "Çözülenler"
+    },
+    "live": {
+      "tools": "Araçlar",
+      "toolsRunning_one": "{{count}} çalışıyor",
+      "toolsRunning_other": "{{count}} çalışıyor",
+      "toolsRunningNamed_one": "{{count}} çalışıyor: {{names}}",
+      "toolsRunningNamed_other": "{{count}} çalışıyor: {{names}}",
+      "background": "Arka plan",
+      "jobs_one": "{{count}} iş",
+      "jobs_other": "{{count}} iş",
+      "jobsWaiting_one": "{{jobs}}, {{count}} onay bekliyor",
+      "jobsWaiting_other": "{{jobs}}, {{count}} onay bekliyor",
+      "waitingForAnswer": "Yanıt bekliyor"
     }
+  },
+  "threadBoard": {
+    "label": "Duruma göre ileti dizileri",
+    "working": "Çalışılıyor",
+    "later": "Sonra",
+    "open": "Açık",
+    "done": "Bitti"
   }
 }
