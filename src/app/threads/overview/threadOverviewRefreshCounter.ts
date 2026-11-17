@@ -9,7 +9,15 @@ import {
   RoomStateEvent,
   ThreadEvent,
 } from 'matrix-js-sdk';
-import type { MatrixClient, MatrixEvent, Room, RoomMember, RoomState, Thread } from 'matrix-js-sdk';
+import type {
+  EventTimelineSet,
+  MatrixClient,
+  MatrixEvent,
+  Room,
+  RoomMember,
+  RoomState,
+  Thread,
+} from 'matrix-js-sdk';
 import { shouldRefreshOverviewForTimelineEvent } from '../open/threadBootstrap';
 import {
   createThreadRecordChanges,
@@ -88,8 +96,8 @@ export const receiptThreadIds = (receipt: MatrixEvent, userId: string): string[]
  * whose thread is unknown). It also
  * takes what a record reads that raises no count: every event the client hears of the room (the
  * edits kept from the sync are in by then), an edit put on or taken off an event, a local echo's
- * progress, a redaction, a timeline that starts over, a member's new name or membership, and the
- * room's encryption. Someone
+ * progress, a redaction, a timeline that starts over (a thread's for that thread, the room's for
+ * every thread), a member's new name or membership, and the room's encryption. Someone
  * else's receipt changes no record. A build that kept a record is followed within a second
  * (`KEPT_RECORD_CHECK_MS`) by a mark of the whole room and a count, for what no event tells of.
  */
@@ -183,8 +191,11 @@ export const useThreadOverviewRefreshCounter = (
         markThreadRecordChange(overviewChanges);
       }
     };
-    // A timeline that starts over (a sync with a gap) may have lost events of any thread.
-    const handleReset = () => markThreadRecordChange(overviewChanges);
+    // A thread's timeline that starts over (each thread's does, after a sync with a gap) shows
+    // other events of that thread; the room's may have lost events of any. An event a receipt
+    // names that the room lost this way is a change of the room's own (`receiptEventsVersion`).
+    const handleReset = (_room: Room | undefined, timelineSet: EventTimelineSet) =>
+      markThreadRecordChange(overviewChanges, timelineSet.thread?.id);
     const handleThread = (thread: Thread | undefined) => {
       markThreadRecordChange(overviewChanges, thread?.id);
       bump();

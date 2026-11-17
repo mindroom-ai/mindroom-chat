@@ -63,16 +63,18 @@ export const keepUnthreadedReceiptEvents = (mx: MatrixClient): (() => void) => {
   };
 };
 
-// The events a room was asked for because a receipt names them, and a count of what may have
-// moved how far such a receipt reads.
-type NamedEvents = { asked: Set<string>; version: number };
+// The events a room was asked for because a receipt names them, those of them it held when last
+// asked or heard of, and a count of what may have moved how far such a receipt reads.
+type NamedEvents = { asked: Set<string>; held: Set<string>; version: number };
 const namedEvents = new WeakMap<Room, NamedEvents>();
 
 /**
  * A count of the changes in the events `room` holds that may move how far a receipt reads: a
  * named event a timeline takes or drops, a local echo of one that moves on (it gets its ID, or the
- * server's time replaces the device's), and events the room may lose with no word of which (a
- * timeline that starts over, a thread that goes). For caches of how far receipts read. An event no
+ * server's time replaces the device's), a timeline that starts over and takes a named event with
+ * it, and a thread that goes. A timeline that starts over and keeps its events for lookups (each
+ * does after a sync with a gap), or that held no named event (a thread whose first page replaces
+ * what it showed), counts nothing. For caches of how far receipts read. An event no
  * receipt was read for counts nothing: the redaction of a reaction takes it out of its thread.
  */
 export const receiptEventsVersion = (room: Room): number => namedEvents.get(room)?.version ?? 0;
@@ -86,18 +88,26 @@ const namedEventsOf = (room: Room): NamedEvents | undefined => {
   if (known) return known;
   // Room stand-ins in tests often tell nothing of their events, so nothing is kept for them.
   if (typeof room.prependListener !== 'function') return undefined;
-  const kept: NamedEvents = { asked: new Set(), version: 0 };
+  const kept: NamedEvents = { asked: new Set(), held: new Set(), version: 0 };
   // First, so the views that update on an event read the new count.
   const countNamed = (event: MatrixEvent) => {
-    if (kept.asked.has(event.getId() ?? '')) kept.version += 1;
+    const eventId = event.getId() ?? '';
+    if (!kept.asked.has(eventId)) return;
+    kept.version += 1;
+    // Also one a timeline dropped: the next lookup, or the next timeline to start over, corrects it.
+    kept.held.add(eventId);
   };
   room.prependListener(RoomEvent.Timeline, (event, _room, _toStart, _removed, data) => {
     // A reply moves its thread's root in the lists of threads, which hold no event for lookups.
     if (holdsEvents(room, data.timeline.getTimelineSet())) countNamed(event);
   });
   room.prependListener(RoomEvent.LocalEchoUpdated, countNamed);
-  room.prependListener(RoomEvent.TimelineReset, (_room, timelineSet) => {
-    if (holdsEvents(room, timelineSet)) kept.version += 1;
+  // The timeline has started over by now, and tells nothing of the events it dropped.
+  room.prependListener(RoomEvent.TimelineReset, () => {
+    const lost = [...kept.held].filter((eventId) => !room.findEventById(eventId));
+    if (lost.length === 0) return;
+    lost.forEach((eventId) => kept.held.delete(eventId));
+    kept.version += 1;
   });
   room.prependListener(ThreadEvent.Delete, () => {
     kept.version += 1;
@@ -118,12 +128,15 @@ export const receiptReadTs = (
   takenTs: number
 ): number => {
   // Before the answer, so the room counts what happens to a named event from the first lookup.
-  if (eventId) namedEventsOf(room)?.asked.add(eventId);
+  const kept = eventId ? namedEventsOf(room) : undefined;
+  if (eventId) kept?.asked.add(eventId);
   // Optional calls here and below: room and thread stand-ins in tests often lack receipts, events
   // or, for a thread, its room.
   const named = eventId
     ? context.findEventById?.(eventId) ?? room.findEventById?.(eventId)
     : undefined;
+  if (eventId && named) kept?.held.add(eventId);
+  else if (eventId) kept?.held.delete(eventId);
   return named?.getTs() ?? takenTs;
 };
 
