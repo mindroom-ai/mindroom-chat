@@ -15,6 +15,7 @@ import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
 import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { RelationsEvent, setReplacementRetentionPolicy } from 'matrix-js-sdk/lib/models/relations';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getThreadUnread } from '../event-store/threads/roomThreadList';
 import { getRoomUnreadInfo } from '../event-store/timeline/timelinePagination';
 import { offersJumpToUnread } from '../timeline/roomTimelineUnread';
 import { getEditedEvent, getReleasableEdits } from './room';
@@ -111,15 +112,23 @@ const threadTimelineEdits = (room: Room) =>
     .flatMap((timeline) => timeline.getEvents())
     .filter((event) => event.getRelation()?.rel_type === 'm.replace');
 
+/** Whether a thread receipt by someone other than its sender names `event`. */
+const isReceiptTarget = (event: MatrixEvent) =>
+  !!event
+    .getThread()
+    ?.getReceiptsForEvent(event)
+    .some((receipt) => receipt.userId !== event.getSender());
+
 /**
  * The edits a thread's timeline holds that the room's relations do not: none, but for one redacted
- * or still being decrypted, which the relations have not taken (yet). Nothing reads an edit from a
- * thread's timeline, so one the relations released is gone from it too. The room's own timelines
- * keep every edit: the app reads receipts on them.
+ * or still being decrypted, which the relations have not taken (yet), and one a thread receipt
+ * names. Nothing else reads an edit from a thread's timeline, so one the relations released is
+ * gone from it too. The room's own timelines keep every edit: the app reads receipts on them.
  */
 const unheldTimelineEdits = (room: Room) =>
   threadTimelineEdits(room)
     .filter((event) => !event.isRedacted() && !event.isBeingDecrypted())
+    .filter((event) => !isReceiptTarget(event))
     .filter(
       (event) =>
         !room.relations
@@ -304,6 +313,37 @@ describe('the edits a room keeps of a message', () => {
       })
     ).toBe(false);
   });
+
+  it.each([
+    ['receipt', ReceiptType.Read],
+    ['private receipt', ReceiptType.ReadPrivate],
+  ] as const)(
+    'leave an edit in its thread while a thread %s names it, which reads the thread',
+    async (_, receiptType) => {
+      const { room, add, kept, inTimelines } = await roomWithReply();
+      await add(edit('$edit-1', 11));
+      const thread = room.getThread(ROOT);
+      if (!thread) throw new Error('the room has no thread');
+      // The reader's other device read the thread up to the stream's edit then.
+      room.addReceipt(
+        new MatrixEvent({
+          type: 'm.receipt',
+          room_id: ROOM,
+          content: {
+            '$edit-1': { [receiptType]: { [ME]: { ts: 12, thread_id: ROOT } } },
+          },
+        })
+      );
+      expect(getThreadUnread(thread, ME)).toBe(false);
+
+      // The stream goes on, with nothing new to read yet.
+      await add(edit('$edit-2', 13));
+
+      expect(kept()).toEqual(['$edit-2']);
+      expect(getThreadUnread(thread, ME)).toBe(false);
+      expect(inTimelines()).toEqual(['$edit-1', '$edit-2']);
+    }
+  );
 
   it('release the copy a thread holds of an edit the relations took without its thread', async () => {
     const { room, add, kept, inTimelines } = await roomWithReply();

@@ -4666,7 +4666,7 @@ index 19a2f43..9a64b56 100644
  
      /**
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations.js b/node_modules/matrix-js-sdk/lib/models/relations.js
-index 6be66bb..a3e2781 100644
+index 6be66bb..7b13449 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations.js
 +++ b/node_modules/matrix-js-sdk/lib/models/relations.js
 @@ -27,6 +27,21 @@ export var RelationsEvent = /*#__PURE__*/function (RelationsEvent) {
@@ -4762,7 +4762,7 @@ index 6be66bb..a3e2781 100644
          yield _this3.updateTargetEventReplacement();
        }
        _this3.emit(RelationsEvent.Remove, event);
-@@ -357,9 +400,68 @@ export class Relations extends TypedEventEmitter {
+@@ -357,9 +400,70 @@ export class Relations extends TypedEventEmitter {
        if (!lastReplacement && !targetEvent.replacingEvent()) {
          return;
        }
@@ -4820,19 +4820,21 @@ index 6be66bb..a3e2781 100644
 +   * released edit of a thread's reply leaves the thread's timeline too, and one released before the
 +   * timeline takes it (an older edit a page brings) stays out of it. The timeline may hold another
 +   * instance of the edit than the relations, one that knows its thread when this one does not. The
-+   * room's own timelines keep their edits: the app reads receipts on them.
++   * room's own timelines keep their edits: the app reads receipts on them, and so the thread keeps an
++   * edit a thread receipt names, but for its sender's own, which follows each event they send.
 +   */
 +  releaseFromTimelines(edit) {
 +    var _edit$getThread, _this$client$getRoom;
-+    releasedEdits.add(edit);
 +    var thread = (_edit$getThread = edit.getThread()) !== null && _edit$getThread !== void 0 ? _edit$getThread : (_this$client$getRoom = this.client.getRoom(edit.getRoomId())) === null || _this$client$getRoom === void 0 ? void 0 : _this$client$getRoom.findThreadForEvent(edit);
++    if (thread !== null && thread !== void 0 && thread.getReceiptsForEvent(edit).some(receipt => receipt.userId !== edit.getSender())) return;
++    releasedEdits.add(edit);
 +    thread === null || thread === void 0 || thread.timelineSet.releaseEvent(edit.getId());
 +  }
    maybeEmitCreated() {
      if (this.creationEmitted) {
        return;
 diff --git a/node_modules/matrix-js-sdk/src/models/relations.ts b/node_modules/matrix-js-sdk/src/models/relations.ts
-index 77ba3b3..84bf6e1 100644
+index 77ba3b3..c5fea08 100644
 --- a/node_modules/matrix-js-sdk/src/models/relations.ts
 +++ b/node_modules/matrix-js-sdk/src/models/relations.ts
 @@ -34,6 +34,23 @@ export type EventHandlerMap = {
@@ -4927,7 +4929,7 @@ index 77ba3b3..84bf6e1 100644
          if (!this.targetEvent || this.targetEvent.isState()) {
              return;
          }
-@@ -374,9 +414,71 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -374,9 +414,73 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
              return;
          }
  
@@ -4981,11 +4983,13 @@ index 77ba3b3..84bf6e1 100644
 +     * released edit of a thread's reply leaves the thread's timeline too, and one released before the
 +     * timeline takes it (an older edit a page brings) stays out of it. The timeline may hold another
 +     * instance of the edit than the relations, one that knows its thread when this one does not. The
-+     * room's own timelines keep their edits: the app reads receipts on them.
++     * room's own timelines keep their edits: the app reads receipts on them, and so the thread keeps an
++     * edit a thread receipt names, but for its sender's own, which follows each event they send.
 +     */
 +    private releaseFromTimelines(edit: MatrixEvent): void {
-+        releasedEdits.add(edit);
 +        const thread = edit.getThread() ?? this.client.getRoom(edit.getRoomId())?.findThreadForEvent(edit);
++        if (thread?.getReceiptsForEvent(edit).some((receipt) => receipt.userId !== edit.getSender())) return;
++        releasedEdits.add(edit);
 +        thread?.timelineSet.releaseEvent(edit.getId()!);
 +    }
 +
