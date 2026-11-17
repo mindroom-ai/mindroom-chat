@@ -1556,6 +1556,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const filterBar = filterBarShown && (
     <FilterBarSlot onHeight={setFilterBarHeight}>
       <RoomThreadOverview
+        roomId={room.roomId}
         hasMindroomAgents={hasMindroomAgents}
         threadCount={
           (compactCards ? threadIndex.compactOverviewOrdering : threadIndex.normalOverviewOrdering)

@@ -1,5 +1,4 @@
 import {
-  THREAD_WORKFLOW_TABS,
   type ThreadWorkflowTab,
   type ThreadWorkflowCounts,
 } from '../../event-store/threads/threadWorkflow';
@@ -8,11 +7,6 @@ import { Box, Icon, Icons, Text, Tooltip, toRem } from 'folds';
 import { TooltipProvider } from '../../ui/directional';
 import { useTranslation } from 'react-i18next';
 import {
-  IconBell,
-  IconCheck,
-  IconClock,
-  IconList,
-  IconLoader,
   IconFilter,
   IconInfoCircle,
   IconLock,
@@ -29,6 +23,7 @@ import { settingsAtom } from '../../preferences/settings';
 import * as css from './RoomThreadOverview.css';
 import { ThreadTagFilter } from './ThreadTagFilter';
 import { useKeepInsideToolbar } from './useKeepInsideToolbar';
+import { WorkflowTabs } from './WorkflowTabs';
 import { localDigits } from '../../lib/localDigits';
 import type {
   ThreadFilterState,
@@ -48,13 +43,6 @@ import {
 
 // How long a filter change's summary stays in the live region.
 const SPOKEN_SUMMARY_MS = 5_000;
-const WORKFLOW_ICONS = {
-  needsYou: IconBell,
-  working: IconLoader,
-  later: IconClock,
-  done: IconCheck,
-  all: IconList,
-};
 const VISUALLY_HIDDEN = {
   position: 'absolute',
   width: 1,
@@ -270,6 +258,8 @@ function ThreadSearchBar({
 // ─── RoomThreadOverview ──────────────────────────────────────────────────────
 
 export type RoomThreadOverviewProps = {
+  /** The room shown: a new one starts the workflow tabs afresh, without motion. */
+  roomId?: string;
   hasMindroomAgents: boolean;
   threadCount: number;
   totalThreadCount: number;
@@ -348,6 +338,7 @@ function ThreadSortControl({
 }
 
 export function RoomThreadOverview({
+  roomId,
   hasMindroomAgents,
   threadCount,
   totalThreadCount,
@@ -595,54 +586,15 @@ export function RoomThreadOverview({
         {hasMindroomAgents && countBadge}
 
         {hasMindroomAgents && (
-          <div
-            className={css.WorkflowTabs}
-            role="group"
-            aria-label={t('mindroomUi.threads.roomThreadOverview.statusFilters')}
-          >
-            {THREAD_WORKFLOW_TABS.map((tab) => (
-              <TooltipProvider
-                key={tab}
-                position="Bottom"
-                align="Center"
-                tooltip={
-                  <Tooltip style={{ maxWidth: toRem(320) }}>
-                    <Text size="T200">{t(`thread.workflow.description.${tab}`)}</Text>
-                  </Tooltip>
-                }
-              >
-                {(triggerRef) => (
-                  <button
-                    ref={triggerRef}
-                    type="button"
-                    data-thread-tab={tab}
-                    className={css.WorkflowTab}
-                    aria-label={`${t(`thread.workflow.${tab}`)} ${localDigits(
-                      String(bucketCounts?.[tab] ?? 0),
-                      i18n.language
-                    )}`}
-                    aria-pressed={
-                      (state.tab ??
-                        (THREAD_FILTER_KEYS.some((key) => state[key] !== 'any')
-                          ? undefined
-                          : 'all')) === tab
-                    }
-                    onClick={() => onSelectTab?.(tab)}
-                  >
-                    <span className={css.WorkflowIcon} aria-hidden="true">
-                      {React.createElement(WORKFLOW_ICONS[tab], { size: toRem(12), stroke: 1.8 })}
-                    </span>
-                    <Text size="T200" className={css.WorkflowLabel}>
-                      {t(`thread.workflow.${tab}`)}
-                    </Text>
-                    <Text size="T200" className={css.WorkflowCount}>
-                      {localDigits(String(bucketCounts?.[tab] ?? 0), i18n.language)}
-                    </Text>
-                  </button>
-                )}
-              </TooltipProvider>
-            ))}
-          </div>
+          <WorkflowTabs
+            key={roomId}
+            active={
+              state.tab ??
+              (THREAD_FILTER_KEYS.some((key) => state[key] !== 'any') ? undefined : 'all')
+            }
+            counts={bucketCounts}
+            onSelect={onSelectTab}
+          />
         )}
         {/* Info */}
         {hasMindroomAgents && (

@@ -20,6 +20,12 @@ for (const width of [320, 390]) {
       await expect(tabs).toHaveCount(5);
       await page.evaluate(() => document.fonts.ready);
       const frame = tabs.first().locator('..');
+      // A selection unfolds the pressed tab's label and folds the last one's; the scroll steps
+      // below measure the bar once that motion has ended.
+      const settled = () =>
+        expect
+          .poll(() => frame.evaluate((element) => element.getAnimations({ subtree: true }).length))
+          .toBe(0);
       const metrics = await frame.evaluate((element) => {
         const box = element.getBoundingClientRect();
         const style = getComputedStyle(element);
@@ -75,18 +81,25 @@ for (const width of [320, 390]) {
       }
       await page.keyboard.press('Enter');
       await expect(tabs.last()).toHaveAttribute('aria-pressed', 'true');
+      await settled();
       // The now-visible active label remains reachable, including after reverse navigation.
       for (let index = 4; index > 0; index -= 1) await pressTab(page, true);
       await expect(tabs.first()).toBeFocused();
       await page.keyboard.press('Enter');
       await expect(tabs.first()).toHaveAttribute('aria-pressed', 'true');
+      await settled();
       await expect(
         tabs
           .first()
           .getByText(language === 'it' ? 'Serve il tuo intervento' : 'Needs you', { exact: true })
       ).toBeVisible();
-      await page.keyboard.press('ArrowLeft');
-      await expect(frame).toHaveJSProperty('scrollLeft', 0);
+      // Arrow steps return to the start (the pressed tab's icon makes it more than one step).
+      await expect
+        .poll(async () => {
+          await page.keyboard.press('ArrowLeft');
+          return frame.evaluate((element) => element.scrollLeft);
+        })
+        .toBe(0);
       await page.screenshot({
         path: testInfo.outputPath(`impl2-overflow-${width}-${language}.png`),
       });
