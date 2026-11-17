@@ -147,7 +147,7 @@ describe("the room header's commands", () => {
   it('offers the actions the header draws, bar those that need their button', () => {
     pins.ids = ['$pinned'];
     renderHeader({
-      calls: () => <button type="button">Call</button>,
+      calls: <button type="button">Call</button>,
       canvases: [
         {
           canvasId: '$canvas',
@@ -167,7 +167,7 @@ describe("the room header's commands", () => {
     expect(commandById('filterBar')?.pressed).toBe(true);
     expect(commandById('toolCalls')?.pressed).toBe(true);
     expect(commandById('members')?.shortcut).toBe('members');
-    for (const id of ['pins', 'schedules', 'canvas', 'call', 'callEntries']) {
+    for (const id of ['pins', 'schedules', 'canvas', 'call']) {
       expect(ids).not.toContain(id);
     }
   });
