@@ -85,7 +85,7 @@ describe('usePointerLongPress', () => {
     }
   );
 
-  it("drops the mouse events of a fired press's lift page-wide, until the next press or key", () => {
+  it("drops a fired press's lift page-wide, until the next press or a key after the lift", () => {
     const { button } = setup();
     const heard = vi.fn();
     // A focus trap listens on the document, as menus do.
@@ -100,9 +100,14 @@ describe('usePointerLongPress', () => {
     fireEvent.mouseDown(document.body);
     expect(heard).toHaveBeenCalledTimes(1);
 
+    // A key while the pointer is still down drops on; one after the lift ends the dropping.
     fireEvent.pointerDown(button, pointer('touch'));
     wait(LONG_PRESS_MS);
     fireEvent.keyDown(document.body, { key: 'Escape' });
+    fireEvent.pointerUp(button, pointer('touch'));
+    fireEvent.mouseDown(document.body);
+    expect(heard).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(document.body, { key: 'Enter' });
     fireEvent.mouseDown(document.body);
     expect(heard).toHaveBeenCalledTimes(2);
     document.removeEventListener('mousedown', heard, true);

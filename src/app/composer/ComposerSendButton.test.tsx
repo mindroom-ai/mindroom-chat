@@ -13,9 +13,12 @@ const rects = () => [new DOMRect(0, 0, 40, 40)] as unknown as DOMRectList;
 class TestPointerEvent extends MouseEvent {
   readonly isPrimary: boolean;
 
+  readonly pointerId: number;
+
   constructor(type: string, init: PointerEventInit = {}) {
     super(type, init);
     this.isPrimary = init.isPrimary ?? false;
+    this.pointerId = init.pointerId ?? 1;
   }
 }
 
@@ -121,6 +124,35 @@ describe('the Send button', () => {
     fireEvent.pointerDown(outside, press);
     fireEvent.mouseDown(outside);
     expect(screen.queryByRole('menu')).toBeNull();
+    expect(onSend.mock.calls).toEqual([['queue']]);
+  });
+
+  it('sends nothing when Escape closes the menu before the hold is released', () => {
+    const { onSend, button } = setup(true);
+    fireEvent.pointerDown(button, press);
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(screen.queryByRole('menu')).not.toBeNull();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    fireEvent.pointerUp(button, press);
+    fireEvent.mouseUp(button);
+    fireEvent.click(button);
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('sends with the row the keys pick once the hold is released', () => {
+    const { onSend, button } = setup(true);
+    hold(button);
+    screen.getByRole('menuitem', { name: 'Steer' }).focus();
+    // The trap reads the key's code, as is-hotkey does.
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown', keyCode: 40, which: 40 });
+    const row = document.activeElement as HTMLElement;
+    expect(row).toBe(screen.getByRole('menuitem', { name: 'Queue' }));
+    // Enter on a button makes its click.
+    fireEvent.keyDown(row, { key: 'Enter', keyCode: 13, which: 13 });
+    fireEvent.click(row);
     expect(onSend.mock.calls).toEqual([['queue']]);
   });
 
