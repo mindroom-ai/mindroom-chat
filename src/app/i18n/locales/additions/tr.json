@@ -786,6 +786,9 @@
       "mindroomReplyDetails": {
         "subagents": "Alt ajanlar"
       },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "{{duration}} süredir çalışıyor"
+      },
       "replyTime": {
         "started": "Başladı {{value1}}",
         "finished": "Bitti {{value1}}",

@@ -775,6 +775,9 @@
       "mindroomReplyDetails": {
         "subagents": "Subagen"
       },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "Berjalan selama {{duration}}"
+      },
       "replyTime": {
         "started": "Dimulai {{value1}}",
         "finished": "Selesai {{value1}}",

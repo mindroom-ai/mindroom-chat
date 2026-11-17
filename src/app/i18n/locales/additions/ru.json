@@ -808,6 +808,9 @@
       "mindroomReplyDetails": {
         "subagents": "Субагенты"
       },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "Выполняется уже {{duration}}"
+      },
       "replyTime": {
         "started": "Начато {{value1}}",
         "finished": "Завершено {{value1}}",

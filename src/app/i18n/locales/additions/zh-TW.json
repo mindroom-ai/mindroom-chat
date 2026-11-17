@@ -775,6 +775,9 @@
       "mindroomReplyDetails": {
         "subagents": "子代理"
       },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "已執行 {{duration}}"
+      },
       "replyTime": {
         "started": "開始 {{value1}}",
         "finished": "結束 {{value1}}",

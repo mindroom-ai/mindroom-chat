@@ -797,6 +797,9 @@
       "mindroomReplyDetails": {
         "subagents": "Subagentes"
       },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "Em execução há {{duration}}"
+      },
       "replyTime": {
         "started": "Começou {{value1}}",
         "finished": "Terminou {{value1}}",

@@ -830,6 +830,9 @@
       "mindroomReplyDetails": {
         "subagents": "الوكلاء الفرعيون"
       },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "قيد التشغيل منذ ⁨{{duration}}⁩"
+      },
       "replyTime": {
         "started": "بدأ ⁨{{value1}}⁩",
         "finished": "انتهى ⁨{{value1}}⁩",

@@ -786,6 +786,9 @@
       "mindroomReplyDetails": {
         "subagents": "সাব-এজেন্ট"
       },
+      "mindroomHtmlBlocks": {
+        "toolRunningFor": "{{duration}} ধরে চলছে"
+      },
       "replyTime": {
         "started": "শুরু {{value1}}",
         "finished": "শেষ {{value1}}",

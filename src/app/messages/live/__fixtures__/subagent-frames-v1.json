@@ -95,7 +95,7 @@
       }
     },
     {
-      "name": "a tool call starts: its marker and its row",
+      "name": "a tool call starts: its marker and its row, with when it started",
       "before": {
         "md": "Looking it up. Checking the tags.",
         "reasoning": "",
@@ -110,7 +110,8 @@
           {
             "type": "tool_call_started",
             "tool_name": "run_shell_command",
-            "args_preview": "command=git tag"
+            "args_preview": "command=git tag",
+            "started_at": 1762790002.5
           }
         ],
         "status": "streaming",
@@ -154,7 +155,8 @@
                 {
                   "type": "tool_call_started",
                   "tool_name": "run_shell_command",
-                  "args_preview": "command=git tag"
+                  "args_preview": "command=git tag",
+                  "started_at": 1762790002.5
                 }
               ]
             ]
