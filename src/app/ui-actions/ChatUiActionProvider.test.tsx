@@ -153,7 +153,28 @@ describe('Chat UI request buttons', () => {
     expect(perform).not.toHaveBeenCalled();
   });
 
-  it('never offers another user an action button', () => {
+  it('opens a canvas made for another member only when its button is activated', async () => {
+    const event = makeUiEvent({
+      action: 'show_canvas',
+      requester_id: '@bob:example.org',
+      canvas: { title: 'Chapter 1', html: '<p>Once</p>' },
+    });
+    const { mx, room, perform } = setup(event);
+    event.event.origin_server_ts = Date.now();
+    await act(() =>
+      mx.emit(RoomEvent.Timeline, event, room, false, false, {
+        liveEvent: true,
+        timeline: room.getLiveTimeline(),
+      })
+    );
+    expect(perform).not.toHaveBeenCalled();
+    await act(async () => container.querySelector('button')!.click());
+    expect(perform).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'show_canvas', requesterId: '@bob:example.org' })
+    );
+  });
+
+  it('never offers another user any other action button', () => {
     setup(makeUiEvent({ requester_id: '@bob:example.org' }));
     expect(container.querySelector('button')).toBeNull();
   });

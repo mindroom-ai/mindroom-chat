@@ -50,6 +50,8 @@ describe('readChatUiAction', () => {
     { action: 'open_settings', section: 'https://evil.example' },
     { action: 'open_panel', panel: 'unknown' },
     { requester_id: '@bob:example.org' },
+    { action: 'show_canvas', canvas: { title: 'Plan', html: '' }, requester_id: undefined },
+    { action: 'show_canvas', canvas: { title: 'Plan', html: '' }, requester_id: 7 },
     { agent_user_id: '@mindroom_second:example.org' },
     { room_id: '!another:example.org' },
     { thread_id: '$another' },
@@ -57,6 +59,16 @@ describe('readChatUiAction', () => {
   ])('rejects unsupported or inconsistent metadata %j', (metadata) => {
     const { room } = makeUiRoom();
     expect(readChatUiAction(makeUiEvent(metadata), viewerId, room)).toBeUndefined();
+  });
+
+  it.each([
+    { action: 'show_computer' },
+    { action: 'open_settings', section: 'general' },
+    { action: 'open_panel', panel: 'members' },
+  ])('keeps $action for the member who asked for it', (metadata) => {
+    const { room } = makeUiRoom();
+    const event = makeUiEvent({ ...metadata, requester_id: '@bob:example.org' });
+    expect(readChatUiAction(event, viewerId, room)).toBeUndefined();
   });
 
   it('rejects foreign, ordinary, and departed senders', () => {
@@ -139,6 +151,41 @@ describe('readChatUiAction', () => {
         canvas,
         revisionEventId: '$request',
         event,
+        requesterId: viewerId,
+      });
+    });
+
+    it('opens for any joined member and names who asked for it', () => {
+      const { room } = makeUiRoom();
+      const bob = '@bob:example.org';
+      const event = makeUiEvent({ action: 'show_canvas', canvas, requester_id: bob });
+      expect(readChatUiAction(event, viewerId, room)).toMatchObject({
+        action: 'show_canvas',
+        canvas,
+        requesterId: bob,
+      });
+      // A viewer who is not in the room is offered nothing.
+      expect(readChatUiAction(event, '@carol:example.org', room)).toBeUndefined();
+    });
+
+    it("holds another member's canvas edits against that member, never the viewer", () => {
+      const { room } = makeUiRoom();
+      const bob = '@bob:example.org';
+      const updated = makeUiEvent({ action: 'show_canvas', canvas, requester_id: bob });
+      updated.makeReplaced(
+        canvasEdit({ canvas: { title: 'Step 2', html: '<p>2</p>' }, requester_id: bob })
+      );
+      expect(readChatUiAction(updated, viewerId, room)).toMatchObject({
+        revisionEventId: '$edit',
+        requesterId: bob,
+      });
+      // An edit that names the viewer would hand them the canvas; it is no edit of this request.
+      const claimed = makeUiEvent({ action: 'show_canvas', canvas, requester_id: bob });
+      claimed.makeReplaced(canvasEdit({ canvas: { title: 'Step 2', html: '<p>2</p>' } }));
+      expect(readChatUiAction(claimed, viewerId, room)).toMatchObject({
+        canvas,
+        revisionEventId: '$request',
+        requesterId: bob,
       });
     });
 

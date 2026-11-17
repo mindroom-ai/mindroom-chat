@@ -346,6 +346,16 @@ describe('RoomCanvasPanel', () => {
     expect(panels.props?.shared).toBe(false);
   });
 
+  it("opens another member's shared canvas without sharing this viewer's state", () => {
+    const onClose = vi.fn();
+    render(request({ share_state: true, requester_id: '@bob:example.org' }), onClose);
+    expect(panels.props?.canvas.html).toBe('<p>Step 1</p>');
+    // The agent reads only the requester's copies, so the page says nothing of sharing here.
+    expect(shares.enabled.at(-1)).toBe(false);
+    expect(panels.props?.shared).toBe(false);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('starts the page only once its saved state is read', () => {
     saved.ready = false;
     saved.value = { json: '{"slots":[1]}', inputs: '{"#rate":"7"}' };
