@@ -74,6 +74,8 @@ const sendButton = (page: Page) => page.getByRole('button', { name: 'Send messag
 
 /** Holds the mouse on Send past the long press, then lets go. */
 const holdSend = async (page: Page) => {
+  // The composer sees the reply stream a little after its text shows; only then does a hold open the menu.
+  await expect(sendButton(page)).toHaveAttribute('aria-haspopup', 'menu', { timeout: 30_000 });
   const box = await sendButton(page).boundingBox();
   if (!box) throw new Error('Send is not on the page');
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
