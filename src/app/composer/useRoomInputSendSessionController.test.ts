@@ -2239,6 +2239,63 @@ describe('useRoomInputSendSessionController submission markers', () => {
     expect(mx.sendMessage.mock.calls[0]![1]).toMatchObject({ spoiler: true });
   });
 
+  const removeFile = (api: HarnessApi, file: File) => {
+    api.selectedFilesRef.current = api.selectedFilesRef.current.filter(
+      (item) => item.file !== file
+    );
+    api.sendSessionUploadItemsRef.current = api.sendSessionUploadItemsRef.current.filter(
+      (item) => item.file !== file
+    );
+    api.uploadsRef.current = api.uploadsRef.current.filter((upload) => upload.file !== file);
+  };
+
+  it.each([
+    ['fails', (build: ReturnType<typeof createDeferred<IContent>>) => build.reject(new Error('x'))],
+    [
+      'builds',
+      (build: ReturnType<typeof createDeferred<IContent>>) =>
+        build.resolve({ msgtype: 'm.file', body: 'first.png', url: 'mxc://mindroom/first.png' }),
+    ],
+  ])(
+    'makes the next file the root when the root is removed while its content %s',
+    async (_outcome, settle) => {
+      const rootBuild = createDeferred<IContent>();
+      const { api, mx } = renderHarness({
+        buildUploadMessageContent: (fileItem, mxc) =>
+          fileItem.file.name === 'first.png' ? rootBuild.promise : buildFileContent(fileItem, mxc),
+      });
+      const first = createFile('first.png');
+      const second = createFile('second.png');
+      api.selectedFilesRef.current = [createUploadItem(first), createUploadItem(second)];
+      api.uploadsRef.current = [successUpload(first), successUpload(second)];
+
+      let sending!: Promise<void>;
+      act(() => {
+        sending = api.startSendSession({ textContent: { msgtype: 'm.text', body: 'Caption' } });
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      removeFile(api, first);
+      await act(async () => {
+        settle(rootBuild);
+        await sending;
+      });
+
+      expect(sentBodies(mx)).toEqual(['second.png', 'Caption']);
+      expect(mx.sendMessage.mock.calls[0]![1]).not.toHaveProperty('m.relates_to');
+      expect(mx.sendMessage.mock.calls[1]![1]).toMatchObject({
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$event-0' },
+      });
+      const { id } = markerOf(mx, 0) as { id: string };
+      expect([markerOf(mx, 0), markerOf(mx, 1)]).toEqual([
+        { id, more: true },
+        { id, more: false },
+      ]);
+      expect(api.hasActiveSendSession()).toBe(false);
+    }
+  );
+
   it('ends the submission with the caption when the root fails to send, and the root after it', async () => {
     const { api, mx } = renderHarness();
     const first = createFile('first.png');

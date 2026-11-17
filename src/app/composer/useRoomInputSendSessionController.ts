@@ -422,6 +422,15 @@ const getPreparedContent = (
     : undefined;
 };
 
+/** The session's files still to go, in order, and the uploads they wait for. */
+const getPendingSessionFiles = (session: SendSession) => {
+  const [uploads, activeFiles] = getSessionUploads(session);
+  const pending = session.orderedFiles.filter(
+    (file) => activeFiles.includes(file) && !session.sentFiles.has(file)
+  );
+  return { uploads, pending };
+};
+
 /**
  * Builds the event content of every file the session can send now before the first of them goes
  * out (a picture or video decodes a frame and uploads its thumbnail): MindRoom holds a submission
@@ -430,36 +439,45 @@ const getPreparedContent = (
  * built or failed a file.
  */
 const prepareSessionFiles = async (session: SendSession): Promise<boolean> => {
-  const [uploads, activeFiles] = getSessionUploads(session);
-  const pending = session.orderedFiles.filter(
-    (file) => activeFiles.includes(file) && !session.sentFiles.has(file)
-  );
-  const toBuild = uploads.flatMap((upload) =>
-    upload.status === UploadStatus.Success &&
-    pending.includes(upload.file) &&
-    !session.failedFiles.has(upload.file) &&
-    !getPreparedContent(session, upload.file, upload.mxc)
-      ? [{ file: upload.file, mxc: upload.mxc }]
-      : []
-  );
+  const before = getPendingSessionFiles(session);
+  const toBuild = before.uploads.flatMap((upload) => {
+    const item = findSessionFileItem(session, upload.file);
+    return item &&
+      upload.status === UploadStatus.Success &&
+      before.pending.includes(upload.file) &&
+      !session.failedFiles.has(upload.file) &&
+      !getPreparedContent(session, upload.file, upload.mxc)
+      ? [{ item, mxc: upload.mxc }]
+      : [];
+  });
   if (toBuild.length === 0) return false;
 
-  const rootFile =
-    session.mode === 'auto-thread-upload-root' && !session.rootEventId ? pending[0] : undefined;
   const built = await Promise.allSettled(
-    toBuild.map(async ({ file, mxc }) => {
-      const item = findSessionFileItem(session, file);
-      if (!item) throw new Error('Missing upload item for send session.');
-      const content = await session.composer.buildUploadMessageContent(
+    toBuild.map(async ({ item, mxc }) => ({
+      item,
+      mxc,
+      content: await session.composer.buildUploadMessageContent(
         item,
         mxc,
         session.signalBridgedRoom
-      );
-      return { item, mxc, content };
-    })
+      ),
+    }))
   );
+  // The person may have removed or changed a file meanwhile: a result counts only for the file
+  // as it is now, and the root is the first file still to go.
+  const { uploads, pending } = getPendingSessionFiles(session);
+  const rootFile =
+    session.mode === 'auto-thread-upload-root' && !session.rootEventId ? pending[0] : undefined;
   built.forEach((result, index) => {
-    const { file } = toBuild[index]!;
+    const { item, mxc } = toBuild[index]!;
+    const { file } = item;
+    const upload = uploads.find((candidate) => candidate.file === file);
+    const current =
+      pending.includes(file) &&
+      findSessionFileItem(session, file) === item &&
+      upload?.status === UploadStatus.Success &&
+      upload.mxc === mxc;
+    if (!current) return;
     if (result.status === 'fulfilled') {
       session.preparedContent.set(file, result.value);
       return;
