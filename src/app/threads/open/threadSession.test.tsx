@@ -482,6 +482,8 @@ describe('thread session opening', () => {
       roomId: fixture.runtime.room.roomId,
       threadId: '$a',
     });
+    // The test decides when a later task runs.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     try {
       // Everything the open can do without waiting for a request or a later task.
       await act(async () => undefined);
@@ -489,7 +491,9 @@ describe('thread session opening', () => {
       expect(fixture.persist).not.toHaveBeenCalled();
       expect(view.session.snapshot.open.sdkReady).toBe(false);
 
-      await afterOpenTask();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
       expect(fixture.persist.mock.calls[0]?.slice(0, 3)).toEqual([
         '$a',
         [fixture.reply],
@@ -498,6 +502,31 @@ describe('thread session opening', () => {
       expect(view.session.snapshot.open.sdkReady).toBe(true);
     } finally {
       view.unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it('has the tail when a complete cache lands between the SDK load and the task after it', async () => {
+    const fixture = openFixture();
+    const pending = deferred<ReturnType<typeof fixture.cache>>();
+    vi.mocked(loadThreadCachedSnapshot).mockReset().mockReturnValue(pending.promise);
+    const view = renderOpen(fixture.runtime, {
+      roomId: fixture.runtime.room.roomId,
+      threadId: '$a',
+    });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      // The SDK load is done and waits for the next task; the cache read finishes first.
+      await act(async () => undefined);
+      await act(async () => pending.resolve(fixture.cache()));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(view.session.snapshot.open.sdkReady).toBe(true);
+      expect(view.session.snapshot.history.tailLoaded).toBe(true);
+    } finally {
+      view.unmount();
+      vi.useRealTimers();
     }
   });
 

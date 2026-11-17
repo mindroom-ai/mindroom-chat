@@ -359,7 +359,6 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
             });
             if (!isCurrentThreadOpen()) return;
             if (!shouldContinue) return;
-            liveProgressed = true;
             // A thread whose timeline is already loaded gets here in the task of the press that
             // opened it, where React renders each update at once, one render of every row per
             // step below. In a later task the steps render together, after the thread's first
@@ -370,6 +369,9 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
               await nextTask();
               if (!isCurrentThreadOpen()) return;
             }
+            // Only now, in one step with the look at the cache result below: a complete cache
+            // that lands while the task above is awaited still sets the tail itself.
+            liveProgressed = true;
             publish((current) => ({ ...current, open: { ...current.open, sdkReady: true } }));
             const cachedPage = cacheResult?.hydratedCachedPage;
             const thread = room.getThread(threadId);
