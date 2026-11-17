@@ -103,13 +103,14 @@ export type ThreadRecordChanges = {
    * Whether the listener hears the room now. Without it nothing is marked, so no unread mark may
    * be kept.
    */
-  listened?: boolean;
+  listened: boolean;
 };
 
 export const createThreadRecordChanges = (): ThreadRecordChanges => ({
   count: 0,
   room: 0,
   threads: new Map(),
+  listened: false,
 });
 
 /** Marks a change of one thread, or without `threadRootId` one that any thread's record may show. */

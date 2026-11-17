@@ -99,7 +99,7 @@ export const receiptThreadIds = (receipt: MatrixEvent, userId: string): string[]
  * every thread), a member's new name or membership, and the room's encryption. Someone
  * else's receipt changes no record. A member event a timeline takes or loses marks the room and
  * counts: a page of history may bring the name a member had before they left. So does a message
- * of the room whose kept edits a full store drops (`onSyncedEditForgotten`), for its thread. A
+ * whose kept edits a full store drops (`onSyncedEditForgotten`), for its thread. A
  * reply that stops streaming by the clock, or that the streaming checks forget, comes as an update
  * of its thread (streamingReplies.ts). While these listeners hear the room,
  * `overviewChanges.listened` says so.
@@ -192,8 +192,9 @@ export const useThreadOverviewRefreshCounter = (
     // names that the room lost this way is a change of the room's own (`receiptEventsVersion`).
     const handleReset = (_room: Room | undefined, timelineSet: EventTimelineSet) =>
       markThreadRecordChange(overviewChanges, timelineSet.thread?.id);
-    // The kept edits a record read of a message of this room are gone: no event tells of it. The
-    // message is in a timeline, or the reply an unopened thread's summary names.
+    // The kept edits a record read of a message are gone: no event tells of it. The message is in
+    // a timeline, or the reply an unopened thread's summary names, or else perhaps a root no
+    // timeline holds (a pinned one), whose record goes by its own ID.
     const stopForgotten = onSyncedEditForgotten((messageId) => {
       const held =
         room.findEventById(messageId) ??
@@ -201,8 +202,8 @@ export const useThreadOverviewRefreshCounter = (
           .getThreads()
           .map(getThreadSummaryReply)
           .find((reply) => reply?.getId() === messageId);
-      if (!held) return;
-      markEvent(held);
+      if (held) markEvent(held);
+      else markThreadRecordChange(overviewChanges, messageId);
       bump();
     });
     const handleThread = (thread: Thread | undefined) => {

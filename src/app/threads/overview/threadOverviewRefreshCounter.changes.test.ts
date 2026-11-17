@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { EventEmitter } from 'events';
-import { act, renderHook } from '@testing-library/react';
+import { act, cleanup, renderHook } from '@testing-library/react';
 import {
   ClientEvent,
   MatrixEventEvent,
@@ -12,7 +12,7 @@ import {
   type MatrixEvent,
   type Room,
 } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
 import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter';
 
@@ -95,6 +95,9 @@ const setup = (threadId?: string) => {
   };
   return { room, client, state, told, oldest, unmount: hook.unmount };
 };
+
+// A hook of an earlier test would hear the store of kept edits, which every client shares.
+afterEach(cleanup);
 
 describe('useThreadOverviewRefreshCounter changes', () => {
   it('marks the room when it starts to listen', () => {
@@ -333,14 +336,20 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     };
     client.emit(ClientEvent.Event, editOf('$reply'));
 
+    // The store holds `$reply` and 4,999 more: the next message drops `$reply`.
     expect(told(fill(0))).toEqual({ marked: ['$root'], counted: 1 });
-    client.emit(ClientEvent.Event, editOf('$summarized'));
-    expect(told(fill(5000))).toEqual({ marked: ['$unopened'], counted: 1 });
-    // The messages dropped next are no events of this room.
-    expect(told(fill(10000))).toEqual({ marked: [], counted: 0 });
+    // Each message the full store takes drops one: 5,001 here, `$summarized` the last.
+    const dropped = told(() => {
+      client.emit(ClientEvent.Event, editOf('$summarized'));
+      fill(5000)();
+    });
+    expect(dropped.marked).toContain('$unopened');
+    // A message the room does not find may be a root no timeline holds, such as a pinned one.
+    expect(dropped.marked).toContain('$m4999');
+    expect(dropped.counted).toBe(5001);
     unmount();
     client.emit(ClientEvent.Event, editOf('$reply'));
-    expect(told(fill(15000)).marked).toEqual([]);
+    expect(told(fill(10000)).marked).toEqual([]);
     stop();
   });
 
@@ -352,7 +361,7 @@ describe('useThreadOverviewRefreshCounter changes', () => {
     unmount();
 
     expect(changes.listened).toBe(false);
-    expect(setup('$open').state().overviewChanges.listened).toBeFalsy();
+    expect(setup('$open').state().overviewChanges.listened).toBe(false);
   });
 
   it('marks the thread of each event the client hears of this room, without a count', () => {
