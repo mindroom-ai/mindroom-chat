@@ -6,7 +6,7 @@
 #   scripts/e2e-slot.sh 3 --preview npx playwright test e2e/threads/pinned-threads.live.spec.ts
 #   scripts/e2e-slot.sh 3 --rtc --preview npx playwright test e2e/calls/calls.spec.ts
 #   scripts/e2e-slot.sh 3 down        # stop that slot's homeserver, agent stack and call service, delete its data
-#   scripts/e2e-slot.sh 3 up          # start that slot's homeserver empty and leave it running (scripts/live.py)
+#   scripts/e2e-slot.sh 3 up          # start that slot's homeserver empty and leave it running (for a live deployment)
 #
 # Slot N gets its own disposable Tuwunel (compose project mindroom-client-e2e-N on port 28100+N)
 # and its own Vite dev server port (4300+N). Slot 0 is the default `just hs-up` setup (28008, 4200).
@@ -41,8 +41,10 @@
 # $E2E_SNAPSHOT_ROOT/tokens (each names its holder), and waits, saying so once, while all are taken.
 # Its exit releases it, also on failure or Ctrl-C. `down` and `up` take none.
 #
-# A run refuses a slot that a `just live up` deployment (scripts/live.py) has: one with a
-# /tmp/mindroom-slots/<N>.live.json, a fixed path whatever E2E_SNAPSHOT_ROOT says.
+# /tmp/mindroom-slots/<N>.live.json is the contract with a live deployment (the dev repo's
+# `scripts/live.py`, mindroom-ai/dev): the wrapper creates it to claim slot N, starts the slot's
+# homeserver with `up`, and deletes the file once `down` has stopped every part. A run refuses a
+# slot whose file exists. The path is fixed, whatever E2E_SNAPSHOT_ROOT says.
 set -euo pipefail
 # Everything runs from main, which bash reads whole before it starts: editing this file while a
 # run is in progress (a shared checkout) cannot change what that run executes next. The scripts it

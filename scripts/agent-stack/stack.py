@@ -20,8 +20,8 @@ homeserver of e2e/docker-compose.yaml among them, 600). A real model cannot be r
 refuses it.
 
 The backend comes from a MindRoom checkout (--checkout, $E2E_MINDROOM_CHECKOUT, default the first of
-~/repos/dev/mindroom and ~/Work/dev/mindroom that exists) at a commit (--ref, $E2E_MINDROOM_REF, default the checkout's origin/main
-when it has one, otherwise HEAD). The checkout is only read: `git archive` copies the commit to
+~/repos/dev/mindroom and ~/Work/dev/mindroom that exists) at a commit (--ref, $E2E_MINDROOM_REF, default the checkout's
+origin/main when it has one, otherwise HEAD). The checkout is only read: `git archive` copies the commit to
 $E2E_AGENT_STACK_ROOT/src/<sha> (default /tmp/mindroom-client-agents), where `uv sync` makes its environment.
 
 Each start gets a new MindRoom namespace, so the agents (@mindroom_<agent>_<namespace>), their rooms and the
@@ -41,11 +41,11 @@ they reach the backend's process environment and nothing else; no file this scri
 still put them in its own state, so set $E2E_AGENT_STACK_ROOT to a private directory for a real-model stack. `down`
 writes the stack's model calls and tokens to $E2E_AGENT_STACK_ROOT/usage/ before it deletes the stack.
 
---model live is a normal assistant for trying things by hand (scripts/live.py, `just live up`, starts it): the helper
-has the real helper's tools and one plain instruction, no script. GPT-6 Luna (the `default` model, which needs
-OPENAI_API_KEY) runs the helper, the router, the thread summaries and the notes of real call transcripts. Claude Haiku
-5.5 is defined as `haiku`, so the thread's model picker or an edit of the config (which the backend reloads) switches
-to it; it then needs ANTHROPIC_API_KEY.
+--model live is a normal assistant for trying things by hand (a live deployment, the dev repo's scripts/live.py in
+mindroom-ai/dev, starts it): the helper has the real helper's tools and one plain instruction, no script. GPT-6 Luna
+(the `default` model, which needs OPENAI_API_KEY) runs the helper, the router, the thread summaries and the notes of
+real call transcripts. Claude Haiku 5.5 is defined as `haiku`, so the thread's model picker or an edit of the config
+(which the backend reloads) switches to it; it then needs ANTHROPIC_API_KEY.
 
 --calls SERVICE_URL makes the helper answer MatrixRTC voice calls on the MatrixRTC authorization
 service at that URL (the slot's scripts/e2e-rtc.sh service), with a realtime OpenAI voice model: gpt-realtime-2.1-mini
