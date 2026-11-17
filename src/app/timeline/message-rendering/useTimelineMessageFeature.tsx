@@ -64,6 +64,7 @@ import {
 import { MessageEvent } from '../../matrix/types/room';
 import { MessageEditNotDecryptedContent } from '../../messages/content/FallbackContent';
 import { Event, Message } from '../../messages/Message';
+import { getReplyTiming } from '../../messages/replyTiming';
 import { CollapsibleMessage, CollapsibleMessageStateProvider } from '../CollapsibleMessage';
 import {
   getCollapsibleMessageMeasurementKey,
@@ -666,6 +667,9 @@ export const useTimelineMessageFeature = ({
               ) : undefined
             }
             resolvedMessageContent={content}
+            replyTiming={
+              kind === 'message' ? getReplyTiming(event.getTs(), content, editedEvent) : undefined
+            }
             messageLayout={messageLayout}
             messageSpacing={messageSpacing}
             onReplyClick={readOnly ? undefined : handleReplyClick}

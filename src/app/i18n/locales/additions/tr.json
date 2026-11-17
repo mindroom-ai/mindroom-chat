@@ -785,6 +785,12 @@
       },
       "mindroomReplyDetails": {
         "subagents": "Alt ajanlar"
+      },
+      "replyTime": {
+        "started": "Başladı {{value1}}",
+        "finished": "Bitti {{value1}}",
+        "stillStreaming": "Hâlâ sürüyor",
+        "duration": "Süre {{value1}}"
       }
     },
     "message-search": {

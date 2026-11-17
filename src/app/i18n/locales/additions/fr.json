@@ -796,6 +796,12 @@
       },
       "mindroomReplyDetails": {
         "subagents": "Sous-agents"
+      },
+      "replyTime": {
+        "started": "Commencé {{value1}}",
+        "finished": "Terminé {{value1}}",
+        "stillStreaming": "Toujours en cours",
+        "duration": "Durée {{value1}}"
       }
     },
     "message-search": {

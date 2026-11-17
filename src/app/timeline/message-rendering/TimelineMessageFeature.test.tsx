@@ -437,6 +437,40 @@ describe('timeline message feature', () => {
     ).toBeGreaterThan(0);
   });
 
+  it("gives an agent reply's header when it started and when its stream finished", async () => {
+    const reply = makeEvent('$reply', {
+      sender: '@mindroom_code:example.org',
+      ts: 1_000,
+      content: { msgtype: 'm.text', body: '…', 'io.mindroom.stream_status': 'pending' },
+    }) as unknown as MatrixEvent;
+    const finished = makeEvent('$finished', {
+      sender: '@mindroom_code:example.org',
+      ts: 2_000,
+      content: { msgtype: 'm.text', body: 'Hi', 'io.mindroom.stream_status': 'pending' },
+    }) as unknown as MatrixEvent;
+    Object.assign(finished, {
+      __editedEvent: makeEvent('$finish', {
+        sender: '@mindroom_code:example.org',
+        ts: 434_000,
+        content: {
+          'm.new_content': { msgtype: 'm.text', body: 'Done', 'io.mindroom.stream_status': 'done' },
+        },
+      }),
+    });
+    const person = makeEvent('$person', { ts: 3_000 }) as unknown as MatrixEvent;
+    const { renderer } = await mountFeature([
+      rowFor(reply),
+      rowFor(finished, 1),
+      rowFor(person, 2),
+    ]);
+
+    const timingOf = (eventId: string) =>
+      renderer.root.findByProps({ 'data-message-id': eventId }).props.replyTiming;
+    expect(timingOf('$reply')).toEqual({ startTs: 1_000, streaming: true });
+    expect(timingOf('$finished')).toEqual({ startTs: 2_000, endTs: 434_000, streaming: false });
+    expect(timingOf('$person')).toBeUndefined();
+  });
+
   it('shrinks a summary in an open thread to a marker carrying its plan', async () => {
     const event = summaryEvent('$summary');
     const { renderer, data, update } = await mountFeature([rowFor(event)], '$thread');

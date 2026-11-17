@@ -785,6 +785,12 @@
       },
       "mindroomReplyDetails": {
         "subagents": "Subagenten"
+      },
+      "replyTime": {
+        "started": "Begonnen {{value1}}",
+        "finished": "Klaar {{value1}}",
+        "stillStreaming": "Nog bezig",
+        "duration": "Duur {{value1}}"
       }
     },
     "message-search": {

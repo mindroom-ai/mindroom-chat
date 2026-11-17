@@ -785,6 +785,12 @@
       },
       "mindroomReplyDetails": {
         "subagents": "সাব-এজেন্ট"
+      },
+      "replyTime": {
+        "started": "শুরু {{value1}}",
+        "finished": "শেষ {{value1}}",
+        "stillStreaming": "এখনও চলছে",
+        "duration": "সময়কাল {{value1}}"
       }
     },
     "message-search": {

@@ -137,8 +137,8 @@ export const formatDurationParts = (
   if (minutes < 60) {
     return { short: unit(minutes, 'minute'), tail: `\u00a0${unit(total % 60, 'second', true)}` };
   }
-  const hours = `${unit(Math.floor(minutes / 60), 'hour')}\u00a0${unit(minutes % 60, 'minute', true)}`;
-  return { short: hours, tail: '' };
+  const hours = unit(Math.floor(minutes / 60), 'hour');
+  return { short: `${hours}\u00a0${unit(minutes % 60, 'minute', true)}`, tail: '' };
 };
 
 /**

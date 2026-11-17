@@ -774,6 +774,12 @@
       },
       "mindroomReplyDetails": {
         "subagents": "하위 에이전트"
+      },
+      "replyTime": {
+        "started": "시작 {{value1}}",
+        "finished": "종료 {{value1}}",
+        "stillStreaming": "아직 진행 중",
+        "duration": "소요 시간 {{value1}}"
       }
     },
     "message-search": {
